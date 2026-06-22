@@ -3,13 +3,17 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: OmniProject API — thin proxy gateway to n8n webhooks
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: proxy
+    description: n8n proxy gateway
+  - name: projects
+    description: Project and issue management via n8n
 paths:
   /healthz:
     get:
@@ -24,6 +28,211 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /n8n-proxy:
+    post:
+      operationId: n8nProxy
+      tags: [proxy]
+      summary: Forward action to n8n webhook
+      description: Packages user action with OIDC token and POSTs to n8n webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/N8nActionInput"
+      responses:
+        "200":
+          description: n8n response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/N8nActionResult"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: n8n gateway error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List all projects
+      description: Fetches normalized project list via n8n
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+
+  /projects/{projectId}/issues:
+    get:
+      operationId: getProjectIssues
+      tags: [projects]
+      summary: List issues for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of issues
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Issue"
+    post:
+      operationId: createIssue
+      tags: [projects]
+      summary: Create a new issue
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueInput"
+      responses:
+        "201":
+          description: Created issue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Issue"
+
+  /projects/{projectId}/issues/{issueId}:
+    patch:
+      operationId: updateIssue
+      tags: [projects]
+      summary: Update an issue
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: issueId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueUpdate"
+      responses:
+        "200":
+          description: Updated issue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Issue"
+    delete:
+      operationId: deleteIssue
+      tags: [projects]
+      summary: Delete an issue
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: issueId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /projects/{projectId}/summary:
+    get:
+      operationId: getProjectSummary
+      tags: [projects]
+      summary: Get project summary stats
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Project summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectSummary"
+
+  /activity:
+    get:
+      operationId: listActivity
+      tags: [projects]
+      summary: Recent activity feed across all projects
+      responses:
+        "200":
+          description: Activity entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityEntry"
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [proxy]
+      summary: Get integration settings
+      responses:
+        "200":
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+    patch:
+      operationId: updateSettings
+      tags: [proxy]
+      summary: Update integration settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsUpdate"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +243,261 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    N8nActionInput:
+      type: object
+      properties:
+        action:
+          type: string
+          description: Action name (e.g. "create_ticket", "update_status")
+        payload:
+          type: object
+          additionalProperties: true
+        source:
+          type: string
+          description: Backend source (plane, openproject)
+      required:
+        - action
+        - payload
+
+    N8nActionResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          additionalProperties: true
+        message:
+          type: ["string", "null"]
+      required:
+        - success
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        identifier:
+          type: string
+        description:
+          type: ["string", "null"]
+        source:
+          type: string
+          description: plane or openproject
+        issueCount:
+          type: integer
+        completedCount:
+          type: integer
+        memberCount:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - identifier
+        - source
+        - issueCount
+        - completedCount
+        - memberCount
+        - updatedAt
+
+    Issue:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [backlog, todo, in_progress, in_review, done, cancelled]
+        priority:
+          type: string
+          enum: [none, urgent, high, medium, low]
+        assignee:
+          type: ["string", "null"]
+        labels:
+          type: array
+          items:
+            type: string
+        startDate:
+          type: ["string", "null"]
+          format: date
+        dueDate:
+          type: ["string", "null"]
+          format: date
+        source:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - title
+        - status
+        - priority
+        - labels
+        - source
+        - createdAt
+        - updatedAt
+
+    IssueInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        status:
+          type: string
+          enum: [backlog, todo, in_progress, in_review, done, cancelled]
+        priority:
+          type: string
+          enum: [none, urgent, high, medium, low]
+        assignee:
+          type: ["string", "null"]
+        labels:
+          type: array
+          items:
+            type: string
+        startDate:
+          type: ["string", "null"]
+          format: date
+        dueDate:
+          type: ["string", "null"]
+          format: date
+      required:
+        - title
+
+    IssueUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [backlog, todo, in_progress, in_review, done, cancelled]
+        priority:
+          type: string
+          enum: [none, urgent, high, medium, low]
+        assignee:
+          type: ["string", "null"]
+        labels:
+          type: array
+          items:
+            type: string
+        startDate:
+          type: ["string", "null"]
+          format: date
+        dueDate:
+          type: ["string", "null"]
+          format: date
+
+    ProjectSummary:
+      type: object
+      properties:
+        projectId:
+          type: string
+        total:
+          type: integer
+        byStatus:
+          type: object
+          additionalProperties:
+            type: integer
+        byPriority:
+          type: object
+          additionalProperties:
+            type: integer
+        completionRate:
+          type: number
+        overdue:
+          type: integer
+      required:
+        - projectId
+        - total
+        - byStatus
+        - byPriority
+        - completionRate
+        - overdue
+
+    ActivityEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        action:
+          type: string
+        actor:
+          type: string
+        projectId:
+          type: string
+        issueId:
+          type: ["string", "null"]
+        issueTitle:
+          type: ["string", "null"]
+        detail:
+          type: ["string", "null"]
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - id
+        - action
+        - actor
+        - projectId
+        - timestamp
+
+    Settings:
+      type: object
+      properties:
+        n8nWebhookUrl:
+          type: ["string", "null"]
+        aiProvider:
+          type: string
+          enum: [none, openai, ollama, anthropic]
+        backendSource:
+          type: string
+          enum: [plane, openproject, both]
+        oidcIssuerUrl:
+          type: ["string", "null"]
+      required:
+        - aiProvider
+        - backendSource
+
+    SettingsUpdate:
+      type: object
+      properties:
+        n8nWebhookUrl:
+          type: ["string", "null"]
+        aiProvider:
+          type: string
+          enum: [none, openai, ollama, anthropic]
+        backendSource:
+          type: string
+          enum: [plane, openproject, both]
+        oidcIssuerUrl:
+          type: ["string", "null"]

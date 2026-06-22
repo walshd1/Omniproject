@@ -1,0 +1,47 @@
+# MISSION
+Build OmniProject: A stateless Next.js (App Router) frontend orchestration shell. It acts as a "single pane of glass" over headless backends (Plane, OpenProject) using n8n as the exclusive middleware/API hub.
+
+# 1. CORE ARCHITECTURE & STACK
+- **Frontend:** Next.js 15+ (App Router), TypeScript, Tailwind CSS, Lucide React.
+- **State:** Zustand (for UI state: currentLens, isCommandOpen, isSettingsOpen, aiProvider).
+- **Auth (Strict):** `next-auth` configured purely for OIDC. Zero local authentication. Next.js middleware protects all routes. 
+- **API Gateway:** Next.js API routes act ONLY as thin proxies. They extract the OIDC Bearer token from the NextAuth session, attach it to headers, and forward payloads to the n8n webhook URL.
+- **UI UX:** Brutalist, high-contrast, minimalist, keyboard-driven (Linear/Plane UX).
+
+# 2. FILE STRUCTURE TO SCAFFOLD
+├── docker-compose.standalone.yml
+├── docker-compose.enterprise.yml
+├── k8s-enterprise-manifest.yaml
+├── scripts/
+│   └── verify-n8n-bidirectional.ts (Test script to validate data flow)
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx (Global layout + Cmd+K provider)
+│   │   ├── page.tsx (Dual-lens toggle: Agile Board vs Gantt)
+│   │   └── api/n8n-proxy/route.ts (Unified webhook gateway passing JWT headers)
+│   ├── components/
+│   │   ├── CommandPalette.tsx (Global Cmd+K action modal)
+│   │   ├── DashboardAgile.tsx (Plane Kanban board view)
+│   │   ├── DashboardGantt.tsx (OpenProject timeline view)
+│   │   └── SettingsModal.tsx (n8n & AI integration toggles)
+│   └── store/
+│       └── useStore.ts (Zustand: view toggle, modal states, integration configs, session context)
+
+# 3. BIDIRECTIONAL N8N VERIFICATION (CRITICAL)
+n8n is the sole data broker. You must explicitly build, check, and verify all n8n connections **both ways**:
+1. **Outbound (UI -> n8n -> Backend):** The Next.js proxy must successfully package a user action (e.g., "Create Ticket"), attach the OIDC token, and POST to n8n.
+2. **Inbound (Backend -> n8n -> UI):** n8n must be able to return a normalized state payload that the Next.js UI successfully parses and renders via Zustand.
+*Requirement:* Write a robust testing script (`scripts/verify-n8n-bidirectional.ts`) that mocks the n8n endpoint, sends a test payload from the Next.js proxy, and verifies the response structure. Do not consider the API complete until this script passes.
+
+# 4. INFRASTRUCTURE ARTIFACTS (TRI-MODE DEPLOYMENT)
+Generate THREE deployment files in the root directory. All must enforce OIDC.
+- **File 1: `docker-compose.standalone.yml`**: Includes `next-shell`, `n8n`, `ollama`, `traefik` (with routing labels for *.local). Bundle `authentik` (server, worker, redis, postgres) as the local IdP. Inject `OIDC_ISSUER_URL` pointing to local Authentik.
+- **File 2: `docker-compose.enterprise.yml`**: Excludes Traefik/Authentik. Exposes direct host ports (`3000:3000`). Injects BYO-SSO variables (`OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`).
+- **File 3: `k8s-enterprise-manifest.yaml`**: Consolidated Kubernetes manifest. Includes Deployments, ClusterIP Services, an Ingress resource, and ConfigMap/Secrets for OIDC variables.
+
+# 5. EXECUTION ORDER (Follow Strictly)
+1. **Scaffold Infra:** Output the three infrastructure artifacts (Docker Compose & K8s) so the environment topology is defined.
+2. **Auth & State:** Implement NextAuth (OIDC only), Zustand store, and Next.js layout frame.
+3. **API & Middleware:** Build the `api/n8n-proxy/route.ts`. 
+4. **Testing:** Write and execute `scripts/verify-n8n-bidirectional.ts` to ensure the Next.js <-> n8n data contract is solid.
+5. **UI Shell:** Build the brutalist UI views (Agile/Gantt toggle) and `Cmd+K` navigation, wiring them to the verified API proxy.

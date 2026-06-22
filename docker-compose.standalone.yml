@@ -1,0 +1,180 @@
+version: "3.9"
+
+# OmniProject — Standalone Mode
+# Includes: next-shell, n8n, ollama, traefik, authentik (server+worker+redis+postgres)
+# Local IdP: Authentik at authentik.local
+# Access: https://*.local (Traefik handles routing)
+
+networks:
+  omni-net:
+    driver: bridge
+
+volumes:
+  n8n_data:
+  ollama_data:
+  authentik_pg_data:
+  authentik_redis_data:
+  authentik_media:
+  authentik_certs:
+
+services:
+  # ── Reverse Proxy ───────────────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3.0
+    container_name: omni-traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.local.acme.tlschallenge=true"
+      - "--log.level=WARN"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Traefik dashboard
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - omni-net
+    restart: unless-stopped
+
+  # ── OmniProject Shell ───────────────────────────────────────────────────────
+  omni-shell:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: omni-shell
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      BASE_PATH: /
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/omniproject
+      OIDC_ISSUER_URL: http://authentik:9000/application/o/omniproject/
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-omniproject}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-changeme}
+      SESSION_SECRET: ${SESSION_SECRET:-change-in-production}
+      DATABASE_URL: ${DATABASE_URL:-}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.omni.rule=Host(`app.local`)"
+      - "traefik.http.routers.omni.entrypoints=websecure"
+      - "traefik.http.services.omni.loadbalancer.server.port=3000"
+    depends_on:
+      - n8n
+      - authentik-server
+    networks:
+      - omni-net
+    restart: unless-stopped
+
+  # ── n8n ─────────────────────────────────────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: omni-n8n
+    environment:
+      N8N_HOST: n8n.local
+      N8N_PORT: 5678
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: https://n8n.local/
+      GENERIC_TIMEZONE: UTC
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-changeme}
+      DB_TYPE: sqlite
+    volumes:
+      - n8n_data:/home/node/.n8n
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.local`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+    networks:
+      - omni-net
+    restart: unless-stopped
+
+  # ── Ollama (local LLM) ──────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: omni-ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ollama.rule=Host(`ollama.local`)"
+      - "traefik.http.routers.ollama.entrypoints=websecure"
+      - "traefik.http.services.ollama.loadbalancer.server.port=11434"
+    networks:
+      - omni-net
+    restart: unless-stopped
+
+  # ── Authentik (local IdP) ───────────────────────────────────────────────────
+  authentik-postgres:
+    image: postgres:16-alpine
+    container_name: omni-authentik-pg
+    environment:
+      POSTGRES_DB: authentik
+      POSTGRES_USER: authentik
+      POSTGRES_PASSWORD: ${AUTHENTIK_PG_PASSWORD:-authentik-pg-password}
+    volumes:
+      - authentik_pg_data:/var/lib/postgresql/data
+    networks:
+      - omni-net
+    restart: unless-stopped
+
+  authentik-redis:
+    image: redis:7-alpine
+    container_name: omni-authentik-redis
+    volumes:
+      - authentik_redis_data:/data
+    networks:
+      - omni-net
+    restart: unless-stopped
+
+  authentik-server:
+    image: ghcr.io/goauthentik/server:2024.6
+    container_name: omni-authentik-server
+    command: server
+    environment:
+      AUTHENTIK_REDIS__HOST: authentik-redis
+      AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_PG_PASSWORD:-authentik-pg-password}
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:-change-me-in-production}
+      AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+    volumes:
+      - authentik_media:/media
+      - authentik_certs:/certs
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.authentik.rule=Host(`authentik.local`)"
+      - "traefik.http.routers.authentik.entrypoints=websecure"
+      - "traefik.http.services.authentik.loadbalancer.server.port=9000"
+    depends_on:
+      - authentik-postgres
+      - authentik-redis
+    networks:
+      - omni-net
+    restart: unless-stopped
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:2024.6
+    container_name: omni-authentik-worker
+    command: worker
+    environment:
+      AUTHENTIK_REDIS__HOST: authentik-redis
+      AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_PG_PASSWORD:-authentik-pg-password}
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:-change-me-in-production}
+    volumes:
+      - authentik_media:/media
+      - authentik_certs:/certs
+    depends_on:
+      - authentik-postgres
+      - authentik-redis
+    networks:
+      - omni-net
+    restart: unless-stopped

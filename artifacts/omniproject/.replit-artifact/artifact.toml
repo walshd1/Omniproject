@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "OmniProject"
+version = "1.0.0"
+id = "artifacts/omniproject"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25756
+
+[services.development]
+run = "pnpm --filter @workspace/omniproject run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/omniproject", "run", "build" ]
+publicDir = "artifacts/omniproject/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25756"
+BASE_PATH = "/"

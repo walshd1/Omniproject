@@ -1,0 +1,79 @@
+version: "3.9"
+
+# OmniProject — Enterprise Mode
+# BYO-SSO: supply your own OIDC provider credentials.
+# No Traefik, no Authentik. Direct host ports.
+# Uses external identity provider (Okta, Keycloak, Azure AD, etc.)
+
+networks:
+  omni-enterprise:
+    driver: bridge
+
+volumes:
+  n8n_enterprise_data:
+  ollama_enterprise_data:
+
+services:
+  # ── OmniProject Shell ───────────────────────────────────────────────────────
+  omni-shell:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: omni-shell
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      BASE_PATH: /
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678/webhook/omniproject}
+      # ── BYO-SSO (required) ─────────────────────────────────────────────────
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL}       # e.g. https://your-okta.com/oauth2/default
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}         # From your IdP application
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET} # From your IdP application
+      # ── Optional ───────────────────────────────────────────────────────────
+      SESSION_SECRET: ${SESSION_SECRET:-change-in-production}
+      DATABASE_URL: ${DATABASE_URL:-}
+      AI_PROVIDER: ${AI_PROVIDER:-none}         # none | openai | ollama | anthropic
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      - n8n
+    networks:
+      - omni-enterprise
+    restart: unless-stopped
+
+  # ── n8n ─────────────────────────────────────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: omni-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_PORT: 5678
+      GENERIC_TIMEZONE: UTC
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-changeme}
+      DB_TYPE: sqlite
+      # Webhook URL should match how n8n is exposed externally
+      WEBHOOK_URL: ${N8N_PUBLIC_URL:-http://localhost:5678/}
+    volumes:
+      - n8n_enterprise_data:/home/node/.n8n
+    networks:
+      - omni-enterprise
+    restart: unless-stopped
+
+  # ── Ollama (local LLM — optional) ───────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: omni-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_enterprise_data:/root/.ollama
+    networks:
+      - omni-enterprise
+    restart: unless-stopped
+    profiles:
+      - ollama  # Only start if: docker compose --profile ollama up

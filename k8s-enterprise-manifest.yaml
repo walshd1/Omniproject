@@ -1,0 +1,249 @@
+---
+# OmniProject — Kubernetes Enterprise Manifest
+# Includes: Deployments, ClusterIP Services, Ingress, ConfigMap, Secrets
+# Apply with: kubectl apply -f k8s-enterprise-manifest.yaml
+# Requires: kubectl, a running cluster, and an existing OIDC provider
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: omniproject
+  labels:
+    app.kubernetes.io/part-of: omniproject
+
+---
+# ── ConfigMap: non-sensitive configuration ────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: omniproject-config
+  namespace: omniproject
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  BASE_PATH: "/"
+  N8N_WEBHOOK_URL: "http://n8n:5678/webhook/omniproject"
+  AI_PROVIDER: "none"
+  GENERIC_TIMEZONE: "UTC"
+  N8N_PORT: "5678"
+
+---
+# ── Secret: sensitive OIDC and service credentials ───────────────────────────
+# Replace placeholder values with your actual credentials before applying.
+# Prefer a secrets manager (Vault, AWS Secrets Manager, Sealed Secrets) in prod.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: omniproject-secrets
+  namespace: omniproject
+type: Opaque
+stringData:
+  OIDC_ISSUER_URL: "https://your-idp.example.com/oauth2/default"  # REPLACE
+  OIDC_CLIENT_ID: "your-client-id"                                 # REPLACE
+  OIDC_CLIENT_SECRET: "your-client-secret"                         # REPLACE
+  SESSION_SECRET: "replace-with-random-64-char-string"             # REPLACE
+  N8N_BASIC_AUTH_USER: "admin"
+  N8N_BASIC_AUTH_PASSWORD: "changeme"                              # REPLACE
+  OPENAI_API_KEY: ""
+  ANTHROPIC_API_KEY: ""
+
+---
+# ── OmniProject Shell — Deployment ───────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: omni-shell
+  namespace: omniproject
+  labels:
+    app: omni-shell
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: omni-shell
+  template:
+    metadata:
+      labels:
+        app: omni-shell
+    spec:
+      containers:
+        - name: omni-shell
+          image: your-registry/omniproject-shell:latest  # REPLACE with your image
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: omniproject-config
+            - secretRef:
+                name: omniproject-secrets
+          livenessProbe:
+            httpGet:
+              path: /api/healthz
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/healthz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# ── OmniProject Shell — ClusterIP Service ─────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: omni-shell
+  namespace: omniproject
+spec:
+  selector:
+    app: omni-shell
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+
+---
+# ── n8n — Deployment ──────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: omniproject
+  labels:
+    app: n8n
+spec:
+  replicas: 1  # n8n with sqlite is single-instance; use PostgreSQL for multi-replica
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+    spec:
+      containers:
+        - name: n8n
+          image: n8nio/n8n:latest
+          ports:
+            - containerPort: 5678
+          env:
+            - name: N8N_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: omniproject-config
+                  key: N8N_PORT
+            - name: GENERIC_TIMEZONE
+              valueFrom:
+                configMapKeyRef:
+                  name: omniproject-config
+                  key: GENERIC_TIMEZONE
+            - name: N8N_BASIC_AUTH_ACTIVE
+              value: "true"
+            - name: N8N_BASIC_AUTH_USER
+              valueFrom:
+                secretKeyRef:
+                  name: omniproject-secrets
+                  key: N8N_BASIC_AUTH_USER
+            - name: N8N_BASIC_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: omniproject-secrets
+                  key: N8N_BASIC_AUTH_PASSWORD
+            - name: DB_TYPE
+              value: sqlite
+            - name: WEBHOOK_URL
+              value: "https://n8n.your-domain.com/"  # REPLACE
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+      volumes:
+        - name: n8n-data
+          persistentVolumeClaim:
+            claimName: n8n-pvc
+
+---
+# ── n8n — PersistentVolumeClaim ───────────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-pvc
+  namespace: omniproject
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# ── n8n — ClusterIP Service ───────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n
+  namespace: omniproject
+spec:
+  selector:
+    app: n8n
+  ports:
+    - protocol: TCP
+      port: 5678
+      targetPort: 5678
+
+---
+# ── Ingress — routes external traffic to services ─────────────────────────────
+# Requires an Ingress controller (nginx-ingress or similar) installed in cluster.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: omniproject-ingress
+  namespace: omniproject
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # Uncomment for cert-manager TLS:
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - app.your-domain.com    # REPLACE
+        - n8n.your-domain.com    # REPLACE
+      secretName: omniproject-tls
+  rules:
+    - host: app.your-domain.com  # REPLACE
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: omni-shell
+                port:
+                  number: 3000
+    - host: n8n.your-domain.com  # REPLACE
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n
+                port:
+                  number: 5678
