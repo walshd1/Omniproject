@@ -97,6 +97,8 @@ should reflect reduced confidence) rather than fabricate it.
 | Portfolio KPI | ○ | – | – | ● | ● | ● |
 | Resource Heatmap | – | **●** | **●** | – | – | – |
 | Financial EVM | – | – | – | **●** | ● (SPI) | – |
+| Progress Trend | ○ | – | – | – | ○ | – |
+| RAID Log | – | ○ | – | – | – | ○ |
 
 **●** required · ○ enriches · – not used
 
@@ -145,7 +147,8 @@ Response (`Capabilities`):
 {
   "mode": "n8n",        // n8n | env | demo
   "issues": true, "scheduling": true, "portfolio": true,
-  "resources": false, "financials": false, "baseline": false, "blockers": false
+  "resources": false, "financials": false, "baseline": false, "blockers": false,
+  "history": false, "raid": false
 }
 ```
 
@@ -160,4 +163,57 @@ Resolution order:
    implement it.
 3. **Demo** — all domains on (sample data covers everything).
 
-See also: [METHODOLOGIES.md](METHODOLOGIES.md) · [TECHNICAL.md](TECHNICAL.md).
+## 7. History, baselines & RAID — sourced, never stored
+
+OmniProject is a **stateless overlay**: it keeps no database of its own, so the
+systems of record underneath it (OpenProject, Jira, …) stay authoritative for
+history and baselines. These domains are **read-through** via n8n actions; if the
+backend doesn't track them, the corresponding view/report reports unavailable
+rather than fabricating data.
+
+| Action (`X-OmniProject-Action`) | Source tag | Maps to (examples) | Capability |
+| ------------------------------- | ---------- | ------------------ | ---------- |
+| `get_project_history` | `history_provider` | OpenProject journals/activity, Jira changelog, an analytics warehouse snapshot | `history` |
+| `get_baseline` | `baseline_store` | OpenProject baselines, an MS Project/Primavera saved plan | `baseline` |
+| `get_raid` / `create_raid_entry` | `raid_register` | a risk register, a dedicated RAID project/board, a custom table | `raid` |
+| `get_notifications` | `notification_center` | backend notifications / mentions / due-soon feeds | (always best-effort) |
+
+Contract notes:
+
+- **History** returns an ordered array of `{ date, completionRate, totalIssues,
+  completedIssues, openBlockers?, provenance }` (oldest first). When the backend
+  has no journal, return `[]`.
+- **Baseline** returns a `ProjectBaseline` (`{ projectId, name?, capturedAt,
+  items[], provenance }`) or **`null`** when the backend holds none.
+- **RAID** writes (`create_raid_entry`) require ≥ contributor role at the gateway
+  and are written to the system of record by your workflow — OmniProject does not
+  retain them.
+
+## 8. Provenance — sourced vs derived vs sample
+
+Every analytics figure is labelled so a synthesised number is never shown as
+fact (`Provenance` enum):
+
+- **`sourced`** — read from the backend system of record via n8n.
+- **`derived`** — computed by the gateway from real issue data (e.g. a trend
+  reconstructed from current issue state).
+- **`sample`** — demo/placeholder data; no backend wired.
+
+The UI renders this as a badge on each report/view header (`ProvenanceBadge`).
+When no provenance is present on a payload it is inferred from
+`capabilities.mode` (`demo ⇒ sample`, otherwise `sourced`).
+
+## 9. Concurrency & RBAC (write path)
+
+- **Optimistic concurrency:** issues carry a `version` token (mirrored from the
+  backend, e.g. OpenProject `lockVersion`). Updates send `expectedVersion`; a
+  stale write is rejected with **409** (the current state is returned) instead of
+  silently overwriting a concurrent change.
+- **RBAC:** roles (`viewer` < `contributor` < `manager` < `admin`) are mapped
+  from the IdP's role/group claims via `OIDC_ADMIN_ROLES` / `OIDC_MANAGER_ROLES`
+  / `OIDC_CONTRIBUTOR_ROLES` / `OIDC_VIEWER_ROLES` (+ `OIDC_DEFAULT_ROLE`).
+  Mutations require ≥ contributor; settings require admin. The backend still
+  re-checks every brokered write using the forwarded user token, so the gateway
+  gate is defence-in-depth — see [SECURITY.md](../SECURITY.md).
+
+See also: [METHODOLOGIES.md](METHODOLOGIES.md) · [TECHNICAL.md](TECHNICAL.md) · [SECURITY.md](../SECURITY.md).

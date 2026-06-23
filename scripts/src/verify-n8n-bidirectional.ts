@@ -88,7 +88,17 @@ function mockResponseFor(action: string): Record<string, unknown> {
     case "delete_issue":
       return { success: true, data: {} };
     case "get_capabilities":
-      return { success: true, data: { issues: true, scheduling: true, resources: true, financials: true, portfolio: true, baseline: true, blockers: true } };
+      return { success: true, data: { issues: true, scheduling: true, resources: true, financials: true, portfolio: true, baseline: true, blockers: true, history: true, raid: true } };
+    case "get_project_history":
+      return { success: true, data: [{ date: "2026-06-01", completionRate: 20, totalIssues: 5, completedIssues: 1, openBlockers: 1 }, { date: "2026-06-15", completionRate: 60, totalIssues: 5, completedIssues: 3, openBlockers: 0 }] };
+    case "get_baseline":
+      return { success: true, data: { projectId: "p1", name: "Q2 Baseline", capturedAt: new Date().toISOString(), items: [{ issueId: "i1", title: "Issue One", plannedStart: "2026-06-01", plannedFinish: "2026-06-20" }] } };
+    case "get_raid":
+      return { success: true, data: [{ id: "r1", projectId: "p1", type: "risk", title: "Backend risk", severity: "high", status: "open", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }] };
+    case "create_raid_entry":
+      return { success: true, data: { id: "r-new", projectId: "p1", type: "risk", title: "Created", severity: "low", status: "open", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } };
+    case "get_notifications":
+      return { success: true, data: [{ id: "n1", kind: "assignment", title: "Assigned to you", read: false, timestamp: new Date().toISOString() }] };
     default:
       // sync_state / create_ticket and anything else → the normalized payload.
       return N8N_INBOUND_RESPONSE;
@@ -194,6 +204,44 @@ function post(url: string, body: unknown, headers: Record<string, string> = {}):
       },
     );
 
+    req.on("error", reject);
+    req.setTimeout(8_000, () => {
+      req.destroy();
+      reject(new Error("Request timeout"));
+    });
+    req.write(payload);
+    req.end();
+  });
+}
+
+function patch(url: string, body: unknown): Promise<{ status: number; data: unknown }> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const payload = JSON.stringify(body);
+    const req = http.request(
+      {
+        hostname: parsed.hostname,
+        port: Number(parsed.port),
+        path: parsed.pathname,
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(payload),
+          ...(sessionCookie ? { Cookie: sessionCookie } : {}),
+        },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          try {
+            resolve({ status: res.statusCode ?? 0, data: JSON.parse(data) });
+          } catch {
+            resolve({ status: res.statusCode ?? 0, data });
+          }
+        });
+      },
+    );
     req.on("error", reject);
     req.setTimeout(8_000, () => {
       req.destroy();
@@ -430,6 +478,7 @@ async function testApiRoutes(apiBase: string) {
     const c = r.data as Record<string, unknown>;
     assert("Capabilities has mode", typeof c.mode === "string");
     assert("Capabilities has boolean domains", typeof c.issues === "boolean" && typeof c.resources === "boolean");
+    assert("Capabilities exposes history + raid domains", typeof c.history === "boolean" && typeof c.raid === "boolean");
   } catch {
     assert("GET /api/capabilities reachable", false);
   }
@@ -487,6 +536,86 @@ async function testExports(apiBase: string) {
   }
 }
 
+async function testGovernance(apiBase: string) {
+  console.log(bold("\n[6] Governance: history, baseline, RAID, notifications, RBAC, concurrency"));
+
+  // Role surfaced on the session (demo session ⇒ admin).
+  try {
+    const r = await get(`${apiBase}/api/auth/me`);
+    assert("auth/me returns a role after login", typeof (r.data as Record<string, unknown>)?.role === "string");
+    assert("Demo session role is admin", (r.data as Record<string, unknown>)?.role === "admin");
+  } catch {
+    assert("auth/me role reachable", false);
+  }
+
+  // History (backend-sourced trend; demo derives it).
+  try {
+    const r = await get(`${apiBase}/api/projects/proj-001/history`);
+    assert("GET /history returns 200", r.status === 200, `got ${r.status}`);
+    assert("History is an array", Array.isArray(r.data));
+    if (Array.isArray(r.data) && r.data.length > 0) {
+      const p = r.data[0] as Record<string, unknown>;
+      assert("History point has completionRate + provenance", typeof p.completionRate === "number" && typeof p.provenance === "string");
+    }
+  } catch {
+    assert("GET /history reachable", false);
+  }
+
+  // Baseline (object or null).
+  try {
+    const r = await get(`${apiBase}/api/projects/proj-001/baseline`);
+    assert("GET /baseline returns 200", r.status === 200, `got ${r.status}`);
+    assert("Baseline is an object or null", r.data === null || typeof r.data === "object");
+  } catch {
+    assert("GET /baseline reachable", false);
+  }
+
+  // RAID log read + write.
+  try {
+    const r = await get(`${apiBase}/api/projects/proj-001/raid`);
+    assert("GET /raid returns 200", r.status === 200, `got ${r.status}`);
+    assert("RAID is an array", Array.isArray(r.data));
+  } catch {
+    assert("GET /raid reachable", false);
+  }
+  try {
+    const r = await post(`${apiBase}/api/projects/proj-001/raid`, { type: "risk", title: "Verify risk", severity: "medium" });
+    assert("POST /raid returns 201", r.status === 201, `got ${r.status}`);
+    assert("Created RAID entry has an id", typeof (r.data as Record<string, unknown>)?.id === "string");
+  } catch {
+    assert("POST /raid reachable", false);
+  }
+
+  // Notifications.
+  try {
+    const r = await get(`${apiBase}/api/notifications`);
+    assert("GET /notifications returns 200", r.status === 200, `got ${r.status}`);
+    assert("Notifications is an array", Array.isArray(r.data));
+  } catch {
+    assert("GET /notifications reachable", false);
+  }
+
+  // Optimistic concurrency (demo mode enforces the version check).
+  try {
+    const list = await get(`${apiBase}/api/projects/proj-001/issues`);
+    const issues = Array.isArray(list.data) ? (list.data as Array<Record<string, unknown>>) : [];
+    const target = issues.find((i) => typeof i.version === "number");
+    if (target) {
+      const stale = await patch(`${apiBase}/api/projects/proj-001/issues/${target.id}`, { status: "in_progress", expectedVersion: 999 });
+      assert("Stale expectedVersion is rejected with 409", stale.status === 409, `got ${stale.status}`);
+      assert("409 returns the current server state", !!(stale.data as Record<string, unknown>)?.current);
+
+      const fresh = await patch(`${apiBase}/api/projects/proj-001/issues/${target.id}`, { status: "in_progress", expectedVersion: target.version });
+      assert("Correct expectedVersion succeeds (200)", fresh.status === 200, `got ${fresh.status}`);
+      assert("Version is bumped after a successful update", (fresh.data as Record<string, unknown>)?.version === (target.version as number) + 1);
+    } else {
+      assert("Issue carries a version token", false, "no versioned issue found");
+    }
+  } catch (err) {
+    assert("Concurrency check reachable", false, String(err));
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   console.log(bold("OmniProject — n8n Bidirectional Verification Script"));
@@ -514,8 +643,11 @@ async function main() {
     await login(apiBase);
     console.log(dim(sessionCookie ? "Authenticated (demo session)" : "No session cookie issued"));
 
-    // Override the API's n8n URL by patching settings
-    await post(`${apiBase}/api/settings`, {
+    // Point the gateway's n8n broker at our mock (PATCH /settings; the demo
+    // session is admin so the role gate passes). The gateway still runs in demo
+    // mode for typed routes, so we exercise both the real sample-data logic and
+    // the proxy brokering against the mock.
+    await patch(`${apiBase}/api/settings`, {
       n8nWebhookUrl: mockN8nUrl,
     }).catch(() => null);
 
@@ -524,6 +656,7 @@ async function main() {
     await testValidation(apiBase);
     await testApiRoutes(apiBase);
     await testExports(apiBase);
+    await testGovernance(apiBase);
   } finally {
     mockServer.close();
   }

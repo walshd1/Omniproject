@@ -17,6 +17,7 @@ Switch views from the **dashboard header** (the view switcher), or via **`Cmd+K`
 | **Scrum Sprint** | Scrum | Active sprint board, product backlog, burndown, velocity | sprint membership + story points |
 | **Gantt Timeline** | Waterfall / Critical Path | Time-phased bars, today marker, overdue | `startDate` / `dueDate` |
 | **PRINCE2 Stages** | PRINCE2 | Management stages, product status, highlight report (RAG, exceptions, tolerances) | management stage + completion |
+| **RAID Log** | Risk & governance | Risks, Assumptions, Issues, Dependencies register with severity/status | backend RAID register (`get_raid`) |
 | **List / Table** | neutral | Sortable table of all work items | all fields |
 
 ## How concepts are derived
