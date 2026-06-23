@@ -21,6 +21,7 @@ import type {
 
 import type {
   ActivityEntry,
+  Capabilities,
   ErrorResponse,
   HealthStatus,
   Issue,
@@ -948,6 +949,84 @@ export function useListActivity<TData = Awaited<ReturnType<typeof listActivity>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListActivityQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetCapabilitiesUrl = () => {
+
+
+
+
+  return `/api/capabilities`
+}
+
+/**
+ * Sourced from n8n (action get_capabilities, source capability_probe) so the UI can pre-emptively label which reports/views are available. Falls back to the CAPABILITIES env override, or demo defaults.
+ * @summary Which data domains the wired backend(s) can populate
+ */
+export const getCapabilities = async ( options?: RequestInit): Promise<Capabilities> => {
+
+  return customFetch<Capabilities>(getGetCapabilitiesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCapabilitiesQueryKey = () => {
+    return [
+    `/api/capabilities`
+    ] as const;
+    }
+
+
+export const getGetCapabilitiesQueryOptions = <TData = Awaited<ReturnType<typeof getCapabilities>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCapabilitiesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCapabilities>>> = ({ signal }) => getCapabilities({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCapabilities>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCapabilitiesQueryResult = NonNullable<Awaited<ReturnType<typeof getCapabilities>>>
+export type GetCapabilitiesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Which data domains the wired backend(s) can populate
+ */
+
+export function useGetCapabilities<TData = Awaited<ReturnType<typeof getCapabilities>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCapabilitiesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

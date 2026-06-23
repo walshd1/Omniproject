@@ -261,6 +261,23 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityEntry"
 
+  /capabilities:
+    get:
+      operationId: getCapabilities
+      tags: [proxy]
+      summary: Which data domains the wired backend(s) can populate
+      description: >-
+        Sourced from n8n (action get_capabilities, source capability_probe) so the
+        UI can pre-emptively label which reports/views are available. Falls back to
+        the CAPABILITIES env override, or demo defaults.
+      responses:
+        "200":
+          description: Capability flags
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Capabilities"
+
   /settings:
     get:
       operationId: getSettings
@@ -630,6 +647,37 @@ components:
         - actor
         - projectId
         - timestamp
+
+    Capabilities:
+      type: object
+      description: Data domains the wired backend(s) can populate.
+      properties:
+        mode:
+          type: string
+          description: How capabilities were resolved (n8n | env | demo).
+        issues:
+          type: boolean
+        scheduling:
+          type: boolean
+        resources:
+          type: boolean
+        financials:
+          type: boolean
+        portfolio:
+          type: boolean
+        baseline:
+          type: boolean
+        blockers:
+          type: boolean
+      required:
+        - mode
+        - issues
+        - scheduling
+        - resources
+        - financials
+        - portfolio
+        - baseline
+        - blockers
 
     Settings:
       type: object

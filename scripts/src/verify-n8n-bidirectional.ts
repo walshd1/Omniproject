@@ -87,6 +87,8 @@ function mockResponseFor(action: string): Record<string, unknown> {
       return { success: true, data: { id: "i1", projectId: "p1", title: "Updated", status: "done", priority: "high", labels: [], source: "plane", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } };
     case "delete_issue":
       return { success: true, data: {} };
+    case "get_capabilities":
+      return { success: true, data: { issues: true, scheduling: true, resources: true, financials: true, portfolio: true, baseline: true, blockers: true } };
     default:
       // sync_state / create_ticket and anything else → the normalized payload.
       return N8N_INBOUND_RESPONSE;
@@ -419,6 +421,17 @@ async function testApiRoutes(apiBase: string) {
     assert("GET /api/healthz returns 200", r.status === 200);
   } catch {
     assert("GET /api/healthz reachable", false);
+  }
+
+  // Capabilities
+  try {
+    const r = await get(`${apiBase}/api/capabilities`);
+    assert("GET /api/capabilities returns 200", r.status === 200);
+    const c = r.data as Record<string, unknown>;
+    assert("Capabilities has mode", typeof c.mode === "string");
+    assert("Capabilities has boolean domains", typeof c.issues === "boolean" && typeof c.resources === "boolean");
+  } catch {
+    assert("GET /api/capabilities reachable", false);
   }
 
   // AI status
