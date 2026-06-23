@@ -1,6 +1,42 @@
+import crypto from "node:crypto";
 import type { Request } from "express";
 import { getSession } from "../routes/auth";
 import { getSettings } from "./settings";
+
+/** The gateway is the origin of UI-initiated changes. */
+export const GATEWAY_ORIGIN = "omniproject";
+
+/**
+ * Secure context block carried in the outbound payload so n8n can perform
+ * downstream writes *as the active user* (dynamic Bearer override) instead of a
+ * shared admin token — preserving per-user auditing in Plane/OpenProject.
+ */
+export interface UserContext {
+  sub?: string;
+  email?: string;
+  name?: string;
+  token?: string;
+}
+
+/** Build the user-context block from the request's session. */
+export function userContextFromReq(req: Request): UserContext {
+  const session = getSession(req);
+  if (!session) return {};
+  return { sub: session.sub, email: session.email, name: session.name, token: session.accessToken };
+}
+
+/**
+ * Deterministic idempotency key:
+ *   sha256(action + projectId + issueId + timestamp_rounded_to_nearest_second)
+ * Identical actions on the same entity within one second collapse to the same
+ * key, letting n8n drop duplicate triggers / webhook storms.
+ */
+export function idempotencyKey(action: string, payload: Record<string, unknown>): string {
+  const projectId = String(payload["projectId"] ?? "");
+  const issueId = String(payload["issueId"] ?? "");
+  const second = Math.round(Date.now() / 1000);
+  return crypto.createHash("sha256").update(`${action}:${projectId}:${issueId}:${second}`).digest("hex");
+}
 
 /**
  * Single broker to n8n. Every project/issue data action and every mutating
@@ -52,8 +88,19 @@ export function authHeaderFromReq(req: Request): string | undefined {
 export async function callN8n<T = unknown>(
   action: string,
   payload: Record<string, unknown>,
-  opts: { authHeader?: string; source?: string } = {},
+  opts: { authHeader?: string; source?: string; userContext?: UserContext; origin?: string } = {},
 ): Promise<N8nResult<T>> {
+  const origin = opts.origin ?? GATEWAY_ORIGIN;
+  const key = idempotencyKey(action, payload);
+
+  // Enrich the payload with the loop-guard origin and the user-context block
+  // (downstream nodes read userContext.token for per-user impersonation).
+  const enrichedPayload: Record<string, unknown> = {
+    ...payload,
+    origin,
+    ...(opts.userContext ? { userContext: opts.userContext } : {}),
+  };
+
   const res = await fetch(webhookUrl(), {
     method: "POST",
     headers: {
@@ -61,8 +108,10 @@ export async function callN8n<T = unknown>(
       ...(opts.authHeader ? { Authorization: opts.authHeader } : {}),
       "X-OmniProject-Source": opts.source ?? "unknown",
       "X-OmniProject-Action": action,
+      "X-OmniProject-Origin": origin,
+      "X-OmniProject-Idempotency-Key": key,
     },
-    body: JSON.stringify({ action, payload, source: opts.source }),
+    body: JSON.stringify({ action, payload: enrichedPayload, source: opts.source, origin, idempotencyKey: key }),
     signal: AbortSignal.timeout(10_000),
   });
 

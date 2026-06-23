@@ -284,9 +284,27 @@ async function testOutbound(apiBase: string) {
       captured.headers["x-omniproject-source"] === "plane",
     );
 
+    const idemKey = captured.headers["x-omniproject-idempotency-key"];
+    assert(
+      "n8n received X-OmniProject-Idempotency-Key (sha256)",
+      typeof idemKey === "string" && /^[0-9a-f]{64}$/.test(idemKey),
+      String(idemKey),
+    );
+    assert(
+      "n8n received X-OmniProject-Origin header",
+      captured.headers["x-omniproject-origin"] === "omniproject",
+    );
+
     const capturedBody = captured.body as Record<string, unknown>;
     assert("n8n received action field", capturedBody?.action === "create_ticket");
     assert("n8n received payload.title", (capturedBody?.payload as Record<string, unknown>)?.title === "Test Issue from OmniProject");
+    assert("n8n received body.origin = omniproject", capturedBody?.origin === "omniproject");
+    assert("n8n received body.idempotencyKey", typeof capturedBody?.idempotencyKey === "string");
+
+    const userContext = (capturedBody?.payload as Record<string, unknown>)?.userContext as
+      | Record<string, unknown>
+      | undefined;
+    assert("n8n received payload.userContext (impersonation)", !!userContext && typeof userContext.email === "string");
   }
 }
 

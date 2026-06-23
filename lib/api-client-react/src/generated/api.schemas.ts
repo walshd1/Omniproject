@@ -21,6 +21,10 @@ export interface N8nActionInput {
   payload: N8nActionInputPayload;
   /** Backend routing hint (free-form; e.g. "all", "jira", "plane") */
   source?: string;
+  /** Deterministic dedupe key the gateway appends (also sent as the X-OmniProject-Idempotency-Key header) so n8n can drop duplicate triggers within the same minute. */
+  idempotencyKey?: string;
+  /** System initiating the action (defaults to "omniproject"). */
+  origin?: string;
 }
 
 export type N8nActionResultData = { [key: string]: unknown };
@@ -85,6 +89,11 @@ export interface Issue {
   /** @nullable */
   dueDate?: string | null;
   source: string;
+  /**
+     * Origin system/principal that last mutated this issue (e.g. "omniproject", "plane", "openproject"). n8n compares this against the change origin to drop circular sync loops (webhook storms).
+     * @nullable
+     */
+  lastUpdatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -164,6 +173,8 @@ export interface IssueUpdate {
   startDate?: string | null;
   /** @nullable */
   dueDate?: string | null;
+  /** System initiating this update (defaults to "omniproject" at the gateway). Carried downstream so n8n can drop overlapping loop mutations where origin === the target's lastUpdatedBy. */
+  origin?: string;
 }
 
 export type ProjectSummaryByStatus = {[key: string]: number};

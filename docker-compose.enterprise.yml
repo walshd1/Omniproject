@@ -1,9 +1,16 @@
-version: "3.9"
+name: omniproject-enterprise
 
-# OmniProject — Enterprise Mode
-# BYO-SSO: supply your own OIDC provider credentials.
-# No Traefik, no Authentik. Direct host ports.
-# Uses external identity provider (Okta, Keycloak, Azure AD, etc.)
+# OmniProject — Enterprise / BYO Mode (lightweight evaluation profile)
+#
+# Bring-Your-Own everything: external OIDC IdP, external project backends
+# (Plane, OpenProject, Jira, Azure DevOps, …), and — if you want one — an
+# external AI provider. This profile ships ONLY the two things OmniProject needs
+# to run: the omni-shell and a single standalone n8n. No Authentik, no Traefik,
+# no local databases, no local LLM — keeping the baseline footprint ~1.5 GB
+# (well under 4 GB) for fast evaluation.
+#
+# Backends are reached by n8n over the network; their URLs are passed through as
+# env (PLANE_INSTANCE_URL / OPENPROJECT_INSTANCE_URL / …) for n8n workflows to use.
 
 networks:
   omni-enterprise:
@@ -11,14 +18,14 @@ networks:
 
 volumes:
   n8n_enterprise_data:
-  ollama_enterprise_data:
 
 services:
-  # ── OmniProject Shell ───────────────────────────────────────────────────────
+  # ── OmniProject Shell (SPA + gateway) ───────────────────────────────────────
   omni-shell:
     build:
       context: .
       dockerfile: Dockerfile
+    image: omniproject-shell:latest
     container_name: omni-shell
     ports:
       - "3000:3000"
@@ -28,29 +35,30 @@ services:
       BASE_PATH: /
       # Public origin of the shell — used to build the OIDC redirect URI.
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      # The single standalone n8n on the bridge network below.
       N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678/webhook/omniproject}
       # ── BYO-SSO (required) ─────────────────────────────────────────────────
-      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL}       # e.g. https://your-okta.com/oauth2/default
-      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}         # From your IdP application
-      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET} # From your IdP application
-      # ── Optional ───────────────────────────────────────────────────────────
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL}       # e.g. https://your-idp.example.com/...
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
       SESSION_SECRET: ${SESSION_SECRET:-change-in-production}
-      DATABASE_URL: ${DATABASE_URL:-}
-      # Read-only API tokens (comma-separated) for Power BI / scheduled exports.
+      # ── Read-only API tokens for Power BI / scheduled exports (optional) ────
       API_TOKENS: ${API_TOKENS:-}
-      AI_PROVIDER: ${AI_PROVIDER:-none}         # none | ollama | openrouter | openai | anthropic
-      AI_MODEL: ${AI_MODEL:-}                    # optional; provider-specific default otherwise
-      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      # ── AI: BYO public provider (optional; no local LLM in this profile) ────
+      AI_PROVIDER: ${AI_PROVIDER:-none}          # none | openrouter | openai | anthropic | ollama
+      AI_MODEL: ${AI_MODEL:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_URL: ${OLLAMA_URL:-}                 # set to an external Ollama if used
     depends_on:
       - n8n
     networks:
       - omni-enterprise
+    mem_limit: 512m
     restart: unless-stopped
 
-  # ── n8n ─────────────────────────────────────────────────────────────────────
+  # ── n8n (single standalone broker) ──────────────────────────────────────────
   n8n:
     image: n8nio/n8n:latest
     container_name: omni-n8n
@@ -63,24 +71,14 @@ services:
       N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
       N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-changeme}
       DB_TYPE: sqlite
-      # Webhook URL should match how n8n is exposed externally
       WEBHOOK_URL: ${N8N_PUBLIC_URL:-http://localhost:5678/}
+      # ── BYO backend endpoints (passed through for workflows to consume) ─────
+      # Point these at your existing systems; any backend n8n can reach works.
+      PLANE_INSTANCE_URL: ${PLANE_INSTANCE_URL:-}
+      OPENPROJECT_INSTANCE_URL: ${OPENPROJECT_INSTANCE_URL:-}
     volumes:
       - n8n_enterprise_data:/home/node/.n8n
     networks:
       - omni-enterprise
+    mem_limit: 1g
     restart: unless-stopped
-
-  # ── Ollama (local LLM — optional) ───────────────────────────────────────────
-  ollama:
-    image: ollama/ollama:latest
-    container_name: omni-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_enterprise_data:/root/.ollama
-    networks:
-      - omni-enterprise
-    restart: unless-stopped
-    profiles:
-      - ollama  # Only start if: docker compose --profile ollama up

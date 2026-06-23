@@ -22,4 +22,6 @@ export interface IssueUpdate {
   startDate?: Date | null;
   /** @nullable */
   dueDate?: Date | null;
+  /** System initiating this update (defaults to "omniproject" at the gateway). Carried downstream so n8n can drop overlapping loop mutations where origin === the target's lastUpdatedBy. */
+  origin?: string;
 }

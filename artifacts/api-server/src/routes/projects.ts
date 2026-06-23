@@ -8,7 +8,7 @@ import {
   GetProjectSummaryParams,
   GetProjectIssuesParams,
 } from "@workspace/api-zod";
-import { isN8nConfigured, callN8n, authHeaderFromReq, N8nError } from "../lib/n8n";
+import { isN8nConfigured, callN8n, authHeaderFromReq, userContextFromReq, N8nError } from "../lib/n8n";
 import { getSettings, updateSettings } from "../lib/settings";
 import {
   getProjects,
@@ -95,7 +95,11 @@ router.post("/projects/:projectId/issues", async (req, res) => {
 
   if (isN8nConfigured) {
     try {
-      const result = await callN8n("create_issue", { projectId, ...body }, { authHeader: authHeaderFromReq(req), source });
+      const result = await callN8n(
+        "create_issue",
+        { projectId, ...body },
+        { authHeader: authHeaderFromReq(req), source, userContext: userContextFromReq(req) },
+      );
       res.status(201).json(result.data);
     } catch (err) {
       req.log.error({ err, projectId }, "create_issue via n8n failed");
@@ -140,7 +144,7 @@ router.patch("/projects/:projectId/issues/:issueId", async (req, res) => {
       const result = await callN8n(
         "update_issue",
         { projectId, issueId, ...bodyParse.data },
-        { authHeader: authHeaderFromReq(req), source: getSettings().backendSource },
+        { authHeader: authHeaderFromReq(req), source: getSettings().backendSource, userContext: userContextFromReq(req) },
       );
       res.json(result.data);
     } catch (err) {
@@ -175,7 +179,7 @@ router.delete("/projects/:projectId/issues/:issueId", async (req, res) => {
 
   if (isN8nConfigured) {
     try {
-      await callN8n("delete_issue", { projectId, issueId }, { authHeader: authHeaderFromReq(req), source: getSettings().backendSource });
+      await callN8n("delete_issue", { projectId, issueId }, { authHeader: authHeaderFromReq(req), source: getSettings().backendSource, userContext: userContextFromReq(req) });
       res.status(204).send();
     } catch (err) {
       req.log.error({ err, projectId, issueId }, "delete_issue via n8n failed");
