@@ -6,6 +6,7 @@ import { versionConflict } from "../lib/concurrency";
 import { roleFromClaims } from "../lib/rbac";
 import { idempotencyKey } from "../lib/n8n";
 import { resolveCapabilities } from "../lib/capabilities";
+import { buildConfigExport, configEntries } from "../lib/config-export";
 
 // ── Optimistic concurrency ────────────────────────────────────────────────────
 test("versionConflict: no expected version never conflicts", () => {
@@ -79,6 +80,38 @@ test("resolveCapabilities: CAPABILITIES env enables only the listed domains", as
   assert.equal(caps.financials, false);
   assert.equal(caps.history, false);
   delete process.env["CAPABILITIES"];
+});
+
+// ── Config export (Setup wizard, stateless) ───────────────────────────────────
+test("configEntries: emits the configured n8n URL, not the placeholder", () => {
+  const entries = configEntries({ n8nWebhookUrl: "https://n8n.acme.io/webhook/omni" });
+  const n8n = entries.find((e) => e.key === "N8N_WEBHOOK_URL");
+  assert.equal(n8n?.value, "https://n8n.acme.io/webhook/omni");
+  assert.notEqual(n8n?.placeholder, true);
+});
+
+test("configEntries: OIDC issuer pulls in client id/secret placeholders", () => {
+  const keys = configEntries({ oidcIssuerUrl: "https://auth.acme.io" }).map((e) => e.key);
+  assert.ok(keys.includes("OIDC_ISSUER_URL"));
+  assert.ok(keys.includes("OIDC_CLIENT_ID"));
+  assert.ok(keys.includes("OIDC_CLIENT_SECRET"));
+});
+
+test("configEntries: backendSource 'all' is omitted (it's the default)", () => {
+  const keys = configEntries({ backendSource: "all" }).map((e) => e.key);
+  assert.ok(!keys.includes("BACKEND_SOURCE"));
+});
+
+test("buildConfigExport: env masks secrets as placeholders", () => {
+  const out = buildConfigExport({ n8nWebhookUrl: "https://n8n/x", oidcIssuerUrl: "https://auth" }, "env");
+  assert.match(out, /N8N_WEBHOOK_URL=https:\/\/n8n\/x/);
+  assert.match(out, /OIDC_CLIENT_SECRET=<OIDC_CLIENT_SECRET>/);
+  assert.match(out, /SESSION_SECRET=<SESSION_SECRET>/);
+});
+
+test("buildConfigExport: compose and k8s render their own shapes", () => {
+  assert.match(buildConfigExport({ n8nWebhookUrl: "https://n8n/x" }, "compose"), /services:\n {2}omniproject:/);
+  assert.match(buildConfigExport({ n8nWebhookUrl: "https://n8n/x" }, "k8s"), /kind: ConfigMap/);
 });
 
 test("resolveCapabilities: demo mode (no n8n, no env) turns everything on", async () => {

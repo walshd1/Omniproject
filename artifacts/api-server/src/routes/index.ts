@@ -5,6 +5,7 @@ import n8nProxyRouter from "./n8n-proxy";
 import projectsRouter from "./projects";
 import portfolioRouter from "./portfolio";
 import capabilitiesRouter from "./capabilities";
+import setupRouter from "./setup";
 import aiRouter from "./ai";
 import exportRouter from "./export";
 import { hasValidApiToken } from "../lib/api-token";
@@ -48,6 +49,7 @@ router.use(requireAuth, n8nProxyRouter);
 router.use(requireAuth, projectsRouter);
 router.use(requireAuth, portfolioRouter);
 router.use(requireAuth, capabilitiesRouter);
+router.use(requireAuth, setupRouter);
 router.use(requireAuth, aiRouter);
 router.use(requireAuth, exportRouter);
 
