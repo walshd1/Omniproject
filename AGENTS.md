@@ -57,4 +57,4 @@ stands in for n8n-federated state until workflows are wired.
 
 ## Pointers
 
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+- Workspace structure, TypeScript project references, and per-package details live in `pnpm-workspace.yaml` and each package's `package.json` / `tsconfig.json`.
