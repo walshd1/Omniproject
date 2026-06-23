@@ -27,21 +27,41 @@ The workflow must reply with `{ success, data, message }` (the `N8nActionResult`
 
 ## Backend library
 
-`artifacts/api-server/src/lib/n8n-backends.ts` holds a **manifest** per backend
-declaring, for each contract action, the HTTP method / URL / body and the default
-capability flags. Shipped reference manifests:
+`artifacts/api-server/src/lib/n8n-backends.ts` holds a **manifest** per backend.
+Each action is implemented by one of two transports:
 
-| Backend | Auth | Required n8n env | Notes |
-| ------- | ---- | ---------------- | ----- |
-| **OpenProject** | per-user Bearer | `OPENPROJECT_INSTANCE_URL` | work packages ↔ issues; `lockVersion` ↔ `version` gives real optimistic concurrency; baselines + journals → baseline/history |
-| **Plane** | Bearer / X-API-Key | `PLANE_INSTANCE_URL`, `PLANE_WORKSPACE_SLUG` | swap Authorization for `X-API-Key` if using a service token |
-| **Jira (Cloud)** | Basic | `JIRA_INSTANCE_URL`, `JIRA_BASIC_AUTH` | `JIRA_BASIC_AUTH` = base64(`email:token`); sprints/points via Agile fields |
-| **GitHub Issues** | Bearer | `GITHUB_OWNER` | `projectId` = repo; no native dates (scheduling off); delete = close |
-| **GitLab Issues** | Bearer | `GITLAB_INSTANCE_URL` | `projectId` = numeric project id |
-| **Azure DevOps** | Basic (PAT) | `AZDO_ORG_URL`, `AZDO_BASIC_AUTH` | work-item writes need `application/json-patch+json` |
+- **Native n8n node** — where n8n ships a maintained node for the tool, the
+  generated workflow uses *that node* with an n8n credential. This deliberately
+  **moves the integration + auth risk onto n8n** (a much larger, maintained
+  project) instead of our own HTTP mappings.
+- **HTTP** — a raw HTTP Request node, either with the active user's bearer
+  (per-user impersonation) or an **n8n-managed OAuth credential** (e.g. Microsoft
+  Dynamics) where per-user tokens don't apply.
 
-These are **reference mappings** — verify paths/fields against your backend
-version; they're designed to be tweaked after import.
+| Backend | Transport | Required n8n env / credential |
+| ------- | --------- | ----------------------------- |
+| **OpenProject** | HTTP · per-user OIDC | `OPENPROJECT_INSTANCE_URL` |
+| **Plane** | HTTP · per-user / X-API-Key | `PLANE_INSTANCE_URL`, `PLANE_WORKSPACE_SLUG` |
+| **Jira (Cloud)** | HTTP · Basic | `JIRA_INSTANCE_URL`, `JIRA_BASIC_AUTH` |
+| **GitHub Issues** | HTTP · per-user | `GITHUB_OWNER` |
+| **GitLab Issues** | HTTP · per-user | `GITLAB_INSTANCE_URL` |
+| **Azure DevOps** | HTTP · Basic (PAT) | `AZDO_ORG_URL`, `AZDO_BASIC_AUTH` |
+| **Asana** | **Native node** | `asanaApi` credential, `ASANA_WORKSPACE_ID` |
+| **Monday.com** | **Native node** | `mondayComApi` credential |
+| **ServiceNow (PPM)** | **Native node** | `serviceNowBasicApi` credential |
+| **Trello** | **Native node** | `trelloApi` credential |
+| **Wrike** | **Native node** | `wrikeOAuth2Api` credential |
+| **ClickUp** | **Native node** | `clickUpApi` credential, `CLICKUP_SPACE_ID` |
+| **Microsoft Dynamics 365** | HTTP · n8n-managed OAuth | `microsoftDynamicsOAuth2Api` credential, `DATAVERSE_URL` |
+| **Microsoft Project (for the web)** | HTTP · n8n-managed OAuth | `microsoftDynamicsOAuth2Api` credential, `DATAVERSE_URL` |
+
+These are **reference mappings** — verify node operations / paths against your
+instance; they're designed to be tweaked after import.
+
+> **Auth tradeoff:** HTTP·per-user transports forward the active user's OIDC
+> token (per-user audit in the backend). Native-node and managed-OAuth transports
+> use a **single n8n service credential** — the common enterprise pattern, but
+> writes are attributed to the service account, not the end user.
 
 ## Generate a workflow
 

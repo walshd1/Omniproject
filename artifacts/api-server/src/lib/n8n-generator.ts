@@ -19,6 +19,7 @@ interface N8nNode {
   type: string;
   typeVersion: number;
   position: [number, number];
+  credentials?: Record<string, { id: string; name: string }>;
   notes?: string;
 }
 
@@ -45,26 +46,59 @@ function isWrite(m: ActionMapping): boolean {
   return m.method === "POST" || m.method === "PATCH" || m.method === "PUT" || m.method === "DELETE";
 }
 
+function credPlaceholder(manifest: BackendManifest, credType: string): Record<string, { id: string; name: string }> {
+  return { [credType]: { id: "", name: `${manifest.label} account` } };
+}
+
 function httpNode(id: string, name: string, mapping: ActionMapping, manifest: BackendManifest, pos: [number, number]): N8nNode {
-  const headerParameters: Array<{ name: string; value: string }> = [
-    { name: "Authorization", value: manifest.authHeader },
-  ];
+  // An n8n-managed credential (e.g. Microsoft Dynamics OAuth) takes over auth;
+  // otherwise we forward the active user's bearer token.
+  const credType = mapping.credentialType ?? manifest.credentialType;
+
+  const headerParameters: Array<{ name: string; value: string }> = [];
+  if (!credType && manifest.authHeader) {
+    headerParameters.push({ name: "Authorization", value: manifest.authHeader });
+  }
   if (isWrite(mapping)) {
     headerParameters.push({ name: "X-OmniProject-Idempotency-Key", value: "={{ $json.body.idempotencyKey }}" });
   }
+
   const parameters: Record<string, unknown> = {
     method: mapping.method,
     url: mapping.url,
-    sendHeaders: true,
+    sendHeaders: headerParameters.length > 0,
     headerParameters: { parameters: headerParameters },
     options: {},
   };
+  if (credType) {
+    parameters["authentication"] = "predefinedCredentialType";
+    parameters["nodeCredentialType"] = credType;
+  }
   if (mapping.body) {
     parameters["sendBody"] = true;
     parameters["specifyBody"] = "json";
     parameters["jsonBody"] = mapping.body;
   }
-  return { parameters, id, name, type: "n8n-nodes-base.httpRequest", typeVersion: 4.2, position: pos, ...(mapping.note ? { notes: mapping.note } : {}) };
+
+  const node: N8nNode = { parameters, id, name, type: "n8n-nodes-base.httpRequest", typeVersion: 4.2, position: pos };
+  if (credType) node.credentials = credPlaceholder(manifest, credType);
+  if (mapping.note) node.notes = mapping.note;
+  return node;
+}
+
+function nativeNode(id: string, name: string, mapping: ActionMapping, manifest: BackendManifest, pos: [number, number]): N8nNode {
+  const credType = mapping.credentialType ?? manifest.credentialType;
+  const node: N8nNode = {
+    parameters: mapping.parameters ?? {},
+    id,
+    name,
+    type: mapping.node!,
+    typeVersion: mapping.typeVersion ?? 1,
+    position: pos,
+  };
+  if (credType) node.credentials = credPlaceholder(manifest, credType);
+  if (mapping.note) node.notes = mapping.note;
+  return node;
 }
 
 function codeNode(id: string, name: string, jsCode: string, pos: [number, number]): N8nNode {
@@ -158,7 +192,9 @@ export function generateWorkflow(manifest: BackendManifest, opts: { webhookPath?
       connect(node.name, "Respond");
     } else {
       const mapping = manifest.actions[action]!;
-      node = httpNode(next(), titleFor(action), mapping, manifest, [380, y]);
+      node = mapping.kind === "n8nNode"
+        ? nativeNode(next(), titleFor(action), mapping, manifest, [380, y])
+        : httpNode(next(), titleFor(action), mapping, manifest, [380, y]);
       nodes.push(node);
       connect("Route Action", node.name, i);
       connect(node.name, "Normalize → N8nActionResult");

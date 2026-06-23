@@ -294,9 +294,18 @@ export function Setup() {
           </div>
           {selectedBackend && (
             <div className="border border-border bg-background p-3 text-xs space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted-foreground uppercase tracking-widest">Integration:</span>
+                <span className="font-bold border border-primary/40 text-primary px-1.5 py-0.5">{selectedBackend.via}</span>
+                {selectedBackend.credentialType && (
+                  <span className="font-mono text-muted-foreground">credential: {selectedBackend.credentialType}</span>
+                )}
+              </div>
               <div>
                 <span className="text-muted-foreground uppercase tracking-widest">Required env in n8n: </span>
-                {selectedBackend.requiredEnv.map((e) => <span key={e} className="font-mono mr-2 border border-border px-1">{e}</span>)}
+                {selectedBackend.requiredEnv.length === 0
+                  ? <span className="text-muted-foreground">none (auth via n8n credential)</span>
+                  : selectedBackend.requiredEnv.map((e) => <span key={e} className="font-mono mr-2 border border-border px-1">{e}</span>)}
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1">
                 {Object.entries(selectedBackend.capabilities).map(([d, on]) => (

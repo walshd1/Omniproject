@@ -199,7 +199,9 @@ test("buildConfigExport: compose and k8s render their own shapes", () => {
 test("BACKENDS: every manifest is well-formed", () => {
   assert.ok(BACKENDS.length >= 5);
   for (const b of BACKENDS) {
-    assert.ok(b.id && b.label && b.authHeader, `manifest ${b.id} missing fields`);
+    // Auth is either a per-user header or an n8n-managed credential.
+    assert.ok(b.id && b.label && (b.authHeader || b.credentialType), `manifest ${b.id} missing fields`);
+    assert.ok(b.via, `manifest ${b.id} missing via`);
     assert.ok(Array.isArray(b.requiredEnv));
     assert.ok(b.actions.list_projects && b.actions.list_issues, `${b.id} must map core reads`);
   }
@@ -234,6 +236,30 @@ test("generateWorkflow: webhook path is honoured", () => {
   const wf = generateWorkflow(getBackend("jira")!, { webhookPath: "my-omni-hook" });
   const webhook = wf.nodes.find((n) => n.name === "Webhook");
   assert.equal((webhook?.parameters as { path?: string }).path, "my-omni-hook");
+});
+
+test("generateWorkflow: native-node backend emits the n8n node + credential placeholder", () => {
+  const wf = generateWorkflow(getBackend("asana")!);
+  const create = wf.nodes.find((n) => n.name === "Create Issue");
+  assert.equal(create?.type, "n8n-nodes-base.asana");
+  assert.ok(create?.credentials && "asanaApi" in (create.credentials as Record<string, unknown>));
+  assert.doesNotThrow(() => JSON.stringify(wf));
+});
+
+test("generateWorkflow: Microsoft backend uses an n8n-managed OAuth credential", () => {
+  const wf = generateWorkflow(getBackend("dynamics365")!);
+  const list = wf.nodes.find((n) => n.name === "List Projects");
+  assert.equal(list?.type, "n8n-nodes-base.httpRequest");
+  assert.equal((list?.parameters as { authentication?: string }).authentication, "predefinedCredentialType");
+  assert.equal((list?.parameters as { nodeCredentialType?: string }).nodeCredentialType, "microsoftDynamicsOAuth2Api");
+  assert.ok(list?.credentials && "microsoftDynamicsOAuth2Api" in (list.credentials as Record<string, unknown>));
+});
+
+test("BACKENDS: includes the requested enterprise tools", () => {
+  const ids = new Set(BACKENDS.map((b) => b.id));
+  for (const id of ["asana", "monday", "msproject", "dynamics365", "servicenow"]) {
+    assert.ok(ids.has(id), `missing backend ${id}`);
+  }
 });
 
 test("resolveCapabilities: demo mode (no n8n, no env) turns everything on", async () => {
