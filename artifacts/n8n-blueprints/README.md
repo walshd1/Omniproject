@@ -3,6 +3,22 @@
 Importable n8n workflows that implement the OmniProject gateway contract so you
 don't have to wire the nodes by hand.
 
+## Generate one for your backend (recommended)
+
+You usually shouldn't edit these by hand. Open **Setup → Connection Center** in
+the app (or `POST /api/setup/generate-workflow`) and pick your backend — it emits
+a complete, importable workflow tailored to that system. Then **Setup → Verify**
+probes your live n8n per action and shows a green/red checklist.
+
+- The backend library lives in `artifacts/api-server/src/lib/n8n-backends.ts`
+  (OpenProject, Plane, Jira, GitHub, GitLab, Azure DevOps — add your own).
+- The generator is `artifacts/api-server/src/lib/n8n-generator.ts` (pure JSON).
+- Pre-generated examples are in [`generated/`](./generated/).
+
+Generated workflows include a **verify short-circuit**: when the verifier sends
+`{ "verify": true }`, the workflow returns a no-op acknowledgement so probing
+never touches your backend. See [docs/N8N-WORKFLOWS.md](../../docs/N8N-WORKFLOWS.md).
+
 ## `omniproject-core-sync.json`
 
 A production-shaped reference workflow that backs the core CRUD actions for

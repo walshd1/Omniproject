@@ -657,6 +657,46 @@ async function testSetup(apiBase: string) {
   } catch {
     assert("GET /setup/export reachable", false);
   }
+
+  // Backend catalogue.
+  try {
+    const r = await get(`${apiBase}/api/setup/backends`);
+    assert("GET /setup/backends returns 200", r.status === 200, `got ${r.status}`);
+    assert("Backends is a non-empty array", Array.isArray(r.data) && r.data.length > 0);
+    assert("Catalogue includes openproject", Array.isArray(r.data) && r.data.some((b) => (b as { id: string }).id === "openproject"));
+  } catch {
+    assert("GET /setup/backends reachable", false);
+  }
+
+  // Workflow generation.
+  try {
+    const r = await post(`${apiBase}/api/setup/generate-workflow`, { backendId: "openproject" });
+    assert("POST /setup/generate-workflow returns 200", r.status === 200, `got ${r.status}`);
+    const wf = r.data as { name?: string; nodes?: unknown[]; connections?: Record<string, unknown> };
+    assert("Generated workflow has nodes + connections", Array.isArray(wf.nodes) && wf.nodes.length > 0 && !!wf.connections);
+    assert("Generated workflow includes a Webhook node", Array.isArray(wf.nodes) && wf.nodes.some((n) => (n as { name?: string }).name === "Webhook"));
+  } catch {
+    assert("POST /setup/generate-workflow reachable", false);
+  }
+
+  // Unknown backend rejected.
+  try {
+    const r = await post(`${apiBase}/api/setup/generate-workflow`, { backendId: "nope" });
+    assert("Unknown backend returns 404", r.status === 404, `got ${r.status}`);
+  } catch {
+    assert("Unknown backend test reachable", false);
+  }
+
+  // Workflow verifier (probes the configured mock with verify:true).
+  try {
+    const r = await post(`${apiBase}/api/setup/verify-workflow`, {});
+    assert("POST /setup/verify-workflow returns 200", r.status === 200, `got ${r.status}`);
+    const v = r.data as { summary?: { total?: number; passed?: number }; results?: unknown[] };
+    assert("Verifier returns per-action results", Array.isArray(v.results) && v.results.length > 0);
+    assert("Verifier summary counts the probes", !!v.summary && typeof v.summary.total === "number" && (v.summary.passed ?? -1) >= 1);
+  } catch {
+    assert("POST /setup/verify-workflow reachable", false);
+  }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
