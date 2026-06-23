@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getSettings } from "../lib/settings";
+import { getSettings, updateSettings } from "../lib/settings";
 import { isN8nConfigured } from "../lib/n8n";
 import { isOidcConfigured } from "../lib/oidc";
 import { resolveCapabilities } from "../lib/capabilities";
@@ -8,6 +8,7 @@ import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
 import { busMode } from "../lib/notify-bus";
+import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 
 const router = Router();
 
@@ -179,6 +180,27 @@ router.post("/setup/verify-workflow", requireRole("admin"), async (req, res) => 
     results,
     note: "Write actions (create/update/delete) are not probed to avoid mutating your backend. A generated workflow honours { verify: true } so even reads never hit the backend.",
   });
+});
+
+// GET /api/setup/snapshot — download a portable JSON backup of gateway config.
+router.get("/setup/snapshot", requireRole("admin"), (_req, res) => {
+  const snapshot = buildSnapshot(getSettings());
+  res
+    .type("application/json")
+    .set("Content-Disposition", `attachment; filename="omniproject-snapshot.json"`)
+    .send(JSON.stringify(snapshot, null, 2));
+});
+
+// POST /api/setup/restore — restore config from a snapshot (e.g. after a bad
+// port/setup). Validates the snapshot, applies known settings, reports warnings.
+router.post("/setup/restore", requireRole("admin"), (req, res) => {
+  try {
+    const { patch, warnings } = applySnapshot(req.body);
+    const settings = updateSettings(patch);
+    res.json({ restored: true, warnings, settings });
+  } catch (err) {
+    res.status(400).json({ restored: false, error: err instanceof Error ? err.message : "Invalid snapshot" });
+  }
 });
 
 export default router;

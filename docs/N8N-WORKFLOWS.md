@@ -54,6 +54,9 @@ Each action is implemented by one of two transports:
 | **ClickUp** | **Native node** | `clickUpApi` credential, `CLICKUP_SPACE_ID` |
 | **Microsoft Dynamics 365** | HTTP · n8n-managed OAuth | `microsoftDynamicsOAuth2Api` credential, `DATAVERSE_URL` |
 | **Microsoft Project (for the web)** | HTTP · n8n-managed OAuth | `microsoftDynamicsOAuth2Api` credential, `DATAVERSE_URL` |
+| **SAP S/4HANA** (Enterprise Project / PS) | HTTP · n8n OAuth2 (OData) | `oAuth2Api` credential, `SAP_S4_URL` |
+| **Oracle Primavera P6 EPPM** | HTTP · n8n Basic | `httpBasicAuth` credential, `P6_URL` |
+| **Enterprise backbone** (Capita / custom REST/OData/SOAP) | HTTP · n8n credential | `httpHeaderAuth` credential, `BACKBONE_BASE_URL` |
 
 These are **reference mappings** — verify node operations / paths against your
 instance; they're designed to be tweaked after import.
@@ -62,6 +65,31 @@ instance; they're designed to be tweaked after import.
 > token (per-user audit in the backend). Native-node and managed-OAuth transports
 > use a **single n8n service credential** — the common enterprise pattern, but
 > writes are attributed to the service account, not the end user.
+
+> **Heavyweight backbones (SAP, Capita, Primavera):** these are reference OData/
+> REST mappings. SAP OData writes need the `X-CSRF-Token` fetch handshake; for
+> classic SAP RFC/BAPI use an SAP community node or SAP Integration Suite. The
+> generic **Enterprise backbone** preset is the starting point for bespoke
+> systems (Capita platforms, ESB/SOA gateways, mainframe-fronting REST); for SOAP
+> send XML from the HTTP node, and for message buses (IBM MQ, Kafka, RabbitMQ)
+> trigger from the matching n8n node.
+
+## Backup & restore (config snapshots)
+
+OmniProject is stateless, so the only thing worth backing up is the gateway
+*configuration*. Setup → *Backup & restore* (or the API) gives you a portable
+JSON snapshot to take before a risky change or a port, and to restore if setup
+goes wrong:
+
+- `GET /api/setup/snapshot` (admin) — downloads `{ schema, version, createdAt,
+  settings }` (n8n URL, AI provider/model, backend source, OIDC issuer).
+- `POST /api/setup/restore` (admin) — validates the snapshot and applies it,
+  returning any warnings (unknown/missing keys are reported, not fatal).
+
+Secrets (`SESSION_SECRET`, `OIDC_CLIENT_SECRET`, `NOTIFY_INGEST_SECRET`,
+`REDIS_URL`) are **not** in the snapshot — they live in the environment. To move
+a whole instance, pair the snapshot with the env **config export** (Setup → step
+3).
 
 ## Generate a workflow
 

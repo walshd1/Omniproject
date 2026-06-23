@@ -6,7 +6,7 @@ import {
   getGetSettingsQueryKey,
   type Capabilities,
 } from "@workspace/api-client-react";
-import { CheckCircle2, XCircle, Circle, Copy, Loader2, Download } from "lucide-react";
+import { CheckCircle2, XCircle, Circle, Copy, Loader2, Download, Save, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   useSetupStatus,
@@ -15,6 +15,8 @@ import {
   fetchBackends,
   downloadWorkflow,
   verifyWorkflow,
+  downloadSnapshot,
+  restoreSnapshot,
   type N8nTestResult,
   type ExportFormat,
   type BackendInfo,
@@ -95,6 +97,24 @@ export function Setup() {
       toast({ title: "VERIFY FAILED", description: e instanceof Error ? e.message : "error", variant: "destructive" });
     } finally {
       setVerifying(false);
+    }
+  };
+
+  const onRestoreFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const snapshot = JSON.parse(await file.text());
+      const result = await restoreSnapshot(snapshot);
+      queryClient.invalidateQueries({ queryKey: ["setup", "status"] });
+      queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetCapabilitiesQueryKey() });
+      toast({
+        title: "CONFIG RESTORED",
+        description: result.warnings?.length ? `${result.warnings.length} warning(s) — check the console.` : "Settings restored from snapshot.",
+      });
+      if (result.warnings?.length) console.warn("Restore warnings:", result.warnings);
+    } catch (e) {
+      toast({ title: "RESTORE FAILED", description: e instanceof Error ? e.message : "Invalid snapshot file.", variant: "destructive" });
     }
   };
 
@@ -366,6 +386,34 @@ export function Setup() {
           <p className="text-xs text-muted-foreground">
             For a full CLI contract test: <span className="font-mono">OMNI_API_BASE=https://your-omni pnpm --filter @workspace/scripts run verify-n8n</span>
           </p>
+        </Step>
+
+        {/* Step 6 — backup & restore */}
+        <Step n={6} title="Backup & restore">
+          <p className="text-xs text-muted-foreground">
+            Take a JSON snapshot of the gateway config before a risky change or a port — and restore it if setup goes
+            wrong. Secrets stay in your environment (use the config export above for those); this captures the runtime
+            settings.
+          </p>
+          <div className="flex flex-wrap gap-2 items-center">
+            <button
+              onClick={() => downloadSnapshot().catch(() => toast({ title: "ERROR", description: "Could not download (admin only).", variant: "destructive" }))}
+              disabled={!isAdmin}
+              className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-40 flex items-center gap-2"
+            >
+              <Save className="w-3.5 h-3.5" /> Download backup
+            </button>
+            <label className={`px-4 py-2 text-xs font-black uppercase tracking-widest border border-border flex items-center gap-2 cursor-pointer hover:border-primary ${!isAdmin ? "opacity-40 pointer-events-none" : ""}`}>
+              <Upload className="w-3.5 h-3.5" /> Restore from file
+              <input
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={(e) => { onRestoreFile(e.target.files?.[0]); e.target.value = ""; }}
+              />
+            </label>
+          </div>
+          {!isAdmin && <p className="text-xs text-amber-500">Backup & restore require the admin role.</p>}
         </Step>
       </div>
     </div>

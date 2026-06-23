@@ -10,6 +10,7 @@ import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
 import { BACKENDS, getBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
+import { buildSnapshot, applySnapshot, SNAPSHOT_SCHEMA } from "../lib/config-snapshot";
 import { parseJwt, verifySignatureWithJwk, validateClaims, verifyIdToken, type Jwk } from "../lib/jwks";
 import { clientMatches, addClient } from "../lib/notify-hub";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
@@ -271,6 +272,60 @@ test("BACKENDS: includes the requested enterprise tools", () => {
   for (const id of ["asana", "monday", "msproject", "dynamics365", "servicenow"]) {
     assert.ok(ids.has(id), `missing backend ${id}`);
   }
+});
+
+test("BACKENDS: includes the heavyweight corporate backbones", () => {
+  const ids = new Set(BACKENDS.map((b) => b.id));
+  for (const id of ["sap", "primavera", "enterprise"]) {
+    assert.ok(ids.has(id), `missing backbone ${id}`);
+  }
+  // SAP must surface financials/portfolio for EVM rollups.
+  const sap = getBackend("sap")!;
+  assert.equal(sap.capabilities.financials, true);
+  assert.equal(sap.capabilities.portfolio, true);
+});
+
+test("generateWorkflow: SAP uses an n8n-managed OAuth credential over HTTP", () => {
+  const wf = generateWorkflow(getBackend("sap")!);
+  const list = wf.nodes.find((n) => n.name === "List Projects");
+  assert.equal((list?.parameters as { authentication?: string }).authentication, "predefinedCredentialType");
+  assert.ok(list?.credentials && "oAuth2Api" in (list.credentials as Record<string, unknown>));
+});
+
+// ── Config snapshot / backup-restore ───────────────────────────────────────────
+const SAMPLE_SETTINGS = {
+  n8nWebhookUrl: "https://n8n/x",
+  aiProvider: "ollama" as const,
+  aiModel: "llama3.2",
+  backendSource: "sap",
+  oidcIssuerUrl: "https://idp",
+};
+
+test("buildSnapshot: captures the gateway settings with schema + version", () => {
+  const snap = buildSnapshot(SAMPLE_SETTINGS);
+  assert.equal(snap.schema, SNAPSHOT_SCHEMA);
+  assert.equal(snap.version, 1);
+  assert.equal(snap.settings.backendSource, "sap");
+  assert.ok(snap.createdAt);
+});
+
+test("applySnapshot: round-trips a built snapshot into a settings patch", () => {
+  const snap = buildSnapshot(SAMPLE_SETTINGS);
+  const { patch, warnings } = applySnapshot(snap);
+  assert.equal(patch["n8nWebhookUrl"], "https://n8n/x");
+  assert.equal(patch["aiProvider"], "ollama");
+  assert.equal(warnings.length, 0);
+});
+
+test("applySnapshot: rejects a foreign schema", () => {
+  assert.throws(() => applySnapshot({ schema: "something/else", settings: {} }), /schema/);
+});
+
+test("applySnapshot: warns on unknown keys and missing keys, never throws on them", () => {
+  const { patch, warnings } = applySnapshot({ schema: SNAPSHOT_SCHEMA, version: 1, settings: { backendSource: "jira", bogus: 1 } });
+  assert.equal(patch["backendSource"], "jira");
+  assert.ok(warnings.some((w) => /bogus/.test(w)));
+  assert.ok(warnings.some((w) => /n8nWebhookUrl/.test(w)));
 });
 
 test("resolveCapabilities: demo mode (no n8n, no env) turns everything on", async () => {

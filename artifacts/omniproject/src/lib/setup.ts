@@ -106,6 +106,40 @@ export interface VerifyResult {
   note: string;
 }
 
+/** Download a portable JSON backup of the gateway config. */
+export async function downloadSnapshot(): Promise<void> {
+  const res = await fetch("/api/setup/snapshot", { credentials: "same-origin" });
+  if (!res.ok) throw new Error(`snapshot failed: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `omniproject-snapshot-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export interface RestoreResult {
+  restored: boolean;
+  warnings?: string[];
+  error?: string;
+}
+
+/** Restore gateway config from a snapshot object. */
+export async function restoreSnapshot(snapshot: unknown): Promise<RestoreResult> {
+  const res = await fetch("/api/setup/restore", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(snapshot),
+  });
+  const data = (await res.json().catch(() => ({}))) as RestoreResult;
+  if (!res.ok) throw new Error(data.error || `restore failed: ${res.status}`);
+  return data;
+}
+
 export async function verifyWorkflow(): Promise<VerifyResult> {
   const res = await fetch("/api/setup/verify-workflow", {
     method: "POST",
