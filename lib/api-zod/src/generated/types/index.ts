@@ -7,6 +7,7 @@
  */
 
 export * from './activityEntry';
+export * from './capabilities';
 export * from './errorResponse';
 export * from './healthStatus';
 export * from './issue';

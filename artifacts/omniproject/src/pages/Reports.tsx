@@ -1,12 +1,41 @@
-import { useEffect, useState } from "react";
-import { useListProjects } from "@workspace/api-client-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useListProjects, useGetCapabilities, type Capabilities } from "@workspace/api-client-react";
 import { useStore } from "../store/useStore";
 import { PortfolioKpi } from "../components/reports/PortfolioKpi";
 import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
 import { FinancialEvmChart } from "../components/reports/FinancialEvmChart";
 
+/** Render a report only when its data domain is available; else label the dependency. */
+function Gated({
+  caps,
+  domain,
+  title,
+  requires,
+  children,
+}: {
+  caps?: Capabilities;
+  domain: keyof Capabilities;
+  title: string;
+  requires: string;
+  children: ReactNode;
+}) {
+  // Render until capabilities load; only block when explicitly unavailable.
+  if (caps && caps[domain] === false) {
+    return (
+      <section>
+        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">{title}</h2>
+        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          Not available for this backend — requires {requires} wired through n8n.
+        </div>
+      </section>
+    );
+  }
+  return <>{children}</>;
+}
+
 export function Reports() {
   const { data: projects } = useListProjects();
+  const { data: caps } = useGetCapabilities();
   const { activeProjectId, setActiveProjectId } = useStore();
   const [projectId, setProjectId] = useState(activeProjectId || "");
 
@@ -40,11 +69,21 @@ export function Reports() {
           )}
         </div>
 
-        <PortfolioKpi />
+        <Gated caps={caps} domain="portfolio" title="Portfolio Health" requires="a portfolio rollup (get_portfolio_health)">
+          <PortfolioKpi />
+        </Gated>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-          {projectId && <ResourceHeatmap projectId={projectId} />}
-          {projectId && <FinancialEvmChart projectId={projectId} />}
+          {projectId && (
+            <Gated caps={caps} domain="resources" title="Resource Allocation" requires="a resource-management source">
+              <ResourceHeatmap projectId={projectId} />
+            </Gated>
+          )}
+          {projectId && (
+            <Gated caps={caps} domain="financials" title="Earned Value (EVM)" requires="a cost / ERP source">
+              <FinancialEvmChart projectId={projectId} />
+            </Gated>
+          )}
         </div>
       </div>
     </div>

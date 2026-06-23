@@ -131,8 +131,33 @@ route to the right system.
 - **Scrum / PRINCE2** always render via status fallbacks; attach `sprint:` /
   `stage:` / `sp:` labels (in n8n) to make them authoritative.
 
-**Recommended (roadmap):** have n8n return a lightweight *capabilities* signal so
-the UI can pre-emptively label which reports are available for a given backend,
-rather than discovering it per request.
+## 6. Capabilities signal
+
+`GET /api/capabilities` returns which data domains the wired backend(s) can
+populate, so the UI labels available reports/views **before** fetching — the
+Reports page shows *"Not available — requires …"* for unavailable domains, and
+the view switcher tags dependent views (e.g. Gantt) as *limited* when scheduling
+isn't present.
+
+Response (`Capabilities`):
+
+```jsonc
+{
+  "mode": "n8n",        // n8n | env | demo
+  "issues": true, "scheduling": true, "portfolio": true,
+  "resources": false, "financials": false, "baseline": false, "blockers": false
+}
+```
+
+Resolution order:
+
+1. **`CAPABILITIES` env** (gateway-declared) — comma list of enabled domains,
+   e.g. `CAPABILITIES=issues,scheduling,resources,portfolio`.
+2. **n8n** action `get_capabilities` (`source: capability_probe`) — the workflow
+   declares what its backends expose (see the `Capabilities (edit me)` node in
+   the [blueprint](../artifacts/n8n-blueprints/omniproject-core-sync.json));
+   cached ~60s. Conservative defaults (core domains only) if the workflow doesn't
+   implement it.
+3. **Demo** — all domains on (sample data covers everything).
 
 See also: [METHODOLOGIES.md](METHODOLOGIES.md) · [TECHNICAL.md](TECHNICAL.md).

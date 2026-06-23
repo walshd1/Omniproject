@@ -7,6 +7,15 @@
 
 export type ViewId = "kanban" | "scrum" | "gantt" | "prince2" | "list";
 
+export type CapabilityDomain =
+  | "issues"
+  | "scheduling"
+  | "resources"
+  | "financials"
+  | "portfolio"
+  | "baseline"
+  | "blockers";
+
 export interface ViewMeta {
   id: ViewId;
   label: string; // full name shown in the switcher
@@ -14,6 +23,8 @@ export interface ViewMeta {
   group: string; // methodology family
   methodology: string;
   description: string;
+  /** Capability domain this view primarily needs to be fully useful. */
+  needs?: CapabilityDomain;
 }
 
 export const VIEWS: ViewMeta[] = [
@@ -40,6 +51,7 @@ export const VIEWS: ViewMeta[] = [
     group: "Traditional",
     methodology: "Waterfall / Critical Path",
     description: "Time-phased schedule from start / due dates.",
+    needs: "scheduling",
   },
   {
     id: "prince2",

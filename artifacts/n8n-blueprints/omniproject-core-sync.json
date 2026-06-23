@@ -126,6 +126,17 @@
               },
               "renameOutput": true,
               "outputKey": "get_portfolio_health"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [
+                  { "leftValue": "={{ $json.body.action }}", "rightValue": "get_capabilities", "operator": { "type": "string", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "get_capabilities"
             }
           ]
         },
@@ -319,6 +330,16 @@
     },
     {
       "parameters": {
+        "jsCode": "// Declare which data domains THIS deployment's backends can populate.\n// Edit to match what you've wired (resources/financials need a capacity / ERP\n// source). The gateway exposes this at GET /api/capabilities so the UI labels\n// available reports.\nreturn [{ json: { success: true, data: {\n  issues: true,\n  scheduling: true,\n  resources: false,\n  financials: false,\n  portfolio: true,\n  baseline: false,\n  blockers: false\n} } }];"
+      },
+      "id": "e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1",
+      "name": "Capabilities (edit me)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [340, 1340]
+    },
+    {
+      "parameters": {
         "content": "## Dual routing: Open-Source vs Enterprise\n\nEach analytics action has an OSS and an Enterprise mapping — pick one HTTP node per action and delete the other, then normalize to the Part 1 schema.\n\n| Action | Open-source | Enterprise |\n|---|---|---|\n| get_resource_capacity | TaskJuggler / worker tables | Dynamics 365 BC Jobs |\n| get_project_financials | Dolibarr / Odoo CE | SAP S/4HANA Project API |\n| get_portfolio_health | OpenProject PPM | SAP / Dynamics rollup |\n\nAll variants MUST return the exact `ResourceCapacity` / `ProjectFinancials` / `PortfolioHealthSummary` shapes before the Normalize node.",
         "height": 300,
         "width": 460
@@ -361,8 +382,12 @@
         [{ "node": "Resource Capacity (Enterprise: Dynamics 365 BC Jobs / OSS: TaskJuggler)", "type": "main", "index": 0 }],
         [{ "node": "Project Financials (Enterprise: SAP S/4HANA / OSS: Dolibarr|Odoo)", "type": "main", "index": 0 }],
         [{ "node": "Portfolio Health (OSS: OpenProject PPM / Enterprise: SAP|Dynamics rollup)", "type": "main", "index": 0 }],
+        [{ "node": "Capabilities (edit me)", "type": "main", "index": 0 }],
         [{ "node": "Unsupported Action", "type": "main", "index": 0 }]
       ]
+    },
+    "Capabilities (edit me)": {
+      "main": [[{ "node": "Respond N8nActionResult", "type": "main", "index": 0 }]]
     },
     "Resource Capacity (Enterprise: Dynamics 365 BC Jobs / OSS: TaskJuggler)": {
       "main": [[{ "node": "Normalize → N8nActionResult", "type": "main", "index": 0 }]]

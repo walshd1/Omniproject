@@ -241,6 +241,22 @@ export const ListActivityResponse = zod.array(ListActivityResponseItem)
 
 
 /**
+ * Sourced from n8n (action get_capabilities, source capability_probe) so the UI can pre-emptively label which reports/views are available. Falls back to the CAPABILITIES env override, or demo defaults.
+ * @summary Which data domains the wired backend(s) can populate
+ */
+export const GetCapabilitiesResponse = zod.object({
+  "mode": zod.string().describe('How capabilities were resolved (n8n | env | demo).'),
+  "issues": zod.boolean(),
+  "scheduling": zod.boolean(),
+  "resources": zod.boolean(),
+  "financials": zod.boolean(),
+  "portfolio": zod.boolean(),
+  "baseline": zod.boolean(),
+  "blockers": zod.boolean()
+}).describe('Data domains the wired backend(s) can populate.')
+
+
+/**
  * @summary Get integration settings
  */
 export const GetSettingsResponse = zod.object({

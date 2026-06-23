@@ -261,6 +261,21 @@ export interface ActivityEntry {
   timestamp: string;
 }
 
+/**
+ * Data domains the wired backend(s) can populate.
+ */
+export interface Capabilities {
+  /** How capabilities were resolved (n8n | env | demo). */
+  mode: string;
+  issues: boolean;
+  scheduling: boolean;
+  resources: boolean;
+  financials: boolean;
+  portfolio: boolean;
+  baseline: boolean;
+  blockers: boolean;
+}
+
 export type SettingsAiProvider = typeof SettingsAiProvider[keyof typeof SettingsAiProvider];
 
 
