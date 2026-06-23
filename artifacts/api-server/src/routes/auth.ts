@@ -7,6 +7,7 @@ import {
   pkceChallenge,
   exchangeCode,
   decodeIdTokenClaims,
+  verifyIdToken,
   type Session,
 } from "../lib/oidc";
 import { roleForReq } from "../lib/rbac";
@@ -149,7 +150,16 @@ router.get("/auth/callback", async (req, res) => {
       codeVerifier: verifier,
     });
 
-    const claims = tokens.id_token ? decodeIdTokenClaims(tokens.id_token) : null;
+    if (!tokens.id_token) {
+      res.status(502).send("SSO did not return an ID token.");
+      return;
+    }
+
+    // Cryptographically verify the ID token (signature + iss/aud/exp) before
+    // trusting any of its claims.
+    await verifyIdToken(tokens.id_token, oidcConfig, discovery);
+
+    const claims = decodeIdTokenClaims(tokens.id_token);
 
     setSession(res, {
       sub: claims?.sub || "unknown",

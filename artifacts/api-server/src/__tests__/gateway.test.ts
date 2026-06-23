@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import type { Request } from "express";
 
 import { versionConflict } from "../lib/concurrency";
@@ -9,6 +10,8 @@ import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
 import { BACKENDS, getBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
+import { parseJwt, verifySignatureWithJwk, validateClaims, verifyIdToken, type Jwk } from "../lib/jwks";
+import { clientMatches } from "../lib/notify-hub";
 
 // ── Optimistic concurrency ────────────────────────────────────────────────────
 test("versionConflict: no expected version never conflicts", () => {
@@ -70,6 +73,82 @@ test("idempotencyKey: differs by entity", () => {
   const a = idempotencyKey("update_issue", { projectId: "p1", issueId: "i1" });
   const b = idempotencyKey("update_issue", { projectId: "p1", issueId: "i2" });
   assert.notEqual(a, b);
+});
+
+// ── JWKS / ID-token verification (self-contained: real RS256 keypair) ──────────
+const { publicKey: TEST_PUB, privateKey: TEST_PRIV } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+const TEST_JWK = { ...(TEST_PUB.export({ format: "jwk" }) as Jwk), kid: "test-key", use: "sig", alg: "RS256" };
+
+function b64url(s: string): string {
+  return Buffer.from(s).toString("base64url");
+}
+function mintRs256(payload: Record<string, unknown>): string {
+  const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT", kid: "test-key" }));
+  const body = b64url(JSON.stringify(payload));
+  const sig = crypto.sign("sha256", Buffer.from(`${header}.${body}`), TEST_PRIV).toString("base64url");
+  return `${header}.${body}.${sig}`;
+}
+const NOW = Math.floor(Date.now() / 1000);
+const GOOD_CLAIMS = { iss: "https://idp.test", aud: "omni-client", exp: NOW + 600, iat: NOW, sub: "user-1", roles: ["pmo"] };
+
+test("parseJwt: extracts header/claims/signature", () => {
+  const p = parseJwt(mintRs256(GOOD_CLAIMS));
+  assert.equal(p.header.alg, "RS256");
+  assert.equal(p.claims.sub, "user-1");
+  assert.ok(p.signature.length > 0);
+});
+
+test("verifySignatureWithJwk: true for a valid signature", () => {
+  assert.equal(verifySignatureWithJwk(parseJwt(mintRs256(GOOD_CLAIMS)), TEST_JWK), true);
+});
+
+test("verifySignatureWithJwk: false for a tampered payload", () => {
+  const token = mintRs256(GOOD_CLAIMS);
+  const [h, , s] = token.split(".");
+  const forged = `${h}.${b64url(JSON.stringify({ ...GOOD_CLAIMS, sub: "attacker" }))}.${s}`;
+  assert.equal(verifySignatureWithJwk(parseJwt(forged), TEST_JWK), false);
+});
+
+test("validateClaims: passes for matching iss/aud and unexpired", () => {
+  assert.equal(validateClaims(GOOD_CLAIMS, { issuer: "https://idp.test", audience: "omni-client" }), null);
+});
+
+test("validateClaims: rejects wrong audience, wrong issuer, and expiry", () => {
+  assert.match(validateClaims(GOOD_CLAIMS, { issuer: "https://idp.test", audience: "other" })!, /audience/);
+  assert.match(validateClaims(GOOD_CLAIMS, { issuer: "https://evil", audience: "omni-client" })!, /issuer/);
+  assert.match(validateClaims({ ...GOOD_CLAIMS, exp: NOW - 3600 }, { issuer: "https://idp.test", audience: "omni-client" })!, /expired/);
+});
+
+test("verifyIdToken: end-to-end with a stubbed JWKS endpoint", async () => {
+  const fetchStub = (async () => new Response(JSON.stringify({ keys: [TEST_JWK] }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+  const claims = await verifyIdToken(mintRs256(GOOD_CLAIMS), { jwksUri: "https://idp.test/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub });
+  assert.equal(claims.sub, "user-1");
+});
+
+test("verifyIdToken: throws on a forged signature", async () => {
+  const otherKey = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey;
+  const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT", kid: "test-key" }));
+  const body = b64url(JSON.stringify(GOOD_CLAIMS));
+  const sig = crypto.sign("sha256", Buffer.from(`${header}.${body}`), otherKey).toString("base64url");
+  const forged = `${header}.${body}.${sig}`;
+  const fetchStub = (async () => new Response(JSON.stringify({ keys: [TEST_JWK] }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+  await assert.rejects(verifyIdToken(forged, { jwksUri: "https://idp.test/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }), /signature/);
+});
+
+// ── Notification hub targeting ─────────────────────────────────────────────────
+test("clientMatches: empty/absent target is a broadcast", () => {
+  const c = { sub: "u1", email: "u1@x", roles: ["manager"] };
+  assert.equal(clientMatches(c, undefined), true);
+  assert.equal(clientMatches(c, {}), true);
+});
+
+test("clientMatches: targets by sub, email or role", () => {
+  const c = { sub: "u1", email: "u1@x", roles: ["manager"] };
+  assert.equal(clientMatches(c, { sub: "u1" }), true);
+  assert.equal(clientMatches(c, { email: "u1@x" }), true);
+  assert.equal(clientMatches(c, { role: "manager" }), true);
+  assert.equal(clientMatches(c, { sub: "other" }), false);
+  assert.equal(clientMatches(c, { role: "admin" }), false);
 });
 
 // ── Capabilities resolution (env path is request-independent) ──────────────────
