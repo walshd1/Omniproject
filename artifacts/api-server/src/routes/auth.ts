@@ -9,6 +9,7 @@ import {
   decodeIdTokenClaims,
   type Session,
 } from "../lib/oidc";
+import { roleForReq } from "../lib/rbac";
 
 const router = Router();
 
@@ -61,10 +62,11 @@ router.get("/auth/me", (req, res) => {
       authenticated: true,
       mode: isOidcConfigured ? "oidc" : "demo",
       user: { sub: session.sub, name: session.name, email: session.email },
+      role: roleForReq(req),
     });
     return;
   }
-  res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null });
+  res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null, role: "viewer" });
 });
 
 // ── GET /api/auth/login ───────────────────────────────────────────────────────
@@ -153,6 +155,7 @@ router.get("/auth/callback", async (req, res) => {
       sub: claims?.sub || "unknown",
       name: claims?.name,
       email: claims?.email,
+      roles: claims?.roles,
       accessToken: tokens.access_token,
       idToken: tokens.id_token,
     });

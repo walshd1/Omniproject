@@ -132,7 +132,12 @@ export async function callN8n<T = unknown>(
   });
 
   if (!res.ok) {
-    throw new N8nError(`n8n returned ${res.status}`);
+    // Propagate the upstream status so meaningful codes survive — notably 409
+    // (optimistic-concurrency conflict from the backend) and 404. Anything in
+    // the 5xx range collapses to a 502 gateway error.
+    const detail = await res.text().catch(() => "");
+    const status = res.status >= 400 && res.status < 500 ? res.status : 502;
+    throw new N8nError(detail?.slice(0, 300) || `n8n returned ${res.status}`, status);
   }
 
   const json = (await res.json().catch(() => ({}))) as unknown;

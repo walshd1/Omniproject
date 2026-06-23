@@ -27,6 +27,8 @@ export interface SessionUser {
   sub: string;
   name?: string;
   email?: string;
+  /** Raw role/group claims from the IdP, used by the RBAC layer. */
+  roles?: string[];
 }
 
 export interface Session extends SessionUser {
@@ -138,8 +140,27 @@ export function decodeIdTokenClaims(idToken: string): SessionUser | null {
       sub: String(payload.sub ?? ""),
       name: payload.name ?? payload.preferred_username ?? undefined,
       email: payload.email ?? undefined,
+      roles: extractRoles(payload),
     };
   } catch {
     return null;
   }
+}
+
+/**
+ * Collect role/group claims from the common places IdPs put them: a flat
+ * `roles`/`groups` array, Keycloak's `realm_access.roles`, or a space-delimited
+ * string. The RBAC layer maps these onto OmniProject roles via env config.
+ */
+function extractRoles(payload: Record<string, unknown>): string[] {
+  const out = new Set<string>();
+  const add = (v: unknown) => {
+    if (typeof v === "string") v.split(/[\s,]+/).filter(Boolean).forEach((s) => out.add(s));
+    else if (Array.isArray(v)) v.forEach((x) => typeof x === "string" && out.add(x));
+  };
+  add(payload["roles"]);
+  add(payload["groups"]);
+  const realm = payload["realm_access"];
+  if (realm && typeof realm === "object") add((realm as Record<string, unknown>)["roles"]);
+  return [...out];
 }

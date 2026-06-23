@@ -20,6 +20,8 @@ export const CAPABILITY_DOMAINS = [
   "portfolio",
   "baseline",
   "blockers",
+  "history",
+  "raid",
 ] as const;
 
 export type CapabilityDomain = (typeof CAPABILITY_DOMAINS)[number];
@@ -46,6 +48,10 @@ const CONSERVATIVE: Record<CapabilityDomain, boolean> = {
   financials: false,
   baseline: false,
   blockers: false,
+  // History/RAID depend on the backend exposing journals + a risk register;
+  // assume off until get_capabilities says otherwise.
+  history: false,
+  raid: false,
 };
 
 function fromEnv(): Capabilities | null {

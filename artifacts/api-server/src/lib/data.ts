@@ -40,6 +40,15 @@ export const SAMPLE_ISSUES: Record<string, Row[]> = {
   ],
 };
 
+// Seed an optimistic-concurrency version on every demo issue so the conflict
+// check has a token to compare. A real backend supplies its own (e.g.
+// OpenProject lockVersion); the gateway just mirrors it.
+for (const list of Object.values(SAMPLE_ISSUES)) {
+  for (const issue of list) {
+    if (issue["version"] === undefined) issue["version"] = 1;
+  }
+}
+
 export function sampleActivity(): Row[] {
   return [
     { id: "act-001", action: "status_changed", actor: "alice", projectId: "proj-001", issueId: "iss-005", issueTitle: "Frontend command palette keyboard navigation", detail: "in_progress → done", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString() },
@@ -103,4 +112,140 @@ export async function getSummary(req: Request, projectId: string): Promise<Summa
   const total = issues.length;
   const completionRate = total > 0 ? Math.round(((byStatus["done"] ?? 0) / total) * 100) : 0;
   return { projectId, total, byStatus, byPriority, completionRate, overdue };
+}
+
+// ── History (backend-sourced; demo derives a plausible trend from issues) ──────
+//
+// OmniProject keeps no history of its own — the system of record (OpenProject
+// journals, Jira changelog, etc.) is authoritative. When n8n is wired we ask it
+// for the real trend (get_project_history). In demo mode we *derive* a smooth
+// trend that lands on the project's current completion, and label it "derived"
+// so the UI never presents it as recorded fact.
+
+export interface HistoryPoint {
+  date: string;
+  completionRate: number;
+  totalIssues: number;
+  completedIssues: number;
+  openBlockers: number | null;
+  provenance: "sourced" | "derived" | "sample";
+}
+
+export async function getHistory(req: Request, projectId: string): Promise<HistoryPoint[]> {
+  if (isN8nConfigured) {
+    const r = await callN8n<HistoryPoint[]>("get_project_history", { projectId }, { authHeader: authHeaderFromReq(req), source: "history_provider" });
+    return (r.data ?? []).map((p) => ({ ...p, provenance: p.provenance ?? "sourced" }));
+  }
+
+  const issues = (SAMPLE_ISSUES[projectId] ?? []) as Array<{ status: string }>;
+  const total = issues.length;
+  const done = issues.filter((i) => i.status === "done").length;
+  const finalRate = total > 0 ? Math.round((done / total) * 100) : 0;
+  const weeks = 8;
+  const out: HistoryPoint[] = [];
+  for (let w = weeks; w >= 0; w--) {
+    const t = (weeks - w) / weeks; // 0 → 1
+    const eased = t * (2 - t); // ease-out toward the current value
+    const rate = Math.round(finalRate * eased);
+    out.push({
+      date: new Date(Date.now() - w * 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      completionRate: rate,
+      totalIssues: total,
+      completedIssues: Math.round((rate / 100) * total),
+      openBlockers: null,
+      provenance: "derived",
+    });
+  }
+  return out;
+}
+
+// ── Baseline (held by the backend; demo derives one from issue dates) ──────────
+
+export interface Baseline {
+  projectId: string;
+  name?: string;
+  capturedAt: string;
+  items: Array<{ issueId: string; title: string; plannedStart: string | null; plannedFinish: string | null }>;
+  provenance: "sourced" | "derived" | "sample";
+}
+
+export async function getBaseline(req: Request, projectId: string): Promise<Baseline | null> {
+  if (isN8nConfigured) {
+    const r = await callN8n<Baseline | null>("get_baseline", { projectId }, { authHeader: authHeaderFromReq(req), source: "baseline_store" });
+    return r.data ? { ...r.data, provenance: r.data.provenance ?? "sourced" } : null;
+  }
+
+  const issues = (SAMPLE_ISSUES[projectId] ?? []) as Array<{ id: string; title: string; startDate: string | null; dueDate: string | null }>;
+  const items = issues
+    .filter((i) => i.startDate || i.dueDate)
+    .map((i) => ({ issueId: i.id, title: i.title, plannedStart: i.startDate ?? null, plannedFinish: i.dueDate ?? null }));
+  if (items.length === 0) return null;
+  return {
+    projectId,
+    name: "Demo baseline (derived from planned dates)",
+    capturedAt: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(),
+    items,
+    provenance: "sample",
+  };
+}
+
+// ── RAID (Risks, Assumptions, Issues, Dependencies) ───────────────────────────
+
+export const SAMPLE_RAID: Record<string, Row[]> = {
+  "proj-001": [
+    { id: "raid-001", projectId: "proj-001", type: "risk", title: "OIDC provider migration may slip the auth cutover", description: "Authentik upgrade has a hard dependency on the new realm export format.", severity: "high", likelihood: "medium", impact: "high", status: "mitigating", owner: "alice", mitigation: "Spike the export on a staging realm before committing the cutover date.", dueDate: "2026-07-01", provenance: "sample", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 6).toISOString(), updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString() },
+    { id: "raid-002", projectId: "proj-001", type: "dependency", title: "n8n workflow blueprint sign-off from platform team", description: "Core sync workflow needs platform review before go-live.", severity: "medium", likelihood: null, impact: null, status: "open", owner: "bob", mitigation: null, dueDate: "2026-06-30", provenance: "sample", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(), updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString() },
+    { id: "raid-003", projectId: "proj-001", type: "assumption", title: "Backend exposes lockVersion for optimistic concurrency", description: "Assuming OpenProject lockVersion is surfaced through n8n normalization.", severity: "low", likelihood: null, impact: null, status: "open", owner: null, mitigation: null, dueDate: null, provenance: "sample", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString() },
+  ],
+  "proj-002": [
+    { id: "raid-004", projectId: "proj-002", type: "issue", title: "Rate limiter rejects Power BI scheduled refresh under burst", description: "BI token hit the analytics limiter during a 6am refresh window.", severity: "medium", likelihood: null, impact: null, status: "open", owner: "carol", mitigation: "Raise the analytics window or whitelist the BI token key.", dueDate: "2026-06-26", provenance: "sample", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString() },
+  ],
+};
+
+let raidCounter = 100;
+
+export async function getRaid(req: Request, projectId: string): Promise<Row[]> {
+  if (isN8nConfigured) {
+    const r = await callN8n<Row[]>("get_raid", { projectId }, { authHeader: authHeaderFromReq(req), source: "raid_register" });
+    return (r.data ?? []).map((e) => ({ provenance: "sourced", ...e }));
+  }
+  return SAMPLE_RAID[projectId] ?? [];
+}
+
+export function createSampleRaid(projectId: string, body: Record<string, unknown>): Row {
+  const now = new Date().toISOString();
+  const entry: Row = {
+    id: `raid-${++raidCounter}`,
+    projectId,
+    type: body["type"],
+    title: body["title"],
+    description: body["description"] ?? null,
+    severity: body["severity"],
+    likelihood: body["likelihood"] ?? null,
+    impact: body["impact"] ?? null,
+    status: body["status"] ?? "open",
+    owner: body["owner"] ?? null,
+    mitigation: body["mitigation"] ?? null,
+    dueDate: body["dueDate"] ?? null,
+    provenance: "sample",
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (!SAMPLE_RAID[projectId]) SAMPLE_RAID[projectId] = [];
+  SAMPLE_RAID[projectId].unshift(entry);
+  return entry;
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export async function getNotifications(req: Request): Promise<Row[]> {
+  if (isN8nConfigured) {
+    const r = await callN8n<Row[]>("get_notifications", {}, { authHeader: authHeaderFromReq(req), source: "notification_center" });
+    return r.data ?? [];
+  }
+  return [
+    { id: "ntf-001", kind: "assignment", title: "Assigned: Migrate auth service to OIDC", body: "alice assigned you on Platform Rewrite.", projectId: "proj-001", issueId: "iss-001", read: false, timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString() },
+    { id: "ntf-002", kind: "due_soon", title: "Due soon: Docker compose standalone validation", body: "Due 2026-06-25.", projectId: "proj-001", issueId: "iss-003", read: false, timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString() },
+    { id: "ntf-003", kind: "blocker", title: "Risk escalated on Platform Rewrite", body: "OIDC provider migration moved to mitigating.", projectId: "proj-001", issueId: null, read: true, timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
+  ];
 }
