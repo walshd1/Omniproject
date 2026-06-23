@@ -1,8 +1,10 @@
 import { create } from 'zustand'
+import type { ViewId } from '../lib/views'
+import { DEFAULT_VIEW, isViewId } from '../lib/views'
 
 export interface OmniStore {
-  currentLens: 'agile' | 'gantt'
-  setCurrentLens: (lens: 'agile' | 'gantt') => void
+  currentView: ViewId
+  setCurrentView: (view: ViewId) => void
   isCommandOpen: boolean
   setCommandOpen: (open: boolean) => void
   isSettingsOpen: boolean
@@ -25,9 +27,20 @@ const getInitialTheme = (): 'dark' | 'light' => {
   return 'dark' // default to dark
 }
 
+const getInitialView = (): ViewId => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('omniproject-view')
+    if (stored && isViewId(stored)) return stored
+  }
+  return DEFAULT_VIEW
+}
+
 export const useStore = create<OmniStore>((set) => ({
-  currentLens: 'agile',
-  setCurrentLens: (lens) => set({ currentLens: lens }),
+  currentView: getInitialView(),
+  setCurrentView: (view) => {
+    if (typeof window !== 'undefined') localStorage.setItem('omniproject-view', view)
+    set({ currentView: view })
+  },
   isCommandOpen: false,
   setCommandOpen: (open) => set({ isCommandOpen: open }),
   isSettingsOpen: false,

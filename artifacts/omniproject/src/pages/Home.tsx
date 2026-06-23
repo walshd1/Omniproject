@@ -3,13 +3,15 @@ import { useStore } from "../store/useStore";
 import { useEffect } from "react";
 import { format } from "date-fns";
 import { Plus } from "lucide-react";
-import { AgileBoard } from "../components/board/AgileBoard";
-import { GanttChart } from "../components/board/GanttChart";
+import { ViewSwitcher } from "../components/ViewSwitcher";
+import { VIEW_COMPONENTS } from "../components/views/registry";
+import { viewMeta } from "../lib/views";
 
 export function Home() {
-  const { currentLens, activeProjectId, setActiveProjectId, setNewIssueOpen } = useStore();
+  const { currentView, activeProjectId, setActiveProjectId, setNewIssueOpen } = useStore();
   const { data: projects, isLoading: projectsLoading } = useListProjects();
   const { data: activity } = useListActivity();
+  const ActiveView = VIEW_COMPONENTS[currentView];
 
   useEffect(() => {
     if (projects && projects.length > 0 && !activeProjectId) {
@@ -22,7 +24,10 @@ export function Home() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-6 border-b border-border bg-card shrink-0">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-black uppercase tracking-tighter">DASHBOARD</h1>
+            <div className="flex items-center gap-4">
+              <h1 className="text-2xl font-black uppercase tracking-tighter">DASHBOARD</h1>
+              <ViewSwitcher />
+            </div>
             <div className="flex items-center gap-3">
               {projects && projects.length > 0 && (
                 <select
@@ -45,11 +50,7 @@ export function Home() {
               </button>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {currentLens === "agile"
-              ? "Drag issues between columns to update status. Click a card to edit."
-              : "Timeline of scheduled issues across the project."}
-          </p>
+          <p className="text-sm text-muted-foreground">{viewMeta(currentView).description}</p>
         </div>
 
         <div className="flex-1 overflow-auto p-6 relative">
@@ -61,10 +62,8 @@ export function Home() {
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-muted-foreground font-bold tracking-widest">NO PROJECT SELECTED</div>
             </div>
-          ) : currentLens === "agile" ? (
-            <AgileBoard projectId={activeProjectId} />
           ) : (
-            <GanttChart projectId={activeProjectId} />
+            <ActiveView projectId={activeProjectId} />
           )}
         </div>
       </div>

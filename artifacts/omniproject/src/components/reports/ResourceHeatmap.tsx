@@ -60,7 +60,10 @@ export function ResourceHeatmap({ projectId }: { projectId: string }) {
         ) : data?.length ? (
           data.map((r) => <Row key={r.resourceId} r={r} />)
         ) : (
-          <div className="p-6 text-sm text-muted-foreground text-center">No capacity data.</div>
+          <div className="p-6 text-sm text-muted-foreground text-center">
+            No capacity data — requires a resource-management source (assignments, roles, availability) via the
+            <span className="font-mono"> get_resource_capacity </span> n8n workflow.
+          </div>
         )}
       </div>
     </section>

@@ -34,12 +34,22 @@ export function FinancialEvmChart({ projectId }: { projectId: string }) {
   const money = (n: number) =>
     new Intl.NumberFormat(undefined, { style: "currency", currency: f?.currency || "USD", maximumFractionDigits: 0 }).format(n);
 
+  // Financials require a cost/ERP source wired through n8n. Without
+  // budgetAllocated there is nothing to chart — surface the dependency rather
+  // than render misleading zeros.
+  const unavailable = !!f && (f.budgetAllocated === undefined || f.budgetAllocated === null);
+
   return (
     <section>
       <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Earned Value (EVM)</h2>
       <div className="bg-card border border-border p-6">
         {isLoading || !f ? (
           <div className="h-72 animate-pulse" />
+        ) : unavailable ? (
+          <div className="h-40 flex items-center justify-center text-center text-sm text-muted-foreground px-6">
+            Financial data not available — requires a cost / ERP source (e.g. SAP, Dynamics, Dolibarr, Odoo) wired into the
+            <span className="font-mono"> get_project_financials </span> n8n workflow.
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
