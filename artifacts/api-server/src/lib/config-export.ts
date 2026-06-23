@@ -56,6 +56,7 @@ export function configEntries(input: ConfigExportInput): Entry[] {
 
   entries.push({ key: "SESSION_SECRET", value: "", placeholder: true, comment: "Required in production: a long random string for cookie signing" });
   entries.push({ key: "NOTIFY_INGEST_SECRET", value: "", placeholder: true, comment: "Optional: enables real-time notifications — n8n/tools POST /api/notifications/ingest with this bearer" });
+  entries.push({ key: "REDIS_URL", value: "", placeholder: true, comment: "Optional (multi-replica HA): Redis Pub/Sub fan-out for real-time notifications. Also install ioredis." });
 
   return entries;
 }

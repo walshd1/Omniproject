@@ -8,6 +8,7 @@ export interface SetupStatus {
   n8n: { configured: boolean; webhookUrlSet: boolean };
   auth: { mode: "oidc" | "demo" };
   ai: { provider: string };
+  realtime?: { enabled: boolean; bus: "in-process" | "redis" };
   capabilities: Capabilities | null;
 }
 

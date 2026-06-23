@@ -2,7 +2,8 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import crypto from "node:crypto";
 import { getSession } from "./auth";
 import { roleForReq } from "../lib/rbac";
-import { addClient, publish, clientCount, type NotifyTarget } from "../lib/notify-hub";
+import { addClient, clientCount, type NotifyTarget } from "../lib/notify-hub";
+import { getNotifyBus, busMode } from "../lib/notify-bus";
 import { logger } from "../lib/logger";
 
 /**
@@ -71,8 +72,9 @@ function ingestAuth(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
-// POST /api/notifications/ingest — n8n/tools push an event; we fan it out live.
-ingestRouter.post("/notifications/ingest", ingestAuth, (req: Request, res: Response) => {
+// POST /api/notifications/ingest — n8n/tools push an event; the bus fans it out
+// across replicas (Redis) or in-process.
+ingestRouter.post("/notifications/ingest", ingestAuth, async (req: Request, res: Response) => {
   const body = (req.body ?? {}) as { target?: NotifyTarget; notification?: Record<string, unknown> };
   const n = body.notification;
   if (!n || typeof n !== "object" || typeof n.title !== "string") {
@@ -89,7 +91,10 @@ ingestRouter.post("/notifications/ingest", ingestAuth, (req: Request, res: Respo
     read: false,
     timestamp: new Date().toISOString(),
   };
-  const delivered = publish(notification, body.target);
-  logger.info({ audit: true, action: "notification_ingest", delivered, connected: clientCount() }, "notify_ingest");
-  res.json({ delivered, connected: clientCount() });
+  const localDelivered = await getNotifyBus().publish({ notification, target: body.target });
+  // In-process: exact local count. Redis: delivery is async across replicas, so
+  // we report local connections instead of a cross-replica count.
+  const delivered = localDelivered ?? clientCount();
+  logger.info({ audit: true, action: "notification_ingest", delivered, bus: busMode(), connected: clientCount() }, "notify_ingest");
+  res.json({ delivered, connected: clientCount(), bus: busMode() });
 });

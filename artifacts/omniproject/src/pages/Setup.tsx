@@ -184,6 +184,15 @@ export function Setup() {
               Greyed = unknown (not probed yet). These come from your n8n workflow's <span className="font-mono">get_capabilities</span>.
             </p>
           </div>
+
+          {status?.realtime && (
+            <div className="flex items-center gap-2 text-xs border-t border-border pt-3">
+              <Dot on={status.realtime.enabled} />
+              <span className="font-bold uppercase tracking-widest text-muted-foreground">Real-time:</span>
+              <span>{status.realtime.enabled ? "enabled" : "disabled (set NOTIFY_INGEST_SECRET)"}</span>
+              <span className="font-mono text-muted-foreground">· fan-out: {status.realtime.bus}{status.realtime.bus === "in-process" ? " (single replica — set REDIS_URL for HA)" : ""}</span>
+            </div>
+          )}
         </Step>
 
         {/* Step 2 — connect n8n */}

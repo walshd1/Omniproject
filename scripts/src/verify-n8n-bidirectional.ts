@@ -707,8 +707,10 @@ async function testNotify(apiBase: string) {
   let enabled = false;
   try {
     const r = await get(`${apiBase}/api/setup/status`);
-    enabled = !!(r.data as { realtime?: { enabled?: boolean } })?.realtime?.enabled;
-    assert("setup/status reports realtime.enabled", typeof (r.data as { realtime?: { enabled?: boolean } })?.realtime?.enabled === "boolean");
+    const rt = (r.data as { realtime?: { enabled?: boolean; bus?: string } })?.realtime;
+    enabled = !!rt?.enabled;
+    assert("setup/status reports realtime.enabled", typeof rt?.enabled === "boolean");
+    assert("setup/status reports the fan-out bus mode", rt?.bus === "in-process" || rt?.bus === "redis");
   } catch {
     assert("setup/status realtime reachable", false);
   }
@@ -725,6 +727,7 @@ async function testNotify(apiBase: string) {
       const r = await post(`${apiBase}/api/notifications/ingest`, { notification: { title: "Build green", kind: "ci" } }, { Authorization: `Bearer ${secret}` });
       assert("Ingest with correct secret returns 200", r.status === 200, `got ${r.status}`);
       assert("Ingest reports a delivered count", typeof (r.data as { delivered?: number })?.delivered === "number");
+      assert("Ingest reports the bus mode", typeof (r.data as { bus?: string })?.bus === "string");
     } catch { assert("Ingest happy-path reachable", false); }
 
     // Missing title rejected.

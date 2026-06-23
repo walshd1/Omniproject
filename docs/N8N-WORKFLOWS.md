@@ -115,6 +115,22 @@ channel preferences live in your backend/IdP (read them in n8n), so OmniProject
 stays stateless. The `NOTIFY_INGEST_SECRET` is emitted by the Setup wizard's
 config export.
 
+### Scaling real-time across replicas — Redis, not Kafka
+
+The in-app fan-out is in-process by default (fine for a single replica). For
+multi-replica HA, set `REDIS_URL` and install `ioredis`
+(`pnpm --filter @workspace/api-server add ioredis`) — `/ingest` then publishes to
+a **Redis Pub/Sub** channel and every replica delivers to its own SSE clients.
+Setup → *Status* shows the active fan-out (`in-process` vs `redis`).
+
+Why Redis and not Kafka: this is **ephemeral broadcast** (push a toast to whoever
+is connected; missed events fall back to the polled list). Redis Pub/Sub is
+purpose-built for it — sub-ms, tiny footprint. Kafka is a durable partitioned log
+for high-throughput streaming/replay; it's heavy ops and unnecessary latency
+here. If Kafka is already your enterprise event backbone, **bridge it into
+`/api/notifications/ingest`** (an n8n Kafka trigger → ingest) — upstream of the
+fan-out, which stays Redis.
+
 ## Adding a backend
 
 Add a `BackendManifest` to `n8n-backends.ts` (URLs are n8n expressions using

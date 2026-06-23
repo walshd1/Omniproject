@@ -7,6 +7,7 @@ import { requireRole, roleForReq } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
+import { busMode } from "../lib/notify-bus";
 
 const router = Router();
 
@@ -45,7 +46,7 @@ router.get("/setup/status", async (req, res) => {
     },
     auth: { mode: isOidcConfigured ? "oidc" : "demo" },
     ai: { provider: settings.aiProvider },
-    realtime: { enabled: !!process.env["NOTIFY_INGEST_SECRET"]?.trim() },
+    realtime: { enabled: !!process.env["NOTIFY_INGEST_SECRET"]?.trim(), bus: busMode() },
     capabilities,
   });
 });
