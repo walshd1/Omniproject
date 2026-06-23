@@ -1,11 +1,14 @@
 # OmniProject
 
-A stateless **program-management overlay** — a single pane of glass over headless
-backends (Plane, OpenProject) with **n8n as the exclusive middleware/API hub**.
-The brutalist, keyboard-driven shell renders a dual-lens view (Agile board + Gantt
-timeline) and pushes every mutating action through the n8n gateway. OpenProject and
-Plane run underneath and are reached only via n8n; the API server's sample data
-stands in for n8n-federated state until workflows are wired.
+A stateless **program-management overlay** — a single pane of glass over whatever
+project backend(s) an organization already runs, with **n8n as the exclusive
+middleware/API hub**. It is **backend-agnostic**: any system n8n can reach (Jira,
+Azure DevOps, ServiceNow, GitHub, Plane, OpenProject, …) can be federated
+underneath — no specific backend is required. The brutalist, keyboard-driven shell
+renders a dual-lens view (Agile board + Gantt timeline) and brokers every read and
+write through the n8n gateway; the API server's sample data stands in for
+n8n-federated state until workflows are wired. The `backendSource` setting is a
+free-form routing hint (default `all`).
 
 ## Run & Operate
 
@@ -45,7 +48,7 @@ stands in for n8n-federated state until workflows are wired.
 - **Dashboard (dual-lens):** Agile Kanban with native drag-to-move (PATCHes issue status) and a Gantt timeline driven by start/due dates; live activity feed; project switcher.
 - **Issues:** create / edit / delete via a single dialog (status, priority, assignee, labels, dates); reachable from board columns, the "New Issue" button, or `Cmd+K`.
 - **Projects index** with per-project summary (totals, completion %, overdue).
-- **Settings:** n8n webhook URL, backend source (Plane/OpenProject/both), AI provider, OIDC issuer.
+- **Settings:** n8n webhook URL, backend (free-form routing hint, default `all`), AI provider, OIDC issuer.
 - **Command palette (`Cmd+K`)** + `g d/p/s` navigation; gateway health pill (CONNECTED/OFFLINE).
 
 ## Gotchas

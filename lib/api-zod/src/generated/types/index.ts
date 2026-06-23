@@ -28,7 +28,5 @@ export * from './projectSummaryByPriority';
 export * from './projectSummaryByStatus';
 export * from './settings';
 export * from './settingsAiProvider';
-export * from './settingsBackendSource';
 export * from './settingsUpdate';
 export * from './settingsUpdateAiProvider';
-export * from './settingsUpdateBackendSource';

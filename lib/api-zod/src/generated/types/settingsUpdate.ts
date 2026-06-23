@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SettingsUpdateAiProvider } from './settingsUpdateAiProvider';
-import type { SettingsUpdateBackendSource } from './settingsUpdateBackendSource';
 
 export interface SettingsUpdate {
   /** @nullable */
@@ -14,7 +13,8 @@ export interface SettingsUpdate {
   aiProvider?: SettingsUpdateAiProvider;
   /** @nullable */
   aiModel?: string | null;
-  backendSource?: SettingsUpdateBackendSource;
+  /** Free-form backend routing hint passed to n8n (see Settings.backendSource). */
+  backendSource?: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
 }

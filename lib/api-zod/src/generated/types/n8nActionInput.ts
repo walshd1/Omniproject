@@ -11,6 +11,6 @@ export interface N8nActionInput {
   /** Action name (e.g. "create_ticket", "update_status") */
   action: string;
   payload: N8nActionInputPayload;
-  /** Backend source (plane, openproject) */
+  /** Backend routing hint (free-form; e.g. "all", "jira", "plane") */
   source?: string;
 }
