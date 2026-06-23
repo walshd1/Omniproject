@@ -1,5 +1,6 @@
 import { useListProjects, useGetProjectSummary } from "@workspace/api-client-react";
 import { Link } from "wouter";
+import { ExportMenu } from "../components/ExportMenu";
 
 function ProjectSummaryCard({ projectId }: { projectId: string }) {
   const { data: summary, isLoading } = useGetProjectSummary(projectId);
@@ -42,7 +43,10 @@ export function Projects() {
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-8 pb-4 border-b border-border">
           <h1 className="text-3xl font-black uppercase tracking-tighter">PROJECTS INDEX</h1>
-          <div className="text-muted-foreground font-mono text-sm">TOTAL: {projects?.length || 0}</div>
+          <div className="flex items-center gap-4">
+            <div className="text-muted-foreground font-mono text-sm">TOTAL: {projects?.length || 0}</div>
+            <ExportMenu />
+          </div>
         </div>
 
         {isLoading ? (

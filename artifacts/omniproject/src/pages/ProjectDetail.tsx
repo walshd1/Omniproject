@@ -2,6 +2,7 @@ import { useListProjects } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { ChevronLeft } from "lucide-react";
 import { AgileBoard } from "../components/board/AgileBoard";
+import { ExportMenu } from "../components/ExportMenu";
 
 export function ProjectDetail({ projectId }: { projectId: string }) {
   const { data: projects } = useListProjects();
@@ -26,6 +27,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
         ) : (
           <h1 className="text-xl font-black uppercase tracking-tighter">PROJECT</h1>
         )}
+        <div className="ml-auto">
+          <ExportMenu projectId={projectId} />
+        </div>
       </div>
 
       <div className="flex-1 p-8 overflow-auto">

@@ -436,6 +436,26 @@ async function testAuth(apiBase: string) {
   }
 }
 
+async function testExports(apiBase: string) {
+  console.log(bold("\n[5] Exports: CSV + XLSX"));
+
+  try {
+    const r = await get(`${apiBase}/api/export.csv?dataset=projects`);
+    assert("GET /api/export.csv returns 200", r.status === 200, `got ${r.status}`);
+    assert("CSV has a header row", typeof r.data === "string" && r.data.includes("identifier"));
+  } catch {
+    assert("export.csv reachable", false);
+  }
+
+  try {
+    const r = await get(`${apiBase}/api/export.xlsx`);
+    assert("GET /api/export.xlsx returns 200", r.status === 200, `got ${r.status}`);
+    assert("XLSX is a zip (PK magic)", typeof r.data === "string" && r.data.startsWith("PK"));
+  } catch {
+    assert("export.xlsx reachable", false);
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   console.log(bold("OmniProject — n8n Bidirectional Verification Script"));
@@ -472,6 +492,7 @@ async function main() {
     await testInbound(apiBase);
     await testValidation(apiBase);
     await testApiRoutes(apiBase);
+    await testExports(apiBase);
   } finally {
     mockServer.close();
   }

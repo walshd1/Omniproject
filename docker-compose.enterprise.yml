@@ -36,6 +36,8 @@ services:
       # ── Optional ───────────────────────────────────────────────────────────
       SESSION_SECRET: ${SESSION_SECRET:-change-in-production}
       DATABASE_URL: ${DATABASE_URL:-}
+      # Read-only API tokens (comma-separated) for Power BI / scheduled exports.
+      API_TOKENS: ${API_TOKENS:-}
       AI_PROVIDER: ${AI_PROVIDER:-none}         # none | ollama | openrouter | openai | anthropic
       AI_MODEL: ${AI_MODEL:-}                    # optional; provider-specific default otherwise
       OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
