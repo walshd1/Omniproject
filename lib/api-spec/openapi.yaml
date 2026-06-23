@@ -262,7 +262,7 @@ components:
           additionalProperties: true
         source:
           type: string
-          description: Backend source (plane, openproject)
+          description: Backend routing hint (free-form; e.g. "all", "jira", "plane")
       required:
         - action
         - payload
@@ -483,7 +483,10 @@ components:
           type: ["string", "null"]
         backendSource:
           type: string
-          enum: [plane, openproject, both]
+          description: >-
+            Free-form backend routing hint passed to n8n (e.g. "all", "jira",
+            "azure-devops", "servicenow", "plane", "openproject"). "all" means
+            no filter — whatever n8n is wired to. No specific backend is required.
         oidcIssuerUrl:
           type: ["string", "null"]
       required:
@@ -502,6 +505,7 @@ components:
           type: ["string", "null"]
         backendSource:
           type: string
-          enum: [plane, openproject, both]
+          description: >-
+            Free-form backend routing hint passed to n8n (see Settings.backendSource).
         oidcIssuerUrl:
           type: ["string", "null"]

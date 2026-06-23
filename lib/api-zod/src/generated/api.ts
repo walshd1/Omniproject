@@ -24,7 +24,7 @@ export const HealthCheckResponse = zod.object({
 export const N8nProxyBody = zod.object({
   "action": zod.string().describe('Action name (e.g. \"create_ticket\", \"update_status\")'),
   "payload": zod.record(zod.string(), zod.unknown()),
-  "source": zod.string().optional().describe('Backend source (plane, openproject)')
+  "source": zod.string().optional().describe('Backend routing hint (free-form; e.g. \"all\", \"jira\", \"plane\")')
 })
 
 export const N8nProxyResponse = zod.object({
@@ -187,7 +187,7 @@ export const GetSettingsResponse = zod.object({
   "n8nWebhookUrl": zod.string().nullish(),
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']),
   "aiModel": zod.string().nullish(),
-  "backendSource": zod.enum(['plane', 'openproject', 'both']),
+  "backendSource": zod.string().describe('Free-form backend routing hint passed to n8n (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever n8n is wired to. No specific backend is required.'),
   "oidcIssuerUrl": zod.string().nullish()
 })
 
@@ -199,7 +199,7 @@ export const UpdateSettingsBody = zod.object({
   "n8nWebhookUrl": zod.string().nullish(),
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']).optional(),
   "aiModel": zod.string().nullish(),
-  "backendSource": zod.enum(['plane', 'openproject', 'both']).optional(),
+  "backendSource": zod.string().optional().describe('Free-form backend routing hint passed to n8n (see Settings.backendSource).'),
   "oidcIssuerUrl": zod.string().nullish()
 })
 
@@ -207,7 +207,7 @@ export const UpdateSettingsResponse = zod.object({
   "n8nWebhookUrl": zod.string().nullish(),
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']),
   "aiModel": zod.string().nullish(),
-  "backendSource": zod.enum(['plane', 'openproject', 'both']),
+  "backendSource": zod.string().describe('Free-form backend routing hint passed to n8n (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever n8n is wired to. No specific backend is required.'),
   "oidcIssuerUrl": zod.string().nullish()
 })
 

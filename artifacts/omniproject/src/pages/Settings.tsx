@@ -23,7 +23,7 @@ export function Settings() {
     n8nWebhookUrl: "",
     aiProvider: "none",
     aiModel: "",
-    backendSource: "both",
+    backendSource: "all",
     oidcIssuerUrl: "",
   });
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
@@ -35,7 +35,7 @@ export function Settings() {
         n8nWebhookUrl: settings.n8nWebhookUrl || "",
         aiProvider: settings.aiProvider || "none",
         aiModel: settings.aiModel || "",
-        backendSource: settings.backendSource || "both",
+        backendSource: settings.backendSource || "all",
         oidcIssuerUrl: settings.oidcIssuerUrl || "",
       });
     }
@@ -99,17 +99,29 @@ export function Settings() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">BACKEND SOURCE</label>
-            <Select value={formData.backendSource} onValueChange={(v) => setFormData((p) => ({ ...p, backendSource: v }))}>
-              <SelectTrigger className="rounded-none border-border h-12 font-mono uppercase">
-                <SelectValue placeholder="Select backend" />
-              </SelectTrigger>
-              <SelectContent className="rounded-none border-border font-mono uppercase">
-                <SelectItem value="plane">Plane Only</SelectItem>
-                <SelectItem value="openproject">OpenProject Only</SelectItem>
-                <SelectItem value="both">Both (Federated)</SelectItem>
-              </SelectContent>
-            </Select>
+            <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">BACKEND</label>
+            <Input
+              list="backend-suggestions"
+              value={formData.backendSource}
+              onChange={(e) => setFormData((p) => ({ ...p, backendSource: e.target.value }))}
+              placeholder="all"
+              className="rounded-none border-border font-mono h-12"
+            />
+            <datalist id="backend-suggestions">
+              <option value="all" />
+              <option value="jira" />
+              <option value="azure-devops" />
+              <option value="servicenow" />
+              <option value="github" />
+              <option value="monday" />
+              <option value="asana" />
+              <option value="plane" />
+              <option value="openproject" />
+            </datalist>
+            <p className="text-xs text-muted-foreground">
+              Optional routing hint sent to n8n. Use <span className="font-mono">all</span> for any backend n8n is wired
+              to, or name a specific system (Jira, Azure DevOps, ServiceNow, …). No specific backend is required.
+            </p>
           </div>
         </div>
 

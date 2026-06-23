@@ -19,7 +19,7 @@ export interface N8nActionInput {
   /** Action name (e.g. "create_ticket", "update_status") */
   action: string;
   payload: N8nActionInputPayload;
-  /** Backend source (plane, openproject) */
+  /** Backend routing hint (free-form; e.g. "all", "jira", "plane") */
   source?: string;
 }
 
@@ -204,22 +204,14 @@ export const SettingsAiProvider = {
   openrouter: 'openrouter',
 } as const;
 
-export type SettingsBackendSource = typeof SettingsBackendSource[keyof typeof SettingsBackendSource];
-
-
-export const SettingsBackendSource = {
-  plane: 'plane',
-  openproject: 'openproject',
-  both: 'both',
-} as const;
-
 export interface Settings {
   /** @nullable */
   n8nWebhookUrl?: string | null;
   aiProvider: SettingsAiProvider;
   /** @nullable */
   aiModel?: string | null;
-  backendSource: SettingsBackendSource;
+  /** Free-form backend routing hint passed to n8n (e.g. "all", "jira", "azure-devops", "servicenow", "plane", "openproject"). "all" means no filter — whatever n8n is wired to. No specific backend is required. */
+  backendSource: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
 }
@@ -235,22 +227,14 @@ export const SettingsUpdateAiProvider = {
   openrouter: 'openrouter',
 } as const;
 
-export type SettingsUpdateBackendSource = typeof SettingsUpdateBackendSource[keyof typeof SettingsUpdateBackendSource];
-
-
-export const SettingsUpdateBackendSource = {
-  plane: 'plane',
-  openproject: 'openproject',
-  both: 'both',
-} as const;
-
 export interface SettingsUpdate {
   /** @nullable */
   n8nWebhookUrl?: string | null;
   aiProvider?: SettingsUpdateAiProvider;
   /** @nullable */
   aiModel?: string | null;
-  backendSource?: SettingsUpdateBackendSource;
+  /** Free-form backend routing hint passed to n8n (see Settings.backendSource). */
+  backendSource?: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
 }

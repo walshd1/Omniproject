@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SettingsAiProvider } from './settingsAiProvider';
-import type { SettingsBackendSource } from './settingsBackendSource';
 
 export interface Settings {
   /** @nullable */
@@ -14,7 +13,8 @@ export interface Settings {
   aiProvider: SettingsAiProvider;
   /** @nullable */
   aiModel?: string | null;
-  backendSource: SettingsBackendSource;
+  /** Free-form backend routing hint passed to n8n (e.g. "all", "jira", "azure-devops", "servicenow", "plane", "openproject"). "all" means no filter — whatever n8n is wired to. No specific backend is required. */
+  backendSource: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
 }
