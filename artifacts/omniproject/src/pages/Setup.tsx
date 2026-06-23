@@ -6,14 +6,19 @@ import {
   getGetSettingsQueryKey,
   type Capabilities,
 } from "@workspace/api-client-react";
-import { CheckCircle2, XCircle, Circle, Copy, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Circle, Copy, Loader2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   useSetupStatus,
   testN8nConnection,
   fetchConfigExport,
+  fetchBackends,
+  downloadWorkflow,
+  verifyWorkflow,
   type N8nTestResult,
   type ExportFormat,
+  type BackendInfo,
+  type VerifyResult,
 } from "../lib/setup";
 import { roleAtLeast } from "../lib/auth";
 
@@ -50,12 +55,48 @@ export function Setup() {
   const [format, setFormat] = useState<ExportFormat>("env");
   const [snippet, setSnippet] = useState("");
 
+  const [backends, setBackends] = useState<BackendInfo[]>([]);
+  const [backendId, setBackendId] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null);
+
   const isAdmin = roleAtLeast(status?.role, "admin");
   const caps = status?.capabilities ?? undefined;
+  const selectedBackend = backends.find((b) => b.id === backendId);
 
   useEffect(() => {
     fetchConfigExport(format).then(setSnippet).catch(() => setSnippet("# could not load config (admin only)"));
   }, [format, status?.n8n.webhookUrlSet]);
+
+  useEffect(() => {
+    fetchBackends().then((b) => { setBackends(b); setBackendId((id) => id || b[0]?.id || ""); }).catch(() => setBackends([]));
+  }, []);
+
+  const generate = async () => {
+    if (!backendId) return;
+    setGenerating(true);
+    try {
+      await downloadWorkflow(backendId, url.trim() ? new URL(url.trim()).pathname.split("/").pop() : undefined);
+      toast({ title: "WORKFLOW DOWNLOADED", description: `Import omniproject-${backendId}.json into n8n.` });
+    } catch {
+      toast({ title: "ERROR", description: "Could not generate (admin only).", variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const runVerify = async () => {
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      setVerifyResult(await verifyWorkflow());
+    } catch (e) {
+      toast({ title: "VERIFY FAILED", description: e instanceof Error ? e.message : "error", variant: "destructive" });
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const runTest = async () => {
     setTesting(true);
@@ -223,15 +264,89 @@ export function Setup() {
           <pre className="bg-background border border-border p-4 text-xs font-mono overflow-x-auto whitespace-pre">{snippet}</pre>
         </Step>
 
-        {/* Step 4 — verify */}
-        <Step n={4} title="Verify your workflow">
-          <p className="text-sm text-muted-foreground">
-            Validate your live n8n against the action contract before go-live:
-          </p>
-          <pre className="bg-background border border-border p-3 text-xs font-mono overflow-x-auto">OMNI_API_BASE=https://your-omni pnpm --filter @workspace/scripts run verify-n8n</pre>
+        {/* Step 4 — generate workflow */}
+        <Step n={4} title="Generate an n8n workflow">
           <p className="text-xs text-muted-foreground">
-            See <span className="font-mono">docs/DATA-REQUIREMENTS.md</span> for the full action/capability contract your
-            workflow must implement.
+            Pick your backend and download a ready-to-import n8n workflow that implements the OmniProject contract.
+            Backend wiring lives in the workflow (in your n8n) — OmniProject stays decoupled.
+          </p>
+          <div className="flex flex-wrap gap-2 items-center">
+            <select
+              value={backendId}
+              onChange={(e) => setBackendId(e.target.value)}
+              className="bg-background border border-border px-3 py-2 text-sm font-mono uppercase"
+            >
+              {backends.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+            </select>
+            <button
+              onClick={generate}
+              disabled={generating || !backendId || !isAdmin}
+              className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-40 flex items-center gap-2"
+            >
+              {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              Download workflow
+            </button>
+            {selectedBackend && (
+              <a href={selectedBackend.docsUrl} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground underline">
+                {selectedBackend.label} API docs ↗
+              </a>
+            )}
+          </div>
+          {selectedBackend && (
+            <div className="border border-border bg-background p-3 text-xs space-y-2">
+              <div>
+                <span className="text-muted-foreground uppercase tracking-widest">Required env in n8n: </span>
+                {selectedBackend.requiredEnv.map((e) => <span key={e} className="font-mono mr-2 border border-border px-1">{e}</span>)}
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                {Object.entries(selectedBackend.capabilities).map(([d, on]) => (
+                  <span key={d} className="flex items-center gap-1.5 font-mono"><Dot on={on} /> {d}</span>
+                ))}
+              </div>
+              {selectedBackend.notes && <p className="text-muted-foreground">{selectedBackend.notes}</p>}
+            </div>
+          )}
+        </Step>
+
+        {/* Step 5 — verify workflow */}
+        <Step n={5} title="Verify your workflow">
+          <p className="text-xs text-muted-foreground">
+            Probe your connected n8n for each read action. Sends <span className="font-mono">{`{ verify: true }`}</span> so a
+            generated workflow short-circuits and nothing touches your backend. Write actions are never probed.
+          </p>
+          <button
+            onClick={runVerify}
+            disabled={verifying || !isAdmin || !status?.n8n.configured}
+            className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-40 flex items-center gap-2"
+          >
+            {verifying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+            Run verification
+          </button>
+          {!status?.n8n.configured && (
+            <p className="text-xs text-amber-500">Connect n8n first (step 2) to verify.</p>
+          )}
+          {verifyResult && (
+            <div className="border border-border bg-background">
+              <div className="p-3 border-b border-border flex items-center justify-between text-sm">
+                <span className="font-black uppercase tracking-widest">
+                  {verifyResult.summary.passed}/{verifyResult.summary.total} actions responding
+                </span>
+                {verifyResult.summary.verifyAware && <span className="text-[10px] text-green-500 uppercase tracking-widest">verify-aware ✓</span>}
+              </div>
+              <div className="divide-y divide-border">
+                {verifyResult.results.map((r) => (
+                  <div key={r.action} className="flex items-center gap-3 px-3 py-1.5 text-sm">
+                    <Dot on={r.ok} />
+                    <span className="font-mono flex-1">{r.action}</span>
+                    <span className="text-[11px] text-muted-foreground font-mono">{r.status || "—"} · {r.ms}ms</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground p-3 border-t border-border">{verifyResult.note}</p>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            For a full CLI contract test: <span className="font-mono">OMNI_API_BASE=https://your-omni pnpm --filter @workspace/scripts run verify-n8n</span>
           </p>
         </Step>
       </div>

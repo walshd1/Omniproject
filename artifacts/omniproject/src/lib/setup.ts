@@ -50,3 +50,69 @@ export async function fetchConfigExport(format: ExportFormat): Promise<string> {
   if (!res.ok) throw new Error(`export failed: ${res.status}`);
   return res.text();
 }
+
+export interface BackendInfo {
+  id: string;
+  label: string;
+  docsUrl: string;
+  requiredEnv: string[];
+  actions: string[];
+  capabilities: Record<string, boolean>;
+  notes?: string;
+}
+
+export async function fetchBackends(): Promise<BackendInfo[]> {
+  const res = await fetch("/api/setup/backends", { credentials: "same-origin" });
+  if (!res.ok) throw new Error(`backends failed: ${res.status}`);
+  return (await res.json()) as BackendInfo[];
+}
+
+/** Generate a backend workflow and trigger a browser download. */
+export async function downloadWorkflow(backendId: string, webhookPath?: string): Promise<void> {
+  const res = await fetch("/api/setup/generate-workflow", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ backendId, webhookPath }),
+  });
+  if (!res.ok) throw new Error(`generate failed: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `omniproject-${backendId}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export interface VerifyActionResult {
+  action: string;
+  ok: boolean;
+  status: number;
+  ms: number;
+  verifyAware: boolean;
+  message: string | null;
+}
+
+export interface VerifyResult {
+  webhookUrl: string;
+  summary: { passed: number; total: number; verifyAware: boolean };
+  results: VerifyActionResult[];
+  note: string;
+}
+
+export async function verifyWorkflow(): Promise<VerifyResult> {
+  const res = await fetch("/api/setup/verify-workflow", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) {
+    const detail = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(detail.error || `verify failed: ${res.status}`);
+  }
+  return (await res.json()) as VerifyResult;
+}

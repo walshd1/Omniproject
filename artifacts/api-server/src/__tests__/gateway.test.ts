@@ -7,6 +7,8 @@ import { roleFromClaims } from "../lib/rbac";
 import { idempotencyKey } from "../lib/n8n";
 import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
+import { BACKENDS, getBackend } from "../lib/n8n-backends";
+import { generateWorkflow } from "../lib/n8n-generator";
 
 // ── Optimistic concurrency ────────────────────────────────────────────────────
 test("versionConflict: no expected version never conflicts", () => {
@@ -112,6 +114,47 @@ test("buildConfigExport: env masks secrets as placeholders", () => {
 test("buildConfigExport: compose and k8s render their own shapes", () => {
   assert.match(buildConfigExport({ n8nWebhookUrl: "https://n8n/x" }, "compose"), /services:\n {2}omniproject:/);
   assert.match(buildConfigExport({ n8nWebhookUrl: "https://n8n/x" }, "k8s"), /kind: ConfigMap/);
+});
+
+// ── Backend manifests + workflow generator ────────────────────────────────────
+test("BACKENDS: every manifest is well-formed", () => {
+  assert.ok(BACKENDS.length >= 5);
+  for (const b of BACKENDS) {
+    assert.ok(b.id && b.label && b.authHeader, `manifest ${b.id} missing fields`);
+    assert.ok(Array.isArray(b.requiredEnv));
+    assert.ok(b.actions.list_projects && b.actions.list_issues, `${b.id} must map core reads`);
+  }
+});
+
+test("generateWorkflow: produces a valid, connected workflow", () => {
+  const wf = generateWorkflow(getBackend("openproject")!);
+  const names = new Set(wf.nodes.map((n) => n.name));
+  // Scaffold present.
+  for (const required of ["Webhook", "Verify probe?", "Route Action", "Normalize → N8nActionResult", "Respond", "Capabilities"]) {
+    assert.ok(names.has(required), `missing node ${required}`);
+  }
+  // Every connection targets an existing node.
+  for (const [from, conn] of Object.entries(wf.connections)) {
+    assert.ok(names.has(from), `connection from unknown node ${from}`);
+    for (const out of conn.main) for (const c of out) assert.ok(names.has(c.node), `edge to unknown node ${c.node}`);
+  }
+  // Serializable (importable JSON).
+  assert.doesNotThrow(() => JSON.stringify(wf));
+});
+
+test("generateWorkflow: always includes get_capabilities and an Unsupported fallback", () => {
+  const wf = generateWorkflow(getBackend("github")!);
+  const route = wf.connections["Route Action"];
+  // rule outputs (one per action incl. get_capabilities) + 1 fallback.
+  const actionCount = Object.keys(getBackend("github")!.actions).length + 1; // + get_capabilities
+  assert.equal(route.main.length, actionCount + 1);
+  assert.ok(wf.nodes.some((n) => n.name === "Unsupported Action"));
+});
+
+test("generateWorkflow: webhook path is honoured", () => {
+  const wf = generateWorkflow(getBackend("jira")!, { webhookPath: "my-omni-hook" });
+  const webhook = wf.nodes.find((n) => n.name === "Webhook");
+  assert.equal((webhook?.parameters as { path?: string }).path, "my-omni-hook");
 });
 
 test("resolveCapabilities: demo mode (no n8n, no env) turns everything on", async () => {
