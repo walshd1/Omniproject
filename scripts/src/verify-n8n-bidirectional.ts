@@ -616,6 +616,49 @@ async function testGovernance(apiBase: string) {
   }
 }
 
+async function testSetup(apiBase: string) {
+  console.log(bold("\n[7] Setup / Connection Center"));
+  const mockUrl = `http://127.0.0.1:${MOCK_N8N_PORT}/webhook/omniproject`;
+
+  // Status overview.
+  try {
+    const r = await get(`${apiBase}/api/setup/status`);
+    assert("GET /setup/status returns 200", r.status === 200, `got ${r.status}`);
+    const s = r.data as Record<string, unknown>;
+    assert("Status has role + auth + capabilities", typeof s.role === "string" && !!s.auth && "capabilities" in s);
+  } catch {
+    assert("GET /setup/status reachable", false);
+  }
+
+  // Non-destructive n8n probe against the mock webhook.
+  try {
+    const r = await post(`${apiBase}/api/setup/test-n8n`, { webhookUrl: mockUrl });
+    assert("POST /setup/test-n8n returns 200", r.status === 200, `got ${r.status}`);
+    const d = r.data as Record<string, unknown>;
+    assert("Probe reports the mock is reachable", d.reachable === true);
+    assert("Probe detects get_capabilities support", d.implementsCapabilities === true);
+  } catch {
+    assert("POST /setup/test-n8n reachable", false);
+  }
+
+  // Bad URL is rejected.
+  try {
+    const r = await post(`${apiBase}/api/setup/test-n8n`, { webhookUrl: "not-a-url" });
+    assert("Invalid webhook URL returns 400", r.status === 400, `got ${r.status}`);
+  } catch {
+    assert("Invalid URL test reachable", false);
+  }
+
+  // Config export.
+  try {
+    const r = await get(`${apiBase}/api/setup/export?format=env`);
+    assert("GET /setup/export returns 200", r.status === 200, `got ${r.status}`);
+    assert("Exported .env carries N8N_WEBHOOK_URL", typeof r.data === "string" && r.data.includes("N8N_WEBHOOK_URL"));
+  } catch {
+    assert("GET /setup/export reachable", false);
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   console.log(bold("OmniProject — n8n Bidirectional Verification Script"));
@@ -657,6 +700,7 @@ async function main() {
     await testApiRoutes(apiBase);
     await testExports(apiBase);
     await testGovernance(apiBase);
+    await testSetup(apiBase);
   } finally {
     mockServer.close();
   }

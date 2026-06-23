@@ -14,6 +14,7 @@ import { Home } from "./pages/Home";
 import { Projects } from "./pages/Projects";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { Settings } from "./pages/Settings";
+import { Setup } from "./pages/Setup";
 import { Reports } from "./pages/Reports";
 import { Login } from "./pages/Login";
 
@@ -49,6 +50,9 @@ function Router() {
       </Route>
       <Route path="/settings">
         <AppLayout><Settings /></AppLayout>
+      </Route>
+      <Route path="/setup">
+        <AppLayout><Setup /></AppLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>

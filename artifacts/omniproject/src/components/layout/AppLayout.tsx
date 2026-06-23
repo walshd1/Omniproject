@@ -5,13 +5,15 @@ import { IssueDialog } from "../IssueDialog";
 import { NotificationsBell } from "../NotificationsBell";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
-import { Layers, Briefcase, BarChart3, Settings as SettingsIcon, LogOut } from "lucide-react";
+import { Layers, Briefcase, BarChart3, Settings as SettingsIcon, LogOut, PlugZap } from "lucide-react";
 import { useAuth, logout } from "../../lib/auth";
+import { useSetupStatus } from "../../lib/setup";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const { activeProjectId, isNewIssueOpen, setNewIssueOpen } = useStore();
   const { data: auth, isLoading: authLoading } = useAuth();
+  const { data: setup } = useSetupStatus();
   const { data: projects } = useListProjects();
   const health = useHealthCheck({
     query: { queryKey: getHealthCheckQueryKey(), refetchInterval: 30_000, retry: false },
@@ -93,6 +95,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <SettingsIcon className="w-4 h-4 mr-3" /> Settings
             <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">G+S</span>
           </Link>
+          <Link href="/setup" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location.startsWith("/setup") ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
+            <PlugZap className="w-4 h-4 mr-3" /> Setup
+            {setup && !setup.n8n.configured && <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" title="Running in demo mode" />}
+          </Link>
         </nav>
 
         <div className="p-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
@@ -145,6 +151,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
+        {setup && !setup.n8n.configured && location !== "/setup" && (
+          <div className="bg-amber-500/10 border-b border-amber-500/40 px-6 py-2 text-xs flex items-center justify-between">
+            <span className="font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+              Demo mode — showing sample data. Connect your n8n + backend to go live.
+            </span>
+            <Link href="/setup" className="font-black uppercase tracking-widest border border-amber-500/50 text-amber-600 dark:text-amber-400 px-2 py-1 hover:bg-amber-500 hover:text-background">
+              Open setup →
+            </Link>
+          </div>
+        )}
         <div className="flex-1 overflow-auto bg-muted/20 relative">
           {children}
         </div>
