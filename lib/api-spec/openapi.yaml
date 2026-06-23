@@ -188,6 +188,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProjectSummary"
 
+  /projects/{projectId}/capacity:
+    get:
+      operationId: getProjectCapacity
+      tags: [projects]
+      summary: Resource capacity & workload allocation for a project
+      description: "Routed to n8n with X-OmniProject-Action: get_resource_capacity, X-OmniProject-Source: capacity_engine"
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resource capacity rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ResourceCapacity"
+
+  /projects/{projectId}/financials:
+    get:
+      operationId: getProjectFinancials
+      tags: [projects]
+      summary: Earned Value Management (EVM) financials for a project
+      description: "Routed to n8n with X-OmniProject-Action: get_project_financials, X-OmniProject-Source: financial_ledger"
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Project financials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectFinancials"
+
+  /portfolio/health:
+    get:
+      operationId: getPortfolioHealth
+      tags: [projects]
+      summary: Portfolio-wide multi-project health aggregation
+      description: "Routed to n8n with X-OmniProject-Action: get_portfolio_health, X-OmniProject-Source: portfolio_master"
+      responses:
+        "200":
+          description: Portfolio health summary rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PortfolioHealthSummary"
+
   /activity:
     get:
       operationId: listActivity
@@ -464,6 +522,87 @@ components:
         - byPriority
         - completionRate
         - overdue
+
+    ResourceCapacity:
+      type: object
+      properties:
+        resourceId:
+          type: string
+        resourceName:
+          type: string
+        role:
+          type: string
+        allocationPercentage:
+          type: integer
+        assignedHours:
+          type: number
+        availableHours:
+          type: number
+        utilizationState:
+          type: string
+          enum: [OVER_ALLOCATED, OPTIMAL, UNDER_ALLOCATED]
+      required:
+        - resourceId
+        - resourceName
+        - role
+        - allocationPercentage
+        - assignedHours
+        - availableHours
+        - utilizationState
+
+    ProjectFinancials:
+      type: object
+      properties:
+        currency:
+          type: string
+        budgetAllocated:
+          type: number
+        actualBurn:
+          type: number
+        earnedValue:
+          type: number
+        cpi:
+          type: number
+        spi:
+          type: number
+        financialHealth:
+          type: string
+          enum: [GREEN, AMBER, RED]
+        forecastCostAtCompletion:
+          type: number
+      required:
+        - currency
+        - budgetAllocated
+        - actualBurn
+        - earnedValue
+        - cpi
+        - spi
+        - financialHealth
+        - forecastCostAtCompletion
+
+    PortfolioHealthSummary:
+      type: object
+      properties:
+        projectId:
+          type: string
+        projectName:
+          type: string
+        ragStatus:
+          type: string
+          enum: [GREEN, AMBER, RED]
+        scheduleVarianceDays:
+          type: integer
+        budgetVariancePercentage:
+          type: number
+        activeBlockersCount:
+          type: integer
+      required:
+        - projectId
+        - projectName
+        - ragStatus
+        - scheduleVarianceDays
+        - budgetVariancePercentage
+        - activeBlockersCount
 
     ActivityEntry:
       type: object

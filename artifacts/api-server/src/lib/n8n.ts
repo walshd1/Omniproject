@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { Request } from "express";
 import { getSession } from "../routes/auth";
 import { getSettings } from "./settings";
+import { logger } from "./logger";
 
 /** The gateway is the origin of UI-initiated changes. */
 export const GATEWAY_ORIGIN = "omniproject";
@@ -27,15 +28,16 @@ export function userContextFromReq(req: Request): UserContext {
 
 /**
  * Deterministic idempotency key:
- *   sha256(action + projectId + issueId + timestamp_rounded_to_nearest_second)
- * Identical actions on the same entity within one second collapse to the same
- * key, letting n8n drop duplicate triggers / webhook storms.
+ *   sha256(action + projectId + issueId + timestamp_rounded_to_nearest_minute)
+ * Identical actions on the same entity within the same minute collapse to the
+ * same key, letting n8n drop duplicate triggers / webhook storms and resolve
+ * simultaneous cross-system edit races.
  */
 export function idempotencyKey(action: string, payload: Record<string, unknown>): string {
   const projectId = String(payload["projectId"] ?? "");
   const issueId = String(payload["issueId"] ?? "");
-  const second = Math.round(Date.now() / 1000);
-  return crypto.createHash("sha256").update(`${action}:${projectId}:${issueId}:${second}`).digest("hex");
+  const minute = Math.round(Date.now() / 60_000);
+  return crypto.createHash("sha256").update(`${action}:${projectId}:${issueId}:${minute}`).digest("hex");
 }
 
 /**
@@ -100,6 +102,20 @@ export async function callN8n<T = unknown>(
     origin,
     ...(opts.userContext ? { userContext: opts.userContext } : {}),
   };
+
+  // Enterprise audit trail: one structured line per proxied operation.
+  // Sensitive OIDC tokens and Cookie headers are redacted by the pino config.
+  logger.info(
+    {
+      audit: true,
+      action,
+      projectId: payload["projectId"] ?? null,
+      sub: opts.userContext?.sub ?? null,
+      idempotencyKey: key,
+      origin,
+    },
+    "proxy_operation",
+  );
 
   const res = await fetch(webhookUrl(), {
     method: "POST",

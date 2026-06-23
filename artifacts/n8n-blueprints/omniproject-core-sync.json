@@ -93,6 +93,39 @@
               },
               "renameOutput": true,
               "outputKey": "update_issue"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [
+                  { "leftValue": "={{ $json.body.action }}", "rightValue": "get_resource_capacity", "operator": { "type": "string", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "get_resource_capacity"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [
+                  { "leftValue": "={{ $json.body.action }}", "rightValue": "get_project_financials", "operator": { "type": "string", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "get_project_financials"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [
+                  { "leftValue": "={{ $json.body.action }}", "rightValue": "get_portfolio_health", "operator": { "type": "string", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "get_portfolio_health"
             }
           ]
         },
@@ -229,6 +262,75 @@
     },
     {
       "parameters": {
+        "method": "GET",
+        "url": "={{ $env.DYNAMICS_BC_URL }}/api/v2.0/companies/jobs?$filter=projectId eq '{{ $json.body.payload.projectId }}'",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $json.body.payload.userContext.token }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1",
+      "name": "Resource Capacity (Enterprise: Dynamics 365 BC Jobs / OSS: TaskJuggler)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [340, 740],
+      "notes": "ENTERPRISE: Microsoft Dynamics 365 Business Central Job Ledger (/api/v2.0/companies/jobs). OSS: replace with TaskJuggler resource report or native worker-assignment tables. Map → ResourceCapacity[] (resourceId, resourceName, role, allocationPercentage, assignedHours, availableHours, utilizationState)."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProject('{{ $json.body.payload.projectId }}')",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $json.body.payload.userContext.token }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d2d2d2d2-d2d2-4d2d-8d2d-d2d2d2d2d2d2",
+      "name": "Project Financials (Enterprise: SAP S/4HANA / OSS: Dolibarr|Odoo)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [340, 940],
+      "notes": "ENTERPRISE: SAP S/4HANA Project API (OData). OSS: pull budget line items from Dolibarr ERP or Odoo Community tables. Compute EVM and map → ProjectFinancials (currency, budgetAllocated, actualBurn, earnedValue, cpi, spi, financialHealth, forecastCostAtCompletion)."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/projects",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $json.body.payload.userContext.token }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d3d3d3d3-d3d3-4d3d-8d3d-d3d3d3d3d3d3",
+      "name": "Portfolio Health (OSS: OpenProject PPM / Enterprise: SAP|Dynamics rollup)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [340, 1140],
+      "notes": "OSS: OpenProject high-level PPM project health records (/api/v3/projects). ENTERPRISE: aggregate from SAP S/4HANA / Dynamics 365 rollups. Map → PortfolioHealthSummary[] (projectId, projectName, ragStatus, scheduleVarianceDays, budgetVariancePercentage, activeBlockersCount)."
+    },
+    {
+      "parameters": {
+        "content": "## Dual routing: Open-Source vs Enterprise\n\nEach analytics action has an OSS and an Enterprise mapping — pick one HTTP node per action and delete the other, then normalize to the Part 1 schema.\n\n| Action | Open-source | Enterprise |\n|---|---|---|\n| get_resource_capacity | TaskJuggler / worker tables | Dynamics 365 BC Jobs |\n| get_project_financials | Dolibarr / Odoo CE | SAP S/4HANA Project API |\n| get_portfolio_health | OpenProject PPM | SAP / Dynamics rollup |\n\nAll variants MUST return the exact `ResourceCapacity` / `ProjectFinancials` / `PortfolioHealthSummary` shapes before the Normalize node.",
+        "height": 300,
+        "width": 460
+      },
+      "id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      "name": "Dual Routing Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-360, 220]
+    },
+    {
+      "parameters": {
         "content": "## OmniProject Core Sync\n\nImplements the gateway contract:\n- **Webhook** receives `POST` with body `{ action, payload, source, origin, idempotencyKey }` and headers `X-OmniProject-Action / -Source / -Origin / -Idempotency-Key`.\n- **Loop guard** drops echoes where `origin === payload.lastUpdatedBy`.\n- **Route Action** switches on `list_projects | list_issues | create_issue | update_issue`.\n- HTTP nodes call Plane (`PLANE_INSTANCE_URL`) or OpenProject (`OPENPROJECT_INSTANCE_URL`) and authenticate **as the active user** via `payload.userContext.token`.\n- **Normalize** returns `{ success, data, message }` (N8nActionResult).\n\nSet env vars `PLANE_INSTANCE_URL` and `OPENPROJECT_INSTANCE_URL` in n8n. Adjust the API paths to your backend versions.",
         "height": 320,
         "width": 420
@@ -256,8 +358,20 @@
         [{ "node": "List Issues", "type": "main", "index": 0 }],
         [{ "node": "Create Issue", "type": "main", "index": 0 }],
         [{ "node": "Update Issue", "type": "main", "index": 0 }],
+        [{ "node": "Resource Capacity (Enterprise: Dynamics 365 BC Jobs / OSS: TaskJuggler)", "type": "main", "index": 0 }],
+        [{ "node": "Project Financials (Enterprise: SAP S/4HANA / OSS: Dolibarr|Odoo)", "type": "main", "index": 0 }],
+        [{ "node": "Portfolio Health (OSS: OpenProject PPM / Enterprise: SAP|Dynamics rollup)", "type": "main", "index": 0 }],
         [{ "node": "Unsupported Action", "type": "main", "index": 0 }]
       ]
+    },
+    "Resource Capacity (Enterprise: Dynamics 365 BC Jobs / OSS: TaskJuggler)": {
+      "main": [[{ "node": "Normalize → N8nActionResult", "type": "main", "index": 0 }]]
+    },
+    "Project Financials (Enterprise: SAP S/4HANA / OSS: Dolibarr|Odoo)": {
+      "main": [[{ "node": "Normalize → N8nActionResult", "type": "main", "index": 0 }]]
+    },
+    "Portfolio Health (OSS: OpenProject PPM / Enterprise: SAP|Dynamics rollup)": {
+      "main": [[{ "node": "Normalize → N8nActionResult", "type": "main", "index": 0 }]]
     },
     "List Projects (Plane/OpenProject)": {
       "main": [[{ "node": "Normalize → N8nActionResult", "type": "main", "index": 0 }]]

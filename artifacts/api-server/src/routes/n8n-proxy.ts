@@ -14,10 +14,15 @@ router.post("/n8n-proxy", async (req, res) => {
     return;
   }
 
-  const { action, payload, source } = parse.data;
+  const { action, source } = parse.data;
+
+  // Never trust client-supplied identity. Strip any userContext/origin from the
+  // raw body; the server injects identity from the validated OIDC session below.
+  const rawPayload = (parse.data.payload ?? {}) as Record<string, unknown>;
+  const { userContext: _ignoredUserContext, origin: _ignoredOrigin, ...payload } = rawPayload;
 
   try {
-    const result = await callN8n(action, payload as Record<string, unknown>, {
+    const result = await callN8n(action, payload, {
       authHeader: authHeaderFromReq(req),
       source: source ?? "unknown",
       userContext: userContextFromReq(req),

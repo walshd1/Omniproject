@@ -14,6 +14,7 @@ import { Home } from "./pages/Home";
 import { Projects } from "./pages/Projects";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { Settings } from "./pages/Settings";
+import { Reports } from "./pages/Reports";
 import { Login } from "./pages/Login";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,9 @@ function Router() {
       </Route>
       <Route path="/projects/:projectId">
         {(params) => <AppLayout><ProjectDetail projectId={params.projectId} /></AppLayout>}
+      </Route>
+      <Route path="/reports">
+        <AppLayout><Reports /></AppLayout>
       </Route>
       <Route path="/settings">
         <AppLayout><Settings /></AppLayout>
