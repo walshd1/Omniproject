@@ -31,7 +31,11 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # --ignore-scripts: the CI build path (esbuild, rollup, vite, tsx) uses
+        # prebuilt platform binaries, not postinstall scripts, so we skip them.
+        # This also avoids pnpm 11's fatal ERR_PNPM_IGNORED_BUILDS in CI without
+        # weakening the workspace's supply-chain allowlist.
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Typecheck (libs + apps + scripts)
         run: pnpm run typecheck
