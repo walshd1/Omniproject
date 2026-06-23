@@ -10,6 +10,7 @@ import {
   getListActivityQueryKey,
   type Issue,
   type IssueInput,
+  type IssueUpdate,
 } from "@workspace/api-client-react";
 import {
   Dialog,
@@ -110,15 +111,30 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
     const payload = buildPayload();
 
     if (isEdit && issue) {
+      // Optimistic concurrency: send the version we loaded so the gateway/backend
+      // rejects the write with 409 if someone else changed it meanwhile.
+      const update: IssueUpdate = { ...payload, expectedVersion: issue.version ?? undefined };
       updateIssue.mutate(
-        { projectId, issueId: issue.id, data: payload },
+        { projectId, issueId: issue.id, data: update },
         {
           onSuccess: () => {
             invalidate();
             toast({ title: "ISSUE UPDATED", description: issue.title });
             onOpenChange(false);
           },
-          onError: () => toast({ title: "ERROR", description: "Failed to update issue.", variant: "destructive" }),
+          onError: (err) => {
+            if ((err as { status?: number }).status === 409) {
+              invalidate();
+              toast({
+                title: "EDIT CONFLICT",
+                description: "This issue was changed by someone else. Your view has been refreshed — re-apply your change.",
+                variant: "destructive",
+              });
+              onOpenChange(false);
+              return;
+            }
+            toast({ title: "ERROR", description: "Failed to update issue.", variant: "destructive" });
+          },
         },
       );
     } else {

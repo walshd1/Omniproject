@@ -4,6 +4,8 @@ import { useStore } from "../store/useStore";
 import { PortfolioKpi } from "../components/reports/PortfolioKpi";
 import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
 import { FinancialEvmChart } from "../components/reports/FinancialEvmChart";
+import { ProjectTrend } from "../components/reports/ProjectTrend";
+import { ProvenanceBadge } from "../components/ProvenanceBadge";
 
 /** Render a report only when its data domain is available; else label the dependency. */
 function Gated({
@@ -54,7 +56,10 @@ export function Reports() {
     <div className="h-full overflow-y-auto p-8">
       <div className="max-w-6xl mx-auto space-y-10">
         <div className="flex items-center justify-between pb-4 border-b border-border">
-          <h1 className="text-3xl font-black uppercase tracking-tighter">ENTERPRISE REPORTING</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-black uppercase tracking-tighter">ENTERPRISE REPORTING</h1>
+            {caps && <ProvenanceBadge mode={caps.mode} />}
+          </div>
           {projects && projects.length > 0 && (
             <select
               className="bg-background border border-border px-3 py-2 text-sm font-bold uppercase outline-none"
@@ -85,6 +90,12 @@ export function Reports() {
             </Gated>
           )}
         </div>
+
+        {projectId && (
+          <Gated caps={caps} domain="history" title="Progress Trend" requires="backend history (journals / changelog via get_project_history)">
+            <ProjectTrend projectId={projectId} />
+          </Gated>
+        )}
       </div>
     </div>
   );
