@@ -63,4 +63,5 @@ free-form routing hint (default `all`).
 
 ## Pointers
 
+- **[docs/TECHNICAL.md](docs/TECHNICAL.md)** — the architecture / n8n-contract / security / API reference for IT & implementers. **[README.md](README.md)** — deployment & use.
 - Workspace structure, TypeScript project references, and per-package details live in `pnpm-workspace.yaml` and each package's `package.json` / `tsconfig.json`.

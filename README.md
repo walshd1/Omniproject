@@ -1,103 +1,52 @@
 # OmniProject
 
-> A stateless **program-management overlay** — a single pane of glass over headless
-> project backends (**Plane**, **OpenProject**) with **n8n** as the exclusive
-> middleware / API hub.
+> A stateless **program-management overlay** — a single pane of glass over your
+> existing project backend(s) (Plane, OpenProject, Jira, Azure DevOps,
+> ServiceNow, …) with **n8n** as the exclusive middleware / API hub.
 
-OmniProject is a brutalist, keyboard-driven shell. It does not store project data
-itself — Plane and OpenProject run underneath, and every read and mutating action
-is brokered through n8n. The UI presents a **dual-lens** view (Agile Kanban + Gantt
-timeline) and pushes actions through a thin gateway that attaches the user's OIDC
-bearer token before forwarding to n8n.
+OmniProject is a brutalist, keyboard-driven shell. It stores no project data
+itself — your backends run underneath and every read and write is brokered
+through n8n. It's **backend-agnostic**: anything n8n can reach can be federated
+underneath, so it slots in alongside the systems an organization already runs.
 
 ```
-┌─────────────┐     /api/*      ┌──────────────┐    webhook     ┌────────┐    ┌─────────────┐
-│  SPA (Vite) │ ───────────────▶│  Gateway     │ ──────────────▶│  n8n   │───▶│   Plane     │
-│  React 19   │◀─────────────── │  (Express)   │◀────────────── │        │    │ OpenProject │
-└─────────────┘   normalized    └──────┬───────┘   normalized   └────────┘    └─────────────┘
-                                       │  OIDC (Authorization Code + PKCE)
+┌─────────────┐     /api/*      ┌──────────────┐    webhook     ┌────────┐    ┌──────────────┐
+│  SPA (Vite) │ ───────────────▶│  Gateway     │ ──────────────▶│  n8n   │───▶│ your backends │
+│  React 19   │◀─────────────── │  (Express)   │◀────────────── │        │    │ Plane / OP /  │
+└─────────────┘   normalized    └──────┬───────┘   normalized   └────────┘    │ Jira / SAP …  │
+                                       │  OIDC (Authorization Code + PKCE)     └──────────────┘
                                        ▼
                                   ┌──────────┐
                                   │   IdP    │  Authentik (standalone) / BYO-SSO (enterprise)
                                   └──────────┘
 ```
 
-In production the SPA and gateway ship as **one container** (`omni-shell`) on port
-`3000`: Express serves both `/api/*` and the built static SPA.
+In production the SPA and gateway ship as **one container** (`omni-shell`) on
+port `3000`.
+
+> **Implementing or integrating OmniProject?** See **[docs/TECHNICAL.md](docs/TECHNICAL.md)**
+> for architecture, the n8n contract, the security model, the API surface, and
+> data schemas.
 
 ---
 
 ## Features
 
-- **Dual-lens dashboard** — Agile Kanban with native drag-to-move (updates issue
-  status via the API) and a Gantt timeline driven by start/due dates.
-- **Issue management** — create / edit / delete from board columns, a *New Issue*
+- **Dual-lens dashboard** — Agile Kanban (drag-to-move) + Gantt timeline.
+- **Issue management** — create / edit / delete from the board, a *New Issue*
   button, or the `Cmd+K` palette.
-- **Command palette** (`Cmd+K`) and `g d` / `g p` / `g s` navigation shortcuts.
-- **Env-gated OIDC SSO** — real Authorization Code + PKCE flow against any OIDC
-  provider; demo mode when no provider is configured so it still runs locally.
-- **n8n gateway** — the sole data broker: *every* read and write is brokered
-  through n8n (with the session bearer token attached), so any backend n8n can
-  reach can be federated underneath. Falls back to sample data in demo mode.
-- **AI: local or public** — choose a local model (Ollama) or a public model via
-  OpenRouter (OpenAI / Anthropic also supported), selected in Settings.
-- **Export & BI** — one-click Excel (`.xlsx`) / CSV export, plus a read-only
-  API token so Power BI can pull data directly.
-- **Tri-mode deployment** — Docker Compose (standalone with bundled Authentik),
-  Docker Compose (enterprise / BYO-SSO), and Kubernetes.
-- **Live gateway health** indicator and an activity feed.
+- **Enterprise reporting** (`/reports`) — Portfolio KPI cards (RAG), a Resource
+  Heatmap (over-allocation alerts), and a Financial EVM chart (CPI/SPI).
+- **Export & BI** — one-click Excel/CSV, plus a read-only API token for Power BI.
+- **AI assist** — connect a local model (Ollama) or a public model (OpenRouter).
+- **SSO** — env-gated OIDC against any provider; demo mode when unconfigured.
+- **Keyboard-driven** — `Cmd+K` palette and `g d/p/r/s` navigation.
 
 ---
 
-## Tech stack
+## Quick start (local, demo mode)
 
-| Layer        | Choice                                                                   |
-| ------------ | ------------------------------------------------------------------------ |
-| Frontend     | Vite + React 19, wouter (routing), Zustand (UI state), TanStack Query     |
-| UI           | Tailwind CSS v4, shadcn / Radix UI, cmdk, lucide-react                    |
-| Gateway      | Express 5, pino (logs redact auth/cookie headers)                         |
-| Contracts    | OpenAPI → Orval → React Query hooks + Zod schemas                         |
-| Build        | Vite (SPA), esbuild (gateway → self-contained bundle)                     |
-| Tooling      | pnpm workspaces, Node.js 22+, TypeScript 5.9                             |
-
----
-
-## Hardware requirements
-
-OmniProject itself (the `omni-shell` container) is lightweight. The footprint is
-dominated by the **optional companions you run alongside it** — n8n, the bundled
-Authentik IdP, a local Ollama LLM, and the Plane / OpenProject backends underneath.
-
-| Scenario | CPU | RAM | Disk | Notes |
-| -------- | --- | --- | ---- | ----- |
-| **Dev — shell only** (gateway + SPA, demo mode, no Docker) | 2 cores | 4 GB | ~2 GB | Just Node.js 22+. The fastest way to work on the UI/gateway. |
-| **Standalone stack** (omni-shell + n8n + Traefik + Authentik ×4 + Ollama) | 4 cores | 8 GB min · **16 GB recommended** | 20 GB+ | Authentik (server/worker/redis/postgres) needs ~2 GB on its own. |
-| **Standalone + local LLM** (Ollama running a model) | 4–8 cores | **16–32 GB** | 30 GB+ | A 7B model needs ~8 GB RAM (more for larger models); a GPU is strongly recommended for usable latency. |
-| **Production (per node)** — omni-shell + n8n, BYO external SSO | 2 vCPU | 4 GB | 10 GB | The shell pod requests `256Mi`/`100m`, limits `512Mi`/`500m`. Scale n8n with workflow load. |
-
-> **Backends are sized separately.** Plane and OpenProject are each multi-container
-> apps (Postgres, Redis, workers) with their own substantial requirements — budget
-> at least an extra **4 GB RAM each** if you self-host them on the same machine.
-
----
-
-## Setup & get running
-
-### Prerequisites
-
-| Tool | Version | Why |
-| ---- | ------- | --- |
-| **Node.js** | 22+ | runtime for the gateway and build tooling |
-| **pnpm** | 9+ (via `corepack enable`) | workspace package manager |
-| **Docker** + Compose | recent | only for the standalone / enterprise stacks |
-
-```bash
-# Enable pnpm (ships with Node via corepack)
-corepack enable
-node -v   # expect v22 or newer
-```
-
-### 1 · Clone and install
+**Prerequisites:** Node.js 22+ and pnpm (`corepack enable`).
 
 ```bash
 git clone https://github.com/walshd1/Omniproject.git
@@ -105,201 +54,71 @@ cd Omniproject
 pnpm install
 ```
 
-### 2 · Run locally (demo mode — no IdP needed)
-
-Open two terminals from the repo root.
+Run the gateway and SPA in two terminals:
 
 ```bash
-# Terminal 1 — the gateway (serves /api/*)
+# Terminal 1 — gateway (serves /api/*)
 PORT=8080 pnpm --filter @workspace/api-server run dev
-```
 
-```bash
-# Terminal 2 — the SPA (proxies /api → http://localhost:8080)
+# Terminal 2 — SPA (proxies /api → http://localhost:8080)
 PORT=5173 BASE_PATH=/ pnpm --filter @workspace/omniproject run dev
 ```
 
-Open **http://localhost:5173**. With no `OIDC_*` variables set, the login screen
-shows **ENTER (DEMO MODE)** and issues a local session — you can use the whole app
-without an identity provider. (Data is sample/federated-stand-in until you wire n8n.)
-
-> The Vite dev server proxies `/api` to the gateway. Point it elsewhere with
-> `API_PROXY_TARGET=http://host:port`.
-
-### 3 · Verify the n8n data contract (optional)
-
-```bash
-# start the gateway pointed at a throwaway mock port, then run the test
-PORT=5000 N8N_WEBHOOK_URL=http://127.0.0.1:19678/webhook/omniproject \
-  node artifacts/api-server/dist/index.mjs &           # needs a prior build (step 5)
-OMNI_API_BASE=http://localhost:5000 \
-  pnpm --filter @workspace/scripts run verify-n8n        # full contract: n8n, auth, AI, exports
-```
-
-### 4 · Run the whole stack with Docker (real SSO via Authentik)
-
-```bash
-docker compose -f docker-compose.standalone.yml up -d
-```
-
-This starts `omni-shell`, `n8n`, `ollama`, Traefik, and Authentik. Then in
-Authentik create an OAuth2 provider for OmniProject with redirect URI
-`https://app.local/api/auth/callback`, and set `OIDC_CLIENT_SECRET` to match.
-Access the shell at **https://app.local** (Traefik routes `*.local`).
-
-### 5 · Build for production
-
-```bash
-pnpm run build                                    # typecheck + build everything
-# or the single deployable image:
-docker build -t omniproject-shell:latest .        # SPA + gateway on port 3000
-```
-
-### Common commands
-
-| Command | Description |
-| ------- | ----------- |
-| `pnpm run typecheck` | Typecheck every package |
-| `pnpm run build` | Typecheck + build all packages |
-| `pnpm --filter @workspace/omniproject run build` | Build the SPA (needs `PORT` + `BASE_PATH`) |
-| `pnpm --filter @workspace/api-server run build` | Build the gateway bundle |
-| `pnpm --filter @workspace/scripts run verify-n8n` | n8n contract test (gateway must be running; set `OMNI_API_BASE`) |
-| `pnpm --filter @workspace/api-spec run codegen` | Regenerate hooks + Zod schemas from `openapi.yaml` |
-
-> **Generated code is not hand-edited.** Change `lib/api-spec/openapi.yaml` and run
-> codegen to update `lib/api-zod` and `lib/api-client-react`.
+Open **http://localhost:5173**. With no `OIDC_*` set, the login screen shows
+**ENTER (DEMO MODE)** and issues a local session — the whole app is usable with
+sample data until you wire up n8n and SSO.
 
 ---
 
-## Repository layout
+## Using OmniProject
 
-```
-.
-├── artifacts/
-│   ├── omniproject/        # Vite + React SPA (the shell)
-│   │   └── src/
-│   │       ├── pages/                  # Home, Projects, ProjectDetail, Settings, Login
-│   │       ├── components/board/       # AgileBoard, GanttChart
-│   │       ├── components/             # IssueDialog, CommandPalette, layout/AppLayout
-│   │       ├── store/useStore.ts       # Zustand UI state
-│   │       └── lib/auth.ts             # OIDC session client
-│   └── api-server/         # Express gateway
-│       └── src/
-│           ├── routes/                 # health, auth, n8n-proxy, projects
-│           ├── lib/oidc.ts             # OIDC (Authorization Code + PKCE) helper
-│           └── app.ts                  # wiring + static SPA serving
-├── lib/
-│   ├── api-spec/           # openapi.yaml (source of truth) + Orval config
-│   ├── api-zod/            # generated Zod schemas
-│   ├── api-client-react/   # generated React Query hooks + fetch layer
-│   └── db/                 # Drizzle schema (scaffold)
-├── scripts/
-│   └── src/verify-n8n-bidirectional.ts # contract test (mocks n8n, both directions)
-├── Dockerfile                          # builds the single omni-shell image
-├── docker-compose.standalone.yml       # omni-shell + n8n + ollama + traefik + Authentik
-├── docker-compose.enterprise.yml       # BYO-SSO, direct host ports
-└── k8s-enterprise-manifest.yaml        # Deployments, Services, Ingress, ConfigMap/Secrets
-```
-
----
-
-## Authentication (OIDC)
-
-The gateway is an OIDC **relying party** — it never stores passwords or issues its
-own tokens; it delegates to your IdP and keeps a signed, httpOnly **session cookie**
-wrapping the issued tokens.
-
-- **Configured** (`OIDC_ISSUER_URL` + `OIDC_CLIENT_ID` + `OIDC_CLIENT_SECRET` all
-  set): real Authorization Code + PKCE flow. `/api/auth/login` → IdP → `/api/auth/callback`.
-- **Unconfigured:** demo mode — a local session so the app still runs.
-
-Protected API routes return `401` without a session; the SPA guard redirects to
-`/login`. The n8n proxy attaches the session's bearer token to every forwarded request.
-
-Register this redirect URI with your IdP: `${PUBLIC_URL}/api/auth/callback`.
-
----
-
-## n8n contract
-
-**Every data action is brokered through n8n** when `N8N_WEBHOOK_URL` is set —
-both reads (`list_projects`, `list_issues`, `project_summary`, `list_activity`)
-and writes (`create_issue`, `update_issue`, `delete_issue`), plus arbitrary
-actions via `POST /api/n8n-proxy`. When n8n isn't configured, the gateway serves
-sample data so the app still runs locally. Settings, auth, and health are
-gateway-local and never sent through n8n.
-
-```jsonc
-// request the gateway POSTs to N8N_WEBHOOK_URL
-{ "action": "list_issues", "payload": { "projectId": "…" }, "source": "plane" }
-```
-
-The gateway attaches `Authorization: Bearer <token>`, `X-OmniProject-Action`, and
-`X-OmniProject-Source`. n8n is expected to return a normalized result which the
-gateway forwards as-is:
-
-```jsonc
-// response (N8nActionResult)
-{ "success": true, "data": { /* normalized state */ }, "message": "…" }
-```
-
-This is why **any task app n8n can reach** (Plane, OpenProject, Jira, Todoist,
-MQTT-based systems, …) can be federated underneath: build an n8n workflow that
-speaks this contract and it appears in the UI.
-
----
-
-## AI models — local or public
-
-Pick a provider in **Settings**; keys come from the gateway environment, the
-model from settings (a per-provider default otherwise):
-
-- **Local — Ollama** (`AI_PROVIDER=ollama`, `OLLAMA_URL`) — runs against a local
-  model; bundled in the standalone stack.
-- **Public — OpenRouter** (`AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`) —
-  any model OpenRouter exposes. OpenAI / Anthropic are also supported.
-
-`GET /api/ai/status` reports the active provider/model and whether it's ready;
-`POST /api/ai/chat` routes a completion to the selected provider.
-
----
-
-## Export & Power BI
-
-- **Excel / CSV** — `GET /api/export.xlsx` returns a workbook (Projects + Issues
-  + Activity); `GET /api/export.csv?dataset=projects|issues|activity` returns CSV
-  (`&projectId=` scopes issues to one project). In the UI, use the **Export**
-  menu on the Projects index and the project board.
-- **Power BI / BI tools** — set `API_TOKENS` (comma-separated; generate with
-  `openssl rand -hex 32`) and pull data with a **read-only** token via Power BI's
-  Web connector: *Get Data → Web →* `https://<host>/api/export.csv?dataset=issues`
-  with an `X-API-Key` header (or `Authorization: Bearer <token>`). Token
-  principals are read-only — mutations return `403`.
+- **Dashboard** (`g d`) — switch the **Agile/Gantt** lens; drag cards between
+  columns to change status; click a card or press *New Issue* to edit. Activity
+  feed on the right.
+- **Projects** (`g p`) — index with per-project summary; open a project for its
+  board.
+- **Reports** (`g r`) — portfolio RAG rollup, resource allocation heatmap, and
+  Earned-Value financials per project.
+- **Settings** (`g s`) — n8n webhook URL, backend routing hint, AI provider +
+  model, OIDC issuer.
+- **Command palette** — `Cmd+K` for navigation and quick actions.
+- **Export** — the *Export* menu (Projects index / project board) downloads a
+  `.xlsx` workbook or per-dataset `.csv`. For Power BI, see *Configuration* →
+  `API_TOKENS` and the [technical doc](docs/TECHNICAL.md#2-identity--access).
 
 ---
 
 ## Deployment
 
 The `Dockerfile` builds the single **`omni-shell`** image (SPA + gateway on port
-`3000`) that all three artifacts deploy.
+`3000`). Liveness/readiness probes hit `/api/healthz`.
 
-### Standalone (bundled Authentik IdP)
+```bash
+docker build -t omniproject-shell:latest .
+```
 
-Includes `omni-shell`, `n8n`, `ollama`, `traefik`, and Authentik (server, worker,
-redis, postgres), routed via Traefik on `*.local`.
+### Standalone (bundled Authentik IdP — fastest to evaluate)
+
+Includes `omni-shell`, `n8n`, `ollama`, Traefik, and Authentik, routed on
+`*.local`.
 
 ```bash
 docker compose -f docker-compose.standalone.yml up -d
 ```
 
-### Enterprise (BYO-SSO)
+Then in Authentik create an OAuth2 provider for OmniProject with redirect URI
+`https://app.local/api/auth/callback` and set `OIDC_CLIENT_SECRET` to match.
+Access the shell at **https://app.local**.
 
-No Traefik/Authentik; direct host ports. Supply your own OIDC provider.
+### Enterprise (BYO-SSO, lightweight)
+
+No Traefik/Authentik/DB/LLM — just `omni-shell` + a single n8n on an isolated
+bridge (~1.5 GB baseline). Supply your own OIDC provider and backend URLs.
 
 ```bash
 export OIDC_ISSUER_URL=https://your-idp.example.com/...
-export OIDC_CLIENT_ID=...        export OIDC_CLIENT_SECRET=...
-export PUBLIC_URL=https://omni.example.com
+export OIDC_CLIENT_ID=...  OIDC_CLIENT_SECRET=...  PUBLIC_URL=https://omni.example.com
+export PLANE_INSTANCE_URL=...  OPENPROJECT_INSTANCE_URL=...   # or your own backends
 docker compose -f docker-compose.enterprise.yml up -d
 ```
 
@@ -310,30 +129,53 @@ docker compose -f docker-compose.enterprise.yml up -d
 kubectl apply -f k8s-enterprise-manifest.yaml
 ```
 
-Liveness/readiness probes hit `/api/healthz` on port `3000`.
+### Sizing
+
+| Scenario | CPU | RAM | Disk |
+| -------- | --- | --- | ---- |
+| Dev — shell only (demo) | 2 cores | 4 GB | ~2 GB |
+| Enterprise — omni-shell + n8n (BYO SSO/backends) | 2 vCPU | 4 GB | 10 GB |
+| Standalone (+ Authentik) | 4 cores | 8–16 GB | 20 GB+ |
+| Standalone + local LLM (Ollama) | 4–8 cores | 16–32 GB | 30 GB+ |
+
+> Your **backends** (Plane, OpenProject, …) are sized separately — budget for
+> them on their own hosts. The k8s `omni-shell` pod requests `256Mi`/`100m`,
+> limits `512Mi`/`500m`.
 
 ---
 
-## Environment variables
+## Configuration
 
 | Variable | Used by | Description |
 | -------- | ------- | ----------- |
 | `PORT` | gateway, SPA dev | Listen port (gateway serves API + SPA in prod) |
 | `BASE_PATH` | SPA build | Base path for the SPA (e.g. `/`) |
-| `STATIC_DIR` | gateway | When set, the gateway serves the built SPA from here (single-container mode) |
-| `N8N_WEBHOOK_URL` | gateway | Target n8n webhook; when set, all data is brokered through n8n (else demo/sample data) |
-| `SESSION_SECRET` | gateway | Secret used to sign the session cookie |
-| `OIDC_ISSUER_URL` | gateway | OIDC issuer (enables real SSO) |
-| `OIDC_CLIENT_ID` | gateway | OIDC client id |
-| `OIDC_CLIENT_SECRET` | gateway | OIDC client secret |
-| `OIDC_SCOPE` | gateway | Scopes (default `openid profile email`) |
 | `PUBLIC_URL` | gateway | Public origin, used to build the OIDC redirect URI |
-| `AI_PROVIDER` | gateway | `none` \| `ollama` \| `openrouter` \| `openai` \| `anthropic` |
+| `N8N_WEBHOOK_URL` | gateway | Target n8n webhook; when set, all data is brokered through n8n (else demo data) |
+| `SESSION_SECRET` | gateway | Secret used to sign the session cookie (share across replicas) |
+| `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | gateway | Enable real SSO (all three required) |
+| `OIDC_SCOPE` | gateway | Scopes (default `openid profile email`) |
+| `API_TOKENS` | gateway | Comma-separated **read-only** tokens for Power BI / scheduled exports |
+| `AI_PROVIDER` | gateway | `none \| ollama \| openrouter \| openai \| anthropic` |
 | `AI_MODEL` | gateway | Model name (per-provider default otherwise) |
-| `OLLAMA_URL` | gateway | Ollama base URL when `AI_PROVIDER=ollama` (default `http://localhost:11434`) |
-| `OPENROUTER_API_KEY` | gateway | API key when `AI_PROVIDER=openrouter` |
-| `API_TOKENS` | gateway | Comma-separated read-only tokens for Power BI / scheduled exports |
+| `OLLAMA_URL` / `OPENROUTER_API_KEY` | gateway | Provider connection (per `AI_PROVIDER`) |
+| `STATIC_DIR` | gateway | Serve the built SPA from here (single-container mode; set by the image) |
 | `API_PROXY_TARGET` | SPA dev | Where the Vite dev server proxies `/api` (default `http://localhost:8080`) |
+
+n8n workflows additionally read backend endpoints such as `PLANE_INSTANCE_URL` /
+`OPENPROJECT_INSTANCE_URL`. See the [technical doc](docs/TECHNICAL.md) for the
+full security and integration reference.
+
+---
+
+## Documentation
+
+- **[docs/TECHNICAL.md](docs/TECHNICAL.md)** — architecture, n8n contract,
+  security model, API surface, data schemas, extending the system (for IT &
+  implementers).
+- **[artifacts/n8n-blueprints/README.md](artifacts/n8n-blueprints/README.md)** —
+  the importable reference workflow and how to wire it to your backends.
+- **[AGENTS.md](AGENTS.md)** — contributor/agent notes, build commands, gotchas.
 
 ---
 
