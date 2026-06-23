@@ -55,6 +55,8 @@ export interface BackendInfo {
   id: string;
   label: string;
   docsUrl: string;
+  via: string;
+  credentialType: string | null;
   requiredEnv: string[];
   actions: string[];
   capabilities: Record<string, boolean>;
