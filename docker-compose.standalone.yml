@@ -57,6 +57,8 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-changeme}
       SESSION_SECRET: ${SESSION_SECRET:-change-in-production}
       DATABASE_URL: ${DATABASE_URL:-}
+      # Read-only API tokens (comma-separated) for Power BI / scheduled exports.
+      API_TOKENS: ${API_TOKENS:-}
       # ── AI: local (Ollama, bundled) or public (OpenRouter) ─────────────────
       AI_PROVIDER: ${AI_PROVIDER:-none}         # none | ollama | openrouter | openai | anthropic
       AI_MODEL: ${AI_MODEL:-}

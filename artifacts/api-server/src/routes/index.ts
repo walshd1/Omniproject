@@ -4,30 +4,42 @@ import authRouter, { getSession } from "./auth";
 import n8nProxyRouter from "./n8n-proxy";
 import projectsRouter from "./projects";
 import aiRouter from "./ai";
+import exportRouter from "./export";
+import { hasValidApiToken } from "../lib/api-token";
 
 const router: IRouter = Router();
 
 /**
- * Gate protected routes behind a valid session. Works in both OIDC and demo
- * mode — in demo mode `/api/auth/login` issues a local session cookie, so the
- * UI's auth guard still drives the user through a login step.
+ * Gate protected routes behind a valid session OR a read-only API token.
+ *
+ * - Session principals (OIDC or demo) get full access.
+ * - API-token principals are read-only: GET requests only (data + exports),
+ *   so a leaked BI token can never mutate. Works in both OIDC and demo mode.
  */
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  const session = getSession(req);
-  if (!session) {
-    res.status(401).json({ error: "Unauthorized" });
+  if (getSession(req)) {
+    next();
     return;
   }
-  next();
+  if (hasValidApiToken(req)) {
+    if (req.method !== "GET") {
+      res.status(403).json({ error: "API token is read-only" });
+      return;
+    }
+    next();
+    return;
+  }
+  res.status(401).json({ error: "Unauthorized" });
 }
 
 // Public routes: health probes + auth flow.
 router.use(healthRouter);
 router.use(authRouter);
 
-// Protected routes: require an authenticated session.
+// Protected routes: require an authenticated session (or read-only API token).
 router.use(requireAuth, n8nProxyRouter);
 router.use(requireAuth, projectsRouter);
 router.use(requireAuth, aiRouter);
+router.use(requireAuth, exportRouter);
 
 export default router;
