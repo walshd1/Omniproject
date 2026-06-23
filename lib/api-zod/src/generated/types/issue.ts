@@ -25,6 +25,11 @@ export interface Issue {
   dueDate?: Date | null;
   source: string;
   /**
+     * Optimistic-concurrency token mirrored from the system of record (e.g. OpenProject lockVersion). Sent back as expectedVersion on update so a stale edit is rejected with 409 instead of silently overwriting a concurrent change.
+     * @nullable
+     */
+  version?: number | null;
+  /**
      * Origin system/principal that last mutated this issue (e.g. "omniproject", "plane", "openproject"). n8n compares this against the change origin to drop circular sync loops (webhook storms).
      * @nullable
      */
