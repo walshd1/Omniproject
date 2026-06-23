@@ -13,4 +13,8 @@ export interface N8nActionInput {
   payload: N8nActionInputPayload;
   /** Backend routing hint (free-form; e.g. "all", "jira", "plane") */
   source?: string;
+  /** Deterministic dedupe key the gateway appends (also sent as the X-OmniProject-Idempotency-Key header) so n8n can drop duplicate triggers within the same minute. */
+  idempotencyKey?: string;
+  /** System initiating the action (defaults to "omniproject"). */
+  origin?: string;
 }

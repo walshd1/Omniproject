@@ -24,6 +24,11 @@ export interface Issue {
   /** @nullable */
   dueDate?: Date | null;
   source: string;
+  /**
+     * Origin system/principal that last mutated this issue (e.g. "omniproject", "plane", "openproject"). n8n compares this against the change origin to drop circular sync loops (webhook storms).
+     * @nullable
+     */
+  lastUpdatedBy?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

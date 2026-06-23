@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { N8nProxyBody } from "@workspace/api-zod";
-import { callN8n, authHeaderFromReq, N8nError } from "../lib/n8n";
+import { callN8n, authHeaderFromReq, userContextFromReq, N8nError } from "../lib/n8n";
 
 const router = Router();
 
@@ -20,6 +20,7 @@ router.post("/n8n-proxy", async (req, res) => {
     const result = await callN8n(action, payload as Record<string, unknown>, {
       authHeader: authHeaderFromReq(req),
       source: source ?? "unknown",
+      userContext: userContextFromReq(req),
     });
     res.json(result);
   } catch (err: unknown) {

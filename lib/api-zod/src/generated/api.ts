@@ -24,7 +24,9 @@ export const HealthCheckResponse = zod.object({
 export const N8nProxyBody = zod.object({
   "action": zod.string().describe('Action name (e.g. \"create_ticket\", \"update_status\")'),
   "payload": zod.record(zod.string(), zod.unknown()),
-  "source": zod.string().optional().describe('Backend routing hint (free-form; e.g. \"all\", \"jira\", \"plane\")')
+  "source": zod.string().optional().describe('Backend routing hint (free-form; e.g. \"all\", \"jira\", \"plane\")'),
+  "idempotencyKey": zod.string().optional().describe('Deterministic dedupe key the gateway appends (also sent as the X-OmniProject-Idempotency-Key header) so n8n can drop duplicate triggers within the same minute.'),
+  "origin": zod.string().optional().describe('System initiating the action (defaults to \"omniproject\").')
 })
 
 export const N8nProxyResponse = zod.object({
@@ -71,6 +73,7 @@ export const GetProjectIssuesResponseItem = zod.object({
   "startDate": zod.coerce.date().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "source": zod.string(),
+  "lastUpdatedBy": zod.string().nullish().describe('Origin system\/principal that last mutated this issue (e.g. \"omniproject\", \"plane\", \"openproject\"). n8n compares this against the change origin to drop circular sync loops (webhook storms).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -118,7 +121,8 @@ export const UpdateIssueBody = zod.object({
   "assignee": zod.string().nullish(),
   "labels": zod.array(zod.string()).optional(),
   "startDate": zod.coerce.date().nullish(),
-  "dueDate": zod.coerce.date().nullish()
+  "dueDate": zod.coerce.date().nullish(),
+  "origin": zod.string().optional().describe('System initiating this update (defaults to \"omniproject\" at the gateway). Carried downstream so n8n can drop overlapping loop mutations where origin === the target\'s lastUpdatedBy.')
 })
 
 export const UpdateIssueResponse = zod.object({
@@ -133,6 +137,7 @@ export const UpdateIssueResponse = zod.object({
   "startDate": zod.coerce.date().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "source": zod.string(),
+  "lastUpdatedBy": zod.string().nullish().describe('Origin system\/principal that last mutated this issue (e.g. \"omniproject\", \"plane\", \"openproject\"). n8n compares this against the change origin to drop circular sync loops (webhook storms).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

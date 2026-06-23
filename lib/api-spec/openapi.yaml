@@ -263,6 +263,15 @@ components:
         source:
           type: string
           description: Backend routing hint (free-form; e.g. "all", "jira", "plane")
+        idempotencyKey:
+          type: string
+          description: >-
+            Deterministic dedupe key the gateway appends (also sent as the
+            X-OmniProject-Idempotency-Key header) so n8n can drop duplicate
+            triggers within the same minute.
+        origin:
+          type: string
+          description: System initiating the action (defaults to "omniproject").
       required:
         - action
         - payload
@@ -344,6 +353,12 @@ components:
           format: date
         source:
           type: string
+        lastUpdatedBy:
+          type: ["string", "null"]
+          description: >-
+            Origin system/principal that last mutated this issue (e.g.
+            "omniproject", "plane", "openproject"). n8n compares this against the
+            change origin to drop circular sync loops (webhook storms).
         createdAt:
           type: string
           format: date-time
@@ -416,6 +431,12 @@ components:
         dueDate:
           type: ["string", "null"]
           format: date
+        origin:
+          type: string
+          description: >-
+            System initiating this update (defaults to "omniproject" at the
+            gateway). Carried downstream so n8n can drop overlapping loop
+            mutations where origin === the target's lastUpdatedBy.
 
     ProjectSummary:
       type: object

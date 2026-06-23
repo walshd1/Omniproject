@@ -34,13 +34,16 @@ free-form routing hint (default `all`).
 - **Frontend app:** `artifacts/omniproject/src` — pages in `pages/`, board views in `components/board/` (`AgileBoard`, `GanttChart`), `IssueDialog`, `CommandPalette`, `layout/AppLayout`, Zustand store in `store/useStore.ts`, auth client in `lib/auth.ts`.
 - **API/Gateway:** `artifacts/api-server/src` — `routes/` (`health`, `auth`, `n8n-proxy`, `projects`), OIDC helper in `lib/oidc.ts`, app wiring in `app.ts`.
 - **API contract (source of truth):** `lib/api-spec/openapi.yaml` → regenerates `lib/api-zod` and `lib/api-client-react`.
-- **Deployment:** `Dockerfile` (builds the single `omni-shell` image), `docker-compose.standalone.yml`, `docker-compose.enterprise.yml`, `k8s-enterprise-manifest.yaml`.
+- **Deployment:** `Dockerfile` (builds the single `omni-shell` image), `docker-compose.standalone.yml`, `docker-compose.enterprise.yml` (lean BYO profile), `k8s-enterprise-manifest.yaml`.
+- **n8n blueprints:** `artifacts/n8n-blueprints/omniproject-core-sync.json` — importable workflow implementing the gateway contract (routing, loop guard, per-user impersonation, normalization).
 
 ## Architecture decisions
 
 - **Single-container "omni-shell".** All three deploy artifacts run one image on port 3000. The Express server serves both `/api/*` and the built SPA (`STATIC_DIR`) with a history fallback, so the SPA and gateway share an origin in production. In dev they're split (Vite proxies `/api`).
 - **n8n is the sole data broker.** Mutating actions POST to `/api/n8n-proxy`, which attaches the session's OIDC bearer token and forwards to `N8N_WEBHOOK_URL`. The proxy forwards n8n's normalized `N8nActionResult` (`{ success, data, message }`) without re-wrapping.
 - **Env-gated OIDC.** When `OIDC_ISSUER_URL`/`OIDC_CLIENT_ID`/`OIDC_CLIENT_SECRET` are set, the gateway runs a real Authorization-Code + PKCE flow (`/api/auth/login`→`/callback`) and stores a signed, httpOnly session cookie. Unset → demo mode (local session) so the app still runs without an IdP. Protected API routes return 401 without a session; the SPA's `AppLayout` guard redirects to `/login`.
+- **Idempotency & loop guard.** `callN8n` appends `X-OmniProject-Idempotency-Key` = `sha256(action+projectId+issueId+second)` and an `origin` tag (`omniproject`). n8n drops echoes where `origin === lastUpdatedBy`, preventing circular Plane↔OpenProject webhook storms.
+- **Per-user impersonation.** The outbound payload carries `userContext = { sub, email, name, token }` from the session so n8n writes downstream **as the active user** (`{{ $json.body.payload.userContext.token }}`), not a shared admin key.
 - **Generated client.** Never hand-edit `lib/api-zod/src/generated` or `lib/api-client-react/src/generated`; change `openapi.yaml` and run codegen.
 
 ## Product
