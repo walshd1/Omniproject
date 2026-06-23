@@ -18,6 +18,7 @@ import {
   SAMPLE_PROJECTS,
   SAMPLE_ISSUES,
 } from "../lib/data";
+import { analyticsLimiter } from "../lib/rate-limit";
 
 const router = Router();
 
@@ -198,6 +199,74 @@ router.delete("/projects/:projectId/issues/:issueId", async (req, res) => {
   const proj = SAMPLE_PROJECTS.find((p) => p.id === projectId);
   if (proj && (proj.issueCount as number) > 0) proj.issueCount = (proj.issueCount as number) - 1;
   res.status(204).send();
+});
+
+// ── Analytics: capacity + financials (strict rate limit) ──────────────────────
+
+const SAMPLE_CAPACITY = [
+  { resourceId: "u-alice", resourceName: "Alice Tan", role: "Senior DevOps", allocationPercentage: 120, assignedHours: 48, availableHours: 40, utilizationState: "OVER_ALLOCATED" },
+  { resourceId: "u-bob", resourceName: "Bob Reyes", role: "Backend Engineer", allocationPercentage: 95, assignedHours: 38, availableHours: 40, utilizationState: "OPTIMAL" },
+  { resourceId: "u-carol", resourceName: "Carol Singh", role: "Frontend Engineer", allocationPercentage: 60, assignedHours: 24, availableHours: 40, utilizationState: "UNDER_ALLOCATED" },
+  { resourceId: "u-dan", resourceName: "Dan Whitfield", role: "QA Lead", allocationPercentage: 105, assignedHours: 42, availableHours: 40, utilizationState: "OVER_ALLOCATED" },
+];
+
+const SAMPLE_FINANCIALS = {
+  currency: "GBP",
+  budgetAllocated: 480000,
+  actualBurn: 312000,
+  earnedValue: 288000,
+  cpi: 0.92,
+  spi: 0.88,
+  financialHealth: "AMBER",
+  forecastCostAtCompletion: 521739,
+};
+
+router.get("/projects/:projectId/capacity", analyticsLimiter, async (req, res) => {
+  const parse = GetProjectSummaryParams.safeParse(req.params);
+  if (!parse.success) {
+    res.status(400).json({ error: "Invalid project id" });
+    return;
+  }
+  const { projectId } = parse.data;
+  if (isN8nConfigured) {
+    try {
+      const result = await callN8n(
+        "get_resource_capacity",
+        { projectId },
+        { authHeader: authHeaderFromReq(req), source: "capacity_engine", userContext: userContextFromReq(req) },
+      );
+      res.json(result.data ?? []);
+    } catch (err) {
+      req.log.error({ err, projectId }, "get_resource_capacity via n8n failed");
+      respondN8nError(res, err);
+    }
+    return;
+  }
+  res.json(SAMPLE_CAPACITY);
+});
+
+router.get("/projects/:projectId/financials", analyticsLimiter, async (req, res) => {
+  const parse = GetProjectSummaryParams.safeParse(req.params);
+  if (!parse.success) {
+    res.status(400).json({ error: "Invalid project id" });
+    return;
+  }
+  const { projectId } = parse.data;
+  if (isN8nConfigured) {
+    try {
+      const result = await callN8n(
+        "get_project_financials",
+        { projectId },
+        { authHeader: authHeaderFromReq(req), source: "financial_ledger", userContext: userContextFromReq(req) },
+      );
+      res.json(result.data ?? {});
+    } catch (err) {
+      req.log.error({ err, projectId }, "get_project_financials via n8n failed");
+      respondN8nError(res, err);
+    }
+    return;
+  }
+  res.json(SAMPLE_FINANCIALS);
 });
 
 // ── Settings (gateway-local, never brokered through n8n) ──────────────────────

@@ -8,6 +8,12 @@ export const logger = pino({
     "req.headers.authorization",
     "req.headers.cookie",
     "res.headers['set-cookie']",
+    // Never emit OIDC tokens carried in user-context blocks.
+    "token",
+    "*.token",
+    "userContext.token",
+    "payload.userContext.token",
+    "*.userContext.token",
   ],
   ...(isProduction
     ? {}

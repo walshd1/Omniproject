@@ -4,7 +4,7 @@ import { CommandPalette } from "../CommandPalette";
 import { IssueDialog } from "../IssueDialog";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
-import { Layers, Briefcase, Settings as SettingsIcon, LogOut } from "lucide-react";
+import { Layers, Briefcase, BarChart3, Settings as SettingsIcon, LogOut } from "lucide-react";
 import { useAuth, logout } from "../../lib/auth";
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -36,6 +36,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         const nextKey = (ev: KeyboardEvent) => {
           if (ev.key === "d") setLocation("/");
           if (ev.key === "p") setLocation("/projects");
+          if (ev.key === "r") setLocation("/reports");
           if (ev.key === "s") setLocation("/settings");
           document.removeEventListener("keydown", nextKey);
         };
@@ -82,6 +83,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <Link href="/projects" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location.startsWith("/projects") ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
             <Briefcase className="w-4 h-4 mr-3" /> Projects
             <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">G+P</span>
+          </Link>
+          <Link href="/reports" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location.startsWith("/reports") ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
+            <BarChart3 className="w-4 h-4 mr-3" /> Reports
+            <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">G+R</span>
           </Link>
           <Link href="/settings" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location.startsWith("/settings") ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
             <SettingsIcon className="w-4 h-4 mr-3" /> Settings

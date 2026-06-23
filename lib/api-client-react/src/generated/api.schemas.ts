@@ -190,6 +190,63 @@ export interface ProjectSummary {
   overdue: number;
 }
 
+export type ResourceCapacityUtilizationState = typeof ResourceCapacityUtilizationState[keyof typeof ResourceCapacityUtilizationState];
+
+
+export const ResourceCapacityUtilizationState = {
+  OVER_ALLOCATED: 'OVER_ALLOCATED',
+  OPTIMAL: 'OPTIMAL',
+  UNDER_ALLOCATED: 'UNDER_ALLOCATED',
+} as const;
+
+export interface ResourceCapacity {
+  resourceId: string;
+  resourceName: string;
+  role: string;
+  allocationPercentage: number;
+  assignedHours: number;
+  availableHours: number;
+  utilizationState: ResourceCapacityUtilizationState;
+}
+
+export type ProjectFinancialsFinancialHealth = typeof ProjectFinancialsFinancialHealth[keyof typeof ProjectFinancialsFinancialHealth];
+
+
+export const ProjectFinancialsFinancialHealth = {
+  GREEN: 'GREEN',
+  AMBER: 'AMBER',
+  RED: 'RED',
+} as const;
+
+export interface ProjectFinancials {
+  currency: string;
+  budgetAllocated: number;
+  actualBurn: number;
+  earnedValue: number;
+  cpi: number;
+  spi: number;
+  financialHealth: ProjectFinancialsFinancialHealth;
+  forecastCostAtCompletion: number;
+}
+
+export type PortfolioHealthSummaryRagStatus = typeof PortfolioHealthSummaryRagStatus[keyof typeof PortfolioHealthSummaryRagStatus];
+
+
+export const PortfolioHealthSummaryRagStatus = {
+  GREEN: 'GREEN',
+  AMBER: 'AMBER',
+  RED: 'RED',
+} as const;
+
+export interface PortfolioHealthSummary {
+  projectId: string;
+  projectName: string;
+  ragStatus: PortfolioHealthSummaryRagStatus;
+  scheduleVarianceDays: number;
+  budgetVariancePercentage: number;
+  activeBlockersCount: number;
+}
+
 export interface ActivityEntry {
   id: string;
   action: string;

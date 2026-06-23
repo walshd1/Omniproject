@@ -170,6 +170,61 @@ export const GetProjectSummaryResponse = zod.object({
 
 
 /**
+ * Routed to n8n with X-OmniProject-Action: get_resource_capacity, X-OmniProject-Source: capacity_engine
+ * @summary Resource capacity & workload allocation for a project
+ */
+export const GetProjectCapacityParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const GetProjectCapacityResponseItem = zod.object({
+  "resourceId": zod.string(),
+  "resourceName": zod.string(),
+  "role": zod.string(),
+  "allocationPercentage": zod.number(),
+  "assignedHours": zod.number(),
+  "availableHours": zod.number(),
+  "utilizationState": zod.enum(['OVER_ALLOCATED', 'OPTIMAL', 'UNDER_ALLOCATED'])
+})
+export const GetProjectCapacityResponse = zod.array(GetProjectCapacityResponseItem)
+
+
+/**
+ * Routed to n8n with X-OmniProject-Action: get_project_financials, X-OmniProject-Source: financial_ledger
+ * @summary Earned Value Management (EVM) financials for a project
+ */
+export const GetProjectFinancialsParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const GetProjectFinancialsResponse = zod.object({
+  "currency": zod.string(),
+  "budgetAllocated": zod.number(),
+  "actualBurn": zod.number(),
+  "earnedValue": zod.number(),
+  "cpi": zod.number(),
+  "spi": zod.number(),
+  "financialHealth": zod.enum(['GREEN', 'AMBER', 'RED']),
+  "forecastCostAtCompletion": zod.number()
+})
+
+
+/**
+ * Routed to n8n with X-OmniProject-Action: get_portfolio_health, X-OmniProject-Source: portfolio_master
+ * @summary Portfolio-wide multi-project health aggregation
+ */
+export const GetPortfolioHealthResponseItem = zod.object({
+  "projectId": zod.string(),
+  "projectName": zod.string(),
+  "ragStatus": zod.enum(['GREEN', 'AMBER', 'RED']),
+  "scheduleVarianceDays": zod.number(),
+  "budgetVariancePercentage": zod.number(),
+  "activeBlockersCount": zod.number()
+})
+export const GetPortfolioHealthResponse = zod.array(GetPortfolioHealthResponseItem)
+
+
+/**
  * @summary Recent activity feed across all projects
  */
 export const ListActivityResponseItem = zod.object({

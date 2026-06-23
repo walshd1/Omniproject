@@ -3,9 +3,11 @@ import healthRouter from "./health";
 import authRouter, { getSession } from "./auth";
 import n8nProxyRouter from "./n8n-proxy";
 import projectsRouter from "./projects";
+import portfolioRouter from "./portfolio";
 import aiRouter from "./ai";
 import exportRouter from "./export";
 import { hasValidApiToken } from "../lib/api-token";
+import { apiLimiter } from "../lib/rate-limit";
 
 const router: IRouter = Router();
 
@@ -32,13 +34,18 @@ function requireAuth(req: Request, res: Response, next: NextFunction): void {
   res.status(401).json({ error: "Unauthorized" });
 }
 
-// Public routes: health probes + auth flow.
+// Public routes: health probes (not rate-limited so k8s liveness isn't throttled).
 router.use(healthRouter);
+
+// Rate limit everything else under /api/* (auth + data + analytics).
+router.use(apiLimiter);
+
 router.use(authRouter);
 
 // Protected routes: require an authenticated session (or read-only API token).
 router.use(requireAuth, n8nProxyRouter);
 router.use(requireAuth, projectsRouter);
+router.use(requireAuth, portfolioRouter);
 router.use(requireAuth, aiRouter);
 router.use(requireAuth, exportRouter);
 

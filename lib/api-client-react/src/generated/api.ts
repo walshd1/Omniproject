@@ -28,8 +28,11 @@ import type {
   IssueUpdate,
   N8nActionInput,
   N8nActionResult,
+  PortfolioHealthSummary,
   Project,
+  ProjectFinancials,
   ProjectSummary,
+  ResourceCapacity,
   Settings,
   SettingsUpdate
 } from './api.schemas';
@@ -634,6 +637,240 @@ export function useGetProjectSummary<TData = Awaited<ReturnType<typeof getProjec
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetProjectSummaryQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetProjectCapacityUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/capacity`
+}
+
+/**
+ * Routed to n8n with X-OmniProject-Action: get_resource_capacity, X-OmniProject-Source: capacity_engine
+ * @summary Resource capacity & workload allocation for a project
+ */
+export const getProjectCapacity = async (projectId: string, options?: RequestInit): Promise<ResourceCapacity[]> => {
+
+  return customFetch<ResourceCapacity[]>(getGetProjectCapacityUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProjectCapacityQueryKey = (projectId: string,) => {
+    return [
+    `/api/projects/${projectId}/capacity`
+    ] as const;
+    }
+
+
+export const getGetProjectCapacityQueryOptions = <TData = Awaited<ReturnType<typeof getProjectCapacity>>, TError = ErrorType<unknown>>(projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProjectCapacity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProjectCapacityQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProjectCapacity>>> = ({ signal }) => getProjectCapacity(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(projectId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProjectCapacity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProjectCapacityQueryResult = NonNullable<Awaited<ReturnType<typeof getProjectCapacity>>>
+export type GetProjectCapacityQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Resource capacity & workload allocation for a project
+ */
+
+export function useGetProjectCapacity<TData = Awaited<ReturnType<typeof getProjectCapacity>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProjectCapacity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProjectCapacityQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetProjectFinancialsUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/financials`
+}
+
+/**
+ * Routed to n8n with X-OmniProject-Action: get_project_financials, X-OmniProject-Source: financial_ledger
+ * @summary Earned Value Management (EVM) financials for a project
+ */
+export const getProjectFinancials = async (projectId: string, options?: RequestInit): Promise<ProjectFinancials> => {
+
+  return customFetch<ProjectFinancials>(getGetProjectFinancialsUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProjectFinancialsQueryKey = (projectId: string,) => {
+    return [
+    `/api/projects/${projectId}/financials`
+    ] as const;
+    }
+
+
+export const getGetProjectFinancialsQueryOptions = <TData = Awaited<ReturnType<typeof getProjectFinancials>>, TError = ErrorType<unknown>>(projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProjectFinancials>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProjectFinancialsQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProjectFinancials>>> = ({ signal }) => getProjectFinancials(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(projectId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProjectFinancials>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProjectFinancialsQueryResult = NonNullable<Awaited<ReturnType<typeof getProjectFinancials>>>
+export type GetProjectFinancialsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Earned Value Management (EVM) financials for a project
+ */
+
+export function useGetProjectFinancials<TData = Awaited<ReturnType<typeof getProjectFinancials>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProjectFinancials>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProjectFinancialsQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetPortfolioHealthUrl = () => {
+
+
+
+
+  return `/api/portfolio/health`
+}
+
+/**
+ * Routed to n8n with X-OmniProject-Action: get_portfolio_health, X-OmniProject-Source: portfolio_master
+ * @summary Portfolio-wide multi-project health aggregation
+ */
+export const getPortfolioHealth = async ( options?: RequestInit): Promise<PortfolioHealthSummary[]> => {
+
+  return customFetch<PortfolioHealthSummary[]>(getGetPortfolioHealthUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortfolioHealthQueryKey = () => {
+    return [
+    `/api/portfolio/health`
+    ] as const;
+    }
+
+
+export const getGetPortfolioHealthQueryOptions = <TData = Awaited<ReturnType<typeof getPortfolioHealth>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPortfolioHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortfolioHealthQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortfolioHealth>>> = ({ signal }) => getPortfolioHealth({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortfolioHealth>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPortfolioHealthQueryResult = NonNullable<Awaited<ReturnType<typeof getPortfolioHealth>>>
+export type GetPortfolioHealthQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Portfolio-wide multi-project health aggregation
+ */
+
+export function useGetPortfolioHealth<TData = Awaited<ReturnType<typeof getPortfolioHealth>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPortfolioHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPortfolioHealthQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
