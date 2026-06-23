@@ -36,8 +36,13 @@ In production the SPA and gateway ship as **one container** (`omni-shell`) on po
 - **Command palette** (`Cmd+K`) and `g d` / `g p` / `g s` navigation shortcuts.
 - **Env-gated OIDC SSO** — real Authorization Code + PKCE flow against any OIDC
   provider; demo mode when no provider is configured so it still runs locally.
-- **n8n gateway** — the sole data broker; the proxy attaches the session bearer
-  token and forwards n8n's normalized result.
+- **n8n gateway** — the sole data broker: *every* read and write is brokered
+  through n8n (with the session bearer token attached), so any backend n8n can
+  reach can be federated underneath. Falls back to sample data in demo mode.
+- **AI: local or public** — choose a local model (Ollama) or a public model via
+  OpenRouter (OpenAI / Anthropic also supported), selected in Settings.
+- **Export & BI** — one-click Excel (`.xlsx`) / CSV export, plus a read-only
+  API token so Power BI can pull data directly.
 - **Tri-mode deployment** — Docker Compose (standalone with bundled Authentik),
   Docker Compose (enterprise / BYO-SSO), and Kubernetes.
 - **Live gateway health** indicator and an activity feed.
@@ -128,7 +133,7 @@ without an identity provider. (Data is sample/federated-stand-in until you wire 
 PORT=5000 N8N_WEBHOOK_URL=http://127.0.0.1:19678/webhook/omniproject \
   node artifacts/api-server/dist/index.mjs &           # needs a prior build (step 5)
 OMNI_API_BASE=http://localhost:5000 \
-  pnpm --filter @workspace/scripts run verify-n8n        # 32 assertions, both directions
+  pnpm --filter @workspace/scripts run verify-n8n        # full contract: n8n, auth, AI, exports
 ```
 
 ### 4 · Run the whole stack with Docker (real SSO via Authentik)
@@ -217,21 +222,59 @@ Register this redirect URI with your IdP: `${PUBLIC_URL}/api/auth/callback`.
 
 ## n8n contract
 
-All mutating actions go through `POST /api/n8n-proxy`:
+**Every data action is brokered through n8n** when `N8N_WEBHOOK_URL` is set —
+both reads (`list_projects`, `list_issues`, `project_summary`, `list_activity`)
+and writes (`create_issue`, `update_issue`, `delete_issue`), plus arbitrary
+actions via `POST /api/n8n-proxy`. When n8n isn't configured, the gateway serves
+sample data so the app still runs locally. Settings, auth, and health are
+gateway-local and never sent through n8n.
 
 ```jsonc
-// request
-{ "action": "create_ticket", "payload": { "title": "…" }, "source": "plane" }
+// request the gateway POSTs to N8N_WEBHOOK_URL
+{ "action": "list_issues", "payload": { "projectId": "…" }, "source": "plane" }
 ```
 
 The gateway attaches `Authorization: Bearer <token>`, `X-OmniProject-Action`, and
-`X-OmniProject-Source`, then POSTs to `N8N_WEBHOOK_URL`. n8n is expected to return a
-normalized result which the gateway forwards as-is:
+`X-OmniProject-Source`. n8n is expected to return a normalized result which the
+gateway forwards as-is:
 
 ```jsonc
 // response (N8nActionResult)
 { "success": true, "data": { /* normalized state */ }, "message": "…" }
 ```
+
+This is why **any task app n8n can reach** (Plane, OpenProject, Jira, Todoist,
+MQTT-based systems, …) can be federated underneath: build an n8n workflow that
+speaks this contract and it appears in the UI.
+
+---
+
+## AI models — local or public
+
+Pick a provider in **Settings**; keys come from the gateway environment, the
+model from settings (a per-provider default otherwise):
+
+- **Local — Ollama** (`AI_PROVIDER=ollama`, `OLLAMA_URL`) — runs against a local
+  model; bundled in the standalone stack.
+- **Public — OpenRouter** (`AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`) —
+  any model OpenRouter exposes. OpenAI / Anthropic are also supported.
+
+`GET /api/ai/status` reports the active provider/model and whether it's ready;
+`POST /api/ai/chat` routes a completion to the selected provider.
+
+---
+
+## Export & Power BI
+
+- **Excel / CSV** — `GET /api/export.xlsx` returns a workbook (Projects + Issues
+  + Activity); `GET /api/export.csv?dataset=projects|issues|activity` returns CSV
+  (`&projectId=` scopes issues to one project). In the UI, use the **Export**
+  menu on the Projects index and the project board.
+- **Power BI / BI tools** — set `API_TOKENS` (comma-separated; generate with
+  `openssl rand -hex 32`) and pull data with a **read-only** token via Power BI's
+  Web connector: *Get Data → Web →* `https://<host>/api/export.csv?dataset=issues`
+  with an `X-API-Key` header (or `Authorization: Bearer <token>`). Token
+  principals are read-only — mutations return `403`.
 
 ---
 
@@ -278,13 +321,18 @@ Liveness/readiness probes hit `/api/healthz` on port `3000`.
 | `PORT` | gateway, SPA dev | Listen port (gateway serves API + SPA in prod) |
 | `BASE_PATH` | SPA build | Base path for the SPA (e.g. `/`) |
 | `STATIC_DIR` | gateway | When set, the gateway serves the built SPA from here (single-container mode) |
-| `N8N_WEBHOOK_URL` | gateway | Target n8n webhook for the proxy |
+| `N8N_WEBHOOK_URL` | gateway | Target n8n webhook; when set, all data is brokered through n8n (else demo/sample data) |
 | `SESSION_SECRET` | gateway | Secret used to sign the session cookie |
 | `OIDC_ISSUER_URL` | gateway | OIDC issuer (enables real SSO) |
 | `OIDC_CLIENT_ID` | gateway | OIDC client id |
 | `OIDC_CLIENT_SECRET` | gateway | OIDC client secret |
 | `OIDC_SCOPE` | gateway | Scopes (default `openid profile email`) |
 | `PUBLIC_URL` | gateway | Public origin, used to build the OIDC redirect URI |
+| `AI_PROVIDER` | gateway | `none` \| `ollama` \| `openrouter` \| `openai` \| `anthropic` |
+| `AI_MODEL` | gateway | Model name (per-provider default otherwise) |
+| `OLLAMA_URL` | gateway | Ollama base URL when `AI_PROVIDER=ollama` (default `http://localhost:11434`) |
+| `OPENROUTER_API_KEY` | gateway | API key when `AI_PROVIDER=openrouter` |
+| `API_TOKENS` | gateway | Comma-separated read-only tokens for Power BI / scheduled exports |
 | `API_PROXY_TARGET` | SPA dev | Where the Vite dev server proxies `/api` (default `http://localhost:8080`) |
 
 ---
