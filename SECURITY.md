@@ -61,8 +61,10 @@ Browser ──TLS──> omni-shell gateway ──TLS──> n8n ──> backend
   escape hatch only. Set `OIDC_AUDIENCE` if it differs from the client id.
 - Real-time notification ingest (`/api/notifications/ingest`) is authenticated by
   `NOTIFY_INGEST_SECRET` (constant-time compared) and disabled until that secret
-  is set. SSE client registries are per-replica — front multi-replica real-time
-  with a shared pub/sub or sticky sessions.
+  is set. SSE fan-out is in-process by default; set `REDIS_URL` (+ install
+  `ioredis`) to fan out across replicas via **Redis Pub/Sub** — the right tool
+  for ephemeral broadcast (Kafka is overkill; if it's your backbone, bridge it
+  into `/ingest` instead). See [docs/N8N-WORKFLOWS.md](docs/N8N-WORKFLOWS.md).
 - Settings and the analytics capability cache are in-memory; multi-replica
   deployments should back them with a shared store and pin capabilities via the
   `CAPABILITIES` env to avoid per-replica drift.

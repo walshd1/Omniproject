@@ -11,7 +11,8 @@ import { buildConfigExport, configEntries } from "../lib/config-export";
 import { BACKENDS, getBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
 import { parseJwt, verifySignatureWithJwk, validateClaims, verifyIdToken, type Jwk } from "../lib/jwks";
-import { clientMatches } from "../lib/notify-hub";
+import { clientMatches, addClient } from "../lib/notify-hub";
+import { getNotifyBus, busMode } from "../lib/notify-bus";
 
 // ── Optimistic concurrency ────────────────────────────────────────────────────
 test("versionConflict: no expected version never conflicts", () => {
@@ -149,6 +150,16 @@ test("clientMatches: targets by sub, email or role", () => {
   assert.equal(clientMatches(c, { role: "manager" }), true);
   assert.equal(clientMatches(c, { sub: "other" }), false);
   assert.equal(clientMatches(c, { role: "admin" }), false);
+});
+
+test("notify bus: defaults to in-process and delivers to a matching client", async () => {
+  assert.equal(busMode(), "in-process");
+  const got: unknown[] = [];
+  const remove = addClient({ id: "t1", sub: "mgr-1", roles: ["manager"], send: (_e, d) => got.push(d) });
+  const delivered = await getNotifyBus().publish({ notification: { title: "x" }, target: { role: "manager" } });
+  remove();
+  assert.equal(delivered, 1);
+  assert.equal(got.length, 1);
 });
 
 // ── Capabilities resolution (env path is request-independent) ──────────────────

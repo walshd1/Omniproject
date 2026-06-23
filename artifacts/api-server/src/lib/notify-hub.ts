@@ -44,8 +44,12 @@ export function clientCount(): number {
   return clients.size;
 }
 
-/** Fan a notification out to matching live clients; returns how many received it. */
-export function publish(notification: unknown, target?: NotifyTarget): number {
+/**
+ * Fan a notification out to matching clients connected **to this process** and
+ * return how many received it. The notify bus calls this on every replica; it is
+ * not the public entry point — ingest goes through the bus (notify-bus.ts).
+ */
+export function deliverLocal(notification: unknown, target?: NotifyTarget): number {
   let delivered = 0;
   for (const c of clients) {
     if (clientMatches(c, target)) {
