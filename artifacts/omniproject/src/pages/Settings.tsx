@@ -1,4 +1,4 @@
-import { useGetSettings, useUpdateSettings } from "@workspace/api-client-react";
+import { useGetSettings, useUpdateSettings, type SettingsUpdate } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,8 +31,14 @@ export function Settings() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const payload: SettingsUpdate = {
+      n8nWebhookUrl: formData.n8nWebhookUrl.trim() || null,
+      aiProvider: formData.aiProvider as SettingsUpdate["aiProvider"],
+      backendSource: formData.backendSource as SettingsUpdate["backendSource"],
+      oidcIssuerUrl: formData.oidcIssuerUrl.trim() || null,
+    };
     updateSettings.mutate(
-      { data: formData as any },
+      { data: payload },
       {
         onSuccess: () => {
           toast({ title: "SETTINGS SAVED", description: "Integration configured successfully." });

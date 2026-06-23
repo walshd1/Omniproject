@@ -23,6 +23,8 @@ data:
   PORT: "3000"
   BASE_PATH: "/"
   N8N_WEBHOOK_URL: "http://n8n:5678/webhook/omniproject"
+  # Public origin of the shell — used to build the OIDC redirect URI.
+  PUBLIC_URL: "https://app.your-domain.com"  # REPLACE
   AI_PROVIDER: "none"
   GENERIC_TIMEZONE: "UTC"
   N8N_PORT: "5678"

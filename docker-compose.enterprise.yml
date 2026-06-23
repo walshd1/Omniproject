@@ -26,6 +26,8 @@ services:
       NODE_ENV: production
       PORT: 3000
       BASE_PATH: /
+      # Public origin of the shell — used to build the OIDC redirect URI.
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
       N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678/webhook/omniproject}
       # ── BYO-SSO (required) ─────────────────────────────────────────────────
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL}       # e.g. https://your-okta.com/oauth2/default

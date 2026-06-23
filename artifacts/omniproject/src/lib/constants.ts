@@ -23,3 +23,33 @@ export const STATUS_LABELS: Record<string, string> = {
   done: "DONE",
   cancelled: "CANCELLED",
 };
+
+// Ordered list of board columns (left → right).
+export const STATUS_ORDER = [
+  "backlog",
+  "todo",
+  "in_progress",
+  "in_review",
+  "done",
+  "cancelled",
+] as const;
+
+export const PRIORITY_ORDER = ["urgent", "high", "medium", "low", "none"] as const;
+
+export const PRIORITY_LABELS: Record<string, string> = {
+  urgent: "URGENT",
+  high: "HIGH",
+  medium: "MEDIUM",
+  low: "LOW",
+  none: "NONE",
+};
+
+// Accent border for each column header (left→right pipeline feel).
+export const STATUS_ACCENTS: Record<string, string> = {
+  backlog: "border-t-zinc-500",
+  todo: "border-t-blue-500",
+  in_progress: "border-t-amber-500",
+  in_review: "border-t-purple-500",
+  done: "border-t-green-500",
+  cancelled: "border-t-red-500",
+};

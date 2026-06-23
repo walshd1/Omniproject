@@ -26,6 +26,12 @@ if (!basePath) {
   );
 }
 
+// In local dev the SPA and the API server run on separate ports, so proxy
+// /api to the gateway. Override with API_PROXY_TARGET when the API runs
+// elsewhere. In single-container production the same server serves both, so
+// no proxy is needed.
+const apiProxyTarget = process.env.API_PROXY_TARGET || "http://localhost:8080";
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -63,6 +69,9 @@ export default defineConfig({
     strictPort: true,
     host: "0.0.0.0",
     allowedHosts: true,
+    proxy: {
+      "/api": { target: apiProxyTarget, changeOrigin: true },
+    },
     fs: {
       strict: true,
     },
@@ -71,5 +80,8 @@ export default defineConfig({
     port,
     host: "0.0.0.0",
     allowedHosts: true,
+    proxy: {
+      "/api": { target: apiProxyTarget, changeOrigin: true },
+    },
   },
 });
