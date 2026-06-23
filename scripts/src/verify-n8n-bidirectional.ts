@@ -88,6 +88,40 @@ function startMockN8n(): Promise<http.Server> {
   });
 }
 
+// ── Session (auth) ────────────────────────────────────────────────────────────
+// Protected routes require a session cookie. In the absence of a configured
+// OIDC provider the server runs in demo mode, so GET /api/auth/login issues a
+// local session cookie we can reuse for the rest of the run.
+let sessionCookie = "";
+
+function login(apiBase: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(`${apiBase}/api/auth/login`);
+    const req = http.request(
+      {
+        hostname: parsed.hostname,
+        port: Number(parsed.port),
+        path: parsed.pathname,
+        method: "GET",
+      },
+      (res) => {
+        const setCookie = res.headers["set-cookie"];
+        if (setCookie && setCookie.length > 0) {
+          sessionCookie = setCookie.map((c) => c.split(";")[0]).join("; ");
+        }
+        res.resume();
+        res.on("end", () => resolve());
+      },
+    );
+    req.on("error", reject);
+    req.setTimeout(8_000, () => {
+      req.destroy();
+      reject(new Error("Login request timeout"));
+    });
+    req.end();
+  });
+}
+
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 function post(url: string, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number; data: unknown }> {
   return new Promise((resolve, reject) => {
@@ -103,6 +137,7 @@ function post(url: string, body: unknown, headers: Record<string, string> = {}):
         headers: {
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(payload),
+          ...(sessionCookie ? { Cookie: sessionCookie } : {}),
           ...headers,
         },
       },
@@ -138,6 +173,7 @@ function get(url: string): Promise<{ status: number; data: unknown }> {
         port: Number(parsed.port),
         path: parsed.pathname,
         method: "GET",
+        headers: sessionCookie ? { Cookie: sessionCookie } : {},
       },
       (res) => {
         let data = "";
@@ -330,6 +366,27 @@ async function testApiRoutes(apiBase: string) {
   }
 }
 
+async function testAuth(apiBase: string) {
+  console.log(bold("\n[0] Auth: session gate + login flow"));
+
+  // Protected route must reject unauthenticated requests.
+  try {
+    const r = await get(`${apiBase}/api/projects`);
+    assert("Unauthenticated /api/projects returns 401", r.status === 401, `got ${r.status}`);
+  } catch {
+    assert("Unauthenticated request reachable", false);
+  }
+
+  // /api/auth/me reports unauthenticated before login.
+  try {
+    const r = await get(`${apiBase}/api/auth/me`);
+    assert("GET /api/auth/me returns 200", r.status === 200);
+    assert("Reports unauthenticated initially", (r.data as Record<string, unknown>)?.authenticated === false);
+  } catch {
+    assert("GET /api/auth/me reachable", false);
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   console.log(bold("OmniProject — n8n Bidirectional Verification Script"));
@@ -351,6 +408,12 @@ async function main() {
   process.env["N8N_WEBHOOK_URL"] = mockN8nUrl;
 
   try {
+    await testAuth(apiBase);
+
+    // Establish a demo session for the protected routes.
+    await login(apiBase);
+    console.log(dim(sessionCookie ? "Authenticated (demo session)" : "No session cookie issued"));
+
     // Override the API's n8n URL by patching settings
     await post(`${apiBase}/api/settings`, {
       n8nWebhookUrl: mockN8nUrl,

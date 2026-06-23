@@ -1,16 +1,31 @@
 import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { CommandPalette } from "../CommandPalette";
+import { IssueDialog } from "../IssueDialog";
 import { useStore } from "../../store/useStore";
-import { useListProjects } from "@workspace/api-client-react";
-import { Layers, Briefcase, Settings as SettingsIcon } from "lucide-react";
+import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
+import { Layers, Briefcase, Settings as SettingsIcon, LogOut } from "lucide-react";
+import { useAuth, logout } from "../../lib/auth";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
-  const { currentLens, setCurrentLens, activeProjectId, theme } = useStore();
+  const { currentLens, setCurrentLens, activeProjectId, isNewIssueOpen, setNewIssueOpen } = useStore();
+  const { data: auth, isLoading: authLoading } = useAuth();
   const { data: projects } = useListProjects();
+  const health = useHealthCheck({
+    query: { queryKey: getHealthCheckQueryKey(), refetchInterval: 30_000, retry: false },
+  });
+  const connected = health.data?.status === "ok";
 
   const activeProject = projects?.find(p => p.id === activeProjectId) || projects?.[0];
+  const dialogProjectId = activeProject?.id ?? "";
+
+  // Auth guard: bounce unauthenticated users to the login screen.
+  useEffect(() => {
+    if (!authLoading && auth && !auth.authenticated) {
+      setLocation("/login");
+    }
+  }, [auth, authLoading, setLocation]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -32,6 +47,23 @@ export function AppLayout({ children }: { children: ReactNode }) {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [setLocation]);
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background text-muted-foreground font-bold tracking-widest animate-pulse">
+        AUTHENTICATING…
+      </div>
+    );
+  }
+
+  if (auth && !auth.authenticated) return null;
+
+  const initials = (auth?.user?.name || auth?.user?.email || "ME")
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase())
+    .join("") || "ME";
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden text-foreground">
@@ -92,13 +124,24 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 border border-border px-2 py-1 bg-card">
-              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-              <span className="text-xs font-bold tracking-widest">CONNECTED</span>
+            <div className="flex items-center gap-2 border border-border px-2 py-1 bg-card" title="Gateway health">
+              <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500 animate-pulse"}`}></div>
+              <span className="text-xs font-bold tracking-widest">{connected ? "CONNECTED" : "OFFLINE"}</span>
             </div>
-            <div className="w-8 h-8 bg-foreground text-background flex items-center justify-center font-bold font-sans">
-              ME
+            <div
+              className="w-8 h-8 bg-foreground text-background flex items-center justify-center font-bold font-sans"
+              title={auth?.user?.email || auth?.user?.name || "Account"}
+            >
+              {initials}
             </div>
+            <button
+              onClick={() => logout()}
+              className="text-muted-foreground hover:text-foreground"
+              title="Sign out"
+              aria-label="Sign out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </header>
 
@@ -108,6 +151,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </main>
 
       <CommandPalette />
+      {dialogProjectId && (
+        <IssueDialog
+          projectId={dialogProjectId}
+          open={isNewIssueOpen}
+          onOpenChange={setNewIssueOpen}
+        />
+      )}
     </div>
   );
 }

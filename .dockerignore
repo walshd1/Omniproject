@@ -1,0 +1,11 @@
+.git
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+artifacts/*/dist
+artifacts/omniproject/dist
+artifacts/api-server/dist
+*.log
+.DS_Store
+scratchpad

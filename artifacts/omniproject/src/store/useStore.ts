@@ -7,6 +7,8 @@ export interface OmniStore {
   setCommandOpen: (open: boolean) => void
   isSettingsOpen: boolean
   setSettingsOpen: (open: boolean) => void
+  isNewIssueOpen: boolean
+  setNewIssueOpen: (open: boolean) => void
   activeProjectId: string | null
   setActiveProjectId: (id: string | null) => void
   aiProvider: 'none' | 'openai' | 'ollama' | 'anthropic'
@@ -30,6 +32,8 @@ export const useStore = create<OmniStore>((set) => ({
   setCommandOpen: (open) => set({ isCommandOpen: open }),
   isSettingsOpen: false,
   setSettingsOpen: (open) => set({ isSettingsOpen: open }),
+  isNewIssueOpen: false,
+  setNewIssueOpen: (open) => set({ isNewIssueOpen: open }),
   activeProjectId: null,
   setActiveProjectId: (id) => set({ activeProjectId: id }),
   aiProvider: 'none',
