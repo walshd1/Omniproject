@@ -45,6 +45,7 @@ router.get("/setup/status", async (req, res) => {
     },
     auth: { mode: isOidcConfigured ? "oidc" : "demo" },
     ai: { provider: settings.aiProvider },
+    realtime: { enabled: !!process.env["NOTIFY_INGEST_SECRET"]?.trim() },
     capabilities,
   });
 });

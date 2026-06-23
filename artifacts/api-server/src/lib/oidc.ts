@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { verifyIdToken as jwksVerify } from "./jwks";
 
 /**
  * Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
@@ -14,11 +15,17 @@ export interface OidcConfig {
   clientId: string;
   clientSecret: string;
   scope: string;
+  /** Expected ID-token audience (defaults to clientId). */
+  audience: string;
+  /** Verify the ID token signature + claims against the issuer JWKS. */
+  verifyToken: boolean;
 }
 
 export interface OidcDiscovery {
+  issuer?: string;
   authorization_endpoint: string;
   token_endpoint: string;
+  jwks_uri?: string;
   userinfo_endpoint?: string;
   end_session_endpoint?: string;
 }
@@ -47,6 +54,9 @@ export const oidcConfig: OidcConfig | null =
         clientId,
         clientSecret,
         scope: process.env["OIDC_SCOPE"]?.trim() || "openid profile email",
+        audience: process.env["OIDC_AUDIENCE"]?.trim() || clientId,
+        // Verify by default; OIDC_SKIP_TOKEN_VERIFY=true is an escape hatch only.
+        verifyToken: process.env["OIDC_SKIP_TOKEN_VERIFY"]?.trim().toLowerCase() !== "true",
       }
     : null;
 
@@ -126,10 +136,29 @@ export async function exchangeCode(params: {
 }
 
 /**
- * Decode (without signature verification) the JWT id_token to extract user
- * claims. The token was just received over TLS directly from the issuer's
- * token endpoint, so for session bootstrapping this is acceptable; downstream
- * authorization is still enforced by n8n / the backends using the bearer token.
+ * Cryptographically verify the ID token against the issuer's JWKS and validate
+ * iss/aud/exp/nbf. Throws on any failure. Skipped only when verifyToken is off
+ * or the discovery document exposes no jwks_uri (logged by the caller).
+ */
+export async function verifyIdToken(
+  idToken: string,
+  config: OidcConfig,
+  discovery: OidcDiscovery,
+): Promise<void> {
+  if (!config.verifyToken) return;
+  if (!discovery.jwks_uri) {
+    throw new Error("OIDC discovery exposes no jwks_uri — cannot verify ID token (set OIDC_SKIP_TOKEN_VERIFY=true to override)");
+  }
+  await jwksVerify(idToken, {
+    jwksUri: discovery.jwks_uri,
+    issuer: discovery.issuer || config.issuerUrl,
+    audience: config.audience,
+  });
+}
+
+/**
+ * Decode the JWT id_token to extract user claims. The signature MUST have been
+ * verified first (see verifyIdToken); this only reads the payload.
  */
 export function decodeIdTokenClaims(idToken: string): SessionUser | null {
   const parts = idToken.split(".");

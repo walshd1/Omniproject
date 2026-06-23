@@ -25,7 +25,7 @@ Browser ──TLS──> omni-shell gateway ──TLS──> n8n ──> backend
 
 | Area | Control | Where |
 | ---- | ------- | ----- |
-| AuthN | OIDC (Auth Code + PKCE), relying-party only; signed httpOnly cookies; demo mode only when OIDC is unset | `lib/oidc.ts`, `routes/auth.ts` |
+| AuthN | OIDC (Auth Code + PKCE), relying-party only; **ID token signature + iss/aud/exp verified against the issuer JWKS**; signed httpOnly cookies; demo mode only when OIDC is unset | `lib/oidc.ts`, `lib/jwks.ts`, `routes/auth.ts` |
 | AuthZ (coarse) | RBAC: viewer / contributor / manager / admin, mapped from IdP role/group claims; mutations require ≥ contributor, settings require admin | `lib/rbac.ts`, `routes/projects.ts` |
 | AuthZ (authoritative) | Backends re-check every brokered write using the forwarded user token | n8n workflow |
 | API tokens | Bearer/X-API-Key are **read-only** (GET only → mutations 403); a leaked BI token can't write | `routes/index.ts`, `lib/api-token.ts` |
@@ -56,9 +56,13 @@ Browser ──TLS──> omni-shell gateway ──TLS──> n8n ──> backend
 
 ## Known limitations / hardening backlog
 
-- ID token signature is **not** cryptographically verified (it's consumed over
-  TLS straight from the token endpoint for session bootstrap only). For
-  high-assurance deployments, add JWKS signature verification.
+- ID token signatures **are** now verified against the issuer JWKS (RS/PS/ES
+  256/384/512) with iss/aud/exp/nbf checks; `OIDC_SKIP_TOKEN_VERIFY=true` is an
+  escape hatch only. Set `OIDC_AUDIENCE` if it differs from the client id.
+- Real-time notification ingest (`/api/notifications/ingest`) is authenticated by
+  `NOTIFY_INGEST_SECRET` (constant-time compared) and disabled until that secret
+  is set. SSE client registries are per-replica — front multi-replica real-time
+  with a shared pub/sub or sticky sessions.
 - Settings and the analytics capability cache are in-memory; multi-replica
   deployments should back them with a shared store and pin capabilities via the
   `CAPABILITIES` env to avoid per-replica drift.

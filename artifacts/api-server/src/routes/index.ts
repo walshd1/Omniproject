@@ -6,6 +6,7 @@ import projectsRouter from "./projects";
 import portfolioRouter from "./portfolio";
 import capabilitiesRouter from "./capabilities";
 import setupRouter from "./setup";
+import { streamRouter, ingestRouter } from "./notifications-stream";
 import aiRouter from "./ai";
 import exportRouter from "./export";
 import { hasValidApiToken } from "../lib/api-token";
@@ -39,6 +40,10 @@ function requireAuth(req: Request, res: Response, next: NextFunction): void {
 // Public routes: health probes (not rate-limited so k8s liveness isn't throttled).
 router.use(healthRouter);
 
+// Inbound notification ingest from n8n/tools — authed by NOTIFY_INGEST_SECRET,
+// not by a user session, and exempt from the per-IP limiter (one n8n source).
+router.use(ingestRouter);
+
 // Rate limit everything else under /api/* (auth + data + analytics).
 router.use(apiLimiter);
 
@@ -50,6 +55,7 @@ router.use(requireAuth, projectsRouter);
 router.use(requireAuth, portfolioRouter);
 router.use(requireAuth, capabilitiesRouter);
 router.use(requireAuth, setupRouter);
+router.use(requireAuth, streamRouter);
 router.use(requireAuth, aiRouter);
 router.use(requireAuth, exportRouter);
 

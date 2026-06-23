@@ -55,6 +55,7 @@ export function configEntries(input: ConfigExportInput): Entry[] {
   }
 
   entries.push({ key: "SESSION_SECRET", value: "", placeholder: true, comment: "Required in production: a long random string for cookie signing" });
+  entries.push({ key: "NOTIFY_INGEST_SECRET", value: "", placeholder: true, comment: "Optional: enables real-time notifications — n8n/tools POST /api/notifications/ingest with this bearer" });
 
   return entries;
 }
