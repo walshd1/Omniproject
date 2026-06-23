@@ -337,6 +337,62 @@ export const BACKENDS: BackendManifest[] = [
     },
     notes: "Project for the web stores schedules in Dataverse (msdyn_project / msdyn_projecttask). For classic Project Online, point at the PWA OData (/_api/ProjectData) with a Microsoft OAuth credential instead.",
   },
+
+  // ── Massive corporate backbones (HTTP + n8n-managed credential) ─────────────
+  {
+    id: "sap",
+    label: "SAP S/4HANA (Enterprise Project / PS)",
+    docsUrl: "https://api.sap.com/api/API_ENTERPRISE_PROJECT_SRV/overview",
+    via: "HTTP + n8n OAuth2 credential (OData; Basic on-prem)",
+    authHeader: "",
+    requiredEnv: ["SAP_S4_URL"],
+    credentialType: "oAuth2Api",
+    capabilities: { ...CAPS_CORE, portfolio: true, financials: true, resources: true, baseline: true },
+    actions: {
+      list_projects: { method: "GET", url: "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProject?$format=json" },
+      list_issues: { method: "GET", url: "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProjectElement?$filter=ProjectUUID eq {{ $json.body.payload.projectId }}&$format=json" },
+      create_issue: { method: "POST", url: "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProjectElement", body: "={{ JSON.stringify({ ProjectElementDescription: $json.body.payload.title }) }}", note: "SAP OData writes require a CSRF token: add a GET node sending 'X-CSRF-Token: Fetch', then pass the returned token + cookies on this write." },
+      update_issue: { method: "PATCH", url: "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProjectElement(guid'{{ $json.body.payload.issueId }}')", body: "={{ JSON.stringify({ ProjectElementDescription: $json.body.payload.title }) }}" },
+      delete_issue: { method: "DELETE", url: "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProjectElement(guid'{{ $json.body.payload.issueId }}')" },
+    },
+    notes: "S/4HANA Project System / Enterprise Project Management via OData. Auth via n8n's OAuth2 credential (S/4HANA Cloud) or switch to httpBasicAuth on-prem. Writes need the X-CSRF-Token handshake. For classic RFC/BAPI use an SAP community node or route through SAP Integration Suite / PI-PO.",
+  },
+  {
+    id: "primavera",
+    label: "Oracle Primavera P6 EPPM",
+    docsUrl: "https://docs.oracle.com/cd/F25600_01/English/Integration/P6_Integration_API/index.htm",
+    via: "HTTP + n8n Basic credential (P6 REST)",
+    authHeader: "",
+    requiredEnv: ["P6_URL"],
+    credentialType: "httpBasicAuth",
+    capabilities: { ...CAPS_CORE, portfolio: true, resources: true, baseline: true },
+    actions: {
+      list_projects: { method: "GET", url: "={{ $env.P6_URL }}/p6ws/restapi/project" },
+      list_issues: { method: "GET", url: "={{ $env.P6_URL }}/p6ws/restapi/activity?ProjectObjectId={{ $json.body.payload.projectId }}" },
+      create_issue: { method: "POST", url: "={{ $env.P6_URL }}/p6ws/restapi/activity", body: "={{ JSON.stringify([{ Name: $json.body.payload.title, ProjectObjectId: $json.body.payload.projectId }]) }}" },
+      update_issue: { method: "PUT", url: "={{ $env.P6_URL }}/p6ws/restapi/activity", body: "={{ JSON.stringify([{ ObjectId: $json.body.payload.issueId, Name: $json.body.payload.title }]) }}" },
+      delete_issue: { method: "DELETE", url: "={{ $env.P6_URL }}/p6ws/restapi/activity/{{ $json.body.payload.issueId }}" },
+    },
+    notes: "Primavera P6 EPPM REST: projects → projects, activities → issues; baselines + resource assignments are first-class. Endpoint shapes vary by P6 version — confirm against your /p6ws/restapi build.",
+  },
+  {
+    id: "enterprise",
+    label: "Enterprise backbone (Capita / custom REST / OData / SOAP)",
+    docsUrl: "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest/",
+    via: "HTTP + n8n credential — point at your endpoint",
+    authHeader: "",
+    requiredEnv: ["BACKBONE_BASE_URL"],
+    credentialType: "httpHeaderAuth",
+    capabilities: { ...CAPS_CORE },
+    actions: {
+      list_projects: { method: "GET", url: "={{ $env.BACKBONE_BASE_URL }}/projects" },
+      list_issues: { method: "GET", url: "={{ $env.BACKBONE_BASE_URL }}/projects/{{ $json.body.payload.projectId }}/items" },
+      create_issue: { method: "POST", url: "={{ $env.BACKBONE_BASE_URL }}/projects/{{ $json.body.payload.projectId }}/items", body: "={{ JSON.stringify({ title: $json.body.payload.title, description: $json.body.payload.description }) }}" },
+      update_issue: { method: "PATCH", url: "={{ $env.BACKBONE_BASE_URL }}/items/{{ $json.body.payload.issueId }}", body: "={{ JSON.stringify({ title: $json.body.payload.title }) }}" },
+      delete_issue: { method: "DELETE", url: "={{ $env.BACKBONE_BASE_URL }}/items/{{ $json.body.payload.issueId }}" },
+    },
+    notes: "A starting template for bespoke corporate systems — Capita platforms, ESB/SOA gateways, mainframe-fronting REST. Auth via n8n's generic Header-Auth/OAuth2 credential. For SOAP backbones set the HTTP node to send XML (or use a SOAP community node); for message buses (IBM MQ, Kafka, RabbitMQ) trigger via the matching n8n node and call back through /api/notifications/ingest or a follow-up action.",
+  },
 ];
 
 export function getBackend(id: string): BackendManifest | undefined {

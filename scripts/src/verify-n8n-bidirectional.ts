@@ -687,6 +687,29 @@ async function testSetup(apiBase: string) {
     assert("Unknown backend test reachable", false);
   }
 
+  // Config snapshot (backup) + restore.
+  try {
+    const r = await get(`${apiBase}/api/setup/snapshot`);
+    assert("GET /setup/snapshot returns 200", r.status === 200, `got ${r.status}`);
+    const snap = r.data as { schema?: string; settings?: unknown };
+    assert("Snapshot has the OmniProject schema + settings", snap.schema === "omniproject/config-snapshot" && !!snap.settings);
+  } catch {
+    assert("GET /setup/snapshot reachable", false);
+  }
+  try {
+    const r = await post(`${apiBase}/api/setup/restore`, { schema: "omniproject/config-snapshot", version: 1, settings: { backendSource: "all" } });
+    assert("POST /setup/restore returns 200 for a valid snapshot", r.status === 200, `got ${r.status}`);
+    assert("Restore reports restored=true", (r.data as { restored?: boolean })?.restored === true);
+  } catch {
+    assert("POST /setup/restore reachable", false);
+  }
+  try {
+    const r = await post(`${apiBase}/api/setup/restore`, { schema: "foreign/thing", settings: {} });
+    assert("Restore rejects a foreign schema with 400", r.status === 400, `got ${r.status}`);
+  } catch {
+    assert("Restore validation reachable", false);
+  }
+
   // Workflow verifier (probes the configured mock with verify:true).
   try {
     const r = await post(`${apiBase}/api/setup/verify-workflow`, {});
