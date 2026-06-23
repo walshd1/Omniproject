@@ -67,6 +67,34 @@ Route(action) → per-action HTTP node → Normalize → Respond`, plus a
   touch the backend (the workflow returns `data.verified = true`).
 - **CLI (full contract):** `OMNI_API_BASE=https://your-omni pnpm --filter @workspace/scripts run verify-n8n`.
 
+## Real-time notifications — wire in tools like ntfy / Slack
+
+Managers can get notifications in real time **if they wish**, without OmniProject
+storing anything or coupling to a specific tool. Two cooperating pieces:
+
+1. **In-app live channel (provided):** the browser opens an SSE stream at
+   `GET /api/notifications/stream` (session-authed). The bell updates instantly
+   and shows a green **LIVE** dot; each user can toggle it off.
+2. **Inbound ingest (provided):** `POST /api/notifications/ingest` accepts an
+   event and fans it out to matching live clients. It's authenticated by
+   `NOTIFY_INGEST_SECRET` (Bearer) and **disabled until that secret is set**.
+
+```jsonc
+// POST /api/notifications/ingest   Authorization: Bearer <NOTIFY_INGEST_SECRET>
+{
+  "target": { "role": "manager" },          // or { "sub": "…" } / { "email": "…" } / omit = broadcast
+  "notification": { "kind": "blocker", "title": "Risk escalated on Platform Rewrite", "body": "…", "projectId": "proj-001" }
+}
+```
+
+**Wiring external delivery (the decoupled part):** in your n8n workflow, when a
+backend event fires (or on a schedule), fan out to the tools each manager wants —
+e.g. an **ntfy** topic, **Slack**/Teams webhook, email, or push — *and* POST the
+same event to `/api/notifications/ingest` for the live in-app bell. Per-user
+channel preferences live in your backend/IdP (read them in n8n), so OmniProject
+stays stateless. The `NOTIFY_INGEST_SECRET` is emitted by the Setup wizard's
+config export.
+
 ## Adding a backend
 
 Add a `BackendManifest` to `n8n-backends.ts` (URLs are n8n expressions using

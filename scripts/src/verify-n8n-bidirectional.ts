@@ -699,6 +699,48 @@ async function testSetup(apiBase: string) {
   }
 }
 
+async function testNotify(apiBase: string) {
+  console.log(bold("\n[8] Real-time notifications (ingest + SSE)"));
+  const secret = process.env["NOTIFY_INGEST_SECRET"];
+
+  // Is realtime enabled on the running server?
+  let enabled = false;
+  try {
+    const r = await get(`${apiBase}/api/setup/status`);
+    enabled = !!(r.data as { realtime?: { enabled?: boolean } })?.realtime?.enabled;
+    assert("setup/status reports realtime.enabled", typeof (r.data as { realtime?: { enabled?: boolean } })?.realtime?.enabled === "boolean");
+  } catch {
+    assert("setup/status realtime reachable", false);
+  }
+
+  if (enabled && secret) {
+    // Wrong secret rejected.
+    try {
+      const r = await post(`${apiBase}/api/notifications/ingest`, { notification: { title: "x" } }, { Authorization: "Bearer wrong-secret-of-len" });
+      assert("Ingest with wrong secret returns 401", r.status === 401, `got ${r.status}`);
+    } catch { assert("Ingest wrong-secret reachable", false); }
+
+    // Correct secret + valid notification accepted.
+    try {
+      const r = await post(`${apiBase}/api/notifications/ingest`, { notification: { title: "Build green", kind: "ci" } }, { Authorization: `Bearer ${secret}` });
+      assert("Ingest with correct secret returns 200", r.status === 200, `got ${r.status}`);
+      assert("Ingest reports a delivered count", typeof (r.data as { delivered?: number })?.delivered === "number");
+    } catch { assert("Ingest happy-path reachable", false); }
+
+    // Missing title rejected.
+    try {
+      const r = await post(`${apiBase}/api/notifications/ingest`, { notification: {} }, { Authorization: `Bearer ${secret}` });
+      assert("Ingest without title returns 400", r.status === 400, `got ${r.status}`);
+    } catch { assert("Ingest validation reachable", false); }
+  } else {
+    // Disabled (no secret configured) — the route short-circuits with 503.
+    try {
+      const r = await post(`${apiBase}/api/notifications/ingest`, { notification: { title: "x" } });
+      assert("Ingest disabled returns 503", r.status === 503, `got ${r.status}`);
+    } catch { assert("Ingest disabled reachable", false); }
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   console.log(bold("OmniProject — n8n Bidirectional Verification Script"));
@@ -741,6 +783,7 @@ async function main() {
     await testExports(apiBase);
     await testGovernance(apiBase);
     await testSetup(apiBase);
+    await testNotify(apiBase);
   } finally {
     mockServer.close();
   }

@@ -62,6 +62,8 @@ jobs:
         run: pnpm --filter omniproject run build
 
       - name: n8n contract verification (bidirectional)
+        env:
+          NOTIFY_INGEST_SECRET: omni-verify-secret
         run: |
           PORT=5000 node artifacts/api-server/dist/index.mjs &
           SERVER_PID=$!
