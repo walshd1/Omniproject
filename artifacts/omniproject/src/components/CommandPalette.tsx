@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Command } from "cmdk";
 import { useStore } from "../store/useStore";
 import { useLocation } from "wouter";
+import { VIEWS } from "../lib/views";
 
 export function CommandPalette() {
   const {
@@ -9,8 +10,8 @@ export function CommandPalette() {
     setCommandOpen,
     theme,
     toggleTheme,
-    currentLens,
-    setCurrentLens,
+    currentView,
+    setCurrentView,
     setNewIssueOpen,
     activeProjectId,
   } = useStore();
@@ -76,17 +77,23 @@ export function CommandPalette() {
               New Issue
             </Command.Item>
             <Command.Item
-              onSelect={() => { setCurrentLens(currentLens === 'agile' ? 'gantt' : 'agile'); setCommandOpen(false); }}
-              className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
-            >
-              Switch Lens ({currentLens === 'agile' ? 'Gantt' : 'Agile'})
-            </Command.Item>
-            <Command.Item
               onSelect={() => { toggleTheme(); setCommandOpen(false); }}
               className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
             >
               Toggle Theme ({theme === 'dark' ? 'Light' : 'Dark'})
             </Command.Item>
+          </Command.Group>
+
+          <Command.Group heading="Views" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-4">
+            {VIEWS.map((v) => (
+              <Command.Item
+                key={v.id}
+                onSelect={() => { setCurrentView(v.id); setLocation("/"); setCommandOpen(false); }}
+                className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
+              >
+                {v.id === currentView ? "● " : ""}{v.label} <span className="text-muted-foreground text-xs">· {v.methodology}</span>
+              </Command.Item>
+            ))}
           </Command.Group>
         </Command.List>
       </Command>

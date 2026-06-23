@@ -1,0 +1,16 @@
+import type { ComponentType } from "react";
+import type { ViewId } from "../../lib/views";
+import { AgileBoard } from "../board/AgileBoard";
+import { GanttChart } from "../board/GanttChart";
+import { ScrumView } from "./ScrumView";
+import { Prince2View } from "./Prince2View";
+import { ListView } from "./ListView";
+
+/** Maps each registered view to its renderer. Kanban/Gantt reuse the existing board components. */
+export const VIEW_COMPONENTS: Record<ViewId, ComponentType<{ projectId: string }>> = {
+  kanban: AgileBoard,
+  scrum: ScrumView,
+  gantt: GanttChart,
+  prince2: Prince2View,
+  list: ListView,
+};

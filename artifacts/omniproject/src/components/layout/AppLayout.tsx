@@ -9,7 +9,7 @@ import { useAuth, logout } from "../../lib/auth";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
-  const { currentLens, setCurrentLens, activeProjectId, isNewIssueOpen, setNewIssueOpen } = useStore();
+  const { activeProjectId, isNewIssueOpen, setNewIssueOpen } = useStore();
   const { data: auth, isLoading: authLoading } = useAuth();
   const { data: projects } = useListProjects();
   const health = useHealthCheck({
@@ -104,21 +104,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
         {/* Topbar */}
         <header className="h-14 border-b border-border flex items-center justify-between px-6 bg-background shrink-0">
           <div className="flex items-center gap-4">
-            <div className="flex items-center border border-border bg-card p-1">
-              <button 
-                onClick={() => setCurrentLens('agile')}
-                className={`px-3 py-1 text-xs font-bold uppercase ${currentLens === 'agile' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                AGILE
-              </button>
-              <button 
-                onClick={() => setCurrentLens('gantt')}
-                className={`px-3 py-1 text-xs font-bold uppercase ${currentLens === 'gantt' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                GANTT
-              </button>
-            </div>
-            
             {activeProject && (
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">/</span>
