@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import {
   CreateIssueBody,
   CreateIssueParams,
@@ -8,12 +8,23 @@ import {
   GetProjectSummaryParams,
   GetProjectIssuesParams,
 } from "@workspace/api-zod";
+import { isN8nConfigured, callN8n, authHeaderFromReq, N8nError } from "../lib/n8n";
+import { getSettings, updateSettings } from "../lib/settings";
 
 const router = Router();
 
-// ── Mock data ────────────────────────────────────────────────────────────────
+function respondN8nError(res: Response, err: unknown): void {
+  if (err instanceof N8nError) {
+    res.status(err.status).json({ error: err.message });
+    return;
+  }
+  const isTimeout = err instanceof Error && err.name === "TimeoutError";
+  res.status(502).json({ error: isTimeout ? "n8n request timed out" : "n8n unreachable" });
+}
 
-const PROJECTS = [
+// ── Sample data (demo mode only — used when N8N_WEBHOOK_URL is not set) ────────
+
+const SAMPLE_PROJECTS = [
   {
     id: "proj-001",
     name: "Platform Rewrite",
@@ -60,7 +71,7 @@ const PROJECTS = [
   },
 ];
 
-const ISSUES: Record<string, object[]> = {
+const SAMPLE_ISSUES: Record<string, Record<string, unknown>[]> = {
   "proj-001": [
     {
       id: "iss-001",
@@ -253,35 +264,93 @@ const ISSUES: Record<string, object[]> = {
 
 let issueCounter = 100;
 
-// ── Settings in-memory store ─────────────────────────────────────────────────
-
-let settingsStore = {
-  n8nWebhookUrl: null as string | null,
-  aiProvider: "none" as "none" | "openai" | "ollama" | "anthropic",
-  backendSource: "plane" as "plane" | "openproject" | "both",
-  oidcIssuerUrl: null as string | null,
-};
+const SAMPLE_ACTIVITY = () => [
+  {
+    id: "act-001",
+    action: "status_changed",
+    actor: "alice",
+    projectId: "proj-001",
+    issueId: "iss-005",
+    issueTitle: "Frontend command palette keyboard navigation",
+    detail: "in_progress → done",
+    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+  },
+  {
+    id: "act-002",
+    action: "issue_created",
+    actor: "bob",
+    projectId: "proj-001",
+    issueId: "iss-004",
+    issueTitle: "Write K8s manifest for enterprise deployment",
+    detail: null,
+    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
+  },
+  {
+    id: "act-003",
+    action: "status_changed",
+    actor: "carol",
+    projectId: "proj-002",
+    issueId: "iss-009",
+    issueTitle: "Health check endpoint",
+    detail: "todo → in_progress",
+    timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+  },
+  {
+    id: "act-004",
+    action: "priority_changed",
+    actor: "alice",
+    projectId: "proj-001",
+    issueId: "iss-001",
+    issueTitle: "Migrate auth service to OIDC",
+    detail: "high → urgent",
+    timestamp: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
+  },
+];
 
 // ── Routes ───────────────────────────────────────────────────────────────────
+// When n8n is configured every data action is brokered through it; otherwise the
+// gateway falls back to the sample data above so the app still runs locally.
 
-router.get("/projects", (_req, res) => {
-  res.json(PROJECTS);
+router.get("/projects", async (req, res) => {
+  const source = getSettings().backendSource;
+  if (isN8nConfigured) {
+    try {
+      const result = await callN8n("list_projects", {}, { authHeader: authHeaderFromReq(req), source });
+      res.json(result.data ?? []);
+    } catch (err) {
+      req.log.error({ err }, "list_projects via n8n failed");
+      respondN8nError(res, err);
+    }
+    return;
+  }
+  res.json(SAMPLE_PROJECTS);
 });
 
-router.get("/projects/:projectId/issues", (req, res) => {
+router.get("/projects/:projectId/issues", async (req, res) => {
   const parse = GetProjectIssuesParams.safeParse(req.params);
   if (!parse.success) {
     res.status(400).json({ error: "Invalid project id" });
     return;
   }
-  const issues = ISSUES[parse.data.projectId] ?? [];
-  res.json(issues);
+  const { projectId } = parse.data;
+  const source = getSettings().backendSource;
+
+  if (isN8nConfigured) {
+    try {
+      const result = await callN8n("list_issues", { projectId }, { authHeader: authHeaderFromReq(req), source });
+      res.json(result.data ?? []);
+    } catch (err) {
+      req.log.error({ err, projectId }, "list_issues via n8n failed");
+      respondN8nError(res, err);
+    }
+    return;
+  }
+  res.json(SAMPLE_ISSUES[projectId] ?? []);
 });
 
-router.post("/projects/:projectId/issues", (req, res) => {
+router.post("/projects/:projectId/issues", async (req, res) => {
   const paramsParse = CreateIssueParams.safeParse(req.params);
   const bodyParse = CreateIssueBody.safeParse(req.body);
-
   if (!paramsParse.success || !bodyParse.success) {
     res.status(400).json({ error: "Invalid request" });
     return;
@@ -289,6 +358,22 @@ router.post("/projects/:projectId/issues", (req, res) => {
 
   const { projectId } = paramsParse.data;
   const body = bodyParse.data;
+  const source = getSettings().backendSource;
+
+  if (isN8nConfigured) {
+    try {
+      const result = await callN8n(
+        "create_issue",
+        { projectId, ...body },
+        { authHeader: authHeaderFromReq(req), source },
+      );
+      res.status(201).json(result.data);
+    } catch (err) {
+      req.log.error({ err, projectId }, "create_issue via n8n failed");
+      respondN8nError(res, err);
+    }
+    return;
+  }
 
   const issue = {
     id: `iss-${++issueCounter}`,
@@ -301,53 +386,59 @@ router.post("/projects/:projectId/issues", (req, res) => {
     labels: body.labels ?? [],
     startDate: body.startDate ?? null,
     dueDate: body.dueDate ?? null,
-    source: settingsStore.backendSource === "openproject" ? "openproject" : "plane",
+    source: getSettings().backendSource === "openproject" ? "openproject" : "plane",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-
-  if (!ISSUES[projectId]) ISSUES[projectId] = [];
-  ISSUES[projectId].push(issue);
-
-  const proj = PROJECTS.find((p) => p.id === projectId);
+  if (!SAMPLE_ISSUES[projectId]) SAMPLE_ISSUES[projectId] = [];
+  SAMPLE_ISSUES[projectId].push(issue);
+  const proj = SAMPLE_PROJECTS.find((p) => p.id === projectId);
   if (proj) proj.issueCount += 1;
-
   res.status(201).json(issue);
 });
 
-router.patch("/projects/:projectId/issues/:issueId", (req, res) => {
+router.patch("/projects/:projectId/issues/:issueId", async (req, res) => {
   const paramsParse = UpdateIssueParams.safeParse(req.params);
   const bodyParse = UpdateIssueBody.safeParse(req.body);
-
   if (!paramsParse.success || !bodyParse.success) {
     res.status(400).json({ error: "Invalid request" });
     return;
   }
 
   const { projectId, issueId } = paramsParse.data;
-  const issues = ISSUES[projectId];
+  const source = getSettings().backendSource;
+
+  if (isN8nConfigured) {
+    try {
+      const result = await callN8n(
+        "update_issue",
+        { projectId, issueId, ...bodyParse.data },
+        { authHeader: authHeaderFromReq(req), source },
+      );
+      res.json(result.data);
+    } catch (err) {
+      req.log.error({ err, projectId, issueId }, "update_issue via n8n failed");
+      respondN8nError(res, err);
+    }
+    return;
+  }
+
+  const issues = SAMPLE_ISSUES[projectId];
   if (!issues) {
     res.status(404).json({ error: "Project not found" });
     return;
   }
-
-  const idx = issues.findIndex((i: unknown) => (i as { id: string }).id === issueId);
+  const idx = issues.findIndex((i) => (i as { id: string }).id === issueId);
   if (idx === -1) {
     res.status(404).json({ error: "Issue not found" });
     return;
   }
-
-  const updated = {
-    ...(issues[idx] as object),
-    ...bodyParse.data,
-    updatedAt: new Date().toISOString(),
-  };
+  const updated = { ...issues[idx], ...bodyParse.data, updatedAt: new Date().toISOString() };
   issues[idx] = updated;
-
   res.json(updated);
 });
 
-router.delete("/projects/:projectId/issues/:issueId", (req, res) => {
+router.delete("/projects/:projectId/issues/:issueId", async (req, res) => {
   const paramsParse = DeleteIssueParams.safeParse(req.params);
   if (!paramsParse.success) {
     res.status(400).json({ error: "Invalid params" });
@@ -355,135 +446,99 @@ router.delete("/projects/:projectId/issues/:issueId", (req, res) => {
   }
 
   const { projectId, issueId } = paramsParse.data;
-  const issues = ISSUES[projectId];
+  const source = getSettings().backendSource;
+
+  if (isN8nConfigured) {
+    try {
+      await callN8n("delete_issue", { projectId, issueId }, { authHeader: authHeaderFromReq(req), source });
+      res.status(204).send();
+    } catch (err) {
+      req.log.error({ err, projectId, issueId }, "delete_issue via n8n failed");
+      respondN8nError(res, err);
+    }
+    return;
+  }
+
+  const issues = SAMPLE_ISSUES[projectId];
   if (!issues) {
     res.status(404).json({ error: "Project not found" });
     return;
   }
-
-  const idx = issues.findIndex((i: unknown) => (i as { id: string }).id === issueId);
+  const idx = issues.findIndex((i) => (i as { id: string }).id === issueId);
   if (idx !== -1) issues.splice(idx, 1);
-
-  const proj = PROJECTS.find((p) => p.id === projectId);
+  const proj = SAMPLE_PROJECTS.find((p) => p.id === projectId);
   if (proj && proj.issueCount > 0) proj.issueCount -= 1;
-
   res.status(204).send();
 });
 
-router.get("/projects/:projectId/summary", (req, res) => {
+router.get("/projects/:projectId/summary", async (req, res) => {
   const parse = GetProjectSummaryParams.safeParse(req.params);
   if (!parse.success) {
     res.status(400).json({ error: "Invalid project id" });
     return;
   }
-
   const { projectId } = parse.data;
-  const issues = (ISSUES[projectId] ?? []) as Array<{ status: string; priority: string; dueDate: string | null }>;
+  const source = getSettings().backendSource;
 
+  if (isN8nConfigured) {
+    try {
+      const result = await callN8n("project_summary", { projectId }, { authHeader: authHeaderFromReq(req), source });
+      res.json(result.data);
+    } catch (err) {
+      req.log.error({ err, projectId }, "project_summary via n8n failed");
+      respondN8nError(res, err);
+    }
+    return;
+  }
+
+  const issues = (SAMPLE_ISSUES[projectId] ?? []) as Array<{
+    status: string;
+    priority: string;
+    dueDate: string | null;
+  }>;
   const byStatus: Record<string, number> = {};
   const byPriority: Record<string, number> = {};
   let overdue = 0;
   const now = new Date();
-
   for (const issue of issues) {
     byStatus[issue.status] = (byStatus[issue.status] ?? 0) + 1;
     byPriority[issue.priority] = (byPriority[issue.priority] ?? 0) + 1;
-    if (
-      issue.dueDate &&
-      new Date(issue.dueDate) < now &&
-      issue.status !== "done" &&
-      issue.status !== "cancelled"
-    ) {
+    if (issue.dueDate && new Date(issue.dueDate) < now && issue.status !== "done" && issue.status !== "cancelled") {
       overdue++;
     }
   }
-
   const total = issues.length;
   const done = byStatus["done"] ?? 0;
   const completionRate = total > 0 ? Math.round((done / total) * 100) : 0;
-
   res.json({ projectId, total, byStatus, byPriority, completionRate, overdue });
 });
 
-router.get("/activity", (_req, res) => {
-  const activity = [
-    {
-      id: "act-001",
-      action: "status_changed",
-      actor: "alice",
-      projectId: "proj-001",
-      issueId: "iss-005",
-      issueTitle: "Frontend command palette keyboard navigation",
-      detail: "in_progress → done",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-    },
-    {
-      id: "act-002",
-      action: "issue_created",
-      actor: "bob",
-      projectId: "proj-001",
-      issueId: "iss-004",
-      issueTitle: "Write K8s manifest for enterprise deployment",
-      detail: null,
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
-    },
-    {
-      id: "act-003",
-      action: "status_changed",
-      actor: "carol",
-      projectId: "proj-002",
-      issueId: "iss-009",
-      issueTitle: "Health check endpoint",
-      detail: "todo → in_progress",
-      timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
-    },
-    {
-      id: "act-004",
-      action: "priority_changed",
-      actor: "alice",
-      projectId: "proj-001",
-      issueId: "iss-001",
-      issueTitle: "Migrate auth service to OIDC",
-      detail: "high → urgent",
-      timestamp: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
-    },
-    {
-      id: "act-005",
-      action: "issue_assigned",
-      actor: "bob",
-      projectId: "proj-003",
-      issueId: "iss-011",
-      issueTitle: "OIDC token relay in API proxy",
-      detail: "assigned to bob",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-    },
-    {
-      id: "act-006",
-      action: "status_changed",
-      actor: "alice",
-      projectId: "proj-003",
-      issueId: "iss-010",
-      issueTitle: "Authentik local IdP setup",
-      detail: "in_review → done",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
-    },
-  ];
-
-  res.json(activity);
+router.get("/activity", async (req, res) => {
+  if (isN8nConfigured) {
+    try {
+      const result = await callN8n(
+        "list_activity",
+        {},
+        { authHeader: authHeaderFromReq(req), source: getSettings().backendSource },
+      );
+      res.json(result.data ?? []);
+    } catch (err) {
+      req.log.error({ err }, "list_activity via n8n failed");
+      respondN8nError(res, err);
+    }
+    return;
+  }
+  res.json(SAMPLE_ACTIVITY());
 });
 
+// ── Settings (gateway-local, never brokered through n8n) ──────────────────────
+
 router.get("/settings", (_req, res) => {
-  res.json(settingsStore);
+  res.json(getSettings());
 });
 
 router.patch("/settings", (req, res) => {
-  const allowed = ["n8nWebhookUrl", "aiProvider", "backendSource", "oidcIssuerUrl"];
-  for (const key of allowed) {
-    if (key in req.body) {
-      (settingsStore as Record<string, unknown>)[key] = req.body[key];
-    }
-  }
-  res.json(settingsStore);
+  res.json(updateSettings(req.body ?? {}));
 });
 
 export default router;

@@ -201,6 +201,7 @@ export const SettingsAiProvider = {
   openai: 'openai',
   ollama: 'ollama',
   anthropic: 'anthropic',
+  openrouter: 'openrouter',
 } as const;
 
 export type SettingsBackendSource = typeof SettingsBackendSource[keyof typeof SettingsBackendSource];
@@ -216,6 +217,8 @@ export interface Settings {
   /** @nullable */
   n8nWebhookUrl?: string | null;
   aiProvider: SettingsAiProvider;
+  /** @nullable */
+  aiModel?: string | null;
   backendSource: SettingsBackendSource;
   /** @nullable */
   oidcIssuerUrl?: string | null;
@@ -229,6 +232,7 @@ export const SettingsUpdateAiProvider = {
   openai: 'openai',
   ollama: 'ollama',
   anthropic: 'anthropic',
+  openrouter: 'openrouter',
 } as const;
 
 export type SettingsUpdateBackendSource = typeof SettingsUpdateBackendSource[keyof typeof SettingsUpdateBackendSource];
@@ -244,6 +248,8 @@ export interface SettingsUpdate {
   /** @nullable */
   n8nWebhookUrl?: string | null;
   aiProvider?: SettingsUpdateAiProvider;
+  /** @nullable */
+  aiModel?: string | null;
   backendSource?: SettingsUpdateBackendSource;
   /** @nullable */
   oidcIssuerUrl?: string | null;

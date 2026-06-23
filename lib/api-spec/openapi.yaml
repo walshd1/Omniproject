@@ -478,7 +478,9 @@ components:
           type: ["string", "null"]
         aiProvider:
           type: string
-          enum: [none, openai, ollama, anthropic]
+          enum: [none, openai, ollama, anthropic, openrouter]
+        aiModel:
+          type: ["string", "null"]
         backendSource:
           type: string
           enum: [plane, openproject, both]
@@ -495,7 +497,9 @@ components:
           type: ["string", "null"]
         aiProvider:
           type: string
-          enum: [none, openai, ollama, anthropic]
+          enum: [none, openai, ollama, anthropic, openrouter]
+        aiModel:
+          type: ["string", "null"]
         backendSource:
           type: string
           enum: [plane, openproject, both]

@@ -1,5 +1,8 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { isN8nConfigured } from "./lib/n8n";
+import { isOidcConfigured } from "./lib/oidc";
+import { getSettings } from "./lib/settings";
 
 const rawPort = process.env["PORT"];
 
@@ -21,5 +24,13 @@ app.listen(port, (err) => {
     process.exit(1);
   }
 
-  logger.info({ port }, "Server listening");
+  logger.info(
+    {
+      port,
+      dataMode: isN8nConfigured ? "n8n" : "demo (sample data)",
+      auth: isOidcConfigured ? "oidc" : "demo",
+      aiProvider: getSettings().aiProvider,
+    },
+    "Server listening",
+  );
 });

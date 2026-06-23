@@ -25,7 +25,9 @@ data:
   N8N_WEBHOOK_URL: "http://n8n:5678/webhook/omniproject"
   # Public origin of the shell — used to build the OIDC redirect URI.
   PUBLIC_URL: "https://app.your-domain.com"  # REPLACE
-  AI_PROVIDER: "none"
+  AI_PROVIDER: "none"                         # none | ollama | openrouter | openai | anthropic
+  AI_MODEL: ""                                # optional; provider default otherwise
+  OLLAMA_URL: "http://ollama:11434"           # only used when AI_PROVIDER=ollama
   GENERIC_TIMEZONE: "UTC"
   N8N_PORT: "5678"
 
@@ -46,6 +48,7 @@ stringData:
   SESSION_SECRET: "replace-with-random-64-char-string"             # REPLACE
   N8N_BASIC_AUTH_USER: "admin"
   N8N_BASIC_AUTH_PASSWORD: "changeme"                              # REPLACE
+  OPENROUTER_API_KEY: ""                                          # for AI_PROVIDER=openrouter
   OPENAI_API_KEY: ""
   ANTHROPIC_API_KEY: ""
 

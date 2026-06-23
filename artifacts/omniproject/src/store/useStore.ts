@@ -11,7 +11,7 @@ export interface OmniStore {
   setNewIssueOpen: (open: boolean) => void
   activeProjectId: string | null
   setActiveProjectId: (id: string | null) => void
-  aiProvider: 'none' | 'openai' | 'ollama' | 'anthropic'
+  aiProvider: 'none' | 'openai' | 'ollama' | 'anthropic' | 'openrouter'
   setAiProvider: (p: string) => void
   theme: 'dark' | 'light'
   toggleTheme: () => void
@@ -37,7 +37,7 @@ export const useStore = create<OmniStore>((set) => ({
   activeProjectId: null,
   setActiveProjectId: (id) => set({ activeProjectId: id }),
   aiProvider: 'none',
-  setAiProvider: (p) => set({ aiProvider: p as 'none' | 'openai' | 'ollama' | 'anthropic' }),
+  setAiProvider: (p) => set({ aiProvider: p as 'none' | 'openai' | 'ollama' | 'anthropic' | 'openrouter' }),
   theme: getInitialTheme(),
   toggleTheme: () => set((state) => {
     const newTheme = state.theme === 'dark' ? 'light' : 'dark'
