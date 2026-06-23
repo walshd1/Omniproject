@@ -3,6 +3,7 @@ import healthRouter from "./health";
 import authRouter, { getSession } from "./auth";
 import n8nProxyRouter from "./n8n-proxy";
 import projectsRouter from "./projects";
+import aiRouter from "./ai";
 
 const router: IRouter = Router();
 
@@ -27,5 +28,6 @@ router.use(authRouter);
 // Protected routes: require an authenticated session.
 router.use(requireAuth, n8nProxyRouter);
 router.use(requireAuth, projectsRouter);
+router.use(requireAuth, aiRouter);
 
 export default router;

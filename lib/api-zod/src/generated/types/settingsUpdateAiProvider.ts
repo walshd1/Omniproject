@@ -14,4 +14,5 @@ export const SettingsUpdateAiProvider = {
   openai: 'openai',
   ollama: 'ollama',
   anthropic: 'anthropic',
+  openrouter: 'openrouter',
 } as const;

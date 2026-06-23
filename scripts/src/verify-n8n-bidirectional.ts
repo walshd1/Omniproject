@@ -57,6 +57,42 @@ const N8N_INBOUND_RESPONSE = {
   message: "State synced from Plane",
 };
 
+// Action-aware responses: the gateway now brokers every data action through
+// n8n, so the mock returns normalized payloads per action (mirroring what a
+// real n8n workflow over Plane/OpenProject would return).
+function mockResponseFor(action: string): Record<string, unknown> {
+  switch (action) {
+    case "list_projects":
+      return {
+        success: true,
+        data: [
+          { id: "p1", name: "Alpha", identifier: "ALP", source: "plane", issueCount: 5, completedCount: 2, memberCount: 3, updatedAt: new Date().toISOString() },
+          { id: "p2", name: "Beta", identifier: "BET", source: "openproject", issueCount: 12, completedCount: 6, memberCount: 4, updatedAt: new Date().toISOString() },
+        ],
+      };
+    case "list_issues":
+      return {
+        success: true,
+        data: [
+          { id: "i1", projectId: "p1", title: "Issue One", status: "todo", priority: "high", labels: ["x"], source: "plane", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        ],
+      };
+    case "list_activity":
+      return { success: true, data: [{ id: "a1", action: "issue_created", actor: "alice", projectId: "p1", timestamp: new Date().toISOString() }] };
+    case "project_summary":
+      return { success: true, data: { projectId: "p1", total: 5, byStatus: { todo: 3, done: 2 }, byPriority: { high: 2 }, completionRate: 40, overdue: 1 } };
+    case "create_issue":
+      return { success: true, data: { id: "i-new", projectId: "p1", title: "Created", status: "backlog", priority: "none", labels: [], source: "plane", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } };
+    case "update_issue":
+      return { success: true, data: { id: "i1", projectId: "p1", title: "Updated", status: "done", priority: "high", labels: [], source: "plane", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } };
+    case "delete_issue":
+      return { success: true, data: {} };
+    default:
+      // sync_state / create_ticket and anything else → the normalized payload.
+      return N8N_INBOUND_RESPONSE;
+  }
+}
+
 function startMockN8n(): Promise<http.Server> {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
@@ -77,9 +113,11 @@ function startMockN8n(): Promise<http.Server> {
           body: parsed,
         });
 
-        // Simulate n8n returning a normalized state payload
+        // Respond per the action the gateway forwarded.
+        const action =
+          parsed && typeof parsed === "object" ? String((parsed as { action?: unknown }).action ?? "") : "";
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(N8N_INBOUND_RESPONSE));
+        res.end(JSON.stringify(mockResponseFor(action)));
       });
     });
 
@@ -363,6 +401,17 @@ async function testApiRoutes(apiBase: string) {
     assert("GET /api/healthz returns 200", r.status === 200);
   } catch {
     assert("GET /api/healthz reachable", false);
+  }
+
+  // AI status
+  try {
+    const r = await get(`${apiBase}/api/ai/status`);
+    assert("GET /api/ai/status returns 200", r.status === 200);
+    const s = r.data as Record<string, unknown>;
+    assert("AI status has provider", "provider" in s);
+    assert("AI status has configured flag", typeof s.configured === "boolean");
+  } catch {
+    assert("GET /api/ai/status reachable", false);
   }
 }
 

@@ -12,6 +12,8 @@ export interface Settings {
   /** @nullable */
   n8nWebhookUrl?: string | null;
   aiProvider: SettingsAiProvider;
+  /** @nullable */
+  aiModel?: string | null;
   backendSource: SettingsBackendSource;
   /** @nullable */
   oidcIssuerUrl?: string | null;

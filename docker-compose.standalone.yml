@@ -57,6 +57,11 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-changeme}
       SESSION_SECRET: ${SESSION_SECRET:-change-in-production}
       DATABASE_URL: ${DATABASE_URL:-}
+      # ── AI: local (Ollama, bundled) or public (OpenRouter) ─────────────────
+      AI_PROVIDER: ${AI_PROVIDER:-none}         # none | ollama | openrouter | openai | anthropic
+      AI_MODEL: ${AI_MODEL:-}
+      OLLAMA_URL: http://ollama:11434
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.omni.rule=Host(`app.local`)"

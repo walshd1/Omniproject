@@ -185,7 +185,8 @@ export const ListActivityResponse = zod.array(ListActivityResponseItem)
  */
 export const GetSettingsResponse = zod.object({
   "n8nWebhookUrl": zod.string().nullish(),
-  "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic']),
+  "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']),
+  "aiModel": zod.string().nullish(),
   "backendSource": zod.enum(['plane', 'openproject', 'both']),
   "oidcIssuerUrl": zod.string().nullish()
 })
@@ -196,14 +197,16 @@ export const GetSettingsResponse = zod.object({
  */
 export const UpdateSettingsBody = zod.object({
   "n8nWebhookUrl": zod.string().nullish(),
-  "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic']).optional(),
+  "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']).optional(),
+  "aiModel": zod.string().nullish(),
   "backendSource": zod.enum(['plane', 'openproject', 'both']).optional(),
   "oidcIssuerUrl": zod.string().nullish()
 })
 
 export const UpdateSettingsResponse = zod.object({
   "n8nWebhookUrl": zod.string().nullish(),
-  "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic']),
+  "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']),
+  "aiModel": zod.string().nullish(),
   "backendSource": zod.enum(['plane', 'openproject', 'both']),
   "oidcIssuerUrl": zod.string().nullish()
 })
