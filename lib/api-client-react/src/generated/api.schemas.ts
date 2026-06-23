@@ -90,6 +90,11 @@ export interface Issue {
   dueDate?: string | null;
   source: string;
   /**
+     * Optimistic-concurrency token mirrored from the system of record (e.g. OpenProject lockVersion). Sent back as expectedVersion on update so a stale edit is rejected with 409 instead of silently overwriting a concurrent change.
+     * @nullable
+     */
+  version?: number | null;
+  /**
      * Origin system/principal that last mutated this issue (e.g. "omniproject", "plane", "openproject"). n8n compares this against the change origin to drop circular sync loops (webhook storms).
      * @nullable
      */
@@ -175,6 +180,8 @@ export interface IssueUpdate {
   dueDate?: string | null;
   /** System initiating this update (defaults to "omniproject" at the gateway). Carried downstream so n8n can drop overlapping loop mutations where origin === the target's lastUpdatedBy. */
   origin?: string;
+  /** The version the client last saw. When present the gateway/backend performs an optimistic-concurrency check and rejects the write with 409 if the issue has moved on, instead of clobbering it. */
+  expectedVersion?: number;
 }
 
 export type ProjectSummaryByStatus = {[key: string]: number};
@@ -218,6 +225,18 @@ export const ProjectFinancialsFinancialHealth = {
   RED: 'RED',
 } as const;
 
+/**
+ * Where a figure came from, so the UI never presents a synthesised number as fact. "sourced" = read from the backend system of record via n8n; "derived" = computed by the gateway from real issue data; "sample" = demo/placeholder data (no backend wired).
+ */
+export type Provenance = typeof Provenance[keyof typeof Provenance];
+
+
+export const Provenance = {
+  sourced: 'sourced',
+  derived: 'derived',
+  sample: 'sample',
+} as const;
+
 export interface ProjectFinancials {
   currency: string;
   budgetAllocated: number;
@@ -227,6 +246,7 @@ export interface ProjectFinancials {
   spi: number;
   financialHealth: ProjectFinancialsFinancialHealth;
   forecastCostAtCompletion: number;
+  provenance?: Provenance;
 }
 
 export type PortfolioHealthSummaryRagStatus = typeof PortfolioHealthSummaryRagStatus[keyof typeof PortfolioHealthSummaryRagStatus];
@@ -274,6 +294,8 @@ export interface Capabilities {
   portfolio: boolean;
   baseline: boolean;
   blockers: boolean;
+  history: boolean;
+  raid: boolean;
 }
 
 export type SettingsAiProvider = typeof SettingsAiProvider[keyof typeof SettingsAiProvider];
@@ -320,5 +342,212 @@ export interface SettingsUpdate {
   backendSource?: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
+}
+
+export interface ConflictResponse {
+  error: string;
+  current?: Issue;
+}
+
+/**
+ * One point on a project's progress trend.
+ */
+export interface ProjectHistoryPoint {
+  date: string;
+  /** Percent of issues done at this point (0–100). */
+  completionRate: number;
+  totalIssues: number;
+  completedIssues: number;
+  /** @nullable */
+  openBlockers?: number | null;
+  provenance: Provenance;
+}
+
+export interface BaselineItem {
+  issueId: string;
+  title: string;
+  /** @nullable */
+  plannedStart?: string | null;
+  /** @nullable */
+  plannedFinish?: string | null;
+}
+
+/**
+ * An approved baseline held by the backend system of record.
+ */
+export interface ProjectBaseline {
+  projectId: string;
+  name?: string;
+  capturedAt: string;
+  items: BaselineItem[];
+  provenance: Provenance;
+}
+
+export type RaidEntryType = typeof RaidEntryType[keyof typeof RaidEntryType];
+
+
+export const RaidEntryType = {
+  risk: 'risk',
+  assumption: 'assumption',
+  issue: 'issue',
+  dependency: 'dependency',
+} as const;
+
+export type RaidEntrySeverity = typeof RaidEntrySeverity[keyof typeof RaidEntrySeverity];
+
+
+export const RaidEntrySeverity = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+/**
+ * @nullable
+ */
+export type RaidEntryLikelihood = typeof RaidEntryLikelihood[keyof typeof RaidEntryLikelihood] | null;
+
+
+export const RaidEntryLikelihood = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+/**
+ * @nullable
+ */
+export type RaidEntryImpact = typeof RaidEntryImpact[keyof typeof RaidEntryImpact] | null;
+
+
+export const RaidEntryImpact = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+export type RaidEntryStatus = typeof RaidEntryStatus[keyof typeof RaidEntryStatus];
+
+
+export const RaidEntryStatus = {
+  open: 'open',
+  mitigating: 'mitigating',
+  closed: 'closed',
+} as const;
+
+/**
+ * A Risk, Assumption, Issue or Dependency log entry.
+ */
+export interface RaidEntry {
+  id: string;
+  projectId: string;
+  type: RaidEntryType;
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  severity: RaidEntrySeverity;
+  /** @nullable */
+  likelihood?: RaidEntryLikelihood;
+  /** @nullable */
+  impact?: RaidEntryImpact;
+  status: RaidEntryStatus;
+  /** @nullable */
+  owner?: string | null;
+  /** @nullable */
+  mitigation?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  provenance?: Provenance;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type RaidEntryInputType = typeof RaidEntryInputType[keyof typeof RaidEntryInputType];
+
+
+export const RaidEntryInputType = {
+  risk: 'risk',
+  assumption: 'assumption',
+  issue: 'issue',
+  dependency: 'dependency',
+} as const;
+
+export type RaidEntryInputSeverity = typeof RaidEntryInputSeverity[keyof typeof RaidEntryInputSeverity];
+
+
+export const RaidEntryInputSeverity = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+/**
+ * @nullable
+ */
+export type RaidEntryInputLikelihood = typeof RaidEntryInputLikelihood[keyof typeof RaidEntryInputLikelihood] | null;
+
+
+export const RaidEntryInputLikelihood = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+/**
+ * @nullable
+ */
+export type RaidEntryInputImpact = typeof RaidEntryInputImpact[keyof typeof RaidEntryInputImpact] | null;
+
+
+export const RaidEntryInputImpact = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+export type RaidEntryInputStatus = typeof RaidEntryInputStatus[keyof typeof RaidEntryInputStatus];
+
+
+export const RaidEntryInputStatus = {
+  open: 'open',
+  mitigating: 'mitigating',
+  closed: 'closed',
+} as const;
+
+export interface RaidEntryInput {
+  type: RaidEntryInputType;
+  /** @minLength 1 */
+  title: string;
+  /** @nullable */
+  description?: string | null;
+  severity: RaidEntryInputSeverity;
+  /** @nullable */
+  likelihood?: RaidEntryInputLikelihood;
+  /** @nullable */
+  impact?: RaidEntryInputImpact;
+  status?: RaidEntryInputStatus;
+  /** @nullable */
+  owner?: string | null;
+  /** @nullable */
+  mitigation?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+}
+
+export interface Notification {
+  id: string;
+  /** e.g. "assignment", "mention", "due_soon", "blocker", "status_change". */
+  kind: string;
+  title: string;
+  /** @nullable */
+  body?: string | null;
+  /** @nullable */
+  projectId?: string | null;
+  /** @nullable */
+  issueId?: string | null;
+  read: boolean;
+  timestamp: string;
 }
 

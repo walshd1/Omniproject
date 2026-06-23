@@ -5,7 +5,7 @@
  * React components.
  */
 
-export type ViewId = "kanban" | "scrum" | "gantt" | "prince2" | "list";
+export type ViewId = "kanban" | "scrum" | "gantt" | "prince2" | "raid" | "list";
 
 export type CapabilityDomain =
   | "issues"
@@ -14,7 +14,9 @@ export type CapabilityDomain =
   | "financials"
   | "portfolio"
   | "baseline"
-  | "blockers";
+  | "blockers"
+  | "history"
+  | "raid";
 
 export interface ViewMeta {
   id: ViewId;
@@ -60,6 +62,15 @@ export const VIEWS: ViewMeta[] = [
     group: "Traditional",
     methodology: "PRINCE2",
     description: "Management stages, product status and a highlight report.",
+  },
+  {
+    id: "raid",
+    label: "RAID Log",
+    short: "RAID",
+    group: "Governance",
+    methodology: "Risk & governance",
+    description: "Risks, Assumptions, Issues and Dependencies register.",
+    needs: "raid",
   },
   {
     id: "list",

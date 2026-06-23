@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.8.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        # --ignore-scripts: the CI build path (esbuild, rollup, vite, tsx) uses
+        # prebuilt platform binaries, not postinstall scripts, so we skip them.
+        # This also avoids pnpm 11's fatal ERR_PNPM_IGNORED_BUILDS in CI without
+        # weakening the workspace's supply-chain allowlist.
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Typecheck (libs + apps + scripts)
+        run: pnpm run typecheck
+
+      - name: Unit tests (gateway)
+        run: pnpm --filter @workspace/api-server run test
+
+      - name: Verify codegen is in sync with the OpenAPI contract
+        run: |
+          pnpm --filter @workspace/api-spec run codegen
+          if ! git diff --quiet -- lib/api-zod lib/api-client-react; then
+            echo "::error::Generated client is out of date. Run 'pnpm --filter @workspace/api-spec run codegen' and commit the result."
+            git --no-pager diff --stat -- lib/api-zod lib/api-client-react
+            exit 1
+          fi
+
+      - name: Build gateway
+        run: pnpm --filter @workspace/api-server run build
+
+      - name: Build SPA
+        env:
+          PORT: "3000"
+          BASE_PATH: "/"
+        run: pnpm --filter omniproject run build
+
+      - name: n8n contract verification (bidirectional)
+        run: |
+          PORT=5000 node artifacts/api-server/dist/index.mjs &
+          SERVER_PID=$!
+          # Wait for the gateway health endpoint.
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:5000/api/healthz >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          OMNI_API_BASE=http://localhost:5000 pnpm --filter @workspace/scripts run verify-n8n
+          STATUS=$?
+          kill $SERVER_PID 2>/dev/null || true
+          exit $STATUS

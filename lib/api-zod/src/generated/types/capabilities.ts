@@ -19,4 +19,6 @@ export interface Capabilities {
   portfolio: boolean;
   baseline: boolean;
   blockers: boolean;
+  history: boolean;
+  raid: boolean;
 }

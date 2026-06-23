@@ -22,6 +22,7 @@ import type {
 import type {
   ActivityEntry,
   Capabilities,
+  ConflictResponse,
   ErrorResponse,
   HealthStatus,
   Issue,
@@ -29,10 +30,15 @@ import type {
   IssueUpdate,
   N8nActionInput,
   N8nActionResult,
+  Notification,
   PortfolioHealthSummary,
   Project,
+  ProjectBaseline,
   ProjectFinancials,
+  ProjectHistoryPoint,
   ProjectSummary,
+  RaidEntry,
+  RaidEntryInput,
   ResourceCapacity,
   Settings,
   SettingsUpdate
@@ -456,7 +462,7 @@ export const updateIssue = async (projectId: string,
 
 
 
-export const getUpdateIssueMutationOptions = <TError = ErrorType<unknown>,
+export const getUpdateIssueMutationOptions = <TError = ErrorType<ConflictResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateIssue>>, TError,{projectId: string;issueId: string;data: BodyType<IssueUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateIssue>>, TError,{projectId: string;issueId: string;data: BodyType<IssueUpdate>}, TContext> => {
 
@@ -485,12 +491,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateIssueMutationResult = NonNullable<Awaited<ReturnType<typeof updateIssue>>>
     export type UpdateIssueMutationBody = BodyType<IssueUpdate>
-    export type UpdateIssueMutationError = ErrorType<unknown>
+    export type UpdateIssueMutationError = ErrorType<ConflictResponse>
 
     /**
  * @summary Update an issue
  */
-export const useUpdateIssue = <TError = ErrorType<unknown>,
+export const useUpdateIssue = <TError = ErrorType<ConflictResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateIssue>>, TError,{projectId: string;issueId: string;data: BodyType<IssueUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateIssue>>,
@@ -794,6 +800,391 @@ export function useGetProjectFinancials<TData = Awaited<ReturnType<typeof getPro
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetProjectFinancialsQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetProjectHistoryUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/history`
+}
+
+/**
+ * Trend of completion / scope over time. Sourced from the underlying system of record (e.g. OpenProject journals/activity) via n8n (X-OmniProject-Action: get_project_history, X-OmniProject-Source: history_provider). OmniProject stores nothing itself — it is a stateless overlay, so the backend remains authoritative for history.
+ * @summary Time-phased progress history for a project
+ */
+export const getProjectHistory = async (projectId: string, options?: RequestInit): Promise<ProjectHistoryPoint[]> => {
+
+  return customFetch<ProjectHistoryPoint[]>(getGetProjectHistoryUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProjectHistoryQueryKey = (projectId: string,) => {
+    return [
+    `/api/projects/${projectId}/history`
+    ] as const;
+    }
+
+
+export const getGetProjectHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getProjectHistory>>, TError = ErrorType<unknown>>(projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProjectHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProjectHistoryQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProjectHistory>>> = ({ signal }) => getProjectHistory(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(projectId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProjectHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProjectHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getProjectHistory>>>
+export type GetProjectHistoryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Time-phased progress history for a project
+ */
+
+export function useGetProjectHistory<TData = Awaited<ReturnType<typeof getProjectHistory>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProjectHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProjectHistoryQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetProjectBaselineUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/baseline`
+}
+
+/**
+ * The approved baseline held in the system of record (e.g. an OpenProject baseline), surfaced via n8n (X-OmniProject-Action: get_baseline, X-OmniProject-Source: baseline_store). Returns null when the backend has no baseline captured. OmniProject never writes its own baseline store.
+ * @summary Approved schedule/scope baseline for a project
+ */
+export const getProjectBaseline = async (projectId: string, options?: RequestInit): Promise<ProjectBaseline | null> => {
+
+  return customFetch<ProjectBaseline | null>(getGetProjectBaselineUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProjectBaselineQueryKey = (projectId: string,) => {
+    return [
+    `/api/projects/${projectId}/baseline`
+    ] as const;
+    }
+
+
+export const getGetProjectBaselineQueryOptions = <TData = Awaited<ReturnType<typeof getProjectBaseline>>, TError = ErrorType<unknown>>(projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProjectBaseline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProjectBaselineQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProjectBaseline>>> = ({ signal }) => getProjectBaseline(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(projectId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProjectBaseline>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProjectBaselineQueryResult = NonNullable<Awaited<ReturnType<typeof getProjectBaseline>>>
+export type GetProjectBaselineQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Approved schedule/scope baseline for a project
+ */
+
+export function useGetProjectBaseline<TData = Awaited<ReturnType<typeof getProjectBaseline>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProjectBaseline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProjectBaselineQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetProjectRaidUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/raid`
+}
+
+/**
+ * Routed to n8n with X-OmniProject-Action: get_raid, X-OmniProject-Source: raid_register
+ * @summary RAID log (Risks, Assumptions, Issues, Dependencies) for a project
+ */
+export const getProjectRaid = async (projectId: string, options?: RequestInit): Promise<RaidEntry[]> => {
+
+  return customFetch<RaidEntry[]>(getGetProjectRaidUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProjectRaidQueryKey = (projectId: string,) => {
+    return [
+    `/api/projects/${projectId}/raid`
+    ] as const;
+    }
+
+
+export const getGetProjectRaidQueryOptions = <TData = Awaited<ReturnType<typeof getProjectRaid>>, TError = ErrorType<unknown>>(projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProjectRaid>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProjectRaidQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProjectRaid>>> = ({ signal }) => getProjectRaid(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(projectId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProjectRaid>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProjectRaidQueryResult = NonNullable<Awaited<ReturnType<typeof getProjectRaid>>>
+export type GetProjectRaidQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary RAID log (Risks, Assumptions, Issues, Dependencies) for a project
+ */
+
+export function useGetProjectRaid<TData = Awaited<ReturnType<typeof getProjectRaid>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProjectRaid>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProjectRaidQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateRaidEntryUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/raid`
+}
+
+/**
+ * Routed to n8n with X-OmniProject-Action: create_raid_entry, X-OmniProject-Source: raid_register. Requires a contributor role or higher.
+ * @summary Add a RAID entry (written to the system of record via n8n)
+ */
+export const createRaidEntry = async (projectId: string,
+    raidEntryInput: RaidEntryInput, options?: RequestInit): Promise<RaidEntry> => {
+
+  return customFetch<RaidEntry>(getCreateRaidEntryUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      raidEntryInput,)
+  }
+);}
+
+
+
+
+export const getCreateRaidEntryMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRaidEntry>>, TError,{projectId: string;data: BodyType<RaidEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRaidEntry>>, TError,{projectId: string;data: BodyType<RaidEntryInput>}, TContext> => {
+
+const mutationKey = ['createRaidEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRaidEntry>>, {projectId: string;data: BodyType<RaidEntryInput>}> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  createRaidEntry(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRaidEntryMutationResult = NonNullable<Awaited<ReturnType<typeof createRaidEntry>>>
+    export type CreateRaidEntryMutationBody = BodyType<RaidEntryInput>
+    export type CreateRaidEntryMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a RAID entry (written to the system of record via n8n)
+ */
+export const useCreateRaidEntry = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRaidEntry>>, TError,{projectId: string;data: BodyType<RaidEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRaidEntry>>,
+        TError,
+        {projectId: string;data: BodyType<RaidEntryInput>},
+        TContext
+      > => {
+      return useMutation(getCreateRaidEntryMutationOptions(options));
+    }
+
+export const getListNotificationsUrl = () => {
+
+
+
+
+  return `/api/notifications`
+}
+
+/**
+ * Routed to n8n with X-OmniProject-Action: get_notifications, X-OmniProject-Source: notification_center
+ * @summary Notifications for the current user
+ */
+export const listNotifications = async ( options?: RequestInit): Promise<Notification[]> => {
+
+  return customFetch<Notification[]>(getListNotificationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNotificationsQueryKey = () => {
+    return [
+    `/api/notifications`
+    ] as const;
+    }
+
+
+export const getListNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof listNotifications>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNotificationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNotifications>>> = ({ signal }) => listNotifications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof listNotifications>>>
+export type ListNotificationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Notifications for the current user
+ */
+
+export function useListNotifications<TData = Awaited<ReturnType<typeof listNotifications>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListNotificationsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -73,6 +73,7 @@ export const GetProjectIssuesResponseItem = zod.object({
   "startDate": zod.coerce.date().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "source": zod.string(),
+  "version": zod.number().nullish().describe('Optimistic-concurrency token mirrored from the system of record (e.g. OpenProject lockVersion). Sent back as expectedVersion on update so a stale edit is rejected with 409 instead of silently overwriting a concurrent change.'),
   "lastUpdatedBy": zod.string().nullish().describe('Origin system\/principal that last mutated this issue (e.g. \"omniproject\", \"plane\", \"openproject\"). n8n compares this against the change origin to drop circular sync loops (webhook storms).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -122,7 +123,8 @@ export const UpdateIssueBody = zod.object({
   "labels": zod.array(zod.string()).optional(),
   "startDate": zod.coerce.date().nullish(),
   "dueDate": zod.coerce.date().nullish(),
-  "origin": zod.string().optional().describe('System initiating this update (defaults to \"omniproject\" at the gateway). Carried downstream so n8n can drop overlapping loop mutations where origin === the target\'s lastUpdatedBy.')
+  "origin": zod.string().optional().describe('System initiating this update (defaults to \"omniproject\" at the gateway). Carried downstream so n8n can drop overlapping loop mutations where origin === the target\'s lastUpdatedBy.'),
+  "expectedVersion": zod.number().optional().describe('The version the client last saw. When present the gateway\/backend performs an optimistic-concurrency check and rejects the write with 409 if the issue has moved on, instead of clobbering it.')
 })
 
 export const UpdateIssueResponse = zod.object({
@@ -137,6 +139,7 @@ export const UpdateIssueResponse = zod.object({
   "startDate": zod.coerce.date().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "source": zod.string(),
+  "version": zod.number().nullish().describe('Optimistic-concurrency token mirrored from the system of record (e.g. OpenProject lockVersion). Sent back as expectedVersion on update so a stale edit is rejected with 409 instead of silently overwriting a concurrent change.'),
   "lastUpdatedBy": zod.string().nullish().describe('Origin system\/principal that last mutated this issue (e.g. \"omniproject\", \"plane\", \"openproject\"). n8n compares this against the change origin to drop circular sync loops (webhook storms).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -205,8 +208,120 @@ export const GetProjectFinancialsResponse = zod.object({
   "cpi": zod.number(),
   "spi": zod.number(),
   "financialHealth": zod.enum(['GREEN', 'AMBER', 'RED']),
-  "forecastCostAtCompletion": zod.number()
+  "forecastCostAtCompletion": zod.number(),
+  "provenance": zod.enum(['sourced', 'derived', 'sample']).optional().describe('Where a figure came from, so the UI never presents a synthesised number as fact. \"sourced\" = read from the backend system of record via n8n; \"derived\" = computed by the gateway from real issue data; \"sample\" = demo\/placeholder data (no backend wired).')
 })
+
+
+/**
+ * Trend of completion / scope over time. Sourced from the underlying system of record (e.g. OpenProject journals/activity) via n8n (X-OmniProject-Action: get_project_history, X-OmniProject-Source: history_provider). OmniProject stores nothing itself — it is a stateless overlay, so the backend remains authoritative for history.
+ * @summary Time-phased progress history for a project
+ */
+export const GetProjectHistoryParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const GetProjectHistoryResponseItem = zod.object({
+  "date": zod.coerce.date(),
+  "completionRate": zod.number().describe('Percent of issues done at this point (0–100).'),
+  "totalIssues": zod.number(),
+  "completedIssues": zod.number(),
+  "openBlockers": zod.number().nullish(),
+  "provenance": zod.enum(['sourced', 'derived', 'sample']).describe('Where a figure came from, so the UI never presents a synthesised number as fact. \"sourced\" = read from the backend system of record via n8n; \"derived\" = computed by the gateway from real issue data; \"sample\" = demo\/placeholder data (no backend wired).')
+}).describe('One point on a project\'s progress trend.')
+export const GetProjectHistoryResponse = zod.array(GetProjectHistoryResponseItem)
+
+
+/**
+ * The approved baseline held in the system of record (e.g. an OpenProject baseline), surfaced via n8n (X-OmniProject-Action: get_baseline, X-OmniProject-Source: baseline_store). Returns null when the backend has no baseline captured. OmniProject never writes its own baseline store.
+ * @summary Approved schedule/scope baseline for a project
+ */
+export const GetProjectBaselineParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const GetProjectBaselineResponse = zod.union([zod.object({
+  "projectId": zod.string(),
+  "name": zod.string().optional(),
+  "capturedAt": zod.coerce.date(),
+  "items": zod.array(zod.object({
+  "issueId": zod.string(),
+  "title": zod.string(),
+  "plannedStart": zod.coerce.date().nullish(),
+  "plannedFinish": zod.coerce.date().nullish()
+})),
+  "provenance": zod.enum(['sourced', 'derived', 'sample']).describe('Where a figure came from, so the UI never presents a synthesised number as fact. \"sourced\" = read from the backend system of record via n8n; \"derived\" = computed by the gateway from real issue data; \"sample\" = demo\/placeholder data (no backend wired).')
+}).describe('An approved baseline held by the backend system of record.'),zod.null()])
+
+
+/**
+ * Routed to n8n with X-OmniProject-Action: get_raid, X-OmniProject-Source: raid_register
+ * @summary RAID log (Risks, Assumptions, Issues, Dependencies) for a project
+ */
+export const GetProjectRaidParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const GetProjectRaidResponseItem = zod.object({
+  "id": zod.string(),
+  "projectId": zod.string(),
+  "type": zod.enum(['risk', 'assumption', 'issue', 'dependency']),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "severity": zod.enum(['low', 'medium', 'high', 'critical']),
+  "likelihood": zod.union([zod.literal('low'),zod.literal('medium'),zod.literal('high'),zod.literal(null)]).nullish(),
+  "impact": zod.union([zod.literal('low'),zod.literal('medium'),zod.literal('high'),zod.literal(null)]).nullish(),
+  "status": zod.enum(['open', 'mitigating', 'closed']),
+  "owner": zod.string().nullish(),
+  "mitigation": zod.string().nullish(),
+  "dueDate": zod.coerce.date().nullish(),
+  "provenance": zod.enum(['sourced', 'derived', 'sample']).optional().describe('Where a figure came from, so the UI never presents a synthesised number as fact. \"sourced\" = read from the backend system of record via n8n; \"derived\" = computed by the gateway from real issue data; \"sample\" = demo\/placeholder data (no backend wired).'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A Risk, Assumption, Issue or Dependency log entry.')
+export const GetProjectRaidResponse = zod.array(GetProjectRaidResponseItem)
+
+
+/**
+ * Routed to n8n with X-OmniProject-Action: create_raid_entry, X-OmniProject-Source: raid_register. Requires a contributor role or higher.
+ * @summary Add a RAID entry (written to the system of record via n8n)
+ */
+export const CreateRaidEntryParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+
+
+
+export const CreateRaidEntryBody = zod.object({
+  "type": zod.enum(['risk', 'assumption', 'issue', 'dependency']),
+  "title": zod.string().min(1),
+  "description": zod.string().nullish(),
+  "severity": zod.enum(['low', 'medium', 'high', 'critical']),
+  "likelihood": zod.union([zod.literal('low'),zod.literal('medium'),zod.literal('high'),zod.literal(null)]).nullish(),
+  "impact": zod.union([zod.literal('low'),zod.literal('medium'),zod.literal('high'),zod.literal(null)]).nullish(),
+  "status": zod.enum(['open', 'mitigating', 'closed']).optional(),
+  "owner": zod.string().nullish(),
+  "mitigation": zod.string().nullish(),
+  "dueDate": zod.coerce.date().nullish()
+})
+
+
+/**
+ * Routed to n8n with X-OmniProject-Action: get_notifications, X-OmniProject-Source: notification_center
+ * @summary Notifications for the current user
+ */
+export const ListNotificationsResponseItem = zod.object({
+  "id": zod.string(),
+  "kind": zod.string().describe('e.g. \"assignment\", \"mention\", \"due_soon\", \"blocker\", \"status_change\".'),
+  "title": zod.string(),
+  "body": zod.string().nullish(),
+  "projectId": zod.string().nullish(),
+  "issueId": zod.string().nullish(),
+  "read": zod.boolean(),
+  "timestamp": zod.coerce.date()
+})
+export const ListNotificationsResponse = zod.array(ListNotificationsResponseItem)
 
 
 /**
@@ -252,7 +367,9 @@ export const GetCapabilitiesResponse = zod.object({
   "financials": zod.boolean(),
   "portfolio": zod.boolean(),
   "baseline": zod.boolean(),
-  "blockers": zod.boolean()
+  "blockers": zod.boolean(),
+  "history": zod.boolean(),
+  "raid": zod.boolean()
 }).describe('Data domains the wired backend(s) can populate.')
 
 

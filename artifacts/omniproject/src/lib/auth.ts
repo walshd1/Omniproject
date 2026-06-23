@@ -6,10 +6,20 @@ export interface AuthUser {
   email?: string;
 }
 
+export type Role = "viewer" | "contributor" | "manager" | "admin";
+
 export interface AuthState {
   authenticated: boolean;
   mode: "oidc" | "demo";
   user: AuthUser | null;
+  role: Role;
+}
+
+const RANK: Record<Role, number> = { viewer: 0, contributor: 1, manager: 2, admin: 3 };
+
+/** True when the session role meets or exceeds `min`. */
+export function roleAtLeast(role: Role | undefined, min: Role): boolean {
+  return RANK[role ?? "viewer"] >= RANK[min];
 }
 
 async function fetchAuth(): Promise<AuthState> {

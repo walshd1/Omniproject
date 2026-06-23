@@ -15,10 +15,18 @@ import {
   getIssues,
   getActivity,
   getSummary,
+  getHistory,
+  getBaseline,
+  getRaid,
+  createSampleRaid,
+  getNotifications,
   SAMPLE_PROJECTS,
   SAMPLE_ISSUES,
 } from "../lib/data";
 import { analyticsLimiter } from "../lib/rate-limit";
+import { requireRole } from "../lib/rbac";
+import { versionConflict } from "../lib/concurrency";
+import { CreateRaidEntryBody } from "@workspace/api-zod";
 
 const router = Router();
 
@@ -83,7 +91,7 @@ router.get("/activity", async (req, res) => {
 
 // ── Writes (brokered through n8n when configured, else mutate sample data) ────
 
-router.post("/projects/:projectId/issues", async (req, res) => {
+router.post("/projects/:projectId/issues", requireRole("contributor"), async (req, res) => {
   const paramsParse = CreateIssueParams.safeParse(req.params);
   const bodyParse = CreateIssueBody.safeParse(req.body);
   if (!paramsParse.success || !bodyParse.success) {
@@ -121,6 +129,7 @@ router.post("/projects/:projectId/issues", async (req, res) => {
     startDate: body.startDate ?? null,
     dueDate: body.dueDate ?? null,
     source: source === "openproject" ? "openproject" : "plane",
+    version: 1,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -131,7 +140,7 @@ router.post("/projects/:projectId/issues", async (req, res) => {
   res.status(201).json(issue);
 });
 
-router.patch("/projects/:projectId/issues/:issueId", async (req, res) => {
+router.patch("/projects/:projectId/issues/:issueId", requireRole("contributor"), async (req, res) => {
   const paramsParse = UpdateIssueParams.safeParse(req.params);
   const bodyParse = UpdateIssueBody.safeParse(req.body);
   if (!paramsParse.success || !bodyParse.success) {
@@ -139,9 +148,13 @@ router.patch("/projects/:projectId/issues/:issueId", async (req, res) => {
     return;
   }
   const { projectId, issueId } = paramsParse.data;
+  const { expectedVersion } = bodyParse.data;
 
   if (isN8nConfigured) {
     try {
+      // expectedVersion is forwarded so the backend (e.g. OpenProject
+      // lockVersion) enforces optimistic concurrency; a stale write comes back
+      // as 409 from callN8n (status now propagates from the upstream).
       const result = await callN8n(
         "update_issue",
         { projectId, issueId, ...bodyParse.data },
@@ -165,12 +178,23 @@ router.patch("/projects/:projectId/issues/:issueId", async (req, res) => {
     res.status(404).json({ error: "Issue not found" });
     return;
   }
-  const updated = { ...issues[idx], ...bodyParse.data, updatedAt: new Date().toISOString() };
+
+  // Optimistic-concurrency guard: reject a stale edit instead of clobbering a
+  // concurrent change. Only enforced when the client sends expectedVersion.
+  const current = issues[idx] as Record<string, unknown>;
+  const currentVersion = typeof current["version"] === "number" ? (current["version"] as number) : 1;
+  if (versionConflict(expectedVersion, currentVersion)) {
+    res.status(409).json({ error: "Issue was modified by someone else", current });
+    return;
+  }
+
+  const { expectedVersion: _ev, ...patch } = bodyParse.data;
+  const updated = { ...current, ...patch, version: currentVersion + 1, updatedAt: new Date().toISOString() };
   issues[idx] = updated;
   res.json(updated);
 });
 
-router.delete("/projects/:projectId/issues/:issueId", async (req, res) => {
+router.delete("/projects/:projectId/issues/:issueId", requireRole("contributor"), async (req, res) => {
   const paramsParse = DeleteIssueParams.safeParse(req.params);
   if (!paramsParse.success) {
     res.status(400).json({ error: "Invalid params" });
@@ -219,6 +243,7 @@ const SAMPLE_FINANCIALS = {
   spi: 0.88,
   financialHealth: "AMBER",
   forecastCostAtCompletion: 521739,
+  provenance: "sample" as const,
 };
 
 router.get("/projects/:projectId/capacity", analyticsLimiter, async (req, res) => {
@@ -254,12 +279,14 @@ router.get("/projects/:projectId/financials", analyticsLimiter, async (req, res)
   const { projectId } = parse.data;
   if (isN8nConfigured) {
     try {
-      const result = await callN8n(
+      const result = await callN8n<Record<string, unknown>>(
         "get_project_financials",
         { projectId },
         { authHeader: authHeaderFromReq(req), source: "financial_ledger", userContext: userContextFromReq(req) },
       );
-      res.json(result.data ?? {});
+      // Mark anything that came back from the backend as sourced (unless the
+      // workflow already stamped its own provenance).
+      res.json({ provenance: "sourced", ...(result.data ?? {}) });
     } catch (err) {
       req.log.error({ err, projectId }, "get_project_financials via n8n failed");
       respondN8nError(res, err);
@@ -269,13 +296,98 @@ router.get("/projects/:projectId/financials", analyticsLimiter, async (req, res)
   res.json(SAMPLE_FINANCIALS);
 });
 
+// ── History + baseline (sourced from the system of record via n8n) ────────────
+
+router.get("/projects/:projectId/history", analyticsLimiter, async (req, res) => {
+  const parse = GetProjectSummaryParams.safeParse(req.params);
+  if (!parse.success) {
+    res.status(400).json({ error: "Invalid project id" });
+    return;
+  }
+  try {
+    res.json(await getHistory(req, parse.data.projectId));
+  } catch (err) {
+    req.log.error({ err, projectId: parse.data.projectId }, "get_project_history failed");
+    respondN8nError(res, err);
+  }
+});
+
+router.get("/projects/:projectId/baseline", analyticsLimiter, async (req, res) => {
+  const parse = GetProjectSummaryParams.safeParse(req.params);
+  if (!parse.success) {
+    res.status(400).json({ error: "Invalid project id" });
+    return;
+  }
+  try {
+    res.json(await getBaseline(req, parse.data.projectId));
+  } catch (err) {
+    req.log.error({ err, projectId: parse.data.projectId }, "get_baseline failed");
+    respondN8nError(res, err);
+  }
+});
+
+// ── RAID log ──────────────────────────────────────────────────────────────────
+
+router.get("/projects/:projectId/raid", async (req, res) => {
+  const parse = GetProjectSummaryParams.safeParse(req.params);
+  if (!parse.success) {
+    res.status(400).json({ error: "Invalid project id" });
+    return;
+  }
+  try {
+    res.json(await getRaid(req, parse.data.projectId));
+  } catch (err) {
+    req.log.error({ err, projectId: parse.data.projectId }, "get_raid failed");
+    respondN8nError(res, err);
+  }
+});
+
+router.post("/projects/:projectId/raid", requireRole("contributor"), async (req, res) => {
+  const paramsParse = GetProjectSummaryParams.safeParse(req.params);
+  const bodyParse = CreateRaidEntryBody.safeParse(req.body);
+  if (!paramsParse.success || !bodyParse.success) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  const { projectId } = paramsParse.data;
+
+  if (isN8nConfigured) {
+    try {
+      const result = await callN8n(
+        "create_raid_entry",
+        { projectId, ...bodyParse.data },
+        { authHeader: authHeaderFromReq(req), source: "raid_register", userContext: userContextFromReq(req) },
+      );
+      res.status(201).json(result.data);
+    } catch (err) {
+      req.log.error({ err, projectId }, "create_raid_entry via n8n failed");
+      respondN8nError(res, err);
+    }
+    return;
+  }
+
+  res.status(201).json(createSampleRaid(projectId, bodyParse.data as Record<string, unknown>));
+});
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+router.get("/notifications", async (req, res) => {
+  try {
+    res.json(await getNotifications(req));
+  } catch (err) {
+    req.log.error({ err }, "get_notifications failed");
+    respondN8nError(res, err);
+  }
+});
+
 // ── Settings (gateway-local, never brokered through n8n) ──────────────────────
 
 router.get("/settings", (_req, res) => {
   res.json(getSettings());
 });
 
-router.patch("/settings", (req, res) => {
+// Settings change the gateway's wiring (n8n URL, AI provider) — admin only.
+router.patch("/settings", requireRole("admin"), (req, res) => {
   res.json(updateSettings(req.body ?? {}));
 });
 

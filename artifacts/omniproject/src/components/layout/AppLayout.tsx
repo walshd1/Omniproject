@@ -2,6 +2,7 @@ import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { CommandPalette } from "../CommandPalette";
 import { IssueDialog } from "../IssueDialog";
+import { NotificationsBell } from "../NotificationsBell";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
 import { Layers, Briefcase, BarChart3, Settings as SettingsIcon, LogOut } from "lucide-react";
@@ -118,6 +119,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500 animate-pulse"}`}></div>
               <span className="text-xs font-bold tracking-widest">{connected ? "CONNECTED" : "OFFLINE"}</span>
             </div>
+            <NotificationsBell />
+            {auth?.role && (
+              <span
+                className="text-[10px] font-black uppercase tracking-widest border border-border px-1.5 py-0.5 text-muted-foreground"
+                title="Your access level (from your identity provider's roles)"
+              >
+                {auth.role}
+              </span>
+            )}
             <div
               className="w-8 h-8 bg-foreground text-background flex items-center justify-center font-bold font-sans"
               title={auth?.user?.email || auth?.user?.name || "Account"}

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ProjectFinancialsFinancialHealth } from './projectFinancialsFinancialHealth';
+import type { Provenance } from './provenance';
 
 export interface ProjectFinancials {
   currency: string;
@@ -16,4 +17,5 @@ export interface ProjectFinancials {
   spi: number;
   financialHealth: ProjectFinancialsFinancialHealth;
   forecastCostAtCompletion: number;
+  provenance?: Provenance;
 }
