@@ -8,6 +8,7 @@ import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
 import { busMode } from "../lib/notify-bus";
+import { auditStatus } from "../lib/audit";
 import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 import {
   storeView,
@@ -58,6 +59,7 @@ router.get("/setup/status", async (req, res) => {
     auth: { mode: isOidcConfigured ? "oidc" : "demo" },
     ai: { provider: settings.aiProvider },
     realtime: { enabled: !!process.env["NOTIFY_INGEST_SECRET"]?.trim(), bus: busMode() },
+    audit: auditStatus(),
     capabilities,
   });
 });
@@ -117,6 +119,7 @@ router.get("/setup/export", requireRole("admin"), (req, res) => {
       aiProvider: s.aiProvider,
       aiModel: s.aiModel,
       oidcIssuerUrl: s.oidcIssuerUrl,
+      auditLevel: auditStatus().level,
     },
     format,
   );

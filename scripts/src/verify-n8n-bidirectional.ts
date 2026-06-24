@@ -762,6 +762,8 @@ async function testNotify(apiBase: string) {
     enabled = !!rt?.enabled;
     assert("setup/status reports realtime.enabled", typeof rt?.enabled === "boolean");
     assert("setup/status reports the fan-out bus mode", rt?.bus === "in-process" || rt?.bus === "redis");
+    const audit = (r.data as { audit?: { level?: string; sink?: boolean } })?.audit;
+    assert("setup/status reports audit config", typeof audit?.level === "string" && typeof audit?.sink === "boolean");
   } catch {
     assert("setup/status realtime reachable", false);
   }

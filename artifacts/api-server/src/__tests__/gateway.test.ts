@@ -12,6 +12,7 @@ import { BACKENDS, getBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
 import { buildSnapshot, applySnapshot, SNAPSHOT_SCHEMA } from "../lib/config-snapshot";
 import { convertAmount, supportedCurrencies } from "../lib/currency";
+import { shouldAudit, createHttpSink } from "../lib/audit";
 import { resolveTemplate, isFullyResolved } from "../lib/n8n-expr";
 import { updateSettings, getSettings } from "../lib/settings";
 import {
@@ -175,6 +176,53 @@ test("notify bus: defaults to in-process and delivers to a matching client", asy
   remove();
   assert.equal(delivered, 1);
   assert.equal(got.length, 1);
+});
+
+// ── Action audit logging ───────────────────────────────────────────────────────
+test("shouldAudit: off records nothing, all records everything", () => {
+  assert.equal(shouldAudit("off", { category: "request", method: "POST" }), false);
+  assert.equal(shouldAudit("all", { category: "request", method: "GET" }), true);
+  assert.equal(shouldAudit("all", { category: "broker" }), true);
+});
+
+test("shouldAudit: writes records mutations + auth/admin, not reads", () => {
+  assert.equal(shouldAudit("writes", { category: "request", method: "GET" }), false);
+  assert.equal(shouldAudit("writes", { category: "request", method: "DELETE" }), true);
+  assert.equal(shouldAudit("writes", { category: "request", method: "GET", write: true }), true);
+  assert.equal(shouldAudit("writes", { category: "auth", method: "GET" }), true);
+  assert.equal(shouldAudit("writes", { category: "admin" }), true);
+  assert.equal(shouldAudit("writes", { category: "broker", write: false }), false);
+});
+
+test("audit HTTP sink: batches NDJSON to the logging server", async () => {
+  const calls: Array<{ url: string; body: string; auth?: string }> = [];
+  const fetchStub = (async (url: string, init: RequestInit) => {
+    calls.push({ url, body: String(init.body), auth: (init.headers as Record<string, string>)?.["Authorization"] });
+    return new Response("ok", { status: 200 });
+  }) as unknown as typeof fetch;
+
+  const sink = createHttpSink({ url: "https://logs.acme.io/ingest", token: "secret", batch: 100, fetchImpl: fetchStub });
+  sink.enqueue({ ts: "t", category: "request", action: "GET /api/projects" });
+  sink.enqueue({ ts: "t", category: "broker", action: "create_issue", write: true });
+  assert.equal(sink.size(), 2);
+
+  const delivered = await sink.flush();
+  assert.equal(delivered, 2);
+  assert.equal(sink.size(), 0);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].auth, "Bearer secret");
+  // NDJSON: one JSON object per line.
+  assert.equal(calls[0].body.split("\n").length, 2);
+  assert.match(calls[0].body, /create_issue/);
+});
+
+test("audit HTTP sink: a failed flush re-buffers and never throws", async () => {
+  const fetchStub = (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
+  const sink = createHttpSink({ url: "https://logs.acme.io", batch: 100, fetchImpl: fetchStub });
+  sink.enqueue({ ts: "t", category: "request", action: "GET /x" });
+  const delivered = await sink.flush();
+  assert.equal(delivered, 0);
+  assert.equal(sink.size(), 1); // re-buffered for the next attempt
 });
 
 // ── Multi-currency conversion ──────────────────────────────────────────────────

@@ -329,6 +329,27 @@ Canonical definitions are in `openapi.yaml`. Summary:
   Earned-Value report has a **display-currency** selector that converts via
   `convertAmount()` (base-anchored, unit-tested). No rates are stored.
 
+## Action audit logging
+
+Consistent with statelessness, OmniProject does **not retain logs** — it **emits**
+a structured audit event per action and (optionally) **ships them to your logging
+server**. Scope is configurable: full logging of all actions, or a subset.
+
+- `AUDIT_LEVEL` = `off` | `writes` | `all` (default `writes`):
+  - `off` — disabled; `writes` — mutations + auth + admin/config + brokered
+    writes; `all` — every request (incl. reads) + every brokered action.
+- Every event is one structured line on stdout (pino, with token/cookie
+  redaction): `{ ts, category, action, actor{sub,email,role}, status, ms, ip,
+  write, … }`. `category` ∈ request | auth | broker | admin.
+- **External logging server**: set `AUDIT_HTTP_URL` (+ optional
+  `AUDIT_HTTP_TOKEN`) to POST batched **NDJSON** to Loki / Splunk HEC / Elastic /
+  a syslog-over-HTTP collector. Delivery is batched (`AUDIT_BATCH`, `AUDIT_FLUSH_MS`),
+  best-effort and **in-memory** (bounded buffer, no disk) — for guaranteed
+  retention point it at a durable collector. Syslog-only shops can instead ship
+  stdout via their log agent (12-factor).
+
+Setup → *Status* shows the active level + whether a sink is configured.
+
 ## Environments & rollback (config change management)
 
 OmniProject versions its own **configuration** (never project data) so changes

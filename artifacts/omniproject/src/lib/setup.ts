@@ -9,6 +9,7 @@ export interface SetupStatus {
   auth: { mode: "oidc" | "demo" };
   ai: { provider: string };
   realtime?: { enabled: boolean; bus: "in-process" | "redis" };
+  audit?: { level: "off" | "writes" | "all"; sink: boolean };
   capabilities: Capabilities | null;
 }
 
