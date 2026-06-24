@@ -11,6 +11,7 @@ export interface SetupStatus {
   realtime?: { enabled: boolean; bus: "in-process" | "redis" };
   audit?: { level: "off" | "writes" | "all"; sink: boolean };
   dev?: { statefulDemo: boolean };
+  licensing?: { valid: boolean; tier: string; features: string[]; expiresInDays: number | null };
   capabilities: Capabilities | null;
 }
 
@@ -64,6 +65,7 @@ export interface BackendInfo {
   actions: string[];
   capabilities: Record<string, boolean>;
   notes?: string;
+  tier?: "standard" | "enterprise";
 }
 
 export async function fetchBackends(): Promise<BackendInfo[]> {
@@ -80,7 +82,10 @@ export async function downloadWorkflow(backendId: string, webhookPath?: string):
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ backendId, webhookPath }),
   });
-  if (!res.ok) throw new Error(`generate failed: ${res.status}`);
+  if (!res.ok) {
+    const msg = await res.json().then((j) => (j as { error?: string }).error).catch(() => null);
+    throw new Error(msg || `generate failed: ${res.status}`);
+  }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

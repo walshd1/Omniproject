@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: LicenseRef-OmniProject-Premium
+ * Premium feature — governed by LICENSE-PREMIUM.txt, NOT Apache-2.0.
+ * Use in production requires a valid OmniProject commercial licence.
+ */
 import crypto from "node:crypto";
 import { getSettings, updateSettings, type WebhookSubscription } from "./settings";
 import { isEntitled } from "./license";

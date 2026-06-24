@@ -16,6 +16,7 @@ import licenseRouter from "./license";
 import brandingRouter from "./branding";
 import labelsRouter from "./labels";
 import webhooksRouter from "./webhooks";
+import licensingRouter from "./licensing";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -51,6 +52,11 @@ router.use(healthRouter);
 // Inbound notification ingest from n8n/tools — authed by NOTIFY_INGEST_SECRET,
 // not by a user session, and exempt from the per-IP limiter (one n8n source).
 router.use(ingestRouter);
+
+// Payment-provider webhooks (Stripe/Gumroad) → automated licence fulfilment.
+// Public + provider-signature authenticated, and exempt from the per-IP limiter
+// so a provider's delivery bursts aren't throttled.
+router.use(licensingRouter);
 
 // Rate limit everything else under /api/* (auth + data + analytics).
 router.use(apiLimiter);

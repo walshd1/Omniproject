@@ -1,0 +1,61 @@
+OmniProject Premium License (v1)
+================================
+
+Copyright 2026 OmniProject contributors. All rights reserved.
+
+This license governs the "premium components" of OmniProject: the source files
+in this repository whose header carries the SPDX identifier
+`LicenseRef-OmniProject-Premium`, together with any feature they implement that
+is gated at runtime by an OmniProject licence key (currently: white-label
+branding, company-nomenclature label overrides, outbound webhooks, enterprise
+backend workflow generation, and licence fulfilment). These components are NOT
+covered by the Apache-2.0 licence that applies to the OmniProject core.
+
+1. Source-available, not open source.
+   The premium component source is published for transparency, security review,
+   and self-hosting convenience. Publication does not grant a right to use the
+   premium FEATURES in production without a licence (Section 2).
+
+2. Grant of use.
+   Subject to your compliance with this license, you are granted a
+   non-exclusive, non-transferable, revocable right to enable and use the
+   premium features in production ONLY while you hold a valid, unexpired
+   OmniProject licence key that entitles those features. Evaluation in a
+   non-production environment is permitted without a key.
+
+3. Restrictions.
+   You may not, except with a valid entitling licence key: (a) remove, disable,
+   bypass, or circumvent the licence-key checks that gate the premium features;
+   (b) re-license, sell, or distribute the premium components as a standalone
+   product; or (c) represent that the premium features are available under an
+   open-source licence. Modifying the source to evade the entitlement check and
+   running the result in production is a breach of this license.
+
+4. You may.
+   Read, audit, fork, and modify the premium source for non-production
+   evaluation and development; contribute improvements back; and run the core
+   (Apache-2.0) freely with or without a premium licence.
+
+5. NO WARRANTY.
+   THE PREMIUM COMPONENTS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. THE
+   ENTIRE RISK AS TO QUALITY AND PERFORMANCE IS WITH YOU.
+
+6. NO SUPPORT (at this time).
+   A licence key entitles use of the premium features; it does NOT include
+   support, maintenance, uptime, or service-level commitments. Paid support
+   packages may be offered separately in the future under their own terms; until
+   then, support is provided on a best-effort, community basis only.
+
+7. LIMITATION OF LIABILITY.
+   TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL THE COPYRIGHT
+   HOLDERS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+   OR CONSEQUENTIAL DAMAGES ARISING FROM OR RELATED TO THE PREMIUM COMPONENTS OR
+   THIS LICENSE.
+
+8. Termination.
+   This license terminates automatically if you breach it. On termination you
+   must stop using the premium features in production.
+
+For commercial licensing enquiries, contact the maintainer.

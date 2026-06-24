@@ -5,10 +5,10 @@ import { isOidcConfigured } from "../lib/oidc";
 import { resolveCapabilities } from "../lib/capabilities";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
-import { backendCatalogue, getBackend } from "../lib/n8n-backends";
+import { backendCatalogue, getBackend, isEnterpriseBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
 import { busMode } from "../lib/notify-bus";
-import { licenseSummary } from "../lib/license";
+import { licenseSummary, isEntitled, resolveLicense } from "../lib/license";
 import { auditStatus } from "../lib/audit";
 import { DEV_PERSIST_ENABLED } from "../lib/dev-persist";
 import { getDemoState } from "../lib/data";
@@ -145,6 +145,16 @@ router.post("/setup/generate-workflow", requireRole("admin"), (req, res) => {
   const manifest = getBackend(backendId);
   if (!manifest) {
     res.status(404).json({ error: `Unknown backend: ${backendId}` });
+    return;
+  }
+  // Enterprise backend workflows (SAP, Primavera, Dynamics 365, …) are premium.
+  if (isEnterpriseBackend(backendId) && !isEntitled("enterprise_workflows")) {
+    res.status(402).json({
+      error: `Generating the ${manifest.label} workflow is a licensed enterprise integration. Add a valid LICENSE_KEY with the "enterprise_workflows" feature.`,
+      feature: "enterprise_workflows",
+      backend: backendId,
+      license: resolveLicense(),
+    });
     return;
   }
   const workflow = generateWorkflow(manifest, { webhookPath });

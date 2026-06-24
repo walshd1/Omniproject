@@ -37,8 +37,13 @@ app.use(
 );
 app.use(cors());
 app.use(cookieParser(SESSION_SECRET));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Stash the raw request bytes so payment-webhook routes can verify provider
+// signatures (e.g. Stripe signs the exact body). Cheap; only the buffer is kept.
+const keepRaw = (req: express.Request, _res: express.Response, buf: Buffer) => {
+  (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+};
+app.use(express.json({ verify: keepRaw }));
+app.use(express.urlencoded({ extended: true, verify: keepRaw }));
 
 app.use("/api", router);
 

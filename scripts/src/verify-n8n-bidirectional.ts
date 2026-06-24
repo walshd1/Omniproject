@@ -1012,6 +1012,29 @@ async function testPremium(apiBase: string) {
     const created = await post(`${apiBase}/api/webhooks`, { url: "https://127.0.0.1:9/never" });
     assert("Unlicensed: POST /api/webhooks is 402 (paywall)", created.status === 402, `got ${created.status}`);
   }
+
+  // Enterprise backend workflow generation — standard is always free; enterprise
+  // is gated by the enterprise_workflows entitlement.
+  const cat = await get(`${apiBase}/api/setup/backends`);
+  const backends = (cat.data as Array<{ id: string; tier?: string }>) ?? [];
+  assert("backends catalogue carries a tier", backends.some((b) => b.tier === "enterprise") && backends.some((b) => b.tier === "standard"));
+
+  const jira = await post(`${apiBase}/api/setup/generate-workflow`, { backendId: "jira" });
+  assert("Standard backend (jira) workflow generates free", jira.status === 200, `got ${jira.status}`);
+
+  if (has("enterprise_workflows")) {
+    const sap = await post(`${apiBase}/api/setup/generate-workflow`, { backendId: "sap" });
+    assert("Licensed: enterprise backend (sap) workflow generates", sap.status === 200, `got ${sap.status}`);
+  } else {
+    const sap = await post(`${apiBase}/api/setup/generate-workflow`, { backendId: "sap" });
+    assert("Unlicensed: enterprise backend (sap) is 402 (paywall)", sap.status === 402, `got ${sap.status}`);
+  }
+
+  // Payment webhooks reject an unsigned/forged call (no provider secret in CI).
+  const stripe = await post(`${apiBase}/api/licensing/stripe`, { type: "checkout.session.completed" }, { "Stripe-Signature": "t=1,v1=deadbeef" });
+  assert("Stripe webhook rejects an invalid signature", stripe.status === 400, `got ${stripe.status}`);
+  const gumroad = await post(`${apiBase}/api/licensing/gumroad`, { product_permalink: "x", email: "a@b.c" });
+  assert("Gumroad webhook rejects a missing/invalid token", gumroad.status === 400, `got ${gumroad.status}`);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

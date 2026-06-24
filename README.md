@@ -179,6 +179,18 @@ full security and integration reference.
 
 ---
 
-## License
+## License & status
 
-MIT
+**Open-core.** The core is **Apache-2.0** ([`LICENSE`](LICENSE)) — free for any
+use, including commercial. A small set of **premium features** (white-label
+branding, company nomenclature, outbound webhooks, enterprise backend workflow
+generation) is source-available under the **OmniProject Premium License**
+([`LICENSE-PREMIUM.txt`](LICENSE-PREMIUM.txt)) and requires a licence key to run
+in production. See **[LICENSING.md](LICENSING.md)** for the full model, including
+how purchases auto-mint a key via Stripe/Gumroad.
+
+> **No warranty.** OmniProject is pre-1.0 and provided **AS IS, without warranty
+> of any kind**. A licence key entitles *use* of the premium features; it does
+> **not** include support or any service-level commitment. **Paid support
+> packages are planned** as a separate offering as the community grows — until
+> then, help is best-effort and community-based.
