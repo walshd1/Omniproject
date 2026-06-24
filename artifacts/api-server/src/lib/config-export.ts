@@ -13,6 +13,7 @@ export interface ConfigExportInput {
   aiProvider?: string | null;
   aiModel?: string | null;
   oidcIssuerUrl?: string | null;
+  auditLevel?: string | null;
 }
 
 export type ExportFormat = "env" | "compose" | "k8s";
@@ -57,6 +58,8 @@ export function configEntries(input: ConfigExportInput): Entry[] {
   entries.push({ key: "SESSION_SECRET", value: "", placeholder: true, comment: "Required in production: a long random string for cookie signing" });
   entries.push({ key: "NOTIFY_INGEST_SECRET", value: "", placeholder: true, comment: "Optional: enables real-time notifications — n8n/tools POST /api/notifications/ingest with this bearer" });
   entries.push({ key: "REDIS_URL", value: "", placeholder: true, comment: "Optional (multi-replica HA): Redis Pub/Sub fan-out for real-time notifications. Also install ioredis." });
+  entries.push({ key: "AUDIT_LEVEL", value: input.auditLevel || "writes", comment: "Action audit scope: off | writes | all" });
+  entries.push({ key: "AUDIT_HTTP_URL", value: "", placeholder: true, comment: "Optional: ship audit events (NDJSON) to a logging server — Loki / Splunk HEC / Elastic / syslog-over-HTTP (+ AUDIT_HTTP_TOKEN)" });
 
   return entries;
 }

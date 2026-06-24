@@ -254,6 +254,17 @@ export function Setup() {
               <span className="font-mono text-muted-foreground">· fan-out: {status.realtime.bus}{status.realtime.bus === "in-process" ? " (single replica — set REDIS_URL for HA)" : ""}</span>
             </div>
           )}
+
+          {status?.audit && (
+            <div className="flex items-center gap-2 text-xs">
+              <Dot on={status.audit.level !== "off"} />
+              <span className="font-bold uppercase tracking-widest text-muted-foreground">Audit:</span>
+              <span className="font-mono uppercase">{status.audit.level}</span>
+              <span className="font-mono text-muted-foreground">
+                · sink: {status.audit.sink ? "logging server" : "stdout only (set AUDIT_HTTP_URL to ship)"}
+              </span>
+            </div>
+          )}
         </Step>
 
         {/* Step 2 — connect n8n */}

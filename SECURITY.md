@@ -33,7 +33,7 @@ Browser ──TLS──> omni-shell gateway ──TLS──> n8n ──> backend
 | Concurrency | Optimistic concurrency (`expectedVersion`) → 409 instead of silent overwrite | `lib/concurrency.ts`, `routes/projects.ts` |
 | Loop / replay | Deterministic idempotency key + `origin` loop-guard so webhook storms collapse | `lib/n8n.ts` |
 | Rate limiting | Global limiter on `/api/*`; stricter limiter on analytics; keyed by session sub else IP; health exempt | `lib/rate-limit.ts` |
-| Audit | One structured (pino) line per brokered operation: action, projectId, sub, idempotency key, origin | `lib/n8n.ts` |
+| Audit | Configurable action audit (`AUDIT_LEVEL` off/writes/all): one structured, redacted line per action (actor, status, latency, write flag); optionally shipped as NDJSON to an external logging server (`AUDIT_HTTP_URL`). Stateless — no local retention. | `lib/audit.ts`, `routes/audit-middleware.ts` |
 | Secret hygiene | pino redaction of `authorization`, `cookie`, `set-cookie`, `*.token`, `userContext.token` | `lib/logger.ts` |
 | Provenance | Responses are labelled sourced / derived / sample so synthesised demo numbers are never shown as fact | `ProvenanceBadge`, gateway responses |
 | Supply chain | pnpm `minimumReleaseAge` (1 day); platform binaries pruned; dependency-free CSV/XLSX writer | `pnpm-workspace.yaml` |

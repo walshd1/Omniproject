@@ -11,6 +11,7 @@ import aiRouter from "./ai";
 import exportRouter from "./export";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
+import { auditMiddleware } from "./audit-middleware";
 
 const router: IRouter = Router();
 
@@ -46,6 +47,9 @@ router.use(ingestRouter);
 
 // Rate limit everything else under /api/* (auth + data + analytics).
 router.use(apiLimiter);
+
+// Audit every action (level-gated) with actor, status and latency.
+router.use(auditMiddleware);
 
 router.use(authRouter);
 

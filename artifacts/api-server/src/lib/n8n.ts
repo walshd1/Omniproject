@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import type { Request } from "express";
 import { getSession } from "../routes/auth";
 import { getSettings } from "./settings";
-import { logger } from "./logger";
+import { recordAudit } from "./audit";
 
 /** The gateway is the origin of UI-initiated changes. */
 export const GATEWAY_ORIGIN = "omniproject";
@@ -103,19 +103,19 @@ export async function callN8n<T = unknown>(
     ...(opts.userContext ? { userContext: opts.userContext } : {}),
   };
 
-  // Enterprise audit trail: one structured line per proxied operation.
+  // Enterprise audit trail: one structured event per proxied operation, emitted
+  // to stdout and (when configured) shipped to the external logging server.
   // Sensitive OIDC tokens and Cookie headers are redacted by the pino config.
-  logger.info(
-    {
-      audit: true,
-      action,
-      projectId: payload["projectId"] ?? null,
-      sub: opts.userContext?.sub ?? null,
-      idempotencyKey: key,
-      origin,
-    },
-    "proxy_operation",
-  );
+  recordAudit({
+    ts: new Date().toISOString(),
+    category: "broker",
+    action,
+    actor: opts.userContext ? { sub: opts.userContext.sub, email: opts.userContext.email } : null,
+    projectId: (payload["projectId"] as string | undefined) ?? null,
+    origin,
+    write: /^(create|update|delete)_/.test(action),
+    meta: { idempotencyKey: key, source: opts.source },
+  });
 
   const res = await fetch(webhookUrl(), {
     method: "POST",
