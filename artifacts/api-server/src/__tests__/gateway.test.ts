@@ -13,6 +13,18 @@ import { generateWorkflow } from "../lib/n8n-generator";
 import { buildSnapshot, applySnapshot, SNAPSHOT_SCHEMA } from "../lib/config-snapshot";
 import { convertAmount, supportedCurrencies } from "../lib/currency";
 import { resolveTemplate, isFullyResolved } from "../lib/n8n-expr";
+import { updateSettings, getSettings } from "../lib/settings";
+import {
+  __resetConfigStore,
+  storeView,
+  captureVersion,
+  markKnownGood,
+  rollbackTo,
+  rollbackToLastKnownGood,
+  createEnvironment,
+  activateEnvironment,
+  promote,
+} from "../lib/config-store";
 import { parseJwt, verifySignatureWithJwk, validateClaims, verifyIdToken, type Jwk } from "../lib/jwks";
 import { clientMatches, addClient } from "../lib/notify-hub";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
@@ -188,6 +200,65 @@ test("convertAmount: throws on a missing rate", () => {
 
 test("supportedCurrencies: lists the rate table sorted", () => {
   assert.deepEqual(supportedCurrencies(RATES), ["EUR", "GBP", "USD"]);
+});
+
+// ── Config environments & versioned rollback ──────────────────────────────────
+test("config store: rolls settings back to a pinned known-good version", () => {
+  __resetConfigStore();
+  updateSettings({ backendSource: "good-state" });
+  const pinned = captureVersion("verified prod");
+  markKnownGood(pinned.id);
+
+  // A bad change after the known-good pin.
+  updateSettings({ backendSource: "broken-change" });
+  captureVersion("risky change");
+  assert.equal(getSettings().backendSource, "broken-change");
+
+  // Fast rollback to the last known-good state.
+  const { applied } = rollbackToLastKnownGood();
+  assert.equal(applied.id, pinned.id);
+  assert.equal(getSettings().backendSource, "good-state");
+});
+
+test("config store: rollbackTo restores a specific version's settings", () => {
+  __resetConfigStore();
+  updateSettings({ backendSource: "v-a" });
+  const a = captureVersion("a");
+  updateSettings({ backendSource: "v-b" });
+  captureVersion("b");
+  rollbackTo(a.id);
+  assert.equal(getSettings().backendSource, "v-a");
+});
+
+test("config store: sandbox changes do not touch production until promoted", () => {
+  __resetConfigStore();
+  updateSettings({ backendSource: "prod-config" });
+  captureVersion("prod baseline");
+
+  createEnvironment("sandbox");
+  activateEnvironment("sandbox");
+  updateSettings({ backendSource: "sandbox-experiment" });
+  captureVersion("sandbox work");
+
+  // Switch back to production — its config is untouched.
+  activateEnvironment("production");
+  assert.equal(getSettings().backendSource, "prod-config");
+
+  // Promote sandbox → production, then production carries the new config.
+  promote("sandbox", "production");
+  activateEnvironment("production");
+  assert.equal(getSettings().backendSource, "sandbox-experiment");
+});
+
+test("config store: view exposes environments, history and a known-good pointer", () => {
+  __resetConfigStore();
+  const v = captureVersion("x");
+  markKnownGood(v.id);
+  const view = storeView();
+  assert.ok(view.environments.includes("production"));
+  assert.equal(view.activeEnv, "production");
+  assert.ok(view.versions.length >= 1);
+  assert.equal(view.lastKnownGoodId, v.id);
 });
 
 // ── Capabilities resolution (env path is request-independent) ──────────────────

@@ -27,6 +27,7 @@ import { analyticsLimiter } from "../lib/rate-limit";
 import { requireRole } from "../lib/rbac";
 import { versionConflict } from "../lib/concurrency";
 import { getFxRates } from "../lib/currency";
+import { captureVersion } from "../lib/config-store";
 import { CreateRaidEntryBody } from "@workspace/api-zod";
 
 const router = Router();
@@ -399,8 +400,11 @@ router.get("/settings", (_req, res) => {
 });
 
 // Settings change the gateway's wiring (n8n URL, AI provider) — admin only.
+// Each change is versioned so it can be rolled back (see config-store).
 router.patch("/settings", requireRole("admin"), (req, res) => {
-  res.json(updateSettings(req.body ?? {}));
+  const settings = updateSettings(req.body ?? {});
+  captureVersion("settings updated");
+  res.json(settings);
 });
 
 export default router;

@@ -140,6 +140,47 @@ export async function restoreSnapshot(snapshot: unknown): Promise<RestoreResult>
   return data;
 }
 
+export interface ConfigVersion {
+  id: string;
+  env: string;
+  at: string;
+  label?: string;
+  knownGood: boolean;
+}
+
+export interface StoreView {
+  activeEnv: string;
+  environments: string[];
+  versions: ConfigVersion[];
+  lastKnownGoodId: string | null;
+  persisted: boolean;
+}
+
+async function postJson(path: string, body: unknown): Promise<unknown> {
+  const res = await fetch(path, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `request failed: ${res.status}`);
+  return data;
+}
+
+export async function fetchEnvironments(): Promise<StoreView> {
+  const res = await fetch("/api/setup/environments", { credentials: "same-origin" });
+  if (!res.ok) throw new Error(`environments failed: ${res.status}`);
+  return (await res.json()) as StoreView;
+}
+
+export const createEnvironment = (name: string) => postJson("/api/setup/environments", { name }) as Promise<StoreView>;
+export const activateEnvironment = (name: string) => postJson("/api/setup/environments/activate", { name }) as Promise<StoreView>;
+export const promoteEnvironment = (from: string, to: string) => postJson("/api/setup/promote", { from, to }) as Promise<StoreView>;
+export const markKnownGood = (id: string) => postJson(`/api/setup/versions/${id}/known-good`, {}) as Promise<StoreView>;
+export const rollback = (body: { versionId?: string; toKnownGood?: boolean }) =>
+  postJson("/api/setup/rollback", body) as Promise<{ rolledBack: boolean; appliedVersion: string; store: StoreView }>;
+
 export async function verifyWorkflow(): Promise<VerifyResult> {
   const res = await fetch("/api/setup/verify-workflow", {
     method: "POST",
