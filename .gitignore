@@ -27,6 +27,15 @@ node_modules
 !.vscode/launch.json
 !.vscode/extensions.json
 
+# secrets / local env — never commit real values (.env.example is the template)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+issuer.key
+issuer.pub
+
 # misc
 /.sass-cache
 /connect.lock

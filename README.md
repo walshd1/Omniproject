@@ -175,6 +175,10 @@ full security and integration reference.
   implementers).
 - **[artifacts/n8n-blueprints/README.md](artifacts/n8n-blueprints/README.md)** —
   the importable reference workflow and how to wire it to your backends.
+- **[LICENSING.md](LICENSING.md)** — the open-core model (Apache core + premium).
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — dev setup, build/test commands, PR flow.
+- **[CHANGELOG.md](CHANGELOG.md)** · **[SECURITY.md](SECURITY.md)** ·
+  **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** · **[.env.example](.env.example)**.
 - **[AGENTS.md](AGENTS.md)** — contributor/agent notes, build commands, gotchas.
 
 ---

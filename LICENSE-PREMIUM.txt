@@ -1,7 +1,7 @@
 OmniProject Premium License (v1)
 ================================
 
-Copyright 2026 OmniProject contributors. All rights reserved.
+Copyright 2026 The OmniProject Team. All rights reserved.
 
 This license governs the "premium components" of OmniProject: the source files
 in this repository whose header carries the SPDX identifier
