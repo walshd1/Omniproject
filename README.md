@@ -29,6 +29,13 @@ OmniProject plugs into them and surfaces *what you need, when you need it*. Nobo
 has to move into a new app, migrate data, or change how they work — you bolt on
 the views and connections you want and ignore the rest.
 
+**And it speaks the methodology you already run.** The data model is
+methodology-neutral, so the same backend renders as a **Kanban** board, a
+**Scrum** sprint (backlog, burndown, velocity), a **Gantt / Waterfall** timeline,
+**PRINCE2** management stages with a highlight report, a **RAID** log, or a plain
+**list** — switch per team or per project without re-shaping anything underneath.
+No methodology migration: it meets your teams where they already are.
+
 It's a brutalist, keyboard-driven shell that slots in *alongside* what an
 organization already runs, instead of asking them to move into it.
 
@@ -74,7 +81,7 @@ federate it — without a release from us and without a database to hold it.
 
 ## Features
 
-- **Dual-lens dashboard** — Agile Kanban (drag-to-move) + Gantt timeline.
+- **Methodology views** — one dataset rendered as Kanban, Scrum (burndown/velocity), Gantt/Waterfall, PRINCE2 stages, RAID log, or list — switch per team.
 - **Issue management** — create / edit / delete from the board, a *New Issue*
   button, or the `Cmd+K` palette.
 - **Enterprise reporting** (`/reports`) — Portfolio KPI cards (RAG), a Resource
