@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { logger } from "./logger";
 
 /**
  * Stateful developer mode (opt-in).
@@ -19,7 +20,24 @@ export interface DemoState {
   raid: Record<string, unknown[]>;
 }
 
-export const DEV_PERSIST_FILE = process.env["DEV_PERSIST_FILE"]?.trim() || null;
+const RAW_FILE = process.env["DEV_PERSIST_FILE"]?.trim() || null;
+const IS_PROD = process.env["NODE_ENV"] === "production";
+
+/**
+ * Stateful mode is a DEBUGGING aid and is **refused in production** — production
+ * must stay a stateless overlay over n8n. If someone sets DEV_PERSIST_FILE in a
+ * production build it is ignored (with a loud warning) rather than corrupting a
+ * stateless deployment.
+ */
+export const DEV_PERSIST_ENABLED = !!RAW_FILE && !IS_PROD;
+export const DEV_PERSIST_FILE = DEV_PERSIST_ENABLED ? RAW_FILE : null;
+
+if (RAW_FILE && IS_PROD) {
+  logger.warn(
+    "DEV_PERSIST_FILE is set but NODE_ENV=production — stateful dev mode is IGNORED. " +
+      "Stateful mode is for local debugging / issue reproduction only; production is stateless.",
+  );
+}
 
 export function saveState(file: string, state: DemoState): void {
   fs.writeFileSync(file, JSON.stringify(state, null, 2));

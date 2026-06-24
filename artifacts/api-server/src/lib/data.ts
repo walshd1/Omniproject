@@ -302,6 +302,11 @@ export async function getNotifications(req: Request): Promise<Row[]> {
 
 // ── Stateful dev mode (opt-in via DEV_PERSIST_FILE; demo only) ─────────────────
 
+/** Current in-memory demo dataset (for the developer debug bundle). */
+export function getDemoState(): { projects: Row[]; issues: Record<string, Row[]>; raid: Record<string, Row[]> } {
+  return { projects: SAMPLE_PROJECTS, issues: SAMPLE_ISSUES, raid: SAMPLE_RAID };
+}
+
 /** Persist the in-memory demo dataset so it survives a restart (dev/test only). */
 export function persistDemoState(): void {
   if (!DEV_PERSIST_FILE || isN8nConfigured) return;

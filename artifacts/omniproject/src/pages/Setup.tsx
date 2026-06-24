@@ -31,6 +31,15 @@ import {
 } from "../lib/setup";
 import { roleAtLeast } from "../lib/auth";
 
+function download(url: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 const CAP_DOMAINS: (keyof Capabilities)[] = [
   "issues", "scheduling", "resources", "financials", "portfolio", "baseline", "blockers", "history", "raid",
 ];
@@ -466,6 +475,22 @@ export function Setup() {
             </label>
           </div>
           {!isAdmin && <p className="text-xs text-amber-500">Backup & restore require the admin role.</p>}
+
+          {isAdmin && status?.dev?.statefulDemo && (
+            <div className="border-t border-border pt-3 space-y-2">
+              <p className="text-[11px] text-amber-500 uppercase tracking-widest font-bold">Stateful developer mode is ON — debugging only</p>
+              <p className="text-xs text-muted-foreground">
+                Download a <b>debug bundle</b> (config + demo data state) as a .zip for reproducible bug reports and sharing
+                to GitHub. Production is stateless; this is not available there.
+              </p>
+              <button
+                onClick={() => download("/api/setup/debug-bundle")}
+                className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-amber-500/50 text-amber-500 hover:bg-amber-500 hover:text-background flex items-center gap-2"
+              >
+                <Download className="w-3.5 h-3.5" /> Download debug bundle (.zip)
+              </button>
+            </div>
+          )}
         </Step>
 
         {/* Step 7 — environments & rollback */}
