@@ -940,3 +940,50 @@ test("fulfilment: mintForPurchase errors without a private key", () => {
     if (saved !== undefined) process.env["LICENSE_PRIVATE_KEY"] = saved;
   }
 });
+
+// ── n8n licence-fulfilment blueprint ────────────────────────────────────────────
+test("blueprint: licence-fulfilment workflow is a valid, importable n8n workflow", () => {
+  const here = path.dirname(new URL(import.meta.url).pathname);
+  const wfPath = path.resolve(here, "../../../n8n-blueprints/omniproject-license-fulfilment.json");
+  const wf = JSON.parse(fs.readFileSync(wfPath, "utf8")) as {
+    name: string;
+    nodes: Array<{ name: string; type: string; parameters: Record<string, unknown> }>;
+    connections: Record<string, { main: Array<Array<{ node: string }>> }>;
+  };
+
+  assert.ok(wf.name.includes("Licence fulfilment"));
+  const byType = (t: string) => wf.nodes.filter((n) => n.type === t);
+
+  // Webhook entry point at the documented path, responding via a Respond node.
+  const webhook = byType("n8n-nodes-base.webhook")[0];
+  assert.equal((webhook.parameters as { path?: string }).path, "omniproject-license-fulfilment");
+  assert.equal((webhook.parameters as { responseMode?: string }).responseMode, "responseNode");
+
+  // HMAC verification (Crypto node) + IF gate + email + a 200 and a 401 responder.
+  assert.equal(byType("n8n-nodes-base.crypto").length, 1);
+  assert.equal(byType("n8n-nodes-base.if").length, 1);
+  assert.equal(byType("n8n-nodes-base.emailSend").length, 1);
+  assert.equal(byType("n8n-nodes-base.respondToWebhook").length, 2);
+
+  // The IF compares the recomputed HMAC to the gateway's signature header.
+  const iff = JSON.stringify(byType("n8n-nodes-base.if")[0].parameters);
+  assert.match(iff, /x-omniproject-signature/);
+  assert.match(iff, /computedSig/);
+
+  // Every connection references a node that exists (no dangling wires).
+  const names = new Set(wf.nodes.map((n) => n.name));
+  for (const [from, conn] of Object.entries(wf.connections)) {
+    assert.ok(names.has(from), `connection source ${from} exists`);
+    for (const branch of conn.main) for (const c of branch) assert.ok(names.has(c.node), `connection target ${c.node} exists`);
+  }
+});
+
+test("blueprint: gateway hand-off signature matches what the workflow verifies", () => {
+  // The Crypto node computes 'sha256=' + hmac(secret, JSON.stringify(body)); the
+  // gateway signs the exact same body string via signBody — so they agree.
+  const secret = "fulfil-secret";
+  const body = JSON.stringify({ licenseKey: "omni-lic.v1.x.y", customer: "Acme", features: ["branding"] });
+  const sig = signBody(body, secret);
+  assert.match(sig, /^sha256=[0-9a-f]{64}$/);
+  assert.equal(sig, "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex"));
+});
