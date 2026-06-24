@@ -158,7 +158,8 @@ of **2,000 users over 200 projects with zero errors**.
 
 > Full control inventory and the security review: **[SECURITY.md](SECURITY.md)**.
 > The recommended first run is **demo mode** (below) — zero config, sample data —
-> then a **read-only** workflow against one real backend.
+> then a **read-only** workflow against one real backend. Step-by-step:
+> **[docs/SAFE-FIRST-RUN.md](docs/SAFE-FIRST-RUN.md)**.
 
 ---
 
