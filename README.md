@@ -107,6 +107,61 @@ federate it — without a release from us and without a database to hold it.
 
 ---
 
+## Safe to try with your real data
+
+OmniProject is built so you can point it at production and stay in control the
+whole way. The short version: **it stores nothing, you decide exactly what it can
+do, and every write is guarded, reversible-by-design, and logged.**
+
+**It holds no data.** There is no database, no cache, no copy of your projects.
+Trying it changes nothing at rest — there's no export of your data into our
+system to leak, lose, or get subpoenaed, and nothing to delete when you're done.
+
+**You decide what it's allowed to do — because *you* write the n8n workflow.**
+The gateway can only do what your n8n workflow implements. Wire only the read
+actions (`list_projects`, `list_issues`, …) and OmniProject is **physically
+read-only against your backend** — it literally cannot write, because there's no
+write path. Add create/update/delete later, when you trust it.
+
+**Evaluate without touching anything:**
+
+- **Dry-run / verify mode** — *Setup → Verify* probes your n8n per action with
+  `{ verify: true }`; generated workflows short-circuit so **even reads never hit
+  the backend**, and write actions are never probed.
+- **Sandbox + instant rollback** — design and test integration config in a named
+  **sandbox** environment, **promote** to production when happy, and **roll back**
+  to a pinned known-good config in one click if anything looks off.
+- **Read-only API tokens** — BI/automation clients get GET-only access; a leaked
+  token can never mutate.
+
+**Every real write is guarded:**
+
+- **As the user, not a shared key** — the user's own OIDC token is forwarded, so
+  the backend authorises each write under *their* identity and its own
+  permissions remain the final word. The gateway's RBAC is an extra gate, not the
+  only one.
+- **No silent overwrites** — optimistic concurrency (`expectedVersion`) returns a
+  `409` instead of clobbering a change made elsewhere.
+- **No duplicates or loops** — a deterministic idempotency key + an origin
+  loop-guard stop double-writes and webhook storms.
+
+**You can see and prove what happened:** a configurable **audit** log records every
+action (who, what, status, latency) and can ship to your SIEM. **Provenance
+badges** mark every figure as sourced / derived / sample, so demo or computed
+numbers are never shown as backend fact.
+
+**Hardened by default:** OIDC with full ID-token (JWKS) signature verification,
+signed httpOnly cookies, TLS required gateway↔n8n in production, secret redaction
+in logs, rate limiting, and a supply chain with a dependency release-age delay.
+It's covered by 97 unit tests, a live n8n contract verification, and a load test
+of **2,000 users over 200 projects with zero errors**.
+
+> Full control inventory and the security review: **[SECURITY.md](SECURITY.md)**.
+> The recommended first run is **demo mode** (below) — zero config, sample data —
+> then a **read-only** workflow against one real backend.
+
+---
+
 ## Quick start (local, demo mode)
 
 **Prerequisites:** Node.js 22+ and pnpm (`corepack enable`).
