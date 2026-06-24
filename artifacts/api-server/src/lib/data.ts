@@ -49,6 +49,54 @@ for (const list of Object.values(SAMPLE_ISSUES)) {
   }
 }
 
+// Optional demo-scale generator for load/e2e testing. Set DEMO_SCALE_PROJECTS=N
+// (and optionally DEMO_SCALE_ISSUES=M per project) to synthesise a realistic
+// portfolio (e.g. 200 projects × 10 issues) without a backend. Stateless: this
+// only inflates the in-memory demo dataset for a single process.
+(function seedScale() {
+  const n = Number(process.env["DEMO_SCALE_PROJECTS"]);
+  if (!Number.isFinite(n) || n <= 0) return;
+  const perProject = Math.max(1, Number(process.env["DEMO_SCALE_ISSUES"]) || 10);
+  const STATUSES = ["backlog", "todo", "in_progress", "in_review", "done", "cancelled"];
+  const PRIORITIES = ["none", "low", "medium", "high", "urgent"];
+  const now = Date.now();
+  for (let p = 0; p < n; p++) {
+    const pid = `gen-${String(p + 1).padStart(4, "0")}`;
+    SAMPLE_PROJECTS.push({
+      id: pid,
+      name: `Programme ${p + 1}`,
+      identifier: `G${p + 1}`,
+      description: "Generated demo-scale project",
+      source: p % 2 ? "openproject" : "plane",
+      issueCount: perProject,
+      completedCount: Math.round(perProject / 3),
+      memberCount: 3 + (p % 7),
+      updatedAt: new Date(now - (p % 30) * 86400000).toISOString(),
+    });
+    const issues: Row[] = [];
+    for (let i = 0; i < perProject; i++) {
+      const status = STATUSES[(p + i) % STATUSES.length];
+      issues.push({
+        id: `${pid}-iss-${i + 1}`,
+        projectId: pid,
+        title: `Work item ${i + 1} of ${pid}`,
+        description: null,
+        status,
+        priority: PRIORITIES[(i * 3 + p) % PRIORITIES.length],
+        assignee: `user-${(p * perProject + i) % 2000}`,
+        labels: i % 4 === 0 ? [`sp:${(i % 8) + 1}`] : [],
+        startDate: new Date(now - (i % 14) * 86400000).toISOString().slice(0, 10),
+        dueDate: new Date(now + (i % 21) * 86400000).toISOString().slice(0, 10),
+        source: p % 2 ? "openproject" : "plane",
+        version: 1,
+        createdAt: new Date(now - (i % 60) * 86400000).toISOString(),
+        updatedAt: new Date(now - (i % 5) * 3600000).toISOString(),
+      });
+    }
+    SAMPLE_ISSUES[pid] = issues;
+  }
+})();
+
 export function sampleActivity(): Row[] {
   return [
     { id: "act-001", action: "status_changed", actor: "alice", projectId: "proj-001", issueId: "iss-005", issueTitle: "Frontend command palette keyboard navigation", detail: "in_progress → done", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString() },

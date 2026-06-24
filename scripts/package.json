@@ -6,6 +6,9 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "verify-n8n": "tsx ./src/verify-n8n-bidirectional.ts",
+    "e2e-smoke": "tsx ./src/e2e-smoke.ts",
+    "stress": "tsx ./src/stress-test.ts",
+    "integration:openproject": "tsx ./src/integration-openproject.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
