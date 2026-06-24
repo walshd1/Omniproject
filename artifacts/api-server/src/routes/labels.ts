@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: LicenseRef-OmniProject-Premium
+ * Premium feature — governed by LICENSE-PREMIUM.txt, NOT Apache-2.0.
+ * Use in production requires a valid OmniProject commercial licence.
+ */
 import { Router } from "express";
 import { effectiveLabels, saveLabels } from "../lib/labels";
 import { requireRole } from "../lib/rbac";

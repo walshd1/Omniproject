@@ -12,15 +12,17 @@ import crypto from "node:crypto";
  * the premium features revert to their free defaults automatically.
  *
  * Premium features gated here:
- *   - branding  — white-label the UI (app name, logo, colours, login/footer text)
- *   - labels    — override field/term labels for company nomenclature
- *   - webhooks  — outbound event push (OmniProject → bus / SIEM / customer URL)
+ *   - branding             — white-label the UI (app name, logo, colours, text)
+ *   - labels               — override field/term labels for company nomenclature
+ *   - webhooks             — outbound event push (OmniProject → bus / SIEM / URL)
+ *   - enterprise_workflows — generate n8n workflows for enterprise backends
+ *                            (SAP, Primavera, Dynamics 365, MS Project, …)
  *
  * Uses only Node's crypto (Ed25519 sign/verify) — no new dependencies. The same
  * primitives mint a licence in `scripts/mint-license.ts` for issuers/tests.
  */
 
-export const LICENSE_FEATURES = ["branding", "labels", "webhooks"] as const;
+export const LICENSE_FEATURES = ["branding", "labels", "webhooks", "enterprise_workflows"] as const;
 export type LicenseFeature = (typeof LICENSE_FEATURES)[number];
 
 export interface LicensePayload {

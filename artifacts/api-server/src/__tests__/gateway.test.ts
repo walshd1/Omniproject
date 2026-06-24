@@ -8,7 +8,9 @@ import { roleFromClaims } from "../lib/rbac";
 import { idempotencyKey } from "../lib/n8n";
 import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
-import { BACKENDS, getBackend } from "../lib/n8n-backends";
+import { BACKENDS, getBackend, isEnterpriseBackend, backendCatalogue } from "../lib/n8n-backends";
+import { verifyStripeSignature, verifyGumroad } from "../lib/payments";
+import { entitlementForProduct, mintForPurchase } from "../lib/fulfillment";
 import { generateWorkflow } from "../lib/n8n-generator";
 import { buildSnapshot, applySnapshot, SNAPSHOT_SCHEMA } from "../lib/config-snapshot";
 import { convertAmount, supportedCurrencies } from "../lib/currency";
@@ -838,5 +840,103 @@ test("webhooks: deliver is a no-op without the entitlement", async () => {
     updateSettings({ webhooks: [] });
     if (saved !== undefined) process.env["LICENSE_DEV_FEATURES"] = saved;
     if (savedNode === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = savedNode;
+  }
+});
+
+// ── Enterprise backend gating ───────────────────────────────────────────────────
+test("backends: enterprise tier flags SAP/Primavera/Dynamics, not Jira", () => {
+  assert.equal(isEnterpriseBackend("sap"), true);
+  assert.equal(isEnterpriseBackend("primavera"), true);
+  assert.equal(isEnterpriseBackend("dynamics365"), true);
+  assert.equal(isEnterpriseBackend("jira"), false);
+  assert.equal(isEnterpriseBackend("openproject"), false);
+});
+
+test("backends: catalogue exposes a tier per backend", () => {
+  const cat = backendCatalogue();
+  const sap = cat.find((b) => b.id === "sap");
+  const jira = cat.find((b) => b.id === "jira");
+  assert.equal(sap?.tier, "enterprise");
+  assert.equal(jira?.tier, "standard");
+});
+
+// ── Payment webhook signature verification ──────────────────────────────────────
+test("payments: Stripe signature verifies a correctly-signed body", () => {
+  const secret = "whsec_test";
+  const body = JSON.stringify({ id: "evt_1", type: "checkout.session.completed" });
+  const t = 1_700_000_000;
+  const sig = crypto.createHmac("sha256", secret).update(`${t}.${body}`).digest("hex");
+  const r = verifyStripeSignature(body, `t=${t},v1=${sig}`, secret, { now: t * 1000 });
+  assert.equal(r.ok, true);
+});
+
+test("payments: Stripe rejects a tampered body", () => {
+  const secret = "whsec_test";
+  const t = 1_700_000_000;
+  const sig = crypto.createHmac("sha256", secret).update(`${t}.{}`).digest("hex");
+  const r = verifyStripeSignature("{\"x\":1}", `t=${t},v1=${sig}`, secret, { now: t * 1000 });
+  assert.equal(r.ok, false);
+  assert.match(r.reason ?? "", /mismatch/);
+});
+
+test("payments: Stripe rejects a stale timestamp", () => {
+  const secret = "whsec_test";
+  const body = "{}";
+  const t = 1_700_000_000;
+  const sig = crypto.createHmac("sha256", secret).update(`${t}.${body}`).digest("hex");
+  const r = verifyStripeSignature(body, `t=${t},v1=${sig}`, secret, { now: (t + 10_000) * 1000 });
+  assert.equal(r.ok, false);
+  assert.match(r.reason ?? "", /tolerance/);
+});
+
+test("payments: Gumroad verifies the shared-secret token and seller", () => {
+  assert.equal(verifyGumroad({ seller_id: "S1" }, "tok", { secret: "tok", sellerId: "S1" }).ok, true);
+  assert.equal(verifyGumroad({ seller_id: "S2" }, "tok", { secret: "tok", sellerId: "S1" }).ok, false);
+  assert.equal(verifyGumroad({}, "wrong", { secret: "tok" }).ok, false);
+});
+
+// ── Licence fulfilment ──────────────────────────────────────────────────────────
+test("fulfilment: entitlementForProduct reads LICENSE_PRODUCTS, filters features", () => {
+  const saved = process.env["LICENSE_PRODUCTS"];
+  try {
+    process.env["LICENSE_PRODUCTS"] = JSON.stringify({ p1: { tier: "pro", features: ["branding", "bogus"], days: 30 } });
+    const ent = entitlementForProduct("p1");
+    assert.equal(ent?.tier, "pro");
+    assert.deepEqual(ent?.features, ["branding"]);
+    assert.equal(ent?.days, 30);
+    assert.equal(entitlementForProduct("missing"), null);
+  } finally {
+    if (saved === undefined) delete process.env["LICENSE_PRODUCTS"]; else process.env["LICENSE_PRODUCTS"] = saved;
+  }
+});
+
+test("fulfilment: mintForPurchase signs a verifiable, entitled licence", () => {
+  const saved = { p: process.env["LICENSE_PRODUCTS"], k: process.env["LICENSE_PRIVATE_KEY"] };
+  try {
+    process.env["LICENSE_PRODUCTS"] = JSON.stringify({ ent: { tier: "enterprise", features: ["branding", "enterprise_workflows"], days: 365 } });
+    process.env["LICENSE_PRIVATE_KEY"] = LIC_PRIV;
+    const now = 1_700_000_000_000;
+    const minted = mintForPurchase({ provider: "stripe", productId: "ent", customer: "Acme", now });
+    assert.ok(!("error" in minted), "should mint");
+    if ("token" in minted) {
+      const v = verifyLicense(minted.token, LIC_PUB, now);
+      assert.equal(v.valid, true);
+      assert.deepEqual(v.payload?.features, ["branding", "enterprise_workflows"]);
+      assert.equal(v.payload?.exp, Math.floor(now / 1000) + 365 * 86400);
+    }
+  } finally {
+    if (saved.p === undefined) delete process.env["LICENSE_PRODUCTS"]; else process.env["LICENSE_PRODUCTS"] = saved.p;
+    if (saved.k === undefined) delete process.env["LICENSE_PRIVATE_KEY"]; else process.env["LICENSE_PRIVATE_KEY"] = saved.k;
+  }
+});
+
+test("fulfilment: mintForPurchase errors without a private key", () => {
+  const saved = process.env["LICENSE_PRIVATE_KEY"];
+  try {
+    delete process.env["LICENSE_PRIVATE_KEY"];
+    const r = mintForPurchase({ provider: "gumroad", productId: "x", customer: "y" });
+    assert.ok("error" in r);
+  } finally {
+    if (saved !== undefined) process.env["LICENSE_PRIVATE_KEY"] = saved;
   }
 });

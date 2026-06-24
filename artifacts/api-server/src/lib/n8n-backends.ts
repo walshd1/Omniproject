@@ -399,6 +399,20 @@ export function getBackend(id: string): BackendManifest | undefined {
   return BACKENDS.find((b) => b.id === id);
 }
 
+/**
+ * Enterprise-tier backends. Generating an importable n8n workflow for these is a
+ * premium capability (licence feature `enterprise_workflows`) — they target the
+ * large corporate ERPs / scheduling systems that are the paid-for integrations.
+ * The standard backends (Jira, OpenProject, GitHub, …) stay free.
+ */
+const ENTERPRISE_BACKENDS = new Set(["sap", "primavera", "dynamics365", "msproject", "enterprise"]);
+
+export function isEnterpriseBackend(id: string): boolean {
+  return ENTERPRISE_BACKENDS.has(id);
+}
+
+export type BackendTier = "standard" | "enterprise";
+
 /** Lightweight catalogue for the wizard UI (no n8n expressions). */
 export function backendCatalogue() {
   return BACKENDS.map((b) => ({
@@ -411,5 +425,6 @@ export function backendCatalogue() {
     actions: Object.keys(b.actions),
     capabilities: b.capabilities,
     notes: b.notes,
+    tier: (isEnterpriseBackend(b.id) ? "enterprise" : "standard") as BackendTier,
   }));
 }

@@ -23,7 +23,7 @@ import crypto from "node:crypto";
  * Pure Node crypto — no dependencies, and no network.
  */
 
-const FEATURES = ["branding", "labels", "webhooks"] as const;
+const FEATURES = ["branding", "labels", "webhooks", "enterprise_workflows"] as const;
 const TOKEN_PREFIX = "omni-lic.v1";
 
 function arg(name: string, fallback?: string): string | undefined {

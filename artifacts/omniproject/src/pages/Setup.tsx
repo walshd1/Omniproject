@@ -6,7 +6,7 @@ import {
   getGetSettingsQueryKey,
   type Capabilities,
 } from "@workspace/api-client-react";
-import { CheckCircle2, XCircle, Circle, Copy, Loader2, Download, Save, Upload, RotateCcw, Star, GitBranch } from "lucide-react";
+import { CheckCircle2, XCircle, Circle, Copy, Loader2, Download, Save, Upload, RotateCcw, Star, GitBranch, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   useSetupStatus,
@@ -85,6 +85,8 @@ export function Setup() {
   const isAdmin = roleAtLeast(status?.role, "admin");
   const caps = status?.capabilities ?? undefined;
   const selectedBackend = backends.find((b) => b.id === backendId);
+  const enterpriseEntitled = !!status?.licensing?.features.includes("enterprise_workflows");
+  const enterpriseLocked = selectedBackend?.tier === "enterprise" && !enterpriseEntitled;
 
   useEffect(() => {
     fetchConfigExport(format).then(setSnippet).catch(() => setSnippet("# could not load config (admin only)"));
@@ -100,8 +102,8 @@ export function Setup() {
     try {
       await downloadWorkflow(backendId, url.trim() ? new URL(url.trim()).pathname.split("/").pop() : undefined);
       toast({ title: "WORKFLOW DOWNLOADED", description: `Import omniproject-${backendId}.json into n8n.` });
-    } catch {
-      toast({ title: "ERROR", description: "Could not generate (admin only).", variant: "destructive" });
+    } catch (e) {
+      toast({ title: "ERROR", description: e instanceof Error ? e.message : "Could not generate (admin only).", variant: "destructive" });
     } finally {
       setGenerating(false);
     }
@@ -360,21 +362,33 @@ export function Setup() {
             Pick your backend and download a ready-to-import n8n workflow that implements the OmniProject contract.
             Backend wiring lives in the workflow (in your n8n) — OmniProject stays decoupled.
           </p>
+          {enterpriseLocked && (
+            <div className="flex items-center gap-2 text-xs font-mono text-amber-600 dark:text-amber-400 border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                <span className="font-bold uppercase">Enterprise integration</span> — generating the {selectedBackend?.label} workflow
+                (SAP, Primavera, Dynamics 365, MS Project, …) requires a licence with the <code>enterprise_workflows</code> feature.
+                The standard backends (Jira, OpenProject, GitHub, …) stay free.
+              </span>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2 items-center">
             <select
               value={backendId}
               onChange={(e) => setBackendId(e.target.value)}
               className="bg-background border border-border px-3 py-2 text-sm font-mono uppercase"
             >
-              {backends.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+              {backends.map((b) => (
+                <option key={b.id} value={b.id}>{b.label}{b.tier === "enterprise" ? "  ★ Enterprise" : ""}</option>
+              ))}
             </select>
             <button
               onClick={generate}
-              disabled={generating || !backendId || !isAdmin}
+              disabled={generating || !backendId || !isAdmin || enterpriseLocked}
               className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-40 flex items-center gap-2"
             >
-              {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              Download workflow
+              {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : enterpriseLocked ? <Lock className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+              {enterpriseLocked ? "Licensed feature" : "Download workflow"}
             </button>
             {selectedBackend && (
               <a href={selectedBackend.docsUrl} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground underline">
