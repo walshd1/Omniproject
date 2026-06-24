@@ -206,7 +206,8 @@ Paste as the Release body when tagging `v0.1.0`.
 - [ ] Set the GitHub **About** blurb (one-liner above) + topics
       (`project-management`, `n8n`, `self-hosted`, `open-core`, `typescript`).
 - [ ] Add a **screenshot / GIF** to the README (biggest single lift for a visual
-      product).
+      product) — record it with [DEMO-SCRIPT.md](DEMO-SCRIPT.md) (~75s hero +
+      12s loop; the Verify-goes-green shot is the money beat).
 - [ ] Enable **Discussions** and **private security advisories** in repo settings
       (issue templates already link to them).
 - [ ] Tag **`v0.1.0`** and cut the Release (note above).
