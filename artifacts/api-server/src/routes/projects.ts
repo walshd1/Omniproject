@@ -20,6 +20,7 @@ import {
   getRaid,
   createSampleRaid,
   getNotifications,
+  persistDemoState,
   SAMPLE_PROJECTS,
   SAMPLE_ISSUES,
 } from "../lib/data";
@@ -139,6 +140,7 @@ router.post("/projects/:projectId/issues", requireRole("contributor"), async (re
   SAMPLE_ISSUES[projectId].push(issue);
   const proj = SAMPLE_PROJECTS.find((p) => p.id === projectId);
   if (proj) proj.issueCount = (proj.issueCount as number) + 1;
+  persistDemoState();
   res.status(201).json(issue);
 });
 
@@ -193,6 +195,7 @@ router.patch("/projects/:projectId/issues/:issueId", requireRole("contributor"),
   const { expectedVersion: _ev, ...patch } = bodyParse.data;
   const updated = { ...current, ...patch, version: currentVersion + 1, updatedAt: new Date().toISOString() };
   issues[idx] = updated;
+  persistDemoState();
   res.json(updated);
 });
 
@@ -224,6 +227,7 @@ router.delete("/projects/:projectId/issues/:issueId", requireRole("contributor")
   if (idx !== -1) issues.splice(idx, 1);
   const proj = SAMPLE_PROJECTS.find((p) => p.id === projectId);
   if (proj && (proj.issueCount as number) > 0) proj.issueCount = (proj.issueCount as number) - 1;
+  persistDemoState();
   res.status(204).send();
 });
 

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { Request } from "express";
 import { getSession } from "../routes/auth";
+import { roleForReq } from "./rbac";
 import { getSettings } from "./settings";
 import { recordAudit } from "./audit";
 
@@ -16,6 +17,7 @@ export interface UserContext {
   sub?: string;
   email?: string;
   name?: string;
+  role?: string;
   token?: string;
 }
 
@@ -23,7 +25,7 @@ export interface UserContext {
 export function userContextFromReq(req: Request): UserContext {
   const session = getSession(req);
   if (!session) return {};
-  return { sub: session.sub, email: session.email, name: session.name, token: session.accessToken };
+  return { sub: session.sub, email: session.email, name: session.name, role: roleForReq(req), token: session.accessToken };
 }
 
 /**
@@ -103,46 +105,59 @@ export async function callN8n<T = unknown>(
     ...(opts.userContext ? { userContext: opts.userContext } : {}),
   };
 
-  // Enterprise audit trail: one structured event per proxied operation, emitted
-  // to stdout and (when configured) shipped to the external logging server.
-  // Sensitive OIDC tokens and Cookie headers are redacted by the pino config.
-  recordAudit({
-    ts: new Date().toISOString(),
-    category: "broker",
-    action,
-    actor: opts.userContext ? { sub: opts.userContext.sub, email: opts.userContext.email } : null,
-    projectId: (payload["projectId"] as string | undefined) ?? null,
-    origin,
-    write: /^(create|update|delete)_/.test(action),
-    meta: { idempotencyKey: key, source: opts.source },
-  });
+  // Enterprise audit trail: one structured event per proxied operation, recorded
+  // *with its outcome* (success/failure + upstream status + latency) so logs can
+  // answer "who ran which n8n action, when, and did it succeed?". Emitted to
+  // stdout and (when configured) shipped to the external logging server; OIDC
+  // tokens / cookies are redacted by the pino config.
+  const startedAt = Date.now();
+  const audit = (result: "success" | "error", status: number, extra?: Record<string, unknown>) =>
+    recordAudit({
+      ts: new Date().toISOString(),
+      category: "broker",
+      action,
+      actor: opts.userContext ? { sub: opts.userContext.sub, email: opts.userContext.email, role: opts.userContext.role } : null,
+      projectId: (payload["projectId"] as string | undefined) ?? null,
+      origin,
+      write: /^(create|update|delete)_/.test(action),
+      result,
+      status,
+      ms: Date.now() - startedAt,
+      meta: { idempotencyKey: key, source: opts.source, ...extra },
+    });
 
-  const res = await fetch(webhookUrl(), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(opts.authHeader ? { Authorization: opts.authHeader } : {}),
-      "X-OmniProject-Source": opts.source ?? "unknown",
-      "X-OmniProject-Action": action,
-      "X-OmniProject-Origin": origin,
-      "X-OmniProject-Idempotency-Key": key,
-    },
-    body: JSON.stringify({ action, payload: enrichedPayload, source: opts.source, origin, idempotencyKey: key }),
-    signal: AbortSignal.timeout(10_000),
-  });
+  try {
+    const res = await fetch(webhookUrl(), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(opts.authHeader ? { Authorization: opts.authHeader } : {}),
+        "X-OmniProject-Source": opts.source ?? "unknown",
+        "X-OmniProject-Action": action,
+        "X-OmniProject-Origin": origin,
+        "X-OmniProject-Idempotency-Key": key,
+      },
+      body: JSON.stringify({ action, payload: enrichedPayload, source: opts.source, origin, idempotencyKey: key }),
+      signal: AbortSignal.timeout(10_000),
+    });
 
-  if (!res.ok) {
-    // Propagate the upstream status so meaningful codes survive — notably 409
-    // (optimistic-concurrency conflict from the backend) and 404. Anything in
-    // the 5xx range collapses to a 502 gateway error.
-    const detail = await res.text().catch(() => "");
-    const status = res.status >= 400 && res.status < 500 ? res.status : 502;
-    throw new N8nError(detail?.slice(0, 300) || `n8n returned ${res.status}`, status);
+    if (!res.ok) {
+      // Propagate the upstream status so meaningful codes survive — notably 409
+      // (optimistic-concurrency conflict from the backend) and 404. Anything in
+      // the 5xx range collapses to a 502 gateway error.
+      const detail = await res.text().catch(() => "");
+      const status = res.status >= 400 && res.status < 500 ? res.status : 502;
+      throw new N8nError(detail?.slice(0, 300) || `n8n returned ${res.status}`, status);
+    }
+
+    const json = (await res.json().catch(() => ({}))) as unknown;
+    const result: N8nResult<T> =
+      json && typeof json === "object" && "success" in json ? (json as N8nResult<T>) : { success: true, data: json as T };
+    audit(result.success === false ? "error" : "success", res.status, result.success === false ? { message: result.message } : undefined);
+    return result;
+  } catch (err) {
+    const status = err instanceof N8nError ? err.status : 0;
+    audit("error", status, { error: err instanceof Error ? err.name : "error" });
+    throw err;
   }
-
-  const json = (await res.json().catch(() => ({}))) as unknown;
-  if (json && typeof json === "object" && "success" in json) {
-    return json as N8nResult<T>;
-  }
-  return { success: true, data: json as T };
 }

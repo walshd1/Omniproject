@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import { isN8nConfigured, callN8n, authHeaderFromReq } from "./n8n";
 import { getSettings } from "./settings";
+import { DEV_PERSIST_FILE, saveState, loadState } from "./dev-persist";
 
 /**
  * Single read accessor for project data, shared by the API routes and the
@@ -281,6 +282,7 @@ export function createSampleRaid(projectId: string, body: Record<string, unknown
   };
   if (!SAMPLE_RAID[projectId]) SAMPLE_RAID[projectId] = [];
   SAMPLE_RAID[projectId].unshift(entry);
+  persistDemoState();
   return entry;
 }
 
@@ -296,4 +298,28 @@ export async function getNotifications(req: Request): Promise<Row[]> {
     { id: "ntf-002", kind: "due_soon", title: "Due soon: Docker compose standalone validation", body: "Due 2026-06-25.", projectId: "proj-001", issueId: "iss-003", read: false, timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString() },
     { id: "ntf-003", kind: "blocker", title: "Risk escalated on Platform Rewrite", body: "OIDC provider migration moved to mitigating.", projectId: "proj-001", issueId: null, read: true, timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
   ];
+}
+
+// ── Stateful dev mode (opt-in via DEV_PERSIST_FILE; demo only) ─────────────────
+
+/** Persist the in-memory demo dataset so it survives a restart (dev/test only). */
+export function persistDemoState(): void {
+  if (!DEV_PERSIST_FILE || isN8nConfigured) return;
+  try {
+    saveState(DEV_PERSIST_FILE, { projects: SAMPLE_PROJECTS, issues: SAMPLE_ISSUES, raid: SAMPLE_RAID });
+  } catch {
+    /* best-effort; dev convenience only */
+  }
+}
+
+// Hydrate the demo dataset from disk on boot when stateful dev mode is enabled.
+if (DEV_PERSIST_FILE && !isN8nConfigured) {
+  const saved = loadState(DEV_PERSIST_FILE);
+  if (saved) {
+    SAMPLE_PROJECTS.splice(0, SAMPLE_PROJECTS.length, ...(saved.projects as Row[]));
+    for (const k of Object.keys(SAMPLE_ISSUES)) delete SAMPLE_ISSUES[k];
+    Object.assign(SAMPLE_ISSUES, saved.issues as Record<string, Row[]>);
+    for (const k of Object.keys(SAMPLE_RAID)) delete SAMPLE_RAID[k];
+    Object.assign(SAMPLE_RAID, saved.raid as Record<string, Row[]>);
+  }
 }
