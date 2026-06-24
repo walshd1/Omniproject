@@ -17,6 +17,7 @@ import { saveState, loadState } from "../lib/dev-persist";
 import { toMarkdown } from "../lib/md";
 import { buildPdf } from "../lib/pdf";
 import { buildZip } from "../lib/zip";
+import { formatPrometheus } from "../lib/metrics";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
@@ -265,6 +266,23 @@ test("buildZip: produces a valid STORED zip containing the entries", () => {
   assert.ok(zip.includes(Buffer.from('{"a":1}')));
   // End-of-central-directory record present.
   assert.ok(zip.subarray(-22).readUInt32LE(0) === 0x06054b50);
+});
+
+// ── Prometheus metrics (Grafana) ────────────────────────────────────────────────
+test("formatPrometheus: emits HELP/TYPE and labelled samples", () => {
+  const out = formatPrometheus([
+    { name: "omniproject_projects_total", help: "Number of projects", type: "gauge", samples: [{ value: 4 }] },
+    { name: "omniproject_portfolio_rag", help: "Projects by RAG", type: "gauge", samples: [{ value: 2, labels: { status: "GREEN" } }] },
+  ]);
+  assert.match(out, /# HELP omniproject_projects_total Number of projects/);
+  assert.match(out, /# TYPE omniproject_projects_total gauge/);
+  assert.match(out, /omniproject_projects_total 4/);
+  assert.match(out, /omniproject_portfolio_rag\{status="GREEN"\} 2/);
+});
+
+test("formatPrometheus: escapes quotes/backslashes in label values", () => {
+  const out = formatPrometheus([{ name: "m", help: "h", type: "gauge", samples: [{ value: 1, labels: { name: 'a "b" \\c' } }] }]);
+  assert.match(out, /name="a \\"b\\" \\\\c"/);
 });
 
 // ── Stateful dev mode (persist/load) ───────────────────────────────────────────
