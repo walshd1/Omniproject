@@ -1,0 +1,211 @@
+import { getSettings } from "../lib/settings";
+import { versionConflict } from "../lib/concurrency";
+import {
+  SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
+  SAMPLE_PORTFOLIO, DEMO_FX, sampleActivity, sampleNotifications, persistDemoState,
+} from "./demo-data";
+import {
+  BrokerError,
+  type Broker,
+  type ActorContext,
+  type Project,
+  type Issue,
+  type IssueWrite,
+  type Summary,
+  type HistoryPoint,
+  type Baseline,
+  type PortfolioRow,
+  type FxRates,
+  type CapabilityFlags,
+  type VerifyReport,
+  type Row,
+} from "./types";
+
+/**
+ * Demo broker — the fake adapter. Serves canned sample data, needs no network
+ * and no n8n. It is the proof the seam is clean (the whole app runs against it)
+ * and the offline/CI harness. All demo behaviour lives here; there is no longer
+ * a parallel "demo branch" interleaved into the callers.
+ */
+
+const DOMAINS = ["issues", "scheduling", "resources", "financials", "portfolio", "baseline", "blockers", "history", "raid"];
+
+let issueCounter = 100;
+let raidCounter = 100;
+
+export class DemoBroker implements Broker {
+  readonly kind = "demo";
+  readonly live = false;
+
+  async listProjects(): Promise<Project[]> {
+    return SAMPLE_PROJECTS as unknown as Project[];
+  }
+
+  async listIssues(_ctx: ActorContext, projectId: string): Promise<Issue[]> {
+    return (SAMPLE_ISSUES[projectId] ?? []) as unknown as Issue[];
+  }
+
+  async getIssue(_ctx: ActorContext, projectId: string, issueId: string): Promise<Issue | null> {
+    const found = (SAMPLE_ISSUES[projectId] ?? []).find((i) => (i as { id: string }).id === issueId);
+    return (found as unknown as Issue) ?? null;
+  }
+
+  async writeIssue(_ctx: ActorContext, op: "create" | "update" | "delete", input: IssueWrite): Promise<Issue | null> {
+    const { projectId, issueId } = input;
+    if (op === "create") {
+      const backend = getSettings().backendSource;
+      const issue: Row = {
+        id: `iss-${++issueCounter}`,
+        projectId,
+        title: input.title,
+        description: input.description ?? null,
+        status: input.status ?? "backlog",
+        priority: input.priority ?? "none",
+        assignee: input.assignee ?? null,
+        labels: input.labels ?? [],
+        startDate: input.startDate ?? null,
+        dueDate: input.dueDate ?? null,
+        source: backend === "openproject" ? "openproject" : "plane",
+        version: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      if (!SAMPLE_ISSUES[projectId]) SAMPLE_ISSUES[projectId] = [];
+      SAMPLE_ISSUES[projectId].push(issue);
+      const proj = SAMPLE_PROJECTS.find((p) => p["id"] === projectId);
+      if (proj) proj["issueCount"] = (proj["issueCount"] as number) + 1;
+      persistDemoState();
+      return issue as unknown as Issue;
+    }
+
+    const issues = SAMPLE_ISSUES[projectId];
+    if (!issues) throw new BrokerError("not_found", "Project not found");
+
+    if (op === "delete") {
+      const idx = issues.findIndex((i) => (i as { id: string }).id === issueId);
+      if (idx !== -1) issues.splice(idx, 1);
+      const proj = SAMPLE_PROJECTS.find((p) => p["id"] === projectId);
+      if (proj && (proj["issueCount"] as number) > 0) proj["issueCount"] = (proj["issueCount"] as number) - 1;
+      persistDemoState();
+      return null;
+    }
+
+    // update
+    const idx = issues.findIndex((i) => (i as { id: string }).id === issueId);
+    if (idx === -1) throw new BrokerError("not_found", "Issue not found");
+    const current = issues[idx] as Record<string, unknown>;
+    const currentVersion = typeof current["version"] === "number" ? (current["version"] as number) : 1;
+    if (versionConflict(input.expectedVersion, currentVersion)) {
+      throw new BrokerError("conflict", "Issue was modified by someone else", current);
+    }
+    const { projectId: _p, issueId: _i, expectedVersion: _ev, ...patch } = input;
+    const updated = { ...current, ...patch, version: currentVersion + 1, updatedAt: new Date().toISOString() };
+    issues[idx] = updated;
+    persistDemoState();
+    return updated as unknown as Issue;
+  }
+
+  async listActivity(): Promise<Row[]> {
+    return sampleActivity();
+  }
+
+  async projectSummary(_ctx: ActorContext, projectId: string): Promise<Summary> {
+    const issues = (SAMPLE_ISSUES[projectId] ?? []) as Array<{ status: string; priority: string; dueDate: string | null }>;
+    const byStatus: Record<string, number> = {};
+    const byPriority: Record<string, number> = {};
+    let overdue = 0;
+    const now = new Date();
+    for (const issue of issues) {
+      byStatus[issue.status] = (byStatus[issue.status] ?? 0) + 1;
+      byPriority[issue.priority] = (byPriority[issue.priority] ?? 0) + 1;
+      if (issue.dueDate && new Date(issue.dueDate) < now && issue.status !== "done" && issue.status !== "cancelled") overdue++;
+    }
+    const total = issues.length;
+    const completionRate = total > 0 ? Math.round(((byStatus["done"] ?? 0) / total) * 100) : 0;
+    return { projectId, total, byStatus, byPriority, completionRate, overdue };
+  }
+
+  async projectHistory(_ctx: ActorContext, projectId: string): Promise<HistoryPoint[]> {
+    const issues = (SAMPLE_ISSUES[projectId] ?? []) as Array<{ status: string }>;
+    const total = issues.length;
+    const done = issues.filter((i) => i.status === "done").length;
+    const finalRate = total > 0 ? Math.round((done / total) * 100) : 0;
+    const weeks = 8;
+    const out: HistoryPoint[] = [];
+    for (let w = weeks; w >= 0; w--) {
+      const t = (weeks - w) / weeks;
+      const eased = t * (2 - t);
+      const rate = Math.round(finalRate * eased);
+      out.push({
+        date: new Date(Date.now() - w * 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        completionRate: rate, totalIssues: total, completedIssues: Math.round((rate / 100) * total),
+        openBlockers: null, provenance: "derived",
+      });
+    }
+    return out;
+  }
+
+  async baseline(_ctx: ActorContext, projectId: string): Promise<Baseline | null> {
+    const issues = (SAMPLE_ISSUES[projectId] ?? []) as Array<{ id: string; title: string; startDate: string | null; dueDate: string | null }>;
+    const items = issues
+      .filter((i) => i.startDate || i.dueDate)
+      .map((i) => ({ issueId: i.id, title: i.title, plannedStart: i.startDate ?? null, plannedFinish: i.dueDate ?? null }));
+    if (items.length === 0) return null;
+    return {
+      projectId, name: "Demo baseline (derived from planned dates)",
+      capturedAt: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(),
+      items, provenance: "sample",
+    };
+  }
+
+  async listRaid(_ctx: ActorContext, projectId: string): Promise<Row[]> {
+    return SAMPLE_RAID[projectId] ?? [];
+  }
+
+  async addRaid(_ctx: ActorContext, projectId: string, body: Record<string, unknown>): Promise<Row> {
+    const now = new Date().toISOString();
+    const entry: Row = {
+      id: `raid-${++raidCounter}`, projectId,
+      type: body["type"], title: body["title"], description: body["description"] ?? null,
+      severity: body["severity"], likelihood: body["likelihood"] ?? null, impact: body["impact"] ?? null,
+      status: body["status"] ?? "open", owner: body["owner"] ?? null, mitigation: body["mitigation"] ?? null,
+      dueDate: body["dueDate"] ?? null, provenance: "sample", createdAt: now, updatedAt: now,
+    };
+    if (!SAMPLE_RAID[projectId]) SAMPLE_RAID[projectId] = [];
+    SAMPLE_RAID[projectId].unshift(entry);
+    persistDemoState();
+    return entry;
+  }
+
+  async notifications(): Promise<Row[]> {
+    return sampleNotifications();
+  }
+
+  async portfolioHealth(): Promise<PortfolioRow[]> {
+    return SAMPLE_PORTFOLIO as unknown as PortfolioRow[];
+  }
+
+  async resourceCapacity(): Promise<Row[]> {
+    return SAMPLE_CAPACITY;
+  }
+
+  async projectFinancials(): Promise<Row> {
+    return SAMPLE_FINANCIALS;
+  }
+
+  async capabilities(): Promise<CapabilityFlags> {
+    return Object.fromEntries(DOMAINS.map((d) => [d, true]));
+  }
+
+  async fxRates(): Promise<FxRates> {
+    return DEMO_FX;
+  }
+
+  async command(): Promise<unknown> {
+    throw new BrokerError("unavailable", "No backend configured (demo mode): command passthrough requires a live broker");
+  }
+
+  async verify(): Promise<VerifyReport> {
+    return { ok: true, actions: [] };
+  }
+}

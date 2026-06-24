@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { isN8nConfigured } from "./lib/n8n";
+import { brokerKind } from "./broker";
 import { isOidcConfigured } from "./lib/oidc";
 import { getSettings } from "./lib/settings";
 
@@ -27,7 +27,7 @@ app.listen(port, (err) => {
   logger.info(
     {
       port,
-      dataMode: isN8nConfigured ? "n8n" : "demo (sample data)",
+      dataMode: brokerKind() === "demo" ? "demo (sample data)" : brokerKind(),
       auth: isOidcConfigured ? "oidc" : "demo",
       aiProvider: getSettings().aiProvider,
     },

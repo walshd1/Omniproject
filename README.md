@@ -71,6 +71,12 @@ forwarded so writes happen *as them* (real per-user audit in the backend, not a
 shared admin key). In production the SPA and gateway ship as **one container**
 (`omni-shell`) on port `3000`.
 
+Internally, n8n sits behind a stable **`Broker` interface** in OmniProject's own
+domain vocabulary: it's the default implementation, swappable without touching
+the UI or the data path, and a CI guard keeps all n8n specifics confined to that
+one adapter. (No second broker exists today — this is about keeping the option
+real in code, see [docs/BROKER.md](docs/BROKER.md).)
+
 ### Connect to (almost) anything
 
 Because the only thing underneath is n8n, the set of systems you can plug in is

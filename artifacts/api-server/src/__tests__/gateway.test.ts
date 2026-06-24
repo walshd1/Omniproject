@@ -5,7 +5,7 @@ import type { Request } from "express";
 
 import { versionConflict } from "../lib/concurrency";
 import { roleFromClaims } from "../lib/rbac";
-import { idempotencyKey } from "../lib/n8n";
+import { idempotencyKey } from "../broker/n8n";
 import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
 import { BACKENDS, getBackend, isEnterpriseBackend, backendCatalogue } from "../lib/n8n-backends";
@@ -986,4 +986,30 @@ test("blueprint: gateway hand-off signature matches what the workflow verifies",
   const sig = signBody(body, secret);
   assert.match(sig, /^sha256=[0-9a-f]{64}$/);
   assert.equal(sig, "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex"));
+});
+
+// ── Broker seam: DemoBroker runs the app with no n8n ────────────────────────────
+import { DemoBroker } from "../broker/demo";
+import type { ActorContext, Broker } from "../broker/types";
+
+test("DemoBroker: serves projects/capabilities/writes with no backend configured", async () => {
+  const b: Broker = new DemoBroker();
+  const ctx = {} as ActorContext;
+  assert.equal(b.kind, "demo");
+  assert.equal(b.live, false);
+
+  const projects = await b.listProjects(ctx);
+  assert.ok(projects.some((p) => p.id === "proj-001"));
+
+  const caps = await b.capabilities(ctx);
+  assert.equal(caps["issues"], true);
+
+  const created = await b.writeIssue(ctx, "create", { projectId: "tbp", title: "Broker seam test" });
+  assert.ok(created && typeof created.id === "string");
+
+  // Optimistic concurrency surfaces as a normalised `conflict`, no n8n in sight.
+  await assert.rejects(
+    () => b.writeIssue(ctx, "update", { projectId: "tbp", issueId: created!.id, expectedVersion: 999, title: "Stale" }),
+    (e: unknown) => e instanceof Error && (e as { code?: string }).code === "conflict",
+  );
 });
