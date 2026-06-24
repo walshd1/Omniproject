@@ -721,6 +721,23 @@ async function testSetup(apiBase: string) {
     assert("Restore validation reachable", false);
   }
 
+  // Config environments & versioned rollback.
+  try {
+    const r = await get(`${apiBase}/api/setup/environments`);
+    assert("GET /setup/environments returns 200", r.status === 200, `got ${r.status}`);
+    const sv = r.data as { activeEnv?: string; environments?: string[]; versions?: unknown[]; lastKnownGoodId?: string | null };
+    assert("Environments view has active env + history", sv.activeEnv === "production" && Array.isArray(sv.environments) && Array.isArray(sv.versions));
+  } catch {
+    assert("GET /setup/environments reachable", false);
+  }
+  try {
+    const r = await post(`${apiBase}/api/setup/rollback`, { toKnownGood: true });
+    assert("POST /setup/rollback (known-good) returns 200", r.status === 200, `got ${r.status}`);
+    assert("Rollback reports the applied version", typeof (r.data as { appliedVersion?: string })?.appliedVersion === "string");
+  } catch {
+    assert("POST /setup/rollback reachable", false);
+  }
+
   // Workflow verifier (probes the configured mock with verify:true).
   try {
     const r = await post(`${apiBase}/api/setup/verify-workflow`, {});

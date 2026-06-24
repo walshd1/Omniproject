@@ -329,6 +329,35 @@ Canonical definitions are in `openapi.yaml`. Summary:
   Earned-Value report has a **display-currency** selector that converts via
   `convertAmount()` (base-anchored, unit-tested). No rates are stored.
 
+## Environments & rollback (config change management)
+
+OmniProject versions its own **configuration** (never project data) so changes
+are safe and reversible — Setup → *Environments & rollback*, or the API:
+
+- **Environments** — named config profiles (default `production`; create
+  `sandbox`). Design/test integration config in a sandbox **without touching
+  production**, then **promote** sandbox → production. Switching the active
+  environment applies that profile's config to the live settings.
+- **Versioned rollback** — every settings change is recorded as a version. Pin a
+  version as **known-good**; if production breaks, roll back instantly to that
+  version (or any earlier one). Latest known-good is one click / one call.
+- **Durability** — in-memory by default (single replica). Set `CONFIG_STORE_FILE`
+  to persist environments + history across restarts, so rollback survives a
+  crash. History is capped (last 100 versions).
+
+| Action | Endpoint (admin) |
+| ------ | ---------------- |
+| List environments + history | `GET /api/setup/environments` |
+| Create environment | `POST /api/setup/environments {name}` |
+| Switch active environment | `POST /api/setup/environments/activate {name}` |
+| Promote one env onto another | `POST /api/setup/promote {from,to}` |
+| Pin a version known-good | `POST /api/setup/versions/{id}/known-good` |
+| Roll back | `POST /api/setup/rollback {versionId? , toKnownGood?}` |
+
+> For fully parallel prod + sandbox **runtime**, run a second instance pointed at
+> the sandbox environment (or its snapshot export). The single-instance profile
+> model covers the design → test → promote → rollback workflow.
+
 ## Testing & scale
 
 CI runs (in order): typecheck → gateway unit tests → codegen-drift → builds →

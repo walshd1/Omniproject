@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { getSettings, updateSettings } from "../lib/settings";
 import { isN8nConfigured } from "../lib/n8n";
 import { isOidcConfigured } from "../lib/oidc";
@@ -9,6 +9,16 @@ import { backendCatalogue, getBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
 import { busMode } from "../lib/notify-bus";
 import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
+import {
+  storeView,
+  captureVersion,
+  createEnvironment,
+  activateEnvironment,
+  markKnownGood,
+  rollbackTo,
+  rollbackToLastKnownGood,
+  promote,
+} from "../lib/config-store";
 
 const router = Router();
 
@@ -197,9 +207,57 @@ router.post("/setup/restore", requireRole("admin"), (req, res) => {
   try {
     const { patch, warnings } = applySnapshot(req.body);
     const settings = updateSettings(patch);
+    captureVersion("restored from snapshot");
     res.json({ restored: true, warnings, settings });
   } catch (err) {
     res.status(400).json({ restored: false, error: err instanceof Error ? err.message : "Invalid snapshot" });
+  }
+});
+
+// ── Environments & versioned rollback ─────────────────────────────────────────
+
+function handle(res: Response, fn: () => unknown): void {
+  try {
+    res.json(fn());
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "error" });
+  }
+}
+
+// GET /api/setup/environments — environments, active env, version history.
+router.get("/setup/environments", requireRole("admin"), (_req, res) => {
+  res.json(storeView());
+});
+
+// POST /api/setup/environments { name } — create a sandbox (clone of active).
+router.post("/setup/environments", requireRole("admin"), (req, res) => {
+  handle(res, () => createEnvironment(String(req.body?.name ?? "")));
+});
+
+// POST /api/setup/environments/activate { name } — switch the active environment.
+router.post("/setup/environments/activate", requireRole("admin"), (req, res) => {
+  handle(res, () => activateEnvironment(String(req.body?.name ?? "")));
+});
+
+// POST /api/setup/promote { from, to } — copy one env's config onto another.
+router.post("/setup/promote", requireRole("admin"), (req, res) => {
+  handle(res, () => promote(String(req.body?.from ?? ""), String(req.body?.to ?? "")));
+});
+
+// POST /api/setup/versions/:id/known-good — pin a version as known-good.
+router.post("/setup/versions/:id/known-good", requireRole("admin"), (req, res) => {
+  handle(res, () => markKnownGood(String(req.params["id"])));
+});
+
+// POST /api/setup/rollback { versionId? , toKnownGood? } — fast rollback.
+router.post("/setup/rollback", requireRole("admin"), (req, res) => {
+  try {
+    const result = req.body?.toKnownGood
+      ? rollbackToLastKnownGood()
+      : rollbackTo(String(req.body?.versionId ?? ""));
+    res.json({ rolledBack: true, appliedVersion: result.applied.id, warnings: result.warnings, store: storeView() });
+  } catch (err) {
+    res.status(400).json({ rolledBack: false, error: err instanceof Error ? err.message : "error" });
   }
 });
 
