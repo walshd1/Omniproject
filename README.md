@@ -23,6 +23,12 @@ out of sync — the backend is always right, and OmniProject just renders it.
 - **Swap or add backends without migrating** — anything n8n can reach can be
   federated underneath; the UI never changes.
 
+**It's not another system to adopt — it's a layer that fits the workflow you
+already have.** Your tools, your n8n, your SSO stay exactly where they are;
+OmniProject plugs into them and surfaces *what you need, when you need it*. Nobody
+has to move into a new app, migrate data, or change how they work — you bolt on
+the views and connections you want and ignore the rest.
+
 It's a brutalist, keyboard-driven shell that slots in *alongside* what an
 organization already runs, instead of asking them to move into it.
 
