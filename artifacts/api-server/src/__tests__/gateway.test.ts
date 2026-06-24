@@ -16,6 +16,7 @@ import { shouldAudit, createHttpSink } from "../lib/audit";
 import { saveState, loadState } from "../lib/dev-persist";
 import { toMarkdown } from "../lib/md";
 import { buildPdf } from "../lib/pdf";
+import { buildZip } from "../lib/zip";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
@@ -251,6 +252,19 @@ test("buildPdf: produces a valid, paginated PDF", () => {
   assert.match(text, /startxref/);
   // 150 rows + header/sep + title → more than one page.
   assert.ok((text.match(/\/Type \/Page\b/g) ?? []).length >= 2, "paginates large tables");
+});
+
+test("buildZip: produces a valid STORED zip containing the entries", () => {
+  const zip = buildZip([
+    { name: "config.json", data: Buffer.from('{"a":1}') },
+    { name: "demo-state.json", data: Buffer.from("[]") },
+  ]);
+  assert.equal(zip.subarray(0, 2).toString(), "PK"); // local file header magic
+  assert.ok(zip.includes(Buffer.from("config.json")));
+  assert.ok(zip.includes(Buffer.from("demo-state.json")));
+  assert.ok(zip.includes(Buffer.from('{"a":1}')));
+  // End-of-central-directory record present.
+  assert.ok(zip.subarray(-22).readUInt32LE(0) === 0x06054b50);
 });
 
 // ── Stateful dev mode (persist/load) ───────────────────────────────────────────

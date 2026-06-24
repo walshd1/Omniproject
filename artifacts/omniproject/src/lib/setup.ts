@@ -10,6 +10,7 @@ export interface SetupStatus {
   ai: { provider: string };
   realtime?: { enabled: boolean; bus: "in-process" | "redis" };
   audit?: { level: "off" | "writes" | "all"; sink: boolean };
+  dev?: { statefulDemo: boolean };
   capabilities: Capabilities | null;
 }
 

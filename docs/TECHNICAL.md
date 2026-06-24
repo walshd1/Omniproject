@@ -364,6 +364,13 @@ on boot**, so developers can build up test scenarios that survive restarts
 without wiring n8n. Dev/test only — it's a no-op when `N8N_WEBHOOK_URL` is set
 (production serves real data through n8n). Setup → *Status* shows whether it's on.
 
+**Production is stateless — stateful mode is refused there.** If `DEV_PERSIST_FILE`
+is set with `NODE_ENV=production` it is **ignored with a warning** (it would break a
+stateless deployment). It is never a UI toggle, so end users can't enable it. In
+dev mode, admins can download a **debug bundle** (`GET /api/setup/debug-bundle`):
+a `.zip` of `config.json` + `demo-state.json` for reproducible bug reports and
+sharing on GitHub.
+
 ## Environments & rollback (config change management)
 
 OmniProject versions its own **configuration** (never project data) so changes

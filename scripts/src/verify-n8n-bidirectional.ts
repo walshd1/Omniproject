@@ -762,6 +762,14 @@ async function testSetup(apiBase: string) {
     assert("POST /setup/rollback reachable", false);
   }
 
+  // Debug bundle is refused outside stateful dev mode (prod is stateless).
+  try {
+    const r = await get(`${apiBase}/api/setup/debug-bundle`);
+    assert("GET /setup/debug-bundle is 409 when not in dev mode", r.status === 409, `got ${r.status}`);
+  } catch {
+    assert("debug-bundle reachable", false);
+  }
+
   // Workflow verifier (probes the configured mock with verify:true).
   try {
     const r = await post(`${apiBase}/api/setup/verify-workflow`, {});
