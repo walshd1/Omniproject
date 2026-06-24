@@ -14,6 +14,8 @@ import { buildSnapshot, applySnapshot, SNAPSHOT_SCHEMA } from "../lib/config-sna
 import { convertAmount, supportedCurrencies } from "../lib/currency";
 import { shouldAudit, createHttpSink } from "../lib/audit";
 import { saveState, loadState } from "../lib/dev-persist";
+import { toMarkdown } from "../lib/md";
+import { buildPdf } from "../lib/pdf";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
@@ -227,6 +229,28 @@ test("audit HTTP sink: a failed flush re-buffers and never throws", async () => 
   const delivered = await sink.flush();
   assert.equal(delivered, 0);
   assert.equal(sink.size(), 1); // re-buffered for the next attempt
+});
+
+// ── Report export writers (md / pdf) ───────────────────────────────────────────
+test("toMarkdown: emits a GFM table with a header separator and escapes pipes", () => {
+  const md = toMarkdown("Report", ["id", "title"], [["i1", "a | b"], ["i2", null]]);
+  assert.match(md, /# Report/);
+  assert.match(md, /\| id \| title \|/);
+  assert.match(md, /\| --- \| --- \|/);
+  assert.match(md, /a \\\| b/); // pipe escaped
+  assert.match(md, /\| i2 \|  \|/); // null → empty cell
+});
+
+test("buildPdf: produces a valid, paginated PDF", () => {
+  const rows = Array.from({ length: 150 }, (_, i) => [`id-${i}`, `Item ${i}`, "open"]);
+  const pdf = buildPdf({ title: "Issues", headers: ["id", "title", "status"], rows });
+  const text = pdf.toString("binary");
+  assert.ok(pdf.subarray(0, 5).toString() === "%PDF-", "starts with the PDF magic");
+  assert.match(text, /%%EOF$/);
+  assert.match(text, /\/Type \/Catalog/);
+  assert.match(text, /startxref/);
+  // 150 rows + header/sep + title → more than one page.
+  assert.ok((text.match(/\/Type \/Page\b/g) ?? []).length >= 2, "paginates large tables");
 });
 
 // ── Stateful dev mode (persist/load) ───────────────────────────────────────────

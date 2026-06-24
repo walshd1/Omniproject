@@ -534,6 +534,30 @@ async function testExports(apiBase: string) {
   } catch {
     assert("export.xlsx reachable", false);
   }
+
+  try {
+    const r = await get(`${apiBase}/api/export.json?dataset=issues`);
+    assert("GET /api/export.json returns 200", r.status === 200, `got ${r.status}`);
+    assert("JSON export parses to an array", Array.isArray(r.data));
+  } catch {
+    assert("export.json reachable", false);
+  }
+
+  try {
+    const r = await get(`${apiBase}/api/export.md?dataset=projects`);
+    assert("GET /api/export.md returns 200", r.status === 200, `got ${r.status}`);
+    assert("Markdown export has a table header", typeof r.data === "string" && r.data.includes("| --- |"));
+  } catch {
+    assert("export.md reachable", false);
+  }
+
+  try {
+    const r = await get(`${apiBase}/api/export.pdf?dataset=issues`);
+    assert("GET /api/export.pdf returns 200", r.status === 200, `got ${r.status}`);
+    assert("PDF export starts with the %PDF magic", typeof r.data === "string" && r.data.startsWith("%PDF-"));
+  } catch {
+    assert("export.pdf reachable", false);
+  }
 }
 
 async function testGovernance(apiBase: string) {

@@ -37,7 +37,7 @@ port `3000`.
   button, or the `Cmd+K` palette.
 - **Enterprise reporting** (`/reports`) — Portfolio KPI cards (RAG), a Resource
   Heatmap (over-allocation alerts), and a Financial EVM chart (CPI/SPI).
-- **Export & BI** — one-click Excel/CSV, plus a read-only API token for Power BI.
+- **Export & BI** — one-click report export to Excel, CSV, JSON, Markdown and PDF, plus a read-only API token for Power BI.
 - **AI assist** — connect a local model (Ollama) or a public model (OpenRouter).
 - **SSO** — env-gated OIDC against any provider; demo mode when unconfigured.
 - **Keyboard-driven** — `Cmd+K` palette and `g d/p/r/s` navigation.

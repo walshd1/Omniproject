@@ -51,6 +51,18 @@ export function ExportMenu({ projectId, label = "Export" }: { projectId?: string
         <DropdownMenuItem onSelect={() => download("/api/export.csv?dataset=activity")}>
           Activity (.csv)
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {(() => {
+          const q = `dataset=issues${projectId ? `&projectId=${encodeURIComponent(projectId)}` : ""}`;
+          const scope = projectId ? "Issues report" : "All issues report";
+          return (
+            <>
+              <DropdownMenuItem onSelect={() => download(`/api/export.pdf?${q}`)}>{scope} (.pdf)</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => download(`/api/export.md?${q}`)}>{scope} (.md)</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => download(`/api/export.json?${q}`)}>{scope} (.json)</DropdownMenuItem>
+            </>
+          );
+        })()}
       </DropdownMenuContent>
     </DropdownMenu>
   );

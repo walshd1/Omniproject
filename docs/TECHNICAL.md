@@ -233,7 +233,7 @@ All under `/api`. Protected = requires a session **or** a read-only API token.
 | `GET /api/projects/{id}/financials` | protected · **rate-limited** | `ProjectFinancials` |
 | `GET /api/portfolio/health` | protected · **rate-limited** | `PortfolioHealthSummary[]` |
 | `GET /api/ai/status` · `POST /api/ai/chat` | protected | provider status / chat |
-| `GET /api/export.xlsx` · `GET /api/export.csv` | protected (token OK) | workbook / CSV |
+| `GET /api/export.xlsx` · `.csv` · `.json` · `.md` · `.pdf` | protected (token OK) | report export — workbook / CSV / JSON / Markdown / PDF (`?dataset=projects\|issues\|activity`). PDF + Markdown writers are dependency-free. |
 | `GET/PATCH /api/settings` | protected | gateway-local config |
 
 The full schema is `lib/api-spec/openapi.yaml`. Generated TanStack hooks and Zod
