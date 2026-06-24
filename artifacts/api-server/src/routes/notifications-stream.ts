@@ -4,6 +4,7 @@ import { getSession } from "./auth";
 import { roleForReq } from "../lib/rbac";
 import { addClient, clientCount, type NotifyTarget } from "../lib/notify-hub";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
+import { emitWebhookEvent } from "../lib/webhooks";
 import { logger } from "../lib/logger";
 
 /**
@@ -92,6 +93,9 @@ ingestRouter.post("/notifications/ingest", ingestAuth, async (req: Request, res:
     timestamp: new Date().toISOString(),
   };
   const localDelivered = await getNotifyBus().publish({ notification, target: body.target });
+  // Also push to any outbound webhook subscribers (premium; no-op if unlicensed
+  // or none configured). Fire-and-forget so SSE latency isn't affected.
+  emitWebhookEvent("notification", { notification, target: body.target ?? null });
   // In-process: exact local count. Redis: delivery is async across replicas, so
   // we report local connections instead of a cross-replica count.
   const delivered = localDelivered ?? clientCount();

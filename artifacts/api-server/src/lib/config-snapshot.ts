@@ -16,7 +16,10 @@ import type { SettingsState } from "./settings";
 export const SNAPSHOT_SCHEMA = "omniproject/config-snapshot";
 export const SNAPSHOT_VERSION = 1;
 
-const SNAPSHOT_KEYS = ["n8nWebhookUrl", "aiProvider", "aiModel", "backendSource", "oidcIssuerUrl"] as const;
+// Branding + label overrides are portable presentation config (no secrets) so
+// they ride along in snapshots. Webhook subscriptions are deliberately excluded
+// — they carry signing secrets and are environment-specific (see WEBHOOKS env).
+const SNAPSHOT_KEYS = ["n8nWebhookUrl", "aiProvider", "aiModel", "backendSource", "oidcIssuerUrl", "branding", "labelOverrides"] as const;
 type SnapshotKey = (typeof SNAPSHOT_KEYS)[number];
 
 export interface ConfigSnapshot {
@@ -37,6 +40,8 @@ export function buildSnapshot(settings: SettingsState): ConfigSnapshot {
       aiModel: settings.aiModel,
       backendSource: settings.backendSource,
       oidcIssuerUrl: settings.oidcIssuerUrl,
+      branding: settings.branding,
+      labelOverrides: settings.labelOverrides,
     },
   };
 }

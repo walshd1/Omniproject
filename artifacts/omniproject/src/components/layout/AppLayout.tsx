@@ -9,12 +9,14 @@ import { Layers, Briefcase, BarChart3, Settings as SettingsIcon, LogOut, PlugZap
 import { useAuth, logout } from "../../lib/auth";
 import { useSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
+import { useBranding } from "../../lib/branding";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const { activeProjectId, isNewIssueOpen, setNewIssueOpen } = useStore();
   const { t } = useT();
+  const brand = useBranding();
   const { data: auth, isLoading: authLoading } = useAuth();
   const { data: setup } = useSetupStatus();
   const { data: projects } = useListProjects();
@@ -77,8 +79,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {/* Sidebar */}
       <aside className="w-64 border-r border-border flex flex-col bg-card shrink-0">
         <div className="h-14 flex items-center px-4 border-b border-border font-bold text-xl tracking-tighter cursor-pointer" onClick={() => setLocation("/")}>
-          <div className="bg-foreground text-background w-8 h-8 flex items-center justify-center mr-3 font-black">OP</div>
-          OMNIPROJECT
+          {brand.logoUrl ? (
+            <img src={brand.logoUrl} alt={brand.appName} className="h-8 mr-3 object-contain" />
+          ) : (
+            <div className="bg-foreground text-background w-8 h-8 flex items-center justify-center mr-3 font-black">{brand.shortName}</div>
+          )}
+          <span className="uppercase truncate">{brand.appName}</span>
         </div>
         
         <nav className="flex-1 py-4 flex flex-col gap-1 px-2 overflow-y-auto">

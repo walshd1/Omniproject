@@ -8,6 +8,7 @@ import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
 import { busMode } from "../lib/notify-bus";
+import { licenseSummary } from "../lib/license";
 import { auditStatus } from "../lib/audit";
 import { DEV_PERSIST_ENABLED } from "../lib/dev-persist";
 import { getDemoState } from "../lib/data";
@@ -64,6 +65,7 @@ router.get("/setup/status", async (req, res) => {
     realtime: { enabled: !!process.env["NOTIFY_INGEST_SECRET"]?.trim(), bus: busMode() },
     audit: auditStatus(),
     dev: { statefulDemo: DEV_PERSIST_ENABLED },
+    licensing: licenseSummary(),
     capabilities,
   });
 });

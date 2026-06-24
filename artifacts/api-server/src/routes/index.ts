@@ -12,6 +12,10 @@ import aiRouter from "./ai";
 import exportRouter from "./export";
 import integrationsRouter from "./integrations";
 import odataRouter from "./odata";
+import licenseRouter from "./license";
+import brandingRouter from "./branding";
+import labelsRouter from "./labels";
+import webhooksRouter from "./webhooks";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -56,7 +60,15 @@ router.use(auditMiddleware);
 
 router.use(authRouter);
 
+// Public presentation config: branding + label overrides are needed pre-login
+// (the login screen is white-labelled), so they are not auth-gated. Their write
+// handlers self-guard with requireRole("admin") + the licence entitlement.
+router.use(brandingRouter);
+router.use(labelsRouter);
+
 // Protected routes: require an authenticated session (or read-only API token).
+router.use(requireAuth, licenseRouter);
+router.use(requireAuth, webhooksRouter);
 router.use(requireAuth, n8nProxyRouter);
 router.use(requireAuth, projectsRouter);
 router.use(requireAuth, programmesRouter);

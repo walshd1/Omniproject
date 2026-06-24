@@ -1,0 +1,155 @@
+import crypto from "node:crypto";
+import { getSettings, updateSettings, type WebhookSubscription } from "./settings";
+import { isEntitled } from "./license";
+import { logger } from "./logger";
+
+/**
+ * Outbound webhooks (premium feature `webhooks`).
+ *
+ * OmniProject can push events out — to a customer endpoint, a SIEM, Slack, or an
+ * n8n webhook node (so n8n remains the integration backbone). Each subscription
+ * has a signing secret; deliveries carry an HMAC-SHA256 signature so the
+ * receiver can verify authenticity.
+ *
+ * Stateless + fire-and-forget: there is no durable delivery queue (that would be
+ * application state). One attempt with a short timeout; the outcome is logged
+ * for audit. For at-least-once delivery, point a webhook at an n8n webhook node
+ * and let n8n's queue handle retries.
+ */
+
+export const WEBHOOK_EVENTS = ["notification", "audit", "config.changed", "webhook.test"] as const;
+export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
+
+/** A subscription with its secret redacted, safe to return to the browser. */
+export interface RedactedSubscription extends Omit<WebhookSubscription, "secret"> {
+  secretSet: boolean;
+}
+
+function subs(): WebhookSubscription[] {
+  return getSettings().webhooks ?? [];
+}
+
+export function redact(s: WebhookSubscription): RedactedSubscription {
+  const { secret, ...rest } = s;
+  return { ...rest, secretSet: !!secret };
+}
+
+export function listWebhooks(): RedactedSubscription[] {
+  return subs().map(redact);
+}
+
+/**
+ * Validate + create a subscription. Returns the full record INCLUDING the
+ * plaintext secret so the caller can reveal it once at creation time; list/get
+ * never expose it again. Throws on bad input.
+ */
+export function createWebhook(input: unknown): WebhookSubscription {
+  if (!input || typeof input !== "object") throw new Error("webhook must be an object");
+  const o = input as Record<string, unknown>;
+  const url = String(o["url"] ?? "").trim();
+  if (!/^https?:\/\//i.test(url)) throw new Error("url must be an absolute http(s) URL");
+
+  const events = Array.isArray(o["events"]) && o["events"].length
+    ? (o["events"] as unknown[]).map(String).filter((e) => e === "*" || (WEBHOOK_EVENTS as readonly string[]).includes(e))
+    : ["*"];
+  if (!events.length) throw new Error("events must include '*' or a known event name");
+
+  const secret = typeof o["secret"] === "string" && o["secret"].trim()
+    ? o["secret"].trim()
+    : crypto.randomBytes(24).toString("base64url");
+
+  const sub: WebhookSubscription = {
+    id: crypto.randomUUID(),
+    url,
+    secret,
+    events,
+    active: o["active"] !== false,
+    description: typeof o["description"] === "string" ? o["description"].slice(0, 200) : undefined,
+  };
+  updateSettings({ webhooks: [...subs(), sub] });
+  return sub;
+}
+
+export function deleteWebhook(id: string): boolean {
+  const next = subs().filter((s) => s.id !== id);
+  if (next.length === subs().length) return false;
+  updateSettings({ webhooks: next });
+  return true;
+}
+
+export function getWebhook(id: string): WebhookSubscription | undefined {
+  return subs().find((s) => s.id === id);
+}
+
+function matches(sub: WebhookSubscription, event: WebhookEvent): boolean {
+  return sub.active && (sub.events.includes("*") || sub.events.includes(event));
+}
+
+export interface DeliveryResult {
+  id: string;
+  url: string;
+  ok: boolean;
+  status: number;
+  ms: number;
+  error?: string;
+}
+
+/** Sign a serialized body with a subscription secret (HMAC-SHA256, hex). */
+export function signBody(body: string, secret: string): string {
+  return `sha256=${crypto.createHmac("sha256", secret).update(body).digest("hex")}`;
+}
+
+async function deliverOne(sub: WebhookSubscription, event: WebhookEvent, payload: unknown, ts: string): Promise<DeliveryResult> {
+  const deliveryId = crypto.randomUUID();
+  const body = JSON.stringify({ event, deliveredAt: ts, deliveryId, data: payload });
+  const started = Date.now();
+  try {
+    const r = await fetch(sub.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "OmniProject-Webhook/1",
+        "X-OmniProject-Event": event,
+        "X-OmniProject-Delivery": deliveryId,
+        "X-OmniProject-Signature": signBody(body, sub.secret),
+      },
+      body,
+      signal: AbortSignal.timeout(8_000),
+    });
+    return { id: sub.id, url: sub.url, ok: r.ok, status: r.status, ms: Date.now() - started };
+  } catch (err) {
+    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+    return { id: sub.id, url: sub.url, ok: false, status: 0, ms: Date.now() - started, error: isTimeout ? "timed out" : "unreachable" };
+  }
+}
+
+/**
+ * Fan an event out to all matching subscriptions. No-op (returns []) unless the
+ * `webhooks` entitlement is active. Fire-and-forget at the call site.
+ */
+export async function deliverWebhooks(event: WebhookEvent, payload: unknown): Promise<DeliveryResult[]> {
+  if (!isEntitled("webhooks")) return [];
+  const targets = subs().filter((s) => matches(s, event));
+  if (!targets.length) return [];
+  const ts = new Date().toISOString();
+  const results = await Promise.all(targets.map((s) => deliverOne(s, event, payload, ts)));
+  for (const r of results) {
+    logger.info(
+      { audit: true, action: "webhook_delivery", event, webhookId: r.id, url: r.url, ok: r.ok, status: r.status, ms: r.ms, result: r.ok ? "success" : "error" },
+      "webhook_delivery",
+    );
+  }
+  return results;
+}
+
+/** Deliver an event without awaiting (so the request path isn't blocked). */
+export function emitWebhookEvent(event: WebhookEvent, payload: unknown): void {
+  void deliverWebhooks(event, payload).catch((err) => logger.warn({ err, event }, "webhook fan-out failed"));
+}
+
+/** Send a single test event to one subscription (ignores active/event filters). */
+export async function testWebhook(id: string): Promise<DeliveryResult | null> {
+  const sub = getWebhook(id);
+  if (!sub) return null;
+  return deliverOne(sub, "webhook.test", { message: "Test event from OmniProject", webhookId: id }, new Date().toISOString());
+}

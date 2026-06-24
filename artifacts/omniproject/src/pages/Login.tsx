@@ -2,9 +2,11 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useAuth, login } from "../lib/auth";
+import { useBranding } from "../lib/branding";
 
 export function Login() {
   const { data: auth, isLoading } = useAuth();
+  const brand = useBranding();
   const [, setLocation] = useLocation();
 
   // Already authenticated → bounce to the dashboard.
@@ -18,14 +20,18 @@ export function Login() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm border-2 border-foreground bg-card p-8 shadow-[8px_8px_0px_0px_rgba(var(--foreground))]">
         <div className="flex justify-center mb-8">
-          <div className="bg-foreground text-background w-16 h-16 flex items-center justify-center font-black text-2xl border border-foreground">
-            OP
-          </div>
+          {brand.logoUrl ? (
+            <img src={brand.logoUrl} alt={brand.appName} className="h-16 object-contain" />
+          ) : (
+            <div className="bg-foreground text-background w-16 h-16 flex items-center justify-center font-black text-2xl border border-foreground">
+              {brand.shortName}
+            </div>
+          )}
         </div>
 
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-black uppercase tracking-tighter mb-2">OMNIPROJECT</h1>
-          <p className="text-sm font-mono text-muted-foreground uppercase tracking-widest">ORCHESTRATION SHELL_v1.0</p>
+          <h1 className="text-2xl font-black uppercase tracking-tighter mb-2">{brand.appName}</h1>
+          <p className="text-sm font-mono text-muted-foreground uppercase tracking-widest">{brand.loginHeading}</p>
         </div>
 
         <Button
@@ -45,7 +51,7 @@ export function Login() {
         )}
 
         <div className="mt-8 pt-8 border-t-2 border-border text-center">
-          <p className="text-xs text-muted-foreground font-mono">SECURE. FAST. KEYBOARD DRIVEN.</p>
+          <p className="text-xs text-muted-foreground font-mono">{brand.footerText || "SECURE. FAST. KEYBOARD DRIVEN."}</p>
         </div>
       </div>
     </div>
