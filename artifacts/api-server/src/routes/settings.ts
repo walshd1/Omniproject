@@ -5,14 +5,12 @@ import { captureVersion } from "../lib/config-store";
 
 /**
  * Gateway-local settings (the broker URL, AI provider, …). Control-plane, never
- * brokered to a backend. The deprecated `n8nWebhookUrl` is mirrored on read and
- * accepted on write as an alias of `brokerUrl` (see docs/BROKER.md, Stage B).
+ * brokered to a backend.
  */
 const router = Router();
 
 router.get("/settings", (_req, res) => {
-  const s = getSettings();
-  res.json({ ...s, n8nWebhookUrl: s.brokerUrl });
+  res.json(getSettings());
 });
 
 // Changing settings re-wires the gateway (broker URL, AI provider) — admin only.

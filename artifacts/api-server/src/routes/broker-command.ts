@@ -1,9 +1,8 @@
 /*
  * Generic broker command passthrough (the command-palette edge).
  *
- * Canonical route: POST /api/broker/command. The legacy POST /api/n8n-proxy is
- * kept as a deprecated alias for back-compat. This is the one place above the
- * seam permitted to import the n8n adapter directly (it IS the adapter's command
+ * Route: POST /api/broker/command. This is the one place above the seam
+ * permitted to import the n8n adapter directly (it IS the adapter's command
  * edge); see docs/BROKER.md → boundary invariants.
  */
 import { Router, type Request, type Response } from "express";
@@ -37,7 +36,6 @@ async function handle(req: Request, res: Response): Promise<void> {
   }
 }
 
-router.post("/broker/command", handle); // canonical
-router.post("/n8n-proxy", handle); // deprecated alias (v0.1 compatibility)
+router.post("/broker/command", handle);
 
 export default router;

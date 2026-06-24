@@ -10,7 +10,7 @@ import { logger } from "./logger";
  * that survive restarts without wiring n8n or a backend.
  *
  * Dev/test only: in production OmniProject is a stateless overlay and serves
- * real data through n8n; this file store is never used when N8N_WEBHOOK_URL is
+ * real data through n8n; this file store is never used when BROKER_URL is
  * set. Pure save/load helpers so they're unit-tested.
  */
 

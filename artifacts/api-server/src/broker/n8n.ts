@@ -35,7 +35,7 @@ import {
 const GATEWAY_ORIGIN = "omniproject";
 
 /** True when a broker is wired via the environment (selection signal at boot). */
-const ENV_WEBHOOK = process.env["BROKER_URL"]?.trim() || process.env["N8N_WEBHOOK_URL"]?.trim();
+const ENV_WEBHOOK = process.env["BROKER_URL"]?.trim();
 export const N8N_ENV_CONFIGURED = !!ENV_WEBHOOK;
 
 interface N8nResult<T = unknown> {
@@ -271,7 +271,7 @@ export class N8nBroker implements Broker {
   }
 
   /**
-   * Source-preserving passthrough for the frozen /n8n-proxy edge (which carries
+   * Source-preserving passthrough for the frozen broker-command edge (which carries
    * the caller's `source` label as part of the shipped contract). Not on the
    * Broker interface — `source` is an n8n-envelope concern.
    */
@@ -304,5 +304,5 @@ export class N8nBroker implements Broker {
   }
 }
 
-/** The n8n adapter exposes its generic command path for the frozen /n8n-proxy route. */
+/** The n8n adapter exposes its generic command path for the broker-command route. */
 export type { N8nResult };

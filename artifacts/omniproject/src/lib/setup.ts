@@ -5,7 +5,7 @@ import type { Role } from "./auth";
 export interface SetupStatus {
   configured: boolean;
   role: Role;
-  n8n: { configured: boolean; webhookUrlSet: boolean };
+  broker: { configured: boolean; urlSet: boolean };
   auth: { mode: "oidc" | "demo" };
   ai: { provider: string };
   realtime?: { enabled: boolean; bus: "in-process" | "redis" };

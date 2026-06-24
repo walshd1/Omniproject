@@ -9,7 +9,7 @@ import { BrokerError, type Broker, type ActorContext } from "./types";
  * Broker selection + the request→domain context adapter.
  *
  * `getBroker()` picks the implementation ONCE: the n8n adapter when a backend is
- * wired (N8N_WEBHOOK_URL), else the demo adapter. Everything above this module
+ * wired (BROKER_URL), else the demo adapter. Everything above this module
  * imports `getBroker()` and the `Broker` interface — never a concrete adapter.
  */
 

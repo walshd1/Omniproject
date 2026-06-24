@@ -10,12 +10,6 @@ import type { SettingsUpdateAiProvider } from './settingsUpdateAiProvider';
 export interface SettingsUpdate {
   /** @nullable */
   brokerUrl?: string | null;
-  /**
-     * Deprecated alias of brokerUrl (accepted on write).
-     * @deprecated
-     * @nullable
-     */
-  n8nWebhookUrl?: string | null;
   aiProvider?: SettingsUpdateAiProvider;
   /** @nullable */
   aiModel?: string | null;

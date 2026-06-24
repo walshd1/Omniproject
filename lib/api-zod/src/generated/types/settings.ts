@@ -13,12 +13,6 @@ export interface Settings {
      * @nullable
      */
   brokerUrl?: string | null;
-  /**
-     * Deprecated alias of brokerUrl, mirrored for back-compat.
-     * @deprecated
-     * @nullable
-     */
-  n8nWebhookUrl?: string | null;
   aiProvider: SettingsAiProvider;
   /** @nullable */
   aiModel?: string | null;
