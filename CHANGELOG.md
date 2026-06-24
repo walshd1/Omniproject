@@ -6,13 +6,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-06-24
+
+**Decoupling from n8n.** Early feedback on the 0.1.0 launch kept landing on one
+worry: *"isn't this just an n8n front-end — what happens to my data if n8n goes
+away?"* This release answers it structurally. n8n is still the only broker that
+ships, and the wire contract is byte-for-byte unchanged — but the codebase is now
+*incapable of knowing the broker is n8n* above a single seam. If n8n is ever
+superseded, you implement one class and nothing else moves. The public surface is
+renamed to match (no more n8n in the API, env, or settings you touch).
+
 ### Removed (BREAKING)
-- **Dropped the deprecated broker-boundary aliases.** Pre-1.0 cleanup: the v0.1
-  n8n-named public surface is gone — use the canonical names. `POST /api/n8n-proxy`
-  → `POST /api/broker/command`; `Settings.n8nWebhookUrl` → `brokerUrl`;
-  `N8N_WEBHOOK_URL` env → `BROKER_URL`; and `GET /api/setup/status.n8n` →
-  `.broker` (`{ configured, urlSet }`). Update any external API clients,
-  environment, and config snapshots accordingly.
+- **The n8n-named public surface is gone — use the canonical broker names.**
+  Pre-1.0 cleanup: `POST /api/n8n-proxy` → `POST /api/broker/command`;
+  `Settings.n8nWebhookUrl` → `brokerUrl`; `N8N_WEBHOOK_URL` env → `BROKER_URL`;
+  and `GET /api/setup/status.n8n` → `.broker` (`{ configured, urlSet }`). If you
+  ran 0.1.0, update your `.env` (rename `N8N_WEBHOOK_URL` to `BROKER_URL`), any
+  external API clients, and saved config snapshots accordingly.
 
 ### Changed
 - **Broker boundary extraction.** The gateway now talks to a single `Broker`
@@ -24,12 +34,6 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   broker is n8n. Behaviour-preserving: same API surface, same n8n wire contract,
   same demo experience. See [docs/BROKER.md](docs/BROKER.md) and
   [ADR 0001](docs/adr/0001-broker-boundary.md).
-- **De-n8n'd the public surface (broker boundary, Stage B).** The shipped n8n
-  names are now broker-neutral, with the old names kept as **deprecated aliases**
-  (nothing breaks): `POST /api/broker/command` (alias `…/n8n-proxy`),
-  `Settings.brokerUrl` (alias `n8nWebhookUrl`, mirrored on read / accepted on
-  write), `BROKER_URL` env (alias `N8N_WEBHOOK_URL`), and `BrokerCommandInput` /
-  `BrokerCommandResult` schemas. Aliases removable in a future major version.
 
 ## [0.1.0] — 2026-06-24
 
@@ -77,5 +81,6 @@ backends, with n8n as the exclusive data broker.
   **OmniProject Premium License**. Provided **as is, without warranty**. See
   [LICENSING.md](LICENSING.md).
 
-[Unreleased]: https://github.com/walshd1/Omniproject/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/walshd1/Omniproject/releases/tag/v0.1.0
+[Unreleased]: https://github.com/walshd1/Omniproject/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/walshd1/Omniproject/compare/0.1.0...0.2.0
+[0.1.0]: https://github.com/walshd1/Omniproject/releases/tag/0.1.0
