@@ -9,11 +9,17 @@ import type { SettingsUpdateAiProvider } from './settingsUpdateAiProvider';
 
 export interface SettingsUpdate {
   /** @nullable */
+  brokerUrl?: string | null;
+  /**
+     * Deprecated alias of brokerUrl (accepted on write).
+     * @deprecated
+     * @nullable
+     */
   n8nWebhookUrl?: string | null;
   aiProvider?: SettingsUpdateAiProvider;
   /** @nullable */
   aiModel?: string | null;
-  /** Free-form backend routing hint passed to n8n (see Settings.backendSource). */
+  /** Free-form backend routing hint passed to the broker (see Settings.backendSource). */
   backendSource?: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;

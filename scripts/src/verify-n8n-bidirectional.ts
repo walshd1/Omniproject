@@ -325,7 +325,7 @@ const del = (url: string) => method("DELETE", url);
 
 // ── Test suites ───────────────────────────────────────────────────────────────
 async function testOutbound(apiBase: string) {
-  console.log(bold("\n[1] Outbound: UI → n8n (via /api/n8n-proxy)"));
+  console.log(bold("\n[1] Outbound: UI → n8n (via /api/broker/command)"));
 
   const payload = {
     action: "create_ticket",
@@ -341,7 +341,7 @@ async function testOutbound(apiBase: string) {
   let result: { status: number; data: unknown };
 
   try {
-    result = await post(`${apiBase}/api/n8n-proxy`, payload, {
+    result = await post(`${apiBase}/api/broker/command`, payload, {
       Authorization: "Bearer mock-oidc-token-abc123",
     });
   } catch (err) {
@@ -800,7 +800,7 @@ async function testSetup(apiBase: string) {
   try {
     const r = await get(`${apiBase}/api/setup/export?format=env`);
     assert("GET /setup/export returns 200", r.status === 200, `got ${r.status}`);
-    assert("Exported .env carries N8N_WEBHOOK_URL", typeof r.data === "string" && r.data.includes("N8N_WEBHOOK_URL"));
+    assert("Exported .env carries BROKER_URL", typeof r.data === "string" && r.data.includes("BROKER_URL"));
   } catch {
     assert("GET /setup/export reachable", false);
   }
@@ -1069,7 +1069,7 @@ async function main() {
     // mode for typed routes, so we exercise both the real sample-data logic and
     // the proxy brokering against the mock.
     await patch(`${apiBase}/api/settings`, {
-      n8nWebhookUrl: mockN8nUrl,
+      brokerUrl: mockN8nUrl,
     }).catch(() => null);
 
     await testOutbound(apiBase);

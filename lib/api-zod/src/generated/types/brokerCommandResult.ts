@@ -5,11 +5,11 @@
  * OmniProject API — thin proxy gateway to n8n webhooks
  * OpenAPI spec version: 0.1.0
  */
-import type { N8nActionResultData } from './n8nActionResultData';
+import type { BrokerCommandResultData } from './brokerCommandResultData';
 
-export interface N8nActionResult {
+export interface BrokerCommandResult {
   success: boolean;
-  data?: N8nActionResultData;
+  data?: BrokerCommandResultData;
   /** @nullable */
   message?: string | null;
 }

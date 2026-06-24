@@ -60,21 +60,31 @@ webhook envelope (`{ action, payload, source, origin, idempotencyKey }`), the
 …), n8n source labels (`capacity_engine`, …), `N8N_WEBHOOK_URL`, or the
 `{ success, data, message }` response shape. All of that lives in `N8nBroker`.
 
-### Documented exceptions (the frozen v0.1 public surface)
+### Public surface — now broker-named, with deprecated aliases (Stage B)
 
-A few names shipped in the public API/UI before the seam existed and are kept for
-back-compat. They are the n8n adapter's *external edge*, not a leak, and are
-explicitly allowed by the guard:
+The public API/UI no longer leads with n8n. The canonical names are
+broker-neutral; the old n8n names are kept as **deprecated aliases** so nothing
+breaks:
 
-- the **`POST /api/n8n-proxy`** route + its `N8nActionInput` schema
-  (`routes/n8n-proxy.ts` — the one place permitted to import `../broker/n8n`);
-- the **`n8nWebhookUrl`** setting (`lib/settings.ts`, config export/snapshot);
+| Canonical | Deprecated alias (still works) |
+| --------- | ------------------------------ |
+| `POST /api/broker/command` | `POST /api/n8n-proxy` |
+| `BrokerCommandInput` / `BrokerCommandResult` schemas | (old `N8nActionInput` removed from the spec) |
+| `Settings.brokerUrl` | `Settings.n8nWebhookUrl` (mirrored on read, accepted on write) |
+| `BROKER_URL` env | `N8N_WEBHOOK_URL` env |
+
+The remaining, *intentional* n8n names are the adapter's edge and are
+guard-allowed:
+
+- **`routes/broker-command.ts`** — serves both routes; the one place permitted to
+  import `../broker/n8n` (it is the adapter's command edge);
+- **`lib/settings.ts`** + config export/snapshot — carry the deprecated
+  `n8nWebhookUrl`/`N8N_WEBHOOK_URL` aliases for back-compat;
 - the **workflow generator** (`lib/n8n-backends.ts`, `n8n-generator.ts`,
-  `n8n-expr.ts`) — it emits n8n workflow JSON, so it is n8n-specific by nature
-  and lives alongside, but logically under, the seam.
+  `n8n-expr.ts`) — emits n8n workflow JSON, n8n-specific by nature, alongside but
+  logically under the seam.
 
-De-n8n-ing this public surface (e.g. `/broker/command`, `brokerUrl`) is a future
-breaking change tracked separately; do it behind deprecated aliases.
+The aliases can be removed in a future major version once consumers migrate.
 
 ## Demo mode is the DemoBroker
 

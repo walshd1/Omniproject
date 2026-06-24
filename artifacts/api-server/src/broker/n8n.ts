@@ -34,9 +34,9 @@ import {
 /** The gateway is the origin of UI-initiated changes (loop-guard tag). */
 const GATEWAY_ORIGIN = "omniproject";
 
-/** True when n8n is wired via the environment (selection signal at boot). */
-export const N8N_ENV_CONFIGURED = !!process.env["N8N_WEBHOOK_URL"]?.trim();
-const ENV_WEBHOOK = process.env["N8N_WEBHOOK_URL"]?.trim();
+/** True when a broker is wired via the environment (selection signal at boot). */
+const ENV_WEBHOOK = process.env["BROKER_URL"]?.trim() || process.env["N8N_WEBHOOK_URL"]?.trim();
+export const N8N_ENV_CONFIGURED = !!ENV_WEBHOOK;
 
 interface N8nResult<T = unknown> {
   success: boolean;
@@ -46,7 +46,7 @@ interface N8nResult<T = unknown> {
 
 function webhookUrl(): string {
   // Settings may override the env default at runtime.
-  return getSettings().n8nWebhookUrl || ENV_WEBHOOK || "http://localhost:5678/webhook/omniproject";
+  return getSettings().brokerUrl || ENV_WEBHOOK || "http://localhost:5678/webhook/omniproject";
 }
 
 /**

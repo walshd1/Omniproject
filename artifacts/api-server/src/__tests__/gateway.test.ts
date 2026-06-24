@@ -485,11 +485,11 @@ test("resolveCapabilities: CAPABILITIES env enables only the listed domains", as
 });
 
 // ── Config export (Setup wizard, stateless) ───────────────────────────────────
-test("configEntries: emits the configured n8n URL, not the placeholder", () => {
-  const entries = configEntries({ n8nWebhookUrl: "https://n8n.acme.io/webhook/omni" });
-  const n8n = entries.find((e) => e.key === "N8N_WEBHOOK_URL");
-  assert.equal(n8n?.value, "https://n8n.acme.io/webhook/omni");
-  assert.notEqual(n8n?.placeholder, true);
+test("configEntries: emits the configured broker URL, not the placeholder", () => {
+  const entries = configEntries({ brokerUrl: "https://n8n.acme.io/webhook/omni" });
+  const broker = entries.find((e) => e.key === "BROKER_URL");
+  assert.equal(broker?.value, "https://n8n.acme.io/webhook/omni");
+  assert.notEqual(broker?.placeholder, true);
 });
 
 test("configEntries: OIDC issuer pulls in client id/secret placeholders", () => {
@@ -505,15 +505,15 @@ test("configEntries: backendSource 'all' is omitted (it's the default)", () => {
 });
 
 test("buildConfigExport: env masks secrets as placeholders", () => {
-  const out = buildConfigExport({ n8nWebhookUrl: "https://n8n/x", oidcIssuerUrl: "https://auth" }, "env");
-  assert.match(out, /N8N_WEBHOOK_URL=https:\/\/n8n\/x/);
+  const out = buildConfigExport({ brokerUrl: "https://n8n/x", oidcIssuerUrl: "https://auth" }, "env");
+  assert.match(out, /BROKER_URL=https:\/\/n8n\/x/);
   assert.match(out, /OIDC_CLIENT_SECRET=<OIDC_CLIENT_SECRET>/);
   assert.match(out, /SESSION_SECRET=<SESSION_SECRET>/);
 });
 
 test("buildConfigExport: compose and k8s render their own shapes", () => {
-  assert.match(buildConfigExport({ n8nWebhookUrl: "https://n8n/x" }, "compose"), /services:\n {2}omniproject:/);
-  assert.match(buildConfigExport({ n8nWebhookUrl: "https://n8n/x" }, "k8s"), /kind: ConfigMap/);
+  assert.match(buildConfigExport({ brokerUrl: "https://n8n/x" }, "compose"), /services:\n {2}omniproject:/);
+  assert.match(buildConfigExport({ brokerUrl: "https://n8n/x" }, "k8s"), /kind: ConfigMap/);
 });
 
 // ── Backend manifests + workflow generator ────────────────────────────────────
@@ -648,7 +648,7 @@ test("certify all HTTP backends: read URLs fully resolve (no dangling placeholde
 
 // ── Config snapshot / backup-restore ───────────────────────────────────────────
 const SAMPLE_SETTINGS = {
-  n8nWebhookUrl: "https://n8n/x",
+  brokerUrl: "https://n8n/x",
   aiProvider: "ollama" as const,
   aiModel: "llama3.2",
   backendSource: "sap",
@@ -669,7 +669,7 @@ test("buildSnapshot: captures the gateway settings with schema + version", () =>
 test("applySnapshot: round-trips a built snapshot into a settings patch", () => {
   const snap = buildSnapshot(SAMPLE_SETTINGS);
   const { patch, warnings } = applySnapshot(snap);
-  assert.equal(patch["n8nWebhookUrl"], "https://n8n/x");
+  assert.equal(patch["brokerUrl"], "https://n8n/x");
   assert.equal(patch["aiProvider"], "ollama");
   assert.equal(warnings.length, 0);
 });
@@ -682,7 +682,12 @@ test("applySnapshot: warns on unknown keys and missing keys, never throws on the
   const { patch, warnings } = applySnapshot({ schema: SNAPSHOT_SCHEMA, version: 1, settings: { backendSource: "jira", bogus: 1 } });
   assert.equal(patch["backendSource"], "jira");
   assert.ok(warnings.some((w) => /bogus/.test(w)));
-  assert.ok(warnings.some((w) => /n8nWebhookUrl/.test(w)));
+  assert.ok(warnings.some((w) => /brokerUrl/.test(w)));
+});
+
+test("applySnapshot: accepts the deprecated n8nWebhookUrl alias", () => {
+  const { patch } = applySnapshot({ schema: SNAPSHOT_SCHEMA, version: 1, settings: { n8nWebhookUrl: "https://legacy/x", aiProvider: "none", backendSource: "all" } });
+  assert.equal(patch["brokerUrl"], "https://legacy/x");
 });
 
 test("resolveCapabilities: demo mode (no n8n, no env) turns everything on", async () => {

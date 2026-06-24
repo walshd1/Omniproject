@@ -77,7 +77,7 @@ test("guard: the n8n call API does not appear outside src/broker", () => {
 // Importing src/broker/n8n directly is the adapter's own concern; the only
 // permitted consumer above it is the frozen /n8n-proxy route (documented).
 const ADAPTER_IMPORT = /from\s+["'][^"']*\/broker\/n8n["']/;
-const ADAPTER_IMPORT_ALLOWED = new Set(["routes/n8n-proxy.ts"]);
+const ADAPTER_IMPORT_ALLOWED = new Set(["routes/broker-command.ts"]);
 
 test("guard: nothing above the seam imports the n8n adapter directly", () => {
   const offenders: string[] = [];

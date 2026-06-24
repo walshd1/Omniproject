@@ -21,7 +21,7 @@ export function Settings() {
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
-    n8nWebhookUrl: "",
+    brokerUrl: "",
     aiProvider: "none",
     aiModel: "",
     backendSource: "all",
@@ -33,7 +33,7 @@ export function Settings() {
   useEffect(() => {
     if (settings) {
       setFormData({
-        n8nWebhookUrl: settings.n8nWebhookUrl || "",
+        brokerUrl: settings.brokerUrl || "",
         aiProvider: settings.aiProvider || "none",
         aiModel: settings.aiModel || "",
         backendSource: settings.backendSource || "all",
@@ -45,7 +45,7 @@ export function Settings() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const payload: SettingsUpdate = {
-      n8nWebhookUrl: formData.n8nWebhookUrl.trim() || null,
+      brokerUrl: formData.brokerUrl.trim() || null,
       aiProvider: formData.aiProvider as SettingsUpdate["aiProvider"],
       aiModel: formData.aiModel.trim() || null,
       backendSource: formData.backendSource as SettingsUpdate["backendSource"],
@@ -89,14 +89,14 @@ export function Settings() {
         <div className="space-y-6 p-6 border border-border bg-card">
           <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Orchestration</h2>
           <div className="space-y-2">
-            <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">N8N WEBHOOK URL</label>
+            <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">BROKER URL (n8n)</label>
             <Input
-              value={formData.n8nWebhookUrl}
-              onChange={(e) => setFormData((p) => ({ ...p, n8nWebhookUrl: e.target.value }))}
+              value={formData.brokerUrl}
+              onChange={(e) => setFormData((p) => ({ ...p, brokerUrl: e.target.value }))}
               placeholder="https://n8n.example.com/webhook/..."
               className="rounded-none border-border font-mono h-12"
             />
-            <p className="text-xs text-muted-foreground">All project data is brokered through this n8n webhook.</p>
+            <p className="text-xs text-muted-foreground">All project data is brokered through this URL (n8n by default).</p>
           </div>
 
           <div className="space-y-2">

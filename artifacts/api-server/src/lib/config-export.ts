@@ -8,7 +8,7 @@
  */
 
 export interface ConfigExportInput {
-  n8nWebhookUrl?: string | null;
+  brokerUrl?: string | null;
   backendSource?: string | null;
   aiProvider?: string | null;
   aiModel?: string | null;
@@ -32,14 +32,14 @@ export function configEntries(input: ConfigExportInput): Entry[] {
 
   entries.push({ key: "PORT", value: "3000", comment: "Port the single-container omni-shell listens on" });
 
-  if (input.n8nWebhookUrl?.trim()) {
-    entries.push({ key: "N8N_WEBHOOK_URL", value: input.n8nWebhookUrl.trim(), comment: "The webhook every data action is brokered through" });
+  if (input.brokerUrl?.trim()) {
+    entries.push({ key: "BROKER_URL", value: input.brokerUrl.trim(), comment: "The broker endpoint every data action is brokered through (n8n by default)" });
   } else {
-    entries.push({ key: "N8N_WEBHOOK_URL", value: "https://n8n.example.com/webhook/omniproject", placeholder: true, comment: "Unset = demo mode (sample data)" });
+    entries.push({ key: "BROKER_URL", value: "https://n8n.example.com/webhook/omniproject", placeholder: true, comment: "Unset = demo mode (sample data). n8n is the default broker." });
   }
 
   if (input.backendSource?.trim() && input.backendSource.trim() !== "all") {
-    entries.push({ key: "BACKEND_SOURCE", value: input.backendSource.trim(), comment: "Routing hint sent to n8n (default: all)" });
+    entries.push({ key: "BACKEND_SOURCE", value: input.backendSource.trim(), comment: "Routing hint sent to the broker (default: all)" });
   }
 
   if (input.aiProvider?.trim() && input.aiProvider.trim() !== "none") {

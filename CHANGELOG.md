@@ -16,6 +16,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   broker is n8n. Behaviour-preserving: same API surface, same n8n wire contract,
   same demo experience. See [docs/BROKER.md](docs/BROKER.md) and
   [ADR 0001](docs/adr/0001-broker-boundary.md).
+- **De-n8n'd the public surface (broker boundary, Stage B).** The shipped n8n
+  names are now broker-neutral, with the old names kept as **deprecated aliases**
+  (nothing breaks): `POST /api/broker/command` (alias `…/n8n-proxy`),
+  `Settings.brokerUrl` (alias `n8nWebhookUrl`, mirrored on read / accepted on
+  write), `BROKER_URL` env (alias `N8N_WEBHOOK_URL`), and `BrokerCommandInput` /
+  `BrokerCommandResult` schemas. Aliases removable in a future major version.
 
 ## [0.1.0] — 2026-06-24
 

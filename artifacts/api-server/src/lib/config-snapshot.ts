@@ -19,7 +19,7 @@ export const SNAPSHOT_VERSION = 1;
 // Branding + label overrides are portable presentation config (no secrets) so
 // they ride along in snapshots. Webhook subscriptions are deliberately excluded
 // — they carry signing secrets and are environment-specific (see WEBHOOKS env).
-const SNAPSHOT_KEYS = ["n8nWebhookUrl", "aiProvider", "aiModel", "backendSource", "oidcIssuerUrl", "branding", "labelOverrides"] as const;
+const SNAPSHOT_KEYS = ["brokerUrl", "aiProvider", "aiModel", "backendSource", "oidcIssuerUrl", "branding", "labelOverrides"] as const;
 type SnapshotKey = (typeof SNAPSHOT_KEYS)[number];
 
 export interface ConfigSnapshot {
@@ -35,7 +35,7 @@ export function buildSnapshot(settings: SettingsState): ConfigSnapshot {
     version: SNAPSHOT_VERSION,
     createdAt: new Date().toISOString(),
     settings: {
-      n8nWebhookUrl: settings.n8nWebhookUrl,
+      brokerUrl: settings.brokerUrl,
       aiProvider: settings.aiProvider,
       aiModel: settings.aiModel,
       backendSource: settings.backendSource,
@@ -60,6 +60,9 @@ export function applySnapshot(input: unknown): { patch: Record<string, unknown>;
 
   const s = snap.settings;
   if (!s || typeof s !== "object") throw new Error("Snapshot is missing a settings object");
+
+  // Back-compat: older snapshots used `n8nWebhookUrl` for `brokerUrl`.
+  if ("n8nWebhookUrl" in s && !("brokerUrl" in s)) (s as Record<string, unknown>)["brokerUrl"] = (s as Record<string, unknown>)["n8nWebhookUrl"];
 
   const patch: Record<string, unknown> = {};
   for (const key of SNAPSHOT_KEYS) {

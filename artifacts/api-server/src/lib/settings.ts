@@ -34,7 +34,8 @@ export interface WebhookSubscription {
 }
 
 export interface SettingsState {
-  n8nWebhookUrl: string | null;
+  /** The active broker's webhook/endpoint URL (n8n by default). */
+  brokerUrl: string | null;
   aiProvider: AiProvider;
   aiModel: string | null;
   backendSource: BackendSource;
@@ -96,7 +97,8 @@ function webhooksFromEnv(): WebhookSubscription[] {
 }
 
 const store: SettingsState = {
-  n8nWebhookUrl: process.env["N8N_WEBHOOK_URL"] ?? null,
+  // Canonical BROKER_URL; legacy N8N_WEBHOOK_URL still honoured.
+  brokerUrl: process.env["BROKER_URL"]?.trim() || process.env["N8N_WEBHOOK_URL"] || null,
   aiProvider: (process.env["AI_PROVIDER"] as AiProvider) || "none",
   aiModel: process.env["AI_MODEL"] ?? null,
   backendSource: process.env["BACKEND_SOURCE"]?.trim() || "all",
@@ -107,7 +109,7 @@ const store: SettingsState = {
 };
 
 const ALLOWED_KEYS: (keyof SettingsState)[] = [
-  "n8nWebhookUrl",
+  "brokerUrl",
   "aiProvider",
   "aiModel",
   "backendSource",
@@ -122,10 +124,13 @@ export function getSettings(): SettingsState {
 }
 
 export function updateSettings(patch: Record<string, unknown>): SettingsState {
+  // Back-compat: accept the deprecated `n8nWebhookUrl` alias for `brokerUrl`.
+  const normalised: Record<string, unknown> =
+    "n8nWebhookUrl" in patch && !("brokerUrl" in patch) ? { ...patch, brokerUrl: patch["n8nWebhookUrl"] } : patch;
   const writable = store as unknown as Record<string, unknown>;
   for (const key of ALLOWED_KEYS) {
-    if (key in patch) {
-      writable[key] = patch[key];
+    if (key in normalised) {
+      writable[key] = normalised[key];
     }
   }
   return { ...store };
