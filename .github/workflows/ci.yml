@@ -76,3 +76,28 @@ jobs:
           STATUS=$?
           kill $SERVER_PID 2>/dev/null || true
           exit $STATUS
+
+      - name: E2E smoke + stress (200 projects, 2000 users)
+        env:
+          STATIC_DIR: artifacts/omniproject/dist/public
+          DEMO_SCALE_PROJECTS: "200"
+          RATE_LIMIT_DISABLED: "true"
+          NOTIFY_INGEST_SECRET: omni-verify-secret
+        run: |
+          PORT=5050 STATIC_DIR=$STATIC_DIR DEMO_SCALE_PROJECTS=$DEMO_SCALE_PROJECTS RATE_LIMIT_DISABLED=$RATE_LIMIT_DISABLED \
+            node artifacts/api-server/dist/index.mjs &
+          SERVER_PID=$!
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:5050/api/healthz >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          set +e
+          OMNI_API_BASE=http://localhost:5050 pnpm --filter @workspace/scripts run e2e-smoke
+          E2E=$?
+          OMNI_API_BASE=http://localhost:5050 STRESS_USERS=2000 pnpm --filter @workspace/scripts run stress
+          STRESS=$?
+          kill $SERVER_PID 2>/dev/null || true
+          [ $E2E -eq 0 ] && [ $STRESS -eq 0 ]
+
+      - name: Backend mapping certification (live, env-gated; skips without creds)
+        run: pnpm --filter @workspace/scripts run integration:openproject

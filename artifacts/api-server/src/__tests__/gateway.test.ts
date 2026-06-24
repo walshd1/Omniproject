@@ -12,6 +12,7 @@ import { BACKENDS, getBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
 import { buildSnapshot, applySnapshot, SNAPSHOT_SCHEMA } from "../lib/config-snapshot";
 import { convertAmount, supportedCurrencies } from "../lib/currency";
+import { resolveTemplate, isFullyResolved } from "../lib/n8n-expr";
 import { parseJwt, verifySignatureWithJwk, validateClaims, verifyIdToken, type Jwk } from "../lib/jwks";
 import { clientMatches, addClient } from "../lib/notify-hub";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
@@ -316,6 +317,51 @@ test("generateWorkflow: SAP uses an n8n-managed OAuth credential over HTTP", () 
   const list = wf.nodes.find((n) => n.name === "List Projects");
   assert.equal((list?.parameters as { authentication?: string }).authentication, "predefinedCredentialType");
   assert.ok(list?.credentials && "oAuth2Api" in (list.credentials as Record<string, unknown>));
+});
+
+// ── Backend mapping certification (offline) ────────────────────────────────────
+const CERT_CTX = {
+  env: { OPENPROJECT_INSTANCE_URL: "https://op.acme.io" },
+  payload: { projectId: "42", issueId: "1001", expectedVersion: 3 },
+};
+
+test("certify OpenProject: list/read URLs resolve to the real v3 API", () => {
+  const op = getBackend("openproject")!;
+  assert.equal(
+    resolveTemplate(op.actions.list_projects!.url!, CERT_CTX),
+    "https://op.acme.io/api/v3/projects",
+  );
+  assert.equal(
+    resolveTemplate(op.actions.list_issues!.url!, CERT_CTX),
+    "https://op.acme.io/api/v3/projects/42/work_packages",
+  );
+  assert.equal(
+    resolveTemplate(op.actions.update_issue!.url!, CERT_CTX),
+    "https://op.acme.io/api/v3/work_packages/1001",
+  );
+});
+
+test("certify OpenProject: HTTP methods match the contract", () => {
+  const a = getBackend("openproject")!.actions;
+  assert.equal(a.list_projects!.method, "GET");
+  assert.equal(a.create_issue!.method, "POST");
+  assert.equal(a.update_issue!.method, "PATCH");
+  assert.equal(a.delete_issue!.method, "DELETE");
+  // The update body must carry lockVersion for OpenProject's optimistic concurrency.
+  assert.match(a.update_issue!.body!, /lockVersion/);
+});
+
+test("certify all HTTP backends: read URLs fully resolve (no dangling placeholders)", () => {
+  const env: Record<string, string> = {};
+  // Provide a value for every env var any backend's reads reference.
+  for (const b of BACKENDS) for (const e of b.requiredEnv) env[e] = "https://x";
+  for (const b of BACKENDS) {
+    for (const action of ["list_projects", "list_issues"] as const) {
+      const m = b.actions[action];
+      if (!m || m.kind === "n8nNode" || !m.url) continue; // native nodes have no URL
+      assert.ok(isFullyResolved(m.url, { env, payload: CERT_CTX.payload }), `${b.id}.${action} left an unresolved placeholder`);
+    }
+  }
 });
 
 // ── Config snapshot / backup-restore ───────────────────────────────────────────

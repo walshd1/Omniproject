@@ -329,6 +329,30 @@ Canonical definitions are in `openapi.yaml`. Summary:
   Earned-Value report has a **display-currency** selector that converts via
   `convertAmount()` (base-anchored, unit-tested). No rates are stored.
 
+## Testing & scale
+
+CI runs (in order): typecheck → gateway unit tests → codegen-drift → builds →
+n8n contract verification → **E2E smoke + stress** → env-gated integration cert.
+
+| Harness | Command | What it does |
+| ------- | ------- | ------------ |
+| Unit | `pnpm --filter @workspace/api-server test` | 49 `node:test` cases — pure gateway logic (JWKS, RBAC, concurrency, currency, snapshot, mapping certification…). |
+| Contract | `pnpm --filter @workspace/scripts run verify-n8n` | 98 assertions over the live gateway + a mock n8n. |
+| **E2E smoke** | `pnpm --filter @workspace/scripts run e2e-smoke` | Single-container check: SPA shell is served + the critical journey (login → projects → issues → summary → capabilities → reports) responds. |
+| **Stress** | `pnpm --filter @workspace/scripts run stress` | Load test — `STRESS_USERS` (2000) × `STRESS_REQS` (3) at `STRESS_CONCURRENCY` (100); reports throughput + p50/p95/p99, fails over `STRESS_MAX_ERROR_RATE`. |
+| **Live cert** | `pnpm --filter @workspace/scripts run integration:openproject` | Certifies the OpenProject mapping against a real instance when `OPENPROJECT_LIVE_URL` + `OPENPROJECT_TOKEN` are set; SKIPS otherwise. |
+
+Scale knobs (env):
+
+- `DEMO_SCALE_PROJECTS=200` (+ `DEMO_SCALE_ISSUES=10`) — synthesise a large demo
+  portfolio for load/e2e testing without a backend.
+- `API_RATE_LIMIT_MAX` / `ANALYTICS_RATE_LIMIT_MAX` — tune the per-15-min ceilings
+  for high-concurrency deployments; `RATE_LIMIT_DISABLED=true` bypasses entirely
+  (behind an external gateway/WAF, or for a stress run).
+
+Reference run (single demo replica, GitHub-hosted runner): **6000 requests,
+0 errors, ~1800 req/s, p95 ≈ 90 ms** for 2000 virtual users over 200 projects.
+
 ## See also
 
 - [README](../README.md) — install, deploy, and use.
