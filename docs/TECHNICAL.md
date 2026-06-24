@@ -11,10 +11,12 @@ the API surface, data schemas, and how to extend the system.
 
 ## 1. Architecture
 
-OmniProject is a **stateless single pane of glass**. It stores no project data of
-its own; every read and write is brokered through **n8n**, which talks to the
-real backend(s) — Plane, OpenProject, Jira, Azure DevOps, ServiceNow, SAP,
-Dynamics 365, or anything else n8n can reach.
+OmniProject is a **read-through overlay with no database of its own**. It stores
+no project data; every read and write is brokered through **n8n**, which talks to
+the real backend(s) — Plane, OpenProject, Jira, Azure DevOps, ServiceNow, SAP,
+Dynamics 365, or anything else n8n can reach. Because nothing is copied, the
+backend stays the single source of truth and there is no cached state to fall out
+of sync — the UI is a *view*, never a fork of your data.
 
 ```
  Browser            omni-shell container (port 3000)            n8n              Backends

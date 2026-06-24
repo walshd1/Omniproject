@@ -1,28 +1,48 @@
 # OmniProject
 
-> A stateless **program-management overlay** — a single pane of glass over your
-> existing project backend(s) (Plane, OpenProject, Jira, Azure DevOps,
-> ServiceNow, …) with **n8n** as the exclusive middleware / API hub.
+> **A read-through overlay for project management with no database of its own.**
+> Your existing tools stay the single source of truth; OmniProject is just a
+> different view onto them — brokered entirely through **n8n**.
 
-OmniProject is a brutalist, keyboard-driven shell. It stores no project data
-itself — your backends run underneath and every read and write is brokered
-through n8n. It's **backend-agnostic**: anything n8n can reach can be federated
-underneath, so it slots in alongside the systems an organization already runs.
+Most "single pane of glass" tools quietly become a *second* place your data
+lives: they copy issues into their own store, and then you spend your life
+fixing sync drift. **OmniProject stores nothing.** Every read and write is
+brokered live through n8n to the systems that already own your data (Jira,
+OpenProject, ServiceNow, SAP, …). There is no copy, so there is nothing to fall
+out of sync — the backend is always right, and OmniProject just renders it.
+
+**Why no database is the feature, not a gap:**
+
+- **Nothing can get out of sync** — there's no cached copy to drift. What you see
+  is the backend, right now.
+- **One source of truth, many views** — programme rollup, portfolio RAG, a single
+  project board — all are *views*, never a fork of your data.
+- **Not another data store to secure or comply with** — no project data at rest in
+  OmniProject means a far smaller blast radius and an easy answer for data-
+  residency / audit reviews.
+- **Swap or add backends without migrating** — anything n8n can reach can be
+  federated underneath; the UI never changes.
+
+It's a brutalist, keyboard-driven shell that slots in *alongside* what an
+organization already runs, instead of asking them to move into it.
 
 ```
 ┌─────────────┐     /api/*      ┌──────────────┐    webhook     ┌────────┐    ┌──────────────┐
 │  SPA (Vite) │ ───────────────▶│  Gateway     │ ──────────────▶│  n8n   │───▶│ your backends │
-│  React 19   │◀─────────────── │  (Express)   │◀────────────── │        │    │ Plane / OP /  │
-└─────────────┘   normalized    └──────┬───────┘   normalized   └────────┘    │ Jira / SAP …  │
-                                       │  OIDC (Authorization Code + PKCE)     └──────────────┘
-                                       ▼
-                                  ┌──────────┐
+│  React 19   │◀─────────────── │  (Express)   │◀────────────── │        │    │ Jira / OP /   │
+└─────────────┘   normalized    └──────┬───────┘   normalized   └────────┘    │ ServiceNow /  │
+   (a view, not a copy)                │  OIDC (Authorization Code + PKCE)     │ SAP …         │
+                                       ▼                                       └──────────────┘
+                                  ┌──────────┐                          (the single source of truth)
                                   │   IdP    │  Authentik (standalone) / BYO-SSO (enterprise)
                                   └──────────┘
 ```
 
-In production the SPA and gateway ship as **one container** (`omni-shell`) on
-port `3000`.
+n8n is the **only** broker — there are no hand-rolled backend connectors to rot.
+You wire (or generate) one workflow per backend, and the user's own token is
+forwarded so writes happen *as them* (real per-user audit in the backend, not a
+shared admin key). In production the SPA and gateway ship as **one container**
+(`omni-shell`) on port `3000`.
 
 > **Implementing or integrating OmniProject?** See **[docs/TECHNICAL.md](docs/TECHNICAL.md)**
 > for architecture, the n8n contract, the security model, the API surface, and
