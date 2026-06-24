@@ -1,12 +1,20 @@
+/*
+ * Frozen public surface: the /n8n-proxy route + its N8nActionInput contract
+ * shipped in v0.1 and is the n8n adapter's external command edge. It is the one
+ * place above the seam that names n8n by design (see docs/BROKER.md → boundary
+ * invariants). The generic command itself goes straight to the n8n adapter.
+ */
 import { Router } from "express";
 import { N8nProxyBody } from "@workspace/api-zod";
-import { callN8n, authHeaderFromReq, userContextFromReq, N8nError } from "../lib/n8n";
+import { N8nBroker } from "../broker/n8n";
+import { contextFromReq, respondBrokerError } from "../broker";
 
 const router = Router();
+const broker = new N8nBroker();
 
 // Generic passthrough for arbitrary user actions (e.g. from the command
-// palette). Project/issue data uses the typed routes, which also flow through
-// the same n8n broker.
+// palette). Project/issue data uses the typed routes, which flow through the
+// same broker seam.
 router.post("/n8n-proxy", async (req, res) => {
   const parse = N8nProxyBody.safeParse(req.body);
   if (!parse.success) {
@@ -17,24 +25,16 @@ router.post("/n8n-proxy", async (req, res) => {
   const { action, source } = parse.data;
 
   // Never trust client-supplied identity. Strip any userContext/origin from the
-  // raw body; the server injects identity from the validated OIDC session below.
+  // raw body; the server injects identity from the validated OIDC session.
   const rawPayload = (parse.data.payload ?? {}) as Record<string, unknown>;
   const { userContext: _ignoredUserContext, origin: _ignoredOrigin, ...payload } = rawPayload;
 
   try {
-    const result = await callN8n(action, payload, {
-      authHeader: authHeaderFromReq(req),
-      source: source ?? "unknown",
-      userContext: userContextFromReq(req),
-    });
+    const result = await broker.commandWithSource(contextFromReq(req), action, payload, source ?? "unknown");
     res.json(result);
   } catch (err: unknown) {
-    const isTimeout = err instanceof Error && err.name === "TimeoutError";
-    req.log.error({ err, action }, "n8n proxy request failed");
-    const status = err instanceof N8nError ? err.status : 502;
-    res
-      .status(status)
-      .json({ error: isTimeout ? "n8n request timed out" : err instanceof N8nError ? err.message : "n8n unreachable" });
+    req.log.error({ err, action }, "proxy command failed");
+    respondBrokerError(res, err);
   }
 });
 

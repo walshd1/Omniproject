@@ -12,11 +12,20 @@ the API surface, data schemas, and how to extend the system.
 ## 1. Architecture
 
 OmniProject is a **read-through overlay with no database of its own**. It stores
-no project data; every read and write is brokered through **n8n**, which talks to
-the real backend(s) — Plane, OpenProject, Jira, Azure DevOps, ServiceNow, SAP,
-Dynamics 365, or anything else n8n can reach. Because nothing is copied, the
-backend stays the single source of truth and there is no cached state to fall out
-of sync — the UI is a *view*, never a fork of your data.
+no project data; every read and write is brokered to the real backend(s) — Plane,
+OpenProject, Jira, Azure DevOps, ServiceNow, SAP, Dynamics 365, or anything else
+the broker can reach. Because nothing is copied, the backend stays the single
+source of truth and there is no cached state to fall out of sync — the UI is a
+*view*, never a fork of your data.
+
+Internally the gateway talks to a **`Broker` interface** in its own domain
+vocabulary, never to a backend directly. **n8n is the first and only
+implementation** of that interface; the demo mode is a second (`DemoBroker`). All
+n8n specifics are confined to one adapter module behind the seam, and an
+architecture-guard test fails CI if any n8n-ism leaks above it — so "swap the
+broker if n8n is superseded" is a property the build enforces, not just an
+intention. See [BROKER.md](BROKER.md). The n8n contract documented in §3 is the
+**N8nBroker's** contract, under the seam.
 
 ```
  Browser            omni-shell container (port 3000)            n8n              Backends
@@ -128,6 +137,11 @@ Generate tokens with `openssl rand -hex 32`.
 ---
 
 ## 3. The n8n integration contract
+
+> This is the **N8nBroker's** wire contract — the webhook envelope, headers and
+> action catalogue live *inside the adapter* (`src/broker/n8n.ts`), under the
+> `Broker` seam (§1, [BROKER.md](BROKER.md)). Nothing above the seam sees any of
+> it. It is documented here because n8n is the implementation operators wire up.
 
 This is the core contract implementers build against. Everything the UI does
 (except auth/health/settings, which are gateway-local) becomes one webhook call.

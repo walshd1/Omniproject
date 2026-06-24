@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { isN8nConfigured, callN8n, authHeaderFromReq, userContextFromReq } from "./n8n";
+import { getBroker, contextFromReq } from "../broker";
 
 /**
  * Capability signal — which data domains the wired backend(s) can populate, so
@@ -7,8 +7,8 @@ import { isN8nConfigured, callN8n, authHeaderFromReq, userContextFromReq } from 
  * request. Resolution order:
  *   1. CAPABILITIES env (gateway-declared, authoritative) — comma list of
  *      enabled domains, e.g. "issues,scheduling,portfolio".
- *   2. n8n action `get_capabilities` (when configured) — the workflow declares
- *      what its backends expose; conservative defaults on error.
+ *   2. The active broker's capability report (live adapter probes its backend
+ *      with conservative defaults on error).
  *   3. Demo defaults — everything (sample data covers all reports).
  */
 
@@ -36,24 +36,6 @@ function build(mode: string, enabled: Partial<Record<CapabilityDomain, boolean>>
   return caps;
 }
 
-const ALL_ON = Object.fromEntries(CAPABILITY_DOMAINS.map((d) => [d, true])) as Record<CapabilityDomain, boolean>;
-
-// When n8n is configured but doesn't implement get_capabilities, assume only the
-// core domains so we don't promise resource/finance reports that aren't wired.
-const CONSERVATIVE: Record<CapabilityDomain, boolean> = {
-  issues: true,
-  scheduling: true,
-  portfolio: true,
-  resources: false,
-  financials: false,
-  baseline: false,
-  blockers: false,
-  // History/RAID depend on the backend exposing journals + a risk register;
-  // assume off until get_capabilities says otherwise.
-  history: false,
-  raid: false,
-};
-
 function fromEnv(): Capabilities | null {
   const raw = process.env["CAPABILITIES"]?.trim();
   if (!raw) return null;
@@ -62,31 +44,21 @@ function fromEnv(): Capabilities | null {
   return build("env", enabled);
 }
 
-let cache: { value: Capabilities; at: number } | null = null;
-const TTL_MS = 60_000;
-
+/**
+ * Resolve which data domains the active backend can populate. Order:
+ *   1. CAPABILITIES env (gateway-declared, authoritative).
+ *   2. The broker's own capability report — the demo adapter enables everything;
+ *      a live adapter probes its backend (with conservative defaults + caching).
+ * The `mode` mirrors the active broker.
+ */
 export async function resolveCapabilities(req: Request): Promise<Capabilities> {
   const env = fromEnv();
   if (env) return env;
 
-  if (!isN8nConfigured) return build("demo", ALL_ON);
-
-  if (cache && Date.now() - cache.at < TTL_MS) return cache.value;
-
-  try {
-    const result = await callN8n<Partial<Record<CapabilityDomain, boolean>>>(
-      "get_capabilities",
-      {},
-      { authHeader: authHeaderFromReq(req), source: "capability_probe", userContext: userContextFromReq(req) },
-    );
-    const data = result.data;
-    const caps =
-      data && typeof data === "object"
-        ? build("n8n", { ...CONSERVATIVE, ...data })
-        : build("n8n", CONSERVATIVE);
-    cache = { value: caps, at: Date.now() };
-    return caps;
-  } catch {
-    return build("n8n", CONSERVATIVE);
-  }
+  const broker = getBroker();
+  const flags = await broker.capabilities(contextFromReq(req)).catch(() => null);
+  const enabled = Object.fromEntries(
+    CAPABILITY_DOMAINS.map((d) => [d, !!flags?.[d]]),
+  ) as Record<CapabilityDomain, boolean>;
+  return build(broker.kind, enabled);
 }

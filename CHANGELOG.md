@@ -6,6 +6,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+- **Broker boundary extraction.** The gateway now talks to a single `Broker`
+  interface in its own domain vocabulary instead of calling n8n directly. n8n is
+  the first/only implementation (`N8nBroker`); demo mode is a second
+  (`DemoBroker`) rather than a parallel code path. All n8n specifics are confined
+  to one adapter, and an architecture-guard test fails CI if any n8n-ism leaks
+  above the seam — so the data path is structurally incapable of knowing the
+  broker is n8n. Behaviour-preserving: same API surface, same n8n wire contract,
+  same demo experience. See [docs/BROKER.md](docs/BROKER.md) and
+  [ADR 0001](docs/adr/0001-broker-boundary.md).
+
 ## [0.1.0] — 2026-06-24
 
 First public release. A stateless program-management overlay over headless PM

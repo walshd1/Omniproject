@@ -1,6 +1,6 @@
 import { Router, type Response } from "express";
 import { getSettings, updateSettings } from "../lib/settings";
-import { isN8nConfigured } from "../lib/n8n";
+import { isLiveBroker } from "../broker";
 import { isOidcConfigured } from "../lib/oidc";
 import { resolveCapabilities } from "../lib/capabilities";
 import { requireRole, roleForReq } from "../lib/rbac";
@@ -54,10 +54,10 @@ router.get("/setup/status", async (req, res) => {
   const settings = getSettings();
   const capabilities = await resolveCapabilities(req).catch(() => null);
   res.json({
-    configured: isN8nConfigured || !!settings.n8nWebhookUrl,
+    configured: isLiveBroker() || !!settings.n8nWebhookUrl,
     role: roleForReq(req),
     n8n: {
-      configured: isN8nConfigured || !!settings.n8nWebhookUrl,
+      configured: isLiveBroker() || !!settings.n8nWebhookUrl,
       webhookUrlSet: !!settings.n8nWebhookUrl,
     },
     auth: { mode: isOidcConfigured ? "oidc" : "demo" },
