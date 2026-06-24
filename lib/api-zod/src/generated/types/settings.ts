@@ -8,12 +8,21 @@
 import type { SettingsAiProvider } from './settingsAiProvider';
 
 export interface Settings {
-  /** @nullable */
+  /**
+     * The active broker's webhook/endpoint URL (n8n by default).
+     * @nullable
+     */
+  brokerUrl?: string | null;
+  /**
+     * Deprecated alias of brokerUrl, mirrored for back-compat.
+     * @deprecated
+     * @nullable
+     */
   n8nWebhookUrl?: string | null;
   aiProvider: SettingsAiProvider;
   /** @nullable */
   aiModel?: string | null;
-  /** Free-form backend routing hint passed to n8n (e.g. "all", "jira", "azure-devops", "servicenow", "plane", "openproject"). "all" means no filter — whatever n8n is wired to. No specific backend is required. */
+  /** Free-form backend routing hint passed to the broker (e.g. "all", "jira", "azure-devops", "servicenow", "plane", "openproject"). "all" means no filter — whatever the broker is wired to. */
   backendSource: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;

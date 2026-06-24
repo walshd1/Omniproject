@@ -54,11 +54,11 @@ router.get("/setup/status", async (req, res) => {
   const settings = getSettings();
   const capabilities = await resolveCapabilities(req).catch(() => null);
   res.json({
-    configured: isLiveBroker() || !!settings.n8nWebhookUrl,
+    configured: isLiveBroker() || !!settings.brokerUrl,
     role: roleForReq(req),
     n8n: {
-      configured: isLiveBroker() || !!settings.n8nWebhookUrl,
-      webhookUrlSet: !!settings.n8nWebhookUrl,
+      configured: isLiveBroker() || !!settings.brokerUrl,
+      webhookUrlSet: !!settings.brokerUrl,
     },
     auth: { mode: isOidcConfigured ? "oidc" : "demo" },
     ai: { provider: settings.aiProvider },
@@ -120,7 +120,7 @@ router.get("/setup/export", requireRole("admin"), (req, res) => {
   const s = getSettings();
   const text = buildConfigExport(
     {
-      n8nWebhookUrl: s.n8nWebhookUrl,
+      brokerUrl: s.brokerUrl,
       backendSource: s.backendSource,
       aiProvider: s.aiProvider,
       aiModel: s.aiModel,
@@ -169,7 +169,7 @@ router.post("/setup/generate-workflow", requireRole("admin"), (req, res) => {
 // The { verify: true } flag lets a generated workflow short-circuit so nothing
 // touches the backend; only read/declarative actions are probed regardless.
 router.post("/setup/verify-workflow", requireRole("admin"), async (req, res) => {
-  const url = (typeof req.body?.webhookUrl === "string" && req.body.webhookUrl.trim()) || getSettings().n8nWebhookUrl;
+  const url = (typeof req.body?.webhookUrl === "string" && req.body.webhookUrl.trim()) || getSettings().brokerUrl;
   if (!url || !/^https?:\/\//i.test(url)) {
     res.status(400).json({ error: "No n8n webhook configured. Connect n8n first or pass webhookUrl." });
     return;

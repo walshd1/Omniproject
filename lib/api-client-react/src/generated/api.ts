@@ -21,6 +21,8 @@ import type {
 
 import type {
   ActivityEntry,
+  BrokerCommandInput,
+  BrokerCommandResult,
   Capabilities,
   ConflictResponse,
   ErrorResponse,
@@ -28,8 +30,6 @@ import type {
   Issue,
   IssueInput,
   IssueUpdate,
-  N8nActionInput,
-  N8nActionResult,
   Notification,
   PortfolioHealthSummary,
   Programme,
@@ -136,38 +136,38 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
-export const getN8nProxyUrl = () => {
+export const getBrokerCommandUrl = () => {
 
 
 
 
-  return `/api/n8n-proxy`
+  return `/api/broker/command`
 }
 
 /**
- * Packages user action with OIDC token and POSTs to n8n webhook
- * @summary Forward action to n8n webhook
+ * Packages a user action with the OIDC token and forwards it to the active broker (the command-palette passthrough). Legacy alias: POST /n8n-proxy.
+ * @summary Forward a generic action to the broker
  */
-export const n8nProxy = async (n8nActionInput: N8nActionInput, options?: RequestInit): Promise<N8nActionResult> => {
+export const brokerCommand = async (brokerCommandInput: BrokerCommandInput, options?: RequestInit): Promise<BrokerCommandResult> => {
 
-  return customFetch<N8nActionResult>(getN8nProxyUrl(),
+  return customFetch<BrokerCommandResult>(getBrokerCommandUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      n8nActionInput,)
+      brokerCommandInput,)
   }
 );}
 
 
 
 
-export const getN8nProxyMutationOptions = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof n8nProxy>>, TError,{data: BodyType<N8nActionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof n8nProxy>>, TError,{data: BodyType<N8nActionInput>}, TContext> => {
+export const getBrokerCommandMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof brokerCommand>>, TError,{data: BodyType<BrokerCommandInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof brokerCommand>>, TError,{data: BodyType<BrokerCommandInput>}, TContext> => {
 
-const mutationKey = ['n8nProxy'];
+const mutationKey = ['brokerCommand'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -177,10 +177,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof n8nProxy>>, {data: BodyType<N8nActionInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof brokerCommand>>, {data: BodyType<BrokerCommandInput>}> = (props) => {
           const {data} = props ?? {};
 
-          return  n8nProxy(data,requestOptions)
+          return  brokerCommand(data,requestOptions)
         }
 
 
@@ -190,22 +190,22 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type N8nProxyMutationResult = NonNullable<Awaited<ReturnType<typeof n8nProxy>>>
-    export type N8nProxyMutationBody = BodyType<N8nActionInput>
-    export type N8nProxyMutationError = ErrorType<ErrorResponse>
+    export type BrokerCommandMutationResult = NonNullable<Awaited<ReturnType<typeof brokerCommand>>>
+    export type BrokerCommandMutationBody = BodyType<BrokerCommandInput>
+    export type BrokerCommandMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary Forward action to n8n webhook
+ * @summary Forward a generic action to the broker
  */
-export const useN8nProxy = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof n8nProxy>>, TError,{data: BodyType<N8nActionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useBrokerCommand = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof brokerCommand>>, TError,{data: BodyType<BrokerCommandInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof n8nProxy>>,
+        Awaited<ReturnType<typeof brokerCommand>>,
         TError,
-        {data: BodyType<N8nActionInput>},
+        {data: BodyType<BrokerCommandInput>},
         TContext
       > => {
-      return useMutation(getN8nProxyMutationOptions(options));
+      return useMutation(getBrokerCommandMutationOptions(options));
     }
 
 export const getListProjectsUrl = () => {

@@ -13,25 +13,25 @@ export interface ErrorResponse {
   error: string;
 }
 
-export type N8nActionInputPayload = { [key: string]: unknown };
+export type BrokerCommandInputPayload = { [key: string]: unknown };
 
-export interface N8nActionInput {
+export interface BrokerCommandInput {
   /** Action name (e.g. "create_ticket", "update_status") */
   action: string;
-  payload: N8nActionInputPayload;
+  payload: BrokerCommandInputPayload;
   /** Backend routing hint (free-form; e.g. "all", "jira", "plane") */
   source?: string;
-  /** Deterministic dedupe key the gateway appends (also sent as the X-OmniProject-Idempotency-Key header) so n8n can drop duplicate triggers within the same minute. */
+  /** Deterministic dedupe key the gateway appends (also sent as the X-OmniProject-Idempotency-Key header) so the broker can drop duplicate triggers within the same minute. */
   idempotencyKey?: string;
   /** System initiating the action (defaults to "omniproject"). */
   origin?: string;
 }
 
-export type N8nActionResultData = { [key: string]: unknown };
+export type BrokerCommandResultData = { [key: string]: unknown };
 
-export interface N8nActionResult {
+export interface BrokerCommandResult {
   success: boolean;
-  data?: N8nActionResultData;
+  data?: BrokerCommandResultData;
   /** @nullable */
   message?: string | null;
 }
@@ -366,12 +366,21 @@ export const SettingsAiProvider = {
 } as const;
 
 export interface Settings {
-  /** @nullable */
+  /**
+     * The active broker's webhook/endpoint URL (n8n by default).
+     * @nullable
+     */
+  brokerUrl?: string | null;
+  /**
+     * Deprecated alias of brokerUrl, mirrored for back-compat.
+     * @deprecated
+     * @nullable
+     */
   n8nWebhookUrl?: string | null;
   aiProvider: SettingsAiProvider;
   /** @nullable */
   aiModel?: string | null;
-  /** Free-form backend routing hint passed to n8n (e.g. "all", "jira", "azure-devops", "servicenow", "plane", "openproject"). "all" means no filter — whatever n8n is wired to. No specific backend is required. */
+  /** Free-form backend routing hint passed to the broker (e.g. "all", "jira", "azure-devops", "servicenow", "plane", "openproject"). "all" means no filter — whatever the broker is wired to. */
   backendSource: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
@@ -390,11 +399,17 @@ export const SettingsUpdateAiProvider = {
 
 export interface SettingsUpdate {
   /** @nullable */
+  brokerUrl?: string | null;
+  /**
+     * Deprecated alias of brokerUrl (accepted on write).
+     * @deprecated
+     * @nullable
+     */
   n8nWebhookUrl?: string | null;
   aiProvider?: SettingsUpdateAiProvider;
   /** @nullable */
   aiModel?: string | null;
-  /** Free-form backend routing hint passed to n8n (see Settings.backendSource). */
+  /** Free-form backend routing hint passed to the broker (see Settings.backendSource). */
   backendSource?: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;

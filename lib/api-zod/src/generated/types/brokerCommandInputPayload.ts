@@ -6,4 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type N8nActionResultData = { [key: string]: unknown };
+export type BrokerCommandInputPayload = { [key: string]: unknown };

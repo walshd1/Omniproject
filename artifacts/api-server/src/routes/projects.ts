@@ -9,7 +9,6 @@ import {
   GetProjectIssuesParams,
 } from "@workspace/api-zod";
 import { getBroker, contextFromReq, respondBrokerError } from "../broker";
-import { getSettings, updateSettings } from "../lib/settings";
 import {
   getProjects,
   getIssues,
@@ -23,7 +22,6 @@ import {
 import { analyticsLimiter } from "../lib/rate-limit";
 import { requireRole } from "../lib/rbac";
 import { getFxRates } from "../lib/currency";
-import { captureVersion } from "../lib/config-store";
 import { CreateRaidEntryBody } from "@workspace/api-zod";
 
 const router = Router();
@@ -251,20 +249,6 @@ router.get("/notifications", async (req, res) => {
     req.log.error({ err }, "get_notifications failed");
     respondBrokerError(res, err);
   }
-});
-
-// ── Settings (gateway-local, never brokered to a backend) ─────────────────────
-
-router.get("/settings", (_req, res) => {
-  res.json(getSettings());
-});
-
-// Settings change the gateway's wiring (broker URL, AI provider) — admin only.
-// Each change is versioned so it can be rolled back (see config-store).
-router.patch("/settings", requireRole("admin"), (req, res) => {
-  const settings = updateSettings(req.body ?? {});
-  captureVersion("settings updated");
-  res.json(settings);
 });
 
 export default router;

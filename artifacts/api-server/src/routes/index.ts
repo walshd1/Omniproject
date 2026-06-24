@@ -1,8 +1,9 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import healthRouter from "./health";
 import authRouter, { getSession } from "./auth";
-import n8nProxyRouter from "./n8n-proxy";
+import brokerCommandRouter from "./broker-command";
 import projectsRouter from "./projects";
+import settingsRouter from "./settings";
 import programmesRouter from "./programmes";
 import portfolioRouter from "./portfolio";
 import capabilitiesRouter from "./capabilities";
@@ -75,8 +76,9 @@ router.use(labelsRouter);
 // Protected routes: require an authenticated session (or read-only API token).
 router.use(requireAuth, licenseRouter);
 router.use(requireAuth, webhooksRouter);
-router.use(requireAuth, n8nProxyRouter);
+router.use(requireAuth, brokerCommandRouter);
 router.use(requireAuth, projectsRouter);
+router.use(requireAuth, settingsRouter);
 router.use(requireAuth, programmesRouter);
 router.use(requireAuth, portfolioRouter);
 router.use(requireAuth, capabilitiesRouter);

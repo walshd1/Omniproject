@@ -18,18 +18,18 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * Packages user action with OIDC token and POSTs to n8n webhook
- * @summary Forward action to n8n webhook
+ * Packages a user action with the OIDC token and forwards it to the active broker (the command-palette passthrough). Legacy alias: POST /n8n-proxy.
+ * @summary Forward a generic action to the broker
  */
-export const N8nProxyBody = zod.object({
+export const BrokerCommandBody = zod.object({
   "action": zod.string().describe('Action name (e.g. \"create_ticket\", \"update_status\")'),
   "payload": zod.record(zod.string(), zod.unknown()),
   "source": zod.string().optional().describe('Backend routing hint (free-form; e.g. \"all\", \"jira\", \"plane\")'),
-  "idempotencyKey": zod.string().optional().describe('Deterministic dedupe key the gateway appends (also sent as the X-OmniProject-Idempotency-Key header) so n8n can drop duplicate triggers within the same minute.'),
+  "idempotencyKey": zod.string().optional().describe('Deterministic dedupe key the gateway appends (also sent as the X-OmniProject-Idempotency-Key header) so the broker can drop duplicate triggers within the same minute.'),
   "origin": zod.string().optional().describe('System initiating the action (defaults to \"omniproject\").')
 })
 
-export const N8nProxyResponse = zod.object({
+export const BrokerCommandResponse = zod.object({
   "success": zod.boolean(),
   "data": zod.record(zod.string(), zod.unknown()).optional(),
   "message": zod.string().nullish()
@@ -428,10 +428,11 @@ export const GetCapabilitiesResponse = zod.object({
  * @summary Get integration settings
  */
 export const GetSettingsResponse = zod.object({
-  "n8nWebhookUrl": zod.string().nullish(),
+  "brokerUrl": zod.string().nullish().describe('The active broker\'s webhook\/endpoint URL (n8n by default).'),
+  "n8nWebhookUrl": zod.string().nullish().describe('Deprecated alias of brokerUrl, mirrored for back-compat.'),
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']),
   "aiModel": zod.string().nullish(),
-  "backendSource": zod.string().describe('Free-form backend routing hint passed to n8n (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever n8n is wired to. No specific backend is required.'),
+  "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
   "oidcIssuerUrl": zod.string().nullish()
 })
 
@@ -440,18 +441,20 @@ export const GetSettingsResponse = zod.object({
  * @summary Update integration settings
  */
 export const UpdateSettingsBody = zod.object({
-  "n8nWebhookUrl": zod.string().nullish(),
+  "brokerUrl": zod.string().nullish(),
+  "n8nWebhookUrl": zod.string().nullish().describe('Deprecated alias of brokerUrl (accepted on write).'),
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']).optional(),
   "aiModel": zod.string().nullish(),
-  "backendSource": zod.string().optional().describe('Free-form backend routing hint passed to n8n (see Settings.backendSource).'),
+  "backendSource": zod.string().optional().describe('Free-form backend routing hint passed to the broker (see Settings.backendSource).'),
   "oidcIssuerUrl": zod.string().nullish()
 })
 
 export const UpdateSettingsResponse = zod.object({
-  "n8nWebhookUrl": zod.string().nullish(),
+  "brokerUrl": zod.string().nullish().describe('The active broker\'s webhook\/endpoint URL (n8n by default).'),
+  "n8nWebhookUrl": zod.string().nullish().describe('Deprecated alias of brokerUrl, mirrored for back-compat.'),
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']),
   "aiModel": zod.string().nullish(),
-  "backendSource": zod.string().describe('Free-form backend routing hint passed to n8n (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever n8n is wired to. No specific backend is required.'),
+  "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
   "oidcIssuerUrl": zod.string().nullish()
 })
 

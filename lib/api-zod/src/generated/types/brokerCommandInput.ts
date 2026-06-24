@@ -5,15 +5,15 @@
  * OmniProject API — thin proxy gateway to n8n webhooks
  * OpenAPI spec version: 0.1.0
  */
-import type { N8nActionInputPayload } from './n8nActionInputPayload';
+import type { BrokerCommandInputPayload } from './brokerCommandInputPayload';
 
-export interface N8nActionInput {
+export interface BrokerCommandInput {
   /** Action name (e.g. "create_ticket", "update_status") */
   action: string;
-  payload: N8nActionInputPayload;
+  payload: BrokerCommandInputPayload;
   /** Backend routing hint (free-form; e.g. "all", "jira", "plane") */
   source?: string;
-  /** Deterministic dedupe key the gateway appends (also sent as the X-OmniProject-Idempotency-Key header) so n8n can drop duplicate triggers within the same minute. */
+  /** Deterministic dedupe key the gateway appends (also sent as the X-OmniProject-Idempotency-Key header) so the broker can drop duplicate triggers within the same minute. */
   idempotencyKey?: string;
   /** System initiating the action (defaults to "omniproject"). */
   origin?: string;

@@ -184,7 +184,7 @@ export function Setup() {
 
   const applyForSession = () => {
     updateSettings.mutate(
-      { data: { n8nWebhookUrl: url.trim() || null } },
+      { data: { brokerUrl: url.trim() || null } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ["setup", "status"] });
