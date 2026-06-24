@@ -371,6 +371,24 @@ dev mode, admins can download a **debug bundle** (`GET /api/setup/debug-bundle`)
 a `.zip` of `config.json` + `demo-state.json` for reproducible bug reports and
 sharing on GitHub.
 
+## BI & observability integrations
+
+Beyond file exports, OmniProject exposes pull endpoints for BI and monitoring
+tools (all GET, usable with a read-only `API_TOKENS` bearer — no interactive
+login):
+
+| Endpoint | For | Notes |
+| -------- | --- | ----- |
+| `GET /api/metrics` | **Grafana** (via Prometheus) | Prometheus exposition (text 0.0.4): `omniproject_projects_total`, `omniproject_issues_total`, `omniproject_issues_completed_total`, `omniproject_portfolio_rag{status}`, per-project gauges. Scrape with the API token as a Bearer. Stateless — computed per request. |
+| `GET /api/bi/feeds` | **Power BI / Excel / Sheets** | A manifest of JSON/XLSX feed URLs to plug into the Web/OData connector. |
+| `GET /api/export.json\|csv\|xlsx` | Power BI, warehouses | Per-dataset feeds (`?dataset=projects\|issues\|activity`). |
+| `GET /api/portfolio/health` | dashboards | Portfolio RAG / variance JSON. |
+
+**Recommended additions on the roadmap** (not yet built): an **OData** service
+for Power BI incremental refresh; a **Grafana JSON-API datasource** endpoint
+(query/annotations); an **iCal** feed for deadlines/milestones; and **webhook
+push** (OmniProject → your bus) to complement the inbound `/notifications/ingest`.
+
 ## Environments & rollback (config change management)
 
 OmniProject versions its own **configuration** (never project data) so changes

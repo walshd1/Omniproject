@@ -558,6 +558,24 @@ async function testExports(apiBase: string) {
   } catch {
     assert("export.pdf reachable", false);
   }
+
+  // Prometheus metrics (Grafana).
+  try {
+    const r = await get(`${apiBase}/api/metrics`);
+    assert("GET /api/metrics returns 200", r.status === 200, `got ${r.status}`);
+    assert("Metrics is Prometheus exposition", typeof r.data === "string" && r.data.includes("# TYPE omniproject_projects_total gauge"));
+  } catch {
+    assert("metrics reachable", false);
+  }
+
+  // BI feed manifest (Power BI / Excel).
+  try {
+    const r = await get(`${apiBase}/api/bi/feeds`);
+    assert("GET /api/bi/feeds returns 200", r.status === 200, `got ${r.status}`);
+    assert("BI manifest lists feeds", Array.isArray((r.data as { feeds?: unknown[] })?.feeds));
+  } catch {
+    assert("bi/feeds reachable", false);
+  }
 }
 
 async function testGovernance(apiBase: string) {

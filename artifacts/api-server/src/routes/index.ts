@@ -9,6 +9,7 @@ import setupRouter from "./setup";
 import { streamRouter, ingestRouter } from "./notifications-stream";
 import aiRouter from "./ai";
 import exportRouter from "./export";
+import integrationsRouter from "./integrations";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -62,5 +63,6 @@ router.use(requireAuth, setupRouter);
 router.use(requireAuth, streamRouter);
 router.use(requireAuth, aiRouter);
 router.use(requireAuth, exportRouter);
+router.use(requireAuth, integrationsRouter);
 
 export default router;
