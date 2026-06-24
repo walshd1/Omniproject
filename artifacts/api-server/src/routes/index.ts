@@ -11,6 +11,7 @@ import { streamRouter, ingestRouter } from "./notifications-stream";
 import aiRouter from "./ai";
 import exportRouter from "./export";
 import integrationsRouter from "./integrations";
+import odataRouter from "./odata";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -66,5 +67,6 @@ router.use(requireAuth, streamRouter);
 router.use(requireAuth, aiRouter);
 router.use(requireAuth, exportRouter);
 router.use(requireAuth, integrationsRouter);
+router.use(requireAuth, odataRouter);
 
 export default router;

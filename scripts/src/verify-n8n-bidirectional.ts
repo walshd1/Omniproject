@@ -259,7 +259,7 @@ function get(url: string): Promise<{ status: number; data: unknown }> {
       {
         hostname: parsed.hostname,
         port: Number(parsed.port),
-        path: parsed.pathname,
+        path: parsed.pathname + parsed.search, // preserve query (e.g. OData $top)
         method: "GET",
         headers: sessionCookie ? { Cookie: sessionCookie } : {},
       },
@@ -605,6 +605,31 @@ async function testExports(apiBase: string) {
     assert("BI manifest lists feeds", Array.isArray((r.data as { feeds?: unknown[] })?.feeds));
   } catch {
     assert("bi/feeds reachable", false);
+  }
+
+  // OData service (SAP / Dynamics / Power BI).
+  try {
+    const r = await get(`${apiBase}/api/odata/`);
+    assert("GET /api/odata/ service doc returns 200", r.status === 200, `got ${r.status}`);
+    assert("Service doc lists entity sets", Array.isArray((r.data as { value?: unknown[] })?.value));
+  } catch {
+    assert("odata service doc reachable", false);
+  }
+  try {
+    const r = await get(`${apiBase}/api/odata/$metadata`);
+    assert("GET /api/odata/$metadata returns 200", r.status === 200, `got ${r.status}`);
+    assert("$metadata is EDMX", typeof r.data === "string" && r.data.includes("edmx:Edmx") && r.data.includes('EntitySet Name="Projects"'));
+  } catch {
+    assert("odata $metadata reachable", false);
+  }
+  try {
+    const r = await get(`${apiBase}/api/odata/Projects?$top=1&$count=true`);
+    assert("GET /api/odata/Projects returns 200", r.status === 200, `got ${r.status}`);
+    const d = r.data as { value?: unknown[]; "@odata.context"?: string; "@odata.count"?: number };
+    assert("OData feed has context + value", typeof d["@odata.context"] === "string" && Array.isArray(d.value));
+    assert("OData $top/$count honoured", d.value!.length === 1 && typeof d["@odata.count"] === "number");
+  } catch {
+    assert("odata Projects reachable", false);
   }
 }
 

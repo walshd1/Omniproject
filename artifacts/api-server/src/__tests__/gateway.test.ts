@@ -19,6 +19,7 @@ import { buildPdf } from "../lib/pdf";
 import { buildZip } from "../lib/zip";
 import { formatPrometheus } from "../lib/metrics";
 import { groupProgrammes, programmeDetail, standaloneCount } from "../lib/programmes";
+import { applyODataQuery, buildEdmx, type EntityModel } from "../lib/odata";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
@@ -306,6 +307,44 @@ test("programmeDetail: returns the member projects, or null for an unknown id", 
   assert.ok(d);
   assert.equal(d!.projects.length, 2);
   assert.equal(programmeDetail(PROG_PROJECTS, "nope"), null);
+});
+
+// ── OData service (SAP / Dynamics / Power BI feed) ─────────────────────────────
+const ODATA_ROWS = [
+  { id: "1", name: "Alpha", source: "plane", issueCount: 10 },
+  { id: "2", name: "Beta", source: "openproject", issueCount: 5 },
+  { id: "3", name: "Gamma", source: "plane", issueCount: 20 },
+];
+
+test("applyODataQuery: $filter eq, $orderby, $top/$skip, $select, $count", () => {
+  const filtered = applyODataQuery(ODATA_ROWS, { $filter: "source eq 'plane'" });
+  assert.equal(filtered.rows.length, 2);
+
+  const ordered = applyODataQuery(ODATA_ROWS, { $orderby: "issueCount desc" });
+  assert.deepEqual(ordered.rows.map((r) => r.id), ["3", "1", "2"]);
+
+  const paged = applyODataQuery(ODATA_ROWS, { $skip: "1", $top: "1" });
+  assert.deepEqual(paged.rows.map((r) => r.id), ["2"]);
+
+  const selected = applyODataQuery(ODATA_ROWS, { $select: "id,name" });
+  assert.deepEqual(Object.keys(selected.rows[0]), ["id", "name"]);
+
+  const counted = applyODataQuery(ODATA_ROWS, { $filter: "source eq 'plane'", $count: "true" });
+  assert.equal(counted.count, 2);
+});
+
+test("applyODataQuery: contains() filter matches substrings (case-insensitive)", () => {
+  const r = applyODataQuery(ODATA_ROWS, { $filter: "contains(name,'ET')" });
+  assert.deepEqual(r.rows.map((x) => x.id), ["2"]); // Beta
+});
+
+test("buildEdmx: emits EDMX with entity types and sets", () => {
+  const entities: EntityModel[] = [{ name: "Project", set: "Projects", key: "id", props: { id: "Edm.String", issueCount: "Edm.Int32" } }];
+  const xml = buildEdmx(entities);
+  assert.match(xml, /<edmx:Edmx Version="4.0"/);
+  assert.match(xml, /<EntityType Name="Project">/);
+  assert.match(xml, /<EntitySet Name="Projects" EntityType="OmniProject.Project"\/>/);
+  assert.match(xml, /<Property Name="issueCount" Type="Edm.Int32"\/>/);
 });
 
 // ── Prometheus metrics (Grafana) ────────────────────────────────────────────────

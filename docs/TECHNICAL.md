@@ -380,7 +380,8 @@ login):
 | Endpoint | For | Notes |
 | -------- | --- | ----- |
 | `GET /api/metrics` | **Grafana** (via Prometheus) | Prometheus exposition (text 0.0.4): `omniproject_projects_total`, `omniproject_issues_total`, `omniproject_issues_completed_total`, `omniproject_portfolio_rag{status}`, per-project gauges. Scrape with the API token as a Bearer. Stateless — computed per request. |
-| `GET /api/bi/feeds` | **Power BI / Excel / Sheets** | A manifest of JSON/XLSX feed URLs to plug into the Web/OData connector. |
+| `GET /api/odata/` (+ `/$metadata`, `/Projects`, `/Issues`, `/Programmes`) | **SAP / Dynamics / Oracle / Power BI** | OData v4 read service — the native feed format big ERPs + Power BI ingest. Supports `$select` / `$top` / `$skip` / `$orderby` / `$count` and a minimal `$filter` (`eq`, `contains`). Point the OData connector at `/api/odata/` with a read-only token. |
+| `GET /api/bi/feeds` | **Power BI / Excel / Sheets** | A manifest of JSON/XLSX/OData feed URLs to plug into the Web/OData connector. |
 | `GET /api/export.json\|csv\|xlsx` | Power BI, warehouses | Per-dataset feeds (`?dataset=projects\|issues\|activity`). |
 | `GET /api/portfolio/health` | dashboards | Portfolio RAG / variance JSON. |
 

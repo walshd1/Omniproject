@@ -1,0 +1,142 @@
+/**
+ * Minimal, dependency-free OData v4 service helpers.
+ *
+ * OData is the feed format SAP, Dynamics 365, Oracle and Power BI ingest
+ * natively, so this exposes OmniProject's projects / issues / programmes as an
+ * OData service those ERPs/BI tools can pull (with a read-only API token).
+ * Stateless — every response is computed per request. Supports the common query
+ * options ($select, $top, $skip, $orderby, $count, and a minimal $filter:
+ * `field eq value` and `contains(field,'x')`).
+ */
+
+export type EdmType = "Edm.String" | "Edm.Int32" | "Edm.Double" | "Edm.Boolean" | "Edm.DateTimeOffset";
+
+export interface EntityModel {
+  name: string; // EntityType name, e.g. "Project"
+  set: string; // EntitySet name, e.g. "Projects"
+  key: string;
+  props: Record<string, EdmType>;
+}
+
+export type Row = Record<string, unknown>;
+
+function escapeXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/** EDMX `$metadata` document describing the entity model. */
+export function buildEdmx(entities: EntityModel[], namespace = "OmniProject"): string {
+  const types = entities
+    .map((e) => {
+      const props = Object.entries(e.props)
+        .map(([name, type]) => `        <Property Name="${escapeXml(name)}" Type="${type}"/>`)
+        .join("\n");
+      return (
+        `      <EntityType Name="${e.name}">\n` +
+        `        <Key><PropertyRef Name="${e.key}"/></Key>\n` +
+        `${props}\n` +
+        `      </EntityType>`
+      );
+    })
+    .join("\n");
+  const sets = entities
+    .map((e) => `        <EntitySet Name="${e.set}" EntityType="${namespace}.${e.name}"/>`)
+    .join("\n");
+  return (
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">\n` +
+    `  <edmx:DataServices>\n` +
+    `    <Schema Namespace="${namespace}" xmlns="http://docs.oasis-open.org/odata/ns/edm">\n` +
+    `${types}\n` +
+    `      <EntityContainer Name="Container">\n` +
+    `${sets}\n` +
+    `      </EntityContainer>\n` +
+    `    </Schema>\n` +
+    `  </edmx:DataServices>\n` +
+    `</edmx:Edmx>\n`
+  );
+}
+
+/** OData service document (entity-set listing). */
+export function serviceDocument(entities: EntityModel[], baseUrl: string) {
+  return {
+    "@odata.context": `${baseUrl}$metadata`,
+    value: entities.map((e) => ({ name: e.set, kind: "EntitySet", url: e.set })),
+  };
+}
+
+// ── Query options ──────────────────────────────────────────────────────────────
+
+function coerce(raw: string): string | number | boolean {
+  if (/^'.*'$/.test(raw)) return raw.slice(1, -1).replace(/''/g, "'");
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  const n = Number(raw);
+  return Number.isFinite(n) && raw.trim() !== "" ? n : raw;
+}
+
+/** Apply a minimal $filter expression to a row. */
+function matchesFilter(row: Row, filter: string): boolean {
+  const eq = filter.match(/^\s*(\w+)\s+eq\s+(.+?)\s*$/i);
+  if (eq) {
+    const [, field, valRaw] = eq;
+    const val = coerce(valRaw.trim());
+    return String(row[field] ?? "") === String(val);
+  }
+  const contains = filter.match(/^\s*contains\(\s*(\w+)\s*,\s*'(.*)'\s*\)\s*$/i);
+  if (contains) {
+    const [, field, sub] = contains;
+    return String(row[field] ?? "").toLowerCase().includes(sub.toLowerCase());
+  }
+  // Unsupported filter → don't drop rows (be permissive).
+  return true;
+}
+
+export interface ODataQuery {
+  $select?: string;
+  $top?: string;
+  $skip?: string;
+  $orderby?: string;
+  $filter?: string;
+  $count?: string;
+}
+
+export function applyODataQuery(rows: Row[], q: ODataQuery): { rows: Row[]; count?: number } {
+  let out = rows;
+
+  if (q.$filter) out = out.filter((r) => matchesFilter(r, q.$filter!));
+
+  const total = out.length;
+
+  if (q.$orderby) {
+    const [field, dir] = q.$orderby.trim().split(/\s+/);
+    const sign = (dir ?? "asc").toLowerCase() === "desc" ? -1 : 1;
+    out = [...out].sort((a, b) => {
+      const av = a[field] as string | number;
+      const bv = b[field] as string | number;
+      if (av === bv) return 0;
+      return (av > bv ? 1 : -1) * sign;
+    });
+  }
+
+  const skip = Number(q.$skip);
+  if (Number.isFinite(skip) && skip > 0) out = out.slice(skip);
+  const top = Number(q.$top);
+  if (Number.isFinite(top) && top >= 0) out = out.slice(0, top);
+
+  if (q.$select) {
+    const fields = q.$select.split(",").map((s) => s.trim()).filter(Boolean);
+    out = out.map((r) => Object.fromEntries(fields.map((f) => [f, r[f]])) as Row);
+  }
+
+  const wantCount = String(q.$count).toLowerCase() === "true";
+  return wantCount ? { rows: out, count: total } : { rows: out };
+}
+
+export function entitySetEnvelope(baseUrl: string, set: string, rows: Row[], count?: number) {
+  return {
+    "@odata.context": `${baseUrl}$metadata#${set}`,
+    ...(count !== undefined ? { "@odata.count": count } : {}),
+    value: rows,
+  };
+}
