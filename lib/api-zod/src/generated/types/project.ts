@@ -14,6 +14,13 @@ export interface Project {
   description?: string | null;
   /** plane or openproject */
   source: string;
+  /**
+     * Optional programme this project belongs to (owned by the backend). A project with no programmeId is standalone; OmniProject derives the programme grouping from this field, so a programme exists only when at least one project references it.
+     * @nullable
+     */
+  programmeId?: string | null;
+  /** @nullable */
+  programmeName?: string | null;
   issueCount: number;
   completedCount: number;
   memberCount: number;

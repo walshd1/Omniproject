@@ -25,6 +25,7 @@ type Dict = Record<string, string>;
 
 const EN: Dict = {
   "nav.dashboard": "Dashboard",
+  "nav.programmes": "Programmes",
   "nav.projects": "Projects",
   "nav.reports": "Reports",
   "nav.settings": "Settings",
@@ -56,6 +57,7 @@ const EN: Dict = {
 // for any key not present in a locale.
 const FR: Dict = {
   "nav.dashboard": "Tableau de bord",
+  "nav.programmes": "Programmes",
   "nav.projects": "Projets",
   "nav.reports": "Rapports",
   "nav.settings": "Paramètres",
@@ -85,6 +87,7 @@ const FR: Dict = {
 
 const DE: Dict = {
   "nav.dashboard": "Übersicht",
+  "nav.programmes": "Programme",
   "nav.projects": "Projekte",
   "nav.reports": "Berichte",
   "nav.settings": "Einstellungen",
@@ -114,6 +117,7 @@ const DE: Dict = {
 
 const ES: Dict = {
   "nav.dashboard": "Panel",
+  "nav.programmes": "Programas",
   "nav.projects": "Proyectos",
   "nav.reports": "Informes",
   "nav.settings": "Ajustes",

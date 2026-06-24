@@ -23,6 +23,7 @@ The board/list/timeline views are driven by `list_issues` / `list_projects`.
 | `startDate` / `dueDate` | **Gantt** bars, overdue, sprint bucketing, PRINCE2 milestones | Gantt shows "no scheduled issues"; no overdue/exception flags |
 | `assignee` | who's doing the work; **prerequisite for resource reporting** | shown as "—"; resource rollups impossible |
 | `labels` | `sprint:` / `stage:` / `sp:` derivations | falls back to status-based sprint/stage and priority-weighted points |
+| `programmeId` / `programmeName` (on **projects**) | **Programmes** view — grouping related projects with a programme-wide roll-up | projects with no `programmeId` are standalone; have n8n attach these from your backend's programme/portfolio field. A programme is derived (exists only when ≥1 project references it). |
 
 So the Kanban, List, Scrum, and PRINCE2 views always render (with fallbacks), but
 their **fidelity** depends on scheduling dates, assignees, and labels existing in

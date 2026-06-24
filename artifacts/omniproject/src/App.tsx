@@ -12,6 +12,8 @@ import { AppLayout } from "./components/layout/AppLayout";
 
 // Pages
 import { Home } from "./pages/Home";
+import { Programmes } from "./pages/Programmes";
+import { ProgrammeDetail } from "./pages/ProgrammeDetail";
 import { Projects } from "./pages/Projects";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { Settings } from "./pages/Settings";
@@ -39,6 +41,12 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/">
         <AppLayout><Home /></AppLayout>
+      </Route>
+      <Route path="/programmes">
+        <AppLayout><Programmes /></AppLayout>
+      </Route>
+      <Route path="/programmes/:programmeId">
+        {(params) => <AppLayout><ProgrammeDetail programmeId={params.programmeId} /></AppLayout>}
       </Route>
       <Route path="/projects">
         <AppLayout><Projects /></AppLayout>

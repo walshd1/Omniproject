@@ -77,6 +77,50 @@ paths:
                 items:
                   $ref: "#/components/schemas/Project"
 
+  /programmes:
+    get:
+      operationId: listProgrammes
+      tags: [projects]
+      summary: List programmes (derived from project membership)
+      description: >-
+        Programmes are derived by grouping projects on programmeId, with rolled-up
+        stats. A programme always contains at least one project; projects without
+        a programmeId are standalone and excluded here.
+      responses:
+        "200":
+          description: Programmes with roll-up stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Programme"
+
+  /programmes/{programmeId}:
+    get:
+      operationId: getProgramme
+      tags: [projects]
+      summary: A programme with its member projects (programme-wide view)
+      parameters:
+        - name: programmeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Programme detail + member projects
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgrammeDetail"
+        "404":
+          description: No such programme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /projects/{projectId}/issues:
     get:
       operationId: getProjectIssues
@@ -502,6 +546,15 @@ components:
         source:
           type: string
           description: plane or openproject
+        programmeId:
+          type: ["string", "null"]
+          description: >-
+            Optional programme this project belongs to (owned by the backend). A
+            project with no programmeId is standalone; OmniProject derives the
+            programme grouping from this field, so a programme exists only when at
+            least one project references it.
+        programmeName:
+          type: ["string", "null"]
         issueCount:
           type: integer
         completedCount:
@@ -520,6 +573,73 @@ components:
         - completedCount
         - memberCount
         - updatedAt
+
+    Programme:
+      type: object
+      description: A grouping of related projects, derived from project membership.
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        projectCount:
+          type: integer
+        issueCount:
+          type: integer
+        completedCount:
+          type: integer
+        completionRate:
+          type: number
+        ragStatus:
+          type: string
+          enum: [GREEN, AMBER, RED]
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - name
+        - projectCount
+        - issueCount
+        - completedCount
+        - completionRate
+        - ragStatus
+
+    ProgrammeDetail:
+      type: object
+      description: A programme plus its member projects (the programme-wide view).
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        projectCount:
+          type: integer
+        issueCount:
+          type: integer
+        completedCount:
+          type: integer
+        completionRate:
+          type: number
+        ragStatus:
+          type: string
+          enum: [GREEN, AMBER, RED]
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/Project"
+      required:
+        - id
+        - name
+        - projectCount
+        - issueCount
+        - completedCount
+        - completionRate
+        - ragStatus
+        - projects
 
     Issue:
       type: object

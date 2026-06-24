@@ -12,10 +12,10 @@ import { DEV_PERSIST_FILE, saveState, loadState } from "./dev-persist";
 export type Row = Record<string, unknown>;
 
 export const SAMPLE_PROJECTS: Row[] = [
-  { id: "proj-001", name: "Platform Rewrite", identifier: "PLT", description: "Complete overhaul of the core platform infrastructure", source: "plane", issueCount: 24, completedCount: 9, memberCount: 5, updatedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
-  { id: "proj-002", name: "API Gateway v2", identifier: "AGW", description: "New unified API gateway with n8n orchestration", source: "plane", issueCount: 18, completedCount: 14, memberCount: 3, updatedAt: new Date(Date.now() - 1000 * 60 * 90).toISOString() },
-  { id: "proj-003", name: "Enterprise SSO", identifier: "SSO", description: "OIDC-based single sign-on across all services", source: "openproject", issueCount: 11, completedCount: 7, memberCount: 2, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() },
-  { id: "proj-004", name: "Monitoring Stack", identifier: "MON", description: "Observability infrastructure: metrics, traces, logs", source: "openproject", issueCount: 8, completedCount: 2, memberCount: 4, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
+  { id: "proj-001", name: "Platform Rewrite", identifier: "PLT", description: "Complete overhaul of the core platform infrastructure", source: "plane", programmeId: "prog-platform", programmeName: "Platform Modernization", issueCount: 24, completedCount: 9, memberCount: 5, updatedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
+  { id: "proj-002", name: "API Gateway v2", identifier: "AGW", description: "New unified API gateway with n8n orchestration", source: "plane", programmeId: "prog-platform", programmeName: "Platform Modernization", issueCount: 18, completedCount: 14, memberCount: 3, updatedAt: new Date(Date.now() - 1000 * 60 * 90).toISOString() },
+  { id: "proj-003", name: "Enterprise SSO", identifier: "SSO", description: "OIDC-based single sign-on across all services", source: "openproject", programmeId: "prog-security", programmeName: "Security & Identity", issueCount: 11, completedCount: 7, memberCount: 2, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() },
+  { id: "proj-004", name: "Monitoring Stack", identifier: "MON", description: "Observability infrastructure: metrics, traces, logs", source: "openproject", programmeId: null, programmeName: null, issueCount: 8, completedCount: 2, memberCount: 4, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
 ];
 
 export const SAMPLE_ISSUES: Record<string, Row[]> = {
@@ -63,12 +63,18 @@ for (const list of Object.values(SAMPLE_ISSUES)) {
   const now = Date.now();
   for (let p = 0; p < n; p++) {
     const pid = `gen-${String(p + 1).padStart(4, "0")}`;
+    // Group every ~10 generated projects under a programme; leave every 7th
+    // standalone so the standalone path is exercised at scale too.
+    const grp = Math.floor(p / 10);
+    const standalone = p % 7 === 0;
     SAMPLE_PROJECTS.push({
       id: pid,
-      name: `Programme ${p + 1}`,
+      name: `Project ${p + 1}`,
       identifier: `G${p + 1}`,
       description: "Generated demo-scale project",
       source: p % 2 ? "openproject" : "plane",
+      programmeId: standalone ? null : `gen-prog-${grp}`,
+      programmeName: standalone ? null : `Generated Programme ${grp + 1}`,
       issueCount: perProject,
       completedCount: Math.round(perProject / 3),
       memberCount: 3 + (p % 7),
