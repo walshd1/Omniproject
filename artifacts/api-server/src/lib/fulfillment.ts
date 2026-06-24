@@ -3,8 +3,8 @@
  * Premium feature — governed by LICENSE-PREMIUM.txt, NOT Apache-2.0.
  * Use in production requires a valid OmniProject commercial licence.
  */
-import crypto from "node:crypto";
 import { signLicense, LICENSE_FEATURES, type LicenseFeature, type LicensePayload } from "./license";
+import { signBody } from "./webhooks";
 import { logger } from "./logger";
 
 /**
@@ -99,7 +99,9 @@ async function deliver(record: Record<string, unknown>): Promise<{ delivered: bo
   const body = JSON.stringify(record);
   const secret = process.env["LICENSE_FULFILLMENT_SECRET"]?.trim();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (secret) headers["X-OmniProject-Signature"] = `sha256=${crypto.createHmac("sha256", secret).update(body).digest("hex")}`;
+  // Same HMAC scheme as outbound webhooks, so the fulfilment workflow can verify
+  // the hand-off with one shared convention (header: sha256=<hex>).
+  if (secret) headers["X-OmniProject-Signature"] = signBody(body, secret);
   try {
     const r = await fetch(url, { method: "POST", headers, body, signal: AbortSignal.timeout(8_000) });
     return { delivered: r.ok, status: r.status };

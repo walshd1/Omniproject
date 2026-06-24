@@ -67,3 +67,46 @@ A production-shaped reference workflow that backs the core CRUD actions for
   OpenProject), or exchange it for a backend token inside an extra node.
 - The workflow is a starting point — extend the switch with `delete_issue`,
   `project_summary`, `list_activity`, etc. following the same pattern.
+
+## `omniproject-license-fulfilment.json`
+
+The **vendor-side** workflow that completes the automated sales loop: it receives
+the OmniProject gateway's licence hand-off and **emails the buyer their key**.
+It runs on *your* sales n8n, not a customer's. See
+[LICENSING.md](../../LICENSING.md) and
+[docs/TECHNICAL.md → Automated sales](../../docs/TECHNICAL.md#automated-sales--licence-fulfilment-stripe--gumroad).
+
+### Flow
+
+```
+Stripe/Gumroad webhook → gateway mints an Ed25519 key
+   → POSTs { licenseKey, customer, email, tier, features, expiresAt, … }
+   → THIS workflow: verify HMAC → email the key → 200
+```
+
+1. **Webhook** (`POST /webhook/omniproject-license-fulfilment`) — set this URL as
+   `LICENSE_FULFILLMENT_URL` in the sales gateway. "Raw Body" is on.
+2. **Compute HMAC** (Crypto node) — recomputes `HMAC-SHA256(body)` so it can be
+   compared to the gateway's `X-OmniProject-Signature` header. No
+   `NODE_FUNCTION_ALLOW_BUILTIN` needed (native node, not a Code `require`).
+3. **Authentic?** (IF) — passes when `LICENSE_FULFILLMENT_SECRET` is unset
+   (signature optional) **or** the HMAC matches; otherwise returns **401**.
+4. **Compose email** → **Email the licence** (SMTP) → **200 OK**.
+
+### Setup
+
+1. In n8n: **Workflows → Import from File** → select this JSON.
+2. On **Email the licence**, attach your **SMTP credential** (Gmail, Postmark,
+   SES, Resend SMTP, …) — or swap it for a SendGrid/Resend/Gmail node.
+3. Set n8n env: `LICENSE_FROM_EMAIL` (sender) and, to enforce signature checks,
+   `LICENSE_FULFILLMENT_SECRET` (the same value you set on the gateway).
+4. Activate it, copy the production webhook URL, and set it as
+   `LICENSE_FULFILLMENT_URL` on the gateway. Done — purchases now self-fulfil.
+
+### Notes
+
+- **Records/CRM:** add a node after "Compose email" (Google Sheets, Airtable, your
+  CRM) to log issued keys if you want an audit trail — the gateway keeps none.
+- The gateway signs with the **same** `sha256=<hex>` HMAC scheme as outbound
+  webhooks, so one convention covers both.
+
