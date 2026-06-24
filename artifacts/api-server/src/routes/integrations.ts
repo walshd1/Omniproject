@@ -77,6 +77,7 @@ router.get("/bi/feeds", (req, res) => {
       { name: "portfolio_health", format: "json", url: `${origin}/api/portfolio/health`, description: "Portfolio RAG / variance" },
       { name: "workbook", format: "xlsx", url: `${origin}/api/export.xlsx`, description: "Excel workbook (Projects + Issues + Activity)" },
       { name: "prometheus_metrics", format: "prometheus", url: `${origin}/api/metrics`, description: "Grafana via Prometheus scrape" },
+      { name: "odata_service", format: "odata", url: `${origin}/api/odata/`, description: "OData v4 feed for SAP / Dynamics / Oracle / Power BI (point your OData connector here; $metadata at /api/odata/$metadata)" },
     ],
   });
 });
