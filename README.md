@@ -1,6 +1,7 @@
 # OmniProject
 
-> **A read-through overlay for project management with no database of its own.**
+> **A read-through overlay for programme & project management — with finance,
+> time and resource tracking — and no database of its own.**
 > Your existing tools stay the single source of truth; OmniProject is just a
 > different view onto them — brokered entirely through **n8n**.
 
@@ -35,6 +36,19 @@ methodology-neutral, so the same backend renders as a **Kanban** board, a
 **PRINCE2** management stages with a highlight report, a **RAID** log, or a plain
 **list** — switch per team or per project without re-shaping anything underneath.
 No methodology migration: it meets your teams where they already are.
+
+**It's programme management, not just a task board.** Above the issue level it
+gives you a real delivery picture — again, read through from your backends, and
+shown only where a backend actually supplies it:
+
+- **Programmes** — roll many projects into a programme-wide view with portfolio
+  RAG/health, then drill into a single project. Programmes are optional and
+  derived, not a structure you have to maintain.
+- **Finance** — Earned Value (CPI/SPI), budget vs actuals, and **multi-currency**
+  (each backend reports its own currency; convert to one display currency).
+- **Time & schedule** — time-phased Gantt, milestones, today/overdue markers.
+- **Resources** — capacity and allocation, assigned-vs-available hours, and
+  over/under-allocation alerts across people.
 
 It's a brutalist, keyboard-driven shell that slots in *alongside* what an
 organization already runs, instead of asking them to move into it.
