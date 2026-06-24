@@ -44,6 +44,22 @@ forwarded so writes happen *as them* (real per-user audit in the backend, not a
 shared admin key). In production the SPA and gateway ship as **one container**
 (`omni-shell`) on port `3000`.
 
+### Connect to (almost) anything
+
+Because the only thing underneath is n8n, the set of systems you can plug in is
+effectively open-ended — there's no fixed connector list to wait on:
+
+- **Inbound, via n8n** — any of n8n's hundreds of native integrations, *or* anything
+  reachable over HTTP/REST/GraphQL/SOAP/gRPC/SQL through n8n's generic nodes.
+  Jira today, a bespoke in-house API tomorrow, two backends at once — same UI.
+- **Inbound, via webhook** — any tool can `POST` events straight into
+  `/api/notifications/ingest` (secret-authenticated) to drive real-time updates.
+- **Outbound, via webhook** — push OmniProject events to *any* endpoint — a SIEM,
+  Slack, a customer system, or back into another n8n flow — HMAC-signed.
+
+In other words: if n8n can reach it, or it can speak a webhook, OmniProject can
+federate it — without a release from us and without a database to hold it.
+
 > **Implementing or integrating OmniProject?** See **[docs/TECHNICAL.md](docs/TECHNICAL.md)**
 > for architecture, the n8n contract, the security model, the API surface, and
 > data schemas.
