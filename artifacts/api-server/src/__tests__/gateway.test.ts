@@ -11,6 +11,7 @@ import { buildConfigExport, configEntries } from "../lib/config-export";
 import { BACKENDS, getBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
 import { buildSnapshot, applySnapshot, SNAPSHOT_SCHEMA } from "../lib/config-snapshot";
+import { convertAmount, supportedCurrencies } from "../lib/currency";
 import { parseJwt, verifySignatureWithJwk, validateClaims, verifyIdToken, type Jwk } from "../lib/jwks";
 import { clientMatches, addClient } from "../lib/notify-hub";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
@@ -161,6 +162,31 @@ test("notify bus: defaults to in-process and delivers to a matching client", asy
   remove();
   assert.equal(delivered, 1);
   assert.equal(got.length, 1);
+});
+
+// ── Multi-currency conversion ──────────────────────────────────────────────────
+const RATES = { GBP: 1, USD: 0.8, EUR: 0.85 }; // base GBP
+
+test("convertAmount: same currency is a no-op", () => {
+  assert.equal(convertAmount(100, "USD", "USD", RATES), 100);
+});
+
+test("convertAmount: converts via the base currency", () => {
+  // 100 USD → base GBP (×0.8 = 80) → EUR (÷0.85)
+  assert.ok(Math.abs(convertAmount(100, "USD", "EUR", RATES) - 80 / 0.85) < 1e-9);
+});
+
+test("convertAmount: round-trips back to the original", () => {
+  const there = convertAmount(250, "USD", "EUR", RATES);
+  assert.ok(Math.abs(convertAmount(there, "EUR", "USD", RATES) - 250) < 1e-9);
+});
+
+test("convertAmount: throws on a missing rate", () => {
+  assert.throws(() => convertAmount(10, "USD", "JPY", RATES), /FX rate/);
+});
+
+test("supportedCurrencies: lists the rate table sorted", () => {
+  assert.deepEqual(supportedCurrencies(RATES), ["EUR", "GBP", "USD"]);
 });
 
 // ── Capabilities resolution (env path is request-independent) ──────────────────
