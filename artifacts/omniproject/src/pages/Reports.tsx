@@ -6,6 +6,7 @@ import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
 import { FinancialEvmChart } from "../components/reports/FinancialEvmChart";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { ProvenanceBadge } from "../components/ProvenanceBadge";
+import { useT } from "../lib/i18n";
 
 /** Render a report only when its data domain is available; else label the dependency. */
 function Gated({
@@ -36,6 +37,7 @@ function Gated({
 }
 
 export function Reports() {
+  const { t } = useT();
   const { data: projects } = useListProjects();
   const { data: caps } = useGetCapabilities();
   const { activeProjectId, setActiveProjectId } = useStore();
@@ -57,7 +59,7 @@ export function Reports() {
       <div className="max-w-6xl mx-auto space-y-10">
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-black uppercase tracking-tighter">ENTERPRISE REPORTING</h1>
+            <h1 className="text-3xl font-black uppercase tracking-tighter">{t("reports.title")}</h1>
             {caps && <ProvenanceBadge mode={caps.mode} />}
           </div>
           {projects && projects.length > 0 && (

@@ -315,6 +315,20 @@ Canonical definitions are in `openapi.yaml`. Summary:
 
 ---
 
+## Internationalization & multi-currency
+
+- **i18n** is dependency-free (`src/lib/i18n.tsx`): an `I18nProvider` + `useT()`
+  hook, a per-key dictionary (en/fr/de/es; English is the fallback), and
+  `Intl`-based number/date/currency formatting driven by the active locale. The
+  locale is auto-detected (browser → `omni.locale`) and switchable from the
+  header. Add a locale by extending `LOCALES` + `TRANSLATIONS`; add a string by
+  adding a key to each locale.
+- **Multi-currency**: financials are read in each backend's native currency and
+  formatted locale-aware. FX rates are read-through via n8n (`get_fx_rates`,
+  source `fx_provider`; demo rates as fallback) at `GET /api/fx-rates`; the
+  Earned-Value report has a **display-currency** selector that converts via
+  `convertAmount()` (base-anchored, unit-tested). No rates are stored.
+
 ## See also
 
 - [README](../README.md) — install, deploy, and use.

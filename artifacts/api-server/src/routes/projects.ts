@@ -26,6 +26,7 @@ import {
 import { analyticsLimiter } from "../lib/rate-limit";
 import { requireRole } from "../lib/rbac";
 import { versionConflict } from "../lib/concurrency";
+import { getFxRates } from "../lib/currency";
 import { CreateRaidEntryBody } from "@workspace/api-zod";
 
 const router = Router();
@@ -367,6 +368,17 @@ router.post("/projects/:projectId/raid", requireRole("contributor"), async (req,
   }
 
   res.status(201).json(createSampleRaid(projectId, bodyParse.data as Record<string, unknown>));
+});
+
+// ── Multi-currency FX rates (read-through; demo fallback) ─────────────────────
+
+router.get("/fx-rates", async (req, res) => {
+  try {
+    res.json(await getFxRates(req));
+  } catch (err) {
+    req.log.error({ err }, "get_fx_rates failed");
+    respondN8nError(res, err);
+  }
 });
 
 // ── Notifications ─────────────────────────────────────────────────────────────

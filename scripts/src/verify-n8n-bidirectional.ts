@@ -595,6 +595,17 @@ async function testGovernance(apiBase: string) {
     assert("GET /notifications reachable", false);
   }
 
+  // Multi-currency FX rates.
+  try {
+    const r = await get(`${apiBase}/api/fx-rates`);
+    assert("GET /fx-rates returns 200", r.status === 200, `got ${r.status}`);
+    const fx = r.data as { base?: string; rates?: Record<string, number> };
+    assert("FX rates has base + rate table", typeof fx.base === "string" && !!fx.rates && typeof fx.rates === "object");
+    assert("FX rates covers multiple currencies", !!fx.rates && Object.keys(fx.rates).length >= 3);
+  } catch {
+    assert("GET /fx-rates reachable", false);
+  }
+
   // Optimistic concurrency (demo mode enforces the version check).
   try {
     const list = await get(`${apiBase}/api/projects/proj-001/issues`);

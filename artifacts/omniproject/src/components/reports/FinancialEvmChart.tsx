@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { useGetProjectFinancials, type ProjectFinancials } from "@workspace/api-client-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
+import { useT } from "../../lib/i18n";
+import { useFxRates, convertAmount, currencyList } from "../../lib/currency";
 
 const HEALTH: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
 
@@ -30,9 +33,17 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 
 export function FinancialEvmChart({ projectId }: { projectId: string }) {
   const { data: f, isLoading } = useGetProjectFinancials(projectId);
+  const { t, formatCurrency } = useT();
+  const { data: fx } = useFxRates();
+  const [display, setDisplay] = useState("");
 
-  const money = (n: number) =>
-    new Intl.NumberFormat(undefined, { style: "currency", currency: f?.currency || "USD", maximumFractionDigits: 0 }).format(n);
+  const native = f?.currency || "USD";
+  const displayCcy = display || native;
+  // Format in the active locale, converting the backend's native currency to the
+  // chosen display currency (multi-currency portfolio comparison).
+  const money = (n: number) => formatCurrency(convertAmount(n, native, displayCcy, fx?.rates), displayCcy);
+
+  const currencyOptions = Array.from(new Set([native, ...currencyList(fx?.rates)]));
 
   // Financials require a cost/ERP source wired through n8n. Without
   // budgetAllocated there is nothing to chart — surface the dependency rather
@@ -41,7 +52,21 @@ export function FinancialEvmChart({ projectId }: { projectId: string }) {
 
   return (
     <section>
-      <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Earned Value (EVM)</h2>
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">{t("reports.earnedValue")}</h2>
+        {!unavailable && f && (
+          <label className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+            {t("reports.displayCurrency")}
+            <select
+              value={displayCcy}
+              onChange={(e) => setDisplay(e.target.value)}
+              className="bg-background border border-border px-2 py-1 text-xs font-mono uppercase outline-none"
+            >
+              {currencyOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
       <div className="bg-card border border-border p-6">
         {isLoading || !f ? (
           <div className="h-72 animate-pulse" />
