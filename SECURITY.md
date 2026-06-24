@@ -73,6 +73,7 @@ Browser ──TLS──> omni-shell gateway ──TLS──> n8n ──> backend
 
 ## Reporting a vulnerability
 
-Please open a private security advisory on the repository (or email the
-maintainers) rather than a public issue. Include reproduction steps and the
-affected component from the table above.
+Please report privately via a **GitHub Security Advisory** —
+*Security → Report a vulnerability* on the repository — rather than opening a
+public issue. Include reproduction steps and the affected component from the
+table above. Do not disclose publicly until a fix is released.
