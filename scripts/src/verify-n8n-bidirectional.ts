@@ -284,6 +284,45 @@ function get(url: string): Promise<{ status: number; data: unknown }> {
   });
 }
 
+function method(verb: "PUT" | "DELETE", url: string, body?: unknown): Promise<{ status: number; data: unknown }> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const payload = body === undefined ? "" : JSON.stringify(body);
+    const req = http.request(
+      {
+        hostname: parsed.hostname,
+        port: Number(parsed.port),
+        path: parsed.pathname + parsed.search,
+        method: verb,
+        headers: {
+          ...(payload ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) } : {}),
+          ...(sessionCookie ? { Cookie: sessionCookie } : {}),
+        },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          try {
+            resolve({ status: res.statusCode ?? 0, data: JSON.parse(data) });
+          } catch {
+            resolve({ status: res.statusCode ?? 0, data });
+          }
+        });
+      },
+    );
+    req.on("error", reject);
+    req.setTimeout(8_000, () => {
+      req.destroy();
+      reject(new Error("Request timeout"));
+    });
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+const put = (url: string, body?: unknown) => method("PUT", url, body);
+const del = (url: string) => method("DELETE", url);
+
 // ── Test suites ───────────────────────────────────────────────────────────────
 async function testOutbound(apiBase: string) {
   console.log(bold("\n[1] Outbound: UI → n8n (via /api/n8n-proxy)"));
@@ -902,6 +941,79 @@ async function testNotify(apiBase: string) {
   }
 }
 
+async function testPremium(apiBase: string) {
+  console.log(bold("\n[9] Premium overlay: licensing, branding, nomenclature, webhooks"));
+
+  // License status (entitlements drive the gate below).
+  const lic = await get(`${apiBase}/api/license`);
+  assert("GET /api/license is 200", lic.status === 200, `got ${lic.status}`);
+  const license = lic.data as { features?: string[]; catalog?: string[]; valid?: boolean };
+  assert("license reports a features array", Array.isArray(license.features));
+  assert("license reports a catalog array", Array.isArray(license.catalog));
+  const has = (f: string) => Array.isArray(license.features) && license.features.includes(f);
+
+  // Branding GET is public + always serves an effective brand.
+  const brand = await get(`${apiBase}/api/branding`);
+  assert("GET /api/branding is 200", brand.status === 200, `got ${brand.status}`);
+  const bd = brand.data as { appName?: string; entitled?: boolean };
+  assert("branding has an appName", typeof bd.appName === "string" && bd.appName.length > 0);
+  assert("branding reports entitled flag", typeof bd.entitled === "boolean");
+
+  // Labels GET is public + exposes the overridable catalogue.
+  const labels = await get(`${apiBase}/api/labels`);
+  assert("GET /api/labels is 200", labels.status === 200, `got ${labels.status}`);
+  assert("labels expose a catalog", Array.isArray((labels.data as { catalog?: unknown }).catalog));
+
+  // Webhooks list (admin) reports entitlement + event catalogue.
+  const wl = await get(`${apiBase}/api/webhooks`);
+  assert("GET /api/webhooks is 200", wl.status === 200, `got ${wl.status}`);
+  assert("webhooks expose the event catalogue", Array.isArray((wl.data as { events?: unknown }).events));
+
+  // Entitlement gate — behaviour adapts to how the server was licensed.
+  if (has("branding")) {
+    const set = await put(`${apiBase}/api/branding`, { appName: "Acme PM", shortName: "AC" });
+    assert("Licensed: PUT /api/branding is 200", set.status === 200, `got ${set.status}`);
+    const after = await get(`${apiBase}/api/branding`);
+    assert("Licensed: branding override is applied", (after.data as { appName?: string }).appName === "Acme PM");
+    const cleared = await del(`${apiBase}/api/branding`);
+    assert("Licensed: DELETE /api/branding reverts", cleared.status === 200 && (cleared.data as { effective?: { appName?: string } }).effective?.appName === "OmniProject");
+  } else {
+    const set = await put(`${apiBase}/api/branding`, { appName: "Acme PM" });
+    assert("Unlicensed: PUT /api/branding is 402 (paywall)", set.status === 402, `got ${set.status}`);
+  }
+
+  if (has("labels")) {
+    const set = await put(`${apiBase}/api/labels`, { overrides: { "nav.projects": "Engagements" } });
+    assert("Licensed: PUT /api/labels is 200", set.status === 200, `got ${set.status}`);
+    const after = await get(`${apiBase}/api/labels`);
+    assert("Licensed: label override is applied", (after.data as { overrides?: Record<string, string> }).overrides?.["nav.projects"] === "Engagements");
+    await put(`${apiBase}/api/labels`, { overrides: {} }); // clean up
+  } else {
+    const set = await put(`${apiBase}/api/labels`, { overrides: { "nav.projects": "Engagements" } });
+    assert("Unlicensed: PUT /api/labels is 402 (paywall)", set.status === 402, `got ${set.status}`);
+  }
+
+  if (has("webhooks")) {
+    const created = await post(`${apiBase}/api/webhooks`, { url: "https://127.0.0.1:9/never", events: ["notification"] });
+    assert("Licensed: POST /api/webhooks is 201", created.status === 201, `got ${created.status}`);
+    const id = (created.data as { webhook?: { id?: string; secret?: string } }).webhook?.id;
+    assert("Licensed: create reveals a signing secret once", !!(created.data as { webhook?: { secret?: string } }).webhook?.secret);
+    const list = await get(`${apiBase}/api/webhooks`);
+    const listed = (list.data as { webhooks?: Array<{ id?: string; secretSet?: boolean; secret?: string }> }).webhooks ?? [];
+    const mine = listed.find((w) => w.id === id);
+    assert("Licensed: list redacts the secret", !!mine && mine.secretSet === true && !("secret" in mine));
+    if (id) {
+      const t = await post(`${apiBase}/api/webhooks/${id}/test`, {});
+      assert("Licensed: webhook test returns a delivery result", t.status === 200 && (t.data as { tested?: boolean }).tested === true);
+      const d = await del(`${apiBase}/api/webhooks/${id}`);
+      assert("Licensed: DELETE /api/webhooks/:id is 200", d.status === 200, `got ${d.status}`);
+    }
+  } else {
+    const created = await post(`${apiBase}/api/webhooks`, { url: "https://127.0.0.1:9/never" });
+    assert("Unlicensed: POST /api/webhooks is 402 (paywall)", created.status === 402, `got ${created.status}`);
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   console.log(bold("OmniProject — n8n Bidirectional Verification Script"));
@@ -945,6 +1057,7 @@ async function main() {
     await testGovernance(apiBase);
     await testSetup(apiBase);
     await testNotify(apiBase);
+    await testPremium(apiBase);
   } finally {
     mockServer.close();
   }

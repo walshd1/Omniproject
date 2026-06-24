@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
+import { PremiumAdmin } from "../components/PremiumAdmin";
 
 const AI_MODEL_HINT: Record<string, string> = {
   none: "",
@@ -201,6 +202,8 @@ export function Settings() {
           {updateSettings.isPending ? "SAVING..." : "COMMIT CHANGES"}
         </Button>
       </form>
+
+      <PremiumAdmin />
     </div>
   );
 }

@@ -147,9 +147,20 @@ const ES: Dict = {
 
 const TRANSLATIONS: Record<Locale, Dict> = { en: EN, fr: FR, de: DE, es: ES };
 
-/** Pure translation lookup with {var} interpolation and English fallback. */
-export function translate(locale: Locale, key: string, vars?: Record<string, string | number>): string {
-  const raw = TRANSLATIONS[locale]?.[key] ?? EN[key] ?? key;
+/**
+ * Pure translation lookup with {var} interpolation and English fallback.
+ *
+ * Company-nomenclature `overrides` (keyed by the same i18n key) win over the
+ * localized dictionaries — so a deployment that renames "Projects" to
+ * "Engagements" gets that label in every locale.
+ */
+export function translate(
+  locale: Locale,
+  key: string,
+  vars?: Record<string, string | number>,
+  overrides?: Record<string, string>,
+): string {
+  const raw = overrides?.[key] ?? TRANSLATIONS[locale]?.[key] ?? EN[key] ?? key;
   if (!vars) return raw;
   return raw.replace(/\{(\w+)\}/g, (_m, name) => String(vars[name] ?? `{${name}}`));
 }
@@ -175,8 +186,9 @@ interface I18nContextValue {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-export function I18nProvider({ children }: { children: ReactNode }) {
+export function I18nProvider({ children, labelOverrides }: { children: ReactNode; labelOverrides?: Record<string, string> }) {
   const [locale, setLocaleState] = useState<Locale>(detectLocale);
+  const overrides = labelOverrides ?? {};
 
   const setLocale = useCallback((l: Locale) => {
     if (typeof window !== "undefined") {
@@ -189,7 +201,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const value: I18nContextValue = {
     locale,
     setLocale,
-    t: useCallback((key, vars) => translate(locale, key, vars), [locale]),
+    t: useCallback((key, vars) => translate(locale, key, vars, overrides), [locale, overrides]),
     formatNumber: useCallback((n, opts) => new Intl.NumberFormat(locale, opts).format(n), [locale]),
     formatCurrency: useCallback(
       (n, currency, opts) => new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 0, ...opts }).format(n),

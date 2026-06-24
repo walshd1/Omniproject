@@ -39,6 +39,10 @@ import {
 import { parseJwt, verifySignatureWithJwk, validateClaims, verifyIdToken, type Jwk } from "../lib/jwks";
 import { clientMatches, addClient } from "../lib/notify-hub";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
+import { signLicense, verifyLicense, resolveLicense, isEntitled, type LicensePayload } from "../lib/license";
+import { sanitizeBranding, effectiveBranding, DEFAULT_BRANDING } from "../lib/branding";
+import { sanitizeLabels } from "../lib/labels";
+import { signBody, createWebhook, redact, deliverWebhooks } from "../lib/webhooks";
 
 // ── Optimistic concurrency ────────────────────────────────────────────────────
 test("versionConflict: no expected version never conflicts", () => {
@@ -647,6 +651,9 @@ const SAMPLE_SETTINGS = {
   aiModel: "llama3.2",
   backendSource: "sap",
   oidcIssuerUrl: "https://idp",
+  branding: null,
+  labelOverrides: {},
+  webhooks: [],
 };
 
 test("buildSnapshot: captures the gateway settings with schema + version", () => {
@@ -685,4 +692,151 @@ test("resolveCapabilities: demo mode (no n8n, no env) turns everything on", asyn
   const caps = await resolveCapabilities({} as Request);
   assert.ok(["demo", "env"].includes(caps.mode));
   if (savedWebhook) process.env["N8N_WEBHOOK_URL"] = savedWebhook;
+});
+
+// ── Licensing / entitlements ────────────────────────────────────────────────────
+const LIC_KP = crypto.generateKeyPairSync("ed25519");
+const LIC_PRIV = LIC_KP.privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+const LIC_PUB = LIC_KP.publicKey.export({ type: "spki", format: "pem" }).toString();
+
+function licensePayload(over: Partial<LicensePayload> = {}): LicensePayload {
+  return { customer: "Acme", tier: "enterprise", features: ["branding", "labels", "webhooks"], iat: 1_700_000_000, ...over };
+}
+
+test("license: sign + verify round-trips a valid licence", () => {
+  const token = signLicense(licensePayload({ exp: 4_102_444_800 }), LIC_PRIV); // exp ~2100
+  const r = verifyLicense(token, LIC_PUB, 1_700_000_000_000);
+  assert.equal(r.valid, true);
+  assert.equal(r.payload?.customer, "Acme");
+  assert.deepEqual(r.payload?.features, ["branding", "labels", "webhooks"]);
+});
+
+test("license: expired licence is rejected", () => {
+  const token = signLicense(licensePayload({ exp: 1_600_000_000 }), LIC_PRIV);
+  const r = verifyLicense(token, LIC_PUB, 1_700_000_000_000);
+  assert.equal(r.valid, false);
+  assert.match(r.reason ?? "", /expired/);
+});
+
+test("license: tampered payload fails signature check", () => {
+  const token = signLicense(licensePayload(), LIC_PRIV);
+  const parts = token.split(".");
+  const forged = JSON.stringify(licensePayload({ tier: "stolen" }));
+  parts[2] = Buffer.from(forged, "utf8").toString("base64url");
+  const r = verifyLicense(parts.join("."), LIC_PUB, 1_700_000_000_000);
+  assert.equal(r.valid, false);
+  assert.match(r.reason ?? "", /signature/);
+});
+
+test("license: malformed token is rejected, not thrown", () => {
+  assert.equal(verifyLicense("not-a-token", LIC_PUB).valid, false);
+});
+
+test("license: resolveLicense reads LICENSE_KEY against LICENSE_PUBLIC_KEY env", () => {
+  const saved = { k: process.env["LICENSE_KEY"], p: process.env["LICENSE_PUBLIC_KEY"] };
+  try {
+    process.env["LICENSE_KEY"] = signLicense(licensePayload({ features: ["branding"], exp: 4_102_444_800 }), LIC_PRIV);
+    process.env["LICENSE_PUBLIC_KEY"] = LIC_PUB;
+    const status = resolveLicense();
+    assert.equal(status.valid, true);
+    assert.equal(status.source, "license");
+    assert.deepEqual(status.features, ["branding"]);
+    assert.equal(isEntitled("branding"), true);
+    assert.equal(isEntitled("webhooks"), false);
+  } finally {
+    if (saved.k === undefined) delete process.env["LICENSE_KEY"]; else process.env["LICENSE_KEY"] = saved.k;
+    if (saved.p === undefined) delete process.env["LICENSE_PUBLIC_KEY"]; else process.env["LICENSE_PUBLIC_KEY"] = saved.p;
+  }
+});
+
+test("license: no licence → community tier with no features", () => {
+  const saved = { k: process.env["LICENSE_KEY"], d: process.env["LICENSE_DEV_FEATURES"], n: process.env["NODE_ENV"] };
+  try {
+    delete process.env["LICENSE_KEY"];
+    delete process.env["LICENSE_DEV_FEATURES"];
+    process.env["NODE_ENV"] = "production";
+    const status = resolveLicense();
+    assert.equal(status.valid, false);
+    assert.equal(status.tier, "community");
+    assert.equal(status.features.length, 0);
+  } finally {
+    if (saved.k !== undefined) process.env["LICENSE_KEY"] = saved.k;
+    if (saved.d !== undefined) process.env["LICENSE_DEV_FEATURES"] = saved.d;
+    if (saved.n === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = saved.n;
+  }
+});
+
+// ── Branding (white-label) ──────────────────────────────────────────────────────
+test("branding: sanitize accepts valid overrides and trims", () => {
+  const b = sanitizeBranding({ appName: " Acme PM ", shortName: "AC", primaryColor: "#2563eb", logoUrl: "https://x/logo.png" });
+  assert.equal(b.appName, "Acme PM");
+  assert.equal(b.primaryColor, "#2563eb");
+});
+
+test("branding: sanitize rejects a non-hex colour", () => {
+  assert.throws(() => sanitizeBranding({ primaryColor: "blue" }), /hex/);
+});
+
+test("branding: sanitize rejects a non-http logo url", () => {
+  assert.throws(() => sanitizeBranding({ logoUrl: "javascript:alert(1)" }), /URL/);
+});
+
+test("branding: effective falls back to product defaults when unlicensed", () => {
+  const saved = process.env["LICENSE_DEV_FEATURES"];
+  const savedNode = process.env["NODE_ENV"];
+  try {
+    process.env["NODE_ENV"] = "production";
+    delete process.env["LICENSE_DEV_FEATURES"];
+    const eff = effectiveBranding();
+    assert.equal(eff.entitled, false);
+    assert.equal(eff.appName, DEFAULT_BRANDING.appName);
+  } finally {
+    if (saved !== undefined) process.env["LICENSE_DEV_FEATURES"] = saved;
+    if (savedNode === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = savedNode;
+  }
+});
+
+// ── Labels (nomenclature) ───────────────────────────────────────────────────────
+test("labels: sanitize keeps catalogue keys and drops unknowns", () => {
+  const out = sanitizeLabels({ "nav.projects": "Engagements", "evil.key": "x", "term.programme": "Portfolio" });
+  assert.equal(out["nav.projects"], "Engagements");
+  assert.equal(out["term.programme"], "Portfolio");
+  assert.equal("evil.key" in out, false);
+});
+
+test("labels: sanitize rejects an over-long value", () => {
+  assert.throws(() => sanitizeLabels({ "nav.projects": "x".repeat(61) }), /too long/);
+});
+
+// ── Outbound webhooks ───────────────────────────────────────────────────────────
+test("webhooks: signBody is a stable HMAC-SHA256", () => {
+  const sig = signBody("{\"a\":1}", "secret");
+  assert.equal(sig, "sha256=" + crypto.createHmac("sha256", "secret").update("{\"a\":1}").digest("hex"));
+});
+
+test("webhooks: create validates the URL and redact hides the secret", () => {
+  updateSettings({ webhooks: [] });
+  assert.throws(() => createWebhook({ url: "ftp://nope" }), /URL/);
+  const created = createWebhook({ url: "https://example.com/hook", events: ["notification"] });
+  assert.ok(created.secret.length > 0);
+  const r = redact(created);
+  assert.equal("secret" in r, false);
+  assert.equal(r.secretSet, true);
+  updateSettings({ webhooks: [] });
+});
+
+test("webhooks: deliver is a no-op without the entitlement", async () => {
+  const saved = process.env["LICENSE_DEV_FEATURES"];
+  const savedNode = process.env["NODE_ENV"];
+  try {
+    process.env["NODE_ENV"] = "production";
+    delete process.env["LICENSE_DEV_FEATURES"];
+    updateSettings({ webhooks: [{ id: "x", url: "https://127.0.0.1:1/none", secret: "s", events: ["*"], active: true }] });
+    const results = await deliverWebhooks("notification", { hello: "world" });
+    assert.deepEqual(results, []);
+  } finally {
+    updateSettings({ webhooks: [] });
+    if (saved !== undefined) process.env["LICENSE_DEV_FEATURES"] = saved;
+    if (savedNode === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = savedNode;
+  }
 });

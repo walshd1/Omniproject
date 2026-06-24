@@ -385,10 +385,57 @@ login):
 | `GET /api/export.json\|csv\|xlsx` | Power BI, warehouses | Per-dataset feeds (`?dataset=projects\|issues\|activity`). |
 | `GET /api/portfolio/health` | dashboards | Portfolio RAG / variance JSON. |
 
-**Recommended additions on the roadmap** (not yet built): an **OData** service
-for Power BI incremental refresh; a **Grafana JSON-API datasource** endpoint
-(query/annotations); an **iCal** feed for deadlines/milestones; and **webhook
-push** (OmniProject → your bus) to complement the inbound `/notifications/ingest`.
+**Roadmap** (not yet built): **Power BI incremental refresh** (OData delta
+tokens); a **Grafana JSON-API datasource** endpoint (query/annotations); and an
+**iCal** feed for deadlines/milestones. Outbound **webhook push** is now built —
+see *Premium overlay* below.
+
+## Premium overlay (licensed features)
+
+Three overlay features are gated behind a **time-limited, signed licence key** —
+the paywall. OmniProject stays stateless: entitlements are not a billing
+database, they are carried by `LICENSE_KEY` (config/env). The key is an
+**Ed25519-signed** token issued by the vendor and verified in the deployment
+against the vendor's public key (`LICENSE_PUBLIC_KEY`). It cannot be forged or
+extended without the private key, and stops granting features once `exp` passes —
+at which point the premium features **revert to their free defaults
+automatically**.
+
+| Feature | What it unlocks | Endpoints |
+| ------- | --------------- | --------- |
+| `branding` | **White-label** the UI: app name, short badge, logo, accent colour, login heading + footer. The login screen is branded pre-auth. | `GET /api/branding` (public), `PUT`/`DELETE /api/branding` (admin) |
+| `labels` | **Company nomenclature** — override UI terms ("Projects" → "Engagements", "Programmes" → "Portfolios") from a curated catalogue; layered over i18n so it wins in every locale. | `GET /api/labels` (public), `PUT /api/labels` (admin) |
+| `webhooks` | **Outbound push** — fan events (`notification`, `audit`, `config.changed`) to a customer endpoint, SIEM, Slack, or an n8n webhook node. Each delivery is HMAC-SHA256 signed (`X-OmniProject-Signature`). Fire-and-forget (stateless); for at-least-once, target an n8n webhook and let n8n queue retries. | `GET`/`POST /api/webhooks`, `DELETE /api/webhooks/:id`, `POST /api/webhooks/:id/test` (all admin) |
+
+Write paths return **402 Payment Required** when the feature isn't licensed.
+`GET /api/license` (and `setup/status.licensing`) report the current tier,
+entitled features and expiry, so the UI shows locked/unlocked states. Branding +
+label overrides are stored in the settings store and **included in config
+snapshots** (no secrets); webhook subscriptions carry signing secrets and are
+**configured per-environment** (`WEBHOOKS` env or the admin UI), excluded from
+snapshots.
+
+**Licence lifecycle (vendor side):**
+
+```
+# 1. Generate an issuing keypair once; keep the private key offline.
+pnpm --filter @workspace/scripts exec tsx src/mint-license.ts keygen
+#    → set the printed public key as LICENSE_PUBLIC_KEY in deployments.
+
+# 2. Mint a customer licence:
+LICENSE_PRIVATE_KEY="$(cat issuer.key)" \
+  pnpm --filter @workspace/scripts exec tsx src/mint-license.ts mint \
+    --customer "Acme Corp" --tier enterprise \
+    --features branding,labels,webhooks --days 365
+#    → set the printed token as LICENSE_KEY in the customer's deployment.
+```
+
+Config env: `BRAND_APP_NAME`, `BRAND_SHORT_NAME`, `BRAND_LOGO_URL`,
+`BRAND_PRIMARY_COLOR`, `BRAND_LOGIN_HEADING`, `BRAND_FOOTER_TEXT`,
+`BRAND_SUPPORT_URL` seed branding; `LABEL_OVERRIDES` (JSON) seeds nomenclature;
+`WEBHOOKS` (JSON array of `{url, secret, events}`) seeds subscriptions. In
+non-production, `LICENSE_DEV_FEATURES=all` unlocks premium for development
+(ignored in production).
 
 ## Environments & rollback (config change management)
 
@@ -426,8 +473,8 @@ n8n contract verification → **E2E smoke + stress** → env-gated integration c
 
 | Harness | Command | What it does |
 | ------- | ------- | ------------ |
-| Unit | `pnpm --filter @workspace/api-server test` | 49 `node:test` cases — pure gateway logic (JWKS, RBAC, concurrency, currency, snapshot, mapping certification…). |
-| Contract | `pnpm --filter @workspace/scripts run verify-n8n` | 98 assertions over the live gateway + a mock n8n. |
+| Unit | `pnpm --filter @workspace/api-server test` | 86 `node:test` cases — pure gateway logic (JWKS, RBAC, concurrency, currency, snapshot, licensing, branding/labels, webhooks, mapping certification…). |
+| Contract | `pnpm --filter @workspace/scripts run verify-n8n` | 137+ assertions over the live gateway + a mock n8n (the premium suite adapts to the licensed/unlicensed state). |
 | **E2E smoke** | `pnpm --filter @workspace/scripts run e2e-smoke` | Single-container check: SPA shell is served + the critical journey (login → projects → issues → summary → capabilities → reports) responds. |
 | **Stress** | `pnpm --filter @workspace/scripts run stress` | Load test — `STRESS_USERS` (2000) × `STRESS_REQS` (3) at `STRESS_CONCURRENCY` (100); reports throughput + p50/p95/p99, fails over `STRESS_MAX_ERROR_RATE`. |
 | **Live cert** | `pnpm --filter @workspace/scripts run integration:openproject` | Certifies the OpenProject mapping against a real instance when `OPENPROJECT_LIVE_URL` + `OPENPROJECT_TOKEN` are set; SKIPS otherwise. |

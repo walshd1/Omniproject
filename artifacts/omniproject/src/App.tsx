@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { useStore } from "./store/useStore";
-import { I18nProvider } from "./lib/i18n";
+import { BrandingProvider } from "./lib/branding";
 
 // Layout
 import { AppLayout } from "./components/layout/AppLayout";
@@ -71,7 +71,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <I18nProvider>
+      <BrandingProvider>
         <TooltipProvider>
           <ThemeInitializer />
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
@@ -79,7 +79,7 @@ function App() {
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
-      </I18nProvider>
+      </BrandingProvider>
     </QueryClientProvider>
   );
 }
