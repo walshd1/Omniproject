@@ -2,6 +2,8 @@ import { Router, type Request, type Response } from "express";
 import { getProjects, getIssues, getActivity, type Row } from "../lib/data";
 import { toCsv, type CsvValue } from "../lib/csv";
 import { buildXlsx, type Sheet } from "../lib/xlsx";
+import { toMarkdown } from "../lib/md";
+import { buildPdf } from "../lib/pdf";
 
 const router = Router();
 
@@ -93,5 +95,61 @@ router.get("/export.csv", async (req, res) => {
     res.status(502).json({ error: "Export failed" });
   }
 });
+
+// ── Shared dataset resolver for the md / json / pdf exporters ─────────────────
+
+const DATASETS: Record<string, { cols: string[]; title: string }> = {
+  projects: { cols: PROJECT_COLS, title: "OmniProject — Projects" },
+  issues: { cols: ISSUE_COLS, title: "OmniProject — Issues" },
+  activity: { cols: ACTIVITY_COLS, title: "OmniProject — Activity" },
+};
+
+async function resolveDataset(
+  req: Request,
+  dataset: string,
+  projectId?: string,
+): Promise<{ rows: Row[]; cols: string[]; title: string; base: string } | null> {
+  const meta = DATASETS[dataset];
+  if (!meta) return null;
+  let rows: Row[];
+  if (dataset === "issues") rows = projectId ? await getIssues(req, projectId) : await allIssues(req);
+  else if (dataset === "activity") rows = await getActivity(req);
+  else rows = await getProjects(req);
+  const base = `omniproject-${dataset}${dataset === "issues" && projectId ? `-${projectId}` : ""}-${stamp()}`;
+  return { rows, cols: meta.cols, title: meta.title, base };
+}
+
+function withFormat(format: "json" | "md" | "pdf") {
+  return async (req: Request, res: Response) => {
+    const dataset = String(req.query["dataset"] ?? "projects");
+    const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
+    try {
+      const d = await resolveDataset(req, dataset, projectId);
+      if (!d) {
+        res.status(400).json({ error: "dataset must be projects, issues, or activity" });
+        return;
+      }
+      if (format === "json") {
+        // Native JSON: the raw records (not the flattened matrix).
+        send(res, `${d.base}.json`, "application/json; charset=utf-8", JSON.stringify(d.rows, null, 2));
+        return;
+      }
+      const matrix = toMatrix(d.rows, d.cols);
+      if (format === "md") {
+        send(res, `${d.base}.md`, "text/markdown; charset=utf-8", toMarkdown(d.title, d.cols, matrix));
+      } else {
+        send(res, `${d.base}.pdf`, "application/pdf", buildPdf({ title: d.title, headers: d.cols, rows: matrix }));
+      }
+    } catch (err) {
+      req.log.error({ err, dataset, format }, "export failed");
+      res.status(502).json({ error: "Export failed" });
+    }
+  };
+}
+
+// ── GET /api/export.json|md|pdf?dataset=projects|issues|activity[&projectId=] ──
+router.get("/export.json", withFormat("json"));
+router.get("/export.md", withFormat("md"));
+router.get("/export.pdf", withFormat("pdf"));
 
 export default router;
