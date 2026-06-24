@@ -5,7 +5,7 @@ import { IssueDialog } from "../IssueDialog";
 import { NotificationsBell } from "../NotificationsBell";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
-import { Layers, Briefcase, BarChart3, Settings as SettingsIcon, LogOut, PlugZap } from "lucide-react";
+import { Layers, Briefcase, BarChart3, Settings as SettingsIcon, LogOut, PlugZap, Boxes } from "lucide-react";
 import { useAuth, logout } from "../../lib/auth";
 import { useSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
@@ -85,6 +85,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <Link href="/" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location === "/" ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
             <Layers className="w-4 h-4 mr-3" /> {t("nav.dashboard")}
             <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">G+D</span>
+          </Link>
+          <Link href="/programmes" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location.startsWith("/programmes") ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
+            <Boxes className="w-4 h-4 mr-3" /> {t("nav.programmes")}
           </Link>
           <Link href="/projects" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location.startsWith("/projects") ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
             <Briefcase className="w-4 h-4 mr-3" /> {t("nav.projects")}

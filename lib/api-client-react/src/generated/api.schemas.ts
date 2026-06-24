@@ -44,10 +44,66 @@ export interface Project {
   description?: string | null;
   /** plane or openproject */
   source: string;
+  /**
+     * Optional programme this project belongs to (owned by the backend). A project with no programmeId is standalone; OmniProject derives the programme grouping from this field, so a programme exists only when at least one project references it.
+     * @nullable
+     */
+  programmeId?: string | null;
+  /** @nullable */
+  programmeName?: string | null;
   issueCount: number;
   completedCount: number;
   memberCount: number;
   updatedAt: string;
+}
+
+export type ProgrammeRagStatus = typeof ProgrammeRagStatus[keyof typeof ProgrammeRagStatus];
+
+
+export const ProgrammeRagStatus = {
+  GREEN: 'GREEN',
+  AMBER: 'AMBER',
+  RED: 'RED',
+} as const;
+
+/**
+ * A grouping of related projects, derived from project membership.
+ */
+export interface Programme {
+  id: string;
+  name: string;
+  projectCount: number;
+  issueCount: number;
+  completedCount: number;
+  completionRate: number;
+  ragStatus: ProgrammeRagStatus;
+  /** @nullable */
+  updatedAt?: string | null;
+}
+
+export type ProgrammeDetailRagStatus = typeof ProgrammeDetailRagStatus[keyof typeof ProgrammeDetailRagStatus];
+
+
+export const ProgrammeDetailRagStatus = {
+  GREEN: 'GREEN',
+  AMBER: 'AMBER',
+  RED: 'RED',
+} as const;
+
+/**
+ * A programme plus its member projects (the programme-wide view).
+ */
+export interface ProgrammeDetail {
+  id: string;
+  name: string;
+  projectCount: number;
+  issueCount: number;
+  completedCount: number;
+  completionRate: number;
+  ragStatus: ProgrammeDetailRagStatus;
+  /** @nullable */
+  updatedAt?: string | null;
+  projects: Project[];
 }
 
 export type IssueStatus = typeof IssueStatus[keyof typeof IssueStatus];

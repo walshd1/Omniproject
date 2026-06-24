@@ -3,6 +3,7 @@ import healthRouter from "./health";
 import authRouter, { getSession } from "./auth";
 import n8nProxyRouter from "./n8n-proxy";
 import projectsRouter from "./projects";
+import programmesRouter from "./programmes";
 import portfolioRouter from "./portfolio";
 import capabilitiesRouter from "./capabilities";
 import setupRouter from "./setup";
@@ -57,6 +58,7 @@ router.use(authRouter);
 // Protected routes: require an authenticated session (or read-only API token).
 router.use(requireAuth, n8nProxyRouter);
 router.use(requireAuth, projectsRouter);
+router.use(requireAuth, programmesRouter);
 router.use(requireAuth, portfolioRouter);
 router.use(requireAuth, capabilitiesRouter);
 router.use(requireAuth, setupRouter);

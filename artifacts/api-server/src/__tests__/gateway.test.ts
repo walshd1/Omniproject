@@ -18,6 +18,7 @@ import { toMarkdown } from "../lib/md";
 import { buildPdf } from "../lib/pdf";
 import { buildZip } from "../lib/zip";
 import { formatPrometheus } from "../lib/metrics";
+import { groupProgrammes, programmeDetail, standaloneCount } from "../lib/programmes";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
@@ -266,6 +267,45 @@ test("buildZip: produces a valid STORED zip containing the entries", () => {
   assert.ok(zip.includes(Buffer.from('{"a":1}')));
   // End-of-central-directory record present.
   assert.ok(zip.subarray(-22).readUInt32LE(0) === 0x06054b50);
+});
+
+// ── Programmes (derived grouping of projects) ──────────────────────────────────
+const PROG_PROJECTS = [
+  { id: "p1", programmeId: "prog-a", programmeName: "Alpha", issueCount: 10, completedCount: 8, updatedAt: "2026-06-01" },
+  { id: "p2", programmeId: "prog-a", programmeName: "Alpha", issueCount: 10, completedCount: 4, updatedAt: "2026-06-03" },
+  { id: "p3", programmeId: "prog-b", programmeName: "Beta", issueCount: 4, completedCount: 0, updatedAt: "2026-06-02" },
+  { id: "p4", programmeId: null, issueCount: 5, completedCount: 5, updatedAt: "2026-06-04" }, // standalone
+];
+
+test("groupProgrammes: groups by programmeId and rolls up stats", () => {
+  const progs = groupProgrammes(PROG_PROJECTS);
+  assert.equal(progs.length, 2); // standalone p4 excluded
+  const a = progs.find((p) => p.id === "prog-a")!;
+  assert.equal(a.name, "Alpha");
+  assert.equal(a.projectCount, 2);
+  assert.equal(a.issueCount, 20);
+  assert.equal(a.completedCount, 12);
+  assert.equal(a.completionRate, 60);
+  assert.equal(a.ragStatus, "GREEN");
+  assert.equal(a.updatedAt, "2026-06-03"); // latest of the members
+});
+
+test("groupProgrammes: a programme is RED when little is complete", () => {
+  const b = groupProgrammes(PROG_PROJECTS).find((p) => p.id === "prog-b")!;
+  assert.equal(b.completionRate, 0);
+  assert.equal(b.ragStatus, "RED");
+});
+
+test("invariant: a derived programme always has >= 1 project; standalone are separate", () => {
+  for (const p of groupProgrammes(PROG_PROJECTS)) assert.ok(p.projectCount >= 1);
+  assert.equal(standaloneCount(PROG_PROJECTS), 1);
+});
+
+test("programmeDetail: returns the member projects, or null for an unknown id", () => {
+  const d = programmeDetail(PROG_PROJECTS, "prog-a");
+  assert.ok(d);
+  assert.equal(d!.projects.length, 2);
+  assert.equal(programmeDetail(PROG_PROJECTS, "nope"), null);
 });
 
 // ── Prometheus metrics (Grafana) ────────────────────────────────────────────────

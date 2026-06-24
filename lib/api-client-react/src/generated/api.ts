@@ -32,6 +32,8 @@ import type {
   N8nActionResult,
   Notification,
   PortfolioHealthSummary,
+  Programme,
+  ProgrammeDetail,
   Project,
   ProjectBaseline,
   ProjectFinancials,
@@ -272,6 +274,161 @@ export function useListProjects<TData = Awaited<ReturnType<typeof listProjects>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListProjectsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListProgrammesUrl = () => {
+
+
+
+
+  return `/api/programmes`
+}
+
+/**
+ * Programmes are derived by grouping projects on programmeId, with rolled-up stats. A programme always contains at least one project; projects without a programmeId are standalone and excluded here.
+ * @summary List programmes (derived from project membership)
+ */
+export const listProgrammes = async ( options?: RequestInit): Promise<Programme[]> => {
+
+  return customFetch<Programme[]>(getListProgrammesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProgrammesQueryKey = () => {
+    return [
+    `/api/programmes`
+    ] as const;
+    }
+
+
+export const getListProgrammesQueryOptions = <TData = Awaited<ReturnType<typeof listProgrammes>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProgrammes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProgrammesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProgrammes>>> = ({ signal }) => listProgrammes({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProgrammes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProgrammesQueryResult = NonNullable<Awaited<ReturnType<typeof listProgrammes>>>
+export type ListProgrammesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List programmes (derived from project membership)
+ */
+
+export function useListProgrammes<TData = Awaited<ReturnType<typeof listProgrammes>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProgrammes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProgrammesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetProgrammeUrl = (programmeId: string,) => {
+
+
+
+
+  return `/api/programmes/${programmeId}`
+}
+
+/**
+ * @summary A programme with its member projects (programme-wide view)
+ */
+export const getProgramme = async (programmeId: string, options?: RequestInit): Promise<ProgrammeDetail> => {
+
+  return customFetch<ProgrammeDetail>(getGetProgrammeUrl(programmeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProgrammeQueryKey = (programmeId: string,) => {
+    return [
+    `/api/programmes/${programmeId}`
+    ] as const;
+    }
+
+
+export const getGetProgrammeQueryOptions = <TData = Awaited<ReturnType<typeof getProgramme>>, TError = ErrorType<ErrorResponse>>(programmeId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProgramme>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProgrammeQueryKey(programmeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProgramme>>> = ({ signal }) => getProgramme(programmeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(programmeId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProgramme>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProgrammeQueryResult = NonNullable<Awaited<ReturnType<typeof getProgramme>>>
+export type GetProgrammeQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary A programme with its member projects (programme-wide view)
+ */
+
+export function useGetProgramme<TData = Awaited<ReturnType<typeof getProgramme>>, TError = ErrorType<ErrorResponse>>(
+ programmeId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProgramme>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProgrammeQueryOptions(programmeId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

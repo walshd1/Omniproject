@@ -452,6 +452,36 @@ async function testApiRoutes(apiBase: string) {
     assert("GET /api/activity reachable", false);
   }
 
+  // Programmes (derived grouping)
+  let aProgrammeId = "";
+  try {
+    const r = await get(`${apiBase}/api/programmes`);
+    assert("GET /api/programmes returns 200", r.status === 200, `got ${r.status}`);
+    const progs = Array.isArray(r.data) ? (r.data as Array<Record<string, unknown>>) : [];
+    assert("Programmes is an array", Array.isArray(r.data));
+    assert("Every programme has >= 1 project (invariant)", progs.every((p) => Number(p.projectCount) >= 1));
+    if (progs.length) {
+      aProgrammeId = String(progs[0].id);
+      assert("Programme has roll-up stats", typeof progs[0].issueCount === "number" && typeof progs[0].ragStatus === "string");
+    }
+  } catch {
+    assert("GET /api/programmes reachable", false);
+  }
+  try {
+    const r = await get(`${apiBase}/api/programmes/${aProgrammeId || "prog-platform"}`);
+    assert("GET /api/programmes/:id returns 200", r.status === 200, `got ${r.status}`);
+    const d = r.data as { projects?: unknown[] };
+    assert("Programme detail includes member projects", Array.isArray(d.projects) && d.projects.length >= 1);
+  } catch {
+    assert("GET /api/programmes/:id reachable", false);
+  }
+  try {
+    const r = await get(`${apiBase}/api/programmes/does-not-exist`);
+    assert("Unknown programme returns 404", r.status === 404, `got ${r.status}`);
+  } catch {
+    assert("programme 404 reachable", false);
+  }
+
   // Settings
   try {
     const r = await get(`${apiBase}/api/settings`);

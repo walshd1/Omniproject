@@ -46,12 +46,63 @@ export const ListProjectsResponseItem = zod.object({
   "identifier": zod.string(),
   "description": zod.string().nullish(),
   "source": zod.string().describe('plane or openproject'),
+  "programmeId": zod.string().nullish().describe('Optional programme this project belongs to (owned by the backend). A project with no programmeId is standalone; OmniProject derives the programme grouping from this field, so a programme exists only when at least one project references it.'),
+  "programmeName": zod.string().nullish(),
   "issueCount": zod.number(),
   "completedCount": zod.number(),
   "memberCount": zod.number(),
   "updatedAt": zod.coerce.date()
 })
 export const ListProjectsResponse = zod.array(ListProjectsResponseItem)
+
+
+/**
+ * Programmes are derived by grouping projects on programmeId, with rolled-up stats. A programme always contains at least one project; projects without a programmeId are standalone and excluded here.
+ * @summary List programmes (derived from project membership)
+ */
+export const ListProgrammesResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "projectCount": zod.number(),
+  "issueCount": zod.number(),
+  "completedCount": zod.number(),
+  "completionRate": zod.number(),
+  "ragStatus": zod.enum(['GREEN', 'AMBER', 'RED']),
+  "updatedAt": zod.coerce.date().nullish()
+}).describe('A grouping of related projects, derived from project membership.')
+export const ListProgrammesResponse = zod.array(ListProgrammesResponseItem)
+
+
+/**
+ * @summary A programme with its member projects (programme-wide view)
+ */
+export const GetProgrammeParams = zod.object({
+  "programmeId": zod.coerce.string()
+})
+
+export const GetProgrammeResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "projectCount": zod.number(),
+  "issueCount": zod.number(),
+  "completedCount": zod.number(),
+  "completionRate": zod.number(),
+  "ragStatus": zod.enum(['GREEN', 'AMBER', 'RED']),
+  "updatedAt": zod.coerce.date().nullish(),
+  "projects": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "identifier": zod.string(),
+  "description": zod.string().nullish(),
+  "source": zod.string().describe('plane or openproject'),
+  "programmeId": zod.string().nullish().describe('Optional programme this project belongs to (owned by the backend). A project with no programmeId is standalone; OmniProject derives the programme grouping from this field, so a programme exists only when at least one project references it.'),
+  "programmeName": zod.string().nullish(),
+  "issueCount": zod.number(),
+  "completedCount": zod.number(),
+  "memberCount": zod.number(),
+  "updatedAt": zod.coerce.date()
+}))
+}).describe('A programme plus its member projects (the programme-wide view).')
 
 
 /**
