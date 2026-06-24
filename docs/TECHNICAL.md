@@ -350,6 +350,20 @@ server**. Scope is configurable: full logging of all actions, or a subset.
 
 Setup → *Status* shows the active level + whether a sink is configured.
 
+**Brokered n8n actions log their outcome.** Each `category: "broker"` event is
+recorded *after* the call with `result` (success/error), upstream `status` and
+`ms`, plus the `actor` (sub/email/role) — so logs answer "who ran which n8n
+action, when, and did it succeed?". Example:
+`{"category":"broker","action":"create_issue","actor":{"sub":"…","role":"admin"},"result":"success","status":200,"ms":54}`.
+
+## Stateful developer mode
+
+Demo mode is in-memory and resets on restart. Set `DEV_PERSIST_FILE=<path>` and
+the demo dataset (projects/issues/RAID) is **saved on every mutation and reloaded
+on boot**, so developers can build up test scenarios that survive restarts
+without wiring n8n. Dev/test only — it's a no-op when `N8N_WEBHOOK_URL` is set
+(production serves real data through n8n). Setup → *Status* shows whether it's on.
+
 ## Environments & rollback (config change management)
 
 OmniProject versions its own **configuration** (never project data) so changes

@@ -60,6 +60,7 @@ router.get("/setup/status", async (req, res) => {
     ai: { provider: settings.aiProvider },
     realtime: { enabled: !!process.env["NOTIFY_INGEST_SECRET"]?.trim(), bus: busMode() },
     audit: auditStatus(),
+    dev: { statefulDemo: !!process.env["DEV_PERSIST_FILE"]?.trim() },
     capabilities,
   });
 });

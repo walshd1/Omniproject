@@ -13,6 +13,10 @@ import { generateWorkflow } from "../lib/n8n-generator";
 import { buildSnapshot, applySnapshot, SNAPSHOT_SCHEMA } from "../lib/config-snapshot";
 import { convertAmount, supportedCurrencies } from "../lib/currency";
 import { shouldAudit, createHttpSink } from "../lib/audit";
+import { saveState, loadState } from "../lib/dev-persist";
+import os from "node:os";
+import path from "node:path";
+import fs from "node:fs";
 import { resolveTemplate, isFullyResolved } from "../lib/n8n-expr";
 import { updateSettings, getSettings } from "../lib/settings";
 import {
@@ -223,6 +227,24 @@ test("audit HTTP sink: a failed flush re-buffers and never throws", async () => 
   const delivered = await sink.flush();
   assert.equal(delivered, 0);
   assert.equal(sink.size(), 1); // re-buffered for the next attempt
+});
+
+// ── Stateful dev mode (persist/load) ───────────────────────────────────────────
+test("dev-persist: save then load round-trips the demo dataset", () => {
+  const file = path.join(os.tmpdir(), `omni-dev-${process.pid}.json`);
+  const state = { projects: [{ id: "p1" }], issues: { p1: [{ id: "i1" }] }, raid: { p1: [{ id: "r1" }] } };
+  saveState(file, state);
+  const loaded = loadState(file);
+  fs.rmSync(file, { force: true });
+  assert.deepEqual(loaded, state);
+});
+
+test("dev-persist: load returns null for a missing or malformed file", () => {
+  assert.equal(loadState(path.join(os.tmpdir(), "omni-does-not-exist.json")), null);
+  const bad = path.join(os.tmpdir(), `omni-bad-${process.pid}.json`);
+  fs.writeFileSync(bad, "{ not json");
+  assert.equal(loadState(bad), null);
+  fs.rmSync(bad, { force: true });
 });
 
 // ── Multi-currency conversion ──────────────────────────────────────────────────

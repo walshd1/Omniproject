@@ -36,6 +36,8 @@ export interface AuditEvent {
   ip?: string;
   origin?: string;
   write?: boolean;
+  /** Outcome of the action — set on brokered n8n actions so logs show success/failure. */
+  result?: "success" | "error";
   meta?: Record<string, unknown>;
 }
 
