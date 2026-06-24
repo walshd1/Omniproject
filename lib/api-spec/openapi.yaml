@@ -952,10 +952,6 @@ components:
         brokerUrl:
           type: ["string", "null"]
           description: The active broker's webhook/endpoint URL (n8n by default).
-        n8nWebhookUrl:
-          type: ["string", "null"]
-          deprecated: true
-          description: Deprecated alias of brokerUrl, mirrored for back-compat.
         aiProvider:
           type: string
           enum: [none, openai, ollama, anthropic, openrouter]
@@ -978,10 +974,6 @@ components:
       properties:
         brokerUrl:
           type: ["string", "null"]
-        n8nWebhookUrl:
-          type: ["string", "null"]
-          deprecated: true
-          description: Deprecated alias of brokerUrl (accepted on write).
         aiProvider:
           type: string
           enum: [none, openai, ollama, anthropic, openrouter]

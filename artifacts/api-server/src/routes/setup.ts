@@ -56,9 +56,9 @@ router.get("/setup/status", async (req, res) => {
   res.json({
     configured: isLiveBroker() || !!settings.brokerUrl,
     role: roleForReq(req),
-    n8n: {
+    broker: {
       configured: isLiveBroker() || !!settings.brokerUrl,
-      webhookUrlSet: !!settings.brokerUrl,
+      urlSet: !!settings.brokerUrl,
     },
     auth: { mode: isOidcConfigured ? "oidc" : "demo" },
     ai: { provider: settings.aiProvider },

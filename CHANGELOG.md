@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Removed (BREAKING)
+- **Dropped the deprecated broker-boundary aliases.** Pre-1.0 cleanup: the v0.1
+  n8n-named public surface is gone — use the canonical names. `POST /api/n8n-proxy`
+  → `POST /api/broker/command`; `Settings.n8nWebhookUrl` → `brokerUrl`;
+  `N8N_WEBHOOK_URL` env → `BROKER_URL`; and `GET /api/setup/status.n8n` →
+  `.broker` (`{ configured, urlSet }`). Update any external API clients,
+  environment, and config snapshots accordingly.
+
 ### Changed
 - **Broker boundary extraction.** The gateway now talks to a single `Broker`
   interface in its own domain vocabulary instead of calling n8n directly. n8n is

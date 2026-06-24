@@ -90,7 +90,7 @@ export function Setup() {
 
   useEffect(() => {
     fetchConfigExport(format).then(setSnippet).catch(() => setSnippet("# could not load config (admin only)"));
-  }, [format, status?.n8n.webhookUrlSet]);
+  }, [format, status?.broker.urlSet]);
 
   useEffect(() => {
     fetchBackends().then((b) => { setBackends(b); setBackendId((id) => id || b[0]?.id || ""); }).catch(() => setBackends([]));
@@ -225,8 +225,8 @@ export function Setup() {
             <div className="border border-border p-3">
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">n8n broker</div>
               <div className="flex items-center gap-2 font-bold text-sm">
-                <Dot on={status?.n8n.configured} />
-                {status?.n8n.configured ? "Connected" : "Demo (sample data)"}
+                <Dot on={status?.broker.configured} />
+                {status?.broker.configured ? "Connected" : "Demo (sample data)"}
               </div>
             </div>
             <div className="border border-border p-3">
@@ -429,13 +429,13 @@ export function Setup() {
           </p>
           <button
             onClick={runVerify}
-            disabled={verifying || !isAdmin || !status?.n8n.configured}
+            disabled={verifying || !isAdmin || !status?.broker.configured}
             className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-40 flex items-center gap-2"
           >
             {verifying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
             Run verification
           </button>
-          {!status?.n8n.configured && (
+          {!status?.broker.configured && (
             <p className="text-xs text-amber-500">Connect n8n first (step 2) to verify.</p>
           )}
           {verifyResult && (

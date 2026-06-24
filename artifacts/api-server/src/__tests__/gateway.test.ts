@@ -685,20 +685,15 @@ test("applySnapshot: warns on unknown keys and missing keys, never throws on the
   assert.ok(warnings.some((w) => /brokerUrl/.test(w)));
 });
 
-test("applySnapshot: accepts the deprecated n8nWebhookUrl alias", () => {
-  const { patch } = applySnapshot({ schema: SNAPSHOT_SCHEMA, version: 1, settings: { n8nWebhookUrl: "https://legacy/x", aiProvider: "none", backendSource: "all" } });
-  assert.equal(patch["brokerUrl"], "https://legacy/x");
-});
-
-test("resolveCapabilities: demo mode (no n8n, no env) turns everything on", async () => {
-  const savedWebhook = process.env["N8N_WEBHOOK_URL"];
-  delete process.env["N8N_WEBHOOK_URL"];
+test("resolveCapabilities: demo mode (no broker, no env) turns everything on", async () => {
+  const savedWebhook = process.env["BROKER_URL"];
+  delete process.env["BROKER_URL"];
   delete process.env["CAPABILITIES"];
-  // isN8nConfigured is captured at import time; this asserts the demo default
-  // only when the module was loaded without a webhook configured.
+  // The broker is selected at import time; this asserts the demo default only
+  // when the module was loaded without a broker configured.
   const caps = await resolveCapabilities({} as Request);
   assert.ok(["demo", "env"].includes(caps.mode));
-  if (savedWebhook) process.env["N8N_WEBHOOK_URL"] = savedWebhook;
+  if (savedWebhook) process.env["BROKER_URL"] = savedWebhook;
 });
 
 // ── Licensing / entitlements ────────────────────────────────────────────────────

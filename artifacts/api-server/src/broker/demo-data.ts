@@ -11,7 +11,7 @@ import type { Row, FxRates } from "./types";
 // Whether a real backend is wired, read locally (no import of the n8n adapter,
 // to avoid a cycle and its module side-effects). Used only to gate dev-mode
 // persistence, which is meaningless when a real backend is the source of record.
-const N8N_CONFIGURED = !!process.env["N8N_WEBHOOK_URL"]?.trim();
+const BACKEND_CONFIGURED = !!process.env["BROKER_URL"]?.trim();
 
 export const SAMPLE_PROJECTS: Row[] = [
   { id: "proj-001", name: "Platform Rewrite", identifier: "PLT", description: "Complete overhaul of the core platform infrastructure", source: "plane", programmeId: "prog-platform", programmeName: "Platform Modernization", issueCount: 24, completedCount: 9, memberCount: 5, updatedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
@@ -159,7 +159,7 @@ export function persistDemoState(): void {
 }
 
 // Hydrate the demo dataset from disk on boot when stateful dev mode is enabled.
-if (DEV_PERSIST_FILE && !N8N_CONFIGURED) {
+if (DEV_PERSIST_FILE && !BACKEND_CONFIGURED) {
   const saved = loadState(DEV_PERSIST_FILE);
   if (saved) {
     SAMPLE_PROJECTS.splice(0, SAMPLE_PROJECTS.length, ...(saved.projects as Row[]));

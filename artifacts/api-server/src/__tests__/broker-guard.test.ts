@@ -75,7 +75,7 @@ test("guard: the n8n call API does not appear outside src/broker", () => {
 
 // ── C. Only the broker + frozen surface may import the n8n adapter ──────────────
 // Importing src/broker/n8n directly is the adapter's own concern; the only
-// permitted consumer above it is the frozen /n8n-proxy route (documented).
+// permitted consumer above it is the broker-command route (documented).
 const ADAPTER_IMPORT = /from\s+["'][^"']*\/broker\/n8n["']/;
 const ADAPTER_IMPORT_ALLOWED = new Set(["routes/broker-command.ts"]);
 

@@ -109,7 +109,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </Link>
           <Link href="/setup" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location.startsWith("/setup") ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
             <PlugZap className="w-4 h-4 mr-3" /> {t("nav.setup")}
-            {setup && !setup.n8n.configured && <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" title="Running in demo mode" />}
+            {setup && !setup.broker.configured && <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" title="Running in demo mode" />}
           </Link>
         </nav>
 
@@ -164,7 +164,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        {setup && !setup.n8n.configured && location !== "/setup" && (
+        {setup && !setup.broker.configured && location !== "/setup" && (
           <div className="bg-amber-500/10 border-b border-amber-500/40 px-6 py-2 text-xs flex items-center justify-between">
             <span className="font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
               {t("header.demoBanner")}

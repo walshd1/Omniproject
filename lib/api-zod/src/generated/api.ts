@@ -429,7 +429,6 @@ export const GetCapabilitiesResponse = zod.object({
  */
 export const GetSettingsResponse = zod.object({
   "brokerUrl": zod.string().nullish().describe('The active broker\'s webhook\/endpoint URL (n8n by default).'),
-  "n8nWebhookUrl": zod.string().nullish().describe('Deprecated alias of brokerUrl, mirrored for back-compat.'),
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']),
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
@@ -442,7 +441,6 @@ export const GetSettingsResponse = zod.object({
  */
 export const UpdateSettingsBody = zod.object({
   "brokerUrl": zod.string().nullish(),
-  "n8nWebhookUrl": zod.string().nullish().describe('Deprecated alias of brokerUrl (accepted on write).'),
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']).optional(),
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().optional().describe('Free-form backend routing hint passed to the broker (see Settings.backendSource).'),
@@ -451,7 +449,6 @@ export const UpdateSettingsBody = zod.object({
 
 export const UpdateSettingsResponse = zod.object({
   "brokerUrl": zod.string().nullish().describe('The active broker\'s webhook\/endpoint URL (n8n by default).'),
-  "n8nWebhookUrl": zod.string().nullish().describe('Deprecated alias of brokerUrl, mirrored for back-compat.'),
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']),
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),

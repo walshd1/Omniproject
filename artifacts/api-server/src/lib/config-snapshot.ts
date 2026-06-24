@@ -61,9 +61,6 @@ export function applySnapshot(input: unknown): { patch: Record<string, unknown>;
   const s = snap.settings;
   if (!s || typeof s !== "object") throw new Error("Snapshot is missing a settings object");
 
-  // Back-compat: older snapshots used `n8nWebhookUrl` for `brokerUrl`.
-  if ("n8nWebhookUrl" in s && !("brokerUrl" in s)) (s as Record<string, unknown>)["brokerUrl"] = (s as Record<string, unknown>)["n8nWebhookUrl"];
-
   const patch: Record<string, unknown> = {};
   for (const key of SNAPSHOT_KEYS) {
     if (key in s) patch[key] = (s as Record<string, unknown>)[key];

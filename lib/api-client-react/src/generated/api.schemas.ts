@@ -371,12 +371,6 @@ export interface Settings {
      * @nullable
      */
   brokerUrl?: string | null;
-  /**
-     * Deprecated alias of brokerUrl, mirrored for back-compat.
-     * @deprecated
-     * @nullable
-     */
-  n8nWebhookUrl?: string | null;
   aiProvider: SettingsAiProvider;
   /** @nullable */
   aiModel?: string | null;
@@ -400,12 +394,6 @@ export const SettingsUpdateAiProvider = {
 export interface SettingsUpdate {
   /** @nullable */
   brokerUrl?: string | null;
-  /**
-     * Deprecated alias of brokerUrl (accepted on write).
-     * @deprecated
-     * @nullable
-     */
-  n8nWebhookUrl?: string | null;
   aiProvider?: SettingsUpdateAiProvider;
   /** @nullable */
   aiModel?: string | null;

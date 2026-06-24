@@ -60,31 +60,29 @@ webhook envelope (`{ action, payload, source, origin, idempotencyKey }`), the
 …), n8n source labels (`capacity_engine`, …), `N8N_WEBHOOK_URL`, or the
 `{ success, data, message }` response shape. All of that lives in `N8nBroker`.
 
-### Public surface — now broker-named, with deprecated aliases (Stage B)
+### Public surface — fully broker-named
 
-The public API/UI no longer leads with n8n. The canonical names are
-broker-neutral; the old n8n names are kept as **deprecated aliases** so nothing
-breaks:
+The public API/UI no longer names n8n anywhere it isn't genuinely about n8n. The
+canonical surface is:
 
-| Canonical | Deprecated alias (still works) |
-| --------- | ------------------------------ |
-| `POST /api/broker/command` | `POST /api/n8n-proxy` |
-| `BrokerCommandInput` / `BrokerCommandResult` schemas | (old `N8nActionInput` removed from the spec) |
-| `Settings.brokerUrl` | `Settings.n8nWebhookUrl` (mirrored on read, accepted on write) |
-| `BROKER_URL` env | `N8N_WEBHOOK_URL` env |
+- `POST /api/broker/command` (request/response schemas `BrokerCommandInput` /
+  `BrokerCommandResult`);
+- `Settings.brokerUrl`;
+- `BROKER_URL` env;
+- `GET /api/setup/status` → `broker: { configured, urlSet }`.
 
-The remaining, *intentional* n8n names are the adapter's edge and are
+The v0.1-era deprecated aliases (`/n8n-proxy`, `n8nWebhookUrl`,
+`N8N_WEBHOOK_URL`, the `status.n8n` object) have been **removed**.
+
+The only remaining *intentional* n8n names are the adapter's edge and are
 guard-allowed:
 
-- **`routes/broker-command.ts`** — serves both routes; the one place permitted to
-  import `../broker/n8n` (it is the adapter's command edge);
-- **`lib/settings.ts`** + config export/snapshot — carry the deprecated
-  `n8nWebhookUrl`/`N8N_WEBHOOK_URL` aliases for back-compat;
+- **`routes/broker-command.ts`** — the one place permitted to import
+  `../broker/n8n` (it is the adapter's command edge);
 - the **workflow generator** (`lib/n8n-backends.ts`, `n8n-generator.ts`,
   `n8n-expr.ts`) — emits n8n workflow JSON, n8n-specific by nature, alongside but
-  logically under the seam.
-
-The aliases can be removed in a future major version once consumers migrate.
+  logically under the seam;
+- the Setup wizard's *"generate an n8n workflow"* copy — it really is about n8n.
 
 ## Demo mode is the DemoBroker
 

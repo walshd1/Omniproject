@@ -408,7 +408,7 @@ async function testInbound(apiBase: string) {
 
   let result: { status: number; data: unknown };
   try {
-    result = await post(`${apiBase}/api/n8n-proxy`, payload);
+    result = await post(`${apiBase}/api/broker/command`, payload);
   } catch (err) {
     assert("Inbound proxy request reachable", false, String(err));
     return;
@@ -442,7 +442,7 @@ async function testValidation(apiBase: string) {
 
   // Missing required `action` field
   try {
-    res = await post(`${apiBase}/api/n8n-proxy`, { payload: { foo: "bar" } });
+    res = await post(`${apiBase}/api/broker/command`, { payload: { foo: "bar" } });
     assert("Missing action returns 400", res.status === 400, `got ${res.status}`);
   } catch {
     assert("Missing action reachable", false, "request failed");
@@ -450,7 +450,7 @@ async function testValidation(apiBase: string) {
 
   // Missing required `payload` field
   try {
-    res = await post(`${apiBase}/api/n8n-proxy`, { action: "create_ticket" });
+    res = await post(`${apiBase}/api/broker/command`, { action: "create_ticket" });
     assert("Missing payload returns 400", res.status === 400, `got ${res.status}`);
   } catch {
     assert("Missing payload reachable", false, "request failed");
@@ -458,7 +458,7 @@ async function testValidation(apiBase: string) {
 
   // Empty body
   try {
-    res = await post(`${apiBase}/api/n8n-proxy`, {});
+    res = await post(`${apiBase}/api/broker/command`, {});
     assert("Empty body returns 400", res.status === 400, `got ${res.status}`);
   } catch {
     assert("Empty body reachable", false, "request failed");
@@ -1042,7 +1042,7 @@ async function main() {
   console.log(bold("OmniProject — n8n Bidirectional Verification Script"));
   console.log(dim("═".repeat(55)));
 
-  // Determine API base: use N8N_WEBHOOK_URL env to infer API host, or default
+  // Determine API base: use BROKER_URL env to infer API host, or default
   const apiBase = process.env["OMNI_API_BASE"] ?? "http://localhost:5000";
   const mockN8nUrl = `http://127.0.0.1:${MOCK_N8N_PORT}/webhook/omniproject`;
 
@@ -1054,8 +1054,8 @@ async function main() {
   console.log(dim(`Mock n8n started on port ${MOCK_N8N_PORT}`));
 
   // Point the API server at our mock n8n for this test run
-  // (In production the server reads N8N_WEBHOOK_URL from env)
-  process.env["N8N_WEBHOOK_URL"] = mockN8nUrl;
+  // (In production the server reads BROKER_URL from env)
+  process.env["BROKER_URL"] = mockN8nUrl;
 
   try {
     await testAuth(apiBase);
