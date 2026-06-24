@@ -28,6 +28,10 @@ URL where noted. Keep this updated as the messaging evolves.
    run; adopt the views and connections you want, ignore the rest.
 6. **Speaks your methodology** — Kanban, Scrum, Gantt/Waterfall, PRINCE2, RAID,
    list — one dataset, switch per team.
+7. **Safe to try with real data** — it stores nothing, and *you* control whether
+   it can write at all: wire only read actions in n8n and it's physically
+   read-only. Dry-run verify, sandbox, and one-click rollback. (The #1 objection
+   for any new tool — "I'm not letting it write to my Jira" — answered up front.)
 
 ### What's genuinely differentiated (be honest)
 
@@ -88,6 +92,11 @@ especially criticism.
 > **Stack:** TypeScript, React 19, Express, n8n. Importable workflow blueprints
 > included so you're not wiring nodes by hand.
 >
+> **On trusting it with real data:** it stores nothing, and *you* control what it
+> can do — because you write the n8n workflow. Wire only the read actions and
+> it's physically read-only against your backend; there's a dry-run verify mode, a
+> sandbox, and one-click rollback. Start read-only, add writes when you trust it.
+>
 > It's **open-core — Apache-2.0** for everything above; a few enterprise extras
 > (white-labeling, outbound webhooks, SAP/Primavera workflow generators) need a
 > licence key. **Pre-1.0, provided as-is (no warranty)** — I'm launching to get
@@ -111,6 +120,9 @@ especially criticism.
 > idempotency/loop-guard contract, and a verify mode that probes your n8n without
 > touching the backend. Apache-2.0 core.
 >
+> Because the workflow *is* the integration, you control exactly what it can do —
+> wire only the read actions and it's physically read-only against your backend.
+>
 > Repo: `<your link>` — curious what the n8n crowd thinks of this pattern.
 
 ### Hacker News — Show HN
@@ -130,6 +142,10 @@ especially criticism.
 > Stack: TypeScript, React 19, Express, n8n. Apache-2.0 core with a small
 > licensed-feature tier. Pre-1.0, no warranty. Feedback very welcome — especially
 > on the stateless, n8n-as-sole-broker architecture.
+>
+> Safe to evaluate against real systems: it persists nothing, and since the n8n
+> workflow is the integration, wiring only read actions makes it physically
+> read-only. Dry-run verify, sandbox, and one-click rollback are built in.
 >
 > Repo: `<your link>`
 
@@ -198,3 +214,8 @@ Paste as the Release body when tagging `v0.1.0`.
       commits added config.
 - [ ] **Flip the repo public** (one-way door; history is clean).
 - [ ] Post to **one** channel, engage, then space out the rest.
+
+> **Tip:** when a commenter or pilot asks "is it safe to point at prod?", link
+> [docs/SAFE-FIRST-RUN.md](../SAFE-FIRST-RUN.md) — the demo → read-only →
+> verify → sandbox → add-writes on-ramp. It converts "they say it's safe" into a
+> path they can follow.
