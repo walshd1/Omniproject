@@ -11,6 +11,11 @@ import {
   buildBundle,
   portfolioCompletion,
   buildTrend,
+  loadSchedule,
+  saveSchedule,
+  scheduleActive,
+  captureDue,
+  type AutoSchedule,
   type PortfolioSnapshot,
 } from "./snapshots";
 
@@ -93,6 +98,40 @@ describe("validateSnapshot / parseSnapshotFile", () => {
     expect(parseSnapshotFile(JSON.stringify(buildBundle([snap])))).toHaveLength(1);
     expect(parseSnapshotFile("not json")).toEqual([]);
     expect(parseSnapshotFile(JSON.stringify({ snapshots: [snap, { bad: true }] }))).toHaveLength(1);
+  });
+});
+
+describe("auto-capture schedule", () => {
+  const sched = (over: Partial<AutoSchedule> = {}): AutoSchedule => ({
+    intervalMinutes: 30,
+    endsAt: "2026-01-01T05:00:00.000Z",
+    startedAt: "2026-01-01T00:00:00.000Z",
+    ...over,
+  });
+  const at = (iso: string) => Date.parse(iso);
+
+  it("is active before the end instant and inactive after", () => {
+    expect(scheduleActive(sched(), at("2026-01-01T02:00:00Z"))).toBe(true);
+    expect(scheduleActive(sched(), at("2026-01-01T05:00:00Z"))).toBe(false);
+    expect(scheduleActive(sched(), at("2026-01-01T06:00:00Z"))).toBe(false);
+    expect(scheduleActive(null, at("2026-01-01T02:00:00Z"))).toBe(false);
+    expect(scheduleActive(sched({ intervalMinutes: 0 }), at("2026-01-01T02:00:00Z"))).toBe(false);
+  });
+
+  it("captureDue fires immediately, then once per interval, and never past the end", () => {
+    const s = sched();
+    expect(captureDue(s, null, at("2026-01-01T01:00:00Z"))).toBe(true); // no prior → due now
+    expect(captureDue(s, at("2026-01-01T01:00:00Z"), at("2026-01-01T01:20:00Z"))).toBe(false); // 20m < 30m
+    expect(captureDue(s, at("2026-01-01T01:00:00Z"), at("2026-01-01T01:30:00Z"))).toBe(true); // 30m elapsed
+    expect(captureDue(s, at("2026-01-01T04:50:00Z"), at("2026-01-01T05:30:00Z"))).toBe(false); // past end
+  });
+
+  it("persists and clears the schedule in sessionStorage", () => {
+    expect(loadSchedule()).toBeNull();
+    saveSchedule(sched());
+    expect(loadSchedule()?.intervalMinutes).toBe(30);
+    saveSchedule(null);
+    expect(loadSchedule()).toBeNull();
   });
 });
 

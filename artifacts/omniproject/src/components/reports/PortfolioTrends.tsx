@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useListProjects,
   useGetPortfolioHealth,
@@ -17,6 +17,11 @@ import {
   parseSnapshotFile,
   buildTrend,
   TREND_METRICS,
+  loadSchedule,
+  saveSchedule,
+  scheduleActive,
+  captureDue,
+  type AutoSchedule,
   type TrendMetric,
   type PortfolioSnapshot,
 } from "../../lib/snapshots";
@@ -39,20 +44,73 @@ export function PortfolioTrends() {
   const [label, setLabel] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Auto-capture schedule (volatile, in-tab only).
+  const [schedule, setSchedule] = useState<AutoSchedule | null>(() => loadSchedule());
+  const [intervalMin, setIntervalMin] = useState(30);
+  const [endsAtLocal, setEndsAtLocal] = useState("");
+  const lastCaptureRef = useRef<number | null>(null);
+
   const metricMeta = TREND_METRICS.find((m) => m.key === metric)!;
   const trend = buildTrend(snapshots, metric);
 
-  const capture = () => {
+  const doCapture = (overrideLabel?: string) => {
     const snap = createSnapshot({
       projects,
       portfolio,
       mode: caps?.mode,
-      label: label.trim() || undefined,
+      label: (overrideLabel ?? label).trim() || undefined,
     });
-    setSnapshots(addSnapshots(snapshots, [snap]));
+    setSnapshots((prev) => addSnapshots(prev, [snap]));
+    return snap;
+  };
+
+  const capture = () => {
+    const snap = doCapture();
     setLabel("");
     toast({ title: "SNAPSHOT CAPTURED", description: `${snap.projects.length} projects at ${new Date(snap.capturedAt).toLocaleTimeString()}` });
   };
+
+  // Keep the freshest capture fn for the ticker (avoids stale-closure data).
+  const captureRef = useRef(doCapture);
+  captureRef.current = doCapture;
+
+  const startSchedule = () => {
+    const endsAt = endsAtLocal ? new Date(endsAtLocal) : null;
+    if (intervalMin <= 0 || !endsAt || Number.isNaN(endsAt.getTime()) || endsAt.getTime() <= Date.now()) {
+      toast({ title: "INVALID SCHEDULE", description: "Set an interval and a future end time.", variant: "destructive" });
+      return;
+    }
+    const s: AutoSchedule = { intervalMinutes: intervalMin, endsAt: endsAt.toISOString(), startedAt: new Date().toISOString() };
+    lastCaptureRef.current = null; // capture immediately on the first tick
+    saveSchedule(s);
+    setSchedule(s);
+  };
+
+  const stopSchedule = () => {
+    saveSchedule(null);
+    setSchedule(null);
+  };
+
+  // The ticker: while a schedule is active, capture when due; auto-stop at the end.
+  useEffect(() => {
+    if (!schedule) return;
+    const tickMs = Math.min(schedule.intervalMinutes * 60_000, 30_000);
+    const tick = () => {
+      const now = Date.now();
+      if (!scheduleActive(schedule, now)) {
+        stopSchedule();
+        return;
+      }
+      if (captureDue(schedule, lastCaptureRef.current, now)) {
+        captureRef.current(`auto · ${new Date(now).toLocaleTimeString()}`);
+        lastCaptureRef.current = now;
+      }
+    };
+    tick(); // fire once immediately so "capture now" is honoured at start
+    const id = window.setInterval(tick, tickMs);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedule]);
 
   const onImport = async (file: File | undefined) => {
     if (!file) return;
@@ -135,6 +193,56 @@ export function PortfolioTrends() {
           />
         </div>
 
+        {/* Auto-capture schedule (volatile — runs only while this tab is open). */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3" data-testid="auto-capture">
+          <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Auto-capture</span>
+          {schedule ? (
+            <>
+              <span className="text-xs font-mono text-blue-500" data-testid="auto-status">
+                Every {schedule.intervalMinutes} min until {new Date(schedule.endsAt).toLocaleString()}
+              </span>
+              <button
+                type="button"
+                onClick={stopSchedule}
+                data-testid="auto-toggle"
+                className="inline-flex items-center gap-2 border border-red-500/50 text-red-500 px-3 py-1.5 text-xs font-black uppercase tracking-widest hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                Stop
+              </button>
+            </>
+          ) : (
+            <>
+              <label className="text-xs text-muted-foreground">
+                every
+                <input
+                  type="number"
+                  min={1}
+                  value={intervalMin}
+                  onChange={(e) => setIntervalMin(Number(e.target.value))}
+                  aria-label="Auto-capture interval in minutes"
+                  className="mx-1 w-16 px-2 py-1 bg-background border border-border outline-none focus:border-primary font-mono text-xs"
+                />
+                min until
+              </label>
+              <input
+                type="datetime-local"
+                value={endsAtLocal}
+                onChange={(e) => setEndsAtLocal(e.target.value)}
+                aria-label="Auto-capture end date and time"
+                className="px-2 py-1 bg-background border border-border outline-none focus:border-primary font-mono text-xs"
+              />
+              <button
+                type="button"
+                onClick={startSchedule}
+                data-testid="auto-toggle"
+                className="inline-flex items-center gap-2 border border-border px-3 py-1.5 text-xs font-black uppercase tracking-widest hover:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                Start
+              </button>
+            </>
+          )}
+        </div>
+
         {/* Trend chart */}
         {trend.length >= 2 ? (
           <div className="h-56" data-testid="trend-chart">
@@ -189,8 +297,9 @@ export function PortfolioTrends() {
         )}
 
         <p className="text-[11px] text-muted-foreground">
-          Snapshots are held in this browser session only (cleared when the tab closes). Use <strong>Export</strong> to keep
-          them across sessions — OmniProject stores nothing on the server.
+          Snapshots (manual or auto) are held in this browser session only and auto-capture runs only while this tab is open
+          — OmniProject stores nothing on the server. Use <strong>Export</strong> to keep them across sessions; for unattended
+          overnight cadence, use the n8n snapshot-historian.
         </p>
       </div>
     </section>

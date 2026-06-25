@@ -173,6 +173,50 @@ export function exportSnapshots(snapshots: PortfolioSnapshot[]): void {
   triggerBlobDownload(blob, `omniproject-trends-${bundle.exportedAt.slice(0, 10)}.json`);
 }
 
+// ── Auto-capture schedule (client-side, volatile) ────────────────────────────
+// A schedule captures on an interval until an end date/time. It runs ONLY while
+// the tab is open (it's a browser timer, not a server cron) and the config is
+// held in sessionStorage so a refresh resumes it within the same session. For
+// durable overnight cadence you'd use the n8n snapshot-historian (Tier B).
+
+const SCHEDULE_KEY = "omniproject-snapshot-schedule";
+
+export interface AutoSchedule {
+  intervalMinutes: number;
+  endsAt: string; // ISO 8601 — capturing stops at/after this instant
+  startedAt: string;
+}
+
+export function loadSchedule(): AutoSchedule | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(SCHEDULE_KEY);
+    const s = raw ? (JSON.parse(raw) as AutoSchedule) : null;
+    return s && typeof s.intervalMinutes === "number" && typeof s.endsAt === "string" ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSchedule(s: AutoSchedule | null): void {
+  if (typeof window === "undefined") return;
+  if (s) window.sessionStorage.setItem(SCHEDULE_KEY, JSON.stringify(s));
+  else window.sessionStorage.removeItem(SCHEDULE_KEY);
+}
+
+/** True while now is before the schedule's end and the interval is valid. */
+export function scheduleActive(s: AutoSchedule | null, nowMs: number): boolean {
+  if (!s || s.intervalMinutes <= 0) return false;
+  return nowMs < Date.parse(s.endsAt);
+}
+
+/** True when a capture is due (no prior capture, or one interval has elapsed). */
+export function captureDue(s: AutoSchedule, lastCaptureMs: number | null, nowMs: number): boolean {
+  if (!scheduleActive(s, nowMs)) return false;
+  if (lastCaptureMs === null) return true;
+  return nowMs - lastCaptureMs >= s.intervalMinutes * 60_000;
+}
+
 // ── Trend derivation (pure) ──────────────────────────────────────────────────
 
 export type TrendMetric = "completion" | "schedule" | "budget" | "blockers" | "ragRed";

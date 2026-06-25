@@ -6,6 +6,8 @@ import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
 import { FinancialEvmChart } from "../components/reports/FinancialEvmChart";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { PortfolioTrends } from "../components/reports/PortfolioTrends";
+import { ScenarioSandbox } from "../components/reports/ScenarioSandbox";
+import { DependencyLinks } from "../components/reports/DependencyLinks";
 import { ProvenanceBadge } from "../components/ProvenanceBadge";
 import { useT } from "../lib/i18n";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -86,8 +88,10 @@ export function Reports() {
           <PortfolioKpi />
         </Gated>
 
-        {/* Client-side point-in-time trends — captured in the browser, no gateway state. */}
+        {/* Client-side, stateless overlays — all volatile/exportable, no gateway state. */}
         <PortfolioTrends />
+        <ScenarioSandbox />
+        <DependencyLinks />
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
           {projectId && (
