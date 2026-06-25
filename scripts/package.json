@@ -9,6 +9,7 @@
     "e2e-smoke": "tsx ./src/e2e-smoke.ts",
     "stress": "tsx ./src/stress-test.ts",
     "integration:openproject": "tsx ./src/integration-openproject.ts",
+    "a11y": "node ./a11y-scan.cjs",
     "license": "tsx ./src/mint-license.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

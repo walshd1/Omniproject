@@ -36,6 +36,24 @@ app.use(
   }),
 );
 app.use(cors());
+
+// Baseline security headers on every response (API + SPA). Deliberately
+// conservative — no CSP here (it would need per-deployment tuning for the SPA's
+// font/asset origins); these are the safe, universally-applicable ones.
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-DNS-Prefetch-Control", "off");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  // HSTS only over HTTPS in production (meaningless/counterproductive on plain http).
+  if (process.env["NODE_ENV"] === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+
 app.use(cookieParser(SESSION_SECRET));
 // Stash the raw request bytes so payment-webhook routes can verify provider
 // signatures (e.g. Stripe signs the exact body). Cheap; only the buffer is kept.
