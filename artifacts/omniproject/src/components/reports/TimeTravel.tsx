@@ -1,21 +1,29 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useGetCapabilities } from "@workspace/api-client-react";
+import {
+  useGetCapabilities,
+  useReplayHistory,
+  getReplayHistoryQueryKey,
+  type HistoryState,
+} from "@workspace/api-client-react";
 import { History, Lock } from "lucide-react";
-import { ProvenanceBadge } from "../ProvenanceBadge";
+import { ProvenanceBadge, type Provenance } from "../ProvenanceBadge";
 import { loadSnapshots, portfolioCompletion } from "../../lib/snapshots";
 
 /**
  * Time-travel surface. LOCKED unless the operator opted into the logging-server
- * egress (capabilities.timeTravel). When locked, it points the user to Settings.
- * When unlocked, increment 1 scrubs the LOCAL captured snapshots (back across
- * your own points); dense `replayed` history from the logging server and a
- * `projected` forward segment arrive with the replay broker action (increment 2).
+ * egress (capabilities.timeTravel). When unlocked it scrubs RECORDED states
+ * replayed from the logging server (via GET /history/replay); if the server has
+ * no points yet it falls back to scrubbing the local captured snapshots. Each
+ * point keeps its own provenance (`replayed` real history, `sample` demo) so it
+ * is never mistaken for live fact.
  */
 export function TimeTravel() {
   const { data: caps } = useGetCapabilities();
   const enabled = caps?.timeTravel === true;
-  const snaps = loadSnapshots();
+  const { data: replay } = useReplayHistory(undefined, {
+    query: { enabled, queryKey: getReplayHistoryQueryKey(undefined) },
+  });
   const [idx, setIdx] = useState(0);
 
   if (!enabled) {
@@ -35,46 +43,55 @@ export function TimeTravel() {
     );
   }
 
-  const selected = snaps.length ? snaps[Math.min(idx, snaps.length - 1)] : null;
+  // Prefer real replayed states from the logging server; else fall back to local captures.
+  const serverPoints = (replay ?? []).map((s: HistoryState) => ({
+    at: s.at,
+    completion: Math.round(s.completionPct),
+    provenance: s.provenance as Provenance,
+  }));
+  const localPoints = loadSnapshots().map((s) => ({
+    at: s.capturedAt,
+    completion: portfolioCompletion(s),
+    provenance: "captured" as Provenance,
+  }));
+  const points = serverPoints.length ? serverPoints : localPoints;
+  const selected = points.length ? points[Math.min(idx, points.length - 1)] : null;
 
   return (
     <section data-testid="time-travel">
       <div className="flex items-center gap-3 mb-4">
         <History className="w-4 h-4 text-blue-500" />
         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Time-Travel</h2>
-        <ProvenanceBadge provenance="captured" />
+        {selected && <ProvenanceBadge provenance={selected.provenance} />}
       </div>
 
       <div className="bg-card border border-border p-4 space-y-3">
-        {snaps.length < 1 ? (
+        {points.length < 1 ? (
           <p className="text-sm text-muted-foreground" data-testid="time-travel-empty">
-            Enabled — but no points to scrub yet. Capture snapshots, or dense server replay (next increment) will populate
-            history from your logging server.
+            Enabled — but no recorded points yet. The logging server's history will populate here once it has captured state;
+            meanwhile you can capture snapshots above to scrub locally.
           </p>
         ) : (
           <>
             <input
               type="range"
               min={0}
-              max={snaps.length - 1}
-              value={Math.min(idx, snaps.length - 1)}
+              max={points.length - 1}
+              value={Math.min(idx, points.length - 1)}
               onChange={(e) => setIdx(Number(e.target.value))}
-              aria-label="Scrub through captured points in time"
+              aria-label="Scrub through points in time"
               className="w-full"
               data-testid="time-travel-scrubber"
             />
             <div className="flex items-center justify-between text-xs font-mono">
-              <span className="text-muted-foreground">
-                {selected ? new Date(selected.capturedAt).toLocaleString() : ""}
-                {selected?.label ? ` · ${selected.label}` : ""}
-              </span>
-              <span className="font-bold">{selected ? portfolioCompletion(selected) : 0}% complete</span>
+              <span className="text-muted-foreground">{selected ? new Date(selected.at).toLocaleString() : ""}</span>
+              <span className="font-bold">{selected ? selected.completion : 0}% complete</span>
             </div>
           </>
         )}
         <p className="text-[11px] text-muted-foreground">
-          Reading point-in-time state. Dense <strong>replayed</strong> history and a <strong>projected</strong> forward view
-          come from your logging server — OmniProject stays a stateless lens over it.
+          Reading point-in-time state from your logging server — OmniProject stays a stateless lens over it. A
+          <strong> projected</strong> forward view comes from the what-if engine.
         </p>
       </div>
     </section>

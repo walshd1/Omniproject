@@ -49,6 +49,24 @@ export const GetFxRatesResponse = zod.object({
 
 
 /**
+ * Reads recorded portfolio states back from the operator's logging server via the broker. Returns 409 unless the operator opted into the logging-server egress (otherwise there is no recorded history).
+ * @summary Time-travel — replay recorded portfolio states
+ */
+export const ReplayHistoryQueryParams = zod.object({
+  "from": zod.coerce.string().optional().describe('ISO 8601 lower bound (inclusive).'),
+  "to": zod.coerce.string().optional().describe('ISO 8601 upper bound (inclusive).')
+})
+
+export const ReplayHistoryResponseItem = zod.object({
+  "at": zod.string().describe('ISO 8601 timestamp of this recorded state.'),
+  "completionPct": zod.number(),
+  "openBlockers": zod.number().nullish(),
+  "provenance": zod.enum(['replayed', 'projected', 'sourced', 'derived', 'sample'])
+}).describe('A portfolio-level state at a point in time (time-travel replay). provenance \"replayed\" = a real recorded state; \"projected\" = a model of the future, never fact; \"sample\" = demo.')
+export const ReplayHistoryResponse = zod.array(ReplayHistoryResponseItem)
+
+
+/**
  * Fetches normalized project list via n8n
  * @summary List all projects
  */

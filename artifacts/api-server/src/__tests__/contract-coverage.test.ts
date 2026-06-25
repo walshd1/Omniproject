@@ -49,6 +49,7 @@ const COVERED: Record<string, string> = {
   "/capabilities": "e2e-smoke, broker-conformance",
   "/settings": "security.test.ts, verify-n8n",
   "/fx-rates": "security.test.ts (HTTP), broker-conformance (fxRates)",
+  "/history/replay": "security.test.ts (time-travel gate), broker-conformance (replay)",
 };
 
 test("every OpenAPI path is registered as covered by a test", () => {

@@ -28,6 +28,7 @@ import type {
   ErrorResponse,
   FxRates,
   HealthStatus,
+  HistoryState,
   Issue,
   IssueInput,
   IssueUpdate,
@@ -42,6 +43,7 @@ import type {
   ProjectSummary,
   RaidEntry,
   RaidEntryInput,
+  ReplayHistoryParams,
   ResourceCapacity,
   Settings,
   SettingsUpdate
@@ -275,6 +277,91 @@ export function useGetFxRates<TData = Awaited<ReturnType<typeof getFxRates>>, TE
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetFxRatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getReplayHistoryUrl = (params?: ReplayHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/history/replay?${stringifiedParams}` : `/api/history/replay`
+}
+
+/**
+ * Reads recorded portfolio states back from the operator's logging server via the broker. Returns 409 unless the operator opted into the logging-server egress (otherwise there is no recorded history).
+ * @summary Time-travel — replay recorded portfolio states
+ */
+export const replayHistory = async (params?: ReplayHistoryParams, options?: RequestInit): Promise<HistoryState[]> => {
+
+  return customFetch<HistoryState[]>(getReplayHistoryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getReplayHistoryQueryKey = (params?: ReplayHistoryParams,) => {
+    return [
+    `/api/history/replay`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getReplayHistoryQueryOptions = <TData = Awaited<ReturnType<typeof replayHistory>>, TError = ErrorType<ErrorResponse>>(params?: ReplayHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof replayHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getReplayHistoryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof replayHistory>>> = ({ signal }) => replayHistory(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof replayHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ReplayHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof replayHistory>>>
+export type ReplayHistoryQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Time-travel — replay recorded portfolio states
+ */
+
+export function useReplayHistory<TData = Awaited<ReturnType<typeof replayHistory>>, TError = ErrorType<ErrorResponse>>(
+ params?: ReplayHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof replayHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getReplayHistoryQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

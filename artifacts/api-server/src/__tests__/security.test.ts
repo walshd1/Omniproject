@@ -231,6 +231,28 @@ test("logging sink: enabling with url + acknowledgement unlocks the timeTravel c
   });
 });
 
+test("time-travel replay is gated 409 until the logging sink is enabled, then 200", async () => {
+  const locked = await req("/api/history/replay", { headers: { cookie: VIEWER } });
+  assert.equal(locked.status, 409);
+
+  await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ loggingSink: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }),
+  });
+
+  const open = await req("/api/history/replay", { headers: { cookie: VIEWER } });
+  assert.equal(open.status, 200);
+  assert.ok(Array.isArray(await open.json()), "replay returns an array of states");
+
+  // Restore (off).
+  await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ loggingSink: { enabled: false, url: null, acknowledgedWarranty: false } }),
+  });
+});
+
 test("baseline security headers are present", async () => {
   const res = await req("/api/healthz");
   assert.equal(res.headers.get("x-content-type-options"), "nosniff");

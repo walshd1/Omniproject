@@ -13,6 +13,29 @@ export interface ErrorResponse {
   error: string;
 }
 
+export type HistoryStateProvenance = typeof HistoryStateProvenance[keyof typeof HistoryStateProvenance];
+
+
+export const HistoryStateProvenance = {
+  replayed: 'replayed',
+  projected: 'projected',
+  sourced: 'sourced',
+  derived: 'derived',
+  sample: 'sample',
+} as const;
+
+/**
+ * A portfolio-level state at a point in time (time-travel replay). provenance "replayed" = a real recorded state; "projected" = a model of the future, never fact; "sample" = demo.
+ */
+export interface HistoryState {
+  /** ISO 8601 timestamp of this recorded state. */
+  at: string;
+  completionPct: number;
+  /** @nullable */
+  openBlockers?: number | null;
+  provenance: HistoryStateProvenance;
+}
+
 /**
  * Map of ISO 4217 code → rate relative to base.
  */
@@ -621,4 +644,15 @@ export interface Notification {
   read: boolean;
   timestamp: string;
 }
+
+export type ReplayHistoryParams = {
+/**
+ * ISO 8601 lower bound (inclusive).
+ */
+from?: string;
+/**
+ * ISO 8601 upper bound (inclusive).
+ */
+to?: string;
+};
 

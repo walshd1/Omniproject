@@ -56,6 +56,14 @@ test("DemoBroker satisfies the full read contract", async () => {
   const fx = await b.fxRates(ctx);
   assert.equal(typeof fx.base, "string");
   assert.ok(fx.rates && typeof fx.rates === "object", "fxRates");
+
+  const states = await b.replay(ctx, {});
+  assert.ok(Array.isArray(states), "replay returns an array of states");
+  if (states.length) {
+    assert.equal(typeof states[0]!.at, "string");
+    assert.equal(typeof states[0]!.completionPct, "number");
+    assert.ok(["replayed", "projected", "sourced", "derived", "sample"].includes(states[0]!.provenance));
+  }
 });
 
 test("DemoBroker satisfies the write contract (create → update → delete)", async () => {

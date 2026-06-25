@@ -14,6 +14,7 @@ import {
   type IssueWrite,
   type Summary,
   type HistoryPoint,
+  type HistoryState,
   type Baseline,
   type PortfolioRow,
   type FxRates,
@@ -218,6 +219,25 @@ export class DemoBroker implements Broker {
 
   async fxRates(): Promise<FxRates> {
     return DEMO_FX;
+  }
+
+  async replay(): Promise<HistoryState[]> {
+    // No logging server in demo mode — synthesise a short ramp toward the current
+    // portfolio completion so the time-travel UI has something to scrub, clearly
+    // badged `sample` (never presented as recorded fact).
+    const total = SAMPLE_PROJECTS.reduce((s, p) => s + (Number(p["issueCount"]) || 0), 0);
+    const done = SAMPLE_PROJECTS.reduce((s, p) => s + (Number(p["completedCount"]) || 0), 0);
+    const current = total > 0 ? Math.round((done / total) * 100) : 0;
+    const POINTS = 6;
+    return Array.from({ length: POINTS }, (_, i) => {
+      const at = new Date(Date.UTC(2026, i, 1)).toISOString();
+      return {
+        at,
+        completionPct: Math.round((current * (i + 1)) / POINTS),
+        openBlockers: Math.max(0, 5 - i),
+        provenance: "sample" as const,
+      };
+    });
   }
 
   async verify(): Promise<VerifyReport> {

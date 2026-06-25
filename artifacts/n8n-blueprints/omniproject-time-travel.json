@@ -1,0 +1,240 @@
+{
+  "name": "OmniProject — Time-travel (history egress + replay)",
+  "meta": {
+    "templateId": "omniproject-time-travel",
+    "description": "Two branches in one workflow. HISTORIAN: a scheduled trigger snapshots the current portfolio state and POSTs a timestamped record to the operator's logging server (LOGGING_SINK_URL). REPLAY: a webhook handling action == 'replay' queries that store for records in payload.from..payload.to and returns HistoryState[] ({ at, completionPct, openBlockers, provenance: 'replayed' }). OmniProject stays stateless — the operator's logging server holds the history. Egressed data is the operator's responsibility and OUTSIDE OmniProject's warranty."
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## OmniProject Time-travel\n\n**OmniProject stays stateless** — it stores nothing. This workflow lives on the operator's n8n and uses an operator-owned logging server as the durable history store.\n\n> ⚠️ **Out of warranty.** Data egressed to `LOGGING_SINK_URL` leaves OmniProject's control and **warranty** — the operator is responsible for its security, retention and residency. Same trust class as the OData / Power BI feeds. See [docs/TIME-TRAVEL.md](../../docs/TIME-TRAVEL.md).\n\n### Two branches\n1. **HISTORIAN (egress / write)** — Schedule Trigger → read current portfolio state from OmniProject → build a timestamped record → **POST to the logging store** (`LOGGING_SINK_URL`).\n2. **REPLAY (read-back)** — Webhook on `action == \"replay\"` → query the logging store for `payload.from..payload.to` → map to `HistoryState[]` (`provenance: \"replayed\"`) → respond.\n\n### Env vars\n- `LOGGING_SINK_URL` — base URL of the operator's logging store (e.g. `https://logs.internal:9200/omni-history`). SSRF-validated by the gateway before egress is allowed.\n- `OMNI_API_BASE` — OmniProject gateway base URL the Historian reads from.\n- `OMNI_HISTORY_TOKEN` — service token for the Historian's reads + sink writes (optional).\n- `LOGGING_SINK_QUERY_URL` — read endpoint for replay (defaults to `LOGGING_SINK_URL`).",
+        "height": 420,
+        "width": 480
+      },
+      "id": "ff000000-0000-4000-8000-000000000000",
+      "name": "Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-820, -220]
+    },
+    {
+      "parameters": {
+        "content": "## Branch 1 — HISTORIAN (egress / write)\n\nRuns on a schedule (hourly by default). Captures the **current** portfolio state from OmniProject's own read endpoint and writes ONE timestamped record to the operator's logging store.\n\nThis is the only \"send data out\" path. Everything it POSTs is **outside OmniProject's warranty** — the operator owns the destination.\n\nSwap the HTTP **Write to logging store** node for an Elasticsearch / Loki / OpenSearch node if you prefer a native integration; HTTP is used here for portability.",
+        "height": 320,
+        "width": 460
+      },
+      "id": "ff000000-0000-4000-8000-000000000001",
+      "name": "Historian Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-820, 240]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "hours", "hoursInterval": 1 }
+          ]
+        }
+      },
+      "id": "ff000000-0000-4000-8000-000000000010",
+      "name": "Schedule (hourly)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-320, 560],
+      "notes": "How often to snapshot the portfolio. Hourly is a sensible default; switch to daily for a smaller, coarser history."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.OMNI_API_BASE }}/api/portfolio/health",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OMNI_HISTORY_TOKEN }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ff000000-0000-4000-8000-000000000011",
+      "name": "Read current portfolio state",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-80, 560],
+      "notes": "Read the live portfolio from OmniProject's own read endpoint (or call your backends directly). Adjust the path/auth to your deployment. The response is summarised into a single point-in-time record below."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build ONE timestamped HistoryState-shaped record from the current portfolio.\n// OmniProject stores nothing; this record is written to the operator's logging\n// store, which IS the durable history. Egressed data is outside OmniProject's\n// warranty — the operator owns this destination.\nconst rows = items.map((i) => i.json);\nconst portfolio = Array.isArray(rows) && rows.length === 1 && Array.isArray(rows[0]) ? rows[0] : rows;\nconst list = Array.isArray(portfolio) ? portfolio : (portfolio.data ?? portfolio.projects ?? [portfolio]);\n\nconst pct = (p) => Number(p.completionPct ?? p.completionPercentage ?? p.percentComplete ?? 0);\nconst blockers = (p) => Number(p.activeBlockersCount ?? p.openBlockers ?? 0);\n\nconst n = list.length || 1;\nconst completionPct = Math.round(list.reduce((s, p) => s + pct(p), 0) / n);\nconst openBlockers = list.reduce((s, p) => s + blockers(p), 0);\n\nreturn [{ json: {\n  at: new Date().toISOString(),\n  completionPct,\n  openBlockers,\n  provenance: 'replayed',\n  source: 'omniproject-historian'\n} }];"
+      },
+      "id": "ff000000-0000-4000-8000-000000000012",
+      "name": "Build history record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [160, 560]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.LOGGING_SINK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OMNI_HISTORY_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "ff000000-0000-4000-8000-000000000013",
+      "name": "Write to logging store (operator-owned)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 560],
+      "notes": "EGRESS — OUTSIDE OmniProject's warranty. POSTs the timestamped record to the operator's logging store at LOGGING_SINK_URL (the gateway SSRF-validates this URL before time-travel is enabled). Replace with an Elasticsearch / Loki / OpenSearch node for a native integration; the record shape stays the same."
+    },
+    {
+      "parameters": {
+        "content": "## Branch 2 — REPLAY (read-back)\n\nThe gateway's `GET /api/history/replay` (409 unless time-travel is enabled) brokers the **`replay`** action here as:\n\n```jsonc\n{ \"action\": \"replay\", \"source\": \"history_provider\",\n  \"payload\": { \"from\": \"<ISO?>\", \"to\": \"<ISO?>\" } }\n```\n\nThis branch queries the logging store for records in `payload.from..payload.to` and replies with the **`HistoryState[]`** array (`{ at, completionPct, openBlockers, provenance: \"replayed\" }`) wrapped as `N8nActionResult` (`{ success, data }`).",
+        "height": 320,
+        "width": 460
+      },
+      "id": "ff000000-0000-4000-8000-000000000002",
+      "name": "Replay Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-820, -560]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "omniproject-time-travel",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ff000000-0000-4000-8000-000000000020",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-320, -360],
+      "webhookId": "omniproject-time-travel",
+      "notes": "Point the OmniProject broker (BROKER_URL) at this URL, or merge this branch into your core-sync workflow. The gateway sends X-OmniProject-Action: replay and body { action, payload: { from?, to? }, source: 'history_provider' }."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.action }}",
+              "rightValue": "replay",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ff000000-0000-4000-8000-000000000021",
+      "name": "Action == replay?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-80, -360],
+      "notes": "Only the 'replay' action is served here. Anything else falls through to the Unsupported branch so this workflow can be merged with others without colliding."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.LOGGING_SINK_QUERY_URL || $env.LOGGING_SINK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OMNI_HISTORY_TOKEN }}" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "from", "value": "={{ $json.body.payload.from }}" },
+            { "name": "to", "value": "={{ $json.body.payload.to }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ff000000-0000-4000-8000-000000000022",
+      "name": "Query logging store",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [180, -440],
+      "notes": "Read records the Historian wrote, filtered to payload.from..payload.to. Adjust the query params / body to your store's API (an Elasticsearch range query, a Loki LogQL range, etc.). Replace with the matching native node if you prefer."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map the operator logging store's rows into the HistoryState[] contract the\n// gateway expects: { at, completionPct, openBlockers, provenance }. Recorded\n// states are 'replayed' (real, not projected). Window-filter as a backstop in\n// case the store ignored from/to.\nconst body = $('Webhook').first().json.body;\nconst from = body.payload && body.payload.from ? Date.parse(body.payload.from) : -Infinity;\nconst to = body.payload && body.payload.to ? Date.parse(body.payload.to) : Infinity;\n\nconst rows = items.map((i) => i.json);\nconst hits = rows.length === 1 && Array.isArray(rows[0]) ? rows[0]\n  : (rows.length === 1 && rows[0] && Array.isArray(rows[0].hits)) ? rows[0].hits\n  : rows;\n\nconst states = (hits || [])\n  .map((r) => (r && r._source) ? r._source : r)\n  .filter((r) => r && r.at)\n  .filter((r) => { const t = Date.parse(r.at); return t >= from && t <= to; })\n  .map((r) => ({\n    at: new Date(r.at).toISOString(),\n    completionPct: Number(r.completionPct ?? 0),\n    openBlockers: r.openBlockers == null ? null : Number(r.openBlockers),\n    provenance: 'replayed'\n  }))\n  .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));\n\nreturn [{ json: { success: true, data: states, message: 'replay ok' } }];"
+      },
+      "id": "ff000000-0000-4000-8000-000000000023",
+      "name": "Map → HistoryState[]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, -440]
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $('Webhook').first().json.body.action;\nreturn [{ json: { success: false, data: [], message: 'Unsupported action: ' + action } }];"
+      },
+      "id": "ff000000-0000-4000-8000-000000000024",
+      "name": "Unsupported Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [180, -240]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {}
+      },
+      "id": "ff000000-0000-4000-8000-000000000025",
+      "name": "Respond N8nActionResult",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [700, -360]
+    }
+  ],
+  "connections": {
+    "Schedule (hourly)": {
+      "main": [[{ "node": "Read current portfolio state", "type": "main", "index": 0 }]]
+    },
+    "Read current portfolio state": {
+      "main": [[{ "node": "Build history record", "type": "main", "index": 0 }]]
+    },
+    "Build history record": {
+      "main": [[{ "node": "Write to logging store (operator-owned)", "type": "main", "index": 0 }]]
+    },
+    "Webhook": {
+      "main": [[{ "node": "Action == replay?", "type": "main", "index": 0 }]]
+    },
+    "Action == replay?": {
+      "main": [
+        [{ "node": "Query logging store", "type": "main", "index": 0 }],
+        [{ "node": "Unsupported Action", "type": "main", "index": 0 }]
+      ]
+    },
+    "Query logging store": {
+      "main": [[{ "node": "Map → HistoryState[]", "type": "main", "index": 0 }]]
+    },
+    "Map → HistoryState[]": {
+      "main": [[{ "node": "Respond N8nActionResult", "type": "main", "index": 0 }]]
+    },
+    "Unsupported Action": {
+      "main": [[{ "node": "Respond N8nActionResult", "type": "main", "index": 0 }]]
+    }
+  }
+}

@@ -13,6 +13,7 @@ import aiRouter from "./ai";
 import exportRouter from "./export";
 import integrationsRouter from "./integrations";
 import odataRouter from "./odata";
+import historyRouter from "./history";
 import licenseRouter from "./license";
 import brandingRouter from "./branding";
 import labelsRouter from "./labels";
@@ -88,5 +89,6 @@ router.use(requireAuth, aiRouter);
 router.use(requireAuth, exportRouter);
 router.use(requireAuth, integrationsRouter);
 router.use(requireAuth, odataRouter);
+router.use(requireAuth, historyRouter);
 
 export default router;
