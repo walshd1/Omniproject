@@ -3,7 +3,10 @@
 > **A read-through overlay for programme & project management — with finance,
 > time and resource tracking — and no database of its own.**
 > Your existing tools stay the single source of truth; OmniProject is just a
-> different view onto them — brokered entirely through **n8n**.
+> different view onto them. It **fits the stack you already have** — from the whole
+> thing on a single Docker host, to Kubernetes, in front of anything from a team's
+> Jira to an enterprise's SAP — and reaches them through one **swappable broker
+> seam**. n8n is our broker today; **if you run something else, it copes.**
 
 Most "single pane of glass" tools quietly become a *second* place your data
 lives: they copy issues into their own store, and then you spend your life
@@ -25,9 +28,13 @@ out of sync — the backend is always right, and OmniProject just renders it.
   federated underneath; the UI never changes.
 
 **It's not another system to adopt — it's a layer that fits the workflow you
-already have.** Your tools, your n8n, your SSO stay exactly where they are;
-OmniProject plugs into them and surfaces *what you need, when you need it*. Nobody
-has to move into a new app, migrate data, or change how they work.
+already have.** Your tools, your broker, your SSO stay exactly where they are;
+OmniProject plugs into them and surfaces *what you need, when you need it*. It
+**runs wherever you do** — the entire stack on one Docker host for a small team,
+or scaled out to **Kubernetes** in front of enterprise systems like **SAP** — and
+because everything below the broker seam is pluggable, **if your broker isn't n8n
+it adapts rather than breaks.** Nobody has to move into a new app, migrate data,
+or change how they work.
 
 **And it speaks the methodology you already run.** The data model is
 methodology-neutral, so the same backend renders as a **Kanban** board, a
