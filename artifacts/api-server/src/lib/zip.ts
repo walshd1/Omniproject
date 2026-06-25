@@ -20,6 +20,8 @@ const CRC_TABLE = (() => {
   return table;
 })();
 
+// Standard zlib/PKZIP CRC-32 (reflected, polynomial 0xEDB88320) — the checksum
+// the ZIP local/central headers below require for each stored entry.
 export function crc32(buf: Buffer): number {
   let crc = 0xffffffff;
   for (let i = 0; i < buf.length; i++) crc = CRC_TABLE[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
@@ -39,10 +41,10 @@ export function buildZip(entries: ZipEntry[]): Buffer {
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0); // local file header signature
     local.writeUInt16LE(20, 4); // version needed
-    local.writeUInt16LE(0x0800, 6); // flags: UTF-8 names
+    local.writeUInt16LE(0x0800, 6); // flags: bit 11 set = filename is UTF-8
     local.writeUInt16LE(0, 8); // method: stored
     local.writeUInt16LE(0, 10); // mod time
-    local.writeUInt16LE(0x21, 12); // mod date (1980-01-01)
+    local.writeUInt16LE(0x21, 12); // mod date in DOS format: 0x21 = 1980-01-01 (the DOS epoch; we don't track real mtimes)
     local.writeUInt32LE(crc, 14);
     local.writeUInt32LE(size, 18); // compressed size
     local.writeUInt32LE(size, 22); // uncompressed size

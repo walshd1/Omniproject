@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
 
 /**
  * Dependency-free internationalization.
@@ -188,7 +188,8 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children, labelOverrides }: { children: ReactNode; labelOverrides?: Record<string, string> }) {
   const [locale, setLocaleState] = useState<Locale>(detectLocale);
-  const overrides = labelOverrides ?? {};
+  // Stable reference so the memoised `t` below doesn't rebuild on every render.
+  const overrides = useMemo(() => labelOverrides ?? {}, [labelOverrides]);
 
   const setLocale = useCallback((l: Locale) => {
     if (typeof window !== "undefined") {

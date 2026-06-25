@@ -45,7 +45,8 @@ const WRITE_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 
 export function auditLevel(): AuditLevel {
   const raw = process.env["AUDIT_LEVEL"]?.trim().toLowerCase();
-  return raw === "off" || raw === "all" ? raw : raw === "writes" ? "writes" : "writes";
+  // Default to "writes" for any unset/unrecognised value (audit mutations, not reads).
+  return raw === "off" || raw === "all" ? raw : "writes";
 }
 
 /** Pure decision: should an event at this level be recorded? */

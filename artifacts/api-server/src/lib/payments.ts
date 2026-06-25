@@ -39,6 +39,9 @@ export function verifyStripeSignature(
     }),
   ) as Record<string, string>;
   const t = parts["t"];
+  // A Stripe-Signature header can carry SEVERAL v1 signatures during a secret
+  // rotation (old + new). Collect them all and accept if ANY matches — the
+  // Object.fromEntries above would have kept only the last, so re-parse here.
   const v1 = signatureHeader
     .split(",")
     .map((kv) => kv.split("="))

@@ -25,6 +25,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   });
   const connected = health.data?.status === "ok";
 
+  // Fall back to the first project when none is explicitly active, so the global
+  // Cmd+K "New Issue" dialog always has a target project.
   const activeProject = projects?.find(p => p.id === activeProjectId) || projects?.[0];
   const dialogProjectId = activeProject?.id ?? "";
   const mainRef = useRef<HTMLDivElement>(null);
@@ -39,16 +41,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
     mainRef.current?.focus();
   }, [location, brand.appName]);
 
-  // Auth guard: bounce unauthenticated users to the login screen.
+  // Auth guard: wait for auth to resolve (so we don't bounce mid-load), then send
+  // an authenticated-but-not-logged-in user to the login screen.
   useEffect(() => {
     if (!authLoading && auth && !auth.authenticated) {
       setLocation("/login");
     }
   }, [auth, authLoading, setLocation]);
 
+  // Two-key "chord" navigation (g then d/p/r/s, like Gmail/GitHub): pressing 'g'
+  // arms a one-shot listener for the destination key; it auto-disarms after the
+  // chord window if no follow-up key arrives.
   useEffect(() => {
+    const CHORD_WINDOW_MS = 1000;
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Shortcuts only when not in input/textarea
+      // Ignore shortcuts while typing in a field.
       if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
 
       if (e.key === "g") {
@@ -60,7 +67,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           document.removeEventListener("keydown", nextKey);
         };
         document.addEventListener("keydown", nextKey);
-        setTimeout(() => document.removeEventListener("keydown", nextKey), 1000);
+        setTimeout(() => document.removeEventListener("keydown", nextKey), CHORD_WINDOW_MS);
       }
     };
 

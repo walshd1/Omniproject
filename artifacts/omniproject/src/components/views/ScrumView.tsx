@@ -21,7 +21,9 @@ function Burndown({ committed, remaining }: { committed: number; remaining: numb
   const data = Array.from({ length: days + 1 }, (_, d) => {
     const ideal = Math.round(committed * (1 - d / days));
     const t = d / days;
-    const actual = Math.round(committed - (committed - remaining) * (t * (2 - t))); // ease-out
+    // Quadratic ease-out (t*(2-t)): the actual line bows toward `remaining` for a
+    // realistic burndown shape rather than a straight line.
+    const actual = Math.round(committed - (committed - remaining) * (t * (2 - t)));
     return { day: `D${d}`, Ideal: ideal, Remaining: actual };
   });
   return (

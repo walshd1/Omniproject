@@ -1,6 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
 import { getSession } from "../routes/auth";
-import { hasValidApiToken } from "./api-token";
 
 /**
  * Role-based access control.
@@ -68,8 +67,8 @@ export function roleFromClaims(claimRoles: string[], opts: { isDemo: boolean }):
 export function roleForReq(req: Request): Role {
   const session = getSession(req);
   if (!session) {
-    // Read-only API tokens (and unauthenticated callers) are viewers.
-    void hasValidApiToken(req);
+    // No session → read-only API tokens (and unauthenticated callers) are viewers.
+    // The token's read-only enforcement happens in requireAuth; here we only need the role.
     return "viewer";
   }
   const isDemo = !process.env["OIDC_ISSUER_URL"]?.trim();

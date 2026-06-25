@@ -72,6 +72,10 @@ export function prince2Stage(issue: Issue): string {
 // ── RAG rollup ────────────────────────────────────────────────────────────────
 export type Rag = "GREEN" | "AMBER" | "RED";
 
+// RAG (Red/Amber/Green) health rollup thresholds:
+//   RED   — 3+ overdue items, or under 25% complete
+//   AMBER — any overdue item, or under 60% complete
+//   GREEN — otherwise
 export function ragFor(completionPct: number, overdueCount: number): Rag {
   if (overdueCount >= 3 || completionPct < 25) return "RED";
   if (overdueCount > 0 || completionPct < 60) return "AMBER";
