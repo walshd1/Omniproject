@@ -1,5 +1,6 @@
 import { useGetProjectCapacity, type ResourceCapacity } from "@workspace/api-client-react";
 import { AlertTriangle } from "lucide-react";
+import { DataState } from "../DataState";
 
 // Colour ramp by allocation: >100 over-allocated (red), 80–100 optimal (green),
 // <80 under-allocated (zinc).
@@ -43,7 +44,7 @@ function Row({ r }: { r: ResourceCapacity }) {
 }
 
 export function ResourceHeatmap({ projectId }: { projectId: string }) {
-  const { data, isLoading } = useGetProjectCapacity(projectId);
+  const { data, isLoading, isError, error, refetch } = useGetProjectCapacity(projectId);
   const overCount = data?.filter((r) => r.allocationPercentage > 100).length ?? 0;
 
   return (
@@ -59,13 +60,17 @@ export function ResourceHeatmap({ projectId }: { projectId: string }) {
       <div className="bg-card border border-border">
         {isLoading ? (
           <div className="h-40 animate-pulse" />
-        ) : data?.length ? (
-          data.map((r) => <Row key={r.resourceId} r={r} />)
         ) : (
-          <div className="p-6 text-sm text-muted-foreground text-center">
-            No capacity data — requires a resource-management source (assignments, roles, availability) via the
-            <span className="font-mono"> get_resource_capacity </span> n8n workflow.
-          </div>
+          <DataState isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
+            {data?.length ? (
+              data.map((r) => <Row key={r.resourceId} r={r} />)
+            ) : (
+              <div className="p-6 text-sm text-muted-foreground text-center">
+                No capacity data — requires a resource-management source (assignments, roles, availability) via the
+                <span className="font-mono"> get_resource_capacity </span> n8n workflow.
+              </div>
+            )}
+          </DataState>
         )}
       </div>
     </section>

@@ -16,6 +16,7 @@ import {
 } from "../../lib/constants";
 import { PriorityDot } from "../StatusDot";
 import { IssueDialog } from "../IssueDialog";
+import { DataState } from "../DataState";
 import { useToast } from "@/hooks/use-toast";
 
 function IssueCard({
@@ -70,7 +71,7 @@ function IssueCard({
 }
 
 export function AgileBoard({ projectId }: { projectId: string }) {
-  const { data: issues, isLoading } = useGetProjectIssues(projectId);
+  const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
   const updateIssue = useUpdateIssue();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -130,6 +131,10 @@ export function AgileBoard({ projectId }: { projectId: string }) {
     const extra = [...new Set((issues ?? []).map((i) => i.status).filter((s) => !known.includes(s)))];
     return [...STATUS_ORDER, ...extra];
   }, [issues]);
+
+  if (isError) {
+    return <DataState isError error={error} onRetry={() => refetch()}>{null}</DataState>;
+  }
 
   if (isLoading) {
     return (

@@ -11,6 +11,65 @@ import {
   type StoreView,
 } from "../../lib/setup";
 import { Step, useRefreshAndSettings } from "./shared";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+
+/**
+ * Wraps a destructive trigger button in an AlertDialog confirmation. The trigger
+ * keeps the original button's classes/content; `onConfirm` runs only after the
+ * user accepts. RBAC gating stays on the caller (these only render for admins).
+ */
+function ConfirmButton({
+  className,
+  children,
+  title,
+  description,
+  confirmLabel,
+  onConfirm,
+  disabled,
+  triggerTitle,
+}: {
+  className: string;
+  children: React.ReactNode;
+  title: string;
+  description: React.ReactNode;
+  confirmLabel: string;
+  onConfirm: () => void;
+  disabled?: boolean;
+  /** Tooltip / accessible label for an icon-only trigger button. */
+  triggerTitle?: string;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <button type="button" disabled={disabled} className={className} title={triggerTitle} aria-label={triggerTitle}>
+          {children}
+        </button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm} className="bg-red-500 text-background hover:bg-red-600">
+            {confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
   const refreshAndSettings = useRefreshAndSettings();
@@ -84,12 +143,15 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
               <GitBranch className="w-3 h-3" /> New env
             </button>
             {store.environments.includes("sandbox") && store.environments.includes("production") && (
-              <button
-                onClick={() => envAction("PROMOTED SANDBOX → PRODUCTION", () => promoteEnvironment("sandbox", "production"))}
+              <ConfirmButton
                 className="px-2.5 py-1 text-xs font-black uppercase tracking-widest border border-amber-500/50 text-amber-500 hover:bg-amber-500 hover:text-background"
+                title="Promote sandbox to production?"
+                description="This copies the current sandbox integration config over production. Live traffic will immediately use the promoted settings. A new version is recorded so you can roll back."
+                confirmLabel="Promote to production"
+                onConfirm={() => envAction("PROMOTED SANDBOX → PRODUCTION", () => promoteEnvironment("sandbox", "production"))}
               >
                 Promote sandbox → prod
-              </button>
+              </ConfirmButton>
             )}
           </div>
 
@@ -97,13 +159,16 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
             <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
               Version history {store.persisted ? "(persisted)" : "(in-memory)"}
             </span>
-            <button
-              onClick={() => doRollback({ toKnownGood: true })}
+            <ConfirmButton
               disabled={!store.lastKnownGoodId}
               className="px-3 py-1.5 text-xs font-black uppercase tracking-widest border border-green-500/50 text-green-500 hover:bg-green-500 hover:text-background disabled:opacity-40 flex items-center gap-1.5"
+              title="Roll back to last known-good?"
+              description="This restores the configuration pinned as known-good, discarding the current active config in favour of it. Live traffic will use the restored settings immediately."
+              confirmLabel="Roll back"
+              onConfirm={() => doRollback({ toKnownGood: true })}
             >
               <RotateCcw className="w-3.5 h-3.5" /> Roll back to last known-good
-            </button>
+            </ConfirmButton>
           </div>
 
           <div className="border border-border bg-background max-h-64 overflow-y-auto divide-y divide-border">
@@ -120,13 +185,16 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
                 >
                   <Star className="w-3.5 h-3.5" fill={v.knownGood ? "currentColor" : "none"} />
                 </button>
-                <button
-                  onClick={() => doRollback({ versionId: v.id })}
-                  title="Roll back to this version"
+                <ConfirmButton
+                  title="Roll back to this version?"
+                  description={<>Restore configuration version <span className="font-mono">{v.id}</span>{v.label ? ` (“${v.label}”)` : ""}, discarding the current active config. Live traffic will use the restored settings immediately.</>}
+                  confirmLabel="Roll back"
+                  onConfirm={() => doRollback({ versionId: v.id })}
+                  triggerTitle="Roll back to this version"
                   className="text-muted-foreground hover:text-primary"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                </button>
+                </ConfirmButton>
               </div>
             ))}
           </div>

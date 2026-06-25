@@ -28,6 +28,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { STATUS_ORDER, PRIORITY_ORDER, STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants";
 
@@ -275,15 +286,35 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
 
           <DialogFooter className="gap-2 sm:justify-between">
             {isEdit ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleDelete}
-                disabled={deleteIssue.isPending}
-                className="rounded-none border-red-500/50 text-red-500 hover:bg-red-500 hover:text-background uppercase font-bold tracking-wider"
-              >
-                {deleteIssue.isPending ? "DELETING…" : "DELETE"}
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={deleteIssue.isPending}
+                    className="rounded-none border-red-500/50 text-red-500 hover:bg-red-500 hover:text-background uppercase font-bold tracking-wider"
+                  >
+                    {deleteIssue.isPending ? "DELETING…" : "DELETE"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="rounded-none border-2 border-foreground bg-card">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="font-black uppercase tracking-tighter">Delete issue?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      “{issue?.title}” will be permanently deleted from the backend. This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="rounded-none uppercase font-bold tracking-wider">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className="rounded-none bg-red-500 text-background hover:bg-red-600 uppercase font-bold tracking-wider"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             ) : <span />}
             <Button
               type="submit"

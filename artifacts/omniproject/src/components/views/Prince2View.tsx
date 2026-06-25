@@ -13,11 +13,11 @@ import {
   RAG_TEXT,
 } from "../../lib/methodology";
 import { STATUS_LABELS, STATUS_COLORS } from "../../lib/constants";
-import { LoadingState } from "../LoadingState";
+import { DataState } from "../DataState";
 import { IssueDialog } from "../IssueDialog";
 
 export function Prince2View({ projectId }: { projectId: string }) {
-  const { data: issues, isLoading } = useGetProjectIssues(projectId);
+  const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
   const [editing, setEditing] = useState<Issue | null>(null);
 
   const model = useMemo(() => {
@@ -43,10 +43,8 @@ export function Prince2View({ projectId }: { projectId: string }) {
     return { stages, total, delivered, exceptions, pct, rag: ragFor(pct, exceptions), next };
   }, [issues]);
 
-  if (isLoading) return <LoadingState />;
-
   return (
-    <>
+    <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
       <div className="h-full overflow-y-auto space-y-6">
         {/* Highlight report */}
         <div className="bg-card border-2 border-border p-5">
@@ -101,6 +99,6 @@ export function Prince2View({ projectId }: { projectId: string }) {
       </div>
 
       <IssueDialog projectId={projectId} open={!!editing} onOpenChange={(o) => !o && setEditing(null)} issue={editing} />
-    </>
+    </DataState>
   );
 }

@@ -3,13 +3,13 @@ import { useGetProjectIssues, type Issue } from "@workspace/api-client-react";
 import { STATUS_LABELS, PRIORITY_LABELS, STATUS_ORDER, PRIORITY_ORDER } from "../../lib/constants";
 import { isOverdue } from "../../lib/methodology";
 import { IssueDialog } from "../IssueDialog";
-import { LoadingState } from "../LoadingState";
+import { DataState } from "../DataState";
 import { StatusDot, PriorityDot } from "../StatusDot";
 
 type SortKey = "title" | "status" | "priority" | "assignee" | "dueDate";
 
 export function ListView({ projectId }: { projectId: string }) {
-  const { data: issues, isLoading } = useGetProjectIssues(projectId);
+  const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
   const [editing, setEditing] = useState<Issue | null>(null);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "status", dir: 1 });
 
@@ -29,8 +29,6 @@ export function ListView({ projectId }: { projectId: string }) {
   }, [issues, sort]);
 
   const toggle = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: 1 }));
-
-  if (isLoading) return <LoadingState />;
 
   const Th = ({ k, children }: { k: SortKey; children: React.ReactNode }) => {
     const active = sort.key === k;
@@ -53,7 +51,7 @@ export function ListView({ projectId }: { projectId: string }) {
   };
 
   return (
-    <>
+    <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
       <div className="h-full overflow-auto bg-card border border-border">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-background border-b border-border text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -95,6 +93,6 @@ export function ListView({ projectId }: { projectId: string }) {
       </div>
 
       <IssueDialog projectId={projectId} open={!!editing} onOpenChange={(o) => !o && setEditing(null)} issue={editing} />
-    </>
+    </DataState>
   );
 }

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { PremiumAdmin } from "../components/PremiumAdmin";
+import { DataState } from "../components/DataState";
 
 const AI_MODEL_HINT: Record<string, string> = {
   none: "",
@@ -16,7 +17,7 @@ const AI_MODEL_HINT: Record<string, string> = {
 };
 
 export function Settings() {
-  const { data: settings, isLoading } = useGetSettings();
+  const { data: settings, isLoading, isError, error, refetch } = useGetSettings();
   const updateSettings = useUpdateSettings();
   const { toast } = useToast();
 
@@ -77,6 +78,7 @@ export function Settings() {
   };
 
   if (isLoading) return <div className="p-8 text-center font-bold tracking-widest text-muted-foreground">LOADING...</div>;
+  if (isError) return <DataState isError error={error} onRetry={() => refetch()} className="p-8 min-h-[16rem]">{null}</DataState>;
 
   const isAiSelected = formData.aiProvider !== "none";
 

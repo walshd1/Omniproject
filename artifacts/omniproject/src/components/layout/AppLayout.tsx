@@ -11,6 +11,7 @@ import { useSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
 import { useBranding } from "../../lib/branding";
 import { LanguageSwitcher } from "../LanguageSwitcher";
+import { ErrorBoundary } from "../ErrorBoundary";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -199,7 +200,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         )}
         <div id="main-content" ref={mainRef} tabIndex={-1} className="flex-1 overflow-auto bg-muted/20 relative outline-none">
-          {children}
+          <ErrorBoundary key={location}>{children}</ErrorBoundary>
         </div>
       </main>
 

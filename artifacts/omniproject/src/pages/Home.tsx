@@ -7,15 +7,21 @@ import { ViewSwitcher } from "../components/ViewSwitcher";
 import { VIEW_COMPONENTS } from "../components/views/registry";
 import { viewMeta } from "../lib/views";
 import { LoadingState } from "../components/LoadingState";
+import { DataState } from "../components/DataState";
 
 export function Home() {
   const { currentView, activeProjectId, setActiveProjectId, setNewIssueOpen } = useStore();
-  const { data: projects, isLoading: projectsLoading } = useListProjects();
+  const { data: projects, isLoading: projectsLoading, isError: projectsError, error: projectsErr, refetch: refetchProjects } = useListProjects();
   const { data: activity } = useListActivity();
   const ActiveView = VIEW_COMPONENTS[currentView];
 
   useEffect(() => {
-    if (projects && projects.length > 0 && !activeProjectId) {
+    if (!projects || projects.length === 0) return;
+    // Fall back to the first project when none is active, OR when the persisted
+    // active id no longer exists in the current project list (e.g. it was
+    // deleted, or belongs to another backend since the last session).
+    const valid = activeProjectId && projects.some((p) => p.id === activeProjectId);
+    if (!valid) {
       setActiveProjectId(projects[0].id);
     }
   }, [projects, activeProjectId, setActiveProjectId]);
@@ -55,7 +61,9 @@ export function Home() {
         </div>
 
         <div className="flex-1 overflow-auto p-6 relative">
-          {projectsLoading ? (
+          {projectsError ? (
+            <DataState isError error={projectsErr} onRetry={() => refetchProjects()}>{null}</DataState>
+          ) : projectsLoading ? (
             <div className="w-full h-full flex items-center justify-center">
               <LoadingState className="" />
             </div>

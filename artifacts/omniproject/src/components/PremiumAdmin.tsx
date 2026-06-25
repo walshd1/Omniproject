@@ -5,6 +5,17 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useLicense } from "../lib/branding";
 import { Lock, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 /**
  * Admin panels for the licensed overlay features: white-label branding,
@@ -111,7 +122,24 @@ function BrandingPanel({ entitled }: { entitled: boolean }) {
         <Field label="Support URL" value={form.supportUrl} onChange={set("supportUrl")} placeholder="https://support.acme.com" />
         <div className="flex gap-3">
           <Button type="button" onClick={save} disabled={saving} className="rounded-none uppercase font-bold tracking-wider">{saving ? "Saving…" : "Save branding"}</Button>
-          <Button type="button" variant="outline" onClick={reset} className="rounded-none border-border uppercase font-bold tracking-wider">Reset to default</Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button type="button" variant="outline" className="rounded-none border-border uppercase font-bold tracking-wider">Reset to default</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset branding to default?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This clears all white-label branding (app name, logo, colours, footer) and reverts to the product
+                  defaults. The page will reload immediately to apply the change.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={reset} className="bg-red-500 text-background hover:bg-red-600">Reset & reload</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </fieldset>
     </Section>
@@ -241,7 +269,24 @@ function WebhooksPanel({ entitled }: { entitled: boolean }) {
                 <div className="text-muted-foreground">{h.events.join(", ")}{h.description ? ` · ${h.description}` : ""}</div>
               </div>
               <Button type="button" variant="outline" disabled={!entitled} onClick={() => test(h.id)} className="rounded-none border-border h-8 text-xs uppercase">Test</Button>
-              <button type="button" onClick={() => remove(h.id)} className="text-muted-foreground hover:text-destructive" aria-label="Delete webhook"><Trash2 className="w-4 h-4" /></button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button type="button" className="text-muted-foreground hover:text-destructive" aria-label="Delete webhook"><Trash2 className="w-4 h-4" /></button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete webhook?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Deliveries to <span className="font-mono break-all">{h.url}</span> will stop immediately and the
+                      signing secret is destroyed. This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => remove(h.id)} className="bg-red-500 text-background hover:bg-red-600">Delete</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           ))}
         </div>

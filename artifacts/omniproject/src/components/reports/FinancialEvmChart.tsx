@@ -3,6 +3,7 @@ import { useGetProjectFinancials, type ProjectFinancials } from "@workspace/api-
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useT } from "../../lib/i18n";
 import { useFxRates, convertAmount, currencyList } from "../../lib/currency";
+import { DataState } from "../DataState";
 
 const HEALTH: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
 
@@ -32,7 +33,7 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 }
 
 export function FinancialEvmChart({ projectId }: { projectId: string }) {
-  const { data: f, isLoading } = useGetProjectFinancials(projectId);
+  const { data: f, isLoading, isError, error, refetch } = useGetProjectFinancials(projectId);
   const { t, formatCurrency } = useT();
   const { data: fx } = useFxRates();
   const [display, setDisplay] = useState("");
@@ -68,7 +69,9 @@ export function FinancialEvmChart({ projectId }: { projectId: string }) {
         )}
       </div>
       <div className="bg-card border border-border p-6">
-        {isLoading || !f ? (
+        {isError ? (
+          <DataState isError error={error} onRetry={() => refetch()} className="min-h-72">{null}</DataState>
+        ) : isLoading || !f ? (
           <div className="h-72 animate-pulse" />
         ) : unavailable ? (
           <div className="h-40 flex items-center justify-center text-center text-sm text-muted-foreground px-6">

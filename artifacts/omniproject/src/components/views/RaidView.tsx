@@ -7,7 +7,7 @@ import {
   type RaidEntry,
   type RaidEntryInput,
 } from "@workspace/api-client-react";
-import { LoadingState } from "../LoadingState";
+import { DataState } from "../DataState";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { ProvenanceBadge } from "../ProvenanceBadge";
@@ -53,7 +53,7 @@ function Card({ e }: { e: RaidEntry }) {
 }
 
 export function RaidView({ projectId }: { projectId: string }) {
-  const { data: entries, isLoading } = useGetProjectRaid(projectId);
+  const { data: entries, isLoading, isError, error, refetch } = useGetProjectRaid(projectId);
   const { data: auth } = useAuth();
   const canWrite = roleAtLeast(auth?.role, "contributor");
   const { toast } = useToast();
@@ -89,9 +89,8 @@ export function RaidView({ projectId }: { projectId: string }) {
     );
   };
 
-  if (isLoading) return <LoadingState />;
-
   return (
+    <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
     <div className="h-full flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -166,5 +165,6 @@ export function RaidView({ projectId }: { projectId: string }) {
         ))}
       </div>
     </div>
+    </DataState>
   );
 }
