@@ -125,13 +125,19 @@ export class BrokerError extends Error {
     this.status = STATUS_FOR[code];
     this.details = details;
   }
-  /** Map an upstream HTTP status onto the normalised taxonomy. */
-  static fromStatus(status: number, message: string): BrokerError {
-    if (status === 409) return new BrokerError("conflict", message);
-    if (status === 404) return new BrokerError("not_found", message);
-    if (status === 401 || status === 403) return new BrokerError("unauthorized", message);
-    if (status >= 400 && status < 500) return new BrokerError("bad_request", message);
-    return new BrokerError("unavailable", message);
+  /**
+   * Map an upstream HTTP status onto the normalised taxonomy with a safe,
+   * code-derived client message. The raw upstream body must NOT be passed here
+   * (it may carry backend-internal detail); log it server-side instead. An
+   * optional `details` payload (e.g. the current row on a conflict) is carried
+   * out-of-band for the contract, not in the client-facing message.
+   */
+  static fromStatus(status: number, details?: unknown): BrokerError {
+    if (status === 409) return new BrokerError("conflict", "the item was modified by someone else", details);
+    if (status === 404) return new BrokerError("not_found", "the requested resource was not found");
+    if (status === 401 || status === 403) return new BrokerError("unauthorized", "the backend rejected the request as unauthorized");
+    if (status >= 400 && status < 500) return new BrokerError("bad_request", "the backend rejected the request");
+    return new BrokerError("unavailable", "the backend is currently unavailable");
   }
 }
 

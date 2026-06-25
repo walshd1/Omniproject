@@ -20,6 +20,8 @@ export function NotificationsBell() {
   // Notifications pushed over SSE (newest first), merged ahead of the polled list.
   const [pushed, setPushed] = useState<Notification[]>([]);
   const esRef = useRef<EventSource | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   const { data } = useListNotifications({
     // Poll less often when the live channel is on; it's the fallback.
@@ -53,6 +55,25 @@ export function NotificationsBell() {
     };
   }, [live]);
 
+  // When the panel opens: move focus into it and wire an Escape-to-close
+  // handler. On close, restore focus to the bell trigger. Listener is cleaned
+  // up on close/unmount.
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      triggerRef.current?.focus();
+    };
+  }, [open]);
+
   // Merge live + polled, de-duped by id (live wins).
   const polled: Notification[] = data ?? [];
   const seen = new Set(pushed.map((n) => n.id));
@@ -68,10 +89,11 @@ export function NotificationsBell() {
         {latest ? `New notification: ${latest.title}` : ""}
       </div>
       <button
+        ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         className="relative text-muted-foreground hover:text-foreground"
         title={live && connected ? "Notifications — live" : "Notifications"}
-        aria-haspopup="dialog"
+        aria-haspopup="true"
         aria-expanded={open}
         aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
       >
@@ -89,7 +111,7 @@ export function NotificationsBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div role="dialog" aria-label="Notifications" className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-card border border-border shadow-lg z-50">
+          <div ref={panelRef} tabIndex={-1} aria-label="Notifications" className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-card border border-border shadow-lg z-50 outline-none">
             <div className="p-3 border-b border-border font-black uppercase tracking-widest text-xs flex items-center justify-between">
               <span>Notifications</span>
               <button

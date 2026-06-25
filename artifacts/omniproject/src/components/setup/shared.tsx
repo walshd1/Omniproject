@@ -16,8 +16,13 @@ export function download(url: string) {
 }
 
 export function Dot({ on }: { on: boolean | undefined }) {
-  if (on === undefined) return <Circle className="w-4 h-4 text-muted-foreground/40" />;
-  return on ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-500" />;
+  if (on === undefined)
+    return <Circle role="img" aria-label="unknown" className="w-4 h-4 text-muted-foreground/40" />;
+  return on ? (
+    <CheckCircle2 role="img" aria-label="available" className="w-4 h-4 text-green-500" />
+  ) : (
+    <XCircle role="img" aria-label="unavailable" className="w-4 h-4 text-red-500" />
+  );
 }
 
 export function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {

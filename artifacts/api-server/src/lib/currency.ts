@@ -9,6 +9,7 @@ import { getBroker, contextFromReq, type FxRates } from "../broker";
  */
 
 export type { FxRates };
+export { INDICATIVE_FX_RATES } from "./fx-fallback";
 
 /** Convert an amount between currencies via a base-anchored rate table. */
 export function convertAmount(amount: number, from: string, to: string, rates: Record<string, number>): number {

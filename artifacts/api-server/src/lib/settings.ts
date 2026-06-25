@@ -7,7 +7,23 @@
  * is sufficient for single-instance and demo use.
  */
 
-export type AiProvider = "none" | "openai" | "ollama" | "anthropic" | "openrouter";
+import { assertSafeOutboundUrl, UnsafeUrlError } from "./url-safety";
+
+export const AI_PROVIDERS = ["none", "openai", "ollama", "anthropic", "openrouter"] as const;
+export type AiProvider = (typeof AI_PROVIDERS)[number];
+
+/** Coerce an untrusted value (env or request) to a valid AiProvider, else "none". */
+function coerceAiProvider(raw: unknown): AiProvider {
+  return (AI_PROVIDERS as readonly string[]).includes(raw as string) ? (raw as AiProvider) : "none";
+}
+
+/** Thrown when an admin settings write fails validation; the route maps it to 400. */
+export class SettingsValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SettingsValidationError";
+  }
+}
 // Free-form backend routing hint passed to n8n. "all" = no filter (whatever
 // n8n is wired to). No specific backend (Plane/OpenProject/…) is required.
 export type BackendSource = string;
@@ -98,7 +114,7 @@ function webhooksFromEnv(): WebhookSubscription[] {
 
 const store: SettingsState = {
   brokerUrl: process.env["BROKER_URL"]?.trim() || null,
-  aiProvider: (process.env["AI_PROVIDER"] as AiProvider) || "none",
+  aiProvider: coerceAiProvider(process.env["AI_PROVIDER"]?.trim() || "none"),
   aiModel: process.env["AI_MODEL"] ?? null,
   backendSource: process.env["BACKEND_SOURCE"]?.trim() || "all",
   oidcIssuerUrl: process.env["OIDC_ISSUER_URL"] ?? null,
@@ -122,7 +138,50 @@ export function getSettings(): SettingsState {
   return { ...store };
 }
 
+/**
+ * Validate an untrusted settings patch before it is written. Only the fields
+ * present in the patch are checked. Throws `SettingsValidationError` on the first
+ * problem so the route can answer 400 instead of persisting a malformed config
+ * (e.g. an `aiProvider` the AI layer can't resolve, or an unsafe outbound URL).
+ */
+function validatePatch(patch: Record<string, unknown>): void {
+  if ("aiProvider" in patch && !(AI_PROVIDERS as readonly string[]).includes(patch["aiProvider"] as string)) {
+    throw new SettingsValidationError(`aiProvider must be one of: ${AI_PROVIDERS.join(", ")}`);
+  }
+  for (const key of ["brokerUrl", "oidcIssuerUrl"] as const) {
+    if (key in patch && patch[key] != null) {
+      if (typeof patch[key] !== "string") throw new SettingsValidationError(`${key} must be a string or null`);
+      try {
+        assertSafeOutboundUrl(patch[key] as string, key);
+      } catch (err) {
+        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : `${key} is invalid`);
+      }
+    }
+  }
+  if ("webhooks" in patch) {
+    const webhooks = patch["webhooks"];
+    if (!Array.isArray(webhooks)) throw new SettingsValidationError("webhooks must be an array");
+    for (const w of webhooks) {
+      if (!w || typeof w !== "object") throw new SettingsValidationError("each webhook must be an object");
+      const url = (w as Record<string, unknown>)["url"];
+      if (typeof url !== "string") throw new SettingsValidationError("each webhook needs a url string");
+      try {
+        assertSafeOutboundUrl(url, "webhook url");
+      } catch (err) {
+        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "webhook url is invalid");
+      }
+    }
+  }
+  if ("branding" in patch && patch["branding"] != null && typeof patch["branding"] !== "object") {
+    throw new SettingsValidationError("branding must be an object or null");
+  }
+  if ("labelOverrides" in patch && (typeof patch["labelOverrides"] !== "object" || patch["labelOverrides"] == null)) {
+    throw new SettingsValidationError("labelOverrides must be an object");
+  }
+}
+
 export function updateSettings(patch: Record<string, unknown>): SettingsState {
+  validatePatch(patch);
   const writable = store as unknown as Record<string, unknown>;
   for (const key of ALLOWED_KEYS) {
     if (key in patch) {

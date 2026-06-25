@@ -48,6 +48,7 @@ const COVERED: Record<string, string> = {
   "/activity": "verify-n8n, broker-conformance",
   "/capabilities": "e2e-smoke, broker-conformance",
   "/settings": "security.test.ts, verify-n8n",
+  "/fx-rates": "security.test.ts (HTTP), broker-conformance (fxRates)",
 };
 
 test("every OpenAPI path is registered as covered by a test", () => {

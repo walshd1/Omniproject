@@ -8,12 +8,29 @@
 import { Router, type Request, type Response } from "express";
 import { BrokerCommandBody } from "@workspace/api-zod";
 import { N8nBroker } from "../broker/n8n";
-import { contextFromReq, respondBrokerError } from "../broker";
+import { contextFromReq, respondBrokerError, isLiveBroker, BrokerError } from "../broker";
+import { requireRole } from "../lib/rbac";
 
 const router = Router();
 const broker = new N8nBroker();
 
 async function handle(req: Request, res: Response): Promise<void> {
+  // This edge can invoke arbitrary backend actions, including writes
+  // (create/update/delete). The per-action REST routes gate writes behind
+  // `contributor`; without the same gate here a read-only `viewer` session
+  // could forward a `delete_issue` and bypass every write wall. So we require
+  // `contributor` for the whole edge (the SPA does not use it for reads).
+  if (!isLiveBroker()) {
+    // No backend wired (demo mode): there is nothing to forward to. Return the
+    // normalised "demo" error instead of attempting a live n8n call that would
+    // surface as an opaque "backend unreachable".
+    respondBrokerError(
+      res,
+      new BrokerError("unavailable", "No backend configured (demo mode): command passthrough requires a live broker"),
+    );
+    return;
+  }
+
   const parse = BrokerCommandBody.safeParse(req.body);
   if (!parse.success) {
     res.status(400).json({ error: "Invalid request body" });
@@ -36,6 +53,6 @@ async function handle(req: Request, res: Response): Promise<void> {
   }
 }
 
-router.post("/broker/command", handle);
+router.post("/broker/command", requireRole("contributor"), handle);
 
 export default router;

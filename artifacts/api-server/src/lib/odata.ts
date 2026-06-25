@@ -92,6 +92,31 @@ function matchesFilter(row: Row, filter: string): boolean {
   return true;
 }
 
+/**
+ * Typed comparison for $orderby. Callers handle null/undefined ordering before
+ * calling this (absent values sort to the end regardless of direction).
+ * - numbers compared numerically
+ * - strings compared via localeCompare
+ * - otherwise: equal values preserve order (0); incomparable/heterogeneous
+ *   values are treated as equal so the stable sort preserves their order.
+ */
+function compareValues(av: unknown, bv: unknown): number {
+  if (typeof av === "number" && typeof bv === "number") {
+    if (av < bv) return -1;
+    if (av > bv) return 1;
+    return 0;
+  }
+  if (typeof av === "string" && typeof bv === "string") {
+    return av.localeCompare(bv);
+  }
+  if (typeof av === "boolean" && typeof bv === "boolean") {
+    return av === bv ? 0 : av ? 1 : -1;
+  }
+  if (av === bv) return 0;
+  // Heterogeneous / incomparable types: preserve existing order.
+  return 0;
+}
+
 export interface ODataQuery {
   $select?: string;
   $top?: string;
@@ -112,10 +137,15 @@ export function applyODataQuery(rows: Row[], q: ODataQuery): { rows: Row[]; coun
     const [field, dir] = q.$orderby.trim().split(/\s+/);
     const sign = (dir ?? "asc").toLowerCase() === "desc" ? -1 : 1;
     out = [...out].sort((a, b) => {
-      const av = a[field] as string | number;
-      const bv = b[field] as string | number;
-      if (av === bv) return 0;
-      return (av > bv ? 1 : -1) * sign;
+      const av = a[field];
+      const bv = b[field];
+      // Absent values always sort to the end, independent of asc/desc.
+      const aMissing = av === undefined || av === null;
+      const bMissing = bv === undefined || bv === null;
+      if (aMissing && bMissing) return 0;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
+      return compareValues(av, bv) * sign;
     });
   }
 

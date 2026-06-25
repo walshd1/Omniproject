@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getSettings, updateSettings } from "../lib/settings";
+import { getSettings, updateSettings, SettingsValidationError } from "../lib/settings";
 import { requireRole } from "../lib/rbac";
 import { captureVersion } from "../lib/config-store";
 
@@ -16,9 +16,17 @@ router.get("/settings", (_req, res) => {
 // Changing settings re-wires the gateway (broker URL, AI provider) — admin only.
 // Each change is versioned so it can be rolled back (see config-store).
 router.patch("/settings", requireRole("admin"), (req, res) => {
-  const settings = updateSettings(req.body ?? {});
-  captureVersion("settings updated");
-  res.json(settings);
+  try {
+    const settings = updateSettings(req.body ?? {});
+    captureVersion("settings updated");
+    res.json(settings);
+  } catch (err) {
+    if (err instanceof SettingsValidationError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 export default router;

@@ -13,6 +13,36 @@ export interface ErrorResponse {
   error: string;
 }
 
+/**
+ * Map of ISO 4217 code → rate relative to base.
+ */
+export type FxRatesRates = {[key: string]: number};
+
+/**
+ * "sourced" = from the backend/ERP; "sample" = indicative fallback.
+ */
+export type FxRatesProvenance = typeof FxRatesProvenance[keyof typeof FxRatesProvenance];
+
+
+export const FxRatesProvenance = {
+  sourced: 'sourced',
+  sample: 'sample',
+} as const;
+
+/**
+ * Base-anchored FX rate table for multi-currency conversion.
+ */
+export interface FxRates {
+  /** ISO 4217 code the rates are anchored to (e.g. "GBP"). */
+  base: string;
+  /** Map of ISO 4217 code → rate relative to base. */
+  rates: FxRatesRates;
+  /** "sourced" = from the backend/ERP; "sample" = indicative fallback. */
+  provenance: FxRatesProvenance;
+  /** ISO 8601 timestamp the rates were captured. */
+  asOf: string;
+}
+
 export type BrokerCommandInputPayload = { [key: string]: unknown };
 
 export interface BrokerCommandInput {

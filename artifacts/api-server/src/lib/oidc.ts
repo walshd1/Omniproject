@@ -64,10 +64,11 @@ export const isOidcConfigured = oidcConfig !== null;
 
 // ── Discovery (cached) ────────────────────────────────────────────────────────
 
-let discoveryCache: OidcDiscovery | null = null;
+let discoveryCache: { doc: OidcDiscovery; at: number } | null = null;
+const DISCOVERY_TTL_MS = 10 * 60 * 1000;
 
 export async function discover(config: OidcConfig): Promise<OidcDiscovery> {
-  if (discoveryCache) return discoveryCache;
+  if (discoveryCache && Date.now() - discoveryCache.at < DISCOVERY_TTL_MS) return discoveryCache.doc;
   const url = `${config.issuerUrl}/.well-known/openid-configuration`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
@@ -77,7 +78,7 @@ export async function discover(config: OidcConfig): Promise<OidcDiscovery> {
   if (!doc.authorization_endpoint || !doc.token_endpoint) {
     throw new Error("OIDC discovery document missing required endpoints");
   }
-  discoveryCache = doc;
+  discoveryCache = { doc, at: Date.now() };
   return doc;
 }
 

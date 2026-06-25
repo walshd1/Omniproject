@@ -1,4 +1,5 @@
 import { DEV_PERSIST_FILE, saveState, loadState } from "../lib/dev-persist";
+import { INDICATIVE_FX_RATES } from "../lib/fx-fallback";
 import type { Row, FxRates } from "./types";
 
 /**
@@ -87,6 +88,19 @@ for (const list of Object.values(SAMPLE_ISSUES)) {
   }
 })();
 
+// Keep each project's issueCount/completedCount in lock-step with its seeded
+// issues so the demo is internally consistent across /projects, /summary,
+// /history and /metrics (otherwise the project-card completion % derived from
+// these counts would disagree with the board's actual issues). "Completed"
+// mirrors the summary's definition (status === "done"). Projects with no seeded
+// issues are left untouched.
+for (const project of SAMPLE_PROJECTS) {
+  const issues = SAMPLE_ISSUES[project["id"] as string];
+  if (!issues?.length) continue;
+  project["issueCount"] = issues.length;
+  project["completedCount"] = issues.filter((i) => i["status"] === "done").length;
+}
+
 export function sampleActivity(): Row[] {
   return [
     { id: "act-001", action: "status_changed", actor: "alice", projectId: "proj-001", issueId: "iss-005", issueTitle: "Frontend command palette keyboard navigation", detail: "in_progress → done", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString() },
@@ -134,12 +148,9 @@ export function sampleNotifications(): Row[] {
   ];
 }
 
-export const DEMO_FX: FxRates = {
-  base: "GBP",
-  rates: { GBP: 1, USD: 0.79, EUR: 0.85, JPY: 0.0053, INR: 0.0095, AUD: 0.52, CAD: 0.58, CHF: 0.89, CNY: 0.11, SGD: 0.59, ZAR: 0.043, BRL: 0.16 },
-  provenance: "sample",
-  asOf: "1970-01-01T00:00:00.000Z",
-};
+// Indicative sample rates, shared with the n8n adapter's fallback (single source
+// of truth in lib/fx-fallback) so the demo and fallback tables can't drift.
+export const DEMO_FX: FxRates = INDICATIVE_FX_RATES;
 
 // ── Stateful dev mode (opt-in via DEV_PERSIST_FILE; demo only) ─────────────────
 

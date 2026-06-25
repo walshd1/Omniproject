@@ -14,6 +14,7 @@ import { DEV_PERSIST_ENABLED } from "../lib/dev-persist";
 import { getDemoState } from "../lib/data";
 import { buildZip } from "../lib/zip";
 import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
+import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
 import {
   storeView,
   captureVersion,
@@ -26,21 +27,6 @@ import {
 } from "../lib/config-store";
 
 const router = Router();
-
-/** Contract actions safe to probe live (never mutate a backend). */
-const VERIFIABLE_ACTIONS = [
-  "get_capabilities",
-  "list_projects",
-  "list_issues",
-  "list_activity",
-  "get_resource_capacity",
-  "get_project_financials",
-  "get_portfolio_health",
-  "get_project_history",
-  "get_baseline",
-  "get_raid",
-  "get_notifications",
-] as const;
 
 /**
  * Setup / Connection Center endpoints. These are gateway control-plane (like

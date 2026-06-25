@@ -76,7 +76,7 @@ function ensure(): StoreState {
   };
   // Seed an initial version for the active env if history is empty.
   if (state.versions.length === 0) {
-    state.versions.push({ id: nextId(), env: state.activeEnv, at: new Date().toISOString(), snapshot: state.environments[state.activeEnv], label: "initial", knownGood: true });
+    state.versions.push({ id: nextId(), env: state.activeEnv, at: new Date().toISOString(), snapshot: structuredClone(state.environments[state.activeEnv]), label: "initial", knownGood: true });
     persist();
   }
   return state;
@@ -84,7 +84,7 @@ function ensure(): StoreState {
 
 function record(env: string, snapshot: ConfigSnapshot, label?: string): ConfigVersion {
   const s = ensure();
-  const version: ConfigVersion = { id: nextId(), env, at: new Date().toISOString(), snapshot, label, knownGood: false };
+  const version: ConfigVersion = { id: nextId(), env, at: new Date().toISOString(), snapshot: structuredClone(snapshot), label, knownGood: false };
   s.versions.push(version);
   if (s.versions.length > MAX_VERSIONS) s.versions.splice(0, s.versions.length - MAX_VERSIONS);
   return version;
@@ -115,7 +115,7 @@ export function storeView(): StoreView {
 export function captureVersion(label?: string): ConfigVersion {
   const s = ensure();
   const snapshot = buildSnapshot(getSettings());
-  s.environments[s.activeEnv] = snapshot;
+  s.environments[s.activeEnv] = structuredClone(snapshot);
   const v = record(s.activeEnv, snapshot, label);
   persist();
   return v;
@@ -126,7 +126,7 @@ export function createEnvironment(name: string): StoreView {
   if (!name || !/^[a-z0-9][a-z0-9_-]*$/i.test(name)) throw new Error("Invalid environment name");
   if (s.environments[name]) throw new Error(`Environment "${name}" already exists`);
   // Clone the active env's current config as the new environment's starting point.
-  s.environments[name] = s.environments[s.activeEnv];
+  s.environments[name] = structuredClone(s.environments[s.activeEnv]);
   record(name, s.environments[name], `created from ${s.activeEnv}`);
   persist();
   return storeView();
@@ -168,7 +168,7 @@ export function rollbackTo(id: string): { applied: ConfigVersion; warnings: stri
   const { patch, warnings } = applySnapshot(target.snapshot);
   updateSettings(patch);
   s.activeEnv = target.env;
-  s.environments[target.env] = target.snapshot;
+  s.environments[target.env] = structuredClone(target.snapshot);
   record(target.env, target.snapshot, `rollback to ${id}`);
   persist();
   return { applied: target, warnings };
@@ -186,7 +186,7 @@ export function promote(from: string, to: string): StoreView {
   const s = ensure();
   if (!s.environments[from]) throw new Error(`Unknown environment "${from}"`);
   if (!s.environments[to]) throw new Error(`Unknown environment "${to}"`);
-  s.environments[to] = s.environments[from];
+  s.environments[to] = structuredClone(s.environments[from]);
   record(to, s.environments[to], `promoted from ${from}`);
   if (s.activeEnv === to) updateSettings(applySnapshot(s.environments[to]).patch);
   persist();

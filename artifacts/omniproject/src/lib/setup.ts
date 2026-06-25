@@ -26,6 +26,18 @@ export interface N8nTestResult {
 
 export type ExportFormat = "env" | "compose" | "k8s";
 
+/** Trigger a browser download of a Blob via a transient anchor element. */
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 async function fetchSetupStatus(): Promise<SetupStatus> {
   const res = await fetch("/api/setup/status", { credentials: "same-origin" });
   if (!res.ok) throw new Error(`setup status failed: ${res.status}`);
@@ -87,14 +99,7 @@ export async function downloadWorkflow(backendId: string, webhookPath?: string):
     throw new Error(msg || `generate failed: ${res.status}`);
   }
   const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `omniproject-${backendId}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, `omniproject-${backendId}.json`);
 }
 
 export interface VerifyActionResult {
@@ -118,14 +123,7 @@ export async function downloadSnapshot(): Promise<void> {
   const res = await fetch("/api/setup/snapshot", { credentials: "same-origin" });
   if (!res.ok) throw new Error(`snapshot failed: ${res.status}`);
   const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `omniproject-snapshot-${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, `omniproject-snapshot-${new Date().toISOString().slice(0, 10)}.json`);
 }
 
 export interface RestoreResult {

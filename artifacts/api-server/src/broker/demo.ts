@@ -1,5 +1,6 @@
 import { getSettings } from "../lib/settings";
 import { versionConflict } from "../lib/concurrency";
+import { CAPABILITY_DOMAINS } from "../lib/capabilities";
 import {
   SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
   SAMPLE_PORTFOLIO, DEMO_FX, sampleActivity, sampleNotifications, persistDemoState,
@@ -28,7 +29,6 @@ import {
  * a parallel "demo branch" interleaved into the callers.
  */
 
-const DOMAINS = ["issues", "scheduling", "resources", "financials", "portfolio", "baseline", "blockers", "history", "raid"];
 
 let issueCounter = 100;
 let raidCounter = 100;
@@ -194,15 +194,15 @@ export class DemoBroker implements Broker {
   }
 
   async capabilities(): Promise<CapabilityFlags> {
-    return Object.fromEntries(DOMAINS.map((d) => [d, true]));
+    // Reuse the contract's authoritative domain list so the demo adapter's
+    // "everything available" map can't drift from the real domain set. Read
+    // lazily here (not a module-level const) to avoid a TDZ in the
+    // demo ↔ capabilities ↔ broker import cycle.
+    return Object.fromEntries(CAPABILITY_DOMAINS.map((d) => [d, true]));
   }
 
   async fxRates(): Promise<FxRates> {
     return DEMO_FX;
-  }
-
-  async command(): Promise<unknown> {
-    throw new BrokerError("unavailable", "No backend configured (demo mode): command passthrough requires a live broker");
   }
 
   async verify(): Promise<VerifyReport> {

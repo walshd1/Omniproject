@@ -85,13 +85,15 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
     if (isAdmin) fetchEnvironments().then(setStore).catch(() => setStore(null));
   }, [isAdmin]);
 
-  const envAction = async (label: string, fn: () => Promise<StoreView>) => {
+  const envAction = async (label: string, fn: () => Promise<StoreView>): Promise<boolean> => {
     try {
       setStore(await fn());
       refreshAndSettings();
       toast({ title: label });
+      return true;
     } catch (e) {
       toast({ title: "ERROR", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
+      return false;
     }
   };
 
@@ -146,7 +148,9 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
               onClick={() => {
                 const name = newEnv.trim();
                 if (!name || envNameError(newEnv)) return;
-                envAction(`CREATED ${name.toUpperCase()}`, () => createEnvironment(name)).then(() => setNewEnv(""));
+                envAction(`CREATED ${name.toUpperCase()}`, () => createEnvironment(name)).then((ok) => {
+                  if (ok) setNewEnv("");
+                });
               }}
               disabled={!!newEnvError}
               className="px-2.5 py-1 text-xs font-black uppercase tracking-widest border border-border hover:border-primary disabled:opacity-40 disabled:hover:border-border flex items-center gap-1.5"

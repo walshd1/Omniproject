@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import { getSettings } from "../lib/settings";
 import { recordAudit } from "../lib/audit";
+import { INDICATIVE_FX_RATES } from "../lib/fx-fallback";
+import { VERIFIABLE_ACTIONS } from "./verifiable-actions";
 import {
   BrokerError,
   type Broker,
@@ -121,10 +123,12 @@ async function callN8n<T = unknown>(
 
     if (!res.ok) {
       // Propagate meaningful upstream codes — notably 409 (optimistic-concurrency
-      // conflict) and 404; 5xx collapses to "unavailable".
+      // conflict) and 404; 5xx collapses to "unavailable". The upstream body is
+      // kept for server-side diagnostics (audit meta) only — it is never surfaced
+      // to the client, which receives a generic, code-derived message.
       const detail = await res.text().catch(() => "");
-      audit("error", res.status);
-      throw BrokerError.fromStatus(res.status, detail?.slice(0, 300) || `backend returned ${res.status}`);
+      audit("error", res.status, detail ? { upstreamBody: detail.slice(0, 500) } : undefined);
+      throw BrokerError.fromStatus(res.status);
     }
 
     const json = (await res.json().catch(() => ({}))) as unknown;
@@ -148,20 +152,9 @@ const CONSERVATIVE: CapabilityFlags = {
 let capCache: { value: CapabilityFlags; at: number } | null = null;
 const CAP_TTL_MS = 60_000;
 
-const VERIFIABLE_ACTIONS = [
-  "get_capabilities", "list_projects", "list_issues", "list_activity",
-  "get_resource_capacity", "get_project_financials", "get_portfolio_health",
-  "get_project_history", "get_baseline", "get_raid", "get_notifications",
-];
-
 // Indicative FX fallback used when the backend FX read fails (graceful
-// degradation in the n8n path). The demo adapter has its own copy.
-const FALLBACK_FX: FxRates = {
-  base: "GBP",
-  rates: { GBP: 1, USD: 0.79, EUR: 0.85, JPY: 0.0053, INR: 0.0095, AUD: 0.52, CAD: 0.58, CHF: 0.89, CNY: 0.11, SGD: 0.59, ZAR: 0.043, BRL: 0.16 },
-  provenance: "sample",
-  asOf: "1970-01-01T00:00:00.000Z",
-};
+// degradation in the n8n path). Shared with the demo adapter — single source.
+const FALLBACK_FX: FxRates = INDICATIVE_FX_RATES;
 
 export class N8nBroker implements Broker {
   readonly kind = "n8n";
@@ -197,7 +190,13 @@ export class N8nBroker implements Broker {
 
   async projectSummary(ctx: ActorContext, projectId: string): Promise<Summary> {
     const r = await callN8n<Summary>("project_summary", { projectId }, { ctx, source: backendSource(), withActor: false });
-    return r.data as Summary;
+    // The contract requires a Summary. If the backend returns nothing/non-object,
+    // surface it as a backend error (502) rather than emitting `undefined` cast as
+    // a Summary, which would crash consumers or render as bogus all-undefined data.
+    if (!r.data || typeof r.data !== "object") {
+      throw new BrokerError("unavailable", "the backend returned no project summary");
+    }
+    return { ...r.data, projectId: r.data.projectId ?? projectId };
   }
 
   async projectHistory(ctx: ActorContext, projectId: string): Promise<HistoryPoint[]> {
