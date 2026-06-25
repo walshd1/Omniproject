@@ -76,7 +76,7 @@
   --secondary: 220 10% 90%;
   --secondary-foreground: 220 10% 7%;
   --muted: 220 10% 90%;
-  --muted-foreground: 220 8% 40%;
+  --muted-foreground: 220 9% 32%;   /* WCAG AA: ≥4.5:1 on background and bg-muted */
   --accent: 220 10% 90%;
   --accent-foreground: 220 10% 7%;
   --destructive: 0 84% 60%;
@@ -114,7 +114,7 @@
   --secondary: 220 8% 20%;
   --secondary-foreground: 0 0% 95%;
   --muted: 220 8% 20%;
-  --muted-foreground: 220 8% 60%;
+  --muted-foreground: 220 9% 68%;   /* WCAG AA: ≥4.5:1 on dark background and bg-muted */
   --accent: 220 8% 20%;
   --accent-foreground: 0 0% 95%;
   --destructive: 0 84% 60%;
@@ -139,5 +139,17 @@
 
   body {
     @apply font-mono antialiased bg-background text-foreground;
+  }
+}
+
+/* Respect users who prefer reduced motion: collapse animations + transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }

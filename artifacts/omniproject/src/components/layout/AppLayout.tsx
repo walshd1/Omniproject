@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { CommandPalette } from "../CommandPalette";
 import { IssueDialog } from "../IssueDialog";
@@ -27,6 +27,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   const activeProject = projects?.find(p => p.id === activeProjectId) || projects?.[0];
   const dialogProjectId = activeProject?.id ?? "";
+  const mainRef = useRef<HTMLDivElement>(null);
+
+  // On route change, update the page title and move focus to the content region
+  // so screen-reader / keyboard users land on the new view (SPA nav otherwise
+  // announces nothing and leaves focus stranded).
+  useEffect(() => {
+    const seg = location.split("/")[1] || "dashboard";
+    const name = seg.charAt(0).toUpperCase() + seg.slice(1);
+    document.title = `${name} — ${brand.appName}`;
+    mainRef.current?.focus();
+  }, [location, brand.appName]);
 
   // Auth guard: bounce unauthenticated users to the login screen.
   useEffect(() => {
@@ -76,16 +87,22 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden text-foreground">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:bg-primary focus:text-primary-foreground focus:px-3 focus:py-2 focus:font-bold focus:uppercase focus:tracking-widest focus:text-xs"
+      >
+        Skip to content
+      </a>
       {/* Sidebar */}
       <aside className="w-64 border-r border-border flex flex-col bg-card shrink-0">
-        <div className="h-14 flex items-center px-4 border-b border-border font-bold text-xl tracking-tighter cursor-pointer" onClick={() => setLocation("/")}>
+        <Link href="/" aria-label={`${brand.appName} — home`} className="h-14 flex items-center px-4 border-b border-border font-bold text-xl tracking-tighter">
           {brand.logoUrl ? (
-            <img src={brand.logoUrl} alt={brand.appName} className="h-8 mr-3 object-contain" />
+            <img src={brand.logoUrl} alt="" className="h-8 mr-3 object-contain" />
           ) : (
             <div className="bg-foreground text-background w-8 h-8 flex items-center justify-center mr-3 font-black">{brand.shortName}</div>
           )}
           <span className="uppercase truncate">{brand.appName}</span>
-        </div>
+        </Link>
         
         <nav className="flex-1 py-4 flex flex-col gap-1 px-2 overflow-y-auto">
           <Link href="/" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location === "/" ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
@@ -174,7 +191,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </Link>
           </div>
         )}
-        <div className="flex-1 overflow-auto bg-muted/20 relative">
+        <div id="main-content" ref={mainRef} tabIndex={-1} className="flex-1 overflow-auto bg-muted/20 relative outline-none">
           {children}
         </div>
       </main>
