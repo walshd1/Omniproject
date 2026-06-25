@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
+import { isTimeTravelEnabled } from "./settings";
 
 /**
  * Capability signal — which data domains the wired backend(s) can populate, so
@@ -28,10 +29,12 @@ export type CapabilityDomain = (typeof CAPABILITY_DOMAINS)[number];
 
 export interface Capabilities extends Record<CapabilityDomain, boolean> {
   mode: string;
+  /** Historical time-travel — true only when the operator opted into egress. */
+  timeTravel: boolean;
 }
 
 function build(mode: string, enabled: Partial<Record<CapabilityDomain, boolean>>): Capabilities {
-  const caps = { mode } as Capabilities;
+  const caps = { mode, timeTravel: isTimeTravelEnabled() } as Capabilities;
   for (const d of CAPABILITY_DOMAINS) caps[d] = !!enabled[d];
   return caps;
 }

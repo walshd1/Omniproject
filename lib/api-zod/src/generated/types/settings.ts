@@ -5,6 +5,7 @@
  * OmniProject API — thin proxy gateway to n8n webhooks
  * OpenAPI spec version: 0.1.0
  */
+import type { LoggingSink } from './loggingSink';
 import type { SettingsAiProvider } from './settingsAiProvider';
 
 export interface Settings {
@@ -20,4 +21,5 @@ export interface Settings {
   backendSource: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
+  loggingSink?: LoggingSink;
 }

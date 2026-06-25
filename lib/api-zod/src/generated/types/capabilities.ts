@@ -21,4 +21,6 @@ export interface Capabilities {
   blockers: boolean;
   history: boolean;
   raid: boolean;
+  /** Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default). */
+  timeTravel: boolean;
 }

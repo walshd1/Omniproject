@@ -190,6 +190,47 @@ test("/fx-rates returns a rate table to an authenticated session", async () => {
   assert.ok(body.rates && typeof body.rates === "object", "fx rates present");
 });
 
+test("logging sink: enabling without a warranty acknowledgement is rejected (400)", async () => {
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ loggingSink: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: false } }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test("logging sink: enabling with a metadata URL is rejected (400, SSRF)", async () => {
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ loggingSink: { enabled: true, url: "http://169.254.169.254/ingest", acknowledgedWarranty: true } }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test("logging sink: enabling with url + acknowledgement unlocks the timeTravel capability", async () => {
+  // Off by default → time-travel locked.
+  const before = (await (await req("/api/capabilities", { headers: { cookie: ADMIN } })).json()) as { timeTravel?: boolean };
+  assert.equal(before.timeTravel, false);
+
+  const enable = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ loggingSink: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }),
+  });
+  assert.equal(enable.status, 200);
+
+  const after = (await (await req("/api/capabilities", { headers: { cookie: ADMIN } })).json()) as { timeTravel?: boolean };
+  assert.equal(after.timeTravel, true);
+
+  // Restore (off) so global store state doesn't leak into other tests.
+  await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ loggingSink: { enabled: false, url: null, acknowledgedWarranty: false } }),
+  });
+});
+
 test("baseline security headers are present", async () => {
   const res = await req("/api/healthz");
   assert.equal(res.headers.get("x-content-type-options"), "nosniff");

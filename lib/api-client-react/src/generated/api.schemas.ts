@@ -349,6 +349,8 @@ export interface Capabilities {
   blockers: boolean;
   history: boolean;
   raid: boolean;
+  /** Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default). */
+  timeTravel: boolean;
 }
 
 export type SettingsAiProvider = typeof SettingsAiProvider[keyof typeof SettingsAiProvider];
@@ -361,6 +363,17 @@ export const SettingsAiProvider = {
   anthropic: 'anthropic',
   openrouter: 'openrouter',
 } as const;
+
+/**
+ * Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject's stateless posture; egressed data is the operator's responsibility and outside OmniProject's warranty. Enabling it unlocks historical time-travel.
+ */
+export interface LoggingSink {
+  enabled: boolean;
+  /** @nullable */
+  url?: string | null;
+  /** The admin acknowledged egressed data is outside OmniProject's warranty. */
+  acknowledgedWarranty: boolean;
+}
 
 export interface Settings {
   /**
@@ -375,6 +388,7 @@ export interface Settings {
   backendSource: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
+  loggingSink?: LoggingSink;
 }
 
 export type SettingsUpdateAiProvider = typeof SettingsUpdateAiProvider[keyof typeof SettingsUpdateAiProvider];
@@ -398,6 +412,7 @@ export interface SettingsUpdate {
   backendSource?: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
+  loggingSink?: LoggingSink;
 }
 
 export interface ConflictResponse {

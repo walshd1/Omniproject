@@ -25,6 +25,7 @@ export * from './issueInputPriority';
 export * from './issuePriority';
 export * from './issueUpdate';
 export * from './issueUpdatePriority';
+export * from './loggingSink';
 export * from './notification';
 export * from './portfolioHealthSummary';
 export * from './portfolioHealthSummaryRagStatus';

@@ -656,6 +656,7 @@ const SAMPLE_SETTINGS = {
   branding: null,
   labelOverrides: {},
   webhooks: [],
+  loggingSink: { enabled: false, url: null, acknowledgedWarranty: false },
 };
 
 test("buildSnapshot: captures the gateway settings with schema + version", () => {

@@ -432,7 +432,8 @@ export const GetCapabilitiesResponse = zod.object({
   "baseline": zod.boolean(),
   "blockers": zod.boolean(),
   "history": zod.boolean(),
-  "raid": zod.boolean()
+  "raid": zod.boolean(),
+  "timeTravel": zod.boolean().describe('Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default).')
 }).describe('Data domains the wired backend(s) can populate.')
 
 
@@ -444,7 +445,12 @@ export const GetSettingsResponse = zod.object({
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']),
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
-  "oidcIssuerUrl": zod.string().nullish()
+  "oidcIssuerUrl": zod.string().nullish(),
+  "loggingSink": zod.object({
+  "enabled": zod.boolean(),
+  "url": zod.string().nullish(),
+  "acknowledgedWarranty": zod.boolean().describe('The admin acknowledged egressed data is outside OmniProject\'s warranty.')
+}).optional().describe('Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject\'s stateless posture; egressed data is the operator\'s responsibility and outside OmniProject\'s warranty. Enabling it unlocks historical time-travel.')
 })
 
 
@@ -456,7 +462,12 @@ export const UpdateSettingsBody = zod.object({
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']).optional(),
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().optional().describe('Free-form backend routing hint passed to the broker (see Settings.backendSource).'),
-  "oidcIssuerUrl": zod.string().nullish()
+  "oidcIssuerUrl": zod.string().nullish(),
+  "loggingSink": zod.object({
+  "enabled": zod.boolean(),
+  "url": zod.string().nullish(),
+  "acknowledgedWarranty": zod.boolean().describe('The admin acknowledged egressed data is outside OmniProject\'s warranty.')
+}).optional().describe('Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject\'s stateless posture; egressed data is the operator\'s responsibility and outside OmniProject\'s warranty. Enabling it unlocks historical time-travel.')
 })
 
 export const UpdateSettingsResponse = zod.object({
@@ -464,7 +475,12 @@ export const UpdateSettingsResponse = zod.object({
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']),
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
-  "oidcIssuerUrl": zod.string().nullish()
+  "oidcIssuerUrl": zod.string().nullish(),
+  "loggingSink": zod.object({
+  "enabled": zod.boolean(),
+  "url": zod.string().nullish(),
+  "acknowledgedWarranty": zod.boolean().describe('The admin acknowledged egressed data is outside OmniProject\'s warranty.')
+}).optional().describe('Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject\'s stateless posture; egressed data is the operator\'s responsibility and outside OmniProject\'s warranty. Enabling it unlocks historical time-travel.')
 })
 
 

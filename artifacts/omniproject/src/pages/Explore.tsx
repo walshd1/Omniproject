@@ -4,6 +4,7 @@ import { FlaskConical, ExternalLink, LogOut, Download, AlertTriangle } from "luc
 import { PortfolioTrends } from "../components/reports/PortfolioTrends";
 import { ScenarioSandbox } from "../components/reports/ScenarioSandbox";
 import { DependencyLinks } from "../components/reports/DependencyLinks";
+import { TimeTravel } from "../components/reports/TimeTravel";
 import { loadSnapshots, exportSnapshots } from "../lib/snapshots";
 import { loadEdges, exportEdges } from "../lib/dependencies";
 import { isExplorationDirty, subscribeExploration, markExplorationClean } from "../lib/exploration";
@@ -119,6 +120,7 @@ export function Explore() {
         </header>
 
         <PortfolioTrends />
+        <TimeTravel />
         <ScenarioSandbox />
         <DependencyLinks />
       </div>
