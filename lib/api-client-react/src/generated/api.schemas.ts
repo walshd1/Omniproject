@@ -106,18 +106,6 @@ export interface ProgrammeDetail {
   projects: Project[];
 }
 
-export type IssueStatus = typeof IssueStatus[keyof typeof IssueStatus];
-
-
-export const IssueStatus = {
-  backlog: 'backlog',
-  todo: 'todo',
-  in_progress: 'in_progress',
-  in_review: 'in_review',
-  done: 'done',
-  cancelled: 'cancelled',
-} as const;
-
 export type IssuePriority = typeof IssuePriority[keyof typeof IssuePriority];
 
 
@@ -135,7 +123,8 @@ export interface Issue {
   title: string;
   /** @nullable */
   description?: string | null;
-  status: IssueStatus;
+  /** Backend-agnostic status string. Conventional buckets are backlog, todo, in_progress, in_review, done, cancelled; other backends may use their own values (the broker workflow normalises them). */
+  status: string;
   priority: IssuePriority;
   /** @nullable */
   assignee?: string | null;
@@ -159,18 +148,6 @@ export interface Issue {
   updatedAt: string;
 }
 
-export type IssueInputStatus = typeof IssueInputStatus[keyof typeof IssueInputStatus];
-
-
-export const IssueInputStatus = {
-  backlog: 'backlog',
-  todo: 'todo',
-  in_progress: 'in_progress',
-  in_review: 'in_review',
-  done: 'done',
-  cancelled: 'cancelled',
-} as const;
-
 export type IssueInputPriority = typeof IssueInputPriority[keyof typeof IssueInputPriority];
 
 
@@ -186,7 +163,8 @@ export interface IssueInput {
   /** @minLength 1 */
   title: string;
   description?: string;
-  status?: IssueInputStatus;
+  /** Backend-agnostic status string. Conventional buckets are backlog, todo, in_progress, in_review, done, cancelled; other backends may use their own values (the broker workflow normalises them). */
+  status?: string;
   priority?: IssueInputPriority;
   /** @nullable */
   assignee?: string | null;
@@ -196,18 +174,6 @@ export interface IssueInput {
   /** @nullable */
   dueDate?: string | null;
 }
-
-export type IssueUpdateStatus = typeof IssueUpdateStatus[keyof typeof IssueUpdateStatus];
-
-
-export const IssueUpdateStatus = {
-  backlog: 'backlog',
-  todo: 'todo',
-  in_progress: 'in_progress',
-  in_review: 'in_review',
-  done: 'done',
-  cancelled: 'cancelled',
-} as const;
 
 export type IssueUpdatePriority = typeof IssueUpdatePriority[keyof typeof IssueUpdatePriority];
 
@@ -225,7 +191,8 @@ export interface IssueUpdate {
   title?: string;
   /** @nullable */
   description?: string | null;
-  status?: IssueUpdateStatus;
+  /** Backend-agnostic status string. Conventional buckets are backlog, todo, in_progress, in_review, done, cancelled; other backends may use their own values (the broker workflow normalises them). */
+  status?: string;
   priority?: IssueUpdatePriority;
   /** @nullable */
   assignee?: string | null;

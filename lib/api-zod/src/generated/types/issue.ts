@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { IssuePriority } from './issuePriority';
-import type { IssueStatus } from './issueStatus';
 
 export interface Issue {
   id: string;
@@ -14,7 +13,8 @@ export interface Issue {
   title: string;
   /** @nullable */
   description?: string | null;
-  status: IssueStatus;
+  /** Backend-agnostic status string. Conventional buckets are backlog, todo, in_progress, in_review, done, cancelled; other backends may use their own values (the broker workflow normalises them). */
+  status: string;
   priority: IssuePriority;
   /** @nullable */
   assignee?: string | null;

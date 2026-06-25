@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetProjectIssues,
@@ -11,8 +11,8 @@ import {
 import { Plus } from "lucide-react";
 import {
   STATUS_ORDER,
-  STATUS_LABELS,
-  STATUS_ACCENTS,
+  statusLabel,
+  statusAccent,
 } from "../../lib/constants";
 import { PriorityDot } from "../StatusDot";
 import { IssueDialog } from "../IssueDialog";
@@ -93,7 +93,7 @@ export function AgileBoard({ projectId }: { projectId: string }) {
       {
         onSuccess: () => {
           invalidate();
-          toast({ title: "ISSUE MOVED", description: `${issue.id.slice(0, 8)} → ${STATUS_LABELS[status]}` });
+          toast({ title: "ISSUE MOVED", description: `${issue.id.slice(0, 8)} → ${statusLabel(status)}` });
         },
         onError: () => toast({ title: "ERROR", description: "Failed to move issue.", variant: "destructive" }),
       },
@@ -111,6 +111,15 @@ export function AgileBoard({ projectId }: { projectId: string }) {
     setDialogOpen(true);
   };
 
+  // Columns: the conventional order plus any backend-specific statuses actually
+  // present in the data, so non-conventional statuses still get a column rather
+  // than being silently dropped (OmniProject is backend-agnostic).
+  const columns = useMemo(() => {
+    const known = STATUS_ORDER as readonly string[];
+    const extra = [...new Set((issues ?? []).map((i) => i.status).filter((s) => !known.includes(s)))];
+    return [...STATUS_ORDER, ...extra];
+  }, [issues]);
+
   if (isLoading) {
     return (
       <div className="flex gap-6 h-full min-w-max pb-4">
@@ -124,7 +133,7 @@ export function AgileBoard({ projectId }: { projectId: string }) {
   return (
     <>
       <div className="flex gap-6 h-full min-w-max pb-4">
-        {STATUS_ORDER.map((status) => {
+        {columns.map((status) => {
           const statusIssues = issues?.filter((i) => i.status === status) ?? [];
           const isDragOver = dragOverStatus === status;
 
@@ -143,20 +152,20 @@ export function AgileBoard({ projectId }: { projectId: string }) {
                 const dragged = issues?.find((i) => i.id === id);
                 if (dragged) moveIssue(dragged, status);
               }}
-              className={`w-80 flex flex-col shrink-0 bg-card border-t-4 ${STATUS_ACCENTS[status]} border-x border-b transition-colors ${
+              className={`w-80 flex flex-col shrink-0 bg-card border-t-4 ${statusAccent(status)} border-x border-b transition-colors ${
                 isDragOver ? "border-primary bg-primary/5" : "border-border"
               }`}
               data-testid={`column-${status}`}
             >
               <div className="p-3 border-b border-border bg-background flex items-center justify-between">
-                <span className="font-bold text-sm tracking-wider">{STATUS_LABELS[status]}</span>
+                <span className="font-bold text-sm tracking-wider">{statusLabel(status)}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5">{statusIssues.length}</span>
                   <button
                     onClick={() => openCreate(status)}
                     className="text-muted-foreground hover:text-primary"
-                    title={`New issue in ${STATUS_LABELS[status]}`}
-                    aria-label={`New issue in ${STATUS_LABELS[status]}`}
+                    title={`New issue in ${statusLabel(status)}`}
+                    aria-label={`New issue in ${statusLabel(status)}`}
                   >
                     <Plus className="w-4 h-4" />
                   </button>
