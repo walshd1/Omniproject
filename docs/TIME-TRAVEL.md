@@ -10,6 +10,27 @@ This page covers the architecture, the opt-in gate, the SSRF-validated sink URL,
 the capability flag, the provenance lanes, and how to import and wire the
 blueprint that makes it work.
 
+## Maturity
+
+> **Experimental / preview.** Time-travel (and the opt-in "logging sync" egress it
+> rides on) is **complete and tested *at the seam/contract*** — the `replay` Broker
+> method, the `timeTravel` capability flag, the admin-only + SSRF-validated +
+> warranty-acknowledged egress opt-in, and the gated `GET /api/history/replay` are
+> all implemented and unit-tested. **The end-to-end path is unproven against a real
+> external system:**
+>
+> - `DemoBroker.replay` returns **synthesised `sample` data**, not real history.
+> - The n8n historian/replay blueprint is a **template** (`active: false`); there is
+>   **no integration test against a live logging server** yet.
+> - **Forward** time-travel is a `projected` model — never fact.
+> - Egress is **off by default**, **admin-only**, **SSRF-validated**, and requires an
+>   explicit **out-of-warranty acknowledgement** (the same trust class as the
+>   OData / Power BI feeds). The destination is operator-owned and operator-secured.
+>
+> Treat it as a preview: the contract is ready, but you must wire and verify the
+> round-trip against your own logging server. See the
+> [CHANGELOG `[Unreleased]`](../CHANGELOG.md) for the canonical maturity wording.
+
 ## Architecture — stateless lens over an operator-owned log
 
 ```
