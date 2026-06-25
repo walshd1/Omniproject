@@ -4,7 +4,7 @@ import {
 } from "@workspace/api-client-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ProvenanceBadge } from "../ProvenanceBadge";
-import { LoadingState } from "../LoadingState";
+import { DataState } from "../DataState";
 
 /**
  * Progress trend, sourced from the system of record via n8n (get_project_history).
@@ -12,7 +12,7 @@ import { LoadingState } from "../LoadingState";
  * from current issue state and clearly badged so nothing reads as recorded fact.
  */
 export function ProjectTrend({ projectId }: { projectId: string }) {
-  const { data: history, isLoading } = useGetProjectHistory(projectId);
+  const { data: history, isLoading, isError, error, refetch } = useGetProjectHistory(projectId);
   const { data: baseline } = useGetProjectBaseline(projectId);
 
   const points = history ?? [];
@@ -26,9 +26,15 @@ export function ProjectTrend({ projectId }: { projectId: string }) {
       </div>
 
       <div className="bg-card border border-border p-4">
-        {isLoading ? (
-          <LoadingState className="h-56 flex items-center justify-center" />
-        ) : points.length === 0 ? (
+        <DataState
+          isLoading={isLoading}
+          isError={isError}
+          error={error}
+          onRetry={() => refetch()}
+          loadingClassName="h-56 flex items-center justify-center"
+          className="h-56"
+        >
+        {points.length === 0 ? (
           <div className="h-56 flex items-center justify-center text-sm text-muted-foreground">No history available from the backend.</div>
         ) : (
           <>
@@ -59,6 +65,7 @@ export function ProjectTrend({ projectId }: { projectId: string }) {
             </div>
           </>
         )}
+        </DataState>
       </div>
     </section>
   );

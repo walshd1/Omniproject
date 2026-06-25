@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSetupStatus } from "../lib/setup";
 import { roleAtLeast } from "../lib/auth";
 import { LoadingState } from "../components/LoadingState";
+import { DataState } from "../components/DataState";
 import { StatusStep } from "../components/setup/StatusStep";
 import { ConnectStep } from "../components/setup/ConnectStep";
 import { PersistStep } from "../components/setup/PersistStep";
@@ -11,7 +12,7 @@ import { BackupStep } from "../components/setup/BackupStep";
 import { EnvironmentsStep } from "../components/setup/EnvironmentsStep";
 
 export function Setup() {
-  const { data: status, isLoading } = useSetupStatus();
+  const { data: status, isLoading, isError, error, refetch } = useSetupStatus();
 
   // The webhook URL is shared between the connect step (where it's tested and
   // applied) and the generate step (which derives the workflow path from it).
@@ -20,6 +21,7 @@ export function Setup() {
   const isAdmin = roleAtLeast(status?.role, "admin");
 
   if (isLoading) return <LoadingState className="p-8 text-center" />;
+  if (isError) return <DataState isError error={error} onRetry={() => refetch()} className="p-8 min-h-[16rem]">{null}</DataState>;
 
   return (
     <div className="h-full overflow-y-auto p-8">

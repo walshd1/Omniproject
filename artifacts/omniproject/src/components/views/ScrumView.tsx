@@ -4,7 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { STATUS_LABELS } from "../../lib/constants";
 import { inActiveSprint, storyPoints, isDone, SPRINT_COLUMNS } from "../../lib/methodology";
 import { IssueDialog } from "../IssueDialog";
-import { LoadingState } from "../LoadingState";
+import { DataState } from "../DataState";
 import { PriorityDot } from "../StatusDot";
 
 function Stat({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
@@ -46,7 +46,7 @@ function Burndown({ committed, remaining }: { committed: number; remaining: numb
 }
 
 export function ScrumView({ projectId }: { projectId: string }) {
-  const { data: issues, isLoading } = useGetProjectIssues(projectId);
+  const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
   const [editing, setEditing] = useState<Issue | null>(null);
 
   const model = useMemo(() => {
@@ -58,10 +58,8 @@ export function ScrumView({ projectId }: { projectId: string }) {
     return { sprint, backlog, committed, completed, remaining: committed - completed };
   }, [issues]);
 
-  if (isLoading) return <LoadingState />;
-
   return (
-    <>
+    <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
       <div className="h-full flex flex-col gap-6">
         {/* Sprint metrics + burndown */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -130,6 +128,6 @@ export function ScrumView({ projectId }: { projectId: string }) {
       </div>
 
       <IssueDialog projectId={projectId} open={!!editing} onOpenChange={(o) => !o && setEditing(null)} issue={editing} />
-    </>
+    </DataState>
   );
 }

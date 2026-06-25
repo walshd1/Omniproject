@@ -1,12 +1,24 @@
 import { useListProjects, useGetProjectSummary } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { ExportMenu } from "../components/ExportMenu";
+import { DataState } from "../components/DataState";
 
 function ProjectSummaryCard({ projectId }: { projectId: string }) {
-  const { data: summary, isLoading } = useGetProjectSummary(projectId);
+  const { data: summary, isLoading, isError } = useGetProjectSummary(projectId);
 
   if (isLoading) {
     return <div className="h-12 bg-muted/50 animate-pulse border border-border mt-4"></div>;
+  }
+
+  if (isError) {
+    // The card is wrapped in a pointer-events-none overlay link, so a Retry
+    // button can't be clicked here; surface a compact accessible notice instead
+    // (the project link still navigates to the full detail view).
+    return (
+      <div role="alert" className="mt-4 border border-red-500/40 bg-red-500/5 px-4 py-3 text-xs font-mono text-red-500">
+        Could not load summary.
+      </div>
+    );
   }
 
   if (!summary) return null;
@@ -36,7 +48,7 @@ function ProjectSummaryCard({ projectId }: { projectId: string }) {
 }
 
 export function Projects() {
-  const { data: projects, isLoading } = useListProjects();
+  const { data: projects, isLoading, isError, error, refetch } = useListProjects();
 
   return (
     <div className="h-full overflow-y-auto p-8">
@@ -56,6 +68,7 @@ export function Projects() {
             ))}
           </div>
         ) : (
+          <DataState isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
           <div className="flex flex-col gap-6">
             {projects?.map(project => (
               <div key={project.id} className="bg-card border-2 border-border p-6 hover:border-primary transition-colors group relative">
@@ -85,6 +98,7 @@ export function Projects() {
               </div>
             ))}
           </div>
+          </DataState>
         )}
       </div>
     </div>

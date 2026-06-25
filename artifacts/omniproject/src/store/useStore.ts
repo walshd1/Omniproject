@@ -35,6 +35,16 @@ const getInitialView = (): ViewId => {
   return DEFAULT_VIEW
 }
 
+const ACTIVE_PROJECT_KEY = 'omniproject-active-project'
+
+const getInitialActiveProjectId = (): string | null => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(ACTIVE_PROJECT_KEY)
+    if (stored) return stored
+  }
+  return null
+}
+
 export const useStore = create<OmniStore>((set) => ({
   currentView: getInitialView(),
   setCurrentView: (view) => {
@@ -47,8 +57,14 @@ export const useStore = create<OmniStore>((set) => ({
   setSettingsOpen: (open) => set({ isSettingsOpen: open }),
   isNewIssueOpen: false,
   setNewIssueOpen: (open) => set({ isNewIssueOpen: open }),
-  activeProjectId: null,
-  setActiveProjectId: (id) => set({ activeProjectId: id }),
+  activeProjectId: getInitialActiveProjectId(),
+  setActiveProjectId: (id) => {
+    if (typeof window !== 'undefined') {
+      if (id) localStorage.setItem(ACTIVE_PROJECT_KEY, id)
+      else localStorage.removeItem(ACTIVE_PROJECT_KEY)
+    }
+    set({ activeProjectId: id })
+  },
   aiProvider: 'none',
   setAiProvider: (p) => set({ aiProvider: p as 'none' | 'openai' | 'ollama' | 'anthropic' | 'openrouter' }),
   theme: getInitialTheme(),

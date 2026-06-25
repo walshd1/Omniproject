@@ -3,6 +3,7 @@ import { useGetProjectIssues, type Issue } from "@workspace/api-client-react";
 import { STATUS_COLORS, STATUS_LABELS } from "../../lib/constants";
 import { IssueDialog } from "../IssueDialog";
 import { LoadingState } from "../LoadingState";
+import { DataState } from "../DataState";
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -17,7 +18,7 @@ interface Lane {
 }
 
 export function GanttChart({ projectId }: { projectId: string }) {
-  const { data: issues, isLoading } = useGetProjectIssues(projectId);
+  const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
   const [editing, setEditing] = useState<Issue | null>(null);
 
   const model = useMemo(() => {
@@ -40,6 +41,10 @@ export function GanttChart({ projectId }: { projectId: string }) {
 
     return { lanes, min, max, span, today };
   }, [issues]);
+
+  if (isError) {
+    return <DataState isError error={error} onRetry={() => refetch()}>{null}</DataState>;
+  }
 
   if (isLoading) {
     return <LoadingState />;

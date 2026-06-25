@@ -1,5 +1,6 @@
 import { useGetPortfolioHealth, type PortfolioHealthSummary } from "@workspace/api-client-react";
 import { Link } from "wouter";
+import { DataState } from "../DataState";
 
 const RAG: Record<string, { dot: string; text: string; border: string }> = {
   GREEN: { dot: "bg-green-500", text: "text-green-500", border: "border-green-500/40" },
@@ -46,7 +47,7 @@ function KpiCard({ p }: { p: PortfolioHealthSummary }) {
 }
 
 export function PortfolioKpi() {
-  const { data, isLoading } = useGetPortfolioHealth();
+  const { data, isLoading, isError, error, refetch } = useGetPortfolioHealth();
 
   return (
     <section>
@@ -58,10 +59,12 @@ export function PortfolioKpi() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          {data?.map((p) => <KpiCard key={p.projectId} p={p} />)}
-          {!data?.length && <div className="text-muted-foreground text-sm">No portfolio data.</div>}
-        </div>
+        <DataState isError={isError} error={error} onRetry={() => refetch()} className="min-h-28">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {data?.map((p) => <KpiCard key={p.projectId} p={p} />)}
+            {!data?.length && <div className="text-muted-foreground text-sm">No portfolio data.</div>}
+          </div>
+        </DataState>
       )}
     </section>
   );

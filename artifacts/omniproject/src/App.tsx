@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import { useEffect, lazy, Suspense } from "react";
 import { useStore } from "./store/useStore";
 import { BrandingProvider } from "./lib/branding";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // Layout (eager — it wraps every authenticated route)
 import { AppLayout } from "./components/layout/AppLayout";
@@ -90,15 +91,17 @@ function App() {
         <TooltipProvider>
           <ThemeInitializer />
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Suspense
-              fallback={
-                <div className="flex h-screen w-full items-center justify-center bg-background text-muted-foreground font-bold tracking-widest animate-pulse">
-                  LOADING…
-                </div>
-              }
-            >
-              <Router />
-            </Suspense>
+            <ErrorBoundary>
+              <Suspense
+                fallback={
+                  <div className="flex h-screen w-full items-center justify-center bg-background text-muted-foreground font-bold tracking-widest animate-pulse">
+                    LOADING…
+                  </div>
+                }
+              >
+                <Router />
+              </Suspense>
+            </ErrorBoundary>
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
