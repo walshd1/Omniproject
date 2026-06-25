@@ -37,7 +37,7 @@ In the app: **Setup → Connection Center**.
    OmniProject *cannot* mutate your backend, full stop.
 3. **Test reachability** (`POST /api/setup/test-n8n`) — a non-destructive probe
    that just checks the webhook answers and reports which capabilities it exposes.
-4. Point the gateway at it (`N8N_WEBHOOK_URL`).
+4. Point the gateway at it (`BROKER_URL`).
 
 ## Step 2 — Dry-run **verify** (probe without touching the backend)
 

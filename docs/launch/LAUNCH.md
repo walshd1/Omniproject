@@ -1,8 +1,13 @@
 # OmniProject — launch kit
 
-Everything needed to launch v0.1.0 in one place: the positioning, ready-to-paste
-posts, the GitHub release note, and the pre-launch checklist. Swap in the repo
-URL where noted. Keep this updated as the messaging evolves.
+Everything needed to launch in one place: the positioning, ready-to-paste posts,
+the GitHub release note, and the pre-launch checklist. Swap in the repo URL where
+noted. Keep this updated as the messaging evolves.
+
+> **Status:** `0.1.0` (first public release) and `0.2.0` (broker decoupling) have
+> both shipped — see the [CHANGELOG](../../CHANGELOG.md) and the Releases page.
+> The release-note template in §4 below is the original 0.1.0 note, kept as a
+> reusable pattern; tags are **un-prefixed** (`0.1.0`, `0.2.0` — no `v`).
 
 ---
 
@@ -151,11 +156,11 @@ especially criticism.
 
 ---
 
-## 4. GitHub release note — v0.1.0
+## 4. GitHub release note — 0.1.0
 
-Paste as the Release body when tagging `v0.1.0`.
+Paste as the Release body when tagging `0.1.0`. (Template — adapt per release.)
 
-> ## OmniProject v0.1.0 — first public release
+> ## OmniProject 0.1.0 — first public release
 >
 > A **read-through overlay** for programme & project management with **no database
 > of its own** — your tools stay the single source of truth, and **n8n is the
@@ -210,7 +215,7 @@ Paste as the Release body when tagging `v0.1.0`.
       12s loop; the Verify-goes-green shot is the money beat).
 - [ ] Enable **Discussions** and **private security advisories** in repo settings
       (issue templates already link to them).
-- [ ] Tag **`v0.1.0`** and cut the Release (note above).
+- [x] Tag **`0.1.0`** / **`0.2.0`** and cut the Releases (note above).
 - [ ] Final secret sweep (working tree + history) — done once; re-check if new
       commits added config.
 - [ ] **Flip the repo public** (one-way door; history is clean).

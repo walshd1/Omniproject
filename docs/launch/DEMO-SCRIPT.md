@@ -22,7 +22,7 @@ muted autoplay) have no sound. Keep each on screen ~2–3s.
 - **Cursor:** enable a click-highlight (e.g. ScreenStudio, or Keystroke/Cursor
   highlighter) so taps are visible.
 - **One caveat — the Verify shot needs an n8n endpoint.** The green per-action
-  checklist (Scene 2) only lights up when `N8N_WEBHOOK_URL` points at an n8n that
+  checklist (Scene 2) only lights up when `BROKER_URL` points at an n8n that
   implements the contract (your own, or import a blueprint into a free n8n
   instance). If you don't have one handy, use the **demo-mode alternative** noted
   in Scene 2 — everything else films in pure demo mode.
@@ -33,7 +33,7 @@ muted autoplay) have no sound. Keep each on screen ~2–3s.
 - **GIF:** `ffmpeg` + `gifski` (sharp, small), or Gifski app. Keep the README GIF
   **< ~5 MB** so GitHub renders it inline.
 - **Host:** commit the file under `docs/assets/` and reference it with a relative
-  path, or attach to the v0.1.0 Release and hotlink. Repo-hosted is more durable.
+  path, or attach to the latest GitHub Release and hotlink. Repo-hosted is more durable.
 
 ---
 
@@ -92,7 +92,7 @@ working visual outperforms any paragraph of copy.
 ## Recording checklist
 
 - [ ] Demo mode running; no real/personal data anywhere on screen.
-- [ ] (For the Verify shot) `N8N_WEBHOOK_URL` pointed at a contract-implementing n8n.
+- [ ] (For the Verify shot) `BROKER_URL` pointed at a contract-implementing n8n.
 - [ ] Click-highlight on; zoom ~110–125%; clean browser chrome.
 - [ ] Record the 75s hero in one take (re-do scenes as needed, stitch later).
 - [ ] Export the 12s GIF < 5 MB; commit to `docs/assets/`.

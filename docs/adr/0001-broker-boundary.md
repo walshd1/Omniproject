@@ -3,6 +3,14 @@
 - **Status:** Accepted
 - **Date:** 2026-06-24
 
+> **Update (0.2.0):** the de-n8n-ing of the public surface that this ADR defers to
+> a "later, aliased migration" has since shipped. Stage B renamed the surface with
+> deprecated aliases; Stage C (released in **0.2.0**) removed the aliases entirely.
+> The frozen names called out under *Negative / trade-offs* and *Alternatives
+> considered* below (`/n8n-proxy`, `n8nWebhookUrl`, `N8N_WEBHOOK_URL`) **no longer
+> exist** — the canonical names are `/api/broker/command`, `brokerUrl`, and
+> `BROKER_URL`. The decision below is preserved as the original record.
+
 ## Context
 
 OmniProject is a stateless overlay: it owns no data and brokers every read and

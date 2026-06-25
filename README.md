@@ -204,8 +204,8 @@ sample data until you wire up n8n and SSO.
   board.
 - **Reports** (`g r`) — portfolio RAG rollup, resource allocation heatmap, and
   Earned-Value financials per project.
-- **Settings** (`g s`) — n8n webhook URL, backend routing hint, AI provider +
-  model, OIDC issuer.
+- **Settings** (`g s`) — broker URL (n8n by default), backend routing hint, AI
+  provider + model, OIDC issuer.
 - **Command palette** — `Cmd+K` for navigation and quick actions.
 - **Export** — the *Export* menu (Projects index / project board) downloads a
   `.xlsx` workbook or per-dataset `.csv`. For Power BI, see *Configuration* →
@@ -276,7 +276,7 @@ kubectl apply -f k8s-enterprise-manifest.yaml
 | `PORT` | gateway, SPA dev | Listen port (gateway serves API + SPA in prod) |
 | `BASE_PATH` | SPA build | Base path for the SPA (e.g. `/`) |
 | `PUBLIC_URL` | gateway | Public origin, used to build the OIDC redirect URI |
-| `N8N_WEBHOOK_URL` | gateway | Target n8n webhook; when set, all data is brokered through n8n (else demo data) |
+| `BROKER_URL` | gateway | Target broker webhook (n8n by default); when set, all data is brokered through it (else demo data) |
 | `SESSION_SECRET` | gateway | Secret used to sign the session cookie (share across replicas) |
 | `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | gateway | Enable real SSO (all three required) |
 | `OIDC_SCOPE` | gateway | Scopes (default `openid profile email`) |
