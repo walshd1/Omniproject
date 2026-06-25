@@ -76,6 +76,35 @@ test("DemoBroker satisfies the write contract (create → update → delete)", a
   await b.writeIssue(ctx, "delete", { projectId: pid, issueId: created!.id });
 });
 
+test("DemoBroker keeps project issueCount/completedCount in lock-step with mutations", async () => {
+  // The project card reads these denormalised counts for its completion %, so a
+  // status change crossing "done" (and create/delete) must move them — otherwise
+  // the card drifts from the board and the recomputed summary. Round-trips to
+  // leave the shared demo dataset as found.
+  const b: Broker = new DemoBroker();
+  const pid = (await b.listProjects(ctx))[0]!.id;
+  const before = (await b.listProjects(ctx)).find((p) => p.id === pid)!;
+  const baseIssues = before["issueCount"] as number;
+  const baseDone = before["completedCount"] as number;
+
+  // Create a not-done issue: issueCount +1, completedCount unchanged.
+  const created = await b.writeIssue(ctx, "create", { projectId: pid, title: "count check", status: "todo" });
+  let row = (await b.listProjects(ctx)).find((p) => p.id === pid)!;
+  assert.equal(row["issueCount"], baseIssues + 1, "create increments issueCount");
+  assert.equal(row["completedCount"], baseDone, "create of a non-done issue leaves completedCount");
+
+  // Move it to done: completedCount +1.
+  await b.writeIssue(ctx, "update", { projectId: pid, issueId: created!.id, status: "done" });
+  row = (await b.listProjects(ctx)).find((p) => p.id === pid)!;
+  assert.equal(row["completedCount"], baseDone + 1, "status→done increments completedCount");
+
+  // Delete the done issue: both counts return to baseline.
+  await b.writeIssue(ctx, "delete", { projectId: pid, issueId: created!.id });
+  row = (await b.listProjects(ctx)).find((p) => p.id === pid)!;
+  assert.equal(row["issueCount"], baseIssues, "delete restores issueCount");
+  assert.equal(row["completedCount"], baseDone, "delete of a done issue restores completedCount");
+});
+
 test("DemoBroker addRaid appends a row", async () => {
   const b: Broker = new DemoBroker();
   const pid = (await b.listProjects(ctx))[0]!.id;

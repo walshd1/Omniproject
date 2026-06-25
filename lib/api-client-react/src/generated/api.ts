@@ -26,6 +26,7 @@ import type {
   Capabilities,
   ConflictResponse,
   ErrorResponse,
+  FxRates,
   HealthStatus,
   Issue,
   IssueInput,
@@ -145,7 +146,7 @@ export const getBrokerCommandUrl = () => {
 }
 
 /**
- * Packages a user action with the OIDC token and forwards it to the active broker (the command-palette passthrough). Legacy alias: POST /n8n-proxy.
+ * Packages a user action with the OIDC token and forwards it to the active broker (the command-palette passthrough). Requires the contributor role.
  * @summary Forward a generic action to the broker
  */
 export const brokerCommand = async (brokerCommandInput: BrokerCommandInput, options?: RequestInit): Promise<BrokerCommandResult> => {
@@ -207,6 +208,84 @@ export const useBrokerCommand = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getBrokerCommandMutationOptions(options));
     }
+
+export const getGetFxRatesUrl = () => {
+
+
+
+
+  return `/api/fx-rates`
+}
+
+/**
+ * Read-through FX rates for multi-currency portfolio comparison, sourced from the backend/ERP via the broker. Demo mode and live-read failures serve indicative sample rates (provenance "sample").
+ * @summary Multi-currency FX rates
+ */
+export const getFxRates = async ( options?: RequestInit): Promise<FxRates> => {
+
+  return customFetch<FxRates>(getGetFxRatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFxRatesQueryKey = () => {
+    return [
+    `/api/fx-rates`
+    ] as const;
+    }
+
+
+export const getGetFxRatesQueryOptions = <TData = Awaited<ReturnType<typeof getFxRates>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFxRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFxRatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFxRates>>> = ({ signal }) => getFxRates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFxRates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFxRatesQueryResult = NonNullable<Awaited<ReturnType<typeof getFxRates>>>
+export type GetFxRatesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Multi-currency FX rates
+ */
+
+export function useGetFxRates<TData = Awaited<ReturnType<typeof getFxRates>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFxRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFxRatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getListProjectsUrl = () => {
 

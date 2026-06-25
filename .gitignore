@@ -56,3 +56,7 @@ Thumbs.db
 # Local caches
 .cache/
 .local/
+
+# Test coverage output (generated)
+coverage/
+*.lcov

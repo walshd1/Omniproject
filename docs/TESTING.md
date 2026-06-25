@@ -10,12 +10,20 @@ pnpm test:regression
 Individual layers:
 
 ```bash
-pnpm test                                   # gateway unit tests + guards (fast)
+pnpm test                                   # gateway + SPA unit tests (all packages)
+pnpm test:coverage                          # same, with the c8 / v8 coverage gates
+pnpm --filter @workspace/api-server run test:coverage   # gateway only, with c8 gate
+pnpm --filter @workspace/omniproject run test:coverage  # SPA only, with v8 gate
 pnpm --filter @workspace/scripts run verify-n8n     # contract verification (mock n8n)
 pnpm --filter @workspace/scripts run e2e-smoke      # SPA shell + read journey
 pnpm --filter @workspace/scripts run a11y           # accessibility (see below)
 pnpm --filter @workspace/scripts run stress         # load test (run separately)
 ```
+
+Both unit suites enforce a **coverage gate** (a ratchet set just below current
+coverage so it can't regress, raised as tests are added): the gateway via `c8`
+(`.c8rc.json`, ~75%), the SPA via Vitest + React Testing Library + jsdom
+(`vitest.config.ts`). Both gates run in the CI `verify` job.
 
 ## The five pillars
 
@@ -67,6 +75,15 @@ throwaway dir on demand).
 login issues a cookie, and the read journey (projects → issues → summary →
 capabilities → fx → notifications → portfolio) works end to end. Write journeys
 (create/update/delete, governance, premium) are exercised by the contract verifier.
+
+**SPA component/unit tests** (Vitest + React Testing Library + jsdom, under
+`artifacts/omniproject/src/**/*.test.{ts,tsx}`) cover the critical flows and the
+behaviours hardened in review: error/retry rendering (`DataState`), the render
+error boundary, store persistence (active project + theme), inline validation,
+`IssueDialog` accessible-name associations, the backend-agnostic board column
+derivation, and the Projects completion-from-list-row counts. A
+`renderWithProviders` helper (`src/test/utils.tsx`) wraps a fresh, retry-disabled
+QueryClient so caches are seeded with `setQueryData` instead of hitting the network.
 
 ### 5. Regression
 `pnpm test:regression` ([`run-regression.sh`](../scripts/run-regression.sh)) runs the

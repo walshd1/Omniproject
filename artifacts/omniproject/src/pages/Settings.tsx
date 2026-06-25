@@ -1,4 +1,11 @@
-import { useGetSettings, useUpdateSettings, type SettingsUpdate } from "@workspace/api-client-react";
+import {
+  useGetSettings,
+  useUpdateSettings,
+  getGetSettingsQueryKey,
+  getGetCapabilitiesQueryKey,
+  type SettingsUpdate,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,6 +29,7 @@ export function Settings() {
   const { data: settings, isLoading, isError, error, refetch } = useGetSettings();
   const updateSettings = useUpdateSettings();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState({
     brokerUrl: "",
@@ -64,6 +72,11 @@ export function Settings() {
       { data: payload },
       {
         onSuccess: () => {
+          // Re-read everything a config change can affect so the UI doesn't show
+          // stale settings/capabilities/setup status after save.
+          queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: ["setup", "status"] });
+          queryClient.invalidateQueries({ queryKey: getGetCapabilitiesQueryKey() });
           toast({ title: "SETTINGS SAVED", description: "Integration configured successfully." });
           setAiStatus(null);
         },

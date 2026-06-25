@@ -30,7 +30,8 @@ services:
     image: omniproject-shell:0.2.0
     container_name: omni-shell
     ports:
-      - "3000:3000"
+      # Loopback-only on the host: the operator's reverse proxy / ingress is the only external path.
+      - "127.0.0.1:3000:3000"
     # Stateless gateway — drop privileges and run read-only.
     security_opt:
       - no-new-privileges:true

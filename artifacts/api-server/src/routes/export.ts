@@ -64,32 +64,13 @@ router.get("/export.csv", async (req, res) => {
   const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
 
   try {
-    let csv: string;
-    let name: string;
-    switch (dataset) {
-      case "issues": {
-        const issues = projectId ? await getIssues(req, projectId) : await allIssues(req);
-        csv = toCsv(ISSUE_COLS, toMatrix(issues, ISSUE_COLS));
-        name = `omniproject-issues${projectId ? `-${projectId}` : ""}-${stamp()}.csv`;
-        break;
-      }
-      case "activity": {
-        const activity = await getActivity(req);
-        csv = toCsv(ACTIVITY_COLS, toMatrix(activity, ACTIVITY_COLS));
-        name = `omniproject-activity-${stamp()}.csv`;
-        break;
-      }
-      case "projects": {
-        const projects = await getProjects(req);
-        csv = toCsv(PROJECT_COLS, toMatrix(projects, PROJECT_COLS));
-        name = `omniproject-projects-${stamp()}.csv`;
-        break;
-      }
-      default:
-        res.status(400).json({ error: "dataset must be projects, issues, or activity" });
-        return;
+    const d = await resolveDataset(req, dataset, projectId);
+    if (!d) {
+      res.status(400).json({ error: "dataset must be projects, issues, or activity" });
+      return;
     }
-    send(res, name, "text/csv; charset=utf-8", csv);
+    const csv = toCsv(d.cols, toMatrix(d.rows, d.cols));
+    send(res, `${d.base}.csv`, "text/csv; charset=utf-8", csv);
   } catch (err) {
     req.log.error({ err, dataset }, "csv export failed");
     res.status(502).json({ error: "Export failed" });

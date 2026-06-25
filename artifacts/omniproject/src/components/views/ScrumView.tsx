@@ -95,7 +95,7 @@ export function ScrumView({ projectId }: { projectId: string }) {
                         className="text-left bg-background border border-border p-3 hover:border-primary"
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <PriorityDot priority={issue.priority} />
+                          <PriorityDot priority={issue.priority} title={issue.priority} />
                           <span className="text-[10px] font-mono text-muted-foreground">{storyPoints(issue)}p</span>
                         </div>
                         <div className="text-sm font-semibold">{issue.title}</div>
@@ -116,7 +116,7 @@ export function ScrumView({ projectId }: { projectId: string }) {
             <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
               {model.backlog.map((issue) => (
                 <button key={issue.id} onClick={() => setEditing(issue)} className="text-left bg-background border border-border p-2 hover:border-primary flex items-center gap-2">
-                  <PriorityDot priority={issue.priority} className="shrink-0" />
+                  <PriorityDot priority={issue.priority} title={issue.priority} className="shrink-0" />
                   <span className="text-sm truncate flex-1">{issue.title}</span>
                   <span className="text-[10px] font-mono text-muted-foreground shrink-0">{storyPoints(issue)}p</span>
                 </button>

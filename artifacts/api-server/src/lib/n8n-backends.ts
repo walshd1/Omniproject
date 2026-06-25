@@ -179,7 +179,7 @@ export const BACKENDS: BackendManifest[] = [
     via: "HTTP + Basic (PAT)",
     authHeader: "=Basic {{ $env.AZDO_BASIC_AUTH }}",
     requiredEnv: ["AZDO_ORG_URL", "AZDO_BASIC_AUTH"],
-    capabilities: { ...CAPS_CORE, scheduling: true, blockers: true },
+    capabilities: { ...CAPS_CORE, blockers: true },
     actions: {
       list_projects: { method: "GET", url: "={{ $env.AZDO_ORG_URL }}/_apis/projects?api-version=7.1" },
       list_issues: { method: "POST", url: "={{ $env.AZDO_ORG_URL }}/{{ $json.body.payload.projectId }}/_apis/wit/wiql?api-version=7.1", body: "={{ JSON.stringify({ query: \"SELECT [System.Id] FROM workitems WHERE [System.TeamProject] = @project\" }) }}", note: "WIQL returns work-item ids; a follow-up batch GET hydrates fields. Add a second HTTP node for /_apis/wit/workitems?ids=..." },
@@ -327,7 +327,7 @@ export const BACKENDS: BackendManifest[] = [
     authHeader: "",
     requiredEnv: ["DATAVERSE_URL"],
     credentialType: "microsoftDynamicsOAuth2Api",
-    capabilities: { ...CAPS_CORE, scheduling: true, baseline: true },
+    capabilities: { ...CAPS_CORE, baseline: true },
     actions: {
       list_projects: { method: "GET", url: "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projects?$select=msdyn_subject,msdyn_scheduledstart,msdyn_scheduledend" },
       list_issues: { method: "GET", url: "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks?$filter=_msdyn_project_value eq {{ $json.body.payload.projectId }}&$select=msdyn_subject,msdyn_start,msdyn_finish,msdyn_progress" },

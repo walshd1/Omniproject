@@ -42,6 +42,8 @@ function IssueCard({
           onClick();
         }
       }}
+      aria-roledescription="Draggable card. Press Enter to open and change status."
+      title="Draggable card — drag to move, or press Enter to open and change status."
       className="bg-background border border-border p-3 hover:border-primary cursor-pointer group active:cursor-grabbing outline-none focus-visible:border-primary"
       data-testid={`issue-card-${issue.id}`}
     >
@@ -92,7 +94,6 @@ export function AgileBoard({ projectId }: { projectId: string }) {
     if (issue.status === status) return;
     const fromStatus = issue.status;
     const key = getGetProjectIssuesQueryKey(projectId);
-    const previous = queryClient.getQueryData<Issue[]>(key);
     // Optimistic: move the card immediately so the board responds instantly,
     // then reconcile (onSuccess) or roll back (onError). The server is still the
     // authority — an unauthorised/failed move reverts visibly.
@@ -120,7 +121,11 @@ export function AgileBoard({ projectId }: { projectId: string }) {
           });
         },
         onError: () => {
-          if (previous) queryClient.setQueryData(key, previous);
+          // Roll back ONLY the affected issue to its fromStatus, so a concurrent
+          // in-flight move of a different card isn't clobbered by a whole-list restore.
+          queryClient.setQueryData<Issue[]>(key, (old) =>
+            (old ?? []).map((i) => (i.id === issue.id ? { ...i, status: fromStatus } : i)),
+          );
           toast({ title: "ERROR", description: "Failed to move issue.", variant: "destructive" });
         },
       },

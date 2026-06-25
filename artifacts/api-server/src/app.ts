@@ -13,8 +13,28 @@ const app: Express = express();
 // and secure-cookie detection resolve to the public origin.
 app.set("trust proxy", true);
 
-const SESSION_SECRET =
-  process.env["SESSION_SECRET"] || "omniproject-dev-secret-change-in-production";
+// The session-cookie signing key. In production it MUST come from the
+// environment: an unset/empty/default value would sign auth cookies with a
+// world-readable constant, making sessions and roles forgeable (see
+// security.test.ts, which mints an admin session from a known secret). So we
+// fail fast rather than boot silently-insecure. The dev default is only ever
+// used outside production, where convenience beats hardening.
+const DEV_SESSION_SECRET = "omniproject-dev-secret-change-in-production";
+const SESSION_SECRET = resolveSessionSecret();
+
+function resolveSessionSecret(): string {
+  const fromEnv = process.env["SESSION_SECRET"]?.trim();
+  if (process.env["NODE_ENV"] === "production") {
+    if (!fromEnv || fromEnv === DEV_SESSION_SECRET) {
+      throw new Error(
+        "SESSION_SECRET must be set to a strong, non-default value in production " +
+          "(the gateway refuses to boot otherwise so sessions can't be signed with a public key).",
+      );
+    }
+    return fromEnv;
+  }
+  return fromEnv || DEV_SESSION_SECRET;
+}
 
 app.use(
   pinoHttp({

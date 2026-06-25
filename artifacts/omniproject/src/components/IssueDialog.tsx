@@ -17,6 +17,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -227,6 +228,9 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
           <DialogTitle className="font-black uppercase tracking-tighter">
             {isEdit ? "EDIT ISSUE" : "NEW ISSUE"}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {isEdit ? "Edit the fields of this issue and save your changes." : "Fill in the fields to create a new issue."}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -258,8 +262,9 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</label>
+            <label htmlFor="issue-description" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</label>
             <textarea
+              id="issue-description"
               value={form.description}
               onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
               placeholder="Add detail…"
@@ -270,9 +275,9 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Status</label>
+              <label htmlFor="issue-status" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Status</label>
               <Select value={form.status} onValueChange={(v) => setForm((p) => ({ ...p, status: v }))}>
-                <SelectTrigger className="rounded-none border-border font-mono uppercase text-xs">
+                <SelectTrigger id="issue-status" aria-label="Status" className="rounded-none border-border font-mono uppercase text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-none border-border font-mono uppercase">
@@ -284,9 +289,9 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Priority</label>
+              <label htmlFor="issue-priority" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Priority</label>
               <Select value={form.priority} onValueChange={(v) => setForm((p) => ({ ...p, priority: v }))}>
-                <SelectTrigger className="rounded-none border-border font-mono uppercase text-xs">
+                <SelectTrigger id="issue-priority" aria-label="Priority" className="rounded-none border-border font-mono uppercase text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-none border-border font-mono uppercase">
@@ -300,8 +305,9 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assignee</label>
+              <label htmlFor="issue-assignee" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assignee</label>
               <Input
+                id="issue-assignee"
                 value={form.assignee}
                 onChange={(e) => setForm((p) => ({ ...p, assignee: e.target.value }))}
                 placeholder="username"
@@ -309,8 +315,9 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Labels</label>
+              <label htmlFor="issue-labels" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Labels</label>
               <Input
+                id="issue-labels"
                 value={form.labels}
                 onChange={(e) => setForm((p) => ({ ...p, labels: e.target.value }))}
                 placeholder="infra, auth"
@@ -321,8 +328,9 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Start Date</label>
+              <label htmlFor="issue-start-date" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Start Date</label>
               <Input
+                id="issue-start-date"
                 type="date"
                 value={form.startDate}
                 onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
@@ -330,8 +338,9 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Due Date</label>
+              <label htmlFor="issue-due-date" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Due Date</label>
               <Input
+                id="issue-due-date"
                 type="date"
                 value={form.dueDate}
                 onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))}

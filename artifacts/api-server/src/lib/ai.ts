@@ -66,6 +66,10 @@ export function aiStatus(): AiStatus {
         configured: !!ANTHROPIC_API_KEY,
         detail: ANTHROPIC_API_KEY ? "Anthropic configured." : "Set ANTHROPIC_API_KEY to enable Anthropic.",
       };
+    default:
+      // Unreachable for a validated AiProvider, but keeps the function total so a
+      // bad stored value degrades to "not configured" instead of returning undefined.
+      return { provider: "none", model: null, configured: false, detail: "No AI provider selected." };
   }
 }
 

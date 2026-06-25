@@ -109,6 +109,13 @@ router.patch("/projects/:projectId/issues/:issueId", requireRole("contributor"),
   // adapter forwards it so the backend (e.g. OpenProject lockVersion) enforces it.
   try {
     const updated = await getBroker().writeIssue(contextFromReq(req), "update", { projectId, issueId, ...bodyParse.data });
+    // A null result means the backend had no such issue to update. Emitting
+    // `200 null` would violate the Issue response schema the client expects, so
+    // surface it as a 404 instead.
+    if (updated == null) {
+      res.status(404).json({ error: "Issue not found" });
+      return;
+    }
     res.json(updated);
   } catch (err) {
     req.log.error({ err, projectId, issueId }, "update_issue failed");

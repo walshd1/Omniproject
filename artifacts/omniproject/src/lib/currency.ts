@@ -1,21 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useGetFxRates, getGetFxRatesQueryKey, type FxRates } from "@workspace/api-client-react";
 
-export interface FxRates {
-  base: string;
-  rates: Record<string, number>;
-  provenance: "sourced" | "sample";
-  asOf: string;
-}
+export type { FxRates };
 
-async function fetchFxRates(): Promise<FxRates> {
-  const res = await fetch("/api/fx-rates", { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`fx rates failed: ${res.status}`);
-  return (await res.json()) as FxRates;
-}
-
-/** Multi-currency rates, read-through from the backend/ERP via n8n. */
+/**
+ * Multi-currency rates, read-through from the backend/ERP via the broker.
+ * Thin wrapper over the generated `/fx-rates` client so the contract (and its
+ * `FxRates` type) stays the single source of truth — no hand-rolled fetch.
+ */
 export function useFxRates() {
-  return useQuery({ queryKey: ["fx-rates"], queryFn: fetchFxRates, retry: false, staleTime: 5 * 60_000 });
+  return useGetFxRates({ query: { queryKey: getGetFxRatesQueryKey(), retry: false, staleTime: 5 * 60_000 } });
 }
 
 /** Convert between currencies via a base-anchored rate table. Falls back to the

@@ -34,6 +34,8 @@ export function GanttChart({ projectId }: { projectId: string }) {
       return { issue, startDay: s, endDay: e };
     });
 
+    lanes.sort((a, b) => a.startDay - b.startDay);
+
     const min = Math.min(...lanes.map((l) => l.startDay));
     const max = Math.max(...lanes.map((l) => l.endDay));
     const span = Math.max(max - min + 1, 1);
@@ -86,9 +88,7 @@ export function GanttChart({ projectId }: { projectId: string }) {
                 title="Today"
               />
             )}
-            {lanes
-              .sort((a, b) => a.startDay - b.startDay)
-              .map(({ issue, startDay, endDay }) => {
+            {lanes.map(({ issue, startDay, endDay }) => {
                 const offsetPct = ((startDay - min) / span) * 100;
                 const widthPct = Math.max(((endDay - startDay + 1) / span) * 100, 2);
                 const overdue =

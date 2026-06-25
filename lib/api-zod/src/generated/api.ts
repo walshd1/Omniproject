@@ -18,7 +18,7 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * Packages a user action with the OIDC token and forwards it to the active broker (the command-palette passthrough). Legacy alias: POST /n8n-proxy.
+ * Packages a user action with the OIDC token and forwards it to the active broker (the command-palette passthrough). Requires the contributor role.
  * @summary Forward a generic action to the broker
  */
 export const BrokerCommandBody = zod.object({
@@ -34,6 +34,18 @@ export const BrokerCommandResponse = zod.object({
   "data": zod.record(zod.string(), zod.unknown()).optional(),
   "message": zod.string().nullish()
 })
+
+
+/**
+ * Read-through FX rates for multi-currency portfolio comparison, sourced from the backend/ERP via the broker. Demo mode and live-read failures serve indicative sample rates (provenance "sample").
+ * @summary Multi-currency FX rates
+ */
+export const GetFxRatesResponse = zod.object({
+  "base": zod.string().describe('ISO 4217 code the rates are anchored to (e.g. \"GBP\").'),
+  "rates": zod.record(zod.string(), zod.number()).describe('Map of ISO 4217 code → rate relative to base.'),
+  "provenance": zod.enum(['sourced', 'sample']).describe('\"sourced\" = from the backend\/ERP; \"sample\" = indicative fallback.'),
+  "asOf": zod.string().describe('ISO 8601 timestamp the rates were captured.')
+}).describe('Base-anchored FX rate table for multi-currency conversion.')
 
 
 /**

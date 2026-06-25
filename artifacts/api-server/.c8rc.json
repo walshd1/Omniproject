@@ -1,0 +1,12 @@
+{
+  "provider": "v8",
+  "all": true,
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/__tests__/**", "src/**/*.test.ts", "src/index.ts", "**/dist/**"],
+  "reporter": ["text", "lcov"],
+  "check-coverage": true,
+  "lines": 72,
+  "functions": 72,
+  "statements": 72,
+  "branches": 70
+}

@@ -1,49 +1,31 @@
-import { useListProjects, useGetProjectSummary } from "@workspace/api-client-react";
+import { useListProjects, type Project } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { PlugZap } from "lucide-react";
 import { ExportMenu } from "../components/ExportMenu";
 import { DataState } from "../components/DataState";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
 
-function ProjectSummaryCard({ projectId }: { projectId: string }) {
-  const { data: summary, isLoading, isError } = useGetProjectSummary(projectId);
-
-  if (isLoading) {
-    return <div className="h-12 bg-muted/50 animate-pulse border border-border mt-4"></div>;
-  }
-
-  if (isError) {
-    // The card is wrapped in a pointer-events-none overlay link, so a Retry
-    // button can't be clicked here; surface a compact accessible notice instead
-    // (the project link still navigates to the full detail view).
-    return (
-      <div role="alert" className="mt-4 border border-red-500/40 bg-red-500/5 px-4 py-3 text-xs font-mono text-red-500">
-        Could not load summary.
-      </div>
-    );
-  }
-
-  if (!summary) return null;
+function ProjectSummaryCard({ project }: { project: Project }) {
+  // Render straight from the list row's issueCount/completedCount to avoid an
+  // N+1 of per-card useGetProjectSummary broker round-trips on the index page.
+  // Summary-only fields (overdue, byStatus) aren't on the list row, so we show
+  // only what the row provides; the project link navigates to full detail.
+  const completion =
+    project.issueCount > 0 ? Math.round((project.completedCount / project.issueCount) * 100) : 0;
 
   return (
-    <div className="mt-4 grid grid-cols-4 gap-4 text-sm font-mono border border-border p-4 bg-background">
+    <div className="mt-4 grid grid-cols-3 gap-4 text-sm font-mono border border-border p-4 bg-background">
       <div>
         <div className="text-muted-foreground mb-1 text-xs">TOTAL ISSUES</div>
-        <div className="font-bold text-lg">{summary.total}</div>
+        <div className="font-bold text-lg">{project.issueCount}</div>
+      </div>
+      <div>
+        <div className="text-muted-foreground mb-1 text-xs">COMPLETED</div>
+        <div className="font-bold text-lg">{project.completedCount}</div>
       </div>
       <div>
         <div className="text-muted-foreground mb-1 text-xs">COMPLETION</div>
-        <div className="font-bold text-lg text-green-500">{summary.completionRate}%</div>
-      </div>
-      <div>
-        <div className="text-muted-foreground mb-1 text-xs">OVERDUE</div>
-        <div className="font-bold text-lg text-red-500">{summary.overdue}</div>
-      </div>
-      <div>
-        <div className="text-muted-foreground mb-1 text-xs">TODO / IN PROGRESS</div>
-        <div className="font-bold text-lg">
-          {summary.byStatus?.todo || 0} / {summary.byStatus?.in_progress || 0}
-        </div>
+        <div className="font-bold text-lg text-green-500">{completion}%</div>
       </div>
     </div>
   );
@@ -116,7 +98,7 @@ export function Projects() {
                 </div>
 
                 <div className="relative z-20 pointer-events-none">
-                  <ProjectSummaryCard projectId={project.id} />
+                  <ProjectSummaryCard project={project} />
                 </div>
               </div>
             ))}

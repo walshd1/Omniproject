@@ -111,6 +111,85 @@ test("an invalid API token is unauthorized (401)", async () => {
   assert.equal(res.status, 401);
 });
 
+test("RBAC: a viewer CANNOT use the generic broker/command write edge (403)", async () => {
+  // The command passthrough can invoke arbitrary backend actions incl. writes,
+  // so it must enforce the same contributor gate as the REST write routes — a
+  // viewer must not be able to forward a mutating action through it.
+  const res = await req("/api/broker/command", {
+    method: "POST",
+    headers: { cookie: VIEWER, "content-type": "application/json" },
+    body: JSON.stringify({ action: "delete_issue", payload: { projectId: "p", issueId: "i" } }),
+  });
+  assert.equal(res.status, 403);
+});
+
+test("broker/command: an admin is NOT blocked by the authorization gate", async () => {
+  // Admin clears the contributor gate; in demo mode it then 502s (no live
+  // broker), but it must NOT be the 403 authorization wall.
+  const res = await req("/api/broker/command", {
+    method: "POST",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ action: "list_projects", payload: {} }),
+  });
+  assert.notEqual(res.status, 403);
+});
+
+test("settings validation: invalid aiProvider is rejected (400), not persisted", async () => {
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ aiProvider: "totally-bogus" }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test("SSRF guard: a link-local/metadata brokerUrl is rejected (400)", async () => {
+  // 169.254.169.254 is the cloud metadata endpoint — never a legitimate broker.
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ brokerUrl: "http://169.254.169.254/latest/meta-data/" }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test("SSRF guard: a non-http(s) brokerUrl scheme is rejected (400)", async () => {
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ brokerUrl: "file:///etc/passwd" }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test("SSRF guard: the IPv4-mapped IPv6 form of the metadata address is rejected (400)", async () => {
+  // http://[::ffff:169.254.169.254]/ normalises to ::ffff:a9fe:a9fe — must not bypass.
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ brokerUrl: "http://[::ffff:169.254.169.254]/latest/meta-data/" }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test("SSRF guard: a legitimately-internal brokerUrl is accepted (not over-blocked)", async () => {
+  // Self-hosted brokers are internal by design; an http(s) private host must pass.
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ brokerUrl: "http://n8n:5678/webhook/omni" }),
+  });
+  assert.equal(res.status, 200);
+});
+
+test("/fx-rates returns a rate table to an authenticated session", async () => {
+  const res = await req("/api/fx-rates", { headers: { cookie: VIEWER } });
+  assert.equal(res.status, 200);
+  const body = (await res.json()) as { base?: string; rates?: Record<string, number> };
+  assert.ok(body.base, "fx base present");
+  assert.ok(body.rates && typeof body.rates === "object", "fx rates present");
+});
+
 test("baseline security headers are present", async () => {
   const res = await req("/api/healthz");
   assert.equal(res.headers.get("x-content-type-options"), "nosniff");

@@ -36,7 +36,7 @@ paths:
       summary: Forward a generic action to the broker
       description: >-
         Packages a user action with the OIDC token and forwards it to the active
-        broker (the command-palette passthrough). Legacy alias: POST /n8n-proxy.
+        broker (the command-palette passthrough). Requires the contributor role.
       requestBody:
         required: true
         content:
@@ -56,6 +56,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Broker error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /fx-rates:
+    get:
+      operationId: getFxRates
+      tags: [projects]
+      summary: Multi-currency FX rates
+      description: >-
+        Read-through FX rates for multi-currency portfolio comparison, sourced
+        from the backend/ERP via the broker. Demo mode and live-read failures
+        serve indicative sample rates (provenance "sample").
+      responses:
+        "200":
+          description: FX rate table
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FxRates"
         "502":
           description: Broker error
           content:
@@ -495,6 +518,31 @@ components:
           type: string
       required:
         - error
+
+    FxRates:
+      type: object
+      description: Base-anchored FX rate table for multi-currency conversion.
+      properties:
+        base:
+          type: string
+          description: ISO 4217 code the rates are anchored to (e.g. "GBP").
+        rates:
+          type: object
+          additionalProperties:
+            type: number
+          description: Map of ISO 4217 code → rate relative to base.
+        provenance:
+          type: string
+          enum: [sourced, sample]
+          description: '"sourced" = from the backend/ERP; "sample" = indicative fallback.'
+        asOf:
+          type: string
+          description: ISO 8601 timestamp the rates were captured.
+      required:
+        - base
+        - rates
+        - provenance
+        - asOf
 
     BrokerCommandInput:
       type: object

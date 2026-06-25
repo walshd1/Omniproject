@@ -40,8 +40,11 @@ jobs:
       - name: Typecheck (libs + apps + scripts)
         run: pnpm run typecheck
 
-      - name: Unit tests (gateway)
-        run: pnpm --filter @workspace/api-server run test
+      - name: Unit tests + coverage gate (gateway)
+        run: pnpm --filter @workspace/api-server run test:coverage
+
+      - name: Unit tests + coverage gate (SPA)
+        run: pnpm --filter @workspace/omniproject run test:coverage
 
       - name: Verify codegen is in sync with the OpenAPI contract
         run: |
