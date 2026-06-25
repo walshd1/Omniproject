@@ -32,7 +32,6 @@ volumes:
   n8n_data:
   ollama_data:
   authentik_pg_data:
-  authentik_redis_data:
   authentik_media:
 
 services:
@@ -40,6 +39,8 @@ services:
   traefik:
     image: traefik:v3.7.5
     container_name: omni-traefik
+    security_opt:
+      - no-new-privileges:true
     command:
       - "--api.dashboard=true"          # dashboard ON but served behind auth (NOT --api.insecure)
       - "--ping=true"
@@ -93,6 +94,16 @@ services:
       dockerfile: Dockerfile
     image: omniproject-shell:0.2.0
     container_name: omni-shell
+    # Stateless gateway — lock it down: no privilege escalation, no caps, read-only
+    # root fs (it writes nothing; /tmp is a tmpfs for any scratch).
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 512m
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -140,6 +151,9 @@ services:
   n8n:
     image: n8nio/n8n:1.123.61   # pinned for reproducibility; 2.x exists but is unverified against the bundled blueprint
     container_name: omni-n8n
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
     environment:
       N8N_HOST: n8n.local
       N8N_PORT: 5678
@@ -172,6 +186,11 @@ services:
   ollama:
     image: ollama/ollama:0.30.10
     container_name: omni-ollama
+    security_opt:
+      - no-new-privileges:true
+    # Model loads are memory-hungry — cap it so a large pull can't OOM the host.
+    # Raise to fit the largest model you intend to run.
+    mem_limit: 8g
     volumes:
       - ollama_data:/root/.ollama
     labels:
@@ -194,6 +213,9 @@ services:
   authentik-postgres:
     image: postgres:16.14-alpine
     container_name: omni-authentik-pg
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
     environment:
       POSTGRES_DB: authentik
       POSTGRES_USER: authentik
@@ -210,28 +232,17 @@ services:
       - omni-net
     restart: unless-stopped
 
-  authentik-redis:
-    image: redis:7.4-alpine
-    container_name: omni-authentik-redis
-    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
-    volumes:
-      - authentik_redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-    networks:
-      - omni-net
-    restart: unless-stopped
-
+  # NOTE: Authentik removed its Redis dependency in 2025.10 (caching, the embedded
+  # outpost, and websockets moved to PostgreSQL), so 2026.5.x needs Postgres only —
+  # there is deliberately no Redis service here.
   authentik-server:
     image: ghcr.io/goauthentik/server:2026.5.3
     container_name: omni-authentik-server
     command: server
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
     environment:
-      AUTHENTIK_REDIS__HOST: authentik-redis
       AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_PG_PASSWORD:?set AUTHENTIK_PG_PASSWORD in .env}
@@ -255,8 +266,6 @@ services:
     depends_on:
       authentik-postgres:
         condition: service_healthy
-      authentik-redis:
-        condition: service_healthy
     networks:
       - omni-net
     restart: unless-stopped
@@ -265,8 +274,10 @@ services:
     image: ghcr.io/goauthentik/server:2026.5.3
     container_name: omni-authentik-worker
     command: worker
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
     environment:
-      AUTHENTIK_REDIS__HOST: authentik-redis
       AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_PG_PASSWORD:?set AUTHENTIK_PG_PASSWORD in .env}
@@ -282,8 +293,6 @@ services:
       start_period: 90s
     depends_on:
       authentik-postgres:
-        condition: service_healthy
-      authentik-redis:
         condition: service_healthy
     networks:
       - omni-net

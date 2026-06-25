@@ -1,0 +1,30 @@
+version: 2
+
+# Keeps deploy image pins and CI actions fresh so they don't quietly rot the way
+# the deploy files did before. Note: the `docker` ecosystem scans the Dockerfile
+# AND docker-compose.*.yml image: pins, but NOT the k8s manifest image — review
+# k8s-enterprise-manifest.yaml's pins (and the intentional n8n 1.x hold) manually.
+updates:
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      deploy-images:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      dev-deps:
+        dependency-type: development

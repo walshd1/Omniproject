@@ -101,3 +101,34 @@ jobs:
 
       - name: Backend mapping certification (live, env-gated; skips without creds)
         run: pnpm --filter @workspace/scripts run integration:openproject
+
+  # Validate the deploy artifacts so they can't silently drift (the naming-drift
+  # guard lives in the gateway unit tests above; this catches syntax/interpolation
+  # and k8s schema breakage). Runs in parallel — needs no pnpm/build.
+  deploy-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate compose files (syntax + interpolation)
+        # Dummy values satisfy the ${VAR:?} fail-fast required-vars so the parse
+        # doesn't abort. Exported in the shell, so no .env "$$" escaping applies.
+        env:
+          SESSION_SECRET: ci-dummy
+          OIDC_CLIENT_ID: ci-dummy
+          OIDC_CLIENT_SECRET: ci-dummy
+          OIDC_ISSUER_URL: https://idp.example.com
+          PUBLIC_URL: https://omni.example.com
+          AUTHENTIK_PG_PASSWORD: ci-dummy
+          AUTHENTIK_SECRET_KEY: ci-dummy-ci-dummy-ci-dummy-ci-dummy
+          TRAEFIK_DASHBOARD_AUTH: admin:dummy
+        run: |
+          docker compose -f docker-compose.standalone.yml config -q
+          docker compose -f docker-compose.enterprise.yml config -q
+
+      - name: Lint k8s manifest (kubeconform)
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz kubeconform
+          ./kubeconform -strict -ignore-missing-schemas -summary k8s-enterprise-manifest.yaml

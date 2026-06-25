@@ -6,6 +6,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Added
+- **Deploy-artifact CI guards** so the deploy files can't silently drift again.
+  A `deploy-guard` unit test fails CI if a removed env name (e.g.
+  `N8N_WEBHOOK_URL`) resurfaces, if a deploy file stops wiring `BROKER_URL`, or if
+  a required `${VAR:?}` in compose isn't documented in `.env.example`. A new
+  `deploy-lint` CI job validates both compose files (`docker compose config`) and
+  the k8s manifest (`kubeconform`). Added `.github/dependabot.yml` to keep image
+  pins and CI actions fresh.
+
 ### Changed
 - **Hardened the deploy stack** (`docker-compose.standalone.yml`,
   `docker-compose.enterprise.yml`, `k8s-enterprise-manifest.yaml`). Pinned every
@@ -18,12 +27,33 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   network aliases (no host hairpin), and the Traefik dashboard moved behind
   basicauth instead of the open `:8080`. New bootstrap guide:
   [docs/DEPLOY-LOCAL.md](docs/DEPLOY-LOCAL.md).
+- **Deploy hardening, round 2** (review-driven). Container hardening on the
+  compose services (`no-new-privileges`, dropped capabilities + read-only rootfs
+  on the stateless shell) and memory limits on the standalone stack; the
+  enterprise n8n port is bound to loopback. On Kubernetes: pod/container
+  `securityContext` (run-as-non-root, drop ALL caps, seccomp, read-only rootfs on
+  the shell), default-deny + scoped `NetworkPolicy`s, `automountServiceAccountToken:
+  false`, `startupProbe`s, and `ingressClassName` replacing the deprecated
+  annotation.
 
 ### Fixed
 - **Deploy files set the removed `N8N_WEBHOOK_URL`** — renamed to `BROKER_URL`
   across all three deploy artifacts. As written they silently ignored the broker
   endpoint and ran in demo mode after 0.2.0. Upgraders: rename the var in your
   deployment env/config.
+- **k8s template shipped a real SSE bug** — the omni-shell Deployment defaulted to
+  `replicas: 2`, but real-time notification fan-out is in-process, so a second
+  replica dropped ~half of notifications. Defaulted to `replicas: 1` with a
+  documented Redis-bus scale-out path.
+- **k8s Secret shipped a usable `SESSION_SECRET` placeholder** — `kubectl apply`
+  produced a running cluster signing sessions with a public secret. The Secret now
+  ships empty (empty `SESSION_SECRET` → the gateway refuses to boot) with an
+  out-of-band `kubectl create secret` recipe; the public n8n Ingress route was
+  removed (n8n stays ClusterIP-only).
+- **Obsolete Authentik Redis** — removed the `authentik-redis` service, volume,
+  env, and health-gates from the standalone stack: Authentik dropped its Redis
+  dependency in 2025.10 (moved to PostgreSQL), so the pinned `2026.5.x` never used
+  it.
 - **`.env` could leak into the image** — `.dockerignore` now excludes
   `.env`/`*.pem`/`*.key`/`certs` (the Dockerfile does `COPY . .`).
 
