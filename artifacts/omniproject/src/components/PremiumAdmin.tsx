@@ -239,8 +239,14 @@ function WebhooksPanel({ entitled }: { entitled: boolean }) {
   };
 
   const remove = async (id: string) => {
-    await fetch(`/api/webhooks/${id}`, { method: "DELETE", credentials: "same-origin" });
-    qc.invalidateQueries({ queryKey: ["webhooks"] });
+    try {
+      const res = await fetch(`/api/webhooks/${id}`, { method: "DELETE", credentials: "same-origin" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+      qc.invalidateQueries({ queryKey: ["webhooks"] });
+      toast({ title: "WEBHOOK DELETED", description: "Deliveries to this endpoint have stopped." });
+    } catch (e) {
+      toast({ title: "ERROR", description: String(e instanceof Error ? e.message : e), variant: "destructive" });
+    }
   };
 
   const test = async (id: string) => {

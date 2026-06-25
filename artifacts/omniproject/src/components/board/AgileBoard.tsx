@@ -18,6 +18,7 @@ import { PriorityDot } from "../StatusDot";
 import { IssueDialog } from "../IssueDialog";
 import { DataState } from "../DataState";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 
 function IssueCard({
   issue,
@@ -87,8 +88,9 @@ export function AgileBoard({ projectId }: { projectId: string }) {
     queryClient.invalidateQueries({ queryKey: getListActivityQueryKey() });
   };
 
-  const moveIssue = (issue: Issue, status: string) => {
+  const moveIssue = (issue: Issue, status: string, isUndo = false) => {
     if (issue.status === status) return;
+    const fromStatus = issue.status;
     const key = getGetProjectIssuesQueryKey(projectId);
     const previous = queryClient.getQueryData<Issue[]>(key);
     // Optimistic: move the card immediately so the board responds instantly,
@@ -102,7 +104,20 @@ export function AgileBoard({ projectId }: { projectId: string }) {
       {
         onSuccess: () => {
           invalidate();
-          toast({ title: "ISSUE MOVED", description: `${issue.id.slice(0, 8)} → ${statusLabel(status)}` });
+          toast({
+            title: isUndo ? "MOVE UNDONE" : "ISSUE MOVED",
+            description: `${issue.id.slice(0, 8)} → ${statusLabel(status)}`,
+            // Offer the inverse move back to where the card came from. Re-issued
+            // optimistically like any other move (and itself undoable).
+            action: isUndo ? undefined : (
+              <ToastAction
+                altText={`Undo move back to ${statusLabel(fromStatus)}`}
+                onClick={() => moveIssue({ ...issue, status }, fromStatus, true)}
+              >
+                Undo
+              </ToastAction>
+            ),
+          });
         },
         onError: () => {
           if (previous) queryClient.setQueryData(key, previous);

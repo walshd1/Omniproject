@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { CommandPalette } from "../CommandPalette";
 import { IssueDialog } from "../IssueDialog";
@@ -6,7 +6,7 @@ import { ShortcutsDialog } from "../ShortcutsDialog";
 import { NotificationsBell } from "../NotificationsBell";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
-import { LogOut } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { NAV_ITEMS } from "../../lib/nav";
 import { useAuth, logout } from "../../lib/auth";
 import { useSetupStatus } from "../../lib/setup";
@@ -14,10 +14,12 @@ import { useT } from "../../lib/i18n";
 import { useBranding } from "../../lib/branding";
 import { LanguageSwitcher } from "../LanguageSwitcher";
 import { ErrorBoundary } from "../ErrorBoundary";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const { activeProjectId, isNewIssueOpen, setNewIssueOpen, isShortcutsOpen, setShortcutsOpen } = useStore();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { t } = useT();
   const brand = useBranding();
   const { data: auth, isLoading: authLoading } = useAuth();
@@ -42,6 +44,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
     const name = seg.charAt(0).toUpperCase() + seg.slice(1);
     document.title = `${name} — ${brand.appName}`;
     mainRef.current?.focus();
+    // Close the mobile nav drawer after navigating so the new view is visible.
+    setMobileNavOpen(false);
   }, [location, brand.appName]);
 
   // Auth guard: wait for auth to resolve (so we don't bounce mid-load), then send
@@ -111,6 +115,40 @@ export function AppLayout({ children }: { children: ReactNode }) {
     .map((s) => s[0]?.toUpperCase())
     .join("") || "ME";
 
+  // Shared nav list, rendered identically in the static desktop sidebar and the
+  // mobile drawer. `compact` drops the chord hints (meaningless on touch).
+  const navList = (compact = false) => (
+    <nav className="flex-1 py-4 flex flex-col gap-1 px-2 overflow-y-auto">
+      {NAV_ITEMS.map((item) => {
+        const Icon = item.icon;
+        const active = item.match(location);
+        const demoDot = item.href === "/setup" && setup && !setup.broker.configured;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${active ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}
+          >
+            <Icon className="w-4 h-4 mr-3" /> {t(item.i18nKey)}
+            {!compact && item.chord && <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">{item.chord}</span>}
+            {demoDot && <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" title="Running in demo mode" />}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+
+  const brandMark = (
+    <>
+      {brand.logoUrl ? (
+        <img src={brand.logoUrl} alt="" className="h-8 mr-3 object-contain" />
+      ) : (
+        <div className="bg-foreground text-background w-8 h-8 flex items-center justify-center mr-3 font-black">{brand.shortName}</div>
+      )}
+      <span className="uppercase truncate">{brand.appName}</span>
+    </>
+  );
+
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden text-foreground">
       <a
@@ -119,51 +157,52 @@ export function AppLayout({ children }: { children: ReactNode }) {
       >
         Skip to content
       </a>
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-border flex flex-col bg-card shrink-0">
+      {/* Sidebar — static on md+, replaced by a hamburger + drawer below md. */}
+      <aside className="hidden md:flex w-64 border-r border-border flex-col bg-card shrink-0">
         <Link href="/" aria-label={`${brand.appName} — home`} className="h-14 flex items-center px-4 border-b border-border font-bold text-xl tracking-tighter">
-          {brand.logoUrl ? (
-            <img src={brand.logoUrl} alt="" className="h-8 mr-3 object-contain" />
-          ) : (
-            <div className="bg-foreground text-background w-8 h-8 flex items-center justify-center mr-3 font-black">{brand.shortName}</div>
-          )}
-          <span className="uppercase truncate">{brand.appName}</span>
+          {brandMark}
         </Link>
-        
-        <nav className="flex-1 py-4 flex flex-col gap-1 px-2 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const active = item.match(location);
-            const demoDot = item.href === "/setup" && setup && !setup.broker.configured;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${active ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}
-              >
-                <Icon className="w-4 h-4 mr-3" /> {t(item.i18nKey)}
-                {item.chord && <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">{item.chord}</span>}
-                {demoDot && <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" title="Running in demo mode" />}
-              </Link>
-            );
-          })}
-        </nav>
+
+        {navList()}
 
         <div className="p-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
           <span>CMD+K TO SEARCH</span>
         </div>
       </aside>
 
+      {/* Mobile nav drawer (Radix handles focus trap + Escape). */}
+      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+        <SheetContent side="left" className="w-72 p-0 flex flex-col bg-card md:hidden">
+          <SheetTitle asChild>
+            <Link href="/" aria-label={`${brand.appName} — home`} className="h-14 flex items-center px-4 border-b border-border font-bold text-xl tracking-tighter">
+              {brandMark}
+            </Link>
+          </SheetTitle>
+          {navList(true)}
+          <div className="p-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
+            <span>CMD+K TO SEARCH</span>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Topbar */}
-        <header className="h-14 border-b border-border flex items-center justify-between px-6 bg-background shrink-0">
+        <header className="h-14 border-b border-border flex items-center justify-between gap-2 px-3 sm:px-6 bg-background shrink-0">
           <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(true)}
+              className="md:hidden text-muted-foreground hover:text-foreground"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
             {activeProject && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <span className="text-muted-foreground">/</span>
-                <span className="font-bold text-sm">{activeProject.name}</span>
-                <span className="text-xs px-1.5 py-0.5 border border-border bg-muted/50 uppercase tracking-widest">{activeProject.source}</span>
+                <span className="font-bold text-sm truncate">{activeProject.name}</span>
+                <span className="hidden sm:inline text-xs px-1.5 py-0.5 border border-border bg-muted/50 uppercase tracking-widest">{activeProject.source}</span>
               </div>
             )}
           </div>

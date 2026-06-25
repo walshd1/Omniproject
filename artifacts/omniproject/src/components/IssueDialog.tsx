@@ -40,6 +40,7 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { STATUS_ORDER, PRIORITY_ORDER, STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants";
 
 interface IssueDialogProps {
@@ -168,12 +169,48 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
 
   const handleDelete = () => {
     if (!issue) return;
+    // Snapshot the issue's fields so an "Undo" can re-create it best-effort. The
+    // new issue gets a fresh id (we can't resurrect the original), but the
+    // content is preserved.
+    const restore: IssueInput = {
+      title: issue.title,
+      description: issue.description ?? undefined,
+      status: issue.status as IssueInput["status"],
+      priority: issue.priority as IssueInput["priority"],
+      assignee: issue.assignee ?? null,
+      labels: [...issue.labels],
+      startDate: issue.startDate ?? null,
+      dueDate: issue.dueDate ?? null,
+    };
     deleteIssue.mutate(
       { projectId, issueId: issue.id },
       {
         onSuccess: () => {
           invalidate();
-          toast({ title: "ISSUE DELETED", description: issue.title });
+          toast({
+            title: "ISSUE DELETED",
+            description: issue.title,
+            action: (
+              <ToastAction
+                altText={`Undo delete of ${issue.title}`}
+                onClick={() =>
+                  createIssue.mutate(
+                    { projectId, data: restore },
+                    {
+                      onSuccess: () => {
+                        invalidate();
+                        toast({ title: "ISSUE RESTORED", description: restore.title });
+                      },
+                      onError: () =>
+                        toast({ title: "ERROR", description: "Failed to restore issue.", variant: "destructive" }),
+                    },
+                  )
+                }
+              >
+                Undo
+              </ToastAction>
+            ),
+          });
           onOpenChange(false);
         },
         onError: () => toast({ title: "ERROR", description: "Failed to delete issue.", variant: "destructive" }),
