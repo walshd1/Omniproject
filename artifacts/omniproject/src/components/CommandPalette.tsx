@@ -1,9 +1,11 @@
 import { useEffect } from "react";
 import { Command } from "cmdk";
 import * as Dialog from "@radix-ui/react-dialog";
+import { useListProjects } from "@workspace/api-client-react";
 import { useStore } from "../store/useStore";
 import { useLocation } from "wouter";
 import { VIEWS } from "../lib/views";
+import { NAV_ITEMS } from "../lib/nav";
 
 export function CommandPalette() {
   const {
@@ -14,9 +16,12 @@ export function CommandPalette() {
     currentView,
     setCurrentView,
     setNewIssueOpen,
+    setShortcutsOpen,
     activeProjectId,
+    setActiveProjectId,
   } = useStore();
   const [, setLocation] = useLocation();
+  const { data: projects } = useListProjects();
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -50,24 +55,18 @@ export function CommandPalette() {
           <Command.Empty className="p-4 text-sm text-center text-muted-foreground">No results found.</Command.Empty>
           
           <Command.Group heading="Navigation" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-            <Command.Item
-              onSelect={() => { setLocation("/"); setCommandOpen(false); }}
-              className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
-            >
-              Go to Dashboard
-            </Command.Item>
-            <Command.Item
-              onSelect={() => { setLocation("/projects"); setCommandOpen(false); }}
-              className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
-            >
-              Go to Projects
-            </Command.Item>
-            <Command.Item
-              onSelect={() => { setLocation("/settings"); setCommandOpen(false); }}
-              className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
-            >
-              Go to Settings
-            </Command.Item>
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Command.Item
+                  key={item.href}
+                  onSelect={() => { setLocation(item.href); setCommandOpen(false); }}
+                  className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
+                >
+                  <Icon className="w-4 h-4 opacity-70" /> Go to {item.label}
+                </Command.Item>
+              );
+            })}
           </Command.Group>
 
           <Command.Group heading="Actions" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-4">
@@ -84,7 +83,29 @@ export function CommandPalette() {
             >
               Toggle Theme ({theme === 'dark' ? 'Light' : 'Dark'})
             </Command.Item>
+            <Command.Item
+              onSelect={() => { setCommandOpen(false); setShortcutsOpen(true); }}
+              className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
+            >
+              Keyboard shortcuts
+            </Command.Item>
           </Command.Group>
+
+          {projects && projects.length > 0 && (
+            <Command.Group heading="Jump to project" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-4">
+              {projects.map((p) => (
+                <Command.Item
+                  key={p.id}
+                  value={`project ${p.identifier} ${p.name}`}
+                  onSelect={() => { setActiveProjectId(p.id); setLocation("/"); setCommandOpen(false); }}
+                  className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
+                >
+                  {p.id === activeProjectId ? "● " : ""}
+                  <span className="font-mono text-xs text-muted-foreground">{p.identifier}</span> {p.name}
+                </Command.Item>
+              ))}
+            </Command.Group>
+          )}
 
           <Command.Group heading="Views" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-4">
             {VIEWS.map((v) => (

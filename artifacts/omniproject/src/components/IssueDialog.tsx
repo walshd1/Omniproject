@@ -72,9 +72,11 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
   const isEdit = !!issue;
 
   const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [titleError, setTitleError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    setTitleError(null);
     if (issue) {
       setForm({
         title: issue.title,
@@ -115,9 +117,10 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) {
-      toast({ title: "TITLE REQUIRED", description: "An issue needs a title.", variant: "destructive" });
+      setTitleError("An issue needs a title.");
       return;
     }
+    setTitleError(null);
 
     const payload = buildPayload();
 
@@ -191,14 +194,30 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Title</label>
+            <label htmlFor="issue-title" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Title <span className="text-red-500" aria-hidden="true">*</span>
+            </label>
             <Input
+              id="issue-title"
               autoFocus
+              required
+              aria-required="true"
+              aria-invalid={titleError ? true : undefined}
+              aria-describedby={titleError ? "issue-title-error" : undefined}
               value={form.title}
-              onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+              onChange={(e) => {
+                const value = e.target.value;
+                setForm((p) => ({ ...p, title: value }));
+                if (titleError && value.trim()) setTitleError(null);
+              }}
               placeholder="What needs to be done?"
-              className="rounded-none border-border font-mono"
+              className="rounded-none border-border font-mono aria-[invalid=true]:border-red-500"
             />
+            {titleError && (
+              <p id="issue-title-error" role="alert" className="text-xs font-bold text-red-500">
+                {titleError}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1">

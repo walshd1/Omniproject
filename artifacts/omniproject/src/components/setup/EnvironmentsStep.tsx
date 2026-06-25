@@ -11,6 +11,7 @@ import {
   type StoreView,
 } from "../../lib/setup";
 import { Step, useRefreshAndSettings } from "./shared";
+import { envNameError } from "../../lib/validation";
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -77,6 +78,8 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
 
   const [store, setStore] = useState<StoreView | null>(null);
   const [newEnv, setNewEnv] = useState("");
+  // Only surface the format error once the user has typed something.
+  const newEnvError = newEnv.trim() ? envNameError(newEnv) : null;
 
   useEffect(() => {
     if (isAdmin) fetchEnvironments().then(setStore).catch(() => setStore(null));
@@ -134,11 +137,19 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
               value={newEnv}
               onChange={(e) => setNewEnv(e.target.value)}
               placeholder="sandbox"
-              className="w-28 bg-background border border-border px-2 py-1 text-xs font-mono outline-none focus:border-primary"
+              aria-label="New environment name"
+              aria-invalid={newEnvError ? true : undefined}
+              aria-describedby={newEnvError ? "new-env-error" : undefined}
+              className={`w-28 bg-background border px-2 py-1 text-xs font-mono outline-none focus:border-primary ${newEnvError ? "border-red-500" : "border-border"}`}
             />
             <button
-              onClick={() => newEnv.trim() && envAction(`CREATED ${newEnv.toUpperCase()}`, () => createEnvironment(newEnv.trim())).then(() => setNewEnv(""))}
-              className="px-2.5 py-1 text-xs font-black uppercase tracking-widest border border-border hover:border-primary flex items-center gap-1.5"
+              onClick={() => {
+                const name = newEnv.trim();
+                if (!name || envNameError(newEnv)) return;
+                envAction(`CREATED ${name.toUpperCase()}`, () => createEnvironment(name)).then(() => setNewEnv(""));
+              }}
+              disabled={!!newEnvError}
+              className="px-2.5 py-1 text-xs font-black uppercase tracking-widest border border-border hover:border-primary disabled:opacity-40 disabled:hover:border-border flex items-center gap-1.5"
             >
               <GitBranch className="w-3 h-3" /> New env
             </button>
@@ -154,6 +165,10 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
               </ConfirmButton>
             )}
           </div>
+
+          {newEnvError && (
+            <p id="new-env-error" role="alert" className="text-xs font-bold text-red-500">{newEnvError}</p>
+          )}
 
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-widest text-muted-foreground">

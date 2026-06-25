@@ -3,6 +3,7 @@ import { useUpdateSettings } from "@workspace/api-client-react";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { testN8nConnection, type N8nTestResult } from "../../lib/setup";
+import { urlFormatError } from "../../lib/validation";
 import { Dot, Step, useRefreshAndSettings } from "./shared";
 
 export function ConnectStep({
@@ -20,6 +21,7 @@ export function ConnectStep({
 
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<N8nTestResult | null>(null);
+  const urlError = urlFormatError(url);
 
   const runTest = async () => {
     setTesting(true);
@@ -54,23 +56,31 @@ export function ConnectStep({
           Testing and applying require the <span className="font-mono">admin</span> role.
         </div>
       )}
-      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">n8n webhook URL</label>
+      <label htmlFor="n8n-webhook-url" className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+        n8n webhook URL <span className="text-red-500" aria-hidden="true">*</span>
+      </label>
       <div className="flex gap-2">
         <input
+          id="n8n-webhook-url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://n8n.example.com/webhook/omniproject"
-          className="flex-1 bg-background border border-border px-3 py-2 text-sm font-mono outline-none focus:border-primary"
+          aria-invalid={urlError ? true : undefined}
+          aria-describedby={urlError ? "n8n-webhook-url-error" : undefined}
+          className={`flex-1 bg-background border px-3 py-2 text-sm font-mono outline-none focus:border-primary ${urlError ? "border-red-500" : "border-border"}`}
         />
         <button
           onClick={runTest}
-          disabled={testing || !url.trim() || !isAdmin}
+          disabled={testing || !url.trim() || !!urlError || !isAdmin}
           className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-40 flex items-center gap-2"
         >
           {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
           Test
         </button>
       </div>
+      {urlError && (
+        <p id="n8n-webhook-url-error" role="alert" className="text-xs font-bold text-red-500">{urlError}</p>
+      )}
 
       {result && (
         <div className={`border p-3 text-sm ${result.reachable && result.ok ? "border-green-500/40 bg-green-500/10" : "border-red-500/40 bg-red-500/10"}`}>

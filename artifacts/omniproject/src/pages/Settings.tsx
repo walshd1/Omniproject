@@ -7,6 +7,8 @@ import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { PremiumAdmin } from "../components/PremiumAdmin";
 import { DataState } from "../components/DataState";
+import { LoadingState } from "../components/LoadingState";
+import { urlFormatError } from "../lib/validation";
 
 const AI_MODEL_HINT: Record<string, string> = {
   none: "",
@@ -43,8 +45,14 @@ export function Settings() {
     }
   }, [settings]);
 
+  const brokerUrlError = urlFormatError(formData.brokerUrl);
+  const oidcUrlError = urlFormatError(formData.oidcIssuerUrl);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (brokerUrlError || oidcUrlError) {
+      return;
+    }
     const payload: SettingsUpdate = {
       brokerUrl: formData.brokerUrl.trim() || null,
       aiProvider: formData.aiProvider as SettingsUpdate["aiProvider"],
@@ -77,7 +85,7 @@ export function Settings() {
     }
   };
 
-  if (isLoading) return <div className="p-8 text-center font-bold tracking-widest text-muted-foreground">LOADING...</div>;
+  if (isLoading) return <LoadingState />;
   if (isError) return <DataState isError error={error} onRetry={() => refetch()} className="p-8 min-h-[16rem]">{null}</DataState>;
 
   const isAiSelected = formData.aiProvider !== "none";
@@ -91,14 +99,21 @@ export function Settings() {
         <div className="space-y-6 p-6 border border-border bg-card">
           <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Orchestration</h2>
           <div className="space-y-2">
-            <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">BROKER URL (n8n)</label>
+            <label htmlFor="broker-url" className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">BROKER URL (n8n)</label>
             <Input
+              id="broker-url"
               value={formData.brokerUrl}
               onChange={(e) => setFormData((p) => ({ ...p, brokerUrl: e.target.value }))}
               placeholder="https://n8n.example.com/webhook/..."
-              className="rounded-none border-border font-mono h-12"
+              aria-invalid={brokerUrlError ? true : undefined}
+              aria-describedby={brokerUrlError ? "broker-url-error" : undefined}
+              className="rounded-none border-border font-mono h-12 aria-[invalid=true]:border-red-500"
             />
-            <p className="text-xs text-muted-foreground">All project data is brokered through this URL (n8n by default).</p>
+            {brokerUrlError ? (
+              <p id="broker-url-error" role="alert" className="text-xs font-bold text-red-500">{brokerUrlError}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">All project data is brokered through this URL (n8n by default).</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -186,22 +201,28 @@ export function Settings() {
         <div className="space-y-6 p-6 border border-border bg-card">
           <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Identity</h2>
           <div className="space-y-2">
-            <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">OIDC ISSUER URL</label>
+            <label htmlFor="oidc-url" className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">OIDC ISSUER URL</label>
             <Input
+              id="oidc-url"
               value={formData.oidcIssuerUrl}
               onChange={(e) => setFormData((p) => ({ ...p, oidcIssuerUrl: e.target.value }))}
               placeholder="https://auth.example.com/..."
-              className="rounded-none border-border font-mono h-12"
+              aria-invalid={oidcUrlError ? true : undefined}
+              aria-describedby={oidcUrlError ? "oidc-url-error" : undefined}
+              className="rounded-none border-border font-mono h-12 aria-[invalid=true]:border-red-500"
             />
+            {oidcUrlError && (
+              <p id="oidc-url-error" role="alert" className="text-xs font-bold text-red-500">{oidcUrlError}</p>
+            )}
           </div>
         </div>
 
         <Button
           type="submit"
-          disabled={updateSettings.isPending}
+          disabled={updateSettings.isPending || !!brokerUrlError || !!oidcUrlError}
           className="w-full rounded-none border border-primary bg-primary text-primary-foreground hover:bg-primary/90 h-14 font-bold tracking-widest text-lg uppercase"
         >
-          {updateSettings.isPending ? "SAVING..." : "COMMIT CHANGES"}
+          {updateSettings.isPending ? "SAVING…" : "COMMIT CHANGES"}
         </Button>
       </form>
 

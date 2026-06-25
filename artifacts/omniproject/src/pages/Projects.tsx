@@ -1,7 +1,9 @@
 import { useListProjects, useGetProjectSummary } from "@workspace/api-client-react";
 import { Link } from "wouter";
+import { PlugZap } from "lucide-react";
 import { ExportMenu } from "../components/ExportMenu";
 import { DataState } from "../components/DataState";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
 
 function ProjectSummaryCard({ projectId }: { projectId: string }) {
   const { data: summary, isLoading, isError } = useGetProjectSummary(projectId);
@@ -69,6 +71,27 @@ export function Projects() {
           </div>
         ) : (
           <DataState isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
+          {projects && projects.length === 0 ? (
+            <Empty className="border-2 border-border bg-card min-h-40">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <PlugZap />
+                </EmptyMedia>
+                <EmptyTitle>No projects yet</EmptyTitle>
+                <EmptyDescription>
+                  Connect your backend in Setup to start pulling projects and issues into OmniProject.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Link
+                  href="/setup"
+                  className="inline-flex items-center gap-2 bg-primary text-primary-foreground border border-primary px-4 py-2 text-sm font-bold uppercase tracking-wider hover:bg-primary/90"
+                >
+                  <PlugZap className="w-4 h-4" /> Go to Setup
+                </Link>
+              </EmptyContent>
+            </Empty>
+          ) : (
           <div className="flex flex-col gap-6">
             {projects?.map(project => (
               <div key={project.id} className="bg-card border-2 border-border p-6 hover:border-primary transition-colors group relative">
@@ -98,6 +121,7 @@ export function Projects() {
               </div>
             ))}
           </div>
+          )}
           </DataState>
         )}
       </div>
