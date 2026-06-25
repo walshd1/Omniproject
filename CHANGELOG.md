@@ -6,6 +6,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+- **More backend-agnostic.** OmniProject is designed to sit above whichever PM
+  tools you run; this removes assumptions that leaked one tool's schema:
+  - **Issue `status` is now an open string** in the API contract (was frozen to
+    one backend's six states), so a backend with different states is no longer
+    rejected on write or mis-bucketed on read. The conventional buckets remain the
+    documented default. The board derives columns from the data, and unknown
+    status/priority values degrade gracefully (neutral swatch + humanised label).
+  - **Neutralised tool-specific copy**: the page/social meta tags no longer name
+    two specific tools, and the demo dataset now spans several backends
+    (Jira/OpenProject/GitHub/Azure DevOps) to show federation rather than implying
+    a fixed pair.
+
 ### Added
 - **Deploy-artifact CI guards** so the deploy files can't silently drift again.
   A `deploy-guard` unit test fails CI if a removed env name (e.g.

@@ -656,7 +656,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [backlog, todo, in_progress, in_review, done, cancelled]
+          description: "Backend-agnostic status string. Conventional buckets are backlog, todo, in_progress, in_review, done, cancelled; other backends may use their own values (the broker workflow normalises them)."
         priority:
           type: string
           enum: [none, urgent, high, medium, low]
@@ -714,7 +714,7 @@ components:
           type: string
         status:
           type: string
-          enum: [backlog, todo, in_progress, in_review, done, cancelled]
+          description: "Backend-agnostic status string. Conventional buckets are backlog, todo, in_progress, in_review, done, cancelled; other backends may use their own values (the broker workflow normalises them)."
         priority:
           type: string
           enum: [none, urgent, high, medium, low]
@@ -743,7 +743,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [backlog, todo, in_progress, in_review, done, cancelled]
+          description: "Backend-agnostic status string. Conventional buckets are backlog, todo, in_progress, in_review, done, cancelled; other backends may use their own values (the broker workflow normalises them)."
         priority:
           type: string
           enum: [none, urgent, high, medium, low]

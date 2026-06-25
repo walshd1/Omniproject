@@ -53,3 +53,17 @@ export const STATUS_ACCENTS: Record<string, string> = {
   done: "border-t-green-500",
   cancelled: "border-t-red-500",
 };
+
+// ── Graceful fallbacks for backend-agnostic status/priority values ────────────
+// OmniProject is backend-agnostic: a backend may surface status/priority strings
+// that aren't in the conventional sets above (e.g. Jira's "To Do", ServiceNow
+// states). These helpers degrade gracefully — a neutral swatch + a humanised
+// label ("in_review" → "IN REVIEW") — instead of rendering nothing.
+function humanise(value: string): string {
+  return value.replace(/[_-]+/g, " ").trim().toUpperCase();
+}
+export const statusColor = (status: string): string => STATUS_COLORS[status] ?? "bg-zinc-400";
+export const statusAccent = (status: string): string => STATUS_ACCENTS[status] ?? "border-t-zinc-400";
+export const statusLabel = (status: string): string => STATUS_LABELS[status] ?? humanise(status);
+export const priorityColor = (priority: string): string => PRIORITY_COLORS[priority] ?? "bg-zinc-400";
+export const priorityLabel = (priority: string): string => PRIORITY_LABELS[priority] ?? humanise(priority);
