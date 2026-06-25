@@ -6,7 +6,7 @@
 # k8s-enterprise-manifest.yaml all deploy.
 
 # ── Builder ───────────────────────────────────────────────────────────────────
-FROM node:22-bookworm-slim AS builder
+FROM node:26-bookworm-slim AS builder
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -25,7 +25,7 @@ RUN PORT=3000 BASE_PATH=/ pnpm --filter @workspace/omniproject run build \
  && pnpm --filter @workspace/api-server run build
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
-FROM node:22-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 
 ENV NODE_ENV=production
 ENV PORT=3000
