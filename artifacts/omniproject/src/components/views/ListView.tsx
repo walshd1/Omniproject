@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { useGetProjectIssues, type Issue } from "@workspace/api-client-react";
-import { STATUS_LABELS, STATUS_COLORS, PRIORITY_COLORS, PRIORITY_LABELS, STATUS_ORDER, PRIORITY_ORDER } from "../../lib/constants";
+import { STATUS_LABELS, PRIORITY_LABELS, STATUS_ORDER, PRIORITY_ORDER } from "../../lib/constants";
 import { isOverdue } from "../../lib/methodology";
 import { IssueDialog } from "../IssueDialog";
+import { LoadingState } from "../LoadingState";
+import { StatusDot, PriorityDot } from "../StatusDot";
 
 type SortKey = "title" | "status" | "priority" | "assignee" | "dueDate";
 
@@ -28,7 +30,7 @@ export function ListView({ projectId }: { projectId: string }) {
 
   const toggle = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: 1 }));
 
-  if (isLoading) return <div className="p-8 text-center font-bold tracking-widest text-muted-foreground animate-pulse">LOADING…</div>;
+  if (isLoading) return <LoadingState />;
 
   const Th = ({ k, children }: { k: SortKey; children: React.ReactNode }) => {
     const active = sort.key === k;
@@ -79,8 +81,8 @@ export function ListView({ projectId }: { projectId: string }) {
                 className="border-b border-border hover:bg-muted/30 cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset"
               >
                 <td className="px-3 py-2 font-semibold">{issue.title}</td>
-                <td className="px-3 py-2"><span className="inline-flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${STATUS_COLORS[issue.status]}`} />{STATUS_LABELS[issue.status]}</span></td>
-                <td className="px-3 py-2"><span className="inline-flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${PRIORITY_COLORS[issue.priority]}`} />{PRIORITY_LABELS[issue.priority]}</span></td>
+                <td className="px-3 py-2"><span className="inline-flex items-center gap-1.5"><StatusDot status={issue.status} />{STATUS_LABELS[issue.status]}</span></td>
+                <td className="px-3 py-2"><span className="inline-flex items-center gap-1.5"><PriorityDot priority={issue.priority} />{PRIORITY_LABELS[issue.priority]}</span></td>
                 <td className="px-3 py-2 text-muted-foreground">{issue.assignee ?? "—"}</td>
                 <td className={`px-3 py-2 font-mono ${isOverdue(issue) ? "text-red-500 font-bold" : "text-muted-foreground"}`}>{issue.dueDate ?? "—"}</td>
               </tr>

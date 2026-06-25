@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { ViewSwitcher } from "../components/ViewSwitcher";
 import { VIEW_COMPONENTS } from "../components/views/registry";
 import { viewMeta } from "../lib/views";
+import { LoadingState } from "../components/LoadingState";
 
 export function Home() {
   const { currentView, activeProjectId, setActiveProjectId, setNewIssueOpen } = useStore();
@@ -56,7 +57,7 @@ export function Home() {
         <div className="flex-1 overflow-auto p-6 relative">
           {projectsLoading ? (
             <div className="w-full h-full flex items-center justify-center">
-              <div className="text-muted-foreground font-bold tracking-widest animate-pulse">LOADING…</div>
+              <LoadingState className="" />
             </div>
           ) : !activeProjectId ? (
             <div className="w-full h-full flex items-center justify-center">

@@ -7,6 +7,7 @@ import {
   type RaidEntry,
   type RaidEntryInput,
 } from "@workspace/api-client-react";
+import { LoadingState } from "../LoadingState";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { ProvenanceBadge } from "../ProvenanceBadge";
@@ -88,7 +89,7 @@ export function RaidView({ projectId }: { projectId: string }) {
     );
   };
 
-  if (isLoading) return <div className="p-8 text-center font-bold tracking-widest text-muted-foreground animate-pulse">LOADING…</div>;
+  if (isLoading) return <LoadingState />;
 
   return (
     <div className="h-full flex flex-col gap-4">
