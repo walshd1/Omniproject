@@ -27,7 +27,7 @@ export interface N8nTestResult {
 export type ExportFormat = "env" | "compose" | "k8s";
 
 /** Trigger a browser download of a Blob via a transient anchor element. */
-function triggerBlobDownload(blob: Blob, filename: string): void {
+export function triggerBlobDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

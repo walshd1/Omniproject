@@ -1,4 +1,4 @@
-export type Provenance = "sourced" | "derived" | "sample";
+export type Provenance = "sourced" | "derived" | "sample" | "captured";
 
 const META: Record<Provenance, { label: string; cls: string; title: string }> = {
   sourced: {
@@ -15,6 +15,11 @@ const META: Record<Provenance, { label: string; cls: string; title: string }> = 
     label: "SAMPLE DATA",
     cls: "border-border text-muted-foreground bg-muted/40",
     title: "Demo/placeholder data — no backend is wired. Not a real figure.",
+  },
+  captured: {
+    label: "CAPTURED · SNAPSHOTS",
+    cls: "border-blue-500/40 text-blue-600 dark:text-blue-400 bg-blue-500/10",
+    title: "Trend built from point-in-time snapshots you captured in the browser — not backend-recorded history.",
   },
 };
 
