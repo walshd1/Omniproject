@@ -40,7 +40,12 @@ if (RAW_FILE && IS_PROD) {
 }
 
 export function saveState(file: string, state: DemoState): void {
-  fs.writeFileSync(file, JSON.stringify(state, null, 2));
+  // Write to a temp file then rename: rename is atomic on the same filesystem, so
+  // a crash mid-write can't leave a truncated/half-written file. (A partial JSON
+  // would fail to parse on the next boot and silently drop ALL persisted state.)
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, file);
 }
 
 export function loadState(file: string): DemoState | null {

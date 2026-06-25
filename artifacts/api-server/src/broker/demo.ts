@@ -33,6 +33,22 @@ import {
 let issueCounter = 100;
 let raidCounter = 100;
 
+/**
+ * Recompute a project row's denormalised issueCount/completedCount from its
+ * actual issues after a mutation, mirroring the initial-seed reconcile in
+ * demo-data. The project card reads these counts for its completion %, so they
+ * must move when an issue is created/deleted OR when a status crosses done —
+ * otherwise the card drifts from the board and the (always-recomputed) summary.
+ * "Completed" matches the summary definition (status === "done").
+ */
+function recountProject(projectId: string): void {
+  const proj = SAMPLE_PROJECTS.find((p) => p["id"] === projectId);
+  if (!proj) return;
+  const issues = SAMPLE_ISSUES[projectId] ?? [];
+  proj["issueCount"] = issues.length;
+  proj["completedCount"] = issues.filter((i) => (i as { status?: string }).status === "done").length;
+}
+
 export class DemoBroker implements Broker {
   readonly kind = "demo";
   readonly live = false;
@@ -72,8 +88,7 @@ export class DemoBroker implements Broker {
       };
       if (!SAMPLE_ISSUES[projectId]) SAMPLE_ISSUES[projectId] = [];
       SAMPLE_ISSUES[projectId].push(issue);
-      const proj = SAMPLE_PROJECTS.find((p) => p["id"] === projectId);
-      if (proj) proj["issueCount"] = (proj["issueCount"] as number) + 1;
+      recountProject(projectId);
       persistDemoState();
       return issue as unknown as Issue;
     }
@@ -84,8 +99,7 @@ export class DemoBroker implements Broker {
     if (op === "delete") {
       const idx = issues.findIndex((i) => (i as { id: string }).id === issueId);
       if (idx !== -1) issues.splice(idx, 1);
-      const proj = SAMPLE_PROJECTS.find((p) => p["id"] === projectId);
-      if (proj && (proj["issueCount"] as number) > 0) proj["issueCount"] = (proj["issueCount"] as number) - 1;
+      recountProject(projectId);
       persistDemoState();
       return null;
     }
@@ -101,6 +115,7 @@ export class DemoBroker implements Broker {
     const { projectId: _p, issueId: _i, expectedVersion: _ev, ...patch } = input;
     const updated = { ...current, ...patch, version: currentVersion + 1, updatedAt: new Date().toISOString() };
     issues[idx] = updated;
+    recountProject(projectId); // a status change to/from "done" moves completedCount
     persistDemoState();
     return updated as unknown as Issue;
   }
