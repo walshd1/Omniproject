@@ -23,12 +23,14 @@ function Row({ r }: { r: ResourceCapacity }) {
           )}
         </div>
         <div className="text-xs text-muted-foreground font-mono uppercase">{r.role}</div>
+        {/* The track represents 0–150% allocation, so percent→width is `/ 1.5`
+            (150% fills the bar); over-allocation past 150% is clamped. */}
         <div className="mt-2 h-2 bg-muted relative overflow-hidden">
           <div
             className={`h-full ${barColor(r.allocationPercentage)}`}
             style={{ width: `${Math.min(r.allocationPercentage, 150) / 1.5}%` }}
           />
-          {/* 100% marker */}
+          {/* 100% marker (at 100/1.5 along the 0–150% track) */}
           <div className="absolute top-0 bottom-0 w-px bg-foreground/60" style={{ left: `${100 / 1.5}%` }} />
         </div>
       </div>

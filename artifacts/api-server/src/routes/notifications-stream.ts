@@ -43,7 +43,8 @@ streamRouter.get("/notifications/stream", (req: Request, res: Response) => {
     },
   });
 
-  // Keepalive comment so proxies don't time out the idle connection.
+  // SSE keepalive: a comment frame every 25s (under the common 30–60s proxy idle
+  // timeout) so reverse proxies don't drop an otherwise-quiet event stream.
   const ping = setInterval(() => res.write(`: ping\n\n`), 25_000);
 
   req.on("close", () => {

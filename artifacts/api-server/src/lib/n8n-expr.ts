@@ -14,6 +14,9 @@ export interface ExprContext {
   payload?: Record<string, unknown>;
 }
 
+// Walks a dotted path over a plain object. No prototype-key guard is needed: this
+// runs ONLY during offline certification against sample payloads (read-only, never
+// on live request data), so it is not a security boundary.
 function getPath(obj: unknown, path: string): unknown {
   return path.split(".").reduce<unknown>((acc, key) => {
     if (acc && typeof acc === "object") return (acc as Record<string, unknown>)[key];
