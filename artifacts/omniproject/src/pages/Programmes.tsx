@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { useListProgrammes, useListProjects, type Programme, type Project } from "@workspace/api-client-react";
 import { Layers, FolderOpen } from "lucide-react";
 import { useT } from "../lib/i18n";
+import { LoadingState } from "../components/LoadingState";
 
 const RAG_DOT: Record<string, string> = { GREEN: "bg-green-500", AMBER: "bg-amber-500", RED: "bg-red-500" };
 const RAG_TEXT: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
@@ -36,7 +37,7 @@ export function Programmes() {
   const { data: projects } = useListProjects();
   const standalone = (projects ?? []).filter((p: Project) => !p.programmeId);
 
-  if (isLoading) return <div className="p-8 text-center font-bold tracking-widest text-muted-foreground animate-pulse">LOADING…</div>;
+  if (isLoading) return <LoadingState />;
 
   return (
     <div className="h-full overflow-y-auto p-8">

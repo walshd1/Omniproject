@@ -13,8 +13,8 @@ import {
   STATUS_ORDER,
   STATUS_LABELS,
   STATUS_ACCENTS,
-  PRIORITY_COLORS,
 } from "../../lib/constants";
+import { PriorityDot } from "../StatusDot";
 import { IssueDialog } from "../IssueDialog";
 import { useToast } from "@/hooks/use-toast";
 
@@ -45,7 +45,7 @@ function IssueCard({
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${PRIORITY_COLORS[issue.priority]}`} title={issue.priority} />
+          <PriorityDot priority={issue.priority} title={issue.priority} />
           <span className="text-xs text-muted-foreground uppercase font-mono">{issue.id.slice(0, 8)}</span>
         </div>
       </div>

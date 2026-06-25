@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { useGetProjectIssues, type Issue } from "@workspace/api-client-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { STATUS_LABELS, PRIORITY_COLORS } from "../../lib/constants";
+import { STATUS_LABELS } from "../../lib/constants";
 import { inActiveSprint, storyPoints, isDone, SPRINT_COLUMNS } from "../../lib/methodology";
 import { IssueDialog } from "../IssueDialog";
+import { LoadingState } from "../LoadingState";
+import { PriorityDot } from "../StatusDot";
 
 function Stat({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
@@ -56,7 +58,7 @@ export function ScrumView({ projectId }: { projectId: string }) {
     return { sprint, backlog, committed, completed, remaining: committed - completed };
   }, [issues]);
 
-  if (isLoading) return <div className="p-8 text-center font-bold tracking-widest text-muted-foreground animate-pulse">LOADING…</div>;
+  if (isLoading) return <LoadingState />;
 
   return (
     <>
@@ -95,7 +97,7 @@ export function ScrumView({ projectId }: { projectId: string }) {
                         className="text-left bg-background border border-border p-3 hover:border-primary"
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <div className={`w-2 h-2 rounded-full ${PRIORITY_COLORS[issue.priority]}`} />
+                          <PriorityDot priority={issue.priority} />
                           <span className="text-[10px] font-mono text-muted-foreground">{storyPoints(issue)}p</span>
                         </div>
                         <div className="text-sm font-semibold">{issue.title}</div>
@@ -116,7 +118,7 @@ export function ScrumView({ projectId }: { projectId: string }) {
             <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
               {model.backlog.map((issue) => (
                 <button key={issue.id} onClick={() => setEditing(issue)} className="text-left bg-background border border-border p-2 hover:border-primary flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_COLORS[issue.priority]}`} />
+                  <PriorityDot priority={issue.priority} className="shrink-0" />
                   <span className="text-sm truncate flex-1">{issue.title}</span>
                   <span className="text-[10px] font-mono text-muted-foreground shrink-0">{storyPoints(issue)}p</span>
                 </button>

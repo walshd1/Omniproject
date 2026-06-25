@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { useGetProgramme, type Project } from "@workspace/api-client-react";
 import { ArrowLeft, Layers } from "lucide-react";
+import { LoadingState } from "../components/LoadingState";
 
 const RAG_DOT: Record<string, string> = { GREEN: "bg-green-500", AMBER: "bg-amber-500", RED: "bg-red-500" };
 const RAG_TEXT: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
@@ -36,7 +37,7 @@ function ProjectRow({ p }: { p: Project }) {
 export function ProgrammeDetail({ programmeId }: { programmeId: string }) {
   const { data: prog, isLoading, isError } = useGetProgramme(programmeId);
 
-  if (isLoading) return <div className="p-8 text-center font-bold tracking-widest text-muted-foreground animate-pulse">LOADING…</div>;
+  if (isLoading) return <LoadingState />;
   if (isError || !prog) {
     return (
       <div className="p-8 max-w-4xl mx-auto">

@@ -13,6 +13,7 @@ import {
   RAG_TEXT,
 } from "../../lib/methodology";
 import { STATUS_LABELS, STATUS_COLORS } from "../../lib/constants";
+import { LoadingState } from "../LoadingState";
 import { IssueDialog } from "../IssueDialog";
 
 export function Prince2View({ projectId }: { projectId: string }) {
@@ -42,7 +43,7 @@ export function Prince2View({ projectId }: { projectId: string }) {
     return { stages, total, delivered, exceptions, pct, rag: ragFor(pct, exceptions), next };
   }, [issues]);
 
-  if (isLoading) return <div className="p-8 text-center font-bold tracking-widest text-muted-foreground animate-pulse">LOADING…</div>;
+  if (isLoading) return <LoadingState />;
 
   return (
     <>

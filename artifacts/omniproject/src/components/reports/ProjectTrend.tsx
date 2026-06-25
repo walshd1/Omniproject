@@ -4,6 +4,7 @@ import {
 } from "@workspace/api-client-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ProvenanceBadge } from "../ProvenanceBadge";
+import { LoadingState } from "../LoadingState";
 
 /**
  * Progress trend, sourced from the system of record via n8n (get_project_history).
@@ -26,7 +27,7 @@ export function ProjectTrend({ projectId }: { projectId: string }) {
 
       <div className="bg-card border border-border p-4">
         {isLoading ? (
-          <div className="h-56 flex items-center justify-center text-muted-foreground animate-pulse font-bold tracking-widest">LOADING…</div>
+          <LoadingState className="h-56 flex items-center justify-center" />
         ) : points.length === 0 ? (
           <div className="h-56 flex items-center justify-center text-sm text-muted-foreground">No history available from the backend.</div>
         ) : (

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useGetProjectIssues, type Issue } from "@workspace/api-client-react";
 import { STATUS_COLORS, STATUS_LABELS } from "../../lib/constants";
 import { IssueDialog } from "../IssueDialog";
+import { LoadingState } from "../LoadingState";
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -41,7 +42,7 @@ export function GanttChart({ projectId }: { projectId: string }) {
   }, [issues]);
 
   if (isLoading) {
-    return <div className="p-8 text-center font-bold tracking-widest text-muted-foreground animate-pulse">LOADING…</div>;
+    return <LoadingState />;
   }
 
   if (!model) {
