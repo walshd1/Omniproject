@@ -88,14 +88,25 @@ export function AgileBoard({ projectId }: { projectId: string }) {
 
   const moveIssue = (issue: Issue, status: string) => {
     if (issue.status === status) return;
+    const key = getGetProjectIssuesQueryKey(projectId);
+    const previous = queryClient.getQueryData<Issue[]>(key);
+    // Optimistic: move the card immediately so the board responds instantly,
+    // then reconcile (onSuccess) or roll back (onError). The server is still the
+    // authority — an unauthorised/failed move reverts visibly.
+    queryClient.setQueryData<Issue[]>(key, (old) =>
+      (old ?? []).map((i) => (i.id === issue.id ? { ...i, status } : i)),
+    );
     updateIssue.mutate(
-      { projectId, issueId: issue.id, data: { status: status as Issue["status"] } },
+      { projectId, issueId: issue.id, data: { status } },
       {
         onSuccess: () => {
           invalidate();
           toast({ title: "ISSUE MOVED", description: `${issue.id.slice(0, 8)} → ${statusLabel(status)}` });
         },
-        onError: () => toast({ title: "ERROR", description: "Failed to move issue.", variant: "destructive" }),
+        onError: () => {
+          if (previous) queryClient.setQueryData(key, previous);
+          toast({ title: "ERROR", description: "Failed to move issue.", variant: "destructive" });
+        },
       },
     );
   };
