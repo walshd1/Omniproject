@@ -76,9 +76,11 @@ artifacts/
     src/lib/           # auth.ts (OIDC session client), ai.ts
     src/store/         # Zustand UI state
   api-server/         # Express gateway
-    src/routes/        # health, auth, n8n-proxy, projects, portfolio, ai, export
-    src/lib/           # n8n.ts, oidc.ts, settings.ts, data.ts, ai.ts, api-token.ts,
-                       # rate-limit.ts, csv.ts, xlsx.ts, logger.ts
+    src/routes/        # health, auth, broker-command, projects, portfolio, ai, export
+    src/broker/        # the Broker seam — types.ts, index.ts, n8n.ts (only n8n-aware
+                       # code), demo.ts (see docs/BROKER.md)
+    src/lib/           # oidc.ts, settings.ts, data.ts (broker facade), ai.ts,
+                       # api-token.ts, rate-limit.ts, csv.ts, xlsx.ts, logger.ts
   n8n-blueprints/     # omniproject-core-sync.json (importable reference workflow)
 lib/
   api-spec/           # openapi.yaml (source of truth) + Orval config
@@ -148,7 +150,7 @@ This is the core contract implementers build against. Everything the UI does
 
 ### Request
 
-The gateway `POST`s to `N8N_WEBHOOK_URL` with:
+The gateway `POST`s to `BROKER_URL` with:
 
 ```jsonc
 // body
@@ -189,7 +191,7 @@ Authorization: Bearer <session bearer>   (when available)
 | `get_project_financials` | `financial_ledger` | `{ projectId }` | `ProjectFinancials` |
 | `get_portfolio_health` | `portfolio_master` | — | `PortfolioHealthSummary[]` |
 
-Arbitrary actions can also be sent via `POST /api/n8n-proxy`.
+Arbitrary actions can also be sent via `POST /api/broker/command`.
 
 ### Response
 
@@ -239,7 +241,7 @@ All under `/api`. Protected = requires a session **or** a read-only API token.
 | ------------- | ---- | ----- |
 | `GET /api/healthz` | public | liveness/readiness probe |
 | `GET /api/auth/login` · `/callback` · `POST /api/auth/logout` · `GET /api/auth/me` | public | OIDC flow + session |
-| `POST /api/n8n-proxy` | session/token (GET-equivalent writes need session) | generic action passthrough |
+| `POST /api/broker/command` | session/token (GET-equivalent writes need session) | generic broker command passthrough |
 | `GET /api/projects` | protected | `Project[]` |
 | `GET /api/projects/{id}/issues` · `POST` | protected | list / create |
 | `PATCH/DELETE /api/projects/{id}/issues/{issueId}` | session only (writes) | update / delete |
@@ -317,17 +319,22 @@ Canonical definitions are in `openapi.yaml`. Summary:
 
 ## 8. Extending the system
 
-**Add an endpoint (end to end):**
+**Add an endpoint (end to end):** route handlers only ever talk to the `Broker`
+interface (`getBroker()`), never to n8n directly — see [BROKER.md](BROKER.md).
 
 1. Define the path + schema in `openapi.yaml`; run codegen.
-2. Add an Express route in `artifacts/api-server/src/routes/` that calls
-   `callN8n(action, payload, { authHeader, source, userContext })` (with a demo
-   fallback if you want it to run without n8n).
-3. Add an n8n switch branch for the new `action`, normalize to your schema.
-4. Consume the generated TanStack hook in the SPA.
+2. Add the operation to the `Broker` interface in `src/broker/types.ts` (domain
+   vocabulary — no action strings).
+3. Implement it in **both** adapters: `N8nBroker` (`src/broker/n8n.ts`) maps it to
+   an n8n action + normalizes the response; `DemoBroker` (`src/broker/demo.ts`)
+   returns canned data so it runs offline.
+4. Add an Express route in `artifacts/api-server/src/routes/` that calls
+   `getBroker().<method>(contextFromReq(req), …)`.
+5. Consume the generated TanStack hook in the SPA.
 
-**Add an n8n action only:** steps 2–4 without a schema change (use
-`POST /api/n8n-proxy`).
+**One-off command (no schema change):** use the generic `command()` method /
+`POST /api/broker/command` — it carries an arbitrary command name through the
+broker without adding an interface method.
 
 ---
 
@@ -377,8 +384,9 @@ action, when, and did it succeed?". Example:
 Demo mode is in-memory and resets on restart. Set `DEV_PERSIST_FILE=<path>` and
 the demo dataset (projects/issues/RAID) is **saved on every mutation and reloaded
 on boot**, so developers can build up test scenarios that survive restarts
-without wiring n8n. Dev/test only — it's a no-op when `N8N_WEBHOOK_URL` is set
-(production serves real data through n8n). Setup → *Status* shows whether it's on.
+without wiring a backend. Dev/test only — it's a no-op when `BROKER_URL` is set
+(production serves real data through the broker). Setup → *Status* shows whether
+it's on.
 
 **Production is stateless — stateful mode is refused there.** If `DEV_PERSIST_FILE`
 is set with `NODE_ENV=production` it is **ignored with a warning** (it would break a

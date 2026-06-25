@@ -57,8 +57,10 @@ which **fails CI** on violation:
 What this means concretely — these must **not** appear above the seam: the
 webhook envelope (`{ action, payload, source, origin, idempotencyKey }`), the
 `X-OmniProject-*` headers, n8n action strings (`list_projects`, `create_issue`,
-…), n8n source labels (`capacity_engine`, …), `N8N_WEBHOOK_URL`, or the
-`{ success, data, message }` response shape. All of that lives in `N8nBroker`.
+…), n8n source labels (`capacity_engine`, …), or the `{ success, data, message }`
+response shape. All of that lives in `N8nBroker`. (The broker endpoint is read
+from the broker-named `BROKER_URL` — itself fine above the seam; what must not
+leak is the n8n *webhook contract* it points at.)
 
 ### Public surface — fully broker-named
 
@@ -87,7 +89,7 @@ guard-allowed:
 ## Demo mode is the DemoBroker
 
 There is no longer a parallel "demo branch" interleaved into the callers. When no
-backend is configured (`N8N_WEBHOOK_URL` unset), `getBroker()` returns the
+backend is configured (`BROKER_URL` unset), `getBroker()` returns the
 `DemoBroker`, which serves canned sample data with no network and no n8n. It is
 both the offline/CI harness and the proof the seam is clean: the whole gateway
 runs against it (see the `DemoBroker` unit test and the guard).

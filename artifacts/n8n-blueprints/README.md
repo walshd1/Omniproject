@@ -57,7 +57,7 @@ A production-shaped reference workflow that backs the core CRUD actions for
    `OPENPROJECT_INSTANCE_URL` (e.g. `https://plane.example.com`).
 3. Adjust the HTTP node paths to match your backend API versions (the defaults
    are illustrative `/api/v1/...` routes).
-4. Activate the workflow and point the gateway at it via `N8N_WEBHOOK_URL`
+4. Activate the workflow and point the gateway at it via `BROKER_URL`
    (e.g. `https://n8n.example.com/webhook/omniproject`).
 
 ### Notes

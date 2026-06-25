@@ -29,9 +29,9 @@ Browser ──TLS──> omni-shell gateway ──TLS──> n8n ──> backend
 | AuthZ (coarse) | RBAC: viewer / contributor / manager / admin, mapped from IdP role/group claims; mutations require ≥ contributor, settings require admin | `lib/rbac.ts`, `routes/projects.ts` |
 | AuthZ (authoritative) | Backends re-check every brokered write using the forwarded user token | n8n workflow |
 | API tokens | Bearer/X-API-Key are **read-only** (GET only → mutations 403); a leaked BI token can't write | `routes/index.ts`, `lib/api-token.ts` |
-| Identity spoofing | Client-supplied `userContext`/`origin` are stripped; identity is injected from the validated session | `routes/n8n-proxy.ts` |
+| Identity spoofing | Client-supplied `userContext`/`origin` are stripped; identity is injected from the validated session | `routes/broker-command.ts`, `broker/n8n.ts` |
 | Concurrency | Optimistic concurrency (`expectedVersion`) → 409 instead of silent overwrite | `lib/concurrency.ts`, `routes/projects.ts` |
-| Loop / replay | Deterministic idempotency key + `origin` loop-guard so webhook storms collapse | `lib/n8n.ts` |
+| Loop / replay | Deterministic idempotency key + `origin` loop-guard so webhook storms collapse | `broker/n8n.ts` |
 | Rate limiting | Global limiter on `/api/*`; stricter limiter on analytics; keyed by session sub else IP; health exempt | `lib/rate-limit.ts` |
 | Audit | Configurable action audit (`AUDIT_LEVEL` off/writes/all): one structured, redacted line per action (actor, status, latency, write flag); optionally shipped as NDJSON to an external logging server (`AUDIT_HTTP_URL`). Stateless — no local retention. | `lib/audit.ts`, `routes/audit-middleware.ts` |
 | Secret hygiene | pino redaction of `authorization`, `cookie`, `set-cookie`, `*.token`, `userContext.token` | `lib/logger.ts` |
