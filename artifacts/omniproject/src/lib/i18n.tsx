@@ -28,6 +28,7 @@ const EN: Dict = {
   "nav.programmes": "Programmes",
   "nav.projects": "Projects",
   "nav.reports": "Reports",
+  "nav.explore": "Explore",
   "nav.settings": "Settings",
   "nav.setup": "Setup",
   "header.connected": "Connected",

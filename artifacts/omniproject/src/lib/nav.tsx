@@ -4,7 +4,7 @@
  *
  * `i18nKey` resolves through useT(); `match` decides the sidebar active state.
  */
-import { Layers, Briefcase, BarChart3, Settings as SettingsIcon, PlugZap, Boxes, type LucideIcon } from "lucide-react";
+import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   href: string;
@@ -24,6 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/programmes", i18nKey: "nav.programmes", label: "Programmes", icon: Boxes, match: (l) => l.startsWith("/programmes") },
   { href: "/projects", i18nKey: "nav.projects", label: "Projects", icon: Briefcase, chord: "G+P", match: (l) => l.startsWith("/projects") },
   { href: "/reports", i18nKey: "nav.reports", label: "Reports", icon: BarChart3, chord: "G+R", match: (l) => l.startsWith("/reports") },
+  { href: "/explore", i18nKey: "nav.explore", label: "Explore", icon: FlaskConical, chord: "G+E", match: (l) => l.startsWith("/explore") },
   { href: "/settings", i18nKey: "nav.settings", label: "Settings", icon: SettingsIcon, chord: "G+S", match: (l) => l.startsWith("/settings") },
   { href: "/setup", i18nKey: "nav.setup", label: "Setup", icon: PlugZap, match: (l) => l.startsWith("/setup") },
 ];

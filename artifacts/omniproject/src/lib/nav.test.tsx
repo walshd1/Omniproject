@@ -8,6 +8,7 @@ describe("NAV_ITEMS", () => {
       "/programmes",
       "/projects",
       "/reports",
+      "/explore",
       "/settings",
       "/setup",
     ]);
@@ -47,6 +48,7 @@ describe("NAV_ITEMS", () => {
       ["/", "G+D"],
       ["/projects", "G+P"],
       ["/reports", "G+R"],
+      ["/explore", "G+E"],
       ["/settings", "G+S"],
     ]);
     expect(NAV_ITEMS.find((n) => n.href === "/programmes")!.chord).toBeUndefined();

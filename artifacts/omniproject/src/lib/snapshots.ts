@@ -1,5 +1,6 @@
 import type { Project, PortfolioHealthSummary } from "@workspace/api-client-react";
 import { triggerBlobDownload } from "./setup";
+import { markExplorationDirty, markExplorationClean } from "./exploration";
 
 /**
  * Portfolio snapshots — point-in-time captures of the live read-model, taken in
@@ -152,6 +153,7 @@ export function addSnapshots(existing: PortfolioSnapshot[], incoming: PortfolioS
   for (const s of incoming) byId.set(s.id, s);
   const merged = [...byId.values()].sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
   saveSnapshots(merged);
+  markExplorationDirty(); // new captured work — download to keep, else lost at session end
   return merged;
 }
 
@@ -171,6 +173,7 @@ export function exportSnapshots(snapshots: PortfolioSnapshot[]): void {
   const bundle = buildBundle(snapshots);
   const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
   triggerBlobDownload(blob, `omniproject-trends-${bundle.exportedAt.slice(0, 10)}.json`);
+  markExplorationClean(); // a copy is now on the user's disk
 }
 
 // ── Auto-capture schedule (client-side, volatile) ────────────────────────────
