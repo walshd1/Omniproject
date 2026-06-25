@@ -17,6 +17,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -227,6 +228,9 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
           <DialogTitle className="font-black uppercase tracking-tighter">
             {isEdit ? "EDIT ISSUE" : "NEW ISSUE"}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {isEdit ? "Edit the fields of this issue and save your changes." : "Fill in the fields to create a new issue."}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
