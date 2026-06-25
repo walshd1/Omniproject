@@ -132,3 +132,42 @@ jobs:
           curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
             | tar xz kubeconform
           ./kubeconform -strict -ignore-missing-schemas -summary k8s-enterprise-manifest.yaml
+
+  # Accessibility: axe-core (WCAG 2.1 A/AA) over the built SPA in a real browser.
+  # Playwright + axe-core are installed into a throwaway dir (not the workspace
+  # lockfile) and resolved via NODE_PATH, matching scripts/a11y-scan.cjs.
+  accessibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.8.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build gateway + SPA
+        env:
+          PORT: "3000"
+          BASE_PATH: "/"
+        run: |
+          pnpm --filter @workspace/api-server run build
+          pnpm --filter omniproject run build
+
+      - name: Install browser tooling (throwaway, off-lockfile)
+        run: |
+          mkdir -p /tmp/a11y
+          cd /tmp/a11y && npm init -y >/dev/null && npm i playwright axe-core
+          ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Scan
+        run: |
+          STATIC_DIR="$PWD/artifacts/omniproject/dist/public" PORT=5055 \
+            node artifacts/api-server/dist/index.mjs &
+          for _ in $(seq 1 30); do curl -fsS http://localhost:5055/api/healthz >/dev/null 2>&1 && break; sleep 1; done
+          NODE_PATH=/tmp/a11y/node_modules A11Y_BASE=http://localhost:5055 \
+            pnpm --filter @workspace/scripts run a11y
