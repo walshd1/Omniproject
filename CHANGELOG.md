@@ -6,6 +6,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-06-25
+
+A **modelling, history & test-maturity** release. No breaking API changes. It adds
+a stateless **Exploration** workspace (snapshots → trends, a What-If sandbox, and
+cross-system dependency links by hash), an opt-in **time-travel** preview, and
+comprehensive **test suites with enforced CI coverage gates** where the SPA had
+none — plus a 36-finding security pass. Every new surface is honestly tagged
+**Stable / Beta / Experimental**, and it all stays **broker-agnostic, above the
+seam**.
+
 > **Maturity legend.** **Stable** = tested and production-intended. **Beta** =
 > functional and tested but new and not yet hardened by real-world use.
 > **Experimental** = complete and tested *at the seam/contract*, but the
@@ -252,7 +262,8 @@ backends, with n8n as the exclusive data broker.
   **OmniProject Premium License**. Provided **as is, without warranty**. See
   [LICENSING.md](LICENSING.md).
 
-[Unreleased]: https://github.com/walshd1/Omniproject/compare/0.3.0...HEAD
+[Unreleased]: https://github.com/walshd1/Omniproject/compare/0.4.0...HEAD
+[0.4.0]: https://github.com/walshd1/Omniproject/compare/0.3.0...0.4.0
 [0.3.0]: https://github.com/walshd1/Omniproject/compare/0.2.0...0.3.0
 [0.2.0]: https://github.com/walshd1/Omniproject/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/walshd1/Omniproject/releases/tag/0.1.0
