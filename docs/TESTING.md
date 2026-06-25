@@ -21,9 +21,10 @@ pnpm --filter @workspace/scripts run stress         # load test (run separately)
 ```
 
 Both unit suites enforce a **coverage gate** (a ratchet set just below current
-coverage so it can't regress, raised as tests are added): the gateway via `c8`
-(`.c8rc.json`, ~75%), the SPA via Vitest + React Testing Library + jsdom
-(`vitest.config.ts`). Both gates run in the CI `verify` job.
+coverage so it can't regress, raised as tests are added): the **gateway** via
+`c8` (`.c8rc.json`) at **~84% lines / 87% functions** (235 tests), the **SPA**
+via Vitest + React Testing Library + jsdom (`vitest.config.ts`) at **~89% lines /
+88% branches** (341 tests). Both gates run in the CI `verify` job.
 
 ## The five pillars
 

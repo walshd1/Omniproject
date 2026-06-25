@@ -36,15 +36,15 @@ export default defineConfig({
         "src/vite-env.d.ts",
         "src/.generated/**",
       ],
-      // Ratchet: floors set just below the initial suite's measured coverage to
-      // prevent regressions. The numbers are intentionally modest — this first
-      // suite covers the critical flows + the review fixes, not every page yet;
-      // raise these as more component/page tests are added.
+      // Ratchet: floors set just below measured coverage to prevent regressions.
+      // Current: ~88.6% lines/statements, ~87.6% branches, ~64% functions (the
+      // function number trails because many small inline handlers/callbacks
+      // aren't individually invoked). Raise these as coverage grows.
       thresholds: {
-        statements: 15,
-        branches: 52,
-        functions: 26,
-        lines: 15,
+        statements: 85,
+        branches: 84,
+        functions: 60,
+        lines: 85,
       },
     },
   },
