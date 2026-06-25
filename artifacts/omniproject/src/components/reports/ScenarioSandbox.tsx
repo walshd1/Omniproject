@@ -1,5 +1,11 @@
 import { useMemo, useState } from "react";
-import { useListProjects, useGetPortfolioHealth, useGetCapabilities } from "@workspace/api-client-react";
+import {
+  useListProjects,
+  useGetPortfolioHealth,
+  useGetCapabilities,
+  type Project,
+  type PortfolioHealthSummary,
+} from "@workspace/api-client-react";
 import { FlaskConical, RotateCcw, Camera } from "lucide-react";
 import {
   applyScenario,
@@ -9,8 +15,32 @@ import {
   type ScenarioSummary,
   type SummaryDiff,
 } from "../../lib/scenario";
-import { createSnapshot, addSnapshots, loadSnapshots } from "../../lib/snapshots";
+import { createSnapshot, addSnapshots, loadSnapshots, type PortfolioSnapshot } from "../../lib/snapshots";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+
+/**
+ * Adapt a captured snapshot back into the shapes the scenario engine consumes.
+ * The engine only reads the few fields a snapshot already stores, so a what-if
+ * can be based on ANY captured point in time — not just the live state — making
+ * a scenario reproducible against a fixed baseline.
+ */
+function snapshotToBase(snap: PortfolioSnapshot): { projects: Project[]; portfolio: PortfolioHealthSummary[] } {
+  const nameById = new Map(snap.projects.map((p) => [p.id, p.name]));
+  return {
+    projects: snap.projects.map((p) => ({
+      id: p.id, name: p.name, issueCount: p.issueCount, completedCount: p.completedCount,
+    })) as unknown as Project[],
+    portfolio: snap.portfolio.map((r) => ({
+      projectId: r.projectId,
+      projectName: nameById.get(r.projectId) ?? r.projectId,
+      ragStatus: r.ragStatus,
+      scheduleVarianceDays: r.scheduleVarianceDays,
+      budgetVariancePercentage: r.budgetVariancePercentage,
+      activeBlockersCount: r.activeBlockersCount,
+    })) as unknown as PortfolioHealthSummary[],
+  };
+}
 
 /**
  * What-If scenario sandbox — a STATELESS, in-browser overlay on the LIVE
@@ -58,9 +88,20 @@ export function ScenarioSandbox() {
   const { toast } = useToast();
 
   const [adjustments, setAdjustments] = useState<ScenarioAdjustments>({});
+  const [baseId, setBaseId] = useState<string>("live");
+  const [snapshots] = useState<PortfolioSnapshot[]>(() => loadSnapshots());
 
-  const baseProjects = projects ?? [];
-  const basePortfolio = portfolio ?? [];
+  // The baseline can be LIVE or any captured snapshot (reproducible what-if).
+  const base = useMemo(() => {
+    if (baseId !== "live") {
+      const snap = snapshots.find((s) => s.id === baseId);
+      if (snap) return snapshotToBase(snap);
+    }
+    return { projects: projects ?? [], portfolio: portfolio ?? [] };
+  }, [baseId, snapshots, projects, portfolio]);
+
+  const baseProjects = base.projects;
+  const basePortfolio = base.portfolio;
 
   const adjusted = useMemo(
     () => applyScenario(baseProjects, basePortfolio, adjustments),
@@ -100,9 +141,27 @@ export function ScenarioSandbox() {
 
   return (
     <section data-testid="scenario-sandbox">
-      <div className="flex items-center gap-3 mb-4">
-        <FlaskConical className="w-4 h-4 text-primary" />
-        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">What-If Scenario Sandbox</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <FlaskConical className="w-4 h-4 text-primary" />
+          <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">What-If Scenario Sandbox</h2>
+        </div>
+        <label className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+          Base
+          <Select value={baseId} onValueChange={(v) => { setBaseId(v); setAdjustments({}); }}>
+            <SelectTrigger aria-label="Scenario base" className="w-auto rounded-none bg-background border-border px-3 py-1.5 text-xs font-bold uppercase gap-2" data-testid="scenario-base">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="rounded-none border-border font-bold uppercase">
+              <SelectItem value="live">Live (now)</SelectItem>
+              {snapshots.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.label || new Date(s.capturedAt).toLocaleString()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
       </div>
 
       <div className="bg-card border border-border p-4 space-y-5">
