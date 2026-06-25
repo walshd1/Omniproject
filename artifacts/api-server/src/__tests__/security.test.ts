@@ -162,6 +162,26 @@ test("SSRF guard: a non-http(s) brokerUrl scheme is rejected (400)", async () =>
   assert.equal(res.status, 400);
 });
 
+test("SSRF guard: the IPv4-mapped IPv6 form of the metadata address is rejected (400)", async () => {
+  // http://[::ffff:169.254.169.254]/ normalises to ::ffff:a9fe:a9fe — must not bypass.
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ brokerUrl: "http://[::ffff:169.254.169.254]/latest/meta-data/" }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test("SSRF guard: a legitimately-internal brokerUrl is accepted (not over-blocked)", async () => {
+  // Self-hosted brokers are internal by design; an http(s) private host must pass.
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ brokerUrl: "http://n8n:5678/webhook/omni" }),
+  });
+  assert.equal(res.status, 200);
+});
+
 test("/fx-rates returns a rate table to an authenticated session", async () => {
   const res = await req("/api/fx-rates", { headers: { cookie: VIEWER } });
   assert.equal(res.status, 200);

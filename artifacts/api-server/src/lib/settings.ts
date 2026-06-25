@@ -7,7 +7,7 @@
  * is sufficient for single-instance and demo use.
  */
 
-import { assertSafeOutboundUrl, UnsafeUrlError } from "./url-safety";
+import { assertSafeOutboundUrl, isSafeOutboundUrl, UnsafeUrlError } from "./url-safety";
 
 export const AI_PROVIDERS = ["none", "openai", "ollama", "anthropic", "openrouter"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
@@ -106,7 +106,10 @@ function webhooksFromEnv(): WebhookSubscription[] {
         active: w["active"] !== false,
         description: typeof w["description"] === "string" ? (w["description"] as string) : undefined,
       }))
-      .filter((w) => /^https?:\/\//i.test(w.url));
+      // Apply the SAME safety check as admin writes, so an env-seeded unsafe URL
+      // (e.g. a link-local/metadata target) is dropped at load rather than being
+      // admitted here and then blocking every later validated webhook mutation.
+      .filter((w) => isSafeOutboundUrl(w.url));
   } catch {
     return [];
   }

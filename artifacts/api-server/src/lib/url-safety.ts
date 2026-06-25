@@ -33,7 +33,27 @@ export function assertSafeOutboundUrl(raw: string, label = "URL"): void {
   // Hostname may be bracketed for IPv6; strip brackets for the prefix checks.
   const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
   // IPv4 link-local / cloud metadata (169.254.0.0/16) and IPv6 link-local (fe80::/10).
-  if (/^169\.254\./.test(host) || /^fe[89ab][0-9a-f]:/.test(host) || host === "fe80::") {
+  // Node canonicalises numeric IPv4 forms (decimal/hex/octal) back to dotted-decimal,
+  // so /^169\.254\./ catches those. It also folds an IPv4-mapped IPv6 literal
+  // ([::ffff:169.254.169.254]) to its hex form ::ffff:a9fe:a9fe (a9fe == 169.254),
+  // so the mapped link-local range is rejected explicitly too.
+  if (
+    /^169\.254\./.test(host) ||
+    /^fe[89ab][0-9a-f]:/.test(host) ||
+    host === "fe80::" ||
+    /^::ffff:a9fe:/.test(host) ||
+    /^::ffff:169\.254\./.test(host)
+  ) {
     throw new UnsafeUrlError(`${label} targets a link-local/metadata address, which is not allowed`);
+  }
+}
+
+/** Non-throwing predicate form of {@link assertSafeOutboundUrl}. */
+export function isSafeOutboundUrl(raw: string): boolean {
+  try {
+    assertSafeOutboundUrl(raw);
+    return true;
+  } catch {
+    return false;
   }
 }
