@@ -21,7 +21,7 @@ function seeded(timeTravel: boolean): QueryClient {
 beforeEach(() => window.sessionStorage.clear());
 
 describe("TimeTravel", () => {
-  it("is LOCKED and points to Settings when the logging sink is off", () => {
+  it("is LOCKED and points to Settings when the logging sync is off", () => {
     renderWithProviders(<TimeTravel />, { client: seeded(false) });
     expect(screen.getByTestId("time-travel-locked")).toBeInTheDocument();
     expect(screen.getByText(/logging server/i)).toBeInTheDocument();

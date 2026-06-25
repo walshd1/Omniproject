@@ -4,12 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import { getGetSettingsQueryKey, type Settings } from "@workspace/api-client-react";
 import { renderWithProviders } from "../../test/utils";
-import { LoggingSinkSettings } from "./LoggingSinkSettings";
+import { LoggingSyncSettings } from "./LoggingSyncSettings";
 
 function settings(over: Partial<Settings> = {}): Settings {
   return {
     brokerUrl: null, aiProvider: "none", aiModel: null, backendSource: "all", oidcIssuerUrl: null,
-    loggingSink: { enabled: false, url: null, acknowledgedWarranty: false },
+    loggingSync: { enabled: false, url: null, acknowledgedWarranty: false },
     ...over,
   } as Settings;
 }
@@ -20,11 +20,11 @@ function seeded(s: Settings): QueryClient {
   return qc;
 }
 
-describe("LoggingSinkSettings", () => {
+describe("LoggingSyncSettings", () => {
   it("renders Off by default and disables Enable until url + acknowledgement are given", async () => {
-    renderWithProviders(<LoggingSinkSettings />, { client: seeded(settings()) });
+    renderWithProviders(<LoggingSyncSettings />, { client: seeded(settings()) });
     expect(screen.getByText("Off")).toBeInTheDocument();
-    const enable = screen.getByTestId("logging-sink-enable") as HTMLButtonElement;
+    const enable = screen.getByTestId("logging-sync-enable") as HTMLButtonElement;
     expect(enable).toBeDisabled();
 
     // A valid URL alone is not enough — the warranty acknowledgement is required.
@@ -36,10 +36,10 @@ describe("LoggingSinkSettings", () => {
   });
 
   it("shows the Disable control when already enabled", () => {
-    renderWithProviders(<LoggingSinkSettings />, {
-      client: seeded(settings({ loggingSink: { enabled: true, url: "https://logs.internal/ingest", acknowledgedWarranty: true } })),
+    renderWithProviders(<LoggingSyncSettings />, {
+      client: seeded(settings({ loggingSync: { enabled: true, url: "https://logs.internal/ingest", acknowledgedWarranty: true } })),
     });
     expect(screen.getByText("Enabled")).toBeInTheDocument();
-    expect(screen.getByTestId("logging-sink-disable")).toBeInTheDocument();
+    expect(screen.getByTestId("logging-sync-disable")).toBeInTheDocument();
   });
 });

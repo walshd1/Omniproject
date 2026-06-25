@@ -2,7 +2,7 @@
   "name": "OmniProject — Time-travel (history egress + replay)",
   "meta": {
     "templateId": "omniproject-time-travel",
-    "description": "Two branches in one workflow. HISTORIAN: a scheduled trigger snapshots the current portfolio state and POSTs a timestamped record to the operator's logging server (LOGGING_SINK_URL). REPLAY: a webhook handling action == 'replay' queries that store for records in payload.from..payload.to and returns HistoryState[] ({ at, completionPct, openBlockers, provenance: 'replayed' }). OmniProject stays stateless — the operator's logging server holds the history. Egressed data is the operator's responsibility and OUTSIDE OmniProject's warranty."
+    "description": "Two branches in one workflow. HISTORIAN: a scheduled trigger snapshots the current portfolio state and POSTs a timestamped record to the operator's logging server (LOGGING_SYNC_URL). REPLAY: a webhook handling action == 'replay' queries that store for records in payload.from..payload.to and returns HistoryState[] ({ at, completionPct, openBlockers, provenance: 'replayed' }). OmniProject stays stateless — the operator's logging server holds the history. Egressed data is the operator's responsibility and OUTSIDE OmniProject's warranty."
   },
   "active": false,
   "settings": {
@@ -12,7 +12,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## OmniProject Time-travel\n\n**OmniProject stays stateless** — it stores nothing. This workflow lives on the operator's n8n and uses an operator-owned logging server as the durable history store.\n\n> ⚠️ **Out of warranty.** Data egressed to `LOGGING_SINK_URL` leaves OmniProject's control and **warranty** — the operator is responsible for its security, retention and residency. Same trust class as the OData / Power BI feeds. See [docs/TIME-TRAVEL.md](../../docs/TIME-TRAVEL.md).\n\n### Two branches\n1. **HISTORIAN (egress / write)** — Schedule Trigger → read current portfolio state from OmniProject → build a timestamped record → **POST to the logging store** (`LOGGING_SINK_URL`).\n2. **REPLAY (read-back)** — Webhook on `action == \"replay\"` → query the logging store for `payload.from..payload.to` → map to `HistoryState[]` (`provenance: \"replayed\"`) → respond.\n\n### Env vars\n- `LOGGING_SINK_URL` — base URL of the operator's logging store (e.g. `https://logs.internal:9200/omni-history`). SSRF-validated by the gateway before egress is allowed.\n- `OMNI_API_BASE` — OmniProject gateway base URL the Historian reads from.\n- `OMNI_HISTORY_TOKEN` — service token for the Historian's reads + sink writes (optional).\n- `LOGGING_SINK_QUERY_URL` — read endpoint for replay (defaults to `LOGGING_SINK_URL`).",
+        "content": "## OmniProject Time-travel\n\n**OmniProject stays stateless** — it stores nothing. This workflow lives on the operator's n8n and uses an operator-owned logging server as the durable history store.\n\n> ⚠️ **Out of warranty.** Data egressed to `LOGGING_SYNC_URL` leaves OmniProject's control and **warranty** — the operator is responsible for its security, retention and residency. Same trust class as the OData / Power BI feeds. See [docs/TIME-TRAVEL.md](../../docs/TIME-TRAVEL.md).\n\n### Two branches\n1. **HISTORIAN (egress / write)** — Schedule Trigger → read current portfolio state from OmniProject → build a timestamped record → **POST to the logging store** (`LOGGING_SYNC_URL`).\n2. **REPLAY (read-back)** — Webhook on `action == \"replay\"` → query the logging store for `payload.from..payload.to` → map to `HistoryState[]` (`provenance: \"replayed\"`) → respond.\n\n### Env vars\n- `LOGGING_SYNC_URL` — base URL of the operator's logging store (e.g. `https://logs.internal:9200/omni-history`). SSRF-validated by the gateway before egress is allowed.\n- `OMNI_API_BASE` — OmniProject gateway base URL the Historian reads from.\n- `OMNI_HISTORY_TOKEN` — service token for the Historian's reads + sink writes (optional).\n- `LOGGING_SYNC_QUERY_URL` — read endpoint for replay (defaults to `LOGGING_SYNC_URL`).",
         "height": 420,
         "width": 480
       },
@@ -81,7 +81,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.LOGGING_SINK_URL }}",
+        "url": "={{ $env.LOGGING_SYNC_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -99,7 +99,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [420, 560],
-      "notes": "EGRESS — OUTSIDE OmniProject's warranty. POSTs the timestamped record to the operator's logging store at LOGGING_SINK_URL (the gateway SSRF-validates this URL before time-travel is enabled). Replace with an Elasticsearch / Loki / OpenSearch node for a native integration; the record shape stays the same."
+      "notes": "EGRESS — OUTSIDE OmniProject's warranty. POSTs the timestamped record to the operator's logging store at LOGGING_SYNC_URL (the gateway SSRF-validates this URL before time-travel is enabled). Replace with an Elasticsearch / Loki / OpenSearch node for a native integration; the record shape stays the same."
     },
     {
       "parameters": {
@@ -153,7 +153,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.LOGGING_SINK_QUERY_URL || $env.LOGGING_SINK_URL }}",
+        "url": "={{ $env.LOGGING_SYNC_QUERY_URL || $env.LOGGING_SYNC_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

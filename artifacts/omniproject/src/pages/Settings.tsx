@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { PremiumAdmin } from "../components/PremiumAdmin";
-import { LoggingSinkSettings } from "../components/settings/LoggingSinkSettings";
+import { LoggingSyncSettings } from "../components/settings/LoggingSyncSettings";
 import { DataState } from "../components/DataState";
 import { LoadingState } from "../components/LoadingState";
 import { urlFormatError } from "../lib/validation";
@@ -241,7 +241,7 @@ export function Settings() {
       </form>
 
       <div className="mt-10">
-        <LoggingSinkSettings />
+        <LoggingSyncSettings />
       </div>
 
       <PremiumAdmin />

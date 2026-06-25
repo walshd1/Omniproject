@@ -464,7 +464,7 @@ export const GetSettingsResponse = zod.object({
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
   "oidcIssuerUrl": zod.string().nullish(),
-  "loggingSink": zod.object({
+  "loggingSync": zod.object({
   "enabled": zod.boolean(),
   "url": zod.string().nullish(),
   "acknowledgedWarranty": zod.boolean().describe('The admin acknowledged egressed data is outside OmniProject\'s warranty.')
@@ -481,7 +481,7 @@ export const UpdateSettingsBody = zod.object({
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().optional().describe('Free-form backend routing hint passed to the broker (see Settings.backendSource).'),
   "oidcIssuerUrl": zod.string().nullish(),
-  "loggingSink": zod.object({
+  "loggingSync": zod.object({
   "enabled": zod.boolean(),
   "url": zod.string().nullish(),
   "acknowledgedWarranty": zod.boolean().describe('The admin acknowledged egressed data is outside OmniProject\'s warranty.')
@@ -494,7 +494,7 @@ export const UpdateSettingsResponse = zod.object({
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
   "oidcIssuerUrl": zod.string().nullish(),
-  "loggingSink": zod.object({
+  "loggingSync": zod.object({
   "enabled": zod.boolean(),
   "url": zod.string().nullish(),
   "acknowledgedWarranty": zod.boolean().describe('The admin acknowledged egressed data is outside OmniProject\'s warranty.')

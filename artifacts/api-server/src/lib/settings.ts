@@ -57,14 +57,14 @@ export interface WebhookSubscription {
  * and is responsible for. Enabling it unlocks historical time-travel. The
  * operator must acknowledge that egressed data is outside OmniProject's warranty.
  */
-export interface LoggingSinkConfig {
+export interface LoggingSyncConfig {
   enabled: boolean;
   url: string | null;
   /** The admin acknowledged that egressed data leaves OmniProject's warranty. */
   acknowledgedWarranty: boolean;
 }
 
-const DEFAULT_LOGGING_SINK: LoggingSinkConfig = { enabled: false, url: null, acknowledgedWarranty: false };
+const DEFAULT_LOGGING_SYNC: LoggingSyncConfig = { enabled: false, url: null, acknowledgedWarranty: false };
 
 export interface SettingsState {
   /** The active broker's webhook/endpoint URL (n8n by default). */
@@ -80,7 +80,7 @@ export interface SettingsState {
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
   /** Opt-in state-history egress to an operator-owned logging server (off by default). */
-  loggingSink: LoggingSinkConfig;
+  loggingSync: LoggingSyncConfig;
 }
 
 function brandingFromEnv(): BrandingConfig | null {
@@ -134,11 +134,11 @@ function webhooksFromEnv(): WebhookSubscription[] {
   }
 }
 
-function loggingSinkFromEnv(): LoggingSinkConfig {
-  const url = process.env["LOGGING_SINK_URL"]?.trim() || null;
+function loggingSyncFromEnv(): LoggingSyncConfig {
+  const url = process.env["LOGGING_SYNC_URL"]?.trim() || null;
   // Env-provided config is operator-trusted; still drop an unsafe URL and only
   // enable when the warranty was explicitly acknowledged via env.
-  const ack = process.env["LOGGING_SINK_ACK_WARRANTY"] === "true";
+  const ack = process.env["LOGGING_SYNC_ACK_WARRANTY"] === "true";
   const safe = url ? isSafeOutboundUrl(url) : false;
   return {
     enabled: !!url && safe && ack,
@@ -156,12 +156,12 @@ const store: SettingsState = {
   branding: brandingFromEnv(),
   labelOverrides: labelsFromEnv(),
   webhooks: webhooksFromEnv(),
-  loggingSink: loggingSinkFromEnv(),
+  loggingSync: loggingSyncFromEnv(),
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
 export function isTimeTravelEnabled(): boolean {
-  return store.loggingSink.enabled;
+  return store.loggingSync.enabled;
 }
 
 const ALLOWED_KEYS: (keyof SettingsState)[] = [
@@ -173,7 +173,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "branding",
   "labelOverrides",
   "webhooks",
-  "loggingSink",
+  "loggingSync",
 ];
 
 export function getSettings(): SettingsState {
@@ -220,24 +220,24 @@ function validatePatch(patch: Record<string, unknown>): void {
   if ("labelOverrides" in patch && (typeof patch["labelOverrides"] !== "object" || patch["labelOverrides"] == null)) {
     throw new SettingsValidationError("labelOverrides must be an object");
   }
-  if ("loggingSink" in patch) {
-    const sink = patch["loggingSink"];
-    if (!sink || typeof sink !== "object") throw new SettingsValidationError("loggingSink must be an object");
-    const { enabled, url, acknowledgedWarranty } = sink as Record<string, unknown>;
+  if ("loggingSync" in patch) {
+    const sync = patch["loggingSync"];
+    if (!sync || typeof sync !== "object") throw new SettingsValidationError("loggingSync must be an object");
+    const { enabled, url, acknowledgedWarranty } = sync as Record<string, unknown>;
     if (url != null) {
-      if (typeof url !== "string") throw new SettingsValidationError("loggingSink.url must be a string or null");
+      if (typeof url !== "string") throw new SettingsValidationError("loggingSync.url must be a string or null");
       try {
-        assertSafeOutboundUrl(url, "loggingSink.url");
+        assertSafeOutboundUrl(url, "loggingSync.url");
       } catch (err) {
-        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "loggingSink.url is invalid");
+        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "loggingSync.url is invalid");
       }
     }
     if (enabled === true) {
       // Egress is the one out-of-warranty relaxation: it can only be turned on
       // with a destination AND an explicit acknowledgement of the warranty boundary.
-      if (typeof url !== "string" || !url) throw new SettingsValidationError("enable the logging sink requires a url");
+      if (typeof url !== "string" || !url) throw new SettingsValidationError("enable the logging sync requires a url");
       if (acknowledgedWarranty !== true) {
-        throw new SettingsValidationError("enabling the logging sink requires acknowledging that egressed data is outside OmniProject's warranty");
+        throw new SettingsValidationError("enabling the logging sync requires acknowledging that egressed data is outside OmniProject's warranty");
       }
     }
   }

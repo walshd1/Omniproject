@@ -390,7 +390,7 @@ export const SettingsAiProvider = {
 /**
  * Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject's stateless posture; egressed data is the operator's responsibility and outside OmniProject's warranty. Enabling it unlocks historical time-travel.
  */
-export interface LoggingSink {
+export interface LoggingSync {
   enabled: boolean;
   /** @nullable */
   url?: string | null;
@@ -411,7 +411,7 @@ export interface Settings {
   backendSource: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
-  loggingSink?: LoggingSink;
+  loggingSync?: LoggingSync;
 }
 
 export type SettingsUpdateAiProvider = typeof SettingsUpdateAiProvider[keyof typeof SettingsUpdateAiProvider];
@@ -435,7 +435,7 @@ export interface SettingsUpdate {
   backendSource?: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
-  loggingSink?: LoggingSink;
+  loggingSync?: LoggingSync;
 }
 
 export interface ConflictResponse {

@@ -18,36 +18,36 @@ import { urlFormatError } from "../../lib/validation";
  * OmniProject's warranty — the server enforces both. Turning it on unlocks
  * historical time-travel.
  */
-export function LoggingSinkSettings() {
+export function LoggingSyncSettings() {
   const { data: settings } = useGetSettings();
   const update = useUpdateSettings();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const sink = settings?.loggingSink;
-  const enabled = !!sink?.enabled;
+  const sync = settings?.loggingSync;
+  const enabled = !!sync?.enabled;
   const [url, setUrl] = useState("");
   const [ack, setAck] = useState(false);
 
   useEffect(() => {
-    if (sink) {
-      setUrl(sink.url ?? "");
-      setAck(sink.acknowledgedWarranty);
+    if (sync) {
+      setUrl(sync.url ?? "");
+      setAck(sync.acknowledgedWarranty);
     }
-  }, [sink?.url, sink?.acknowledgedWarranty]);
+  }, [sync?.url, sync?.acknowledgedWarranty]);
 
   const urlError = urlFormatError(url);
   const canEnable = !!url.trim() && !urlError && ack && !update.isPending;
 
   const save = (nextEnabled: boolean) => {
     update.mutate(
-      { data: { loggingSink: { enabled: nextEnabled, url: url.trim() || null, acknowledgedWarranty: ack } } },
+      { data: { loggingSync: { enabled: nextEnabled, url: url.trim() || null, acknowledgedWarranty: ack } } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetCapabilitiesQueryKey() });
           toast({
-            title: nextEnabled ? "LOGGING SINK ENABLED" : "LOGGING SINK DISABLED",
+            title: nextEnabled ? "LOGGING SYNC ENABLED" : "LOGGING SYNC DISABLED",
             description: nextEnabled ? "Historical time-travel is now unlocked." : "Egress stopped; time-travel locked.",
           });
         },
@@ -57,7 +57,7 @@ export function LoggingSinkSettings() {
   };
 
   return (
-    <section data-testid="logging-sink-settings">
+    <section data-testid="logging-sync-settings">
       <div className="flex items-center gap-3 mb-4">
         <ServerCog className="w-4 h-4 text-muted-foreground" />
         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Logging server (history & time-travel)</h2>
@@ -72,21 +72,21 @@ export function LoggingSinkSettings() {
           to retain durable history and unlock back/forward time-travel. OmniProject still stores nothing itself.
         </p>
 
-        <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground" htmlFor="logging-sink-url">
+        <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground" htmlFor="logging-sync-url">
           Logging server URL
         </label>
         <input
-          id="logging-sink-url"
+          id="logging-sync-url"
           type="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://logs.internal:9200/omni-history"
           aria-invalid={!!urlError}
-          aria-describedby={urlError ? "logging-sink-url-error" : undefined}
+          aria-describedby={urlError ? "logging-sync-url-error" : undefined}
           className="w-full px-3 py-2 text-sm bg-background border border-border outline-none focus:border-primary font-mono"
         />
         {urlError && (
-          <p id="logging-sink-url-error" role="alert" className="text-xs font-bold text-red-500">{urlError}</p>
+          <p id="logging-sync-url-error" role="alert" className="text-xs font-bold text-red-500">{urlError}</p>
         )}
 
         <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
@@ -110,7 +110,7 @@ export function LoggingSinkSettings() {
               type="button"
               onClick={() => save(false)}
               disabled={update.isPending}
-              data-testid="logging-sink-disable"
+              data-testid="logging-sync-disable"
               className="inline-flex items-center gap-2 border border-red-500/50 text-red-500 px-3 py-2 text-xs font-black uppercase tracking-widest hover:bg-red-500/10 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-ring"
             >
               Disable egress
@@ -120,7 +120,7 @@ export function LoggingSinkSettings() {
               type="button"
               onClick={() => save(true)}
               disabled={!canEnable}
-              data-testid="logging-sink-enable"
+              data-testid="logging-sync-enable"
               className="inline-flex items-center gap-2 border border-primary bg-primary text-primary-foreground px-3 py-2 text-xs font-black uppercase tracking-widest hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-ring"
             >
               {update.isPending ? "SAVING…" : "Enable egress & unlock time-travel"}

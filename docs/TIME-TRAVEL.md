@@ -49,18 +49,18 @@ Enabling it is gated three ways — all enforced server-side in
 `updateSettings` ([`lib/settings.ts`](../artifacts/api-server/src/lib/settings.ts)):
 
 - **Admin-only.** The control (Setup → *Logging server (history & time-travel)*)
-  and the `loggingSink` settings write are admin-scoped.
+  and the `loggingSync` settings write are admin-scoped.
 - **A destination URL is required.** You cannot enable egress without a
-  `loggingSink.url`.
+  `loggingSync.url`.
 - **Warranty acknowledgement is required.** The admin must tick
   `acknowledgedWarranty`; the server rejects `enabled: true` without it with a
   400:
 
-  > enabling the logging sink requires acknowledging that egressed data is
+  > enabling the logging sync requires acknowledging that egressed data is
   > outside OmniProject's warranty
 
-Configured via env, the equivalent is `LOGGING_SINK_URL` plus
-`LOGGING_SINK_ACK_WARRANTY=true` — egress only switches on when both are present
+Configured via env, the equivalent is `LOGGING_SYNC_URL` plus
+`LOGGING_SYNC_ACK_WARRANTY=true` — egress only switches on when both are present
 **and** the URL passes the safety check below.
 
 ## The SSRF-validated sink URL
@@ -143,7 +143,7 @@ It carries **both** flows in one workflow:
 ```
 HISTORIAN (egress / write):
   Schedule (hourly) → Read current portfolio state → Build history record
-    → Write to logging store (operator-owned, LOGGING_SINK_URL)
+    → Write to logging store (operator-owned, LOGGING_SYNC_URL)
 
 REPLAY (read-back):
   Webhook → Action == replay? → Query logging store → Map → HistoryState[]
@@ -162,10 +162,10 @@ have one; the record shape stays the same.
 
    | Env var | Purpose |
    | ------- | ------- |
-   | `LOGGING_SINK_URL` | Base URL of your logging store (e.g. `https://logs.internal:9200/omni-history`). Must match the SSRF-validated `loggingSink.url` you set in OmniProject. |
+   | `LOGGING_SYNC_URL` | Base URL of your logging store (e.g. `https://logs.internal:9200/omni-history`). Must match the SSRF-validated `loggingSync.url` you set in OmniProject. |
    | `OMNI_API_BASE` | OmniProject gateway base URL the Historian reads the live portfolio from. |
    | `OMNI_HISTORY_TOKEN` | Bearer token for the Historian's reads and the sink writes (optional, depending on your store/gateway auth). |
-   | `LOGGING_SINK_QUERY_URL` | Read endpoint for replay, if different from `LOGGING_SINK_URL`. |
+   | `LOGGING_SYNC_QUERY_URL` | Read endpoint for replay, if different from `LOGGING_SYNC_URL`. |
 
 3. Tune the **Schedule** node (hourly by default; daily for a coarser, smaller
    history) and adjust the **Query logging store** params to your store's API

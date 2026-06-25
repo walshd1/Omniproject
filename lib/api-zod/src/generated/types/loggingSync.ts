@@ -9,7 +9,7 @@
 /**
  * Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject's stateless posture; egressed data is the operator's responsibility and outside OmniProject's warranty. Enabling it unlocks historical time-travel.
  */
-export interface LoggingSink {
+export interface LoggingSync {
   enabled: boolean;
   /** @nullable */
   url?: string | null;

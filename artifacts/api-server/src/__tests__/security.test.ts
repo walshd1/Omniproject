@@ -190,25 +190,25 @@ test("/fx-rates returns a rate table to an authenticated session", async () => {
   assert.ok(body.rates && typeof body.rates === "object", "fx rates present");
 });
 
-test("logging sink: enabling without a warranty acknowledgement is rejected (400)", async () => {
+test("logging sync: enabling without a warranty acknowledgement is rejected (400)", async () => {
   const res = await req("/api/settings", {
     method: "PATCH",
     headers: { cookie: ADMIN, "content-type": "application/json" },
-    body: JSON.stringify({ loggingSink: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: false } }),
+    body: JSON.stringify({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: false } }),
   });
   assert.equal(res.status, 400);
 });
 
-test("logging sink: enabling with a metadata URL is rejected (400, SSRF)", async () => {
+test("logging sync: enabling with a metadata URL is rejected (400, SSRF)", async () => {
   const res = await req("/api/settings", {
     method: "PATCH",
     headers: { cookie: ADMIN, "content-type": "application/json" },
-    body: JSON.stringify({ loggingSink: { enabled: true, url: "http://169.254.169.254/ingest", acknowledgedWarranty: true } }),
+    body: JSON.stringify({ loggingSync: { enabled: true, url: "http://169.254.169.254/ingest", acknowledgedWarranty: true } }),
   });
   assert.equal(res.status, 400);
 });
 
-test("logging sink: enabling with url + acknowledgement unlocks the timeTravel capability", async () => {
+test("logging sync: enabling with url + acknowledgement unlocks the timeTravel capability", async () => {
   // Off by default → time-travel locked.
   const before = (await (await req("/api/capabilities", { headers: { cookie: ADMIN } })).json()) as { timeTravel?: boolean };
   assert.equal(before.timeTravel, false);
@@ -216,7 +216,7 @@ test("logging sink: enabling with url + acknowledgement unlocks the timeTravel c
   const enable = await req("/api/settings", {
     method: "PATCH",
     headers: { cookie: ADMIN, "content-type": "application/json" },
-    body: JSON.stringify({ loggingSink: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }),
+    body: JSON.stringify({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }),
   });
   assert.equal(enable.status, 200);
 
@@ -227,18 +227,18 @@ test("logging sink: enabling with url + acknowledgement unlocks the timeTravel c
   await req("/api/settings", {
     method: "PATCH",
     headers: { cookie: ADMIN, "content-type": "application/json" },
-    body: JSON.stringify({ loggingSink: { enabled: false, url: null, acknowledgedWarranty: false } }),
+    body: JSON.stringify({ loggingSync: { enabled: false, url: null, acknowledgedWarranty: false } }),
   });
 });
 
-test("time-travel replay is gated 409 until the logging sink is enabled, then 200", async () => {
+test("time-travel replay is gated 409 until the logging sync is enabled, then 200", async () => {
   const locked = await req("/api/history/replay", { headers: { cookie: VIEWER } });
   assert.equal(locked.status, 409);
 
   await req("/api/settings", {
     method: "PATCH",
     headers: { cookie: ADMIN, "content-type": "application/json" },
-    body: JSON.stringify({ loggingSink: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }),
+    body: JSON.stringify({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }),
   });
 
   const open = await req("/api/history/replay", { headers: { cookie: VIEWER } });
@@ -249,7 +249,7 @@ test("time-travel replay is gated 409 until the logging sink is enabled, then 20
   await req("/api/settings", {
     method: "PATCH",
     headers: { cookie: ADMIN, "content-type": "application/json" },
-    body: JSON.stringify({ loggingSink: { enabled: false, url: null, acknowledgedWarranty: false } }),
+    body: JSON.stringify({ loggingSync: { enabled: false, url: null, acknowledgedWarranty: false } }),
   });
 });
 
