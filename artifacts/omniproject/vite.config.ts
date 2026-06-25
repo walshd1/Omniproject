@@ -45,6 +45,19 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Split heavy/shared deps into their own cached chunks so route chunks
+        // stay small and the charting library only downloads on report routes.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("recharts") || id.includes("d3-") || id.includes("victory")) return "charts";
+          if (id.includes("@radix-ui") || id.includes("cmdk")) return "radix";
+          if (id.includes("react-dom") || id.includes("scheduler") || id.includes("/react/")) return "react-vendor";
+          return undefined;
+        },
+      },
+    },
   },
   server: {
     port,
