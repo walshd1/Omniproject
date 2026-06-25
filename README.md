@@ -63,17 +63,29 @@ organization already runs, instead of asking them to move into it.
                                   └──────────┘
 ```
 
-n8n is the **only** broker — there are no hand-rolled backend connectors to rot.
-You wire (or generate) one workflow per backend, and the user's own token is
-forwarded so writes happen *as them* (real per-user audit in the backend, not a
-shared admin key). In production the SPA and gateway ship as **one container**
-(`omni-shell`) on port `3000`.
+### Broker-agnostic by design (not locked to n8n)
 
-Internally, n8n sits behind a stable **`Broker` interface** in OmniProject's own
-domain vocabulary: it's the default (and currently only) implementation,
-swappable without touching the UI or the data path, and a CI architecture-guard
-keeps all n8n specifics confined to that one adapter. (No second broker exists
-today — this keeps the option real in code; see [docs/BROKER.md](docs/BROKER.md).)
+OmniProject talks to a single **`Broker` interface** in its own domain
+vocabulary — and **above that seam the codebase is structurally incapable of
+knowing the broker is n8n.** Every route, report, exporter, and the entire SPA
+speak only that interface; none of them name, import, or assume n8n.
+
+- **n8n is the *default* adapter, not a lock-in.** It's the only implementation
+  that ships today because it's all you need — but if you ever replace or
+  supplement it, you implement **one class** and *nothing above the seam moves*:
+  the UI, the API surface, and the data model are untouched.
+- **The boundary is enforced, not aspirational.** A CI **architecture-guard**
+  fails the build if any n8n-ism leaks across the seam, and a **broker-conformance**
+  suite is the contract any future adapter must also pass. So "swappable" is a
+  property the tests keep true, not a promise in a README. See
+  [docs/BROKER.md](docs/BROKER.md).
+- **Why n8n earns the default slot:** one workflow per backend, no hand-rolled
+  connectors to rot, and the user's own token forwarded so writes happen *as them*
+  (real per-user audit in the backend, not a shared admin key).
+
+In short: OmniProject is **tool-agnostic** — it sits *above* whatever you run now
+and whatever you move to later. In production the SPA and gateway ship as **one
+container** (`omni-shell`) on port `3000`.
 
 ### Connect to (almost) anything
 
@@ -108,23 +120,38 @@ effectively open-ended — there's no fixed connector list to wait on:
 - **SSO** — env-gated OIDC against any provider; demo mode when unconfigured.
 - **Keyboard-driven** — `Cmd+K` palette and `g d/p/r/s/e` navigation.
 
-### Exploration & history *(newer surfaces — not production guarantees)*
+### Exploration mode — snapshots, what-if & dependencies *(Beta)*
 
-These are deliberately separate, modelling-oriented surfaces, tagged by maturity
-(see [Maturity & status](#maturity--status)). They are **client-side and
-session-volatile** — you **download to keep** your work or it is discarded at
-session end; the gateway stays stateless and zero-data-at-rest.
+`/explore` is a **deliberately separate, "NOT LIVE DATA" lab** for modelling, kept
+visually distinct from the live app so a modelled or historical figure can never
+be mistaken for production. Everything here is **client-side and session-volatile**
+— it runs in your browser, the gateway stays stateless and zero-data-at-rest, and
+you **download to keep** your work or it's discarded when you close the tab. The
+four tools (see [docs/EXPLORATION.md](docs/EXPLORATION.md)):
 
-- **Exploration mode** (`/explore`, **Beta**) — a hazard-striped, "NOT LIVE DATA"
-  lab for **portfolio snapshots → trends**, an **auto-snapshot schedule**
-  (runs only while the tab is open), a coarse **What-If sandbox**, and
-  **cross-system dependency links by hash** (two SHA-256 fingerprints + minimal
-  refs, never content). See [docs/EXPLORATION.md](docs/EXPLORATION.md).
-- **Time-travel** (**Experimental / preview**) — opt-in, gated historical replay
-  against a **logging server you own**. Contract-complete and tested at the seam,
-  but **unproven end-to-end** (demo mode synthesises sample data; the n8n blueprint
-  is a template); **off by default**, admin-only, out-of-warranty egress. See
-  [docs/TIME-TRAVEL.md](docs/TIME-TRAVEL.md).
+- **Snapshots → trends** — capture the live portfolio at one or many points in
+  time and chart the trend across them; export the set to keep a months-long
+  history. An **auto-snapshot schedule** can capture on an interval until an end
+  date/time (while the tab is open).
+- **What-If sandbox** — fork the live portfolio into a throwaway copy and nudge
+  coarse levers (completion, schedule, budget, blockers) to see the **baseline vs
+  scenario** deltas recompute instantly. **Nothing is written back** — discard, or
+  capture the scenario as a snapshot. A what-if can be based on the live state *or
+  any captured snapshot*, so it's reproducible against a fixed baseline.
+- **Cross-system dependency links by hash** — assert "A blocks B" across different
+  tools by storing **only two SHA-256 fingerprints + minimal references — never any
+  content** (so it can't become a shadow PM database), with live **drift detection**
+  that flags when either side has changed since you linked them.
+
+Every figure is provenance-badged (`captured` / `sample` / `replayed` / `projected`)
+so it's never confused with live backend fact.
+
+### Time-travel *(Experimental / preview)*
+
+Opt-in, gated historical replay against a **logging server you own** — contract-
+complete and tested at the seam, but **unproven end-to-end** (demo mode synthesises
+sample data; the n8n blueprint is a template). **Off by default**, admin-only,
+out-of-warranty egress. See [docs/TIME-TRAVEL.md](docs/TIME-TRAVEL.md).
 
 ---
 
@@ -226,8 +253,8 @@ sample data until you wire up n8n and SSO.
 - **Projects** (`g p`) — index with per-project summary; open a project for its board.
 - **Reports** (`g r`) — portfolio RAG rollup, resource allocation heatmap, and
   Earned-Value financials per project.
-- **Explore** (`g e`) — the modelling lab (snapshots, what-if, dependency links).
-  Clearly separated from live data — see [Exploration & history](#exploration--history-newer-surfaces--not-production-guarantees).
+- **Explore** (`g e`) — the modelling lab (snapshots, what-if, dependency links),
+  clearly separated from live data — see [docs/EXPLORATION.md](docs/EXPLORATION.md).
 - **Settings** (`g s`) — broker URL (n8n by default), backend routing hint, AI
   provider + model, OIDC issuer, and the opt-in logging-sync egress.
 - **Command palette** — `Cmd+K` for navigation and quick actions.
