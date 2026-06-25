@@ -2,10 +2,12 @@ import { ReactNode, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { CommandPalette } from "../CommandPalette";
 import { IssueDialog } from "../IssueDialog";
+import { ShortcutsDialog } from "../ShortcutsDialog";
 import { NotificationsBell } from "../NotificationsBell";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
-import { Layers, Briefcase, BarChart3, Settings as SettingsIcon, LogOut, PlugZap, Boxes } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { NAV_ITEMS } from "../../lib/nav";
 import { useAuth, logout } from "../../lib/auth";
 import { useSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
@@ -15,7 +17,7 @@ import { ErrorBoundary } from "../ErrorBoundary";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
-  const { activeProjectId, isNewIssueOpen, setNewIssueOpen } = useStore();
+  const { activeProjectId, isNewIssueOpen, setNewIssueOpen, isShortcutsOpen, setShortcutsOpen } = useStore();
   const { t } = useT();
   const brand = useBranding();
   const { data: auth, isLoading: authLoading } = useAuth();
@@ -76,6 +78,22 @@ export function AppLayout({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [setLocation]);
 
+  // "?" opens the keyboard-shortcuts help. Guarded against typing in a field
+  // (same check as the chord handler) and against modifier combos.
+  useEffect(() => {
+    const handleHelpKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
+      if ((document.activeElement as HTMLElement | null)?.isContentEditable) return;
+      if (e.key === "?") {
+        e.preventDefault();
+        setShortcutsOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handleHelpKey);
+    return () => document.removeEventListener("keydown", handleHelpKey);
+  }, [setShortcutsOpen]);
+
   if (authLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background text-muted-foreground font-bold tracking-widest animate-pulse">
@@ -113,29 +131,22 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </Link>
         
         <nav className="flex-1 py-4 flex flex-col gap-1 px-2 overflow-y-auto">
-          <Link href="/" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location === "/" ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
-            <Layers className="w-4 h-4 mr-3" /> {t("nav.dashboard")}
-            <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">G+D</span>
-          </Link>
-          <Link href="/programmes" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location.startsWith("/programmes") ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
-            <Boxes className="w-4 h-4 mr-3" /> {t("nav.programmes")}
-          </Link>
-          <Link href="/projects" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location.startsWith("/projects") ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
-            <Briefcase className="w-4 h-4 mr-3" /> {t("nav.projects")}
-            <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">G+P</span>
-          </Link>
-          <Link href="/reports" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location.startsWith("/reports") ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
-            <BarChart3 className="w-4 h-4 mr-3" /> {t("nav.reports")}
-            <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">G+R</span>
-          </Link>
-          <Link href="/settings" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location.startsWith("/settings") ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
-            <SettingsIcon className="w-4 h-4 mr-3" /> {t("nav.settings")}
-            <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">G+S</span>
-          </Link>
-          <Link href="/setup" className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${location.startsWith("/setup") ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
-            <PlugZap className="w-4 h-4 mr-3" /> {t("nav.setup")}
-            {setup && !setup.broker.configured && <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" title="Running in demo mode" />}
-          </Link>
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const active = item.match(location);
+            const demoDot = item.href === "/setup" && setup && !setup.broker.configured;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${active ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}
+              >
+                <Icon className="w-4 h-4 mr-3" /> {t(item.i18nKey)}
+                {item.chord && <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">{item.chord}</span>}
+                {demoDot && <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" title="Running in demo mode" />}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="p-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
@@ -205,6 +216,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </main>
 
       <CommandPalette />
+      <ShortcutsDialog open={isShortcutsOpen} onOpenChange={setShortcutsOpen} />
       {dialogProjectId && (
         <IssueDialog
           projectId={dialogProjectId}

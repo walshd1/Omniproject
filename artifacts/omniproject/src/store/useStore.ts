@@ -11,6 +11,8 @@ export interface OmniStore {
   setSettingsOpen: (open: boolean) => void
   isNewIssueOpen: boolean
   setNewIssueOpen: (open: boolean) => void
+  isShortcutsOpen: boolean
+  setShortcutsOpen: (open: boolean) => void
   activeProjectId: string | null
   setActiveProjectId: (id: string | null) => void
   aiProvider: 'none' | 'openai' | 'ollama' | 'anthropic' | 'openrouter'
@@ -57,6 +59,8 @@ export const useStore = create<OmniStore>((set) => ({
   setSettingsOpen: (open) => set({ isSettingsOpen: open }),
   isNewIssueOpen: false,
   setNewIssueOpen: (open) => set({ isNewIssueOpen: open }),
+  isShortcutsOpen: false,
+  setShortcutsOpen: (open) => set({ isShortcutsOpen: open }),
   activeProjectId: getInitialActiveProjectId(),
   setActiveProjectId: (id) => {
     if (typeof window !== 'undefined') {

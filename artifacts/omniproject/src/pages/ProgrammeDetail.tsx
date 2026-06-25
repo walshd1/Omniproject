@@ -2,6 +2,14 @@ import { Link } from "wouter";
 import { useGetProgramme, type Project } from "@workspace/api-client-react";
 import { ArrowLeft, Layers } from "lucide-react";
 import { LoadingState } from "../components/LoadingState";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 const RAG_DOT: Record<string, string> = { GREEN: "bg-green-500", AMBER: "bg-amber-500", RED: "bg-red-500" };
 const RAG_TEXT: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
@@ -51,7 +59,19 @@ export function ProgrammeDetail({ programmeId }: { programmeId: string }) {
     <div className="h-full overflow-y-auto p-8">
       <div className="max-w-4xl mx-auto space-y-8">
         <div>
-          <Link href="/programmes" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3"><ArrowLeft className="w-4 h-4" /> Programmes</Link>
+          <Breadcrumb className="mb-3">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link href="/programmes">Programmes</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>{prog.name}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
           <div className="flex items-center justify-between gap-4 pb-4 border-b border-border">
             <div className="flex items-center gap-3">
               <Layers className="w-6 h-6 text-muted-foreground" />

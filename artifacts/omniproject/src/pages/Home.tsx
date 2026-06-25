@@ -2,12 +2,14 @@ import { useListActivity, useListProjects } from "@workspace/api-client-react";
 import { useStore } from "../store/useStore";
 import { useEffect } from "react";
 import { format } from "date-fns";
-import { Plus } from "lucide-react";
+import { Plus, PlugZap } from "lucide-react";
+import { Link } from "wouter";
 import { ViewSwitcher } from "../components/ViewSwitcher";
 import { VIEW_COMPONENTS } from "../components/views/registry";
 import { viewMeta } from "../lib/views";
 import { LoadingState } from "../components/LoadingState";
 import { DataState } from "../components/DataState";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
 
 export function Home() {
   const { currentView, activeProjectId, setActiveProjectId, setNewIssueOpen } = useStore();
@@ -37,15 +39,20 @@ export function Home() {
             </div>
             <div className="flex items-center gap-3">
               {projects && projects.length > 0 && (
-                <select
-                  className="bg-background border border-border px-3 py-2 text-sm font-bold uppercase outline-none"
-                  value={activeProjectId || ""}
-                  onChange={(e) => setActiveProjectId(e.target.value)}
-                >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  <span>Active project:</span>
+                  <select
+                    aria-label="Active project"
+                    title="The active project governs the global New Issue action and the Cmd+K palette target."
+                    className="bg-background border border-border px-3 py-2 text-sm font-bold uppercase outline-none text-foreground"
+                    value={activeProjectId || ""}
+                    onChange={(e) => setActiveProjectId(e.target.value)}
+                  >
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </label>
               )}
               <button
                 onClick={() => setNewIssueOpen(true)}
@@ -69,7 +76,47 @@ export function Home() {
             </div>
           ) : !activeProjectId ? (
             <div className="w-full h-full flex items-center justify-center">
-              <div className="text-muted-foreground font-bold tracking-widest">NO PROJECT SELECTED</div>
+              {projects && projects.length > 0 ? (
+                <Empty className="border-2 border-border bg-card max-w-md">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <Plus />
+                    </EmptyMedia>
+                    <EmptyTitle>Pick a project to get started</EmptyTitle>
+                    <EmptyDescription>
+                      Choose an active project above, then create your first issue.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <button
+                      onClick={() => projects[0] && setActiveProjectId(projects[0].id)}
+                      className="inline-flex items-center gap-2 bg-primary text-primary-foreground border border-primary px-4 py-2 text-sm font-bold uppercase tracking-wider hover:bg-primary/90"
+                    >
+                      Open {projects[0]?.name}
+                    </button>
+                  </EmptyContent>
+                </Empty>
+              ) : (
+                <Empty className="border-2 border-border bg-card max-w-md">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <PlugZap />
+                    </EmptyMedia>
+                    <EmptyTitle>No projects yet</EmptyTitle>
+                    <EmptyDescription>
+                      Connect your backend in Setup to start tracking work. You'll be able to create your first issue once a project is available.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <Link
+                      href="/setup"
+                      className="inline-flex items-center gap-2 bg-primary text-primary-foreground border border-primary px-4 py-2 text-sm font-bold uppercase tracking-wider hover:bg-primary/90"
+                    >
+                      <PlugZap className="w-4 h-4" /> Go to Setup
+                    </Link>
+                  </EmptyContent>
+                </Empty>
+              )}
             </div>
           ) : (
             <ActiveView projectId={activeProjectId} />
