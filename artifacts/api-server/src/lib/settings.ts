@@ -49,6 +49,23 @@ export interface WebhookSubscription {
   description?: string;
 }
 
+/**
+ * Opt-in state-history egress to an operator-owned logging server. OFF by
+ * default. This is the ONE deliberate relaxation of OmniProject's "nothing
+ * leaves" posture — the same trust class as the OData/Prometheus/Power-BI feeds:
+ * data egresses, by explicit admin choice, to a destination the operator controls
+ * and is responsible for. Enabling it unlocks historical time-travel. The
+ * operator must acknowledge that egressed data is outside OmniProject's warranty.
+ */
+export interface LoggingSyncConfig {
+  enabled: boolean;
+  url: string | null;
+  /** The admin acknowledged that egressed data leaves OmniProject's warranty. */
+  acknowledgedWarranty: boolean;
+}
+
+const DEFAULT_LOGGING_SYNC: LoggingSyncConfig = { enabled: false, url: null, acknowledgedWarranty: false };
+
 export interface SettingsState {
   /** The active broker's webhook/endpoint URL (n8n by default). */
   brokerUrl: string | null;
@@ -62,6 +79,8 @@ export interface SettingsState {
   labelOverrides: Record<string, string>;
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
+  /** Opt-in state-history egress to an operator-owned logging server (off by default). */
+  loggingSync: LoggingSyncConfig;
 }
 
 function brandingFromEnv(): BrandingConfig | null {
@@ -115,6 +134,19 @@ function webhooksFromEnv(): WebhookSubscription[] {
   }
 }
 
+function loggingSyncFromEnv(): LoggingSyncConfig {
+  const url = process.env["LOGGING_SYNC_URL"]?.trim() || null;
+  // Env-provided config is operator-trusted; still drop an unsafe URL and only
+  // enable when the warranty was explicitly acknowledged via env.
+  const ack = process.env["LOGGING_SYNC_ACK_WARRANTY"] === "true";
+  const safe = url ? isSafeOutboundUrl(url) : false;
+  return {
+    enabled: !!url && safe && ack,
+    url: safe ? url : null,
+    acknowledgedWarranty: ack,
+  };
+}
+
 const store: SettingsState = {
   brokerUrl: process.env["BROKER_URL"]?.trim() || null,
   aiProvider: coerceAiProvider(process.env["AI_PROVIDER"]?.trim() || "none"),
@@ -124,7 +156,13 @@ const store: SettingsState = {
   branding: brandingFromEnv(),
   labelOverrides: labelsFromEnv(),
   webhooks: webhooksFromEnv(),
+  loggingSync: loggingSyncFromEnv(),
 };
+
+/** True when historical time-travel is available (operator opted into egress). */
+export function isTimeTravelEnabled(): boolean {
+  return store.loggingSync.enabled;
+}
 
 const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "brokerUrl",
@@ -135,10 +173,21 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "branding",
   "labelOverrides",
   "webhooks",
+  "loggingSync",
 ];
 
 export function getSettings(): SettingsState {
   return { ...store };
+}
+
+/**
+ * A read-safe view of settings for the GET endpoint. `GET /settings` is readable
+ * by any authenticated session — including read-only API tokens — so webhook
+ * signing secrets must never be returned over it. Masks them; everything else
+ * (which the admin UI needs) is preserved.
+ */
+export function redactSettingsForRead(s: SettingsState): SettingsState {
+  return { ...s, webhooks: s.webhooks.map((w) => ({ ...w, secret: w.secret ? "********" : "" })) };
 }
 
 /**
@@ -180,6 +229,27 @@ function validatePatch(patch: Record<string, unknown>): void {
   }
   if ("labelOverrides" in patch && (typeof patch["labelOverrides"] !== "object" || patch["labelOverrides"] == null)) {
     throw new SettingsValidationError("labelOverrides must be an object");
+  }
+  if ("loggingSync" in patch) {
+    const sync = patch["loggingSync"];
+    if (!sync || typeof sync !== "object") throw new SettingsValidationError("loggingSync must be an object");
+    const { enabled, url, acknowledgedWarranty } = sync as Record<string, unknown>;
+    if (url != null) {
+      if (typeof url !== "string") throw new SettingsValidationError("loggingSync.url must be a string or null");
+      try {
+        assertSafeOutboundUrl(url, "loggingSync.url");
+      } catch (err) {
+        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "loggingSync.url is invalid");
+      }
+    }
+    if (enabled === true) {
+      // Egress is the one out-of-warranty relaxation: it can only be turned on
+      // with a destination AND an explicit acknowledgement of the warranty boundary.
+      if (typeof url !== "string" || !url) throw new SettingsValidationError("enable the logging sync requires a url");
+      if (acknowledgedWarranty !== true) {
+        throw new SettingsValidationError("enabling the logging sync requires acknowledging that egressed data is outside OmniProject's warranty");
+      }
+    }
   }
 }
 

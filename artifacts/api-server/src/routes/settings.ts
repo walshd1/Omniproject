@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getSettings, updateSettings, SettingsValidationError } from "../lib/settings";
+import { getSettings, updateSettings, redactSettingsForRead, SettingsValidationError } from "../lib/settings";
 import { requireRole } from "../lib/rbac";
 import { captureVersion } from "../lib/config-store";
 
@@ -10,7 +10,9 @@ import { captureVersion } from "../lib/config-store";
 const router = Router();
 
 router.get("/settings", (_req, res) => {
-  res.json(getSettings());
+  // Read-safe: webhook signing secrets are masked (any authenticated session,
+  // incl. read-only API tokens, can reach this).
+  res.json(redactSettingsForRead(getSettings()));
 });
 
 // Changing settings re-wires the gateway (broker URL, AI provider) — admin only.

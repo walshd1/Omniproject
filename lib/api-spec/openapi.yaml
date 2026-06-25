@@ -86,6 +86,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /history/replay:
+    get:
+      operationId: replayHistory
+      tags: [projects]
+      summary: Time-travel — replay recorded portfolio states
+      description: >-
+        Reads recorded portfolio states back from the operator's logging server
+        via the broker. Returns 409 unless the operator opted into the
+        logging-server egress (otherwise there is no recorded history).
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema: { type: string }
+          description: ISO 8601 lower bound (inclusive).
+        - name: to
+          in: query
+          required: false
+          schema: { type: string }
+          description: ISO 8601 upper bound (inclusive).
+      responses:
+        "200":
+          description: Recorded portfolio states over time
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HistoryState"
+        "409":
+          description: Time-travel not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Broker error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /projects:
     get:
       operationId: listProjects
@@ -518,6 +560,28 @@ components:
           type: string
       required:
         - error
+
+    HistoryState:
+      type: object
+      description: >-
+        A portfolio-level state at a point in time (time-travel replay).
+        provenance "replayed" = a real recorded state; "projected" = a model of
+        the future, never fact; "sample" = demo.
+      properties:
+        at:
+          type: string
+          description: ISO 8601 timestamp of this recorded state.
+        completionPct:
+          type: number
+        openBlockers:
+          type: ["integer", "null"]
+        provenance:
+          type: string
+          enum: [replayed, projected, sourced, derived, sample]
+      required:
+        - at
+        - completionPct
+        - provenance
 
     FxRates:
       type: object
@@ -982,6 +1046,11 @@ components:
           type: boolean
         raid:
           type: boolean
+        timeTravel:
+          type: boolean
+          description: >-
+            Whether historical time-travel is available — true only when the
+            operator has opted in to the logging-server egress (off by default).
       required:
         - mode
         - issues
@@ -993,6 +1062,7 @@ components:
         - blockers
         - history
         - raid
+        - timeTravel
 
     Settings:
       type: object
@@ -1013,9 +1083,30 @@ components:
             means no filter — whatever the broker is wired to.
         oidcIssuerUrl:
           type: ["string", "null"]
+        loggingSync:
+          $ref: "#/components/schemas/LoggingSync"
       required:
         - aiProvider
         - backendSource
+
+    LoggingSync:
+      type: object
+      description: >-
+        Opt-in state-history egress to an operator-owned logging server (off by
+        default). The single deliberate relaxation of OmniProject's stateless
+        posture; egressed data is the operator's responsibility and outside
+        OmniProject's warranty. Enabling it unlocks historical time-travel.
+      properties:
+        enabled:
+          type: boolean
+        url:
+          type: ["string", "null"]
+        acknowledgedWarranty:
+          type: boolean
+          description: The admin acknowledged egressed data is outside OmniProject's warranty.
+      required:
+        - enabled
+        - acknowledgedWarranty
 
     SettingsUpdate:
       type: object
@@ -1033,6 +1124,8 @@ components:
             Free-form backend routing hint passed to the broker (see Settings.backendSource).
         oidcIssuerUrl:
           type: ["string", "null"]
+        loggingSync:
+          $ref: "#/components/schemas/LoggingSync"
 
     Provenance:
       type: string

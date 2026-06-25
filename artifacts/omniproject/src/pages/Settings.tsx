@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { PremiumAdmin } from "../components/PremiumAdmin";
+import { LoggingSyncSettings } from "../components/settings/LoggingSyncSettings";
 import { DataState } from "../components/DataState";
 import { LoadingState } from "../components/LoadingState";
 import { urlFormatError } from "../lib/validation";
@@ -238,6 +239,10 @@ export function Settings() {
           {updateSettings.isPending ? "SAVING…" : "COMMIT CHANGES"}
         </Button>
       </form>
+
+      <div className="mt-10">
+        <LoggingSyncSettings />
+      </div>
 
       <PremiumAdmin />
     </div>

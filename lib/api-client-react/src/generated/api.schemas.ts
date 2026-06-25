@@ -13,6 +13,29 @@ export interface ErrorResponse {
   error: string;
 }
 
+export type HistoryStateProvenance = typeof HistoryStateProvenance[keyof typeof HistoryStateProvenance];
+
+
+export const HistoryStateProvenance = {
+  replayed: 'replayed',
+  projected: 'projected',
+  sourced: 'sourced',
+  derived: 'derived',
+  sample: 'sample',
+} as const;
+
+/**
+ * A portfolio-level state at a point in time (time-travel replay). provenance "replayed" = a real recorded state; "projected" = a model of the future, never fact; "sample" = demo.
+ */
+export interface HistoryState {
+  /** ISO 8601 timestamp of this recorded state. */
+  at: string;
+  completionPct: number;
+  /** @nullable */
+  openBlockers?: number | null;
+  provenance: HistoryStateProvenance;
+}
+
 /**
  * Map of ISO 4217 code → rate relative to base.
  */
@@ -349,6 +372,8 @@ export interface Capabilities {
   blockers: boolean;
   history: boolean;
   raid: boolean;
+  /** Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default). */
+  timeTravel: boolean;
 }
 
 export type SettingsAiProvider = typeof SettingsAiProvider[keyof typeof SettingsAiProvider];
@@ -361,6 +386,17 @@ export const SettingsAiProvider = {
   anthropic: 'anthropic',
   openrouter: 'openrouter',
 } as const;
+
+/**
+ * Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject's stateless posture; egressed data is the operator's responsibility and outside OmniProject's warranty. Enabling it unlocks historical time-travel.
+ */
+export interface LoggingSync {
+  enabled: boolean;
+  /** @nullable */
+  url?: string | null;
+  /** The admin acknowledged egressed data is outside OmniProject's warranty. */
+  acknowledgedWarranty: boolean;
+}
 
 export interface Settings {
   /**
@@ -375,6 +411,7 @@ export interface Settings {
   backendSource: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
+  loggingSync?: LoggingSync;
 }
 
 export type SettingsUpdateAiProvider = typeof SettingsUpdateAiProvider[keyof typeof SettingsUpdateAiProvider];
@@ -398,6 +435,7 @@ export interface SettingsUpdate {
   backendSource?: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
+  loggingSync?: LoggingSync;
 }
 
 export interface ConflictResponse {
@@ -606,4 +644,15 @@ export interface Notification {
   read: boolean;
   timestamp: string;
 }
+
+export type ReplayHistoryParams = {
+/**
+ * ISO 8601 lower bound (inclusive).
+ */
+from?: string;
+/**
+ * ISO 8601 upper bound (inclusive).
+ */
+to?: string;
+};
 

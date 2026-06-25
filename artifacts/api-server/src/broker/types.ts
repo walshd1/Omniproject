@@ -77,6 +77,18 @@ export interface HistoryPoint {
   provenance: "sourced" | "derived" | "sample";
 }
 
+/**
+ * A portfolio-level state at a point in time, served by the time-travel replay
+ * (read back from the operator's logging server). `replayed` = a real recorded
+ * state; `projected` = a model of the future (never fact); `sample` = demo.
+ */
+export interface HistoryState {
+  at: string; // ISO 8601
+  completionPct: number;
+  openBlockers: number | null;
+  provenance: "replayed" | "projected" | "sourced" | "derived" | "sample";
+}
+
 export interface Baseline {
   projectId: string;
   name?: string;
@@ -177,4 +189,6 @@ export interface Broker {
   projectFinancials(ctx: ActorContext, projectId: string): Promise<Row>;
   capabilities(ctx: ActorContext): Promise<CapabilityFlags>;
   fxRates(ctx: ActorContext): Promise<FxRates>;
+  /** Time-travel: replay recorded portfolio states from the logging server. */
+  replay(ctx: ActorContext, opts: { from?: string; to?: string }): Promise<HistoryState[]>;
 }

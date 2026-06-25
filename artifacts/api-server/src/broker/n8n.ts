@@ -12,6 +12,7 @@ import {
   type IssueWrite,
   type Summary,
   type HistoryPoint,
+  type HistoryState,
   type Baseline,
   type PortfolioRow,
   type FxRates,
@@ -263,6 +264,12 @@ export class N8nBroker implements Broker {
       /* graceful degradation → indicative rates below */
     }
     return FALLBACK_FX;
+  }
+
+  async replay(ctx: ActorContext, opts: { from?: string; to?: string }): Promise<HistoryState[]> {
+    const r = await callN8n<HistoryState[]>("replay", { from: opts.from, to: opts.to }, { ctx, source: "history_provider", withActor: false });
+    // Recorded states default to `replayed` provenance unless the workflow says otherwise.
+    return (r.data ?? []).map((p) => ({ ...p, provenance: p.provenance ?? "replayed" }));
   }
 
   async command(ctx: ActorContext, name: string, payload: Record<string, unknown>): Promise<unknown> {

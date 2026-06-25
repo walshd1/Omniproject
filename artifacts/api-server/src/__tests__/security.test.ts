@@ -190,6 +190,69 @@ test("/fx-rates returns a rate table to an authenticated session", async () => {
   assert.ok(body.rates && typeof body.rates === "object", "fx rates present");
 });
 
+test("logging sync: enabling without a warranty acknowledgement is rejected (400)", async () => {
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: false } }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test("logging sync: enabling with a metadata URL is rejected (400, SSRF)", async () => {
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ loggingSync: { enabled: true, url: "http://169.254.169.254/ingest", acknowledgedWarranty: true } }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test("logging sync: enabling with url + acknowledgement unlocks the timeTravel capability", async () => {
+  // Off by default → time-travel locked.
+  const before = (await (await req("/api/capabilities", { headers: { cookie: ADMIN } })).json()) as { timeTravel?: boolean };
+  assert.equal(before.timeTravel, false);
+
+  const enable = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }),
+  });
+  assert.equal(enable.status, 200);
+
+  const after = (await (await req("/api/capabilities", { headers: { cookie: ADMIN } })).json()) as { timeTravel?: boolean };
+  assert.equal(after.timeTravel, true);
+
+  // Restore (off) so global store state doesn't leak into other tests.
+  await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ loggingSync: { enabled: false, url: null, acknowledgedWarranty: false } }),
+  });
+});
+
+test("time-travel replay is gated 409 until the logging sync is enabled, then 200", async () => {
+  const locked = await req("/api/history/replay", { headers: { cookie: VIEWER } });
+  assert.equal(locked.status, 409);
+
+  await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }),
+  });
+
+  const open = await req("/api/history/replay", { headers: { cookie: VIEWER } });
+  assert.equal(open.status, 200);
+  assert.ok(Array.isArray(await open.json()), "replay returns an array of states");
+
+  // Restore (off).
+  await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ loggingSync: { enabled: false, url: null, acknowledgedWarranty: false } }),
+  });
+});
+
 test("baseline security headers are present", async () => {
   const res = await req("/api/healthz");
   assert.equal(res.headers.get("x-content-type-options"), "nosniff");

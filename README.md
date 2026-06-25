@@ -111,6 +111,24 @@ federate it — without a release from us and without a database to hold it.
 - **SSO** — env-gated OIDC against any provider; demo mode when unconfigured.
 - **Keyboard-driven** — `Cmd+K` palette and `g d/p/r/s` navigation.
 
+### Exploration & history (newer surfaces)
+
+These are deliberately separate, modelling-oriented surfaces. They are **not
+presented as production-ready** — see [Maturity & status](#maturity--status):
+
+- **Exploration mode** (`/explore`) — **Beta** · a hazard-striped, "NOT LIVE DATA"
+  lab for **portfolio snapshots → trends**, an **auto-snapshot schedule**
+  (tab-open only), a coarse **What-If sandbox**, and **cross-system dependency
+  links by hash** (two SHA-256 fingerprints + minimal refs, never content).
+  Everything is **client-side and session-volatile** — you **download to keep** it
+  or it is discarded at session end; the gateway stays stateless and
+  zero-data-at-rest. See [docs/EXPLORATION.md](docs/EXPLORATION.md).
+- **Time-travel** (`/explore` scrubber) — **Experimental / preview** · opt-in,
+  gated historical replay against a **logging server you own**. Contract-complete
+  and tested at the seam, but **unproven end-to-end** (demo mode synthesises sample
+  data; the n8n blueprint is a template); **off by default**, admin-only, and
+  out-of-warranty egress. See [docs/TIME-TRAVEL.md](docs/TIME-TRAVEL.md).
+
 ---
 
 ## Safe to try with your real data
@@ -298,6 +316,10 @@ full security and integration reference.
 - **[docs/TECHNICAL.md](docs/TECHNICAL.md)** — architecture, n8n contract,
   security model, API surface, data schemas, extending the system (for IT &
   implementers).
+- **[docs/EXPLORATION.md](docs/EXPLORATION.md)** — *(Beta)* Exploration mode:
+  snapshots → trends, What-If sandbox, and cross-system dependency links by hash.
+- **[docs/TIME-TRAVEL.md](docs/TIME-TRAVEL.md)** — *(Experimental)* opt-in,
+  out-of-warranty historical replay against a logging server you own.
 - **[artifacts/n8n-blueprints/README.md](artifacts/n8n-blueprints/README.md)** —
   the importable reference workflow and how to wire it to your backends.
 - **[LICENSING.md](LICENSING.md)** — the open-core model (Apache core + premium).
@@ -305,6 +327,32 @@ full security and integration reference.
 - **[CHANGELOG.md](CHANGELOG.md)** · **[SECURITY.md](SECURITY.md)** ·
   **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** · **[.env.example](.env.example)**.
 - **[AGENTS.md](AGENTS.md)** — contributor/agent notes, build commands, gotchas.
+
+---
+
+## Maturity & status
+
+OmniProject is pre-1.0. Not everything is at the same level of maturity — we tag
+features so a preview is never mistaken for a production guarantee:
+
+- **Stable** (tested, production-intended) — the overlay core (broker seam,
+  OIDC/RBAC, reporting/exports, demo mode); the automated test suites and CI
+  coverage gates (gateway ~84% lines / ~240 tests; SPA ~88% lines / ~400 tests —
+  with the honest caveat that SPA *function* coverage is ~64%, some flows are
+  render-tested not interaction-tested, and the axe-core a11y job covers core
+  routes only); and the recent security fixes. See [docs/TESTING.md](docs/TESTING.md).
+- **Beta** (functional and tested, but new and not yet hardened by real use) —
+  [Exploration mode](docs/EXPLORATION.md): snapshots → trends, auto-snapshot
+  (tab-open only), the coarse What-If sandbox, and dependency-by-hash. All
+  client-side, session-volatile, download-to-keep.
+- **Experimental** (complete at the seam, **unproven end-to-end**) —
+  [time-travel](docs/TIME-TRAVEL.md) and the opt-in logging-sync egress: demo mode
+  synthesises sample replay data, the n8n blueprint is a template, and there is no
+  integration test against a real logging server yet. Off by default, admin-only,
+  out-of-warranty.
+
+See the [CHANGELOG `[Unreleased]`](CHANGELOG.md) for the per-feature detail and the
+maturity legend.
 
 ---
 

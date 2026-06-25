@@ -656,7 +656,18 @@ const SAMPLE_SETTINGS = {
   branding: null,
   labelOverrides: {},
   webhooks: [],
+  loggingSync: { enabled: false, url: null, acknowledgedWarranty: false },
 };
+
+test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {
+  const { redactSettingsForRead } = await import("../lib/settings");
+  const redacted = redactSettingsForRead({
+    ...SAMPLE_SETTINGS,
+    webhooks: [{ id: "w1", url: "https://hook.example/x", secret: "super-secret", events: ["*"], active: true }],
+  });
+  assert.equal(redacted.webhooks[0]!.secret, "********");
+  assert.equal(redacted.webhooks[0]!.url, "https://hook.example/x"); // non-secret fields preserved
+});
 
 test("buildSnapshot: captures the gateway settings with schema + version", () => {
   const snap = buildSnapshot(SAMPLE_SETTINGS);

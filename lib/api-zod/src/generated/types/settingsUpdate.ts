@@ -5,6 +5,7 @@
  * OmniProject API — thin proxy gateway to n8n webhooks
  * OpenAPI spec version: 0.1.0
  */
+import type { LoggingSync } from './loggingSync';
 import type { SettingsUpdateAiProvider } from './settingsUpdateAiProvider';
 
 export interface SettingsUpdate {
@@ -17,4 +18,5 @@ export interface SettingsUpdate {
   backendSource?: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
+  loggingSync?: LoggingSync;
 }
