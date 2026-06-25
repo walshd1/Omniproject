@@ -30,11 +30,25 @@ export function ListView({ projectId }: { projectId: string }) {
 
   if (isLoading) return <div className="p-8 text-center font-bold tracking-widest text-muted-foreground animate-pulse">LOADING…</div>;
 
-  const Th = ({ k, children }: { k: SortKey; children: React.ReactNode }) => (
-    <th className="text-left px-3 py-2 cursor-pointer select-none hover:text-foreground" onClick={() => toggle(k)}>
-      {children}{sort.key === k ? (sort.dir === 1 ? " ▲" : " ▼") : ""}
-    </th>
-  );
+  const Th = ({ k, children }: { k: SortKey; children: React.ReactNode }) => {
+    const active = sort.key === k;
+    return (
+      <th
+        scope="col"
+        aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : "none"}
+        className="text-left px-3 py-2 select-none"
+      >
+        <button
+          type="button"
+          onClick={() => toggle(k)}
+          className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          {children}
+          <span aria-hidden="true">{active ? (sort.dir === 1 ? "▲" : "▼") : ""}</span>
+        </button>
+      </th>
+    );
+  };
 
   return (
     <>
@@ -51,7 +65,19 @@ export function ListView({ projectId }: { projectId: string }) {
           </thead>
           <tbody>
             {rows.map((issue) => (
-              <tr key={issue.id} onClick={() => setEditing(issue)} className="border-b border-border hover:bg-muted/30 cursor-pointer">
+              <tr
+                key={issue.id}
+                onClick={() => setEditing(issue)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setEditing(issue);
+                  }
+                }}
+                tabIndex={0}
+                aria-label={`Open work item: ${issue.title}`}
+                className="border-b border-border hover:bg-muted/30 cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset"
+              >
                 <td className="px-3 py-2 font-semibold">{issue.title}</td>
                 <td className="px-3 py-2"><span className="inline-flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${STATUS_COLORS[issue.status]}`} />{STATUS_LABELS[issue.status]}</span></td>
                 <td className="px-3 py-2"><span className="inline-flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${PRIORITY_COLORS[issue.priority]}`} />{PRIORITY_LABELS[issue.priority]}</span></td>

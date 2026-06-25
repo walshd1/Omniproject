@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Command } from "cmdk";
+import * as Dialog from "@radix-ui/react-dialog";
 import { useStore } from "../store/useStore";
 import { useLocation } from "wouter";
 import { VIEWS } from "../lib/views";
@@ -29,17 +30,18 @@ export function CommandPalette() {
     return () => document.removeEventListener("keydown", down);
   }, [isCommandOpen, setCommandOpen]);
 
-  if (!isCommandOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-32 bg-background/80 backdrop-blur-sm">
-      <Command
-        className="w-full max-w-2xl bg-card border border-border shadow-2xl overflow-hidden"
-        onKeyDown={(e) => {
-          if (e.key === "Escape") setCommandOpen(false);
-        }}
-      >
-        <Command.Input 
+    <Dialog.Root open={isCommandOpen} onOpenChange={setCommandOpen}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" />
+        <Dialog.Content
+          aria-label="Command palette"
+          aria-describedby={undefined}
+          className="fixed left-1/2 top-32 z-50 w-full max-w-2xl -translate-x-1/2 bg-card border border-border shadow-2xl overflow-hidden focus:outline-none"
+        >
+          <Dialog.Title className="sr-only">Command palette</Dialog.Title>
+          <Command className="w-full">
+        <Command.Input
           autoFocus 
           placeholder="Type a command or search..." 
           className="w-full px-4 py-3 text-lg bg-transparent border-b border-border outline-none text-foreground placeholder:text-muted-foreground font-mono"
@@ -96,7 +98,9 @@ export function CommandPalette() {
             ))}
           </Command.Group>
         </Command.List>
-      </Command>
-    </div>
+          </Command>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

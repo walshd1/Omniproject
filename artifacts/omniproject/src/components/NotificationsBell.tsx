@@ -59,17 +59,25 @@ export function NotificationsBell() {
   const items: Notification[] = [...pushed, ...polled.filter((n) => !seen.has(n.id))];
   const unread = items.filter((n) => !n.read).length;
 
+  const latest = pushed[0];
+
   return (
     <div className="relative">
+      {/* Announce live (SSE) notifications to assistive tech. */}
+      <div aria-live="polite" className="sr-only">
+        {latest ? `New notification: ${latest.title}` : ""}
+      </div>
       <button
         onClick={() => setOpen((v) => !v)}
         className="relative text-muted-foreground hover:text-foreground"
         title={live && connected ? "Notifications — live" : "Notifications"}
-        aria-label="Notifications"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
       >
         <Bell className="w-4 h-4" />
         {unread > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 flex items-center justify-center text-[9px] font-black bg-red-500 text-white rounded-full">
+          <span aria-hidden="true" className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 flex items-center justify-center text-[9px] font-black bg-red-500 text-white rounded-full">
             {unread}
           </span>
         )}
@@ -81,7 +89,7 @@ export function NotificationsBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-card border border-border shadow-lg z-50">
+          <div role="dialog" aria-label="Notifications" className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-card border border-border shadow-lg z-50">
             <div className="p-3 border-b border-border font-black uppercase tracking-widest text-xs flex items-center justify-between">
               <span>Notifications</span>
               <button

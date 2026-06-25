@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 
 /**
  * Dependency-free internationalization.
@@ -193,10 +193,15 @@ export function I18nProvider({ children, labelOverrides }: { children: ReactNode
   const setLocale = useCallback((l: Locale) => {
     if (typeof window !== "undefined") {
       localStorage.setItem("omni.locale", l);
-      document.documentElement.lang = l;
     }
     setLocaleState(l);
   }, []);
+
+  // Keep <html lang> in sync with the active locale — on first load (detected or
+  // persisted) AND on every change — so assistive tech announces content correctly.
+  useEffect(() => {
+    if (typeof document !== "undefined") document.documentElement.lang = locale;
+  }, [locale]);
 
   const value: I18nContextValue = {
     locale,
