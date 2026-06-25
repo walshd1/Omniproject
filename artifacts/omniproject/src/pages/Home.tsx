@@ -10,6 +10,8 @@ import { viewMeta } from "../lib/views";
 import { LoadingState } from "../components/LoadingState";
 import { DataState } from "../components/DataState";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function Home() {
   const { currentView, activeProjectId, setActiveProjectId, setNewIssueOpen } = useStore();
@@ -41,27 +43,30 @@ export function Home() {
               {projects && projects.length > 0 && (
                 <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   <span>Active project:</span>
-                  <select
-                    aria-label="Active project"
-                    title="The active project governs the global New Issue action and the Cmd+K palette target."
-                    className="bg-background border border-border px-3 py-2 text-sm font-bold uppercase outline-none text-foreground"
-                    value={activeProjectId || ""}
-                    onChange={(e) => setActiveProjectId(e.target.value)}
-                  >
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                  <Select value={activeProjectId || ""} onValueChange={(v) => setActiveProjectId(v)}>
+                    <SelectTrigger
+                      aria-label="Active project"
+                      title="The active project governs the global New Issue action and the Cmd+K palette target."
+                      className="w-auto rounded-none bg-background border-border px-3 py-2 text-sm font-bold uppercase text-foreground gap-2"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-none border-border font-bold uppercase">
+                      {projects.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </label>
               )}
-              <button
+              <Button
                 onClick={() => setNewIssueOpen(true)}
                 disabled={!activeProjectId}
                 data-testid="new-issue-button"
-                className="flex items-center gap-2 bg-primary text-primary-foreground border border-primary px-3 py-2 text-sm font-bold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-40"
+                className="rounded-none border border-primary px-3 py-2 text-sm font-bold uppercase tracking-wider"
               >
                 <Plus className="w-4 h-4" /> New Issue
-              </button>
+              </Button>
             </div>
           </div>
           <p className="text-sm text-muted-foreground">{viewMeta(currentView).description}</p>
@@ -124,7 +129,7 @@ export function Home() {
         </div>
       </div>
 
-      <aside className="w-80 border-l border-border bg-card shrink-0 flex flex-col">
+      <aside className="hidden lg:flex w-80 border-l border-border bg-card shrink-0 flex-col">
         <div className="p-4 border-b border-border bg-muted/20 shrink-0">
           <h2 className="font-bold uppercase tracking-wider text-sm">ACTIVITY FEED</h2>
         </div>

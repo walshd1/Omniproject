@@ -6,6 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
 
 /** Trigger a file download from a gateway export endpoint (sends the session cookie). */
 function download(url: string) {
@@ -23,6 +24,13 @@ function download(url: string) {
  * Projects + Issues + Activity.
  */
 export function ExportMenu({ projectId, label = "Export" }: { projectId?: string; label?: string }) {
+  const { toast } = useToast();
+  // Anchor downloads give no completion signal, so we fire a brief info toast on
+  // click as fire-and-forget feedback that the export is on its way.
+  const start = (url: string) => {
+    toast({ title: "PREPARING EXPORT…", description: "Your download should begin shortly." });
+    download(url);
+  };
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -32,23 +40,23 @@ export function ExportMenu({ projectId, label = "Export" }: { projectId?: string
         <Download className="w-4 h-4" /> {label}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="rounded-none border-border font-mono uppercase text-xs">
-        <DropdownMenuItem onSelect={() => download("/api/export.xlsx")}>
+        <DropdownMenuItem onSelect={() => start("/api/export.xlsx")}>
           Workbook (.xlsx)
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {projectId ? (
-          <DropdownMenuItem onSelect={() => download(`/api/export.csv?dataset=issues&projectId=${encodeURIComponent(projectId)}`)}>
+          <DropdownMenuItem onSelect={() => start(`/api/export.csv?dataset=issues&projectId=${encodeURIComponent(projectId)}`)}>
             This project's issues (.csv)
           </DropdownMenuItem>
         ) : (
-          <DropdownMenuItem onSelect={() => download("/api/export.csv?dataset=issues")}>
+          <DropdownMenuItem onSelect={() => start("/api/export.csv?dataset=issues")}>
             All issues (.csv)
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={() => download("/api/export.csv?dataset=projects")}>
+        <DropdownMenuItem onSelect={() => start("/api/export.csv?dataset=projects")}>
           Projects (.csv)
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => download("/api/export.csv?dataset=activity")}>
+        <DropdownMenuItem onSelect={() => start("/api/export.csv?dataset=activity")}>
           Activity (.csv)
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -57,9 +65,9 @@ export function ExportMenu({ projectId, label = "Export" }: { projectId?: string
           const scope = projectId ? "Issues report" : "All issues report";
           return (
             <>
-              <DropdownMenuItem onSelect={() => download(`/api/export.pdf?${q}`)}>{scope} (.pdf)</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => download(`/api/export.md?${q}`)}>{scope} (.md)</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => download(`/api/export.json?${q}`)}>{scope} (.json)</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => start(`/api/export.pdf?${q}`)}>{scope} (.pdf)</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => start(`/api/export.md?${q}`)}>{scope} (.md)</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => start(`/api/export.json?${q}`)}>{scope} (.json)</DropdownMenuItem>
             </>
           );
         })()}

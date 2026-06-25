@@ -7,6 +7,7 @@ import { FinancialEvmChart } from "../components/reports/FinancialEvmChart";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { ProvenanceBadge } from "../components/ProvenanceBadge";
 import { useT } from "../lib/i18n";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 /** Render a report only when its data domain is available; else label the dependency. */
 function Gated({
@@ -63,16 +64,20 @@ export function Reports() {
             {caps && <ProvenanceBadge mode={caps.mode} />}
           </div>
           {projects && projects.length > 0 && (
-            <select
-              className="bg-background border border-border px-3 py-2 text-sm font-bold uppercase outline-none"
-              value={projectId}
-              onChange={(e) => onSelect(e.target.value)}
-              data-testid="reports-project-select"
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+            <Select value={projectId} onValueChange={onSelect}>
+              <SelectTrigger
+                aria-label="Report project"
+                className="w-auto rounded-none bg-background border-border px-3 py-2 text-sm font-bold uppercase gap-2"
+                data-testid="reports-project-select"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-none border-border font-bold uppercase">
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
         </div>
 
