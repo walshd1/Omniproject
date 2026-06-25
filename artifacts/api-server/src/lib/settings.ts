@@ -181,6 +181,16 @@ export function getSettings(): SettingsState {
 }
 
 /**
+ * A read-safe view of settings for the GET endpoint. `GET /settings` is readable
+ * by any authenticated session — including read-only API tokens — so webhook
+ * signing secrets must never be returned over it. Masks them; everything else
+ * (which the admin UI needs) is preserved.
+ */
+export function redactSettingsForRead(s: SettingsState): SettingsState {
+  return { ...s, webhooks: s.webhooks.map((w) => ({ ...w, secret: w.secret ? "********" : "" })) };
+}
+
+/**
  * Validate an untrusted settings patch before it is written. Only the fields
  * present in the patch are checked. Throws `SettingsValidationError` on the first
  * problem so the route can answer 400 instead of persisting a malformed config

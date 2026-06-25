@@ -6,6 +6,80 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+> **Maturity legend.** **Stable** = tested and production-intended. **Beta** =
+> functional and tested but new and not yet hardened by real-world use.
+> **Experimental** = complete and tested *at the seam/contract*, but the
+> end-to-end path is unproven against real external systems — treat as a preview.
+
+### Added
+
+- **Comprehensive automated test suites + enforced coverage gates** (**Stable**).
+  A new SPA test suite (Vitest + React Testing Library + jsdom, ~400 tests) where
+  there was none, plus a larger gateway suite (~240 tests). CI now enforces
+  coverage ratchets on both (`c8` ~84% gateway lines; Vitest v8 ~88% SPA lines).
+  *Honest caveats:* SPA **function** coverage is ~64% (many inline handlers
+  aren't individually invoked); several flows are render-tested, not
+  interaction-tested (drag-drop optimistic moves, full pages); the axe-core a11y
+  job covers the core routes only. See [docs/TESTING.md](docs/TESTING.md).
+- **Exploration mode (`/explore`)** (**Beta**) — a deliberately distinct, "NOT
+  LIVE DATA" surface for modelling, kept separate from the live app so a modelled
+  or historical figure can't be mistaken for production. All of the following are
+  **client-side and session-volatile** (the gateway stays stateless and
+  zero-data-at-rest); you **download to keep** or work is discarded at session
+  end. See [docs/EXPLORATION.md](docs/EXPLORATION.md):
+  - **Portfolio snapshots → trends** — capture the live read-model at 1..N points,
+    export/import a JSON bundle for durable multi-month trends, badged `captured`.
+  - **Auto-snapshot schedule** — capture on an interval until an end date/time.
+    *Limitation:* runs only while the tab is open (durable overnight cadence is
+    the n8n historian's job).
+  - **What-If sandbox** — a volatile fork of the portfolio with coarse
+    completion/schedule/budget/blocker levers and baseline-vs-scenario deltas;
+    can be based on **any captured snapshot**; "capture as snapshot" feeds trends.
+    *Limitation:* portfolio-level, coarse levers — a modelling aid, not a planner.
+  - **Cross-system dependency links by hash** — store **two SHA-256 fingerprints
+    + minimal refs only** (never content; guarded by an anti-creep test), with
+    live drift detection. *Limitation:* drift recomputes only for endpoints whose
+    projects are currently loaded.
+- **Time-travel** (**Experimental**) — an opt-in, gated history/replay feature.
+  The contract, the admin-only + SSRF-validated + warranty-acknowledged
+  **logging-sync** opt-in, the `timeTravel` capability flag, the `Broker.replay`
+  method, and the gated `GET /history/replay` are complete and tested *at the
+  seam*. **Unproven end-to-end:** `DemoBroker.replay` returns synthesised `sample`
+  data, and the n8n historian/replay blueprint
+  ([omniproject-time-travel.json](artifacts/n8n-blueprints/omniproject-time-travel.json))
+  is a **template** (`active: false`) — there is no integration test against a
+  live logging server yet. Forward time-travel is a `projected` model, never fact.
+  Off by default. See [docs/TIME-TRAVEL.md](docs/TIME-TRAVEL.md).
+
+### Security
+
+- **36-finding forensic review fixed** (**Stable**) — incl. a critical
+  production fail-fast on a default/empty `SESSION_SECRET`, a contributor gate on
+  `POST /broker/command`, an SSRF guard on admin-set outbound URLs (incl. the
+  IPv4-mapped-IPv6 metadata bypass), and no longer leaking upstream backend
+  bodies in error messages. All independently re-verified.
+- **`GET /settings` no longer leaks webhook signing secrets** (**Stable**) —
+  the read endpoint (reachable by any authenticated session, including read-only
+  API tokens) now masks webhook secrets. *Known limitation:* the endpoint still
+  returns non-secret config (broker/issuer/logging-sync URLs) to any authenticated
+  session; tightening that to admin-only is a follow-up.
+
+### Changed
+
+- **Opt-in state-history egress ("logging sync")** (**Experimental**) — off by
+  default; admin-only; the destination URL is SSRF-validated; enabling **requires
+  an explicit acknowledgement that egressed data leaves OmniProject's warranty**
+  (the same trust class as the OData/Power-BI feeds). This is the single
+  deliberate relaxation of the "nothing leaves" posture; OmniProject still stores
+  nothing itself.
+
+### Notes on architecture
+
+- All of the above stays **broker-agnostic and above the seam**: the new
+  `replay` operation is on the `Broker` interface, n8n specifics remain confined
+  to `N8nBroker`, and the architecture-guard, broker-conformance and
+  contract-coverage tests all pass.
+
 ## [0.3.0] — 2026-06-25
 
 A **quality, hardening, and user-experience** release. No breaking API changes;
