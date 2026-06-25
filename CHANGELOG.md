@@ -6,20 +6,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
-### Changed
-- **More backend-agnostic.** OmniProject is designed to sit above whichever PM
-  tools you run; this removes assumptions that leaked one tool's schema:
-  - **Issue `status` is now an open string** in the API contract (was frozen to
-    one backend's six states), so a backend with different states is no longer
-    rejected on write or mis-bucketed on read. The conventional buckets remain the
-    documented default. The board derives columns from the data, and unknown
-    status/priority values degrade gracefully (neutral swatch + humanised label).
-  - **Neutralised tool-specific copy**: the page/social meta tags no longer name
-    two specific tools, and the demo dataset now spans several backends
-    (Jira/OpenProject/GitHub/Azure DevOps) to show federation rather than implying
-    a fixed pair.
+## [0.3.0] — 2026-06-25
+
+A **quality, hardening, and user-experience** release. No breaking API changes;
+the focus is making OmniProject confident to run with real data, pleasant to use,
+and provably backend-agnostic.
 
 ### Added
+- **Comprehensive automated test suite** across five pillars — technical
+  completeness, security, accessibility, UX flows, and full regression. Real
+  HTTP-level security tests (401 unauthenticated, RBAC 403, read-only API tokens,
+  security headers), full `Broker`-contract conformance, an OpenAPI path-coverage
+  guard, an **axe-core accessibility CI job**, and a one-command
+  `pnpm test:regression`. See [docs/TESTING.md](docs/TESTING.md) and
+  [docs/RELEASE.md](docs/RELEASE.md).
+- **Keyboard-shortcuts help** (`?`), a complete command palette (all nav targets +
+  project quick-jump + shortcuts), and **breadcrumbs** on project/programme detail.
+- **Undo** on board issue-move and issue-delete.
 - **Deploy-artifact CI guards** so the deploy files can't silently drift again.
   A `deploy-guard` unit test fails CI if a removed env name (e.g.
   `N8N_WEBHOOK_URL`) resurfaces, if a deploy file stops wiring `BROKER_URL`, or if
@@ -29,6 +32,31 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   pins and CI actions fresh.
 
 ### Changed
+- **User-experience overhaul (3 rounds).** Query failures now show a clear error
+  with **Retry** instead of a blank "empty" screen; a **React error boundary**
+  replaces white-screens; **first-run empty states** guide new users to Setup;
+  **destructive actions** (promote-to-prod, rollbacks, deletes, config restore) now
+  **confirm**; **inline form validation** replaces toast-only errors; the **active
+  project persists** across reloads; and the app is now **responsive** (the sidebar
+  collapses into a drawer on small screens). All preserving RBAC and accessibility.
+- **Accessibility pass (WCAG 2.1 AA).** Skip link, per-route focus + page title,
+  keyboard-operable lists/sort/menus, a focus-trapped command palette, announced
+  notifications, and reduced-motion + contrast fixes — verified by the axe-core CI
+  job (0 violations on the core routes).
+- **Faster initial load.** Route-level code splitting + vendor chunking drop the
+  initial JS from one ~977 kB bundle to a ~137 kB entry (the charting library is
+  deferred to report routes), with cached cross-navigation (no refetch jank) and
+  optimistic board moves.
+- **More backend-agnostic.** OmniProject is designed to sit above whichever PM
+  tools you run; this removes assumptions that leaked one tool's schema:
+  - **Issue `status` is now an open string** in the API contract (was frozen to
+    one backend's six states), so a backend with different states is no longer
+    rejected on write or mis-bucketed on read. The conventional buckets remain the
+    documented default; the board derives columns from the data, and unknown
+    status/priority values degrade gracefully.
+  - **Neutralised tool-specific copy**: the page/social meta tags no longer name
+    two specific tools, and the demo dataset now spans several backends
+    (Jira/OpenProject/GitHub/Azure DevOps) to show federation.
 - **Hardened the deploy stack** (`docker-compose.standalone.yml`,
   `docker-compose.enterprise.yml`, `k8s-enterprise-manifest.yaml`). Pinned every
   image to a verified tag (no `:latest`); fail-fast required secrets (`${VAR:?}`,
@@ -48,6 +76,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   the shell), default-deny + scoped `NetworkPolicy`s, `automountServiceAccountToken:
   false`, `startupProbe`s, and `ingressClassName` replacing the deprecated
   annotation.
+
+### Security
+- **Baseline security headers** on every response (`X-Content-Type-Options:
+  nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, and
+  HSTS in production) — previously absent at the gateway.
 
 ### Fixed
 - **Deploy files set the removed `N8N_WEBHOOK_URL`** — renamed to `BROKER_URL`
@@ -145,6 +178,7 @@ backends, with n8n as the exclusive data broker.
   **OmniProject Premium License**. Provided **as is, without warranty**. See
   [LICENSING.md](LICENSING.md).
 
-[Unreleased]: https://github.com/walshd1/Omniproject/compare/0.2.0...HEAD
+[Unreleased]: https://github.com/walshd1/Omniproject/compare/0.3.0...HEAD
+[0.3.0]: https://github.com/walshd1/Omniproject/compare/0.2.0...0.3.0
 [0.2.0]: https://github.com/walshd1/Omniproject/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/walshd1/Omniproject/releases/tag/0.1.0
