@@ -31,6 +31,14 @@ services:
     container_name: omni-shell
     ports:
       - "3000:3000"
+    # Stateless gateway — drop privileges and run read-only.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -72,8 +80,12 @@ services:
   n8n:
     image: n8nio/n8n:1.123.61   # pinned for reproducibility; 2.x exists but is unverified against the bundled blueprint
     container_name: omni-n8n
+    # Bound to loopback only: the shell reaches n8n in-network via http://n8n:5678.
+    # This publishes the editor to localhost for workflow setup, not to the LAN.
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"
+    security_opt:
+      - no-new-privileges:true
     environment:
       N8N_PORT: 5678
       GENERIC_TIMEZONE: UTC

@@ -59,7 +59,7 @@ docker compose -f docker-compose.standalone.yml up -d
 ```
 
 Services start in dependency order — the shell waits for n8n **and** Authentik to
-report healthy, Authentik waits for Postgres/Redis. First boot pulls images and
+report healthy, Authentik waits for Postgres. First boot pulls images and
 runs Authentik migrations (≈1–2 min); the `start_period` budgets for it.
 
 ## 5. Configure the Authentik OIDC application (one time)

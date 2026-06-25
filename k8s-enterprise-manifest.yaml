@@ -33,8 +33,17 @@ data:
 
 ---
 # ── Secret: sensitive OIDC and service credentials ───────────────────────────
-# Replace placeholder values with your actual credentials before applying.
-# Prefer a secrets manager (Vault, AWS Secrets Manager, Sealed Secrets) in prod.
+# DO NOT commit real values here. This ships with EMPTY values on purpose: with
+# an empty SESSION_SECRET the gateway refuses to boot in production (fail-fast),
+# so there is no silently-insecure default. Create the real secret out-of-band:
+#
+#   kubectl -n omniproject create secret generic omniproject-secrets \
+#     --from-literal=SESSION_SECRET="$(openssl rand -hex 32)" \
+#     --from-literal=OIDC_ISSUER_URL=https://your-idp/... \
+#     --from-literal=OIDC_CLIENT_ID=... --from-literal=OIDC_CLIENT_SECRET=...
+#
+# In production prefer External Secrets Operator or Sealed Secrets over a raw
+# Secret. n8n is protected by its own owner-account setup on first run.
 apiVersion: v1
 kind: Secret
 metadata:
@@ -42,15 +51,12 @@ metadata:
   namespace: omniproject
 type: Opaque
 stringData:
-  OIDC_ISSUER_URL: "https://your-idp.example.com/oauth2/default"  # REPLACE
-  OIDC_CLIENT_ID: "your-client-id"                                 # REPLACE
-  OIDC_CLIENT_SECRET: "your-client-secret"                         # REPLACE
-  SESSION_SECRET: "replace-with-random-64-char-string"             # REPLACE
-  API_TOKENS: ""                                                  # read-only tokens for Power BI / exports (comma-separated)
-  # n8n is protected by its own owner-account setup on first run (the legacy
-  # N8N_BASIC_AUTH_* vars are deprecated/ignored on current n8n). Keep the n8n
-  # Service internal and front it with your ingress auth if you expose it.
-  OPENROUTER_API_KEY: ""                                          # for AI_PROVIDER=openrouter
+  OIDC_ISSUER_URL: ""              # REQUIRED — set out-of-band (see above)
+  OIDC_CLIENT_ID: ""              # REQUIRED
+  OIDC_CLIENT_SECRET: ""          # REQUIRED
+  SESSION_SECRET: ""              # REQUIRED — empty => gateway refuses to start
+  API_TOKENS: ""                  # read-only tokens for Power BI / exports (comma-separated)
+  OPENROUTER_API_KEY: ""          # for AI_PROVIDER=openrouter
   OPENAI_API_KEY: ""
   ANTHROPIC_API_KEY: ""
 
@@ -64,7 +70,12 @@ metadata:
   labels:
     app: omni-shell
 spec:
-  replicas: 2
+  # Stays at 1 by default ON PURPOSE: the SSE notification fan-out is in-process,
+  # so >1 replica drops ~half of real-time notifications unless a shared bus is
+  # wired. To scale out: deploy Redis, add REDIS_URL to the ConfigMap, rebuild the
+  # image with ioredis (pnpm --filter @workspace/api-server add ioredis), then add
+  # a PodDisruptionBudget + topologySpreadConstraints. See README "Real-time".
+  replicas: 1
   selector:
     matchLabels:
       app: omni-shell
@@ -73,9 +84,19 @@ spec:
       labels:
         app: omni-shell
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: omni-shell
-          image: your-registry/omniproject-shell:latest  # REPLACE with your image
+          image: your-registry/omniproject-shell:0.2.0  # REPLACE with your image:tag (avoid :latest)
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 3000
           envFrom:
@@ -83,11 +104,20 @@ spec:
                 name: omniproject-config
             - secretRef:
                 name: omniproject-secrets
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          # Slow IdP discovery on boot shouldn't trip liveness — gate with startup.
+          startupProbe:
+            httpGet:
+              path: /api/healthz
+              port: 3000
+            periodSeconds: 5
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /api/healthz
               port: 3000
-            initialDelaySeconds: 15
             periodSeconds: 20
           readinessProbe:
             httpGet:
@@ -102,6 +132,9 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
+      volumes:
+        - name: tmp
+          emptyDir: {}
 
 ---
 # ── OmniProject Shell — ClusterIP Service ─────────────────────────────────────
@@ -137,9 +170,23 @@ spec:
       labels:
         app: n8n
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000          # the "node" user in the n8n image
+        runAsGroup: 1000
+        fsGroup: 1000            # so the non-root user can write the PVC
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: n8n
           image: n8nio/n8n:1.123.61   # pinned; 2.x exists but is unverified against the bundled blueprint
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            # n8n writes to /home/node/.n8n (PVC) and tmp — leave rootfs writable.
+            readOnlyRootFilesystem: false
           ports:
             - containerPort: 5678
           env:
@@ -157,11 +204,16 @@ spec:
               value: sqlite
             - name: WEBHOOK_URL
               value: "https://n8n.your-domain.com/"  # REPLACE
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            periodSeconds: 5
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /healthz
               port: 5678
-            initialDelaySeconds: 20
             periodSeconds: 20
           readinessProbe:
             httpGet:
@@ -222,16 +274,15 @@ metadata:
   name: omniproject-ingress
   namespace: omniproject
   annotations:
-    kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     # Uncomment for cert-manager TLS:
     # cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
+  ingressClassName: nginx        # modern replacement for the deprecated kubernetes.io/ingress.class annotation
   tls:
     - hosts:
         - app.your-domain.com    # REPLACE
-        - n8n.your-domain.com    # REPLACE
       secretName: omniproject-tls
   rules:
     - host: app.your-domain.com  # REPLACE
@@ -244,13 +295,67 @@ spec:
                 name: omni-shell
                 port:
                   number: 3000
-    - host: n8n.your-domain.com  # REPLACE
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: n8n
-                port:
-                  number: 5678
+    # n8n is intentionally NOT exposed via Ingress — it is the data broker and
+    # has only owner-account auth. Keep it ClusterIP-only (the shell reaches it at
+    # http://n8n:5678). If you must expose the n8n editor, add an authenticated
+    # host with an ingress auth annotation (e.g. oauth2-proxy), not a bare rule.
+
+---
+# ── NetworkPolicy: default-deny ingress for the namespace ─────────────────────
+# Nothing can reach pods in this namespace unless a policy below allows it. This
+# is what keeps n8n (the broker) from being reachable by arbitrary cluster pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: omniproject
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# ── NetworkPolicy: allow the ingress controller to reach omni-shell ───────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-omni-shell
+  namespace: omniproject
+spec:
+  podSelector:
+    matchLabels:
+      app: omni-shell
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # REPLACE the label below to match your ingress controller's namespace
+        # (e.g. ingress-nginx). `kubernetes.io/metadata.name` is auto-applied by k8s.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+
+---
+# ── NetworkPolicy: allow ONLY omni-shell to reach n8n ─────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-omni-shell-to-n8n
+  namespace: omniproject
+spec:
+  podSelector:
+    matchLabels:
+      app: n8n
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: omni-shell
+      ports:
+        - protocol: TCP
+          port: 5678
