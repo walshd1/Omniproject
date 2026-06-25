@@ -6,6 +6,27 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+- **Hardened the deploy stack** (`docker-compose.standalone.yml`,
+  `docker-compose.enterprise.yml`, `k8s-enterprise-manifest.yaml`). Pinned every
+  image to a verified tag (no `:latest`); fail-fast required secrets (`${VAR:?}`,
+  no more `changeme` defaults); healthchecks on every service with health-gated
+  startup ordering; dropped the deprecated `N8N_BASIC_AUTH_*` (n8n uses
+  owner-account setup now). The standalone stack now serves **real TLS for
+  `*.local`** via mkcert + a Traefik file provider (ACME can't issue for `.local`),
+  with the OIDC issuer on `https://authentik.local` resolved through Traefik
+  network aliases (no host hairpin), and the Traefik dashboard moved behind
+  basicauth instead of the open `:8080`. New bootstrap guide:
+  [docs/DEPLOY-LOCAL.md](docs/DEPLOY-LOCAL.md).
+
+### Fixed
+- **Deploy files set the removed `N8N_WEBHOOK_URL`** — renamed to `BROKER_URL`
+  across all three deploy artifacts. As written they silently ignored the broker
+  endpoint and ran in demo mode after 0.2.0. Upgraders: rename the var in your
+  deployment env/config.
+- **`.env` could leak into the image** — `.dockerignore` now excludes
+  `.env`/`*.pem`/`*.key`/`certs` (the Dockerfile does `COPY . .`).
+
 ## [0.2.0] — 2026-06-24
 
 **Decoupling from n8n.** Early feedback on the 0.1.0 launch kept landing on one
