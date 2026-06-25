@@ -27,19 +27,17 @@ out of sync — the backend is always right, and OmniProject just renders it.
 **It's not another system to adopt — it's a layer that fits the workflow you
 already have.** Your tools, your n8n, your SSO stay exactly where they are;
 OmniProject plugs into them and surfaces *what you need, when you need it*. Nobody
-has to move into a new app, migrate data, or change how they work — you bolt on
-the views and connections you want and ignore the rest.
+has to move into a new app, migrate data, or change how they work.
 
 **And it speaks the methodology you already run.** The data model is
 methodology-neutral, so the same backend renders as a **Kanban** board, a
 **Scrum** sprint (backlog, burndown, velocity), a **Gantt / Waterfall** timeline,
 **PRINCE2** management stages with a highlight report, a **RAID** log, or a plain
 **list** — switch per team or per project without re-shaping anything underneath.
-No methodology migration: it meets your teams where they already are.
 
 **It's programme management, not just a task board.** Above the issue level it
-gives you a real delivery picture — again, read through from your backends, and
-shown only where a backend actually supplies it:
+gives you a real delivery picture — read through from your backends, and shown
+only where a backend actually supplies it:
 
 - **Programmes** — roll many projects into a programme-wide view with portfolio
   RAG/health, then drill into a single project. Programmes are optional and
@@ -48,7 +46,7 @@ shown only where a backend actually supplies it:
   (each backend reports its own currency; convert to one display currency).
 - **Time & schedule** — time-phased Gantt, milestones, today/overdue markers.
 - **Resources** — capacity and allocation, assigned-vs-available hours, and
-  over/under-allocation alerts across people.
+  over/under-allocation alerts.
 
 It's a brutalist, keyboard-driven shell that slots in *alongside* what an
 organization already runs, instead of asking them to move into it.
@@ -72,10 +70,10 @@ shared admin key). In production the SPA and gateway ship as **one container**
 (`omni-shell`) on port `3000`.
 
 Internally, n8n sits behind a stable **`Broker` interface** in OmniProject's own
-domain vocabulary: it's the default implementation, swappable without touching
-the UI or the data path, and a CI guard keeps all n8n specifics confined to that
-one adapter. (No second broker exists today — this is about keeping the option
-real in code, see [docs/BROKER.md](docs/BROKER.md).)
+domain vocabulary: it's the default (and currently only) implementation,
+swappable without touching the UI or the data path, and a CI architecture-guard
+keeps all n8n specifics confined to that one adapter. (No second broker exists
+today — this keeps the option real in code; see [docs/BROKER.md](docs/BROKER.md).)
 
 ### Connect to (almost) anything
 
@@ -90,9 +88,6 @@ effectively open-ended — there's no fixed connector list to wait on:
 - **Outbound, via webhook** — push OmniProject events to *any* endpoint — a SIEM,
   Slack, a customer system, or back into another n8n flow — HMAC-signed.
 
-In other words: if n8n can reach it, or it can speak a webhook, OmniProject can
-federate it — without a release from us and without a database to hold it.
-
 > **Implementing or integrating OmniProject?** See **[docs/TECHNICAL.md](docs/TECHNICAL.md)**
 > for architecture, the n8n contract, the security model, the API surface, and
 > data schemas.
@@ -106,46 +101,48 @@ federate it — without a release from us and without a database to hold it.
   button, or the `Cmd+K` palette.
 - **Enterprise reporting** (`/reports`) — Portfolio KPI cards (RAG), a Resource
   Heatmap (over-allocation alerts), and a Financial EVM chart (CPI/SPI).
-- **Export & BI** — one-click report export to Excel, CSV, JSON, Markdown and PDF, plus a read-only API token for Power BI.
-- **AI assist** — connect a local model (Ollama) or a public model (OpenRouter).
+- **Export & BI** — one-click report export to Excel, CSV, JSON, Markdown and PDF;
+  a read-only API token plus an OData v4 read service and a Prometheus `/metrics`
+  endpoint for Power BI / SAP / Grafana.
+- **AI assist** — connect a local model (Ollama) or a public model (OpenRouter / OpenAI / Anthropic).
 - **SSO** — env-gated OIDC against any provider; demo mode when unconfigured.
-- **Keyboard-driven** — `Cmd+K` palette and `g d/p/r/s` navigation.
+- **Keyboard-driven** — `Cmd+K` palette and `g d/p/r/s/e` navigation.
 
-### Exploration & history (newer surfaces)
+### Exploration & history *(newer surfaces — not production guarantees)*
 
-These are deliberately separate, modelling-oriented surfaces. They are **not
-presented as production-ready** — see [Maturity & status](#maturity--status):
+These are deliberately separate, modelling-oriented surfaces, tagged by maturity
+(see [Maturity & status](#maturity--status)). They are **client-side and
+session-volatile** — you **download to keep** your work or it is discarded at
+session end; the gateway stays stateless and zero-data-at-rest.
 
-- **Exploration mode** (`/explore`) — **Beta** · a hazard-striped, "NOT LIVE DATA"
+- **Exploration mode** (`/explore`, **Beta**) — a hazard-striped, "NOT LIVE DATA"
   lab for **portfolio snapshots → trends**, an **auto-snapshot schedule**
-  (tab-open only), a coarse **What-If sandbox**, and **cross-system dependency
-  links by hash** (two SHA-256 fingerprints + minimal refs, never content).
-  Everything is **client-side and session-volatile** — you **download to keep** it
-  or it is discarded at session end; the gateway stays stateless and
-  zero-data-at-rest. See [docs/EXPLORATION.md](docs/EXPLORATION.md).
-- **Time-travel** (`/explore` scrubber) — **Experimental / preview** · opt-in,
-  gated historical replay against a **logging server you own**. Contract-complete
-  and tested at the seam, but **unproven end-to-end** (demo mode synthesises sample
-  data; the n8n blueprint is a template); **off by default**, admin-only, and
-  out-of-warranty egress. See [docs/TIME-TRAVEL.md](docs/TIME-TRAVEL.md).
+  (runs only while the tab is open), a coarse **What-If sandbox**, and
+  **cross-system dependency links by hash** (two SHA-256 fingerprints + minimal
+  refs, never content). See [docs/EXPLORATION.md](docs/EXPLORATION.md).
+- **Time-travel** (**Experimental / preview**) — opt-in, gated historical replay
+  against a **logging server you own**. Contract-complete and tested at the seam,
+  but **unproven end-to-end** (demo mode synthesises sample data; the n8n blueprint
+  is a template); **off by default**, admin-only, out-of-warranty egress. See
+  [docs/TIME-TRAVEL.md](docs/TIME-TRAVEL.md).
 
 ---
 
 ## Safe to try with your real data
 
 OmniProject is built so you can point it at production and stay in control the
-whole way. The short version: **it stores nothing, you decide exactly what it can
-do, and every write is guarded, reversible-by-design, and logged.**
+whole way: **it stores nothing, you decide exactly what it can do, and every
+write is guarded, reversible-by-design, and logged.**
 
-**It holds no data.** There is no database, no cache, no copy of your projects.
-Trying it changes nothing at rest — there's no export of your data into our
-system to leak, lose, or get subpoenaed, and nothing to delete when you're done.
+**It holds no data.** No database, no cache, no copy of your projects. Trying it
+changes nothing at rest — there's no export of your data into our system to leak,
+lose, or get subpoenaed, and nothing to delete when you're done.
 
 **You decide what it's allowed to do — because *you* write the n8n workflow.**
 The gateway can only do what your n8n workflow implements. Wire only the read
 actions (`list_projects`, `list_issues`, …) and OmniProject is **physically
-read-only against your backend** — it literally cannot write, because there's no
-write path. Add create/update/delete later, when you trust it.
+read-only against your backend** — there is no write path. Add create/update/delete
+later, when you trust it.
 
 **Evaluate without touching anything:**
 
@@ -154,31 +151,40 @@ write path. Add create/update/delete later, when you trust it.
   the backend**, and write actions are never probed.
 - **Sandbox + instant rollback** — design and test integration config in a named
   **sandbox** environment, **promote** to production when happy, and **roll back**
-  to a pinned known-good config in one click if anything looks off.
+  to a pinned known-good config in one click.
 - **Read-only API tokens** — BI/automation clients get GET-only access; a leaked
   token can never mutate.
 
 **Every real write is guarded:**
 
 - **As the user, not a shared key** — the user's own OIDC token is forwarded, so
-  the backend authorises each write under *their* identity and its own
-  permissions remain the final word. The gateway's RBAC is an extra gate, not the
-  only one.
+  the backend authorises each write under *their* identity. The gateway's RBAC is
+  an extra gate, not the only one.
 - **No silent overwrites** — optimistic concurrency (`expectedVersion`) returns a
   `409` instead of clobbering a change made elsewhere.
 - **No duplicates or loops** — a deterministic idempotency key + an origin
   loop-guard stop double-writes and webhook storms.
 
-**You can see and prove what happened:** a configurable **audit** log records every
-action (who, what, status, latency) and can ship to your SIEM. **Provenance
-badges** mark every figure as sourced / derived / sample, so demo or computed
-numbers are never shown as backend fact.
+**You can see and prove what happened:** a configurable **audit** log records
+every action (who, what, status, latency) and can ship to your SIEM. **Provenance
+badges** mark every figure as `sourced` / `derived` / `sample` (and `captured` /
+`replayed` / `projected` in exploration mode), so computed or demo numbers are
+never shown as backend fact.
 
-**Hardened by default:** OIDC with full ID-token (JWKS) signature verification,
-signed httpOnly cookies, TLS required gateway↔n8n in production, secret redaction
-in logs, rate limiting, and a supply chain with a dependency release-age delay.
-It's covered by 97 unit tests, a live n8n contract verification, and a load test
-of **2,000 users over 200 projects with zero errors**.
+**Hardened by default:** OIDC with full ID-token (JWKS) signature verification;
+signed httpOnly session cookies with a **production fail-fast** if the session
+secret is unset/default; **SSRF-guarded** admin-set outbound URLs; baseline
+security headers; TLS gateway↔n8n in production; secret redaction in logs (and on
+the settings read endpoint); rate limiting; and a supply chain with a dependency
+release-age delay.
+
+It's covered by **~640 automated tests** (240 gateway + 401 SPA) behind
+**enforced CI coverage gates** (~84% gateway / ~88% SPA lines), an **axe-core
+WCAG 2.1 AA accessibility** job, a live **n8n contract verification**, and a
+**load-test harness** that exercises 2,000 concurrent users over 200 projects and
+fails above a 1% error rate. (Honest caveat: SPA *function* coverage is ~64%, and
+some flows are render-tested rather than interaction-tested — see
+[docs/TESTING.md](docs/TESTING.md).)
 
 > Full control inventory and the security review: **[SECURITY.md](SECURITY.md)**.
 > The recommended first run is **demo mode** (below) — zero config, sample data —
@@ -203,7 +209,7 @@ Run the gateway and SPA in two terminals:
 # Terminal 1 — gateway (serves /api/*)
 PORT=8080 pnpm --filter @workspace/api-server run dev
 
-# Terminal 2 — SPA (proxies /api → http://localhost:8080)
+# Terminal 2 — SPA (Vite dev server; proxies /api → http://localhost:8080)
 PORT=5173 BASE_PATH=/ pnpm --filter @workspace/omniproject run dev
 ```
 
@@ -215,19 +221,18 @@ sample data until you wire up n8n and SSO.
 
 ## Using OmniProject
 
-- **Dashboard** (`g d`) — switch the **Agile/Gantt** lens; drag cards between
-  columns to change status; click a card or press *New Issue* to edit. Activity
-  feed on the right.
-- **Projects** (`g p`) — index with per-project summary; open a project for its
-  board.
+- **Dashboard** (`g d`) — switch the methodology lens; drag cards between columns
+  to change status; click a card or press *New Issue* to edit.
+- **Projects** (`g p`) — index with per-project summary; open a project for its board.
 - **Reports** (`g r`) — portfolio RAG rollup, resource allocation heatmap, and
   Earned-Value financials per project.
+- **Explore** (`g e`) — the modelling lab (snapshots, what-if, dependency links).
+  Clearly separated from live data — see [Exploration & history](#exploration--history-newer-surfaces--not-production-guarantees).
 - **Settings** (`g s`) — broker URL (n8n by default), backend routing hint, AI
-  provider + model, OIDC issuer.
+  provider + model, OIDC issuer, and the opt-in logging-sync egress.
 - **Command palette** — `Cmd+K` for navigation and quick actions.
-- **Export** — the *Export* menu (Projects index / project board) downloads a
-  `.xlsx` workbook or per-dataset `.csv`. For Power BI, see *Configuration* →
-  `API_TOKENS` and the [technical doc](docs/TECHNICAL.md#2-identity--access).
+- **Export** — the *Export* menu downloads `.xlsx` / `.csv` etc.; for Power BI see
+  *Configuration* → `API_TOKENS` and the [technical doc](docs/TECHNICAL.md#2-identity--access).
 
 ---
 
@@ -243,7 +248,7 @@ docker build -t omniproject-shell:latest .
 ### Standalone (bundled Authentik IdP — fastest to evaluate)
 
 Includes `omni-shell`, `n8n`, `ollama`, Traefik, and Authentik, routed on
-`*.local`.
+`*.local` over local-CA TLS (mkcert). See [docs/DEPLOY-LOCAL.md](docs/DEPLOY-LOCAL.md).
 
 ```bash
 docker compose -f docker-compose.standalone.yml up -d
@@ -256,7 +261,7 @@ Access the shell at **https://app.local**.
 ### Enterprise (BYO-SSO, lightweight)
 
 No Traefik/Authentik/DB/LLM — just `omni-shell` + a single n8n on an isolated
-bridge (~1.5 GB baseline). Supply your own OIDC provider and backend URLs.
+bridge. Supply your own OIDC provider and backend URLs.
 
 ```bash
 export OIDC_ISSUER_URL=https://your-idp.example.com/...
@@ -268,7 +273,8 @@ docker compose -f docker-compose.enterprise.yml up -d
 ### Kubernetes
 
 ```bash
-# edit the ConfigMap/Secret placeholders first
+# create the real Secret out-of-band first (the manifest ships placeholders empty),
+# then:
 kubectl apply -f k8s-enterprise-manifest.yaml
 ```
 
@@ -281,9 +287,8 @@ kubectl apply -f k8s-enterprise-manifest.yaml
 | Standalone (+ Authentik) | 4 cores | 8–16 GB | 20 GB+ |
 | Standalone + local LLM (Ollama) | 4–8 cores | 16–32 GB | 30 GB+ |
 
-> Your **backends** (Plane, OpenProject, …) are sized separately — budget for
-> them on their own hosts. The k8s `omni-shell` pod requests `256Mi`/`100m`,
-> limits `512Mi`/`500m`.
+> Your **backends** (Plane, OpenProject, …) are sized separately. The k8s
+> `omni-shell` pod requests `256Mi`/`100m`, limits `512Mi`/`500m`.
 
 ---
 
@@ -295,13 +300,14 @@ kubectl apply -f k8s-enterprise-manifest.yaml
 | `BASE_PATH` | SPA build | Base path for the SPA (e.g. `/`) |
 | `PUBLIC_URL` | gateway | Public origin, used to build the OIDC redirect URI |
 | `BROKER_URL` | gateway | Target broker webhook (n8n by default); when set, all data is brokered through it (else demo data) |
-| `SESSION_SECRET` | gateway | Secret used to sign the session cookie (share across replicas) |
+| `SESSION_SECRET` | gateway | Signs the session cookie; **required in production** (the gateway refuses to boot on a default/empty value) and shared across replicas |
 | `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | gateway | Enable real SSO (all three required) |
 | `OIDC_SCOPE` | gateway | Scopes (default `openid profile email`) |
 | `API_TOKENS` | gateway | Comma-separated **read-only** tokens for Power BI / scheduled exports |
 | `AI_PROVIDER` | gateway | `none \| ollama \| openrouter \| openai \| anthropic` |
 | `AI_MODEL` | gateway | Model name (per-provider default otherwise) |
-| `OLLAMA_URL` / `OPENROUTER_API_KEY` | gateway | Provider connection (per `AI_PROVIDER`) |
+| `OLLAMA_URL` / `OPENROUTER_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | gateway | Provider connection (per `AI_PROVIDER`) |
+| `LOGGING_SYNC_URL` / `LOGGING_SYNC_ACK_WARRANTY` | gateway | Opt-in state-history egress for time-travel (off by default; out-of-warranty) |
 | `STATIC_DIR` | gateway | Serve the built SPA from here (single-container mode; set by the image) |
 | `API_PROXY_TARGET` | SPA dev | Where the Vite dev server proxies `/api` (default `http://localhost:8080`) |
 
@@ -314,33 +320,31 @@ full security and integration reference.
 ## Documentation
 
 - **[docs/TECHNICAL.md](docs/TECHNICAL.md)** — architecture, n8n contract,
-  security model, API surface, data schemas, extending the system (for IT &
-  implementers).
+  security model, API surface, data schemas, extending the system.
+- **[docs/BROKER.md](docs/BROKER.md)** — the `Broker` seam and its invariants.
+- **[docs/TESTING.md](docs/TESTING.md)** — the test pillars and the CI coverage gates.
 - **[docs/EXPLORATION.md](docs/EXPLORATION.md)** — *(Beta)* Exploration mode:
   snapshots → trends, What-If sandbox, and cross-system dependency links by hash.
 - **[docs/TIME-TRAVEL.md](docs/TIME-TRAVEL.md)** — *(Experimental)* opt-in,
   out-of-warranty historical replay against a logging server you own.
-- **[artifacts/n8n-blueprints/README.md](artifacts/n8n-blueprints/README.md)** —
-  the importable reference workflow and how to wire it to your backends.
+- **[artifacts/n8n-blueprints/](artifacts/n8n-blueprints/)** — the importable
+  reference workflows (core sync + time-travel template).
 - **[LICENSING.md](LICENSING.md)** — the open-core model (Apache core + premium).
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — dev setup, build/test commands, PR flow.
-- **[CHANGELOG.md](CHANGELOG.md)** · **[SECURITY.md](SECURITY.md)** ·
-  **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** · **[.env.example](.env.example)**.
-- **[AGENTS.md](AGENTS.md)** — contributor/agent notes, build commands, gotchas.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** · **[CHANGELOG.md](CHANGELOG.md)** ·
+  **[SECURITY.md](SECURITY.md)** · **[AGENTS.md](AGENTS.md)** · **[.env.example](.env.example)**.
 
 ---
 
 ## Maturity & status
 
-OmniProject is pre-1.0. Not everything is at the same level of maturity — we tag
-features so a preview is never mistaken for a production guarantee:
+OmniProject is pre-1.0. Not everything is at the same level of maturity — features
+are tagged so a preview is never mistaken for a production guarantee:
 
 - **Stable** (tested, production-intended) — the overlay core (broker seam,
-  OIDC/RBAC, reporting/exports, demo mode); the automated test suites and CI
-  coverage gates (gateway ~84% lines / ~240 tests; SPA ~88% lines / ~400 tests —
-  with the honest caveat that SPA *function* coverage is ~64%, some flows are
-  render-tested not interaction-tested, and the axe-core a11y job covers core
-  routes only); and the recent security fixes. See [docs/TESTING.md](docs/TESTING.md).
+  OIDC/RBAC, methodology views, reporting/exports, demo mode); the automated test
+  suites and CI coverage gates; and the security hardening. *Caveat:* SPA function
+  coverage is ~64% and some flows are render-tested only — see
+  [docs/TESTING.md](docs/TESTING.md).
 - **Beta** (functional and tested, but new and not yet hardened by real use) —
   [Exploration mode](docs/EXPLORATION.md): snapshots → trends, auto-snapshot
   (tab-open only), the coarse What-If sandbox, and dependency-by-hash. All
@@ -351,8 +355,7 @@ features so a preview is never mistaken for a production guarantee:
   integration test against a real logging server yet. Off by default, admin-only,
   out-of-warranty.
 
-See the [CHANGELOG `[Unreleased]`](CHANGELOG.md) for the per-feature detail and the
-maturity legend.
+See the [CHANGELOG `[Unreleased]`](CHANGELOG.md) for per-feature detail.
 
 ---
 
@@ -371,3 +374,4 @@ how purchases auto-mint a key via Stripe/Gumroad.
 > **not** include support or any service-level commitment. **Paid support
 > packages are planned** as a separate offering as the community grows — until
 > then, help is best-effort and community-based.
+</content>
