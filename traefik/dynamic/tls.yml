@@ -1,0 +1,22 @@
+# Traefik dynamic configuration — TLS for the local *.local stack.
+#
+# We do NOT use ACME here: Let's Encrypt cannot issue certificates for `.local`
+# names (no public DNS, the TLS/HTTP challenges can't be validated). Instead,
+# Traefik serves a locally-trusted certificate minted by mkcert. Generate it
+# once (see docs/DEPLOY-LOCAL.md):
+#
+#   mkcert -install
+#   mkcert -cert-file certs/local.pem -key-file certs/local-key.pem \
+#          app.local n8n.local authentik.local ollama.local traefik.local
+#
+# The files are mounted read-only at /certs in the Traefik container.
+
+tls:
+  certificates:
+    - certFile: /certs/local.pem
+      keyFile: /certs/local-key.pem
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/local.pem
+        keyFile: /certs/local-key.pem

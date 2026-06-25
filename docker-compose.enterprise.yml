@@ -1,16 +1,18 @@
 name: omniproject-enterprise
 
 # OmniProject — Enterprise / BYO Mode (lightweight evaluation profile)
-#
+# ─────────────────────────────────────────────────────────────────────────────
 # Bring-Your-Own everything: external OIDC IdP, external project backends
 # (Plane, OpenProject, Jira, Azure DevOps, …), and — if you want one — an
 # external AI provider. This profile ships ONLY the two things OmniProject needs
 # to run: the omni-shell and a single standalone n8n. No Authentik, no Traefik,
-# no local databases, no local LLM — keeping the baseline footprint ~1.5 GB
-# (well under 4 GB) for fast evaluation.
+# no local databases, no local LLM — keeping the baseline footprint small for
+# fast evaluation.
 #
-# Backends are reached by n8n over the network; their URLs are passed through as
-# env (PLANE_INSTANCE_URL / OPENPROJECT_INSTANCE_URL / …) for n8n workflows to use.
+# This profile does NOT terminate TLS itself. Put it behind your own
+# gateway/ingress, or set PUBLIC_URL to an https origin you front it with — the
+# session cookie is marked Secure in production and a browser will NOT store it
+# over plain http, so SSO login silently fails on a bare http origin.
 
 networks:
   omni-enterprise:
@@ -20,12 +22,12 @@ volumes:
   n8n_enterprise_data:
 
 services:
-  # ── OmniProject Shell (SPA + gateway) ───────────────────────────────────────
+  # ── OmniProject shell (SPA + gateway) ───────────────────────────────────────
   omni-shell:
     build:
       context: .
       dockerfile: Dockerfile
-    image: omniproject-shell:latest
+    image: omniproject-shell:0.2.0
     container_name: omni-shell
     ports:
       - "3000:3000"
@@ -33,15 +35,16 @@ services:
       NODE_ENV: production
       PORT: 3000
       BASE_PATH: /
-      # Public origin of the shell — used to build the OIDC redirect URI.
-      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
-      # The single standalone n8n on the bridge network below.
-      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678/webhook/omniproject}
+      # External origin of the shell — used to build the OIDC redirect URI.
+      # MUST be the https origin you serve this behind (see header note).
+      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL to the external https origin}
+      # 0.2.0+: the broker endpoint is BROKER_URL (n8n by default).
+      BROKER_URL: ${BROKER_URL:-http://n8n:5678/webhook/omniproject}
       # ── BYO-SSO (required) ─────────────────────────────────────────────────
-      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL}       # e.g. https://your-idp.example.com/...
-      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
-      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
-      SESSION_SECRET: ${SESSION_SECRET:-change-in-production}
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:?set OIDC_ISSUER_URL (https) to your IdP}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?set OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set OIDC_CLIENT_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET (long random string)}
       # ── Read-only API tokens for Power BI / scheduled exports (optional) ────
       API_TOKENS: ${API_TOKENS:-}
       # ── AI: BYO public provider (optional; no local LLM in this profile) ────
@@ -52,7 +55,14 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OLLAMA_URL: ${OLLAMA_URL:-}                 # set to an external Ollama if used
     depends_on:
-      - n8n
+      n8n:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     networks:
       - omni-enterprise
     mem_limit: 512m
@@ -60,24 +70,29 @@ services:
 
   # ── n8n (single standalone broker) ──────────────────────────────────────────
   n8n:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n:1.123.61   # pinned for reproducibility; 2.x exists but is unverified against the bundled blueprint
     container_name: omni-n8n
     ports:
       - "5678:5678"
     environment:
       N8N_PORT: 5678
       GENERIC_TIMEZONE: UTC
-      N8N_BASIC_AUTH_ACTIVE: "true"
-      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
-      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-changeme}
       DB_TYPE: sqlite
       WEBHOOK_URL: ${N8N_PUBLIC_URL:-http://localhost:5678/}
+      # n8n prompts you to create an owner account on first run (the old
+      # N8N_BASIC_AUTH_* env vars are deprecated/ignored on current n8n).
       # ── BYO backend endpoints (passed through for workflows to consume) ─────
       # Point these at your existing systems; any backend n8n can reach works.
       PLANE_INSTANCE_URL: ${PLANE_INSTANCE_URL:-}
       OPENPROJECT_INSTANCE_URL: ${OPENPROJECT_INSTANCE_URL:-}
     volumes:
       - n8n_enterprise_data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5678/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
     networks:
       - omni-enterprise
     mem_limit: 1g

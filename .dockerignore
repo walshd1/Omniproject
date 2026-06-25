@@ -9,3 +9,18 @@ artifacts/api-server/dist
 *.log
 .DS_Store
 scratchpad
+
+# secrets / local-only — must never land in a build layer (Dockerfile does COPY . .)
+.env
+.env.*
+!.env.example
+certs
+*.pem
+*.key
+
+# not needed to build the image — keep the build context small
+.github
+docs
+traefik
+k8s-enterprise-manifest.yaml
+docker-compose*.yml
