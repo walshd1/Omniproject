@@ -164,9 +164,9 @@ export class DemoBroker implements Broker {
     // Sample membership — a mix of write and read access, so the assignee picker
     // (write-only) visibly differs from the full roster.
     return [
-      { id: "u-ada", name: "Ada Lovelace", email: "ada@demo.local", access: "write" },
-      { id: "u-grace", name: "Grace Hopper", email: "grace@demo.local", access: "write" },
-      { id: "u-alan", name: "Alan Turing", email: "alan@demo.local", access: "read" },
+      { id: "u-ada", name: "Ada Lovelace", email: "ada@demo.local", access: "write", skills: ["backend", "architecture"], availableHours: 40, allocatedHours: 28 },
+      { id: "u-grace", name: "Grace Hopper", email: "grace@demo.local", access: "write", skills: ["compilers", "leadership"], availableHours: 32, allocatedHours: 30 },
+      { id: "u-alan", name: "Alan Turing", email: "alan@demo.local", access: "read", skills: ["research"], availableHours: 20, allocatedHours: 5 },
     ];
   }
 

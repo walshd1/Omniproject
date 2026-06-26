@@ -48,6 +48,7 @@ import type {
   RaidEntryInput,
   ReplayHistoryParams,
   ResourceCapacity,
+  ResourceMember,
   Settings,
   SettingsUpdate,
   TaskItem,
@@ -1051,6 +1052,84 @@ export const useDeleteIssue = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDeleteIssueMutationOptions(options));
     }
+
+export const getListResourcePoolUrl = () => {
+
+
+
+
+  return `/api/resources`
+}
+
+/**
+ * Aggregates project members across the portfolio into one resource pool — skills (union) and capacity (summed) per person — for live and what-if resource planning. Available when the backend surfaces members and resource data (capabilities.entities.member + resources).
+ * @summary Portfolio-wide people with skills & capacity (resource planning)
+ */
+export const listResourcePool = async ( options?: RequestInit): Promise<ResourceMember[]> => {
+
+  return customFetch<ResourceMember[]>(getListResourcePoolUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListResourcePoolQueryKey = () => {
+    return [
+    `/api/resources`
+    ] as const;
+    }
+
+
+export const getListResourcePoolQueryOptions = <TData = Awaited<ReturnType<typeof listResourcePool>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listResourcePool>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListResourcePoolQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listResourcePool>>> = ({ signal }) => listResourcePool({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listResourcePool>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListResourcePoolQueryResult = NonNullable<Awaited<ReturnType<typeof listResourcePool>>>
+export type ListResourcePoolQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Portfolio-wide people with skills & capacity (resource planning)
+ */
+
+export function useListResourcePool<TData = Awaited<ReturnType<typeof listResourcePool>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listResourcePool>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListResourcePoolQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getListProjectMembersUrl = (projectId: string,) => {
 

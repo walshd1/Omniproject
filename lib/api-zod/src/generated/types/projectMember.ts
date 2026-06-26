@@ -17,4 +17,10 @@ export interface ProjectMember {
   /** @nullable */
   email?: string | null;
   access: ProjectMemberAccess;
+  /** Competencies, when the backend tracks them. */
+  skills?: string[];
+  /** @nullable */
+  availableHours?: number | null;
+  /** @nullable */
+  allocatedHours?: number | null;
 }

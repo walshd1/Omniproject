@@ -66,6 +66,7 @@ export * from './raidEntryType';
 export * from './replayHistoryParams';
 export * from './resourceCapacity';
 export * from './resourceCapacityUtilizationState';
+export * from './resourceMember';
 export * from './settings';
 export * from './settingsAiProvider';
 export * from './settingsUpdate';

@@ -82,6 +82,26 @@ export interface ProjectMember extends Row {
   email?: string | null;
   /** "write" = can be assigned/act on work; "read" = view-only. */
   access: "read" | "write";
+  /** Skills/competencies, when the backend tracks them (resource planning). */
+  skills?: string[];
+  /** Available capacity in hours for the planning window, when tracked. */
+  availableHours?: number | null;
+  /** Already-allocated hours in the planning window, when tracked. */
+  allocatedHours?: number | null;
+}
+
+/** A person aggregated across the portfolio, for resource planning. */
+export interface ResourceMember {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  /** Union of skills seen across the member's projects. */
+  skills: string[];
+  /** Summed capacity across projects (null when no backend supplies it). */
+  availableHours: number | null;
+  allocatedHours: number | null;
+  /** Projects this person is a member of. */
+  projectIds: string[];
 }
 
 /** A normalised project create/update. `name` is required on create. */
