@@ -25,6 +25,7 @@ import {
   type Row,
 } from "./types";
 import { GATEWAY_ORIGIN, REQUEST_HEADERS, type BrokerEnvelope } from "./contract";
+import { addUpstreamMs } from "../lib/request-timing";
 
 /**
  * n8n broker — THE one place that knows the broker is n8n.
@@ -131,7 +132,10 @@ async function callN8n<T = unknown>(
   };
 
   const startedAt = Date.now();
-  const audit = (result: "success" | "error", status: number, extra?: Record<string, unknown>) =>
+  const audit = (result: "success" | "error", status: number, extra?: Record<string, unknown>) => {
+    // Attribute this call's wait to the request's upstream-timing total (no-op
+    // outside a request context, e.g. the conformance harness).
+    addUpstreamMs(Date.now() - startedAt);
     recordAudit({
       ts: new Date().toISOString(),
       category: "broker",
@@ -145,6 +149,7 @@ async function callN8n<T = unknown>(
       ms: Date.now() - startedAt,
       meta: { idempotencyKey: key, source: opts.source, ...extra },
     });
+  };
 
   const init: RequestInit = {
     method: "POST",

@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { runWithTiming, getUpstreamMs } from "./lib/request-timing";
 
 const app: Express = express();
 
@@ -77,6 +78,24 @@ app.use((req, res, next) => {
 app.use(cookieParser(SESSION_SECRET));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Per-request timing: run the request inside a timing context the broker adds
+// upstream wait to, and emit X-Omni-Upstream-Ms / X-Omni-Total-Ms so the gateway
+// overhead can be separated from the broker → backend round-trip (load harness).
+app.use((req, res, next) => {
+  runWithTiming(() => {
+    const start = Date.now();
+    const origEnd = res.end.bind(res);
+    res.end = ((...args: Parameters<typeof origEnd>) => {
+      if (!res.headersSent) {
+        res.setHeader("X-Omni-Upstream-Ms", String(Math.round(getUpstreamMs())));
+        res.setHeader("X-Omni-Total-Ms", String(Date.now() - start));
+      }
+      return origEnd(...args);
+    }) as typeof res.end;
+    next();
+  });
+});
 
 app.use("/api", router);
 
