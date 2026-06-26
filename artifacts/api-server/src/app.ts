@@ -82,8 +82,12 @@ app.use((req, res, next) => {
 });
 
 app.use(cookieParser(SESSION_SECRET));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Hard-enforce request body size (defence against memory-exhaustion / oversized
+// payloads). Explicit + configurable rather than relying on Express's implicit
+// 100kb default. Project payloads are small; 256kb is generous headroom.
+const BODY_LIMIT = process.env["BODY_LIMIT"]?.trim() || "256kb";
+app.use(express.json({ limit: BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 
 // Per-request timing: run the request inside a timing context the broker adds
 // upstream wait to, and emit X-Omni-Upstream-Ms / X-Omni-Total-Ms so the gateway

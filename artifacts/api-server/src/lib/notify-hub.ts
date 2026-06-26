@@ -22,6 +22,8 @@ export interface NotifyClient {
   email?: string;
   roles: string[];
   send: (event: string, data: unknown) => void;
+  /** End the underlying SSE response — called on graceful shutdown. */
+  close?: () => void;
 }
 
 const clients = new Set<NotifyClient>();
@@ -42,6 +44,21 @@ export function addClient(client: NotifyClient): () => void {
 
 export function clientCount(): number {
   return clients.size;
+}
+
+/** Close every live SSE connection and forget them — used on graceful shutdown
+ *  so the HTTP server can finish closing instead of being held open by streams. */
+export function closeAllClients(): number {
+  const n = clients.size;
+  for (const c of clients) {
+    try {
+      c.close?.();
+    } catch {
+      /* the connection is already gone */
+    }
+  }
+  clients.clear();
+  return n;
 }
 
 /**
