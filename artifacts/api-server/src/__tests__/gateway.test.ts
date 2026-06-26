@@ -18,7 +18,7 @@ import { toMarkdown } from "../lib/md";
 import { buildPdf } from "../lib/pdf";
 import { buildZip } from "../lib/zip";
 import { formatPrometheus } from "../lib/metrics";
-import { groupProgrammes, programmeDetail, standaloneCount } from "../lib/programmes";
+import { groupProgrammes, programmeDetail, standaloneCount, aggregateFinancials } from "../lib/programmes";
 import { applyODataQuery, buildEdmx, type EntityModel } from "../lib/odata";
 import os from "node:os";
 import path from "node:path";
@@ -311,6 +311,51 @@ test("programmeDetail: returns the member projects, or null for an unknown id", 
   assert.ok(d);
   assert.equal(d!.projects.length, 2);
   assert.equal(programmeDetail(PROG_PROJECTS, "nope"), null);
+});
+
+test("programme rollup: financials are null when no member carries them", () => {
+  // PROG_PROJECTS has no budget/actualCost → financials stays hidden.
+  for (const p of groupProgrammes(PROG_PROJECTS)) assert.equal(p.financials, null);
+});
+
+test("aggregateFinancials: sums budgets/actuals, derives CPI, variance and health", () => {
+  const fin = aggregateFinancials([
+    { id: "a", currency: "GBP", budget: 100000, actualCost: 80000, earnedValue: 90000, committed: 5000 },
+    { id: "b", currency: "GBP", budget: 60000, actualCost: 50000, earnedValue: 48000, committed: 3000 },
+    { id: "c", title: "no financials here" }, // contributes nothing
+  ])!;
+  assert.ok(fin);
+  assert.equal(fin.currency, "GBP");
+  assert.equal(fin.budget, 160000);
+  assert.equal(fin.actualCost, 130000);
+  assert.equal(fin.earnedValue, 138000);
+  assert.equal(fin.committed, 8000);
+  assert.equal(fin.cpi, Math.round((138000 / 130000) * 100) / 100); // 1.06
+  assert.equal(fin.variance, 30000);
+  assert.equal(fin.variancePct, 19);
+  assert.equal(fin.projectsCounted, 2);
+  assert.equal(fin.health, "GREEN"); // CPI ≥ 1
+});
+
+test("aggregateFinancials: earnedValue/committed roll up only when EVERY project reports them", () => {
+  const fin = aggregateFinancials([
+    { id: "a", currency: "GBP", budget: 100000, actualCost: 95000, earnedValue: 80000 },
+    { id: "b", currency: "GBP", budget: 50000, actualCost: 40000 }, // no earnedValue/committed
+  ])!;
+  assert.equal(fin.earnedValue, null, "partial EV is not presented as complete");
+  assert.equal(fin.committed, null);
+  assert.equal(fin.cpi, null); // can't compute CPI without complete EV
+  assert.equal(fin.health, "AMBER"); // spend ratio 135k/150k = 0.9 → AMBER
+});
+
+test("aggregateFinancials: null when no project carries any financial figure", () => {
+  assert.equal(aggregateFinancials([{ id: "a" }, { id: "b", title: "x" }]), null);
+});
+
+test("aggregateFinancials: over-budget burn is RED", () => {
+  const fin = aggregateFinancials([{ id: "a", budget: 100000, actualCost: 130000 }])!;
+  assert.equal(fin.health, "RED");
+  assert.equal(fin.variance, -30000);
 });
 
 // ── OData service (SAP / Dynamics / Power BI feed) ─────────────────────────────

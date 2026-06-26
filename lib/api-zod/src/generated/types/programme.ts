@@ -5,6 +5,7 @@
  * OmniProject API — thin proxy gateway to n8n webhooks
  * OpenAPI spec version: 0.1.0
  */
+import type { ProgrammeFinancials } from './programmeFinancials';
 import type { ProgrammeRagStatus } from './programmeRagStatus';
 
 /**
@@ -20,4 +21,5 @@ export interface Programme {
   ragStatus: ProgrammeRagStatus;
   /** @nullable */
   updatedAt?: Date | null;
+  financials?: ProgrammeFinancials | null;
 }

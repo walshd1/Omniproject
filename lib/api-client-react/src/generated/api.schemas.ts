@@ -137,6 +137,36 @@ export interface ProjectUpdate {
   programmeId?: string | null;
 }
 
+export type ProgrammeFinancialsHealth = typeof ProgrammeFinancialsHealth[keyof typeof ProgrammeFinancialsHealth];
+
+
+export const ProgrammeFinancialsHealth = {
+  GREEN: 'GREEN',
+  AMBER: 'AMBER',
+  RED: 'RED',
+} as const;
+
+/**
+ * Programme-wide financial roll-up, summed from member projects' financial fields (native currency; the client converts for display). Present only when the backend supplies financial data.
+
+ */
+export interface ProgrammeFinancials {
+  currency: string;
+  budget: number;
+  actualCost: number;
+  /** @nullable */
+  earnedValue: number | null;
+  /** @nullable */
+  committed: number | null;
+  /** @nullable */
+  cpi: number | null;
+  variance: number;
+  /** @nullable */
+  variancePct: number | null;
+  health: ProgrammeFinancialsHealth;
+  projectsCounted: number;
+}
+
 export type ProgrammeRagStatus = typeof ProgrammeRagStatus[keyof typeof ProgrammeRagStatus];
 
 
@@ -159,6 +189,7 @@ export interface Programme {
   ragStatus: ProgrammeRagStatus;
   /** @nullable */
   updatedAt?: string | null;
+  financials?: ProgrammeFinancials | null;
 }
 
 export type ProgrammeDetailRagStatus = typeof ProgrammeDetailRagStatus[keyof typeof ProgrammeDetailRagStatus];
@@ -183,6 +214,7 @@ export interface ProgrammeDetail {
   ragStatus: ProgrammeDetailRagStatus;
   /** @nullable */
   updatedAt?: string | null;
+  financials?: ProgrammeFinancials | null;
   projects: Project[];
 }
 
