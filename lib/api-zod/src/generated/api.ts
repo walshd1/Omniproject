@@ -223,6 +223,11 @@ export const GetProjectIssuesResponseItem = zod.object({
   "lastUpdatedBy": zod.string().nullish().describe('Origin system\/principal that last mutated this issue (e.g. \"omniproject\", \"plane\", \"openproject\"). n8n compares this against the change origin to drop circular sync loops (webhook storms).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
+  "budget": zod.number().nullish().describe('Per-task budget (financial field group; surfaced only when the backend supports financials).'),
+  "actualCost": zod.number().nullish(),
+  "billable": zod.boolean().nullish(),
+  "costCenter": zod.string().nullish(),
+  "currency": zod.string().nullish(),
   "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('Backend-specific fields that aren\'t (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it.')
 })
 export const GetProjectIssuesResponse = zod.array(GetProjectIssuesResponseItem)
@@ -246,7 +251,12 @@ export const CreateIssueBody = zod.object({
   "assignee": zod.string().nullish(),
   "labels": zod.array(zod.string()).optional(),
   "startDate": zod.coerce.date().nullish(),
-  "dueDate": zod.coerce.date().nullish()
+  "dueDate": zod.coerce.date().nullish(),
+  "budget": zod.number().nullish(),
+  "actualCost": zod.number().nullish(),
+  "billable": zod.boolean().nullish(),
+  "costCenter": zod.string().nullish(),
+  "currency": zod.string().nullish()
 })
 
 
@@ -270,6 +280,11 @@ export const UpdateIssueBody = zod.object({
   "labels": zod.array(zod.string()).optional(),
   "startDate": zod.coerce.date().nullish(),
   "dueDate": zod.coerce.date().nullish(),
+  "budget": zod.number().nullish(),
+  "actualCost": zod.number().nullish(),
+  "billable": zod.boolean().nullish(),
+  "costCenter": zod.string().nullish(),
+  "currency": zod.string().nullish(),
   "origin": zod.string().optional().describe('System initiating this update (defaults to \"omniproject\" at the gateway). Carried downstream so n8n can drop overlapping loop mutations where origin === the target\'s lastUpdatedBy.'),
   "expectedVersion": zod.number().optional().describe('The version the client last saw. When present the gateway\/backend performs an optimistic-concurrency check and rejects the write with 409 if the issue has moved on, instead of clobbering it.')
 })
@@ -290,6 +305,11 @@ export const UpdateIssueResponse = zod.object({
   "lastUpdatedBy": zod.string().nullish().describe('Origin system\/principal that last mutated this issue (e.g. \"omniproject\", \"plane\", \"openproject\"). n8n compares this against the change origin to drop circular sync loops (webhook storms).'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
+  "budget": zod.number().nullish().describe('Per-task budget (financial field group; surfaced only when the backend supports financials).'),
+  "actualCost": zod.number().nullish(),
+  "billable": zod.boolean().nullish(),
+  "costCenter": zod.string().nullish(),
+  "currency": zod.string().nullish(),
   "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('Backend-specific fields that aren\'t (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it.')
 })
 

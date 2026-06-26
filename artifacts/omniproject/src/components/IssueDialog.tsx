@@ -66,6 +66,11 @@ const EMPTY_FORM = {
   labels: "",
   startDate: "",
   dueDate: "",
+  budget: "",
+  actualCost: "",
+  costCenter: "",
+  currency: "",
+  billable: false,
 };
 
 export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatus }: IssueDialogProps) {
@@ -97,6 +102,11 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
         labels: issue.labels.join(", "),
         startDate: issue.startDate ?? "",
         dueDate: issue.dueDate ?? "",
+        budget: issue.budget != null ? String(issue.budget) : "",
+        actualCost: issue.actualCost != null ? String(issue.actualCost) : "",
+        costCenter: issue.costCenter ?? "",
+        currency: issue.currency ?? "",
+        billable: !!issue.billable,
       });
     } else {
       setForm({ ...EMPTY_FORM, status: defaultStatus ?? "backlog" });
@@ -108,6 +118,11 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
     queryClient.invalidateQueries({ queryKey: getGetProjectSummaryQueryKey(projectId) });
     queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
     queryClient.invalidateQueries({ queryKey: getListActivityQueryKey() });
+  };
+
+  const numOrNull = (v: string): number | null => {
+    const n = Number(v);
+    return v.trim() !== "" && Number.isFinite(n) ? n : null;
   };
 
   const buildPayload = (): IssueInput => ({
@@ -122,6 +137,12 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
       .filter(Boolean),
     startDate: form.startDate || null,
     dueDate: form.dueDate || null,
+    // Per-task financials — only sent for fields the backend can store.
+    ...(editF("budget") ? { budget: numOrNull(form.budget) } : {}),
+    ...(editF("actualCost") ? { actualCost: numOrNull(form.actualCost) } : {}),
+    ...(editF("billable") ? { billable: form.billable } : {}),
+    ...(editF("costCenter") ? { costCenter: form.costCenter.trim() || null } : {}),
+    ...(editF("currency") ? { currency: form.currency.trim() || null } : {}),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -395,6 +416,54 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
             </div>
             )}
           </div>
+
+          {(showF("budget") || showF("actualCost") || showF("billable") || showF("costCenter") || showF("currency")) && (
+            <div className="border-t border-border pt-4 space-y-3">
+              <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Financials</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {showF("budget") && (
+                  <div className="space-y-1">
+                    <label htmlFor="issue-budget" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Budget</label>
+                    <Input id="issue-budget" type="number" inputMode="decimal" value={form.budget} disabled={!editF("budget")}
+                      onChange={(e) => setForm((p) => ({ ...p, budget: e.target.value }))}
+                      placeholder="0" className="rounded-none border-border font-mono disabled:opacity-60" />
+                  </div>
+                )}
+                {showF("actualCost") && (
+                  <div className="space-y-1">
+                    <label htmlFor="issue-actual-cost" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Actual cost</label>
+                    <Input id="issue-actual-cost" type="number" inputMode="decimal" value={form.actualCost} disabled={!editF("actualCost")}
+                      onChange={(e) => setForm((p) => ({ ...p, actualCost: e.target.value }))}
+                      placeholder="0" className="rounded-none border-border font-mono disabled:opacity-60" />
+                  </div>
+                )}
+                {showF("currency") && (
+                  <div className="space-y-1">
+                    <label htmlFor="issue-currency" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Currency</label>
+                    <Input id="issue-currency" value={form.currency} disabled={!editF("currency")}
+                      onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value.toUpperCase() }))}
+                      placeholder="GBP" maxLength={3} className="rounded-none border-border font-mono uppercase disabled:opacity-60" />
+                  </div>
+                )}
+                {showF("costCenter") && (
+                  <div className="space-y-1">
+                    <label htmlFor="issue-cost-center" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cost centre</label>
+                    <Input id="issue-cost-center" value={form.costCenter} disabled={!editF("costCenter")}
+                      onChange={(e) => setForm((p) => ({ ...p, costCenter: e.target.value }))}
+                      placeholder="ENG-PLAT" className="rounded-none border-border font-mono disabled:opacity-60" />
+                  </div>
+                )}
+              </div>
+              {showF("billable") && (
+                <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  <input type="checkbox" aria-label="Billable" checked={form.billable} disabled={!editF("billable")}
+                    onChange={(e) => setForm((p) => ({ ...p, billable: e.target.checked }))}
+                    className="h-4 w-4 accent-primary disabled:opacity-60" />
+                  Billable
+                </label>
+              )}
+            </div>
+          )}
 
           {isEdit && issue && <TaskItemsPanel projectId={projectId} taskId={issue.id} />}
 

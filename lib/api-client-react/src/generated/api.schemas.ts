@@ -263,6 +263,19 @@ export interface Issue {
   lastUpdatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+     * Per-task budget (financial field group; surfaced only when the backend supports financials).
+     * @nullable
+     */
+  budget?: number | null;
+  /** @nullable */
+  actualCost?: number | null;
+  /** @nullable */
+  billable?: boolean | null;
+  /** @nullable */
+  costCenter?: string | null;
+  /** @nullable */
+  currency?: string | null;
   /** Backend-specific fields that aren't (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it. */
   customFields?: IssueCustomFields;
 }
@@ -292,6 +305,16 @@ export interface IssueInput {
   startDate?: string | null;
   /** @nullable */
   dueDate?: string | null;
+  /** @nullable */
+  budget?: number | null;
+  /** @nullable */
+  actualCost?: number | null;
+  /** @nullable */
+  billable?: boolean | null;
+  /** @nullable */
+  costCenter?: string | null;
+  /** @nullable */
+  currency?: string | null;
 }
 
 export type ProjectMemberAccess = typeof ProjectMemberAccess[keyof typeof ProjectMemberAccess];
@@ -401,6 +424,16 @@ export interface IssueUpdate {
   startDate?: string | null;
   /** @nullable */
   dueDate?: string | null;
+  /** @nullable */
+  budget?: number | null;
+  /** @nullable */
+  actualCost?: number | null;
+  /** @nullable */
+  billable?: boolean | null;
+  /** @nullable */
+  costCenter?: string | null;
+  /** @nullable */
+  currency?: string | null;
   /** System initiating this update (defaults to "omniproject" at the gateway). Carried downstream so n8n can drop overlapping loop mutations where origin === the target's lastUpdatedBy. */
   origin?: string;
   /** The version the client last saw. When present the gateway/backend performs an optimistic-concurrency check and rejects the write with 409 if the issue has moved on, instead of clobbering it. */

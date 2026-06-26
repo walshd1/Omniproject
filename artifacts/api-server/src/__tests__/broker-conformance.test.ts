@@ -35,6 +35,28 @@ test("both brokers structurally implement the full contract surface", () => {
   }
 });
 
+test("DemoBroker carries per-task financials through create and update", async () => {
+  const b: Broker = new DemoBroker();
+  const pid = (await b.listProjects(ctx))[0]!.id;
+  const created = await b.writeIssue(ctx, "create", {
+    projectId: pid, title: "costed task", budget: 12000, actualCost: 3000, billable: true, costCenter: "FIN-1", currency: "GBP",
+  });
+  assert.ok(created);
+  const read = await b.getIssue(ctx, pid, created!.id);
+  assert.equal(read!.budget, 12000);
+  assert.equal(read!.actualCost, 3000);
+  assert.equal(read!.billable, true);
+  assert.equal(read!.costCenter, "FIN-1");
+  assert.equal(read!.currency, "GBP");
+
+  // An update patches the financials through.
+  const updated = await b.writeIssue(ctx, "update", { projectId: pid, issueId: created!.id, actualCost: 9000 });
+  assert.equal((updated as { actualCost?: number }).actualCost, 9000);
+  assert.equal((updated as { budget?: number }).budget, 12000, "untouched financials are preserved");
+
+  await b.writeIssue(ctx, "delete", { projectId: pid, issueId: created!.id });
+});
+
 test("DemoBroker satisfies the write contract (create → update → delete)", async () => {
   const b: Broker = new DemoBroker();
   const pid = (await b.listProjects(ctx))[0]!.id;

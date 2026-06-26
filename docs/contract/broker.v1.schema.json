@@ -370,6 +370,36 @@
         },
         "version": {
           "type": "number"
+        },
+        "budget": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "actualCost": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "billable": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "costCenter": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -424,6 +454,36 @@
           ]
         },
         "dueDate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "budget": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "actualCost": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "billable": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "costCenter": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currency": {
           "type": [
             "string",
             "null"

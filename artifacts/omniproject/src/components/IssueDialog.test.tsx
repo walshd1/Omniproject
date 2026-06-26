@@ -49,6 +49,47 @@ describe("IssueDialog accessible names", () => {
     expect(screen.getByLabelText("Title", { exact: false })).toBeEnabled(); // core stays editable
   });
 
+  it("shows per-task financial fields only when the backend surfaces them", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: {
+        budget: { surface: true, store: true },
+        actualCost: { surface: true, store: false }, // read-only
+        billable: { surface: true, store: true },
+        costCenter: { surface: false, store: false }, // hidden
+        currency: { surface: true, store: true },
+      },
+    } as unknown as Capabilities);
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={null} defaultStatus="backlog" />,
+      { client: qc },
+    );
+    expect(screen.getByLabelText("Budget")).toBeEnabled();
+    expect(screen.getByLabelText("Actual cost")).toBeDisabled(); // surfaced, read-only
+    expect(screen.getByLabelText("Billable")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Cost centre")).toBeNull(); // not surfaced
+  });
+
+  it("hides the financials section entirely when no financial field is surfaced", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: {
+        budget: { surface: false, store: false },
+        actualCost: { surface: false, store: false },
+        billable: { surface: false, store: false },
+        costCenter: { surface: false, store: false },
+        currency: { surface: false, store: false },
+      },
+    } as unknown as Capabilities);
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={null} defaultStatus="backlog" />,
+      { client: qc },
+    );
+    expect(screen.queryByText("Financials")).toBeNull();
+  });
+
   it("offers Duplicate only when editing an existing task", () => {
     const issue = { id: "i1", projectId: "proj-1", title: "Original", status: "todo", priority: "none", labels: [], version: 1 } as never;
     const { rerender } = renderWithProviders(

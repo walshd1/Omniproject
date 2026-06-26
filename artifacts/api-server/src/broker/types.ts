@@ -44,6 +44,13 @@ export interface Issue extends Row {
   title: string;
   status: string;
   version?: number;
+  // Optional per-task financials — surfaced only when the backend carries them
+  // (capability-gated, "financial" field group). Costs roll up into the project.
+  budget?: number | null;
+  actualCost?: number | null;
+  billable?: boolean | null;
+  costCenter?: string | null;
+  currency?: string | null;
 }
 
 /** A child issue/note raised against a task (the work-item). */
@@ -74,6 +81,12 @@ export interface IssueWrite {
   labels?: string[];
   startDate?: string | Date | null;
   dueDate?: string | Date | null;
+  // Optional per-task financials (capability-gated, "financial" field group).
+  budget?: number | null;
+  actualCost?: number | null;
+  billable?: boolean | null;
+  costCenter?: string | null;
+  currency?: string | null;
   expectedVersion?: number;
 }
 

@@ -373,6 +373,36 @@ export const BROKER_CONTRACT_SCHEMA = {
         },
         "version": {
           "type": "number"
+        },
+        "budget": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "actualCost": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "billable": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "costCenter": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -427,6 +457,36 @@ export const BROKER_CONTRACT_SCHEMA = {
           ]
         },
         "dueDate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "budget": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "actualCost": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "billable": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "costCenter": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currency": {
           "type": [
             "string",
             "null"
