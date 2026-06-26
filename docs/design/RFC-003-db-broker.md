@@ -1,6 +1,8 @@
 # RFC-003 — Optional database broker (SQLite · Postgres · MongoDB)
 
-**Status:** Design — not started. No commitment to dates.
+**Status:** Design. **Decided:** ship as a **separate, complementary repo** — an
+HTTP **sidecar broker** (Option A, §12). The core needs no changes. Build of the
+sidecar itself not started; no commitment to dates.
 **Author:** build session.
 **Supersedes/Depends:** builds on the broker seam ([BROKER.md](../BROKER.md), [adr/0001](../adr/0001-broker-boundary.md)), the published contract ([CONTRACT.md](../CONTRACT.md)), the conformance suite, and the field registry / capability model.
 
@@ -258,3 +260,44 @@ CI green with no DB.
 
 No code until these are settled. The seam means the eventual build is a contained
 adapter, not a rewrite — and the rule in §0 stays unbreakable by construction.
+
+---
+
+## 12. Decision: separate repo, HTTP sidecar (Option A)
+
+**The database broker ships as its own repository, as an HTTP sidecar that speaks
+the published broker contract** — not as code inside this repo. This is the
+strongest possible form of §0: the boundary is *physical*, so the core
+**literally cannot** depend on a database (there is nothing to depend on). It also
+dogfoods the contract — an external repo consuming it is the proof that the seam
+is a real public interface and that "broker-agnostic, n8n is the reference" holds.
+
+**Shape (Option A, chosen over the in-process plugin):** the sidecar is a small
+standalone service — exactly what n8n is today. The core integrates with **zero
+changes**: set `BROKER_URL` to the sidecar instead of n8n. DB drivers, connection
+secrets, native modules, migrations and data-at-rest all live in the *other*
+repo. "Blank canvas with Postgres" becomes "run the `omni-postgres-broker`
+container instead of wiring n8n".
+
+> Option B (an in-process npm plugin loaded by the core via a guarded dynamic
+> import) was considered and **deferred** — it keeps a single process but
+> requires a generic plugin-loader seam in the core and runs third-party code in
+> the gateway's runtime. Revisit only if single-process ergonomics for the
+> blank-canvas user prove necessary.
+
+**What this repo provides as the boundary** (so the sidecar can be built in any
+language, today): the published [contract schema](../contract/broker.v1.schema.json),
+[CONTRACT.md](../CONTRACT.md), the runnable conformance suite, and the precise
+**[HTTP binding spec](../BROKER-HTTP-BINDING.md)** — the action catalogue, request
+envelope, control headers, response/error mapping and optimistic-concurrency
+rule. A sidecar that passes the conformance suite and answers those actions is a
+first-class broker.
+
+**Phase order under this decision:** the sidecar repo starts with **Postgres**
+(per §10 of the risk discussion — one engine, multi-replica, JSONB covers the
+schemaless case); SQLite/Mongo adapters are added in that repo only if a real
+customer needs them. The core's job is done once the binding + conformance are
+published here.
+
+**Conformance matrix (unchanged):** DemoBroker = reference, n8n = real-world,
+sidecar = owned store — all three pass the same suite over the same contract.
