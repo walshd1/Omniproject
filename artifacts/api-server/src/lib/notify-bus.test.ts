@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 // in-process fan-out — the default-but-graceful behaviour.
 process.env["REDIS_URL"] = "redis://127.0.0.1:6379";
 
-const { getNotifyBus, busMode, clientCount } = await import("./notify-bus.ts");
+const { getNotifyBus, busMode, clientCount } = await import("./notify-bus");
 
 test("notify bus falls back to in-process when ioredis isn't installed", async () => {
   const bus = getNotifyBus();

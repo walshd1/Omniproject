@@ -87,4 +87,18 @@ describe("toCsv", () => {
     expect(header).toBe("Name,Note,Tags");
     expect(row).toBe('"A, Inc","say ""hi""",x; y');
   });
+
+  it("neutralises CSV-injection formula triggers (= + - @)", () => {
+    const csv = toCsv(
+      [{ a: "=cmd|'/c calc'!A1", b: "+1+1", c: "-2", d: "@SUM(A1)", e: "safe" }],
+      ["a", "b", "c", "d", "e"].map((k) => ({ key: k, label: k })),
+    );
+    const row = csv.split("\n")[1]!;
+    // formula-leading cells gain a guarding apostrophe; a plain value is untouched.
+    expect(row).toContain("'=cmd"); // (then quoted because it contains a comma)
+    expect(row).toContain("'+1+1");
+    expect(row).toContain("'-2");
+    expect(row).toContain("'@SUM(A1)");
+    expect(row.endsWith("safe")).toBe(true);
+  });
 });

@@ -1,0 +1,100 @@
+/**
+ * Startup security self-check — surface dangerous *production* configurations
+ * loudly at boot so a customer can't silently deploy the headline. Pure + tested
+ * (`securityFindings`), with a boot hook (`runSecuritySelfCheck`) that logs the
+ * findings and, in strict mode (`SECURITY_STRICT=on`), refuses to boot on a
+ * CRITICAL finding.
+ *
+ * It complements the hard fail-fast already in app.ts (default SESSION_SECRET in
+ * prod) — this catches the *combinations* that are insecure but not individually
+ * fatal.
+ */
+
+export type Severity = "critical" | "warn" | "info";
+
+export interface SecurityFinding {
+  id: string;
+  severity: Severity;
+  message: string;
+}
+
+type Env = Record<string, string | undefined>;
+const on = (v: string | undefined) => v?.trim().toLowerCase() === "true" || v?.trim().toLowerCase() === "on";
+const set = (v: string | undefined) => !!v?.trim();
+
+/** Evaluate the deployment config and return any security findings (pure). */
+export function securityFindings(env: Env): SecurityFinding[] {
+  const out: SecurityFinding[] = [];
+  const prod = env["NODE_ENV"] === "production";
+  if (!prod) return out; // dev/test deployments are expected to be relaxed
+
+  // The big one: production with no OIDC means demo auth — every session is admin.
+  if (!set(env["OIDC_ISSUER_URL"])) {
+    out.push({
+      id: "demo-auth-in-prod",
+      severity: "critical",
+      message:
+        "OIDC_ISSUER_URL is not set in production: authentication is in DEMO mode, where every " +
+        "session is treated as admin. Configure OIDC (or accept this is a public demo).",
+    });
+  }
+  // Abuse protection disabled.
+  if (on(env["RATE_LIMIT_DISABLED"])) {
+    out.push({
+      id: "rate-limit-off",
+      severity: "warn",
+      message: "RATE_LIMIT_DISABLED is on in production — abuse/DoS protection is removed.",
+    });
+  }
+  // Premium/labels free-to-run is a business choice, not security — skip.
+  // Egress not pinned (link-local/metadata are still blocked regardless).
+  if (!set(env["EGRESS_ALLOWLIST"])) {
+    out.push({
+      id: "egress-not-pinned",
+      severity: "info",
+      message: "EGRESS_ALLOWLIST is not set: outbound egress is open (metadata/link-local still blocked). " +
+        "Set it to pin egress to your broker/IdP hosts for defence in depth.",
+    });
+  }
+  // Time-travel egress without an obvious owner of the store — informational.
+  if (set(env["LOGGING_SYNC_URL"]) && !set(env["EGRESS_ALLOWLIST"])) {
+    out.push({
+      id: "logging-egress",
+      severity: "info",
+      message: "Logging-server egress (LOGGING_SYNC_URL) is enabled — project state leaves the stateless core. " +
+        "Ensure the destination store is one you own and govern.",
+    });
+  }
+  return out;
+}
+
+export interface Logger {
+  error: (obj: unknown, msg?: string) => void;
+  warn: (obj: unknown, msg?: string) => void;
+  info: (obj: unknown, msg?: string) => void;
+}
+
+/**
+ * Boot hook: log findings at their severity. In strict mode, a CRITICAL finding
+ * throws (fail-closed) so the gateway refuses to boot insecurely. Returns the
+ * findings (for tests / diagnostics).
+ */
+export function runSecuritySelfCheck(env: Env, logger: Logger): SecurityFinding[] {
+  const findings = securityFindings(env);
+  for (const f of findings) {
+    const line = `[security] ${f.id}: ${f.message}`;
+    if (f.severity === "critical") logger.error({ finding: f }, line);
+    else if (f.severity === "warn") logger.warn({ finding: f }, line);
+    else logger.info({ finding: f }, line);
+  }
+  if (on(env["SECURITY_STRICT"])) {
+    const critical = findings.filter((f) => f.severity === "critical");
+    if (critical.length) {
+      throw new Error(
+        `SECURITY_STRICT is on and ${critical.length} critical security finding(s) were detected: ` +
+          critical.map((f) => f.id).join(", ") + ". Fix them or disable SECURITY_STRICT to boot.",
+      );
+    }
+  }
+  return findings;
+}

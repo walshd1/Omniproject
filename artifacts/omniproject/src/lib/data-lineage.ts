@@ -80,13 +80,17 @@ export function sourceBreakdown(
     .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source));
 }
 
-/** One CSV cell, escaped per RFC 4180; arrays/objects flattened readably. */
+/** One CSV cell, escaped per RFC 4180; arrays/objects flattened readably.
+ *  Neutralises CSV-injection: a value starting with a formula trigger
+ *  (= + - @ tab CR) is prefixed with an apostrophe so it can't execute when the
+ *  exported file is opened in Excel/Sheets (backend values are untrusted). */
 function cell(v: unknown): string {
   let s: string;
   if (v == null) s = "";
   else if (Array.isArray(v)) s = v.join("; ");
   else if (typeof v === "object") s = JSON.stringify(v);
   else s = String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

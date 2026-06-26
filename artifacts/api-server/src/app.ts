@@ -7,6 +7,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { runWithTiming, getUpstreamMs } from "./lib/request-timing";
+import { runSecuritySelfCheck } from "./lib/security-check";
 
 const app: Express = express();
 
@@ -36,6 +37,11 @@ function resolveSessionSecret(): string {
   }
   return fromEnv || DEV_SESSION_SECRET;
 }
+
+// Loudly surface dangerous production config combinations at boot (and refuse to
+// boot in SECURITY_STRICT mode on a critical finding). Complements the hard
+// SESSION_SECRET fail-fast above.
+runSecuritySelfCheck(process.env, logger);
 
 app.use(
   pinoHttp({
