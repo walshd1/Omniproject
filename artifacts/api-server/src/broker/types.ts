@@ -59,6 +59,15 @@ export interface IssueWrite {
   expectedVersion?: number;
 }
 
+/** A normalised project create/update. `name` is required on create. */
+export interface ProjectWrite {
+  name?: string;
+  identifier?: string | null;
+  description?: string | null;
+  /** Set/clear to group the project under a programme (derived-programme model). */
+  programmeId?: string | null;
+}
+
 export interface Summary {
   projectId: string;
   total: number;
@@ -189,6 +198,10 @@ export interface Broker {
 
   // Core
   listProjects(ctx: ActorContext): Promise<Project[]>;
+  /** Create a project in the backend system of record (manager+, capability-gated). */
+  createProject(ctx: ActorContext, input: ProjectWrite): Promise<Project>;
+  /** Update a project — incl. programmeId grouping (manager+, capability-gated). */
+  updateProject(ctx: ActorContext, projectId: string, input: ProjectWrite): Promise<Project>;
   listIssues(ctx: ActorContext, projectId: string): Promise<Issue[]>;
   getIssue(ctx: ActorContext, projectId: string, issueId: string): Promise<Issue | null>;
   writeIssue(ctx: ActorContext, op: "create" | "update" | "delete", input: IssueWrite): Promise<Issue | null>;

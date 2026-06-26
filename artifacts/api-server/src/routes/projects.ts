@@ -7,8 +7,13 @@ import {
   DeleteIssueParams,
   GetProjectSummaryParams,
   GetProjectIssuesParams,
+  CreateProjectBody,
+  UpdateProjectBody,
+  UpdateProjectParams,
 } from "@workspace/api-zod";
 import { getBroker, contextFromReq, respondBrokerError } from "../broker";
+import { resolveCapabilities } from "../lib/capabilities";
+import { validateEntityInput, type FieldDescriptor } from "../lib/field-registry";
 import {
   getProjects,
   getIssues,
@@ -75,6 +80,66 @@ router.get("/activity", async (req, res) => {
 });
 
 // ── Writes (served by the active broker — live backend or demo) ───────────────
+
+/** Project-entity field model for create-time validation (required name + the
+ *  programme reference). The SPA dialog mirrors these descriptors. */
+const PROJECT_DESCRIPTORS: FieldDescriptor[] = [
+  { key: "name", label: "Name", type: "string", required: true },
+  { key: "programmeId", label: "Programme", type: "reference", references: "programme" },
+];
+
+router.post("/projects", requireRole("manager"), async (req, res) => {
+  const bodyParse = CreateProjectBody.safeParse(req.body);
+  if (!bodyParse.success) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  const caps = await resolveCapabilities(req);
+  if (!caps.entities["project"]?.store) {
+    res.status(403).json({ error: "This backend can't create projects" });
+    return;
+  }
+  const errors = validateEntityInput(bodyParse.data as Record<string, unknown>, PROJECT_DESCRIPTORS);
+  if (errors.length) {
+    res.status(400).json({ error: errors[0].message, errors });
+    return;
+  }
+  try {
+    const project = await getBroker().createProject(contextFromReq(req), bodyParse.data);
+    res.status(201).json(project);
+  } catch (err) {
+    req.log.error({ err }, "create_project failed");
+    respondBrokerError(res, err);
+  }
+});
+
+router.patch("/projects/:projectId", requireRole("manager"), async (req, res) => {
+  const paramsParse = UpdateProjectParams.safeParse(req.params);
+  const bodyParse = UpdateProjectBody.safeParse(req.body);
+  if (!paramsParse.success || !bodyParse.success) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  const data = bodyParse.data;
+  const caps = await resolveCapabilities(req);
+  const settingProgramme = data.programmeId !== undefined;
+  // Joining/leaving a programme is gated on the programme entity; other edits on project.
+  if (settingProgramme && !caps.entities["programme"]?.store) {
+    res.status(403).json({ error: "This backend can't store programme grouping" });
+    return;
+  }
+  if (!settingProgramme && !caps.entities["project"]?.store) {
+    res.status(403).json({ error: "This backend can't update projects" });
+    return;
+  }
+  try {
+    const updated = await getBroker().updateProject(contextFromReq(req), paramsParse.data.projectId, data);
+    res.json(updated);
+  } catch (err) {
+    req.log.error({ err }, "update_project failed");
+    respondBrokerError(res, err);
+  }
+});
 
 router.post("/projects/:projectId/issues", requireRole("contributor"), async (req, res) => {
   const paramsParse = CreateIssueParams.safeParse(req.params);

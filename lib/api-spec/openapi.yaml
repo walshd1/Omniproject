@@ -143,6 +143,67 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a project (brokered to the backend; manager+)
+      description: >-
+        Creates a project in the backend system of record via the broker. Only
+        available when the backend can store projects
+        (capabilities.entities.project.store). Setting programmeId here is how a
+        project joins a programme.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          description: Invalid input
+        "403":
+          description: Not permitted, or the backend can't store projects
+
+  /projects/{projectId}:
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      summary: Update a project — including programme grouping (manager+)
+      description: >-
+        Updates project fields via the broker. Setting/clearing programmeId is the
+        derived-programme grouping mechanism. Available only when the backend can
+        store the affected entity.
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          description: Invalid input
+        "403":
+          description: Not permitted
+        "404":
+          description: No such project
 
   /programmes:
     get:
@@ -687,6 +748,33 @@ components:
         - completedCount
         - memberCount
         - updatedAt
+
+    ProjectInput:
+      type: object
+      description: Fields to create a project (brokered to the backend).
+      properties:
+        name:
+          type: string
+        identifier:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        programmeId:
+          type: ["string", "null"]
+          description: Optional programme to join on creation.
+      required:
+        - name
+
+    ProjectUpdate:
+      type: object
+      description: Project fields to update (all optional). programmeId groups it.
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        programmeId:
+          type: ["string", "null"]
 
     Programme:
       type: object

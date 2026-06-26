@@ -87,6 +87,47 @@ export const ListProjectsResponse = zod.array(ListProjectsResponseItem)
 
 
 /**
+ * Creates a project in the backend system of record via the broker. Only available when the backend can store projects (capabilities.entities.project.store). Setting programmeId here is how a project joins a programme.
+ * @summary Create a project (brokered to the backend; manager+)
+ */
+export const CreateProjectBody = zod.object({
+  "name": zod.string(),
+  "identifier": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "programmeId": zod.string().nullish().describe('Optional programme to join on creation.')
+}).describe('Fields to create a project (brokered to the backend).')
+
+
+/**
+ * Updates project fields via the broker. Setting/clearing programmeId is the derived-programme grouping mechanism. Available only when the backend can store the affected entity.
+ * @summary Update a project — including programme grouping (manager+)
+ */
+export const UpdateProjectParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const UpdateProjectBody = zod.object({
+  "name": zod.string().optional(),
+  "description": zod.string().nullish(),
+  "programmeId": zod.string().nullish()
+}).describe('Project fields to update (all optional). programmeId groups it.')
+
+export const UpdateProjectResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "identifier": zod.string(),
+  "description": zod.string().nullish(),
+  "source": zod.string().describe('plane or openproject'),
+  "programmeId": zod.string().nullish().describe('Optional programme this project belongs to (owned by the backend). A project with no programmeId is standalone; OmniProject derives the programme grouping from this field, so a programme exists only when at least one project references it.'),
+  "programmeName": zod.string().nullish(),
+  "issueCount": zod.number(),
+  "completedCount": zod.number(),
+  "memberCount": zod.number(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * Programmes are derived by grouping projects on programmeId, with rolled-up stats. A programme always contains at least one project; projects without a programmeId are standalone and excluded here.
  * @summary List programmes (derived from project membership)
  */

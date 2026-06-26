@@ -84,6 +84,21 @@ test("DemoBroker satisfies the write contract (create → update → delete)", a
   await b.writeIssue(ctx, "delete", { projectId: pid, issueId: created!.id });
 });
 
+test("DemoBroker satisfies the project write contract (create → update / programme grouping)", async () => {
+  const b: Broker = new DemoBroker();
+
+  const created = await b.createProject(ctx, { name: "Conformance Programme Project" });
+  assert.ok(created.id && created.name === "Conformance Programme Project", "createProject returns a project");
+
+  // grouping under a programme via updateProject (the derived-programme mechanism)
+  const grouped = await b.updateProject(ctx, created.id, { programmeId: "prog-conf" });
+  assert.equal((grouped as { programmeId?: string }).programmeId, "prog-conf");
+
+  // the new project is now listed
+  const ids = (await b.listProjects(ctx)).map((p) => p.id);
+  assert.ok(ids.includes(created.id), "created project appears in listProjects");
+});
+
 test("DemoBroker keeps project issueCount/completedCount in lock-step with mutations", async () => {
   // The project card reads these denormalised counts for its completion %, so a
   // status change crossing "done" (and create/delete) must move them — otherwise
