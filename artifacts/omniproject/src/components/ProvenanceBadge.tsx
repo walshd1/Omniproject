@@ -38,7 +38,10 @@ export function ProvenanceBadge({
   className?: string;
 }) {
   const resolved: Provenance = provenance ?? (mode === "demo" || !mode ? "sample" : "sourced");
-  const m = META[resolved];
+  // Defensive: the logging server can emit provenance values outside this badge's
+  // vocabulary (e.g. "replayed", "projected"); fall back to "sourced" rather than
+  // crashing on an undefined META entry.
+  const m = META[resolved] ?? META.sourced;
   return (
     <span
       title={m.title}
