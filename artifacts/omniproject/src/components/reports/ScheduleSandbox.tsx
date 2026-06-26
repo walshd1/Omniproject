@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { useListProjects, useGetProjectIssues } from "@workspace/api-client-react";
+import { useListProjects, useGetProjectIssues, useGetCapabilities } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -8,6 +8,7 @@ import {
   type DepEdge,
   type ScheduleInput,
 } from "../../lib/schedule-scenario";
+import { loadDeltas, type LoadInput } from "../../lib/resource-load";
 import { loadEdges } from "../../lib/dependencies";
 import { triggerBlobDownload } from "../../lib/setup";
 import { markExplorationDirty } from "../../lib/exploration";
@@ -23,6 +24,7 @@ const fmtDay = (day: number) =>
  */
 export function ScheduleSandbox() {
   const { data: projects } = useListProjects();
+  const { data: caps } = useGetCapabilities();
   const [projectId, setProjectId] = useState("");
   const activeProject = projectId || projects?.[0]?.id || "";
   const { data: issues } = useGetProjectIssues(activeProject);
@@ -42,6 +44,33 @@ export function ScheduleSandbox() {
 
   const span = Math.max(result.rangeEndDay - result.rangeStartDay + 1, 1);
   const pct = (day: number) => ((day - result.rangeStartDay) / span) * 100;
+
+  // ── Resource capacity what-if ────────────────────────────────────────────────
+  // Join each scheduled item with its assignee, then compare per-person task
+  // overlap before vs after the shifts: who has the scenario newly piled up?
+  // Concurrency-based, so it works wherever the backend surfaces an assignee;
+  // gated on the resources capability.
+  const resourcesOn = caps?.resources !== false;
+  const assigneeOf = useMemo(() => {
+    const m: Record<string, string | null> = {};
+    for (const i of issues ?? []) m[i.id] = i.assignee ?? null;
+    return m;
+  }, [issues]);
+  const hasAssignees = Object.values(assigneeOf).some(Boolean);
+  const contention = useMemo(() => {
+    const active = (status: string) => status !== "done" && status !== "cancelled";
+    const toLoad = (resolved: boolean): LoadInput[] =>
+      result.items.map((it) => ({
+        id: it.id,
+        title: it.title,
+        assignee: assigneeOf[it.id] ?? null,
+        startDay: resolved ? it.resolvedStartDay : it.baseStartDay,
+        endDay: resolved ? it.resolvedEndDay : it.baseEndDay,
+        active: active(it.status),
+      }));
+    return loadDeltas(toLoad(false), toLoad(true));
+  }, [result, assigneeOf]);
+  const showCapacity = resourcesOn && hasAssignees && items.length > 0;
 
   const touch = () => markExplorationDirty();
   const reset = () => {
@@ -245,6 +274,46 @@ export function ScheduleSandbox() {
                 );
               })}
           </div>
+        </div>
+      )}
+
+      {/* Resource capacity what-if */}
+      {showCapacity && (
+        <div data-testid="resource-capacity" className="border-t border-border p-4 space-y-3">
+          <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Resource load</h3>
+          {contention.length === 0 ? (
+            <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
+              No resource clashes — nobody is double-booked in this scenario.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {contention.map((p) => (
+                <li key={p.assignee} className="border border-border p-2 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold">{p.assignee}</span>
+                    <span className="flex items-center gap-2">
+                      {p.newlyContended && (
+                        <span className="text-[10px] font-black uppercase tracking-widest text-red-500 border border-red-500/40 px-1.5 py-0.5">
+                          new clash
+                        </span>
+                      )}
+                      <span className={`font-mono font-bold tabular-nums ${p.newlyContended ? "text-red-500" : "text-amber-500"}`}>
+                        {p.peakConcurrency} concurrent
+                      </span>
+                    </span>
+                  </div>
+                  {p.peak && (
+                    <p className="mt-1 text-muted-foreground">
+                      Overlapping: {p.peak.tasks.map((tk) => tk.title).join(", ")}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            Capacity is modelled by overlap — moving a package onto someone's other live work flags a clash. Projected only.
+          </p>
         </div>
       )}
 
