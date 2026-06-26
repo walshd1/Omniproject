@@ -13,10 +13,28 @@
 
 export type FieldType = "string" | "text" | "number" | "date" | "enum" | "user" | "labels" | "reference";
 
+/**
+ * The functional group a field belongs to — drives which capability domain gates
+ * it (see lib/capabilities.deriveFieldMap). Lets the canonical set grow to cover
+ * the state-of-the-art PM/finance/resource superset while staying gated per
+ * backend.
+ */
+export type FieldGroup =
+  | "core"
+  | "people"
+  | "classification"
+  | "schedule"
+  | "effort"
+  | "agile"
+  | "financial"
+  | "relationship"
+  | "derived";
+
 export interface FieldDescriptor {
   key: string;
   label: string;
   type: FieldType;
+  group?: FieldGroup;
   /** Always present on any issue-tracking backend (never gated off). */
   core?: boolean;
   /** Must be provided when creating the owning entity. */
@@ -25,19 +43,59 @@ export interface FieldDescriptor {
   references?: string;
 }
 
+/**
+ * Canonical superset of work-item fields the leading PM/finance/resource tools
+ * capture (Jira, Asana, Monday, MS Project, Smartsheet, ServiceNow, SAP,
+ * Primavera, Wrike, ClickUp, Azure DevOps, …). Every field is gated surface/store
+ * per backend, so a backend only sees what it actually supports. Anything NOT
+ * here still flows via the custom-field passthrough (see customFields).
+ */
 export const FIELD_REGISTRY: FieldDescriptor[] = [
-  { key: "title", label: "Title", type: "string", core: true, required: true },
-  { key: "status", label: "Status", type: "enum", core: true },
-  { key: "priority", label: "Priority", type: "enum" },
-  { key: "assignee", label: "Assignee", type: "user" },
-  { key: "description", label: "Description", type: "text" },
-  { key: "labels", label: "Labels", type: "labels" },
-  { key: "startDate", label: "Start date", type: "date" },
-  { key: "dueDate", label: "Due date", type: "date" },
-  { key: "storyPoints", label: "Story points", type: "number" },
-  { key: "completionPct", label: "Completion %", type: "number" },
-  // A reference field: a project/issue "belongs to" a programme.
-  { key: "programmeId", label: "Programme", type: "reference", references: "programme" },
+  // Core
+  { key: "title", label: "Title", type: "string", core: true, required: true, group: "core" },
+  { key: "status", label: "Status", type: "enum", core: true, group: "core" },
+  { key: "description", label: "Description", type: "text", group: "core" },
+  // People
+  { key: "assignee", label: "Assignee", type: "user", group: "people" },
+  { key: "reporter", label: "Reporter", type: "user", group: "people" },
+  { key: "watchers", label: "Watchers", type: "labels", group: "people" },
+  // Classification
+  { key: "priority", label: "Priority", type: "enum", group: "classification" },
+  { key: "labels", label: "Labels", type: "labels", group: "classification" },
+  { key: "type", label: "Work item type", type: "enum", group: "classification" },
+  { key: "component", label: "Component", type: "string", group: "classification" },
+  { key: "resolution", label: "Resolution", type: "enum", group: "classification" },
+  { key: "severity", label: "Severity", type: "enum", group: "classification" },
+  { key: "fixVersion", label: "Fix version", type: "string", group: "classification" },
+  { key: "environment", label: "Environment", type: "string", group: "classification" },
+  // Schedule
+  { key: "startDate", label: "Start date", type: "date", group: "schedule" },
+  { key: "dueDate", label: "Due date", type: "date", group: "schedule" },
+  { key: "milestone", label: "Milestone", type: "enum", group: "schedule" },
+  { key: "baselineStart", label: "Baseline start", type: "date", group: "schedule" },
+  { key: "baselineFinish", label: "Baseline finish", type: "date", group: "schedule" },
+  // Effort / time
+  { key: "estimateHours", label: "Estimate (h)", type: "number", group: "effort" },
+  { key: "loggedHours", label: "Logged (h)", type: "number", group: "effort" },
+  { key: "remainingHours", label: "Remaining (h)", type: "number", group: "effort" },
+  // Agile
+  { key: "storyPoints", label: "Story points", type: "number", group: "agile" },
+  { key: "sprint", label: "Sprint", type: "string", group: "agile" },
+  { key: "epic", label: "Epic", type: "string", group: "agile" },
+  { key: "rank", label: "Rank", type: "number", group: "agile" },
+  // Financial (finance backend)
+  { key: "budget", label: "Budget", type: "number", group: "financial" },
+  { key: "plannedCost", label: "Planned cost", type: "number", group: "financial" },
+  { key: "actualCost", label: "Actual cost", type: "number", group: "financial" },
+  { key: "currency", label: "Currency", type: "string", group: "financial" },
+  { key: "billable", label: "Billable", type: "enum", group: "financial" },
+  { key: "costCenter", label: "Cost centre", type: "string", group: "financial" },
+  // Relationships
+  { key: "programmeId", label: "Programme", type: "reference", references: "programme", group: "relationship" },
+  { key: "parentTask", label: "Parent", type: "reference", references: "task", group: "relationship" },
+  { key: "dependsOn", label: "Depends on", type: "reference", references: "task", group: "relationship" },
+  // Derived / rolled-up (read-only)
+  { key: "completionPct", label: "Completion %", type: "number", group: "derived" },
 ];
 
 export const CANONICAL_FIELD_KEYS: ReadonlySet<string> = new Set(FIELD_REGISTRY.map((f) => f.key));

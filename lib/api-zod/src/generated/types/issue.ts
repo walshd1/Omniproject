@@ -5,6 +5,7 @@
  * OmniProject API — thin proxy gateway to n8n webhooks
  * OpenAPI spec version: 0.1.0
  */
+import type { IssueCustomFields } from './issueCustomFields';
 import type { IssuePriority } from './issuePriority';
 
 export interface Issue {
@@ -36,4 +37,6 @@ export interface Issue {
   lastUpdatedBy?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Backend-specific fields that aren't (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it. */
+  customFields?: IssueCustomFields;
 }
