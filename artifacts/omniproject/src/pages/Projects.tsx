@@ -45,7 +45,7 @@ function ProjectSummaryCard({ project }: { project: Project }) {
 }
 
 export function Projects() {
-  const { data: projects, isLoading, isError, error, refetch } = useListProjects();
+  const { data: projects, isLoading, isError, error, refetch, dataUpdatedAt } = useListProjects();
   const { data: caps } = useGetCapabilities();
   const [newOpen, setNewOpen] = useState(false);
   const canCreate = canStoreEntity(caps, "project");
@@ -66,7 +66,8 @@ export function Projects() {
               </Button>
             )}
             {projects && projects.length > 0 && (
-              <DataProvenance rows={projects as unknown as Record<string, unknown>[]} fields={PROJECT_FIELDS} mode={caps?.mode} filename="projects" />
+              <DataProvenance rows={projects as unknown as Record<string, unknown>[]} fields={PROJECT_FIELDS} mode={caps?.mode}
+                filename="projects" fieldSources={caps?.fieldSources} polledAt={dataUpdatedAt} />
             )}
             <ExportMenu />
           </div>

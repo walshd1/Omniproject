@@ -7,6 +7,7 @@
  */
 import type { CapabilitiesEntities } from './capabilitiesEntities';
 import type { CapabilitiesFields } from './capabilitiesFields';
+import type { CapabilitiesFieldSources } from './capabilitiesFieldSources';
 import type { DiscoveredField } from './discoveredField';
 
 /**
@@ -38,4 +39,6 @@ export interface Capabilities {
   entities?: CapabilitiesEntities;
   /** Non-canonical fields the backend's describe surfaced (the reconcile path): tenant/custom fields the registry doesn't model, carried through as gated passthrough so they light up without a registry edit. */
   customFields?: DiscoveredField[];
+  /** Per-field lineage: which backend system + native field each canonical or custom field is read from (e.g. dueDate → jira:duedate). Absent when the broker doesn't declare it. */
+  fieldSources?: CapabilitiesFieldSources;
 }

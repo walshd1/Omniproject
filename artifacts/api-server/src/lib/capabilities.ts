@@ -76,6 +76,13 @@ export interface Capabilities extends Record<CapabilityDomain, boolean> {
    * discovered (or the broker doesn't enumerate fields).
    */
   customFields?: EnumeratedField[];
+  /**
+   * Per-field lineage: which backend system + native field each canonical/custom
+   * field is read from (e.g. dueDate → { system: "jira", field: "duedate" }).
+   * Populated from the broker's describe; absent when the broker doesn't say.
+   * Lets the UI show "this value came from that backend field".
+   */
+  fieldSources?: Record<string, { system: string; field: string }>;
 }
 
 const sup = (surface: boolean, store = surface): FieldSupport => ({ surface, store });
@@ -216,6 +223,13 @@ export async function resolveCapabilities(req: Request): Promise<Capabilities> {
       const existing = caps.entities["customField"];
       caps.entities = { ...caps.entities, customField: { surface: true, store: existing?.store ?? false } };
     }
+    // Per-field lineage: capture the backend system + native field for any
+    // enumerated field that declares one, so the UI can show where data came from.
+    const sources: Record<string, { system: string; field: string }> = {};
+    for (const f of enumerated) {
+      if (f.sourceField) sources[f.key] = { system: f.sourceSystem ?? broker.kind, field: f.sourceField };
+    }
+    if (Object.keys(sources).length) caps.fieldSources = sources;
   }
   return caps;
 }

@@ -64,6 +64,15 @@ test("resolveCapabilities: the describe→reconcile path auto-surfaces custom fi
   assert.ok(!keys.includes("title"));
 });
 
+test("resolveCapabilities: per-field lineage (fieldSources) from the describe", async () => {
+  delete process.env["CAPABILITIES"];
+  const caps = await resolveCapabilities({} as Request);
+  // demo maps canonical + custom fields to illustrative Jira native fields
+  assert.equal(caps.fieldSources?.["dueDate"]?.system, "jira");
+  assert.equal(caps.fieldSources?.["dueDate"]?.field, "duedate");
+  assert.equal(caps.fieldSources?.["customerTier"]?.field, "customfield_10200");
+});
+
 test("resolveFieldManifest: reconciles the demo describe against the registry", async () => {
   const m = await resolveFieldManifest({} as Request);
   assert.ok(m.reconciliation.known.length > 0, "canonical fields are known");

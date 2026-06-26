@@ -678,8 +678,14 @@ export const GetCapabilitiesResponse = zod.object({
   "type": zod.string().optional(),
   "surface": zod.boolean().optional(),
   "store": zod.boolean().optional(),
-  "references": zod.string().optional()
-}).describe('A field a backend\'s describe reported, with its metadata preserved.')).optional().describe('Non-canonical fields the backend\'s describe surfaced (the reconcile path): tenant\/custom fields the registry doesn\'t model, carried through as gated passthrough so they light up without a registry edit.')
+  "references": zod.string().optional(),
+  "sourceSystem": zod.string().optional().describe('System of record this field is read from (e.g. \"jira\").'),
+  "sourceField": zod.string().optional().describe('The backend\'s native field name\/id this field maps from.')
+}).describe('A field a backend\'s describe reported, with its metadata preserved.')).optional().describe('Non-canonical fields the backend\'s describe surfaced (the reconcile path): tenant\/custom fields the registry doesn\'t model, carried through as gated passthrough so they light up without a registry edit.'),
+  "fieldSources": zod.record(zod.string(), zod.object({
+  "system": zod.string(),
+  "field": zod.string()
+}).describe('Where a canonical\/custom field is read from (system + native field).')).optional().describe('Per-field lineage: which backend system + native field each canonical or custom field is read from (e.g. dueDate → jira:duedate). Absent when the broker doesn\'t declare it.')
 }).describe('Data domains the wired backend(s) can populate.')
 
 
@@ -695,7 +701,9 @@ export const GetFieldManifestResponse = zod.object({
   "type": zod.string().optional(),
   "surface": zod.boolean().optional(),
   "store": zod.boolean().optional(),
-  "references": zod.string().optional()
+  "references": zod.string().optional(),
+  "sourceSystem": zod.string().optional().describe('System of record this field is read from (e.g. \"jira\").'),
+  "sourceField": zod.string().optional().describe('The backend\'s native field name\/id this field maps from.')
 }).describe('A field a backend\'s describe reported, with its metadata preserved.')),
   "reconciliation": zod.object({
   "known": zod.array(zod.string()),
@@ -708,7 +716,9 @@ export const GetFieldManifestResponse = zod.object({
   "type": zod.string().optional(),
   "surface": zod.boolean().optional(),
   "store": zod.boolean().optional(),
-  "references": zod.string().optional()
+  "references": zod.string().optional(),
+  "sourceSystem": zod.string().optional().describe('System of record this field is read from (e.g. \"jira\").'),
+  "sourceField": zod.string().optional().describe('The backend\'s native field name\/id this field maps from.')
 }).describe('A field a backend\'s describe reported, with its metadata preserved.')),
   "relationshipCandidates": zod.array(zod.object({
   "field": zod.string(),

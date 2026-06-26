@@ -203,6 +203,13 @@ export interface EnumeratedField {
   store?: boolean;
   /** If the backend's API schema says this field references another entity. */
   references?: string;
+  /** The system of record this field is read from (e.g. "jira", "openproject").
+   *  Lets the UI show granular lineage: "this canonical field ← that backend." */
+  sourceSystem?: string;
+  /** The backend's NATIVE field name/id this canonical field maps from (e.g.
+   *  "duedate", "customfield_10016") — supplied by the broker/workflow, so the
+   *  overlay can say exactly which backend field a value came from. */
+  sourceField?: string;
 }
 
 export interface FieldReconciliation {
@@ -247,7 +254,7 @@ export function customFieldsFrom(enumerated: EnumeratedField[]): EnumeratedField
   for (const f of enumerated) {
     if (!f.key || seen.has(f.key) || CANONICAL_FIELD_KEYS.has(f.key)) continue;
     seen.add(f.key);
-    out.push({ key: f.key, label: f.label ?? f.key, type: f.type ?? "string", surface: f.surface ?? true, store: f.store ?? false, ...(f.references ? { references: f.references } : {}) });
+    out.push({ key: f.key, label: f.label ?? f.key, type: f.type ?? "string", surface: f.surface ?? true, store: f.store ?? false, ...(f.references ? { references: f.references } : {}), ...(f.sourceSystem ? { sourceSystem: f.sourceSystem } : {}), ...(f.sourceField ? { sourceField: f.sourceField } : {}) });
   }
   return out;
 }

@@ -43,6 +43,21 @@ let taskItemCounter = 100;
 const SAMPLE_TASK_ITEMS: Record<string, TaskItem[]> = {};
 
 /**
+ * Illustrative canonical → Jira native field mapping, so the demo can show
+ * granular lineage ("dueDate ← jira:duedate"). Real workflows supply the true
+ * map via describeFields; unmapped keys fall back to the canonical name.
+ */
+const JIRA_FIELD_MAP: Record<string, string> = {
+  title: "summary", description: "description", status: "status", priority: "priority",
+  assignee: "assignee", reporter: "reporter", labels: "labels", dueDate: "duedate",
+  startDate: "customfield_10015", storyPoints: "customfield_10016", sprint: "customfield_10020",
+  epic: "customfield_10014", estimateHours: "timeoriginalestimate", loggedHours: "timespent",
+  remainingHours: "timeestimate", completionPct: "aggregateprogress", healthStatus: "customfield_10050",
+  blocked: "customfield_10051", blockedReason: "customfield_10052", budget: "customfield_10100",
+  actualCost: "customfield_10101", billable: "customfield_10102",
+};
+
+/**
  * Recompute a project row's denormalised issueCount/completedCount from its
  * actual issues after a mutation, mirroring the initial-seed reconcile in
  * demo-data. The project card reads these counts for its completion %, so they
@@ -319,11 +334,18 @@ export class DemoBroker implements Broker {
     // The demo "backend" exposes the canonical registry PLUS a couple of
     // tenant/custom fields the registry doesn't model — so the describe →
     // reconcile path has something to discover and surface as gated passthrough.
+    // Each field carries the backend's NATIVE field name (illustrative Jira ids),
+    // so the overlay can show granular lineage: "dueDate ← jira:duedate". A real
+    // workflow supplies the true mapping; here it's representative sample data.
     const { FIELD_REGISTRY } = await import("../lib/field-registry");
-    const canonical = FIELD_REGISTRY.map((f) => ({ key: f.key, label: f.label, type: f.type, surface: true, store: true }));
+    const system = "jira";
+    const canonical = FIELD_REGISTRY.map((f) => ({
+      key: f.key, label: f.label, type: f.type, surface: true, store: true,
+      sourceSystem: system, sourceField: JIRA_FIELD_MAP[f.key] ?? f.key,
+    }));
     const custom = [
-      { key: "customerTier", label: "Customer tier", type: "string", surface: true, store: false },
-      { key: "riskScore", label: "Risk score", type: "number", surface: true, store: false },
+      { key: "customerTier", label: "Customer tier", type: "string", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10200" },
+      { key: "riskScore", label: "Risk score", type: "number", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10201" },
     ];
     return [...canonical, ...custom];
   }

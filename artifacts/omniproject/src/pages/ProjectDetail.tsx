@@ -28,7 +28,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
   const { data: projects } = useListProjects();
   const project = projects?.find((p) => p.id === projectId);
   const { data: caps } = useGetCapabilities();
-  const { data: issues } = useGetProjectIssues(projectId, { query: { queryKey: getGetProjectIssuesQueryKey(projectId) } });
+  const { data: issues, dataUpdatedAt } = useGetProjectIssues(projectId, { query: { queryKey: getGetProjectIssuesQueryKey(projectId) } });
 
   return (
     <div className="h-full flex flex-col">
@@ -62,7 +62,8 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
           )}
           <div className="ml-auto flex items-center gap-3">
             {issues && issues.length > 0 && (
-              <DataProvenance rows={issues as unknown as Record<string, unknown>[]} fields={ISSUE_FIELDS} mode={caps?.mode} filename={`issues-${projectId}`} />
+              <DataProvenance rows={issues as unknown as Record<string, unknown>[]} fields={ISSUE_FIELDS} mode={caps?.mode}
+                filename={`issues-${projectId}`} fieldSources={caps?.fieldSources} polledAt={dataUpdatedAt} />
             )}
             <ExportMenu projectId={projectId} />
           </div>
