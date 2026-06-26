@@ -41,6 +41,10 @@ methodology-neutral, so the same backend renders as a **Kanban** board, a
 **Scrum** sprint (backlog, burndown, velocity), a **Gantt / Waterfall** timeline,
 **PRINCE2** management stages with a highlight report, a **RAID** log, or a plain
 **list** — switch per team or per project without re-shaping anything underneath.
+**Run a methodology we don't ship?** The view layer is **open and documented** —
+a new view is a small component you can add yourself for free, or have us build as
+a service. There's **no black-boxed "view designer"** to buy (and none to need):
+see [docs/METHODOLOGIES.md](docs/METHODOLOGIES.md).
 
 **It's programme management, not just a task board.** Above the issue level it
 gives you a real delivery picture — read through from your backends, and shown
@@ -115,7 +119,7 @@ effectively open-ended — there's no fixed connector list to wait on:
 
 ## Features
 
-- **Methodology views** — one dataset rendered as Kanban, Scrum (burndown/velocity), Gantt/Waterfall, PRINCE2 stages, RAID log, or list — switch per team.
+- **Methodology views** — one dataset rendered as Kanban, Scrum (burndown/velocity), Gantt/Waterfall, PRINCE2 stages, RAID log, or list — switch per team. The view layer is **open** — add your own for a methodology we don't ship.
 - **Issue management** — create / edit / delete from the board, a *New Issue*
   button, or the `Cmd+K` palette.
 - **Enterprise reporting** (`/reports`) — Portfolio KPI cards (RAG), a Resource
@@ -356,6 +360,10 @@ full security and integration reference.
 - **[docs/TECHNICAL.md](docs/TECHNICAL.md)** — architecture, n8n contract,
   security model, API surface, data schemas, extending the system.
 - **[docs/BROKER.md](docs/BROKER.md)** — the `Broker` seam and its invariants.
+- **[docs/METHODOLOGIES.md](docs/METHODOLOGIES.md)** — the methodology views and
+  how to add your own (no black-boxed designer).
+- **[docs/N8N-WORKFLOWS.md](docs/N8N-WORKFLOWS.md)** — generate, wire & verify
+  workflows; what's open vs. the licensed prebuilt enterprise integrations.
 - **[docs/TESTING.md](docs/TESTING.md)** — the test pillars and the CI coverage gates.
 - **[docs/EXPLORATION.md](docs/EXPLORATION.md)** — *(Beta)* Exploration mode:
   snapshots → trends, What-If sandbox, and cross-system dependency links by hash.
@@ -389,7 +397,7 @@ are tagged so a preview is never mistaken for a production guarantee:
   integration test against a real logging server yet. Off by default, admin-only,
   out-of-warranty.
 
-See the [CHANGELOG `[Unreleased]`](CHANGELOG.md) for per-feature detail.
+See the [CHANGELOG (0.4.0)](CHANGELOG.md) for per-feature detail.
 
 ---
 
@@ -397,15 +405,27 @@ See the [CHANGELOG `[Unreleased]`](CHANGELOG.md) for per-feature detail.
 
 **Open-core.** The core is **Apache-2.0** ([`LICENSE`](LICENSE)) — free for any
 use, including commercial. A small set of **premium features** (white-label
-branding, company nomenclature, outbound webhooks, enterprise backend workflow
-generation) is source-available under the **OmniProject Premium License**
-([`LICENSE-PREMIUM.txt`](LICENSE-PREMIUM.txt)) and requires a licence key to run
-in production. See **[LICENSING.md](LICENSING.md)** for the full model, including
-how purchases auto-mint a key via Stripe/Gumroad.
+branding, company nomenclature, outbound webhooks, and the **prebuilt enterprise
+workflows** for SAP / Primavera / Dynamics 365 / Project) is source-available
+under the **OmniProject Premium License** ([`LICENSE-PREMIUM.txt`](LICENSE-PREMIUM.txt))
+and requires a licence key to run in production. See **[LICENSING.md](LICENSING.md)**
+for the full model, including how purchases auto-mint a key via Stripe/Gumroad.
+
+**The tools to *build* are open — only prebuilt convenience is paid.** Adding a
+**methodology view**, and **building an n8n workflow** for any backend (including
+wiring **SAP yourself** with the open generator plus the generic "Enterprise
+backbone" preset), are **free, Apache-2.0, and fully documented** — nothing about
+*how* is black-boxed. What's paywalled is the *prebuilt, ready-to-import*
+enterprise integrations: **you pay to skip the effort, not for permission.** And
+if you'd rather not build it yourself, we can build a view or workflow for you as
+an **optional paid service** — selling our time, delivered as ordinary open source
+you own. See
+[LICENSING.md → Licensed features vs. professional services](LICENSING.md#licensed-features-vs-professional-services).
 
 > **No warranty.** OmniProject is pre-1.0 and provided **AS IS, without warranty
 > of any kind**. A licence key entitles *use* of the premium features; it does
-> **not** include support or any service-level commitment. **Paid support
-> packages are planned** as a separate offering as the community grows — until
-> then, help is best-effort and community-based.
+> **not** include support or any service-level commitment — so a paid prebuilt
+> integration is a **head-start, not a fix-it guarantee**. **Paid support /
+> maintained-tier packages are planned** as a separate offering as the community
+> grows — until then, help is best-effort and community-based.
 </content>
