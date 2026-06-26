@@ -84,8 +84,8 @@ UI**", not new architecture.
 
 | Item | Status | Effort | Notes |
 | --- | --- | --- | --- |
-| **Delegation / temporary access transfer** (consent-based, time-boxed, audited, revocable) | **Not started** | L | **RFC first.** The delegate acts as themselves with the delegator's granted access; every action audited "X acting for Y"; auto-expiry; off by default. Highest-risk item — do not ship without review. |
-| **Admin-only translation-layer editor** (correct the field/entity mapping) | **Not started** | M | admin-gated overrides persisted in gateway settings (config, not project data). |
+| **Delegation / temporary access transfer** (consent-based, time-boxed, audited, revocable) | **Design ([RFC-004](RFC-004-delegation.md))** | L | RFC written: defines the *safe subset* (gateway-scoped role/visibility delegation; backend authority deferred to the system of record), refuses storing/relaying the delegator's credential, gates every phase on a security checklist. Build only after the RFC's §14 decisions. Highest-risk — do not ship without review. |
+| **Admin-only translation-layer editor** (correct the field/entity mapping) | **Done** (#118) | M | admin-gated overrides persisted in gateway settings (config, not project data). |
 
 ## H. Scale & ops  — *mixed*
 
