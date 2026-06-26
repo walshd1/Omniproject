@@ -86,10 +86,18 @@ speak only that interface; none of them name, import, or assume n8n.
   supplement it, you implement **one class** and *nothing above the seam moves*:
   the UI, the API surface, and the data model are untouched.
 - **The boundary is enforced, not aspirational.** A CI **architecture-guard**
-  fails the build if any n8n-ism leaks across the seam, and a **broker-conformance**
-  suite is the contract any future adapter must also pass. So "swappable" is a
+  fails the build if any n8n-ism leaks across the seam, and a broker-agnostic
+  **conformance suite** is the contract any adapter must pass — DemoBroker is the
+  reference pass, the live n8n run is the real-world pass. So "swappable" is a
   property the tests keep true, not a promise in a README. See
   [docs/BROKER.md](docs/BROKER.md).
+- **The contract is published, versioned and generated from the code.** The full
+  request/response shapes, response envelope + provenance, control semantics
+  (dry-run, optimistic concurrency, idempotency, origin loop-guard) and the
+  webhook ingest/emit shapes live in **[docs/CONTRACT.md](docs/CONTRACT.md)** with
+  a machine-readable [JSON Schema](docs/contract/broker.v1.schema.json) — both
+  generated from `broker/{types,contract}.ts` in CI so they can't drift, and also
+  served live at `GET /api/contract`.
 - **Why n8n earns the default slot:** one workflow per backend, no hand-rolled
   connectors to rot, and the user's own token forwarded so writes happen *as them*
   (real per-user audit in the backend, not a shared admin key).

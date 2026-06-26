@@ -27,6 +27,14 @@ broker if n8n is superseded" is a property the build enforces, not just an
 intention. See [BROKER.md](BROKER.md). The n8n contract documented in §3 is the
 **N8nBroker's** contract, under the seam.
 
+The `Broker` interface itself is **published as a versioned contract**:
+[CONTRACT.md](CONTRACT.md) plus a machine-readable
+[JSON Schema](contract/broker.v1.schema.json), both generated from
+`src/broker/{types,contract}.ts` in CI (so they can't drift) and served live at
+`GET /api/contract`. A broker-agnostic conformance suite
+(`src/broker/conformance.ts`) certifies any adapter against it — DemoBroker is
+the reference pass, the live n8n run the real-world pass.
+
 ```
  Browser            omni-shell container (port 3000)            n8n              Backends
 ┌───────────┐  /api  ┌──────────────────────────────┐  webhook ┌──────┐  REST/  ┌──────────────┐

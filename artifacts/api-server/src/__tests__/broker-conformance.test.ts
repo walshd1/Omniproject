@@ -1,68 +1,37 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DemoBroker } from "../broker/demo";
+import { N8nBroker } from "../broker/n8n";
+import { runReadConformance, structuralConformance } from "../broker/conformance";
 import type { Broker, ActorContext } from "../broker/types";
 
 /**
  * Broker conformance — every method of the Broker contract must be satisfiable by
- * an implementation, exercised here against the DemoBroker. This is the contract
- * any future broker (if n8n is ever superseded) must also pass; it also guards
- * against the read-model "long tail" methods silently breaking.
+ * an implementation. The read-only + structural checks live in the broker-agnostic
+ * suite (broker/conformance.ts) so the SAME assertions run against:
+ *   - DemoBroker        → the reference pass (here),
+ *   - N8nBroker (live)  → the real-world pass (the verify-n8n CI step).
+ * The mutation tests below stay DemoBroker-only so the suite can never write to a
+ * real backend.
  */
 
 const ctx: ActorContext = { sub: "demo", role: "admin" };
 
-test("DemoBroker satisfies the full read contract", async () => {
+function reportDetail(checks: { name: string; ok: boolean; detail?: string }[]): string {
+  return checks.filter((c) => !c.ok).map((c) => `${c.name}: ${c.detail ?? "failed"}`).join("; ");
+}
+
+test("DemoBroker is the reference pass for the read-only conformance suite", async () => {
   const b: Broker = new DemoBroker();
-  assert.equal(typeof b.kind, "string");
   assert.equal(b.live, false);
+  const res = await runReadConformance(b, ctx);
+  assert.ok(res.ok, `read conformance failed: ${reportDetail(res.checks)}`);
+});
 
-  const projects = await b.listProjects(ctx);
-  assert.ok(Array.isArray(projects) && projects.length > 0, "listProjects returns sample data");
-  const pid = projects[0]!.id;
-
-  const issues = await b.listIssues(ctx, pid);
-  assert.ok(Array.isArray(issues), "listIssues returns an array");
-
-  if (issues.length) {
-    const one = await b.getIssue(ctx, pid, issues[0]!.id);
-    assert.ok(one === null || one.id === issues[0]!.id, "getIssue returns the issue or null");
-  }
-
-  const verify = await b.verify(ctx);
-  assert.equal(typeof verify.ok, "boolean");
-  assert.ok(Array.isArray(verify.actions), "verify reports actions");
-
-  assert.ok(Array.isArray(await b.listActivity(ctx)), "listActivity");
-
-  const summary = await b.projectSummary(ctx, pid);
-  assert.equal(summary.projectId, pid);
-  assert.equal(typeof summary.total, "number");
-  assert.equal(typeof summary.completionRate, "number");
-
-  assert.ok(Array.isArray(await b.projectHistory(ctx, pid)), "projectHistory");
-
-  const base = await b.baseline(ctx, pid);
-  assert.ok(base === null || Array.isArray(base.items), "baseline");
-
-  assert.ok(Array.isArray(await b.listRaid(ctx, pid)), "listRaid");
-  assert.ok(Array.isArray(await b.notifications(ctx)), "notifications");
-  assert.ok(Array.isArray(await b.portfolioHealth(ctx)), "portfolioHealth");
-  assert.ok(Array.isArray(await b.resourceCapacity(ctx, pid)), "resourceCapacity");
-
-  assert.equal(typeof (await b.projectFinancials(ctx, pid)), "object", "projectFinancials");
-  assert.equal(typeof (await b.capabilities(ctx)), "object", "capabilities");
-
-  const fx = await b.fxRates(ctx);
-  assert.equal(typeof fx.base, "string");
-  assert.ok(fx.rates && typeof fx.rates === "object", "fxRates");
-
-  const states = await b.replay(ctx, {});
-  assert.ok(Array.isArray(states), "replay returns an array of states");
-  if (states.length) {
-    assert.equal(typeof states[0]!.at, "string");
-    assert.equal(typeof states[0]!.completionPct, "number");
-    assert.ok(["replayed", "projected", "sourced", "derived", "sample"].includes(states[0]!.provenance));
+test("both brokers structurally implement the full contract surface", () => {
+  for (const b of [new DemoBroker(), new N8nBroker()] as Broker[]) {
+    const res = structuralConformance(b);
+    assert.ok(res.ok, `${b.kind} is missing contract methods: ${reportDetail(res.checks)}`);
   }
 });
 

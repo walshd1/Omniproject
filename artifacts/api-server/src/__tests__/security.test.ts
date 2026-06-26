@@ -63,6 +63,14 @@ test("a session (any role) can read", async () => {
   assert.equal(res.status, 200);
 });
 
+test("the broker contract is public and reports a version + JSON Schema", async () => {
+  const res = await req("/api/contract"); // no cookie — public
+  assert.equal(res.status, 200);
+  const body = (await res.json()) as { version: string; schema: { $defs?: Record<string, unknown> } };
+  assert.equal(body.version, "v1");
+  assert.ok(body.schema && body.schema.$defs && Object.keys(body.schema.$defs).length > 0, "schema has $defs");
+});
+
 test("RBAC: a viewer CANNOT create an issue (403)", async () => {
   const res = await req("/api/projects/proj-1/issues", {
     method: "POST",
