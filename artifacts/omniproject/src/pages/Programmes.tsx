@@ -1,8 +1,16 @@
 import { Link } from "wouter";
-import { useListProgrammes, useListProjects, type Programme, type Project } from "@workspace/api-client-react";
+import { useListProgrammes, useListProjects, useGetCapabilities, type Programme, type Project } from "@workspace/api-client-react";
 import { Layers, FolderOpen } from "lucide-react";
 import { useT } from "../lib/i18n";
 import { LoadingState } from "../components/LoadingState";
+import { DataProvenance } from "../components/DataProvenance";
+
+const PROGRAMME_FIELDS = [
+  { key: "ragStatus", label: "RAG status" },
+  { key: "projectCount", label: "Projects" },
+  { key: "issueCount", label: "Issues" },
+  { key: "completionRate", label: "Completion" },
+];
 
 const RAG_DOT: Record<string, string> = { GREEN: "bg-green-500", AMBER: "bg-amber-500", RED: "bg-red-500" };
 const RAG_TEXT: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
@@ -33,8 +41,9 @@ function ProgrammeCard({ p }: { p: Programme }) {
 
 export function Programmes() {
   const { t } = useT();
-  const { data: programmes, isLoading } = useListProgrammes();
+  const { data: programmes, isLoading, dataUpdatedAt } = useListProgrammes();
   const { data: projects } = useListProjects();
+  const { data: caps } = useGetCapabilities();
   const standalone = (projects ?? []).filter((p: Project) => !p.programmeId);
 
   if (isLoading) return <LoadingState />;
@@ -43,7 +52,13 @@ export function Programmes() {
     <div className="h-full overflow-y-auto p-8">
       <div className="max-w-6xl mx-auto space-y-10">
         <div className="pb-4 border-b border-border">
-          <h1 className="text-3xl font-black uppercase tracking-tighter">{t("nav.programmes")}</h1>
+          <div className="flex items-center justify-between gap-4">
+            <h1 className="text-3xl font-black uppercase tracking-tighter">{t("nav.programmes")}</h1>
+            {programmes && programmes.length > 0 && (
+              <DataProvenance rows={programmes as unknown as Record<string, unknown>[]} fields={PROGRAMME_FIELDS} mode={caps?.mode}
+                filename="programmes" sourceAccessor={() => "rollup"} fieldSources={caps?.fieldSources} polledAt={dataUpdatedAt} />
+            )}
+          </div>
           <p className="text-sm text-muted-foreground mt-2">
             Programme-wide roll-up across related projects. A programme exists only where projects are grouped; ungrouped
             projects are listed as standalone.

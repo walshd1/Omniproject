@@ -68,6 +68,11 @@ describe("Programmes index", () => {
     expect(screen.getByText(/no programmes/i)).toBeInTheDocument();
   });
 
+  it("offers the data-source overlay (completeness + export) over the rollup", () => {
+    renderWithProviders(<Programmes />, { client: seed([programme()], []) });
+    expect(screen.getByTestId("data-provenance")).toBeInTheDocument();
+  });
+
   it("excludes projects that already belong to a programme from the standalone list", () => {
     renderWithProviders(<Programmes />, {
       client: seed([programme()], [project({ id: "p2", name: "Grouped Beta", programmeId: "prog-1" })]),

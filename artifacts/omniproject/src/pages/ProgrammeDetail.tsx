@@ -1,8 +1,16 @@
 import { Link } from "wouter";
-import { useGetProgramme, type Project } from "@workspace/api-client-react";
+import { useGetProgramme, useGetCapabilities, type Project } from "@workspace/api-client-react";
 import { ArrowLeft, Layers } from "lucide-react";
 import { LoadingState } from "../components/LoadingState";
 import { ProgrammeFinancialsCard } from "../components/ProgrammeFinancialsCard";
+import { DataProvenance } from "../components/DataProvenance";
+
+const PROGRAMME_PROJECT_FIELDS = [
+  { key: "name", label: "Name" },
+  { key: "issueCount", label: "Issues" },
+  { key: "completedCount", label: "Completed" },
+  { key: "source", label: "Source" },
+];
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -44,7 +52,8 @@ function ProjectRow({ p }: { p: Project }) {
 }
 
 export function ProgrammeDetail({ programmeId }: { programmeId: string }) {
-  const { data: prog, isLoading, isError } = useGetProgramme(programmeId);
+  const { data: prog, isLoading, isError, dataUpdatedAt } = useGetProgramme(programmeId);
+  const { data: caps } = useGetCapabilities();
 
   if (isLoading) return <LoadingState />;
   if (isError || !prog) {
@@ -78,9 +87,15 @@ export function ProgrammeDetail({ programmeId }: { programmeId: string }) {
               <Layers className="w-6 h-6 text-muted-foreground" />
               <h1 className="text-3xl font-black uppercase tracking-tighter">{prog.name}</h1>
             </div>
-            <span className={`flex items-center gap-2 text-sm font-black uppercase tracking-widest ${RAG_TEXT[prog.ragStatus]}`}>
-              <span className={`w-3 h-3 rounded-full ${RAG_DOT[prog.ragStatus]}`} /> {prog.ragStatus}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className={`flex items-center gap-2 text-sm font-black uppercase tracking-widest ${RAG_TEXT[prog.ragStatus]}`}>
+                <span className={`w-3 h-3 rounded-full ${RAG_DOT[prog.ragStatus]}`} /> {prog.ragStatus}
+              </span>
+              {prog.projects.length > 0 && (
+                <DataProvenance rows={prog.projects as unknown as Record<string, unknown>[]} fields={PROGRAMME_PROJECT_FIELDS} mode={caps?.mode}
+                  filename={`programme-${programmeId}`} fieldSources={caps?.fieldSources} polledAt={dataUpdatedAt} />
+              )}
+            </div>
           </div>
         </div>
 
