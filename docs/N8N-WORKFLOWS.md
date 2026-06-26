@@ -103,6 +103,29 @@ Each generated workflow is: `Webhook → Verify short-circuit → Loop guard →
 Route(action) → per-action HTTP node → Normalize → Respond`, plus a
 `Capabilities` node you edit to declare what your backend exposes.
 
+### What's open vs. licensed (and what's a service)
+
+The **tools to build workflows are open** — only the *prebuilt enterprise
+integrations* are licensed:
+
+- **Free, Apache-2.0, ungated:** the generator (`lib/n8n-generator.ts`), the
+  manifest library (`lib/n8n-backends.ts`), the contract above, the verifier, and
+  generating a workflow for any **standard** backend (Jira, GitHub, GitLab, Azure
+  DevOps, OpenProject, Plane, ServiceNow, Asana, Monday, Trello, Wrike, ClickUp).
+  [Adding your own backend](#adding-a-backend) is free too — nothing about *how*
+  to build a workflow is black-boxed.
+- **Licensed feature (`enterprise_workflows`):** generating the maintained
+  workflows for the heavyweight backbones — **SAP S/4HANA, Oracle Primavera P6,
+  Microsoft Dynamics 365 / Project**. For those, `POST /api/setup/generate-workflow`
+  returns **`402`** without a valid `LICENSE_KEY`. You're paying for the *prebuilt,
+  maintained* integration — not for permission to build one. You can still wire any
+  of these yourself with the same open generator plus the generic **Enterprise
+  backbone** preset; the contract and tools are identical.
+- **Optional paid service:** if you'd rather not build it, we can build and tune a
+  workflow for your backend as an engagement — selling our time, not access. What
+  we deliver is ordinary open source you own. See
+  [LICENSING.md → Licensed features vs. professional services](../LICENSING.md#licensed-features-vs-professional-services).
+
 ## Verify a workflow
 
 - **UI:** Setup → Connection Center → *Verify your workflow* → **Run

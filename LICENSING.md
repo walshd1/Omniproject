@@ -91,6 +91,34 @@ we build for you ships as ordinary Apache-2.0 source you own and can modify. Thi
 is deliberately the opposite of the premium gate: services are optional
 convenience on top of an open capability, not a paywall around it.
 
+### The same line runs through n8n workflows
+
+Workflow building draws the boundary in exactly the same place — and it's worth
+being precise, because workflows touch *all three* categories:
+
+- **The tools to build workflows are open** (Apache-2.0, ungated). The workflow
+  generator (`lib/n8n-generator.ts`), the per-backend manifest library
+  (`lib/n8n-backends.ts`), the n8n contract, the `verify-workflow` probe, and the
+  ability to hand-write or generate a workflow for any **standard** backend
+  (Jira, GitHub, GitLab, Azure DevOps, OpenProject, Plane, ServiceNow, Asana,
+  Monday, Trello, Wrike, ClickUp) are free. So is **adding your own backend** —
+  drop a `BackendManifest` in and the generator/wizard/verifier pick it up. See
+  [docs/N8N-WORKFLOWS.md](docs/N8N-WORKFLOWS.md) and [docs/BROKER.md](docs/BROKER.md).
+- **Only the prebuilt *enterprise* workflows are a licensed feature.** Generating
+  the maintained workflows for the heavyweight backbones (SAP S/4HANA, Oracle
+  Primavera P6, Microsoft Dynamics 365 / Project) is the `enterprise_workflows`
+  entitlement — `POST /api/setup/generate-workflow` returns `402` for those
+  backends without a key. You're paying for the *prebuilt, maintained
+  integration*, not for the right to build a workflow: nothing stops you wiring
+  SAP yourself with the same open generator and the generic "Enterprise backbone"
+  preset.
+- **Bespoke workflow building is a service**, just like views — if you'd rather we
+  build and tune a workflow for your backend, that's a paid engagement selling our
+  time, and what we deliver is ordinary open source you own.
+
+In short: **the prebuilt enterprise integrations are paywalled; the tools,
+contract, and docs for building workflows are not.**
+
 ## Status & warranty
 
 OmniProject is pre-1.0 and provided **AS IS, without warranty of any kind** (see
