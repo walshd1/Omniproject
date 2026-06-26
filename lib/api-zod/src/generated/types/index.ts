@@ -49,6 +49,7 @@ export * from './programmeDetail';
 export * from './programmeDetailRagStatus';
 export * from './programmeFinancials';
 export * from './programmeFinancialsHealth';
+export * from './programmeFinancialsReporting';
 export * from './programmeRagStatus';
 export * from './project';
 export * from './projectBaseline';

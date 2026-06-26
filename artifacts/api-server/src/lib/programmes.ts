@@ -35,6 +35,20 @@ export interface ProgrammeFinancials {
   health: "GREEN" | "AMBER" | "RED";
   /** How many member projects contributed financial figures. */
   projectsCounted: number;
+  /**
+   * Per-metric reporting coverage, so the UI can show "12 of 15 reporting"
+   * inline instead of silently hiding a metric that only some projects supply.
+   */
+  reporting: {
+    /** All member projects (the honest denominator for portfolio coverage). */
+    total: number;
+    /** Projects carrying any financials (budget/actualCost) — = projectsCounted. */
+    costed: number;
+    /** Of the costed projects, how many reported earned value. */
+    earnedValue: number;
+    /** Of the costed projects, how many reported committed/PO cost. */
+    committed: number;
+  };
 }
 
 export interface ProgrammeRollup {
@@ -96,6 +110,8 @@ export function aggregateFinancials(projects: Row[]): ProgrammeFinancials | null
   let evAll = true;
   let committedAll = true;
   let counted = 0;
+  let evCount = 0;
+  let committedCount = 0;
   let currency = "";
   for (const p of projects) {
     const b = optNum(p["budget"]);
@@ -105,9 +121,9 @@ export function aggregateFinancials(projects: Row[]): ProgrammeFinancials | null
     budget += b ?? 0;
     actualCost += a ?? 0;
     const ev = optNum(p["earnedValue"]);
-    if (ev === null) evAll = false; else evSum += ev;
+    if (ev === null) evAll = false; else { evSum += ev; evCount++; }
     const committed = optNum(p["committed"]);
-    if (committed === null) committedAll = false; else committedSum += committed;
+    if (committed === null) committedAll = false; else { committedSum += committed; committedCount++; }
     const c = p["currency"];
     if (!currency && typeof c === "string" && c) currency = c;
   }
@@ -127,6 +143,7 @@ export function aggregateFinancials(projects: Row[]): ProgrammeFinancials | null
     variancePct: budget > 0 ? Math.round((variance / budget) * 100) : null,
     health: financialHealth(cpi, budget, actualCost),
     projectsCounted: counted,
+    reporting: { total: projects.length, costed: counted, earnedValue: evCount, committed: committedCount },
   };
 }
 
