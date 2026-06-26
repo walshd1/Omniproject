@@ -42,6 +42,8 @@ streamRouter.get("/notifications/stream", (req: Request, res: Response) => {
         /* connection gone; cleanup runs on close */
       }
     },
+    // Graceful shutdown ends the stream; req "close" then runs the cleanup below.
+    close: () => { try { res.end(); } catch { /* already closed */ } },
   });
 
   // SSE keepalive: a comment frame every 25s (under the common 30–60s proxy idle

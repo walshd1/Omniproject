@@ -70,6 +70,17 @@ test("responses carry the timing headers (upstream vs total)", async () => {
   assert.match(res.headers.get("x-omni-total-ms") ?? "", /^\d+$/);
 });
 
+test("an oversized request body is rejected (hard buffer limit, 413)", async () => {
+  // ~600kb payload exceeds the 256kb default body limit.
+  const huge = "x".repeat(600 * 1024);
+  const res = await req("/api/projects/proj-1/issues", {
+    method: "POST",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ title: huge }),
+  });
+  assert.equal(res.status, 413);
+});
+
 test("the broker contract is public and reports a version + JSON Schema", async () => {
   const res = await req("/api/contract"); // no cookie — public
   assert.equal(res.status, 200);

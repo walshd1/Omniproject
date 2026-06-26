@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { brokerKind } from "./broker";
 import { isOidcConfigured } from "./lib/oidc";
 import { getSettings } from "./lib/settings";
+import { installShutdownHandlers } from "./lib/shutdown";
 
 const rawPort = process.env["PORT"];
 
@@ -18,7 +19,7 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
+const server = app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
     process.exit(1);
@@ -34,3 +35,6 @@ app.listen(port, (err) => {
     "Server listening",
   );
 });
+
+// Clean up on SIGTERM/SIGINT: drain SSE streams, finish in-flight requests, exit.
+installShutdownHandlers(server, logger);
