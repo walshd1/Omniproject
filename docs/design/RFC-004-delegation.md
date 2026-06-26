@@ -220,6 +220,15 @@ grant = sign({
 
 ## 9. Audit — provably "X acting for Y"
 
+> **Invariant (non-negotiable): any action taken under someone else's permissions
+> MUST be recorded as "X on behalf of Y".** This is a *precondition*, not a
+> side-effect — the gateway will not perform a delegated mutation it cannot so
+> attribute. If, at the moment of acting, the effective role came from a
+> delegation but the audit record can't carry `onBehalfOf` + `grantId`, the action
+> is refused (fail-closed), not performed-then-logged-vaguely. An action is
+> "delegated" precisely when X's *effective* rights exceeded X's *own* rights for
+> that call.
+
 Extend `AuditEvent` (`lib/audit.ts`) with an explicit on-behalf field; every
 delegated action carries it:
 
@@ -232,7 +241,10 @@ interface AuditEvent {
 ```
 
 - The `actor` stays **X** (the real principal); `onBehalfOf` is **Y**. Never the
-  reverse.
+  reverse — X is never logged *as* Y.
+- Actions X takes with X's **own** rights are logged normally (just `actor`); only
+  rights that came from a delegation carry the on-behalf stamp — so the log
+  distinguishes "X did this" from "X did this for Y".
 - Reports/exports and the activity feed render "**X acting for Y**".
 - Granting, brokering, renewing and revoking are themselves audited events.
 
@@ -330,7 +342,9 @@ Each phase ships only after the §15 checklist passes.
 - [ ] Every grant has a hard `exp`; no unbounded grants; default TTL short.
 - [ ] Grant verification is fail-closed (signature + exp + delegate-binding) and
       bound to the current session `sub`.
-- [ ] Every delegated action — and every grant/broker/renew/revoke — is audited.
+- [ ] Every action under delegated rights is recorded "X on behalf of Y" as a
+      **precondition** — a delegated mutation that can't be so attributed is
+      refused, not silently performed. Grant/broker/renew/revoke are also audited.
 - [ ] The acting banner is always shown while a grant is effective; "stop acting"
       works instantly.
 - [ ] Forged / expired / denylisted grants confer nothing (tested).
