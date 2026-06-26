@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
+import type { BackendFieldMap, FieldSupport } from "../broker/types";
 import { isTimeTravelEnabled } from "./settings";
 
 /**
@@ -27,14 +28,82 @@ export const CAPABILITY_DOMAINS = [
 
 export type CapabilityDomain = (typeof CAPABILITY_DOMAINS)[number];
 
+/** Canonical work-item fields the UI can gate on (open set; see RFC-001). */
+export const FIELD_KEYS = [
+  "title",
+  "status",
+  "priority",
+  "assignee",
+  "description",
+  "labels",
+  "startDate",
+  "dueDate",
+  "storyPoints",
+  "completionPct",
+  "programmeId",
+] as const;
+
+/** Canonical higher-level entities the UI can gate on. */
+export const ENTITY_KEYS = ["project", "programme", "raid"] as const;
+
 export interface Capabilities extends Record<CapabilityDomain, boolean> {
   mode: string;
   /** Historical time-travel — true only when the operator opted into egress. */
   timeTravel: boolean;
+  /** Per-field surface/store support. */
+  fields: Record<string, FieldSupport>;
+  /** Per-entity surface/store support. */
+  entities: Record<string, FieldSupport>;
 }
 
-function build(mode: string, enabled: Partial<Record<CapabilityDomain, boolean>>): Capabilities {
-  const caps = { mode, timeTravel: isTimeTravelEnabled() } as Capabilities;
+const sup = (surface: boolean, store = surface): FieldSupport => ({ surface, store });
+
+/**
+ * Derive a per-field/entity map from the coarse domain flags — the fallback used
+ * when the broker doesn't declare an explicit map. It's deliberately
+ * conservative: computed/rolled-up values (completionPct) are read-only, and
+ * `project` is read-through (no create) by default. A backend that supports more
+ * (or less — e.g. a tracker without story points) overrides this via
+ * `Broker.fieldMap`.
+ */
+export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean>>): BackendFieldMap {
+  const issues = !!enabled.issues;
+  const sched = !!enabled.scheduling;
+  const portfolio = !!enabled.portfolio;
+  const raid = !!enabled.raid;
+  return {
+    fields: {
+      title: sup(issues),
+      status: sup(issues),
+      priority: sup(issues),
+      assignee: sup(issues),
+      description: sup(issues),
+      labels: sup(issues),
+      startDate: sup(sched),
+      dueDate: sup(sched),
+      storyPoints: sup(issues),
+      completionPct: sup(issues, false), // derived/rolled-up → read-only
+      programmeId: sup(portfolio),
+    },
+    entities: {
+      project: sup(issues, false), // read-through by default; creation is opt-in
+      programme: sup(portfolio),
+      raid: sup(raid),
+    },
+  };
+}
+
+function build(
+  mode: string,
+  enabled: Partial<Record<CapabilityDomain, boolean>>,
+  map: BackendFieldMap = deriveFieldMap(enabled),
+): Capabilities {
+  const caps = {
+    mode,
+    timeTravel: isTimeTravelEnabled(),
+    fields: map.fields,
+    entities: map.entities,
+  } as Capabilities;
   for (const d of CAPABILITY_DOMAINS) caps[d] = !!enabled[d];
   return caps;
 }
@@ -59,9 +128,12 @@ export async function resolveCapabilities(req: Request): Promise<Capabilities> {
   if (env) return env;
 
   const broker = getBroker();
-  const flags = await broker.capabilities(contextFromReq(req)).catch(() => null);
+  const ctx = contextFromReq(req);
+  const flags = await broker.capabilities(ctx).catch(() => null);
   const enabled = Object.fromEntries(
     CAPABILITY_DOMAINS.map((d) => [d, !!flags?.[d]]),
   ) as Record<CapabilityDomain, boolean>;
-  return build(broker.kind, enabled);
+  // Prefer the broker's explicit field/entity map; fall back to domain-derived.
+  const map = (await broker.fieldMap?.(ctx).catch(() => null)) ?? undefined;
+  return build(broker.kind, enabled, map ?? undefined);
 }

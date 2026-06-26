@@ -1,6 +1,6 @@
 import { getSettings } from "../lib/settings";
 import { versionConflict } from "../lib/concurrency";
-import { CAPABILITY_DOMAINS } from "../lib/capabilities";
+import { CAPABILITY_DOMAINS, FIELD_KEYS, ENTITY_KEYS } from "../lib/capabilities";
 import {
   SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
   SAMPLE_PORTFOLIO, DEMO_FX, sampleActivity, sampleNotifications, persistDemoState,
@@ -215,6 +215,17 @@ export class DemoBroker implements Broker {
     // lazily here (not a module-level const) to avoid a TDZ in the
     // demo ↔ capabilities ↔ broker import cycle.
     return Object.fromEntries(CAPABILITY_DOMAINS.map((d) => [d, true]));
+  }
+
+  async fieldMap(): Promise<import("./types").BackendFieldMap> {
+    // Demo supports everything — except completionPct, which is a rolled-up,
+    // read-only value (surface without store) so the surface-vs-store split is
+    // visible out of the box.
+    const fields = Object.fromEntries(
+      FIELD_KEYS.map((f) => [f, { surface: true, store: f !== "completionPct" }]),
+    );
+    const entities = Object.fromEntries(ENTITY_KEYS.map((e) => [e, { surface: true, store: true }]));
+    return { fields, entities };
   }
 
   async fxRates(): Promise<FxRates> {

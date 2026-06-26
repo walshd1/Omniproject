@@ -451,7 +451,15 @@ export const GetCapabilitiesResponse = zod.object({
   "blockers": zod.boolean(),
   "history": zod.boolean(),
   "raid": zod.boolean(),
-  "timeTravel": zod.boolean().describe('Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default).')
+  "timeTravel": zod.boolean().describe('Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default).'),
+  "fields": zod.record(zod.string(), zod.object({
+  "surface": zod.boolean(),
+  "store": zod.boolean()
+}).describe('Whether a field\/entity can be surfaced (read) and stored (written).')).optional().describe('Per-field support: which work-item fields the backend can surface (read\/display) and store (write back). Absent ⇒ derive from domains.'),
+  "entities": zod.record(zod.string(), zod.object({
+  "surface": zod.boolean(),
+  "store": zod.boolean()
+}).describe('Whether a field\/entity can be surfaced (read) and stored (written).')).optional().describe('Per-entity support (e.g. programme, project): whether the entity can be surfaced and\/or stored. A programme only exists when the backend can carry programme grouping.')
 }).describe('Data domains the wired backend(s) can populate.')
 
 

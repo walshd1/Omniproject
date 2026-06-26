@@ -116,6 +116,22 @@ export interface FxRates {
 /** Raw capability flags a backend can populate (domain → available). */
 export type CapabilityFlags = Record<string, boolean>;
 
+/** Whether a field/entity can be surfaced (read) and stored (written). */
+export interface FieldSupport {
+  surface: boolean;
+  store: boolean;
+}
+
+/**
+ * Per-field / per-entity support a backend declares. Finer-grained than the
+ * domain flags: e.g. a backend may surface `dueDate` read-only (surface without
+ * store), or have no `programmeId` field at all (programme entity unsupported).
+ */
+export interface BackendFieldMap {
+  fields: Record<string, FieldSupport>;
+  entities: Record<string, FieldSupport>;
+}
+
 /** Dry-run verification of the broker contract — must never mutate a backend. */
 export interface VerifyReport {
   ok: boolean;
@@ -188,6 +204,13 @@ export interface Broker {
   resourceCapacity(ctx: ActorContext, projectId: string): Promise<Row[]>;
   projectFinancials(ctx: ActorContext, projectId: string): Promise<Row>;
   capabilities(ctx: ActorContext): Promise<CapabilityFlags>;
+  /**
+   * Optional finer-grained field/entity support. When a broker provides it, it
+   * overrides the domain-derived defaults; when omitted, the gateway derives a
+   * map from the domain flags. Lets a backend say "storyPoints: yes, dueDate:
+   * read-only, no programme grouping" precisely.
+   */
+  fieldMap?(ctx: ActorContext): Promise<BackendFieldMap | null>;
   fxRates(ctx: ActorContext): Promise<FxRates>;
   /** Time-travel: replay recorded portfolio states from the logging server. */
   replay(ctx: ActorContext, opts: { from?: string; to?: string }): Promise<HistoryState[]>;

@@ -5,7 +5,7 @@ import { useListProjects } from "@workspace/api-client-react";
 import { useStore } from "../store/useStore";
 import { useLocation } from "wouter";
 import { VIEWS } from "../lib/views";
-import { NAV_ITEMS } from "../lib/nav";
+import { useVisibleNavItems } from "../lib/nav";
 
 export function CommandPalette() {
   const {
@@ -22,6 +22,7 @@ export function CommandPalette() {
   } = useStore();
   const [, setLocation] = useLocation();
   const { data: projects } = useListProjects();
+  const navItems = useVisibleNavItems();
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -55,7 +56,7 @@ export function CommandPalette() {
           <Command.Empty className="p-4 text-sm text-center text-muted-foreground">No results found.</Command.Empty>
           
           <Command.Group heading="Navigation" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               return (
                 <Command.Item

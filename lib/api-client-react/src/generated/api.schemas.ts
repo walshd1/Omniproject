@@ -358,6 +358,24 @@ export interface ActivityEntry {
 }
 
 /**
+ * Whether a field/entity can be surfaced (read) and stored (written).
+ */
+export interface FieldSupport {
+  surface: boolean;
+  store: boolean;
+}
+
+/**
+ * Per-field support: which work-item fields the backend can surface (read/display) and store (write back). Absent ⇒ derive from domains.
+ */
+export type CapabilitiesFields = {[key: string]: FieldSupport};
+
+/**
+ * Per-entity support (e.g. programme, project): whether the entity can be surfaced and/or stored. A programme only exists when the backend can carry programme grouping.
+ */
+export type CapabilitiesEntities = {[key: string]: FieldSupport};
+
+/**
  * Data domains the wired backend(s) can populate.
  */
 export interface Capabilities {
@@ -374,6 +392,10 @@ export interface Capabilities {
   raid: boolean;
   /** Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default). */
   timeTravel: boolean;
+  /** Per-field support: which work-item fields the backend can surface (read/display) and store (write back). Absent ⇒ derive from domains. */
+  fields?: CapabilitiesFields;
+  /** Per-entity support (e.g. programme, project): whether the entity can be surfaced and/or stored. A programme only exists when the backend can carry programme grouping. */
+  entities?: CapabilitiesEntities;
 }
 
 export type SettingsAiProvider = typeof SettingsAiProvider[keyof typeof SettingsAiProvider];
