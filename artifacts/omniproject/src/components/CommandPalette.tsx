@@ -72,11 +72,10 @@ export function CommandPalette() {
 
           <Command.Group heading="Actions" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-4">
             <Command.Item
-              onSelect={() => { setLocation("/"); setNewIssueOpen(true); setCommandOpen(false); }}
-              disabled={!activeProjectId}
+              onSelect={() => { setNewIssueOpen(true); setCommandOpen(false); }}
               className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2 data-[disabled=true]:opacity-40 data-[disabled=true]:cursor-not-allowed"
             >
-              New Issue
+              New Task
             </Command.Item>
             <Command.Item
               onSelect={() => { toggleTheme(); setCommandOpen(false); }}

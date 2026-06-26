@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { CommandPalette } from "../CommandPalette";
-import { IssueDialog } from "../IssueDialog";
+import { NewTaskDialog } from "../NewTaskDialog";
 import { ShortcutsDialog } from "../ShortcutsDialog";
 import { NotificationsBell } from "../NotificationsBell";
 import { useStore } from "../../store/useStore";
@@ -34,7 +34,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // Fall back to the first project when none is explicitly active, so the global
   // Cmd+K "New Issue" dialog always has a target project.
   const activeProject = projects?.find(p => p.id === activeProjectId) || projects?.[0];
-  const dialogProjectId = activeProject?.id ?? "";
   const mainRef = useRef<HTMLDivElement>(null);
 
   // On route change, update the page title and move focus to the content region
@@ -257,13 +256,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       <CommandPalette />
       <ShortcutsDialog open={isShortcutsOpen} onOpenChange={setShortcutsOpen} />
-      {dialogProjectId && (
-        <IssueDialog
-          projectId={dialogProjectId}
-          open={isNewIssueOpen}
-          onOpenChange={setNewIssueOpen}
-        />
-      )}
+      {/* Global "new task" — requires an explicit project (a task always belongs
+          to one); the board's in-context IssueDialog stays project-fixed. */}
+      <NewTaskDialog open={isNewIssueOpen} onOpenChange={setNewIssueOpen} />
     </div>
   );
 }

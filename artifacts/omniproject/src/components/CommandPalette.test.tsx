@@ -101,11 +101,11 @@ describe("CommandPalette", () => {
     expect(useStore.getState().isCommandOpen).toBe(false);
   });
 
-  it("the New Issue action is disabled without an active project", () => {
+  it("the New Task action is available even without an active project (the dialog picks one)", () => {
     useStore.setState({ isCommandOpen: true, activeProjectId: null });
     renderWithProviders(<CommandPalette />, { client: seeded([]) });
-    const item = screen.getByText("New Issue").closest("[role='option']");
-    expect(item).toHaveAttribute("aria-disabled", "true");
+    const item = screen.getByText("New Task").closest("[role='option']");
+    expect(item).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("selecting a view updates the store and closes the palette", async () => {
