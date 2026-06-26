@@ -18,6 +18,34 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
 
+/** A request the interceptor may answer instead of hitting the network. */
+export interface InterceptedRequest {
+  method: string;
+  /** The resolved request URL (path + query in web builds). */
+  url: string;
+  /** The raw request body for writes (JSON string), or null for reads. */
+  body: string | null;
+}
+
+/**
+ * Returns `{ handled: true, data }` to short-circuit the network and resolve the
+ * call with `data`; `{ handled: false }` (or throws an ApiError) to fall through
+ * to a real fetch. This is the seam the snapshot-backed "explore replica" uses to
+ * serve the whole app from a captured snapshot instead of the broker — without
+ * any change to the generated hooks or the components that call them.
+ */
+export type FetchInterceptor = (
+  req: InterceptedRequest,
+) => InterceptResult | Promise<InterceptResult>;
+export type InterceptResult = { handled: true; data: unknown } | { handled: false };
+
+let _interceptor: FetchInterceptor | null = null;
+
+/** Install (or clear, with `null`) a request interceptor. */
+export function setFetchInterceptor(fn: FetchInterceptor | null): void {
+  _interceptor = fn;
+}
+
 /**
  * Set a base URL that is prepended to every relative request URL
  * (i.e. paths that start with `/`).
@@ -359,6 +387,14 @@ export async function customFetch<T = unknown>(
   }
 
   const requestInfo = { method, url: resolveUrl(input) };
+
+  // Interception seam: when an interceptor is installed (e.g. snapshot-backed
+  // explore), let it answer the request from local data instead of the network.
+  if (_interceptor) {
+    const body = typeof init.body === "string" ? init.body : null;
+    const result = await _interceptor({ method, url: requestInfo.url, body });
+    if (result.handled) return result.data as T;
+  }
 
   const response = await fetch(input, { ...init, method, headers });
 
