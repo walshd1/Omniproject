@@ -1,9 +1,51 @@
 # RFC-005 — Secure delegation: the hardened design + full "X on behalf of Y" logging
 
-**Status:** Design — the concrete, build-ready blueprint. **Still gated:** no code
-until RFC-004 §14 is decided and the §15 + §17-here checklists are owned by a named
-security reviewer. This is the *most secure version we can build* within
-OmniProject's stateless, zero-data-at-rest, backend-owns-authorisation architecture.
+**Status:** Design complete — **decided NO-GO for now (2026-06).** Deliberately
+*not* on the build queue; kept as a warm, de-risked design to pull when the
+trigger conditions below are met. Still gated even then: no code until RFC-004 §14
+is decided and the §15 + §17-here checklists are owned by a named security
+reviewer. This is the *most secure version we can build* within OmniProject's
+stateless, zero-data-at-rest, backend-owns-authorisation architecture.
+
+> ## Decision — NO-GO for now (recorded 2026-06)
+>
+> **Decision:** Do not build delegation at this time. Keep the design (RFC-004 +
+> this RFC) as the finished, ready-to-pull blueprint.
+>
+> **Reasoning:**
+> 1. **The reference IdP only yields the weak half.** Authentik has no RFC 8693
+>    token exchange (Appendix A), so **Phase 2 — delegated *backend* writes — is
+>    impossible there**. A default deployment gets Phase 1 only: OmniProject-side
+>    role elevation + visibility + audit framing, with backend **writes still going
+>    as X under X's own rights**. A delegate therefore can't do anything at the
+>    system of record they couldn't already do — only OmniProject's own gates (RAID,
+>    portfolio, settings) and the audit label change. Narrow value for a lot of
+>    security surface.
+> 2. **The real ask needs the half we can't ship by default.** "Approve things
+>    while I'm on leave" usually means *backend* authority, which needs a
+>    token-exchange-capable IdP (Entra/Okta PIM, Keycloak, Zitadel) — i.e. exactly
+>    the enterprise customer who would ask for it by name. **This is a pull-driven
+>    feature, not a push-driven one.**
+> 3. **Highest-risk item, pre-community.** No user is blocked on it today. Building
+>    a confused-deputy-prone, security-critical feature speculatively accrues audit
+>    + maintenance burden before demand is validated, and introduces the product's
+>    **first durable stateful concession** (grant-state source / status list) into
+>    an otherwise cleanly stateless design.
+> 4. **The hard part is already banked.** The value of the design work is the
+>    optionality: when a real customer with the right IdP asks, Phase 1 is days of
+>    work (mostly "consume claims we already trust + audit + banner"). We keep that
+>    optionality without paying the build/risk cost now.
+>
+> **Revisit (greenlight) when ALL hold:**
+> - a **real user asks** for it (a design partner, not a hypothetical);
+> - they run a **token-exchange-capable IdP** (so they get the useful Phase 2), or
+>   explicitly accept **Phase-1-only** with eyes open;
+> - a **named security reviewer owns §15 / §17** before any code.
+>
+> **Meanwhile:** pre-community effort goes to broad, low-risk surfaces (financials
+> editing, explore-replica live views, task-children UI) — value for everyone,
+> none of delegation's risk. Tracked as a *possible* in
+> [RFC-002 roadmap](RFC-002-roadmap.md) §G.
 
 **Relationship to RFC-004.** [RFC-004](RFC-004-delegation.md) is the *threat model
 and the limits of what is safe* — why delegation is hard here and the dangerous

@@ -19,6 +19,8 @@ UI**", not new architecture.
 - **Done** — shipped & merged this session.
 - **Foundation laid** — the backend/contract/engine exists; needs the rest (usually UI).
 - **Not started** — design + build still to do.
+- **Possible (deferred)** — designed and deliberately *not* built; pull-driven,
+  with explicit trigger conditions before it goes on the queue.
 - Effort: S ≈ ≤1 day · M ≈ 2–4 days · L ≈ ~1 week · XL ≈ multi-week.
 
 ---
@@ -84,7 +86,7 @@ UI**", not new architecture.
 
 | Item | Status | Effort | Notes |
 | --- | --- | --- | --- |
-| **Delegation / temporary access transfer** (consent-based, time-boxed, audited, revocable) | **Design ([RFC-004](RFC-004-delegation.md) limits + [RFC-005](RFC-005-secure-delegation-design.md) hardened design)** | L | RFC-004 = threat model + the *safe subset* (gateway-scoped role/visibility delegation; backend authority deferred to the system of record; refuses storing/relaying the delegator's credential). RFC-005 = the build-ready secure design: IdP-first grant lifecycle, RFC 8693 token exchange, one-way-hash store, layered revocation (TTL → status list → CAEP), and full tamper-evident **"X on behalf of Y"** logging with a fail-closed attributability precondition. Build only after RFC-004 §14 decisions; every phase gated on the security checklists. Highest-risk — do not ship without review. |
+| **Delegation / temporary access transfer** (consent-based, time-boxed, audited, revocable) | **Possible (deferred) — NO-GO for now, design complete ([RFC-004](RFC-004-delegation.md) limits + [RFC-005](RFC-005-secure-delegation-design.md) hardened design)** | L | **Decision (2026-06): designed, deliberately not built.** Pull-driven — Authentik (reference IdP) can't do RFC 8693 token exchange, so a default deployment gets only Phase 1 (OmniProject-side elevation + audit; backend writes still go as X); the genuinely valuable Phase 2 needs a token-exchange-capable IdP (Entra/Okta PIM, Keycloak, Zitadel). Highest-risk item, pre-community, no validated demand. **Greenlight only when:** a real user asks **and** runs a token-exchange-capable IdP (or accepts Phase-1-only) **and** a named security reviewer owns the §15/§17 checklist. Design is warm and de-risked — Phase 1 ≈ days when triggered. Full reasoning in RFC-005 "Decision — NO-GO" note. |
 | **Admin-only translation-layer editor** (correct the field/entity mapping) | **Done** (#118) | M | admin-gated overrides persisted in gateway settings (config, not project data). |
 
 ## H. Scale & ops  — *mixed*
@@ -105,7 +107,7 @@ A pragmatic order that delivers visible value early and front-loads the risky bi
 1. **Make the recent backend work clickable** (fast wins, foundations already laid):
    Task-children UI (B) → Copy/paste duplicate (B) → IssueDialog field gating (A) →
    Resource-planning view (D) → Financials on project/task + programme rollup (C).
-2. **Delegation RFC** (G) — write it early so it can be reviewed while UI work proceeds; build after sign-off.
+2. **Delegation** (G) — **done as design, deferred as build (NO-GO for now).** Pull-driven; revisit only on the trigger conditions in the §G row. Not in the active queue.
 3. **Explore replica increment 2** (F) and **what-if resource/financial modelling** (D/C) — the higher-value modelling surfaces.
 4. **CRM/Salesforce** (E) and **programme-as-entity** (B) — net-new surfaces.
 5. **Scale validation**: n8n load harness (H), then the read cache if the numbers call for it.
