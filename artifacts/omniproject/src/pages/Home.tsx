@@ -1,4 +1,12 @@
-import { useListActivity, useListProjects } from "@workspace/api-client-react";
+import { useListActivity, useListProjects, useGetCapabilities } from "@workspace/api-client-react";
+import { DataProvenance } from "../components/DataProvenance";
+
+const DASHBOARD_PROJECT_FIELDS = [
+  { key: "description", label: "Description" },
+  { key: "programmeName", label: "Programme" },
+  { key: "issueCount", label: "Issues" },
+  { key: "memberCount", label: "Members" },
+];
 import { useStore } from "../store/useStore";
 import { useEffect } from "react";
 import { format } from "date-fns";
@@ -15,8 +23,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export function Home() {
   const { currentView, activeProjectId, setActiveProjectId, setNewIssueOpen } = useStore();
-  const { data: projects, isLoading: projectsLoading, isError: projectsError, error: projectsErr, refetch: refetchProjects } = useListProjects();
+  const { data: projects, isLoading: projectsLoading, isError: projectsError, error: projectsErr, refetch: refetchProjects, dataUpdatedAt } = useListProjects();
   const { data: activity } = useListActivity();
+  const { data: caps } = useGetCapabilities();
   const ActiveView = VIEW_COMPONENTS[currentView];
 
   useEffect(() => {
@@ -40,6 +49,10 @@ export function Home() {
               <ViewSwitcher />
             </div>
             <div className="flex items-center gap-3">
+              {projects && projects.length > 0 && (
+                <DataProvenance rows={projects as unknown as Record<string, unknown>[]} fields={DASHBOARD_PROJECT_FIELDS} mode={caps?.mode}
+                  filename="dashboard-projects" fieldSources={caps?.fieldSources} polledAt={dataUpdatedAt} />
+              )}
               {projects && projects.length > 0 && (
                 <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   <span>Active project:</span>
