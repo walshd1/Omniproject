@@ -10,7 +10,9 @@ FROM node:26-bookworm-slim AS builder
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
+# corepack is no longer bundled in the Node base image, so install it before
+# enabling the pnpm shim (lockfile is v9.0; latest pnpm reads it).
+RUN npm install -g corepack@latest && corepack enable
 
 WORKDIR /app
 
