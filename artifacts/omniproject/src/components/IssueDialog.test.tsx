@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
+import { getGetCapabilitiesQueryKey, type Capabilities } from "@workspace/api-client-react";
 import { renderWithProviders } from "../test/utils";
 import { IssueDialog } from "./IssueDialog";
 
@@ -27,6 +29,24 @@ describe("IssueDialog accessible names", () => {
     );
     // A dialog must exist and be labelled (Radix Dialog.Title).
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("hides a field the backend can't surface and disables a read-only one", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: {
+        dueDate: { surface: false, store: false }, // hidden
+        assignee: { surface: true, store: false }, // read-only
+      },
+    } as unknown as Capabilities);
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={null} defaultStatus="backlog" />,
+      { client: qc },
+    );
+    expect(screen.queryByLabelText("Due Date")).toBeNull(); // not surfaced
+    expect(screen.getByLabelText("Assignee")).toBeDisabled(); // surfaced, read-only
+    expect(screen.getByLabelText("Title", { exact: false })).toBeEnabled(); // core stays editable
   });
 
   it("offers Duplicate only when editing an existing task", () => {

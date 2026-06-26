@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { TaskItemsPanel } from "./TaskItemsPanel";
+import { canSurfaceField, canStoreField } from "../lib/capabilities-fields";
 import {
   useCreateIssue,
   useUpdateIssue,
   useDeleteIssue,
+  useGetCapabilities,
   getGetProjectIssuesQueryKey,
   getGetProjectSummaryQueryKey,
   getListProjectsQueryKey,
@@ -73,6 +75,11 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
   const isEdit = !!issue;
+  const { data: caps } = useGetCapabilities();
+  // Field gating: hide a field the backend can't surface; make it read-only when
+  // it can surface but not store (a read-only source field).
+  const showF = (k: string) => canSurfaceField(caps, k);
+  const editF = (k: string) => canStoreField(caps, k);
 
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [titleError, setTitleError] = useState<string | null>(null);
@@ -284,17 +291,20 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
             )}
           </div>
 
+          {showF("description") && (
           <div className="space-y-1">
             <label htmlFor="issue-description" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</label>
             <textarea
               id="issue-description"
               value={form.description}
+              disabled={!editF("description")}
               onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
               placeholder="Add detail…"
               rows={3}
-              className="w-full bg-background border border-border px-3 py-2 text-sm font-mono outline-none focus:border-primary resize-none"
+              className="w-full bg-background border border-border px-3 py-2 text-sm font-mono outline-none focus:border-primary resize-none disabled:opacity-60"
             />
           </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
@@ -311,9 +321,10 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
               </Select>
             </div>
 
+            {showF("priority") && (
             <div className="space-y-1">
               <label htmlFor="issue-priority" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Priority</label>
-              <Select value={form.priority} onValueChange={(v) => setForm((p) => ({ ...p, priority: v }))}>
+              <Select value={form.priority} disabled={!editF("priority")} onValueChange={(v) => setForm((p) => ({ ...p, priority: v }))}>
                 <SelectTrigger id="issue-priority" aria-label="Priority" className="rounded-none border-border font-mono uppercase text-xs">
                   <SelectValue />
                 </SelectTrigger>
@@ -324,52 +335,65 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
                 </SelectContent>
               </Select>
             </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            {showF("assignee") && (
             <div className="space-y-1">
               <label htmlFor="issue-assignee" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assignee</label>
               <Input
                 id="issue-assignee"
                 value={form.assignee}
+                disabled={!editF("assignee")}
                 onChange={(e) => setForm((p) => ({ ...p, assignee: e.target.value }))}
                 placeholder="username"
-                className="rounded-none border-border font-mono"
+                className="rounded-none border-border font-mono disabled:opacity-60"
               />
             </div>
+            )}
+            {showF("labels") && (
             <div className="space-y-1">
               <label htmlFor="issue-labels" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Labels</label>
               <Input
                 id="issue-labels"
                 value={form.labels}
+                disabled={!editF("labels")}
                 onChange={(e) => setForm((p) => ({ ...p, labels: e.target.value }))}
                 placeholder="infra, auth"
-                className="rounded-none border-border font-mono"
+                className="rounded-none border-border font-mono disabled:opacity-60"
               />
             </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            {showF("startDate") && (
             <div className="space-y-1">
               <label htmlFor="issue-start-date" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Start Date</label>
               <Input
                 id="issue-start-date"
                 type="date"
                 value={form.startDate}
+                disabled={!editF("startDate")}
                 onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
-                className="rounded-none border-border font-mono"
+                className="rounded-none border-border font-mono disabled:opacity-60"
               />
             </div>
+            )}
+            {showF("dueDate") && (
             <div className="space-y-1">
               <label htmlFor="issue-due-date" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Due Date</label>
               <Input
                 id="issue-due-date"
                 type="date"
                 value={form.dueDate}
+                disabled={!editF("dueDate")}
                 onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))}
-                className="rounded-none border-border font-mono"
+                className="rounded-none border-border font-mono disabled:opacity-60"
               />
             </div>
+            )}
           </div>
 
           {isEdit && issue && <TaskItemsPanel projectId={projectId} taskId={issue.id} />}
