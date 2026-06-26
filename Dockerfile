@@ -6,19 +6,20 @@
 # k8s-enterprise-manifest.yaml all deploy.
 
 # ── Builder ───────────────────────────────────────────────────────────────────
-FROM node:26-bookworm-slim AS builder
+# Mirror the CI toolchain (.github/workflows/ci.yml): Node 22 + pnpm 11.8.0.
+FROM node:22-bookworm-slim AS builder
 
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-# corepack is no longer bundled in the Node base image, so install it before
-# enabling the pnpm shim (lockfile is v9.0; latest pnpm reads it).
-RUN npm install -g corepack@latest && corepack enable
+# Node no longer bundles corepack, so install the pinned pnpm directly via npm.
+RUN npm install -g pnpm@11.8.0
 
 WORKDIR /app
 
 # Install dependencies against the committed lockfile for reproducible builds.
+# --ignore-scripts mirrors CI and avoids pnpm 11's fatal ERR_PNPM_IGNORED_BUILDS;
+# esbuild's binary ships in its @esbuild/linux-x64 platform package, so no
+# dependency install script is needed for the build to work.
 COPY . .
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # Build the SPA (vite.config reads PORT + BASE_PATH at config-eval time) and the
 # self-contained API server bundle.
@@ -27,7 +28,7 @@ RUN PORT=3000 BASE_PATH=/ pnpm --filter @workspace/omniproject run build \
  && pnpm --filter @workspace/api-server run build
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
-FROM node:26-bookworm-slim AS runtime
+FROM node:22-bookworm-slim AS runtime
 
 ENV NODE_ENV=production
 ENV PORT=3000
