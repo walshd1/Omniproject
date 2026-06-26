@@ -36,8 +36,12 @@ export type CapabilityDomain = (typeof CAPABILITY_DOMAINS)[number];
  */
 export const FIELD_KEYS: readonly string[] = FIELD_REGISTRY.map((f) => f.key);
 
-/** Canonical higher-level entities the UI can gate on. */
-export const ENTITY_KEYS = ["project", "programme", "raid"] as const;
+/**
+ * Canonical higher-level entities the UI can gate on. `issue` and `note` are the
+ * 0..many children a task can carry *if the backend can store them* — distinct
+ * from the work-item itself (which the UI labels "Task").
+ */
+export const ENTITY_KEYS = ["project", "programme", "raid", "issue", "note"] as const;
 
 export interface Capabilities extends Record<CapabilityDomain, boolean> {
   mode: string;
@@ -82,6 +86,10 @@ export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean
       project: sup(issues, false), // read-through by default; creation is opt-in
       programme: sup(portfolio),
       raid: sup(raid),
+      // Task children — opt-in: a backend must explicitly declare it can store
+      // issues/notes against a task (via Broker.fieldMap), else they're hidden.
+      issue: sup(false),
+      note: sup(false),
     },
   };
 }

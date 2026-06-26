@@ -68,3 +68,7 @@ export * from './settings';
 export * from './settingsAiProvider';
 export * from './settingsUpdate';
 export * from './settingsUpdateAiProvider';
+export * from './taskItem';
+export * from './taskItemInput';
+export * from './taskItemInputKind';
+export * from './taskItemKind';

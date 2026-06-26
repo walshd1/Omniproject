@@ -255,6 +255,44 @@ export interface IssueInput {
   dueDate?: string | null;
 }
 
+export type TaskItemKind = typeof TaskItemKind[keyof typeof TaskItemKind];
+
+
+export const TaskItemKind = {
+  issue: 'issue',
+  note: 'note',
+} as const;
+
+/**
+ * A child issue or note raised against a task.
+ */
+export interface TaskItem {
+  id: string;
+  taskId: string;
+  kind: TaskItemKind;
+  content: string;
+  /** @nullable */
+  author?: string | null;
+  createdAt: string;
+}
+
+export type TaskItemInputKind = typeof TaskItemInputKind[keyof typeof TaskItemInputKind];
+
+
+export const TaskItemInputKind = {
+  issue: 'issue',
+  note: 'note',
+} as const;
+
+/**
+ * Raise an issue or add a note against a task.
+ */
+export interface TaskItemInput {
+  kind: TaskItemInputKind;
+  /** @minLength 1 */
+  content: string;
+}
+
 export type IssueUpdatePriority = typeof IssueUpdatePriority[keyof typeof IssueUpdatePriority];
 
 

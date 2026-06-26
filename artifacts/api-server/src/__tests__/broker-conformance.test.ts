@@ -84,6 +84,22 @@ test("DemoBroker satisfies the write contract (create → update → delete)", a
   await b.writeIssue(ctx, "delete", { projectId: pid, issueId: created!.id });
 });
 
+test("DemoBroker satisfies the task-children contract (raise issue + add note)", async () => {
+  const b: Broker = new DemoBroker();
+  const pid = (await b.listProjects(ctx))[0]!.id;
+  const taskId = (await b.listIssues(ctx, pid))[0]!.id;
+
+  const before = (await b.listTaskItems(ctx, pid, taskId)).length;
+  const issue = await b.createTaskItem(ctx, pid, taskId, { kind: "issue", content: "Found a defect" });
+  const note = await b.createTaskItem(ctx, pid, taskId, { kind: "note", content: "Spoke to the vendor" });
+  assert.equal(issue.kind, "issue");
+  assert.equal(note.kind, "note");
+  assert.equal(issue.taskId, taskId);
+
+  const after = await b.listTaskItems(ctx, pid, taskId);
+  assert.equal(after.length, before + 2, "both children are listed under the task");
+});
+
 test("DemoBroker satisfies the project write contract (create → update / programme grouping)", async () => {
   const b: Broker = new DemoBroker();
 

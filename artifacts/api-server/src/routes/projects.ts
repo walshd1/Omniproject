@@ -10,6 +10,9 @@ import {
   CreateProjectBody,
   UpdateProjectBody,
   UpdateProjectParams,
+  ListTaskItemsParams,
+  CreateTaskItemParams,
+  CreateTaskItemBody,
 } from "@workspace/api-zod";
 import { getBroker, contextFromReq, respondBrokerError } from "../broker";
 import { resolveCapabilities } from "../lib/capabilities";
@@ -137,6 +140,49 @@ router.patch("/projects/:projectId", requireRole("manager"), async (req, res) =>
     res.json(updated);
   } catch (err) {
     req.log.error({ err }, "update_project failed");
+    respondBrokerError(res, err);
+  }
+});
+
+// ── Task children: issues & notes raised against a task ───────────────────────
+
+router.get("/projects/:projectId/issues/:issueId/items", async (req, res) => {
+  const parse = ListTaskItemsParams.safeParse(req.params);
+  if (!parse.success) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  try {
+    res.json(await getBroker().listTaskItems(contextFromReq(req), parse.data.projectId, parse.data.issueId));
+  } catch (err) {
+    req.log.error({ err }, "list_task_items failed");
+    respondBrokerError(res, err);
+  }
+});
+
+router.post("/projects/:projectId/issues/:issueId/items", requireRole("contributor"), async (req, res) => {
+  const paramsParse = CreateTaskItemParams.safeParse(req.params);
+  const bodyParse = CreateTaskItemBody.safeParse(req.body);
+  if (!paramsParse.success || !bodyParse.success) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  const { kind } = bodyParse.data;
+  const caps = await resolveCapabilities(req);
+  if (!caps.entities[kind]?.store) {
+    res.status(403).json({ error: `This backend can't store ${kind}s against a task` });
+    return;
+  }
+  try {
+    const item = await getBroker().createTaskItem(
+      contextFromReq(req),
+      paramsParse.data.projectId,
+      paramsParse.data.issueId,
+      bodyParse.data,
+    );
+    res.status(201).json(item);
+  } catch (err) {
+    req.log.error({ err }, "create_task_item failed");
     respondBrokerError(res, err);
   }
 });
