@@ -101,6 +101,36 @@ Return the **envelope**:
 
 ---
 
+## 2a. Optional PSK transport encryption (`BROKER_PSK`)
+
+A **fallback below TLS** for hops where TLS is genuinely unavailable. TLS
+(`https://` broker URL, optionally mTLS) is always preferred — it also
+authenticates the broker's certificate, which PSK does not. See
+docs/ops/EGRESS-INVENTORY.md §3b for the full hierarchy and caveats (no forward
+secrecy, no peer auth, metadata still visible).
+
+When the gateway has `BROKER_PSK` set, every request body becomes an **encrypted
+envelope** instead of the plaintext one, and the routing headers + `Authorization`
+are dropped (so nothing sensitive is on the wire in cleartext):
+
+```jsonc
+// Headers: Content-Type: application/json,  X-OmniProject-Enc: p1
+{ "v": 1, "enc": "p1.<base64url(iv|tag|ciphertext)>" }
+```
+
+- `enc` decrypts (AES-256-GCM, key = `SHA-256(BROKER_PSK)`, 96-bit random IV,
+  16-byte tag, all base64url after the `p1.` version prefix) to the **normal
+  plaintext envelope** — `{ action, payload, source, origin, idempotencyKey, auth }`
+  — where `auth` is the forwarded `Authorization` value (the token is *inside* the
+  ciphertext, not in a header).
+- **Reply the same way:** encrypt your `{ success, data, message }` response with
+  the same scheme and return `{ "v": 1, "enc": "p1.…" }`. A bad/missing key MUST
+  fail the GCM auth tag → return **400** (never a silent plaintext passthrough).
+- The reference sidecar implements both ends (`broker/reference-sidecar.ts`,
+  helpers in `lib/broker-psk.ts`), proven by `broker/psk-wire.test.ts`.
+
+---
+
 ## 3. Action catalogue
 
 Every action, the broker method it backs, whether the user context is forwarded

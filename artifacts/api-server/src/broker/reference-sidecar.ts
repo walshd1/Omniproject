@@ -15,6 +15,7 @@
  * HTTP status codes for the error taxonomy, optimistic concurrency via 409.
  */
 import http from "node:http";
+import { pskEnabled, sealPayload, openPayload } from "../lib/broker-psk";
 
 type Row = Record<string, unknown>;
 
@@ -120,16 +121,30 @@ export function createReferenceSidecar(): http.Server {
     req.on("end", () => {
       let body: Row = {};
       try { body = raw ? JSON.parse(raw) : {}; } catch { res.writeHead(400).end(); return; }
+
+      // PSK (lib/broker-psk.ts): if the gateway encrypted the envelope, the body
+      // is `{ v, enc }` — decrypt it back to the real envelope. We reply encrypted
+      // too, so neither direction exposes project data or the bearer token on the
+      // wire. A bad/absent key fails the auth tag → 400 (never a silent passthrough).
+      const encrypted = typeof body["enc"] === "string";
+      if (encrypted) {
+        const opened = pskEnabled() ? openPayload(body["enc"] as string) : null;
+        if (opened === null) { res.writeHead(400).end(); return; }
+        try { body = JSON.parse(opened) as Row; } catch { res.writeHead(400).end(); return; }
+      }
       const action = String((req.headers["x-omniproject-action"] as string) || body["action"] || "");
       const payload = (body["payload"] as Row) ?? {};
+      const reply = (status: number, obj: unknown): void => {
+        const text = JSON.stringify(obj);
+        res.writeHead(status, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject" });
+        res.end(encrypted ? JSON.stringify({ v: 1, enc: sealPayload(text) }) : text);
+      };
       try {
         const data = dispatch(store, action, payload);
-        res.writeHead(200, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject" });
-        res.end(JSON.stringify({ success: true, data, message: null }));
+        reply(200, { success: true, data, message: null });
       } catch (e) {
         const err = e as { status?: number; body?: unknown };
-        res.writeHead(err.status ?? 500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(err.body ?? { success: false, message: "error" }));
+        reply(err.status ?? 500, err.body ?? { success: false, message: "error" });
       }
     });
   });

@@ -92,7 +92,20 @@ The broker hop carries project data, so encrypt it in transit:
    (Istio/Linkerd auto-mTLS). This keeps certificate *lifecycle* (issuance,
    rotation) out of the app — deliberately not done in-process to avoid the
    dependency + cert-management surface.
-3. Loopback (`localhost`) plaintext is fine — same host, no wire.
+3. **PSK app-layer encryption (`BROKER_PSK`) — a fallback _below_ TLS, opt-in.**
+   When you genuinely cannot run TLS on the hop but still must keep a packet
+   capture from seeing the bearer token in cleartext, set `BROKER_PSK` to a shared
+   high-entropy key. The gateway then AES-256-GCM-encrypts the **entire** request
+   envelope — action, payload **and the forwarded Authorization token** — and
+   sends only opaque ciphertext + an `X-OmniProject-Enc` marker; the broker
+   decrypts, dispatches, and re-encrypts its reply (the reference sidecar
+   implements both ends — `lib/broker-psk.ts`, proven by `psk-wire.test.ts`). Be
+   honest about the limits vs TLS: **no forward secrecy** (one static key — a leak
+   decrypts past captures), **no peer authentication** (no certificate; anyone
+   with the key is "the broker"), and **metadata still leaks** (destination IP,
+   port, sizes, timing). The broker MUST implement the matching crypto. Prefer
+   TLS; reach for PSK only when TLS is genuinely unavailable on the segment.
+4. Loopback (`localhost`) plaintext is fine — same host, no wire.
 
 ## 3c. Shutdown: clearing in-memory working sets
 
