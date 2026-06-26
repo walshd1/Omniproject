@@ -211,9 +211,34 @@ grant = sign({
   grant is useless to anyone but X).
 - **Revocation** is primarily **short TTL** — the simplest revoke is expiry, so
   default TTLs are short (e.g. ≤ 4h) and renewable. Explicit early revoke needs a
-  **`jti` denylist**, which *is* small state; that is the one deliberate,
+  **denylist**, which *is* small state; that is the one deliberate,
   clearly-flagged concession (mirrors how `loggingSync` is the one egress
   concession). Keep it tiny, in the settings store, auto-pruned at `exp`.
+- **Store a hash, never the details.** Any record the gateway keeps of a grant —
+  the denylist row, replay/dedup tracking, "is this grant known" — holds a
+  **one-way fingerprint of the grant, not its readable contents**. The record is:
+
+  ```
+  { fp: HMAC-SHA-256(canonicalise(grant), gatewaySigningKey),  // opaque fingerprint
+    exp }                                                       // timestamp only, for pruning
+  ```
+
+  Verification recomputes `fp` from the *presented, signature-verified* grant and
+  matches against the store — so revocation/replay checks work without the store
+  ever holding `delegator`/`delegate`/`scope`/`projects` in the clear. Keying the
+  hash with the gateway key (HMAC, not a bare digest) stops anyone who reads the
+  store from confirming a guessed "is X delegated to Y" by hashing candidates
+  offline. The only non-hashed field is `exp` — a timestamp, not an identity —
+  needed to auto-prune. **Net effect:** even the one stateful concession leaks no
+  identities or scope if the settings store is read; it is a set of opaque
+  fingerprints with expiry. This applies wherever a grant is recorded; the live
+  grant details themselves live only in the signed token the holder presents
+  (§7b) or in the IdP (§7a), never at rest in OmniProject.
+
+> Note the project-scope **nomination** (§5.2) is different: it must stay readable
+> because the gateway gates *by* it (which projects the deputy may see), so it is
+> config, not a credential — it is not hashed. The hash rule is for the grant
+> **record** (revocation/replay), which only ever needs *match*, not *read*.
 
 ---
 
@@ -373,6 +398,11 @@ Each phase ships only after the §15 checklist passes.
 - [ ] The acting banner is always shown while a grant is effective; "stop acting"
       works instantly.
 - [ ] Forged / expired / denylisted grants confer nothing (tested).
+- [ ] Any at-rest grant **record** stores a **keyed hash (HMAC) fingerprint** of
+      the grant + `exp` only — never the delegator/delegate/scope in the clear;
+      revocation/replay checks work by recomputing and matching the fingerprint
+      (tested). (The readable project-scope nomination is config, not a grant
+      record, and is exempt.)
 - [ ] Off by default; enabling is an explicit, documented, admin decision.
 
 No build until §14 is decided and this checklist is owned by a reviewer.
