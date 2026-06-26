@@ -17,6 +17,15 @@ them.
 > conformance suite (`broker/conformance.ts`) is the acceptance test — a broker
 > that passes it is conformant.
 
+> **Start here: the reference sidecar.** `artifacts/api-server/src/broker/reference-sidecar.ts`
+> is a minimal, in-memory implementation of this whole binding — both a working
+> **author template** (run it: `pnpm --filter @workspace/api-server run sidecar`,
+> then point `BROKER_URL` at it) and the **CI fixture** that proves the seam:
+> `http-conformance.test.ts` runs the reference broker over real HTTP against it
+> and asserts the conformance suite passes. A DB-backed sidecar (RFC-003) swaps
+> the in-memory store for Postgres/Mongo/etc.; when it passes the same
+> conformance test, it drops in with **zero changes to the core**.
+
 ---
 
 ## 1. Request
