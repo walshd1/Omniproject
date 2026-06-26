@@ -12,7 +12,8 @@ import type { Row, FxRates } from "./types";
 // Whether a real backend is wired, read locally (no import of the n8n adapter,
 // to avoid a cycle and its module side-effects). Used only to gate dev-mode
 // persistence, which is meaningless when a real backend is the source of record.
-const BACKEND_CONFIGURED = !!process.env["BROKER_URL"]?.trim();
+// `N8N_WEBHOOK_URL` is the deprecated pre-0.2.0 alias for `BROKER_URL`.
+const BACKEND_CONFIGURED = !!(process.env["BROKER_URL"] ?? process.env["N8N_WEBHOOK_URL"])?.trim();
 
 export const SAMPLE_PROJECTS: Row[] = [
   { id: "proj-001", name: "Platform Rewrite", identifier: "PLT", description: "Complete overhaul of the core platform infrastructure", source: "jira", programmeId: "prog-platform", programmeName: "Platform Modernization", issueCount: 24, completedCount: 9, memberCount: 5, updatedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
