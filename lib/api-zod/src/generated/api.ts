@@ -640,7 +640,17 @@ export const GetSettingsResponse = zod.object({
   "enabled": zod.boolean(),
   "url": zod.string().nullish(),
   "acknowledgedWarranty": zod.boolean().describe('The admin acknowledged egressed data is outside OmniProject\'s warranty.')
-}).optional().describe('Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject\'s stateless posture; egressed data is the operator\'s responsibility and outside OmniProject\'s warranty. Enabling it unlocks historical time-travel.')
+}).optional().describe('Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject\'s stateless posture; egressed data is the operator\'s responsibility and outside OmniProject\'s warranty. Enabling it unlocks historical time-travel.'),
+  "fieldOverrides": zod.object({
+  "fields": zod.record(zod.string(), zod.object({
+  "surface": zod.boolean(),
+  "store": zod.boolean()
+}).describe('Whether a field\/entity can be surfaced (read) and stored (written).')).optional(),
+  "entities": zod.record(zod.string(), zod.object({
+  "surface": zod.boolean(),
+  "store": zod.boolean()
+}).describe('Whether a field\/entity can be surfaced (read) and stored (written).')).optional()
+}).optional().describe('Admin translation-layer overrides for the capability map. Each entry REPLACES that field\'s\/entity\'s surface+store, correcting a mis-mapping.')
 })
 
 
@@ -657,7 +667,17 @@ export const UpdateSettingsBody = zod.object({
   "enabled": zod.boolean(),
   "url": zod.string().nullish(),
   "acknowledgedWarranty": zod.boolean().describe('The admin acknowledged egressed data is outside OmniProject\'s warranty.')
-}).optional().describe('Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject\'s stateless posture; egressed data is the operator\'s responsibility and outside OmniProject\'s warranty. Enabling it unlocks historical time-travel.')
+}).optional().describe('Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject\'s stateless posture; egressed data is the operator\'s responsibility and outside OmniProject\'s warranty. Enabling it unlocks historical time-travel.'),
+  "fieldOverrides": zod.object({
+  "fields": zod.record(zod.string(), zod.object({
+  "surface": zod.boolean(),
+  "store": zod.boolean()
+}).describe('Whether a field\/entity can be surfaced (read) and stored (written).')).optional(),
+  "entities": zod.record(zod.string(), zod.object({
+  "surface": zod.boolean(),
+  "store": zod.boolean()
+}).describe('Whether a field\/entity can be surfaced (read) and stored (written).')).optional()
+}).optional().describe('Admin translation-layer overrides for the capability map. Each entry REPLACES that field\'s\/entity\'s surface+store, correcting a mis-mapping.')
 })
 
 export const UpdateSettingsResponse = zod.object({
@@ -670,7 +690,17 @@ export const UpdateSettingsResponse = zod.object({
   "enabled": zod.boolean(),
   "url": zod.string().nullish(),
   "acknowledgedWarranty": zod.boolean().describe('The admin acknowledged egressed data is outside OmniProject\'s warranty.')
-}).optional().describe('Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject\'s stateless posture; egressed data is the operator\'s responsibility and outside OmniProject\'s warranty. Enabling it unlocks historical time-travel.')
+}).optional().describe('Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject\'s stateless posture; egressed data is the operator\'s responsibility and outside OmniProject\'s warranty. Enabling it unlocks historical time-travel.'),
+  "fieldOverrides": zod.object({
+  "fields": zod.record(zod.string(), zod.object({
+  "surface": zod.boolean(),
+  "store": zod.boolean()
+}).describe('Whether a field\/entity can be surfaced (read) and stored (written).')).optional(),
+  "entities": zod.record(zod.string(), zod.object({
+  "surface": zod.boolean(),
+  "store": zod.boolean()
+}).describe('Whether a field\/entity can be surfaced (read) and stored (written).')).optional()
+}).optional().describe('Admin translation-layer overrides for the capability map. Each entry REPLACES that field\'s\/entity\'s surface+store, correcting a mis-mapping.')
 })
 
 

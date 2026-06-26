@@ -2,7 +2,7 @@ import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
 import type { BackendFieldMap, FieldSupport } from "../broker/types";
 import { FIELD_REGISTRY, type FieldGroup } from "./field-registry";
-import { isTimeTravelEnabled } from "./settings";
+import { isTimeTravelEnabled, getSettings } from "./settings";
 
 /**
  * Capability signal — which data domains the wired backend(s) can populate, so
@@ -127,11 +127,26 @@ export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean
   };
 }
 
+/**
+ * Lay the admin translation-layer overrides on top of a resolved map. Each
+ * override REPLACES that key's surface/store — the deliberate way an admin
+ * corrects a mis-mapped field/entity. Returns a new map (no mutation).
+ */
+function applyOverrides(map: BackendFieldMap): BackendFieldMap {
+  const ov = getSettings().fieldOverrides;
+  if (!ov || (!Object.keys(ov.fields ?? {}).length && !Object.keys(ov.entities ?? {}).length)) return map;
+  return {
+    fields: { ...map.fields, ...ov.fields },
+    entities: { ...map.entities, ...ov.entities },
+  };
+}
+
 function build(
   mode: string,
   enabled: Partial<Record<CapabilityDomain, boolean>>,
-  map: BackendFieldMap = deriveFieldMap(enabled),
+  baseMap: BackendFieldMap = deriveFieldMap(enabled),
 ): Capabilities {
+  const map = applyOverrides(baseMap);
   const caps = {
     mode,
     timeTravel: isTimeTravelEnabled(),

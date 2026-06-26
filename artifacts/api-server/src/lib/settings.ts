@@ -8,6 +8,7 @@
  */
 
 import { assertSafeOutboundUrl, isSafeOutboundUrl, UnsafeUrlError } from "./url-safety";
+import type { BackendFieldMap } from "../broker/types";
 
 export const AI_PROVIDERS = ["none", "openai", "ollama", "anthropic", "openrouter"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
@@ -81,6 +82,13 @@ export interface SettingsState {
   webhooks: WebhookSubscription[];
   /** Opt-in state-history egress to an operator-owned logging server (off by default). */
   loggingSync: LoggingSyncConfig;
+  /**
+   * Admin translation-layer overrides: per-field / per-entity surface+store that
+   * REPLACE the broker-derived/declared capability map. Lets an admin correct a
+   * mis-mapped field (e.g. force a field the auto-derivation hid back on, or hide
+   * one the backend exposes but shouldn't). Config, never project data.
+   */
+  fieldOverrides: BackendFieldMap;
 }
 
 function brandingFromEnv(): BrandingConfig | null {
@@ -157,6 +165,7 @@ const store: SettingsState = {
   labelOverrides: labelsFromEnv(),
   webhooks: webhooksFromEnv(),
   loggingSync: loggingSyncFromEnv(),
+  fieldOverrides: { fields: {}, entities: {} },
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
@@ -174,6 +183,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "labelOverrides",
   "webhooks",
   "loggingSync",
+  "fieldOverrides",
 ];
 
 export function getSettings(): SettingsState {
@@ -196,6 +206,25 @@ export function redactSettingsForRead(s: SettingsState): SettingsState {
  * problem so the route can answer 400 instead of persisting a malformed config
  * (e.g. an `aiProvider` the AI layer can't resolve, or an unsafe outbound URL).
  */
+/** A map of key → {surface, store} booleans, or throw. */
+function validateSupportMap(value: unknown, what: string): void {
+  if (typeof value !== "object" || value == null) throw new SettingsValidationError(`fieldOverrides.${what} must be an object`);
+  for (const v of Object.values(value as Record<string, unknown>)) {
+    if (!v || typeof v !== "object") throw new SettingsValidationError(`each ${what} override must be an object`);
+    const { surface, store } = v as Record<string, unknown>;
+    if (typeof surface !== "boolean" || typeof store !== "boolean") {
+      throw new SettingsValidationError(`each ${what} override needs boolean surface and store`);
+    }
+  }
+}
+
+function validateFieldOverrides(value: unknown): void {
+  if (typeof value !== "object" || value == null) throw new SettingsValidationError("fieldOverrides must be an object");
+  const o = value as Record<string, unknown>;
+  if ("fields" in o) validateSupportMap(o["fields"], "fields");
+  if ("entities" in o) validateSupportMap(o["entities"], "entities");
+}
+
 function validatePatch(patch: Record<string, unknown>): void {
   if ("aiProvider" in patch && !(AI_PROVIDERS as readonly string[]).includes(patch["aiProvider"] as string)) {
     throw new SettingsValidationError(`aiProvider must be one of: ${AI_PROVIDERS.join(", ")}`);
@@ -230,6 +259,7 @@ function validatePatch(patch: Record<string, unknown>): void {
   if ("labelOverrides" in patch && (typeof patch["labelOverrides"] !== "object" || patch["labelOverrides"] == null)) {
     throw new SettingsValidationError("labelOverrides must be an object");
   }
+  if ("fieldOverrides" in patch) validateFieldOverrides(patch["fieldOverrides"]);
   if ("loggingSync" in patch) {
     const sync = patch["loggingSync"];
     if (!sync || typeof sync !== "object") throw new SettingsValidationError("loggingSync must be an object");

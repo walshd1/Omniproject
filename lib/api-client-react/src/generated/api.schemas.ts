@@ -606,6 +606,18 @@ export interface LoggingSync {
   acknowledgedWarranty: boolean;
 }
 
+export type FieldMapOverrideFields = {[key: string]: FieldSupport};
+
+export type FieldMapOverrideEntities = {[key: string]: FieldSupport};
+
+/**
+ * Admin translation-layer overrides for the capability map. Each entry REPLACES that field's/entity's surface+store, correcting a mis-mapping.
+ */
+export interface FieldMapOverride {
+  fields?: FieldMapOverrideFields;
+  entities?: FieldMapOverrideEntities;
+}
+
 export interface Settings {
   /**
      * The active broker's webhook/endpoint URL (n8n by default).
@@ -620,6 +632,7 @@ export interface Settings {
   /** @nullable */
   oidcIssuerUrl?: string | null;
   loggingSync?: LoggingSync;
+  fieldOverrides?: FieldMapOverride;
 }
 
 export type SettingsUpdateAiProvider = typeof SettingsUpdateAiProvider[keyof typeof SettingsUpdateAiProvider];
@@ -644,6 +657,7 @@ export interface SettingsUpdate {
   /** @nullable */
   oidcIssuerUrl?: string | null;
   loggingSync?: LoggingSync;
+  fieldOverrides?: FieldMapOverride;
 }
 
 export interface ConflictResponse {

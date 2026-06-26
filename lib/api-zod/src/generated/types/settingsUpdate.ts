@@ -5,6 +5,7 @@
  * OmniProject API — thin proxy gateway to n8n webhooks
  * OpenAPI spec version: 0.1.0
  */
+import type { FieldMapOverride } from './fieldMapOverride';
 import type { LoggingSync } from './loggingSync';
 import type { SettingsUpdateAiProvider } from './settingsUpdateAiProvider';
 
@@ -19,4 +20,5 @@ export interface SettingsUpdate {
   /** @nullable */
   oidcIssuerUrl?: string | null;
   loggingSync?: LoggingSync;
+  fieldOverrides?: FieldMapOverride;
 }
