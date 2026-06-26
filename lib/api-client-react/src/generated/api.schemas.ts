@@ -276,6 +276,26 @@ export interface Issue {
   costCenter?: string | null;
   /** @nullable */
   currency?: string | null;
+  /**
+     * Estimated effort in hours (effort field group; surfaced only when the backend tracks effort).
+     * @nullable
+     */
+  estimateHours?: number | null;
+  /**
+     * Effort logged so far, in hours (effort field group).
+     * @nullable
+     */
+  loggedHours?: number | null;
+  /**
+     * Remaining effort in hours (effort field group).
+     * @nullable
+     */
+  remainingHours?: number | null;
+  /**
+     * Agile story-point estimate (agile field group; surfaced only when the backend tracks agile fields).
+     * @nullable
+     */
+  storyPoints?: number | null;
   /** Backend-specific fields that aren't (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it. */
   customFields?: IssueCustomFields;
 }
@@ -315,6 +335,14 @@ export interface IssueInput {
   costCenter?: string | null;
   /** @nullable */
   currency?: string | null;
+  /** @nullable */
+  estimateHours?: number | null;
+  /** @nullable */
+  loggedHours?: number | null;
+  /** @nullable */
+  remainingHours?: number | null;
+  /** @nullable */
+  storyPoints?: number | null;
 }
 
 export type ProjectMemberAccess = typeof ProjectMemberAccess[keyof typeof ProjectMemberAccess];
@@ -434,6 +462,14 @@ export interface IssueUpdate {
   costCenter?: string | null;
   /** @nullable */
   currency?: string | null;
+  /** @nullable */
+  estimateHours?: number | null;
+  /** @nullable */
+  loggedHours?: number | null;
+  /** @nullable */
+  remainingHours?: number | null;
+  /** @nullable */
+  storyPoints?: number | null;
   /** System initiating this update (defaults to "omniproject" at the gateway). Carried downstream so n8n can drop overlapping loop mutations where origin === the target's lastUpdatedBy. */
   origin?: string;
   /** The version the client last saw. When present the gateway/backend performs an optimistic-concurrency check and rejects the write with 409 if the issue has moved on, instead of clobbering it. */

@@ -1061,6 +1061,18 @@ components:
           type: ["string", "null"]
         currency:
           type: ["string", "null"]
+        estimateHours:
+          type: ["number", "null"]
+          description: Estimated effort in hours (effort field group; surfaced only when the backend tracks effort).
+        loggedHours:
+          type: ["number", "null"]
+          description: Effort logged so far, in hours (effort field group).
+        remainingHours:
+          type: ["number", "null"]
+          description: Remaining effort in hours (effort field group).
+        storyPoints:
+          type: ["number", "null"]
+          description: Agile story-point estimate (agile field group; surfaced only when the backend tracks agile fields).
         customFields:
           type: object
           additionalProperties: true
@@ -1116,6 +1128,14 @@ components:
           type: ["string", "null"]
         currency:
           type: ["string", "null"]
+        estimateHours:
+          type: ["number", "null"]
+        loggedHours:
+          type: ["number", "null"]
+        remainingHours:
+          type: ["number", "null"]
+        storyPoints:
+          type: ["number", "null"]
       required:
         - title
 
@@ -1249,6 +1269,14 @@ components:
           type: ["string", "null"]
         currency:
           type: ["string", "null"]
+        estimateHours:
+          type: ["number", "null"]
+        loggedHours:
+          type: ["number", "null"]
+        remainingHours:
+          type: ["number", "null"]
+        storyPoints:
+          type: ["number", "null"]
         origin:
           type: string
           description: >-

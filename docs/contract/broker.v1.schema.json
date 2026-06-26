@@ -400,6 +400,30 @@
             "string",
             "null"
           ]
+        },
+        "estimateHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "loggedHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "remainingHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "storyPoints": {
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "required": [
@@ -486,6 +510,30 @@
         "currency": {
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "estimateHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "loggedHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "remainingHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "storyPoints": {
+          "type": [
+            "number",
             "null"
           ]
         },

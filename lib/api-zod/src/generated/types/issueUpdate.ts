@@ -32,6 +32,14 @@ export interface IssueUpdate {
   costCenter?: string | null;
   /** @nullable */
   currency?: string | null;
+  /** @nullable */
+  estimateHours?: number | null;
+  /** @nullable */
+  loggedHours?: number | null;
+  /** @nullable */
+  remainingHours?: number | null;
+  /** @nullable */
+  storyPoints?: number | null;
   /** System initiating this update (defaults to "omniproject" at the gateway). Carried downstream so n8n can drop overlapping loop mutations where origin === the target's lastUpdatedBy. */
   origin?: string;
   /** The version the client last saw. When present the gateway/backend performs an optimistic-concurrency check and rejects the write with 409 if the issue has moved on, instead of clobbering it. */

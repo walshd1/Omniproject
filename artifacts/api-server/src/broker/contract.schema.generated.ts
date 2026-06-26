@@ -403,6 +403,30 @@ export const BROKER_CONTRACT_SCHEMA = {
             "string",
             "null"
           ]
+        },
+        "estimateHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "loggedHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "remainingHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "storyPoints": {
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "required": [
@@ -489,6 +513,30 @@ export const BROKER_CONTRACT_SCHEMA = {
         "currency": {
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "estimateHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "loggedHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "remainingHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "storyPoints": {
+          "type": [
+            "number",
             "null"
           ]
         },

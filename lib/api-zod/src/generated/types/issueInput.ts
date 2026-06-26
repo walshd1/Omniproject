@@ -31,4 +31,12 @@ export interface IssueInput {
   costCenter?: string | null;
   /** @nullable */
   currency?: string | null;
+  /** @nullable */
+  estimateHours?: number | null;
+  /** @nullable */
+  loggedHours?: number | null;
+  /** @nullable */
+  remainingHours?: number | null;
+  /** @nullable */
+  storyPoints?: number | null;
 }

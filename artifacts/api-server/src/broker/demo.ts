@@ -127,6 +127,11 @@ export class DemoBroker implements Broker {
         ...(input.billable != null ? { billable: input.billable } : {}),
         ...(input.costCenter ? { costCenter: input.costCenter } : {}),
         ...(input.currency ? { currency: input.currency } : {}),
+        // Optional effort / time-tracking — only carried when supplied.
+        ...(input.estimateHours != null ? { estimateHours: input.estimateHours } : {}),
+        ...(input.loggedHours != null ? { loggedHours: input.loggedHours } : {}),
+        ...(input.remainingHours != null ? { remainingHours: input.remainingHours } : {}),
+        ...(input.storyPoints != null ? { storyPoints: input.storyPoints } : {}),
         source: backend === "openproject" ? "openproject" : "plane",
         version: 1,
         createdAt: new Date().toISOString(),
