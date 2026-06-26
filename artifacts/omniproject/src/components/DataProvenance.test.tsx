@@ -71,6 +71,33 @@ describe("DataProvenance", () => {
     expect(csv).toContain("openproject");
   });
 
+  it("shows 'last touched by' only when the backend exposes it, and exports it", async () => {
+    const user = userEvent.setup();
+    const rows = [
+      { id: "1", budget: 1, dueDate: "x", source: "jira", lastUpdatedBy: "alice" },
+      { id: "2", budget: 2, dueDate: "y", source: "jira", lastUpdatedBy: "bob" },
+      { id: "3", budget: 3, dueDate: "z", source: "jira", lastUpdatedBy: "alice" },
+    ];
+    renderWithProviders(<DataProvenance rows={rows} fields={FIELDS} filename="x" />);
+    await user.click(screen.getByTestId("data-provenance"));
+    const panel = await screen.findByTestId("last-touched");
+    expect(within(screen.getByTestId("editor-alice")).getByText("2")).toBeInTheDocument();
+    expect(screen.getByTestId("editor-bob")).toBeInTheDocument();
+    expect(panel).toBeInTheDocument();
+    // and it lands in the CSV
+    await user.click(screen.getByTestId("export-csv"));
+    const csv = decodeURIComponent(hrefs[0]!.replace(/^data:text\/csv;charset=utf-8,/, ""));
+    expect(csv.split("\n")[0]).toContain("lastUpdatedBy");
+    expect(csv).toContain("alice");
+  });
+
+  it("hides 'last touched by' when no row exposes it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<DataProvenance rows={ROWS} fields={FIELDS} filename="x" />);
+    await user.click(screen.getByTestId("data-provenance"));
+    expect(screen.queryByTestId("last-touched")).toBeNull();
+  });
+
   it("exports JSON of the on-screen rows", async () => {
     const user = userEvent.setup();
     renderWithProviders(<DataProvenance rows={ROWS} fields={FIELDS} filename="issues" />);

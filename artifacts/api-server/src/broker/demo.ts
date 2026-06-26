@@ -43,11 +43,13 @@ let taskItemCounter = 100;
 const SAMPLE_TASK_ITEMS: Record<string, TaskItem[]> = {};
 
 /**
- * Illustrative canonical → Jira native field mapping, so the demo can show
- * granular lineage ("dueDate ← jira:duedate"). Real workflows supply the true
- * map via describeFields; unmapped keys fall back to the canonical name.
+ * Illustrative canonical → backend native field mapping, so the demo can show
+ * granular lineage ("dueDate ← <system>:duedate"). The mechanism is
+ * backend-agnostic: real brokers/workflows supply the true map per backend via
+ * describeFields (with their own sourceSystem). These sample names are
+ * Jira-shaped purely as an example; unmapped keys fall back to the canonical name.
  */
-const JIRA_FIELD_MAP: Record<string, string> = {
+const SAMPLE_NATIVE_FIELDS: Record<string, string> = {
   title: "summary", description: "description", status: "status", priority: "priority",
   assignee: "assignee", reporter: "reporter", labels: "labels", dueDate: "duedate",
   startDate: "customfield_10015", storyPoints: "customfield_10016", sprint: "customfield_10020",
@@ -338,10 +340,13 @@ export class DemoBroker implements Broker {
     // so the overlay can show granular lineage: "dueDate ← jira:duedate". A real
     // workflow supplies the true mapping; here it's representative sample data.
     const { FIELD_REGISTRY } = await import("../lib/field-registry");
-    const system = "jira";
+    // The system label is data-driven (the configured backend), not hardcoded —
+    // a real broker reports its own. "all"/"none" fall back to a neutral label.
+    const bs = getSettings().backendSource;
+    const system = bs && bs !== "all" && bs !== "none" ? bs : "backend";
     const canonical = FIELD_REGISTRY.map((f) => ({
       key: f.key, label: f.label, type: f.type, surface: true, store: true,
-      sourceSystem: system, sourceField: JIRA_FIELD_MAP[f.key] ?? f.key,
+      sourceSystem: system, sourceField: SAMPLE_NATIVE_FIELDS[f.key] ?? f.key,
     }));
     const custom = [
       { key: "customerTier", label: "Customer tier", type: "string", surface: true, store: false, sourceSystem: system, sourceField: "customfield_10200" },

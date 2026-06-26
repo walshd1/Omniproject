@@ -67,8 +67,9 @@ test("resolveCapabilities: the describe→reconcile path auto-surfaces custom fi
 test("resolveCapabilities: per-field lineage (fieldSources) from the describe", async () => {
   delete process.env["CAPABILITIES"];
   const caps = await resolveCapabilities({} as Request);
-  // demo maps canonical + custom fields to illustrative Jira native fields
-  assert.equal(caps.fieldSources?.["dueDate"]?.system, "jira");
+  // The system label is data-driven (default backendSource "all" → neutral
+  // "backend"); the native field name comes from the broker's describe.
+  assert.equal(caps.fieldSources?.["dueDate"]?.system, "backend");
   assert.equal(caps.fieldSources?.["dueDate"]?.field, "duedate");
   assert.equal(caps.fieldSources?.["customerTier"]?.field, "customfield_10200");
 });
