@@ -105,19 +105,29 @@ being precise, because workflows touch *all three* categories:
   drop a `BackendManifest` in and the generator/wizard/verifier pick it up. See
   [docs/N8N-WORKFLOWS.md](docs/N8N-WORKFLOWS.md) and [docs/BROKER.md](docs/BROKER.md).
 - **Only the prebuilt *enterprise* workflows are a licensed feature.** Generating
-  the maintained workflows for the heavyweight backbones (SAP S/4HANA, Oracle
+  the ready-to-import workflows for the heavyweight backbones (SAP S/4HANA, Oracle
   Primavera P6, Microsoft Dynamics 365 / Project) is the `enterprise_workflows`
   entitlement — `POST /api/setup/generate-workflow` returns `402` for those
-  backends without a key. You're paying for the *prebuilt, maintained
-  integration*, not for the right to build a workflow: nothing stops you wiring
-  SAP yourself with the same open generator and the generic "Enterprise backbone"
-  preset.
+  backends without a key. You're paying for the *prebuilt integration* so you
+  don't have to build it, **not** for the right to build a workflow: nothing stops
+  you wiring SAP yourself with the same open generator and the generic "Enterprise
+  backbone" preset.
 - **Bespoke workflow building is a service**, just like views — if you'd rather we
   build and tune a workflow for your backend, that's a paid engagement selling our
   time, and what we deliver is ordinary open source you own.
 
 In short: **the prebuilt enterprise integrations are paywalled; the tools,
 contract, and docs for building workflows are not.**
+
+> **What paying does *not* currently buy: a warranty or a fix-it guarantee.**
+> Concretely: you can build a SAP connector yourself for free if you'll invest
+> the effort; buying the licence gives you our prebuilt SAP workflow so you don't
+> have to. But today that licence entitles **use**, not support — the premium
+> components are licensed **AS IS**, with **no warranty, maintenance, uptime, or
+> SLA** commitment (premium licence §5–§6). If the prebuilt integration breaks, we
+> help on a **best-effort, community basis**; a maintained, "if-it-breaks-it's-on-us"
+> enterprise tier (paid support + SLA) is a **planned future offering, not a
+> current promise**. See [Status & warranty](#status--warranty).
 
 ## Status & warranty
 

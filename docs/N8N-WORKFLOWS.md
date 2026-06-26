@@ -114,13 +114,16 @@ integrations* are licensed:
   DevOps, OpenProject, Plane, ServiceNow, Asana, Monday, Trello, Wrike, ClickUp).
   [Adding your own backend](#adding-a-backend) is free too — nothing about *how*
   to build a workflow is black-boxed.
-- **Licensed feature (`enterprise_workflows`):** generating the maintained
+- **Licensed feature (`enterprise_workflows`):** generating the prebuilt
   workflows for the heavyweight backbones — **SAP S/4HANA, Oracle Primavera P6,
   Microsoft Dynamics 365 / Project**. For those, `POST /api/setup/generate-workflow`
-  returns **`402`** without a valid `LICENSE_KEY`. You're paying for the *prebuilt,
-  maintained* integration — not for permission to build one. You can still wire any
-  of these yourself with the same open generator plus the generic **Enterprise
-  backbone** preset; the contract and tools are identical.
+  returns **`402`** without a valid `LICENSE_KEY`. You're paying for the *prebuilt*
+  integration so you don't have to build it — not for permission to build one. You
+  can still wire any of these yourself for free with the same open generator plus
+  the generic **Enterprise backbone** preset; the contract and tools are identical.
+  Note the licence entitles **use, not warranty or support** — the premium
+  components are AS IS (see
+  [LICENSING.md → Status & warranty](../LICENSING.md#status--warranty)).
 - **Optional paid service:** if you'd rather not build it, we can build and tune a
   workflow for your backend as an engagement — selling our time, not access. What
   we deliver is ordinary open source you own. See
