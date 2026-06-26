@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { FlaskConical, ExternalLink, LogOut, Download, AlertTriangle } from "lucide-react";
+import { ReplicaWorkbench } from "../components/explore/ReplicaWorkbench";
 import { PortfolioTrends } from "../components/reports/PortfolioTrends";
 import { ScenarioSandbox } from "../components/reports/ScenarioSandbox";
 import { ScheduleSandbox } from "../components/reports/ScheduleSandbox";
@@ -120,6 +121,7 @@ export function Explore() {
           </p>
         </header>
 
+        <ReplicaWorkbench />
         <PortfolioTrends />
         <TimeTravel />
         <ScenarioSandbox />
