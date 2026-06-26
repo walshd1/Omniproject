@@ -60,3 +60,4 @@ Thumbs.db
 # Test coverage output (generated)
 coverage/
 *.lcov
+sbom-licences.json
