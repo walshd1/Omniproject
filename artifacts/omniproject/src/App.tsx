@@ -22,6 +22,7 @@ const ProjectDetail = lazy(() => import("./pages/ProjectDetail").then((m) => ({ 
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
 const Setup = lazy(() => import("./pages/Setup").then((m) => ({ default: m.Setup })));
 const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
+const Resources = lazy(() => import("./pages/Resources").then((m) => ({ default: m.Resources })));
 const Explore = lazy(() => import("./pages/Explore").then((m) => ({ default: m.Explore })));
 const Login = lazy(() => import("./pages/Login").then((m) => ({ default: m.Login })));
 
@@ -73,6 +74,9 @@ function Router() {
       </Route>
       <Route path="/reports">
         <AppLayout><Reports /></AppLayout>
+      </Route>
+      <Route path="/resources">
+        <AppLayout><Resources /></AppLayout>
       </Route>
       {/* Exploration mode is intentionally OUTSIDE the live AppLayout chrome. */}
       <Route path="/explore">

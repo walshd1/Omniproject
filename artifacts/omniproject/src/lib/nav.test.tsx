@@ -31,6 +31,7 @@ describe("NAV_ITEMS", () => {
       "/programmes",
       "/projects",
       "/reports",
+      "/resources",
       "/explore",
       "/settings",
       "/setup",
