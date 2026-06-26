@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { TaskItemsPanel } from "./TaskItemsPanel";
 import {
   useCreateIssue,
   useUpdateIssue,
@@ -348,6 +349,8 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
               />
             </div>
           </div>
+
+          {isEdit && issue && <TaskItemsPanel projectId={projectId} taskId={issue.id} />}
 
           <DialogFooter className="gap-2 sm:justify-between">
             {isEdit ? (
