@@ -700,6 +700,7 @@ const SAMPLE_SETTINGS = {
   labelOverrides: {},
   webhooks: [],
   loggingSync: { enabled: false, url: null, acknowledgedWarranty: false },
+  fieldOverrides: { fields: {}, entities: {} },
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {
@@ -748,6 +749,34 @@ test("resolveCapabilities: demo mode (no broker, no env) turns everything on", a
   const caps = await resolveCapabilities({} as Request);
   assert.ok(["demo", "env"].includes(caps.mode));
   if (savedWebhook) process.env["BROKER_URL"] = savedWebhook;
+});
+
+test("resolveCapabilities: admin fieldOverrides replace the derived map", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  delete process.env["CAPABILITIES"];
+  try {
+    // Demo turns storyPoints on; an admin override forces it off, and forces a
+    // normally-opt-in entity (account) on.
+    updateSettings({ fieldOverrides: {
+      fields: { storyPoints: { surface: false, store: false } },
+      entities: { account: { surface: true, store: true } },
+    } });
+    const caps = await resolveCapabilities({} as Request);
+    assert.equal(caps.fields["storyPoints"]?.surface, false, "override hides storyPoints");
+    assert.equal(caps.entities["account"]?.surface, true, "override surfaces account");
+    // A field NOT overridden is untouched.
+    assert.equal(caps.fields["title"]?.surface, true);
+  } finally {
+    updateSettings({ fieldOverrides: { fields: {}, entities: {} } });
+  }
+});
+
+test("settings: fieldOverrides must be {surface, store} booleans", async () => {
+  const { updateSettings, SettingsValidationError } = await import("../lib/settings");
+  assert.throws(
+    () => updateSettings({ fieldOverrides: { fields: { x: { surface: "yes" } } } }),
+    (e: unknown) => e instanceof SettingsValidationError,
+  );
 });
 
 // ── Licensing / entitlements ────────────────────────────────────────────────────
