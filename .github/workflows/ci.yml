@@ -174,3 +174,39 @@ jobs:
           for _ in $(seq 1 30); do curl -fsS http://localhost:5055/api/healthz >/dev/null 2>&1 && break; sleep 1; done
           NODE_PATH=/tmp/a11y/node_modules A11Y_BASE=http://localhost:5055 \
             pnpm --filter @workspace/scripts run a11y
+
+  # Build the single-container "omni-shell" image and smoke-boot it. `verify`
+  # builds the app with pnpm, but nothing here ever built the *Docker image* — so
+  # Dockerfile rot (Node base dropping corepack, pnpm version drift, a broken
+  # static-copy path) could ship undetected. This job is that guard: it fails if
+  # the image can't build, can't boot, or doesn't serve both the API and the SPA.
+  docker-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the omni-shell image
+        run: docker build -t omni-shell:ci .
+
+      - name: Smoke-boot in demo mode (API health + served SPA root)
+        run: |
+          docker run -d --name omni -p 3000:3000 \
+            -e SESSION_SECRET=ci-smoke-secret-not-for-prod \
+            omni-shell:ci
+          for _ in $(seq 1 30); do
+            curl -fsS http://localhost:3000/api/healthz >/dev/null 2>&1 && break
+            sleep 2
+          done
+          # Both must respond: the API health endpoint, and the static SPA root
+          # (a 200 here proves the built frontend actually landed in the image).
+          curl -fsS http://localhost:3000/api/healthz
+          test "$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:3000/)" = "200"
+
+      - name: Container logs (always)
+        if: always()
+        run: docker logs omni || true
+
+      - name: Teardown
+        if: always()
+        run: docker rm -f omni || true
