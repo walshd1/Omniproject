@@ -3,8 +3,17 @@ import { Link } from "wouter";
 import { useState } from "react";
 import { PlugZap, Plus } from "lucide-react";
 import { ExportMenu } from "../components/ExportMenu";
+import { DataProvenance } from "../components/DataProvenance";
 import { NewProjectDialog } from "../components/NewProjectDialog";
 import { canStoreEntity } from "../lib/capabilities-fields";
+
+/** The list-row fields whose fill rate is worth surfacing on the index. */
+const PROJECT_FIELDS = [
+  { key: "description", label: "Description" },
+  { key: "programmeName", label: "Programme" },
+  { key: "memberCount", label: "Members" },
+  { key: "issueCount", label: "Issues" },
+];
 import { Button } from "@/components/ui/button";
 import { DataState } from "../components/DataState";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
@@ -55,6 +64,9 @@ export function Projects() {
               >
                 <Plus className="w-4 h-4" /> New Project
               </Button>
+            )}
+            {projects && projects.length > 0 && (
+              <DataProvenance rows={projects as unknown as Record<string, unknown>[]} fields={PROJECT_FIELDS} mode={caps?.mode} filename="projects" />
             )}
             <ExportMenu />
           </div>

@@ -1,8 +1,16 @@
 import { useMemo, useState } from "react";
 import { useListResourcePool, useGetCapabilities, getListResourcePoolQueryKey } from "@workspace/api-client-react";
 import { DataState } from "../components/DataState";
+import { DataProvenance } from "../components/DataProvenance";
 import { canSurfaceEntity } from "../lib/capabilities-fields";
 import { capacityBand, capacitySummary } from "../lib/capacity";
+
+/** Roster fields whose fill rate exposes capacity-planning gaps. */
+const RESOURCE_FIELDS = [
+  { key: "skills", label: "Skills" },
+  { key: "availableHours", label: "Available (h)" },
+  { key: "allocatedHours", label: "Allocated (h)" },
+];
 
 /** Utilisation = allocated / available, when both are known. */
 function utilisation(available: number | null, allocated: number | null): number | null {
@@ -39,7 +47,13 @@ export function Resources() {
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <h1 className="text-3xl font-black uppercase tracking-tighter">Resource Planning</h1>
-          {pool && <span className="text-muted-foreground font-mono text-sm">{pool.length} PEOPLE</span>}
+          <div className="flex items-center gap-4">
+            {pool && <span className="text-muted-foreground font-mono text-sm">{pool.length} PEOPLE</span>}
+            {pool && pool.length > 0 && (
+              <DataProvenance rows={pool as unknown as Record<string, unknown>[]} fields={RESOURCE_FIELDS} mode={caps?.mode}
+                filename="resources" sourceAccessor={() => "resource-pool"} />
+            )}
+          </div>
         </div>
 
         {!supported ? (
