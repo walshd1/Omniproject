@@ -435,6 +435,12 @@ extended without the private key, and stops granting features once `exp` passes 
 at which point the premium features **revert to their free defaults
 automatically**.
 
+> **Pre-community period:** enforcement is **dormant** — `resolveLicense()` grants
+> every feature by default, so the paywall and the 402s described below do not
+> apply unless `PREMIUM_ENFORCEMENT=on`. The signing/verification machinery stays
+> intact; this section documents the enforced model that returns later. See
+> [LICENSING.md](../LICENSING.md).
+
 | Feature | What it unlocks | Endpoints |
 | ------- | --------------- | --------- |
 | `branding` | **White-label** the UI: app name, short badge, logo, accent colour, login heading + footer. The login screen is branded pre-auth. | `GET /api/branding` (public), `PUT`/`DELETE /api/branding` (admin) |
@@ -442,8 +448,9 @@ automatically**.
 | `webhooks` | **Outbound push** — fan events (`notification`, `audit`, `config.changed`) to a customer endpoint, SIEM, Slack, or an n8n webhook node. Each delivery is HMAC-SHA256 signed (`X-OmniProject-Signature`). Fire-and-forget (stateless); for at-least-once, target an n8n webhook and let n8n queue retries. | `GET`/`POST /api/webhooks`, `DELETE /api/webhooks/:id`, `POST /api/webhooks/:id/test` (all admin) |
 | `enterprise_workflows` | **Enterprise backend integrations** — generate importable n8n workflows for the large ERPs / scheduling systems (SAP, Primavera, Dynamics 365, MS Project, generic enterprise template). Standard backends (Jira, OpenProject, GitHub, ServiceNow, …) stay free. | `POST /api/setup/generate-workflow` (admin) returns 402 for an enterprise backend without the feature |
 
-Write paths return **402 Payment Required** when the feature isn't licensed.
-`GET /api/license` (and `setup/status.licensing`) report the current tier,
+Write paths return **402 Payment Required** when the feature isn't licensed
+(under enforcement; dormant in the pre-community period — all features are free
+by default). `GET /api/license` (and `setup/status.licensing`) report the current tier,
 entitled features and expiry, so the UI shows locked/unlocked states. Branding +
 label overrides are stored in the settings store and **included in config
 snapshots** (no secrets); webhook subscriptions carry signing secrets and are
@@ -472,28 +479,15 @@ Config env: `BRAND_APP_NAME`, `BRAND_SHORT_NAME`, `BRAND_LOGO_URL`,
 non-production, `LICENSE_DEV_FEATURES=all` unlocks premium for development
 (ignored in production).
 
-### Automated sales → licence fulfilment (Stripe / Gumroad)
+### Automated sales → licence fulfilment
 
-Purchases mint and deliver a key automatically, so a solo maintainer runs no
-support desk and the gateway stays stateless (no order database):
-
-```
-buyer → Stripe / Gumroad checkout → webhook → gateway verifies the provider
-      signature → maps product → entitlement → mints an Ed25519 key
-      → POSTs it to LICENSE_FULFILLMENT_URL (an n8n workflow) → emails the buyer
-```
-
-| Endpoint | Auth | Notes |
-| -------- | ---- | ----- |
-| `POST /api/licensing/stripe` | Stripe `Stripe-Signature` (HMAC of the raw body) verified against `STRIPE_WEBHOOK_SECRET` | Acts on `checkout.session.completed` / `invoice.paid`. Set `metadata.license_product` on the Checkout Session / Payment Link to pick the entitlement. |
-| `POST /api/licensing/gumroad` | Shared-secret token (`?token=` or body field) vs `GUMROAD_WEBHOOK_SECRET`, optional `GUMROAD_SELLER_ID` match | Acts on a live sale (ignores refunds/disputes). Product from `product_permalink`. |
-
-Fulfilment env: `LICENSE_PRIVATE_KEY` (the issuing key — only the sales gateway
-holds it), `LICENSE_PRODUCTS` (JSON: product-id → `{tier, features, days}`),
-`LICENSE_FULFILLMENT_URL` (+ optional `LICENSE_FULFILLMENT_SECRET` to HMAC-sign
-the hand-off). Use a **merchant-of-record** (Lemon Squeezy, Polar, Paddle,
-Gumroad) so VAT/sales tax is handled for you. Full model + the open-core
-deployment story: [LICENSING.md](../LICENSING.md).
+> **Removed during the pre-community period.** Premium is free to run, so there is
+> nothing to sell yet and the payment-provider plumbing (Stripe/Gumroad checkout
+> webhooks → automatic minting/fulfilment) has been taken out of the runtime — no
+> dead storefront code. Licences are minted directly with `mint-license.ts` (see
+> the lifecycle block above). When enforcement returns, fulfilment can be
+> re-introduced as a thin route over the same minting machinery. Full model +
+> the open-core deployment story: [LICENSING.md](../LICENSING.md).
 
 ## Environments & rollback (config change management)
 

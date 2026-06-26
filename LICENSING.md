@@ -5,19 +5,26 @@ set of premium features is source-available but requires a paid licence key to
 run in production. This page explains how that works in practice — including how
 the paid features live in a public GitHub repo without being given away.
 
+> **Pre-community period: premium is free to run, and enforcement is dormant —
+> deliberate and temporary.** Every premium feature is granted by default (set
+> `PREMIUM_ENFORCEMENT=on` to restore the paywall), and the payment-provider
+> plumbing has been removed from the default runtime. The licence machinery
+> stays in the code and re-activates when enforcement returns. The rest of this
+> page describes the enforced model that returns later.
+
 ## Two licences
 
 | Scope | Licence | What it means |
 | ----- | ------- | ------------- |
 | **Core** (the overlay, gateway, SPA, n8n contract, all standard backends) | **Apache-2.0** ([`LICENSE`](LICENSE)) | Free for any use, including commercial. Permissive, with a patent grant and an explicit *no-warranty* clause. |
-| **Premium components** (white-label branding, company nomenclature, outbound webhooks, enterprise backend workflows, licence fulfilment) | **OmniProject Premium** ([`LICENSE-PREMIUM.txt`](LICENSE-PREMIUM.txt)) | Source-available; using the **features in production** needs a valid licence key. Evaluation is free. |
+| **Premium components** (white-label branding, company nomenclature, outbound webhooks, enterprise backend workflows) | **OmniProject Premium** ([`licenses/PREMIUM.txt`](licenses/PREMIUM.txt)) | Source-available; using the **features in production** needs a valid licence key (dormant during the pre-community period — see the note above). Evaluation is free. |
 
 Premium source files are tagged in their header:
 
 ```ts
 /*
  * SPDX-License-Identifier: LicenseRef-OmniProject-Premium
- * Premium feature — governed by LICENSE-PREMIUM.txt, NOT Apache-2.0.
+ * Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
  */
 ```
 
@@ -31,7 +38,7 @@ not obscurity, it's two layers:
    anything. No key → the feature is off and the API returns `402 Payment
    Required`. The key can't be forged or extended without the issuing private
    key, and it self-expires. See [`license.ts`](artifacts/api-server/src/lib/license.ts).
-2. **Licence terms.** `LICENSE-PREMIUM.txt` makes it a breach to strip the gate
+2. **Licence terms.** `licenses/PREMIUM.txt` makes it a breach to strip the gate
    and run the result in production. Permissive Apache-2.0 covers the core; it
    explicitly does **not** extend to the premium-tagged files.
 
@@ -48,24 +55,17 @@ There is **one codebase and one build** — premium features are present in ever
 build and simply stay locked without a key. Operators enable them by setting
 `LICENSE_KEY`. There is no separate "EE" artifact to maintain.
 
-## Buying & fulfilment (automated, support-free)
+## Issuing licences
 
-Purchases are fully automated so a solo maintainer never runs a support desk:
+Licence keys are minted with [`scripts/mint-license.ts`](scripts/mint-license.ts)
+from the vendor's Ed25519 issuing key (`LICENSE_PRIVATE_KEY`) — a signed,
+self-expiring token, no order database, the gateway stays stateless.
 
-```
-buyer → Stripe / Gumroad checkout → webhook → gateway mints a signed key
-      → POSTs it to LICENSE_FULFILLMENT_URL (an n8n workflow) → emails the buyer
-```
-
-- `POST /api/licensing/stripe` and `POST /api/licensing/gumroad` verify the
-  provider's signature, map the purchased product to an entitlement
-  (`LICENSE_PRODUCTS`), mint an Ed25519 key, and hand it to your fulfilment
-  workflow. No order database — the gateway stays stateless.
-- Use a **merchant-of-record** (Lemon Squeezy, Polar, Paddle, or Gumroad) to
-  have VAT/sales tax handled for you.
-
-See [docs/TECHNICAL.md → Premium overlay](docs/TECHNICAL.md#premium-overlay-licensed-features)
-for the env vars and the full flow.
+> During the pre-community period the automated payment-provider plumbing
+> (Stripe/Gumroad checkout webhooks → automatic minting/fulfilment) has been
+> **removed from the runtime**, since premium is free and there is nothing to
+> sell yet. When enforcement returns, fulfilment can be re-introduced as a thin
+> route over the same `mint-license.ts` machinery.
 
 ## Licensed features vs. professional services
 

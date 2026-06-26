@@ -1029,12 +1029,8 @@ async function testPremium(apiBase: string) {
     const sap = await post(`${apiBase}/api/setup/generate-workflow`, { backendId: "sap" });
     assert("Unlicensed: enterprise backend (sap) is 402 (paywall)", sap.status === 402, `got ${sap.status}`);
   }
-
-  // Payment webhooks reject an unsigned/forged call (no provider secret in CI).
-  const stripe = await post(`${apiBase}/api/licensing/stripe`, { type: "checkout.session.completed" }, { "Stripe-Signature": "t=1,v1=deadbeef" });
-  assert("Stripe webhook rejects an invalid signature", stripe.status === 400, `got ${stripe.status}`);
-  const gumroad = await post(`${apiBase}/api/licensing/gumroad`, { product_permalink: "x", email: "a@b.c" });
-  assert("Gumroad webhook rejects a missing/invalid token", gumroad.status === 400, `got ${gumroad.status}`);
+  // Payment-provider webhooks were removed during the pre-community period
+  // (premium is free; no storefront plumbing in the runtime) — nothing to probe.
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

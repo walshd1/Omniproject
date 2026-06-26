@@ -9,8 +9,6 @@ import { idempotencyKey } from "../broker/n8n";
 import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
 import { BACKENDS, getBackend, isEnterpriseBackend, backendCatalogue } from "../lib/n8n-backends";
-import { verifyStripeSignature, verifyGumroad } from "../lib/payments";
-import { entitlementForProduct, mintForPurchase } from "../lib/fulfillment";
 import { generateWorkflow } from "../lib/n8n-generator";
 import { buildSnapshot, applySnapshot, SNAPSHOT_SCHEMA } from "../lib/config-snapshot";
 import { convertAmount, supportedCurrencies } from "../lib/currency";
@@ -745,9 +743,25 @@ test("license: malformed token is rejected, not thrown", () => {
   assert.equal(verifyLicense("not-a-token", LIC_PUB).valid, false);
 });
 
-test("license: resolveLicense reads LICENSE_KEY against LICENSE_PUBLIC_KEY env", () => {
-  const saved = { k: process.env["LICENSE_KEY"], p: process.env["LICENSE_PUBLIC_KEY"] };
+test("license: pre-community default grants every premium feature (enforcement dormant)", () => {
+  const saved = process.env["PREMIUM_ENFORCEMENT"];
   try {
+    delete process.env["PREMIUM_ENFORCEMENT"]; // default = free
+    const status = resolveLicense();
+    assert.equal(status.valid, true);
+    assert.equal(status.source, "pre-community");
+    assert.equal(isEntitled("branding"), true);
+    assert.equal(isEntitled("webhooks"), true);
+    assert.equal(isEntitled("enterprise_workflows"), true);
+  } finally {
+    if (saved === undefined) delete process.env["PREMIUM_ENFORCEMENT"]; else process.env["PREMIUM_ENFORCEMENT"] = saved;
+  }
+});
+
+test("license: resolveLicense reads LICENSE_KEY against LICENSE_PUBLIC_KEY env (enforced)", () => {
+  const saved = { k: process.env["LICENSE_KEY"], p: process.env["LICENSE_PUBLIC_KEY"], e: process.env["PREMIUM_ENFORCEMENT"] };
+  try {
+    process.env["PREMIUM_ENFORCEMENT"] = "on"; // exercise the dormant paywall
     process.env["LICENSE_KEY"] = signLicense(licensePayload({ features: ["branding"], exp: 4_102_444_800 }), LIC_PRIV);
     process.env["LICENSE_PUBLIC_KEY"] = LIC_PUB;
     const status = resolveLicense();
@@ -759,12 +773,14 @@ test("license: resolveLicense reads LICENSE_KEY against LICENSE_PUBLIC_KEY env",
   } finally {
     if (saved.k === undefined) delete process.env["LICENSE_KEY"]; else process.env["LICENSE_KEY"] = saved.k;
     if (saved.p === undefined) delete process.env["LICENSE_PUBLIC_KEY"]; else process.env["LICENSE_PUBLIC_KEY"] = saved.p;
+    if (saved.e === undefined) delete process.env["PREMIUM_ENFORCEMENT"]; else process.env["PREMIUM_ENFORCEMENT"] = saved.e;
   }
 });
 
-test("license: no licence → community tier with no features", () => {
-  const saved = { k: process.env["LICENSE_KEY"], d: process.env["LICENSE_DEV_FEATURES"], n: process.env["NODE_ENV"] };
+test("license: no licence → community tier with no features (enforced)", () => {
+  const saved = { k: process.env["LICENSE_KEY"], d: process.env["LICENSE_DEV_FEATURES"], n: process.env["NODE_ENV"], e: process.env["PREMIUM_ENFORCEMENT"] };
   try {
+    process.env["PREMIUM_ENFORCEMENT"] = "on";
     delete process.env["LICENSE_KEY"];
     delete process.env["LICENSE_DEV_FEATURES"];
     process.env["NODE_ENV"] = "production";
@@ -776,6 +792,7 @@ test("license: no licence → community tier with no features", () => {
     if (saved.k !== undefined) process.env["LICENSE_KEY"] = saved.k;
     if (saved.d !== undefined) process.env["LICENSE_DEV_FEATURES"] = saved.d;
     if (saved.n === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = saved.n;
+    if (saved.e === undefined) delete process.env["PREMIUM_ENFORCEMENT"]; else process.env["PREMIUM_ENFORCEMENT"] = saved.e;
   }
 });
 
@@ -794,10 +811,12 @@ test("branding: sanitize rejects a non-http logo url", () => {
   assert.throws(() => sanitizeBranding({ logoUrl: "javascript:alert(1)" }), /URL/);
 });
 
-test("branding: effective falls back to product defaults when unlicensed", () => {
+test("branding: effective falls back to product defaults when unlicensed (enforced)", () => {
   const saved = process.env["LICENSE_DEV_FEATURES"];
   const savedNode = process.env["NODE_ENV"];
+  const savedEnf = process.env["PREMIUM_ENFORCEMENT"];
   try {
+    process.env["PREMIUM_ENFORCEMENT"] = "on"; // exercise the dormant paywall
     process.env["NODE_ENV"] = "production";
     delete process.env["LICENSE_DEV_FEATURES"];
     const eff = effectiveBranding();
@@ -806,6 +825,7 @@ test("branding: effective falls back to product defaults when unlicensed", () =>
   } finally {
     if (saved !== undefined) process.env["LICENSE_DEV_FEATURES"] = saved;
     if (savedNode === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = savedNode;
+    if (savedEnf === undefined) delete process.env["PREMIUM_ENFORCEMENT"]; else process.env["PREMIUM_ENFORCEMENT"] = savedEnf;
   }
 });
 
@@ -838,10 +858,12 @@ test("webhooks: create validates the URL and redact hides the secret", () => {
   updateSettings({ webhooks: [] });
 });
 
-test("webhooks: deliver is a no-op without the entitlement", async () => {
+test("webhooks: deliver is a no-op without the entitlement (enforced)", async () => {
   const saved = process.env["LICENSE_DEV_FEATURES"];
   const savedNode = process.env["NODE_ENV"];
+  const savedEnf = process.env["PREMIUM_ENFORCEMENT"];
   try {
+    process.env["PREMIUM_ENFORCEMENT"] = "on"; // exercise the dormant paywall
     process.env["NODE_ENV"] = "production";
     delete process.env["LICENSE_DEV_FEATURES"];
     updateSettings({ webhooks: [{ id: "x", url: "https://127.0.0.1:1/none", secret: "s", events: ["*"], active: true }] });
@@ -851,6 +873,7 @@ test("webhooks: deliver is a no-op without the entitlement", async () => {
     updateSettings({ webhooks: [] });
     if (saved !== undefined) process.env["LICENSE_DEV_FEATURES"] = saved;
     if (savedNode === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = savedNode;
+    if (savedEnf === undefined) delete process.env["PREMIUM_ENFORCEMENT"]; else process.env["PREMIUM_ENFORCEMENT"] = savedEnf;
   }
 });
 
@@ -869,134 +892,6 @@ test("backends: catalogue exposes a tier per backend", () => {
   const jira = cat.find((b) => b.id === "jira");
   assert.equal(sap?.tier, "enterprise");
   assert.equal(jira?.tier, "standard");
-});
-
-// ── Payment webhook signature verification ──────────────────────────────────────
-test("payments: Stripe signature verifies a correctly-signed body", () => {
-  const secret = "whsec_test";
-  const body = JSON.stringify({ id: "evt_1", type: "checkout.session.completed" });
-  const t = 1_700_000_000;
-  const sig = crypto.createHmac("sha256", secret).update(`${t}.${body}`).digest("hex");
-  const r = verifyStripeSignature(body, `t=${t},v1=${sig}`, secret, { now: t * 1000 });
-  assert.equal(r.ok, true);
-});
-
-test("payments: Stripe rejects a tampered body", () => {
-  const secret = "whsec_test";
-  const t = 1_700_000_000;
-  const sig = crypto.createHmac("sha256", secret).update(`${t}.{}`).digest("hex");
-  const r = verifyStripeSignature("{\"x\":1}", `t=${t},v1=${sig}`, secret, { now: t * 1000 });
-  assert.equal(r.ok, false);
-  assert.match(r.reason ?? "", /mismatch/);
-});
-
-test("payments: Stripe rejects a stale timestamp", () => {
-  const secret = "whsec_test";
-  const body = "{}";
-  const t = 1_700_000_000;
-  const sig = crypto.createHmac("sha256", secret).update(`${t}.${body}`).digest("hex");
-  const r = verifyStripeSignature(body, `t=${t},v1=${sig}`, secret, { now: (t + 10_000) * 1000 });
-  assert.equal(r.ok, false);
-  assert.match(r.reason ?? "", /tolerance/);
-});
-
-test("payments: Gumroad verifies the shared-secret token and seller", () => {
-  assert.equal(verifyGumroad({ seller_id: "S1" }, "tok", { secret: "tok", sellerId: "S1" }).ok, true);
-  assert.equal(verifyGumroad({ seller_id: "S2" }, "tok", { secret: "tok", sellerId: "S1" }).ok, false);
-  assert.equal(verifyGumroad({}, "wrong", { secret: "tok" }).ok, false);
-});
-
-// ── Licence fulfilment ──────────────────────────────────────────────────────────
-test("fulfilment: entitlementForProduct reads LICENSE_PRODUCTS, filters features", () => {
-  const saved = process.env["LICENSE_PRODUCTS"];
-  try {
-    process.env["LICENSE_PRODUCTS"] = JSON.stringify({ p1: { tier: "pro", features: ["branding", "bogus"], days: 30 } });
-    const ent = entitlementForProduct("p1");
-    assert.equal(ent?.tier, "pro");
-    assert.deepEqual(ent?.features, ["branding"]);
-    assert.equal(ent?.days, 30);
-    assert.equal(entitlementForProduct("missing"), null);
-  } finally {
-    if (saved === undefined) delete process.env["LICENSE_PRODUCTS"]; else process.env["LICENSE_PRODUCTS"] = saved;
-  }
-});
-
-test("fulfilment: mintForPurchase signs a verifiable, entitled licence", () => {
-  const saved = { p: process.env["LICENSE_PRODUCTS"], k: process.env["LICENSE_PRIVATE_KEY"] };
-  try {
-    process.env["LICENSE_PRODUCTS"] = JSON.stringify({ ent: { tier: "enterprise", features: ["branding", "enterprise_workflows"], days: 365 } });
-    process.env["LICENSE_PRIVATE_KEY"] = LIC_PRIV;
-    const now = 1_700_000_000_000;
-    const minted = mintForPurchase({ provider: "stripe", productId: "ent", customer: "Acme", now });
-    assert.ok(!("error" in minted), "should mint");
-    if ("token" in minted) {
-      const v = verifyLicense(minted.token, LIC_PUB, now);
-      assert.equal(v.valid, true);
-      assert.deepEqual(v.payload?.features, ["branding", "enterprise_workflows"]);
-      assert.equal(v.payload?.exp, Math.floor(now / 1000) + 365 * 86400);
-    }
-  } finally {
-    if (saved.p === undefined) delete process.env["LICENSE_PRODUCTS"]; else process.env["LICENSE_PRODUCTS"] = saved.p;
-    if (saved.k === undefined) delete process.env["LICENSE_PRIVATE_KEY"]; else process.env["LICENSE_PRIVATE_KEY"] = saved.k;
-  }
-});
-
-test("fulfilment: mintForPurchase errors without a private key", () => {
-  const saved = process.env["LICENSE_PRIVATE_KEY"];
-  try {
-    delete process.env["LICENSE_PRIVATE_KEY"];
-    const r = mintForPurchase({ provider: "gumroad", productId: "x", customer: "y" });
-    assert.ok("error" in r);
-  } finally {
-    if (saved !== undefined) process.env["LICENSE_PRIVATE_KEY"] = saved;
-  }
-});
-
-// ── n8n licence-fulfilment blueprint ────────────────────────────────────────────
-test("blueprint: licence-fulfilment workflow is a valid, importable n8n workflow", () => {
-  const here = path.dirname(new URL(import.meta.url).pathname);
-  const wfPath = path.resolve(here, "../../../n8n-blueprints/omniproject-license-fulfilment.json");
-  const wf = JSON.parse(fs.readFileSync(wfPath, "utf8")) as {
-    name: string;
-    nodes: Array<{ name: string; type: string; parameters: Record<string, unknown> }>;
-    connections: Record<string, { main: Array<Array<{ node: string }>> }>;
-  };
-
-  assert.ok(wf.name.includes("Licence fulfilment"));
-  const byType = (t: string) => wf.nodes.filter((n) => n.type === t);
-
-  // Webhook entry point at the documented path, responding via a Respond node.
-  const webhook = byType("n8n-nodes-base.webhook")[0];
-  assert.equal((webhook.parameters as { path?: string }).path, "omniproject-license-fulfilment");
-  assert.equal((webhook.parameters as { responseMode?: string }).responseMode, "responseNode");
-
-  // HMAC verification (Crypto node) + IF gate + email + a 200 and a 401 responder.
-  assert.equal(byType("n8n-nodes-base.crypto").length, 1);
-  assert.equal(byType("n8n-nodes-base.if").length, 1);
-  assert.equal(byType("n8n-nodes-base.emailSend").length, 1);
-  assert.equal(byType("n8n-nodes-base.respondToWebhook").length, 2);
-
-  // The IF compares the recomputed HMAC to the gateway's signature header.
-  const iff = JSON.stringify(byType("n8n-nodes-base.if")[0].parameters);
-  assert.match(iff, /x-omniproject-signature/);
-  assert.match(iff, /computedSig/);
-
-  // Every connection references a node that exists (no dangling wires).
-  const names = new Set(wf.nodes.map((n) => n.name));
-  for (const [from, conn] of Object.entries(wf.connections)) {
-    assert.ok(names.has(from), `connection source ${from} exists`);
-    for (const branch of conn.main) for (const c of branch) assert.ok(names.has(c.node), `connection target ${c.node} exists`);
-  }
-});
-
-test("blueprint: gateway hand-off signature matches what the workflow verifies", () => {
-  // The Crypto node computes 'sha256=' + hmac(secret, JSON.stringify(body)); the
-  // gateway signs the exact same body string via signBody — so they agree.
-  const secret = "fulfil-secret";
-  const body = JSON.stringify({ licenseKey: "omni-lic.v1.x.y", customer: "Acme", features: ["branding"] });
-  const sig = signBody(body, secret);
-  assert.match(sig, /^sha256=[0-9a-f]{64}$/);
-  assert.equal(sig, "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex"));
 });
 
 // ── Broker seam: DemoBroker runs the app with no n8n ────────────────────────────
