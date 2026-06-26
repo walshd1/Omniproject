@@ -11,6 +11,7 @@ import {
   type Session,
 } from "../lib/oidc";
 import { roleForReq } from "../lib/rbac";
+import { seal, open } from "../lib/session-crypto";
 
 const router = Router();
 
@@ -37,14 +38,17 @@ function readSession(req: Request): Session | null {
   const raw = req.signedCookies?.[SESSION_COOKIE];
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as Session;
+    // Prefer the sealed (encrypted) payload; fall back to legacy plaintext JSON
+    // so existing sessions survive the upgrade (they re-seal on the next write).
+    return JSON.parse(open(raw) ?? raw) as Session;
   } catch {
     return null;
   }
 }
 
 function setSession(res: Response, session: Session): void {
-  res.cookie(SESSION_COOKIE, JSON.stringify(session), {
+  // Signed (cookie-parser) AND sealed (AES-256-GCM) — tamper-proof and opaque.
+  res.cookie(SESSION_COOKIE, seal(JSON.stringify(session)), {
     ...cookieBase,
     maxAge: 1000 * 60 * 60 * 8, // 8h
   });
