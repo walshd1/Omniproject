@@ -5,6 +5,7 @@ import {
   fieldCompleteness,
   overallCompleteness,
   sourceBreakdown,
+  isPresent,
   toCsv,
   downloadText,
   LINEAGE_COLUMNS,
@@ -52,6 +53,9 @@ export function DataProvenance({
   const overall = overallCompleteness(rows, fields);
   const perField = fieldCompleteness(rows, fields).sort((a, b) => a.pct - b.pct);
   const sources = sourceBreakdown(rows, sourceAccessor);
+  // "Who last touched it" — shown only when the backend actually exposes it.
+  const hasEditors = rows.some((r) => isPresent(r["lastUpdatedBy"]));
+  const editors = hasEditors ? sourceBreakdown(rows, (r) => r["lastUpdatedBy"]) : [];
   const lineageOf = (key: string): string | null => {
     const s = fieldSources?.[key];
     if (!s?.field) return null;
@@ -140,6 +144,21 @@ export function DataProvenance({
             </ul>
           )}
         </div>
+
+        {/* Last touched by — present only when the backend exposes it. */}
+        {hasEditors && (
+          <div className="border-b border-border p-3 space-y-1" data-testid="last-touched">
+            <span className="uppercase tracking-wider text-muted-foreground">Last touched by</span>
+            <ul>
+              {editors.map((e) => (
+                <li key={e.source} className="flex items-center justify-between py-0.5" data-testid={`editor-${e.source}`}>
+                  <span>{e.source}</span>
+                  <span className="tabular-nums text-muted-foreground">{e.count}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Export */}
         <div className="flex items-center gap-2 p-3">
