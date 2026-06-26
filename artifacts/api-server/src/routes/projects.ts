@@ -18,6 +18,7 @@ import {
 import { getBroker, contextFromReq, respondBrokerError } from "../broker";
 import { resolveCapabilities } from "../lib/capabilities";
 import { validateEntityInput, type FieldDescriptor } from "../lib/field-registry";
+import { aggregateResourcePool } from "../lib/resource-pool";
 import {
   getProjects,
   getIssues,
@@ -141,6 +142,26 @@ router.patch("/projects/:projectId", requireRole("manager"), async (req, res) =>
     res.json(updated);
   } catch (err) {
     req.log.error({ err }, "update_project failed");
+    respondBrokerError(res, err);
+  }
+});
+
+router.get("/resources", async (req, res) => {
+  const caps = await resolveCapabilities(req);
+  if (!caps.entities["member"]?.surface) {
+    res.json([]);
+    return;
+  }
+  try {
+    const broker = getBroker();
+    const ctx = contextFromReq(req);
+    const projects = await broker.listProjects(ctx);
+    const rosters = await Promise.all(
+      projects.map(async (p) => ({ projectId: p.id, members: await broker.projectMembers(ctx, p.id).catch(() => []) })),
+    );
+    res.json(aggregateResourcePool(rosters));
+  } catch (err) {
+    req.log.error({ err }, "list_resource_pool failed");
     respondBrokerError(res, err);
   }
 });

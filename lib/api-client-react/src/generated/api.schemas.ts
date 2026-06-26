@@ -273,6 +273,29 @@ export interface ProjectMember {
   /** @nullable */
   email?: string | null;
   access: ProjectMemberAccess;
+  /** Competencies, when the backend tracks them. */
+  skills?: string[];
+  /** @nullable */
+  availableHours?: number | null;
+  /** @nullable */
+  allocatedHours?: number | null;
+}
+
+/**
+ * A person aggregated across the portfolio, for resource planning.
+ */
+export interface ResourceMember {
+  id: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  email?: string | null;
+  skills: string[];
+  /** @nullable */
+  availableHours: number | null;
+  /** @nullable */
+  allocatedHours: number | null;
+  projectIds: string[];
 }
 
 export type TaskItemKind = typeof TaskItemKind[keyof typeof TaskItemKind];

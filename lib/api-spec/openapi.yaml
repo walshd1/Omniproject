@@ -350,6 +350,26 @@ paths:
         "204":
           description: Deleted
 
+  /resources:
+    get:
+      operationId: listResourcePool
+      tags: [projects]
+      summary: Portfolio-wide people with skills & capacity (resource planning)
+      description: >-
+        Aggregates project members across the portfolio into one resource pool —
+        skills (union) and capacity (summed) per person — for live and what-if
+        resource planning. Available when the backend surfaces members and
+        resource data (capabilities.entities.member + resources).
+      responses:
+        "200":
+          description: Aggregated resource pool
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ResourceMember"
+
   /projects/{projectId}/members:
     get:
       operationId: listProjectMembers
@@ -1035,9 +1055,47 @@ components:
         access:
           type: string
           enum: [read, write]
+        skills:
+          type: array
+          items:
+            type: string
+          description: Competencies, when the backend tracks them.
+        availableHours:
+          type: ["number", "null"]
+        allocatedHours:
+          type: ["number", "null"]
       required:
         - id
         - access
+
+    ResourceMember:
+      type: object
+      description: A person aggregated across the portfolio, for resource planning.
+      properties:
+        id:
+          type: string
+        name:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        skills:
+          type: array
+          items:
+            type: string
+        availableHours:
+          type: ["number", "null"]
+        allocatedHours:
+          type: ["number", "null"]
+        projectIds:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - skills
+        - availableHours
+        - allocatedHours
+        - projectIds
 
     TaskItem:
       type: object

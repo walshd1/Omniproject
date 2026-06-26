@@ -278,6 +278,22 @@ export const DeleteIssueParams = zod.object({
 
 
 /**
+ * Aggregates project members across the portfolio into one resource pool — skills (union) and capacity (summed) per person — for live and what-if resource planning. Available when the backend surfaces members and resource data (capabilities.entities.member + resources).
+ * @summary Portfolio-wide people with skills & capacity (resource planning)
+ */
+export const ListResourcePoolResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "skills": zod.array(zod.string()),
+  "availableHours": zod.number().nullable(),
+  "allocatedHours": zod.number().nullable(),
+  "projectIds": zod.array(zod.string())
+}).describe('A person aggregated across the portfolio, for resource planning.')
+export const ListResourcePoolResponse = zod.array(ListResourcePoolResponseItem)
+
+
+/**
  * Backend-owned project membership; drives the assignee picker (only write-access people can be assigned). Available when the backend can surface members (capabilities.entities.member).
  * @summary People on a project, with their access level
  */
@@ -289,7 +305,10 @@ export const ListProjectMembersResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "email": zod.string().nullish(),
-  "access": zod.enum(['read', 'write'])
+  "access": zod.enum(['read', 'write']),
+  "skills": zod.array(zod.string()).optional().describe('Competencies, when the backend tracks them.'),
+  "availableHours": zod.number().nullish(),
+  "allocatedHours": zod.number().nullish()
 }).describe('A person on a project, with their access level (backend-owned).')
 export const ListProjectMembersResponse = zod.array(ListProjectMembersResponseItem)
 
