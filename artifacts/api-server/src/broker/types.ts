@@ -113,6 +113,8 @@ export interface FxRates {
   asOf: string;
 }
 
+import type { EnumeratedField } from "../lib/field-registry";
+
 /** Raw capability flags a backend can populate (domain → available). */
 export type CapabilityFlags = Record<string, boolean>;
 
@@ -211,6 +213,12 @@ export interface Broker {
    * read-only, no programme grouping" precisely.
    */
   fieldMap?(ctx: ActorContext): Promise<BackendFieldMap | null>;
+  /**
+   * Optional API enumeration: report the fields this backend exposes, so wiring a
+   * new system of record can reconcile them against the canonical registry and
+   * flag fields the seam doesn't yet understand. See lib/field-registry.ts.
+   */
+  describeFields?(ctx: ActorContext): Promise<EnumeratedField[]>;
   fxRates(ctx: ActorContext): Promise<FxRates>;
   /** Time-travel: replay recorded portfolio states from the logging server. */
   replay(ctx: ActorContext, opts: { from?: string; to?: string }): Promise<HistoryState[]>;

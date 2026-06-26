@@ -228,6 +228,12 @@ export class DemoBroker implements Broker {
     return { fields, entities };
   }
 
+  async describeFields(): Promise<import("../lib/field-registry").EnumeratedField[]> {
+    // The demo "backend" exposes exactly the canonical registry.
+    const { FIELD_REGISTRY } = await import("../lib/field-registry");
+    return FIELD_REGISTRY.map((f) => ({ key: f.key, label: f.label, type: f.type, surface: true, store: true }));
+  }
+
   async fxRates(): Promise<FxRates> {
     return DEMO_FX;
   }

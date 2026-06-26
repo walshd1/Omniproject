@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
 import type { BackendFieldMap, FieldSupport } from "../broker/types";
+import { FIELD_REGISTRY } from "./field-registry";
 import { isTimeTravelEnabled } from "./settings";
 
 /**
@@ -28,20 +29,12 @@ export const CAPABILITY_DOMAINS = [
 
 export type CapabilityDomain = (typeof CAPABILITY_DOMAINS)[number];
 
-/** Canonical work-item fields the UI can gate on (open set; see RFC-001). */
-export const FIELD_KEYS = [
-  "title",
-  "status",
-  "priority",
-  "assignee",
-  "description",
-  "labels",
-  "startDate",
-  "dueDate",
-  "storyPoints",
-  "completionPct",
-  "programmeId",
-] as const;
+/**
+ * Canonical work-item fields the UI can gate on — derived from the single source
+ * of truth (the field registry) so the two can never drift. New backends extend
+ * the vocabulary by editing the registry (see lib/field-registry.ts).
+ */
+export const FIELD_KEYS: readonly string[] = FIELD_REGISTRY.map((f) => f.key);
 
 /** Canonical higher-level entities the UI can gate on. */
 export const ENTITY_KEYS = ["project", "programme", "raid"] as const;
