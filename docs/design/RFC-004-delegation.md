@@ -214,26 +214,36 @@ grant = sign({
   **denylist**, which *is* small state; that is the one deliberate,
   clearly-flagged concession (mirrors how `loggingSync` is the one egress
   concession). Keep it tiny, in the settings store, auto-pruned at `exp`.
-- **Store a hash, never the details.** Any record the gateway keeps of a grant —
-  the denylist row, replay/dedup tracking, "is this grant known" — holds a
-  **one-way fingerprint of the grant, not its readable contents**. The record is:
+- **Store a one-way hash of person + access, never the details.** Any record the
+  gateway keeps of a grant — the denylist row, replay/dedup tracking, "is this
+  grant known" — holds a **one-way, non-reversible fingerprint** computed over the
+  **person *and* their access details**, not the readable contents. The hashed
+  input is exactly: the identities (`delegator.sub`/email **and** `delegate.sub`)
+  **plus** the access conveyed (`scope.role`, `scope.projects`) **plus** `iat`/`jti`
+  to make each grant's fingerprint unique. The record is:
 
   ```
-  { fp: HMAC-SHA-256(canonicalise(grant), gatewaySigningKey),  // opaque fingerprint
-    exp }                                                       // timestamp only, for pruning
+  fp = HMAC-SHA-256(                       // one-way: cannot be reversed to recover
+        canonicalise({ delegator, delegate,//   who, to whom, or what access
+                       scope, iat, jti }),
+        gatewaySigningKey)
+  record = { fp, exp }                     // exp is the only plaintext — a timestamp,
+                                           //   not an identity — needed to auto-prune
   ```
 
-  Verification recomputes `fp` from the *presented, signature-verified* grant and
-  matches against the store — so revocation/replay checks work without the store
-  ever holding `delegator`/`delegate`/`scope`/`projects` in the clear. Keying the
-  hash with the gateway key (HMAC, not a bare digest) stops anyone who reads the
-  store from confirming a guessed "is X delegated to Y" by hashing candidates
-  offline. The only non-hashed field is `exp` — a timestamp, not an identity —
-  needed to auto-prune. **Net effect:** even the one stateful concession leaks no
-  identities or scope if the settings store is read; it is a set of opaque
-  fingerprints with expiry. This applies wherever a grant is recorded; the live
-  grant details themselves live only in the signed token the holder presents
-  (§7b) or in the IdP (§7a), never at rest in OmniProject.
+  The hash is **non-reversible by construction**: even OmniProject cannot turn a
+  stored `fp` back into the person or their access — it can only *recompute* `fp`
+  from a *presented, signature-verified* grant and check for a match. So
+  revocation/replay checks work without the store ever holding
+  `delegator`/`delegate`/`scope` in any recoverable form. Keying the hash with the
+  gateway key (HMAC, not a bare digest) additionally stops anyone who reads the
+  store from confirming a guessed "is X delegated to Y at role R" by hashing
+  candidates offline — without the key they cannot even brute-force the small
+  identity space. **Net effect:** even the one stateful concession leaks no
+  identities or access if the settings store is read; it is a set of opaque,
+  irreversible fingerprints with expiry. The live grant details themselves exist
+  only in the signed token the holder presents (§7b) or in the IdP (§7a), never at
+  rest in OmniProject.
 
 > Note the project-scope **nomination** (§5.2) is different: it must stay readable
 > because the gateway gates *by* it (which projects the deputy may see), so it is
@@ -398,9 +408,11 @@ Each phase ships only after the §15 checklist passes.
 - [ ] The acting banner is always shown while a grant is effective; "stop acting"
       works instantly.
 - [ ] Forged / expired / denylisted grants confer nothing (tested).
-- [ ] Any at-rest grant **record** stores a **keyed hash (HMAC) fingerprint** of
-      the grant + `exp` only — never the delegator/delegate/scope in the clear;
-      revocation/replay checks work by recomputing and matching the fingerprint
+- [ ] Any at-rest grant **record** stores a **one-way, non-reversible keyed hash
+      (HMAC)** over the **person + their access** (delegator/delegate identity +
+      role/project scope) plus `exp` only — never those details in any recoverable
+      form; revocation/replay checks work by recomputing and matching the
+      fingerprint, and a stored record cannot be reversed to recover who/whom/what
       (tested). (The readable project-scope nomination is config, not a grant
       record, and is exempt.)
 - [ ] Off by default; enabling is an explicit, documented, admin decision.
