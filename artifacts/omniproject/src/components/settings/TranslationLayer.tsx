@@ -4,8 +4,10 @@ import {
   useGetCapabilities,
   useGetSettings,
   useUpdateSettings,
+  useGetFieldManifest,
   getGetCapabilitiesQueryKey,
   getGetSettingsQueryKey,
+  getGetFieldManifestQueryKey,
 } from "@workspace/api-client-react";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -70,6 +72,11 @@ export function TranslationLayer() {
   const update = useUpdateSettings();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const isAdmin = roleAtLeast(auth?.role, "admin");
+  // The describe → reconcile manifest (manager+); only fetched for admins here.
+  const { data: manifest } = useGetFieldManifest({
+    query: { enabled: isAdmin, queryKey: getGetFieldManifestQueryKey() },
+  });
 
   const [fields, setFields] = useState<Overrides>({});
   const [entities, setEntities] = useState<Overrides>({});
@@ -90,7 +97,7 @@ export function TranslationLayer() {
     [caps, entities],
   );
 
-  if (!roleAtLeast(auth?.role, "admin")) return null;
+  if (!isAdmin) return null;
 
   const overrideCount = Object.keys(fields).length + Object.keys(entities).length;
 
@@ -162,6 +169,38 @@ export function TranslationLayer() {
             ))}
           </div>
         </div>
+
+        {/* The describe → reconcile manifest: what the backend exposes vs the
+            canonical registry, and the custom fields discovered + auto-surfaced. */}
+        {manifest && (
+          <div data-testid="field-manifest" className="border-t border-border pt-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-2">
+              Backend field manifest <span className="text-[10px] font-mono opacity-60">· {manifest.mode}</span>
+            </h3>
+            <div className="flex flex-wrap gap-3 text-xs mb-3">
+              <span className="border border-border px-2 py-1"><span className="font-black text-primary">{manifest.reconciliation.known.length}</span> mapped</span>
+              <span className="border border-border px-2 py-1"><span className="font-black text-amber-500">{manifest.reconciliation.unknown.length}</span> custom (unmapped)</span>
+              <span className="border border-border px-2 py-1"><span className="font-black text-muted-foreground">{manifest.reconciliation.missing.length}</span> not exposed</span>
+            </div>
+            {manifest.customFields.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Custom fields discovered — carried through as gated passthrough
+                </p>
+                <ul className="text-xs font-mono">
+                  {manifest.customFields.map((f) => (
+                    <li key={f.key} className="flex items-center gap-2 border-b border-border py-1">
+                      <span className="text-amber-500">●</span>
+                      <span className="font-bold">{f.key}</span>
+                      <span className="text-muted-foreground truncate">{f.label}</span>
+                      <span className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground border border-border px-1">{f.type}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );

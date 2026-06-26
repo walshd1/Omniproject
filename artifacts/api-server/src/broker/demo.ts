@@ -307,9 +307,16 @@ export class DemoBroker implements Broker {
   }
 
   async describeFields(): Promise<import("../lib/field-registry").EnumeratedField[]> {
-    // The demo "backend" exposes exactly the canonical registry.
+    // The demo "backend" exposes the canonical registry PLUS a couple of
+    // tenant/custom fields the registry doesn't model — so the describe →
+    // reconcile path has something to discover and surface as gated passthrough.
     const { FIELD_REGISTRY } = await import("../lib/field-registry");
-    return FIELD_REGISTRY.map((f) => ({ key: f.key, label: f.label, type: f.type, surface: true, store: true }));
+    const canonical = FIELD_REGISTRY.map((f) => ({ key: f.key, label: f.label, type: f.type, surface: true, store: true }));
+    const custom = [
+      { key: "customerTier", label: "Customer tier", type: "string", surface: true, store: false },
+      { key: "riskScore", label: "Risk score", type: "number", surface: true, store: false },
+    ];
+    return [...canonical, ...custom];
   }
 
   async fxRates(): Promise<FxRates> {

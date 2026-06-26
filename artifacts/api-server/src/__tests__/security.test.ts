@@ -89,6 +89,21 @@ test("RBAC: a viewer CANNOT change settings (admin gate, 403)", async () => {
   assert.equal(res.status, 403);
 });
 
+test("RBAC: a viewer CANNOT read the field manifest (manager gate, 403)", async () => {
+  // The manifest reveals backend schema detail (every field, incl. unmapped),
+  // so it's manager+ — a plain viewer must be walled off.
+  const res = await req("/api/fields/manifest", { headers: { cookie: VIEWER } });
+  assert.equal(res.status, 403);
+});
+
+test("RBAC: an admin CAN read the field manifest", async () => {
+  const res = await req("/api/fields/manifest", { headers: { cookie: ADMIN } });
+  assert.equal(res.status, 200);
+  const body = (await res.json()) as { reconciliation: { known: string[]; unknown: string[] }; customFields: unknown[] };
+  assert.ok(body.reconciliation.known.length > 0);
+  assert.ok(body.reconciliation.unknown.includes("customerTier"));
+});
+
 test("RBAC: an admin is NOT blocked by the contributor gate", async () => {
   // Admin clears requireRole("contributor"); it may still 400/404 downstream, but
   // it must NOT be the 403 authorization wall.

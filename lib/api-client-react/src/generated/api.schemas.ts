@@ -592,6 +592,18 @@ export type CapabilitiesFields = {[key: string]: FieldSupport};
 export type CapabilitiesEntities = {[key: string]: FieldSupport};
 
 /**
+ * A field a backend's describe reported, with its metadata preserved.
+ */
+export interface DiscoveredField {
+  key: string;
+  label?: string;
+  type?: string;
+  surface?: boolean;
+  store?: boolean;
+  references?: string;
+}
+
+/**
  * Data domains the wired backend(s) can populate.
  */
 export interface Capabilities {
@@ -618,6 +630,35 @@ export interface Capabilities {
   fields?: CapabilitiesFields;
   /** Per-entity support (e.g. programme, project): whether the entity can be surfaced and/or stored. A programme only exists when the backend can carry programme grouping. */
   entities?: CapabilitiesEntities;
+  /** Non-canonical fields the backend's describe surfaced (the reconcile path): tenant/custom fields the registry doesn't model, carried through as gated passthrough so they light up without a registry edit. */
+  customFields?: DiscoveredField[];
+}
+
+/**
+ * known/unknown/missing field keys vs the canonical registry.
+ */
+export type FieldManifestReconciliation = {
+  known: string[];
+  unknown: string[];
+  missing: string[];
+};
+
+export type FieldManifestRelationshipCandidatesItem = {
+  field: string;
+  references: string;
+  kind: string;
+};
+
+/**
+ * The per-backend field manifest — the reconcile path made inspectable. Diffs the backend's describe against the canonical registry.
+ */
+export interface FieldManifest {
+  mode: string;
+  enumerated: DiscoveredField[];
+  /** known/unknown/missing field keys vs the canonical registry. */
+  reconciliation: FieldManifestReconciliation;
+  customFields: DiscoveredField[];
+  relationshipCandidates: FieldManifestRelationshipCandidatesItem[];
 }
 
 export type SettingsAiProvider = typeof SettingsAiProvider[keyof typeof SettingsAiProvider];

@@ -1,7 +1,16 @@
 import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
 import type { BackendFieldMap, FieldSupport } from "../broker/types";
-import { FIELD_REGISTRY, type FieldGroup } from "./field-registry";
+import {
+  FIELD_REGISTRY,
+  customFieldsFrom,
+  reconcileFields,
+  inferRelationshipCandidates,
+  type FieldReconciliation,
+  type RelationshipEdge,
+  type FieldGroup,
+  type EnumeratedField,
+} from "./field-registry";
 import { isTimeTravelEnabled, getSettings } from "./settings";
 
 /**
@@ -60,6 +69,13 @@ export interface Capabilities extends Record<CapabilityDomain, boolean> {
   fields: Record<string, FieldSupport>;
   /** Per-entity surface/store support. */
   entities: Record<string, FieldSupport>;
+  /**
+   * NON-canonical fields the backend's describe surfaced (the reconcile path):
+   * tenant/custom fields the registry doesn't model, carried through as gated
+   * passthrough so they light up without a registry edit. Empty/absent ⇒ none
+   * discovered (or the broker doesn't enumerate fields).
+   */
+  customFields?: EnumeratedField[];
 }
 
 const sup = (surface: boolean, store = surface): FieldSupport => ({ surface, store });
@@ -184,5 +200,49 @@ export async function resolveCapabilities(req: Request): Promise<Capabilities> {
   ) as Record<CapabilityDomain, boolean>;
   // Prefer the broker's explicit field/entity map; fall back to domain-derived.
   const map = (await broker.fieldMap?.(ctx).catch(() => null)) ?? undefined;
-  return build(broker.kind, enabled, map ?? undefined);
+  const caps = build(broker.kind, enabled, map ?? undefined);
+
+  // The describe → reconcile path: ask the backend what fields it actually
+  // exposes and auto-surface any NON-canonical ones as gated custom fields, so
+  // tenant/custom fields light up without a registry edit. Best-effort — a
+  // broker that doesn't enumerate fields simply contributes nothing here.
+  const enumerated = (await broker.describeFields?.(ctx).catch(() => null)) ?? null;
+  if (enumerated && enumerated.length) {
+    const customs = customFieldsFrom(enumerated);
+    if (customs.length) {
+      caps.customFields = customs;
+      // Discovering customs flips the passthrough entity on (surface). Storing
+      // them stays whatever the map already said — read-through unless declared.
+      const existing = caps.entities["customField"];
+      caps.entities = { ...caps.entities, customField: { surface: true, store: existing?.store ?? false } };
+    }
+  }
+  return caps;
+}
+
+/**
+ * The per-backend field manifest — the reconcile path made inspectable. Diffs the
+ * backend's describe against the canonical registry (known / unknown / missing)
+ * and flags relationship candidates among the unknowns. Powers the admin
+ * translation layer's "what does this backend expose, what's unmapped" view.
+ */
+export interface FieldManifest {
+  mode: string;
+  enumerated: EnumeratedField[];
+  reconciliation: FieldReconciliation;
+  customFields: EnumeratedField[];
+  relationshipCandidates: RelationshipEdge[];
+}
+
+export async function resolveFieldManifest(req: Request): Promise<FieldManifest> {
+  const broker = getBroker();
+  const ctx = contextFromReq(req);
+  const enumerated = (await broker.describeFields?.(ctx).catch(() => null)) ?? [];
+  return {
+    mode: broker.kind,
+    enumerated,
+    reconciliation: reconcileFields(enumerated),
+    customFields: customFieldsFrom(enumerated),
+    relationshipCandidates: inferRelationshipCandidates(enumerated, ENTITY_KEYS),
+  };
 }

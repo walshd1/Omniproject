@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   reconcileFields,
+  customFieldsFrom,
   relationships,
   inferRelationshipCandidates,
   validateEntityInput,
@@ -45,11 +46,34 @@ test("a backend exposing only the canonical set has no unknown fields", () => {
   assert.equal(r.missing.length, 0);
 });
 
-test("DemoBroker.describeFields enumerates the canonical registry (all known)", async () => {
+test("DemoBroker.describeFields enumerates the registry plus sample custom fields", async () => {
   const enumerated = await new DemoBroker().describeFields();
   const r = reconcileFields(enumerated);
-  assert.equal(r.unknown.length, 0);
+  // Every canonical field is known…
   assert.equal(r.known.length, FIELD_REGISTRY.length);
+  assert.equal(r.missing.length, 0);
+  // …and the demo also exposes a couple of non-canonical (tenant/custom) fields,
+  // so the reconcile path has something to discover.
+  assert.ok(r.unknown.includes("customerTier"));
+  assert.ok(r.unknown.includes("riskScore"));
+});
+
+test("customFieldsFrom: keeps only non-canonical fields, with metadata and defaults", () => {
+  const customs = customFieldsFrom([
+    { key: "title" }, // canonical → dropped
+    { key: "customerTier", label: "Customer tier", type: "string" },
+    { key: "riskScore", type: "number" }, // no label → defaults to key
+    { key: "customerTier" }, // duplicate → deduped
+    { key: "" }, // blank → ignored
+  ]);
+  assert.equal(customs.length, 2);
+  const tier = customs.find((c) => c.key === "customerTier")!;
+  assert.equal(tier.label, "Customer tier");
+  assert.equal(tier.surface, true);
+  assert.equal(tier.store, false); // passthrough is read-through unless declared
+  const risk = customs.find((c) => c.key === "riskScore")!;
+  assert.equal(risk.label, "riskScore"); // defaulted
+  assert.equal(risk.type, "number");
 });
 
 test("relationships(): programmeId is a belongs_to edge to programme", () => {

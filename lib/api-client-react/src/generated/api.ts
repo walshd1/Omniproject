@@ -26,6 +26,7 @@ import type {
   Capabilities,
   ConflictResponse,
   ErrorResponse,
+  FieldManifest,
   FxRates,
   HealthStatus,
   HistoryState,
@@ -2206,6 +2207,84 @@ export function useGetCapabilities<TData = Awaited<ReturnType<typeof getCapabili
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetCapabilitiesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetFieldManifestUrl = () => {
+
+
+
+
+  return `/api/fields/manifest`
+}
+
+/**
+ * Enumerates the fields the active backend exposes and reconciles them against the canonical registry (known / unknown / missing), flagging relationship candidates among the unknowns. Powers the admin translation layer's "what does this backend expose, what's unmapped" view. Requires the manager role (it reveals backend schema detail).
+ * @summary Per-backend field manifest (the describe → reconcile path)
+ */
+export const getFieldManifest = async ( options?: RequestInit): Promise<FieldManifest> => {
+
+  return customFetch<FieldManifest>(getGetFieldManifestUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFieldManifestQueryKey = () => {
+    return [
+    `/api/fields/manifest`
+    ] as const;
+    }
+
+
+export const getGetFieldManifestQueryOptions = <TData = Awaited<ReturnType<typeof getFieldManifest>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFieldManifest>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFieldManifestQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFieldManifest>>> = ({ signal }) => getFieldManifest({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFieldManifest>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFieldManifestQueryResult = NonNullable<Awaited<ReturnType<typeof getFieldManifest>>>
+export type GetFieldManifestQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Per-backend field manifest (the describe → reconcile path)
+ */
+
+export function useGetFieldManifest<TData = Awaited<ReturnType<typeof getFieldManifest>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFieldManifest>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFieldManifestQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

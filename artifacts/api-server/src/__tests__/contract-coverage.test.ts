@@ -51,6 +51,7 @@ const COVERED: Record<string, string> = {
   "/portfolio/health": "e2e-smoke, broker-conformance",
   "/activity": "verify-n8n, broker-conformance",
   "/capabilities": "e2e-smoke, broker-conformance",
+  "/fields/manifest": "capabilities.test.ts (resolveFieldManifest + custom-field surfacing), security.test.ts (manager gate)",
   "/settings": "security.test.ts, verify-n8n",
   "/fx-rates": "security.test.ts (HTTP), broker-conformance (fxRates)",
   "/history/replay": "security.test.ts (time-travel gate), broker-conformance (replay)",

@@ -639,8 +639,51 @@ export const GetCapabilitiesResponse = zod.object({
   "entities": zod.record(zod.string(), zod.object({
   "surface": zod.boolean(),
   "store": zod.boolean()
-}).describe('Whether a field\/entity can be surfaced (read) and stored (written).')).optional().describe('Per-entity support (e.g. programme, project): whether the entity can be surfaced and\/or stored. A programme only exists when the backend can carry programme grouping.')
+}).describe('Whether a field\/entity can be surfaced (read) and stored (written).')).optional().describe('Per-entity support (e.g. programme, project): whether the entity can be surfaced and\/or stored. A programme only exists when the backend can carry programme grouping.'),
+  "customFields": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string().optional(),
+  "type": zod.string().optional(),
+  "surface": zod.boolean().optional(),
+  "store": zod.boolean().optional(),
+  "references": zod.string().optional()
+}).describe('A field a backend\'s describe reported, with its metadata preserved.')).optional().describe('Non-canonical fields the backend\'s describe surfaced (the reconcile path): tenant\/custom fields the registry doesn\'t model, carried through as gated passthrough so they light up without a registry edit.')
 }).describe('Data domains the wired backend(s) can populate.')
+
+
+/**
+ * Enumerates the fields the active backend exposes and reconciles them against the canonical registry (known / unknown / missing), flagging relationship candidates among the unknowns. Powers the admin translation layer's "what does this backend expose, what's unmapped" view. Requires the manager role (it reveals backend schema detail).
+ * @summary Per-backend field manifest (the describe → reconcile path)
+ */
+export const GetFieldManifestResponse = zod.object({
+  "mode": zod.string(),
+  "enumerated": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string().optional(),
+  "type": zod.string().optional(),
+  "surface": zod.boolean().optional(),
+  "store": zod.boolean().optional(),
+  "references": zod.string().optional()
+}).describe('A field a backend\'s describe reported, with its metadata preserved.')),
+  "reconciliation": zod.object({
+  "known": zod.array(zod.string()),
+  "unknown": zod.array(zod.string()),
+  "missing": zod.array(zod.string())
+}).describe('known\/unknown\/missing field keys vs the canonical registry.'),
+  "customFields": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string().optional(),
+  "type": zod.string().optional(),
+  "surface": zod.boolean().optional(),
+  "store": zod.boolean().optional(),
+  "references": zod.string().optional()
+}).describe('A field a backend\'s describe reported, with its metadata preserved.')),
+  "relationshipCandidates": zod.array(zod.object({
+  "field": zod.string(),
+  "references": zod.string(),
+  "kind": zod.string()
+}))
+}).describe('The per-backend field manifest — the reconcile path made inspectable. Diffs the backend\'s describe against the canonical registry.')
 
 
 /**
