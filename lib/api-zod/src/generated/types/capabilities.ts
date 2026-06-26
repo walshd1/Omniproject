@@ -23,6 +23,12 @@ export interface Capabilities {
   blockers: boolean;
   history: boolean;
   raid: boolean;
+  /** Risk & quality fields (health/RAG, impact, urgency, blocked). */
+  quality: boolean;
+  /** CRM/sales fields (deal value, probability, forecast). */
+  crm: boolean;
+  /** ITSM/service fields (SLA, CSAT, change management). */
+  service: boolean;
   /** Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default). */
   timeTravel: boolean;
   /** Per-field support: which work-item fields the backend can surface (read/display) and store (write back). Absent ⇒ derive from domains. */

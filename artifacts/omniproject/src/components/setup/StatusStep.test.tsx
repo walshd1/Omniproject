@@ -20,6 +20,9 @@ const baseStatus: SetupStatus = {
     blockers: true,
     history: false,
     raid: true,
+    quality: false,
+    crm: false,
+    service: false,
     timeTravel: false,
   },
 };

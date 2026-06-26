@@ -11,7 +11,20 @@
  * here, driven by what real backends actually expose.
  */
 
-export type FieldType = "string" | "text" | "number" | "date" | "enum" | "user" | "labels" | "reference";
+export type FieldType =
+  | "string"
+  | "text"
+  | "number"
+  | "date"
+  | "enum"
+  | "user"
+  | "labels"
+  | "reference"
+  // Precision types for the finance/CRM/service superset (gated like any field).
+  | "currency"
+  | "percent"
+  | "boolean"
+  | "duration";
 
 /**
  * The functional group a field belongs to — drives which capability domain gates
@@ -27,6 +40,9 @@ export type FieldGroup =
   | "effort"
   | "agile"
   | "financial"
+  | "quality" // risk & quality (health/RAG, impact/urgency, blocked)
+  | "crm" // CRM/sales (deal value, probability, forecast)
+  | "service" // ITSM/service (SLA, CSAT, change)
   | "relationship"
   | "derived";
 
@@ -83,6 +99,23 @@ export const FIELD_REGISTRY: FieldDescriptor[] = [
   { key: "sprint", label: "Sprint", type: "string", group: "agile" },
   { key: "epic", label: "Epic", type: "string", group: "agile" },
   { key: "rank", label: "Rank", type: "number", group: "agile" },
+  // Schedule — critical-path / float (best-in-class scheduling tools)
+  { key: "actualStart", label: "Actual start", type: "date", group: "schedule" },
+  { key: "actualFinish", label: "Actual finish", type: "date", group: "schedule" },
+  { key: "totalFloat", label: "Total float", type: "duration", group: "schedule" },
+  { key: "criticalPath", label: "On critical path", type: "boolean", group: "schedule" },
+  { key: "constraintType", label: "Constraint type", type: "enum", group: "schedule" },
+  { key: "slaDueAt", label: "SLA due at", type: "date", group: "service" },
+  // Effort — % complete variants
+  { key: "originalEstimateHours", label: "Original estimate (h)", type: "number", group: "effort" },
+  { key: "percentWorkComplete", label: "% work complete", type: "percent", group: "effort" },
+  // Agile — prioritisation frameworks (best-in-class)
+  { key: "acceptanceCriteria", label: "Acceptance criteria", type: "text", group: "agile" },
+  { key: "businessValue", label: "Business value", type: "number", group: "agile" },
+  { key: "riceScore", label: "RICE score", type: "number", group: "agile" },
+  { key: "wsjf", label: "WSJF", type: "number", group: "agile" },
+  { key: "moscow", label: "MoSCoW", type: "enum", group: "agile" },
+  { key: "confidence", label: "Confidence", type: "percent", group: "agile" },
   // Financial (finance backend)
   { key: "budget", label: "Budget", type: "number", group: "financial" },
   { key: "plannedCost", label: "Planned cost", type: "number", group: "financial" },
@@ -90,12 +123,73 @@ export const FIELD_REGISTRY: FieldDescriptor[] = [
   { key: "currency", label: "Currency", type: "string", group: "financial" },
   { key: "billable", label: "Billable", type: "enum", group: "financial" },
   { key: "costCenter", label: "Cost centre", type: "string", group: "financial" },
+  // Financial — earned value (best-in-class EVM)
+  { key: "plannedValue", label: "Planned value (PV)", type: "currency", group: "financial" },
+  { key: "earnedValue", label: "Earned value (EV)", type: "currency", group: "financial" },
+  { key: "budgetAtCompletion", label: "Budget at completion (BAC)", type: "currency", group: "financial" },
+  { key: "estimateAtCompletion", label: "Estimate at completion (EAC)", type: "currency", group: "financial" },
+  { key: "estimateToComplete", label: "Estimate to complete (ETC)", type: "currency", group: "financial" },
+  { key: "costVariance", label: "Cost variance (CV)", type: "currency", group: "financial" },
+  { key: "scheduleVariance", label: "Schedule variance (SV)", type: "currency", group: "financial" },
+  { key: "costPerformanceIndex", label: "CPI", type: "number", group: "financial" },
+  { key: "schedulePerformanceIndex", label: "SPI", type: "number", group: "financial" },
+  // Financial — billing & cost (best-in-class PSA)
+  { key: "billRate", label: "Bill rate", type: "currency", group: "financial" },
+  { key: "costRate", label: "Cost rate", type: "currency", group: "financial" },
+  { key: "committedCost", label: "Committed cost (PO)", type: "currency", group: "financial" },
+  { key: "purchaseOrder", label: "Purchase order", type: "string", group: "financial" },
+  { key: "revenue", label: "Revenue", type: "currency", group: "financial" },
+  { key: "invoicedAmount", label: "Invoiced", type: "currency", group: "financial" },
+  { key: "margin", label: "Margin", type: "percent", group: "financial" },
+  { key: "capitalised", label: "Capitalised (capex)", type: "boolean", group: "financial" },
+  { key: "wbsCode", label: "WBS code", type: "string", group: "financial" },
+  // Risk & quality (best-in-class delivery health)
+  { key: "healthStatus", label: "Health (RAG)", type: "enum", group: "quality" },
+  { key: "riskLevel", label: "Risk level", type: "enum", group: "quality" },
+  { key: "impact", label: "Impact", type: "enum", group: "quality" },
+  { key: "urgency", label: "Urgency", type: "enum", group: "quality" },
+  { key: "blocked", label: "Blocked", type: "boolean", group: "quality" },
+  { key: "blockedReason", label: "Blocked reason", type: "string", group: "quality" },
+  { key: "mitigation", label: "Mitigation", type: "text", group: "quality" },
+  { key: "defectCount", label: "Defect count", type: "number", group: "quality" },
+  // CRM / sales
+  { key: "dealValue", label: "Deal value", type: "currency", group: "crm" },
+  { key: "dealProbability", label: "Win probability", type: "percent", group: "crm" },
+  { key: "forecastProbability", label: "Forecast probability", type: "percent", group: "crm" },
+  { key: "forecastCategory", label: "Forecast category", type: "enum", group: "crm" },
+  { key: "dealStatus", label: "Deal status", type: "enum", group: "crm" },
+  { key: "dealStage", label: "Deal stage", type: "reference", references: "pipeline", group: "crm" },
+  { key: "pipeline", label: "Pipeline", type: "reference", references: "pipeline", group: "crm" },
+  { key: "dealOwner", label: "Deal owner", type: "user", group: "crm" },
+  { key: "account", label: "Account", type: "reference", references: "account", group: "crm" },
+  { key: "contact", label: "Contact", type: "reference", references: "contact", group: "crm" },
+  { key: "leadSource", label: "Lead source", type: "enum", group: "crm" },
+  { key: "nextStep", label: "Next step", type: "string", group: "crm" },
+  { key: "expectedCloseDate", label: "Expected close date", type: "date", group: "crm" },
+  // Service / ITSM
+  { key: "slaBreached", label: "SLA breached", type: "boolean", group: "service" },
+  { key: "firstResponseAt", label: "First response at", type: "date", group: "service" },
+  { key: "resolvedAt", label: "Resolved at", type: "date", group: "service" },
+  { key: "reopenCount", label: "Reopen count", type: "number", group: "service" },
+  { key: "csatScore", label: "CSAT score", type: "number", group: "service" },
+  { key: "csatComment", label: "CSAT comment", type: "text", group: "service" },
+  { key: "sentiment", label: "Sentiment", type: "enum", group: "service" },
+  { key: "channel", label: "Channel", type: "enum", group: "service" },
+  { key: "requester", label: "Requester", type: "user", group: "service" },
+  { key: "affectedService", label: "Affected service", type: "reference", references: "service", group: "service" },
+  { key: "changeType", label: "Change type", type: "enum", group: "service" },
   // Relationships
   { key: "programmeId", label: "Programme", type: "reference", references: "programme", group: "relationship" },
   { key: "parentTask", label: "Parent", type: "reference", references: "task", group: "relationship" },
   { key: "dependsOn", label: "Depends on", type: "reference", references: "task", group: "relationship" },
+  { key: "blocks", label: "Blocks", type: "reference", references: "task", group: "relationship" },
+  { key: "relatesTo", label: "Relates to", type: "reference", references: "task", group: "relationship" },
+  { key: "duplicateOf", label: "Duplicate of", type: "reference", references: "task", group: "relationship" },
   // Derived / rolled-up (read-only)
   { key: "completionPct", label: "Completion %", type: "number", group: "derived" },
+  { key: "weightedValue", label: "Weighted value", type: "currency", group: "derived" },
+  { key: "forecastAmount", label: "Forecast amount", type: "currency", group: "derived" },
+  { key: "expectedRevenue", label: "Expected revenue", type: "currency", group: "derived" },
 ];
 
 export const CANONICAL_FIELD_KEYS: ReadonlySet<string> = new Set(FIELD_REGISTRY.map((f) => f.key));

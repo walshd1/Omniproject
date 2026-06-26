@@ -22,11 +22,11 @@ test("reconcileFields: classifies known vs new (to-be-registered) fields", () =>
     { key: "title" },
     { key: "dueDate" },
     { key: "tshirtSize" }, // a backend field the seam doesn't know yet
-    { key: "blockedReason" }, // another
+    { key: "favouriteColour" }, // another
   ];
   const r = reconcileFields(enumerated);
   assert.deepEqual(r.known.sort(), ["dueDate", "title"]);
-  assert.deepEqual(r.unknown.sort(), ["blockedReason", "tshirtSize"]);
+  assert.deepEqual(r.unknown.sort(), ["favouriteColour", "tshirtSize"]);
   // canonical fields not enumerated are reported as missing (gated off, not an error)
   assert.ok(r.missing.includes("storyPoints"));
   assert.ok(!r.missing.includes("title"));
