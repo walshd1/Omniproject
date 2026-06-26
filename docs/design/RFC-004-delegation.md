@@ -6,6 +6,13 @@ the *limits of what is safe* are agreed before any code. **Revised to put the Id
 first** (§2a): OmniProject ships Authentik / integrates enterprise SSO, so the IdP
 owns the grant; OmniProject consumes its claims rather than inventing its own
 delegation/credential mechanism.
+
+> **This RFC is the threat model + limits.** The concrete, build-ready *hardened
+> design* — grant lifecycle, identity/token model, the one-way-hash store, layered
+> revocation, and the complete tamper-evident **"X on behalf of Y"** logging
+> design — is **[RFC-005](RFC-005-secure-delegation-design.md)**. Read this for
+> *what is safe and why we refuse the rest*; read RFC-005 for *how to build the
+> most secure version*. RFC-004's anti-goals (§4) win any conflict.
 **Author:** build session.
 **Depends on / touches:** the security model (OIDC token forwarding via
 `ActorContext`, RBAC `roleForReq`/`requireRole`), the audit pipeline
