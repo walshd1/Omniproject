@@ -27,6 +27,7 @@ import {
 import { GATEWAY_ORIGIN, REQUEST_HEADERS, type BrokerEnvelope } from "./contract";
 import { addUpstreamMs } from "../lib/request-timing";
 import { assertEgressAllowed } from "../lib/egress";
+import { pskEnabled, sealPayload, openPayload, PSK_HEADER, PSK_PREFIX } from "../lib/broker-psk";
 
 /**
  * n8n broker — THE one place that knows the broker is n8n.
@@ -152,18 +153,34 @@ async function callN8n<T = unknown>(
     });
   };
 
-  const init: RequestInit = {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(opts.ctx.authHeader ? { Authorization: opts.ctx.authHeader } : {}),
-      [REQUEST_HEADERS.source]: opts.source,
-      [REQUEST_HEADERS.action]: action,
-      [REQUEST_HEADERS.origin]: origin,
-      [REQUEST_HEADERS.idempotencyKey]: key,
-    },
-    body: JSON.stringify({ action, payload: enrichedPayload, source: opts.source, origin, idempotencyKey: key }),
-  };
+  // The plaintext request envelope. When PSK is OFF this is the body and the
+  // routing details ride in X-OmniProject-* headers + Authorization (TLS is then
+  // what protects them on the wire — see lib/broker-psk.ts for the hierarchy).
+  const envelope = { action, payload: enrichedPayload, source: opts.source, origin, idempotencyKey: key };
+
+  // When PSK is ON, encrypt the WHOLE envelope including the forwarded auth token
+  // and send only an opaque ciphertext + a version marker. Nothing sensitive —
+  // not the action, the backend source, nor the bearer token — appears in
+  // cleartext on the wire, so a packet capture sees ciphertext, not a breach.
+  const psk = pskEnabled();
+  const init: RequestInit = psk
+    ? {
+        method: "POST",
+        headers: { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") },
+        body: JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify({ ...envelope, auth: opts.ctx.authHeader ?? null })) }),
+      }
+    : {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(opts.ctx.authHeader ? { Authorization: opts.ctx.authHeader } : {}),
+          [REQUEST_HEADERS.source]: opts.source,
+          [REQUEST_HEADERS.action]: action,
+          [REQUEST_HEADERS.origin]: origin,
+          [REQUEST_HEADERS.idempotencyKey]: key,
+        },
+        body: JSON.stringify(envelope),
+      };
 
   // Round-robin across the n8n pool; fail over to the next instance ONLY on a
   // connection-level error (a returned HTTP status is a real response, not an
@@ -198,7 +215,14 @@ async function callN8n<T = unknown>(
       throw BrokerError.fromStatus(res.status);
     }
 
-    const json = (await res.json().catch(() => ({}))) as unknown;
+    let json = (await res.json().catch(() => ({}))) as unknown;
+    // When PSK is on, a conformant broker encrypts its reply the same way; unwrap
+    // the `{ v, enc }` envelope back to the plaintext result. A non-encrypted body
+    // is left as-is (a broker that doesn't speak PSK simply won't decrypt anyway).
+    if (psk && json && typeof json === "object" && typeof (json as { enc?: unknown }).enc === "string") {
+      const opened = openPayload((json as { enc: string }).enc);
+      json = opened ? (JSON.parse(opened) as unknown) : {};
+    }
     const result: N8nResult<T> =
       json && typeof json === "object" && "success" in json ? (json as N8nResult<T>) : { success: true, data: json as T };
     audit(result.success === false ? "error" : "success", res.status, result.success === false ? { message: result.message } : undefined);
@@ -389,13 +413,23 @@ export class N8nBroker implements Broker {
         const started = Date.now();
         try {
           assertEgressAllowed(url); // SSRF guard on the verify probe too
+          const probe = { action, payload: { projectId }, source: "verify", origin: GATEWAY_ORIGIN, verify: true };
+          const psk = pskEnabled();
           const res = await fetch(url, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "X-OmniProject-Action": action, "X-OmniProject-Origin": GATEWAY_ORIGIN },
-            body: JSON.stringify({ action, payload: { projectId }, source: "verify", origin: GATEWAY_ORIGIN, verify: true }),
+            headers: psk
+              ? { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") }
+              : { "Content-Type": "application/json", "X-OmniProject-Action": action, "X-OmniProject-Origin": GATEWAY_ORIGIN },
+            body: psk
+              ? JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify(probe)) })
+              : JSON.stringify(probe),
             signal: AbortSignal.timeout(8_000),
           });
-          const json = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string };
+          let json = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string; enc?: string };
+          if (psk && typeof json.enc === "string") {
+            const opened = openPayload(json.enc);
+            json = opened ? (JSON.parse(opened) as typeof json) : {};
+          }
           return { name: action, ok: res.ok && json?.success !== false, status: res.status, ms: Date.now() - started, note: json?.message ?? null };
         } catch (err) {
           const isTimeout = err instanceof Error && err.name === "TimeoutError";

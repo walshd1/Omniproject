@@ -92,7 +92,20 @@ The broker hop carries project data, so encrypt it in transit:
    (Istio/Linkerd auto-mTLS). This keeps certificate *lifecycle* (issuance,
    rotation) out of the app — deliberately not done in-process to avoid the
    dependency + cert-management surface.
-3. Loopback (`localhost`) plaintext is fine — same host, no wire.
+3. **PSK app-layer encryption (`BROKER_PSK`) — a fallback _below_ TLS, opt-in.**
+   When you genuinely cannot run TLS on the hop but still must keep a packet
+   capture from seeing the bearer token in cleartext, set `BROKER_PSK` to a shared
+   high-entropy key. The gateway then AES-256-GCM-encrypts the **entire** request
+   envelope — action, payload **and the forwarded Authorization token** — and
+   sends only opaque ciphertext + an `X-OmniProject-Enc` marker; the broker
+   decrypts, dispatches, and re-encrypts its reply (the reference sidecar
+   implements both ends — `lib/broker-psk.ts`, proven by `psk-wire.test.ts`). Be
+   honest about the limits vs TLS: **no forward secrecy** (one static key — a leak
+   decrypts past captures), **no peer authentication** (no certificate; anyone
+   with the key is "the broker"), and **metadata still leaks** (destination IP,
+   port, sizes, timing). The broker MUST implement the matching crypto. Prefer
+   TLS; reach for PSK only when TLS is genuinely unavailable on the segment.
+4. Loopback (`localhost`) plaintext is fine — same host, no wire.
 
 ## 3c. Shutdown: clearing in-memory working sets
 
@@ -103,6 +116,51 @@ byte-zeroisation: JS strings are immutable and the OS reclaims process memory on
 exit. The real protection is that **no long-lived secret sits server-side** —
 sessions are in the client cookie (sealed), access tokens are per-request and
 GC'd, and the broker log holds only a redacted projection.
+
+## 3d. Does OmniProject lower the backend's security bar?
+
+**Short answer: no — by default. The bar only drops at the specific opt-in egress
+points below, each off until an operator deliberately enables it.**
+
+The model that makes this checkable: **OmniProject is just another authorised API
+client of the backend.** It sees exactly what that user's own backend UI sees, so
+the real question is whether it is a *worse custodian* of that data than the
+backend itself. For the default configuration it is not:
+
+| Dimension | Does OmniProject lower the bar? | Why |
+| --- | --- | --- |
+| **Data at rest** | **No** | Stateless: persists **no project data, no credentials**. It can't weaken at-rest encryption it never writes. The only durable store is gateway **config** (settings), not project data. |
+| **Credentials / authorisation** | **No** | Forwards the **user's own token**, never a stored shared admin key; the **backend still authorises every write**. It cannot grant access the backend would refuse. |
+| **In transit** | **Only if you misconfigure it** | Broker hop is TLS (or the PSK fallback, §3b); browser hop is your HTTPS + a sealed cookie. Running the broker on plain `http://` to a remote host lowers it — and the startup self-check **warns** exactly there (`broker-plaintext`). |
+
+**Where it *can* lower the bar — all opt-in, off by default, operator-gated.**
+These are the only places data lands somewhere the backend's own encryption no
+longer covers it; each maps to an egress in §2:
+
+- **E2 — Logging-sync (time-travel snapshots):** the one durable concession. If
+  enabled, point-in-time portfolio data lands in **your** snapshot store, under
+  *that* store's encryption/retention — not the backend's. The single biggest
+  "new place data sits."
+- **E5 — AI provider:** if configured, whatever the user asks about goes to a
+  third party.
+- **E3 — OData / BI** and **E7 — exports (CSV/JSON):** data leaves the boundary to
+  a BI tool or the user's disk (exports carry the formula-injection guard, but
+  once on disk it is the user's to protect).
+
+**Two inherent caveats — true of any overlay, not fixable.**
+
+- During a request, decrypted data is **plaintext in gateway memory and in the
+  browser** — exactly as it is in the backend's own SPA. Shutdown clears the
+  in-memory working sets (§3c), but that is reference-clearing, not magic.
+- OmniProject cannot make data *more* secure than the backend's API hands it over.
+  If the backend returns a field as ciphertext, OmniProject passes that ciphertext
+  through untouched; if the API returns plaintext (the normal case), OmniProject is
+  no better or worse than any other authorised client.
+
+**One-line answer for a CISO:** the read-through core inherits the backend's
+posture and adds **no at-rest scope and no stored credentials**; the bar drops
+only at the named opt-in egress points (E2/E3/E5/E7), each off until an operator
+turns it on and owns the resulting data flow.
 
 ## 4. Integrity & observability controls (audit-relevant)
 
