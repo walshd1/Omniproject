@@ -25,6 +25,7 @@ export * from './healthStatus';
 export * from './historyState';
 export * from './historyStateProvenance';
 export * from './issue';
+export * from './issueCustomFields';
 export * from './issueInput';
 export * from './issueInputPriority';
 export * from './issuePriority';

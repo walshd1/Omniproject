@@ -197,6 +197,11 @@ export const IssuePriority = {
   low: 'low',
 } as const;
 
+/**
+ * Backend-specific fields that aren't (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it.
+ */
+export type IssueCustomFields = { [key: string]: unknown };
+
 export interface Issue {
   id: string;
   projectId: string;
@@ -226,6 +231,8 @@ export interface Issue {
   lastUpdatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Backend-specific fields that aren't (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it. */
+  customFields?: IssueCustomFields;
 }
 
 export type IssueInputPriority = typeof IssueInputPriority[keyof typeof IssueInputPriority];

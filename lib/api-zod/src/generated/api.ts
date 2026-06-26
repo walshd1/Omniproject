@@ -198,7 +198,8 @@ export const GetProjectIssuesResponseItem = zod.object({
   "version": zod.number().nullish().describe('Optimistic-concurrency token mirrored from the system of record (e.g. OpenProject lockVersion). Sent back as expectedVersion on update so a stale edit is rejected with 409 instead of silently overwriting a concurrent change.'),
   "lastUpdatedBy": zod.string().nullish().describe('Origin system\/principal that last mutated this issue (e.g. \"omniproject\", \"plane\", \"openproject\"). n8n compares this against the change origin to drop circular sync loops (webhook storms).'),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('Backend-specific fields that aren\'t (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it.')
 })
 export const GetProjectIssuesResponse = zod.array(GetProjectIssuesResponseItem)
 
@@ -264,7 +265,8 @@ export const UpdateIssueResponse = zod.object({
   "version": zod.number().nullish().describe('Optimistic-concurrency token mirrored from the system of record (e.g. OpenProject lockVersion). Sent back as expectedVersion on update so a stale edit is rejected with 409 instead of silently overwriting a concurrent change.'),
   "lastUpdatedBy": zod.string().nullish().describe('Origin system\/principal that last mutated this issue (e.g. \"omniproject\", \"plane\", \"openproject\"). n8n compares this against the change origin to drop circular sync loops (webhook storms).'),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('Backend-specific fields that aren\'t (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it.')
 })
 
 

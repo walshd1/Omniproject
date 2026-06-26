@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
 import type { BackendFieldMap, FieldSupport } from "../broker/types";
-import { FIELD_REGISTRY } from "./field-registry";
+import { FIELD_REGISTRY, type FieldGroup } from "./field-registry";
 import { isTimeTravelEnabled } from "./settings";
 
 /**
@@ -41,7 +41,7 @@ export const FIELD_KEYS: readonly string[] = FIELD_REGISTRY.map((f) => f.key);
  * 0..many children a task can carry *if the backend can store them* — distinct
  * from the work-item itself (which the UI labels "Task").
  */
-export const ENTITY_KEYS = ["project", "programme", "raid", "issue", "note", "member"] as const;
+export const ENTITY_KEYS = ["project", "programme", "raid", "issue", "note", "member", "customField"] as const;
 
 export interface Capabilities extends Record<CapabilityDomain, boolean> {
   mode: string;
@@ -63,25 +63,33 @@ const sup = (surface: boolean, store = surface): FieldSupport => ({ surface, sto
  * (or less — e.g. a tracker without story points) overrides this via
  * `Broker.fieldMap`.
  */
+/** Which capability domain gates each field group. */
+const GROUP_DOMAIN: Record<FieldGroup, CapabilityDomain> = {
+  core: "issues",
+  people: "issues",
+  classification: "issues",
+  agile: "issues",
+  relationship: "issues",
+  derived: "issues",
+  schedule: "scheduling",
+  effort: "resources",
+  financial: "financials",
+};
+
 export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean>>): BackendFieldMap {
   const issues = !!enabled.issues;
-  const sched = !!enabled.scheduling;
   const portfolio = !!enabled.portfolio;
   const raid = !!enabled.raid;
+  const fields: Record<string, FieldSupport> = {};
+  for (const f of FIELD_REGISTRY) {
+    // programme membership is gated by the portfolio domain, not issues.
+    const domain = f.references === "programme" ? "portfolio" : GROUP_DOMAIN[f.group ?? "core"];
+    const on = !!enabled[domain];
+    // Derived/rolled-up values are read-only (surface without store).
+    fields[f.key] = sup(on, f.group === "derived" ? false : on);
+  }
   return {
-    fields: {
-      title: sup(issues),
-      status: sup(issues),
-      priority: sup(issues),
-      assignee: sup(issues),
-      description: sup(issues),
-      labels: sup(issues),
-      startDate: sup(sched),
-      dueDate: sup(sched),
-      storyPoints: sup(issues),
-      completionPct: sup(issues, false), // derived/rolled-up → read-only
-      programmeId: sup(portfolio),
-    },
+    fields,
     entities: {
       project: sup(issues, false), // read-through by default; creation is opt-in
       programme: sup(portfolio),
@@ -92,6 +100,8 @@ export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean
       note: sup(false),
       // Project members (with access level) — opt-in; drives the assignee picker.
       member: sup(false),
+      // Generic passthrough for backend fields that aren't canonical — opt-in.
+      customField: sup(false),
     },
   };
 }
