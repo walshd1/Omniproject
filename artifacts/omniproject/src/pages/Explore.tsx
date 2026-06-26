@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { FlaskConical, ExternalLink, LogOut, Download, AlertTriangle } from "lucide-react";
 import { PortfolioTrends } from "../components/reports/PortfolioTrends";
 import { ScenarioSandbox } from "../components/reports/ScenarioSandbox";
+import { ScheduleSandbox } from "../components/reports/ScheduleSandbox";
 import { DependencyLinks } from "../components/reports/DependencyLinks";
 import { TimeTravel } from "../components/reports/TimeTravel";
 import { loadSnapshots, exportSnapshots } from "../lib/snapshots";
@@ -122,6 +123,7 @@ export function Explore() {
         <PortfolioTrends />
         <TimeTravel />
         <ScenarioSandbox />
+        <ScheduleSandbox />
         <DependencyLinks />
       </div>
     </div>
