@@ -84,7 +84,7 @@ UI**", not new architecture.
 
 | Item | Status | Effort | Notes |
 | --- | --- | --- | --- |
-| **Delegation / temporary access transfer** (consent-based, time-boxed, audited, revocable) | **Design ([RFC-004](RFC-004-delegation.md))** | L | RFC written: defines the *safe subset* (gateway-scoped role/visibility delegation; backend authority deferred to the system of record), refuses storing/relaying the delegator's credential, gates every phase on a security checklist. Build only after the RFC's §14 decisions. Highest-risk — do not ship without review. |
+| **Delegation / temporary access transfer** (consent-based, time-boxed, audited, revocable) | **Design ([RFC-004](RFC-004-delegation.md) limits + [RFC-005](RFC-005-secure-delegation-design.md) hardened design)** | L | RFC-004 = threat model + the *safe subset* (gateway-scoped role/visibility delegation; backend authority deferred to the system of record; refuses storing/relaying the delegator's credential). RFC-005 = the build-ready secure design: IdP-first grant lifecycle, RFC 8693 token exchange, one-way-hash store, layered revocation (TTL → status list → CAEP), and full tamper-evident **"X on behalf of Y"** logging with a fail-closed attributability precondition. Build only after RFC-004 §14 decisions; every phase gated on the security checklists. Highest-risk — do not ship without review. |
 | **Admin-only translation-layer editor** (correct the field/entity mapping) | **Done** (#118) | M | admin-gated overrides persisted in gateway settings (config, not project data). |
 
 ## H. Scale & ops  — *mixed*
