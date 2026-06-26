@@ -296,6 +296,25 @@ export interface Issue {
      * @nullable
      */
   storyPoints?: number | null;
+  /**
+     * Delivery health / RAG (quality field group). Free-form to preserve the backend's vocabulary.
+     * @nullable
+     */
+  healthStatus?: string | null;
+  /** @nullable */
+  riskLevel?: string | null;
+  /** @nullable */
+  impact?: string | null;
+  /** @nullable */
+  urgency?: string | null;
+  /** @nullable */
+  blocked?: boolean | null;
+  /** @nullable */
+  blockedReason?: string | null;
+  /** @nullable */
+  mitigation?: string | null;
+  /** @nullable */
+  defectCount?: number | null;
   /** Backend-specific fields that aren't (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it. */
   customFields?: IssueCustomFields;
 }
@@ -343,6 +362,22 @@ export interface IssueInput {
   remainingHours?: number | null;
   /** @nullable */
   storyPoints?: number | null;
+  /** @nullable */
+  healthStatus?: string | null;
+  /** @nullable */
+  riskLevel?: string | null;
+  /** @nullable */
+  impact?: string | null;
+  /** @nullable */
+  urgency?: string | null;
+  /** @nullable */
+  blocked?: boolean | null;
+  /** @nullable */
+  blockedReason?: string | null;
+  /** @nullable */
+  mitigation?: string | null;
+  /** @nullable */
+  defectCount?: number | null;
 }
 
 export type ProjectMemberAccess = typeof ProjectMemberAccess[keyof typeof ProjectMemberAccess];
@@ -470,6 +505,22 @@ export interface IssueUpdate {
   remainingHours?: number | null;
   /** @nullable */
   storyPoints?: number | null;
+  /** @nullable */
+  healthStatus?: string | null;
+  /** @nullable */
+  riskLevel?: string | null;
+  /** @nullable */
+  impact?: string | null;
+  /** @nullable */
+  urgency?: string | null;
+  /** @nullable */
+  blocked?: boolean | null;
+  /** @nullable */
+  blockedReason?: string | null;
+  /** @nullable */
+  mitigation?: string | null;
+  /** @nullable */
+  defectCount?: number | null;
   /** System initiating this update (defaults to "omniproject" at the gateway). Carried downstream so n8n can drop overlapping loop mutations where origin === the target's lastUpdatedBy. */
   origin?: string;
   /** The version the client last saw. When present the gateway/backend performs an optimistic-concurrency check and rejects the write with 409 if the issue has moved on, instead of clobbering it. */

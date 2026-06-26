@@ -209,6 +209,14 @@ A normalised issue/work-item row. `version` is the concurrency token.
 | `loggedHours` | number \| null | — |  |
 | `remainingHours` | number \| null | — |  |
 | `storyPoints` | number \| null | — |  |
+| `healthStatus` | string \| null | — |  |
+| `riskLevel` | string \| null | — |  |
+| `impact` | string \| null | — |  |
+| `urgency` | string \| null | — |  |
+| `blocked` | boolean \| null | — |  |
+| `blockedReason` | string \| null | — |  |
+| `mitigation` | string \| null | — |  |
+| `defectCount` | number \| null | — |  |
 | _(other)_ | any | — | Open row — backend-specific fields pass through. |
 
 ### IssueWrite
@@ -236,6 +244,14 @@ A normalised issue mutation. `expectedVersion` drives optimistic concurrency.
 | `loggedHours` | number \| null | — |  |
 | `remainingHours` | number \| null | — |  |
 | `storyPoints` | number \| null | — |  |
+| `healthStatus` | string \| null | — |  |
+| `riskLevel` | string \| null | — |  |
+| `impact` | string \| null | — |  |
+| `urgency` | string \| null | — |  |
+| `blocked` | boolean \| null | — |  |
+| `blockedReason` | string \| null | — |  |
+| `mitigation` | string \| null | — |  |
+| `defectCount` | number \| null | — |  |
 | `expectedVersion` | number | — |  |
 
 ### NotificationIngest

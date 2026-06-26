@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import { getGetCapabilitiesQueryKey, type Capabilities } from "@workspace/api-client-react";
 import { renderWithProviders } from "../test/utils";
@@ -152,6 +153,51 @@ describe("IssueDialog accessible names", () => {
     expect(prog).toHaveTextContent("65%"); // 26/40
   });
 
+  it("shows risk & quality fields only when the backend surfaces them", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: {
+        healthStatus: { surface: true, store: true },
+        blocked: { surface: true, store: true },
+        blockedReason: { surface: true, store: false }, // read-only
+        impact: { surface: false, store: false }, // hidden
+        mitigation: { surface: true, store: true },
+      },
+    } as unknown as Capabilities);
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={null} defaultStatus="backlog" />,
+      { client: qc },
+    );
+    expect(screen.getByText("Risk & quality")).toBeInTheDocument();
+    expect(screen.getByLabelText("Health (RAG)")).toBeEnabled();
+    expect(screen.getByLabelText("Blocked")).toBeInTheDocument();
+    expect(screen.getByLabelText("Blocked reason")).toBeDisabled(); // read-only
+    expect(screen.queryByLabelText("Impact")).toBeNull(); // not surfaced
+  });
+
+  it("hides the risk & quality section when no quality field is surfaced", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: {
+        healthStatus: { surface: false, store: false },
+        riskLevel: { surface: false, store: false },
+        impact: { surface: false, store: false },
+        urgency: { surface: false, store: false },
+        blocked: { surface: false, store: false },
+        blockedReason: { surface: false, store: false },
+        mitigation: { surface: false, store: false },
+        defectCount: { surface: false, store: false },
+      },
+    } as unknown as Capabilities);
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={null} defaultStatus="backlog" />,
+      { client: qc },
+    );
+    expect(screen.queryByText("Risk & quality")).toBeNull();
+  });
+
   it("renders discovered custom fields read-only when the backend exposes them", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
     qc.setQueryData(getGetCapabilitiesQueryKey(), {
@@ -193,6 +239,44 @@ describe("IssueDialog accessible names", () => {
       { client: qc },
     );
     expect(screen.queryByTestId("custom-fields")).toBeNull();
+  });
+
+  it("edits effort and risk & quality fields (exercises the input handlers)", async () => {
+    const user = userEvent.setup();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: {
+        estimateHours: { surface: true, store: true },
+        loggedHours: { surface: true, store: true },
+        healthStatus: { surface: true, store: true },
+        riskLevel: { surface: true, store: true },
+        impact: { surface: true, store: true },
+        urgency: { surface: true, store: true },
+        blocked: { surface: true, store: true },
+        blockedReason: { surface: true, store: true },
+        mitigation: { surface: true, store: true },
+        defectCount: { surface: true, store: true },
+      },
+    } as unknown as Capabilities);
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={null} defaultStatus="backlog" />,
+      { client: qc },
+    );
+    await user.type(screen.getByLabelText("Estimate (h)"), "8");
+    await user.type(screen.getByLabelText("Logged (h)"), "4");
+    await user.type(screen.getByLabelText("Health (RAG)"), "amber");
+    await user.type(screen.getByLabelText("Risk level"), "high");
+    await user.type(screen.getByLabelText("Impact"), "high");
+    await user.type(screen.getByLabelText("Urgency"), "medium");
+    await user.type(screen.getByLabelText("Defect count"), "3");
+    await user.click(screen.getByLabelText("Blocked"));
+    await user.type(screen.getByLabelText("Blocked reason"), "waiting on infra");
+    await user.type(screen.getByLabelText("Mitigation"), "spike the export");
+    expect((screen.getByLabelText("Health (RAG)") as HTMLInputElement).value).toBe("amber");
+    expect((screen.getByLabelText("Blocked") as HTMLInputElement).checked).toBe(true);
+    // The derived effort progress reacts to the typed values (4/8 = 50%).
+    expect(screen.getByTestId("effort-progress")).toHaveTextContent("50%");
   });
 
   it("offers Duplicate only when editing an existing task", () => {

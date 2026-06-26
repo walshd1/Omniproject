@@ -427,6 +427,54 @@ export const BROKER_CONTRACT_SCHEMA = {
             "number",
             "null"
           ]
+        },
+        "healthStatus": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "riskLevel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "impact": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "urgency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "blocked": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "blockedReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mitigation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "defectCount": {
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "required": [
@@ -535,6 +583,54 @@ export const BROKER_CONTRACT_SCHEMA = {
           ]
         },
         "storyPoints": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "healthStatus": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "riskLevel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "impact": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "urgency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "blocked": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "blockedReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mitigation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "defectCount": {
           "type": [
             "number",
             "null"

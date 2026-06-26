@@ -1092,6 +1092,23 @@ components:
         storyPoints:
           type: ["number", "null"]
           description: Agile story-point estimate (agile field group; surfaced only when the backend tracks agile fields).
+        healthStatus:
+          type: ["string", "null"]
+          description: Delivery health / RAG (quality field group). Free-form to preserve the backend's vocabulary.
+        riskLevel:
+          type: ["string", "null"]
+        impact:
+          type: ["string", "null"]
+        urgency:
+          type: ["string", "null"]
+        blocked:
+          type: ["boolean", "null"]
+        blockedReason:
+          type: ["string", "null"]
+        mitigation:
+          type: ["string", "null"]
+        defectCount:
+          type: ["number", "null"]
         customFields:
           type: object
           additionalProperties: true
@@ -1154,6 +1171,22 @@ components:
         remainingHours:
           type: ["number", "null"]
         storyPoints:
+          type: ["number", "null"]
+        healthStatus:
+          type: ["string", "null"]
+        riskLevel:
+          type: ["string", "null"]
+        impact:
+          type: ["string", "null"]
+        urgency:
+          type: ["string", "null"]
+        blocked:
+          type: ["boolean", "null"]
+        blockedReason:
+          type: ["string", "null"]
+        mitigation:
+          type: ["string", "null"]
+        defectCount:
           type: ["number", "null"]
       required:
         - title
@@ -1295,6 +1328,22 @@ components:
         remainingHours:
           type: ["number", "null"]
         storyPoints:
+          type: ["number", "null"]
+        healthStatus:
+          type: ["string", "null"]
+        riskLevel:
+          type: ["string", "null"]
+        impact:
+          type: ["string", "null"]
+        urgency:
+          type: ["string", "null"]
+        blocked:
+          type: ["boolean", "null"]
+        blockedReason:
+          type: ["string", "null"]
+        mitigation:
+          type: ["string", "null"]
+        defectCount:
           type: ["number", "null"]
         origin:
           type: string
