@@ -702,6 +702,23 @@ export const GetCapabilitiesResponse = zod.object({
 
 
 /**
+ * A bounded, in-memory ring of the most recent gateway → broker → backend actions (action, result, status, latency, actor), so an admin can watch traffic and surface failures live. Pair with the SSE stream at /admin/broker-log/stream for live tailing. Requires the admin role.
+ * @summary Recent brokered actions (admin-only live log)
+ */
+export const GetBrokerLogResponseItem = zod.object({
+  "ts": zod.string(),
+  "action": zod.string(),
+  "result": zod.enum(['success', 'error']),
+  "status": zod.number(),
+  "ms": zod.number(),
+  "projectId": zod.string().nullish(),
+  "actor": zod.string().nullish(),
+  "note": zod.string().nullish()
+}).describe('One brokered action in the admin live log (redacted projection).')
+export const GetBrokerLogResponse = zod.array(GetBrokerLogResponseItem)
+
+
+/**
  * Enumerates the fields the active backend exposes and reconciles them against the canonical registry (known / unknown / missing), flagging relationship candidates among the unknowns. Powers the admin translation layer's "what does this backend expose, what's unmapped" view. Requires the manager role (it reveals backend schema detail).
  * @summary Per-backend field manifest (the describe → reconcile path)
  */

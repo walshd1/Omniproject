@@ -107,6 +107,17 @@ test("RBAC: a viewer CANNOT change settings (admin gate, 403)", async () => {
   assert.equal(res.status, 403);
 });
 
+test("RBAC: a viewer CANNOT read the admin broker-log (admin gate, 403)", async () => {
+  const res = await req("/api/admin/broker-log", { headers: { cookie: VIEWER } });
+  assert.equal(res.status, 403);
+});
+
+test("RBAC: an admin CAN read the broker-log", async () => {
+  const res = await req("/api/admin/broker-log", { headers: { cookie: ADMIN } });
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(await res.json()));
+});
+
 test("RBAC: a viewer CANNOT read the field manifest (manager gate, 403)", async () => {
   // The manifest reveals backend schema detail (every field, incl. unmapped),
   // so it's manager+ — a plain viewer must be walled off.

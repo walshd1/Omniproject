@@ -720,6 +720,31 @@ export interface Capabilities {
   fieldSources?: CapabilitiesFieldSources;
 }
 
+export type BrokerLogEntryResult = typeof BrokerLogEntryResult[keyof typeof BrokerLogEntryResult];
+
+
+export const BrokerLogEntryResult = {
+  success: 'success',
+  error: 'error',
+} as const;
+
+/**
+ * One brokered action in the admin live log (redacted projection).
+ */
+export interface BrokerLogEntry {
+  ts: string;
+  action: string;
+  result: BrokerLogEntryResult;
+  status: number;
+  ms: number;
+  /** @nullable */
+  projectId?: string | null;
+  /** @nullable */
+  actor?: string | null;
+  /** @nullable */
+  note?: string | null;
+}
+
 /**
  * known/unknown/missing field keys vs the canonical registry.
  */

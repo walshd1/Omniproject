@@ -15,6 +15,7 @@ import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { PremiumAdmin } from "../components/PremiumAdmin";
 import { LoggingSyncSettings } from "../components/settings/LoggingSyncSettings";
 import { TranslationLayer } from "../components/settings/TranslationLayer";
+import { BrokerLog } from "../components/settings/BrokerLog";
 import { DataState } from "../components/DataState";
 import { LoadingState } from "../components/LoadingState";
 import { urlFormatError } from "../lib/validation";
@@ -247,6 +248,10 @@ export function Settings() {
 
       <div className="mt-10">
         <TranslationLayer />
+      </div>
+
+      <div className="mt-10">
+        <BrokerLog />
       </div>
 
       <PremiumAdmin />

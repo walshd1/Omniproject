@@ -8,6 +8,7 @@ import settingsRouter from "./settings";
 import programmesRouter from "./programmes";
 import portfolioRouter from "./portfolio";
 import capabilitiesRouter from "./capabilities";
+import brokerLogRouter from "./broker-log";
 import setupRouter from "./setup";
 import { streamRouter, ingestRouter } from "./notifications-stream";
 import aiRouter from "./ai";
@@ -88,5 +89,6 @@ router.use(requireAuth, exportRouter);
 router.use(requireAuth, integrationsRouter);
 router.use(requireAuth, odataRouter);
 router.use(requireAuth, historyRouter);
+router.use(requireAuth, brokerLogRouter);
 
 export default router;
