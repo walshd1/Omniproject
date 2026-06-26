@@ -51,9 +51,38 @@ interface N8nResult<T = unknown> {
   message?: string | null;
 }
 
+const DEFAULT_WEBHOOK = "http://localhost:5678/webhook/omniproject";
+
+/**
+ * The pool of n8n webhook endpoints. For horizontal scale, set `BROKER_URLS` to a
+ * comma-separated list of n8n instances and the adapter load-balances across them
+ * (round-robin) with connection-level failover. Otherwise the single
+ * settings/env URL is used. Read live so config changes take effect without a
+ * restart. This is entirely below the seam — nothing above N8nBroker knows.
+ */
+export function webhookPool(): string[] {
+  const list = process.env["BROKER_URLS"]?.trim();
+  if (list) {
+    const urls = list.split(",").map((u) => u.trim()).filter(Boolean);
+    if (urls.length) return urls;
+  }
+  return [getSettings().brokerUrl || process.env["BROKER_URL"]?.trim() || DEFAULT_WEBHOOK];
+}
+
+let rrCounter = 0;
+
+/** The pool rotated by a round-robin offset, so consecutive calls spread load
+ *  and a failed instance is followed by the next one. */
+export function orderedTargets(): string[] {
+  const pool = webhookPool();
+  if (pool.length <= 1) return pool;
+  const offset = rrCounter++ % pool.length;
+  return [...pool.slice(offset), ...pool.slice(0, offset)];
+}
+
 function webhookUrl(): string {
-  // Settings may override the env default at runtime.
-  return getSettings().brokerUrl || ENV_WEBHOOK || "http://localhost:5678/webhook/omniproject";
+  // The first instance — for single-shot probes (the verifier).
+  return webhookPool()[0]!;
 }
 
 /**
@@ -111,21 +140,41 @@ async function callN8n<T = unknown>(
       meta: { idempotencyKey: key, source: opts.source, ...extra },
     });
 
-  try {
-    const res = await fetch(webhookUrl(), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(opts.ctx.authHeader ? { Authorization: opts.ctx.authHeader } : {}),
-        "X-OmniProject-Source": opts.source,
-        "X-OmniProject-Action": action,
-        "X-OmniProject-Origin": origin,
-        "X-OmniProject-Idempotency-Key": key,
-      },
-      body: JSON.stringify({ action, payload: enrichedPayload, source: opts.source, origin, idempotencyKey: key }),
-      signal: AbortSignal.timeout(10_000),
-    });
+  const init: RequestInit = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(opts.ctx.authHeader ? { Authorization: opts.ctx.authHeader } : {}),
+      "X-OmniProject-Source": opts.source,
+      "X-OmniProject-Action": action,
+      "X-OmniProject-Origin": origin,
+      "X-OmniProject-Idempotency-Key": key,
+    },
+    body: JSON.stringify({ action, payload: enrichedPayload, source: opts.source, origin, idempotencyKey: key }),
+  };
 
+  // Round-robin across the n8n pool; fail over to the next instance ONLY on a
+  // connection-level error (a returned HTTP status is a real response, not an
+  // unreachable instance). Each attempt gets a fresh timeout signal.
+  const targets = orderedTargets();
+  let res: Response | undefined;
+  let lastErr: unknown;
+  for (const target of targets) {
+    try {
+      res = await fetch(target, { ...init, signal: AbortSignal.timeout(10_000) });
+      break;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  if (!res) {
+    const isTimeout = lastErr instanceof Error && lastErr.name === "TimeoutError";
+    audit("error", 0, { error: lastErr instanceof Error ? lastErr.name : "error", instancesTried: targets.length });
+    throw new BrokerError("unavailable", isTimeout ? "all broker instances timed out" : "all broker instances unreachable");
+  }
+
+  try {
     if (!res.ok) {
       // Propagate meaningful upstream codes — notably 409 (optimistic-concurrency
       // conflict) and 404; 5xx collapses to "unavailable". The upstream body is
