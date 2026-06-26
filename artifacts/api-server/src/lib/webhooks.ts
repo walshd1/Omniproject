@@ -7,6 +7,13 @@ import crypto from "node:crypto";
 import { getSettings, updateSettings, type WebhookSubscription } from "./settings";
 import { isEntitled } from "./license";
 import { logger } from "./logger";
+import {
+  OUTBOUND_EVENT_NAMES,
+  OUTBOUND_HEADERS,
+  SIGNATURE_SCHEME,
+  type OutboundEvent,
+  type OutboundEventName,
+} from "../broker/contract";
 
 /**
  * Outbound webhooks (premium feature `webhooks`).
@@ -22,8 +29,11 @@ import { logger } from "./logger";
  * and let n8n's queue handle retries.
  */
 
-export const WEBHOOK_EVENTS = ["notification", "audit", "config.changed", "webhook.test"] as const;
-export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
+// The canonical event vocabulary lives in the broker contract; re-exported here
+// under the historical names so the rest of the gateway keeps importing it from
+// lib/webhooks.
+export const WEBHOOK_EVENTS = OUTBOUND_EVENT_NAMES;
+export type WebhookEvent = OutboundEventName;
 
 /** A subscription with its secret redacted, safe to return to the browser. */
 export interface RedactedSubscription extends Omit<WebhookSubscription, "secret"> {
@@ -101,12 +111,13 @@ export interface DeliveryResult {
 
 /** Sign a serialized body with a subscription secret (HMAC-SHA256, hex). */
 export function signBody(body: string, secret: string): string {
-  return `sha256=${crypto.createHmac("sha256", secret).update(body).digest("hex")}`;
+  return `${SIGNATURE_SCHEME}=${crypto.createHmac(SIGNATURE_SCHEME, secret).update(body).digest("hex")}`;
 }
 
 async function deliverOne(sub: WebhookSubscription, event: WebhookEvent, payload: unknown, ts: string): Promise<DeliveryResult> {
   const deliveryId = crypto.randomUUID();
-  const body = JSON.stringify({ event, deliveredAt: ts, deliveryId, data: payload });
+  const envelope: OutboundEvent = { event, deliveredAt: ts, deliveryId, data: payload };
+  const body = JSON.stringify(envelope);
   const started = Date.now();
   try {
     const r = await fetch(sub.url, {
@@ -114,9 +125,9 @@ async function deliverOne(sub: WebhookSubscription, event: WebhookEvent, payload
       headers: {
         "Content-Type": "application/json",
         "User-Agent": "OmniProject-Webhook/1",
-        "X-OmniProject-Event": event,
-        "X-OmniProject-Delivery": deliveryId,
-        "X-OmniProject-Signature": signBody(body, sub.secret),
+        [OUTBOUND_HEADERS.event]: event,
+        [OUTBOUND_HEADERS.delivery]: deliveryId,
+        [OUTBOUND_HEADERS.signature]: signBody(body, sub.secret),
       },
       body,
       signal: AbortSignal.timeout(8_000),

@@ -1,0 +1,880 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/contract/broker.v1.schema.json",
+  "title": "OmniProject Broker Contract",
+  "description": "The published, versioned interface between OmniProject and any broker. Generated from artifacts/api-server/src/broker/{types,contract}.ts — do not edit by hand.",
+  "x-contract-version": "v1",
+  "$defs": {
+    "ActorContext": {
+      "type": "object",
+      "properties": {
+        "sub": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "token": {
+          "type": "string"
+        },
+        "authHeader": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Forwarded actor identity. A write is performed \"as\" this principal so the backend system of record authorises it under the real user (not a shared admin key). `authHeader` is the transport credential to forward; `token` is the same access token echoed in the per-user context. Demo brokers ignore both."
+    },
+    "BackendFieldMap": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/FieldSupport"
+          }
+        },
+        "entities": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/FieldSupport"
+          }
+        }
+      },
+      "required": [
+        "fields",
+        "entities"
+      ],
+      "additionalProperties": false,
+      "description": "Per-field / per-entity support a backend declares. Finer-grained than the domain flags: e.g. a backend may surface `dueDate` read-only (surface without store), or have no `programmeId` field at all (programme entity unsupported)."
+    },
+    "Baseline": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "capturedAt": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "issueId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "plannedStart": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "plannedFinish": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "issueId",
+              "title",
+              "plannedStart",
+              "plannedFinish"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "provenance": {
+          "enum": [
+            "sourced",
+            "derived",
+            "sample"
+          ]
+        }
+      },
+      "required": [
+        "projectId",
+        "capturedAt",
+        "items",
+        "provenance"
+      ],
+      "additionalProperties": false
+    },
+    "BrokerEnvelope": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "data": {},
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "success"
+      ],
+      "additionalProperties": false,
+      "description": "The wire envelope an HTTP-transport broker returns. The gateway unwraps it before anything above the seam sees data; a bare body (no `success` key) is treated as `{ success: true, data: <body> }`. In-process brokers (DemoBroker) return domain values directly and never construct an envelope — the envelope is the reference HTTP binding, not a domain concept."
+    },
+    "BrokerErrorCode": {
+      "enum": [
+        "conflict",
+        "not_found",
+        "unauthorized",
+        "bad_request",
+        "unavailable"
+      ],
+      "description": "Normalised error taxonomy — no broker-specific status quirks leak upward."
+    },
+    "CapabilityFlags": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "description": "Raw capability flags a backend can populate (domain → available)."
+    },
+    "ContractVersion": {
+      "const": "v1"
+    },
+    "EnumeratedField": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "surface": {
+          "type": "boolean"
+        },
+        "store": {
+          "type": "boolean"
+        },
+        "references": {
+          "type": "string",
+          "description": "If the backend's API schema says this field references another entity."
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "additionalProperties": false,
+      "description": "A field a backend reports it can expose, from API enumeration during wiring."
+    },
+    "FieldSupport": {
+      "type": "object",
+      "properties": {
+        "surface": {
+          "type": "boolean"
+        },
+        "store": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "surface",
+        "store"
+      ],
+      "additionalProperties": false,
+      "description": "Whether a field/entity can be surfaced (read) and stored (written)."
+    },
+    "FxRates": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "type": "string"
+        },
+        "rates": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "provenance": {
+          "enum": [
+            "sourced",
+            "sample"
+          ]
+        },
+        "asOf": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "base",
+        "rates",
+        "provenance",
+        "asOf"
+      ],
+      "additionalProperties": false
+    },
+    "HistoryPoint": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string"
+        },
+        "completionRate": {
+          "type": "number"
+        },
+        "totalIssues": {
+          "type": "number"
+        },
+        "completedIssues": {
+          "type": "number"
+        },
+        "openBlockers": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "provenance": {
+          "enum": [
+            "sourced",
+            "derived",
+            "sample"
+          ]
+        }
+      },
+      "required": [
+        "date",
+        "completionRate",
+        "totalIssues",
+        "completedIssues",
+        "openBlockers",
+        "provenance"
+      ],
+      "additionalProperties": false
+    },
+    "HistoryState": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "string"
+        },
+        "completionPct": {
+          "type": "number"
+        },
+        "openBlockers": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "provenance": {
+          "enum": [
+            "replayed",
+            "projected",
+            "sourced",
+            "derived",
+            "sample"
+          ]
+        }
+      },
+      "required": [
+        "at",
+        "completionPct",
+        "openBlockers",
+        "provenance"
+      ],
+      "additionalProperties": false,
+      "description": "A portfolio-level state at a point in time, served by the time-travel replay (read back from the operator's logging server). `replayed` = a real recorded state; `projected` = a model of the future (never fact); `sample` = demo."
+    },
+    "IngestedNotification": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "body": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "projectId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "issueId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "title",
+        "body",
+        "projectId",
+        "issueId",
+        "read",
+        "timestamp"
+      ],
+      "additionalProperties": false,
+      "description": "The normalised notification the gateway fans out after ingest."
+    },
+    "Issue": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "version": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "projectId",
+        "title",
+        "status"
+      ],
+      "additionalProperties": true,
+      "description": "A normalised issue/work-item row. `version` is the concurrency token."
+    },
+    "IssueWrite": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string"
+        },
+        "issueId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string"
+        },
+        "assignee": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "startDate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dueDate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expectedVersion": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "projectId"
+      ],
+      "additionalProperties": false,
+      "description": "A normalised issue mutation. `expectedVersion` drives optimistic concurrency."
+    },
+    "NotificationIngest": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "object",
+          "properties": {
+            "sub": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "notification": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "body": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "projectId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "issueId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "title"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "notification"
+      ],
+      "additionalProperties": false,
+      "description": "Body of POST /api/notifications/ingest — a broker/tool pushes an event in. Authenticated by the NOTIFY_INGEST_SECRET shared secret (Bearer or X-Notify-Secret header). `notification.title` is the only required field."
+    },
+    "OutboundEvent": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/OutboundEventName"
+        },
+        "deliveredAt": {
+          "type": "string"
+        },
+        "deliveryId": {
+          "type": "string"
+        },
+        "data": {}
+      },
+      "required": [
+        "event",
+        "deliveredAt",
+        "deliveryId",
+        "data"
+      ],
+      "additionalProperties": false,
+      "description": "The JSON body of every outbound delivery."
+    },
+    "OutboundEventName": {
+      "enum": [
+        "notification",
+        "audit",
+        "config.changed",
+        "webhook.test"
+      ]
+    },
+    "PortfolioRow": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string"
+        },
+        "projectName": {
+          "type": "string"
+        },
+        "ragStatus": {
+          "type": "string"
+        },
+        "scheduleVarianceDays": {
+          "type": "number"
+        },
+        "budgetVariancePercentage": {
+          "type": "number"
+        },
+        "activeBlockersCount": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "projectId",
+        "projectName",
+        "ragStatus",
+        "scheduleVarianceDays",
+        "budgetVariancePercentage",
+        "activeBlockersCount"
+      ],
+      "additionalProperties": false
+    },
+    "Project": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": true,
+      "description": "A normalised project row."
+    },
+    "ProjectMember": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "email": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "access": {
+          "enum": [
+            "read",
+            "write"
+          ],
+          "description": "\"write\" = can be assigned/act on work; \"read\" = view-only."
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Skills/competencies, when the backend tracks them (resource planning)."
+        },
+        "availableHours": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Available capacity in hours for the planning window, when tracked."
+        },
+        "allocatedHours": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Already-allocated hours in the planning window, when tracked."
+        }
+      },
+      "required": [
+        "id",
+        "access"
+      ],
+      "additionalProperties": true,
+      "description": "A person on a project, with their access level (the backend is the source)."
+    },
+    "ProjectWrite": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "identifier": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "programmeId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Set/clear to group the project under a programme (derived-programme model)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "A normalised project create/update. `name` is required on create."
+    },
+    "Provenance": {
+      "enum": [
+        "sourced",
+        "derived",
+        "sample",
+        "replayed",
+        "projected"
+      ]
+    },
+    "ResourceMember": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "email": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Union of skills seen across the member's projects."
+        },
+        "availableHours": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Summed capacity across projects (null when no backend supplies it)."
+        },
+        "allocatedHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "projectIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Projects this person is a member of."
+        }
+      },
+      "required": [
+        "id",
+        "skills",
+        "availableHours",
+        "allocatedHours",
+        "projectIds"
+      ],
+      "additionalProperties": false,
+      "description": "A person aggregated across the portfolio, for resource planning."
+    },
+    "Row": {
+      "type": "object",
+      "additionalProperties": {},
+      "description": "Loosely-typed record — the normalised row shape the broker exchanges."
+    },
+    "Summary": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string"
+        },
+        "total": {
+          "type": "number"
+        },
+        "byStatus": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "byPriority": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "completionRate": {
+          "type": "number"
+        },
+        "overdue": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "projectId",
+        "total",
+        "byStatus",
+        "byPriority",
+        "completionRate",
+        "overdue"
+      ],
+      "additionalProperties": false
+    },
+    "TaskItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "taskId": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "issue",
+            "note"
+          ]
+        },
+        "content": {
+          "type": "string"
+        },
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "taskId",
+        "kind",
+        "content",
+        "createdAt"
+      ],
+      "additionalProperties": true,
+      "description": "A child issue/note raised against a task (the work-item)."
+    },
+    "TaskItemWrite": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "issue",
+            "note"
+          ]
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "content"
+      ],
+      "additionalProperties": false,
+      "description": "Create a child issue/note on a task."
+    },
+    "VerifyReport": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "number"
+              },
+              "ms": {
+                "type": "number"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "ok",
+              "status",
+              "ms"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "actions"
+      ],
+      "additionalProperties": false,
+      "description": "Dry-run verification of the broker contract — must never mutate a backend."
+    }
+  }
+}

@@ -6,6 +6,7 @@ import { addClient, clientCount, type NotifyTarget } from "../lib/notify-hub";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
 import { emitWebhookEvent } from "../lib/webhooks";
 import { logger } from "../lib/logger";
+import type { NotificationIngest, IngestedNotification } from "../broker/contract";
 
 /**
  * Two routers:
@@ -77,19 +78,19 @@ function ingestAuth(req: Request, res: Response, next: NextFunction): void {
 // POST /api/notifications/ingest — n8n/tools push an event; the bus fans it out
 // across replicas (Redis) or in-process.
 ingestRouter.post("/notifications/ingest", ingestAuth, async (req: Request, res: Response) => {
-  const body = (req.body ?? {}) as { target?: NotifyTarget; notification?: Record<string, unknown> };
-  const n = body.notification;
-  if (!n || typeof n !== "object" || typeof n.title !== "string") {
+  const body = (req.body ?? {}) as Partial<NotificationIngest> & { target?: NotifyTarget };
+  const n = body.notification as Record<string, unknown> | undefined;
+  if (!n || typeof n !== "object" || typeof n["title"] !== "string") {
     res.status(400).json({ error: "notification.title is required" });
     return;
   }
-  const notification = {
+  const notification: IngestedNotification = {
     id: typeof n["id"] === "string" ? n["id"] : crypto.randomUUID(),
     kind: typeof n["kind"] === "string" ? n["kind"] : "info",
-    title: n["title"],
-    body: n["body"] ?? null,
-    projectId: n["projectId"] ?? null,
-    issueId: n["issueId"] ?? null,
+    title: n["title"] as string,
+    body: (n["body"] as string | null | undefined) ?? null,
+    projectId: (n["projectId"] as string | null | undefined) ?? null,
+    issueId: (n["issueId"] as string | null | undefined) ?? null,
     read: false,
     timestamp: new Date().toISOString(),
   };

@@ -24,6 +24,7 @@ import {
   type VerifyReport,
   type Row,
 } from "./types";
+import { GATEWAY_ORIGIN, REQUEST_HEADERS, type BrokerEnvelope } from "./contract";
 
 /**
  * n8n broker — THE one place that knows the broker is n8n.
@@ -38,18 +39,12 @@ import {
  * This module is the sole exception in the architecture guard (docs/BROKER.md).
  */
 
-/** The gateway is the origin of UI-initiated changes (loop-guard tag). */
-const GATEWAY_ORIGIN = "omniproject";
-
 /** True when a broker is wired via the environment (selection signal at boot). */
 const ENV_WEBHOOK = process.env["BROKER_URL"]?.trim();
 export const N8N_ENV_CONFIGURED = !!ENV_WEBHOOK;
 
-interface N8nResult<T = unknown> {
-  success: boolean;
-  data?: T;
-  message?: string | null;
-}
+/** The canonical response envelope (see broker/contract.ts). */
+type N8nResult<T = unknown> = BrokerEnvelope<T>;
 
 const DEFAULT_WEBHOOK = "http://localhost:5678/webhook/omniproject";
 
@@ -145,10 +140,10 @@ async function callN8n<T = unknown>(
     headers: {
       "Content-Type": "application/json",
       ...(opts.ctx.authHeader ? { Authorization: opts.ctx.authHeader } : {}),
-      "X-OmniProject-Source": opts.source,
-      "X-OmniProject-Action": action,
-      "X-OmniProject-Origin": origin,
-      "X-OmniProject-Idempotency-Key": key,
+      [REQUEST_HEADERS.source]: opts.source,
+      [REQUEST_HEADERS.action]: action,
+      [REQUEST_HEADERS.origin]: origin,
+      [REQUEST_HEADERS.idempotencyKey]: key,
     },
     body: JSON.stringify({ action, payload: enrichedPayload, source: opts.source, origin, idempotencyKey: key }),
   };
