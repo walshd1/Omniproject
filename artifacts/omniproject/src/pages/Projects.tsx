@@ -1,7 +1,11 @@
-import { useListProjects, type Project } from "@workspace/api-client-react";
+import { useListProjects, useGetCapabilities, type Project } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { PlugZap } from "lucide-react";
+import { useState } from "react";
+import { PlugZap, Plus } from "lucide-react";
 import { ExportMenu } from "../components/ExportMenu";
+import { NewProjectDialog } from "../components/NewProjectDialog";
+import { canStoreEntity } from "../lib/capabilities-fields";
+import { Button } from "@/components/ui/button";
 import { DataState } from "../components/DataState";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
 
@@ -33,6 +37,9 @@ function ProjectSummaryCard({ project }: { project: Project }) {
 
 export function Projects() {
   const { data: projects, isLoading, isError, error, refetch } = useListProjects();
+  const { data: caps } = useGetCapabilities();
+  const [newOpen, setNewOpen] = useState(false);
+  const canCreate = canStoreEntity(caps, "project");
 
   return (
     <div className="h-full overflow-y-auto p-8">
@@ -41,9 +48,19 @@ export function Projects() {
           <h1 className="text-3xl font-black uppercase tracking-tighter">PROJECTS INDEX</h1>
           <div className="flex items-center gap-4">
             <div className="text-muted-foreground font-mono text-sm">TOTAL: {projects?.length || 0}</div>
+            {canCreate && (
+              <Button
+                onClick={() => setNewOpen(true)}
+                className="rounded-none uppercase font-bold tracking-wider text-xs gap-1.5"
+              >
+                <Plus className="w-4 h-4" /> New Project
+              </Button>
+            )}
             <ExportMenu />
           </div>
         </div>
+
+        <NewProjectDialog open={newOpen} onOpenChange={setNewOpen} />
 
         {isLoading ? (
           <div className="flex flex-col gap-4">
