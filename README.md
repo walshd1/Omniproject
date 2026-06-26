@@ -316,6 +316,14 @@ docker compose -f docker-compose.enterprise.yml up -d
 kubectl apply -f k8s-enterprise-manifest.yaml
 ```
 
+### Behind an existing reverse proxy
+
+Already running Traefik / Caddy / nginx? Point it at `omni-shell:3000` (the
+container serves API + SPA on one plain-HTTP port; health is `/api/healthz`) and
+terminate TLS at the edge — don't publish a host port. Traefik label example and
+the common gotchas (router-name consistency, the `Host()` backticks, cross-provider
+`@file` middleware, basic-auth escaping): **[docs/REVERSE-PROXY.md](docs/REVERSE-PROXY.md)**.
+
 ### Sizing
 
 | Scenario | CPU | RAM | Disk |
@@ -364,6 +372,8 @@ full security and integration reference.
   how to add your own (no black-boxed designer).
 - **[docs/N8N-WORKFLOWS.md](docs/N8N-WORKFLOWS.md)** — generate, wire & verify
   workflows; what's open vs. the licensed prebuilt enterprise integrations.
+- **[docs/REVERSE-PROXY.md](docs/REVERSE-PROXY.md)** — putting omni-shell behind
+  your existing Traefik / Caddy / nginx on a public URL.
 - **[docs/TESTING.md](docs/TESTING.md)** — the test pillars and the CI coverage gates.
 - **[docs/EXPLORATION.md](docs/EXPLORATION.md)** — *(Beta)* Exploration mode:
   snapshots → trends, What-If sandbox, and cross-system dependency links by hash.
