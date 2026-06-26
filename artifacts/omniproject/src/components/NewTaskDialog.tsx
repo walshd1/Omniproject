@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useCreateIssue,
   useListProjects,
+  useListProjectMembers,
   getGetProjectIssuesQueryKey,
   getGetProjectSummaryQueryKey,
   getListProjectsQueryKey,
@@ -36,7 +37,7 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const { data: projects } = useListProjects();
   const { activeProjectId } = useStore();
 
-  const [form, setForm] = useState({ projectId: "", title: "", status: "todo", priority: "none" });
+  const [form, setForm] = useState({ projectId: "", title: "", status: "todo", priority: "none", assignee: "" });
 
   // Default the project to the active one (or the first) whenever the dialog opens.
   useEffect(() => {
@@ -45,9 +46,13 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     }
   }, [open, activeProjectId, projects]);
 
+  // Members of the selected project — only WRITE-access people can be assigned.
+  const { data: members } = useListProjectMembers(form.projectId || "");
+  const assignable = (members ?? []).filter((m) => m.access === "write");
+
   const titleError = form.title.trim() ? "" : "Title is required";
   const projectError = form.projectId ? "" : "A task must belong to a project";
-  const reset = () => setForm({ projectId: "", title: "", status: "todo", priority: "none" });
+  const reset = () => setForm({ projectId: "", title: "", status: "todo", priority: "none", assignee: "" });
   const close = (o: boolean) => {
     if (!o) reset();
     onOpenChange(o);
@@ -60,6 +65,7 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       title: form.title.trim(),
       status: form.status as IssueInput["status"],
       priority: form.priority as IssueInput["priority"],
+      assignee: form.assignee || null,
     };
     create.mutate(
       { projectId: form.projectId, data },
@@ -94,7 +100,7 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Project</label>
-              <Select value={form.projectId} onValueChange={(v) => setForm((p) => ({ ...p, projectId: v }))}>
+              <Select value={form.projectId} onValueChange={(v) => setForm((p) => ({ ...p, projectId: v, assignee: "" }))}>
                 <SelectTrigger aria-label="Project" className="rounded-none border-border h-11 font-mono">
                   <SelectValue placeholder="Select a project…" />
                 </SelectTrigger>
@@ -114,6 +120,23 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                 className="rounded-none border-border font-mono h-11" placeholder="Wire the auth callback" />
               {form.title.length > 0 && titleError && <p role="alert" className="text-xs font-bold text-red-500">{titleError}</p>}
             </div>
+
+            {assignable.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assignee <span className="font-normal lowercase">(optional)</span></label>
+                <Select value={form.assignee} onValueChange={(v) => setForm((p) => ({ ...p, assignee: v }))}>
+                  <SelectTrigger aria-label="Assignee" className="rounded-none border-border h-11 font-mono">
+                    <SelectValue placeholder="Unassigned" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none border-border font-mono">
+                    {assignable.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.name ?? m.email ?? m.id}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Only people with write access to the project can be assigned.</p>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">

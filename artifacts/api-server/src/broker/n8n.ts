@@ -11,6 +11,7 @@ import {
   type Issue,
   type IssueWrite,
   type ProjectWrite,
+  type ProjectMember,
   type TaskItem,
   type TaskItemWrite,
   type Summary,
@@ -197,6 +198,11 @@ export class N8nBroker implements Broker {
     const payload: Record<string, unknown> = { projectId, ...(issueId ? { issueId } : {}), ...rest };
     const r = await callN8n<Issue>(action, payload, { ctx, source: backendSource(), withActor: true });
     return op === "delete" ? null : (r.data ?? null);
+  }
+
+  async projectMembers(ctx: ActorContext, projectId: string): Promise<ProjectMember[]> {
+    const r = await callN8n<ProjectMember[]>("list_project_members", { projectId }, { ctx, source: backendSource(), withActor: false });
+    return r.data ?? [];
   }
 
   async listTaskItems(ctx: ActorContext, projectId: string, taskId: string): Promise<TaskItem[]> {

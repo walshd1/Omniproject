@@ -255,6 +255,26 @@ export interface IssueInput {
   dueDate?: string | null;
 }
 
+export type ProjectMemberAccess = typeof ProjectMemberAccess[keyof typeof ProjectMemberAccess];
+
+
+export const ProjectMemberAccess = {
+  read: 'read',
+  write: 'write',
+} as const;
+
+/**
+ * A person on a project, with their access level (backend-owned).
+ */
+export interface ProjectMember {
+  id: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  email?: string | null;
+  access: ProjectMemberAccess;
+}
+
 export type TaskItemKind = typeof TaskItemKind[keyof typeof TaskItemKind];
 
 

@@ -13,6 +13,7 @@ import {
   ListTaskItemsParams,
   CreateTaskItemParams,
   CreateTaskItemBody,
+  ListProjectMembersParams,
 } from "@workspace/api-zod";
 import { getBroker, contextFromReq, respondBrokerError } from "../broker";
 import { resolveCapabilities } from "../lib/capabilities";
@@ -140,6 +141,27 @@ router.patch("/projects/:projectId", requireRole("manager"), async (req, res) =>
     res.json(updated);
   } catch (err) {
     req.log.error({ err }, "update_project failed");
+    respondBrokerError(res, err);
+  }
+});
+
+router.get("/projects/:projectId/members", async (req, res) => {
+  const parse = ListProjectMembersParams.safeParse(req.params);
+  if (!parse.success) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  // Degrade gracefully: a backend that can't surface members returns an empty
+  // roster (the UI falls back to a free-text assignee).
+  const caps = await resolveCapabilities(req);
+  if (!caps.entities["member"]?.surface) {
+    res.json([]);
+    return;
+  }
+  try {
+    res.json(await getBroker().projectMembers(contextFromReq(req), parse.data.projectId));
+  } catch (err) {
+    req.log.error({ err }, "list_project_members failed");
     respondBrokerError(res, err);
   }
 });

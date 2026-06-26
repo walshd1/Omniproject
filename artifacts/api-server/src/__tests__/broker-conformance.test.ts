@@ -84,6 +84,16 @@ test("DemoBroker satisfies the write contract (create → update → delete)", a
   await b.writeIssue(ctx, "delete", { projectId: pid, issueId: created!.id });
 });
 
+test("DemoBroker exposes project members with an access level", async () => {
+  const b: Broker = new DemoBroker();
+  const pid = (await b.listProjects(ctx))[0]!.id;
+  const members = await b.projectMembers(ctx, pid);
+  assert.ok(members.length > 0, "returns a roster");
+  for (const m of members) assert.ok(m.access === "read" || m.access === "write", "each member has an access level");
+  assert.ok(members.some((m) => m.access === "write"), "at least one writer (assignable)");
+  assert.ok(members.some((m) => m.access === "read"), "and at least one read-only member");
+});
+
 test("DemoBroker satisfies the task-children contract (raise issue + add note)", async () => {
   const b: Broker = new DemoBroker();
   const pid = (await b.listProjects(ctx))[0]!.id;

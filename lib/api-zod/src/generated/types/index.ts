@@ -44,6 +44,8 @@ export * from './projectFinancials';
 export * from './projectFinancialsFinancialHealth';
 export * from './projectHistoryPoint';
 export * from './projectInput';
+export * from './projectMember';
+export * from './projectMemberAccess';
 export * from './projectSummary';
 export * from './projectSummaryByPriority';
 export * from './projectSummaryByStatus';

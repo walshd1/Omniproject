@@ -39,6 +39,7 @@ const COVERED: Record<string, string> = {
   "/projects/{projectId}/issues": "security.test.ts, e2e-smoke, broker-conformance",
   "/projects/{projectId}/issues/{issueId}": "verify-n8n (concurrency), broker-conformance",
   "/projects/{projectId}/issues/{issueId}/items": "broker-conformance (task children: issue + note)",
+  "/projects/{projectId}/members": "broker-conformance (projectMembers + access level)",
   "/projects/{projectId}/summary": "e2e-smoke, broker-conformance",
   "/projects/{projectId}/capacity": "broker-conformance (resourceCapacity)",
   "/projects/{projectId}/financials": "broker-conformance (projectFinancials)",

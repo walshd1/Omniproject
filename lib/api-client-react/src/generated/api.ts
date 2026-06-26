@@ -41,6 +41,7 @@ import type {
   ProjectFinancials,
   ProjectHistoryPoint,
   ProjectInput,
+  ProjectMember,
   ProjectSummary,
   ProjectUpdate,
   RaidEntry,
@@ -1050,6 +1051,84 @@ export const useDeleteIssue = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDeleteIssueMutationOptions(options));
     }
+
+export const getListProjectMembersUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/members`
+}
+
+/**
+ * Backend-owned project membership; drives the assignee picker (only write-access people can be assigned). Available when the backend can surface members (capabilities.entities.member).
+ * @summary People on a project, with their access level
+ */
+export const listProjectMembers = async (projectId: string, options?: RequestInit): Promise<ProjectMember[]> => {
+
+  return customFetch<ProjectMember[]>(getListProjectMembersUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProjectMembersQueryKey = (projectId: string,) => {
+    return [
+    `/api/projects/${projectId}/members`
+    ] as const;
+    }
+
+
+export const getListProjectMembersQueryOptions = <TData = Awaited<ReturnType<typeof listProjectMembers>>, TError = ErrorType<unknown>>(projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProjectMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProjectMembersQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProjectMembers>>> = ({ signal }) => listProjectMembers(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(projectId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProjectMembers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProjectMembersQueryResult = NonNullable<Awaited<ReturnType<typeof listProjectMembers>>>
+export type ListProjectMembersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary People on a project, with their access level
+ */
+
+export function useListProjectMembers<TData = Awaited<ReturnType<typeof listProjectMembers>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProjectMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProjectMembersQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getListTaskItemsUrl = (projectId: string,
     issueId: string,) => {
