@@ -12,6 +12,8 @@ export * from './brokerCommandInput';
 export * from './brokerCommandInputPayload';
 export * from './brokerCommandResult';
 export * from './brokerCommandResultData';
+export * from './brokerLogEntry';
+export * from './brokerLogEntryResult';
 export * from './capabilities';
 export * from './capabilitiesEntities';
 export * from './capabilitiesFields';

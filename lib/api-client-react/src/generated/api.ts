@@ -23,6 +23,7 @@ import type {
   ActivityEntry,
   BrokerCommandInput,
   BrokerCommandResult,
+  BrokerLogEntry,
   Capabilities,
   ConflictResponse,
   ErrorResponse,
@@ -2207,6 +2208,84 @@ export function useGetCapabilities<TData = Awaited<ReturnType<typeof getCapabili
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetCapabilitiesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetBrokerLogUrl = () => {
+
+
+
+
+  return `/api/admin/broker-log`
+}
+
+/**
+ * A bounded, in-memory ring of the most recent gateway → broker → backend actions (action, result, status, latency, actor), so an admin can watch traffic and surface failures live. Pair with the SSE stream at /admin/broker-log/stream for live tailing. Requires the admin role.
+ * @summary Recent brokered actions (admin-only live log)
+ */
+export const getBrokerLog = async ( options?: RequestInit): Promise<BrokerLogEntry[]> => {
+
+  return customFetch<BrokerLogEntry[]>(getGetBrokerLogUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBrokerLogQueryKey = () => {
+    return [
+    `/api/admin/broker-log`
+    ] as const;
+    }
+
+
+export const getGetBrokerLogQueryOptions = <TData = Awaited<ReturnType<typeof getBrokerLog>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBrokerLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBrokerLogQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBrokerLog>>> = ({ signal }) => getBrokerLog({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBrokerLog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBrokerLogQueryResult = NonNullable<Awaited<ReturnType<typeof getBrokerLog>>>
+export type GetBrokerLogQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Recent brokered actions (admin-only live log)
+ */
+
+export function useGetBrokerLog<TData = Awaited<ReturnType<typeof getBrokerLog>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBrokerLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBrokerLogQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -683,6 +683,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/Capabilities"
 
+  /admin/broker-log:
+    get:
+      operationId: getBrokerLog
+      tags: [proxy]
+      summary: Recent brokered actions (admin-only live log)
+      description: >-
+        A bounded, in-memory ring of the most recent gateway → broker → backend
+        actions (action, result, status, latency, actor), so an admin can watch
+        traffic and surface failures live. Pair with the SSE stream at
+        /admin/broker-log/stream for live tailing. Requires the admin role.
+      responses:
+        "200":
+          description: The current broker-log ring (oldest first)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BrokerLogEntry"
+
   /fields/manifest:
     get:
       operationId: getFieldManifest
@@ -1641,6 +1661,34 @@ components:
           description: The backend's native field name/id this field maps from.
       required:
         - key
+
+    BrokerLogEntry:
+      type: object
+      description: One brokered action in the admin live log (redacted projection).
+      properties:
+        ts:
+          type: string
+        action:
+          type: string
+        result:
+          type: string
+          enum: [success, error]
+        status:
+          type: integer
+        ms:
+          type: integer
+        projectId:
+          type: ["string", "null"]
+        actor:
+          type: ["string", "null"]
+        note:
+          type: ["string", "null"]
+      required:
+        - ts
+        - action
+        - result
+        - status
+        - ms
 
     FieldSource:
       type: object

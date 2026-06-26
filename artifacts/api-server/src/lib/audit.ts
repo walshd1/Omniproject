@@ -1,4 +1,5 @@
 import { logger } from "./logger";
+import { pushBrokerEvent } from "./broker-log";
 
 /**
  * Action audit logging.
@@ -140,6 +141,9 @@ function ensureSink(): HttpSink | null {
 
 /** Record one audit event: stdout (pino) + the external sink, gated by level. */
 export function recordAudit(ev: AuditEvent): void {
+  // Brokered actions always feed the live admin broker-log ring (independent of
+  // the audit level / external sink), so the admin tool sees traffic + failures.
+  if (ev.category === "broker") pushBrokerEvent(ev);
   if (!shouldAudit(auditLevel(), ev)) return;
   logger.info({ audit: true, ...ev }, "audit");
   ensureSink()?.enqueue(ev);
