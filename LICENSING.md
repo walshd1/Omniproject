@@ -67,6 +67,30 @@ buyer → Stripe / Gumroad checkout → webhook → gateway mints a signed key
 See [docs/TECHNICAL.md → Premium overlay](docs/TECHNICAL.md#premium-overlay-licensed-features)
 for the env vars and the full flow.
 
+## Licensed features vs. professional services
+
+Two different things are sometimes both "paid", and OmniProject keeps them
+strictly separate:
+
+| | **Premium features** | **Professional services** |
+| --- | --- | --- |
+| **What you pay for** | The *right to run* gated code (branding, webhooks, enterprise workflows) in production. | Our *time and expertise* to build something for you. |
+| **Enforcement** | A runtime licence-key gate (`402` without a key). | None — there's nothing to unlock. |
+| **Example** | White-label branding. | "Build us a view for our in-house methodology." |
+
+**Building methodology views is a service, never a locked feature.** The entire
+view layer (`lib/views.ts`, `components/views/`, the registry) is **Apache-2.0
+core, ungated, and fully documented** — see
+[docs/METHODOLOGIES.md → Adding a new view](docs/METHODOLOGIES.md#adding-a-new-view-for-a-new-methodology).
+Anyone can write their own view; nothing about *how* to build one is black-boxed.
+
+If a customer would rather not write it themselves, we can offer to **build the
+view for them as a paid engagement** — but that's us selling effort, not selling
+access. The mechanism stays open whether or not you buy the service, and a view
+we build for you ships as ordinary Apache-2.0 source you own and can modify. This
+is deliberately the opposite of the premium gate: services are optional
+convenience on top of an open capability, not a paywall around it.
+
 ## Status & warranty
 
 OmniProject is pre-1.0 and provided **AS IS, without warranty of any kind** (see
