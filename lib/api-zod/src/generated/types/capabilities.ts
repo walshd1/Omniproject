@@ -7,6 +7,7 @@
  */
 import type { CapabilitiesEntities } from './capabilitiesEntities';
 import type { CapabilitiesFields } from './capabilitiesFields';
+import type { DiscoveredField } from './discoveredField';
 
 /**
  * Data domains the wired backend(s) can populate.
@@ -35,4 +36,6 @@ export interface Capabilities {
   fields?: CapabilitiesFields;
   /** Per-entity support (e.g. programme, project): whether the entity can be surfaced and/or stored. A programme only exists when the backend can carry programme grouping. */
   entities?: CapabilitiesEntities;
+  /** Non-canonical fields the backend's describe surfaced (the reconcile path): tenant/custom fields the registry doesn't model, carried through as gated passthrough so they light up without a registry edit. */
+  customFields?: DiscoveredField[];
 }

@@ -683,6 +683,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/Capabilities"
 
+  /fields/manifest:
+    get:
+      operationId: getFieldManifest
+      tags: [proxy]
+      summary: Per-backend field manifest (the describe → reconcile path)
+      description: >-
+        Enumerates the fields the active backend exposes and reconciles them
+        against the canonical registry (known / unknown / missing), flagging
+        relationship candidates among the unknowns. Powers the admin translation
+        layer's "what does this backend expose, what's unmapped" view. Requires
+        the manager role (it reveals backend schema detail).
+      responses:
+        "200":
+          description: The reconciled field manifest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FieldManifest"
+
   /settings:
     get:
       operationId: getSettings
@@ -1481,6 +1500,14 @@ components:
             can carry programme grouping.
           additionalProperties:
             $ref: '#/components/schemas/FieldSupport'
+        customFields:
+          type: array
+          description: >-
+            Non-canonical fields the backend's describe surfaced (the reconcile
+            path): tenant/custom fields the registry doesn't model, carried
+            through as gated passthrough so they light up without a registry edit.
+          items:
+            $ref: '#/components/schemas/DiscoveredField'
       required:
         - mode
         - issues
@@ -1508,6 +1535,83 @@ components:
       required:
         - surface
         - store
+
+    DiscoveredField:
+      type: object
+      description: A field a backend's describe reported, with its metadata preserved.
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        type:
+          type: string
+        surface:
+          type: boolean
+        store:
+          type: boolean
+        references:
+          type: string
+      required:
+        - key
+
+    FieldManifest:
+      type: object
+      description: >-
+        The per-backend field manifest — the reconcile path made inspectable.
+        Diffs the backend's describe against the canonical registry.
+      properties:
+        mode:
+          type: string
+        enumerated:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveredField'
+        reconciliation:
+          type: object
+          description: known/unknown/missing field keys vs the canonical registry.
+          properties:
+            known:
+              type: array
+              items:
+                type: string
+            unknown:
+              type: array
+              items:
+                type: string
+            missing:
+              type: array
+              items:
+                type: string
+          required:
+            - known
+            - unknown
+            - missing
+        customFields:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveredField'
+        relationshipCandidates:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              references:
+                type: string
+              kind:
+                type: string
+            required:
+              - field
+              - references
+              - kind
+      required:
+        - mode
+        - enumerated
+        - reconciliation
+        - customFields
+        - relationshipCandidates
 
     Settings:
       type: object

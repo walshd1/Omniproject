@@ -152,6 +152,49 @@ describe("IssueDialog accessible names", () => {
     expect(prog).toHaveTextContent("65%"); // 26/40
   });
 
+  it("renders discovered custom fields read-only when the backend exposes them", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      entities: { customField: { surface: true, store: false } },
+      customFields: [
+        { key: "customerTier", label: "Customer tier", type: "string", surface: true, store: false },
+        { key: "riskScore", label: "Risk score", type: "number", surface: true, store: false },
+      ],
+    } as unknown as Capabilities);
+    const issue = {
+      id: "i1", projectId: "proj-1", title: "Has customs", status: "todo", priority: "none",
+      labels: [], version: 1, customFields: { customerTier: "Enterprise", riskScore: 72 },
+    } as never;
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={issue} />,
+      { client: qc },
+    );
+    const panel = screen.getByTestId("custom-fields");
+    expect(panel).toHaveTextContent("Customer tier");
+    expect(panel).toHaveTextContent("Enterprise");
+    expect(panel).toHaveTextContent("Risk score");
+    expect(panel).toHaveTextContent("72");
+  });
+
+  it("hides the custom-fields section when the entity isn't surfaced", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      entities: { customField: { surface: false, store: false } },
+      customFields: [{ key: "customerTier", label: "Customer tier", type: "string", surface: true, store: false }],
+    } as unknown as Capabilities);
+    const issue = {
+      id: "i1", projectId: "proj-1", title: "Has customs", status: "todo", priority: "none",
+      labels: [], version: 1, customFields: { customerTier: "Enterprise" },
+    } as never;
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={issue} />,
+      { client: qc },
+    );
+    expect(screen.queryByTestId("custom-fields")).toBeNull();
+  });
+
   it("offers Duplicate only when editing an existing task", () => {
     const issue = { id: "i1", projectId: "proj-1", title: "Original", status: "todo", priority: "none", labels: [], version: 1 } as never;
     const { rerender } = renderWithProviders(

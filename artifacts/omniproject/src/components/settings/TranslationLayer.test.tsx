@@ -5,8 +5,10 @@ import { QueryClient } from "@tanstack/react-query";
 import {
   getGetCapabilitiesQueryKey,
   getGetSettingsQueryKey,
+  getGetFieldManifestQueryKey,
   type Capabilities,
   type Settings,
+  type FieldManifest,
 } from "@workspace/api-client-react";
 import { renderWithProviders } from "../../test/utils";
 import { TranslationLayer } from "./TranslationLayer";
@@ -49,5 +51,21 @@ describe("TranslationLayer", () => {
     expect(screen.getByLabelText("storyPoints store")).toBeInTheDocument();
     // The override counter reflects it.
     expect(screen.getByText(/1 override/)).toBeInTheDocument();
+  });
+
+  it("shows the backend field manifest with discovered custom fields", () => {
+    const qc = client("admin");
+    qc.setQueryData(getGetFieldManifestQueryKey(), {
+      mode: "demo",
+      enumerated: [],
+      reconciliation: { known: ["title", "status"], unknown: ["customerTier"], missing: [] },
+      customFields: [{ key: "customerTier", label: "Customer tier", type: "string", surface: true, store: false }],
+      relationshipCandidates: [],
+    } as unknown as FieldManifest);
+    renderWithProviders(<TranslationLayer />, { client: qc });
+    const manifest = screen.getByTestId("field-manifest");
+    expect(manifest).toHaveTextContent("2 mapped");
+    expect(manifest).toHaveTextContent("1 custom");
+    expect(manifest).toHaveTextContent("customerTier");
   });
 });

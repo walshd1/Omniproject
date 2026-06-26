@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { TaskItemsPanel } from "./TaskItemsPanel";
-import { canSurfaceField, canStoreField } from "../lib/capabilities-fields";
+import { canSurfaceField, canStoreField, canSurfaceEntity } from "../lib/capabilities-fields";
 import { effortProgress } from "../lib/effort";
 import {
   useCreateIssue,
@@ -537,6 +537,29 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
               })()}
             </div>
           )}
+
+          {/* Custom fields — the describe→reconcile path: any non-canonical field
+              the backend exposed, carried through as gated read-only passthrough. */}
+          {isEdit && issue && canSurfaceEntity(caps, "customField", false) && (caps?.customFields?.length ?? 0) > 0 && (() => {
+            const values = (issue.customFields ?? {}) as Record<string, unknown>;
+            const present = caps!.customFields!.filter((f) => values[f.key] != null);
+            if (present.length === 0) return null;
+            return (
+              <div className="border-t border-border pt-4 space-y-3" data-testid="custom-fields">
+                <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                  Custom fields <span className="text-[10px] font-mono opacity-60">· from backend</span>
+                </h3>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  {present.map((f) => (
+                    <div key={f.key} className="space-y-0.5">
+                      <dt className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{f.label || f.key}</dt>
+                      <dd className="text-sm font-mono">{String(values[f.key])}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            );
+          })()}
 
           {isEdit && issue && <TaskItemsPanel projectId={projectId} taskId={issue.id} />}
 

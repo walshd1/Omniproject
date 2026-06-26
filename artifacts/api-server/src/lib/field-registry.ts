@@ -234,6 +234,24 @@ export function reconcileFields(enumerated: EnumeratedField[]): FieldReconciliat
   return { known, unknown, missing };
 }
 
+/**
+ * The discovered NON-canonical fields, with their metadata preserved, deduped by
+ * key. These are exactly the tenant/custom fields a backend's describe surfaces
+ * that the registry doesn't model — carried through verbatim as gated custom
+ * fields (`Issue.customFields`) so ANY field a backend captures lights up without
+ * a registry edit. Type defaults to "string" when the backend doesn't say.
+ */
+export function customFieldsFrom(enumerated: EnumeratedField[]): EnumeratedField[] {
+  const out: EnumeratedField[] = [];
+  const seen = new Set<string>();
+  for (const f of enumerated) {
+    if (!f.key || seen.has(f.key) || CANONICAL_FIELD_KEYS.has(f.key)) continue;
+    seen.add(f.key);
+    out.push({ key: f.key, label: f.label ?? f.key, type: f.type ?? "string", surface: f.surface ?? true, store: f.store ?? false, ...(f.references ? { references: f.references } : {}) });
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Relationships — how fields/entities relate, so creation dialogs can enforce
 // the backend's actual model (not just per-field validity).
