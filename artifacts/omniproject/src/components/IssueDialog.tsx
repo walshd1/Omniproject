@@ -169,6 +169,28 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
     }
   };
 
+  /** Copy/paste: re-send the current (possibly tweaked) fields as a NEW task —
+   *  another slightly-different write through the broker, leaving the original. */
+  const handleDuplicate = () => {
+    if (!form.title.trim()) {
+      setTitleError("An issue needs a title.");
+      return;
+    }
+    setTitleError(null);
+    const copy: IssueInput = { ...buildPayload(), title: `${form.title.trim()} (copy)` };
+    createIssue.mutate(
+      { projectId, data: copy },
+      {
+        onSuccess: () => {
+          invalidate();
+          toast({ title: "TASK DUPLICATED", description: copy.title });
+          onOpenChange(false);
+        },
+        onError: () => toast({ title: "ERROR", description: "Failed to duplicate task.", variant: "destructive" }),
+      },
+    );
+  };
+
   const handleDelete = () => {
     if (!issue) return;
     // Snapshot the issue's fields so an "Undo" can re-create it best-effort. The
@@ -384,6 +406,17 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
                 </AlertDialogContent>
               </AlertDialog>
             ) : <span />}
+            {isEdit && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDuplicate}
+                disabled={createIssue.isPending}
+                className="rounded-none border-border uppercase font-bold tracking-wider"
+              >
+                {createIssue.isPending ? "DUPLICATING…" : "Duplicate"}
+              </Button>
+            )}
             <Button
               type="submit"
               disabled={pending}
