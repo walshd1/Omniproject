@@ -55,6 +55,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the published broker contract is in sync with the types
+        run: |
+          pnpm --filter @workspace/scripts run gen-contract
+          if ! git diff --quiet -- docs/CONTRACT.md docs/contract; then
+            echo "::error::Broker contract is out of date. Run 'pnpm --filter @workspace/scripts run gen-contract' and commit docs/CONTRACT.md + docs/contract/."
+            git --no-pager diff --stat -- docs/CONTRACT.md docs/contract
+            exit 1
+          fi
+
       - name: Build gateway
         run: pnpm --filter @workspace/api-server run build
 
