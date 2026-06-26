@@ -57,6 +57,17 @@ export interface Issue extends Row {
   loggedHours?: number | null;
   remainingHours?: number | null;
   storyPoints?: number | null;
+  // Optional risk & quality — surfaced only when the backend carries them
+  // ("quality" field group). Enum-ish values are free-form strings so a backend's
+  // own vocabulary (RAG, 1–5, "At risk") is preserved verbatim.
+  healthStatus?: string | null;
+  riskLevel?: string | null;
+  impact?: string | null;
+  urgency?: string | null;
+  blocked?: boolean | null;
+  blockedReason?: string | null;
+  mitigation?: string | null;
+  defectCount?: number | null;
 }
 
 /** A child issue/note raised against a task (the work-item). */
@@ -98,6 +109,15 @@ export interface IssueWrite {
   loggedHours?: number | null;
   remainingHours?: number | null;
   storyPoints?: number | null;
+  // Optional risk & quality (capability-gated, "quality" group).
+  healthStatus?: string | null;
+  riskLevel?: string | null;
+  impact?: string | null;
+  urgency?: string | null;
+  blocked?: boolean | null;
+  blockedReason?: string | null;
+  mitigation?: string | null;
+  defectCount?: number | null;
   expectedVersion?: number;
 }
 

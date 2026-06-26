@@ -70,6 +70,25 @@ export interface Issue {
      * @nullable
      */
   storyPoints?: number | null;
+  /**
+     * Delivery health / RAG (quality field group). Free-form to preserve the backend's vocabulary.
+     * @nullable
+     */
+  healthStatus?: string | null;
+  /** @nullable */
+  riskLevel?: string | null;
+  /** @nullable */
+  impact?: string | null;
+  /** @nullable */
+  urgency?: string | null;
+  /** @nullable */
+  blocked?: boolean | null;
+  /** @nullable */
+  blockedReason?: string | null;
+  /** @nullable */
+  mitigation?: string | null;
+  /** @nullable */
+  defectCount?: number | null;
   /** Backend-specific fields that aren't (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it. */
   customFields?: IssueCustomFields;
 }
