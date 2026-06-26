@@ -208,6 +208,8 @@ async function callN8n<T = unknown>(
 const CONSERVATIVE: CapabilityFlags = {
   issues: true, scheduling: true, portfolio: true,
   resources: false, financials: false, baseline: false, blockers: false, history: false, raid: false,
+  // Superset domains default off — a backend must declare them to light up.
+  quality: false, crm: false, service: false,
 };
 let capCache: { value: CapabilityFlags; at: number } | null = null;
 const CAP_TTL_MS = 60_000;

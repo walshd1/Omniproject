@@ -8,7 +8,8 @@ import { TimeTravel } from "./TimeTravel";
 function caps(timeTravel: boolean): Capabilities {
   return {
     mode: "demo", issues: true, scheduling: true, resources: true, financials: true,
-    portfolio: true, baseline: true, blockers: true, history: true, raid: true, timeTravel,
+    portfolio: true, baseline: true, blockers: true, history: true, raid: true,
+    quality: true, crm: true, service: true, timeTravel,
   };
 }
 

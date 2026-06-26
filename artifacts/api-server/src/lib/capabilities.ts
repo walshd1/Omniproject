@@ -25,6 +25,11 @@ export const CAPABILITY_DOMAINS = [
   "blockers",
   "history",
   "raid",
+  // Superset domains — gate the CRM/service/quality field groups. Off unless a
+  // backend declares them (a pure issue tracker shows none of these).
+  "quality",
+  "crm",
+  "service",
 ] as const;
 
 export type CapabilityDomain = (typeof CAPABILITY_DOMAINS)[number];
@@ -41,7 +46,11 @@ export const FIELD_KEYS: readonly string[] = FIELD_REGISTRY.map((f) => f.key);
  * 0..many children a task can carry *if the backend can store them* — distinct
  * from the work-item itself (which the UI labels "Task").
  */
-export const ENTITY_KEYS = ["project", "programme", "raid", "issue", "note", "member", "customField"] as const;
+export const ENTITY_KEYS = [
+  "project", "programme", "raid", "issue", "note", "member", "customField",
+  // CRM/service entities — gated by the crm/service domains.
+  "account", "contact", "deal", "pipeline", "service",
+] as const;
 
 export interface Capabilities extends Record<CapabilityDomain, boolean> {
   mode: string;
@@ -74,12 +83,17 @@ const GROUP_DOMAIN: Record<FieldGroup, CapabilityDomain> = {
   schedule: "scheduling",
   effort: "resources",
   financial: "financials",
+  quality: "quality",
+  crm: "crm",
+  service: "service",
 };
 
 export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean>>): BackendFieldMap {
   const issues = !!enabled.issues;
   const portfolio = !!enabled.portfolio;
   const raid = !!enabled.raid;
+  const crm = !!enabled.crm;
+  const service = !!enabled.service;
   const fields: Record<string, FieldSupport> = {};
   for (const f of FIELD_REGISTRY) {
     // programme membership is gated by the portfolio domain, not issues.
@@ -102,6 +116,13 @@ export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean
       member: sup(false),
       // Generic passthrough for backend fields that aren't canonical — opt-in.
       customField: sup(false),
+      // CRM entities — surfaced only when the backend declares the crm domain.
+      account: sup(crm),
+      contact: sup(crm),
+      deal: sup(crm),
+      pipeline: sup(crm, false), // pipelines are read-through (backend-owned)
+      // Service entity (CMDB CI / affected service) — gated by the service domain.
+      service: sup(service, false),
     },
   };
 }

@@ -38,6 +38,9 @@ function caps(over: Partial<Capabilities> = {}): Capabilities {
     blockers: false,
     history: false,
     raid: false,
+    quality: false,
+    crm: false,
+    service: false,
     timeTravel: false,
     ...over,
   };
