@@ -885,6 +885,46 @@ components:
         programmeId:
           type: ["string", "null"]
 
+    ProgrammeFinancials:
+      type: object
+      description: >
+        Programme-wide financial roll-up, summed from member projects' financial
+        fields (native currency; the client converts for display). Present only
+        when the backend supplies financial data.
+      properties:
+        currency:
+          type: string
+        budget:
+          type: number
+        actualCost:
+          type: number
+        earnedValue:
+          type: ["number", "null"]
+        committed:
+          type: ["number", "null"]
+        cpi:
+          type: ["number", "null"]
+        variance:
+          type: number
+        variancePct:
+          type: ["number", "null"]
+        health:
+          type: string
+          enum: [GREEN, AMBER, RED]
+        projectsCounted:
+          type: integer
+      required:
+        - currency
+        - budget
+        - actualCost
+        - earnedValue
+        - committed
+        - cpi
+        - variance
+        - variancePct
+        - health
+        - projectsCounted
+
     Programme:
       type: object
       description: A grouping of related projects, derived from project membership.
@@ -907,6 +947,10 @@ components:
         updatedAt:
           type: ["string", "null"]
           format: date-time
+        financials:
+          oneOf:
+            - $ref: "#/components/schemas/ProgrammeFinancials"
+            - type: "null"
       required:
         - id
         - name
@@ -938,6 +982,10 @@ components:
         updatedAt:
           type: ["string", "null"]
           format: date-time
+        financials:
+          oneOf:
+            - $ref: "#/components/schemas/ProgrammeFinancials"
+            - type: "null"
         projects:
           type: array
           items:

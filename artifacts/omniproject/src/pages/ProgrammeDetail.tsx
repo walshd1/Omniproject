@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { useGetProgramme, type Project } from "@workspace/api-client-react";
 import { ArrowLeft, Layers } from "lucide-react";
 import { LoadingState } from "../components/LoadingState";
+import { ProgrammeFinancialsCard } from "../components/ProgrammeFinancialsCard";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -89,6 +90,8 @@ export function ProgrammeDetail({ programmeId }: { programmeId: string }) {
           <Stat label="Completed" value={prog.completedCount} />
           <Stat label="Completion" value={`${prog.completionRate}%`} />
         </div>
+
+        {prog.financials && <ProgrammeFinancialsCard financials={prog.financials} />}
 
         <section>
           <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Projects in this programme</h2>

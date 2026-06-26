@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ProgrammeDetailRagStatus } from './programmeDetailRagStatus';
+import type { ProgrammeFinancials } from './programmeFinancials';
 import type { Project } from './project';
 
 /**
@@ -21,5 +22,6 @@ export interface ProgrammeDetail {
   ragStatus: ProgrammeDetailRagStatus;
   /** @nullable */
   updatedAt?: Date | null;
+  financials?: ProgrammeFinancials | null;
   projects: Project[];
 }

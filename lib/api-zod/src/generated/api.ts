@@ -139,7 +139,19 @@ export const ListProgrammesResponseItem = zod.object({
   "completedCount": zod.number(),
   "completionRate": zod.number(),
   "ragStatus": zod.enum(['GREEN', 'AMBER', 'RED']),
-  "updatedAt": zod.coerce.date().nullish()
+  "updatedAt": zod.coerce.date().nullish(),
+  "financials": zod.union([zod.object({
+  "currency": zod.string(),
+  "budget": zod.number(),
+  "actualCost": zod.number(),
+  "earnedValue": zod.number().nullable(),
+  "committed": zod.number().nullable(),
+  "cpi": zod.number().nullable(),
+  "variance": zod.number(),
+  "variancePct": zod.number().nullable(),
+  "health": zod.enum(['GREEN', 'AMBER', 'RED']),
+  "projectsCounted": zod.number()
+}).describe('Programme-wide financial roll-up, summed from member projects\' financial fields (native currency; the client converts for display). Present only when the backend supplies financial data.\n'),zod.null()]).optional()
 }).describe('A grouping of related projects, derived from project membership.')
 export const ListProgrammesResponse = zod.array(ListProgrammesResponseItem)
 
@@ -160,6 +172,18 @@ export const GetProgrammeResponse = zod.object({
   "completionRate": zod.number(),
   "ragStatus": zod.enum(['GREEN', 'AMBER', 'RED']),
   "updatedAt": zod.coerce.date().nullish(),
+  "financials": zod.union([zod.object({
+  "currency": zod.string(),
+  "budget": zod.number(),
+  "actualCost": zod.number(),
+  "earnedValue": zod.number().nullable(),
+  "committed": zod.number().nullable(),
+  "cpi": zod.number().nullable(),
+  "variance": zod.number(),
+  "variancePct": zod.number().nullable(),
+  "health": zod.enum(['GREEN', 'AMBER', 'RED']),
+  "projectsCounted": zod.number()
+}).describe('Programme-wide financial roll-up, summed from member projects\' financial fields (native currency; the client converts for display). Present only when the backend supplies financial data.\n'),zod.null()]).optional(),
   "projects": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string(),

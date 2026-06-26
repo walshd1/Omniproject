@@ -38,6 +38,8 @@ export * from './portfolioHealthSummaryRagStatus';
 export * from './programme';
 export * from './programmeDetail';
 export * from './programmeDetailRagStatus';
+export * from './programmeFinancials';
+export * from './programmeFinancialsHealth';
 export * from './programmeRagStatus';
 export * from './project';
 export * from './projectBaseline';
