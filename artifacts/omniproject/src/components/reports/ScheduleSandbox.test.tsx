@@ -60,4 +60,34 @@ describe("ScheduleSandbox", () => {
     expect(screen.getByLabelText("Dependent issue")).toBeInTheDocument();
     expect(screen.getByLabelText("Predecessor issue")).toBeInTheDocument();
   });
+
+  it("does not show the resource panel when issues have no assignee", () => {
+    renderWithProviders(<ScheduleSandbox />, { client: seeded() });
+    expect(screen.queryByTestId("resource-capacity")).toBeNull();
+  });
+
+  it("flags a resource clash when one person's tasks overlap", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getListProjectsQueryKey(), projects);
+    qc.setQueryData(getGetProjectIssuesQueryKey("p1"), [
+      { id: "A", title: "Foundations", status: "in_progress", assignee: "ada", startDate: D(0), dueDate: D(6) },
+      { id: "B", title: "Walls", status: "todo", assignee: "ada", startDate: D(4), dueDate: D(10) },
+    ] as unknown as Issue[]);
+    renderWithProviders(<ScheduleSandbox />, { client: qc });
+    const panel = screen.getByTestId("resource-capacity");
+    expect(within(panel).getByText("ada")).toBeInTheDocument();
+    expect(within(panel).getByText(/2 concurrent/)).toBeInTheDocument();
+    expect(within(panel).getByText(/Foundations, Walls|Walls, Foundations/)).toBeInTheDocument();
+  });
+
+  it("reports no clashes when one person's tasks are sequential", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getListProjectsQueryKey(), projects);
+    qc.setQueryData(getGetProjectIssuesQueryKey("p1"), [
+      { id: "A", title: "Foundations", status: "in_progress", assignee: "ada", startDate: D(0), dueDate: D(4) },
+      { id: "B", title: "Walls", status: "todo", assignee: "ada", startDate: D(5), dueDate: D(9) },
+    ] as unknown as Issue[]);
+    renderWithProviders(<ScheduleSandbox />, { client: qc });
+    expect(within(screen.getByTestId("resource-capacity")).getByText(/No resource clashes/i)).toBeInTheDocument();
+  });
 });
