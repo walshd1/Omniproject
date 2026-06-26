@@ -11,6 +11,8 @@ import {
   type Issue,
   type IssueWrite,
   type ProjectWrite,
+  type TaskItem,
+  type TaskItemWrite,
   type Summary,
   type HistoryPoint,
   type HistoryState,
@@ -195,6 +197,17 @@ export class N8nBroker implements Broker {
     const payload: Record<string, unknown> = { projectId, ...(issueId ? { issueId } : {}), ...rest };
     const r = await callN8n<Issue>(action, payload, { ctx, source: backendSource(), withActor: true });
     return op === "delete" ? null : (r.data ?? null);
+  }
+
+  async listTaskItems(ctx: ActorContext, projectId: string, taskId: string): Promise<TaskItem[]> {
+    const r = await callN8n<TaskItem[]>("list_task_items", { projectId, taskId }, { ctx, source: backendSource(), withActor: false });
+    return r.data ?? [];
+  }
+
+  async createTaskItem(ctx: ActorContext, projectId: string, taskId: string, input: TaskItemWrite): Promise<TaskItem> {
+    const r = await callN8n<TaskItem>("create_task_item", { projectId, taskId, ...input }, { ctx, source: backendSource(), withActor: true });
+    if (!r.data) throw new BrokerError("bad_request", "create_task_item returned no item");
+    return r.data;
   }
 
   async listActivity(ctx: ActorContext): Promise<Row[]> {

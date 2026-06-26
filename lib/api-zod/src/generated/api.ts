@@ -278,6 +278,44 @@ export const DeleteIssueParams = zod.object({
 
 
 /**
+ * The 0..many issues/notes raised against a task. Only meaningful when the backend can store them (capabilities.entities.issue / .note).
+ * @summary List a task's child issues & notes
+ */
+export const ListTaskItemsParams = zod.object({
+  "projectId": zod.coerce.string(),
+  "issueId": zod.coerce.string()
+})
+
+export const ListTaskItemsResponseItem = zod.object({
+  "id": zod.string(),
+  "taskId": zod.string(),
+  "kind": zod.enum(['issue', 'note']),
+  "content": zod.string(),
+  "author": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}).describe('A child issue or note raised against a task.')
+export const ListTaskItemsResponse = zod.array(ListTaskItemsResponseItem)
+
+
+/**
+ * Creates a child issue/note on a task via the broker. Gated on the backend being able to store that kind (entities.issue.store / entities.note.store).
+ * @summary Raise an issue or add a note against a task (contributor+)
+ */
+export const CreateTaskItemParams = zod.object({
+  "projectId": zod.coerce.string(),
+  "issueId": zod.coerce.string()
+})
+
+
+
+
+export const CreateTaskItemBody = zod.object({
+  "kind": zod.enum(['issue', 'note']),
+  "content": zod.string().min(1)
+}).describe('Raise an issue or add a note against a task.')
+
+
+/**
  * @summary Get project summary stats
  */
 export const GetProjectSummaryParams = zod.object({

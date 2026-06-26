@@ -48,7 +48,9 @@ import type {
   ReplayHistoryParams,
   ResourceCapacity,
   Settings,
-  SettingsUpdate
+  SettingsUpdate,
+  TaskItem,
+  TaskItemInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1047,6 +1049,164 @@ export const useDeleteIssue = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteIssueMutationOptions(options));
+    }
+
+export const getListTaskItemsUrl = (projectId: string,
+    issueId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/issues/${issueId}/items`
+}
+
+/**
+ * The 0..many issues/notes raised against a task. Only meaningful when the backend can store them (capabilities.entities.issue / .note).
+ * @summary List a task's child issues & notes
+ */
+export const listTaskItems = async (projectId: string,
+    issueId: string, options?: RequestInit): Promise<TaskItem[]> => {
+
+  return customFetch<TaskItem[]>(getListTaskItemsUrl(projectId,issueId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTaskItemsQueryKey = (projectId: string,
+    issueId: string,) => {
+    return [
+    `/api/projects/${projectId}/issues/${issueId}/items`
+    ] as const;
+    }
+
+
+export const getListTaskItemsQueryOptions = <TData = Awaited<ReturnType<typeof listTaskItems>>, TError = ErrorType<unknown>>(projectId: string,
+    issueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTaskItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTaskItemsQueryKey(projectId,issueId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTaskItems>>> = ({ signal }) => listTaskItems(projectId,issueId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(projectId && issueId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTaskItems>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTaskItemsQueryResult = NonNullable<Awaited<ReturnType<typeof listTaskItems>>>
+export type ListTaskItemsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List a task's child issues & notes
+ */
+
+export function useListTaskItems<TData = Awaited<ReturnType<typeof listTaskItems>>, TError = ErrorType<unknown>>(
+ projectId: string,
+    issueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTaskItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTaskItemsQueryOptions(projectId,issueId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateTaskItemUrl = (projectId: string,
+    issueId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/issues/${issueId}/items`
+}
+
+/**
+ * Creates a child issue/note on a task via the broker. Gated on the backend being able to store that kind (entities.issue.store / entities.note.store).
+ * @summary Raise an issue or add a note against a task (contributor+)
+ */
+export const createTaskItem = async (projectId: string,
+    issueId: string,
+    taskItemInput: TaskItemInput, options?: RequestInit): Promise<TaskItem> => {
+
+  return customFetch<TaskItem>(getCreateTaskItemUrl(projectId,issueId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      taskItemInput,)
+  }
+);}
+
+
+
+
+export const getCreateTaskItemMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTaskItem>>, TError,{projectId: string;issueId: string;data: BodyType<TaskItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTaskItem>>, TError,{projectId: string;issueId: string;data: BodyType<TaskItemInput>}, TContext> => {
+
+const mutationKey = ['createTaskItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTaskItem>>, {projectId: string;issueId: string;data: BodyType<TaskItemInput>}> = (props) => {
+          const {projectId,issueId,data} = props ?? {};
+
+          return  createTaskItem(projectId,issueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTaskItemMutationResult = NonNullable<Awaited<ReturnType<typeof createTaskItem>>>
+    export type CreateTaskItemMutationBody = BodyType<TaskItemInput>
+    export type CreateTaskItemMutationError = ErrorType<void>
+
+    /**
+ * @summary Raise an issue or add a note against a task (contributor+)
+ */
+export const useCreateTaskItem = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTaskItem>>, TError,{projectId: string;issueId: string;data: BodyType<TaskItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTaskItem>>,
+        TError,
+        {projectId: string;issueId: string;data: BodyType<TaskItemInput>},
+        TContext
+      > => {
+      return useMutation(getCreateTaskItemMutationOptions(options));
     }
 
 export const getGetProjectSummaryUrl = (projectId: string,) => {

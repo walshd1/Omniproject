@@ -13,6 +13,8 @@ import {
   type Issue,
   type IssueWrite,
   type ProjectWrite,
+  type TaskItem,
+  type TaskItemWrite,
   type Summary,
   type HistoryPoint,
   type HistoryState,
@@ -35,6 +37,9 @@ import {
 let issueCounter = 100;
 let raidCounter = 100;
 let projectCounter = 100;
+let taskItemCounter = 100;
+/** In-memory child issues/notes per task (demo only). */
+const SAMPLE_TASK_ITEMS: Record<string, TaskItem[]> = {};
 
 /**
  * Recompute a project row's denormalised issueCount/completedCount from its
@@ -152,6 +157,24 @@ export class DemoBroker implements Broker {
     recountProject(projectId); // a status change to/from "done" moves completedCount
     persistDemoState();
     return updated as unknown as Issue;
+  }
+
+  async listTaskItems(_ctx: ActorContext, _projectId: string, taskId: string): Promise<TaskItem[]> {
+    return SAMPLE_TASK_ITEMS[taskId] ?? [];
+  }
+
+  async createTaskItem(ctx: ActorContext, _projectId: string, taskId: string, input: TaskItemWrite): Promise<TaskItem> {
+    const item: TaskItem = {
+      id: `ti-${++taskItemCounter}`,
+      taskId,
+      kind: input.kind,
+      content: input.content,
+      author: ctx.email ?? ctx.name ?? "demo@local",
+      createdAt: new Date().toISOString(),
+    };
+    (SAMPLE_TASK_ITEMS[taskId] ??= []).push(item);
+    persistDemoState();
+    return item;
   }
 
   async listActivity(): Promise<Row[]> {

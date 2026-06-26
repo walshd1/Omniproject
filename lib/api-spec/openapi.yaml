@@ -350,6 +350,70 @@ paths:
         "204":
           description: Deleted
 
+  /projects/{projectId}/issues/{issueId}/items:
+    get:
+      operationId: listTaskItems
+      tags: [projects]
+      summary: List a task's child issues & notes
+      description: >-
+        The 0..many issues/notes raised against a task. Only meaningful when the
+        backend can store them (capabilities.entities.issue / .note).
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: issueId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Task child items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskItem"
+    post:
+      operationId: createTaskItem
+      tags: [projects]
+      summary: Raise an issue or add a note against a task (contributor+)
+      description: >-
+        Creates a child issue/note on a task via the broker. Gated on the backend
+        being able to store that kind (entities.issue.store / entities.note.store).
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: issueId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskItem"
+        "400":
+          description: Invalid input
+        "403":
+          description: Not permitted, or the backend can't store this kind
+
   /projects/{projectId}/summary:
     get:
       operationId: getProjectSummary
@@ -932,6 +996,45 @@ components:
           format: date
       required:
         - title
+
+    TaskItem:
+      type: object
+      description: A child issue or note raised against a task.
+      properties:
+        id:
+          type: string
+        taskId:
+          type: string
+        kind:
+          type: string
+          enum: [issue, note]
+        content:
+          type: string
+        author:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - taskId
+        - kind
+        - content
+        - createdAt
+
+    TaskItemInput:
+      type: object
+      description: Raise an issue or add a note against a task.
+      properties:
+        kind:
+          type: string
+          enum: [issue, note]
+        content:
+          type: string
+          minLength: 1
+      required:
+        - kind
+        - content
 
     IssueUpdate:
       type: object

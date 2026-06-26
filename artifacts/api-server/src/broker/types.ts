@@ -44,6 +44,22 @@ export interface Issue extends Row {
   version?: number;
 }
 
+/** A child issue/note raised against a task (the work-item). */
+export interface TaskItem extends Row {
+  id: string;
+  taskId: string;
+  kind: "issue" | "note";
+  content: string;
+  author?: string | null;
+  createdAt: string;
+}
+
+/** Create a child issue/note on a task. */
+export interface TaskItemWrite {
+  kind: "issue" | "note";
+  content: string;
+}
+
 /** A normalised issue mutation. `expectedVersion` drives optimistic concurrency. */
 export interface IssueWrite {
   projectId: string;
@@ -205,6 +221,10 @@ export interface Broker {
   listIssues(ctx: ActorContext, projectId: string): Promise<Issue[]>;
   getIssue(ctx: ActorContext, projectId: string, issueId: string): Promise<Issue | null>;
   writeIssue(ctx: ActorContext, op: "create" | "update" | "delete", input: IssueWrite): Promise<Issue | null>;
+  /** A task's child issues/notes (0..many; capability-gated). */
+  listTaskItems(ctx: ActorContext, projectId: string, taskId: string): Promise<TaskItem[]>;
+  /** Raise a child issue or note against a task (contributor+, capability-gated). */
+  createTaskItem(ctx: ActorContext, projectId: string, taskId: string, input: TaskItemWrite): Promise<TaskItem>;
   verify(ctx: ActorContext, opts?: { projectId?: string }): Promise<VerifyReport>;
 
   // Read-model long tail (explicit methods — no action strings leak upward)
