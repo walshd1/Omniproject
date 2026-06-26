@@ -342,6 +342,9 @@ construction; borrowed authority can never be re-lent (P6).
   incl. precondition + hash-chain. **Writes go as X.** Flag-gated, off by default.
 - **Phase 2 — backend on-behalf-of** (RFC 8693 exchange, §5b) where the IdP supports
   it: delegated *backend* writes without OmniProject touching Y's credential.
+  **Not available on Authentik** (no token-exchange grant — Appendix A); needs an
+  RFC 8693-capable IdP (Keycloak, Zitadel, Ping, Entra). Authentik deployments stay
+  on the §5a default (X writes as X), which Phase 1 already covers.
 - **Phase 3 — frontier revocation** (CAEP/SSF continuous evaluation, §7.3) and the
   optional transparency-log anchor (§8.4).
 - **Fallback track — OmniProject-signed grants** (RFC-004 §7b) + status list, built
@@ -363,8 +366,12 @@ construction; borrowed authority can never be re-lent (P6).
 ---
 
 ## 15. Open decisions (inherited from RFC-004 §14 — decide before Phase 1)
-1. **IdP primitive** — Authentik time-bounded group + `act` claim, enterprise PIM,
-   and/or RFC 8693 exchange? (The keystone blocker.)
+1. **IdP primitive** — ~~Authentik time-bounded group + `act` claim, enterprise PIM,
+   and/or RFC 8693 exchange?~~ **Resolved for Authentik (2026-06) — see Appendix A.**
+   Authentik: no native token-exchange and no native expiring membership, but
+   custom claims via property mappings make **Phase 1 build-ready**; **Phase 2 is
+   gated on a token-exchange-capable IdP**. Remaining: confirm the same for any
+   enterprise-PIM target a deployment actually uses.
 2. **Max TTL + renewability** — default/ceiling (proposed ≤ 4h) and IdP-policy vs.
    OmniProject check.
 3. **Scope granularity** — role+project for Phase 1, or also per-action.
@@ -402,3 +409,75 @@ Inherits RFC-004 §15 in full, **plus**:
 
 **No build until RFC-004 §14 is decided and both checklists are owned by a named
 reviewer.**
+
+---
+
+## Appendix A — Authentik binding (the reference IdP)
+
+What the reference IdP can and can't do for delegation, checked 2026-06. This
+turns §15 #1 from an open question into a concrete binding.
+
+### A.1 What Authentik **cannot** do natively
+- **No OAuth 2.0 Token Exchange (RFC 8693).** Its OIDC discovery advertises
+  `authorization_code, refresh_token, implicit, client_credentials, password,
+  device_code` — the `urn:ietf:params:oauth:grant-type:token-exchange` grant is
+  absent. So there is no IdP-minted delegated token for backend writes → **Phase 2
+  (§5b) is unavailable on Authentik**; deployments use the §5a default (X writes
+  as X), which Phase 1 already covers.
+- **No native expiring / time-bounded group membership.** Group membership is
+  static; expression policies cannot add or remove an existing user's groups
+  (goauthentik/authentik#5711, milestoned "Future release"). So **OmniProject owns
+  the time-bounding**, per A.3.
+
+### A.2 What Authentik **can** do (the lever)
+- **Arbitrary custom claims via scope/property mappings.** A scope mapping runs
+  Python and returns a dict that becomes custom claims on the access/ID token; it
+  can read the user, their groups, user attributes and external state. This is
+  enough to **emit an `act`-shaped claim** and an **elevated role/`groups` claim**
+  — synthesised, not token-exchange-minted, but sufficient for OmniProject to read
+  `onBehalfOf` and elevate via `roleForReq` (Phase 1).
+- **Configurable, short access-token lifetime** — the revocation-latency floor
+  (§7.1) is set here.
+
+### A.3 The recommended binding (grant-gated claim, TTL in the grant)
+1. **Grant creation (OmniProject).** Y consents; OmniProject records the grant —
+   the one-way-hash store (§6) for revocation, plus a *grant-state source the IdP
+   can read at token time*. Cleanest stateless option: OmniProject exposes a tiny
+   **introspection endpoint** the Authentik mapping calls (`GET active grant for
+   sub`), returning `{role, projects, onBehalfOf, exp}` or empty — so the live grant
+   lives in OmniProject, not as mutable IdP state. (Alternative: stamp a signed
+   §7b grant token onto a user attribute; simpler, but puts grant data in the IdP.)
+2. **Token issuance (Authentik scope mapping, Python).** Reads the grant-state
+   source; **iff** a grant is active and `now < exp`, returns the elevated role/
+   `groups` claim **and** `act: { sub: <Y> }`. Otherwise returns nothing — the user
+   gets their baseline token. The TTL thus lives in the grant, and the elevated
+   claim self-lapses at the next token refresh after `exp`.
+3. **Consumption (OmniProject gateway, unchanged path).** `roleForReq` reads the
+   elevated role from claims; the gateway reads `act` → `onBehalfOf`; everything in
+   §5c/§8 (effective context, `borrowed`, full "X on behalf of Y" logging) applies
+   exactly as written. **No change to the role path.**
+4. **Revocation.** Primary = short access-token lifetime (A.2) + the grant going
+   inactive at source (the mapping stops emitting on the next token). Explicit
+   revoke = remove the grant from the source + status-list the hash (§7.2). CAEP is
+   not available on Authentik today (§7.3 is for IdPs that speak SSF).
+
+### A.4 Consequences for the design
+- The **§7b signed-grant / grant-state source is load-bearing for Authentik**, not
+  a last resort — it's how the IdP learns the grant exists. RFC-004's framing of it
+  as "fallback only" holds for *token exchange*, but on Authentik the grant state
+  still originates in OmniProject.
+- **Revocation latency = access-token lifetime** on Authentik — so cap it low
+  (couples to §15 #2; suggest ≤ 5 min access tokens for delegated sessions).
+- An **enterprise-PIM deployment** (Entra PIM, Okta) can do the time-bounding and
+  (with RFC 8693) Phase 2 natively — so the capability matrix is per-deployment;
+  Authentik is the floor, not the ceiling.
+
+### A.5 Sources
+- Authentik scope/property mappings emit custom claims via Python:
+  <https://docs.goauthentik.io/add-secure-apps/providers/property-mappings/>
+- No dynamic add/remove of existing users' groups (expiry gap):
+  <https://github.com/goauthentik/authentik/issues/5711>
+- Token-exchange grant absent / failing on Authentik:
+  <https://github.com/goauthentik/authentik/issues/19984>
+- RFC 8693 `act` claim + nested delegation chains:
+  <https://www.rfc-editor.org/rfc/rfc8693.html>
