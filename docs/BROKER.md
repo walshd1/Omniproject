@@ -115,3 +115,14 @@ If a better broker arrives (or n8n is retired), the entire migration is: write
 its three documented exceptions. The data path, the API surface, the SPA, and
 every test above the seam are untouched — because none of them ever knew the
 broker was n8n. That is the property this boundary exists to guarantee.
+
+## Building a broker out-of-process (HTTP sidecar)
+
+A broker need not live in this repo at all. Because n8n is just an **HTTP broker**,
+anything that speaks the same wire protocol plugs in by setting `BROKER_URL` — no
+core change. The protocol (action catalogue, request envelope, control headers,
+response/error mapping, optimistic concurrency) is specified in
+[BROKER-HTTP-BINDING.md](BROKER-HTTP-BINDING.md). The first planned use is an
+optional, separate **database broker** (OmniProject as system of record) — see
+[design/RFC-003](design/RFC-003-db-broker.md). The conformance suite
+(`broker/conformance.ts`) is the acceptance test for any such broker.
