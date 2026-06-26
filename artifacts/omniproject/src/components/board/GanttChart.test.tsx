@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
-import { getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
+import {
+  getGetProjectIssuesQueryKey,
+  getGetCapabilitiesQueryKey,
+  type Issue,
+  type Capabilities,
+} from "@workspace/api-client-react";
 import { renderWithProviders } from "../../test/utils";
 import { GanttChart } from "./GanttChart";
 
@@ -108,6 +113,30 @@ describe("GanttChart", () => {
       .getAllByRole("button")
       .find((b) => (b.getAttribute("title") ?? "").includes("OVERDUE"));
     expect(overdueBar).toBeUndefined();
+  });
+
+  it("makes bars draggable to reschedule when the backend can store the dates", () => {
+    const qc = seeded([issue({ id: "a", title: "Design API", startDate: isoDaysFromNow(1), dueDate: isoDaysFromNow(5) })]);
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: { startDate: { surface: true, store: true }, dueDate: { surface: true, store: true } },
+    } as unknown as Capabilities);
+    renderWithProviders(<GanttChart projectId={PROJECT_ID} />, { client: qc });
+    const bar = screen.getByTestId("gantt-bar-a");
+    expect(bar).toHaveAccessibleName("Reschedule Design API");
+    expect(bar.className).toMatch(/cursor-grab/);
+  });
+
+  it("keeps bars read-only (click-to-open) when the backend can't store the dates", () => {
+    const qc = seeded([issue({ id: "a", title: "Design API", startDate: isoDaysFromNow(1), dueDate: isoDaysFromNow(5) })]);
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: { startDate: { surface: true, store: false }, dueDate: { surface: true, store: false } },
+    } as unknown as Capabilities);
+    renderWithProviders(<GanttChart projectId={PROJECT_ID} />, { client: qc });
+    const bar = screen.getByTestId("gantt-bar-a");
+    expect(bar).toHaveAccessibleName("Design API"); // not "Reschedule …"
+    expect(bar.className).not.toMatch(/cursor-grab/);
   });
 
   it("opens the issue dialog when a lane label is clicked", async () => {
