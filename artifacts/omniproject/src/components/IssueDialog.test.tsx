@@ -90,6 +90,68 @@ describe("IssueDialog accessible names", () => {
     expect(screen.queryByText("Financials")).toBeNull();
   });
 
+  it("shows effort/time-tracking fields only when the backend surfaces them", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: {
+        estimateHours: { surface: true, store: true },
+        loggedHours: { surface: true, store: false }, // read-only
+        remainingHours: { surface: false, store: false }, // hidden
+        storyPoints: { surface: true, store: true },
+      },
+    } as unknown as Capabilities);
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={null} defaultStatus="backlog" />,
+      { client: qc },
+    );
+    expect(screen.getByText("Effort")).toBeInTheDocument();
+    expect(screen.getByLabelText("Estimate (h)")).toBeEnabled();
+    expect(screen.getByLabelText("Logged (h)")).toBeDisabled(); // surfaced, read-only
+    expect(screen.queryByLabelText("Remaining (h)")).toBeNull(); // not surfaced
+    expect(screen.getByLabelText("Story points")).toBeInTheDocument();
+  });
+
+  it("hides the effort section entirely when no effort field is surfaced", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: {
+        estimateHours: { surface: false, store: false },
+        loggedHours: { surface: false, store: false },
+        remainingHours: { surface: false, store: false },
+        storyPoints: { surface: false, store: false },
+      },
+    } as unknown as Capabilities);
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={null} defaultStatus="backlog" />,
+      { client: qc },
+    );
+    expect(screen.queryByText("Effort")).toBeNull();
+  });
+
+  it("renders the estimate-vs-logged progress when both are known", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: {
+        estimateHours: { surface: true, store: true },
+        loggedHours: { surface: true, store: true },
+      },
+    } as unknown as Capabilities);
+    const issue = {
+      id: "i1", projectId: "proj-1", title: "Has effort", status: "in_progress", priority: "none",
+      labels: [], version: 1, estimateHours: 40, loggedHours: 26,
+    } as never;
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={issue} />,
+      { client: qc },
+    );
+    const prog = screen.getByTestId("effort-progress");
+    expect(prog).toBeInTheDocument();
+    expect(prog).toHaveTextContent("65%"); // 26/40
+  });
+
   it("offers Duplicate only when editing an existing task", () => {
     const issue = { id: "i1", projectId: "proj-1", title: "Original", status: "todo", priority: "none", labels: [], version: 1 } as never;
     const { rerender } = renderWithProviders(

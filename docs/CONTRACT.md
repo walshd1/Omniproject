@@ -205,6 +205,10 @@ A normalised issue/work-item row. `version` is the concurrency token.
 | `billable` | boolean \| null | — |  |
 | `costCenter` | string \| null | — |  |
 | `currency` | string \| null | — |  |
+| `estimateHours` | number \| null | — |  |
+| `loggedHours` | number \| null | — |  |
+| `remainingHours` | number \| null | — |  |
+| `storyPoints` | number \| null | — |  |
 | _(other)_ | any | — | Open row — backend-specific fields pass through. |
 
 ### IssueWrite
@@ -228,6 +232,10 @@ A normalised issue mutation. `expectedVersion` drives optimistic concurrency.
 | `billable` | boolean \| null | — |  |
 | `costCenter` | string \| null | — |  |
 | `currency` | string \| null | — |  |
+| `estimateHours` | number \| null | — |  |
+| `loggedHours` | number \| null | — |  |
+| `remainingHours` | number \| null | — |  |
+| `storyPoints` | number \| null | — |  |
 | `expectedVersion` | number | — |  |
 
 ### NotificationIngest

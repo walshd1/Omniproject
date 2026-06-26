@@ -51,6 +51,12 @@ export interface Issue extends Row {
   billable?: boolean | null;
   costCenter?: string | null;
   currency?: string | null;
+  // Optional effort / time-tracking — surfaced only when the backend carries
+  // them ("effort"/"agile" field groups). Additive; the contract stays v1.
+  estimateHours?: number | null;
+  loggedHours?: number | null;
+  remainingHours?: number | null;
+  storyPoints?: number | null;
 }
 
 /** A child issue/note raised against a task (the work-item). */
@@ -87,6 +93,11 @@ export interface IssueWrite {
   billable?: boolean | null;
   costCenter?: string | null;
   currency?: string | null;
+  // Optional effort / time-tracking (capability-gated, "effort"/"agile" groups).
+  estimateHours?: number | null;
+  loggedHours?: number | null;
+  remainingHours?: number | null;
+  storyPoints?: number | null;
   expectedVersion?: number;
 }
 
