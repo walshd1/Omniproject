@@ -123,6 +123,13 @@ is the **delegating broker** and must be provably honest about who did what.
   broker is itself consented-to and audited.
 - **No escalation above the delegator.** A grant can only ever convey a subset of
   Y's own access — never more.
+- **No re-delegation / no chaining.** A delegate cannot become a delegator while a
+  grant to them is active: X, acting under Y's delegation, cannot delegate to a
+  third party Z. Delegation chains are capped at depth 1. This holds even for X's
+  *own* rights — while X is in a delegated state we refuse any grant X initiates,
+  rather than try to disentangle borrowed authority from own authority mid-chain.
+  (Borrowed rights are not "X's own" and so could never be passed on under the
+  rule above anyway; this makes the refusal explicit and fail-closed.)
 - **No silent delegation.** Y consents; X sees a banner; both are audited.
 
 ---
@@ -139,6 +146,10 @@ Delegation conveys, time-boxed and scoped:
 
 This covers the real asks **for everything OmniProject itself gates**. It does
 **not** magically grant backend write access X doesn't already have — see §6.
+
+The elevation conveyed is **not itself delegatable**: an X acting at `manager`
+under Y's grant holds that role only to *use*, not to *lend on*. Re-delegating it
+(X → Z) is refused (§4, §8) so authority never fans out beyond the person Y chose.
 
 ---
 
@@ -210,6 +221,11 @@ grant = sign({
 
 - **Y initiates** (or explicitly approves) every grant — picks the delegate,
   scope (role ≤ own, projects), and duration. X cannot self-serve.
+- **Only a non-delegate may initiate.** Y must be granting their **own** standing
+  access. A session that is *itself* acting under a delegation (its effective role
+  came from an inbound grant — `onBehalfOf` is set) **cannot create a grant**: the
+  delegate-turned-delegator path is refused, so a borrowed role can never be
+  re-lent. This is the consent-side face of the no-chaining anti-goal (§4).
 - An **admin may broker** a grant (e.g. Y is unreachable on leave) — but that act
   is itself `admin`-gated, **audited**, and Y is notified. An admin brokering for
   themselves is the same as self-granting and is refused.
@@ -258,6 +274,12 @@ interface AuditEvent {
   the grant's project scope.
 - **Fail-closed:** an absent/expired/forged/denylisted grant → no elevation,
   plain session role. A scope check that can't be satisfied → 403, audited.
+- **No-chaining is enforced at grant *creation*.** The grant-creation route
+  refuses if the initiating session is itself acting under a delegation
+  (`onBehalfOf` set on its effective context) → 403, audited. In the IdP path this
+  also means rejecting any attempt to mint a grant from a token that already
+  carries an `act` claim, so nested `act` chains (RFC 8693 permits them) never
+  arise through OmniProject. Depth is thereby capped at 1 by construction.
 - **Never elevates the forwarded token.** The backend `Authorization` header is
   still X's own (or, in §6's optional mode, the IdP-minted delegated token) —
   never Y's.
@@ -339,6 +361,9 @@ Each phase ships only after the §15 checklist passes.
 - [ ] A grant's scope is provably **≤ the delegator's own** access at grant time.
 - [ ] X cannot self-grant; admin-brokered grants are audited and notify Y; no
       admin self-broker.
+- [ ] **No re-delegation.** A session acting under a delegation (`onBehalfOf` set,
+      or token carrying an `act` claim) cannot create a grant; chains are capped at
+      depth 1; refusal is at grant creation, fail-closed and audited (tested).
 - [ ] Every grant has a hard `exp`; no unbounded grants; default TTL short.
 - [ ] Grant verification is fail-closed (signature + exp + delegate-binding) and
       bound to the current session `sub`.
