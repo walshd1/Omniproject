@@ -2,6 +2,7 @@ import { useListProjects } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { AgileBoard } from "../components/board/AgileBoard";
 import { ExportMenu } from "../components/ExportMenu";
+import { ProjectFinancialsStrip } from "../components/ProjectFinancialsStrip";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -52,6 +53,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
       </div>
 
       <div className="flex-1 p-8 overflow-auto">
+        <ProjectFinancialsStrip projectId={projectId} />
         <AgileBoard projectId={projectId} />
       </div>
     </div>
