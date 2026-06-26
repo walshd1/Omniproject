@@ -382,6 +382,34 @@ Each phase ships only after the §15 checklist passes.
    time-bounded group membership, enterprise PIM (Entra/Okta), and/or RFC 8693
    token exchange? Confirm Authentik can express a time-bounded group + emit the
    `act` claim (or what the closest supported equivalent is).
+
+   > **Resolved for Authentik (checked 2026-06).** The clean fully-native version
+   > this RFC assumed does **not** exist in Authentik today. Findings:
+   > - **No native RFC 8693 token exchange.** Authentik's OIDC discovery advertises
+   >   `authorization_code, refresh_token, implicit, client_credentials, password,
+   >   device_code` — `urn:ietf:params:oauth:grant-type:token-exchange` is absent.
+   >   ⇒ **Phase 2 (backend-native on-behalf-of) is NOT achievable on Authentik**;
+   >   Authentik deployments keep the §6 default (X writes as X). Phase 2 needs an
+   >   RFC 8693-capable IdP (Keycloak, Zitadel, Ping, Entra).
+   > - **No native time-bounded / expiring group membership.** Membership is static;
+   >   expression policies can't add/remove an existing user's groups
+   >   (goauthentik/authentik#5711, "Future release"). ⇒ time-bounding must be done
+   >   by **OmniProject**, two viable ways (see RFC-005 Appendix A): a property/scope
+   >   mapping that emits the elevated role + an `act`-shaped claim **only while the
+   >   grant window is open** (TTL lives in the grant; recommended), or an external
+   >   reconciler that adds/removes the group via Authentik's API at grant/exp.
+   > - **`act` claim is synthesisable, not standards-minted.** Authentik scope/
+   >   property mappings run Python and return **arbitrary custom claims** from the
+   >   user, groups and external state — so an `act`-shaped claim **can** be emitted
+   >   for OmniProject to read into `onBehalfOf`. It is a custom claim, *not* a
+   >   token-exchange-minted delegated token, which is why it serves Phase 1 (audit
+   >   framing, writes-as-X) but not Phase 2.
+   >
+   > **Net:** **Phase 1 is build-ready on Authentik** via a custom claim + grant-gated
+   > mapping; **Phase 2 is gated on a token-exchange-capable IdP.** This makes the
+   > §7b signed-grant path the natural grant-state source for Authentik (it feeds the
+   > claim mapping), not merely a last resort. Revocation latency on Authentik = the
+   > access-token lifetime, so set it short (ties to Q2).
 2. **Max TTL + renewability** — default and ceiling for the IdP grant (proposed
    ≤ 4h, renewable) — and whether that's an IdP policy or an OmniProject check.
 3. **Scope granularity** — role + project list for Phase 1, or also per-action
