@@ -7,6 +7,11 @@ function escapeCell(value: CsvValue): string {
   let s = typeof value === "string" ? value : String(value);
   // Arrays/objects that slip through become JSON.
   if (typeof value === "object") s = JSON.stringify(value);
+  // CSV-injection guard: a cell beginning with a formula trigger (= + - @ or a
+  // leading tab/CR) executes when the file is opened in Excel/Sheets. Backend
+  // field values are attacker-influenceable, so neutralise them with a leading
+  // apostrophe before the RFC-4180 quoting.
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   if (/[",\n\r]/.test(s)) {
     return `"${s.replace(/"/g, '""')}"`;
   }

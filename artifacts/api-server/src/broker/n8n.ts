@@ -26,6 +26,7 @@ import {
 } from "./types";
 import { GATEWAY_ORIGIN, REQUEST_HEADERS, type BrokerEnvelope } from "./contract";
 import { addUpstreamMs } from "../lib/request-timing";
+import { assertEgressAllowed } from "../lib/egress";
 
 /**
  * n8n broker — THE one place that knows the broker is n8n.
@@ -172,6 +173,7 @@ async function callN8n<T = unknown>(
   let lastErr: unknown;
   for (const target of targets) {
     try {
+      assertEgressAllowed(target); // SSRF guard: never let the broker URL reach metadata/link-local
       res = await fetch(target, { ...init, signal: AbortSignal.timeout(10_000) });
       break;
     } catch (e) {
@@ -386,6 +388,7 @@ export class N8nBroker implements Broker {
       VERIFIABLE_ACTIONS.map(async (action) => {
         const started = Date.now();
         try {
+          assertEgressAllowed(url); // SSRF guard on the verify probe too
           const res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-OmniProject-Action": action, "X-OmniProject-Origin": GATEWAY_ORIGIN },

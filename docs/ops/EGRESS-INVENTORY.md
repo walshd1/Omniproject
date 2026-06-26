@@ -70,6 +70,14 @@ request-scoped and gone at the end of the response:
 
 ---
 
+## 3a. Egress hardening controls
+
+| Control | What it does | Knob |
+| --- | --- | --- |
+| **SSRF guard** (`lib/egress.ts`) | Every gateway outbound request is validated first. Link-local / cloud-metadata targets (169.254.0.0/16, IPv6 link-local, `metadata.google.internal`, `fd00:ec2::254`) and non-http(s) schemes are **always blocked** — the Capital-One pattern can't happen through the app. Internal/localhost hosts stay allowed (the broker lives there). | `EGRESS_ALLOWLIST` (optional) pins outbound to an exact host list |
+| **CSV-injection guard** | Exported CSV cells beginning with a formula trigger (`= + - @` / tab / CR) are apostrophe-prefixed, so attacker-influenced backend values can't execute when the file opens in Excel/Sheets (`lib/csv.ts`, SPA `lib/data-lineage.ts`). | — |
+| **Startup security self-check** (`lib/security-check.ts`) | At boot, dangerous *production* config combinations are logged at severity (e.g. prod with no OIDC = demo auth = everyone admin). | `SECURITY_STRICT=on` refuses to boot on a CRITICAL finding |
+
 ## 4. Integrity & observability controls (audit-relevant)
 
 - **Audit pipeline** (`lib/audit.ts`) — every broker action and privileged change
