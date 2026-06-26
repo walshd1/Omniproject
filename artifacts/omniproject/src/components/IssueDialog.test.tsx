@@ -28,4 +28,15 @@ describe("IssueDialog accessible names", () => {
     // A dialog must exist and be labelled (Radix Dialog.Title).
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
+
+  it("offers Duplicate only when editing an existing task", () => {
+    const issue = { id: "i1", projectId: "proj-1", title: "Original", status: "todo", priority: "none", labels: [], version: 1 } as never;
+    const { rerender } = renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={issue} />,
+    );
+    expect(screen.getByRole("button", { name: /Duplicate/i })).toBeInTheDocument();
+
+    rerender(<IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={null} defaultStatus="backlog" />);
+    expect(screen.queryByRole("button", { name: /Duplicate/i })).toBeNull();
+  });
 });
