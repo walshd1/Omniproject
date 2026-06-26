@@ -59,21 +59,128 @@ workflow populates the optional labels below.
 
 ✅ built-in · ◐ partial / via labels · ☐ roadmap
 
-## Adding a new view (the plumbing)
+## Adding a new view (for a new methodology)
 
-A view is just a component that takes `{ projectId }`. To add one:
+> **Is there a built-in, no-code view designer?** **No — and that's deliberate.**
+> Views are **code**, not runtime configuration. There is no drag-and-drop "view
+> builder", no saved-view store, and no per-tenant view records on the server.
+> The reason is the core invariant: the gateway is **stateless and
+> zero-data-at-rest**, so it has nowhere to persist a user-authored view
+> definition. A new methodology is supported by **adding a small view component**
+> (a 3-step, ~1 file change below), not by editing a database. If you do want
+> *user-saved* layouts, see [Saved / user-authored views](#saved--user-authored-views).
 
-1. **Build the component** under `artifacts/omniproject/src/components/views/`
-   (fetch with `useGetProjectIssues(projectId)`; derive what you need with the
-   helpers in `src/lib/methodology.ts`).
-2. **Register metadata** — add an entry to `VIEWS` in `src/lib/views.ts` (id,
-   label, group, methodology, description) and the `ViewId` union.
+A view is just a React component that takes `{ projectId }` and renders the
+project's issues through a methodology lens. The same six built-ins above were
+each added this way; a new methodology is the same recipe.
+
+### The 3 steps
+
+1. **Build the component** under `artifacts/omniproject/src/components/views/`.
+   Fetch with `useGetProjectIssues(projectId)` and derive your concepts from the
+   neutral fields (`status`, `priority`, `labels`, `startDate`/`dueDate`,
+   `assignee`, `completionPct`) using the helpers in `src/lib/methodology.ts`
+   (`storyPoints`, `explicitStage`, `ragFor`, `completion`, `isOverdue`, …).
+2. **Register metadata** — add a `ViewMeta` entry to `VIEWS` in `src/lib/views.ts`
+   and extend the `ViewId` union. Set `needs` to the [capability
+   domain](DATA-REQUIREMENTS.md) the view relies on (e.g. `scheduling`) so it gets
+   auto-labelled *"limited"* when the backend can't populate it.
 3. **Wire the component** — add `id → Component` to `VIEW_COMPONENTS` in
    `src/components/views/registry.ts`.
 
-That's it — the switcher, the `Cmd+K` palette, persistence, and the dashboard
-picker all pick it up automatically. No gateway or schema change is required for
-a view that reads existing issue data; if it needs new fields, add them to
-`openapi.yaml`, run codegen, and have n8n populate them.
+That's it — the **view switcher**, the **`Cmd+K` palette**, **persistence** (the
+chosen view is remembered per browser), and the **dashboard picker** all discover
+it automatically from the metadata. No gateway or schema change is needed for a
+view that reads existing issue data.
 
-See also: [TECHNICAL.md](TECHNICAL.md) · [README](../README.md).
+### Worked example — a "Cadence" view for a new methodology
+
+Say a customer runs a flow-based methodology where work is grouped into named
+**cadences** carried on a `cadence:<name>` label. The whole thing is one new file
+plus two one-line registrations.
+
+```tsx
+// artifacts/omniproject/src/components/views/CadenceView.tsx
+import { useMemo } from "react";
+import { useGetProjectIssues, type Issue } from "@workspace/api-client-react";
+import { completion, ragFor, isOverdue } from "../../lib/methodology";
+import { DataState } from "../DataState";
+
+const cadenceOf = (i: Issue) =>
+  i.labels?.find((l) => l.startsWith("cadence:"))?.slice("cadence:".length) ?? "Unscheduled";
+
+export function CadenceView({ projectId }: { projectId: string }) {
+  const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
+
+  const groups = useMemo(() => {
+    const by = new Map<string, Issue[]>();
+    for (const i of issues ?? []) {
+      const k = cadenceOf(i);
+      by.set(k, [...(by.get(k) ?? []), i]);
+    }
+    return [...by.entries()];
+  }, [issues]);
+
+  if (isLoading || isError || !issues)
+    return <DataState isLoading={isLoading} isError={isError} error={error} onRetry={refetch}>{null}</DataState>;
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 p-4">
+      {groups.map(([name, items]) => {
+        const pct = completion(items);
+        const overdue = items.filter(isOverdue).length;
+        const rag = ragFor(pct, overdue);
+        return (
+          <section key={name} className="border border-border bg-card p-4">
+            <h3 className="font-black uppercase tracking-tight">{name}</h3>
+            <p className="text-xs text-muted-foreground">{items.length} items · {pct}% done · RAG {rag}</p>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+```
+
+```ts
+// src/lib/views.ts — add to the ViewId union and the VIEWS array
+export type ViewId = "kanban" | "scrum" | "gantt" | "prince2" | "raid" | "list" | "cadence";
+
+// …inside VIEWS:
+{ id: "cadence", label: "Cadence Flow", short: "Cadence", group: "Agile",
+  methodology: "Flow / cadence-based", description: "Work grouped by delivery cadence with RAG." },
+```
+
+```ts
+// src/components/views/registry.ts
+import { CadenceView } from "./CadenceView";
+// …inside VIEW_COMPONENTS:
+cadence: CadenceView,
+```
+
+Run `pnpm --filter @workspace/omniproject test` and the view is live in the
+switcher and palette. If your methodology needs a **field the contract doesn't
+carry yet**, add it to [`openapi.yaml`](../lib/api-spec/openapi.yaml), run
+`pnpm --filter @workspace/api-spec run codegen`, and have your n8n workflow
+populate it when it normalises issues from the backend — the field stays
+broker-agnostic above the seam.
+
+### Saved / user-authored views
+
+If you need end-users to *save* their own layouts without a code change, do it
+**without** adding server state, in one of two ways that respect the stateless
+posture:
+
+- **Session-volatile, export-to-keep** — author it client-side and let the user
+  download/import a JSON bundle, exactly like the [Exploration](EXPLORATION.md)
+  workspace does for snapshots and what-if scenarios. Nothing is stored at rest.
+- **Persist through the broker** — model a "saved view" as just another item the
+  **broker** round-trips (an n8n `save_view` / `list_views` operation against the
+  backend the customer already owns). The gateway stays stateless; the data lives
+  in *their* system, not OmniProject. This stays broker-agnostic by going through
+  the `Broker` interface, not a new datastore.
+
+A built-in graphical view designer is a roadmap candidate, but it would be built
+on top of one of these two patterns — never by giving the gateway a database.
+
+See also: [DATA-REQUIREMENTS.md](DATA-REQUIREMENTS.md) · [TECHNICAL.md](TECHNICAL.md) · [README](../README.md).
