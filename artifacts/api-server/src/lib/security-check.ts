@@ -38,6 +38,24 @@ export function securityFindings(env: Env): SecurityFinding[] {
         "session is treated as admin. Configure OIDC (or accept this is a public demo).",
     });
   }
+  // Broker traffic not encrypted: a plain http:// broker URL to a non-loopback
+  // host means gateway↔broker data crosses the wire in clear.
+  const brokerUrl = (env["BROKER_URL"] || env["BROKER_URLS"]?.split(",")[0] || env["N8N_WEBHOOK_URL"] || "").trim();
+  if (brokerUrl && /^http:\/\//i.test(brokerUrl)) {
+    let host = "";
+    try { host = new URL(brokerUrl).hostname.toLowerCase(); } catch { /* ignore */ }
+    const loopback = host === "localhost" || host === "127.0.0.1" || host === "::1";
+    if (host && !loopback) {
+      out.push({
+        id: "broker-plaintext",
+        severity: "warn",
+        message:
+          "Broker traffic uses plain http:// to a remote host — gateway↔broker data crosses the wire unencrypted. " +
+          "Use https:// for BROKER_URL (with NODE_EXTRA_CA_CERTS for a private CA), or front the broker with a TLS " +
+          "sidecar / service-mesh mTLS.",
+      });
+    }
+  }
   // Abuse protection disabled.
   if (on(env["RATE_LIMIT_DISABLED"])) {
     out.push({
