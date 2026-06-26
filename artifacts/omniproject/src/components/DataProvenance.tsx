@@ -17,6 +17,14 @@ import {
  * provenance columns — so anyone can reverse-engineer where a figure originates
  * and how much of it is actually populated. Drop it in any screen header.
  */
+/** Compact "x ago" for the poll timestamp. */
+function ago(then: number, now: number): string {
+  const s = Math.max(0, Math.round((now - then) / 1000));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  return `${Math.round(s / 3600)}h ago`;
+}
+
 export function DataProvenance({
   rows,
   fields,
@@ -24,6 +32,8 @@ export function DataProvenance({
   filename,
   exportColumns,
   sourceAccessor,
+  fieldSources,
+  polledAt,
   label = "Data",
 }: {
   rows: ReadonlyArray<Record<string, unknown>>;
@@ -33,12 +43,20 @@ export function DataProvenance({
   /** Columns for the CSV export; defaults to the measured fields + lineage. */
   exportColumns?: ReadonlyArray<FieldSpec>;
   sourceAccessor?: (r: Record<string, unknown>) => unknown;
+  /** Per-field lineage from capabilities: canonical key → backend system + field. */
+  fieldSources?: Record<string, { system?: string; field?: string }>;
+  /** When the SPA last fetched this screen's data (React Query dataUpdatedAt, ms). */
+  polledAt?: number;
   label?: string;
 }) {
   const overall = overallCompleteness(rows, fields);
   const perField = fieldCompleteness(rows, fields).sort((a, b) => a.pct - b.pct);
-  const sparse = perField.filter((f) => f.pct < 100);
   const sources = sourceBreakdown(rows, sourceAccessor);
+  const lineageOf = (key: string): string | null => {
+    const s = fieldSources?.[key];
+    if (!s?.field) return null;
+    return `${s.system ?? mode ?? "backend"}:${s.field}`;
+  };
   const cols = exportColumns ?? [...fields, ...LINEAGE_COLUMNS];
   const tone = overall.pct >= 80 ? "text-green-500" : overall.pct >= 50 ? "text-amber-500" : "text-red-500";
   const barTone = overall.pct >= 80 ? "bg-green-500" : overall.pct >= 50 ? "bg-amber-500" : "bg-red-500";
@@ -74,24 +92,41 @@ export function DataProvenance({
           <p className="text-[10px] text-muted-foreground">
             {overall.present} of {overall.total} cells populated · {overall.rows} rows × {overall.fields} fields
           </p>
-          {sparse.length > 0 && (
-            <ul className="space-y-1 pt-1">
-              {sparse.map((f) => (
-                <li key={f.key} className="flex items-center gap-2" data-testid={`sparse-${f.key}`}>
-                  <span className="w-28 truncate text-muted-foreground" title={f.label}>{f.label}</span>
-                  <span className="flex-1 h-1.5 bg-background border border-border">
-                    <span className={`block h-full ${f.pct >= 80 ? "bg-green-500" : f.pct >= 50 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${f.pct}%` }} />
-                  </span>
-                  <span className="w-16 text-right tabular-nums">{f.present}/{f.total}</span>
+          {/* Per-field lineage: where each field comes from + how filled it is. */}
+          <ul className="space-y-1.5 pt-1">
+            {perField.map((f) => {
+              const lineage = lineageOf(f.key);
+              return (
+                <li key={f.key} data-testid={`field-${f.key}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-28 truncate" title={f.label}>{f.label}</span>
+                    <span className="flex-1 h-1.5 bg-background border border-border">
+                      <span className={`block h-full ${f.pct >= 80 ? "bg-green-500" : f.pct >= 50 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${f.pct}%` }} />
+                    </span>
+                    <span className="w-16 text-right tabular-nums text-muted-foreground">{f.present}/{f.total}</span>
+                  </div>
+                  {lineage && (
+                    <div className="pl-1 text-[10px] text-muted-foreground" data-testid={`lineage-${f.key}`}>
+                      ← <span className="text-foreground/70">{lineage}</span>
+                    </div>
+                  )}
                 </li>
-              ))}
-            </ul>
-          )}
+              );
+            })}
+          </ul>
         </div>
 
         {/* Source / lineage */}
         <div className="border-b border-border p-3 space-y-1">
-          <span className="uppercase tracking-wider text-muted-foreground">Sources</span>
+          <div className="flex items-center justify-between">
+            <span className="uppercase tracking-wider text-muted-foreground">Sources</span>
+            {polledAt != null && polledAt > 0 && (
+              <span className="text-[10px] text-muted-foreground" data-testid="polled-at"
+                title={`Read through to the backend at ${new Date(polledAt).toLocaleString()}`}>
+                polled {ago(polledAt, Date.now())} · {new Date(polledAt).toLocaleTimeString()}
+              </span>
+            )}
+          </div>
           {sources.length === 0 ? (
             <p className="text-[10px] text-muted-foreground">No rows on screen.</p>
           ) : (

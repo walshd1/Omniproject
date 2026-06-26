@@ -1557,6 +1557,14 @@ components:
             through as gated passthrough so they light up without a registry edit.
           items:
             $ref: '#/components/schemas/DiscoveredField'
+        fieldSources:
+          type: object
+          description: >-
+            Per-field lineage: which backend system + native field each canonical
+            or custom field is read from (e.g. dueDate → jira:duedate). Absent
+            when the broker doesn't declare it.
+          additionalProperties:
+            $ref: '#/components/schemas/FieldSource'
       required:
         - mode
         - issues
@@ -1601,8 +1609,26 @@ components:
           type: boolean
         references:
           type: string
+        sourceSystem:
+          type: string
+          description: System of record this field is read from (e.g. "jira").
+        sourceField:
+          type: string
+          description: The backend's native field name/id this field maps from.
       required:
         - key
+
+    FieldSource:
+      type: object
+      description: Where a canonical/custom field is read from (system + native field).
+      properties:
+        system:
+          type: string
+        field:
+          type: string
+      required:
+        - system
+        - field
 
     FieldManifest:
       type: object

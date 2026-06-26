@@ -133,6 +133,8 @@ A field a backend reports it can expose, from API enumeration during wiring.
 | `surface` | boolean | — |  |
 | `store` | boolean | — |  |
 | `references` | string | — | If the backend's API schema says this field references another entity. |
+| `sourceSystem` | string | — | The system of record this field is read from (e.g. "jira", "openproject"). Lets the UI show granular lineage: "this canonical field ← that backend." |
+| `sourceField` | string | — | The backend's NATIVE field name/id this canonical field maps from (e.g. "duedate", "customfield_10016") — supplied by the broker/workflow, so the overlay can say exactly which backend field a value came from. |
 
 ### FieldSupport
 

@@ -16,4 +16,8 @@ export interface DiscoveredField {
   surface?: boolean;
   store?: boolean;
   references?: string;
+  /** System of record this field is read from (e.g. "jira"). */
+  sourceSystem?: string;
+  /** The backend's native field name/id this field maps from. */
+  sourceField?: string;
 }

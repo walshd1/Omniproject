@@ -32,15 +32,30 @@ describe("DataProvenance", () => {
     expect(screen.getByTestId("data-completeness")).toHaveTextContent("50%");
   });
 
-  it("opens to reveal sparse fields and the source breakdown", async () => {
+  it("opens to reveal per-field fill and the source breakdown", async () => {
     const user = userEvent.setup();
     renderWithProviders(<DataProvenance rows={ROWS} fields={FIELDS} mode="n8n" filename="x" />);
     await user.click(screen.getByTestId("data-provenance"));
     // dueDate is the sparsest (1/3) — listed with its fill
-    expect(await screen.findByTestId("sparse-dueDate")).toHaveTextContent("1/3");
+    expect(await screen.findByTestId("field-dueDate")).toHaveTextContent("1/3");
+    expect(screen.getByTestId("field-budget")).toHaveTextContent("2/3");
     // sources grouped, jira (2) + openproject (1)
     expect(within(screen.getByTestId("source-jira")).getByText("2")).toBeInTheDocument();
     expect(screen.getByTestId("source-openproject")).toBeInTheDocument();
+  });
+
+  it("shows granular per-field lineage and the poll time", async () => {
+    const user = userEvent.setup();
+    const polledAt = Date.now() - 30_000; // 30s ago
+    renderWithProviders(
+      <DataProvenance rows={ROWS} fields={FIELDS} mode="jira" filename="x" polledAt={polledAt}
+        fieldSources={{ dueDate: { system: "jira", field: "duedate" }, budget: { system: "jira", field: "customfield_10100" } }} />,
+    );
+    await user.click(screen.getByTestId("data-provenance"));
+    expect(await screen.findByTestId("lineage-dueDate")).toHaveTextContent("jira:duedate");
+    expect(screen.getByTestId("lineage-budget")).toHaveTextContent("jira:customfield_10100");
+    // freshness ("polled … ago") is shown
+    expect(screen.getByTestId("polled-at")).toHaveTextContent(/polled .*ago/);
   });
 
   it("exports the on-screen rows as CSV with lineage columns", async () => {

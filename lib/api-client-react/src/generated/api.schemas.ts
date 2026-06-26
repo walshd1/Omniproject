@@ -643,6 +643,19 @@ export type CapabilitiesFields = {[key: string]: FieldSupport};
 export type CapabilitiesEntities = {[key: string]: FieldSupport};
 
 /**
+ * Where a canonical/custom field is read from (system + native field).
+ */
+export interface FieldSource {
+  system: string;
+  field: string;
+}
+
+/**
+ * Per-field lineage: which backend system + native field each canonical or custom field is read from (e.g. dueDate → jira:duedate). Absent when the broker doesn't declare it.
+ */
+export type CapabilitiesFieldSources = {[key: string]: FieldSource};
+
+/**
  * A field a backend's describe reported, with its metadata preserved.
  */
 export interface DiscoveredField {
@@ -652,6 +665,10 @@ export interface DiscoveredField {
   surface?: boolean;
   store?: boolean;
   references?: string;
+  /** System of record this field is read from (e.g. "jira"). */
+  sourceSystem?: string;
+  /** The backend's native field name/id this field maps from. */
+  sourceField?: string;
 }
 
 /**
@@ -683,6 +700,8 @@ export interface Capabilities {
   entities?: CapabilitiesEntities;
   /** Non-canonical fields the backend's describe surfaced (the reconcile path): tenant/custom fields the registry doesn't model, carried through as gated passthrough so they light up without a registry edit. */
   customFields?: DiscoveredField[];
+  /** Per-field lineage: which backend system + native field each canonical or custom field is read from (e.g. dueDate → jira:duedate). Absent when the broker doesn't declare it. */
+  fieldSources?: CapabilitiesFieldSources;
 }
 
 /**

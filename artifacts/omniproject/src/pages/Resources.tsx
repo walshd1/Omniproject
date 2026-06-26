@@ -24,7 +24,7 @@ const BAND_LABEL: Record<string, string> = { over: "OVER", at: "AT", under: "", 
 export function Resources() {
   const { data: caps } = useGetCapabilities();
   const supported = canSurfaceEntity(caps, "member", false);
-  const { data: pool, isLoading, isError, error, refetch } = useListResourcePool({
+  const { data: pool, isLoading, isError, error, refetch, dataUpdatedAt } = useListResourcePool({
     query: { enabled: supported, queryKey: getListResourcePoolQueryKey() },
   });
 
@@ -51,7 +51,7 @@ export function Resources() {
             {pool && <span className="text-muted-foreground font-mono text-sm">{pool.length} PEOPLE</span>}
             {pool && pool.length > 0 && (
               <DataProvenance rows={pool as unknown as Record<string, unknown>[]} fields={RESOURCE_FIELDS} mode={caps?.mode}
-                filename="resources" sourceAccessor={() => "resource-pool"} />
+                filename="resources" sourceAccessor={() => "resource-pool"} fieldSources={caps?.fieldSources} polledAt={dataUpdatedAt} />
             )}
           </div>
         </div>
