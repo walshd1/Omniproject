@@ -1,6 +1,18 @@
-import { useMemo, useState } from "react";
-import { useGetProjectIssues, type Issue } from "@workspace/api-client-react";
+import { useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useGetProjectIssues,
+  useUpdateIssue,
+  useGetCapabilities,
+  getGetProjectIssuesQueryKey,
+  getGetProjectSummaryQueryKey,
+  type Issue,
+  type IssueUpdate,
+} from "@workspace/api-client-react";
 import { STATUS_COLORS, STATUS_LABELS } from "../../lib/constants";
+import { canStoreField } from "../../lib/capabilities-fields";
+import { rescheduledDates } from "../../lib/reschedule";
+import { useToast } from "@/hooks/use-toast";
 import { IssueDialog } from "../IssueDialog";
 import { LoadingState } from "../LoadingState";
 import { DataState } from "../DataState";
@@ -19,7 +31,54 @@ interface Lane {
 
 export function GanttChart({ projectId }: { projectId: string }) {
   const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
+  const { data: caps } = useGetCapabilities();
+  const queryClient = useQueryClient();
+  const updateIssue = useUpdateIssue();
+  const { toast } = useToast();
   const [editing, setEditing] = useState<Issue | null>(null);
+  // Live drag state: which bar, how many days it's been nudged, and a transient
+  // ref for the in-flight gesture (start x, px-per-day, did-it-move).
+  const [drag, setDrag] = useState<{ id: string; deltaDays: number } | null>(null);
+  const gesture = useRef<{ id: string; startX: number; pxPerDay: number; moved: boolean } | null>(null);
+
+  // Drag-to-reschedule is a write, so it's gated on the backend being able to
+  // STORE the schedule dates. When it can't, bars stay click-to-open (the dialog
+  // shows the dates read-only). Both ends move together, so both must be storable.
+  const canReschedule = canStoreField(caps, "startDate") && canStoreField(caps, "dueDate");
+
+  const commitReschedule = (issue: Issue, deltaDays: number) => {
+    if (deltaDays === 0) return;
+    const dates = rescheduledDates(issue, deltaDays);
+    const data: IssueUpdate = { ...dates, expectedVersion: issue.version ?? undefined };
+    const key = getGetProjectIssuesQueryKey(projectId);
+    const prev = queryClient.getQueryData<Issue[]>(key);
+    // Optimistic: move the bar in the cache immediately.
+    queryClient.setQueryData<Issue[]>(key, (old) =>
+      (old ?? []).map((i) => (i.id === issue.id ? { ...i, ...dates } : i)),
+    );
+    updateIssue.mutate(
+      { projectId, issueId: issue.id, data },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: key });
+          queryClient.invalidateQueries({ queryKey: getGetProjectSummaryQueryKey(projectId) });
+          toast({ title: "RESCHEDULED", description: `${issue.title} · ${deltaDays > 0 ? "+" : ""}${deltaDays}d` });
+        },
+        onError: (err) => {
+          if (prev) queryClient.setQueryData(key, prev); // revert the optimistic move
+          const conflict = (err as { status?: number }).status === 409;
+          queryClient.invalidateQueries({ queryKey: key });
+          toast({
+            title: conflict ? "EDIT CONFLICT" : "ERROR",
+            description: conflict
+              ? "This issue was changed by someone else — the timeline has been refreshed."
+              : "Couldn't reschedule. The timeline has been refreshed.",
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
 
   const model = useMemo(() => {
     const scheduled = (issues ?? []).filter((i) => i.startDate || i.dueDate);
@@ -89,10 +148,12 @@ export function GanttChart({ projectId }: { projectId: string }) {
               />
             )}
             {lanes.map(({ issue, startDay, endDay }) => {
-                const offsetPct = ((startDay - min) / span) * 100;
+                const nudged = drag?.id === issue.id ? drag.deltaDays : 0;
+                const offsetPct = ((startDay - min + nudged) / span) * 100;
                 const widthPct = Math.max(((endDay - startDay + 1) / span) * 100, 2);
                 const overdue =
                   endDay < today && issue.status !== "done" && issue.status !== "cancelled";
+                const moving = updateIssue.isPending;
                 return (
                   <div key={issue.id} className="flex items-center border-b border-border hover:bg-muted/20 group">
                     <button
@@ -104,12 +165,36 @@ export function GanttChart({ projectId }: { projectId: string }) {
                     </button>
                     <div className="flex-1 px-4 py-3 relative h-12">
                       <button
-                        onClick={() => setEditing(issue)}
+                        data-testid={`gantt-bar-${issue.id}`}
+                        aria-label={canReschedule ? `Reschedule ${issue.title}` : issue.title}
+                        onClick={() => { if (!canReschedule) setEditing(issue); }}
+                        onPointerDown={(e) => {
+                          if (!canReschedule) return;
+                          const track = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
+                          gesture.current = { id: issue.id, startX: e.clientX, pxPerDay: track.width / span || 1, moved: false };
+                          e.currentTarget.setPointerCapture?.(e.pointerId);
+                        }}
+                        onPointerMove={(e) => {
+                          const g = gesture.current;
+                          if (!g || g.id !== issue.id) return;
+                          if (Math.abs(e.clientX - g.startX) > 3) g.moved = true;
+                          setDrag({ id: issue.id, deltaDays: Math.round((e.clientX - g.startX) / g.pxPerDay) });
+                        }}
+                        onPointerUp={(e) => {
+                          const g = gesture.current;
+                          gesture.current = null;
+                          e.currentTarget.releasePointerCapture?.(e.pointerId);
+                          const deltaDays = drag?.id === issue.id ? drag.deltaDays : 0;
+                          setDrag(null);
+                          if (!g) return;
+                          if (!g.moved) { setEditing(issue); return; } // a click, not a drag
+                          commitReschedule(issue, deltaDays);
+                        }}
                         className={`absolute top-1/2 -translate-y-1/2 h-5 ${STATUS_COLORS[issue.status]} ${
                           overdue ? "ring-2 ring-red-500" : ""
-                        } hover:brightness-110`}
+                        } ${canReschedule ? "cursor-grab active:cursor-grabbing touch-none" : ""} ${moving ? "opacity-60" : ""} hover:brightness-110`}
                         style={{ left: `${offsetPct}%`, width: `${widthPct}%` }}
-                        title={`${STATUS_LABELS[issue.status]} · ${fmt(startDay)} → ${fmt(endDay)}${overdue ? " · OVERDUE" : ""}`}
+                        title={`${STATUS_LABELS[issue.status]} · ${fmt(startDay + nudged)} → ${fmt(endDay + nudged)}${overdue ? " · OVERDUE" : ""}${canReschedule ? " · drag to reschedule" : ""}`}
                       />
                     </div>
                   </div>
