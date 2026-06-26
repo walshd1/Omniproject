@@ -346,6 +346,18 @@ test("aggregateFinancials: earnedValue/committed roll up only when EVERY project
   assert.equal(fin.committed, null);
   assert.equal(fin.cpi, null); // can't compute CPI without complete EV
   assert.equal(fin.health, "AMBER"); // spend ratio 135k/150k = 0.9 → AMBER
+  // …but the per-metric coverage is reported so the UI can show "1 of 2".
+  assert.deepEqual(fin.reporting, { total: 2, costed: 2, earnedValue: 1, committed: 0 });
+});
+
+test("aggregateFinancials: reporting.total counts ALL members incl. non-costed", () => {
+  const fin = aggregateFinancials([
+    { id: "a", budget: 100000, actualCost: 80000, earnedValue: 90000, committed: 5000 },
+    { id: "b" }, // no financials at all → not costed, but still a member
+  ])!;
+  assert.equal(fin.reporting.total, 2);
+  assert.equal(fin.reporting.costed, 1);
+  assert.equal(fin.reporting.earnedValue, 1);
 });
 
 test("aggregateFinancials: null when no project carries any financial figure", () => {

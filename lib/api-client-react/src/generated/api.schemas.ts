@@ -147,6 +147,20 @@ export const ProgrammeFinancialsHealth = {
 } as const;
 
 /**
+ * Per-metric reporting coverage, so the UI can show "12 of 15 reporting" inline instead of silently hiding a partially-reported metric.
+ */
+export type ProgrammeFinancialsReporting = {
+  /** All member projects (denominator for portfolio coverage). */
+  total: number;
+  /** Projects carrying any financials (= projectsCounted). */
+  costed: number;
+  /** Of the costed projects, how many reported earned value. */
+  earnedValue: number;
+  /** Of the costed projects, how many reported committed/PO cost. */
+  committed: number;
+};
+
+/**
  * Programme-wide financial roll-up, summed from member projects' financial fields (native currency; the client converts for display). Present only when the backend supplies financial data.
 
  */
@@ -165,6 +179,8 @@ export interface ProgrammeFinancials {
   variancePct: number | null;
   health: ProgrammeFinancialsHealth;
   projectsCounted: number;
+  /** Per-metric reporting coverage, so the UI can show "12 of 15 reporting" inline instead of silently hiding a partially-reported metric. */
+  reporting: ProgrammeFinancialsReporting;
 }
 
 export type ProgrammeRagStatus = typeof ProgrammeRagStatus[keyof typeof ProgrammeRagStatus];

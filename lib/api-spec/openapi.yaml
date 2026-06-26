@@ -932,6 +932,29 @@ components:
           enum: [GREEN, AMBER, RED]
         projectsCounted:
           type: integer
+        reporting:
+          type: object
+          description: >-
+            Per-metric reporting coverage, so the UI can show "12 of 15 reporting"
+            inline instead of silently hiding a partially-reported metric.
+          properties:
+            total:
+              type: integer
+              description: All member projects (denominator for portfolio coverage).
+            costed:
+              type: integer
+              description: Projects carrying any financials (= projectsCounted).
+            earnedValue:
+              type: integer
+              description: Of the costed projects, how many reported earned value.
+            committed:
+              type: integer
+              description: Of the costed projects, how many reported committed/PO cost.
+          required:
+            - total
+            - costed
+            - earnedValue
+            - committed
       required:
         - currency
         - budget
@@ -943,6 +966,7 @@ components:
         - variancePct
         - health
         - projectsCounted
+        - reporting
 
     Programme:
       type: object

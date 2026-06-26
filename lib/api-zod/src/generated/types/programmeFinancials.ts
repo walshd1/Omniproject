@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ProgrammeFinancialsHealth } from './programmeFinancialsHealth';
+import type { ProgrammeFinancialsReporting } from './programmeFinancialsReporting';
 
 /**
  * Programme-wide financial roll-up, summed from member projects' financial fields (native currency; the client converts for display). Present only when the backend supplies financial data.
@@ -26,4 +27,6 @@ export interface ProgrammeFinancials {
   variancePct: number | null;
   health: ProgrammeFinancialsHealth;
   projectsCounted: number;
+  /** Per-metric reporting coverage, so the UI can show "12 of 15 reporting" inline instead of silently hiding a partially-reported metric. */
+  reporting: ProgrammeFinancialsReporting;
 }

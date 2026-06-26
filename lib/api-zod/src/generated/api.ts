@@ -150,7 +150,13 @@ export const ListProgrammesResponseItem = zod.object({
   "variance": zod.number(),
   "variancePct": zod.number().nullable(),
   "health": zod.enum(['GREEN', 'AMBER', 'RED']),
-  "projectsCounted": zod.number()
+  "projectsCounted": zod.number(),
+  "reporting": zod.object({
+  "total": zod.number().describe('All member projects (denominator for portfolio coverage).'),
+  "costed": zod.number().describe('Projects carrying any financials (= projectsCounted).'),
+  "earnedValue": zod.number().describe('Of the costed projects, how many reported earned value.'),
+  "committed": zod.number().describe('Of the costed projects, how many reported committed\/PO cost.')
+}).describe('Per-metric reporting coverage, so the UI can show \"12 of 15 reporting\" inline instead of silently hiding a partially-reported metric.')
 }).describe('Programme-wide financial roll-up, summed from member projects\' financial fields (native currency; the client converts for display). Present only when the backend supplies financial data.\n'),zod.null()]).optional()
 }).describe('A grouping of related projects, derived from project membership.')
 export const ListProgrammesResponse = zod.array(ListProgrammesResponseItem)
@@ -182,7 +188,13 @@ export const GetProgrammeResponse = zod.object({
   "variance": zod.number(),
   "variancePct": zod.number().nullable(),
   "health": zod.enum(['GREEN', 'AMBER', 'RED']),
-  "projectsCounted": zod.number()
+  "projectsCounted": zod.number(),
+  "reporting": zod.object({
+  "total": zod.number().describe('All member projects (denominator for portfolio coverage).'),
+  "costed": zod.number().describe('Projects carrying any financials (= projectsCounted).'),
+  "earnedValue": zod.number().describe('Of the costed projects, how many reported earned value.'),
+  "committed": zod.number().describe('Of the costed projects, how many reported committed\/PO cost.')
+}).describe('Per-metric reporting coverage, so the UI can show \"12 of 15 reporting\" inline instead of silently hiding a partially-reported metric.')
 }).describe('Programme-wide financial roll-up, summed from member projects\' financial fields (native currency; the client converts for display). Present only when the backend supplies financial data.\n'),zod.null()]).optional(),
   "projects": zod.array(zod.object({
   "id": zod.string(),
