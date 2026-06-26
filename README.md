@@ -346,6 +346,7 @@ the common gotchas (router-name consistency, the `Host()` backticks, cross-provi
 | `BASE_PATH` | SPA build | Base path for the SPA (e.g. `/`) |
 | `PUBLIC_URL` | gateway | Public origin, used to build the OIDC redirect URI |
 | `BROKER_URL` | gateway | Target broker webhook (n8n by default); when set, all data is brokered through it (else demo data) |
+| `BROKER_URLS` | gateway | Optional comma-separated **pool** of n8n instances; the broker round-robin load-balances across them with failover (overrides `BROKER_URL`). Pair with n8n queue mode for horizontal scale. |
 | `SESSION_SECRET` | gateway | Signs the session cookie; **required in production** (the gateway refuses to boot on a default/empty value) and shared across replicas |
 | `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | gateway | Enable real SSO (all three required) |
 | `OIDC_SCOPE` | gateway | Scopes (default `openid profile email`) |
