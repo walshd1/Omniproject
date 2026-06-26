@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { describe, it, expect, beforeAll } from "vitest";
+import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import {
@@ -146,5 +146,59 @@ describe("GanttChart", () => {
     });
     await user.click(screen.getByRole("button", { name: "Design API" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  // jsdom doesn't implement pointer capture; stub so the drag handlers can run.
+  beforeAll(() => {
+    Element.prototype.setPointerCapture = () => {};
+    Element.prototype.releasePointerCapture = () => {};
+  });
+
+  function draggableClient(): QueryClient {
+    const qc = seeded([issue({ id: "a", title: "Design API", startDate: isoDaysFromNow(1), dueDate: isoDaysFromNow(5), version: 3 })]);
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: { startDate: { surface: true, store: true }, dueDate: { surface: true, store: true } },
+    } as unknown as Capabilities);
+    return qc;
+  }
+
+  // jsdom's PointerEvent drops clientX from fireEvent init, so dispatch a pointer
+  // event with clientX forced on (the handlers read e.clientX).
+  function pointer(el: Element, type: string, clientX: number) {
+    const ev = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(ev, "clientX", { value: clientX });
+    Object.defineProperty(ev, "pointerId", { value: 1 });
+    fireEvent(el, ev);
+  }
+
+  it("treats a moved pointer gesture as a drag, not a click (no dialog opens)", async () => {
+    const qc = draggableClient();
+    renderWithProviders(<GanttChart projectId={PROJECT_ID} />, { client: qc });
+    const bar = screen.getByTestId("gantt-bar-a");
+
+    // down → move beyond the 3px slop → up: the `moved` ref makes this a drag,
+    // so commitReschedule runs and the edit dialog is NOT opened.
+    pointer(bar, "pointerdown", 100);
+    pointer(bar, "pointermove", 140);
+    pointer(bar, "pointerup", 140);
+
+    await Promise.resolve();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("a pointer down+up without movement is a click (opens the dialog), not a reschedule", async () => {
+    const qc = draggableClient();
+    renderWithProviders(<GanttChart projectId={PROJECT_ID} />, { client: qc });
+    const bar = screen.getByTestId("gantt-bar-a");
+    const before = (qc.getQueryData<Issue[]>(getGetProjectIssuesQueryKey(PROJECT_ID)) ?? [])[0]!.startDate;
+
+    fireEvent.pointerDown(bar, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerUp(bar, { clientX: 101, pointerId: 1 }); // within the 3px slop
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // No reschedule happened.
+    const after = (qc.getQueryData<Issue[]>(getGetProjectIssuesQueryKey(PROJECT_ID)) ?? [])[0]!.startDate;
+    expect(after).toEqual(before);
   });
 });
