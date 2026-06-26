@@ -1,5 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { NAV_ITEMS } from "./nav";
+import { QueryClient } from "@tanstack/react-query";
+import { getGetCapabilitiesQueryKey, type Capabilities } from "@workspace/api-client-react";
+import { renderWithProviders } from "../test/utils";
+import { NAV_ITEMS, useVisibleNavItems } from "./nav";
+
+function Probe() {
+  const items = useVisibleNavItems();
+  return (
+    <ul>
+      {items.map((i) => (
+        <li key={i.href}>{i.label}</li>
+      ))}
+    </ul>
+  );
+}
+
+function withProgramme(surface: boolean): QueryClient {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  qc.setQueryData(getGetCapabilitiesQueryKey(), {
+    mode: "n8n",
+    entities: { programme: { surface, store: surface } },
+  } as unknown as Capabilities);
+  return qc;
+}
 
 describe("NAV_ITEMS", () => {
   it("exposes the expected hrefs in order", () => {
@@ -52,5 +75,18 @@ describe("NAV_ITEMS", () => {
       ["/settings", "G+S"],
     ]);
     expect(NAV_ITEMS.find((n) => n.href === "/programmes")!.chord).toBeUndefined();
+  });
+});
+
+describe("useVisibleNavItems — entity gating", () => {
+  it("hides Programmes when the backend can't surface the entity", () => {
+    const { queryByText } = renderWithProviders(<Probe />, { client: withProgramme(false) });
+    expect(queryByText("Programmes")).toBeNull();
+    expect(queryByText("Projects")).not.toBeNull(); // ungated items stay
+  });
+
+  it("shows Programmes when the backend can surface it", () => {
+    const { queryByText } = renderWithProviders(<Probe />, { client: withProgramme(true) });
+    expect(queryByText("Programmes")).not.toBeNull();
   });
 });

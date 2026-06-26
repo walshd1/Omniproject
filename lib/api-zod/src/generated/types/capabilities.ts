@@ -5,6 +5,8 @@
  * OmniProject API — thin proxy gateway to n8n webhooks
  * OpenAPI spec version: 0.1.0
  */
+import type { CapabilitiesEntities } from './capabilitiesEntities';
+import type { CapabilitiesFields } from './capabilitiesFields';
 
 /**
  * Data domains the wired backend(s) can populate.
@@ -23,4 +25,8 @@ export interface Capabilities {
   raid: boolean;
   /** Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default). */
   timeTravel: boolean;
+  /** Per-field support: which work-item fields the backend can surface (read/display) and store (write back). Absent ⇒ derive from domains. */
+  fields?: CapabilitiesFields;
+  /** Per-entity support (e.g. programme, project): whether the entity can be surfaced and/or stored. A programme only exists when the backend can carry programme grouping. */
+  entities?: CapabilitiesEntities;
 }

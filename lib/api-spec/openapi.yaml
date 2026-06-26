@@ -1051,6 +1051,21 @@ components:
           description: >-
             Whether historical time-travel is available — true only when the
             operator has opted in to the logging-server egress (off by default).
+        fields:
+          type: object
+          description: >-
+            Per-field support: which work-item fields the backend can surface
+            (read/display) and store (write back). Absent ⇒ derive from domains.
+          additionalProperties:
+            $ref: '#/components/schemas/FieldSupport'
+        entities:
+          type: object
+          description: >-
+            Per-entity support (e.g. programme, project): whether the entity can
+            be surfaced and/or stored. A programme only exists when the backend
+            can carry programme grouping.
+          additionalProperties:
+            $ref: '#/components/schemas/FieldSupport'
       required:
         - mode
         - issues
@@ -1063,6 +1078,18 @@ components:
         - history
         - raid
         - timeTravel
+
+    FieldSupport:
+      type: object
+      description: Whether a field/entity can be surfaced (read) and stored (written).
+      properties:
+        surface:
+          type: boolean
+        store:
+          type: boolean
+      required:
+        - surface
+        - store
 
     Settings:
       type: object

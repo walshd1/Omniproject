@@ -7,7 +7,7 @@ import { NotificationsBell } from "../NotificationsBell";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
 import { LogOut, Menu } from "lucide-react";
-import { NAV_ITEMS } from "../../lib/nav";
+import { useVisibleNavItems } from "../../lib/nav";
 import { useAuth, logout } from "../../lib/auth";
 import { useSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
@@ -25,6 +25,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const { data: auth, isLoading: authLoading } = useAuth();
   const { data: setup } = useSetupStatus();
   const { data: projects } = useListProjects();
+  const navItems = useVisibleNavItems();
   const health = useHealthCheck({
     query: { queryKey: getHealthCheckQueryKey(), refetchInterval: 30_000, retry: false },
   });
@@ -119,7 +120,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // mobile drawer. `compact` drops the chord hints (meaningless on touch).
   const navList = (compact = false) => (
     <nav className="flex-1 py-4 flex flex-col gap-1 px-2 overflow-y-auto">
-      {NAV_ITEMS.map((item) => {
+      {navItems.map((item) => {
         const Icon = item.icon;
         const active = item.match(location);
         const demoDot = item.href === "/setup" && setup && !setup.broker.configured;
