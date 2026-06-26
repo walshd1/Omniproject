@@ -121,6 +121,12 @@ export class DemoBroker implements Broker {
         labels: input.labels ?? [],
         startDate: input.startDate ?? null,
         dueDate: input.dueDate ?? null,
+        // Optional per-task financials — only carried when supplied.
+        ...(input.budget != null ? { budget: input.budget } : {}),
+        ...(input.actualCost != null ? { actualCost: input.actualCost } : {}),
+        ...(input.billable != null ? { billable: input.billable } : {}),
+        ...(input.costCenter ? { costCenter: input.costCenter } : {}),
+        ...(input.currency ? { currency: input.currency } : {}),
         source: backend === "openproject" ? "openproject" : "plane",
         version: 1,
         createdAt: new Date().toISOString(),

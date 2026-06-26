@@ -200,6 +200,11 @@ A normalised issue/work-item row. `version` is the concurrency token.
 | `title` | string | yes |  |
 | `status` | string | yes |  |
 | `version` | number | — |  |
+| `budget` | number \| null | — |  |
+| `actualCost` | number \| null | — |  |
+| `billable` | boolean \| null | — |  |
+| `costCenter` | string \| null | — |  |
+| `currency` | string \| null | — |  |
 | _(other)_ | any | — | Open row — backend-specific fields pass through. |
 
 ### IssueWrite
@@ -218,6 +223,11 @@ A normalised issue mutation. `expectedVersion` drives optimistic concurrency.
 | `labels` | string[] | — |  |
 | `startDate` | string \| null | — |  |
 | `dueDate` | string \| null | — |  |
+| `budget` | number \| null | — |  |
+| `actualCost` | number \| null | — |  |
+| `billable` | boolean \| null | — |  |
+| `costCenter` | string \| null | — |  |
+| `currency` | string \| null | — |  |
 | `expectedVersion` | number | — |  |
 
 ### NotificationIngest

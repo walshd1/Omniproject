@@ -1050,6 +1050,17 @@ components:
         updatedAt:
           type: string
           format: date-time
+        budget:
+          type: ["number", "null"]
+          description: Per-task budget (financial field group; surfaced only when the backend supports financials).
+        actualCost:
+          type: ["number", "null"]
+        billable:
+          type: ["boolean", "null"]
+        costCenter:
+          type: ["string", "null"]
+        currency:
+          type: ["string", "null"]
         customFields:
           type: object
           additionalProperties: true
@@ -1095,6 +1106,16 @@ components:
         dueDate:
           type: ["string", "null"]
           format: date
+        budget:
+          type: ["number", "null"]
+        actualCost:
+          type: ["number", "null"]
+        billable:
+          type: ["boolean", "null"]
+        costCenter:
+          type: ["string", "null"]
+        currency:
+          type: ["string", "null"]
       required:
         - title
 
@@ -1218,6 +1239,16 @@ components:
         dueDate:
           type: ["string", "null"]
           format: date
+        budget:
+          type: ["number", "null"]
+        actualCost:
+          type: ["number", "null"]
+        billable:
+          type: ["boolean", "null"]
+        costCenter:
+          type: ["string", "null"]
+        currency:
+          type: ["string", "null"]
         origin:
           type: string
           description: >-

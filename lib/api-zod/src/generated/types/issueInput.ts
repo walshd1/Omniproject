@@ -21,4 +21,14 @@ export interface IssueInput {
   startDate?: Date | null;
   /** @nullable */
   dueDate?: Date | null;
+  /** @nullable */
+  budget?: number | null;
+  /** @nullable */
+  actualCost?: number | null;
+  /** @nullable */
+  billable?: boolean | null;
+  /** @nullable */
+  costCenter?: string | null;
+  /** @nullable */
+  currency?: string | null;
 }

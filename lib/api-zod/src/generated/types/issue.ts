@@ -37,6 +37,19 @@ export interface Issue {
   lastUpdatedBy?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /**
+     * Per-task budget (financial field group; surfaced only when the backend supports financials).
+     * @nullable
+     */
+  budget?: number | null;
+  /** @nullable */
+  actualCost?: number | null;
+  /** @nullable */
+  billable?: boolean | null;
+  /** @nullable */
+  costCenter?: string | null;
+  /** @nullable */
+  currency?: string | null;
   /** Backend-specific fields that aren't (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it. */
   customFields?: IssueCustomFields;
 }
