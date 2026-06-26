@@ -1,8 +1,20 @@
-import { useListProjects } from "@workspace/api-client-react";
+import { useListProjects, useGetProjectIssues, useGetCapabilities, getGetProjectIssuesQueryKey } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { AgileBoard } from "../components/board/AgileBoard";
 import { ExportMenu } from "../components/ExportMenu";
+import { DataProvenance } from "../components/DataProvenance";
 import { ProjectFinancialsStrip } from "../components/ProjectFinancialsStrip";
+
+/** A representative spread across the field groups, to expose where issue data
+ *  is sparse (people / schedule / effort / financial / agile / quality). */
+const ISSUE_FIELDS = [
+  { key: "assignee", label: "Assignee" },
+  { key: "dueDate", label: "Due date" },
+  { key: "estimateHours", label: "Estimate" },
+  { key: "budget", label: "Budget" },
+  { key: "storyPoints", label: "Story points" },
+  { key: "healthStatus", label: "Health" },
+];
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -15,6 +27,8 @@ import {
 export function ProjectDetail({ projectId }: { projectId: string }) {
   const { data: projects } = useListProjects();
   const project = projects?.find((p) => p.id === projectId);
+  const { data: caps } = useGetCapabilities();
+  const { data: issues } = useGetProjectIssues(projectId, { query: { queryKey: getGetProjectIssuesQueryKey(projectId) } });
 
   return (
     <div className="h-full flex flex-col">
@@ -46,7 +60,10 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
           ) : (
             <h1 className="text-xl font-black uppercase tracking-tighter">PROJECT</h1>
           )}
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-3">
+            {issues && issues.length > 0 && (
+              <DataProvenance rows={issues as unknown as Record<string, unknown>[]} fields={ISSUE_FIELDS} mode={caps?.mode} filename={`issues-${projectId}`} />
+            )}
             <ExportMenu projectId={projectId} />
           </div>
         </div>
