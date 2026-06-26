@@ -13,6 +13,7 @@ import {
   type Issue,
   type IssueWrite,
   type ProjectWrite,
+  type ProjectMember,
   type TaskItem,
   type TaskItemWrite,
   type Summary,
@@ -157,6 +158,16 @@ export class DemoBroker implements Broker {
     recountProject(projectId); // a status change to/from "done" moves completedCount
     persistDemoState();
     return updated as unknown as Issue;
+  }
+
+  async projectMembers(_ctx: ActorContext, _projectId: string): Promise<ProjectMember[]> {
+    // Sample membership — a mix of write and read access, so the assignee picker
+    // (write-only) visibly differs from the full roster.
+    return [
+      { id: "u-ada", name: "Ada Lovelace", email: "ada@demo.local", access: "write" },
+      { id: "u-grace", name: "Grace Hopper", email: "grace@demo.local", access: "write" },
+      { id: "u-alan", name: "Alan Turing", email: "alan@demo.local", access: "read" },
+    ];
   }
 
   async listTaskItems(_ctx: ActorContext, _projectId: string, taskId: string): Promise<TaskItem[]> {

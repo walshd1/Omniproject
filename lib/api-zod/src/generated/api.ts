@@ -278,6 +278,23 @@ export const DeleteIssueParams = zod.object({
 
 
 /**
+ * Backend-owned project membership; drives the assignee picker (only write-access people can be assigned). Available when the backend can surface members (capabilities.entities.member).
+ * @summary People on a project, with their access level
+ */
+export const ListProjectMembersParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const ListProjectMembersResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "access": zod.enum(['read', 'write'])
+}).describe('A person on a project, with their access level (backend-owned).')
+export const ListProjectMembersResponse = zod.array(ListProjectMembersResponseItem)
+
+
+/**
  * The 0..many issues/notes raised against a task. Only meaningful when the backend can store them (capabilities.entities.issue / .note).
  * @summary List a task's child issues & notes
  */

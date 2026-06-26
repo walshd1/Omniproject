@@ -350,6 +350,31 @@ paths:
         "204":
           description: Deleted
 
+  /projects/{projectId}/members:
+    get:
+      operationId: listProjectMembers
+      tags: [projects]
+      summary: People on a project, with their access level
+      description: >-
+        Backend-owned project membership; drives the assignee picker (only
+        write-access people can be assigned). Available when the backend can
+        surface members (capabilities.entities.member).
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Project members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProjectMember"
+
   /projects/{projectId}/issues/{issueId}/items:
     get:
       operationId: listTaskItems
@@ -996,6 +1021,23 @@ components:
           format: date
       required:
         - title
+
+    ProjectMember:
+      type: object
+      description: A person on a project, with their access level (backend-owned).
+      properties:
+        id:
+          type: string
+        name:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        access:
+          type: string
+          enum: [read, write]
+      required:
+        - id
+        - access
 
     TaskItem:
       type: object

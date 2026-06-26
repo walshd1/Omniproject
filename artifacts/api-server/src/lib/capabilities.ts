@@ -41,7 +41,7 @@ export const FIELD_KEYS: readonly string[] = FIELD_REGISTRY.map((f) => f.key);
  * 0..many children a task can carry *if the backend can store them* — distinct
  * from the work-item itself (which the UI labels "Task").
  */
-export const ENTITY_KEYS = ["project", "programme", "raid", "issue", "note"] as const;
+export const ENTITY_KEYS = ["project", "programme", "raid", "issue", "note", "member"] as const;
 
 export interface Capabilities extends Record<CapabilityDomain, boolean> {
   mode: string;
@@ -90,6 +90,8 @@ export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean
       // issues/notes against a task (via Broker.fieldMap), else they're hidden.
       issue: sup(false),
       note: sup(false),
+      // Project members (with access level) — opt-in; drives the assignee picker.
+      member: sup(false),
     },
   };
 }

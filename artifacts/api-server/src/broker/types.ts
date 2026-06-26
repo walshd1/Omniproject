@@ -75,6 +75,15 @@ export interface IssueWrite {
   expectedVersion?: number;
 }
 
+/** A person on a project, with their access level (the backend is the source). */
+export interface ProjectMember extends Row {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  /** "write" = can be assigned/act on work; "read" = view-only. */
+  access: "read" | "write";
+}
+
 /** A normalised project create/update. `name` is required on create. */
 export interface ProjectWrite {
   name?: string;
@@ -218,6 +227,8 @@ export interface Broker {
   createProject(ctx: ActorContext, input: ProjectWrite): Promise<Project>;
   /** Update a project — incl. programmeId grouping (manager+, capability-gated). */
   updateProject(ctx: ActorContext, projectId: string, input: ProjectWrite): Promise<Project>;
+  /** People on a project with their access level (capability-gated). */
+  projectMembers(ctx: ActorContext, projectId: string): Promise<ProjectMember[]>;
   listIssues(ctx: ActorContext, projectId: string): Promise<Issue[]>;
   getIssue(ctx: ActorContext, projectId: string, issueId: string): Promise<Issue | null>;
   writeIssue(ctx: ActorContext, op: "create" | "update" | "delete", input: IssueWrite): Promise<Issue | null>;
