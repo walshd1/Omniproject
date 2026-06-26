@@ -183,4 +183,14 @@ posture:
 A built-in graphical view designer is a roadmap candidate, but it would be built
 on top of one of these two patterns — never by giving the gateway a database.
 
+### Prefer to have it built for you?
+
+The view layer is **open Apache-2.0 core and fully documented** — the recipe
+above is all there is, and nothing about building a view is black-boxed. If you'd
+rather not write it yourself, building a methodology view can be offered as a
+**paid professional-services engagement**: you're paying for our time, not for
+access. A view we build for you ships as ordinary Apache-2.0 source you own, and
+the build mechanism stays open whether or not you take the service. See
+[LICENSING.md → Licensed features vs. professional services](../LICENSING.md#licensed-features-vs-professional-services).
+
 See also: [DATA-REQUIREMENTS.md](DATA-REQUIREMENTS.md) · [TECHNICAL.md](TECHNICAL.md) · [README](../README.md).
