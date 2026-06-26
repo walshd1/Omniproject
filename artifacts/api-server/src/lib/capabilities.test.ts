@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { deriveFieldMap } from "./capabilities";
 import { DemoBroker } from "../broker/demo";
-import type { ActorContext } from "../broker/types";
 
 const ALL = {
   issues: true,
@@ -45,7 +44,7 @@ test("deriveFieldMap: project is read-through by default (surface, no store)", (
 });
 
 test("DemoBroker.fieldMap: everything supported except read-only completionPct", async () => {
-  const map = await new DemoBroker().fieldMap({} as ActorContext);
+  const map = await new DemoBroker().fieldMap();
   assert.equal(map.fields.storyPoints.store, true);
   assert.equal(map.fields.completionPct.surface, true);
   assert.equal(map.fields.completionPct.store, false);
