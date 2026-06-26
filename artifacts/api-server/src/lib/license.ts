@@ -41,7 +41,7 @@ export interface LicensePayload {
 export interface LicenseStatus {
   valid: boolean;
   /** Where the entitlements came from. */
-  source: "license" | "dev" | "none";
+  source: "license" | "dev" | "none" | "pre-community";
   tier: string;
   customer: string | null;
   features: LicenseFeature[];
@@ -160,8 +160,36 @@ function sanitizeFeatures(input: unknown): LicenseFeature[] {
   return LICENSE_FEATURES.filter((f) => input.includes(f));
 }
 
+/**
+ * Pre-community period: premium is FREE to run.
+ *
+ * Enforcement is deliberately dormant — NOT removed. While `PREMIUM_ENFORCEMENT`
+ * is not "on", every premium feature is granted by default so the whole product
+ * is usable without a key, yet ALL the Ed25519 signing/verification machinery
+ * below stays intact (and tested). Setting `PREMIUM_ENFORCEMENT=on` restores the
+ * paywall — that is how enforcement returns later. Deliberate and temporary; see
+ * LICENSING.md.
+ */
+export function premiumEnforced(): boolean {
+  return process.env["PREMIUM_ENFORCEMENT"]?.trim().toLowerCase() === "on";
+}
+
 /** Resolve current entitlements from env/config. Pure w.r.t. the supplied `now`. */
 export function resolveLicense(now = Date.now()): LicenseStatus {
+  // Pre-community: grant everything unless enforcement is explicitly switched on.
+  if (!premiumEnforced()) {
+    return {
+      valid: true,
+      source: "pre-community",
+      tier: "pre-community",
+      customer: null,
+      features: [...LICENSE_FEATURES],
+      expiresAt: null,
+      expiresInDays: null,
+      reason: "premium is free during the pre-community period (set PREMIUM_ENFORCEMENT=on to enforce)",
+    };
+  }
+
   const token = process.env["LICENSE_KEY"]?.trim();
   const pub = publicKey();
 

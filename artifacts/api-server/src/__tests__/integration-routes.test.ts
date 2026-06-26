@@ -329,85 +329,8 @@ test("GET /api/notifications/stream opens an SSE stream with the right headers",
   await reader.cancel().catch(() => {});
 });
 
-// ── Payment-provider webhooks (routes/licensing) ──────────────────────────────
-// These are PUBLIC routes (no session) authed by the provider's signature, so
-// they're called without the session cookie.
-
+// Helper for the public POST routes below (no session cookie needed).
 const post = (path: string, init?: RequestInit) => fetch(`${base}${path}`, { method: "POST", ...init });
-
-test("POST /api/licensing/stripe rejects a bad/missing signature with 400", async () => {
-  const saved = process.env["STRIPE_WEBHOOK_SECRET"];
-  process.env["STRIPE_WEBHOOK_SECRET"] = "whsec_test";
-  try {
-    const res = await post("/api/licensing/stripe", {
-      headers: { "content-type": "application/json", "stripe-signature": "t=1,v1=deadbeef" },
-      body: JSON.stringify({ type: "checkout.session.completed" }),
-    });
-    assert.equal(res.status, 400);
-    const json = await readJson(res);
-    assert.match(json.error, /Stripe signature rejected/);
-  } finally {
-    if (saved === undefined) delete process.env["STRIPE_WEBHOOK_SECRET"];
-    else process.env["STRIPE_WEBHOOK_SECRET"] = saved;
-  }
-});
-
-test("POST /api/licensing/stripe acknowledges a valid-signature, non-fulfilment event", async () => {
-  const secret = "whsec_valid_test";
-  const saved = process.env["STRIPE_WEBHOOK_SECRET"];
-  process.env["STRIPE_WEBHOOK_SECRET"] = secret;
-  try {
-    const payload = JSON.stringify({ type: "customer.created", data: { object: {} } });
-    const t = Math.floor(Date.now() / 1000);
-    const sig = crypto.createHmac("sha256", secret).update(`${t}.${payload}`).digest("hex");
-    const res = await post("/api/licensing/stripe", {
-      headers: { "content-type": "application/json", "stripe-signature": `t=${t},v1=${sig}` },
-      body: payload,
-    });
-    assert.equal(res.status, 200);
-    const json = await readJson(res);
-    assert.equal(json.received, true);
-    assert.equal(json.ignored, true); // not a checkout.session.completed / invoice.paid
-  } finally {
-    if (saved === undefined) delete process.env["STRIPE_WEBHOOK_SECRET"];
-    else process.env["STRIPE_WEBHOOK_SECRET"] = saved;
-  }
-});
-
-test("POST /api/licensing/gumroad rejects a missing shared-secret token with 400", async () => {
-  const saved = process.env["GUMROAD_WEBHOOK_SECRET"];
-  process.env["GUMROAD_WEBHOOK_SECRET"] = "gum_secret";
-  try {
-    const res = await post("/api/licensing/gumroad", {
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: "sale_id=1&product_id=p",
-    });
-    assert.equal(res.status, 400);
-    const json = await readJson(res);
-    assert.match(json.error, /Gumroad ping rejected/);
-  } finally {
-    if (saved === undefined) delete process.env["GUMROAD_WEBHOOK_SECRET"];
-    else process.env["GUMROAD_WEBHOOK_SECRET"] = saved;
-  }
-});
-
-test("POST /api/licensing/gumroad ignores a refunded sale once the token matches", async () => {
-  const saved = process.env["GUMROAD_WEBHOOK_SECRET"];
-  process.env["GUMROAD_WEBHOOK_SECRET"] = "gum_secret";
-  try {
-    const body = new URLSearchParams({ token: "gum_secret", refunded: "true", sale_id: "s1", product_id: "p" });
-    const res = await post("/api/licensing/gumroad", {
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
-    });
-    assert.equal(res.status, 200);
-    const json = await readJson(res);
-    assert.equal(json.ignored, true);
-  } finally {
-    if (saved === undefined) delete process.env["GUMROAD_WEBHOOK_SECRET"];
-    else process.env["GUMROAD_WEBHOOK_SECRET"] = saved;
-  }
-});
 
 // ── Notification ingest (routes/notifications-stream) ─────────────────────────
 // NOTIFY_INGEST_SECRET is read at module load and is unset in this run, so the

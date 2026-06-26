@@ -434,9 +434,10 @@ See the [CHANGELOG (0.4.0)](CHANGELOG.md) for per-feature detail.
 use, including commercial. A small set of **premium features** (white-label
 branding, company nomenclature, outbound webhooks, and the **prebuilt enterprise
 workflows** for SAP / Primavera / Dynamics 365 / Project) is source-available
-under the **OmniProject Premium License** ([`LICENSE-PREMIUM.txt`](LICENSE-PREMIUM.txt))
-and requires a licence key to run in production. See **[LICENSING.md](LICENSING.md)**
-for the full model, including how purchases auto-mint a key via Stripe/Gumroad.
+under the **OmniProject Premium License** ([`licenses/PREMIUM.txt`](licenses/PREMIUM.txt)).
+**During the pre-community period these premium features are free to run** —
+enforcement is dormant (deliberate and temporary). See **[LICENSING.md](LICENSING.md)**
+for the full open-core model and how enforcement returns later.
 
 **The tools to *build* are open — only prebuilt convenience is paid.** Adding a
 **methodology view**, and **building an n8n workflow** for any backend (including
