@@ -12,6 +12,7 @@ import {
   type Project,
   type Issue,
   type IssueWrite,
+  type ProjectWrite,
   type Summary,
   type HistoryPoint,
   type HistoryState,
@@ -33,6 +34,7 @@ import {
 
 let issueCounter = 100;
 let raidCounter = 100;
+let projectCounter = 100;
 
 /**
  * Recompute a project row's denormalised issueCount/completedCount from its
@@ -60,6 +62,37 @@ export class DemoBroker implements Broker {
 
   async listIssues(_ctx: ActorContext, projectId: string): Promise<Issue[]> {
     return (SAMPLE_ISSUES[projectId] ?? []) as unknown as Issue[];
+  }
+
+  async createProject(_ctx: ActorContext, input: ProjectWrite): Promise<Project> {
+    const id = `proj-${++projectCounter}`;
+    const project: Row = {
+      id,
+      name: input.name ?? "Untitled project",
+      identifier: input.identifier ?? id.toUpperCase(),
+      description: input.description ?? null,
+      source: getSettings().backendSource || "plane",
+      programmeId: input.programmeId ?? null,
+      programmeName: null,
+      issueCount: 0,
+      completedCount: 0,
+      memberCount: 1,
+      updatedAt: new Date().toISOString(),
+    };
+    SAMPLE_PROJECTS.push(project);
+    persistDemoState();
+    return project as unknown as Project;
+  }
+
+  async updateProject(_ctx: ActorContext, projectId: string, input: ProjectWrite): Promise<Project> {
+    const proj = SAMPLE_PROJECTS.find((p) => p["id"] === projectId);
+    if (!proj) throw new BrokerError("not_found", "Project not found");
+    if (input.name !== undefined) proj["name"] = input.name;
+    if (input.description !== undefined) proj["description"] = input.description;
+    if (input.programmeId !== undefined) proj["programmeId"] = input.programmeId;
+    proj["updatedAt"] = new Date().toISOString();
+    persistDemoState();
+    return proj as unknown as Project;
   }
 
   async getIssue(_ctx: ActorContext, projectId: string, issueId: string): Promise<Issue | null> {

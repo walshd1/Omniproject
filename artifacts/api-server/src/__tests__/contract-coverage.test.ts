@@ -32,7 +32,8 @@ function openapiPaths(): string[] {
 const COVERED: Record<string, string> = {
   "/healthz": "security.test.ts, e2e-smoke",
   "/broker/command": "verify-n8n",
-  "/projects": "security.test.ts, e2e-smoke, broker-conformance",
+  "/projects": "security.test.ts, e2e-smoke, broker-conformance (createProject)",
+  "/projects/{projectId}": "broker-conformance (updateProject / programme grouping)",
   "/programmes": "verify-n8n",
   "/programmes/{programmeId}": "verify-n8n",
   "/projects/{projectId}/issues": "security.test.ts, e2e-smoke, broker-conformance",

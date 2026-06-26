@@ -10,6 +10,7 @@ import {
   type Project,
   type Issue,
   type IssueWrite,
+  type ProjectWrite,
   type Summary,
   type HistoryPoint,
   type HistoryState,
@@ -169,6 +170,18 @@ export class N8nBroker implements Broker {
   async listIssues(ctx: ActorContext, projectId: string): Promise<Issue[]> {
     const r = await callN8n<Issue[]>("list_issues", { projectId }, { ctx, source: backendSource(), withActor: false });
     return r.data ?? [];
+  }
+
+  async createProject(ctx: ActorContext, input: ProjectWrite): Promise<Project> {
+    const r = await callN8n<Project>("create_project", { ...input }, { ctx, source: backendSource(), withActor: true });
+    if (!r.data) throw new BrokerError("bad_request", "create_project returned no project");
+    return r.data;
+  }
+
+  async updateProject(ctx: ActorContext, projectId: string, input: ProjectWrite): Promise<Project> {
+    const r = await callN8n<Project>("update_project", { projectId, ...input }, { ctx, source: backendSource(), withActor: true });
+    if (!r.data) throw new BrokerError("bad_request", "update_project returned no project");
+    return r.data;
   }
 
   async getIssue(ctx: ActorContext, projectId: string, issueId: string): Promise<Issue | null> {

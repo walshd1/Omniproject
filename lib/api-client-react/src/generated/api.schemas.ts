@@ -110,6 +110,33 @@ export interface Project {
   updatedAt: string;
 }
 
+/**
+ * Fields to create a project (brokered to the backend).
+ */
+export interface ProjectInput {
+  name: string;
+  /** @nullable */
+  identifier?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /**
+     * Optional programme to join on creation.
+     * @nullable
+     */
+  programmeId?: string | null;
+}
+
+/**
+ * Project fields to update (all optional). programmeId groups it.
+ */
+export interface ProjectUpdate {
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  programmeId?: string | null;
+}
+
 export type ProgrammeRagStatus = typeof ProgrammeRagStatus[keyof typeof ProgrammeRagStatus];
 
 
