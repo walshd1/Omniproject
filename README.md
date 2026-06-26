@@ -6,14 +6,17 @@
 > different view onto them. It **fits the stack you already have** — from the whole
 > thing on a single Docker host, to Kubernetes, in front of anything from a team's
 > Jira to an enterprise's SAP — and reaches them through one **swappable broker
-> seam**. n8n is our broker today; **if you run something else, it copes.**
+> seam** defined by a [published contract](docs/CONTRACT.md). OmniProject is
+> **broker-agnostic by design, with n8n as the reference broker**; **if you run
+> something else, you implement the contract and it copes.**
 
 Most "single pane of glass" tools quietly become a *second* place your data
 lives: they copy issues into their own store, and then you spend your life
 fixing sync drift. **OmniProject stores nothing.** Every read and write is
-brokered live through n8n to the systems that already own your data (Jira,
-OpenProject, ServiceNow, SAP, …). There is no copy, so there is nothing to fall
-out of sync — the backend is always right, and OmniProject just renders it.
+brokered live — through the reference broker, n8n, by default — to the systems
+that already own your data (Jira, OpenProject, ServiceNow, SAP, … as
+illustrative examples, not a fixed list). There is no copy, so there is nothing
+to fall out of sync — the backend is always right, and OmniProject just renders it.
 
 **Why no database is the feature, not a gap:**
 
@@ -63,13 +66,13 @@ It's a brutalist, keyboard-driven shell that slots in *alongside* what an
 organization already runs, instead of asking them to move into it.
 
 ```
-┌─────────────┐     /api/*      ┌──────────────┐    webhook     ┌────────┐    ┌──────────────┐
-│  SPA (Vite) │ ───────────────▶│  Gateway     │ ──────────────▶│  n8n   │───▶│ your backends │
-│  React 19   │◀─────────────── │  (Express)   │◀────────────── │        │    │ Jira / OP /   │
-└─────────────┘   normalized    └──────┬───────┘   normalized   └────────┘    │ ServiceNow /  │
-   (a view, not a copy)                │  OIDC (Authorization Code + PKCE)     │ SAP …         │
-                                       ▼                                       └──────────────┘
-                                  ┌──────────┐                          (the single source of truth)
+┌─────────────┐     /api/*      ┌──────────────┐   contract    ┌──────────────┐    ┌──────────────┐
+│  SPA (Vite) │ ───────────────▶│  Gateway     │ ─────────────▶│   broker     │───▶│ your backends │
+│  React 19   │◀─────────────── │  (Express)   │◀───────────── │ (n8n default)│    │ Jira / OP /   │
+└─────────────┘   normalized    └──────┬───────┘   normalized  └──────────────┘    │ ServiceNow /  │
+   (a view, not a copy)                │  OIDC (Authorization Code + PKCE)         │ SAP …         │
+                                       ▼                          ▲               └──────────────┘
+                                  ┌──────────┐         docs/CONTRACT.md       (the single source of truth)
                                   │   IdP    │  Authentik (standalone) / BYO-SSO (enterprise)
                                   └──────────┘
 ```
@@ -81,10 +84,13 @@ vocabulary — and **above that seam the codebase is structurally incapable of
 knowing the broker is n8n.** Every route, report, exporter, and the entire SPA
 speak only that interface; none of them name, import, or assume n8n.
 
-- **n8n is the *default* adapter, not a lock-in.** It's the only implementation
-  that ships today because it's all you need — but if you ever replace or
-  supplement it, you implement **one class** and *nothing above the seam moves*:
-  the UI, the API surface, and the data model are untouched.
+- **DemoBroker proves the seam is generic.** A second, in-process broker
+  (`DemoBroker`) ships alongside n8n and serves the entire app from sample data
+  with no backend at all — concrete proof that "above the seam knows nothing of
+  n8n" is real, not aspirational. n8n is the **reference broker** that ships for
+  production; if you ever replace or supplement it, you implement **one class**
+  against the published contract and *nothing above the seam moves* — the UI, the
+  API surface, and the data model are untouched.
 - **The boundary is enforced, not aspirational.** A CI **architecture-guard**
   fails the build if any n8n-ism leaks across the seam, and a broker-agnostic
   **conformance suite** is the contract any adapter must pass — DemoBroker is the
@@ -108,8 +114,9 @@ container** (`omni-shell`) on port `3000`.
 
 ### Connect to (almost) anything
 
-Because the only thing underneath is n8n, the set of systems you can plug in is
-effectively open-ended — there's no fixed connector list to wait on:
+Because the reference broker is n8n — and anything n8n can reach becomes a
+backend — the set of systems you can plug in is effectively open-ended, with no
+fixed connector list to wait on (and a different broker can widen it further):
 
 - **Inbound, via n8n** — any of n8n's hundreds of native integrations, *or* anything
   reachable over HTTP/REST/GraphQL/SOAP/gRPC/SQL through n8n's generic nodes.
@@ -120,8 +127,9 @@ effectively open-ended — there's no fixed connector list to wait on:
   Slack, a customer system, or back into another n8n flow — HMAC-signed.
 
 > **Implementing or integrating OmniProject?** See **[docs/TECHNICAL.md](docs/TECHNICAL.md)**
-> for architecture, the n8n contract, the security model, the API surface, and
-> data schemas.
+> for architecture and the security model, and **[docs/CONTRACT.md](docs/CONTRACT.md)**
+> for the published broker contract (the interface a broker implements), the API
+> surface, and data schemas.
 
 ---
 

@@ -19,8 +19,9 @@ source of truth and there is no cached state to fall out of sync — the UI is a
 *view*, never a fork of your data.
 
 Internally the gateway talks to a **`Broker` interface** in its own domain
-vocabulary, never to a backend directly. **n8n is the first and only
-implementation** of that interface; the demo mode is a second (`DemoBroker`). All
+vocabulary, never to a backend directly. **n8n is the reference implementation**
+of that interface; `DemoBroker` is a second, in-process one that proves the seam
+is generic (it serves the whole app from sample data, no backend). All
 n8n specifics are confined to one adapter module behind the seam, and an
 architecture-guard test fails CI if any n8n-ism leaks above it — so "swap the
 broker if n8n is superseded" is a property the build enforces, not just an
@@ -60,8 +61,9 @@ the reference pass, the live n8n run the real-world pass.
 - **Single container.** In production the Express gateway serves both `/api/*`
   and the built SPA (`STATIC_DIR`) on port `3000` — one image (`omni-shell`).
   In development the SPA runs under Vite and proxies `/api` to the gateway.
-- **n8n is the only integration point.** Swapping or adding a backend is an n8n
-  workflow change; the shell and gateway never change.
+- **The broker is the only integration point.** With the reference broker (n8n),
+  swapping or adding a backend is a workflow change; the shell and gateway never
+  change.
 
 ### Tech stack
 

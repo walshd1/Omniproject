@@ -2,20 +2,23 @@
 
 OmniProject talks to whatever fetches and writes the real project data through a
 single **`Broker` interface**, expressed entirely in OmniProject's own domain
-vocabulary. **n8n is the first — and currently only — implementation.** The point
-of the seam is that the gateway is *structurally incapable* of knowing the broker
-is n8n: if n8n is ever superseded, you implement one new class and nothing above
-the seam changes.
+vocabulary and **published as a versioned contract** ([CONTRACT.md](CONTRACT.md)).
+OmniProject is **broker-agnostic by design, with n8n as the reference broker** —
+the production implementation that ships — while `DemoBroker` is a second,
+in-process implementation that proves the seam is generic by serving the whole
+app from sample data with no backend. The point of the seam is that the gateway
+is *structurally incapable* of knowing the broker is n8n: implement the contract
+in one new class and nothing above the seam changes.
 
 ```
  route handlers ─┐
- services        ├─▶  Broker (interface, domain types)  ◀─ N8nBroker  (the only live impl)
+ services        ├─▶  Broker (interface, domain types)  ◀─ N8nBroker  (reference broker)
  exporter / BI  ─┘            src/broker/types.ts        ◀─ DemoBroker (canned data, no network)
 ```
 
 - Interface + domain types: [`artifacts/api-server/src/broker/types.ts`](../artifacts/api-server/src/broker/types.ts)
 - Selection + request→domain context: [`src/broker/index.ts`](../artifacts/api-server/src/broker/index.ts)
-- n8n implementation (the **only** n8n-aware code): [`src/broker/n8n.ts`](../artifacts/api-server/src/broker/n8n.ts)
+- n8n implementation (the reference broker — the **only** n8n-aware code): [`src/broker/n8n.ts`](../artifacts/api-server/src/broker/n8n.ts)
 - Demo implementation: [`src/broker/demo.ts`](../artifacts/api-server/src/broker/demo.ts) (+ `demo-data.ts`)
 
 ## The contract

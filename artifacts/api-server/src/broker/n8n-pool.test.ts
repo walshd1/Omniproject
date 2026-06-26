@@ -4,6 +4,7 @@ import { webhookPool, orderedTargets } from "./n8n";
 
 afterEach(() => {
   delete process.env["BROKER_URLS"];
+  delete process.env["N8N_WEBHOOK_URL"];
 });
 
 test("webhookPool: BROKER_URLS yields a multi-instance pool (trimmed)", () => {
@@ -14,6 +15,14 @@ test("webhookPool: BROKER_URLS yields a multi-instance pool (trimmed)", () => {
 test("webhookPool: a single instance when BROKER_URLS is unset", () => {
   delete process.env["BROKER_URLS"];
   assert.equal(webhookPool().length, 1);
+});
+
+test("webhookPool: falls back to the deprecated N8N_WEBHOOK_URL alias", () => {
+  // BROKER_URL is the current name; N8N_WEBHOOK_URL is honoured for backwards
+  // compatibility when it's the only one set (and no settings override exists).
+  delete process.env["BROKER_URLS"];
+  process.env["N8N_WEBHOOK_URL"] = "http://legacy:5678/webhook/omniproject";
+  assert.deepEqual(webhookPool(), ["http://legacy:5678/webhook/omniproject"]);
 });
 
 test("orderedTargets: round-robins across the pool, covering every instance", () => {

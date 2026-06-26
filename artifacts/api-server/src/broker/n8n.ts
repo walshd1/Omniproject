@@ -39,8 +39,19 @@ import { GATEWAY_ORIGIN, REQUEST_HEADERS, type BrokerEnvelope } from "./contract
  * This module is the sole exception in the architecture guard (docs/BROKER.md).
  */
 
+/**
+ * The single broker webhook URL from the environment. `BROKER_URL` is the
+ * current, broker-neutral name (since 0.2.0); `N8N_WEBHOOK_URL` is accepted as a
+ * deprecated backwards-compatible alias for pre-0.2.0 deployments — deploy files
+ * use `BROKER_URL` (enforced by the deploy guard), the alias is a code-only
+ * safety net.
+ */
+function brokerUrlFromEnv(): string | undefined {
+  return (process.env["BROKER_URL"] ?? process.env["N8N_WEBHOOK_URL"])?.trim() || undefined;
+}
+
 /** True when a broker is wired via the environment (selection signal at boot). */
-const ENV_WEBHOOK = process.env["BROKER_URL"]?.trim();
+const ENV_WEBHOOK = brokerUrlFromEnv();
 export const N8N_ENV_CONFIGURED = !!ENV_WEBHOOK;
 
 /** The canonical response envelope (see broker/contract.ts). */
@@ -61,7 +72,7 @@ export function webhookPool(): string[] {
     const urls = list.split(",").map((u) => u.trim()).filter(Boolean);
     if (urls.length) return urls;
   }
-  return [getSettings().brokerUrl || process.env["BROKER_URL"]?.trim() || DEFAULT_WEBHOOK];
+  return [getSettings().brokerUrl || brokerUrlFromEnv() || DEFAULT_WEBHOOK];
 }
 
 let rrCounter = 0;
