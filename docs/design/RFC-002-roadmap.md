@@ -95,7 +95,7 @@ UI**", not new architecture.
 | --- | --- | --- | --- |
 | n8n load-balancing pool + failover (`BROKER_URLS`) | **Done** (#98) | | gateway→n8n hop. |
 | CI builds + smoke-boots the Docker image | **Done** (#84) | | |
-| **n8n-at-scale load harness** (queue mode + real backend) | **Not started** | M | we have *no* measured n8n throughput numbers — current load test uses the demo broker. |
+| **n8n-at-scale load harness** (queue mode + real backend) | **Foundation laid** ([runbook](../ops/LOAD-HARNESS.md)) | M | Harness shipped: drives reads **and** the write path, labels the broker it measured (demo runs marked `UNVERIFIED`, never passed off as n8n), structured report + verdict, tested pure core. **Still pending:** an actual queue-mode n8n + real-backend run to record numbers — the tool exists, the proof does not yet. |
 | **Short-TTL gateway read cache** (optional scale relaxation) | **Not started** | M | cuts repeated reads off n8n; ephemeral, same trust class as the OData/Power-BI egress. |
 
 ---

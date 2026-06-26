@@ -12,6 +12,8 @@
     "integration:openproject": "tsx ./src/integration-openproject.ts",
     "a11y": "node ./a11y-scan.cjs",
     "license": "tsx ./src/mint-license.ts",
+    "load": "tsx ./src/load-harness.ts",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
