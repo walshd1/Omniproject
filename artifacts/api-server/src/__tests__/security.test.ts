@@ -63,6 +63,13 @@ test("a session (any role) can read", async () => {
   assert.equal(res.status, 200);
 });
 
+test("responses carry the timing headers (upstream vs total)", async () => {
+  const res = await req("/api/projects", { headers: { cookie: VIEWER } });
+  // Present on every response; demo broker has no upstream hop so it reads 0.
+  assert.match(res.headers.get("x-omni-upstream-ms") ?? "", /^\d+$/);
+  assert.match(res.headers.get("x-omni-total-ms") ?? "", /^\d+$/);
+});
+
 test("the broker contract is public and reports a version + JSON Schema", async () => {
   const res = await req("/api/contract"); // no cookie — public
   assert.equal(res.status, 200);

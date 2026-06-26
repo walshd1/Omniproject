@@ -21,6 +21,32 @@ unit-tested in `scripts/src/lib/load-core.test.ts`; the CLI is
 
 ---
 
+## Quick start: the load-test stack
+
+`docker-compose.loadtest.yml` brings up the whole real path — gateway → n8n
+(**queue mode**, scalable workers) → OpenProject — so you don't have to assemble
+it by hand:
+
+```bash
+docker compose -f docker-compose.loadtest.yml up -d
+docker compose -f docker-compose.loadtest.yml up -d --scale n8n-worker=4   # add workers
+```
+
+(One-time manual step: import the OmniProject n8n blueprint and point it at
+OpenProject — documented in the compose header. It's a disposable rig, not a
+production deploy.)
+
+### Separating gateway overhead from the broker hop
+
+Every gateway response now carries timing headers, so you can attribute latency:
+
+- `X-Omni-Total-Ms` — total time in the gateway for the request.
+- `X-Omni-Upstream-Ms` — of that, time spent waiting on the broker → backend
+  (n8n + OpenProject). `total − upstream` ≈ the gateway's own overhead.
+
+A demo-broker response reads `X-Omni-Upstream-Ms: 0` (no upstream hop) — another
+way the demo is self-evidently not an n8n measurement.
+
 ## Prerequisites for a *real* (n8n) run
 
 The numbers only count when the gateway is wired to a real n8n + backend:
