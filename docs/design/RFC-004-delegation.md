@@ -2,7 +2,10 @@
 
 **Status:** Design — **not started, do not build without security review.** This
 is the highest-risk item on the roadmap; the RFC exists so the threat model and
-the *limits of what is safe* are agreed before any code.
+the *limits of what is safe* are agreed before any code. **Revised to put the IdP
+first** (§2a): OmniProject ships Authentik / integrates enterprise SSO, so the IdP
+owns the grant; OmniProject consumes its claims rather than inventing its own
+delegation/credential mechanism.
 **Author:** build session.
 **Depends on / touches:** the security model (OIDC token forwarding via
 `ActorContext`, RBAC `roleForReq`/`requireRole`), the audit pipeline
@@ -54,6 +57,35 @@ Two hard consequences:
    contradiction of the design. **We will not do this** (§4).
 
 So "act with the delegator's access" has a precise, limited meaning here (§5).
+
+---
+
+## 2a. Delegate to the IdP we already run (the primary mechanism)
+
+OmniProject ships with **Authentik** (standalone) and integrates **enterprise SSO**
+(Entra ID, Okta, Ping, Keycloak…). The IdP is *already* the authority for identity
+and role assignment — `roleForReq` derives the OmniProject role straight from OIDC
+group/role **claims** (`OIDC_ADMIN_ROLES`, `OIDC_MANAGER_ROLES`, …). The right
+instinct, and the one a security review will demand, is therefore: **don't invent
+a delegation/credential system in OmniProject — delegate to the IdP.** This is more
+secure (the auth authority owns it), keeps OmniProject stateless (the grant lives
+in claims/tokens, not a gateway store), and means **no new signing key to manage**.
+
+Concretely, delegation decomposes into three parts, each owned by the system
+entitled to it:
+
+| Part | Owner | Mechanism |
+| --- | --- | --- |
+| **Identity & role elevation** (X temporarily acts at a higher OmniProject role) | **The IdP** | Time-bounded **group/role membership** — Authentik group assignment, or enterprise **PIM / time-bound role activation** (Entra PIM, Okta, etc.). OmniProject already consumes this via `roleForReq`; **the role half needs no new OmniProject code.** Expiry, revocation and the grant's own audit are the IdP's job. |
+| **"On behalf of" provenance** (this token is X acting for Y) | **The IdP** | The standards-based **`act` / `may_act` actor claim** (OAuth 2.0 Token Exchange, RFC 8693). OmniProject reads it and sets `onBehalfOf` for the audit (§9). |
+| **Backend write authority** (a delegated write at the system of record) | **The IdP + backend** | An **IdP-minted delegated/exchanged token** (RFC 8693 / on-behalf-of) the gateway carries — never Y's raw token (§6). |
+
+What's left for **OmniProject** is only the thin part the IdP doesn't model:
+**project-scoped visibility** (which of Y's projects a deputy may see is finer
+than a group), and **rendering/auditing** the delegation (the banner + `onBehalfOf`).
+
+The OmniProject-signed grant token in §7 is therefore demoted to a **fallback** for
+deployments whose IdP can't express time-bounded delegation — not the default.
 
 ---
 
@@ -119,24 +151,38 @@ When X performs a write under a delegation, two honest modes:
   ("X for Y"). If X lacks backend rights, the write fails at the backend, as it
   should. This is safe, requires no new credential handling, and is the only mode
   we build first.
-- **Optional — backend-native on-behalf-of.** *If and only if* the IdP/backend
-  supports a standard delegation flow (OAuth 2.0 **Token Exchange, RFC 8693**, or
-  a backend "act-as" grant), the gateway may carry a **delegated token the IdP
-  minted** — scoped, short-lived, issued *to X for Y* by the authority that owns
-  authz. OmniProject **requests** the exchange and forwards the result; it never
-  sees or stores Y's raw token. This is backend-specific, off by default, and a
-  later phase.
+- **Backend-native on-behalf-of (preferred where the IdP supports it).** Because
+  we run the IdP, this is a first-class path, not a distant maybe: when the IdP
+  supports OAuth 2.0 **Token Exchange (RFC 8693)** or a backend "act-as" grant, the
+  gateway exchanges X's token for a **delegated token the IdP mints** — scoped,
+  short-lived, carrying the `act` claim "X for Y" — and forwards *that* to the
+  backend. OmniProject **requests** the exchange and relays the result; it never
+  sees or stores Y's raw token. This is the only way a delegated *backend* write
+  is both possible and honest, and it falls out of the IdP we already operate.
 
 This split is the crux: OmniProject delegates *its own* authority cleanly, and
 defers *backend* authority to the only system entitled to delegate it.
 
 ---
 
-## 7. The grant — stateless by construction
+## 7. The grant
 
-A grant is access state, which we keep faithful to the stateless posture by
-modelling it as a **signed, self-expiring token**, exactly like the licence
-mechanism (`lib/license.ts`, Ed25519 sign/verify):
+### 7a. Primary — the IdP holds the grant
+
+Per §2a, the grant *is* the IdP's time-bounded group/role membership (+ the `act`
+claim on the issued token). OmniProject stores **nothing**: it reads the role from
+claims (`roleForReq`, unchanged) and `onBehalfOf` from the actor claim. Expiry and
+revocation are the IdP's — revoke = the IdP drops the membership / the short-lived
+token expires. This is the default and the most secure option, and it adds **no
+signing key, no grant store, and (for the role half) no new gateway code**. The
+only OmniProject-side state is the optional project-scope nomination (§5.2), which
+is config, not a credential.
+
+### 7b. Fallback — an OmniProject-signed grant (only when the IdP can't)
+
+For deployments whose IdP **cannot** express time-bounded delegation, fall back to
+a **signed, self-expiring grant token**, exactly like the licence mechanism
+(`lib/license.ts`, Ed25519 sign/verify):
 
 ```
 grant = sign({
@@ -222,15 +268,19 @@ interface AuditEvent {
 
 ## 12. Phased rollout
 
-- **Phase 1 — OmniProject-scoped delegation.** Signed short-TTL grants; gateway
-  RBAC elevation (≤ delegator) + project-scoped visibility; `onBehalfOf` audit;
-  consent + acting banner + revoke-by-expiry. **Writes go as X.** Behind a flag,
-  **off by default**, admin-enabled per deployment. This is the whole safe core.
-- **Phase 2 — explicit revocation** via a `jti` denylist (only if short TTLs
-  prove insufficient operationally).
-- **Phase 3 — backend on-behalf-of** (RFC 8693 token exchange) for backends/IdPs
-  that support it, so a delegated *backend* write is possible without OmniProject
-  ever touching Y's raw credential. Backend-specific, opt-in.
+- **Phase 1 — IdP-driven delegation (the safe core).** The IdP grants X
+  time-bounded membership of the group that maps to the elevated role; OmniProject
+  consumes it via `roleForReq` (**no change to the role path**), reads the `act`
+  claim → `onBehalfOf`, adds the project-scope nomination, the **acting banner**,
+  and the audit framing. Expiry/revoke are the IdP's. **Writes go as X.** Behind a
+  flag, **off by default**, enabled per deployment. Most of this is *consuming
+  claims we already trust*, which is why it's the safest place to start.
+- **Phase 2 — backend on-behalf-of** (RFC 8693 token exchange) where the IdP
+  supports it, so a delegated *backend* write is possible without OmniProject ever
+  touching Y's raw credential (§6). The natural next step given we run the IdP.
+- **Fallback track — OmniProject-signed grants** (§7b) + a `jti` denylist, built
+  **only** for deployments whose IdP can't express delegation. Strictly secondary;
+  carries the extra key-management + revocation burden the IdP path avoids.
 
 Each phase ships only after the §15 checklist passes.
 
@@ -252,20 +302,26 @@ Each phase ships only after the §15 checklist passes.
 
 ## 14. Open questions (decide before Phase 1)
 
-1. **Max TTL + renewability** — default and ceiling (proposed ≤ 4h, renewable).
-2. **Denylist now or later** — accept "revoke = wait for expiry" for Phase 1, or
-   build the `jti` denylist immediately?
-3. **Multi-replica grant signing** — reuse the licence Ed25519 key, or a
-   dedicated gateway grant key? (Affects key management.)
-4. **Notification channel** for "you were delegated / your access was used" — in
+1. **IdP delegation primitive** — which mechanism per deployment: Authentik
+   time-bounded group membership, enterprise PIM (Entra/Okta), and/or RFC 8693
+   token exchange? Confirm Authentik can express a time-bounded group + emit the
+   `act` claim (or what the closest supported equivalent is).
+2. **Max TTL + renewability** — default and ceiling for the IdP grant (proposed
+   ≤ 4h, renewable) — and whether that's an IdP policy or an OmniProject check.
+3. **Scope granularity** — role + project list for Phase 1, or also per-action
+   (e.g. "RAID only")? (This is the OmniProject-owned half regardless of IdP.)
+4. **Notification channel** for "you were delegated / your access was used" — via
    `/api/notifications/ingest`, email, or both?
-5. **Scope granularity** — role + project list for Phase 1, or also per-action
-   (e.g. "RAID only")?
+5. **Fallback only:** if a deployment's IdP can't delegate, reuse the licence
+   Ed25519 key or a dedicated grant key, and denylist now or rely on short TTL?
 
 ---
 
 ## 15. Security-review checklist (gate for every phase)
 
+- [ ] **Delegation is the IdP's** wherever it can express it; OmniProject only
+      *consumes* the role claim + `act` claim and adds project-scope/audit/banner.
+      The signed-grant fallback (§7b) is built only when the IdP can't.
 - [ ] No code path stores, logs, or forwards the **delegator's** token/credential.
 - [ ] `actor` is always the real principal **X**; `onBehalfOf` is **Y**; never swapped.
 - [ ] A grant's scope is provably **≤ the delegator's own** access at grant time.
