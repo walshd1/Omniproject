@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import healthRouter from "./health";
+import contractRouter from "./contract";
 import authRouter, { getSession } from "./auth";
 import brokerCommandRouter from "./broker-command";
 import projectsRouter from "./projects";
@@ -50,6 +51,9 @@ function requireAuth(req: Request, res: Response, next: NextFunction): void {
 
 // Public routes: health probes (not rate-limited so k8s liveness isn't throttled).
 router.use(healthRouter);
+
+// Public: the versioned broker contract (documentation, not data).
+router.use(contractRouter);
 
 // Inbound notification ingest from n8n/tools — authed by NOTIFY_INGEST_SECRET,
 // not by a user session, and exempt from the per-IP limiter (one n8n source).
