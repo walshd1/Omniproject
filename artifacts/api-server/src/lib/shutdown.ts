@@ -1,4 +1,5 @@
 import { closeAllClients } from "./notify-hub";
+import { wipeInMemoryState } from "./wipe";
 
 /**
  * Graceful shutdown — on SIGTERM/SIGINT (e.g. `docker stop`, a rolling deploy),
@@ -57,9 +58,15 @@ export function gracefulShutdown(opts: ShutdownOpts): void {
   });
 }
 
-/** Install SIGTERM/SIGINT handlers that run a single graceful shutdown. */
+/** Install SIGTERM/SIGINT handlers that run a single graceful shutdown. Draining
+ *  closes live SSE streams AND wipes the bounded in-memory working sets. */
 export function installShutdownHandlers(server: ClosableServer, logger: ShutdownLogger): void {
+  const drain = (): number => {
+    const streams = closeAllClients();
+    wipeInMemoryState();
+    return streams;
+  };
   for (const signal of ["SIGTERM", "SIGINT"] as const) {
-    process.once(signal, () => gracefulShutdown({ server, signal, logger, exit: (code) => process.exit(code) }));
+    process.once(signal, () => gracefulShutdown({ server, signal, logger, exit: (code) => process.exit(code), drain }));
   }
 }

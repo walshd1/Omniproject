@@ -18,6 +18,16 @@ test("production with OIDC + rate limiting clears the criticals", () => {
   assert.equal(f.filter((x) => x.severity === "critical").length, 0);
 });
 
+test("flags a plain-http broker URL to a remote host (encrypt the broker hop)", () => {
+  const remote = securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm", BROKER_URL: "http://n8n.internal:5678/webhook" });
+  assert.ok(remote.some((x) => x.id === "broker-plaintext" && x.severity === "warn"));
+  // https or loopback is fine.
+  const tls = securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm", BROKER_URL: "https://n8n.internal:5678/webhook" });
+  assert.ok(!tls.some((x) => x.id === "broker-plaintext"));
+  const local = securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm", BROKER_URL: "http://localhost:5678/webhook" });
+  assert.ok(!local.some((x) => x.id === "broker-plaintext"));
+});
+
 test("flags disabled rate limiting and surfaces egress/logging notes", () => {
   const f = securityFindings({
     NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm",

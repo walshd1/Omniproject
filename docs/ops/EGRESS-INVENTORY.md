@@ -41,7 +41,7 @@ Backend system of record (Jira / OpenProject / SAP / …)  ── owns authorisa
 
 | # | Egress | Path / control | Data class | Default |
 | --- | --- | --- | --- | --- |
-| E1 | **Broker hop** | gateway → `BROKER_URL`/`BROKER_URLS` → backend | Project/issue data **in transit** (never at rest) | **On** (the product) |
+| E1 | **Broker hop** | gateway → `BROKER_URL`/`BROKER_URLS` → backend | Project/issue data **in transit** (never at rest) | **On** (the product) — **encrypt it**: see §3b |
 | E2 | **Logging sync** (time-travel history) | `LOGGING_SYNC_URL`; `loggingSync` | Point-in-time portfolio snapshots — the **one durable** concession | **Off** (opt-in) |
 | E3 | **OData / Power-BI** | `routes/odata.ts` | Read-only BI projection of portfolio data | Gated (BI token) |
 | E4 | **FX rates read-through** | `FX_RATE*`; `lib/currency.ts` | Outbound to an FX provider; **no** project data sent | On (read-only, falls back to indicative) |
@@ -77,6 +77,32 @@ request-scoped and gone at the end of the response:
 | **SSRF guard** (`lib/egress.ts`) | Every gateway outbound request is validated first. Link-local / cloud-metadata targets (169.254.0.0/16, IPv6 link-local, `metadata.google.internal`, `fd00:ec2::254`) and non-http(s) schemes are **always blocked** — the Capital-One pattern can't happen through the app. Internal/localhost hosts stay allowed (the broker lives there). | `EGRESS_ALLOWLIST` (optional) pins outbound to an exact host list |
 | **CSV-injection guard** | Exported CSV cells beginning with a formula trigger (`= + - @` / tab / CR) are apostrophe-prefixed, so attacker-influenced backend values can't execute when the file opens in Excel/Sheets (`lib/csv.ts`, SPA `lib/data-lineage.ts`). | — |
 | **Startup security self-check** (`lib/security-check.ts`) | At boot, dangerous *production* config combinations are logged at severity (e.g. prod with no OIDC = demo auth = everyone admin). | `SECURITY_STRICT=on` refuses to boot on a CRITICAL finding |
+
+## 3b. Encrypting the broker hop (gateway ↔ broker ↔ backend)
+
+The broker hop carries project data, so encrypt it in transit:
+
+1. **TLS (do this):** set `BROKER_URL` to **`https://`**. Node's fetch then does
+   TLS and verifies the broker's certificate; for a **private CA**, point Node at
+   the bundle with `NODE_EXTRA_CA_CERTS=/path/ca.pem` (no app code needed). The
+   startup self-check **warns** (`broker-plaintext`) if the broker URL is plain
+   `http://` to a non-loopback host.
+2. **mTLS (zero-trust):** for mutual authentication + encryption, front the broker
+   with a **TLS-terminating sidecar** or run both in a **service mesh**
+   (Istio/Linkerd auto-mTLS). This keeps certificate *lifecycle* (issuance,
+   rotation) out of the app — deliberately not done in-process to avoid the
+   dependency + cert-management surface.
+3. Loopback (`localhost`) plaintext is fine — same host, no wire.
+
+## 3c. Shutdown: clearing in-memory working sets
+
+Graceful shutdown (§ lifecycle) calls `wipeInMemoryState()` — it **clears the
+bounded in-memory sets** (broker-log ring, read cache) so references drop for GC
+and the shutdown is tidy. Note this is reference-clearing, **not** secure
+byte-zeroisation: JS strings are immutable and the OS reclaims process memory on
+exit. The real protection is that **no long-lived secret sits server-side** —
+sessions are in the client cookie (sealed), access tokens are per-request and
+GC'd, and the broker log holds only a redacted projection.
 
 ## 4. Integrity & observability controls (audit-relevant)
 
