@@ -1,12 +1,11 @@
 import { readFileSync } from "node:fs";
-import { backendCatalogue } from "@workspace/backend-catalogue";
 import { DemoBroker } from "./demo";
 import { loadDemoState } from "./demo-data";
 import { buildReplayBroker } from "./replay";
 import { readTape } from "./capture";
-import { CAPABILITY_DOMAINS } from "../lib/capabilities";
+import { applyVendorProfile } from "./vendor-profile";
 import { isDevMode } from "../lib/dev-mode";
-import type { ActorContext, Broker } from "./types";
+import type { Broker } from "./types";
 
 /**
  * Dev broker — the DEVELOPER/debug broker (distinct from the DemoBroker, which is
@@ -58,13 +57,6 @@ export function setDevBrokerConfig(patch: Partial<DevBrokerConfig>): DevBrokerCo
   return getDevBrokerConfig();
 }
 
-/** A vendor's declared capabilities from its JSON config, or null if unknown/none. */
-function vendorCaps(vendor: string | null): Record<string, boolean> | null {
-  if (!vendor) return null;
-  const v = backendCatalogue().find((b) => b.id === vendor);
-  return v ? (v.capabilities ?? {}) : null;
-}
-
 /** Build the data broker for a source (the reads come from here). */
 function dataBroker(source: DevDataSource, ref: string | null): Broker {
   if (source === "cassette") {
@@ -78,32 +70,10 @@ function dataBroker(source: DevDataSource, ref: string | null): Broker {
   return new DemoBroker();
 }
 
-/** Overlay a vendor's identity + capability gating onto a data broker (composition). */
-function withVendor(base: Broker, vendorId: string | null, caps: Record<string, boolean> | null): Broker {
-  if (!vendorId || !caps) return base;
-  const on = (d: string) => !!caps[d];
-  const overrides: Record<string, unknown> = {
-    kind: vendorId,
-    live: false,
-    vendorId,
-    capabilities: async () => Object.fromEntries(CAPABILITY_DOMAINS.map((d) => [d, on(d)])),
-    listRaid: (ctx: ActorContext, pid: string) => (on("raid") ? base.listRaid(ctx, pid) : Promise.resolve([])),
-    projectFinancials: (ctx: ActorContext, pid: string) => (on("financials") ? base.projectFinancials(ctx, pid) : Promise.resolve({})),
-    resourceCapacity: (ctx: ActorContext, pid: string) => (on("resources") ? base.resourceCapacity(ctx, pid) : Promise.resolve([])),
-    baseline: (ctx: ActorContext, pid: string) => (on("baseline") ? base.baseline(ctx, pid) : Promise.resolve(null)),
-  };
-  return new Proxy(base, {
-    get(target, prop, receiver) {
-      const key = String(prop);
-      return key in overrides ? overrides[key] : Reflect.get(target, prop, receiver);
-    },
-  }) as Broker;
-}
-
 /** Build a dev broker for an explicit config. */
 export function buildDevBroker(config: DevBrokerConfig): Broker {
   const base = dataBroker(config.source, config.ref);
-  return withVendor(base, config.vendor, vendorCaps(config.vendor));
+  return applyVendorProfile(base, config.vendor);
 }
 
 /**

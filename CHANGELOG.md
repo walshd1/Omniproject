@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Demo vendor preview — present the demo AS a prospect's stack** — the vendor
+  capability overlay (previously dev-only) now also flavours the **demonstration**
+  broker: set `backendSource` (Settings, or `BACKEND_SOURCE`) to a vendor id and the
+  demo presents AS that vendor — gated to its declared capabilities from the vendor
+  JSON — over sample data. So a prospect can preview how the product looks on THEIR
+  setup (e.g. OpenProject, no financials/raid) with no real broker or backend
+  installed. Production-safe: it only ever flavours demo data and never a real broker
+  (`live` stays false; a configured n8n/dev broker is untouched). Changing
+  `backendSource` rebuilds the demo live. The overlay (`applyVendorProfile`) is now
+  shared by the dev broker and the demo path.
 - **Dev broker — any vendor × any data source, switchable on the fly (dev-only)** —
   a developer/debug broker, distinct from the DemoBroker (which stays the
   demonstration broker for training/sales). The dev broker presents AS any **vendor**

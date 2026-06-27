@@ -6,6 +6,8 @@ import { DemoBroker } from "./demo";
 import { BrokerError, type Broker, type ActorContext } from "./types";
 import { instrumented, wrapWithTrace } from "./trace";
 import { devBrokerFromEnv } from "./dev-broker";
+import { applyVendorProfile, isVendorId } from "./vendor-profile";
+import { getSettings } from "../lib/settings";
 
 /**
  * Broker selection + the request→domain context adapter.
@@ -26,7 +28,16 @@ export function getBroker(): Broker {
     // source (demo/bundle/cassette) for testing without a real backend. Null
     // outside dev mode, so production is unaffected.
     const dev = devBrokerFromEnv();
-    const base: Broker = dev ?? (N8N_ENV_CONFIGURED ? new N8nBroker() : new DemoBroker());
+    let base: Broker = dev ?? (N8N_ENV_CONFIGURED ? new N8nBroker() : new DemoBroker());
+    // Demonstration flavour: when running on the demo broker (no real backend) and
+    // `backendSource` names a vendor, present the demo AS that vendor — gated to its
+    // declared capabilities — so a prospect previews the product on THEIR stack over
+    // sample data. Production-safe: it only ever flavours demo data, never a real
+    // broker (a configured n8n/dev broker is left untouched).
+    if (!dev && !N8N_ENV_CONFIGURED) {
+      const source = getSettings().backendSource;
+      if (isVendorId(source)) base = applyVendorProfile(base, source);
+    }
     singleton = instrumented() ? wrapWithTrace(base) : base;
   }
   return singleton;
