@@ -153,3 +153,33 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Per-user accessibility overlay (lib/a11y-prefs) ─────────────────────────────
+   Personal, client-side preferences layered over the company branding. */
+
+/* Text scale: rem-based sizing scales with the root font-size. */
+:root {
+  --user-font-scale: 1;
+}
+html {
+  font-size: calc(100% * var(--user-font-scale, 1));
+}
+
+/* Explicit per-user "reduce motion" (in addition to the OS media query above). */
+[data-reduce-motion="true"] *,
+[data-reduce-motion="true"] *::before,
+[data-reduce-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* High contrast: always-underline links + thick focus rings (WCAG-aligned, theme-safe). */
+[data-contrast="high"] a:not([role="button"]) {
+  text-decoration: underline;
+}
+[data-contrast="high"] :focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
+}
