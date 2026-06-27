@@ -1,5 +1,6 @@
 import { getBroker } from "./index";
 import { getBrokerDef, brokerSupport, BROKER_CAPABILITY_KEYS } from "@workspace/backend-catalogue";
+import type { TransportMethod } from "@workspace/backend-catalogue";
 
 /**
  * The broker router / registry — which broker KINDS are connected to this
@@ -73,4 +74,46 @@ export function brokersSupporting(capabilityKey: string): string[] {
       return brokerSupport(b.kind)[capabilityKey] === true;
     })
     .map((b) => b.kind);
+}
+
+/** What a command needs of the broker that serves it. */
+export interface CommandIntent {
+  /** The backend transport the command must be driven over (e.g. "native-node" ⇒ n8n). */
+  transport?: TransportMethod;
+  /** A broker capability the command requires (e.g. "eventsOutbound"). */
+  capability?: string;
+}
+
+/** Can this connected broker drive a given transport? Demo serves any transport;
+ *  a live broker must declare it in the catalogue. */
+function servesTransport(b: ConnectedBroker, transport: TransportMethod): boolean {
+  if (!b.live) return true;
+  const def = getBrokerDef(b.kind);
+  return !!def && def.transports.includes(transport);
+}
+
+/**
+ * Per-kind command ROUTING — choose which connected broker KIND should serve a
+ * command, given what it needs (transport + capability). The decision rule: keep
+ * the PRIMARY (the live data/command hop) whenever it qualifies — heterogeneous
+ * fan-out is the exception, not the default — otherwise the first eligible connected
+ * broker, else fall back to the primary.
+ *
+ * IMPORTANT (honest scope): this is the routing DECISION. Actual dispatch still goes
+ * through `getBroker()` — there's one concrete adapter (the n8n/HTTP broker) plus the
+ * demo. Routing a command to a genuinely different connected platform additionally
+ * needs per-kind adapter instances bound to each platform's endpoint; that's the
+ * remaining work. Wiring this decision in first makes the selection explicit,
+ * testable, and ready for those adapters.
+ */
+export function brokerForCommand(intent: CommandIntent = {}): string {
+  const connected = connectedBrokers();
+  const primary = connected.find((b) => b.primary)!;
+  const eligible = connected.filter((b) => {
+    if (intent.capability && !brokersSupporting(intent.capability).includes(b.kind)) return false;
+    if (intent.transport && !servesTransport(b, intent.transport)) return false;
+    return true;
+  });
+  if (eligible.some((b) => b.primary)) return primary.kind;
+  return eligible[0]?.kind ?? primary.kind;
 }
