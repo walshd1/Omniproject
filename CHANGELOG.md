@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Graph + map visual primitives (panel kinds)** — two new `PanelKind`s registered
+  in the ScreenRenderer panel registry, so they're JSON-composable like every other
+  panel and capability-gated. `graph` renders a network/dependency graph from
+  `config: { nodes, edges }` (edges typically from `dependsOn`/relationship fields);
+  `map` renders geo-tagged entities from `config: { points }`. Both ship the
+  **accessible data view** today (counts + a readable edge / location list) so they're
+  usable immediately; the rich force-directed (D3) graph and tile-map (Leaflet)
+  rendering slot in behind the same components + config — the noted remainder.
 - **Cross-backend entity resolution (stateless)** — helpers for reconciling the SAME
   real-world entity appearing in more than one backend (a person who is a Jira
   assignee AND a Salesforce contact). `dedupeEntities(records, keyFn, mergeFn?)` MERGES
