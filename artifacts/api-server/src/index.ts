@@ -5,6 +5,12 @@ import { isOidcConfigured } from "./lib/oidc";
 import { getSettings } from "./lib/settings";
 import { installShutdownHandlers } from "./lib/shutdown";
 import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
+import { loadConfigDir } from "./lib/config-dir";
+
+// Load this deployment's config directory (OMNI_CONFIG_DIR) BEFORE serving, so the
+// vendor overlay + settings from the operator's folder of JSON are in place when
+// the first request lands. No-op when the env var is unset.
+loadConfigDir();
 
 // Start the broker-log fan-out at boot so this replica begins RECEIVING the
 // fleet's live entries immediately (not just emitting its own). In-process unless

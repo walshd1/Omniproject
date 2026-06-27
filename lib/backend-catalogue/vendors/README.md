@@ -38,6 +38,24 @@ vendors/
    `src/vendors.generated.ts`. CI re-runs the generator and fails if they drift,
    so the embedded data can never lie about the JSON.
 
+## Per-deployment config (runtime)
+
+The files here are the **shipped defaults**, baked into the image. A *deployment*
+can add or override vendors without a rebuild by pointing `OMNI_CONFIG_DIR` at a
+folder of JSON the gateway reads at boot:
+
+```
+$OMNI_CONFIG_DIR/
+  config.json              settings + label overrides (a config snapshot)
+  vendors/backends/*.json  add / override backends (validated against the schema)
+  vendors/brokers/*.json   …and the other three planes
+```
+
+Each file is validated against the same plane schema; an invalid file is logged
+and skipped, never fatal. The gateway holds nothing durable — the JSON on disk is
+the persistence — so the code stays stateless and a deployment is portable as one
+folder. `GET /api/setup/config-dir` (admin) reports what loaded.
+
 ## Why JSON + a generated module?
 
 Authoring is data, not code — you don't touch TypeScript to add a vendor. But the

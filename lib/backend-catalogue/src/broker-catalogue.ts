@@ -1,6 +1,7 @@
 import type { TransportMethod } from "./backend-manifest";
 import type { CrossPlaneRef } from "./planes";
 import { BROKERS_DATA } from "./vendors.generated";
+import { withOverlay } from "./vendor-overlay";
 
 /**
  * BROKER registry — the automation/translation layer that sits between the
@@ -74,19 +75,19 @@ export const BROKERS: BrokerDefinition[] = BROKERS_DATA;
 
 /** One broker definition by id, or undefined. */
 export function getBrokerDef(id: string): BrokerDefinition | undefined {
-  return BROKERS.find((b) => b.id === id);
+  return withOverlay("brokers", BROKERS).find((b) => b.id === id);
 }
 
 /** Brokers that can act as the live DATA hop for a backend transport: synchronous
  *  AND able to drive that transport. (native-node ⇒ n8n only; http ⇒ every
  *  synchronous HTTP broker — Airflow is excluded, it's async.) */
 export function brokersForTransport(t: TransportMethod): BrokerKind[] {
-  return BROKERS.filter((b) => b.capabilities.synchronous && b.transports.includes(t)).map((b) => b.id);
+  return withOverlay("brokers", BROKERS).filter((b) => b.capabilities.synchronous && b.transports.includes(t)).map((b) => b.id);
 }
 
 /** Lightweight catalogue view (capabilities + linked build method per broker). */
 export function brokerCatalogue() {
-  return BROKERS.map((b) => ({
+  return withOverlay("brokers", BROKERS).map((b) => ({
     id: b.id,
     label: b.label,
     docsUrl: b.docsUrl,

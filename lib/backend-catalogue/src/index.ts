@@ -26,3 +26,5 @@ export * from "./methodology-rulesets";
 export * from "./report-catalogue";
 export * from "./screen-catalogue";
 export * from "./plane-verifier";
+export * from "./vendor-schema";
+export * from "./vendor-overlay";

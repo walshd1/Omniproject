@@ -10,6 +10,7 @@
  * through the same broker seam + RBAC + audit, so they add no at-rest scope.
  */
 import { OUTPUTS_DATA } from "./vendors.generated";
+import { withOverlay } from "./vendor-overlay";
 
 export type OutputKind =
   | "read-api" // structured read projection (OData-style)
@@ -49,10 +50,10 @@ export const OUTPUTS: OutputDefinition[] = OUTPUTS_DATA;
 
 /** One output-interface definition by id, or undefined. */
 export function getOutput(id: string): OutputDefinition | undefined {
-  return OUTPUTS.find((o) => o.id === id);
+  return withOverlay("outputs", OUTPUTS).find((o) => o.id === id);
 }
 
 /** All output-interface definitions (a defensive copy). */
 export function outputCatalogue(): OutputDefinition[] {
-  return OUTPUTS.map((o) => ({ ...o }));
+  return withOverlay("outputs", OUTPUTS).map((o) => ({ ...o }));
 }

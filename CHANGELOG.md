@@ -6,6 +6,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **A deployment's config is a folder of JSON, read at runtime** (**Stable**) — set
+  `OMNI_CONFIG_DIR` and the gateway reads it at boot: `vendors/<plane>/*.json` to
+  **add or override vendors** (schema-validated, overlaid through the catalogue
+  accessors so the override flows everywhere) and `config.json` (a config snapshot)
+  for **settings + label tweaks**. Every file is validated against the same schema
+  the author designed against; a bad file is logged + skipped, never fatal. The
+  gateway holds nothing durable — the JSON on disk is the persistence — so the code
+  stays stateless and a deployment is portable as one folder. `GET
+  /api/setup/config-dir` (admin) reports what loaded. The JSON-Schema validator now
+  lives in the catalogue, shared by `gen-vendors` (build time) and the runtime
+  loader, with the schemas embedded for portable validation.
+
 ### Changed
 
 - **Renamed `n8n-backends.ts` → `backend-catalogue.ts`** — the file holds the

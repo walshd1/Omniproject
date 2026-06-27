@@ -10,6 +10,7 @@
  * the catalogue of what's supported + how each authenticates.
  */
 import { NOTIFICATIONS_DATA } from "./vendors.generated";
+import { withOverlay } from "./vendor-overlay";
 
 export type NotificationKind = "chat" | "email" | "incident" | "sms" | "webhook" | "iot" | "agent";
 
@@ -46,10 +47,10 @@ export const NOTIFICATIONS: NotificationDefinition[] = NOTIFICATIONS_DATA;
 
 /** One notification channel by id, or undefined. */
 export function getNotificationChannel(id: string): NotificationDefinition | undefined {
-  return NOTIFICATIONS.find((n) => n.id === id);
+  return withOverlay("notifications", NOTIFICATIONS).find((n) => n.id === id);
 }
 
 /** All notification channels (a defensive copy). */
 export function notificationCatalogue(): NotificationDefinition[] {
-  return NOTIFICATIONS.map((n) => ({ ...n }));
+  return withOverlay("notifications", NOTIFICATIONS).map((n) => ({ ...n }));
 }

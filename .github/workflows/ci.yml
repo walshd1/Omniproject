@@ -79,9 +79,9 @@ jobs:
       - name: Verify the vendor catalogue is in sync with the vendor JSON
         run: |
           pnpm --filter @workspace/scripts run gen-vendors
-          if ! git diff --quiet -- lib/backend-catalogue/src/vendors.generated.ts; then
+          if ! git diff --quiet -- lib/backend-catalogue/src/vendors.generated.ts lib/backend-catalogue/src/vendor-schemas.generated.ts; then
             echo "::error::Vendor catalogue is out of date. Run 'pnpm --filter @workspace/scripts run gen-vendors' and commit the result."
-            git --no-pager diff --stat -- lib/backend-catalogue/src/vendors.generated.ts
+            git --no-pager diff --stat -- lib/backend-catalogue/src/vendors.generated.ts lib/backend-catalogue/src/vendor-schemas.generated.ts
             exit 1
           fi
 

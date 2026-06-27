@@ -30,6 +30,7 @@
 import type { BackendManifest, ContractAction, BackendTier, TransportMethod } from "./backend-manifest";
 import { brokersForTransport } from "./broker-catalogue";
 import { BACKENDS_DATA } from "./vendors.generated";
+import { withOverlay } from "./vendor-overlay";
 
 /**
  * An action is implemented either as a raw HTTP call or — preferably, where n8n
@@ -81,7 +82,7 @@ export const BACKENDS: BackendDefinition[] = BACKENDS_DATA;
 
 /** One backend definition by id, or undefined. */
 export function getBackend(id: string): BackendDefinition | undefined {
-  return BACKENDS.find((b) => b.id === id);
+  return withOverlay("backends", BACKENDS).find((b) => b.id === id);
 }
 
 /**
@@ -117,7 +118,7 @@ export function transportOf(def: BackendDefinition): TransportMethod {
 
 /** Lightweight catalogue for the wizard UI (no n8n expressions). */
 export function backendCatalogue() {
-  return BACKENDS.map((b) => {
+  return withOverlay("backends", BACKENDS).map((b) => {
     const transport = transportOf(b);
     const kind = b.kind ?? "live";
     return {
