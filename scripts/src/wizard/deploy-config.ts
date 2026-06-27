@@ -44,10 +44,25 @@ export interface DeployConfig {
   redisUrl?: string;
   /** Bundle a Redis service (implies redisUrl=redis://redis:6379). */
   bundleRedis?: boolean;
+  /** Bundle a Traefik reverse proxy that terminates TLS for PUBLIC_URL via
+   *  Let's Encrypt (so you don't have to front it with your own ingress). */
+  reverseProxy?: { acmeEmail: string };
+  /** Bundle a local Ollama service (only meaningful when ai.provider==="ollama"). */
+  bundleOllama?: boolean;
 }
 
 const INTERNAL_N8N_URL = "http://n8n:5678/webhook/omniproject";
 const INTERNAL_REDIS_URL = "redis://redis:6379";
+const INTERNAL_OLLAMA_URL = "http://ollama:11434";
+
+/** The host portion of PUBLIC_URL (for the Traefik router rule). */
+export function publicHost(c: DeployConfig): string {
+  try {
+    return new URL(c.publicUrl).host;
+  } catch {
+    return c.publicUrl.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  }
+}
 
 /** The effective broker URL (internal n8n when bundled, else the external one). */
 export function effectiveBrokerUrl(c: DeployConfig): string {
@@ -89,7 +104,10 @@ export function envMap(c: DeployConfig): Record<string, string> {
     if (c.ai.provider === "openai" && c.ai.apiKey) env["OPENAI_API_KEY"] = c.ai.apiKey;
     if (c.ai.provider === "openrouter" && c.ai.apiKey) env["OPENROUTER_API_KEY"] = c.ai.apiKey;
     if (c.ai.provider === "anthropic" && c.ai.apiKey) env["ANTHROPIC_API_KEY"] = c.ai.apiKey;
-    if (c.ai.provider === "ollama" && c.ai.ollamaUrl) env["OLLAMA_URL"] = c.ai.ollamaUrl;
+    if (c.ai.provider === "ollama") {
+      const url = c.bundleOllama ? INTERNAL_OLLAMA_URL : c.ai.ollamaUrl;
+      if (url) env["OLLAMA_URL"] = url;
+    }
   }
 
   if (c.loggingSyncUrl?.trim()) env["LOGGING_SYNC_URL"] = c.loggingSyncUrl.trim();
@@ -107,6 +125,8 @@ export function renderEnv(c: DeployConfig): string {
     "",
   ];
   for (const [k, v] of Object.entries(env)) lines.push(`${k}=${v}`);
+  // Compose-only vars (consumed by bundled services, not the gateway runtime).
+  if (c.reverseProxy) lines.push("", "# Reverse proxy (Traefik) — Let's Encrypt registration address.", `ACME_EMAIL=${c.reverseProxy.acmeEmail}`);
   if (c.idp.kind === "none") {
     lines.push(
       "",
@@ -122,8 +142,6 @@ export function renderEnv(c: DeployConfig): string {
 function shellService(c: DeployConfig): string {
   const oidc = c.idp.kind !== "none";
   const redis = !!effectiveRedisUrl(c);
-  const dependsOn: string[] = [];
-  if (c.broker.bundleN8n) dependsOn.push("    depends_on:\n      n8n:\n        condition: service_healthy");
   const envLines = [
     "      NODE_ENV: production",
     `      PORT: ${c.port}`,
@@ -148,6 +166,25 @@ function shellService(c: DeployConfig): string {
     ...(c.loggingSyncUrl ? ["      LOGGING_SYNC_URL: ${LOGGING_SYNC_URL:-}"] : []),
     ...(redis ? ["      REDIS_URL: ${REDIS_URL:-}"] : []),
   ];
+  // Behind Traefik, the shell isn't published to the host — Traefik routes to it
+  // in-network and terminates TLS. Otherwise we publish the port on loopback.
+  const proxy = c.reverseProxy;
+  const portOrLabels = proxy
+    ? [
+        "    labels:",
+        '      - "traefik.enable=true"',
+        `      - "traefik.http.routers.omni.rule=Host(\`${publicHost(c)}\`)"`,
+        '      - "traefik.http.routers.omni.entrypoints=websecure"',
+        '      - "traefik.http.routers.omni.tls=true"',
+        '      - "traefik.http.routers.omni.tls.certresolver=le"',
+        `      - "traefik.http.services.omni.loadbalancer.server.port=${c.port}"`,
+      ]
+    : ["    ports:", `      - "127.0.0.1:${c.port}:${c.port}"`];
+  // One depends_on block covering every bundled dependency (never duplicate keys).
+  const deps: string[] = [];
+  if (c.broker.bundleN8n) deps.push("      n8n:\n        condition: service_healthy");
+  if (proxy) deps.push("      traefik:\n        condition: service_healthy");
+  const dependsBlock = deps.length ? [`    depends_on:\n${deps.join("\n")}`] : [];
   return [
     "  # ── OmniProject shell (SPA + gateway) ───────────────────────────────────────",
     "  omni-shell:",
@@ -156,8 +193,7 @@ function shellService(c: DeployConfig): string {
     "      dockerfile: Dockerfile",
     "    image: omniproject-shell:latest",
     "    container_name: omni-shell",
-    "    ports:",
-    `      - "127.0.0.1:${c.port}:${c.port}"`,
+    ...portOrLabels,
     "    security_opt:",
     "      - no-new-privileges:true",
     "    cap_drop:",
@@ -167,7 +203,7 @@ function shellService(c: DeployConfig): string {
     "      - /tmp",
     "    environment:",
     ...envLines,
-    ...dependsOn,
+    ...dependsBlock,
     "    healthcheck:",
     `      test: ["CMD", "node", "-e", "require('http').get('http://localhost:${c.port}/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]`,
     "      interval: 10s",
@@ -228,6 +264,68 @@ function redisService(): string {
     "    networks:",
     "      - omni-net",
     "    mem_limit: 256m",
+    "    restart: unless-stopped",
+  ].join("\n");
+}
+
+function traefikService(): string {
+  return [
+    "  # ── Traefik (reverse proxy + automatic TLS via Let's Encrypt) ───────────────",
+    "  traefik:",
+    "    image: traefik:v3.7.5",
+    "    container_name: omni-traefik",
+    "    security_opt:",
+    "      - no-new-privileges:true",
+    "    command:",
+    '      - "--ping=true"',
+    '      - "--providers.docker=true"',
+    '      - "--providers.docker.exposedbydefault=false"',
+    '      - "--entrypoints.web.address=:80"',
+    '      - "--entrypoints.websecure.address=:443"',
+    '      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"',
+    '      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"',
+    '      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL:?set ACME_EMAIL for Let\'s Encrypt}"',
+    '      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"',
+    '      - "--certificatesresolvers.le.acme.httpchallenge=true"',
+    '      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"',
+    '      - "--log.level=WARN"',
+    "    ports:",
+    '      - "80:80"',
+    '      - "443:443"',
+    "    volumes:",
+    '      - "/var/run/docker.sock:/var/run/docker.sock:ro"',
+    '      - "traefik_letsencrypt:/letsencrypt"',
+    "    healthcheck:",
+    '      test: ["CMD", "traefik", "healthcheck", "--ping"]',
+    "      interval: 10s",
+    "      timeout: 3s",
+    "      retries: 5",
+    "      start_period: 10s",
+    "    networks:",
+    "      - omni-net",
+    "    restart: unless-stopped",
+  ].join("\n");
+}
+
+function ollamaService(): string {
+  return [
+    "  # ── Ollama (local LLM) ──────────────────────────────────────────────────────",
+    "  ollama:",
+    "    image: ollama/ollama:0.30.10",
+    "    container_name: omni-ollama",
+    "    security_opt:",
+    "      - no-new-privileges:true",
+    "    volumes:",
+    "      - ollama_data:/root/.ollama",
+    "    healthcheck:",
+    '      test: ["CMD", "ollama", "list"]',
+    "      interval: 15s",
+    "      timeout: 5s",
+    "      retries: 5",
+    "      start_period: 20s",
+    "    networks:",
+    "      - omni-net",
+    "    mem_limit: 4g",
     "    restart: unless-stopped",
   ].join("\n");
 }
@@ -316,22 +414,30 @@ function authentikServices(): string {
 
 /** Render the full known-good docker-compose.yml for these choices. */
 export function renderCompose(c: DeployConfig): string {
-  const services = [shellService(c)];
+  // Traefik first so it's the obvious ingress; then the shell and its deps.
+  const services: string[] = [];
+  if (c.reverseProxy) services.push(traefikService());
+  services.push(shellService(c));
   if (c.broker.bundleN8n) services.push(n8nService());
   if (c.bundleRedis) services.push(redisService());
+  if (c.bundleOllama) services.push(ollamaService());
   if (c.idp.kind === "authentik-bundled") services.push(authentikServices());
 
   const volumes: string[] = [];
   if (c.broker.bundleN8n) volumes.push("  n8n_data:");
+  if (c.bundleOllama) volumes.push("  ollama_data:");
+  if (c.reverseProxy) volumes.push("  traefik_letsencrypt:");
   if (c.idp.kind === "authentik-bundled") volumes.push("  authentik_pg_data:", "  authentik_media:");
 
+  const tlsNote = c.reverseProxy
+    ? "# Traefik terminates TLS for PUBLIC_URL automatically via Let's Encrypt."
+    : "# This profile does NOT terminate TLS; front it with your own reverse proxy /\n# ingress and set PUBLIC_URL to the https origin (cookie is Secure in production).";
   const out = [
     "name: omniproject",
     "",
     "# Generated by the OmniProject setup wizard — a known-good starting point.",
-    "# Reads values from the sibling .env. This profile does NOT terminate TLS;",
-    "# front it with your own reverse proxy / ingress and set PUBLIC_URL to the",
-    "# https origin (the session cookie is Secure in production).",
+    "# Reads values from the sibling .env.",
+    tlsNote,
     "",
     "networks:",
     "  omni-net:",

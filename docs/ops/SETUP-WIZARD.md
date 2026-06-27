@@ -5,9 +5,10 @@ gateway's own security self-check**, and writes a known-good `.env` +
 `docker-compose.yml`. It is a guided correctness gate, not just a form filler.
 
 It lives in `@workspace/scripts` — a **deployment tool, outside the runtime app**
-(the gateway never imports it). It reuses the app's *pure* libraries (the backend
-catalogue, the security self-check, the n8n workflow generator) as the single
-source of truth.
+(the gateway never imports it). The **backend catalogue + workflow generator are a
+shared package** (`@workspace/backend-catalogue`) that BOTH the gateway and the
+wizard depend on, so the list of supported backends can never drift between them.
+The wizard also reuses the gateway's pure security self-check for validation.
 
 ```bash
 pnpm --filter @workspace/scripts wizard
@@ -29,9 +30,19 @@ pnpm --filter @workspace/scripts wizard
    model + key; or none.
 4. **Time-travel logging** (optional) — an external snapshot server (the one
    durable egress).
-5. **Other operator choices** — port, the external `PUBLIC_URL` you front it with,
-   and **multi-replica** (adds Redis for cross-replica fan-out + shared rate
-   limits; bundled or external).
+5. **Other operator choices** — port, the external `PUBLIC_URL`, **multi-replica**
+   (adds Redis for cross-replica fan-out + shared rate limits; bundled or
+   external), and a **reverse proxy** (bundle **Traefik** to terminate TLS for
+   `PUBLIC_URL` automatically via **Let's Encrypt** — so you don't need your own
+   ingress). Picking local AI (Ollama) also offers to bundle the Ollama service.
+
+### What it can bundle into the compose
+
+Exactly the services you opt into, each a vetted fragment: **Traefik** (TLS/ingress),
+**n8n** (broker), **Redis** (multi-replica), **Ollama** (local LLM), and the full
+**Authentik** stack (IdP). The time-travel **logging server is external** by design
+— OmniProject doesn't ship one, so the wizard wires `LOGGING_SYNC_URL` to the store
+you run.
 
 ## What it does before writing
 

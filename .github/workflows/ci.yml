@@ -46,6 +46,9 @@ jobs:
       - name: Unit tests + coverage gate (SPA)
         run: pnpm --filter @workspace/omniproject run test:coverage
 
+      - name: Unit tests (tooling — setup wizard, deploy generators)
+        run: pnpm --filter @workspace/scripts run test
+
       - name: Verify codegen is in sync with the OpenAPI contract
         run: |
           pnpm --filter @workspace/api-spec run codegen

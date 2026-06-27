@@ -1,5 +1,4 @@
-import { generateWorkflow } from "../../../artifacts/api-server/src/lib/n8n-generator";
-import { getBackend, isEnterpriseBackend, type BackendManifest, type ContractAction, type ActionMapping } from "../../../artifacts/api-server/src/lib/n8n-backends";
+import { generateWorkflow, getBackend, isEnterpriseBackend, type BackendManifest, type ContractAction, type ActionMapping } from "@workspace/backend-catalogue";
 
 /**
  * Onboarding a backend OmniProject doesn't ship a mapping for yet ("custom", or

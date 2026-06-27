@@ -1,0 +1,17 @@
+{
+  "name": "@workspace/backend-catalogue",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:"
+  }
+}
