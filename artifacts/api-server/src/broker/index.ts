@@ -7,6 +7,7 @@ import { BrokerError, type Broker, type ActorContext } from "./types";
 import { instrumented, wrapWithTrace } from "./trace";
 import { devBrokerFromEnv } from "./dev-broker";
 import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
+import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
 import { getSettings } from "../lib/settings";
 
 /**
@@ -36,14 +37,18 @@ export function getBroker(): Broker {
     // connected (prod) or the dev broker is active, so only real vendors show in prod.
     const demoVendor = demoVendorFor({ devActive: !!dev, realBackend: N8N_ENV_CONFIGURED, source: getSettings().backendSource });
     if (demoVendor) base = applyVendorProfile(base, demoVendor);
+    // OPT-IN performance mode: a short-TTL in-memory read cache (READ_CACHE_TTL_MS).
+    // Trades "never stale" for latency; off by default and announced loudly at boot.
+    if (readCacheEnabled()) base = wrapWithCache(base);
     singleton = instrumented() ? wrapWithTrace(base) : base;
   }
   return singleton;
 }
 
 /** Drop the cached broker so the next getBroker() rebuilds it — used when the dev
- *  broker config is switched on the fly. */
+ *  broker config is switched on the fly. Also clears any read cache. */
 export function resetBroker(): void {
+  invalidateReadCache();
   singleton = null;
 }
 
@@ -68,6 +73,9 @@ export function isLiveBroker(): boolean {
 const commandBroker = new N8nBroker();
 /** Forward an arbitrary action + payload through the adapter's command edge. */
 export function brokerCommand(ctx: ActorContext, action: string, payload: Record<string, unknown>, source: string): Promise<unknown> {
+  // Arbitrary commands may mutate the backend, and they bypass the cached broker —
+  // so drop any cached reads so a change made here is visible immediately.
+  invalidateReadCache();
   return commandBroker.commandWithSource(ctx, action, payload, source);
 }
 

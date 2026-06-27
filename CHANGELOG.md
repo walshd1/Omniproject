@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Opt-in server-side read cache (`READ_CACHE_TTL_MS`)** — a short-TTL in-memory
+  cache of broker reads for dispersed/high-latency deployments. It is a deliberate
+  performance mode that **trades the "never stale" guarantee for latency**, so it is
+  **off by default**, behind an explicit flag, and **warned loudly**: a boot-time
+  `logger.warn` in any environment plus a production security-self-check finding.
+  Safety: **per-actor keyed** (one user's cached data is never served to another),
+  **write-through** (any broker write — or a generic command/raw write via
+  `invalidateReadCache()` — clears it so your change is immediately visible),
+  **bounded + per-replica + RAM-only** (never disk, gone on restart). Available in
+  prod and dev; unset the flag for fully live reads.
 - **Conditional / delta reads — refresh only what changed, still zero-data-at-rest**
   — read endpoints now support HTTP conditional GET: an unchanged read returns
   `304 Not Modified` instead of re-sending the payload, so a client that already has

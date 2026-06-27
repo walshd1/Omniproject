@@ -56,6 +56,17 @@ export function securityFindings(env: Env): SecurityFinding[] {
       });
     }
   }
+  // Opt-in read cache relaxes the stateless "never stale" guarantee.
+  if (set(env["READ_CACHE_TTL_MS"]) && Number(env["READ_CACHE_TTL_MS"]) > 0) {
+    out.push({
+      id: "read-cache-on",
+      severity: "warn",
+      message:
+        `READ_CACHE_TTL_MS is set in production (${env["READ_CACHE_TTL_MS"]}ms): reads may be served stale up to this TTL — ` +
+        "the zero-drift guarantee is relaxed and backend data is briefly held in RAM. Intentional for high-latency/dispersed " +
+        "deployments; unset it to return to fully live reads.",
+    });
+  }
   // Abuse protection disabled.
   if (on(env["RATE_LIMIT_DISABLED"])) {
     out.push({

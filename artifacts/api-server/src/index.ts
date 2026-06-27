@@ -6,6 +6,7 @@ import { getSettings } from "./lib/settings";
 import { installShutdownHandlers } from "./lib/shutdown";
 import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
 import { loadConfigDir } from "./lib/config-dir";
+import { readCacheEnabled, readCacheTtlMs } from "./broker/cache";
 
 // Load this deployment's config directory (OMNI_CONFIG_DIR) BEFORE serving, so the
 // vendor overlay + settings from the operator's folder of JSON are in place when
@@ -29,6 +30,15 @@ const port = Number(rawPort);
 
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
+}
+
+// Loudly announce the opt-in read cache — it relaxes the stateless "never stale"
+// guarantee, so an operator must see it at boot in any environment.
+if (readCacheEnabled()) {
+  logger.warn(
+    { ttlMs: readCacheTtlMs() },
+    `[read-cache] ON (TTL=${readCacheTtlMs()}ms): reads may be up to this stale — the zero-drift guarantee is relaxed. Writes invalidate the cache; data is held in RAM per-replica only. Unset READ_CACHE_TTL_MS to disable.`,
+  );
 }
 
 const server = app.listen(port, (err) => {
