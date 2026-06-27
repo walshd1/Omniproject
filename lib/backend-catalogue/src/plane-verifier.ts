@@ -32,6 +32,10 @@ const CHECKS: Record<PlaneId, (e: Rec, errors: string[]) => void> = {
     if (!isStr(e["via"])) errors.push("via: required string");
     if (!isArr(e["requiredEnv"])) errors.push("requiredEnv: required array");
     if (!isObj(e["capabilities"])) errors.push("capabilities: required object");
+    // An "import" source (Excel/CSV) is fed through the column mapper + /api/import,
+    // NOT brokered live — so it carries no auth header and no contract read actions.
+    // "live" / "database" backends are brokered and must declare both.
+    if (e["kind"] === "import") return;
     if (!isStr(e["authHeader"]) && !isStr(e["credentialType"])) errors.push("authHeader OR credentialType: one is required");
     const a = e["actions"] as Rec | undefined;
     if (!isObj(a)) errors.push("actions: required object");
@@ -73,7 +77,7 @@ const CHECKS: Record<PlaneId, (e: Rec, errors: string[]) => void> = {
     if (!isStr(e["route"])) errors.push("route: required");
     if (!isStr(e["kind"])) errors.push("kind: required");
     const c = e["capabilities"] as Rec | undefined;
-    const roles = ["viewer", "contributor", "manager", "admin"];
+    const roles = ["viewer", "contributor", "manager", "pmo", "admin"];
     if (!isObj(c) || !roles.includes(c?.["requiresRole"] as string)) errors.push("capabilities.requiresRole: viewer|contributor|manager|admin");
     if (!isArr(e["tools"])) errors.push("tools: required array");
   },

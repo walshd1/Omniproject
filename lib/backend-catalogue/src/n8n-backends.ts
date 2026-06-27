@@ -668,6 +668,21 @@ export const BACKENDS: BackendDefinition[] = [
     },
     notes: "A starting template for bespoke corporate systems — Capita platforms, ESB/SOA gateways, mainframe-fronting REST. Auth via n8n's generic Header-Auth/OAuth2 credential. For SOAP backbones set the HTTP node to send XML (or use a SOAP community node); for message buses (IBM MQ, Kafka, RabbitMQ) trigger via the matching n8n node and call back through /api/notifications/ingest or a follow-up action.",
   },
+  {
+    id: "excel",
+    label: "Excel / CSV import",
+    docsUrl: "https://github.com/walshd1/omniproject/blob/main/docs/ops/IMPORT.md",
+    via: "Spreadsheet upload → column/field mapper (/api/import)",
+    kind: "import",
+    // An import source, not a live API: no live broker binding. The uploaded sheet
+    // is mapped to canonical fields by the column mapper and written through the
+    // ACTIVE backend's broker — Excel itself stores nothing (zero data at rest).
+    authHeader: "",
+    requiredEnv: [],
+    capabilities: { ...CAPS_CORE, scheduling: true, financials: true, history: false },
+    actions: {},
+    notes: "One-shot tabular import for spreadsheets and CSV exports (and any legacy system that can export a sheet). POST { headers, rows } to /api/import/preview to auto-map columns to canonical fields (exact / synonym / fuzzy), confirm the mapping, then /api/import/commit to create the issues via your live backend. Reference mapping — review before importing.",
+  },
 ];
 
 export function getBackend(id: string): BackendDefinition | undefined {
@@ -701,6 +716,7 @@ export function transportOf(def: BackendDefinition): TransportMethod {
 export function backendCatalogue() {
   return BACKENDS.map((b) => {
     const transport = transportOf(b);
+    const kind = b.kind ?? "live";
     return {
       id: b.id,
       label: b.label,
@@ -711,10 +727,14 @@ export function backendCatalogue() {
       actions: Object.keys(b.actions),
       capabilities: b.capabilities,
       notes: b.notes,
+      kind,
+      // Raw SQL / Mongo are admin-only (technical, arbitrary-query power).
+      adminOnly: b.adminOnly ?? false,
       tier: (isEnterpriseBackend(b.id) ? "enterprise" : "standard") as BackendTier,
-      // Which integration method + which brokers can reach this backend.
+      // Which integration method + which brokers can reach this backend. An import
+      // source is fed through /api/import, not brokered live, so it lists no brokers.
       transport,
-      brokers: brokersForTransport(transport),
+      brokers: kind === "import" ? [] : brokersForTransport(transport),
     };
   });
 }

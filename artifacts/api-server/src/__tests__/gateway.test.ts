@@ -593,10 +593,13 @@ test("buildConfigExport: compose and k8s render their own shapes", () => {
 test("BACKENDS: every manifest is well-formed", () => {
   assert.ok(BACKENDS.length >= 5);
   for (const b of BACKENDS) {
-    // Auth is either a per-user header or an n8n-managed credential.
-    assert.ok(b.id && b.label && (b.authHeader || b.credentialType), `manifest ${b.id} missing fields`);
+    assert.ok(b.id && b.label, `manifest ${b.id} missing fields`);
     assert.ok(b.via, `manifest ${b.id} missing via`);
     assert.ok(Array.isArray(b.requiredEnv));
+    // An "import" source (Excel/CSV) feeds /api/import, not a live broker — it
+    // carries no auth + no contract read actions. Live/database backends must.
+    if (b.kind === "import") continue;
+    assert.ok(b.authHeader || b.credentialType, `manifest ${b.id} missing auth`);
     assert.ok(b.actions.list_projects && b.actions.list_issues, `${b.id} must map core reads`);
   }
 });
