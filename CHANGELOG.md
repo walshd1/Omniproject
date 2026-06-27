@@ -8,6 +8,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Per-vendor vocab maps + one-click nomenclature** (**Stable**) — a backend's
+  vendor JSON can declare how it names things: a **`nomenclature`** preset (canonical
+  term → the vendor's word, e.g. Zendesk "Ticket", ServiceNow "Incident", Trello
+  "Card") and a **`statusVocabulary`** (native status → canonical, below the seam).
+  `GET /api/labels/presets` lists them; `POST /api/labels/apply-preset` adopts one in
+  a click (written through the label-override allow-list) — a shortcut instead of
+  re-typing each label. Shipped presets for ~10 vendors.
+- **Config-purity guard** (**Stable**) — a test that fails CI if a data-bearing
+  entity key (projects/issues/…) ever leaks into the config snapshot. Encodes the
+  invariant: config is a folder of JSON; **true customer data is never at rest** in
+  OmniProject (it's brokered live), so losing/corrupting the config JSON can't touch
+  the data underneath.
 - **A deployment's config is a folder of JSON, read at runtime** (**Stable**) — set
   `OMNI_CONFIG_DIR` and the gateway reads it at boot: `vendors/<plane>/*.json` to
   **add or override vendors** (schema-validated, overlaid through the catalogue

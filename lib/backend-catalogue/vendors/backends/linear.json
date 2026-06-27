@@ -37,7 +37,7 @@
     "list_projects": {
       "kind": "n8nNode",
       "node": "n8n-nodes-base.linear",
-      "note": "Teams (or Projects) map to projects — swap the resource to match your Linear node version.",
+      "note": "Teams (or Projects) map to projects \u2014 swap the resource to match your Linear node version.",
       "parameters": {
         "operation": "getAll",
         "resource": "team"
@@ -72,7 +72,11 @@
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.linear/",
   "id": "linear",
   "label": "Linear",
-  "notes": "Teams → projects, issues → issues. Confirm resource/param names against the installed Linear node version.",
+  "nomenclature": {
+    "term.programme": "Initiative",
+    "nav.programmes": "Initiatives"
+  },
+  "notes": "Teams \u2192 projects, issues \u2192 issues. Confirm resource/param names against the installed Linear node version.",
   "requiredEnv": [],
   "via": "Native n8n node (linearApi credential)"
 }

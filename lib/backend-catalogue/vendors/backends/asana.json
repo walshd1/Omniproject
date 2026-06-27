@@ -78,6 +78,12 @@
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.asana/",
   "id": "asana",
   "label": "Asana",
+  "nomenclature": {
+    "term.issue": "Task",
+    "term.issues": "Tasks",
+    "term.programme": "Portfolio",
+    "nav.programmes": "Portfolios"
+  },
   "notes": "Uses the maintained Asana node + an Asana credential in n8n. projectId = Asana project gid, issueId = task gid. Confirm field names in the node after import.",
   "requiredEnv": [
     "ASANA_WORKSPACE_ID"

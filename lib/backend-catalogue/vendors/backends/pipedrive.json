@@ -79,7 +79,13 @@
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.pipedrive/",
   "id": "pipedrive",
   "label": "Pipedrive",
-  "notes": "CRM mapping: Organization → project, Deal → issue. crm + financials capabilities light up deal value / stage. Confirm field + param names against the installed Pipedrive node version after import.",
+  "nomenclature": {
+    "term.issue": "Deal",
+    "term.issues": "Deals",
+    "term.project": "Pipeline",
+    "nav.projects": "Pipelines"
+  },
+  "notes": "CRM mapping: Organization \u2192 project, Deal \u2192 issue. crm + financials capabilities light up deal value / stage. Confirm field + param names against the installed Pipedrive node version after import.",
   "requiredEnv": [],
   "via": "Native n8n node (pipedriveApi credential)"
 }

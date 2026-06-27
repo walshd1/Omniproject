@@ -36,7 +36,7 @@
     "list_projects": {
       "kind": "n8nNode",
       "node": "n8n-nodes-base.trello",
-      "note": "Trello has no list-all-boards node op — fetch member boards via an extra node, or map boards→projects, lists→projects to taste.",
+      "note": "Trello has no list-all-boards node op \u2014 fetch member boards via an extra node, or map boards\u2192projects, lists\u2192projects to taste.",
       "parameters": {
         "id": "={{ $json.body.payload.projectId }}",
         "operation": "get",
@@ -74,7 +74,13 @@
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.trello/",
   "id": "trello",
   "label": "Trello",
-  "notes": "Kanban-shaped: boards/lists → projects, cards → issues. Scheduling off unless you use Trello due dates.",
+  "nomenclature": {
+    "term.issue": "Card",
+    "term.issues": "Cards",
+    "term.project": "Board",
+    "nav.projects": "Boards"
+  },
+  "notes": "Kanban-shaped: boards/lists \u2192 projects, cards \u2192 issues. Scheduling off unless you use Trello due dates.",
   "requiredEnv": [],
   "via": "Native n8n node (trelloApi credential)"
 }

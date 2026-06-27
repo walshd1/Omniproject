@@ -87,6 +87,12 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.asana/",
     "id": "asana",
     "label": "Asana",
+    "nomenclature": {
+      "term.issue": "Task",
+      "term.issues": "Tasks",
+      "term.programme": "Portfolio",
+      "nav.programmes": "Portfolios"
+    },
     "notes": "Uses the maintained Asana node + an Asana credential in n8n. projectId = Asana project gid, issueId = task gid. Confirm field names in the node after import.",
     "requiredEnv": [
       "ASANA_WORKSPACE_ID"
@@ -266,6 +272,12 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.clickup/",
     "id": "clickup",
     "label": "ClickUp",
+    "nomenclature": {
+      "term.issue": "Task",
+      "term.issues": "Tasks",
+      "term.project": "List",
+      "nav.projects": "Lists"
+    },
     "notes": "Spaces/lists → projects, tasks → issues. List all lists via an extra node if you want list_projects.",
     "requiredEnv": [
       "CLICKUP_SPACE_ID"
@@ -606,10 +618,20 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "docsUrl": "https://docs.github.com/en/rest/issues",
     "id": "github",
     "label": "GitHub Issues",
+    "nomenclature": {
+      "term.project": "Repository",
+      "nav.projects": "Repositories"
+    },
     "notes": "projectId = repository name. Map issue.state (open/closed) ↔ status; GitHub has no native start/due dates (scheduling off).",
     "requiredEnv": [
       "GITHUB_OWNER"
     ],
+    "statusVocabulary": {
+      "toCanonical": {
+        "open": "todo",
+        "closed": "done"
+      }
+    },
     "via": "HTTP + per-user token"
   },
   {
@@ -652,10 +674,24 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "docsUrl": "https://docs.gitlab.com/ee/api/issues.html",
     "id": "gitlab",
     "label": "GitLab Issues",
+    "nomenclature": {
+      "term.programme": "Group",
+      "nav.programmes": "Groups"
+    },
     "notes": "projectId = GitLab numeric project id. iid vs id: writes use the issue iid within the project.",
     "requiredEnv": [
       "GITLAB_INSTANCE_URL"
     ],
+    "statusVocabulary": {
+      "toCanonical": {
+        "opened": "todo",
+        "closed": "done"
+      },
+      "fromCanonical": {
+        "done": "close",
+        "todo": "reopen"
+      }
+    },
     "via": "HTTP + per-user token"
   },
   {
@@ -958,6 +994,10 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.linear/",
     "id": "linear",
     "label": "Linear",
+    "nomenclature": {
+      "term.programme": "Initiative",
+      "nav.programmes": "Initiatives"
+    },
     "notes": "Teams → projects, issues → issues. Confirm resource/param names against the installed Linear node version.",
     "requiredEnv": [],
     "via": "Native n8n node (linearApi credential)"
@@ -1162,6 +1202,12 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.mondaycom/",
     "id": "monday",
     "label": "Monday.com",
+    "nomenclature": {
+      "term.issue": "Item",
+      "term.issues": "Items",
+      "term.project": "Board",
+      "nav.projects": "Boards"
+    },
     "notes": "projectId = board id, issueId = item id. Boards map to projects, items to issues. Column mapping is board-specific — finish it in the node.",
     "requiredEnv": [],
     "via": "Native n8n node (mondayComApi credential)"
@@ -1533,6 +1579,12 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.pipedrive/",
     "id": "pipedrive",
     "label": "Pipedrive",
+    "nomenclature": {
+      "term.issue": "Deal",
+      "term.issues": "Deals",
+      "term.project": "Pipeline",
+      "nav.projects": "Pipelines"
+    },
     "notes": "CRM mapping: Organization → project, Deal → issue. crm + financials capabilities light up deal value / stage. Confirm field + param names against the installed Pipedrive node version after import.",
     "requiredEnv": [],
     "via": "Native n8n node (pipedriveApi credential)"
@@ -1917,6 +1969,10 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.servicenow/",
     "id": "servicenow",
     "label": "ServiceNow (PPM)",
+    "nomenclature": {
+      "term.issue": "Incident",
+      "term.issues": "Incidents"
+    },
     "notes": "Uses the generic tableRecord resource against the PPM tables (pm_project / pm_project_task). Adjust table/field names to your ServiceNow PPM model.",
     "requiredEnv": [],
     "via": "Native n8n node (serviceNowBasicApi credential)"
@@ -2145,6 +2201,12 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.trello/",
     "id": "trello",
     "label": "Trello",
+    "nomenclature": {
+      "term.issue": "Card",
+      "term.issues": "Cards",
+      "term.project": "Board",
+      "nav.projects": "Boards"
+    },
     "notes": "Kanban-shaped: boards/lists → projects, cards → issues. Scheduling off unless you use Trello due dates.",
     "requiredEnv": [],
     "via": "Native n8n node (trelloApi credential)"
@@ -2303,6 +2365,10 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.zendesk/",
     "id": "zendesk",
     "label": "Zendesk",
+    "nomenclature": {
+      "term.issue": "Ticket",
+      "term.issues": "Tickets"
+    },
     "notes": "Support/ITSM: Organization → project, Ticket → issue. service capability lights up SLA/CSAT fields.",
     "requiredEnv": [],
     "via": "Native n8n node (zendeskApi credential)"

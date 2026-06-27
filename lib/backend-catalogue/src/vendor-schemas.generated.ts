@@ -63,6 +63,35 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
       "credentialType": {
         "type": "string"
       },
+      "nomenclature": {
+        "type": "object",
+        "description": "Canonical label-catalogue key → this vendor's preferred word (a one-click nomenclature preset).",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "statusVocabulary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "toCanonical"
+        ],
+        "description": "This vendor's native status dialect mapped to canonical statuses (data, below the seam).",
+        "properties": {
+          "toCanonical": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "fromCanonical": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "authHeader": {
         "type": "string",
         "description": "n8n expression for the per-user Authorization header value."
