@@ -1,6 +1,7 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateRuleset, setRuleModes, getRuleModes, rulesetCatalogue, resetRuleModes, BUSINESS_RULES, setFieldRules, getFieldRules } from "./ruleset";
+import { evaluateRuleset, setRuleModes, getRuleModes, rulesetCatalogue, resetRuleModes, BUSINESS_RULES, setFieldRules, getFieldRules, applyRuleset } from "./ruleset";
+import { getReferenceRuleset, referenceRulesetCatalogue } from "@workspace/backend-catalogue";
 
 afterEach(() => resetRuleModes());
 
@@ -81,6 +82,56 @@ test("field rules are restrict-only + validated (malformed/grant rejected)", () 
   const rules = getFieldRules();
   assert.equal(rules.length, 1);
   assert.equal(rules[0]!.id, "good");
+});
+
+test("built-in 'due-after-start' — a cross-field comparison field rules can't express", () => {
+  setRuleModes({ "due-after-start": "hard" });
+  // due before start → blocked.
+  const bad = evaluateRuleset({ action: "create_issue", write: true, role: "manager", payload: { title: "x", startDate: "2026-02-01", dueDate: "2026-01-01" } });
+  assert.equal(bad.allow, false);
+  assert.equal(bad.blocked?.id, "due-after-start");
+  // due after start → fine; and absent dates never trigger it.
+  assert.equal(evaluateRuleset({ action: "create_issue", write: true, role: "manager", payload: { title: "x", startDate: "2026-01-01", dueDate: "2026-02-01" } }).allow, true);
+  assert.equal(evaluateRuleset({ action: "create_issue", write: true, role: "manager", payload: { title: "x" } }).allow, true);
+});
+
+test("applyRuleset loads a bundle deterministically (unlisted built-ins reset to off)", () => {
+  // Pre-dirty the engine, then apply a bundle that only mentions due-after-start.
+  setRuleModes({ "no-deletes": "hard", "read-only": "warn" });
+  applyRuleset({ modes: { "due-after-start": "hard" }, fieldRules: [{ id: "fr", action: "create_issue", field: "estimateHours", mode: "warn" }] });
+  const modes = getRuleModes();
+  assert.equal(modes["due-after-start"], "hard");
+  assert.equal(modes["no-deletes"], "off", "unlisted built-ins reset to off");
+  assert.equal(modes["read-only"], "off");
+  assert.equal(getFieldRules().length, 1);
+});
+
+test("reference rulesets: every methodology bundle is restrict-only + references known rules", () => {
+  const builtinIds = new Set(BUSINESS_RULES.map((r) => r.id));
+  const VALID = new Set(["hard", "warn", "off"]);
+  const cat = referenceRulesetCatalogue();
+  assert.ok(cat.length >= 6, "a bundle per key methodology");
+  for (const rs of cat) {
+    // Mode keys must be real built-in ids; modes must be valid (no 'allow').
+    for (const [id, mode] of Object.entries(rs.modes)) {
+      assert.ok(builtinIds.has(id), `${rs.methodology}: unknown built-in '${id}'`);
+      assert.ok(VALID.has(mode), `${rs.methodology}: invalid mode '${mode}'`);
+    }
+    // Field rules must be well-formed + restrict-only (only require a field).
+    for (const fr of rs.fieldRules) {
+      assert.ok(fr.id && fr.action && fr.field, `${rs.methodology}: malformed field rule`);
+      assert.ok(VALID.has(fr.mode), `${rs.methodology}: invalid field-rule mode`);
+    }
+  }
+});
+
+test("reference ruleset: applying Scrum survives the engine's restrict-only guards", () => {
+  const scrum = getReferenceRuleset("scrum");
+  assert.ok(scrum);
+  const applied = applyRuleset({ modes: scrum!.modes, fieldRules: scrum!.fieldRules });
+  // Schedule sanity is hard; the field rule (story points) loaded as authored.
+  assert.equal(applied.modes["due-after-start"], "hard");
+  assert.ok(applied.fieldRules.some((r) => r.field === "storyPoints"));
 });
 
 test("the catalogue exposes each rule + its mode for the admin UI", () => {

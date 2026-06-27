@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { getSession } from "./auth";
-import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules } from "../lib/ruleset";
+import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules, applyRuleset } from "../lib/ruleset";
+import { referenceRulesetCatalogue, getReferenceRuleset } from "@workspace/backend-catalogue";
 import { recordAudit } from "../lib/audit";
 
 /**
@@ -52,5 +53,41 @@ router.put("/admin/ruleset/fields", requireRole("pmo"), (req, res) => {
   });
   res.json(rules);
 });
+
+// ── Reference rulesets — curated, named bundles per methodology ───────────────
+// List the reference rulesets (compliance/completeness baselines) a PMO can apply.
+router.get("/admin/ruleset/reference", requireRole("pmo"), (_req, res) => {
+  res.json(referenceRulesetCatalogue());
+});
+
+// Apply one reference ruleset by methodology id. Deterministic + restrict-only
+// (routes through applyRuleset → setRuleModes/setFieldRules). Audited.
+router.post("/admin/ruleset/apply-reference", requireRole("pmo"), (req, res) => {
+  const methodology = (req.body as { methodology?: unknown } | undefined)?.methodology;
+  if (typeof methodology !== "string") {
+    res.status(400).json({ error: "Body must be { methodology: string }" });
+    return;
+  }
+  const bundle = getReferenceRuleset(methodology);
+  if (!bundle) {
+    res.status(404).json({ error: `No reference ruleset for methodology '${methodology}'` });
+    return;
+  }
+  const applied = applyRuleset({ modes: bundle.modes, fieldRules: bundle.fieldRules });
+  recordAudit({
+    ts: new Date().toISOString(),
+    category: "admin",
+    action: "ruleset_apply_reference",
+    actor: getSession(req) ? { sub: getSession(req)!.sub, role: roleForReq(req) } : null,
+    result: "success",
+    status: 200,
+    meta: { methodology, modes: applied.modes, fieldRuleCount: applied.fieldRules.length },
+  });
+  res.json({ methodology, ...rulesetCatalogueWithFields() });
+});
+
+function rulesetCatalogueWithFields() {
+  return { rules: rulesetCatalogue(), fieldRules: getFieldRules() };
+}
 
 export default router;

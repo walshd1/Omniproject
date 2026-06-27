@@ -37,6 +37,11 @@ Operators toggle the **mode**; the predicates are fixed (no code injection):
 | `no-deletes` | `delete_*` actions | off |
 | `require-assignee` | create/update issue with no assignee | off |
 | `require-description` | create issue with no description | off |
+| `due-after-start` | create/update issue where `dueDate` < `startDate` | off |
+
+`due-after-start` is a **cross-field comparison** — the kind of soft policy that
+otherwise gets baked into code. It lives as a fixed built-in (not a field rule,
+which can only check presence), still off by default and still restrict-only.
 
 ## Field rules — "what must go in fields" + dependencies
 
@@ -76,3 +81,23 @@ person can hold both. See [RBAC roles](#) / `lib/rbac.ts`.
 
 Modes are in-memory config (reset on restart unless seeded by the env). Blocks and
 warnings are recorded in the audit trail (`rule_block:<id>` / `rule_warn:<id>`).
+
+## Reference rulesets — compliance baselines per methodology
+
+To help a PMO get compliance + completeness right without hand-building rules,
+OmniProject ships a curated **reference ruleset** per methodology (Scrum, Kanban,
+Scrumban, Waterfall, PRINCE2, SAFe). Each is a *named bundle* of built-in modes +
+field rules — e.g. Scrum warns on missing assignee/description and nudges a
+story-point estimate; Waterfall hard-requires start/finish dates so a task can be
+baselined. They live in the catalogue (`lib/backend-catalogue/methodology-rulesets.ts`)
+as data, so they carry **every safety guarantee of the engine** — applying one can
+only tighten, never grant.
+
+- **`GET /api/admin/ruleset/reference`** — list the reference bundles (PMO-gated).
+- **`POST /api/admin/ruleset/apply-reference`** — body `{ "methodology": "scrum" }`.
+  Applies the bundle **deterministically** (every unlisted built-in resets to off,
+  the field-rule set is replaced) through the same restrict-only `setRuleModes` /
+  `setFieldRules` path. PMO-gated + audited (`ruleset_apply_reference`).
+
+These are *reference* mappings — sensible defaults to review and tune for your
+programme, not law.

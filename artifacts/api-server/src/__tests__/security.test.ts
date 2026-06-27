@@ -160,6 +160,32 @@ test("RBAC: an admin (superset of PMO) CAN read the business ruleset", async () 
   assert.equal(res.status, 200);
 });
 
+test("RBAC: a PMO can list AND apply a methodology reference ruleset", async () => {
+  const list = await req("/api/admin/ruleset/reference", { headers: { cookie: PMO } });
+  assert.equal(list.status, 200);
+  const bundles = (await list.json()) as { methodology: string }[];
+  assert.ok(bundles.some((b) => b.methodology === "scrum"));
+  // Apply Scrum (warns + schedule-sanity hard — no hard field rule, so it can't
+  // wedge the other tests' create paths).
+  const apply = await req("/api/admin/ruleset/apply-reference", {
+    method: "POST",
+    headers: { cookie: PMO, "content-type": "application/json" },
+    body: JSON.stringify({ methodology: "scrum" }),
+  });
+  assert.equal(apply.status, 200);
+  const after = (await apply.json()) as { rules: { id: string; mode: string }[] };
+  assert.equal(after.rules.find((r) => r.id === "due-after-start")?.mode, "hard");
+});
+
+test("RBAC: a manager CANNOT apply a reference ruleset (PMO gate)", async () => {
+  const res = await req("/api/admin/ruleset/apply-reference", {
+    method: "POST",
+    headers: { cookie: MANAGER, "content-type": "application/json" },
+    body: JSON.stringify({ methodology: "scrum" }),
+  });
+  assert.equal(res.status, 403);
+});
+
 test("RBAC: a PMO CANNOT read the technical broker-log (still admin-only)", async () => {
   // The PMO owns business rules, not technical config — the security boundary holds.
   const res = await req("/api/admin/broker-log", { headers: { cookie: PMO } });
