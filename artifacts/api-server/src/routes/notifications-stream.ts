@@ -5,6 +5,7 @@ import { roleForReq } from "../lib/rbac";
 import { addClient, clientCount, type NotifyTarget } from "../lib/notify-hub";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
 import { emitWebhookEvent } from "../lib/webhooks";
+import { routeNotification, getNotificationChannel } from "@workspace/backend-catalogue";
 import { logger } from "../lib/logger";
 import type { NotificationIngest, IngestedNotification } from "../broker/contract";
 
@@ -97,12 +98,17 @@ ingestRouter.post("/notifications/ingest", ingestAuth, async (req: Request, res:
     timestamp: new Date().toISOString(),
   };
   const localDelivered = await getNotifyBus().publish({ notification, target: body.target });
+  // Generic, above-the-seam DISPATCH: the JSON routing rules decide which external
+  // delivery channels this event goes to (gated to channels that actually exist).
+  // The DECISION rides along with the outbound event; DELIVERY stays below the seam
+  // — the broker workflow reads `dispatch[].channel` and posts to Slack/PagerDuty/…
+  const dispatch = routeNotification({ kind: notification.kind }, (id) => !!getNotificationChannel(id));
   // Also push to any outbound webhook subscribers (premium; no-op if unlicensed
   // or none configured). Fire-and-forget so SSE latency isn't affected.
-  emitWebhookEvent("notification", { notification, target: body.target ?? null });
+  emitWebhookEvent("notification", { notification, target: body.target ?? null, dispatch });
   // In-process: exact local count. Redis: delivery is async across replicas, so
   // we report local connections instead of a cross-replica count.
   const delivered = localDelivered ?? clientCount();
-  logger.info({ audit: true, action: "notification_ingest", delivered, bus: busMode(), connected: clientCount() }, "notify_ingest");
-  res.json({ delivered, connected: clientCount(), bus: busMode() });
+  logger.info({ audit: true, action: "notification_ingest", delivered, dispatched: dispatch.length, bus: busMode(), connected: clientCount() }, "notify_ingest");
+  res.json({ delivered, connected: clientCount(), bus: busMode(), dispatch });
 });

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/notification-route.schema.json",
+  "title": "OmniProject notification route",
+  "description": "A generic, above-the-seam routing rule: which event kinds dispatch to which delivery channels (and to whom). One file per route under assets/notification-routes/<id>.json. Delivery itself stays below the seam — a route only DECIDES targets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "label",
+    "description",
+    "match",
+    "channels",
+    "methodologies",
+    "order"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "label": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "match": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kinds"],
+      "description": "The event predicate. A notification matches when its kind is listed (or \"*\" is listed = any kind).",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "description": "Notification kinds this route fires on (e.g. \"incident\", \"due_soon\"); \"*\" = any.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "channels": {
+      "type": "array",
+      "description": "Delivery channel ids from the notification catalogue (e.g. \"slack\", \"pagerduty\", \"email\").",
+      "items": {
+        "type": "string"
+      }
+    },
+    "audience": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Who the dispatch is for (RBAC role). Omitted = everyone / channel default.",
+      "properties": {
+        "role": {
+          "enum": ["viewer", "contributor", "manager", "admin"]
+        }
+      }
+    },
+    "methodologies": {
+      "type": "array",
+      "description": "Methodology TAGS — selecting one activates the routes sharing it. \"*\" = neutral/always.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "order": {
+      "type": "integer",
+      "description": "Evaluation / display order."
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "id": "critical-incidents",
+  "label": "Critical incidents",
+  "description": "Blockers and incidents page the on-call (PagerDuty/Opsgenie) and post to the team chat so managers see them immediately.",
+  "match": { "kinds": ["incident", "blocker"] },
+  "channels": ["pagerduty", "opsgenie", "slack"],
+  "audience": { "role": "manager" },
+  "methodologies": ["*"],
+  "order": 10
+}

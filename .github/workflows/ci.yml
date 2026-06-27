@@ -94,6 +94,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the notification-route catalogue is in sync with the route JSON
+        run: |
+          pnpm --filter @workspace/scripts run gen-notification-routes
+          if ! git diff --quiet -- lib/backend-catalogue/src/notification-routes.generated.ts; then
+            echo "::error::Notification-route catalogue is out of date. Run 'pnpm --filter @workspace/scripts run gen-notification-routes' and commit the result."
+            git --no-pager diff --stat -- lib/backend-catalogue/src/notification-routes.generated.ts
+            exit 1
+          fi
+
       - name: Verify the function map is in sync with the code comments
         run: |
           pnpm --filter @workspace/scripts run gen-function-map

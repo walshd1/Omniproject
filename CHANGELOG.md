@@ -8,6 +8,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Generic notification dispatch — JSON routing above the seam** (**Stable**) —
+  which event kinds go to which delivery channels is now a config decision, not
+  code. Routes are authored as JSON (`assets/notification-routes/<id>.json`,
+  validated + embedded by `gen-notification-routes`, drift-guarded in CI, overlayable
+  per deployment) and a generic engine — `routeNotification(event, isChannelAvailable)`
+  — turns an event into the de-duplicated set of **delivery intents**
+  (`{route, channel, audience}`). The seam line is exact: the engine only DECIDES
+  targets (dispatch); DELIVERY — posting to Slack, paging PagerDuty, sending the
+  email — stays BELOW the seam (the broker workflow reads `dispatch[].channel`). On
+  `POST /api/notifications/ingest` the routing decision now rides along with the
+  outbound `notification` event and is returned in the response; `GET
+  /api/setup/notification-routes` surfaces the rules. A guard test (the
+  notification-plane analogue of the incompatibility guard) fails CI if a route names
+  a channel that isn't in the catalogue, so a dangling channel can't silently never
+  deliver. Each route carries a `methodologies` tag, so a methodology pack can ship
+  its own routing.
 - **Multi-broker router — many broker kinds connected at once** (**Stable**) — a
   registry above the seam (`broker/registry.ts`) that knows which broker KINDS are
   connected to a deployment, so the capability resolver can union what they

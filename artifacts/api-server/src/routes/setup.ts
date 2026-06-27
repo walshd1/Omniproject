@@ -10,7 +10,7 @@ import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
 import { connectedBrokerKinds } from "../broker/registry";
 import { requireRole, hasRole } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
-import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, methodologyCatalogue, reportCatalogue, screenCatalogue, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, methodologyTags } from "@workspace/backend-catalogue";
+import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, methodologyCatalogue, reportCatalogue, screenCatalogue, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, methodologyTags } from "@workspace/backend-catalogue";
 import { isEntitled, resolveLicense } from "../lib/license";
 import { auditStatus } from "../lib/audit";
 import { DEV_PERSIST_ENABLED } from "../lib/dev-persist";
@@ -146,6 +146,11 @@ router.get("/setup/outputs", (_req, res) => {
 });
 router.get("/setup/notifications", (_req, res) => {
   res.json(notificationCatalogue());
+});
+// The notification ROUTING rules (JSON-defined) — which event kinds dispatch to
+// which delivery channels. The generic dispatch decision; delivery is below the seam.
+router.get("/setup/notification-routes", (_req, res) => {
+  res.json(notificationRouteCatalogue());
 });
 router.get("/setup/methodologies", (_req, res) => {
   res.json(methodologyCatalogue());

@@ -30,3 +30,4 @@ export * from "./vendor-schema";
 export * from "./vendor-overlay";
 export * from "./view-catalogue";
 export * from "./compatibility";
+export * from "./notification-routing";
