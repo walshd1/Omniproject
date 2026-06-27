@@ -109,38 +109,100 @@ function openPsk(token: string): string | null {
   }
 }
 
-/** Route one binding action to the backend. The single switch a broker owns. */
-async function dispatch(action: string, payload: Row, ctx: ActorCtx): Promise<unknown> {
+/** The backend interface a broker implements (the stub above is one). Templates
+ *  type their real implementation against this. */
+export type BrokerBackend = typeof backend;
+
+/** Route one binding action to the backend. The single switch a broker owns. The
+ *  backend is injected so every transport template reuses this unchanged. */
+async function dispatch(action: string, payload: Row, ctx: ActorCtx, be: BrokerBackend): Promise<unknown> {
   const pid = String(payload["projectId"] ?? "");
   const iid = String(payload["issueId"] ?? "");
   switch (action) {
-    case "list_projects": return backend.listProjects(ctx);
-    case "list_issues": return backend.listIssues(ctx, pid);
-    case "get_issue": return backend.getIssue(ctx, pid, iid);
-    case "list_project_members": return backend.listProjectMembers(ctx, pid);
-    case "list_task_items": return backend.listTaskItems(ctx, pid, String(payload["taskId"] ?? ""));
-    case "project_summary": return backend.projectSummary(ctx, pid);
-    case "get_project_history": return backend.projectHistory(ctx, pid);
-    case "get_baseline": return backend.baseline(ctx, pid);
-    case "get_raid": return backend.raid(ctx, pid);
-    case "get_notifications": return backend.notifications(ctx);
-    case "get_portfolio_health": return backend.portfolioHealth(ctx);
-    case "get_resource_capacity": return backend.resourceCapacity(ctx, pid);
-    case "get_project_financials": return backend.projectFinancials(ctx, pid);
-    case "get_capabilities": return backend.capabilities(ctx);
-    case "get_fx_rates": return backend.fxRates(ctx);
-    case "replay": return backend.replay(ctx, payload["from"] as string, payload["to"] as string);
-    case "list_activity": return backend.activity(ctx);
-    case "create_project": return backend.createProject(ctx, payload);
-    case "update_project": return backend.updateProject(ctx, pid, payload);
-    case "create_issue": return backend.createIssue(ctx, pid, payload);
-    case "update_issue": return backend.updateIssue(ctx, pid, iid, payload);
-    case "delete_issue": return backend.deleteIssue(ctx, pid, iid);
-    case "create_raid_entry": return backend.createRaidEntry(ctx, pid, payload);
-    case "create_task_item": return backend.createTaskItem(ctx, pid, String(payload["taskId"] ?? ""), payload);
+    case "list_projects": return be.listProjects(ctx);
+    case "list_issues": return be.listIssues(ctx, pid);
+    case "get_issue": return be.getIssue(ctx, pid, iid);
+    case "list_project_members": return be.listProjectMembers(ctx, pid);
+    case "list_task_items": return be.listTaskItems(ctx, pid, String(payload["taskId"] ?? ""));
+    case "project_summary": return be.projectSummary(ctx, pid);
+    case "get_project_history": return be.projectHistory(ctx, pid);
+    case "get_baseline": return be.baseline(ctx, pid);
+    case "get_raid": return be.raid(ctx, pid);
+    case "get_notifications": return be.notifications(ctx);
+    case "get_portfolio_health": return be.portfolioHealth(ctx);
+    case "get_resource_capacity": return be.resourceCapacity(ctx, pid);
+    case "get_project_financials": return be.projectFinancials(ctx, pid);
+    case "get_capabilities": return be.capabilities(ctx);
+    case "get_fx_rates": return be.fxRates(ctx);
+    case "replay": return be.replay(ctx, payload["from"] as string, payload["to"] as string);
+    case "list_activity": return be.activity(ctx);
+    case "create_project": return be.createProject(ctx, payload);
+    case "update_project": return be.updateProject(ctx, pid, payload);
+    case "create_issue": return be.createIssue(ctx, pid, payload);
+    case "update_issue": return be.updateIssue(ctx, pid, iid, payload);
+    case "delete_issue": return be.deleteIssue(ctx, pid, iid);
+    case "create_raid_entry": return be.createRaidEntry(ctx, pid, payload);
+    case "create_task_item": return be.createTaskItem(ctx, pid, String(payload["taskId"] ?? ""), payload);
     default:
       // Unknown action — a bad request, not a server error.
       throw new BrokerHttpError(400, { success: false, message: `unknown action: ${action}` });
+  }
+}
+
+/** The transport-agnostic BROKER CORE: parse (incl. PSK) → extract actor → verify
+ *  short-circuit → dispatch → response envelope + error taxonomy. Every transport
+ *  template (Node HTTP, serverless, Pipedream, …) calls THIS and only supplies the
+ *  platform glue + its `backend`, so there is no duplication of the binding logic. */
+export interface BrokerCoreInput {
+  /** The raw request body string. */
+  rawBody: string;
+  /** Optional `X-OmniProject-Action` header value. */
+  actionHeader?: string;
+  /** Optional `Authorization` header value (per-user impersonation). */
+  authHeader?: string;
+}
+export interface BrokerCoreResult { status: number; body: unknown }
+
+export async function processBrokerCall(input: BrokerCoreInput, be: BrokerBackend = backend): Promise<BrokerCoreResult> {
+  // 1. Parse the body (decrypting a PSK envelope first if present).
+  let body: Row;
+  try {
+    let json: Row = input.rawBody ? (JSON.parse(input.rawBody) as Row) : {};
+    if (typeof json["enc"] === "string") {
+      const opened = openPsk(json["enc"] as string);
+      if (opened === null) return { status: 400, body: { success: false, message: "bad PSK envelope" } };
+      json = JSON.parse(opened) as Row;
+    }
+    body = json;
+  } catch {
+    return { status: 400, body: { success: false, message: "invalid JSON" } };
+  }
+
+  // 2. Extract action + the authenticated actor (forward, never store).
+  const action = String(input.actionHeader || body["action"] || "");
+  const payload = (body["payload"] as Row) ?? {};
+  const userContext = (payload["userContext"] as Row | undefined) ?? undefined;
+  const authHeader = input.authHeader ?? (body["auth"] as string | undefined);
+  const ctx: ActorCtx = {
+    token: (userContext?.["token"] as string | undefined) ?? authHeader?.replace(/^Bearer\s+/i, ""),
+    sub: userContext?.["sub"] as string | undefined,
+    role: userContext?.["role"] as string | undefined,
+    source: body["source"] as string | undefined,
+  };
+
+  // 3. `verify` short-circuit: a dry-run probe must NOT touch the backend.
+  if (body["verify"] === true || payload["verify"] === true) {
+    return { status: 200, body: { success: true, data: { action, verified: true }, message: "verify ok" } };
+  }
+
+  // 4. Dispatch + map results/errors onto the envelope + taxonomy.
+  try {
+    const data = await dispatch(action, payload, ctx, be);
+    return { status: 200, body: { success: true, data, message: null } };
+  } catch (e) {
+    if (e instanceof NotImplemented) return { status: 501, body: { success: false, message: e.message } };
+    const err = e as BrokerHttpError;
+    return { status: typeof err?.status === "number" ? err.status : 500, body: err.body ?? { success: false, message: "error" } };
   }
 }
 
@@ -150,63 +212,23 @@ export function signEvent(body: string, secret: string): string {
   return "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex");
 }
 
-/** Build (but don't start) the blueprint HTTP server. */
+/** Build (but don't start) the blueprint HTTP server — a thin Node-HTTP adapter
+ *  over `processBrokerCall`. (The serverless / Pipedream templates are the same
+ *  few lines for their platform — see broker/templates/.) */
 export function createReferenceBrokerBlueprint(): http.Server {
   return http.createServer((req, res) => {
     if (req.method !== "POST") { res.writeHead(405).end(); return; }
     let raw = "";
     req.on("data", (c) => { raw += c; });
     req.on("end", () => {
-      void (async () => {
-        // 1. Parse the body (decrypting a PSK envelope first if present).
-        let body: Row = {};
-        try {
-          let json: Row = raw ? (JSON.parse(raw) as Row) : {};
-          if (typeof json["enc"] === "string") {
-            const opened = openPsk(json["enc"] as string);
-            if (opened === null) { res.writeHead(400).end(); return; }
-            json = JSON.parse(opened) as Row;
-          }
-          body = json;
-        } catch { res.writeHead(400).end(); return; }
-
-        // 2. Extract action + the authenticated actor (forward, never store).
-        const action = String((req.headers["x-omniproject-action"] as string) || body["action"] || "");
-        const payload = (body["payload"] as Row) ?? {};
-        const userContext = (payload["userContext"] as Row | undefined) ?? undefined;
-        const authHeader = (req.headers["authorization"] as string | undefined) ?? (body["auth"] as string | undefined);
-        const ctx: ActorCtx = {
-          token: userContext?.["token"] as string | undefined ?? authHeader?.replace(/^Bearer\s+/i, ""),
-          sub: userContext?.["sub"] as string | undefined,
-          role: userContext?.["role"] as string | undefined,
-          source: body["source"] as string | undefined,
-        };
-
-        // 3. `verify` short-circuit: a dry-run probe must NOT touch the backend.
-        if (body["verify"] === true || payload["verify"] === true) {
-          res.writeHead(200, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject" });
-          res.end(JSON.stringify({ success: true, data: { action, verified: true }, message: "verify ok" }));
-          return;
-        }
-
-        // 4. Dispatch + map results/errors onto the response envelope + taxonomy.
-        try {
-          const data = await dispatch(action, payload, ctx);
-          res.writeHead(200, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject" });
-          res.end(JSON.stringify({ success: true, data, message: null }));
-        } catch (e) {
-          if (e instanceof NotImplemented) {
-            // 501 — honest "this broker isn't built yet" (the whole point).
-            res.writeHead(501, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ success: false, message: e.message }));
-            return;
-          }
-          const err = e as BrokerHttpError;
-          const status = typeof err?.status === "number" ? err.status : 500;
-          res.writeHead(status, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(err.body ?? { success: false, message: "error" }));
-        }
-      })();
+      void processBrokerCall({
+        rawBody: raw,
+        actionHeader: req.headers["x-omniproject-action"] as string | undefined,
+        authHeader: req.headers["authorization"] as string | undefined,
+      }).then((r) => {
+        res.writeHead(r.status, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject" });
+        res.end(JSON.stringify(r.body));
+      });
     });
   });
 }
