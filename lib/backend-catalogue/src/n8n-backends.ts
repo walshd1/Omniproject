@@ -294,6 +294,44 @@ export const BACKENDS: BackendDefinition[] = [
     notes: "Spaces/lists → projects, tasks → issues. List all lists via an extra node if you want list_projects.",
   },
 
+  // ── CRM: accounts/companies → projects, opportunities/deals → issues ─────────
+  {
+    id: "salesforce",
+    label: "Salesforce",
+    docsUrl: "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.salesforce/",
+    via: "Native n8n node (salesforceOAuth2Api credential)",
+    authHeader: "",
+    requiredEnv: [],
+    credentialType: "salesforceOAuth2Api",
+    capabilities: { ...CAPS_CORE, crm: true, financials: true },
+    actions: {
+      list_projects: { kind: "n8nNode", node: "n8n-nodes-base.salesforce", typeVersion: 1, parameters: { resource: "account", operation: "getAll", returnAll: true }, note: "Accounts map to projects." },
+      list_issues: { kind: "n8nNode", node: "n8n-nodes-base.salesforce", typeVersion: 1, parameters: { resource: "opportunity", operation: "getAll", returnAll: true, options: { conditionsUi: { conditionValues: [{ field: "AccountId", operation: "equal", value: "={{ $json.body.payload.projectId }}" }] } } }, note: "Opportunities map to issues; the SOQL filter scopes them to the account (projectId)." },
+      create_issue: { kind: "n8nNode", node: "n8n-nodes-base.salesforce", typeVersion: 1, parameters: { resource: "opportunity", operation: "create", name: "={{ $json.body.payload.title }}", additionalFields: { accountId: "={{ $json.body.payload.projectId }}" } }, note: "Salesforce opportunities REQUIRE StageName + CloseDate — set defaults in the node after import." },
+      update_issue: { kind: "n8nNode", node: "n8n-nodes-base.salesforce", typeVersion: 1, parameters: { resource: "opportunity", operation: "update", opportunityId: "={{ $json.body.payload.issueId }}", updateFields: { name: "={{ $json.body.payload.title }}" } } },
+      delete_issue: { kind: "n8nNode", node: "n8n-nodes-base.salesforce", typeVersion: 1, parameters: { resource: "opportunity", operation: "delete", opportunityId: "={{ $json.body.payload.issueId }}" } },
+    },
+    notes: "CRM mapping: Account → project, Opportunity → issue. crm + financials capabilities light up deal value / stage / close date. Confirm field + param names against your Salesforce edition after import.",
+  },
+  {
+    id: "hubspot",
+    label: "HubSpot",
+    docsUrl: "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.hubspot/",
+    via: "Native n8n node (hubspotApi or hubspotOAuth2Api credential)",
+    authHeader: "",
+    requiredEnv: [],
+    credentialType: "hubspotApi",
+    capabilities: { ...CAPS_CORE, crm: true, financials: true },
+    actions: {
+      list_projects: { kind: "n8nNode", node: "n8n-nodes-base.hubspot", typeVersion: 2, parameters: { resource: "company", operation: "getAll", returnAll: true }, note: "Companies map to projects." },
+      list_issues: { kind: "n8nNode", node: "n8n-nodes-base.hubspot", typeVersion: 2, parameters: { resource: "deal", operation: "getAll", returnAll: true }, note: "Deals map to issues; associate to the company (projectId) — HubSpot getAll has no direct company filter, so filter on the association after import." },
+      create_issue: { kind: "n8nNode", node: "n8n-nodes-base.hubspot", typeVersion: 2, parameters: { resource: "deal", operation: "create", additionalFields: { dealName: "={{ $json.body.payload.title }}" } }, note: "HubSpot deals REQUIRE a pipeline + dealstage — set defaults in the node; associate to the company (projectId)." },
+      update_issue: { kind: "n8nNode", node: "n8n-nodes-base.hubspot", typeVersion: 2, parameters: { resource: "deal", operation: "update", dealId: "={{ $json.body.payload.issueId }}", updateFields: { dealName: "={{ $json.body.payload.title }}" } } },
+      delete_issue: { kind: "n8nNode", node: "n8n-nodes-base.hubspot", typeVersion: 2, parameters: { resource: "deal", operation: "delete", dealId: "={{ $json.body.payload.issueId }}" } },
+    },
+    notes: "CRM mapping: Company → project, Deal → issue. crm + financials capabilities light up amount / pipeline / stage. Confirm resource/param names against the installed HubSpot node version after import.",
+  },
+
   // ── Microsoft: HTTP via Dataverse with n8n-managed OAuth credential ──────────
   {
     id: "dynamics365",
