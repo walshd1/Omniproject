@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateRuleset, setRuleModes, getRuleModes, rulesetCatalogue, resetRuleModes, BUSINESS_RULES } from "./ruleset";
+import { evaluateRuleset, setRuleModes, getRuleModes, rulesetCatalogue, resetRuleModes, BUSINESS_RULES, setFieldRules, getFieldRules } from "./ruleset";
 
 afterEach(() => resetRuleModes());
 
@@ -47,6 +47,40 @@ test("SAFETY: the engine is restrict-only — there is no mode that grants", () 
   const v = evaluateRuleset({ action: "create_issue", write: true, role: "viewer" });
   assert.equal(v.allow, true); // note: RBAC (the HARD gate) is what stops a viewer — not this engine
   assert.equal("blocked" in v && v.blocked, null);
+});
+
+test("field rule: 'no task without an effort estimate' (the example) blocks as hard", () => {
+  setFieldRules([{ id: "require-estimate", action: "create_issue", field: "estimateHours", mode: "hard" }]);
+  const blocked = evaluateRuleset({ action: "create_issue", write: true, role: "contributor", payload: { title: "x" } });
+  assert.equal(blocked.allow, false);
+  assert.equal(blocked.blocked?.id, "require-estimate");
+  assert.match(blocked.blocked!.message, /estimateHours/);
+  // …satisfied once the estimate is present:
+  const ok = evaluateRuleset({ action: "create_issue", write: true, role: "contributor", payload: { title: "x", estimateHours: 3 } });
+  assert.equal(ok.allow, true);
+});
+
+test("field rule: a DEPENDENCY only requires the field when its trigger is present", () => {
+  setFieldRules([{ id: "cost-centre-when-billable", action: "create_issue", field: "costCenter", whenPresent: "billable", mode: "hard" }]);
+  // billable not set → dependency dormant.
+  assert.equal(evaluateRuleset({ action: "create_issue", write: true, role: "manager", payload: { title: "x" } }).allow, true);
+  // billable set but no costCenter → blocked.
+  const v = evaluateRuleset({ action: "create_issue", write: true, role: "manager", payload: { title: "x", billable: true } });
+  assert.equal(v.allow, false);
+  assert.equal(v.blocked?.id, "cost-centre-when-billable");
+  // both present → fine.
+  assert.equal(evaluateRuleset({ action: "create_issue", write: true, role: "manager", payload: { title: "x", billable: true, costCenter: "CC-1" } }).allow, true);
+});
+
+test("field rules are restrict-only + validated (malformed/grant rejected)", () => {
+  setFieldRules([
+    { id: "good", action: "create_issue", field: "estimateHours", mode: "warn" },
+    { id: "bad-mode", action: "create_issue", field: "x", mode: "allow" }, // invalid mode → dropped
+    { foo: "not a rule" },
+  ] as unknown);
+  const rules = getFieldRules();
+  assert.equal(rules.length, 1);
+  assert.equal(rules[0]!.id, "good");
 });
 
 test("the catalogue exposes each rule + its mode for the admin UI", () => {

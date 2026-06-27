@@ -38,13 +38,35 @@ Operators toggle the **mode**; the predicates are fixed (no code injection):
 | `require-assignee` | create/update issue with no assignee | off |
 | `require-description` | create issue with no description | off |
 
+## Field rules — "what must go in fields" + dependencies
+
+Beyond the built-ins, an admin can author **field rules** (data, not code — just
+field-presence, so still restrict-only):
+
+- **Required field** — *"no task can be created without an effort estimate"*:
+  ```json
+  { "id": "require-estimate", "action": "create_issue", "field": "estimateHours", "mode": "hard" }
+  ```
+- **Dependency** — *"cost centre is required when an item is billable"* (only
+  enforced when the trigger field is present):
+  ```json
+  { "id": "cc-when-billable", "action": "create_issue", "field": "costCenter", "whenPresent": "billable", "mode": "warn" }
+  ```
+
+`action` is an exact action (`create_issue`, `update_issue`, …) or `"any-write"`.
+A `hard` field rule returns `422`; a `warn` records a warning. Field rules can only
+**require** a field — never grant — so the safety guarantee above still holds.
+
 ## Configuring (admin only)
 
 - **`GET /api/admin/ruleset`** — list rules + current modes.
 - **`PUT /api/admin/ruleset`** — body `{ "no-deletes": "hard", "read-only": "off" }`.
   Admin-gated; every change is audited (`ruleset_update`).
-- **Boot seed:** `BUSINESS_RULE_MODES` (JSON) sets initial modes, e.g.
-  `BUSINESS_RULE_MODES='{"no-deletes":"hard","require-assignee":"warn"}'`.
+- **`GET/PUT /api/admin/ruleset/fields`** — read / replace the field rules (the
+  PUT body is the full array). Admin-gated + audited (`ruleset_fields_update`).
+- **Boot seed:** `BUSINESS_RULE_MODES` (JSON) for built-in modes, and
+  `BUSINESS_FIELD_RULES` (JSON array) for field rules, e.g.
+  `BUSINESS_FIELD_RULES='[{"id":"require-estimate","action":"create_issue","field":"estimateHours","mode":"hard"}]'`.
 
 Modes are in-memory config (reset on restart unless seeded by the env). Blocks and
 warnings are recorded in the audit trail (`rule_block:<id>` / `rule_warn:<id>`).
