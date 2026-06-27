@@ -4,6 +4,7 @@ import { MetricPanel } from "./panels/MetricPanel";
 import { TextPanel } from "./panels/TextPanel";
 import { TablePanel } from "./panels/TablePanel";
 import { ListPanel } from "./panels/ListPanel";
+import { ViewPanel } from "./panels/ViewPanel";
 
 /**
  * Panel-renderer registry — maps a panel `kind` to the ONE component that renders
@@ -18,6 +19,8 @@ export const PANEL_RENDERERS: Partial<Record<PanelKind, PanelComponent>> = {
   text: TextPanel,
   table: TablePanel,
   list: ListPanel,
+  // The bridge to the existing methodology views (board/Gantt/scrum/…) as panels.
+  view: ViewPanel,
 };
 
 /** Whether a renderer exists for a panel kind (else it degrades to a placeholder). */
