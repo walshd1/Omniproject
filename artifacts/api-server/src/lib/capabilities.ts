@@ -2,6 +2,7 @@ import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
 import type { BackendFieldMap, FieldSupport } from "../broker/types";
 import { brokerSupportUnion, unionSupport, BROKER_CAPABILITY_KEYS } from "@workspace/backend-catalogue";
+import { connectedBrokers } from "../broker/registry";
 import {
   FIELD_REGISTRY,
   customFieldsFrom,
@@ -241,16 +242,16 @@ export async function resolveCapabilities(req: Request): Promise<Capabilities> {
 
 /**
  * The BROKER half of the support set: the capability keys the connected broker(s)
- * contribute. The demo broker simulates the full reference broker, so it enables
- * every broker capability — mirroring how demo enables every backend domain. A live
- * broker contributes exactly what its catalogue definition declares. Today there's
- * one connected kind; the multi-broker router (next increment) will widen this list
- * and `brokerSupportUnion` already ORs across however many it's given.
+ * contribute, OR-unioned across however many KINDS are connected (the multi-broker
+ * registry — `BROKER_KINDS` ∪ the active broker). A demo/in-process broker
+ * simulates the full reference broker, so it enables every broker capability —
+ * mirroring how demo enables every backend domain. Live brokers contribute exactly
+ * what their catalogue definitions declare.
  */
 function resolveBrokerSupport(): Record<string, boolean> {
-  const broker = getBroker();
-  if (!broker.live) return Object.fromEntries(BROKER_CAPABILITY_KEYS.map((k) => [k, true]));
-  return brokerSupportUnion([broker.kind]);
+  const connected = connectedBrokers();
+  if (connected.some((b) => !b.live)) return Object.fromEntries(BROKER_CAPABILITY_KEYS.map((k) => [k, true]));
+  return brokerSupportUnion(connected.map((b) => b.kind));
 }
 
 /**

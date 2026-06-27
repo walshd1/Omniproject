@@ -103,6 +103,16 @@ Reference HTTP broker sidecar — a RUNNABLE in-memory broker (the CI conformanc
 | --- | --- |
 | `createReferenceSidecar` | Build (but don't start) the reference sidecar HTTP server — a thin adapter over the shared core + the in-memory backend, with PSK-symmetric wire encoding. |
 
+### `artifacts/api-server/src/broker/registry.ts`
+
+The broker router / registry — which broker KINDS are connected to this deployment, so the capability resolver can UNION what they collectively support and a router can pick which kind serves a given need.
+
+| Function | What it does |
+| --- | --- |
+| `connectedBrokers` | The brokers connected to this deployment. |
+| `connectedBrokerKinds` | The DISTINCT connected broker kinds — the list the capability resolver unions over. |
+| `brokersSupporting` | The routing primitive: which connected broker kinds can serve a given capability (e.g. "who can deliver `eventsOutbound`?"). |
+
 ### `artifacts/api-server/src/broker/templates/pipedream-component.ts`
 
 PIPEDREAM broker template — an HTTP component.
