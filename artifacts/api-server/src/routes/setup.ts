@@ -122,9 +122,13 @@ router.get("/setup/export", requireRole("admin"), (req, res) => {
   res.type("text/plain").send(text);
 });
 
-// GET /api/setup/backends — catalogue for the workflow wizard.
-router.get("/setup/backends", (_req, res) => {
-  res.json(backendCatalogue());
+// GET /api/setup/backends — catalogue for the workflow wizard. Admin-only backends
+// (raw SQL / Mongo) are hidden from non-admins so they aren't offered a technical
+// integration they can't configure (wiring one is admin-gated at generate-workflow
+// / settings regardless — this just keeps the wizard honest per role).
+router.get("/setup/backends", (req, res) => {
+  const isAdmin = roleForReq(req) === "admin";
+  res.json(backendCatalogue().filter((b) => isAdmin || !b.adminOnly));
 });
 
 // The other two integration planes (same shape): which brokers can serve the

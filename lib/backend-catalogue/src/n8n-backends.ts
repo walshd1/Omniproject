@@ -683,6 +683,51 @@ export const BACKENDS: BackendDefinition[] = [
     actions: {},
     notes: "One-shot tabular import for spreadsheets and CSV exports (and any legacy system that can export a sheet). POST { headers, rows } to /api/import/preview to auto-map columns to canonical fields (exact / synonym / fuzzy), confirm the mapping, then /api/import/commit to create the issues via your live backend. Reference mapping — review before importing.",
   },
+  {
+    id: "sql",
+    label: "Raw SQL (PostgreSQL / MySQL / SQL Server)",
+    docsUrl: "https://github.com/walshd1/omniproject/blob/main/docs/ops/DATABASE-BACKENDS.md",
+    via: "HTTP sidecar that holds the DB connection — admin-only",
+    kind: "database",
+    adminOnly: true,
+    // SECURITY: the gateway NEVER sends raw SQL. It posts a contract ACTION + typed
+    // params to the sidecar, which owns the parameterised statements (and the DB
+    // credentials). So there is no SQL string on the wire to inject into, and the
+    // backend's own grants still apply. The sidecar↔gateway hop is a shared bearer.
+    authHeader: "=Bearer {{ $env.SQL_SIDECAR_TOKEN }}",
+    requiredEnv: ["SQL_SIDECAR_URL", "SQL_SIDECAR_TOKEN"],
+    capabilities: { ...CAPS_CORE, scheduling: true, financials: true, history: false },
+    actions: {
+      list_projects: { method: "POST", url: "={{ $env.SQL_SIDECAR_URL }}/list_projects", body: "={{ JSON.stringify({ userContext: $json.body.payload.userContext }) }}" },
+      list_issues: { method: "POST", url: "={{ $env.SQL_SIDECAR_URL }}/list_issues", body: "={{ JSON.stringify({ projectId: $json.body.payload.projectId }) }}" },
+      create_issue: { method: "POST", url: "={{ $env.SQL_SIDECAR_URL }}/create_issue", body: "={{ JSON.stringify($json.body.payload) }}" },
+      update_issue: { method: "POST", url: "={{ $env.SQL_SIDECAR_URL }}/update_issue", body: "={{ JSON.stringify($json.body.payload) }}" },
+      delete_issue: { method: "POST", url: "={{ $env.SQL_SIDECAR_URL }}/delete_issue", body: "={{ JSON.stringify({ issueId: $json.body.payload.issueId }) }}" },
+    },
+    notes: "For internally-hosted / legacy relational stores. Run the reference SQL sidecar (docs/ops/DATABASE-BACKENDS.md) next to your database: it maps each contract action to a PARAMETERISED query you define for your schema, holding the DB credentials so the gateway stays stateless. Admin-only — raw database access is technical config. Confirm the per-action query + column→field mapping against your schema.",
+  },
+  {
+    id: "mongodb",
+    label: "MongoDB",
+    docsUrl: "https://github.com/walshd1/omniproject/blob/main/docs/ops/DATABASE-BACKENDS.md",
+    via: "HTTP sidecar that holds the Mongo connection — admin-only",
+    kind: "database",
+    adminOnly: true,
+    // Same shape as the SQL sidecar: the gateway posts an action + params; the
+    // sidecar runs the find/insert/update/delete on the configured collection with
+    // the values bound (never string-concatenated), holding the connection string.
+    authHeader: "=Bearer {{ $env.MONGO_SIDECAR_TOKEN }}",
+    requiredEnv: ["MONGO_SIDECAR_URL", "MONGO_SIDECAR_TOKEN"],
+    capabilities: { ...CAPS_CORE, scheduling: true, history: false },
+    actions: {
+      list_projects: { method: "POST", url: "={{ $env.MONGO_SIDECAR_URL }}/list_projects", body: "={{ JSON.stringify({ userContext: $json.body.payload.userContext }) }}" },
+      list_issues: { method: "POST", url: "={{ $env.MONGO_SIDECAR_URL }}/list_issues", body: "={{ JSON.stringify({ projectId: $json.body.payload.projectId }) }}" },
+      create_issue: { method: "POST", url: "={{ $env.MONGO_SIDECAR_URL }}/create_issue", body: "={{ JSON.stringify($json.body.payload) }}" },
+      update_issue: { method: "POST", url: "={{ $env.MONGO_SIDECAR_URL }}/update_issue", body: "={{ JSON.stringify($json.body.payload) }}" },
+      delete_issue: { method: "POST", url: "={{ $env.MONGO_SIDECAR_URL }}/delete_issue", body: "={{ JSON.stringify({ issueId: $json.body.payload.issueId }) }}" },
+    },
+    notes: "For internally-hosted / legacy document stores. Run the reference Mongo sidecar (docs/ops/DATABASE-BACKENDS.md): it maps each contract action to a find/insert/update/delete on your collection with values bound (not concatenated), holding the connection string. Admin-only. Confirm the collection + field mapping against your documents.",
+  },
 ];
 
 export function getBackend(id: string): BackendDefinition | undefined {
@@ -699,6 +744,13 @@ const ENTERPRISE_BACKENDS = new Set(["sap", "primavera", "dynamics365", "dynamic
 
 export function isEnterpriseBackend(id: string): boolean {
   return ENTERPRISE_BACKENDS.has(id);
+}
+
+/** Backends only an admin may configure (raw SQL / Mongo — arbitrary query power
+ *  over internal stores). Backend selection already rides the admin-gated settings
+ *  route; this is the explicit, testable signal the gateway/UI consult too. */
+export function isAdminOnlyBackend(id: string): boolean {
+  return getBackend(id)?.adminOnly === true;
 }
 
 /**

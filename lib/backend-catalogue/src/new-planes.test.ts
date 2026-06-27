@@ -7,6 +7,7 @@ import { reportCatalogue, getReport } from "./report-catalogue";
 import { screenCatalogue, getScreen } from "./screen-catalogue";
 import { PLANES, planeCatalogue } from "./planes";
 import { brokerCatalogue } from "./broker-catalogue";
+import { backendCatalogue, isAdminOnlyBackend } from "./n8n-backends";
 
 test("planes meta-registry lists all seven planes with dev docs", () => {
   const ids = PLANES.map((p) => p.id).sort();
@@ -44,6 +45,25 @@ test("screens carry their route, required role + capability, and widgets", () =>
 test("cross-plane: a broker can offer things on other planes (n8n → notifications)", () => {
   const n8n = brokerCatalogue().find((b) => b.id === "n8n");
   assert.ok(n8n?.alsoProvides.some((x) => x.plane === "notifications"));
+});
+
+test("backend kinds: Excel is an import source; SQL/Mongo are admin-only databases", () => {
+  const cat = backendCatalogue();
+  const excel = cat.find((b) => b.id === "excel");
+  assert.equal(excel?.kind, "import");
+  assert.deepEqual(excel?.brokers, []); // import sources aren't brokered live
+  assert.equal(excel?.adminOnly, false);
+
+  for (const id of ["sql", "mongodb"]) {
+    const db = cat.find((b) => b.id === id);
+    assert.equal(db?.kind, "database", `${id} is a database backend`);
+    assert.equal(db?.adminOnly, true, `${id} must be admin-only`);
+    assert.ok(db?.brokers.length, `${id} is brokered live (via the http sidecar)`);
+    assert.ok(isAdminOnlyBackend(id));
+  }
+  // A normal SaaS backend stays non-admin + live.
+  const jiraLike = cat.find((b) => b.kind === "live" && !b.adminOnly);
+  assert.ok(jiraLike, "live, non-admin backends still exist");
 });
 
 test("every plane ships dev docs (the file the meta-registry points at exists)", () => {

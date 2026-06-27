@@ -201,6 +201,16 @@ test("RBAC: a PMO CANNOT change technical settings (still admin-only)", async ()
   assert.equal(res.status, 403);
 });
 
+test("admin-only backends (raw SQL / Mongo) are hidden from non-admins in the wizard", async () => {
+  const forViewer = (await (await req("/api/setup/backends", { headers: { cookie: VIEWER } })).json()) as { id: string; adminOnly: boolean }[];
+  assert.equal(forViewer.some((b) => b.id === "sql" || b.id === "mongodb"), false, "non-admin must not be offered DB backends");
+  assert.ok(forViewer.some((b) => b.id === "excel"), "but the Excel import source is fine for anyone");
+
+  const forAdmin = (await (await req("/api/setup/backends", { headers: { cookie: ADMIN } })).json()) as { id: string; adminOnly: boolean }[];
+  const sql = forAdmin.find((b) => b.id === "sql");
+  assert.ok(sql?.adminOnly, "admin sees the SQL backend, flagged admin-only");
+});
+
 test("RBAC: an admin is NOT blocked by the contributor gate", async () => {
   // Admin clears requireRole("contributor"); it may still 400/404 downstream, but
   // it must NOT be the 403 authorization wall.
