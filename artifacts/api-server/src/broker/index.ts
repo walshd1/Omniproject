@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { getSession } from "../routes/auth";
 import { roleForReq } from "../lib/rbac";
-import { N8nBroker, N8N_ENV_CONFIGURED } from "./n8n";
+import { N8nBroker, N8N_ENV_CONFIGURED, pingBroker } from "./n8n";
 import { DemoBroker } from "./demo";
 import { BrokerError, type Broker, type ActorContext } from "./types";
 
@@ -29,6 +29,35 @@ export function brokerKind(): string {
 /** True when the active broker is backed by a real backend (not demo). */
 export function isLiveBroker(): boolean {
   return getBroker().live;
+}
+
+/**
+ * Readiness: can this replica reach its backend? The demo/in-process broker has
+ * no external dependency, so it is always ready; a live broker is pinged (bounded)
+ * to confirm reachability. Result is briefly cached so a readiness probe loop
+ * (k8s every ~10s, or a noisy caller) can't hammer the broker.
+ */
+export interface BrokerReadiness { ready: boolean; kind: string; status?: number; detail?: string }
+let readyCache: { at: number; result: BrokerReadiness } | null = null;
+const READY_TTL_MS = 5_000;
+
+export async function brokerReadiness(timeoutMs = 2000): Promise<BrokerReadiness> {
+  if (readyCache && Date.now() - readyCache.at < READY_TTL_MS) return readyCache.result;
+  const kind = brokerKind();
+  let result: BrokerReadiness;
+  if (!isLiveBroker()) {
+    result = { ready: true, kind };
+  } else {
+    const p = await pingBroker(timeoutMs);
+    result = { ready: p.reachable, kind, ...(p.status !== undefined ? { status: p.status } : {}), ...(p.detail ? { detail: p.detail } : {}) };
+  }
+  readyCache = { at: Date.now(), result };
+  return result;
+}
+
+/** Test-only: drop the readiness cache. */
+export function resetReadinessCache(): void {
+  readyCache = null;
 }
 
 /** Build the domain ActorContext (forwarded identity + transport auth) from a request. */

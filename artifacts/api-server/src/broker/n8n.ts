@@ -235,6 +235,30 @@ async function callN8n<T = unknown>(
   }
 }
 
+/**
+ * Lightweight readiness probe: is the broker reachable RIGHT NOW? One bounded
+ * POST to the first pool endpoint — any HTTP response counts as reachable (we are
+ * checking connectivity, not authorisation); only a connection error/timeout is
+ * "not ready". Egress-guarded and time-boxed so a readiness check can never hang
+ * or be turned into an SSRF. Used by GET /api/readyz.
+ */
+export async function pingBroker(timeoutMs = 2000): Promise<{ reachable: boolean; status?: number; detail?: string }> {
+  const url = webhookPool()[0]!;
+  try {
+    assertEgressAllowed(url);
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", [REQUEST_HEADERS.action]: "__ready", [REQUEST_HEADERS.origin]: GATEWAY_ORIGIN },
+      body: JSON.stringify({ action: "__ready", payload: {}, source: "readiness", origin: GATEWAY_ORIGIN, verify: true }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return { reachable: true, status: res.status };
+  } catch (err) {
+    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+    return { reachable: false, detail: isTimeout ? "timed out" : err instanceof Error ? err.name : "unreachable" };
+  }
+}
+
 // ── Capabilities probe cache (n8n-specific resilience) ──────────────────────────
 const CONSERVATIVE: CapabilityFlags = {
   issues: true, scheduling: true, portfolio: true,

@@ -8,6 +8,8 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { runWithTiming, getUpstreamMs } from "./lib/request-timing";
 import { runSecuritySelfCheck } from "./lib/security-check";
+import { httpRequestStarted, recordHttpRequest } from "./lib/runtime-metrics";
+import { errorHandler } from "./lib/error-handler";
 
 const app: Express = express();
 
@@ -107,6 +109,24 @@ app.use((req, res, next) => {
   });
 });
 
+// RED metrics: count every request, its status class and latency, and track
+// in-flight depth. Pure in-process counters → always available at /api/metrics
+// even when the backend is down (exactly when you need them). Exposed via
+// lib/runtime-metrics.ts.
+app.use((req, res, next) => {
+  const start = Date.now();
+  httpRequestStarted();
+  let recorded = false;
+  const done = (): void => {
+    if (recorded) return;
+    recorded = true;
+    recordHttpRequest(res.statusCode, Date.now() - start);
+  };
+  res.on("finish", done);
+  res.on("close", done); // client aborted before finish
+  next();
+});
+
 app.use("/api", router);
 
 // ── Static SPA (single-container "omni-shell" mode) ───────────────────────────
@@ -130,5 +150,10 @@ if (staticDir && fs.existsSync(staticDir)) {
 
   logger.info({ staticDir }, "Serving static SPA");
 }
+
+// Central error-capture seam — MUST be last so it catches anything thrown by a
+// route. Fingerprints + structured-logs the error, counts it, and returns a safe
+// generic 500 (never a stack trace). See lib/error-handler.ts.
+app.use(errorHandler);
 
 export default app;
