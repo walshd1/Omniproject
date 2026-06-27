@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Action dispatch is registry-driven, not switch-driven** — the two hand-written
+  `switch (action)` statements become handler registries keyed by action. The
+  broker-core binding switch is now `BINDING_ACTIONS` (the canonical binding-action
+  registry — the single source of the action vocabulary every transport routes), and
+  the MCP executor is now a handler registry tied to its declared `MCP_TOOLS`. A
+  guard test asserts the MCP handlers and the declared tools match exactly (a tool
+  can never ship without an executor, or vice versa). The two action sets overlap but
+  neither is a subset — `list_reports`/`list_screens` are cross-plane catalogue
+  actions, not backend binding calls — so they stay two registries, honestly. The
+  binding behaviour is identical (conformance/blueprint/smoke suites unchanged).
 - **Reports + screens are JSON-defined** — the last two renderable planes move from
   hand-written TypeScript arrays to JSON, completing what the board views started.
   Each report (`assets/reports/<id>.json`) and screen (`assets/screens/<id>.json`) is
