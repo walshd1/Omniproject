@@ -38,6 +38,12 @@ export interface BrandingConfig {
   loginHeading: string | null;
   footerText: string | null;
   supportUrl: string | null;
+  /** Theme: base font family applied to all screens (a CSS font-family stack). */
+  fontFamily: string | null;
+  /** Theme: base font scale (0.8–1.5; multiplies the root font size). */
+  fontScale: number | null;
+  /** Theme: page background colour (hex). */
+  backgroundColor: string | null;
 }
 
 /** Outbound webhook subscription (premium: gated by the `webhooks` entitlement). */
@@ -116,6 +122,9 @@ function brandingFromEnv(): BrandingConfig | null {
     loginHeading: process.env["BRAND_LOGIN_HEADING"]?.trim() || null,
     footerText: process.env["BRAND_FOOTER_TEXT"]?.trim() || null,
     supportUrl: process.env["BRAND_SUPPORT_URL"]?.trim() || null,
+    fontFamily: process.env["BRAND_FONT_FAMILY"]?.trim() || null,
+    fontScale: process.env["BRAND_FONT_SCALE"] ? Number(process.env["BRAND_FONT_SCALE"]) : null,
+    backgroundColor: process.env["BRAND_BACKGROUND_COLOR"]?.trim() || null,
   };
   return Object.values(b).some(Boolean) ? b : null;
 }

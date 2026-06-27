@@ -139,6 +139,9 @@
 
   body {
     @apply font-mono antialiased bg-background text-foreground;
+    /* Customer theme (lib/branding): font family + page background, when set. */
+    font-family: var(--brand-font-family, ui-monospace, SFMono-Regular, monospace);
+    background-color: var(--brand-bg, hsl(var(--background)));
   }
 }
 
@@ -162,7 +165,9 @@
   --user-font-scale: 1;
 }
 html {
-  font-size: calc(100% * var(--user-font-scale, 1));
+  /* Root size combines the CUSTOMER theme scale (lib/branding) with the PER-USER
+     accessibility scale (lib/a11y-prefs), so both compose on every screen. */
+  font-size: calc(100% * var(--brand-font-scale, 1) * var(--user-font-scale, 1));
 }
 
 /* Explicit per-user "reduce motion" (in addition to the OS media query above). */

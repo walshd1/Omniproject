@@ -987,6 +987,16 @@ test("branding: sanitize rejects a non-http logo url", () => {
   assert.throws(() => sanitizeBranding({ logoUrl: "javascript:alert(1)" }), /URL/);
 });
 
+test("branding theme: accepts font family / scale / background, rejects bad values", () => {
+  const b = sanitizeBranding({ fontFamily: "Inter, system-ui, sans-serif", fontScale: 1.2, backgroundColor: "#0b1020" });
+  assert.equal(b.fontFamily, "Inter, system-ui, sans-serif");
+  assert.equal(b.fontScale, 1.2);
+  assert.equal(b.backgroundColor, "#0b1020");
+  assert.throws(() => sanitizeBranding({ fontScale: 3 }), /0.8 and 1.5/);
+  assert.throws(() => sanitizeBranding({ backgroundColor: "navy" }), /hex/);
+  assert.throws(() => sanitizeBranding({ fontFamily: "url(evil)" }), /fontFamily/);
+});
+
 test("branding: effective falls back to product defaults when unlicensed (enforced)", () => {
   const saved = process.env["LICENSE_DEV_FEATURES"];
   const savedNode = process.env["NODE_ENV"];

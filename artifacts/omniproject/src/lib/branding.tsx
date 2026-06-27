@@ -22,6 +22,9 @@ export interface Branding {
   loginHeading: string;
   footerText: string;
   supportUrl: string;
+  fontFamily: string;
+  fontScale: number;
+  backgroundColor: string;
   entitled: boolean;
   locked: boolean;
 }
@@ -34,6 +37,9 @@ const DEFAULTS: Branding = {
   loginHeading: "Orchestration Shell",
   footerText: "",
   supportUrl: "",
+  fontFamily: "",
+  fontScale: 1,
+  backgroundColor: "",
   entitled: false,
   locked: false,
 };
@@ -63,12 +69,15 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.title = value.appName;
-    if (value.primaryColor) {
-      document.documentElement.style.setProperty("--brand-primary", value.primaryColor);
-    } else {
-      document.documentElement.style.removeProperty("--brand-primary");
-    }
-  }, [value.appName, value.primaryColor]);
+    const root = document.documentElement;
+    const setOrClear = (prop: string, v: string) => (v ? root.style.setProperty(prop, v) : root.style.removeProperty(prop));
+    setOrClear("--brand-primary", value.primaryColor);
+    // Theme: font family, base font scale, and page background — applied on ALL
+    // screens via CSS custom properties (the customer's theme, stored as JSON).
+    setOrClear("--brand-font-family", value.fontFamily);
+    root.style.setProperty("--brand-font-scale", String(value.fontScale || 1));
+    setOrClear("--brand-bg", value.backgroundColor);
+  }, [value.appName, value.primaryColor, value.fontFamily, value.fontScale, value.backgroundColor]);
 
   return (
     <BrandingContext.Provider value={value}>
