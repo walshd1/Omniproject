@@ -389,6 +389,26 @@ export const BACKENDS: BackendDefinition[] = [
     notes: "Project for the web stores schedules in Dataverse (msdyn_project / msdyn_projecttask). For classic Project Online, point at the PWA OData (/_api/ProjectData) with a Microsoft OAuth credential instead.",
   },
 
+  // ── ERP: NetSuite (HTTP SuiteTalk REST; no native n8n node) ──────────────────
+  {
+    id: "netsuite",
+    label: "Oracle NetSuite",
+    docsUrl: "https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_1540391670.html",
+    via: "HTTP (SuiteTalk REST) + n8n-managed token auth (OAuth 1.0a TBA)",
+    authHeader: "",
+    requiredEnv: ["NETSUITE_BASE_URL"],
+    credentialType: "oAuth1Api",
+    capabilities: { ...CAPS_CORE, portfolio: true, financials: true, resources: true },
+    actions: {
+      list_projects: { method: "GET", url: "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/job?limit=1000", note: "NetSuite projects are 'job' records." },
+      list_issues: { method: "GET", url: "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask?q=company ANY_OF {{ $json.body.payload.projectId }}", note: "Project tasks scoped to the job (projectId) via the SuiteQL-style q filter." },
+      create_issue: { method: "POST", url: "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask", body: "={{ JSON.stringify({ title: $json.body.payload.title, company: $json.body.payload.projectId }) }}" },
+      update_issue: { method: "PATCH", url: "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask/{{ $json.body.payload.issueId }}", body: "={{ JSON.stringify({ title: $json.body.payload.title }) }}" },
+      delete_issue: { method: "DELETE", url: "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask/{{ $json.body.payload.issueId }}" },
+    },
+    notes: "Auth is NetSuite token-based (OAuth 1.0a TBA) configured as an n8n OAuth1 credential (consumer key/secret + token key/secret + realm/account id). NETSUITE_BASE_URL e.g. https://<account>.suitetalk.api.netsuite.com. job → project, projectTask → issue; finance entities (job costing) back the financials capability. Confirm record/field names against your NetSuite account + SuiteTalk version.",
+  },
+
   // ── Massive corporate backbones (HTTP + n8n-managed credential) ─────────────
   {
     id: "sap",
@@ -456,7 +476,7 @@ export function getBackend(id: string): BackendDefinition | undefined {
  * large corporate ERPs / scheduling systems that are the paid-for integrations.
  * The standard backends (Jira, OpenProject, GitHub, …) stay free.
  */
-const ENTERPRISE_BACKENDS = new Set(["sap", "primavera", "dynamics365", "msproject", "enterprise"]);
+const ENTERPRISE_BACKENDS = new Set(["sap", "primavera", "dynamics365", "msproject", "netsuite", "enterprise"]);
 
 export function isEnterpriseBackend(id: string): boolean {
   return ENTERPRISE_BACKENDS.has(id);
