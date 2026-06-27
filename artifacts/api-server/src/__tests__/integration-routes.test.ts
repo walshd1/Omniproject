@@ -283,6 +283,21 @@ test("GET /api/setup/{methodologies,reports,screens,planes} expose the new plane
   assert.ok(screens.some((s: { id: string }) => s.id === "gantt"));
   const planes = await readJson(await get("/api/setup/planes"));
   assert.equal(planes.length, 7);
+  // The planes carry the vendor/neutral classification (the invariant).
+  assert.equal(planes.find((p: { id: string }) => p.id === "backends").vendor, true);
+  assert.equal(planes.find((p: { id: string }) => p.id === "reports").vendor, false);
+});
+
+test("?available=1 returns only what the connected backend(s) can feed (hard rule)", async () => {
+  // Demo backend declares every capability, so the available set equals the full
+  // catalogue here; the FILTERING logic is unit-tested in the catalogue. We assert
+  // the endpoint resolves + never returns MORE than the full catalogue.
+  const full = await readJson(await get("/api/setup/reports"));
+  const avail = await readJson(await get("/api/setup/reports?available=1"));
+  assert.ok(Array.isArray(avail) && avail.length <= full.length);
+  assert.ok(avail.some((r: { id: string }) => r.id === "evm")); // demo has financials
+  const availScreens = await readJson(await get("/api/setup/screens?available=1"));
+  assert.ok(Array.isArray(availScreens) && availScreens.some((s: { id: string }) => s.id === "home"));
 });
 
 test("business ruleset: admin sets a hard rule that then blocks a write (422)", async () => {

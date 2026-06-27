@@ -704,6 +704,23 @@ export const BACKENDS: BackendDefinition[] = [
     notes: "Mid-market PPM: projects → projects, tasks → issues; schedules, resources + financials supported. Celoxis API v3 uses a per-user token (forwarded for real per-user audit). Confirm the v3 paths/field names against your instance — these are reference mappings.",
   },
   {
+    id: "liquidplanner",
+    label: "LiquidPlanner",
+    docsUrl: "https://www.liquidplanner.com/support/articles/api-up/",
+    via: "HTTP + per-user API token (workspace-scoped)",
+    authHeader: USER_BEARER,
+    requiredEnv: ["LIQUIDPLANNER_WORKSPACE_URL"],
+    capabilities: { ...CAPS_CORE, scheduling: true, resources: true, history: true },
+    actions: {
+      list_projects: { method: "GET", url: "={{ $env.LIQUIDPLANNER_WORKSPACE_URL }}/projects" },
+      list_issues: { method: "GET", url: "={{ $env.LIQUIDPLANNER_WORKSPACE_URL }}/tasks?filter[]=project_id={{ $json.body.payload.projectId }}" },
+      create_issue: { method: "POST", url: "={{ $env.LIQUIDPLANNER_WORKSPACE_URL }}/tasks", body: "={{ JSON.stringify({ task: { name: $json.body.payload.title, description: $json.body.payload.description, parent_id: $json.body.payload.projectId } }) }}" },
+      update_issue: { method: "PUT", url: "={{ $env.LIQUIDPLANNER_WORKSPACE_URL }}/tasks/{{ $json.body.payload.issueId }}", body: "={{ JSON.stringify({ task: { name: $json.body.payload.title } }) }}" },
+      delete_issue: { method: "DELETE", url: "={{ $env.LIQUIDPLANNER_WORKSPACE_URL }}/tasks/{{ $json.body.payload.issueId }}" },
+    },
+    notes: "Predictive-scheduling PM: workspaces → projects (LP plans/packages), tasks → issues; ranged estimates, workload + time tracking feed the scheduling/resources/history domains. LIQUIDPLANNER_WORKSPACE_URL is the workspace API base (…/api/v1/workspaces/<id>). Confirm the endpoint/field shapes against your workspace — reference mappings.",
+  },
+  {
     id: "excel",
     label: "Excel / CSV import",
     docsUrl: "https://github.com/walshd1/omniproject/blob/main/docs/ops/IMPORT.md",

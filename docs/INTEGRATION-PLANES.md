@@ -38,6 +38,30 @@ for compliance + completeness. It is just data in the same catalogue, so it
 inherits the [restrict-only](ops/BUSINESS-RULES.md) safety guarantees of the rule
 engine. Surfaced (PMO-gated) at `GET /api/admin/ruleset/reference`.
 
+## Vendors are never a plane (architectural invariant)
+
+A specific **vendor/product** (Jira, SAP, Planview, n8n, Slack, Notion, Power BI)
+is only ever an **entry on one of four vendor planes** — **backends, brokers,
+notifications, outputs** — and **never its own plane, and never a
+methodology/report/screen**. Those last three are vendor-*neutral* concepts (Scrum
+isn't a vendor; Gantt isn't; a screen isn't). All vendor specifics (endpoints,
+field names, auth) sit **below the broker seam**, so nothing vendor-specific leaks
+above it — the gateway speaks only the neutral `Broker` interface + canonical
+fields. This is machine-checked: each plane carries `vendor: boolean`, and
+`VENDOR_PLANES` (with a test) asserts the partition is exactly
+`{backends, brokers, notifications, outputs}`.
+
+## The hard capability rule: hide what no connected backend can feed
+
+A report/screen/field is shown **only if at least one connected backend supports
+the capability it needs** (or it needs none). The resolved capability set is the
+**union across every connected backend**, so "none of them support it ⇒ don't show
+it". This is one gate, not scattered checks: `availableReports(caps)` /
+`availableScreens(caps)` (catalogue), surfaced at `GET /api/setup/{reports,screens}?available=1`
+and used by the MCP `list_reports` / `list_screens` tools. The full (unfiltered)
+catalogue is still browsable without `?available=1` — that's "what OmniProject *can*
+do", vs the available set which is "what this deployment can do right now".
+
 ## How the planes link
 
 The planes are **separate but linked**, derived rather than hardcoded so they

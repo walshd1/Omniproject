@@ -52,3 +52,16 @@ export function getScreen(id: string): ScreenDefinition | undefined {
 export function screenCatalogue(): ScreenDefinition[] {
   return SCREENS.map((s) => ({ ...s }));
 }
+
+/**
+ * The HARD capability rule for screens: a screen is AVAILABLE only if at least one
+ * connected backend supports the capability it needs (or it needs none). `caps` is
+ * the RESOLVED (unioned-across-backends) capability set. Role gating (`requiresRole`)
+ * is a SEPARATE, RBAC concern — apply it on top; this gate is purely "can the
+ * connected backend(s) feed this screen at all?".
+ */
+export function availableScreens(caps: Record<string, boolean>): ScreenDefinition[] {
+  return screenCatalogue().filter(
+    (s) => s.capabilities.requiresCapability === null || caps[s.capabilities.requiresCapability] === true,
+  );
+}

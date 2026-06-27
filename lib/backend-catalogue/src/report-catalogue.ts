@@ -56,3 +56,16 @@ export function getReport(id: string): ReportDefinition | undefined {
 export function reportCatalogue(): ReportDefinition[] {
   return REPORTS.map((r) => ({ ...r }));
 }
+
+/**
+ * The HARD capability rule: a report is AVAILABLE only if at least one connected
+ * backend supports the capability it needs (or it needs none). `caps` is the
+ * RESOLVED capability set — already the UNION across every connected backend — so
+ * "none of the connected backends support it ⇒ it's not in this list, don't show
+ * it." This is the single gate; surface only what it returns.
+ */
+export function availableReports(caps: Record<string, boolean>): ReportDefinition[] {
+  return reportCatalogue().filter(
+    (r) => r.capabilities.requiresCapability === null || caps[r.capabilities.requiresCapability] === true,
+  );
+}
