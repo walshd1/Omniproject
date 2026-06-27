@@ -17,5 +17,9 @@
     "scope"
   ],
   "notes": "Completed vs total scope (shows scope creep).",
-  "order": 30
+  "order": 30,
+  "methodologies": [
+    "scrum",
+    "safe"
+  ]
 }

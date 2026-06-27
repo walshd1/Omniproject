@@ -18,5 +18,9 @@
     "cycleTime"
   ],
   "notes": "WIP per state over time (Kanban).",
-  "order": 40
+  "order": 40,
+  "methodologies": [
+    "kanban",
+    "scrumban"
+  ]
 }

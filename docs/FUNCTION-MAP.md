@@ -923,7 +923,8 @@ METHODOLOGY PACKS — a methodology is a DERIVED grouping, not a plane: a "pack"
 
 | Function | What it does |
 | --- | --- |
-| `methodologyPack` | Assemble the pack for a methodology: its definition + every catalogue asset carrying its tag. |
+| `methodologyPack` | Assemble the pack for a methodology: its definition + every catalogue asset carrying its tag (views, reports, screens, notification routes, ruleset). |
+| `allMethodologyTags` | The complete methodology picker list — the DERIVED set spanning every plane: the defined methodologies PLUS any methodology any asset (view/report/screen/route) tags itself with, neutral-free and deduped. |
 
 ### `lib/backend-catalogue/src/methodology-rulesets.ts`
 
@@ -1011,6 +1012,7 @@ REPORT registry — the report / visualisation types OmniProject can render.
 | `getReport` | One report definition by id, or undefined. |
 | `reportCatalogue` | All report definitions (a defensive copy). |
 | `availableReports` | The HARD capability rule: a report is AVAILABLE only if at least one connected backend supports the capability it needs (or it needs none). |
+| `reportsForMethodology` | Reports tagged with a methodology — those carrying its tag, plus the neutral ("*"/untagged) ones. |
 
 ### `lib/backend-catalogue/src/reports.generated.ts`
 
@@ -1025,6 +1027,7 @@ SCREEN registry — the SPA views OmniProject ships.
 | `getScreen` | One screen definition by id, or undefined. |
 | `screenCatalogue` | All screen definitions (a defensive copy). |
 | `availableScreens` | The HARD capability rule for screens: a screen is AVAILABLE only if at least one connected backend supports the capability it needs (or it needs none). |
+| `screensForMethodology` | Screens tagged with a methodology — those carrying its tag, plus the neutral ("*"/untagged) ones. |
 
 ### `lib/backend-catalogue/src/screens.generated.ts`
 

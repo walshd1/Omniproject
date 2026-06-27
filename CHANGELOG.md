@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Methodology is a cross-plane derived grouping (presets across reports + screens)**
+  (**Stable**) — reports and screens now carry a `methodologies` tag like views, so a
+  methodology spans every renderable plane. `reportsForMethodology(id)` /
+  `screensForMethodology(id)` are the report/screen analogues of
+  `viewsForMethodology`; `allMethodologyTags()` is the cross-plane picker list (every
+  defined methodology ∪ any tag any asset declares). `GET /api/setup/methodology-preset/:id`
+  returns everything a methodology activates across views + reports + screens — so
+  "click Kanban" surfaces the board, cumulative-flow report and all. Methodology packs
+  (#36) now include the tagged reports + screens automatically. A methodology is fully
+  a DERIVED grouping over tagged assets, not a standalone plane.
 - **Methodology packs — a methodology is a portable bundle** (**Stable**) — now that
   every plane is JSON, a methodology is the DERIVED grouping of all assets carrying
   its tag. `methodologyPack(id)` collects a methodology's definition + its tagged

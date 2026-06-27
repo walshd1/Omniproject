@@ -10,7 +10,7 @@ import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
 import { connectedBrokerKinds } from "../broker/registry";
 import { requireRole, hasRole } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
-import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, notificationKindCatalogue, methodologyCatalogue, methodologyPack, reportCatalogue, screenCatalogue, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, methodologyTags } from "@workspace/backend-catalogue";
+import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, notificationKindCatalogue, methodologyCatalogue, methodologyPack, allMethodologyTags, reportCatalogue, screenCatalogue, reportsForMethodology, screensForMethodology, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology } from "@workspace/backend-catalogue";
 import { isEntitled, resolveLicense } from "../lib/license";
 import { auditStatus } from "../lib/audit";
 import { DEV_PERSIST_ENABLED } from "../lib/dev-persist";
@@ -168,12 +168,18 @@ router.get("/setup/methodology-pack/:id", requireRole("admin"), (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="methodology-${pack.methodology.id}.json"`);
   res.json(pack);
 });
-// The board views (JSON-defined) + the DERIVED methodology tag list. With
-// ?methodology=<tag>, only the views that methodology activates (+ neutral ones).
+// The board views (JSON-defined) + the cross-plane DERIVED methodology tag list.
+// With ?methodology=<tag>, only the views that methodology activates (+ neutral ones).
 router.get("/setup/views", (req, res) => {
   const m = req.query["methodology"];
   const views = typeof m === "string" && m ? viewsForMethodology(m) : VIEWS;
-  res.json({ views, methodologies: methodologyTags() });
+  res.json({ views, methodologies: allMethodologyTags() });
+});
+// The DERIVED methodology PRESET — every asset a methodology activates, across
+// planes (views, reports, screens), so a "click kanban" preset surfaces them all.
+router.get("/setup/methodology-preset/:id", (req, res) => {
+  const id = String(req.params["id"]);
+  res.json({ methodology: id, views: viewsForMethodology(id), reports: reportsForMethodology(id), screens: screensForMethodology(id) });
 });
 // Full catalogue (what OmniProject CAN do), or — with ?available=1 — only the
 // entries the CONNECTED backend(s) can actually feed. The hard rule: if none of

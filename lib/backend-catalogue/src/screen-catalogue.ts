@@ -34,6 +34,8 @@ export interface ScreenManifest {
 export interface ScreenDefinition extends ScreenManifest {
   /** The widgets / panels on the screen. */
   tools: string[];
+  /** Methodology tags — "*"/omitted = neutral (all). */
+  methodologies?: string[];
   /** Display order. */
   order: number;
 }
@@ -61,4 +63,10 @@ export function screenCatalogue(): ScreenDefinition[] {
  */
 export function availableScreens(caps: Record<string, boolean>): ScreenDefinition[] {
   return screenCatalogue().filter((s) => isCapabilityMet(s.capabilities.requiresCapability, caps));
+}
+
+/** Screens tagged with a methodology — those carrying its tag, plus the neutral
+ *  ("*"/untagged) ones. The screen-plane analogue of `viewsForMethodology`. */
+export function screensForMethodology(methodology: string): ScreenDefinition[] {
+  return SCREENS.filter((s) => !s.methodologies || s.methodologies.includes("*") || s.methodologies.includes(methodology));
 }

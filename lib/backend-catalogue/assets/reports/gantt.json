@@ -20,5 +20,9 @@
     "baseline"
   ],
   "notes": "Schedule with dependencies + critical path.",
-  "order": 10
+  "order": 10,
+  "methodologies": [
+    "waterfall",
+    "prince2"
+  ]
 }
