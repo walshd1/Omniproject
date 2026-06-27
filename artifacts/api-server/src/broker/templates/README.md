@@ -14,7 +14,12 @@ platform-specific**:
 | **http-sidecar** | `implement-blueprint` | `../reference-broker-blueprint.ts` | **Yes** — defines the core |
 | Make | `scenario-template` | `make-scenario.md` | No — visual runtime, mirrors the structure |
 | Power Automate | `flow-template` | `power-automate-flow.md` | No — cloud-flow runtime, mirrors the structure |
-| Airflow | `dag-template` | `airflow-dag.py` | No — async/batch, **not a live data hop** (scheduled sync) |
+
+> **Airflow is not a broker.** It can't serve the synchronous read-through hop, so
+> it lives in the **outputs** plane as a scheduled `batch-egress`
+> (`vendors/outputs/airflow.json`), not here. The `airflow-dag.py` sample remains as
+> a reference for that scheduled egress (read the OData/BI feeds on a schedule), not
+> as a broker build template.
 
 Every Node-runtime broker — the runnable **reference-sidecar**, the blueprint, the
 serverless + Pipedream templates — now shares the **one** `processBrokerCall` engine
@@ -39,11 +44,11 @@ and the Pipedream component are all the *same* adapter shape over that one core.
 
 ## The non-Node templates
 
-Make, Power Automate and Airflow run in their own runtimes, so they can't import
-the Node core — they **mirror the same binding structure** against the single
-source of truth (`docs/BROKER-HTTP-BINDING.md`). Airflow is honest about being
-**async**: it does scheduled sync / event push, not the synchronous read-through
-hop (it's `synchronous: false` in the broker registry).
+Make and Power Automate run in their own runtimes, so they can't import the Node
+core — they **mirror the same binding structure** against the single source of
+truth (`docs/BROKER-HTTP-BINDING.md`). Airflow isn't a broker at all: it can't
+serve the synchronous read-through hop, so it's modelled in the outputs plane as a
+scheduled `batch-egress` (the `airflow-dag.py` sample shows that scheduled read).
 
 To make any template real: implement `backend` (start from the blueprint's stub),
 deploy, set `BROKER_URL`, run the conformance suite.

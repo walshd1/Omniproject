@@ -22,9 +22,13 @@ one as a `BrokerDefinition` in `lib/backend-catalogue/src/broker-catalogue.ts`.
 }
 ```
 
-- **`synchronous` is everything.** Only a synchronous broker can be the live data
-  hop. Async platforms (Airflow, Zapier, IFTTT) MUST set `synchronous: false` —
-  they do scheduled sync / events, not read-through. Be honest here.
+- **`synchronous` is the invariant — and it's always `true` here.** Only a
+  synchronous broker can be the live data hop, so the broker plane is the
+  synchronous-only plane: the schema enforces `synchronous: true` and a guard test
+  backs it. Async platforms (Airflow, Zapier, IFTTT) can't serve read-through, so
+  they are NOT brokers — they live in the **outputs** plane (scheduled egress, e.g.
+  `vendors/outputs/airflow.json`, kind `batch-egress`) and/or the **notifications**
+  plane (event delivery). Don't add them here.
 - The `build` tool: a Node-runtime broker should reuse the shared
   **`processBrokerCall`** core (see `broker/templates/`) — add only the transport
   glue + your `backend`. Don't re-implement the binding.

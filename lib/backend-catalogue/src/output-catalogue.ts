@@ -19,7 +19,8 @@ export type OutputKind =
   | "export" // user-initiated file export
   | "metrics" // observability scrape
   | "events-out" // outbound signed events
-  | "events-in"; // inbound event ingest
+  | "events-in" // inbound event ingest
+  | "batch-egress"; // scheduled/batch data egress (async orchestrators — Airflow, etc.)
 
 export interface OutputCapabilities {
   /** Read-only (never mutates a backend through this surface)? */

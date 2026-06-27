@@ -10,7 +10,7 @@
     "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
     "label": { "type": "string" },
     "route": { "type": "string" },
-    "kind": { "enum": ["read-api", "bi-feed", "agent-api", "export", "metrics", "events-out", "events-in"] },
+    "kind": { "enum": ["read-api", "bi-feed", "agent-api", "export", "metrics", "events-out", "events-in", "batch-egress"] },
     "capabilities": {
       "type": "object",
       "additionalProperties": false,

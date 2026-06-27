@@ -82,11 +82,13 @@ The binding is request/response — the gateway POSTs and **waits for `{success,
 data}` in the same call**. So a broker can be the live **data hop** only if it's
 **synchronous**:
 
-- **Data brokers (synchronous):** n8n, Make, Pipedream, Power Automate, serverless
-  functions, a custom HTTP sidecar.
-- **NOT data brokers (async):** **Airflow** (batch DAGs) — modelled honestly with
-  `synchronous: false`. It can still do scheduled sync into a store a real broker
-  reads, or push events. Same role as Zapier/IFTTT (event edges only).
+- **Data brokers (synchronous — the whole broker plane):** n8n, Make, Pipedream,
+  Power Automate, serverless functions, a custom HTTP sidecar. Being synchronous is
+  the invariant of the plane (schema-enforced + guard-tested), not a per-broker flag.
+- **NOT brokers (async):** **Airflow** (batch DAGs), Zapier, IFTTT — they can't
+  serve read-through, so they're not brokers at all. They live in the **outputs**
+  plane (Airflow → scheduled `batch-egress` egress that reads the OData/BI feeds)
+  and/or the **notifications** plane (consuming pushed events).
 
 ## Reference architectures (one per plane)
 

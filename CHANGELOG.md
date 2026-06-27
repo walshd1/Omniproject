@@ -6,6 +6,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **The broker plane is synchronous-only; async platforms move to outputs** —
+  a platform that can't answer the binding in the SAME HTTP call isn't a broker, so
+  Apache Airflow (the only `synchronous: false` entry) leaves the broker plane. The
+  broker schema now enforces `synchronous: true` (a `synchronous` of `false` fails
+  generation) and a guard test backs the invariant — the broker plane IS the
+  synchronous data-hop plane. Airflow is re-homed in the **outputs** plane as a new
+  `batch-egress` kind (`vendors/outputs/airflow.json`): a scheduled DAG that reads
+  the OData/BI feeds and lands data downstream, or consumes outbound events to
+  trigger batch work — the same honest limit as Zapier/IFTTT (which were already
+  event-edge consumers, not brokers). The `dag-template` broker build method is
+  removed. `GET /api/setup/outputs` now lists Airflow; `GET /api/setup/brokers` no
+  longer does.
+
 ### Added
 
 - **Generic notification dispatch — JSON routing above the seam** (**Stable**) —

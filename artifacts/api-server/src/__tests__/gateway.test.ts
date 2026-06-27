@@ -1072,12 +1072,11 @@ test("backends: catalogue exposes a tier per backend", () => {
 test("backends: catalogue reports transport + which brokers reach each backend", () => {
   const cat = backendCatalogue();
   // An HTTP backend is broker-portable across every synchronous HTTP broker
-  // (n8n, Make, Pipedream, Power Automate, serverless, a custom sidecar) — but
-  // NOT async Airflow.
+  // (n8n, Make, Pipedream, Power Automate, serverless, a custom sidecar). Async
+  // orchestrators (Airflow) aren't brokers at all — they live in the outputs plane.
   const netsuite = cat.find((b) => b.id === "netsuite");
   assert.equal(netsuite?.transport, "http");
   assert.ok(netsuite?.brokers.includes("n8n") && netsuite.brokers.includes("make") && netsuite.brokers.includes("serverless"));
-  assert.ok(!netsuite?.brokers.includes("airflow"), "async Airflow can't be the live data hop");
   // A native-node backend is n8n-tied.
   const linear = cat.find((b) => b.id === "linear");
   assert.equal(linear?.transport, "native-node");
