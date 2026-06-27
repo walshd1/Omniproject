@@ -17,7 +17,8 @@
  * their own backend version. They are intentionally easy to tweak post-import.
  */
 
-import { brokersForTransport, type BackendManifest, type ContractAction, type BackendTier, type TransportMethod } from "./backend-manifest";
+import type { BackendManifest, ContractAction, BackendTier, TransportMethod } from "./backend-manifest";
+import { brokersForTransport } from "./broker-catalogue";
 
 /**
  * An action is implemented either as a raw HTTP call or — preferably, where n8n

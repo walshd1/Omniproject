@@ -253,6 +253,21 @@ test("GET /api/readyz reports broker reachability (demo → ready)", async () =>
   assert.equal(json.kind, "demo");
 });
 
+// ── Integration planes: backends / brokers / outputs registries ──────────────
+
+test("GET /api/setup/brokers lists brokers with capabilities + build method", async () => {
+  const json = await readJson(await get("/api/setup/brokers"));
+  assert.ok(Array.isArray(json) && json.some((b: { id: string }) => b.id === "n8n"));
+  const airflow = json.find((b: { id: string }) => b.id === "airflow");
+  assert.equal(airflow.dataBroker, false); // async, honestly modelled
+});
+
+test("GET /api/setup/outputs lists outward interfaces with capabilities + tools", async () => {
+  const json = await readJson(await get("/api/setup/outputs"));
+  const mcp = json.find((o: { id: string }) => o.id === "mcp");
+  assert.ok(mcp && mcp.tools.includes("omniproject_list_projects"));
+});
+
 // ── MCP server (POST /api/mcp, JSON-RPC) ─────────────────────────────────────
 
 const mcp = (rpc: unknown, init?: RequestInit) =>
