@@ -6,16 +6,11 @@
  */
 import { Router, type Response } from "express";
 import { getSettings, updateSettings } from "../lib/settings";
-import { isLiveBroker } from "../broker";
-import { isOidcConfigured } from "../lib/oidc";
 import { resolveCapabilities } from "../lib/capabilities";
-import { requireRole, roleForReq, hasRole } from "../lib/rbac";
+import { requireRole, hasRole } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, methodologyCatalogue, reportCatalogue, screenCatalogue, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, methodologyTags } from "@workspace/backend-catalogue";
-import { busMode } from "../lib/notify-bus";
-import { brokerLogBusMode } from "../lib/broker-log-bus";
-import { rateLimitMode } from "../lib/rate-limit";
-import { licenseSummary, isEntitled, resolveLicense } from "../lib/license";
+import { isEntitled, resolveLicense } from "../lib/license";
 import { auditStatus } from "../lib/audit";
 import { DEV_PERSIST_ENABLED } from "../lib/dev-persist";
 import { getDemoState } from "../lib/data";
@@ -23,6 +18,7 @@ import { buildZip } from "../lib/zip";
 import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 import { configDirSummary } from "../lib/config-dir";
 import { buildConfigBundle } from "../lib/config-bundle";
+import { buildSetupStatus } from "../lib/setup-status";
 import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
 import {
   storeView,
@@ -45,27 +41,9 @@ const router = Router();
  */
 
 // GET /api/setup/status — what's wired, for the first-run wizard. Read-only.
+// Assembled from a registry of status sections (see lib/setup-status.ts).
 router.get("/setup/status", async (req, res) => {
-  const settings = getSettings();
-  const capabilities = await resolveCapabilities(req).catch(() => null);
-  res.json({
-    configured: isLiveBroker() || !!settings.brokerUrl,
-    role: roleForReq(req),
-    broker: {
-      configured: isLiveBroker() || !!settings.brokerUrl,
-      urlSet: !!settings.brokerUrl,
-    },
-    auth: { mode: isOidcConfigured ? "oidc" : "demo" },
-    ai: { provider: settings.aiProvider },
-    realtime: { enabled: !!process.env["NOTIFY_INGEST_SECRET"]?.trim(), bus: busMode() },
-    // Horizontal-scale fan-out: "redis" = shared across replicas, "in-process" =
-    // per-replica. Lets an operator verify multi-replica wiring at a glance.
-    scale: { notifyBus: busMode(), brokerLogBus: brokerLogBusMode(), rateLimit: rateLimitMode() },
-    audit: auditStatus(),
-    dev: { statefulDemo: DEV_PERSIST_ENABLED },
-    licensing: licenseSummary(),
-    capabilities,
-  });
+  res.json(await buildSetupStatus(req));
 });
 
 // POST /api/setup/test-n8n — non-destructive reachability + capability probe of

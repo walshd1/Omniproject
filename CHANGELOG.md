@@ -70,6 +70,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Two more dispatch points became registries** (**Stable**, internal) — continuing
+  the "generic engine + registry" abstraction: the data exporters
+  (`routes/export.ts`) now share one `EXPORTERS` registry (format → `{ contentType,
+  render }`) with the routes derived from it, so a new single-dataset format is one
+  entry (xlsx stays bespoke as a multi-sheet workbook); and `GET /api/setup/status`
+  is assembled from a `STATUS_SECTIONS` registry (`lib/setup-status.ts`) so adding a
+  subsystem to the diagnostics is a section, not an edit to a growing literal. Both
+  behaviour-preserving. (Notification *delivery* was deliberately left below the
+  broker seam — see the generic-dispatch work for the seam-correct treatment.)
 - **Vendor-overlay merge is memoised + perf-guarded** (**Stable**, internal) — the
   catalogue accessors' overlay merge is now cached per plane (invalidated on
   register/clear), so a deployment overlay doesn't rebuild the merged set on every

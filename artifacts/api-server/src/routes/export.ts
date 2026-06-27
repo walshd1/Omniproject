@@ -63,26 +63,7 @@ router.get("/export.xlsx", async (req, res) => {
   }
 });
 
-// ── GET /api/export.csv?dataset=projects|issues|activity[&projectId=] ─────────
-router.get("/export.csv", async (req, res) => {
-  const dataset = String(req.query["dataset"] ?? "projects");
-  const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
-
-  try {
-    const d = await resolveDataset(req, dataset, projectId);
-    if (!d) {
-      res.status(400).json({ error: "dataset must be projects, issues, or activity" });
-      return;
-    }
-    const csv = toCsv(d.cols, toMatrix(d.rows, d.cols));
-    send(res, `${d.base}.csv`, "text/csv; charset=utf-8", csv);
-  } catch (err) {
-    req.log.error({ err, dataset }, "csv export failed");
-    res.status(502).json({ error: "Export failed" });
-  }
-});
-
-// ── Shared dataset resolver for the md / json / pdf exporters ─────────────────
+// ── Shared dataset resolver for the single-dataset exporters ──────────────────
 
 const DATASETS: Record<string, { cols: string[]; title: string }> = {
   projects: { cols: PROJECT_COLS, title: "OmniProject — Projects" },
@@ -105,7 +86,22 @@ async function resolveDataset(
   return { rows, cols: meta.cols, title: meta.title, base };
 }
 
-function withFormat(format: "json" | "md" | "pdf") {
+// ── Single-dataset exporters: a registry of format → serialiser. Adding a format
+// is one entry + the route is derived from it. (xlsx is the one exception above —
+// a multi-sheet workbook over ALL datasets, not a single parameterised dataset.)
+type Dataset = { rows: Row[]; cols: string[]; title: string; base: string };
+
+const EXPORTERS: Record<string, { contentType: string; render: (d: Dataset) => string | Buffer }> = {
+  csv: { contentType: "text/csv; charset=utf-8", render: (d) => toCsv(d.cols, toMatrix(d.rows, d.cols)) },
+  // Native JSON: the raw records (not the flattened matrix).
+  json: { contentType: "application/json; charset=utf-8", render: (d) => JSON.stringify(d.rows, null, 2) },
+  md: { contentType: "text/markdown; charset=utf-8", render: (d) => toMarkdown(d.title, d.cols, toMatrix(d.rows, d.cols)) },
+  pdf: { contentType: "application/pdf", render: (d) => buildPdf({ title: d.title, headers: d.cols, rows: toMatrix(d.rows, d.cols) }) },
+};
+
+/** One handler for every single-dataset format — looks the serialiser up by extension. */
+function datasetExport(format: string) {
+  const exporter = EXPORTERS[format]!;
   return async (req: Request, res: Response) => {
     const dataset = String(req.query["dataset"] ?? "projects");
     const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
@@ -115,17 +111,7 @@ function withFormat(format: "json" | "md" | "pdf") {
         res.status(400).json({ error: "dataset must be projects, issues, or activity" });
         return;
       }
-      if (format === "json") {
-        // Native JSON: the raw records (not the flattened matrix).
-        send(res, `${d.base}.json`, "application/json; charset=utf-8", JSON.stringify(d.rows, null, 2));
-        return;
-      }
-      const matrix = toMatrix(d.rows, d.cols);
-      if (format === "md") {
-        send(res, `${d.base}.md`, "text/markdown; charset=utf-8", toMarkdown(d.title, d.cols, matrix));
-      } else {
-        send(res, `${d.base}.pdf`, "application/pdf", buildPdf({ title: d.title, headers: d.cols, rows: matrix }));
-      }
+      send(res, `${d.base}.${format}`, exporter.contentType, exporter.render(d));
     } catch (err) {
       req.log.error({ err, dataset, format }, "export failed");
       res.status(502).json({ error: "Export failed" });
@@ -133,9 +119,7 @@ function withFormat(format: "json" | "md" | "pdf") {
   };
 }
 
-// ── GET /api/export.json|md|pdf?dataset=projects|issues|activity[&projectId=] ──
-router.get("/export.json", withFormat("json"));
-router.get("/export.md", withFormat("md"));
-router.get("/export.pdf", withFormat("pdf"));
+// GET /api/export.{csv,json,md,pdf}?dataset=projects|issues|activity[&projectId=]
+for (const format of Object.keys(EXPORTERS)) router.get(`/export.${format}`, datasetExport(format));
 
 export default router;
