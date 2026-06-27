@@ -1,11 +1,12 @@
 /**
- * Backend manifests — the data that drives n8n workflow generation.
+ * n8n BINDING + backend data — the n8n-specific transport half of the catalogue.
  *
- * OmniProject stays decoupled: it never talks to a backend directly. Instead a
- * manifest declares, per contract action, how a given backend's REST API is
- * called (method / URL / body) and how the result normalizes to the
- * OmniProject schema. The generator (n8n-generator.ts) turns a manifest into a
- * complete, importable n8n workflow.
+ * The broker-neutral half (identity, capabilities, required env) lives in
+ * `./backend-manifest.ts`. This file declares how each contract action maps to an
+ * n8n node / HTTP call for a given backend, and holds the reference data array.
+ * A concrete catalogue entry is `BackendDefinition = BackendManifest & N8nBinding`
+ * (kept flat so a backend literal reads as one object). The generator
+ * (`n8n-generator.ts`) consumes the binding.
  *
  * URLs are n8n expressions. They reference:
  *   - `$env.<NAME>`               instance/base URL + secrets
@@ -16,13 +17,7 @@
  * their own backend version. They are intentionally easy to tweak post-import.
  */
 
-export type ContractAction =
-  | "list_projects"
-  | "list_issues"
-  | "create_issue"
-  | "update_issue"
-  | "delete_issue"
-  | "get_capabilities";
+import type { BackendManifest, ContractAction, BackendTier } from "./backend-manifest";
 
 /**
  * An action is implemented either as a raw HTTP call or — preferably, where n8n
@@ -53,23 +48,22 @@ export interface ActionMapping {
   note?: string;
 }
 
-export interface BackendManifest {
-  id: string;
-  label: string;
-  docsUrl: string;
-  /** How this backend authenticates / is wired (for the wizard UI). */
-  via: string;
+/**
+ * The n8n-specific transport for a backend: the per-user auth expression, an
+ * optional n8n credential type, and the per-action node/HTTP mappings. This is
+ * the half a *different* broker would replace with its own binding type.
+ */
+export interface N8nBinding {
   /** n8n expression for the Authorization header value (http per-user transport). */
   authHeader: string;
-  /** Env vars the operator must set in n8n for this backend. */
-  requiredEnv: string[];
   /** n8n credential type to attach to native nodes / managed-auth HTTP nodes. */
   credentialType?: string;
-  /** Default capability flags this backend can populate out of the box. */
-  capabilities: Record<string, boolean>;
   actions: Partial<Record<ContractAction, ActionMapping>>;
-  notes?: string;
 }
+
+/** A catalogue entry: the broker-neutral manifest plus its n8n binding (flat, so
+ *  a backend reads as a single object literal). */
+export type BackendDefinition = BackendManifest & N8nBinding;
 
 // Per-user impersonation: the active user's OIDC token, forwarded by the gateway.
 const USER_BEARER = "=Bearer {{ $json.body.payload.userContext.token }}";
@@ -86,7 +80,7 @@ const CAPS_CORE = {
   raid: false,
 };
 
-export const BACKENDS: BackendManifest[] = [
+export const BACKENDS: BackendDefinition[] = [
   {
     id: "openproject",
     label: "OpenProject",
@@ -395,7 +389,7 @@ export const BACKENDS: BackendManifest[] = [
   },
 ];
 
-export function getBackend(id: string): BackendManifest | undefined {
+export function getBackend(id: string): BackendDefinition | undefined {
   return BACKENDS.find((b) => b.id === id);
 }
 
@@ -410,8 +404,6 @@ const ENTERPRISE_BACKENDS = new Set(["sap", "primavera", "dynamics365", "msproje
 export function isEnterpriseBackend(id: string): boolean {
   return ENTERPRISE_BACKENDS.has(id);
 }
-
-export type BackendTier = "standard" | "enterprise";
 
 /** Lightweight catalogue for the wizard UI (no n8n expressions). */
 export function backendCatalogue() {

@@ -1,4 +1,4 @@
-import { generateWorkflow, getBackend, isEnterpriseBackend, type BackendManifest, type ContractAction, type ActionMapping } from "@workspace/backend-catalogue";
+import { generateWorkflow, getBackend, isEnterpriseBackend, type BackendDefinition, type ContractAction, type ActionMapping } from "@workspace/backend-catalogue";
 
 /**
  * Onboarding a backend OmniProject doesn't ship a mapping for yet ("custom", or
@@ -34,7 +34,7 @@ export function isCustomBackend(id: string): boolean {
   return !b || Object.keys(b.actions).length === 0;
 }
 
-function placeholderManifest(id: string, label: string): BackendManifest {
+function placeholderManifest(id: string, label: string): BackendDefinition {
   return {
     id,
     label,
@@ -43,7 +43,7 @@ function placeholderManifest(id: string, label: string): BackendManifest {
     authHeader: USER_BEARER,
     requiredEnv: ["CUSTOM_API_BASE"],
     capabilities: { issues: true, scheduling: false, portfolio: false, resources: false, financials: false, baseline: false, blockers: false, history: false, raid: false },
-    actions: Object.fromEntries(SKELETON_ACTIONS.map((a) => [a.action, a.mapping])) as BackendManifest["actions"],
+    actions: Object.fromEntries(SKELETON_ACTIONS.map((a) => [a.action, a.mapping])) as BackendDefinition["actions"],
     notes: "Generated skeleton — replace the placeholder URLs/auth with your backend's real API.",
   };
 }

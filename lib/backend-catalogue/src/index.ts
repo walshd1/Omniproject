@@ -7,5 +7,6 @@
  * generates workflows) AND the setup wizard (@workspace/scripts), so the two can
  * never drift. Pure data + pure functions, zero runtime dependencies.
  */
+export * from "./backend-manifest";
 export * from "./n8n-backends";
 export * from "./n8n-generator";
