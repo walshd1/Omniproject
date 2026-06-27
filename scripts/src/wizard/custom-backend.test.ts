@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isCustomBackend, renderSkeletonWorkflow, renderKnownWorkflow, renderBindingGuide, SKELETON_ACTIONS } from "./custom-backend";
+import { isCustomBackend, renderSkeletonWorkflow, renderKnownWorkflow, renderBindingGuide, renderManifestSource, renderFieldMap, SKELETON_ACTIONS } from "./custom-backend";
 
 test("isCustomBackend: true for 'custom' / unknown, false for a shipped backend", () => {
   assert.equal(isCustomBackend("custom"), true);
@@ -24,6 +24,23 @@ test("the skeleton workflow is valid importable n8n JSON with a node per action"
 test("renderKnownWorkflow returns a workflow for a shipped backend, null for custom", () => {
   assert.ok(renderKnownWorkflow("jira"));
   assert.equal(renderKnownWorkflow("custom"), null);
+});
+
+test("the catalogue-entry stub is a BackendManifest with a mapping per action", () => {
+  const src = renderManifestSource("acme-pm", "Acme PM");
+  assert.match(src, /id: "acme-pm"/);
+  assert.match(src, /label: "Acme PM"/);
+  assert.match(src, /capabilities:/);
+  for (const a of SKELETON_ACTIONS) assert.ok(src.includes(`${a.action}:`), `manifest has ${a.action}`);
+  assert.match(src, /BACKENDS array/); // points the operator at where to paste it
+});
+
+test("the field-map stub is valid BackendFieldMap JSON with core on, advanced off", () => {
+  const map = JSON.parse(renderFieldMap("acme-pm")) as { fields: Record<string, { surface: boolean; store: boolean }>; entities: Record<string, unknown> };
+  assert.equal(map.fields["title"]!.surface, true);     // core field on
+  assert.equal(map.fields["title"]!.store, true);
+  assert.equal(map.fields["budget"]!.surface, false);   // advanced (financial) off until enabled
+  assert.ok("project" in map.entities && "issue" in map.entities);
 });
 
 test("the binding guide walks through API discovery, auth, normalisation, field discovery, verify", () => {

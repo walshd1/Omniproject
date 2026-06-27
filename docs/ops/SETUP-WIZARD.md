@@ -86,9 +86,17 @@ asks you to name the backend, then additionally writes:
   describe → reconcile**, then **verify** with `POST /api/setup/test-n8n` and the
   `pnpm --filter @workspace/api-server smoke` conformance run before relying on it.
 
+Optionally (the wizard asks), it also emits the files to make the backend
+**permanent** — so the wizard + gateway both know it next time:
+
+- **`<backend>.backend.ts`** — a `BackendManifest` catalogue entry to drop into the
+  `BACKENDS` array in `@workspace/backend-catalogue`.
+- **`<backend>.fieldmap.json`** — a `BackendFieldMap` (`surface`/`store` per field +
+  entity) your broker can return, or an admin can load via the translation-layer
+  editor, so the UI shows only the fields your backend actually has.
+
 When conformance is green the backend is a first-class citizen with zero core
-changes — and you're encouraged to contribute the finished mapping back as a
-shipped `BackendManifest`.
+changes — and you're encouraged to contribute both back upstream.
 
 > Lives in `@workspace/scripts/src/wizard/` — **outside the runtime app**.
 > `deploy-config.ts` (env/compose) and `custom-backend.ts` (workflow skeleton +

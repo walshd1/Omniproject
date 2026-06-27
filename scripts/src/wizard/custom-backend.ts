@@ -60,6 +60,67 @@ export function renderKnownWorkflow(id: string): string | null {
   return JSON.stringify(generateWorkflow(b, { webhookPath: "omniproject" }), null, 2) + "\n";
 }
 
+/**
+ * A contributable `BackendManifest` source stub — paste into the BACKENDS array
+ * in `lib/backend-catalogue/src/n8n-backends.ts` to promote a custom backend to a
+ * first-class shipped catalogue entry (so the wizard + gateway both know it next
+ * time). Mirrors the skeleton's action mappings.
+ */
+export function renderManifestSource(id: string, label: string): string {
+  const actions = SKELETON_ACTIONS.map((a) => {
+    const m = a.mapping;
+    const parts = [`method: ${JSON.stringify(m.method)}`, `url: ${JSON.stringify(m.url)}`];
+    if (m.body) parts.push(`body: ${JSON.stringify(m.body)}`);
+    if (m.note) parts.push(`note: ${JSON.stringify(m.note)}`);
+    return `    ${a.action}: { ${parts.join(", ")} },`;
+  }).join("\n");
+  return `// Contributed catalogue entry for ${label}.
+// 1. Replace the placeholder URLs/auth/capabilities with your real backend's.
+// 2. Add this object to the BACKENDS array in
+//    lib/backend-catalogue/src/n8n-backends.ts.
+// 3. Run \`pnpm --filter @workspace/scripts gen-contract\` + the test suites.
+{
+  id: ${JSON.stringify(id)},
+  label: ${JSON.stringify(label)},
+  docsUrl: "https://your-backend.example.com/api-docs",
+  via: "Custom HTTP binding (fill in endpoints + auth)",
+  authHeader: ${JSON.stringify(USER_BEARER)},
+  requiredEnv: ["CUSTOM_API_BASE"],
+  capabilities: { issues: true, scheduling: false, portfolio: false, resources: false, financials: false, baseline: false, blockers: false, history: false, raid: false },
+  actions: {
+${actions}
+  },
+  notes: "Generated stub — replace placeholders, then contribute back.",
+},
+`;
+}
+
+// Canonical fields by domain (subset of FIELD_REGISTRY) for the field-map stub.
+// Core/people/schedule default to supported; advanced domains start off so the
+// operator enables only what their backend actually has.
+const FIELDMAP: { on: string[]; off: string[] } = {
+  on: ["title", "status", "description", "assignee", "reporter", "priority", "labels", "type", "startDate", "dueDate", "completionPct"],
+  off: ["milestone", "estimateHours", "loggedHours", "remainingHours", "storyPoints", "sprint", "epic", "parentTask", "dependsOn", "budget", "plannedCost", "actualCost", "currency", "billable", "dealValue", "probability", "forecastCategory", "slaBreached", "csat"],
+};
+
+/**
+ * A contributable `BackendFieldMap` stub (surface/store per field + entity). The
+ * backend can return this from a field-map action, or an admin can load it via
+ * the translation-layer editor. Operator flips on the fields their backend has.
+ */
+export function renderFieldMap(id: string): string {
+  const sup = (v: boolean) => ({ surface: v, store: v });
+  const fields: Record<string, { surface: boolean; store: boolean }> = {};
+  for (const f of FIELDMAP.on) fields[f] = sup(true);
+  for (const f of FIELDMAP.off) fields[f] = sup(false);
+  const map = {
+    _comment: `Field map for "${id}". surface=can read, store=can write. Flip the advanced fields on as your backend supports them. Canonical field keys: see GET /api/contract and docs/FIELD-CATALOGUE.md.`,
+    fields,
+    entities: { project: sup(true), issue: sup(true), programme: sup(false), taskChildren: sup(false) },
+  };
+  return JSON.stringify(map, null, 2) + "\n";
+}
+
 /** The step-by-step binding guide for onboarding a custom backend. */
 export function renderBindingGuide(id: string, label: string): string {
   const tier = isEnterpriseBackend(id) ? " (enterprise)" : "";
@@ -113,8 +174,16 @@ every field up front.
   \`\`\`
 - Set \`BACKEND_SOURCE=${id}\` so the gateway labels the data lineage correctly.
 
+## 7. Make it permanent (optional)
+If you generated the contribution files, you have:
+- \`${id}.backend.ts\` — a **catalogue entry** (\`BackendManifest\`). Drop it into the
+  \`BACKENDS\` array in \`lib/backend-catalogue/src/n8n-backends.ts\` and it becomes a
+  first-class backend the wizard + gateway both offer next time.
+- \`${id}.fieldmap.json\` — a **field map** (\`surface\`/\`store\` per field + entity).
+  Serve it from your broker's field-map action, or load it via the admin
+  translation-layer editor, so the UI only shows fields your backend really has.
+
 When conformance is green, this backend is a first-class citizen — no core changes
-needed. Consider contributing the finished mapping back as a shipped
-\`BackendManifest\` in \`artifacts/api-server/src/lib/n8n-backends.ts\`.
+needed. Consider contributing both back upstream so others get it for free.
 `;
 }
