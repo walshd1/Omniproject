@@ -6,6 +6,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Methodology packs — a methodology is a portable bundle** (**Stable**) — now that
+  every plane is JSON, a methodology is the DERIVED grouping of all assets carrying
+  its tag. `methodologyPack(id)` collects a methodology's definition + its tagged
+  views, notification routes and reference ruleset into one `MethodologyPack`;
+  `GET /api/setup/methodology-pack/:id` (admin) downloads it as a JSON bundle an
+  operator can drop into another deployment's config dir to reproduce the same look +
+  rules. Neutral ("*") assets are excluded (they ship regardless). Reports + screens
+  don't carry methodology tags yet (the asset-selectability work), so they're not in
+  a pack today.
+
 ### Changed
 
 - **Methodologies are JSON-defined** — the last hand-written catalogue array moves to
