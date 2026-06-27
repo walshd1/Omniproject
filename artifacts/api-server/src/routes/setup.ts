@@ -8,6 +8,7 @@ import { Router, type Response } from "express";
 import { getSettings, updateSettings } from "../lib/settings";
 import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
 import { connectedBrokerKinds } from "../broker/registry";
+import { contextFromReq, brokerVerifyConnection, brokerStoreCredential } from "../broker";
 import { requireRole, hasRole } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, notificationKindCatalogue, methodologyCatalogue, methodologyPack, allMethodologyTags, reportCatalogue, screenCatalogue, reportsForMethodology, screensForMethodology, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, dedupeEntities, matchCandidates, normaliseKey } from "@workspace/backend-catalogue";
@@ -239,6 +240,41 @@ router.get("/setup/connections", requireRole("admin"), (req, res) => {
       compose: renderCredentialTemplate(credentials, "compose"),
     },
   });
+});
+
+// POST /api/setup/connections/test — ask the broker to verify it can reach a
+// backend with its configured credentials. Admin-only.
+router.post("/setup/connections/test", requireRole("admin"), async (req, res) => {
+  const backend = typeof req.body?.backend === "string" ? req.body.backend.trim() : "";
+  if (!backend) { res.status(400).json({ error: "backend is required" }); return; }
+  const p = brokerVerifyConnection(contextFromReq(req), backend);
+  if (!p) { res.status(501).json({ ok: false, error: "this broker does not support connection tests" }); return; }
+  try {
+    res.json(await p);
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err instanceof Error ? err.message : "verify failed" });
+  }
+});
+
+// POST /api/setup/connections/vault — DELEGATE a vendor credential to the broker's
+// own encrypted credential store. The secret is relayed ONCE and never persisted by
+// OmniProject (not stored, not logged). 501 when the broker has no vault. Admin-only.
+router.post("/setup/connections/vault", requireRole("admin"), async (req, res) => {
+  const backend = typeof req.body?.backend === "string" ? req.body.backend.trim() : "";
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const value = typeof req.body?.value === "string" ? req.body.value : "";
+  if (!backend || !name || !value) { res.status(400).json({ error: "backend, name and value are required" }); return; }
+  const p = brokerStoreCredential(contextFromReq(req), { backend, name, value });
+  if (!p) {
+    res.status(501).json({ stored: false, error: "this broker has no credential vault — use the env/Docker-secret template instead" });
+    return;
+  }
+  try {
+    const result = await p; // result carries only a non-secret ref
+    res.json({ stored: result.stored, ref: result.ref ?? null });
+  } catch (err) {
+    res.status(502).json({ stored: false, error: err instanceof Error ? err.message : "vault store failed" });
+  }
 });
 
 // The plane meta-registry — all seven planes + their dev docs.

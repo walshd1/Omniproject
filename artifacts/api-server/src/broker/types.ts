@@ -342,4 +342,18 @@ export interface Broker {
    * implement this are unaffected — conditional reads degrade to the payload hash.
    */
   changeToken?(ctx: ActorContext, resource: string): Promise<string | null>;
+  /**
+   * OPTIONAL — verify the broker can reach a backend with its configured
+   * credentials (a "test connection"). Returns `{ ok }`. Brokers that don't
+   * implement it report "unsupported" upstream.
+   */
+  verifyConnection?(ctx: ActorContext, backend: string): Promise<{ ok: boolean; detail?: string }>;
+  /**
+   * OPTIONAL — delegate a vendor credential to the BROKER's own encrypted credential
+   * store (e.g. n8n credentials). The secret is relayed ONCE through the gateway and
+   * never persisted here; the broker owns it thereafter. Returns a non-secret
+   * reference. Brokers without a vault report "unsupported" so the operator falls
+   * back to the env/Docker-secret scaffolding.
+   */
+  storeCredential?(ctx: ActorContext, input: { backend: string; name: string; value: string }): Promise<{ stored: boolean; ref?: string }>;
 }

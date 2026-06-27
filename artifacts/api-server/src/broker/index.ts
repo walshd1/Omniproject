@@ -52,6 +52,18 @@ export function resetBroker(): void {
   singleton = null;
 }
 
+/** Test a backend connection through the active broker, or null if unsupported. */
+export function brokerVerifyConnection(ctx: ActorContext, backend: string): Promise<{ ok: boolean; detail?: string }> | null {
+  const b = getBroker();
+  return typeof b.verifyConnection === "function" ? b.verifyConnection(ctx, backend) : null;
+}
+
+/** Delegate a credential to the broker's vault, or null if the broker has none. */
+export function brokerStoreCredential(ctx: ActorContext, input: { backend: string; name: string; value: string }): Promise<{ stored: boolean; ref?: string }> | null {
+  const b = getBroker();
+  return typeof b.storeCredential === "function" ? b.storeCredential(ctx, input) : null;
+}
+
 /** Diagnostics: "n8n" | "demo". */
 export function brokerKind(): string {
   return getBroker().kind;

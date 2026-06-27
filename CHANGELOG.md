@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Connections: test-connection + broker-vault delegation** — the Connections
+  screen now also lets an admin **test** a backend connection through the broker, and
+  optionally **delegate a secret to the broker's own encrypted vault** instead of
+  using the env template. New OPTIONAL broker contract methods `verifyConnection` and
+  `storeCredential` (demo broker stubs both; a real broker maps them to its API +
+  credential store). The vault relay sends the secret **once** through the gateway
+  and OmniProject **stores nothing and never logs the value** — it returns only a
+  non-secret reference; brokers without a vault report `501` so the operator falls
+  back to the scaffolding. `POST /api/setup/connections/test` + `…/vault` (admin).
 - **Connections screen — credential scaffolding, secrets never stored** — an
   admin-gated screen that works out which credentials the broker(s) need for the
   backends in use (the union of each vendor's `requiredEnv`) and generates a fill-in

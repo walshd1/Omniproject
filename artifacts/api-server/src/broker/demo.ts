@@ -393,6 +393,17 @@ export class DemoBroker implements Broker {
     return null;
   }
 
+  async verifyConnection(_ctx: ActorContext, backend: string): Promise<{ ok: boolean; detail?: string }> {
+    // Demo: there's no real backend to reach, so report a clearly-labelled success.
+    return { ok: true, detail: `demo broker (no real ${backend} connection)` };
+  }
+
+  async storeCredential(_ctx: ActorContext, input: { backend: string; name: string; value: string }): Promise<{ stored: boolean; ref?: string }> {
+    // Demo: acknowledge WITHOUT keeping the value (no vault) — a real broker (n8n)
+    // writes it to its encrypted credential store and returns the real reference.
+    return { stored: true, ref: `demo:${input.backend}/${input.name}` };
+  }
+
   async verify(): Promise<VerifyReport> {
     return { ok: true, actions: [] };
   }
