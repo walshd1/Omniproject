@@ -21,6 +21,7 @@ import brandingRouter from "./branding";
 import labelsRouter from "./labels";
 import webhooksRouter from "./webhooks";
 import mcpRouter from "./mcp";
+import rulesetRouter from "./ruleset";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -96,5 +97,6 @@ router.use(requireAuth, integrationsRouter);
 router.use(requireAuth, odataRouter);
 router.use(requireAuth, historyRouter);
 router.use(requireAuth, brokerLogRouter);
+router.use(requireAuth, rulesetRouter);
 
 export default router;

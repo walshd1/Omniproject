@@ -30,11 +30,33 @@ import {
   getNotifications,
 } from "../lib/data";
 import { analyticsLimiter } from "../lib/rate-limit";
-import { requireRole } from "../lib/rbac";
+import { requireRole, roleForReq } from "../lib/rbac";
 import { getFxRates } from "../lib/currency";
+import { evaluateRuleset } from "../lib/ruleset";
+import { recordAudit } from "../lib/audit";
 import { CreateRaidEntryBody } from "@workspace/api-zod";
+import type { Request, Response } from "express";
 
 const router = Router();
+
+/**
+ * Apply the EXTRA business ruleset AFTER the hard gate (requireRole already ran).
+ * Returns false + sends 422 on a hard block; true otherwise (attaching any warnings
+ * as a header + audit). Restrict-only — it can never grant an action RBAC denied.
+ */
+function passesBusinessRules(req: Request, res: Response, action: string, projectId: string, payload?: Record<string, unknown>): boolean {
+  const v = evaluateRuleset({ action, write: true, role: roleForReq(req), projectId, payload });
+  if (!v.allow) {
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `rule_block:${v.blocked!.id}`, projectId, result: "error", status: 422 });
+    res.status(422).json({ error: v.blocked!.message, rule: v.blocked!.id });
+    return false;
+  }
+  if (v.warnings.length) {
+    res.setHeader("X-OmniProject-Rule-Warnings", v.warnings.map((w) => w.id).join(","));
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `rule_warn:${v.warnings.map((w) => w.id).join(",")}`, projectId, result: "success", status: 200 });
+  }
+  return true;
+}
 
 // ── Reads (served by the active broker — live backend or demo) ────────────────
 
@@ -239,6 +261,7 @@ router.post("/projects/:projectId/issues", requireRole("contributor"), async (re
   }
   const { projectId } = paramsParse.data;
   const body = bodyParse.data;
+  if (!passesBusinessRules(req, res, "create_issue", projectId, body)) return;
 
   try {
     const issue = await getBroker().writeIssue(contextFromReq(req), "create", { projectId, ...body });
@@ -257,6 +280,7 @@ router.patch("/projects/:projectId/issues/:issueId", requireRole("contributor"),
     return;
   }
   const { projectId, issueId } = paramsParse.data;
+  if (!passesBusinessRules(req, res, "update_issue", projectId, bodyParse.data)) return;
 
   // expectedVersion drives optimistic concurrency: the broker rejects a stale
   // edit as a `conflict` (409) — the demo adapter checks locally, a live
@@ -284,6 +308,7 @@ router.delete("/projects/:projectId/issues/:issueId", requireRole("contributor")
     return;
   }
   const { projectId, issueId } = paramsParse.data;
+  if (!passesBusinessRules(req, res, "delete_issue", projectId)) return;
 
   try {
     await getBroker().writeIssue(contextFromReq(req), "delete", { projectId, issueId });
