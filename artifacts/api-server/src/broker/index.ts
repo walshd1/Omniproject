@@ -4,6 +4,7 @@ import { roleForReq } from "../lib/rbac";
 import { N8nBroker, N8N_ENV_CONFIGURED, pingBroker } from "./n8n";
 import { DemoBroker } from "./demo";
 import { BrokerError, type Broker, type ActorContext } from "./types";
+import { traceEnabled, wrapWithTrace } from "./trace";
 
 /**
  * Broker selection + the request→domain context adapter.
@@ -15,9 +16,14 @@ import { BrokerError, type Broker, type ActorContext } from "./types";
 
 let singleton: Broker | null = null;
 
-/** The active broker (n8n when configured, else demo). Selected once. */
+/** The active broker (n8n when configured, else demo). Selected once. When the
+ *  trace gate is open (non-prod + BROKER_TRACE=1) it is wrapped so every method
+ *  call is logged at the seam; in production the wrap is never applied. */
 export function getBroker(): Broker {
-  if (!singleton) singleton = N8N_ENV_CONFIGURED ? new N8nBroker() : new DemoBroker();
+  if (!singleton) {
+    const base: Broker = N8N_ENV_CONFIGURED ? new N8nBroker() : new DemoBroker();
+    singleton = traceEnabled() ? wrapWithTrace(base) : base;
+  }
   return singleton;
 }
 
