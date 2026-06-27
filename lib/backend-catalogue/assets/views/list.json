@@ -1,0 +1,13 @@
+{
+  "description": "Sortable table of all work items.",
+  "group": "General",
+  "id": "list",
+  "kind": "table",
+  "label": "List / Table",
+  "methodologies": [
+    "*"
+  ],
+  "methodology": "Methodology-neutral",
+  "order": 6,
+  "short": "List"
+}

@@ -85,6 +85,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the view catalogue is in sync with the view JSON
+        run: |
+          pnpm --filter @workspace/scripts run gen-views
+          if ! git diff --quiet -- lib/backend-catalogue/src/views.generated.ts; then
+            echo "::error::View catalogue is out of date. Run 'pnpm --filter @workspace/scripts run gen-views' and commit the result."
+            git --no-pager diff --stat -- lib/backend-catalogue/src/views.generated.ts
+            exit 1
+          fi
+
       - name: Verify the function map is in sync with the code comments
         run: |
           pnpm --filter @workspace/scripts run gen-function-map

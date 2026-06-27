@@ -1,0 +1,14 @@
+{
+  "description": "Time-phased schedule from start / due dates.",
+  "group": "Traditional",
+  "id": "gantt",
+  "kind": "timeline",
+  "label": "Gantt Timeline",
+  "methodologies": [
+    "waterfall"
+  ],
+  "methodology": "Waterfall / Critical Path",
+  "needs": "scheduling",
+  "order": 3,
+  "short": "Gantt"
+}

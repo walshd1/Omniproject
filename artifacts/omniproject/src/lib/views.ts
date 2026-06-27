@@ -1,9 +1,11 @@
 /**
- * View registry metadata. A "view" is a methodology lens over the same project
- * issues. Components are wired in components/views/registry.tsx; this file holds
- * just the metadata so the store and switcher can import it without pulling in
- * React components.
+ * View registry metadata, sourced from the catalogue's JSON view definitions
+ * (@workspace/backend-catalogue/views) so views are DATA, not hand-written code.
+ * Components are wired in components/views/registry.tsx; this file adapts the
+ * shared definitions to the SPA's ViewMeta shape + helpers the store and switcher
+ * use, and carries the methodology TAGS through.
  */
+import { VIEWS as CATALOGUE_VIEWS } from "@workspace/backend-catalogue/views";
 
 export type ViewId = "kanban" | "scrum" | "gantt" | "prince2" | "raid" | "list";
 
@@ -24,63 +26,24 @@ export interface ViewMeta {
   short: string; // compact label
   group: string; // methodology family
   methodology: string;
+  /** Methodology tags — selecting one activates the assets sharing it ("*" = always). */
+  methodologies: string[];
   description: string;
   /** Capability domain this view primarily needs to be fully useful. */
   needs?: CapabilityDomain;
 }
 
-export const VIEWS: ViewMeta[] = [
-  {
-    id: "kanban",
-    label: "Kanban Board",
-    short: "Kanban",
-    group: "Agile",
-    methodology: "Kanban / Lean",
-    description: "Status columns with WIP limits; drag to move.",
-  },
-  {
-    id: "scrum",
-    label: "Scrum Sprint",
-    short: "Scrum",
-    group: "Agile",
-    methodology: "Scrum",
-    description: "Active sprint board, backlog, burndown and velocity.",
-  },
-  {
-    id: "gantt",
-    label: "Gantt Timeline",
-    short: "Gantt",
-    group: "Traditional",
-    methodology: "Waterfall / Critical Path",
-    description: "Time-phased schedule from start / due dates.",
-    needs: "scheduling",
-  },
-  {
-    id: "prince2",
-    label: "PRINCE2 Stages",
-    short: "PRINCE2",
-    group: "Traditional",
-    methodology: "PRINCE2",
-    description: "Management stages, product status and a highlight report.",
-  },
-  {
-    id: "raid",
-    label: "RAID Log",
-    short: "RAID",
-    group: "Governance",
-    methodology: "Risk & governance",
-    description: "Risks, Assumptions, Issues and Dependencies register.",
-    needs: "raid",
-  },
-  {
-    id: "list",
-    label: "List / Table",
-    short: "List",
-    group: "General",
-    methodology: "Methodology-neutral",
-    description: "Sortable table of all work items.",
-  },
-];
+/** The shipped views, adapted from the catalogue JSON definitions (display order). */
+export const VIEWS: ViewMeta[] = CATALOGUE_VIEWS.map((v) => ({
+  id: v.id as ViewId,
+  label: v.label,
+  short: v.short,
+  group: v.group,
+  methodology: v.methodology,
+  methodologies: v.methodologies,
+  description: v.description,
+  ...(v.needs ? { needs: v.needs as CapabilityDomain } : {}),
+}));
 
 export const DEFAULT_VIEW: ViewId = "kanban";
 
@@ -97,4 +60,9 @@ export function nextView(id: ViewId): ViewId {
 
 export function viewMeta(id: ViewId): ViewMeta {
   return VIEWS.find((v) => v.id === id) ?? VIEWS[0];
+}
+
+/** Views that apply to a methodology — those tagged with it, plus the neutral ("*") ones. */
+export function viewsForMethodology(methodology: string): ViewMeta[] {
+  return VIEWS.filter((v) => v.methodologies.includes("*") || v.methodologies.includes(methodology));
 }

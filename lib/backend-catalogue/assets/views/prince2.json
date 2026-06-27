@@ -1,0 +1,13 @@
+{
+  "description": "Management stages, product status and a highlight report.",
+  "group": "Traditional",
+  "id": "prince2",
+  "kind": "stages",
+  "label": "PRINCE2 Stages",
+  "methodologies": [
+    "prince2"
+  ],
+  "methodology": "PRINCE2",
+  "order": 4,
+  "short": "PRINCE2"
+}

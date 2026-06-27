@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Board views are JSON-defined + methodology-tagged** (**Stable**) — the first of
+  the renderable planes to move from hand-written TypeScript to JSON. Each view
+  (Kanban, Scrum, Gantt, PRINCE2, RAID, List) is authored under
+  `lib/backend-catalogue/assets/views/<id>.json` (validated by a JSON Schema,
+  embedded by `gen-views`, drift-guarded in CI) and the SPA sources its view list
+  from the catalogue (single source — no hand-kept copy). Each view carries a
+  **`methodologies` tag**; a methodology is now the DERIVED set of assets sharing a
+  tag (like a programme is derived from project membership), surfaced at
+  `GET /api/setup/views?methodology=<tag>`. The bespoke renderers are unchanged —
+  the generic `ViewBuilder` and reports/screens follow next.
 - **"Lock this config" export — read ≡ dump** (**Stable**) — `GET
   /api/setup/config-bundle` (admin) downloads the current effective config as the
   EXACT folder-of-JSON the loader reads: `config.json` + the deployment's overlay

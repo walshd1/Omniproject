@@ -1,0 +1,13 @@
+{
+  "description": "Status columns with WIP limits; drag to move.",
+  "group": "Agile",
+  "id": "kanban",
+  "kind": "board",
+  "label": "Kanban Board",
+  "methodologies": [
+    "kanban"
+  ],
+  "methodology": "Kanban / Lean",
+  "order": 1,
+  "short": "Kanban"
+}

@@ -1,0 +1,13 @@
+{
+  "description": "Active sprint board, backlog, burndown and velocity.",
+  "group": "Agile",
+  "id": "scrum",
+  "kind": "board",
+  "label": "Scrum Sprint",
+  "methodologies": [
+    "scrum"
+  ],
+  "methodology": "Scrum",
+  "order": 2,
+  "short": "Scrum"
+}

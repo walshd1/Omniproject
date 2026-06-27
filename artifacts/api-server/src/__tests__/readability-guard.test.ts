@@ -45,6 +45,7 @@ const ROOTS: GuardRoot[] = [
     exempt: [
       "lib/backend-catalogue/src/vendors.generated.ts",
       "lib/backend-catalogue/src/vendor-schemas.generated.ts",
+      "lib/backend-catalogue/src/views.generated.ts",
     ],
   },
   { dir: "scripts/src", exempt: [] },
