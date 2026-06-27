@@ -288,9 +288,11 @@ some flows are render-tested rather than interaction-tested — see
 [docs/TESTING.md](docs/TESTING.md).)
 
 > Full control inventory and the security review: **[SECURITY.md](SECURITY.md)**.
-> The recommended first run is **demo mode** (below) — zero config, sample data —
-> then a **read-only** workflow against one real backend. Step-by-step:
-> **[docs/SAFE-FIRST-RUN.md](docs/SAFE-FIRST-RUN.md)**.
+> **We invite independent code audit and penetration testing** — scope, rules of
+> engagement and safe-harbour terms are in SECURITY.md, with a machine-readable
+> pointer at `/.well-known/security.txt`. The recommended first run is **demo
+> mode** (below) — zero config, sample data — then a **read-only** workflow against
+> one real backend. Step-by-step: **[docs/SAFE-FIRST-RUN.md](docs/SAFE-FIRST-RUN.md)**.
 
 ---
 

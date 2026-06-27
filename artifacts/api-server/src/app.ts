@@ -12,6 +12,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes";
+import { wellKnownRouter } from "./routes/well-known";
 import { logger } from "./lib/logger";
 import { runWithTiming, getUpstreamMs } from "./lib/request-timing";
 import { runSecuritySelfCheck } from "./lib/security-check";
@@ -135,6 +136,10 @@ app.use((req, res, next) => {
 });
 
 app.use("/api", router);
+
+// Public security.txt (RFC 9116) — mounted before the SPA fallback so the
+// history catch-all below doesn't swallow /.well-known/security.txt.
+app.use(wellKnownRouter);
 
 // ── Static SPA (single-container "omni-shell" mode) ───────────────────────────
 // When STATIC_DIR points at the built frontend, this one server serves both the

@@ -6,7 +6,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Open invitation to audit & pentest** (**Stable**) — a published vulnerability
+  disclosure policy with explicit **scope, rules of engagement and safe-harbour**
+  terms (test only your own instance; n8n/IdP/backends out of scope; no DoS), plus a
+  machine-readable **`/.well-known/security.txt`** (RFC 9116) served by the gateway.
+  See [SECURITY.md](SECURITY.md).
 
 ## [0.6.0] — 2026-06-27
 

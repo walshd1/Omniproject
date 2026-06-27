@@ -1,11 +1,17 @@
 # Security Overview & Review
 
 OmniProject is a **stateless program-management overlay**. It owns no system of
-record: every project/issue read and write is brokered through n8n to the
-backends (OpenProject, Plane, Jira, …), and identity is delegated to your OIDC
-provider. That architecture keeps the attack surface small — but the gateway is
-still the front door, so this document records the controls in place and the
-review that backs them.
+record: every project/issue read and write is brokered through the broker (n8n by
+default) to the backends (OpenProject, Plane, Jira, …), and identity is delegated
+to your OIDC provider. That architecture keeps the attack surface small — but the
+gateway is still the front door, so this document records the controls in place
+and the review that backs them.
+
+> **We invite independent code audit and penetration testing.** The code is
+> deliberately human-readable (see [docs/FUNCTION-MAP.md](docs/FUNCTION-MAP.md) for
+> a map of every file and function) precisely so it can be reviewed. Read the
+> [rules of engagement](#inviting-audit--penetration-testing) below before you
+> start, then report findings via a private advisory.
 
 ## Trust boundaries
 
@@ -71,9 +77,59 @@ Browser ──TLS──> omni-shell gateway ──TLS──> n8n ──> backend
 - RBAC claim mapping trusts the IdP's role/group claims; scope those claims
   tightly in your IdP.
 
+## Inviting audit & penetration testing
+
+We **actively welcome** independent security review of OmniProject — both static
+code audit and dynamic penetration testing — and we will credit researchers who
+report in good faith. The stateless, broker-agnostic design and the
+[function map](docs/FUNCTION-MAP.md) are there to make the gateway quick to reason
+about; please use them.
+
+### In scope
+
+- The **gateway** code in this repository (`artifacts/api-server`) — authN/authZ,
+  the broker seam, the admin-gated surfaces (raw API, role-map, business rules),
+  webhooks, ingest, exports, and the served OpenAPI/MCP endpoints.
+- The **deploy artifacts** (compose / k8s / Dockerfile) as published here.
+- The **broker contract** and the reference broker/backend blueprints.
+
+### Out of scope
+
+- **Any instance you do not own or operate.** Stand up your own — demo mode needs
+  no backend (`docker compose -f docker-compose.standalone.yml up`, or run the
+  gateway with no `BROKER_URL`). Do **not** test against shared, hosted, or other
+  people's deployments.
+- **Third-party systems**: the n8n product, your OIDC provider, and the backend
+  systems of record (Jira, OpenProject, SAP, …). Report those to their vendors.
+- **Volumetric / denial-of-service** testing, and anything that degrades a service
+  for others. Rate-limit and resource-exhaustion *logic* findings are welcome;
+  flooding is not.
+- **Social engineering**, physical attacks, and spam/automated scanner noise with
+  no demonstrated impact.
+
+### Rules of engagement
+
+- Test only your own instance; use synthetic data, never real personal data.
+- Make a good-faith effort to avoid privacy violations, data loss, and service
+  disruption; stop and report once you've demonstrated a vulnerability.
+- Give us reasonable time to remediate before any public disclosure
+  (we target an initial response within **5 working days** and a fix or mitigation
+  plan within **90 days**).
+
+### Safe harbour
+
+We consider security research conducted in line with this policy to be
+**authorised**, in good faith, and **welcome** — we will not pursue or support
+legal action against researchers for accidental, good-faith violations of this
+policy. This is not a paid bug-bounty programme (there is no monetary reward), but
+we will publicly credit you in the advisory and release notes unless you ask us
+not to.
+
 ## Reporting a vulnerability
 
-Please report privately via a **GitHub Security Advisory** —
-*Security → Report a vulnerability* on the repository — rather than opening a
-public issue. Include reproduction steps and the affected component from the
-table above. Do not disclose publicly until a fix is released.
+Report privately via a **GitHub Security Advisory** —
+[*Security → Report a vulnerability*](https://github.com/walshd1/Omniproject/security/advisories/new)
+on the repository — rather than opening a public issue. Include reproduction
+steps, impact, and the affected component from the table above. Do not disclose
+publicly until a fix is released. The machine-readable pointer to this policy is
+served at `/.well-known/security.txt`.

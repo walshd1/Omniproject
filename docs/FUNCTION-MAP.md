@@ -784,6 +784,14 @@ Setup-wizard + operations endpoints — backend/plane catalogues, workflow gener
 
 SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
 
+### `artifacts/api-server/src/routes/well-known.ts`
+
+`.well-known` endpoints — the machine-readable security.txt (RFC 9116) that publicly invites and directs security researchers.
+
+| Function | What it does |
+| --- | --- |
+| `securityTxt` | Build the RFC 9116 security.txt body, with a rolling one-year `Expires`. |
+
 ## Backend catalogue (`lib/backend-catalogue`)
 
 The seven vendor-neutral integration-plane registries (backends, brokers, outputs, notifications, methodologies, reports, screens) shared across the workspace.
