@@ -268,6 +268,12 @@ test("GET /api/setup/outputs lists outward interfaces with capabilities + tools"
   assert.ok(mcp && mcp.tools.includes("omniproject_list_projects"));
 });
 
+test("GET /api/setup/notifications lists channels (Slack/Teams/…) with capabilities", async () => {
+  const json = await readJson(await get("/api/setup/notifications"));
+  const slack = json.find((n: { id: string }) => n.id === "slack");
+  assert.ok(slack && slack.capabilities.richFormatting === true);
+});
+
 // ── MCP server (POST /api/mcp, JSON-RPC) ─────────────────────────────────────
 
 const mcp = (rpc: unknown, init?: RequestInit) =>

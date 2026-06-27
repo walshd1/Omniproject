@@ -1,18 +1,19 @@
-# Integration planes — backends, brokers, outputs
+# Integration planes — backends, brokers, outputs, notifications
 
-OmniProject has **three integration planes**, and they all follow the same
+OmniProject has **four integration planes**, and they all follow the same
 architectural principle: a **neutral manifest** (identity + **capabilities**) kept
 **separate from** its concrete **tools** (the how), the two **linked** into one
-definition. All three live in `@workspace/backend-catalogue` as pure, shared data
-so the gateway and the setup wizard can't drift.
+definition. All live in `@workspace/backend-catalogue` as pure, shared data so the
+gateway and the setup wizard can't drift.
 
 | Plane | What it is | Manifest (capabilities) | Tools (the how) | Registry |
 | --- | --- | --- | --- | --- |
 | **Backends** | systems of record (Jira, SAP, Salesforce, …) | domains it can populate (`issues`, `financials`, `crm`, …), required env, transport | the n8n binding (per-action node/HTTP mappings) + workflow generator | `backendCatalogue()` |
 | **Brokers** | the automation/translation hop | `synchronous`, `selfHostable`, `managedAuth`, `eventsInbound/Outbound`; which transports it drives | the **build method** (workflow generator / scenario / DAG / component / flow / function / blueprint) | `brokerCatalogue()` |
 | **Outputs** | outward interfaces (data/events out) | `readOnly`, `streaming`, `auth` | the concrete surface (MCP tool names, OData entity sets, export formats, event names) | `outputCatalogue()` |
+| **Notifications** | channels alerts are delivered TO (Slack, Teams, email, PagerDuty, …) | `channels`, `directMessage`, `richFormatting`, `threads`, `inboundReply`, `delivery` | the event payloads it carries (`notification`, `alert`, `audit`, …) | `notificationCatalogue()` |
 
-Surfaced read-only at `GET /api/setup/{backends,brokers,outputs}`.
+Surfaced read-only at `GET /api/setup/{backends,brokers,outputs,notifications}`.
 
 ## How the planes link
 
