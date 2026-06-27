@@ -10,6 +10,7 @@ import {
 } from "./deploy-config";
 import {
   isCustomBackend, renderSkeletonWorkflow, renderKnownWorkflow, renderBindingGuide,
+  renderManifestSource, renderFieldMap,
 } from "./custom-backend";
 
 /**
@@ -77,11 +78,15 @@ async function main(): Promise<void> {
     const custom = isCustomBackend(backendId);
     let backendLabel = chosen?.label ?? "Custom backend";
     let effectiveBackendId = backendId;
+    let contributeCatalogue = false;
     if (custom) {
       backendLabel = (await ask("\n  Name this backend (free text):", chosen?.label ?? "Acme PM")) || "Custom backend";
       effectiveBackendId = (backendId === "custom" ? backendLabel : backendId).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "custom";
       console.log(dim(`  I'll scaffold an n8n workflow skeleton + a step-by-step binding guide for "${backendLabel}".`));
       console.log(dim("  You'll fill in your API's endpoints/auth and verify with the smoke test — full walkthrough in the guide."));
+      // Optionally promote it to a first-class catalogue entry + field map you can
+      // contribute back, so the wizard + gateway know it next time.
+      contributeCatalogue = await confirm("  Also generate a catalogue entry + field map to add this backend permanently?", true);
     }
     const bundleN8n = await confirm("\nBundle a ready-to-configure n8n (the reference broker) in the compose?", true);
     const brokerUrl = bundleN8n ? "" : await ask("External broker (n8n webhook) URL:", "https://n8n.internal/webhook/omniproject");
@@ -198,11 +203,19 @@ async function main(): Promise<void> {
     // + binding guide for a custom/unsupported one (the guided-onboarding path).
     let workflowPath: string | null = null;
     let guidePath: string | null = null;
+    const contribPaths: string[] = [];
     if (custom) {
       workflowPath = path.join(outDir, `${effectiveBackendId}.workflow.json`);
       guidePath = path.join(outDir, `${effectiveBackendId}-binding-guide.md`);
       fs.writeFileSync(workflowPath, renderSkeletonWorkflow(effectiveBackendId, backendLabel));
       fs.writeFileSync(guidePath, renderBindingGuide(effectiveBackendId, backendLabel));
+      if (contributeCatalogue) {
+        const manifestPath = path.join(outDir, `${effectiveBackendId}.backend.ts`);
+        const fieldMapPath = path.join(outDir, `${effectiveBackendId}.fieldmap.json`);
+        fs.writeFileSync(manifestPath, renderManifestSource(effectiveBackendId, backendLabel));
+        fs.writeFileSync(fieldMapPath, renderFieldMap(effectiveBackendId));
+        contribPaths.push(manifestPath, fieldMapPath);
+      }
     } else {
       const wf = renderKnownWorkflow(effectiveBackendId);
       if (wf) { workflowPath = path.join(outDir, `${effectiveBackendId}.workflow.json`); fs.writeFileSync(workflowPath, wf); }
@@ -213,6 +226,7 @@ async function main(): Promise<void> {
     console.log(`  ${composePath}`);
     if (workflowPath) console.log(`  ${workflowPath} ${dim(custom ? "(n8n skeleton — fill in your API)" : "(ready-to-import n8n workflow)")}`);
     if (guidePath) console.log(`  ${guidePath} ${dim("(step-by-step binding guide)")}`);
+    for (const p of contribPaths) console.log(`  ${p} ${dim(p.endsWith(".backend.ts") ? "(catalogue entry — add to BACKENDS to ship it)" : "(field map — surface/store per field)")}`);
 
     console.log(b("\nNext steps:"));
     console.log(`  1. Review ${path.relative(process.cwd(), composePath)} and the .env.`);
