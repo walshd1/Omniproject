@@ -669,6 +669,41 @@ export const BACKENDS: BackendDefinition[] = [
     notes: "A starting template for bespoke corporate systems — Capita platforms, ESB/SOA gateways, mainframe-fronting REST. Auth via n8n's generic Header-Auth/OAuth2 credential. For SOAP backbones set the HTTP node to send XML (or use a SOAP community node); for message buses (IBM MQ, Kafka, RabbitMQ) trigger via the matching n8n node and call back through /api/notifications/ingest or a follow-up action.",
   },
   {
+    id: "planview",
+    label: "Planview (Portfolios / AdaptiveWork)",
+    docsUrl: "https://developer.planview.com/",
+    via: "HTTP + Planview OAuth2 (managed credential)",
+    authHeader: "",
+    requiredEnv: ["PLANVIEW_INSTANCE_URL"],
+    credentialType: "oAuth2Api",
+    capabilities: { ...CAPS_CORE, portfolio: true, resources: true, financials: true, baseline: true, history: true, raid: true },
+    actions: {
+      list_projects: { method: "GET", url: "={{ $env.PLANVIEW_INSTANCE_URL }}/api/projects" },
+      list_issues: { method: "GET", url: "={{ $env.PLANVIEW_INSTANCE_URL }}/api/projects/{{ $json.body.payload.projectId }}/work" },
+      create_issue: { method: "POST", url: "={{ $env.PLANVIEW_INSTANCE_URL }}/api/work", body: "={{ JSON.stringify({ projectId: $json.body.payload.projectId, name: $json.body.payload.title, description: $json.body.payload.description }) }}" },
+      update_issue: { method: "PUT", url: "={{ $env.PLANVIEW_INSTANCE_URL }}/api/work/{{ $json.body.payload.issueId }}", body: "={{ JSON.stringify({ name: $json.body.payload.title, state: $json.body.payload.status }) }}" },
+      delete_issue: { method: "DELETE", url: "={{ $env.PLANVIEW_INSTANCE_URL }}/api/work/{{ $json.body.payload.issueId }}" },
+    },
+    notes: "Enterprise PPM: portfolios → programmes/projects, work items → issues; resource + financial + baseline data are first-class (good fit for the strategy/KPI fields). Planview's REST surface varies by product (Portfolios vs AdaptiveWork/Clarizen) and version — confirm the endpoints + OAuth scopes against your tenant. Workflow generation is premium (enterprise tier).",
+  },
+  {
+    id: "celoxis",
+    label: "Celoxis",
+    docsUrl: "https://www.celoxis.com/cw/api/v3",
+    via: "HTTP + per-user API token",
+    authHeader: USER_BEARER,
+    requiredEnv: ["CELOXIS_INSTANCE_URL"],
+    capabilities: { ...CAPS_CORE, portfolio: true, resources: true, financials: true, scheduling: true },
+    actions: {
+      list_projects: { method: "GET", url: "={{ $env.CELOXIS_INSTANCE_URL }}/psa/api/v3/projects" },
+      list_issues: { method: "GET", url: "={{ $env.CELOXIS_INSTANCE_URL }}/psa/api/v3/tasks?project={{ $json.body.payload.projectId }}" },
+      create_issue: { method: "POST", url: "={{ $env.CELOXIS_INSTANCE_URL }}/psa/api/v3/tasks", body: "={{ JSON.stringify({ project: $json.body.payload.projectId, name: $json.body.payload.title, description: $json.body.payload.description }) }}" },
+      update_issue: { method: "PUT", url: "={{ $env.CELOXIS_INSTANCE_URL }}/psa/api/v3/tasks/{{ $json.body.payload.issueId }}", body: "={{ JSON.stringify({ name: $json.body.payload.title, state: $json.body.payload.status }) }}" },
+      delete_issue: { method: "DELETE", url: "={{ $env.CELOXIS_INSTANCE_URL }}/psa/api/v3/tasks/{{ $json.body.payload.issueId }}" },
+    },
+    notes: "Mid-market PPM: projects → projects, tasks → issues; schedules, resources + financials supported. Celoxis API v3 uses a per-user token (forwarded for real per-user audit). Confirm the v3 paths/field names against your instance — these are reference mappings.",
+  },
+  {
     id: "excel",
     label: "Excel / CSV import",
     docsUrl: "https://github.com/walshd1/omniproject/blob/main/docs/ops/IMPORT.md",
@@ -740,7 +775,7 @@ export function getBackend(id: string): BackendDefinition | undefined {
  * large corporate ERPs / scheduling systems that are the paid-for integrations.
  * The standard backends (Jira, OpenProject, GitHub, …) stay free.
  */
-const ENTERPRISE_BACKENDS = new Set(["sap", "primavera", "dynamics365", "dynamics365-sales", "msproject", "netsuite", "enterprise"]);
+const ENTERPRISE_BACKENDS = new Set(["sap", "primavera", "dynamics365", "dynamics365-sales", "msproject", "netsuite", "enterprise", "planview"]);
 
 export function isEnterpriseBackend(id: string): boolean {
   return ENTERPRISE_BACKENDS.has(id);

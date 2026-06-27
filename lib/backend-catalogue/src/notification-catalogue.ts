@@ -85,6 +85,14 @@ export const NOTIFICATIONS: NotificationDefinition[] = [
     tools: EVENTS, notes: "OmniProject's own HMAC-signed outbound events (the OUTPUTS `webhooks` surface) — point any consumer at it.",
   },
   {
+    id: "notion", label: "Notion", docsUrl: "https://developers.notion.com/reference/post-page", kind: "webhook",
+    // A documentation destination: push a report/status page into a Notion
+    // database. richFormatting = Notion blocks; not a chat channel, no DMs.
+    capabilities: { channels: false, directMessage: false, richFormatting: true, threads: false, inboundReply: false, delivery: "api-key" },
+    tools: ["report", "notification", "audit", "config.changed"],
+    notes: "Send reports + status to a Notion database as pages (e.g. a weekly highlight report). Delivery rides the broker — an n8n Notion node (or the reference sidecar) creates the page from the report payload using a Notion integration token; this plane describes the channel. No bespoke code needed (build-your-own also works against the same seam).",
+  },
+  {
     id: "mqtt", label: "MQTT", docsUrl: "https://mqtt.org/", kind: "iot",
     // Pub/sub to a broker topic. Two-way: a subscriber can also publish a command
     // back on a reply topic, so `inboundReply` is honestly true.

@@ -183,6 +183,21 @@ completionPct`
 | `accountRef` | reference | account | Salesforce, Pipedrive |
 | `contactRef` | reference | contact | Salesforce, Pipedrive, HubSpot |
 
+## strategy  (new group — portfolio-tier, project + programme)
+Strategic alignment: what each project/programme contributes to. Gated by the
+`portfolio` domain, so it surfaces at the project **and** programme level.
+
+| key | type | meaning | products |
+| --- | --- | --- | --- |
+| `strategicGoals` | labels | the strategic goals this thing supports | Planview, Jira Align, MS Project for the web |
+| `kpis` | labels | KPIs it is measured by / contributes to | Planview, ServiceNow SPM |
+| `objectives` | labels | linked objectives / OKRs | Jira Align, Planview, Asana Goals |
+| `strategicTheme` | enum | the theme / investment pillar | SAFe tools, Planview |
+| `valueStream` | string | SAFe value stream / portfolio lane | Planview, Jira Align |
+| `strategicContribution` | percent | how much it contributes to the goal | Planview, ServiceNow SPM |
+| `expectedBenefit` | text | the benefit case | PRINCE2/MSP tooling, Planview |
+| `benefitRealised` | percent | benefit realised to date | MSP tooling, Planview |
+
 ---
 
 ## New capability domains implied

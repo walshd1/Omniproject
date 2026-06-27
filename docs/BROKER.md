@@ -79,11 +79,16 @@ canonical surface is:
 The v0.1-era deprecated aliases (`/n8n-proxy`, `n8nWebhookUrl`,
 `N8N_WEBHOOK_URL`, the `status.n8n` object) have been **removed**.
 
-The only remaining *intentional* n8n names are the adapter's edge and are
-guard-allowed:
+**Zero exceptions above the seam.** No file above the seam imports the adapter at
+all — the command edges (`/broker/command` and the raw escape hatch) go through the
+neutral `brokerCommand()` helper exported from the broker barrel, so the
+adapter-import allowlist in `broker-guard.test.ts` is **empty** and the guard
+asserts it stays that way.
 
-- **`routes/broker-command.ts`** — the one place permitted to import
-  `../broker/n8n` (it is the adapter's command edge);
+The only remaining *intentional* n8n names are under/at the seam:
+
+- **`src/broker/`** — the adapter itself (`n8n.ts`) and the barrel that exposes the
+  neutral `brokerCommand()` helper;
 - the **workflow generator** (`lib/n8n-backends.ts`, `n8n-generator.ts`,
   `n8n-expr.ts`) — emits n8n workflow JSON, n8n-specific by nature, alongside but
   logically under the seam;
@@ -111,9 +116,9 @@ runs against it (see the `DemoBroker` unit test and the guard).
 ## "n8n is superseded" — the swap story
 
 If a better broker arrives (or n8n is retired), the entire migration is: write
-`FooBroker implements Broker`, point the selector at it, and delete `n8n.ts` plus
-its three documented exceptions. The data path, the API surface, the SPA, and
-every test above the seam are untouched — because none of them ever knew the
+`FooBroker implements Broker`, point the selector at it, and delete `n8n.ts` (and
+re-point `brokerCommand()` in the barrel). The data path, the API surface, the SPA,
+and every test above the seam are untouched — because none of them ever knew the
 broker was n8n. That is the property this boundary exists to guarantee.
 
 ## Building a broker out-of-process (HTTP sidecar)
