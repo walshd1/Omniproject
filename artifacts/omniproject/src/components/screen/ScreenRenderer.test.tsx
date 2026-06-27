@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithProviders } from "../../test/utils";
 import { ScreenRenderer } from "./ScreenRenderer";
+import { hasPanelRenderer } from "./registry";
 import type { ScreenDef } from "../../lib/screen";
 
 /**
@@ -29,6 +30,26 @@ describe("ScreenRenderer", () => {
     expect(screen.getByText("Hello panels")).toBeInTheDocument(); // text
     expect(screen.getByText("Grid")).toBeInTheDocument(); // table title
     expect(screen.getByText("Item one")).toBeInTheDocument(); // list
+  });
+
+  it("renders the graph + map visual primitives as accessible data views", () => {
+    expect(hasPanelRenderer("graph")).toBe(true);
+    expect(hasPanelRenderer("map")).toBe(true);
+    const s: ScreenDef = {
+      id: "viz",
+      label: "Viz",
+      panels: [
+        { id: "g", kind: "graph", title: "Dependencies", config: { nodes: [{ id: "a", label: "Auth" }, { id: "b", label: "Gateway" }], edges: [{ from: "b", to: "a" }] } },
+        { id: "m", kind: "map", title: "Sites", config: { points: [{ label: "London", lat: 51.5074, lng: -0.1278 }] } },
+      ],
+    };
+    renderWithProviders(<ScreenRenderer screen={s} />);
+    expect(screen.getByText(/2 nodes, 1 edge/)).toBeInTheDocument();
+    expect(screen.getByText(/Gateway/)).toBeInTheDocument(); // edge label resolved
+    expect(screen.getByText(/1 location/)).toBeInTheDocument();
+    expect(screen.getByText(/London/)).toBeInTheDocument();
+    // Neither degrades to the unknown placeholder.
+    expect(screen.queryByTestId("unknown-panel")).not.toBeInTheDocument();
   });
 
   it("degrades an unknown panel kind to a placeholder instead of crashing", () => {
