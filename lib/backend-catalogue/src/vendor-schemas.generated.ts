@@ -194,7 +194,11 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
         ],
         "properties": {
           "synchronous": {
-            "type": "boolean"
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "Brokers ARE the synchronous data-hop plane — every broker can answer the binding's request in the SAME HTTP call. Async-only platforms (Airflow/Zapier) belong in the outputs/notifications planes, not here."
           },
           "selfHostable": {
             "type": "boolean"
@@ -225,7 +229,6 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
           "scenario-template",
           "component-template",
           "flow-template",
-          "dag-template",
           "function-template",
           "implement-blueprint"
         ]
@@ -375,7 +378,8 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
           "export",
           "metrics",
           "events-out",
-          "events-in"
+          "events-in",
+          "batch-egress"
         ]
       },
       "capabilities": {

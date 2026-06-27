@@ -9,20 +9,22 @@ import { withOverlay } from "./vendor-overlay";
  * the broker's **capabilities** (what it can do) are kept separate from its
  * **build tool** (how you stand one up), linked into a `BrokerDefinition`.
  *
- * n8n is the reference broker; everything here is broker-agnostic. The hard line
- * is `capabilities.synchronous` — whether it can answer the binding's
- * request/response in the SAME HTTP call (required to serve read-through). Async
- * platforms (Airflow, and Zapier/IFTTT which aren't even listed as data brokers)
- * can still do scheduled sync + events, but cannot be the live data hop.
+ * n8n is the reference broker; everything here is broker-agnostic. The defining
+ * invariant of this plane is `capabilities.synchronous` — a broker MUST be able to
+ * answer the binding's request/response in the SAME HTTP call (required to serve
+ * read-through). The broker plane IS the synchronous data-hop plane: the schema
+ * enforces `synchronous: true`, and a guard test backs it. Async-only platforms
+ * (Airflow, Zapier/IFTTT) can do scheduled sync + events but cannot be the live
+ * data hop, so they live in the OUTPUTS plane (scheduled egress) and/or the
+ * NOTIFICATIONS plane (event delivery) — not here.
  */
 
-/** The brokers OmniProject knows how to be driven by. */
+/** The brokers OmniProject knows how to be driven by (all synchronous data hops). */
 export type BrokerKind =
   | "n8n"
   | "make"
   | "pipedream"
   | "power-automate"
-  | "airflow"
   | "serverless"
   | "http-sidecar";
 
@@ -32,7 +34,6 @@ export type BrokerBuildMethod =
   | "scenario-template" // Make — scenario blueprint
   | "component-template" // Pipedream — HTTP component
   | "flow-template" // Power Automate — cloud flow
-  | "dag-template" // Airflow — DAG
   | "function-template" // serverless — portable function
   | "implement-blueprint"; // raw HTTP service — the reference broker blueprint
 
@@ -88,8 +89,8 @@ export function getBrokerDef(id: string): BrokerDefinition | undefined {
 }
 
 /** Brokers that can act as the live DATA hop for a backend transport: synchronous
- *  AND able to drive that transport. (native-node ⇒ n8n only; http ⇒ every
- *  synchronous HTTP broker — Airflow is excluded, it's async.) */
+ *  AND able to drive that transport. Every broker is synchronous by invariant, so
+ *  this is really "which brokers drive this transport" (native-node ⇒ n8n only). */
 export function brokersForTransport(t: TransportMethod): BrokerKind[] {
   return withOverlay("brokers", BROKERS).filter((b) => b.capabilities.synchronous && b.transports.includes(t)).map((b) => b.id);
 }

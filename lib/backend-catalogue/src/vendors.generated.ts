@@ -2377,25 +2377,6 @@ export const BACKENDS_DATA: BackendDefinition[] = [
 
 export const BROKERS_DATA: BrokerDefinition[] = [
   {
-    "build": "dag-template",
-    "capabilities": {
-      "eventsInbound": true,
-      "eventsOutbound": false,
-      "managedAuth": false,
-      "selfHostable": true,
-      "synchronous": false
-    },
-    "docsUrl": "https://airflow.apache.org/docs/",
-    "hosted": false,
-    "id": "airflow",
-    "kind": "code-first",
-    "label": "Apache Airflow",
-    "notes": "Batch/scheduled DAGs — NOT a live read-through broker (no synchronous response). Use it to sync a backend into a store that a real broker reads, or to push events. Honest limit, like Zapier.",
-    "transports": [
-      "http"
-    ]
-  },
-  {
     "build": "implement-blueprint",
     "capabilities": {
       "eventsInbound": true,
@@ -2751,6 +2732,24 @@ export const NOTIFICATIONS_DATA: NotificationDefinition[] = [
 ];
 
 export const OUTPUTS_DATA: OutputDefinition[] = [
+  {
+    "capabilities": {
+      "auth": "api-token",
+      "readOnly": true,
+      "streaming": false
+    },
+    "id": "airflow",
+    "kind": "batch-egress",
+    "label": "Apache Airflow (scheduled egress)",
+    "notes": "An async orchestrator — NOT a live data hop, so it lives in the outputs plane, not the broker plane. A scheduled DAG pulls portfolio data through the read APIs (OData/BI feeds) and lands it downstream, or consumes outbound events to trigger batch work. Same honest limit as Zapier/IFTTT.",
+    "route": "scheduled DAG → GET /api/odata + /api/bi/feeds (read), webhooks (trigger)",
+    "tools": [
+      "projects",
+      "issues",
+      "portfolio_health",
+      "notification"
+    ]
+  },
   {
     "capabilities": {
       "auth": "api-token",

@@ -32,14 +32,16 @@ test("BROKER_KINDS declares extra connected kinds; unknown ids are dropped, acti
 });
 
 test("brokersSupporting: which connected kinds can serve a broker capability", () => {
-  process.env["BROKER_KINDS"] = "n8n,airflow";
-  // n8n supports outbound events; airflow (async) is honestly modelled — check
-  // each declared live kind against its catalogue definition.
-  const outbound = brokersSupporting("eventsOutbound");
-  if (getBrokerDef("n8n")!.capabilities.eventsOutbound) assert.ok(outbound.includes("n8n"));
-  if (!getBrokerDef("airflow")!.capabilities.eventsOutbound) assert.ok(!outbound.includes("airflow"));
+  process.env["BROKER_KINDS"] = "n8n,http-sidecar";
+  // n8n provides managed per-connector auth; the raw http-sidecar does not — so the
+  // routing primitive must include n8n but not http-sidecar for that capability.
+  const managed = brokersSupporting("managedAuth");
+  assert.equal(getBrokerDef("n8n")!.capabilities.managedAuth, true);
+  assert.equal(getBrokerDef("http-sidecar")!.capabilities.managedAuth, false);
+  assert.ok(managed.includes("n8n"));
+  assert.ok(!managed.includes("http-sidecar"));
   // The demo primary simulates the full reference broker ⇒ matches every broker key.
-  if (!getBroker().live) assert.ok(outbound.includes(ACTIVE));
+  if (!getBroker().live) assert.ok(managed.includes(ACTIVE));
 });
 
 test("brokersSupporting: a non-capability key matches no live broker (only demo's reference match)", () => {

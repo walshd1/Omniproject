@@ -258,8 +258,17 @@ test("GET /api/readyz reports broker reachability (demo → ready)", async () =>
 test("GET /api/setup/brokers lists brokers with capabilities + build method", async () => {
   const json = await readJson(await get("/api/setup/brokers"));
   assert.ok(Array.isArray(json) && json.some((b: { id: string }) => b.id === "n8n"));
-  const airflow = json.find((b: { id: string }) => b.id === "airflow");
-  assert.equal(airflow.dataBroker, false); // async, honestly modelled
+  // The broker plane is synchronous-only: every listed broker is a data broker, and
+  // async orchestrators (Airflow) aren't here — they moved to the outputs plane.
+  assert.ok(json.every((b: { dataBroker: boolean }) => b.dataBroker));
+  assert.ok(!json.some((b: { id: string }) => b.id === "airflow"));
+});
+
+test("GET /api/setup/outputs includes Airflow as a scheduled-egress output (not a broker)", async () => {
+  const json = await readJson(await get("/api/setup/outputs"));
+  const airflow = json.find((o: { id: string }) => o.id === "airflow");
+  assert.ok(airflow, "Airflow should be re-homed in the outputs plane");
+  assert.equal(airflow.kind, "batch-egress");
 });
 
 test("GET /api/setup/outputs lists outward interfaces with capabilities + tools", async () => {
