@@ -870,6 +870,14 @@ BROKER registry — the automation/translation layer that sits between the gatew
 | `brokersForTransport` | Brokers that can act as the live DATA hop for a backend transport: synchronous AND able to drive that transport. |
 | `brokerCatalogue` | Lightweight catalogue view (capabilities + linked build method per broker). |
 
+### `lib/backend-catalogue/src/compatibility.ts`
+
+Compatibility predicate — the single rule deciding whether a surfaceable asset (report, screen, view, panel, …) should appear, given the resolved SUPPORT set.
+
+| Function | What it does |
+| --- | --- |
+| `isCapabilityMet` | Compatibility predicate — the single rule deciding whether a surfaceable asset (report, screen, view, panel, …) should appear, given the resolved SUPPORT set. |
+
 ### `lib/backend-catalogue/src/index.ts`
 
 @workspace/backend-catalogue — the shared source of truth for OmniProject's three integration planes, each modelled the same way (neutral manifest + capabilities kept SEPARATE from its concrete tools, linked into one definition):

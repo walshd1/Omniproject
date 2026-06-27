@@ -8,6 +8,7 @@
  * `financials`, burndown needs `history`). That keeps the planes separate but
  * linked — no neutering, no false promises.
  */
+import { isCapabilityMet } from "./compatibility";
 
 export type ReportKind = "schedule" | "progress" | "financial" | "resource" | "quality" | "portfolio";
 
@@ -67,7 +68,5 @@ export function reportCatalogue(): ReportDefinition[] {
  * it." This is the single gate; surface only what it returns.
  */
 export function availableReports(caps: Record<string, boolean>): ReportDefinition[] {
-  return reportCatalogue().filter(
-    (r) => r.capabilities.requiresCapability === null || caps[r.capabilities.requiresCapability] === true,
-  );
+  return reportCatalogue().filter((r) => isCapabilityMet(r.capabilities.requiresCapability, caps));
 }

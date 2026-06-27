@@ -8,6 +8,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Incompatibility guard + one compatibility predicate** (**Stable**) — the rule
+  deciding whether any surfaceable asset (report, screen, view, panel) should appear
+  is now a single predicate, `isCapabilityMet(requirement, support)`, over a flat
+  capability-key → boolean support set. The key space spans BOTH planes: the backend
+  domains (`CAPABILITY_DOMAINS`) plus the broker capability keys (the new
+  `BROKER_CAPABILITY_KEYS` — `synchronous`, `selfHostable`, `managedAuth`,
+  `eventsInbound`, `eventsOutbound`), so an asset can declare a requirement against
+  what a backend OR a broker supports. `availableReports` / `availableScreens` now
+  call the shared predicate instead of inlining the rule. A CI **incompatibility
+  guard** (`compatibility-guard.test.ts`) asserts every shipped asset's declared
+  requirement names a REAL capability — a dangling/typo'd requirement (which would
+  silently hide an asset forever, or surface it unconditionally) fails the build —
+  and that reports/screens always DECLARE their requirement (even if `null`). This
+  is how we know which of anything to surface based on what the broker(s) and
+  backend(s) support. Additive; broker-capability resolution is wired next.
 - **ScreenRenderer hosts the real methodology views as panels** (**Beta**) — a
   `view` panel kind bridges the generic renderer to the existing heavy view
   components (Kanban board, Gantt, Scrum, PRINCE2, RAID, List) via the shared

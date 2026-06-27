@@ -49,6 +49,15 @@ export interface BrokerCapabilities {
   eventsOutbound: boolean;
 }
 
+/**
+ * The broker capability keys — the BROKER half of the capability key space an
+ * asset can declare a requirement against (the backend half is CAPABILITY_DOMAINS
+ * in the gateway). The single source of truth the incompatibility guard checks
+ * declared requirements against, so a typo'd / dangling requirement fails CI.
+ */
+export const BROKER_CAPABILITY_KEYS = ["synchronous", "selfHostable", "managedAuth", "eventsInbound", "eventsOutbound"] as const;
+export type BrokerCapabilityKey = (typeof BROKER_CAPABILITY_KEYS)[number];
+
 /** The broker-neutral description (no build specifics). */
 export interface BrokerManifest {
   id: BrokerKind;
