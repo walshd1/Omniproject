@@ -95,6 +95,10 @@
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.servicenow/",
   "id": "servicenow",
   "label": "ServiceNow (PPM)",
+  "nomenclature": {
+    "term.issue": "Incident",
+    "term.issues": "Incidents"
+  },
   "notes": "Uses the generic tableRecord resource against the PPM tables (pm_project / pm_project_task). Adjust table/field names to your ServiceNow PPM model.",
   "requiredEnv": [],
   "via": "Native n8n node (serviceNowBasicApi credential)"

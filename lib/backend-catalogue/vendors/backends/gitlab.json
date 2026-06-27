@@ -38,9 +38,23 @@
   "docsUrl": "https://docs.gitlab.com/ee/api/issues.html",
   "id": "gitlab",
   "label": "GitLab Issues",
+  "nomenclature": {
+    "term.programme": "Group",
+    "nav.programmes": "Groups"
+  },
   "notes": "projectId = GitLab numeric project id. iid vs id: writes use the issue iid within the project.",
   "requiredEnv": [
     "GITLAB_INSTANCE_URL"
   ],
+  "statusVocabulary": {
+    "toCanonical": {
+      "opened": "todo",
+      "closed": "done"
+    },
+    "fromCanonical": {
+      "done": "close",
+      "todo": "reopen"
+    }
+  },
   "via": "HTTP + per-user token"
 }

@@ -75,7 +75,13 @@
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.clickup/",
   "id": "clickup",
   "label": "ClickUp",
-  "notes": "Spaces/lists → projects, tasks → issues. List all lists via an extra node if you want list_projects.",
+  "nomenclature": {
+    "term.issue": "Task",
+    "term.issues": "Tasks",
+    "term.project": "List",
+    "nav.projects": "Lists"
+  },
+  "notes": "Spaces/lists \u2192 projects, tasks \u2192 issues. List all lists via an extra node if you want list_projects.",
   "requiredEnv": [
     "CLICKUP_SPACE_ID"
   ],

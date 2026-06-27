@@ -70,4 +70,21 @@ export interface BackendManifest {
    */
   adminOnly?: boolean;
   notes?: string;
+  /**
+   * Optional VOCAB MAPS — how this vendor names things, so a customer used to its
+   * nomenclature can adopt it as a shortcut instead of re-typing labels by hand.
+   *
+   *  - nomenclature: canonical UI-term key (the `labels` catalogue keys, e.g.
+   *    "term.issue") → this vendor's word (e.g. "Ticket" for Zendesk, "Incident"
+   *    for ServiceNow). The gateway offers it as a one-click preset that populates
+   *    the label overrides; unknown keys are dropped on apply.
+   *  - statusVocabulary: this vendor's native status value → a canonical status,
+   *    so its dialect is mapped to canonical BELOW the seam as data. `fromCanonical`
+   *    is the reverse for writes.
+   */
+  nomenclature?: Record<string, string>;
+  statusVocabulary?: {
+    toCanonical: Record<string, string>;
+    fromCanonical?: Record<string, string>;
+  };
 }

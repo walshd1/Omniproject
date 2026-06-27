@@ -440,6 +440,15 @@ Minimal resolver for the n8n expressions used in backend manifest URLs, so we ca
 | `resolveTemplate` | Resolve a manifest URL/header template. |
 | `isFullyResolved` | True when no `{{…}}` placeholders remain (the template fully resolved). |
 
+### `artifacts/api-server/src/lib/nomenclature.ts`
+
+SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
+
+| Function | What it does |
+| --- | --- |
+| `nomenclaturePresets` | Every backend that ships a non-empty nomenclature preset (respects the overlay). |
+| `applyNomenclaturePreset` | Apply a backend's nomenclature preset to the label overrides. |
+
 ### `artifacts/api-server/src/lib/notify-bus.ts`
 
 Notification bus — decouples "an event arrived" from "fan it out to the SSE clients on every replica".

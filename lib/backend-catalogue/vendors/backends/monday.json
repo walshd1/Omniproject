@@ -45,7 +45,7 @@
     "update_issue": {
       "kind": "n8nNode",
       "node": "n8n-nodes-base.mondayCom",
-      "note": "Monday updates set a specific column value — map status/name to your board columns after import.",
+      "note": "Monday updates set a specific column value \u2014 map status/name to your board columns after import.",
       "parameters": {
         "boardId": "={{ $json.body.payload.projectId }}",
         "itemId": "={{ $json.body.payload.issueId }}",
@@ -71,7 +71,13 @@
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.mondaycom/",
   "id": "monday",
   "label": "Monday.com",
-  "notes": "projectId = board id, issueId = item id. Boards map to projects, items to issues. Column mapping is board-specific — finish it in the node.",
+  "nomenclature": {
+    "term.issue": "Item",
+    "term.issues": "Items",
+    "term.project": "Board",
+    "nav.projects": "Boards"
+  },
+  "notes": "projectId = board id, issueId = item id. Boards map to projects, items to issues. Column mapping is board-specific \u2014 finish it in the node.",
   "requiredEnv": [],
   "via": "Native n8n node (mondayComApi credential)"
 }
