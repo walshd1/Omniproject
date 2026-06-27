@@ -9,7 +9,6 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "sidecar": "tsx src/broker/reference-sidecar.ts",
     "smoke": "tsx --test src/broker/smoke.integration.test.ts",
-    "wizard": "tsx src/wizard.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "test:coverage": "c8 tsx --test \"src/**/*.test.ts\""

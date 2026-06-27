@@ -3,11 +3,14 @@ import { stdin, stdout } from "node:process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { backendCatalogue } from "./lib/n8n-backends";
+import { backendCatalogue } from "../../../artifacts/api-server/src/lib/n8n-backends";
 import {
   renderEnv, renderCompose, validateDeployConfig, effectiveBrokerUrl,
   type DeployConfig, type IdpChoice, type AiProvider,
-} from "./lib/deploy-config";
+} from "./deploy-config";
+import {
+  isCustomBackend, renderSkeletonWorkflow, renderKnownWorkflow, renderBindingGuide,
+} from "./custom-backend";
 
 /**
  * First-run setup wizard (TUI). Interviews the operator — broker backend, IdP,
@@ -67,6 +70,18 @@ async function main(): Promise<void> {
     if (chosen?.requiredEnv?.length) {
       console.log(dim(`  ${chosen.label} needs these set in n8n: ${chosen.requiredEnv.join(", ")}`));
       if (chosen.notes) console.log(dim(`  note: ${chosen.notes}`));
+    }
+    // A backend with no shipped mapping ("custom", or an enterprise placeholder)
+    // gets guided onboarding: a name → an id slug, then a generated workflow
+    // skeleton + binding guide written alongside the compose.
+    const custom = isCustomBackend(backendId);
+    let backendLabel = chosen?.label ?? "Custom backend";
+    let effectiveBackendId = backendId;
+    if (custom) {
+      backendLabel = (await ask("\n  Name this backend (free text):", chosen?.label ?? "Acme PM")) || "Custom backend";
+      effectiveBackendId = (backendId === "custom" ? backendLabel : backendId).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "custom";
+      console.log(dim(`  I'll scaffold an n8n workflow skeleton + a step-by-step binding guide for "${backendLabel}".`));
+      console.log(dim("  You'll fill in your API's endpoints/auth and verify with the smoke test — full walkthrough in the guide."));
     }
     const bundleN8n = await confirm("\nBundle a ready-to-configure n8n (the reference broker) in the compose?", true);
     const brokerUrl = bundleN8n ? "" : await ask("External broker (n8n webhook) URL:", "https://n8n.internal/webhook/omniproject");
@@ -132,7 +147,7 @@ async function main(): Promise<void> {
 
     const config: DeployConfig = {
       publicUrl, port, sessionSecret: rand(48),
-      broker: { backendId, bundleN8n, brokerUrl, ...(psk ? { psk } : {}) },
+      broker: { backendId: effectiveBackendId, bundleN8n, brokerUrl, ...(psk ? { psk } : {}) },
       idp, ai,
       ...(loggingSyncUrl ? { loggingSyncUrl } : {}),
       ...(redisUrl ? { redisUrl } : {}),
@@ -161,13 +176,31 @@ async function main(): Promise<void> {
     fs.writeFileSync(envPath, renderEnv(config), { mode: 0o600 });
     fs.writeFileSync(composePath, renderCompose(config));
 
+    // Backend workflow: a ready-to-import one for a shipped backend, or a skeleton
+    // + binding guide for a custom/unsupported one (the guided-onboarding path).
+    let workflowPath: string | null = null;
+    let guidePath: string | null = null;
+    if (custom) {
+      workflowPath = path.join(outDir, `${effectiveBackendId}.workflow.json`);
+      guidePath = path.join(outDir, `${effectiveBackendId}-binding-guide.md`);
+      fs.writeFileSync(workflowPath, renderSkeletonWorkflow(effectiveBackendId, backendLabel));
+      fs.writeFileSync(guidePath, renderBindingGuide(effectiveBackendId, backendLabel));
+    } else {
+      const wf = renderKnownWorkflow(effectiveBackendId);
+      if (wf) { workflowPath = path.join(outDir, `${effectiveBackendId}.workflow.json`); fs.writeFileSync(workflowPath, wf); }
+    }
+
     console.log(ok("\n✓ Wrote:"));
     console.log(`  ${envPath} ${dim("(chmod 600 — contains secrets; do not commit)")}`);
     console.log(`  ${composePath}`);
+    if (workflowPath) console.log(`  ${workflowPath} ${dim(custom ? "(n8n skeleton — fill in your API)" : "(ready-to-import n8n workflow)")}`);
+    if (guidePath) console.log(`  ${guidePath} ${dim("(step-by-step binding guide)")}`);
+
     console.log(b("\nNext steps:"));
     console.log(`  1. Review ${path.relative(process.cwd(), composePath)} and the .env.`);
     console.log(`  2. From the repo root:  docker compose --env-file ${path.relative(process.cwd(), envPath)} -f ${path.relative(process.cwd(), composePath)} up -d`);
-    if (config.broker.bundleN8n) console.log(`  3. Open n8n at http://localhost:5678, import the ${chosen?.label ?? backendId} workflow, point BROKER_URL → ${effectiveBrokerUrl(config)}.`);
+    if (config.broker.bundleN8n) console.log(`  3. Open n8n at http://localhost:5678, import ${workflowPath ? path.basename(workflowPath) : "your workflow"}, point BROKER_URL → ${effectiveBrokerUrl(config)}.`);
+    if (custom) console.log(`  ${err("→")} New backend: follow ${guidePath ? path.basename(guidePath) : "the binding guide"} to wire your API, then verify with the smoke test.`);
     if (idp.kind === "authentik-bundled") console.log("  4. Configure the OmniProject provider in Authentik, then confirm the issuer URL matches.");
     console.log(`  Verify readiness:  curl ${config.publicUrl}/api/readyz\n`);
   } finally {
