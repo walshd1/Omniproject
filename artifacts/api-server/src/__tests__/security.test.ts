@@ -192,6 +192,33 @@ test("RBAC: a PMO CANNOT read the technical broker-log (still admin-only)", asyn
   assert.equal(res.status, 403);
 });
 
+test("role-map editor is admin-only (PMO is business, not technical)", async () => {
+  // PMO is blocked — managing IdP-group → role mapping is technical config.
+  assert.equal((await req("/api/admin/role-map", { headers: { cookie: PMO } })).status, 403);
+  // Admin can read the mapping…
+  const get = await req("/api/admin/role-map", { headers: { cookie: ADMIN } });
+  assert.equal(get.status, 200);
+  const body = (await get.json()) as { roles: string[]; mapping: { role: string }[] };
+  assert.ok(body.roles.includes("pmo") && body.mapping.some((m) => m.role === "pmo"));
+  // …and set an override (only known roles are accepted).
+  const put = await req("/api/admin/role-map", {
+    method: "PUT",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ pmo: ["programme-managers"], wizard: ["nope"] }),
+  });
+  assert.equal(put.status, 200);
+  const after = (await put.json()) as { mapping: { role: string; claims: string[]; source: string }[] };
+  assert.equal(after.mapping.some((m) => m.role === "wizard"), false, "cannot invent a role");
+  assert.deepEqual(after.mapping.find((m) => m.role === "pmo")?.claims, ["programme-managers"]);
+  // Restore the PMO group so later PMO-session tests still resolve (overrides are
+  // module-global and REPLACE env).
+  await req("/api/admin/role-map", {
+    method: "PUT",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ pmo: ["omni-pmo"] }),
+  });
+});
+
 test("RBAC: a PMO CANNOT change technical settings (still admin-only)", async () => {
   const res = await req("/api/settings", {
     method: "PATCH",

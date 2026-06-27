@@ -51,6 +51,65 @@ function envRoles(key: string): Set<string> {
   );
 }
 
+/** The env var carrying each role's IdP group list. */
+const ENV_KEY: Record<Role, string> = {
+  admin: "OIDC_ADMIN_ROLES",
+  pmo: "OIDC_PMO_ROLES",
+  manager: "OIDC_MANAGER_ROLES",
+  contributor: "OIDC_CONTRIBUTOR_ROLES",
+  viewer: "OIDC_VIEWER_ROLES",
+};
+
+/**
+ * Admin-editable OVERRIDE of the claim→role mapping. The env (`OIDC_*_ROLES`) is
+ * always the BASE; an admin may override a role's group list at runtime via the
+ * role-map editor. This can ONLY assign IdP groups to the five FIXED roles — it
+ * cannot invent a role or a permission, so the hard RBAC boundary is unchanged
+ * (it stays statically verifiable in code). Undefined ⇒ that role uses the env.
+ */
+const roleMapOverride: Partial<Record<Role, Set<string>>> = {};
+
+/** Effective group set for a role: the admin override if set, else the env list. */
+function rolesFor(role: Role): Set<string> {
+  return roleMapOverride[role] ?? envRoles(ENV_KEY[role]);
+}
+
+/** The effective claim→role mapping + where each role's list comes from. */
+export function getRoleMap(): { role: Role; claims: string[]; source: "env" | "override" }[] {
+  return ROLES.map((role) => ({
+    role,
+    claims: [...rolesFor(role)],
+    source: roleMapOverride[role] ? "override" : "env",
+  }));
+}
+
+/**
+ * Set admin overrides for the claim→role mapping. ONLY the five known roles are
+ * accepted (unknown keys ignored), and each value must be an array of group
+ * strings (normalised lower-case). There is no way to add a role or grant a
+ * permission — only to decide which IdP groups land in an existing role.
+ */
+export function setRoleMap(next: unknown): ReturnType<typeof getRoleMap> {
+  if (next && typeof next === "object" && !Array.isArray(next)) {
+    const obj = next as Record<string, unknown>;
+    for (const role of ROLES) {
+      if (!(role in obj)) continue;
+      const v = obj[role];
+      if (Array.isArray(v)) {
+        roleMapOverride[role] = new Set(
+          v.filter((x): x is string => typeof x === "string").map((s) => s.trim().toLowerCase()).filter(Boolean),
+        );
+      }
+    }
+  }
+  return getRoleMap();
+}
+
+/** Test-only: drop all overrides (back to pure env mapping). */
+export function resetRoleMap(): void {
+  for (const role of ROLES) delete roleMapOverride[role];
+}
+
 function defaultRole(): Role {
   const d = process.env["OIDC_DEFAULT_ROLE"]?.trim().toLowerCase();
   return (ROLES as readonly string[]).includes(d ?? "") ? (d as Role) : "contributor";
@@ -68,11 +127,12 @@ export function roleFromClaims(claimRoles: string[], opts: { isDemo: boolean }):
   const claims = new Set(claimRoles.map((r) => r.toLowerCase()));
   const hits = (set: Set<string>) => [...claims].some((c) => set.has(c));
 
-  if (hits(envRoles("OIDC_ADMIN_ROLES"))) return "admin";
-  if (hits(envRoles("OIDC_PMO_ROLES"))) return "pmo";
-  if (hits(envRoles("OIDC_MANAGER_ROLES"))) return "manager";
-  if (hits(envRoles("OIDC_CONTRIBUTOR_ROLES"))) return "contributor";
-  if (hits(envRoles("OIDC_VIEWER_ROLES"))) return "viewer";
+  // Highest privilege first; each role's groups come from the admin override, else env.
+  if (hits(rolesFor("admin"))) return "admin";
+  if (hits(rolesFor("pmo"))) return "pmo";
+  if (hits(rolesFor("manager"))) return "manager";
+  if (hits(rolesFor("contributor"))) return "contributor";
+  if (hits(rolesFor("viewer"))) return "viewer";
   return defaultRole();
 }
 

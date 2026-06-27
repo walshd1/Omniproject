@@ -98,6 +98,38 @@ test("roleFromClaims: unmatched claims fall back to contributor by default", () 
   assert.equal(roleFromClaims(["some-random-group"], { isDemo: false }), "contributor");
 });
 
+test("role-map override: an admin override replaces the env list for that role", async () => {
+  const { setRoleMap, resetRoleMap, getRoleMap } = await import("../lib/rbac");
+  process.env["OIDC_PMO_ROLES"] = "from-env";
+  try {
+    // Base: env maps "from-env" → pmo.
+    assert.equal(roleFromClaims(["from-env"], { isDemo: false }), "pmo");
+    // Override pmo to a different group → the env group no longer lands in pmo.
+    setRoleMap({ pmo: ["from-override"] });
+    assert.equal(roleFromClaims(["from-override"], { isDemo: false }), "pmo");
+    assert.equal(roleFromClaims(["from-env"], { isDemo: false }), "contributor", "override REPLACES env for that role");
+    assert.equal(getRoleMap().find((m) => m.role === "pmo")?.source, "override");
+  } finally {
+    resetRoleMap();
+    delete process.env["OIDC_PMO_ROLES"];
+  }
+});
+
+test("role-map override is restrict-to-known-roles: it can't invent a role or grant", async () => {
+  const { setRoleMap, resetRoleMap, getRoleMap } = await import("../lib/rbac");
+  try {
+    const before = getRoleMap();
+    setRoleMap({ wizard: ["x"], admin: "not-an-array", pmo: ["ok-group", 123, ""] } as Record<string, unknown>);
+    const after = getRoleMap();
+    // No "wizard" role exists; admin (bad value) untouched; pmo cleaned to valid strings.
+    assert.equal(after.some((m) => (m.role as string) === "wizard"), false);
+    assert.deepEqual(after.find((m) => m.role === "admin")?.claims, before.find((m) => m.role === "admin")?.claims);
+    assert.deepEqual(after.find((m) => m.role === "pmo")?.claims, ["ok-group"]);
+  } finally {
+    resetRoleMap();
+  }
+});
+
 test("roleFromClaims: OIDC_DEFAULT_ROLE overrides the fallback", () => {
   process.env["OIDC_DEFAULT_ROLE"] = "viewer";
   assert.equal(roleFromClaims(["nobody"], { isDemo: false }), "viewer");
