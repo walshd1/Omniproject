@@ -6,7 +6,7 @@ import { DemoBroker } from "./demo";
 import { BrokerError, type Broker, type ActorContext } from "./types";
 import { instrumented, wrapWithTrace } from "./trace";
 import { devBrokerFromEnv } from "./dev-broker";
-import { applyVendorProfile, isVendorId } from "./vendor-profile";
+import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
 import { getSettings } from "../lib/settings";
 
 /**
@@ -29,15 +29,13 @@ export function getBroker(): Broker {
     // outside dev mode, so production is unaffected.
     const dev = devBrokerFromEnv();
     let base: Broker = dev ?? (N8N_ENV_CONFIGURED ? new N8nBroker() : new DemoBroker());
-    // Demonstration flavour: when running on the demo broker (no real backend) and
-    // `backendSource` names a vendor, present the demo AS that vendor — gated to its
-    // declared capabilities — so a prospect previews the product on THEIR stack over
-    // sample data. Production-safe: it only ever flavours demo data, never a real
-    // broker (a configured n8n/dev broker is left untouched).
-    if (!dev && !N8N_ENV_CONFIGURED) {
-      const source = getSettings().backendSource;
-      if (isVendorId(source)) base = applyVendorProfile(base, source);
-    }
+    // Demonstration flavour: present the demo AS the vendor named by `backendSource`,
+    // gated to its declared capabilities, so a prospect previews the product on THEIR
+    // stack over sample data. `demoVendorFor` enforces the hard rule that a thin-file
+    // spoof NEVER appears over real data — it returns null when a real backend is
+    // connected (prod) or the dev broker is active, so only real vendors show in prod.
+    const demoVendor = demoVendorFor({ devActive: !!dev, realBackend: N8N_ENV_CONFIGURED, source: getSettings().backendSource });
+    if (demoVendor) base = applyVendorProfile(base, demoVendor);
     singleton = instrumented() ? wrapWithTrace(base) : base;
   }
   return singleton;

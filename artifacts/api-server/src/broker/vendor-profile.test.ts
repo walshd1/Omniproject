@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyVendorProfile, vendorCapabilities, isVendorId } from "./vendor-profile";
+import { applyVendorProfile, vendorCapabilities, isVendorId, demoVendorFor } from "./vendor-profile";
 import { DemoBroker } from "./demo";
 
 /**
@@ -40,6 +40,18 @@ test("flavouring the DEMO broker as a vendor gates its capabilities (sales previ
   // but the underlying demo DATA is still served for supported domains
   const projects = await asOpenProject.listProjects({} as never);
   assert.ok(projects.length > 0);
+});
+
+test("demoVendorFor: a thin-file spoof NEVER applies over real data or the dev broker", () => {
+  // Pure demo mode + a vendor ⇒ flavour the demo.
+  assert.equal(demoVendorFor({ devActive: false, realBackend: false, source: "openproject" }), "openproject");
+  // Real backend connected (prod) ⇒ no spoof, the real vendor shows.
+  assert.equal(demoVendorFor({ devActive: false, realBackend: true, source: "openproject" }), null);
+  // Dev broker active ⇒ it carries its own vendor; no demo spoof on top.
+  assert.equal(demoVendorFor({ devActive: true, realBackend: false, source: "openproject" }), null);
+  // Neutral selector ⇒ plain demo.
+  assert.equal(demoVendorFor({ devActive: false, realBackend: false, source: "all" }), null);
+  assert.equal(demoVendorFor({ devActive: false, realBackend: false, source: null }), null);
 });
 
 test("a neutral/unknown selector leaves the demo broker unflavoured", async () => {

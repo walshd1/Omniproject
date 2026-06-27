@@ -31,6 +31,18 @@ export function isVendorId(value: string | null | undefined): value is string {
   return !!vendorCapabilities(value);
 }
 
+/**
+ * Decide the demo vendor to present, with the hard rule that a thin-file spoof
+ * NEVER appears over real data. It applies ONLY in pure demo mode (no real backend
+ * connected) and not when the dev broker is active (which carries its own vendor) —
+ * so a production deployment with a real broker shows the REAL vendor, never a
+ * `-demo` facade. Returns the vendor id to flavour the demo with, or null.
+ */
+export function demoVendorFor(opts: { devActive: boolean; realBackend: boolean; source: string | null | undefined }): string | null {
+  if (opts.devActive || opts.realBackend) return null; // real data / dev broker ⇒ no demo spoof
+  return isVendorId(opts.source) ? opts.source : null;
+}
+
 /** Overlay a vendor's identity + capability gating onto a base broker. */
 export function applyVendorProfile(base: Broker, vendorId: string | null, caps?: Record<string, boolean> | null): Broker {
   const c = caps ?? (vendorId ? vendorCapabilities(vendorId) : null);

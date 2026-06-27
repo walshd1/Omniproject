@@ -18,6 +18,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   tagged `impersonatedBy`/`impersonationReason` so the real actor is always
   accountable. A banner shows who/why with a one-click Stop. `GET/POST/DELETE
   /api/dev-mode/impersonate`.
+- **Thin-file spoofs never appear over real data** — `demoVendorFor` enforces that a
+  thin-file vendor preview applies ONLY in pure demo mode (no real backend) and never
+  when a real broker is connected or the dev broker is active. So a production
+  deployment with a real broker always shows the REAL vendor — only real
+  vendors/brokers connected to real data appear in prod.
 - **Thin-file spoof names carry a `-demo` suffix** — whenever a vendor is presented
   via a thin vendor file over sample/recorded data (demo preview or dev broker), the
   shown `kind` is e.g. `openproject-demo`, so it can never be mistaken for a live
