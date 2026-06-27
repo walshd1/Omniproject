@@ -6,7 +6,26 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Canonical notification-kind registry** (**Stable**) — notification kinds
+  (`assignment`, `due_soon`, `blocker`, `incident`, …) were bare strings scattered
+  across demo data, the routing JSON and the bell. They're now one registry
+  (`notification-kinds.ts`) — each kind tagged with a severity (`info` | `warning` |
+  `critical`) — the notification-plane analogue of the canonical status/priority
+  vocabularies. The ingest now stamps each event with its kind's severity (so a
+  channel can page on `critical`, digest on `info`); a guard test fails CI if a
+  routing rule matches a kind the registry doesn't know (the kind analogue of the
+  "real channel" guard); `GET /api/setup/notification-kinds` surfaces the vocabulary.
+
 ### Changed
+
+- **Config export uses a renderer registry, not a switch** — `buildConfigExport`
+  now resolves its deploy-format renderer (`env` / `compose` / `k8s`) from a
+  `Record<format, renderer>` map instead of a `switch`, matching the registry idiom
+  the data EXPORTERS and setup-status SECTIONS already use (adding a format is one
+  entry). (The data-export `EXPORTERS` was already a registry; `xlsx` stays a
+  deliberate exception — a multi-sheet workbook over all datasets.)
 
 - **The broker plane is synchronous-only; async platforms move to outputs** —
   a platform that can't answer the binding in the SAME HTTP call isn't a broker, so

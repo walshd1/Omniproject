@@ -31,3 +31,4 @@ export * from "./vendor-overlay";
 export * from "./view-catalogue";
 export * from "./compatibility";
 export * from "./notification-routing";
+export * from "./notification-kinds";
