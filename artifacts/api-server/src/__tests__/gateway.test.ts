@@ -75,6 +75,25 @@ test("roleFromClaims: admin outranks manager when user has both", () => {
   delete process.env["OIDC_MANAGER_ROLES"];
 });
 
+test("roleFromClaims: maps the configured PMO role (between manager and admin)", () => {
+  process.env["OIDC_PMO_ROLES"] = "programme-managers";
+  assert.equal(roleFromClaims(["Programme-Managers"], { isDemo: false }), "pmo");
+  delete process.env["OIDC_PMO_ROLES"];
+});
+
+test("roleFromClaims: admin outranks pmo; pmo outranks manager", () => {
+  process.env["OIDC_ADMIN_ROLES"] = "platform-admins";
+  process.env["OIDC_PMO_ROLES"] = "programme-managers";
+  process.env["OIDC_MANAGER_ROLES"] = "delivery-leads";
+  // Holding both PMO and admin → admin (the superset; one person can hold both).
+  assert.equal(roleFromClaims(["programme-managers", "platform-admins"], { isDemo: false }), "admin");
+  // Holding both PMO and manager → pmo (the higher of the two).
+  assert.equal(roleFromClaims(["programme-managers", "delivery-leads"], { isDemo: false }), "pmo");
+  delete process.env["OIDC_ADMIN_ROLES"];
+  delete process.env["OIDC_PMO_ROLES"];
+  delete process.env["OIDC_MANAGER_ROLES"];
+});
+
 test("roleFromClaims: unmatched claims fall back to contributor by default", () => {
   assert.equal(roleFromClaims(["some-random-group"], { isDemo: false }), "contributor");
 });

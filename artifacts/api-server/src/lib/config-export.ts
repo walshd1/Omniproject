@@ -52,7 +52,7 @@ export function configEntries(input: ConfigExportInput): Entry[] {
     entries.push({ key: "OIDC_ISSUER_URL", value: input.oidcIssuerUrl.trim(), comment: "Set all three OIDC_* to enforce SSO; unset = demo login" });
     entries.push({ key: "OIDC_CLIENT_ID", value: "", placeholder: true });
     entries.push({ key: "OIDC_CLIENT_SECRET", value: "", placeholder: true });
-    entries.push({ key: "OIDC_ADMIN_ROLES", value: "", placeholder: true, comment: "Optional: IdP roles/groups mapped to the admin role (also *_MANAGER/_CONTRIBUTOR/_VIEWER)" });
+    entries.push({ key: "OIDC_ADMIN_ROLES", value: "", placeholder: true, comment: "Optional: IdP roles/groups mapped to the admin role (also *_PMO/_MANAGER/_CONTRIBUTOR/_VIEWER)" });
   }
 
   entries.push({ key: "SESSION_SECRET", value: "", placeholder: true, comment: "Required in production: a long random string for cookie signing" });

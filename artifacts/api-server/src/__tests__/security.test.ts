@@ -21,6 +21,8 @@ process.env["SESSION_SECRET"] = SECRET;
 process.env["API_TOKENS"] = "ro-token-aaa,ro-token-bbb";
 process.env["OIDC_ISSUER_URL"] = "https://idp.test/realm";
 process.env["OIDC_ADMIN_ROLES"] = "omni-admins";
+process.env["OIDC_PMO_ROLES"] = "omni-pmo";
+process.env["OIDC_MANAGER_ROLES"] = "omni-managers";
 process.env["OIDC_DEFAULT_ROLE"] = "viewer";
 process.env["NODE_ENV"] = "production";
 process.env["RATE_LIMIT_DISABLED"] = "true"; // isolate auth behaviour from the limiter
@@ -38,6 +40,8 @@ function signedSessionCookie(session: object): string {
 }
 
 const VIEWER = signedSessionCookie({ sub: "viewer-1", roles: [] });
+const MANAGER = signedSessionCookie({ sub: "manager-1", roles: ["omni-managers"] });
+const PMO = signedSessionCookie({ sub: "pmo-1", roles: ["omni-pmo"] });
 const ADMIN = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"] });
 
 before(async () => {
@@ -131,6 +135,44 @@ test("RBAC: an admin CAN read the field manifest", async () => {
   const body = (await res.json()) as { reconciliation: { known: string[]; unknown: string[] }; customFields: unknown[] };
   assert.ok(body.reconciliation.known.length > 0);
   assert.ok(body.reconciliation.unknown.includes("customerTier"));
+});
+
+// ── PMO tier: business governance (ruleset) is PMO+, technical config stays admin ──
+test("RBAC: a manager CANNOT read the business ruleset (PMO gate, 403)", async () => {
+  // The ruleset is programme/business governance — PMO domain, above plain manager.
+  const res = await req("/api/admin/ruleset", { headers: { cookie: MANAGER } });
+  assert.equal(res.status, 403);
+});
+
+test("RBAC: a PMO CAN read AND set the business ruleset", async () => {
+  const get = await req("/api/admin/ruleset", { headers: { cookie: PMO } });
+  assert.equal(get.status, 200);
+  const put = await req("/api/admin/ruleset", {
+    method: "PUT",
+    headers: { cookie: PMO, "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.equal(put.status, 200);
+});
+
+test("RBAC: an admin (superset of PMO) CAN read the business ruleset", async () => {
+  const res = await req("/api/admin/ruleset", { headers: { cookie: ADMIN } });
+  assert.equal(res.status, 200);
+});
+
+test("RBAC: a PMO CANNOT read the technical broker-log (still admin-only)", async () => {
+  // The PMO owns business rules, not technical config — the security boundary holds.
+  const res = await req("/api/admin/broker-log", { headers: { cookie: PMO } });
+  assert.equal(res.status, 403);
+});
+
+test("RBAC: a PMO CANNOT change technical settings (still admin-only)", async () => {
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: PMO, "content-type": "application/json" },
+    body: JSON.stringify({ brokerUrl: "http://evil.example" }),
+  });
+  assert.equal(res.status, 403);
 });
 
 test("RBAC: an admin is NOT blocked by the contributor gate", async () => {

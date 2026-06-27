@@ -1,6 +1,6 @@
 # Business ruleset engine
 
-**Extra, admin-configurable business rules** layered **on top of** the hard
+**Extra, PMO-configurable business rules** layered **on top of** the hard
 ruleset. Each rule has a mode:
 
 | Mode | Effect |
@@ -40,7 +40,7 @@ Operators toggle the **mode**; the predicates are fixed (no code injection):
 
 ## Field rules — "what must go in fields" + dependencies
 
-Beyond the built-ins, an admin can author **field rules** (data, not code — just
+Beyond the built-ins, the PMO can author **field rules** (data, not code — just
 field-presence, so still restrict-only):
 
 - **Required field** — *"no task can be created without an effort estimate"*:
@@ -57,13 +57,19 @@ field-presence, so still restrict-only):
 A `hard` field rule returns `422`; a `warn` records a warning. Field rules can only
 **require** a field — never grant — so the safety guarantee above still holds.
 
-## Configuring (admin only)
+## Configuring (PMO governance)
+
+The business ruleset is **programme-management governance**, so it is gated at the
+**`pmo`** role — the PMO owns the business rules. Technical config (brokers,
+integrations, security, broker-log) stays **`admin`**-only. Because the role gate
+is linear, **admin is a superset of PMO** and still passes these endpoints, so one
+person can hold both. See [RBAC roles](#) / `lib/rbac.ts`.
 
 - **`GET /api/admin/ruleset`** — list rules + current modes.
 - **`PUT /api/admin/ruleset`** — body `{ "no-deletes": "hard", "read-only": "off" }`.
-  Admin-gated; every change is audited (`ruleset_update`).
+  PMO-gated; every change is audited (`ruleset_update`).
 - **`GET/PUT /api/admin/ruleset/fields`** — read / replace the field rules (the
-  PUT body is the full array). Admin-gated + audited (`ruleset_fields_update`).
+  PUT body is the full array). PMO-gated + audited (`ruleset_fields_update`).
 - **Boot seed:** `BUSINESS_RULE_MODES` (JSON) for built-in modes, and
   `BUSINESS_FIELD_RULES` (JSON array) for field rules, e.g.
   `BUSINESS_FIELD_RULES='[{"id":"require-estimate","action":"create_issue","field":"estimateHours","mode":"hard"}]'`.

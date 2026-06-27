@@ -14,21 +14,33 @@ import { getSession } from "../routes/auth";
  *   viewer       — read only (also the role for read-only API tokens)
  *   contributor  — can create/update/delete issues
  *   manager      — contributor + RAID, baselines, portfolio actions
- *   admin        — everything, incl. settings
+ *   pmo          — manager + programme/business governance (ruleset, methodology
+ *                  compliance). The PMO owns the *business* rules; admin owns the
+ *                  *technical* config (brokers, integrations, security, logs).
+ *   admin        — everything, incl. technical settings (and, being top rank, a
+ *                  superset of PMO — one person can hold both)
+ *
+ * `pmo` sits between `manager` and `admin`. The split is by *domain*, not just
+ * privilege: PMO is the programme-management authority (business governance),
+ * admin is the technical authority. Because the gate is linear, admin (top rank)
+ * is a superset of PMO — an admin passes every PMO gate. To make the same person
+ * a PMO *only* (not technical admin), map their IdP group to OIDC_PMO_ROLES; to
+ * make them both, map to both lists (or just admin, which subsumes PMO).
  *
  * Mapping from IdP claims is configured via env (comma lists), e.g.
  *   OIDC_ADMIN_ROLES="omni-admins,platform-admins"
- *   OIDC_MANAGER_ROLES="pmo,programme-managers"
+ *   OIDC_PMO_ROLES="pmo,programme-managers"
+ *   OIDC_MANAGER_ROLES="delivery-leads"
  *   OIDC_VIEWER_ROLES="stakeholders"
  * An authenticated user with no matching claim defaults to `contributor`
  * (override with OIDC_DEFAULT_ROLE). Demo sessions are admin so the app is
  * fully usable without an IdP.
  */
 
-export const ROLES = ["viewer", "contributor", "manager", "admin"] as const;
+export const ROLES = ["viewer", "contributor", "manager", "pmo", "admin"] as const;
 export type Role = (typeof ROLES)[number];
 
-const RANK: Record<Role, number> = { viewer: 0, contributor: 1, manager: 2, admin: 3 };
+const RANK: Record<Role, number> = { viewer: 0, contributor: 1, manager: 2, pmo: 3, admin: 4 };
 
 function envRoles(key: string): Set<string> {
   return new Set(
@@ -57,6 +69,7 @@ export function roleFromClaims(claimRoles: string[], opts: { isDemo: boolean }):
   const hits = (set: Set<string>) => [...claims].some((c) => set.has(c));
 
   if (hits(envRoles("OIDC_ADMIN_ROLES"))) return "admin";
+  if (hits(envRoles("OIDC_PMO_ROLES"))) return "pmo";
   if (hits(envRoles("OIDC_MANAGER_ROLES"))) return "manager";
   if (hits(envRoles("OIDC_CONTRIBUTOR_ROLES"))) return "contributor";
   if (hits(envRoles("OIDC_VIEWER_ROLES"))) return "viewer";
