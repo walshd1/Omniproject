@@ -1,4 +1,5 @@
-import type { BackendManifest, ActionMapping, ContractAction } from "./n8n-backends";
+import type { BackendDefinition, ActionMapping } from "./n8n-backends";
+import type { ContractAction } from "./backend-manifest";
 
 /**
  * Pure n8n workflow generator. Turns a backend manifest into a complete,
@@ -46,11 +47,11 @@ function isWrite(m: ActionMapping): boolean {
   return m.method === "POST" || m.method === "PATCH" || m.method === "PUT" || m.method === "DELETE";
 }
 
-function credPlaceholder(manifest: BackendManifest, credType: string): Record<string, { id: string; name: string }> {
+function credPlaceholder(manifest: BackendDefinition, credType: string): Record<string, { id: string; name: string }> {
   return { [credType]: { id: "", name: `${manifest.label} account` } };
 }
 
-function httpNode(id: string, name: string, mapping: ActionMapping, manifest: BackendManifest, pos: [number, number]): N8nNode {
+function httpNode(id: string, name: string, mapping: ActionMapping, manifest: BackendDefinition, pos: [number, number]): N8nNode {
   // An n8n-managed credential (e.g. Microsoft Dynamics OAuth) takes over auth;
   // otherwise we forward the active user's bearer token.
   const credType = mapping.credentialType ?? manifest.credentialType;
@@ -86,7 +87,7 @@ function httpNode(id: string, name: string, mapping: ActionMapping, manifest: Ba
   return node;
 }
 
-function nativeNode(id: string, name: string, mapping: ActionMapping, manifest: BackendManifest, pos: [number, number]): N8nNode {
+function nativeNode(id: string, name: string, mapping: ActionMapping, manifest: BackendDefinition, pos: [number, number]): N8nNode {
   const credType = mapping.credentialType ?? manifest.credentialType;
   const node: N8nNode = {
     parameters: mapping.parameters ?? {},
@@ -105,7 +106,7 @@ function codeNode(id: string, name: string, jsCode: string, pos: [number, number
   return { parameters: { jsCode }, id, name, type: "n8n-nodes-base.code", typeVersion: 2, position: pos };
 }
 
-export function generateWorkflow(manifest: BackendManifest, opts: { webhookPath?: string } = {}): N8nWorkflow {
+export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPath?: string } = {}): N8nWorkflow {
   const webhookPath = opts.webhookPath?.trim() || "omniproject";
   const actions = Object.keys(manifest.actions) as ContractAction[];
   if (!actions.includes(ALWAYS)) actions.push(ALWAYS);
