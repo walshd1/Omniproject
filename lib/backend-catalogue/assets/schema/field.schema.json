@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/field.schema.json",
+  "title": "OmniProject canonical field",
+  "description": "One work-item field in the canonical vocabulary. The fields are authored as a single JSON array (assets/fields.json), validated element-by-element against this schema and embedded by gen-fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["key", "label", "type"],
+  "properties": {
+    "key": {
+      "type": "string",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
+    },
+    "label": {
+      "type": "string"
+    },
+    "type": {
+      "enum": [
+        "string",
+        "text",
+        "number",
+        "date",
+        "enum",
+        "user",
+        "labels",
+        "reference",
+        "currency",
+        "percent",
+        "boolean",
+        "duration"
+      ]
+    },
+    "group": {
+      "enum": [
+        "core",
+        "people",
+        "classification",
+        "schedule",
+        "effort",
+        "agile",
+        "financial",
+        "quality",
+        "crm",
+        "service",
+        "strategy",
+        "relationship",
+        "derived"
+      ]
+    },
+    "core": {
+      "type": "boolean",
+      "description": "Always present on any issue-tracking backend (never gated off)."
+    },
+    "required": {
+      "type": "boolean",
+      "description": "Must be provided when creating the owning entity."
+    },
+    "references": {
+      "type": "string",
+      "description": "For type: reference — the entity key this field points at (e.g. programme)."
+    }
+  }
+}

@@ -103,6 +103,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the field vocabulary is in sync with the field JSON
+        run: |
+          pnpm --filter @workspace/scripts run gen-fields
+          if ! git diff --quiet -- lib/backend-catalogue/src/fields.generated.ts; then
+            echo "::error::Field vocabulary is out of date. Run 'pnpm --filter @workspace/scripts run gen-fields' and commit the result."
+            git --no-pager diff --stat -- lib/backend-catalogue/src/fields.generated.ts
+            exit 1
+          fi
+
       - name: Verify the function map is in sync with the code comments
         run: |
           pnpm --filter @workspace/scripts run gen-function-map

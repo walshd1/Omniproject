@@ -6,6 +6,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Canonical field vocabulary is JSON, below the seam** — the ~114-field canonical
+  registry was hand-written TypeScript stranded in the gateway
+  (`artifacts/api-server/.../field-registry.ts`), even though the contract generator
+  and the gateway both read it. The field DATA + its descriptor types now live in
+  the catalogue (`field-vocabulary.ts`), authored as a single JSON array
+  (`assets/fields.json`), validated element-by-element against a JSON Schema, embedded
+  by `gen-fields`, and **drift-guarded in CI** — the same data-not-code pattern as
+  vendors/views. Extending the vocabulary is now a JSON edit. The gateway's
+  `field-registry.ts` re-exports it (so every existing import path is unchanged) and
+  keeps the gateway-only reconcile/validate behaviour and the `EnumeratedField` type
+  above the seam. No behavioural change — the contract is byte-identical.
+
 ### Added
 
 - **Canonical notification-kind registry** (**Stable**) — notification kinds
