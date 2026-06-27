@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Per-user prefs persist across sessions + devices (JSON, code defaults)** — a
+  person's accessibility setup (text size, background colour, high contrast, reduced
+  motion) is now stored server-side as JSON keyed by their user id, so it FOLLOWS THEM
+  across sessions and devices — important for users with dyslexia / visual impairment
+  who shouldn't have to reconfigure each time. Standard defaults live in code
+  (`DEFAULT_USER_PREFS`) and fill anything unset. localStorage stays as an instant,
+  flash-free cache; the server is the source of truth once signed in (and only
+  hydrates when the user actually has a saved entry, so a fresh device never clobbers
+  a local setup). `GET/PUT /api/me/prefs`; rides the config snapshot/export like
+  branding. Font FAMILY remains company branding; SIZE + COLOUR are per-user.
 - **Connections: test-connection + broker-vault delegation** — the Connections
   screen now also lets an admin **test** a backend connection through the broker, and
   optionally **delegate a secret to the broker's own encrypted vault** instead of

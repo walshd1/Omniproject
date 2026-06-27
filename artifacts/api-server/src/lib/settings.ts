@@ -98,6 +98,21 @@ export interface SettingsState {
    * the customer's config JSON. Never project data.
    */
   screenLayouts: Record<string, ScreenLayout>;
+  /**
+   * Per-user UI preferences (accessibility: text size, background colour, contrast,
+   * motion), keyed by the user's `sub`. Stored as JSON with code defaults so a
+   * person's setup PERSISTS ACROSS SESSIONS and devices — important for users with
+   * dyslexia / visual impairment. Personal config, never project data.
+   */
+  userPrefs: Record<string, UserPrefs>;
+}
+
+/** One user's persisted UI/accessibility preferences. */
+export interface UserPrefs {
+  fontScale: number;
+  backgroundColor: string | null;
+  highContrast: boolean;
+  reduceMotion: boolean;
 }
 
 /** A saved arrangement for one screen. */
@@ -187,6 +202,7 @@ const store: SettingsState = {
   loggingSync: loggingSyncFromEnv(),
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
+  userPrefs: {},
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
@@ -206,6 +222,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "loggingSync",
   "fieldOverrides",
   "screenLayouts",
+  "userPrefs",
 ];
 
 /** A snapshot copy of the current in-memory settings (never the live reference). */

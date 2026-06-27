@@ -77,22 +77,55 @@ interface A11yContextValue {
 
 const A11yContext = createContext<A11yContextValue | null>(null);
 
-/** Provides + applies the per-user accessibility prefs (persisted to localStorage). */
+/** Persist the user's prefs to the server so they follow them across sessions and
+ *  devices (fire-and-forget; a 401 pre-login is ignored — localStorage still holds). */
+function syncToServer(prefs: A11yPrefs): void {
+  void fetch("/api/me/prefs", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(prefs),
+  }).catch(() => { /* offline / unauthenticated — the local cache still applies */ });
+}
+
+/**
+ * Provides + applies the per-user accessibility prefs. They are cached in
+ * localStorage for an instant, flash-free first paint, AND persisted server-side
+ * (keyed by the signed-in user) so a person's setup follows them to any device —
+ * important for users with dyslexia / visual impairment. Server-stored prefs are the
+ * source of truth once signed in; the code defaults fill anything unset.
+ */
 export function A11yProvider({ children }: { children: ReactNode }) {
   const [prefs, setPrefs] = useState<A11yPrefs>(() => loadA11yPrefs());
 
+  // Apply + cache locally on every change.
   useEffect(() => {
     applyA11yPrefs(prefs);
     saveA11yPrefs(prefs);
   }, [prefs]);
 
+  // Hydrate from the user's server-stored prefs once (only when they actually have a
+  // saved entry, so a fresh device doesn't clobber a local setup with defaults). No
+  // write-back here — only USER changes persist, avoiding a mount-time overwrite race.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/me/prefs", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d?.stored && d.prefs) setPrefs((p) => ({ ...p, ...d.prefs })); })
+      .catch(() => { /* not signed in / offline — keep the local prefs */ });
+    return () => { alive = false; };
+  }, []);
+
+  // A user-initiated change: update state, cache, AND persist to the server.
+  const change = (next: A11yPrefs): void => { setPrefs(next); syncToServer(next); };
+
   const value: A11yContextValue = {
     prefs,
-    setFontScale: (n) => setPrefs((p) => ({ ...p, fontScale: clampScale(n) })),
-    setBackgroundColor: (hex) => setPrefs((p) => ({ ...p, backgroundColor: cleanColor(hex) })),
-    toggleHighContrast: () => setPrefs((p) => ({ ...p, highContrast: !p.highContrast })),
-    toggleReduceMotion: () => setPrefs((p) => ({ ...p, reduceMotion: !p.reduceMotion })),
-    reset: () => setPrefs(DEFAULT_A11Y),
+    setFontScale: (n) => change({ ...prefs, fontScale: clampScale(n) }),
+    setBackgroundColor: (hex) => change({ ...prefs, backgroundColor: cleanColor(hex) }),
+    toggleHighContrast: () => change({ ...prefs, highContrast: !prefs.highContrast }),
+    toggleReduceMotion: () => change({ ...prefs, reduceMotion: !prefs.reduceMotion }),
+    reset: () => change(DEFAULT_A11Y),
   };
   return <A11yContext.Provider value={value}>{children}</A11yContext.Provider>;
 }
