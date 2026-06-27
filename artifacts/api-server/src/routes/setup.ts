@@ -8,6 +8,8 @@ import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend, isEnterpriseBackend } from "../lib/n8n-backends";
 import { generateWorkflow } from "../lib/n8n-generator";
 import { busMode } from "../lib/notify-bus";
+import { brokerLogBusMode } from "../lib/broker-log-bus";
+import { rateLimitMode } from "../lib/rate-limit";
 import { licenseSummary, isEntitled, resolveLicense } from "../lib/license";
 import { auditStatus } from "../lib/audit";
 import { DEV_PERSIST_ENABLED } from "../lib/dev-persist";
@@ -49,6 +51,9 @@ router.get("/setup/status", async (req, res) => {
     auth: { mode: isOidcConfigured ? "oidc" : "demo" },
     ai: { provider: settings.aiProvider },
     realtime: { enabled: !!process.env["NOTIFY_INGEST_SECRET"]?.trim(), bus: busMode() },
+    // Horizontal-scale fan-out: "redis" = shared across replicas, "in-process" =
+    // per-replica. Lets an operator verify multi-replica wiring at a glance.
+    scale: { notifyBus: busMode(), brokerLogBus: brokerLogBusMode(), rateLimit: rateLimitMode() },
     audit: auditStatus(),
     dev: { statefulDemo: DEV_PERSIST_ENABLED },
     licensing: licenseSummary(),

@@ -4,6 +4,12 @@ import { brokerKind } from "./broker";
 import { isOidcConfigured } from "./lib/oidc";
 import { getSettings } from "./lib/settings";
 import { installShutdownHandlers } from "./lib/shutdown";
+import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
+
+// Start the broker-log fan-out at boot so this replica begins RECEIVING the
+// fleet's live entries immediately (not just emitting its own). In-process unless
+// REDIS_URL is set — see lib/broker-log-bus.ts.
+initBrokerLogBus();
 
 const rawPort = process.env["PORT"];
 
@@ -31,6 +37,7 @@ const server = app.listen(port, (err) => {
       dataMode: brokerKind() === "demo" ? "demo (sample data)" : brokerKind(),
       auth: isOidcConfigured ? "oidc" : "demo",
       aiProvider: getSettings().aiProvider,
+      brokerLogBus: brokerLogBusMode(),
     },
     "Server listening",
   );

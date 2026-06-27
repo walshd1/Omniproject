@@ -231,6 +231,10 @@ test("GET /api/setup/status reflects the gateway wiring", async () => {
   assert.ok("licensing" in json);
   assert.ok("audit" in json);
   assert.ok("realtime" in json);
+  // Multi-replica fan-out modes are surfaced for ops verification.
+  assert.ok("scale" in json);
+  assert.equal(json.scale.brokerLogBus, "in-process"); // no REDIS_URL in tests
+  assert.equal(json.scale.rateLimit, "in-process");
 });
 
 test("GET /api/setup/backends returns the workflow catalogue", async () => {
