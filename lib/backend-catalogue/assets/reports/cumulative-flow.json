@@ -1,0 +1,22 @@
+{
+  "id": "cumulative-flow",
+  "label": "Cumulative flow",
+  "docsUrl": "",
+  "kind": "progress",
+  "capabilities": {
+    "requiresCapability": "history",
+    "timeSeries": true,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "wipByState",
+    "throughput",
+    "cycleTime"
+  ],
+  "notes": "WIP per state over time (Kanban).",
+  "order": 40
+}

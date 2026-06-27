@@ -1,0 +1,22 @@
+{
+  "id": "burndown",
+  "label": "Sprint burndown",
+  "docsUrl": "",
+  "kind": "progress",
+  "capabilities": {
+    "requiresCapability": "history",
+    "timeSeries": true,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "remainingWork",
+    "idealLine",
+    "scopeChange"
+  ],
+  "notes": "Remaining work vs the ideal line over a sprint.",
+  "order": 20
+}

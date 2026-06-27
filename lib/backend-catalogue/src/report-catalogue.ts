@@ -9,6 +9,7 @@
  * linked — no neutering, no false promises.
  */
 import { isCapabilityMet } from "./compatibility";
+import { REPORTS_DATA } from "./reports.generated";
 
 export type ReportKind = "schedule" | "progress" | "financial" | "resource" | "quality" | "portfolio";
 
@@ -33,22 +34,13 @@ export interface ReportManifest {
 export interface ReportDefinition extends ReportManifest {
   /** The metrics / columns / series this report produces. */
   tools: string[];
+  /** Display order in the report picker. */
+  order: number;
 }
 
-const CSV_PDF = ["csv", "pdf", "png"];
-
-export const REPORTS: ReportDefinition[] = [
-  { id: "gantt", label: "Gantt chart", docsUrl: "", kind: "schedule", capabilities: { requiresCapability: "scheduling", timeSeries: false, exports: CSV_PDF }, tools: ["startDate", "dueDate", "dependencies", "criticalPath", "baseline"], notes: "Schedule with dependencies + critical path." },
-  { id: "burndown", label: "Sprint burndown", docsUrl: "", kind: "progress", capabilities: { requiresCapability: "history", timeSeries: true, exports: CSV_PDF }, tools: ["remainingWork", "idealLine", "scopeChange"], notes: "Remaining work vs the ideal line over a sprint." },
-  { id: "burnup", label: "Burnup", docsUrl: "", kind: "progress", capabilities: { requiresCapability: "history", timeSeries: true, exports: CSV_PDF }, tools: ["completed", "scope"], notes: "Completed vs total scope (shows scope creep)." },
-  { id: "cumulative-flow", label: "Cumulative flow", docsUrl: "", kind: "progress", capabilities: { requiresCapability: "history", timeSeries: true, exports: CSV_PDF }, tools: ["wipByState", "throughput", "cycleTime"], notes: "WIP per state over time (Kanban)." },
-  { id: "velocity", label: "Velocity", docsUrl: "", kind: "progress", capabilities: { requiresCapability: "history", timeSeries: true, exports: CSV_PDF }, tools: ["pointsPerSprint", "rollingAverage"], notes: "Story points completed per sprint." },
-  { id: "evm", label: "Earned Value (EVM)", docsUrl: "", kind: "financial", capabilities: { requiresCapability: "financials", timeSeries: true, exports: CSV_PDF }, tools: ["PV", "EV", "AC", "CPI", "SPI", "EAC", "ETC", "BAC"], notes: "Cost/schedule performance — needs financials + baseline." },
-  { id: "financial-summary", label: "Financial summary", docsUrl: "", kind: "financial", capabilities: { requiresCapability: "financials", timeSeries: false, exports: CSV_PDF }, tools: ["budget", "actualCost", "committed", "variance", "margin"], notes: "Budget vs actual vs committed." },
-  { id: "resource-histogram", label: "Resource histogram", docsUrl: "", kind: "resource", capabilities: { requiresCapability: "resources", timeSeries: true, exports: CSV_PDF }, tools: ["allocated", "available", "overAllocation"], notes: "Allocation vs capacity per resource." },
-  { id: "portfolio-rag", label: "Portfolio RAG", docsUrl: "", kind: "portfolio", capabilities: { requiresCapability: "portfolio", timeSeries: false, exports: CSV_PDF }, tools: ["ragStatus", "scheduleVariance", "costVariance", "health"], notes: "Red/amber/green health across the portfolio." },
-  { id: "raid-register", label: "RAID register", docsUrl: "", kind: "quality", capabilities: { requiresCapability: "raid", timeSeries: false, exports: CSV_PDF }, tools: ["risks", "assumptions", "issues", "dependencies"], notes: "Risks, assumptions, issues, dependencies." },
-];
+/** Every shipped report, in display order. Authored as JSON under
+ *  assets/reports/<id>.json and embedded by gen-reports (drift-guarded in CI). */
+export const REPORTS: ReportDefinition[] = [...REPORTS_DATA].sort((a, b) => a.order - b.order);
 
 /** One report definition by id, or undefined. */
 export function getReport(id: string): ReportDefinition | undefined {

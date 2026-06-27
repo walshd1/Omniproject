@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/report.schema.json",
+  "title": "OmniProject report",
+  "description": "A report / visualisation type. One file per report under assets/reports/<id>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "docsUrl", "kind", "capabilities", "tools", "order"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string" },
+    "docsUrl": { "type": "string" },
+    "kind": { "enum": ["schedule", "progress", "financial", "resource", "quality", "portfolio"] },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requiresCapability", "timeSeries", "exports"],
+      "properties": {
+        "requiresCapability": { "description": "Backend capability domain this report needs, or null = always available (no type constraint: string | null)." },
+        "timeSeries": { "type": "boolean" },
+        "exports": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "tools": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "string" },
+    "order": { "type": "integer", "description": "Display order in the report picker." }
+  }
+}

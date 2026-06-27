@@ -1,0 +1,23 @@
+{
+  "id": "portfolio-rag",
+  "label": "Portfolio RAG",
+  "docsUrl": "",
+  "kind": "portfolio",
+  "capabilities": {
+    "requiresCapability": "portfolio",
+    "timeSeries": false,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "ragStatus",
+    "scheduleVariance",
+    "costVariance",
+    "health"
+  ],
+  "notes": "Red/amber/green health across the portfolio.",
+  "order": 90
+}

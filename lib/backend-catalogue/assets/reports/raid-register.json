@@ -1,0 +1,23 @@
+{
+  "id": "raid-register",
+  "label": "RAID register",
+  "docsUrl": "",
+  "kind": "quality",
+  "capabilities": {
+    "requiresCapability": "raid",
+    "timeSeries": false,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "risks",
+    "assumptions",
+    "issues",
+    "dependencies"
+  ],
+  "notes": "Risks, assumptions, issues, dependencies.",
+  "order": 100
+}

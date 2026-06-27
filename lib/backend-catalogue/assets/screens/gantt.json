@@ -1,0 +1,20 @@
+{
+  "id": "gantt",
+  "label": "Gantt / schedule",
+  "route": "/projects/:id/gantt",
+  "kind": "planning",
+  "capabilities": {
+    "requiresRole": "contributor",
+    "requiresCapability": "scheduling",
+    "dataLineage": true,
+    "exportable": true
+  },
+  "tools": [
+    "gantt-bars",
+    "drag-reschedule",
+    "dependencies",
+    "what-if"
+  ],
+  "notes": "Schedule + drag-to-reschedule (write-through).",
+  "order": 50
+}

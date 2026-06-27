@@ -1,0 +1,22 @@
+{
+  "id": "resource-histogram",
+  "label": "Resource histogram",
+  "docsUrl": "",
+  "kind": "resource",
+  "capabilities": {
+    "requiresCapability": "resources",
+    "timeSeries": true,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "allocated",
+    "available",
+    "overAllocation"
+  ],
+  "notes": "Allocation vs capacity per resource.",
+  "order": 80
+}

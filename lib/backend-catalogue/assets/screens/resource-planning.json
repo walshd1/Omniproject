@@ -1,0 +1,19 @@
+{
+  "id": "resource-planning",
+  "label": "Resource planning",
+  "route": "/resources",
+  "kind": "planning",
+  "capabilities": {
+    "requiresRole": "manager",
+    "requiresCapability": "resources",
+    "dataLineage": true,
+    "exportable": true
+  },
+  "tools": [
+    "capacity-grid",
+    "what-if-allocation",
+    "over-capacity"
+  ],
+  "notes": "Capacity vs allocation, what-if modelling.",
+  "order": 60
+}

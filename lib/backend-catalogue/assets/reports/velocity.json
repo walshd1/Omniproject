@@ -1,0 +1,21 @@
+{
+  "id": "velocity",
+  "label": "Velocity",
+  "docsUrl": "",
+  "kind": "progress",
+  "capabilities": {
+    "requiresCapability": "history",
+    "timeSeries": true,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "pointsPerSprint",
+    "rollingAverage"
+  ],
+  "notes": "Story points completed per sprint.",
+  "order": 50
+}

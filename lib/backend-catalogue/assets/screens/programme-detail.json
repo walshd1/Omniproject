@@ -1,0 +1,19 @@
+{
+  "id": "programme-detail",
+  "label": "Programme detail",
+  "route": "/programmes/:id",
+  "kind": "detail",
+  "capabilities": {
+    "requiresRole": "viewer",
+    "requiresCapability": "portfolio",
+    "dataLineage": true,
+    "exportable": true
+  },
+  "tools": [
+    "project-list",
+    "rollup",
+    "financials"
+  ],
+  "notes": "A single programme.",
+  "order": 30
+}

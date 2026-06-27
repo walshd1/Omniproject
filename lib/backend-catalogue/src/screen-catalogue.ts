@@ -7,6 +7,7 @@
  * screen only appears when the backend can feed it.
  */
 import { isCapabilityMet } from "./compatibility";
+import { SCREENS_DATA } from "./screens.generated";
 
 export type ScreenKind = "dashboard" | "detail" | "planning" | "report" | "admin";
 
@@ -33,18 +34,13 @@ export interface ScreenManifest {
 export interface ScreenDefinition extends ScreenManifest {
   /** The widgets / panels on the screen. */
   tools: string[];
+  /** Display order. */
+  order: number;
 }
 
-export const SCREENS: ScreenDefinition[] = [
-  { id: "home", label: "Home", route: "/", kind: "dashboard", capabilities: { requiresRole: "viewer", requiresCapability: null, dataLineage: true, exportable: true }, tools: ["activity-feed", "my-work", "portfolio-summary"], notes: "Landing dashboard." },
-  { id: "programmes", label: "Programmes", route: "/programmes", kind: "dashboard", capabilities: { requiresRole: "viewer", requiresCapability: "portfolio", dataLineage: true, exportable: true }, tools: ["programme-grid", "rag-rollup", "financial-rollup"], notes: "Programme-level portfolio." },
-  { id: "programme-detail", label: "Programme detail", route: "/programmes/:id", kind: "detail", capabilities: { requiresRole: "viewer", requiresCapability: "portfolio", dataLineage: true, exportable: true }, tools: ["project-list", "rollup", "financials"], notes: "A single programme." },
-  { id: "project-detail", label: "Project detail", route: "/projects/:id", kind: "detail", capabilities: { requiresRole: "viewer", requiresCapability: null, dataLineage: true, exportable: true }, tools: ["task-board", "summary", "members", "financials", "raid"], notes: "A single project + its work items." },
-  { id: "gantt", label: "Gantt / schedule", route: "/projects/:id/gantt", kind: "planning", capabilities: { requiresRole: "contributor", requiresCapability: "scheduling", dataLineage: true, exportable: true }, tools: ["gantt-bars", "drag-reschedule", "dependencies", "what-if"], notes: "Schedule + drag-to-reschedule (write-through)." },
-  { id: "resource-planning", label: "Resource planning", route: "/resources", kind: "planning", capabilities: { requiresRole: "manager", requiresCapability: "resources", dataLineage: true, exportable: true }, tools: ["capacity-grid", "what-if-allocation", "over-capacity"], notes: "Capacity vs allocation, what-if modelling." },
-  { id: "reports", label: "Reports", route: "/reports", kind: "report", capabilities: { requiresRole: "viewer", requiresCapability: null, dataLineage: true, exportable: true }, tools: ["report-picker", "evm", "portfolio-rag", "burndown"], notes: "Renders the REPORTS plane (capability-gated)." },
-  { id: "settings", label: "Settings", route: "/settings", kind: "admin", capabilities: { requiresRole: "admin", requiresCapability: null, dataLineage: false, exportable: false }, tools: ["broker-config", "translation-editor", "broker-log", "ruleset"], notes: "Admin configuration." },
-];
+/** Every shipped screen, in display order. Authored as JSON under
+ *  assets/screens/<id>.json and embedded by gen-screens (drift-guarded in CI). */
+export const SCREENS: ScreenDefinition[] = [...SCREENS_DATA].sort((a, b) => a.order - b.order);
 
 /** One screen definition by id, or undefined. */
 export function getScreen(id: string): ScreenDefinition | undefined {

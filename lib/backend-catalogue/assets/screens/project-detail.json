@@ -1,0 +1,21 @@
+{
+  "id": "project-detail",
+  "label": "Project detail",
+  "route": "/projects/:id",
+  "kind": "detail",
+  "capabilities": {
+    "requiresRole": "viewer",
+    "requiresCapability": null,
+    "dataLineage": true,
+    "exportable": true
+  },
+  "tools": [
+    "task-board",
+    "summary",
+    "members",
+    "financials",
+    "raid"
+  ],
+  "notes": "A single project + its work items.",
+  "order": 40
+}

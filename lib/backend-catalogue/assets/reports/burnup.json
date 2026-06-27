@@ -1,0 +1,21 @@
+{
+  "id": "burnup",
+  "label": "Burnup",
+  "docsUrl": "",
+  "kind": "progress",
+  "capabilities": {
+    "requiresCapability": "history",
+    "timeSeries": true,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "completed",
+    "scope"
+  ],
+  "notes": "Completed vs total scope (shows scope creep).",
+  "order": 30
+}
