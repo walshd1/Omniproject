@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import fs from "node:fs";
 import { methodologyCatalogue, getMethodology } from "./methodology-catalogue";
 import { reportCatalogue, getReport } from "./report-catalogue";
 import { screenCatalogue, getScreen } from "./screen-catalogue";
@@ -42,4 +44,11 @@ test("screens carry their route, required role + capability, and widgets", () =>
 test("cross-plane: a broker can offer things on other planes (n8n → notifications)", () => {
   const n8n = brokerCatalogue().find((b) => b.id === "n8n");
   assert.ok(n8n?.alsoProvides.some((x) => x.plane === "notifications"));
+});
+
+test("every plane ships dev docs (the file the meta-registry points at exists)", () => {
+  const root = path.resolve(import.meta.dirname, "../../..");
+  for (const p of PLANES) {
+    assert.ok(fs.existsSync(path.join(root, p.devDocs)), `missing dev docs for ${p.id}: ${p.devDocs}`);
+  }
 });

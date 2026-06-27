@@ -24,3 +24,4 @@ export * from "./planes";
 export * from "./methodology-catalogue";
 export * from "./report-catalogue";
 export * from "./screen-catalogue";
+export * from "./plane-verifier";
