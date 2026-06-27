@@ -294,14 +294,21 @@ test("RBAC: a viewer CANNOT use the generic broker/command write edge (403)", as
 });
 
 test("broker/command: an admin is NOT blocked by the authorization gate", async () => {
-  // Admin clears the contributor gate; in demo mode it then 502s (no live
-  // broker), but it must NOT be the 403 authorization wall.
+  // Admin clears the contributor gate; with no broker configured (no BROKER_URL
+  // env and no admin-set settings.brokerUrl) it then refuses with the demo-mode
+  // 502, but it must NOT be the 403 authorization wall.
   const res = await req("/api/broker/command", {
     method: "POST",
     headers: { cookie: ADMIN, "content-type": "application/json" },
     body: JSON.stringify({ action: "list_projects", payload: {} }),
   });
   assert.notEqual(res.status, 403);
+  // The passthrough stays CLOSED when nothing is wired: true demo must refuse, so
+  // the edge can't become an open relay. (It opens only once a broker is
+  // configured — via BROKER_URL or an admin-set settings.brokerUrl.)
+  assert.equal(res.status, 502);
+  const body = (await res.json()) as { error?: string };
+  assert.match(String(body.error ?? ""), /demo mode|No backend configured/i);
 });
 
 test("settings validation: invalid aiProvider is rejected (400), not persisted", async () => {

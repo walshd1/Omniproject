@@ -9,10 +9,23 @@ import { Router, type Request, type Response } from "express";
 import { BrokerCommandBody } from "@workspace/api-zod";
 import { N8nBroker } from "../broker/n8n";
 import { contextFromReq, respondBrokerError, isLiveBroker, BrokerError } from "../broker";
+import { getSettings } from "../lib/settings";
 import { requireRole } from "../lib/rbac";
 
 const router = Router();
 const broker = new N8nBroker();
+
+/**
+ * Is there a broker endpoint to forward a command to? True when one is configured
+ * at boot (`BROKER_URL` ⇒ `isLiveBroker()`) OR set at runtime by an admin via
+ * settings. The N8nBroker this edge uses resolves its webhook from
+ * `getSettings().brokerUrl` first (it takes precedence over the env), so an
+ * admin-configured URL is reachable without a restart — this gate just has to
+ * agree with that precedence instead of looking only at the boot-time env.
+ */
+function brokerConfigured(): boolean {
+  return isLiveBroker() || !!getSettings().brokerUrl?.trim();
+}
 
 async function handle(req: Request, res: Response): Promise<void> {
   // This edge can invoke arbitrary backend actions, including writes
@@ -20,10 +33,10 @@ async function handle(req: Request, res: Response): Promise<void> {
   // `contributor`; without the same gate here a read-only `viewer` session
   // could forward a `delete_issue` and bypass every write wall. So we require
   // `contributor` for the whole edge (the SPA does not use it for reads).
-  if (!isLiveBroker()) {
-    // No backend wired (demo mode): there is nothing to forward to. Return the
-    // normalised "demo" error instead of attempting a live n8n call that would
-    // surface as an opaque "backend unreachable".
+  if (!brokerConfigured()) {
+    // No backend wired (demo mode, no admin-set broker URL): there is nothing to
+    // forward to. Return the normalised "demo" error instead of attempting a live
+    // n8n call that would surface as an opaque "backend unreachable".
     respondBrokerError(
       res,
       new BrokerError("unavailable", "No backend configured (demo mode): command passthrough requires a live broker"),
