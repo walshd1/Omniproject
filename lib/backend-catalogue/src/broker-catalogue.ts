@@ -49,6 +49,15 @@ export interface BrokerCapabilities {
   eventsOutbound: boolean;
 }
 
+/**
+ * The broker capability keys — the BROKER half of the capability key space an
+ * asset can declare a requirement against (the backend half is CAPABILITY_DOMAINS
+ * in the gateway). The single source of truth the incompatibility guard checks
+ * declared requirements against, so a typo'd / dangling requirement fails CI.
+ */
+export const BROKER_CAPABILITY_KEYS = ["synchronous", "selfHostable", "managedAuth", "eventsInbound", "eventsOutbound"] as const;
+export type BrokerCapabilityKey = (typeof BROKER_CAPABILITY_KEYS)[number];
+
 /** The broker-neutral description (no build specifics). */
 export interface BrokerManifest {
   id: BrokerKind;
@@ -83,6 +92,33 @@ export function getBrokerDef(id: string): BrokerDefinition | undefined {
  *  synchronous HTTP broker — Airflow is excluded, it's async.) */
 export function brokersForTransport(t: TransportMethod): BrokerKind[] {
   return withOverlay("brokers", BROKERS).filter((b) => b.capabilities.synchronous && b.transports.includes(t)).map((b) => b.id);
+}
+
+/**
+ * The capability support a single broker contributes to the surface set: its
+ * capability flags (synchronous, eventsOutbound, …) as a flat key→boolean map.
+ * Unknown id ⇒ contributes nothing. This is the BROKER half of the support set the
+ * compatibility predicate gates on (the backend half is the resolved domain flags).
+ */
+export function brokerSupport(id: string): Record<string, boolean> {
+  const def = getBrokerDef(id);
+  if (!def) return {};
+  return Object.fromEntries(BROKER_CAPABILITY_KEYS.map((k) => [k, def.capabilities[k]]));
+}
+
+/**
+ * OR-union the capability support across several CONNECTED brokers: a key is
+ * supported if ANY connected broker supports it — so an asset needing
+ * `eventsOutbound` lights up when at least one broker can do it. (This is the
+ * union the multi-broker router will feed the full connected set into.)
+ */
+export function brokerSupportUnion(ids: string[]): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const id of ids) {
+    const caps = brokerSupport(id);
+    for (const k of BROKER_CAPABILITY_KEYS) if (caps[k]) out[k] = true;
+  }
+  return out;
 }
 
 /** Lightweight catalogue view (capabilities + linked build method per broker). */

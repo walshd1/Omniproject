@@ -8,6 +8,34 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Compatibility model: one predicate, a two-plane resolver + an incompatibility
+  guard** (**Stable**) — how we know which of anything to surface based on what the
+  broker(s) AND backend(s) support, unified.
+  - **One predicate.** Whether any surfaceable asset (report, screen, view, panel)
+    appears is now a single rule, `isCapabilityMet(requirement, support)`, over a
+    flat capability-key → boolean support set. `availableReports` /
+    `availableScreens` call it instead of inlining the check.
+  - **Two-plane key space.** The support set spans BOTH planes: the backend domains
+    (`CAPABILITY_DOMAINS`) plus the broker capability keys (the new
+    `BROKER_CAPABILITY_KEYS` — `synchronous`, `selfHostable`, `managedAuth`,
+    `eventsInbound`, `eventsOutbound`), so an asset can require what a backend OR a
+    broker supports.
+  - **The resolver.** `resolveSupport(req)` folds the resolved backend domains and
+    the connected broker(s)' capability keys into ONE map via `unionSupport` (OR
+    across maps, taking only `true` flags). Broker support comes from the catalogue
+    (`brokerSupport` / `brokerSupportUnion`, OR-unioned across connected brokers — a
+    demo broker simulates the full reference broker, so it enables every broker key,
+    mirroring demo's all-domains-on). The `/setup/reports`, `/setup/screens` routes
+    and the MCP `list_reports` / `list_screens` tools now gate on this unified set.
+  - **The guard.** A CI **incompatibility guard** (`compatibility-guard.test.ts`)
+    asserts every shipped asset's declared requirement names a REAL capability — a
+    dangling/typo'd requirement (which would silently hide an asset forever, or
+    surface it unconditionally) fails the build — and that reports/screens always
+    DECLARE their requirement (even if `null`).
+
+  Additive; the connected-broker list is single-kind today — the multi-broker router
+  (many broker kinds at once) widens it next, and `brokerSupportUnion` already ORs
+  across however many it's given.
 - **ScreenRenderer hosts the real methodology views as panels** (**Beta**) — a
   `view` panel kind bridges the generic renderer to the existing heavy view
   components (Kanban board, Gantt, Scrum, PRINCE2, RAID, List) via the shared

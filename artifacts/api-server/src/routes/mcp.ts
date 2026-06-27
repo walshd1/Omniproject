@@ -5,6 +5,7 @@ import { hasRole } from "../lib/rbac";
 import { getBroker, contextFromReq } from "../broker";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
 import { recordAudit } from "../lib/audit";
+import { resolveSupport } from "../lib/capabilities";
 import { availableReports, availableScreens } from "@workspace/backend-catalogue";
 import type { Role } from "../lib/rbac";
 
@@ -49,15 +50,16 @@ router.post("/mcp", async (req, res) => {
       // usable so the agent isn't told about a report the backend can't feed or a
       // screen the caller can't open.
       case "list_reports": {
-        const caps = (await broker.capabilities(ctx)) as Record<string, boolean>;
-        // The hard rule: only reports at least one connected backend can feed.
-        return availableReports(caps)
+        // The hard rule, both planes: only reports a connected backend can feed AND
+        // (where required) a connected broker supports.
+        const support = await resolveSupport(req);
+        return availableReports(support)
           .map((r) => ({ id: r.id, label: r.label, kind: r.kind, requiresCapability: r.capabilities.requiresCapability, exports: r.capabilities.exports, produces: r.tools }));
       }
       case "list_screens": {
-        const caps = (await broker.capabilities(ctx)) as Record<string, boolean>;
-        // Hard capability rule (availableScreens) + the separate RBAC role gate.
-        return availableScreens(caps)
+        // Hard capability rule (availableScreens, both planes) + the separate RBAC role gate.
+        const support = await resolveSupport(req);
+        return availableScreens(support)
           .filter((s) => hasRole(req, s.capabilities.requiresRole as Role))
           .map((s) => ({ id: s.id, label: s.label, route: s.route, kind: s.kind, requiresRole: s.capabilities.requiresRole, widgets: s.tools }));
       }

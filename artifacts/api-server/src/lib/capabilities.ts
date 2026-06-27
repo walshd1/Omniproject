@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
 import type { BackendFieldMap, FieldSupport } from "../broker/types";
+import { brokerSupportUnion, unionSupport, BROKER_CAPABILITY_KEYS } from "@workspace/backend-catalogue";
 import {
   FIELD_REGISTRY,
   customFieldsFrom,
@@ -236,6 +237,34 @@ export async function resolveCapabilities(req: Request): Promise<Capabilities> {
     if (Object.keys(sources).length) caps.fieldSources = sources;
   }
   return caps;
+}
+
+/**
+ * The BROKER half of the support set: the capability keys the connected broker(s)
+ * contribute. The demo broker simulates the full reference broker, so it enables
+ * every broker capability — mirroring how demo enables every backend domain. A live
+ * broker contributes exactly what its catalogue definition declares. Today there's
+ * one connected kind; the multi-broker router (next increment) will widen this list
+ * and `brokerSupportUnion` already ORs across however many it's given.
+ */
+function resolveBrokerSupport(): Record<string, boolean> {
+  const broker = getBroker();
+  if (!broker.live) return Object.fromEntries(BROKER_CAPABILITY_KEYS.map((k) => [k, true]));
+  return brokerSupportUnion([broker.kind]);
+}
+
+/**
+ * The unified SUPPORT set the compatibility predicate gates on: the backend
+ * capability domains (already unioned across connected backends by
+ * `resolveCapabilities`) PLUS the connected broker(s)' capability keys — one flat
+ * map spanning BOTH planes. This is the resolver `availableReports` /
+ * `availableScreens` / the views filter should be fed, so an asset can require a
+ * broker capability (e.g. `eventsOutbound`) and light up only when a broker
+ * supports it, not just a backend domain.
+ */
+export async function resolveSupport(req: Request): Promise<Record<string, boolean>> {
+  const caps = await resolveCapabilities(req);
+  return unionSupport(caps as unknown as Record<string, unknown>, resolveBrokerSupport());
 }
 
 /**

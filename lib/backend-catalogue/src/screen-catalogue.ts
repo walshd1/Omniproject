@@ -6,6 +6,7 @@
  * Like reports, a screen's `requiresCapability` links it to the BACKEND plane so a
  * screen only appears when the backend can feed it.
  */
+import { isCapabilityMet } from "./compatibility";
 
 export type ScreenKind = "dashboard" | "detail" | "planning" | "report" | "admin";
 
@@ -63,7 +64,5 @@ export function screenCatalogue(): ScreenDefinition[] {
  * connected backend(s) feed this screen at all?".
  */
 export function availableScreens(caps: Record<string, boolean>): ScreenDefinition[] {
-  return screenCatalogue().filter(
-    (s) => s.capabilities.requiresCapability === null || caps[s.capabilities.requiresCapability] === true,
-  );
+  return screenCatalogue().filter((s) => isCapabilityMet(s.capabilities.requiresCapability, caps));
 }
