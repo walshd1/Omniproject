@@ -1,0 +1,27 @@
+{
+  "id": "evm",
+  "label": "Earned Value (EVM)",
+  "docsUrl": "",
+  "kind": "financial",
+  "capabilities": {
+    "requiresCapability": "financials",
+    "timeSeries": true,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "PV",
+    "EV",
+    "AC",
+    "CPI",
+    "SPI",
+    "EAC",
+    "ETC",
+    "BAC"
+  ],
+  "notes": "Cost/schedule performance — needs financials + baseline.",
+  "order": 60
+}

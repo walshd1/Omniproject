@@ -112,6 +112,16 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the report + screen catalogues are in sync with their JSON
+        run: |
+          pnpm --filter @workspace/scripts run gen-reports
+          pnpm --filter @workspace/scripts run gen-screens
+          if ! git diff --quiet -- lib/backend-catalogue/src/reports.generated.ts lib/backend-catalogue/src/screens.generated.ts; then
+            echo "::error::Report/screen catalogue is out of date. Run 'pnpm --filter @workspace/scripts run gen-reports gen-screens' and commit the result."
+            git --no-pager diff --stat -- lib/backend-catalogue/src/reports.generated.ts lib/backend-catalogue/src/screens.generated.ts
+            exit 1
+          fi
+
       - name: Verify the function map is in sync with the code comments
         run: |
           pnpm --filter @workspace/scripts run gen-function-map

@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Reports + screens are JSON-defined** — the last two renderable planes move from
+  hand-written TypeScript arrays to JSON, completing what the board views started.
+  Each report (`assets/reports/<id>.json`) and screen (`assets/screens/<id>.json`) is
+  validated against a JSON Schema, embedded by `gen-reports` / `gen-screens` (the
+  shared gen-registry engine), drift-guarded in CI and overlayable per deployment.
+  The catalogues now source `REPORTS` / `SCREENS` from the generated arrays (sorted
+  by an explicit `order`, so display order is preserved) and keep their types +
+  capability-gating functions. All three renderable planes — views, reports, screens
+  — are now JSON over generic code. No behavioural change.
 - **Canonical field vocabulary is JSON, below the seam** — the ~114-field canonical
   registry was hand-written TypeScript stranded in the gateway
   (`artifacts/api-server/.../field-registry.ts`), even though the contract generator

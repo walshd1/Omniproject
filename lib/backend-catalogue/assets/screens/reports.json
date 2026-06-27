@@ -1,0 +1,20 @@
+{
+  "id": "reports",
+  "label": "Reports",
+  "route": "/reports",
+  "kind": "report",
+  "capabilities": {
+    "requiresRole": "viewer",
+    "requiresCapability": null,
+    "dataLineage": true,
+    "exportable": true
+  },
+  "tools": [
+    "report-picker",
+    "evm",
+    "portfolio-rag",
+    "burndown"
+  ],
+  "notes": "Renders the REPORTS plane (capability-gated).",
+  "order": 70
+}

@@ -1,0 +1,24 @@
+{
+  "id": "gantt",
+  "label": "Gantt chart",
+  "docsUrl": "",
+  "kind": "schedule",
+  "capabilities": {
+    "requiresCapability": "scheduling",
+    "timeSeries": false,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "startDate",
+    "dueDate",
+    "dependencies",
+    "criticalPath",
+    "baseline"
+  ],
+  "notes": "Schedule with dependencies + critical path.",
+  "order": 10
+}

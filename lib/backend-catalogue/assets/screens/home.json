@@ -1,0 +1,19 @@
+{
+  "id": "home",
+  "label": "Home",
+  "route": "/",
+  "kind": "dashboard",
+  "capabilities": {
+    "requiresRole": "viewer",
+    "requiresCapability": null,
+    "dataLineage": true,
+    "exportable": true
+  },
+  "tools": [
+    "activity-feed",
+    "my-work",
+    "portfolio-summary"
+  ],
+  "notes": "Landing dashboard.",
+  "order": 10
+}

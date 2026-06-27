@@ -1,0 +1,24 @@
+{
+  "id": "financial-summary",
+  "label": "Financial summary",
+  "docsUrl": "",
+  "kind": "financial",
+  "capabilities": {
+    "requiresCapability": "financials",
+    "timeSeries": false,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "budget",
+    "actualCost",
+    "committed",
+    "variance",
+    "margin"
+  ],
+  "notes": "Budget vs actual vs committed.",
+  "order": 70
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/screen.schema.json",
+  "title": "OmniProject screen",
+  "description": "An SPA screen. One file per screen under assets/screens/<id>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "route", "kind", "capabilities", "tools", "order"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string" },
+    "route": { "type": "string" },
+    "kind": { "enum": ["dashboard", "detail", "planning", "report", "admin"] },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requiresRole", "requiresCapability", "dataLineage", "exportable"],
+      "properties": {
+        "requiresRole": { "enum": ["viewer", "contributor", "manager", "admin"] },
+        "requiresCapability": { "description": "Backend capability the screen needs, or null = always (no type constraint: string | null)." },
+        "dataLineage": { "type": "boolean" },
+        "exportable": { "type": "boolean" }
+      }
+    },
+    "tools": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "string" },
+    "order": { "type": "integer", "description": "Display order." }
+  }
+}

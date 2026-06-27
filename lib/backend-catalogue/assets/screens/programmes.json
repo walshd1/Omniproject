@@ -1,0 +1,19 @@
+{
+  "id": "programmes",
+  "label": "Programmes",
+  "route": "/programmes",
+  "kind": "dashboard",
+  "capabilities": {
+    "requiresRole": "viewer",
+    "requiresCapability": "portfolio",
+    "dataLineage": true,
+    "exportable": true
+  },
+  "tools": [
+    "programme-grid",
+    "rag-rollup",
+    "financial-rollup"
+  ],
+  "notes": "Programme-level portfolio.",
+  "order": 20
+}
