@@ -8,6 +8,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Rendering primitives — live, progressive, windowed (built on per-panel binding)**
+  — instead of rendering a screen in one blocking pass, panels now compose finer
+  primitives:
+  - **Shared live event stream** (`lib/live-events.ts`) — ONE `EventSource` to the
+    notification SSE that all subscribers share (lazy connect/disconnect), replacing
+    per-component streams.
+  - **Live per-panel revalidation** — a panel opting into `source.live` (optionally
+    `liveOn: [kinds]`) revalidates ONLY itself when a relevant notification arrives —
+    push, not polling; the refetch is conditional (304 when unchanged). A small "live"
+    badge marks it.
+  - **Progressive rendering** — a sourced panel shows a skeleton while it loads, so a
+    screen paints panel-by-panel instead of blocking on the slowest.
+  - **Windowed tables** — the table panel renders only the first `maxRows` (default
+    50) with a "show all" expander, so a large dataset doesn't paint thousands of DOM
+    nodes up front.
 - **Per-panel data binding & independent refresh** — a screen panel can now declare
   a `source` (a read endpoint); it fetches its OWN data under its OWN query key and
   gets its OWN refresh control, so you can **refresh just one graph/table on a screen**

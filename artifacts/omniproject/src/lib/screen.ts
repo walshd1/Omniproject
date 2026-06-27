@@ -36,6 +36,11 @@ export interface Panel {
 export interface PanelSource {
   /** The read endpoint for this panel's data (returns a config-shaped object). */
   url: string;
+  /** Opt in to LIVE refresh: revalidate this panel (only) when a notification
+   *  arrives over the shared event stream. Off ⇒ refresh on demand / staleTime. */
+  live?: boolean;
+  /** Restrict live refresh to these notification kinds (omitted ⇒ any change). */
+  liveOn?: string[];
 }
 
 export interface ScreenDef {
