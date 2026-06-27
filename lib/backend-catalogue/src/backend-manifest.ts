@@ -34,17 +34,9 @@ export type BackendTier = "standard" | "enterprise";
  */
 export type TransportMethod = "http" | "native-node";
 
-/** Brokers that can serve a given transport (which automation layer to point
- *  BROKER_URL at). Make = n8n alternative (synchronous webhook); http-sidecar =
- *  your own service implementing the binding. */
-export type BrokerKind = "n8n" | "make" | "http-sidecar";
-
-/** Which brokers can serve a transport method. HTTP is broker-portable; a native
- *  n8n node is n8n-only. Zapier/IFTTT are deliberately absent — they're async and
- *  can't answer the synchronous read-through contract (event edges only). */
-export function brokersForTransport(t: TransportMethod): BrokerKind[] {
-  return t === "http" ? ["n8n", "make", "http-sidecar"] : ["n8n"];
-}
+// The broker registry (which brokers can serve a transport) lives in
+// ./broker-catalogue.ts — brokers are their own plane, derived from broker
+// capabilities rather than hardcoded here, so the two stay separate but linked.
 
 /**
  * The broker-neutral description of a backend: identity, where it's documented,

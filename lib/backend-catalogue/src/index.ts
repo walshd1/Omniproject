@@ -1,12 +1,19 @@
 /**
- * @workspace/backend-catalogue — the single, shared source of truth for which
- * project/work backends OmniProject knows how to broker, and how to generate an
- * importable n8n workflow for each.
+ * @workspace/backend-catalogue — the shared source of truth for OmniProject's
+ * three integration planes, each modelled the same way (neutral manifest +
+ * capabilities kept SEPARATE from its concrete tools, linked into one definition):
  *
- * Referenced by BOTH the gateway (routes/setup.ts surfaces the catalogue +
- * generates workflows) AND the setup wizard (@workspace/scripts), so the two can
- * never drift. Pure data + pure functions, zero runtime dependencies.
+ *   - BACKENDS — systems of record (./backend-manifest + ./n8n-backends), with
+ *     the n8n binding + workflow generator (./n8n-generator).
+ *   - BROKERS  — the automation/translation layer (./broker-catalogue).
+ *   - OUTPUTS  — the outward interfaces: MCP, OData, BI, metrics, exports, events
+ *     (./output-catalogue).
+ *
+ * Referenced by BOTH the gateway and the setup wizard, so they can never drift.
+ * Pure data + pure functions, zero runtime dependencies.
  */
 export * from "./backend-manifest";
 export * from "./n8n-backends";
 export * from "./n8n-generator";
+export * from "./broker-catalogue";
+export * from "./output-catalogue";

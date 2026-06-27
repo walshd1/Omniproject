@@ -5,7 +5,7 @@ import { isOidcConfigured } from "../lib/oidc";
 import { resolveCapabilities } from "../lib/capabilities";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
-import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow } from "@workspace/backend-catalogue";
+import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue } from "@workspace/backend-catalogue";
 import { busMode } from "../lib/notify-bus";
 import { brokerLogBusMode } from "../lib/broker-log-bus";
 import { rateLimitMode } from "../lib/rate-limit";
@@ -125,6 +125,15 @@ router.get("/setup/export", requireRole("admin"), (req, res) => {
 // GET /api/setup/backends — catalogue for the workflow wizard.
 router.get("/setup/backends", (_req, res) => {
   res.json(backendCatalogue());
+});
+
+// The other two integration planes (same shape): which brokers can serve the
+// data hop, and which outward interfaces expose data/events.
+router.get("/setup/brokers", (_req, res) => {
+  res.json(brokerCatalogue());
+});
+router.get("/setup/outputs", (_req, res) => {
+  res.json(outputCatalogue());
 });
 
 // POST /api/setup/generate-workflow — emit an importable n8n workflow for the
