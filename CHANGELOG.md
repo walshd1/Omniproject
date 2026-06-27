@@ -70,6 +70,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Vendor-overlay merge is memoised + perf-guarded** (**Stable**, internal) — the
+  catalogue accessors' overlay merge is now cached per plane (invalidated on
+  register/clear), so a deployment overlay doesn't rebuild the merged set on every
+  call; the no-overlay path stays zero-copy. A new perf guard proves the
+  memoisation (reference identity) and that 100k catalogue lookups stay well under a
+  second, so a future regression trips CI. (Context: the config/asset JSON is
+  embedded at build time and read once at boot — never on the request path — so this
+  is the one place the "everything is JSON" model could have added per-call cost,
+  now closed.)
 - **Two more patterns abstracted into registries** (**Stable**, internal) — applying
   the same "generic engine + registry of handlers" shape as the ScreenRenderer:
   (A) `gen-vendors` and `gen-views` now share one `gen-registry` engine (read JSON →
