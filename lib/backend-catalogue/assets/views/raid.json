@@ -1,0 +1,14 @@
+{
+  "description": "Risks, Assumptions, Issues and Dependencies register.",
+  "group": "Governance",
+  "id": "raid",
+  "kind": "register",
+  "label": "RAID Log",
+  "methodologies": [
+    "governance"
+  ],
+  "methodology": "Risk & governance",
+  "needs": "raid",
+  "order": 5,
+  "short": "RAID"
+}

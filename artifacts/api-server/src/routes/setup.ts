@@ -11,7 +11,7 @@ import { isOidcConfigured } from "../lib/oidc";
 import { resolveCapabilities } from "../lib/capabilities";
 import { requireRole, roleForReq, hasRole } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
-import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, methodologyCatalogue, reportCatalogue, screenCatalogue, planeCatalogue, availableReports, availableScreens } from "@workspace/backend-catalogue";
+import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, methodologyCatalogue, reportCatalogue, screenCatalogue, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, methodologyTags } from "@workspace/backend-catalogue";
 import { busMode } from "../lib/notify-bus";
 import { brokerLogBusMode } from "../lib/broker-log-bus";
 import { rateLimitMode } from "../lib/rate-limit";
@@ -165,6 +165,13 @@ router.get("/setup/notifications", (_req, res) => {
 });
 router.get("/setup/methodologies", (_req, res) => {
   res.json(methodologyCatalogue());
+});
+// The board views (JSON-defined) + the DERIVED methodology tag list. With
+// ?methodology=<tag>, only the views that methodology activates (+ neutral ones).
+router.get("/setup/views", (req, res) => {
+  const m = req.query["methodology"];
+  const views = typeof m === "string" && m ? viewsForMethodology(m) : VIEWS;
+  res.json({ views, methodologies: methodologyTags() });
 });
 // Full catalogue (what OmniProject CAN do), or — with ?available=1 — only the
 // entries the CONNECTED backend(s) can actually feed. The hard rule: if none of

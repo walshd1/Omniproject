@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/view.schema.json",
+  "title": "OmniProject board view",
+  "description": "A methodology lens over the project's work items. One file per view under assets/views/<id>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "label",
+    "short",
+    "group",
+    "methodology",
+    "methodologies",
+    "kind",
+    "description",
+    "order"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "label": {
+      "type": "string"
+    },
+    "short": {
+      "type": "string"
+    },
+    "group": {
+      "type": "string",
+      "description": "Methodology family shown as a heading in the switcher."
+    },
+    "methodology": {
+      "type": "string",
+      "description": "Human display name of the methodology."
+    },
+    "methodologies": {
+      "type": "array",
+      "description": "Methodology TAGS \u2014 selecting one activates the assets sharing it. \"*\" = neutral/always.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "kind": {
+      "enum": [
+        "board",
+        "timeline",
+        "stages",
+        "register",
+        "table"
+      ]
+    },
+    "needs": {
+      "type": "string",
+      "description": "Backend capability domain this view needs to be fully useful (or omitted = always)."
+    },
+    "description": {
+      "type": "string"
+    },
+    "order": {
+      "type": "integer",
+      "description": "Display order in the switcher."
+    }
+  }
+}
