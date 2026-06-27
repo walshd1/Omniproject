@@ -11,9 +11,10 @@ import { recordAudit } from "../lib/audit";
  * hard ruleset — see lib/ruleset.ts: they can only tighten, never loosen, and the
  * PMO can only toggle modes (not author predicates).
  *
- * Gated at `pmo`, not `admin`: the business/programme ruleset is the PMO's domain
- * (technical config — brokers, integrations, security — stays admin-only). Because
- * the role gate is linear, admin (top rank) is a superset and still passes here.
+ * Gated at the `pmo` authority: the business/programme ruleset is the PMO's domain.
+ * `pmo` and `admin` are ORTHOGONAL — technical config (brokers, integrations,
+ * security) stays admin-only, and a pure admin does NOT pass here. Someone holding
+ * both authorities clears both.
  */
 const router = Router();
 

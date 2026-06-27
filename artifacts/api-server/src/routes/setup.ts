@@ -3,7 +3,7 @@ import { getSettings, updateSettings } from "../lib/settings";
 import { isLiveBroker } from "../broker";
 import { isOidcConfigured } from "../lib/oidc";
 import { resolveCapabilities } from "../lib/capabilities";
-import { requireRole, roleForReq } from "../lib/rbac";
+import { requireRole, roleForReq, hasRole } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, methodologyCatalogue, reportCatalogue, screenCatalogue, planeCatalogue } from "@workspace/backend-catalogue";
 import { busMode } from "../lib/notify-bus";
@@ -127,7 +127,7 @@ router.get("/setup/export", requireRole("admin"), (req, res) => {
 // integration they can't configure (wiring one is admin-gated at generate-workflow
 // / settings regardless — this just keeps the wizard honest per role).
 router.get("/setup/backends", (req, res) => {
-  const isAdmin = roleForReq(req) === "admin";
+  const isAdmin = hasRole(req, "admin"); // the technical authority
   res.json(backendCatalogue().filter((b) => isAdmin || !b.adminOnly));
 });
 

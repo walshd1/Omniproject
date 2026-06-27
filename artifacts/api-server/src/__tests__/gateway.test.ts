@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import type { Request } from "express";
 
 import { versionConflict } from "../lib/concurrency";
-import { roleFromClaims } from "../lib/rbac";
+import { roleFromClaims, grantsFromClaims } from "../lib/rbac";
 import { idempotencyKey } from "../broker/n8n";
 import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
@@ -96,6 +96,42 @@ test("roleFromClaims: admin outranks pmo; pmo outranks manager", () => {
 
 test("roleFromClaims: unmatched claims fall back to contributor by default", () => {
   assert.equal(roleFromClaims(["some-random-group"], { isDemo: false }), "contributor");
+});
+
+test("grants: pmo and admin are ORTHOGONAL authorities, joinable, each implying manager base", () => {
+  process.env["OIDC_ADMIN_ROLES"] = "tech";
+  process.env["OIDC_PMO_ROLES"] = "gov";
+  try {
+    // Pure admin: technical authority, NO governance — and manager-level base.
+    const admin = grantsFromClaims(["tech"], { isDemo: false });
+    assert.deepEqual([...admin.authorities].sort(), ["admin"]);
+    assert.equal(admin.base, "manager");
+
+    // Pure PMO: governance authority, NO technical.
+    const pmo = grantsFromClaims(["gov"], { isDemo: false });
+    assert.deepEqual([...pmo.authorities].sort(), ["pmo"]);
+    assert.equal(pmo.base, "manager");
+
+    // The JOIN: holding both grants the union.
+    const both = grantsFromClaims(["gov", "tech"], { isDemo: false });
+    assert.deepEqual([...both.authorities].sort(), ["admin", "pmo"]);
+
+    // A plain manager has neither authority.
+    process.env["OIDC_MANAGER_ROLES"] = "lead";
+    const mgr = grantsFromClaims(["lead"], { isDemo: false });
+    assert.equal(mgr.authorities.size, 0);
+    assert.equal(mgr.base, "manager");
+  } finally {
+    delete process.env["OIDC_ADMIN_ROLES"];
+    delete process.env["OIDC_PMO_ROLES"];
+    delete process.env["OIDC_MANAGER_ROLES"];
+  }
+});
+
+test("grants: demo holds every authority (out-of-box usable)", () => {
+  const g = grantsFromClaims([], { isDemo: true });
+  assert.deepEqual([...g.authorities].sort(), ["admin", "pmo"]);
+  assert.equal(g.base, "manager");
 });
 
 test("role-map override: an admin override replaces the env list for that role", async () => {

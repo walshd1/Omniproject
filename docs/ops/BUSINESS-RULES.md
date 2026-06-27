@@ -65,10 +65,10 @@ A `hard` field rule returns `422`; a `warn` records a warning. Field rules can o
 ## Configuring (PMO governance)
 
 The business ruleset is **programme-management governance**, so it is gated at the
-**`pmo`** role — the PMO owns the business rules. Technical config (brokers,
-integrations, security, broker-log) stays **`admin`**-only. Because the role gate
-is linear, **admin is a superset of PMO** and still passes these endpoints, so one
-person can hold both. See [RBAC roles](#) / `lib/rbac.ts`.
+**`pmo`** authority — the PMO owns the business rules. `pmo` and `admin` are
+**orthogonal** authorities (governance vs technical), so a *pure* admin does **not**
+pass these endpoints, and a *pure* PMO does not pass the technical ones. Someone who
+holds **both** clears both. See [RBAC roles](ROLES.md) / `lib/rbac.ts`.
 
 - **`GET /api/admin/ruleset`** — list rules + current modes.
 - **`PUT /api/admin/ruleset`** — body `{ "no-deletes": "hard", "read-only": "off" }`.

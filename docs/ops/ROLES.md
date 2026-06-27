@@ -6,24 +6,39 @@ from the OIDC token's group/role claims and enforces a coarse gate at the gatewa
 on every brokered write (the user's own bearer is forwarded), so this gate is
 defence-in-depth + UX, not the sole control.
 
-## The fixed role ladder
+## A linear base ladder + two orthogonal authorities
 
 The set of roles and their gates are **fixed in code** (so the boundary stays
-statically verifiable). Ascending privilege:
+statically verifiable). The everyday hierarchy is a linear **base ladder**:
 
-| Role | Rank | Owns |
+| Base role | Rank | Can |
 | --- | --- | --- |
 | `viewer` | 0 | read-only (also the role for read-only API tokens) |
 | `contributor` | 1 | create/update/delete issues; tabular import |
 | `manager` | 2 | + RAID, baselines, portfolio actions, field manifest |
-| `pmo` | 3 | + **business governance** — the business ruleset & methodology reference rulesets |
-| `admin` | 4 | + **technical config** — brokers, integrations, security, broker-log, role mapping, raw-SQL/Mongo backends |
 
-**PMO vs admin.** PMO is the programme-management authority (business rules); admin
-is the technical authority. The split is by *domain*, but the gate is *linear*, so
-**admin (top rank) is a superset of PMO** — an admin clears every PMO gate. One
-person can hold both: map their IdP group to `admin` (which subsumes PMO), or to
-both lists. To make someone PMO *only*, map them to PMO and not admin.
+Above `manager` sit two **independent authorities** — separate capability sets, not
+a higher rung. Each implies `manager`-level base access, but **neither implies the
+other**:
+
+| Authority | Owns |
+| --- | --- |
+| `pmo` | **Business governance** — the business ruleset & methodology reference rulesets. The programme-management authority. |
+| `admin` | **Technical config** — brokers, integrations, security, broker-log, role mapping, raw-SQL/Mongo backends. The technical authority. |
+
+**They are orthogonal and joinable.** A person can hold neither, either, or both:
+
+- a **pure `admin`** does *not* pass a `pmo` gate — it cannot edit business rules;
+- a **pure `pmo`** does *not* pass an `admin` gate — it cannot touch technical config;
+- holding **both** grants the union (map the IdP group to both lists).
+
+This is the deliberate design: business governance and technical administration are
+*different jobs*. Splitting them means your platform admin isn't automatically your
+rules authority, and vice versa — least privilege by default, combined on purpose.
+
+> **No lockout.** If a deployment maps only `admin` and forgets `pmo`, an admin can
+> grant governance to someone (including themselves) via the audited role-mapping
+> editor below. The grant is then *explicit and logged*, not an implicit superset.
 
 ## Mapping IdP groups to roles
 

@@ -43,6 +43,8 @@ const VIEWER = signedSessionCookie({ sub: "viewer-1", roles: [] });
 const MANAGER = signedSessionCookie({ sub: "manager-1", roles: ["omni-managers"] });
 const PMO = signedSessionCookie({ sub: "pmo-1", roles: ["omni-pmo"] });
 const ADMIN = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"] });
+// Holds BOTH authorities — the join (governance + technical).
+const PMO_ADMIN = signedSessionCookie({ sub: "both-1", roles: ["omni-pmo", "omni-admins"] });
 
 before(async () => {
   const { default: app } = await import("../app");
@@ -155,9 +157,18 @@ test("RBAC: a PMO CAN read AND set the business ruleset", async () => {
   assert.equal(put.status, 200);
 });
 
-test("RBAC: an admin (superset of PMO) CAN read the business ruleset", async () => {
+test("RBAC: a PURE admin CANNOT read the business ruleset (governance is orthogonal)", async () => {
+  // The decisive change: admin is the TECHNICAL authority, not a superset of PMO.
+  // A pure admin holds no governance grant, so the business ruleset is closed to it.
   const res = await req("/api/admin/ruleset", { headers: { cookie: ADMIN } });
-  assert.equal(res.status, 200);
+  assert.equal(res.status, 403);
+});
+
+test("RBAC: holding BOTH pmo+admin (the join) clears governance AND technical gates", async () => {
+  // Business governance (pmo) …
+  assert.equal((await req("/api/admin/ruleset", { headers: { cookie: PMO_ADMIN } })).status, 200);
+  // … and technical config (admin) — the union.
+  assert.equal((await req("/api/admin/broker-log", { headers: { cookie: PMO_ADMIN } })).status, 200);
 });
 
 test("RBAC: a PMO can list AND apply a methodology reference ruleset", async () => {
@@ -177,13 +188,15 @@ test("RBAC: a PMO can list AND apply a methodology reference ruleset", async () 
   assert.equal(after.rules.find((r) => r.id === "due-after-start")?.mode, "hard");
 });
 
-test("RBAC: a manager CANNOT apply a reference ruleset (PMO gate)", async () => {
-  const res = await req("/api/admin/ruleset/apply-reference", {
-    method: "POST",
-    headers: { cookie: MANAGER, "content-type": "application/json" },
-    body: JSON.stringify({ methodology: "scrum" }),
-  });
-  assert.equal(res.status, 403);
+test("RBAC: neither a manager NOR a pure admin can apply a reference ruleset (PMO gate)", async () => {
+  for (const cookie of [MANAGER, ADMIN]) {
+    const res = await req("/api/admin/ruleset/apply-reference", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ methodology: "scrum" }),
+    });
+    assert.equal(res.status, 403);
+  }
 });
 
 test("RBAC: a PMO CANNOT read the technical broker-log (still admin-only)", async () => {
