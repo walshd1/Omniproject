@@ -47,6 +47,15 @@ Demo dataset — the canned data the DemoBroker serves.
 
 Demo broker — the fake adapter.
 
+### `artifacts/api-server/src/broker/endpoint-context.ts`
+
+Per-call broker endpoint override.
+
+| Function | What it does |
+| --- | --- |
+| `currentEndpointOverride` | The endpoints in scope for the current async call, if a kind was routed to. |
+| `withEndpoints` | Run `fn` with the broker adapter bound to `endpoints` (the routed kind's URL[s]). |
+
 ### `artifacts/api-server/src/broker/index.ts`
 
 Broker selection + the request→domain context adapter.
@@ -113,6 +122,15 @@ The broker router / registry — which broker KINDS are connected to this deploy
 | `connectedBrokerKinds` | The DISTINCT connected broker kinds — the list the capability resolver unions over. |
 | `brokersSupporting` | The routing primitive: which connected broker kinds can serve a given capability (e.g. "who can deliver `eventsOutbound`?"). |
 | `brokerForCommand` | Per-kind command ROUTING — choose which connected broker KIND should serve a command, given what it needs (transport + capability). |
+
+### `artifacts/api-server/src/broker/router.ts`
+
+Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into an actual per-kind DISPATCH.
+
+| Function | What it does |
+| --- | --- |
+| `endpointsForKind` | Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into an actual per-kind DISPATCH. |
+| `routeBrokerCall` | Route a broker call to the kind that should serve it. |
 
 ### `artifacts/api-server/src/broker/templates/pipedream-component.ts`
 
