@@ -27,6 +27,12 @@ import { logger } from "./logger";
 
 const PLANES: VendorPlane[] = ["backends", "brokers", "notifications", "outputs"];
 
+/** One part of the config folder: reads its files and records into the summary. */
+interface ConfigLoader {
+  name: string;
+  load(dir: string, summary: ConfigDirSummary): void;
+}
+
 export interface ConfigDirSummary {
   dir: string | null;
   present: boolean;
@@ -72,7 +78,28 @@ export function loadConfigDir(dir = process.env["OMNI_CONFIG_DIR"]?.trim()): Con
   }
   summary.present = true;
 
-  // Vendors: <dir>/vendors/<plane>/*.json → overlay (registerVendor validates).
+  // Each part of the config folder is a registered loader — to support a new
+  // subdir (views/, screens/, …) add one entry, not a new branch here.
+  for (const loader of LOADERS) {
+    try {
+      loader.load(dir, summary);
+    } catch (err) {
+      summary.errors.push(`${loader.name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  logger.info(
+    { dir, vendors: summary.vendors, configApplied: summary.configApplied, rulesetsApplied: summary.rulesetsApplied, artifacts: summary.artifacts, errors: summary.errors.length },
+    "loaded deployment config directory",
+  );
+  lastSummary = summary;
+  return summary;
+}
+
+// ── Loaders (the registry) ─────────────────────────────────────────────────────
+
+/** vendors/<plane>/*.json → overlay (registerVendor validates each per its schema). */
+function loadVendors(dir: string, summary: ConfigDirSummary): void {
   for (const plane of PLANES) {
     let count = 0;
     for (const { file, data } of safeRead(path.join(dir, "vendors", plane), summary)) {
@@ -85,55 +112,50 @@ export function loadConfigDir(dir = process.env["OMNI_CONFIG_DIR"]?.trim()): Con
     }
     summary.vendors[plane] = count;
   }
-
-  // config.json: a settings snapshot → patch applied over the running settings.
-  const configFile = path.join(dir, "config.json");
-  if (fs.existsSync(configFile)) {
-    try {
-      const snapshot = JSON.parse(fs.readFileSync(configFile, "utf8"));
-      const { patch, warnings } = applySnapshot(snapshot);
-      updateSettings(patch);
-      summary.configApplied = true;
-      summary.warnings.push(...warnings);
-    } catch (err) {
-      summary.errors.push(`config.json: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
-  // rulesets/: the governance ruleset (field rules + rule modes). Restrict-only —
-  // setFieldRules/setRuleModes only accept well-formed, known, non-granting input.
-  summary.rulesetsApplied = applyRuleset(path.join(dir, "rulesets"), summary);
-
-  // artifacts/: things generated against our reference (n8n workflows, blueprints).
-  // The gateway keeps them with the config but doesn't execute them — just inventory.
-  const artifactsDir = path.join(dir, "artifacts");
-  if (fs.existsSync(artifactsDir)) summary.artifacts = fs.readdirSync(artifactsDir).length;
-
-  logger.info(
-    { dir, vendors: summary.vendors, configApplied: summary.configApplied, rulesetsApplied: summary.rulesetsApplied, artifacts: summary.artifacts, errors: summary.errors.length },
-    "loaded deployment config directory",
-  );
-  lastSummary = summary;
-  return summary;
 }
 
-/** Apply rulesets/field-rules.json + rule-modes.json if present; true when either applied. */
-function applyRuleset(dir: string, summary: ConfigDirSummary): boolean {
-  let applied = false;
+/** config.json → a settings snapshot applied over the running settings. */
+function loadConfigJson(dir: string, summary: ConfigDirSummary): void {
+  const file = path.join(dir, "config.json");
+  if (!fs.existsSync(file)) return;
+  try {
+    const { patch, warnings } = applySnapshot(JSON.parse(fs.readFileSync(file, "utf8")));
+    updateSettings(patch);
+    summary.configApplied = true;
+    summary.warnings.push(...warnings);
+  } catch (err) {
+    summary.errors.push(`config.json: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/** rulesets/field-rules.json + rule-modes.json — restrict-only (setFieldRules/setRuleModes never grant). */
+function loadRulesets(dir: string, summary: ConfigDirSummary): void {
   const apply = (file: string, fn: (data: unknown) => void): void => {
-    const full = path.join(dir, file);
+    const full = path.join(dir, "rulesets", file);
     if (!fs.existsSync(full)) return;
     try {
       fn(JSON.parse(fs.readFileSync(full, "utf8")));
-      applied = true;
+      summary.rulesetsApplied = true;
     } catch (err) {
       summary.errors.push(`rulesets/${file}: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
   apply("field-rules.json", (d) => setFieldRules(d));
   apply("rule-modes.json", (d) => setRuleModes(d as Record<string, unknown>));
-  return applied;
 }
+
+/** artifacts/ — things generated against our reference; kept with the config, just inventoried. */
+function loadArtifacts(dir: string, summary: ConfigDirSummary): void {
+  const artifactsDir = path.join(dir, "artifacts");
+  if (fs.existsSync(artifactsDir)) summary.artifacts = fs.readdirSync(artifactsDir).length;
+}
+
+const LOADERS: ConfigLoader[] = [
+  { name: "vendors", load: loadVendors },
+  { name: "config", load: loadConfigJson },
+  { name: "rulesets", load: loadRulesets },
+  { name: "artifacts", load: loadArtifacts },
+];
 
 /** Read a JSON directory, recording (not throwing) a parse error per file. */
 function safeRead(dir: string, summary: ConfigDirSummary): Array<{ file: string; data: unknown }> {

@@ -1028,6 +1028,15 @@ Trivial workspace smoke script — prints a hello line to prove tsx + the worksp
 
 Live OpenProject integration check — "certify" the mapping against a real instance.
 
+### `scripts/src/lib/gen-registry.ts`
+
+Generic JSON-asset registry generator.
+
+| Function | What it does |
+| --- | --- |
+| `loadGroup` | Read, validate (schema + filename===id + unique) and id-sort one group. |
+| `emitRegistry` | Emit a generated module: the header comment, the type imports, then one const per group. |
+
 ### `scripts/src/lib/load-core.ts`
 
 Load-harness core — pure, so the stats, error classification, concurrency pool and pass/fail verdict are unit-tested and shared.

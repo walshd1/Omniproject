@@ -4,21 +4,18 @@
  * Vendors are authored as one JSON file per vendor under
  * lib/backend-catalogue/vendors/<plane>/<id>.json — to add a vendor you design
  * the JSON against the plane's schema (vendors/schema/<plane>.schema.json) and
- * drop it in. This script validates every vendor file against its schema and
- * emits the embedded, type-checked TypeScript the catalogue imports
- * (lib/backend-catalogue/src/vendors.generated.ts), so the package stays
- * portable (no runtime fs / no JSON shipped) and a CI drift guard keeps the
- * generated module in lock-step with the JSON — the same pattern as gen-contract.
+ * drop it in. This validates every vendor file (via the shared gen-registry
+ * engine) and emits the embedded, type-checked TypeScript the catalogue imports
+ * (lib/backend-catalogue/src/vendors.generated.ts) plus the embedded schemas the
+ * runtime loader uses, with a CI drift guard keeping both in lock-step.
  *
  * Run: pnpm --filter @workspace/scripts run gen-vendors
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-// Import the validator from the catalogue file DIRECTLY (not via the package
-// index) so generation doesn't depend on the generated modules it is about to
-// (re)write — the runtime loader uses the same `validate` via the package index.
-import { validate, type JsonSchema } from "../../lib/backend-catalogue/src/vendor-schema";
+import { type JsonSchema } from "../../lib/backend-catalogue/src/vendor-schema";
+import { loadGroup, emitRegistry, type AssetGroup } from "./lib/gen-registry";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -26,78 +23,44 @@ const VENDORS = path.join(ROOT, "lib/backend-catalogue/vendors");
 const OUT_TS = path.join(ROOT, "lib/backend-catalogue/src/vendors.generated.ts");
 const OUT_SCHEMAS = path.join(ROOT, "lib/backend-catalogue/src/vendor-schemas.generated.ts");
 
-// ── Planes ───────────────────────────────────────────────────────────────────
-interface Plane {
-  dir: string;
-  schema: string;
-  constName: string;
-  typeName: string;
-  typeModule: string;
-}
-
+interface Plane { dir: string; schemaFile: string; constName: string; typeName: string; typeModule: string }
 const PLANES: Plane[] = [
-  { dir: "backends", schema: "backend.schema.json", constName: "BACKENDS_DATA", typeName: "BackendDefinition", typeModule: "./backend-catalogue" },
-  { dir: "brokers", schema: "broker.schema.json", constName: "BROKERS_DATA", typeName: "BrokerDefinition", typeModule: "./broker-catalogue" },
-  { dir: "notifications", schema: "notification.schema.json", constName: "NOTIFICATIONS_DATA", typeName: "NotificationDefinition", typeModule: "./notification-catalogue" },
-  { dir: "outputs", schema: "output.schema.json", constName: "OUTPUTS_DATA", typeName: "OutputDefinition", typeModule: "./output-catalogue" },
+  { dir: "backends", schemaFile: "backend.schema.json", constName: "BACKENDS_DATA", typeName: "BackendDefinition", typeModule: "./backend-catalogue" },
+  { dir: "brokers", schemaFile: "broker.schema.json", constName: "BROKERS_DATA", typeName: "BrokerDefinition", typeModule: "./broker-catalogue" },
+  { dir: "notifications", schemaFile: "notification.schema.json", constName: "NOTIFICATIONS_DATA", typeName: "NotificationDefinition", typeModule: "./notification-catalogue" },
+  { dir: "outputs", schemaFile: "output.schema.json", constName: "OUTPUTS_DATA", typeName: "OutputDefinition", typeModule: "./output-catalogue" },
 ];
 
-/** Read, validate and id-sort one plane's vendor files. Throws on any violation. */
-function loadPlane(plane: Plane): Array<{ id: string }> {
-  const schema = JSON.parse(fs.readFileSync(path.join(VENDORS, "schema", plane.schema), "utf8")) as JsonSchema;
-  const dir = path.join(VENDORS, plane.dir);
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
-  const rows: Array<{ id: string }> = [];
-  const seen = new Set<string>();
-  for (const file of files) {
-    const full = path.join(dir, file);
-    const data = JSON.parse(fs.readFileSync(full, "utf8")) as { id?: string };
-    const errs = validate(schema, data);
-    if (errs.length) throw new Error(`${plane.dir}/${file} fails ${plane.schema}:\n  - ${errs.join("\n  - ")}`);
-    if (data.id !== file.replace(/\.json$/, "")) throw new Error(`${plane.dir}/${file}: filename must equal id "${data.id}"`);
-    if (seen.has(data.id)) throw new Error(`${plane.dir}: duplicate id "${data.id}"`);
-    seen.add(data.id);
-    rows.push(data as { id: string });
-  }
-  return rows.sort((a, b) => a.id.localeCompare(b.id));
-}
+const readSchema = (file: string): JsonSchema => JSON.parse(fs.readFileSync(path.join(VENDORS, "schema", file), "utf8")) as JsonSchema;
 
-// ── Emit ─────────────────────────────────────────────────────────────────────
-const loaded = PLANES.map((plane) => ({ plane, rows: loadPlane(plane) }));
+const groups: AssetGroup[] = PLANES.map((p) => ({
+  dir: path.join(VENDORS, p.dir), schema: readSchema(p.schemaFile), label: p.dir,
+  constName: p.constName, typeName: p.typeName, typeModule: p.typeModule,
+}));
 
-const lines: string[] = [
+// ── Emit the typed vendor arrays ──────────────────────────────────────────────
+const loaded = groups.map((group) => ({ group, rows: loadGroup(group) }));
+emitRegistry(OUT_TS, [
   "/* GENERATED by scripts/src/gen-vendors.ts — do not edit.",
   "   Vendors are authored as JSON under lib/backend-catalogue/vendors/<plane>/;",
   "   run `pnpm --filter @workspace/scripts run gen-vendors` to regenerate. */",
-];
-for (const { plane } of loaded) {
-  lines.push(`import type { ${plane.typeName} } from "${plane.typeModule}";`);
-}
-lines.push("");
-for (const { plane, rows } of loaded) {
-  lines.push(`export const ${plane.constName}: ${plane.typeName}[] = ${JSON.stringify(rows, null, 2)};`);
-  lines.push("");
-}
-fs.writeFileSync(OUT_TS, lines.join("\n"));
+], loaded);
 
 // ── Emit the embedded schemas (keyed by plane) for the runtime loader ─────────
 // So a deployment's own vendor JSON can be validated at boot with no fs/JSON
 // shipped — the same schema the author designed against.
 const schemas: Record<string, JsonSchema> = {};
-for (const plane of PLANES) {
-  schemas[plane.dir] = JSON.parse(fs.readFileSync(path.join(VENDORS, "schema", plane.schema), "utf8")) as JsonSchema;
-}
-const schemaLines = [
+for (const p of PLANES) schemas[p.dir] = readSchema(p.schemaFile);
+fs.writeFileSync(OUT_SCHEMAS, [
   "/* GENERATED by scripts/src/gen-vendors.ts — do not edit.",
   "   The per-plane vendor JSON Schemas, embedded for runtime validation. */",
   'import type { JsonSchema } from "./vendor-schema";',
   "",
   `export const VENDOR_SCHEMAS: Record<string, JsonSchema> = ${JSON.stringify(schemas, null, 2)};`,
   "",
-];
-fs.writeFileSync(OUT_SCHEMAS, schemaLines.join("\n"));
+].join("\n"));
 
 // ── Report ────────────────────────────────────────────────────────────────────
-for (const { plane, rows } of loaded) console.log(`${plane.dir}: ${rows.length} vendors validated`);
+for (const { group, rows } of loaded) console.log(`${group.label}: ${rows.length} vendors validated`);
 console.log(`  → ${path.relative(ROOT, OUT_TS)}`);
 console.log(`  → ${path.relative(ROOT, OUT_SCHEMAS)}`);
