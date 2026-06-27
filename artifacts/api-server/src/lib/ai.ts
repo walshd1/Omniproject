@@ -36,44 +36,6 @@ function resolvedModel(provider: AiProvider): string {
   return getSettings().aiModel?.trim() || DEFAULT_MODEL[provider];
 }
 
-/** Report whether AI assist is configured + which provider/model is active. */
-export function aiStatus(): AiStatus {
-  const provider = getSettings().aiProvider;
-  const model = provider === "none" ? null : resolvedModel(provider);
-
-  switch (provider) {
-    case "none":
-      return { provider, model, configured: false, detail: "No AI provider selected." };
-    case "ollama":
-      return { provider, model, configured: true, detail: `Local model via Ollama at ${OLLAMA_URL}.` };
-    case "openrouter":
-      return {
-        provider,
-        model,
-        configured: !!OPENROUTER_API_KEY,
-        detail: OPENROUTER_API_KEY ? "Public model via OpenRouter." : "Set OPENROUTER_API_KEY to enable OpenRouter.",
-      };
-    case "openai":
-      return {
-        provider,
-        model,
-        configured: !!OPENAI_API_KEY,
-        detail: OPENAI_API_KEY ? "OpenAI configured." : "Set OPENAI_API_KEY to enable OpenAI.",
-      };
-    case "anthropic":
-      return {
-        provider,
-        model,
-        configured: !!ANTHROPIC_API_KEY,
-        detail: ANTHROPIC_API_KEY ? "Anthropic configured." : "Set ANTHROPIC_API_KEY to enable Anthropic.",
-      };
-    default:
-      // Unreachable for a validated AiProvider, but keeps the function total so a
-      // bad stored value degrades to "not configured" instead of returning undefined.
-      return { provider: "none", model: null, configured: false, detail: "No AI provider selected." };
-  }
-}
-
 export class AiError extends Error {
   readonly status: number;
   constructor(message: string, status = 502) {
@@ -103,51 +65,52 @@ export interface ChatResult {
   model: string;
 }
 
-/** Send a chat-completion to the configured provider and return the reply. Throws
- *  AiError when no provider is configured or the upstream call fails. */
-export async function aiChat(messages: ChatMessage[]): Promise<ChatResult> {
-  const provider = getSettings().aiProvider;
-  const model = resolvedModel(provider);
-  const status = aiStatus();
+/**
+ * AI provider registry — one entry per real provider, holding how it reports its
+ * config state and how it sends a chat. Adding a provider is one entry, not two
+ * switch arms (the same registry idiom as the broker/output/notification planes).
+ * `none` is the absence of a provider, handled by the callers, not the registry.
+ */
+interface AiProviderDef {
+  /** Usable right now? + a human-readable detail line. */
+  status(): { configured: boolean; detail: string };
+  /** POST a chat to the provider and return the reply text. */
+  chat(model: string, messages: ChatMessage[]): Promise<string>;
+}
 
-  if (provider === "none") {
-    throw new AiError("No AI provider is configured.", 400);
-  }
-  if (!status.configured) {
-    throw new AiError(status.detail, 400);
-  }
-
-  switch (provider) {
-    case "ollama": {
-      const json = (await postJson(`${OLLAMA_URL}/api/chat`, {}, { model, messages, stream: false })) as {
-        message?: { content?: string };
-      };
-      return { content: json.message?.content ?? "", provider, model };
-    }
-
-    case "openrouter": {
+const PROVIDERS: Record<Exclude<AiProvider, "none">, AiProviderDef> = {
+  ollama: {
+    status: () => ({ configured: true, detail: `Local model via Ollama at ${OLLAMA_URL}.` }),
+    chat: async (model, messages) => {
+      const json = (await postJson(`${OLLAMA_URL}/api/chat`, {}, { model, messages, stream: false })) as { message?: { content?: string } };
+      return json.message?.content ?? "";
+    },
+  },
+  openrouter: {
+    status: () => ({ configured: !!OPENROUTER_API_KEY, detail: OPENROUTER_API_KEY ? "Public model via OpenRouter." : "Set OPENROUTER_API_KEY to enable OpenRouter." }),
+    chat: async (model, messages) => {
       const json = (await postJson(
         "https://openrouter.ai/api/v1/chat/completions",
-        {
-          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-          "HTTP-Referer": "https://github.com/walshd1/Omniproject",
-          "X-Title": "OmniProject",
-        },
+        { Authorization: `Bearer ${OPENROUTER_API_KEY}`, "HTTP-Referer": "https://github.com/walshd1/Omniproject", "X-Title": "OmniProject" },
         { model, messages },
       )) as { choices?: Array<{ message?: { content?: string } }> };
-      return { content: json.choices?.[0]?.message?.content ?? "", provider, model };
-    }
-
-    case "openai": {
+      return json.choices?.[0]?.message?.content ?? "";
+    },
+  },
+  openai: {
+    status: () => ({ configured: !!OPENAI_API_KEY, detail: OPENAI_API_KEY ? "OpenAI configured." : "Set OPENAI_API_KEY to enable OpenAI." }),
+    chat: async (model, messages) => {
       const json = (await postJson(
         "https://api.openai.com/v1/chat/completions",
         { Authorization: `Bearer ${OPENAI_API_KEY}` },
         { model, messages },
       )) as { choices?: Array<{ message?: { content?: string } }> };
-      return { content: json.choices?.[0]?.message?.content ?? "", provider, model };
-    }
-
-    case "anthropic": {
+      return json.choices?.[0]?.message?.content ?? "";
+    },
+  },
+  anthropic: {
+    status: () => ({ configured: !!ANTHROPIC_API_KEY, detail: ANTHROPIC_API_KEY ? "Anthropic configured." : "Set ANTHROPIC_API_KEY to enable Anthropic." }),
+    chat: async (model, messages) => {
       // Anthropic keeps the system prompt separate and requires max_tokens.
       const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n") || undefined;
       const turns = messages.filter((m) => m.role !== "system");
@@ -156,10 +119,33 @@ export async function aiChat(messages: ChatMessage[]): Promise<ChatResult> {
         { "x-api-key": ANTHROPIC_API_KEY as string, "anthropic-version": "2023-06-01" },
         { model, max_tokens: 1024, system, messages: turns },
       )) as { content?: Array<{ text?: string }> };
-      return { content: json.content?.[0]?.text ?? "", provider, model };
-    }
+      return json.content?.[0]?.text ?? "";
+    },
+  },
+};
 
-    default:
-      throw new AiError("Unsupported provider.", 400);
-  }
+/** The real (non-`none`) provider ids — the registry's keys. */
+export const AI_PROVIDER_IDS: readonly string[] = Object.keys(PROVIDERS);
+
+/** Report whether AI assist is configured + which provider/model is active. */
+export function aiStatus(): AiStatus {
+  const provider = getSettings().aiProvider;
+  const def = provider === "none" ? undefined : PROVIDERS[provider];
+  // `none` or a bad stored value ⇒ not configured (keeps the function total).
+  if (!def) return { provider, model: provider === "none" ? null : resolvedModel(provider), configured: false, detail: "No AI provider selected." };
+  return { provider, model: resolvedModel(provider), ...def.status() };
+}
+
+/** Send a chat-completion to the configured provider and return the reply. Throws
+ *  AiError when no provider is configured or the upstream call fails. */
+export async function aiChat(messages: ChatMessage[]): Promise<ChatResult> {
+  const provider = getSettings().aiProvider;
+  const def = provider === "none" ? undefined : PROVIDERS[provider];
+  if (!def) throw new AiError("No AI provider is configured.", 400);
+  const status = aiStatus();
+  if (!status.configured) throw new AiError(status.detail, 400);
+
+  const model = resolvedModel(provider);
+  const content = await def.chat(model, messages);
+  return { content, provider, model };
 }

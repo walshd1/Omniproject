@@ -8,6 +8,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **AI providers + column coercion are registry-driven** — two more bespoke
+  `switch` statements become registries. `ai.ts` now holds an `AI_PROVIDERS` registry
+  (`provider → { status, chat }`), so the AI status + chat paths route by lookup and
+  adding a provider is one entry (a guard test asserts the registry covers every
+  non-`none` provider). `column-mapper.ts`'s `coerceValue` switch becomes a
+  `FieldType → coercer` registry. Both behaviour-identical.
 - **Action dispatch is registry-driven, not switch-driven** — the two hand-written
   `switch (action)` statements become handler registries keyed by action. The
   broker-core binding switch is now `BINDING_ACTIONS` (the canonical binding-action
