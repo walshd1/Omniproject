@@ -979,6 +979,18 @@ test("backends: catalogue exposes a tier per backend", () => {
   assert.equal(jira?.tier, "standard");
 });
 
+test("backends: catalogue reports transport + which brokers reach each backend", () => {
+  const cat = backendCatalogue();
+  // An HTTP backend is broker-portable (n8n / Make / a custom sidecar).
+  const netsuite = cat.find((b) => b.id === "netsuite");
+  assert.equal(netsuite?.transport, "http");
+  assert.deepEqual(netsuite?.brokers, ["n8n", "make", "http-sidecar"]);
+  // A native-node backend is n8n-tied.
+  const linear = cat.find((b) => b.id === "linear");
+  assert.equal(linear?.transport, "native-node");
+  assert.deepEqual(linear?.brokers, ["n8n"]);
+});
+
 // ── Broker seam: DemoBroker runs the app with no n8n ────────────────────────────
 import { DemoBroker } from "../broker/demo";
 import type { ActorContext, Broker } from "../broker/types";

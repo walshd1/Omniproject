@@ -229,3 +229,14 @@ So: **Make** is a drop-in alternative to n8n for the full read/write contract;
 **Zapier/IFTTT** widen the *event* surface (notifications in, automations out) but
 sit alongside a real broker rather than replacing it. For the data hop, the
 HTTP-binding sidecar (§5) or n8n/Make remain the supported paths.
+
+**Which broker reaches which backend.** The catalogue keeps a single neutral list
+of backends and reports, per backend, its **transport** and the **brokers** that
+can serve it (`backendCatalogue()` → `transport` + `brokers`, derived from the
+binding so it can't drift):
+
+- **`http`** backends (Smartsheet, NetSuite, Dynamics, JSM, Dolibarr, Google
+  Tasks, Todoist, …) are **broker-portable** — `["n8n", "make", "http-sidecar"]`.
+- **`native-node`** backends (Jira, Asana, Linear, Salesforce, Zendesk, …) are
+  **n8n-tied** — `["n8n"]` — until their actions are rebuilt as HTTP for another
+  broker.

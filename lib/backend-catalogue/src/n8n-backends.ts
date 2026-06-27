@@ -17,7 +17,7 @@
  * their own backend version. They are intentionally easy to tweak post-import.
  */
 
-import type { BackendManifest, ContractAction, BackendTier } from "./backend-manifest";
+import { brokersForTransport, type BackendManifest, type ContractAction, type BackendTier, type TransportMethod } from "./backend-manifest";
 
 /**
  * An action is implemented either as a raw HTTP call or — preferably, where n8n
@@ -385,6 +385,61 @@ export const BACKENDS: BackendDefinition[] = [
     notes: "Sheets → projects, rows → issues. issueId = row id; map your title column id after import.",
   },
 
+  // ── Personal task managers: task list → project, task → issue ────────────────
+  {
+    id: "microsoft-todo",
+    label: "Microsoft To Do",
+    docsUrl: "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.microsofttodo/",
+    via: "Native n8n node (microsoftToDoOAuth2Api credential)",
+    authHeader: "",
+    requiredEnv: [],
+    credentialType: "microsoftToDoOAuth2Api",
+    capabilities: { ...CAPS_CORE },
+    actions: {
+      list_projects: { kind: "n8nNode", node: "n8n-nodes-base.microsoftToDo", typeVersion: 1, parameters: { resource: "list", operation: "getAll", returnAll: true }, note: "Task lists map to projects." },
+      list_issues: { kind: "n8nNode", node: "n8n-nodes-base.microsoftToDo", typeVersion: 1, parameters: { resource: "task", operation: "getAll", returnAll: true, taskListId: "={{ $json.body.payload.projectId }}" } },
+      create_issue: { kind: "n8nNode", node: "n8n-nodes-base.microsoftToDo", typeVersion: 1, parameters: { resource: "task", operation: "create", taskListId: "={{ $json.body.payload.projectId }}", title: "={{ $json.body.payload.title }}" } },
+      update_issue: { kind: "n8nNode", node: "n8n-nodes-base.microsoftToDo", typeVersion: 1, parameters: { resource: "task", operation: "update", taskListId: "={{ $json.body.payload.projectId }}", taskId: "={{ $json.body.payload.issueId }}", updateFields: { title: "={{ $json.body.payload.title }}" } } },
+      delete_issue: { kind: "n8nNode", node: "n8n-nodes-base.microsoftToDo", typeVersion: 1, parameters: { resource: "task", operation: "delete", taskListId: "={{ $json.body.payload.projectId }}", taskId: "={{ $json.body.payload.issueId }}" } },
+    },
+    notes: "Personal task manager: task lists → projects, tasks → issues. Updates/deletes need both the list id (projectId) and the task id (issueId).",
+  },
+  {
+    id: "google-tasks",
+    label: "Google Tasks",
+    docsUrl: "https://developers.google.com/tasks/reference/rest",
+    via: "HTTP (Google Tasks API) + n8n-managed Google OAuth",
+    authHeader: "",
+    requiredEnv: [],
+    credentialType: "googleTasksOAuth2Api",
+    capabilities: { ...CAPS_CORE },
+    actions: {
+      list_projects: { method: "GET", url: "https://tasks.googleapis.com/tasks/v1/users/@me/lists", note: "Task lists map to projects." },
+      list_issues: { method: "GET", url: "https://tasks.googleapis.com/tasks/v1/lists/{{ $json.body.payload.projectId }}/tasks" },
+      create_issue: { method: "POST", url: "https://tasks.googleapis.com/tasks/v1/lists/{{ $json.body.payload.projectId }}/tasks", body: "={{ JSON.stringify({ title: $json.body.payload.title }) }}" },
+      update_issue: { method: "PATCH", url: "https://tasks.googleapis.com/tasks/v1/lists/{{ $json.body.payload.projectId }}/tasks/{{ $json.body.payload.issueId }}", body: "={{ JSON.stringify({ title: $json.body.payload.title }) }}" },
+      delete_issue: { method: "DELETE", url: "https://tasks.googleapis.com/tasks/v1/lists/{{ $json.body.payload.projectId }}/tasks/{{ $json.body.payload.issueId }}" },
+    },
+    notes: "Task lists → projects, tasks → issues. Auth via an n8n Google OAuth2 credential scoped to Tasks.",
+  },
+  {
+    id: "todoist",
+    label: "Todoist",
+    docsUrl: "https://developer.todoist.com/rest/v2/",
+    via: "HTTP (Todoist REST v2) + bearer token",
+    authHeader: "=Bearer {{ $env.TODOIST_TOKEN }}",
+    requiredEnv: ["TODOIST_TOKEN"],
+    capabilities: { ...CAPS_CORE },
+    actions: {
+      list_projects: { method: "GET", url: "https://api.todoist.com/rest/v2/projects", note: "Todoist projects." },
+      list_issues: { method: "GET", url: "https://api.todoist.com/rest/v2/tasks?project_id={{ $json.body.payload.projectId }}" },
+      create_issue: { method: "POST", url: "https://api.todoist.com/rest/v2/tasks", body: "={{ JSON.stringify({ content: $json.body.payload.title, project_id: $json.body.payload.projectId }) }}" },
+      update_issue: { method: "POST", url: "https://api.todoist.com/rest/v2/tasks/{{ $json.body.payload.issueId }}", body: "={{ JSON.stringify({ content: $json.body.payload.title }) }}" },
+      delete_issue: { method: "DELETE", url: "https://api.todoist.com/rest/v2/tasks/{{ $json.body.payload.issueId }}" },
+    },
+    notes: "Projects → projects, tasks → issues. issueId = task id. TODOIST_TOKEN is a per-account Todoist API token.",
+  },
+
   // ── CRM: accounts/companies → projects, opportunities/deals → issues ─────────
   {
     id: "salesforce",
@@ -630,18 +685,35 @@ export function isEnterpriseBackend(id: string): boolean {
   return ENTERPRISE_BACKENDS.has(id);
 }
 
+/**
+ * The integration METHOD for a backend, DERIVED from its binding (single source of
+ * truth — can't drift): any native n8n node ⇒ "native-node" (n8n-tied), otherwise
+ * plain "http" (portable across n8n / Make / a custom sidecar). This is what lets
+ * the catalogue stay a neutral backend list while still saying which brokers reach
+ * each one.
+ */
+export function transportOf(def: BackendDefinition): TransportMethod {
+  return Object.values(def.actions).some((m) => m?.kind === "n8nNode") ? "native-node" : "http";
+}
+
 /** Lightweight catalogue for the wizard UI (no n8n expressions). */
 export function backendCatalogue() {
-  return BACKENDS.map((b) => ({
-    id: b.id,
-    label: b.label,
-    docsUrl: b.docsUrl,
-    via: b.via,
-    credentialType: b.credentialType ?? null,
-    requiredEnv: b.requiredEnv,
-    actions: Object.keys(b.actions),
-    capabilities: b.capabilities,
-    notes: b.notes,
-    tier: (isEnterpriseBackend(b.id) ? "enterprise" : "standard") as BackendTier,
-  }));
+  return BACKENDS.map((b) => {
+    const transport = transportOf(b);
+    return {
+      id: b.id,
+      label: b.label,
+      docsUrl: b.docsUrl,
+      via: b.via,
+      credentialType: b.credentialType ?? null,
+      requiredEnv: b.requiredEnv,
+      actions: Object.keys(b.actions),
+      capabilities: b.capabilities,
+      notes: b.notes,
+      tier: (isEnterpriseBackend(b.id) ? "enterprise" : "standard") as BackendTier,
+      // Which integration method + which brokers can reach this backend.
+      transport,
+      brokers: brokersForTransport(transport),
+    };
+  });
 }
