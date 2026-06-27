@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { connectedBrokers, connectedBrokerKinds, brokersSupporting } from "./registry";
+import { connectedBrokers, connectedBrokerKinds, brokersSupporting, brokerForCommand } from "./registry";
 import { getBroker } from "./index";
 import { getBrokerDef } from "@workspace/backend-catalogue";
 
@@ -48,4 +48,22 @@ test("brokersSupporting: a non-capability key matches no live broker (only demo'
   process.env["BROKER_KINDS"] = "n8n";
   const who = brokersSupporting("not-a-capability");
   assert.ok(!who.includes("n8n"));
+});
+
+test("brokerForCommand: keeps the primary (live hop) whenever it qualifies", () => {
+  // No intent ⇒ the primary serves it.
+  assert.equal(brokerForCommand(), ACTIVE);
+  // The demo primary simulates the full reference broker, so it qualifies for any
+  // transport or known capability — it stays the target even with extra kinds wired.
+  process.env["BROKER_KINDS"] = "n8n,node-red";
+  assert.ok(connectedBrokerKinds().includes("node-red"));
+  assert.equal(brokerForCommand({ transport: "native-node" }), ACTIVE);
+  assert.equal(brokerForCommand({ capability: "eventsOutbound" }), ACTIVE);
+});
+
+test("brokerForCommand: falls back to the primary when nothing is eligible", () => {
+  process.env["BROKER_KINDS"] = "n8n";
+  // A capability no connected broker supports ⇒ no one is eligible ⇒ fall back to
+  // the primary rather than return nothing (the command still has a target).
+  assert.equal(brokerForCommand({ capability: "not-a-capability" }), ACTIVE);
 });

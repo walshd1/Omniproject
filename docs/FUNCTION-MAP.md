@@ -112,6 +112,7 @@ The broker router / registry — which broker KINDS are connected to this deploy
 | `connectedBrokers` | The brokers connected to this deployment. |
 | `connectedBrokerKinds` | The DISTINCT connected broker kinds — the list the capability resolver unions over. |
 | `brokersSupporting` | The routing primitive: which connected broker kinds can serve a given capability (e.g. "who can deliver `eventsOutbound`?"). |
+| `brokerForCommand` | Per-kind command ROUTING — choose which connected broker KIND should serve a command, given what it needs (transport + capability). |
 
 ### `artifacts/api-server/src/broker/templates/pipedream-component.ts`
 

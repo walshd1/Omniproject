@@ -8,6 +8,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Per-kind broker command routing (decision layer)** — `brokerForCommand(intent)`
+  chooses which connected broker KIND should serve a command given what it needs
+  (`transport` and/or `capability`), built on the multi-broker registry. The rule:
+  keep the PRIMARY (the live data/command hop) whenever it qualifies — heterogeneous
+  fan-out is the exception, not the default — else the first eligible connected
+  broker, else fall back to the primary. Honest scope: this is the routing DECISION;
+  actual dispatch still goes through `getBroker()` (one concrete adapter + demo), so
+  routing a command to a genuinely different connected platform additionally needs
+  per-kind adapter instances bound to each endpoint — that's the remaining work. The
+  decision is now explicit + tested, ready for those adapters.
+
 - **Node-RED broker — with an importable flow you can truly test against** (**Stable**)
   — a seventh reference broker, added as a single JSON drop
   (`vendors/brokers/node-red.json`) — the architecture's promise in action. Node-RED
