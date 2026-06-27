@@ -44,6 +44,15 @@ export interface RuleVerdict {
 
 const has = (p: Record<string, unknown> | undefined, k: string): boolean => p != null && p[k] != null && p[k] !== "";
 
+/** Coerce a payload value to epoch-ms, or null if it isn't a usable date. Accepts
+ *  Date, ISO string, or epoch number (zod `coerce.date` may hand us any of these). */
+function asTime(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const d = v instanceof Date ? v : new Date(v as string | number);
+  const t = d.getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
 /** Built-in rules. Operators toggle each rule's MODE; the predicates are fixed. */
 export const BUSINESS_RULES: BusinessRule[] = [
   {
@@ -61,6 +70,18 @@ export const BUSINESS_RULES: BusinessRule[] = [
   {
     id: "require-description", label: "Require a description", description: "New issues must have a description.", defaultMode: "off",
     applies: (c) => c.action === "create_issue" && !has(c.payload, "description"), message: () => "A description is required on new issues (business rule).",
+  },
+  {
+    // A cross-field comparison — something the field-rule mechanism (presence only)
+    // cannot express, so it lives here as a fixed predicate. Off by default.
+    id: "due-after-start", label: "Due date not before start", description: "An issue's due date must not fall before its start date.", defaultMode: "off",
+    applies: (c) => {
+      if (c.action !== "create_issue" && c.action !== "update_issue") return false;
+      const start = asTime(c.payload?.["startDate"]);
+      const due = asTime(c.payload?.["dueDate"]);
+      return start !== null && due !== null && due < start;
+    },
+    message: () => "The due date cannot be earlier than the start date (business rule).",
   },
 ];
 
@@ -147,6 +168,24 @@ export function setRuleModes(next: Record<string, unknown>): Record<string, Rule
     if (typeof m === "string" && (VALID as string[]).includes(m)) modes[r.id] = m as RuleMode;
   }
   return getRuleModes();
+}
+
+/**
+ * Apply a named reference ruleset bundle (modes + field rules) atomically and
+ * DETERMINISTICALLY: every built-in resets to "off" first, then the bundle's modes
+ * apply, and the field-rule set is replaced wholesale. Restrict-only is preserved —
+ * this routes through setRuleModes/setFieldRules, which only accept known ids, valid
+ * modes and well-formed field rules, so a bundle can never grant or loosen a gate.
+ */
+export function applyRuleset(bundle: { modes: Record<string, RuleMode>; fieldRules: unknown }): {
+  modes: Record<string, RuleMode>;
+  fieldRules: FieldRule[];
+} {
+  const full: Record<string, RuleMode> = {};
+  for (const r of BUSINESS_RULES) full[r.id] = bundle.modes[r.id] ?? "off";
+  setRuleModes(full);
+  setFieldRules(bundle.fieldRules);
+  return { modes: getRuleModes(), fieldRules: getFieldRules() };
 }
 
 /** The catalogue for an admin UI (rule + current mode). */

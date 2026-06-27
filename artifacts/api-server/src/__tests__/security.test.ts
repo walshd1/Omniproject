@@ -21,6 +21,8 @@ process.env["SESSION_SECRET"] = SECRET;
 process.env["API_TOKENS"] = "ro-token-aaa,ro-token-bbb";
 process.env["OIDC_ISSUER_URL"] = "https://idp.test/realm";
 process.env["OIDC_ADMIN_ROLES"] = "omni-admins";
+process.env["OIDC_PMO_ROLES"] = "omni-pmo";
+process.env["OIDC_MANAGER_ROLES"] = "omni-managers";
 process.env["OIDC_DEFAULT_ROLE"] = "viewer";
 process.env["NODE_ENV"] = "production";
 process.env["RATE_LIMIT_DISABLED"] = "true"; // isolate auth behaviour from the limiter
@@ -38,7 +40,11 @@ function signedSessionCookie(session: object): string {
 }
 
 const VIEWER = signedSessionCookie({ sub: "viewer-1", roles: [] });
+const MANAGER = signedSessionCookie({ sub: "manager-1", roles: ["omni-managers"] });
+const PMO = signedSessionCookie({ sub: "pmo-1", roles: ["omni-pmo"] });
 const ADMIN = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"] });
+// Holds BOTH authorities — the join (governance + technical).
+const PMO_ADMIN = signedSessionCookie({ sub: "both-1", roles: ["omni-pmo", "omni-admins"] });
 
 before(async () => {
   const { default: app } = await import("../app");
@@ -131,6 +137,118 @@ test("RBAC: an admin CAN read the field manifest", async () => {
   const body = (await res.json()) as { reconciliation: { known: string[]; unknown: string[] }; customFields: unknown[] };
   assert.ok(body.reconciliation.known.length > 0);
   assert.ok(body.reconciliation.unknown.includes("customerTier"));
+});
+
+// ── PMO tier: business governance (ruleset) is PMO+, technical config stays admin ──
+test("RBAC: a manager CANNOT read the business ruleset (PMO gate, 403)", async () => {
+  // The ruleset is programme/business governance — PMO domain, above plain manager.
+  const res = await req("/api/admin/ruleset", { headers: { cookie: MANAGER } });
+  assert.equal(res.status, 403);
+});
+
+test("RBAC: a PMO CAN read AND set the business ruleset", async () => {
+  const get = await req("/api/admin/ruleset", { headers: { cookie: PMO } });
+  assert.equal(get.status, 200);
+  const put = await req("/api/admin/ruleset", {
+    method: "PUT",
+    headers: { cookie: PMO, "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.equal(put.status, 200);
+});
+
+test("RBAC: a PURE admin CANNOT read the business ruleset (governance is orthogonal)", async () => {
+  // The decisive change: admin is the TECHNICAL authority, not a superset of PMO.
+  // A pure admin holds no governance grant, so the business ruleset is closed to it.
+  const res = await req("/api/admin/ruleset", { headers: { cookie: ADMIN } });
+  assert.equal(res.status, 403);
+});
+
+test("RBAC: holding BOTH pmo+admin (the join) clears governance AND technical gates", async () => {
+  // Business governance (pmo) …
+  assert.equal((await req("/api/admin/ruleset", { headers: { cookie: PMO_ADMIN } })).status, 200);
+  // … and technical config (admin) — the union.
+  assert.equal((await req("/api/admin/broker-log", { headers: { cookie: PMO_ADMIN } })).status, 200);
+});
+
+test("RBAC: a PMO can list AND apply a methodology reference ruleset", async () => {
+  const list = await req("/api/admin/ruleset/reference", { headers: { cookie: PMO } });
+  assert.equal(list.status, 200);
+  const bundles = (await list.json()) as { methodology: string }[];
+  assert.ok(bundles.some((b) => b.methodology === "scrum"));
+  // Apply Scrum (warns + schedule-sanity hard — no hard field rule, so it can't
+  // wedge the other tests' create paths).
+  const apply = await req("/api/admin/ruleset/apply-reference", {
+    method: "POST",
+    headers: { cookie: PMO, "content-type": "application/json" },
+    body: JSON.stringify({ methodology: "scrum" }),
+  });
+  assert.equal(apply.status, 200);
+  const after = (await apply.json()) as { rules: { id: string; mode: string }[] };
+  assert.equal(after.rules.find((r) => r.id === "due-after-start")?.mode, "hard");
+});
+
+test("RBAC: neither a manager NOR a pure admin can apply a reference ruleset (PMO gate)", async () => {
+  for (const cookie of [MANAGER, ADMIN]) {
+    const res = await req("/api/admin/ruleset/apply-reference", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ methodology: "scrum" }),
+    });
+    assert.equal(res.status, 403);
+  }
+});
+
+test("RBAC: a PMO CANNOT read the technical broker-log (still admin-only)", async () => {
+  // The PMO owns business rules, not technical config — the security boundary holds.
+  const res = await req("/api/admin/broker-log", { headers: { cookie: PMO } });
+  assert.equal(res.status, 403);
+});
+
+test("role-map editor is admin-only (PMO is business, not technical)", async () => {
+  // PMO is blocked — managing IdP-group → role mapping is technical config.
+  assert.equal((await req("/api/admin/role-map", { headers: { cookie: PMO } })).status, 403);
+  // Admin can read the mapping…
+  const get = await req("/api/admin/role-map", { headers: { cookie: ADMIN } });
+  assert.equal(get.status, 200);
+  const body = (await get.json()) as { roles: string[]; mapping: { role: string }[] };
+  assert.ok(body.roles.includes("pmo") && body.mapping.some((m) => m.role === "pmo"));
+  // …and set an override (only known roles are accepted).
+  const put = await req("/api/admin/role-map", {
+    method: "PUT",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ pmo: ["programme-managers"], wizard: ["nope"] }),
+  });
+  assert.equal(put.status, 200);
+  const after = (await put.json()) as { mapping: { role: string; claims: string[]; source: string }[] };
+  assert.equal(after.mapping.some((m) => m.role === "wizard"), false, "cannot invent a role");
+  assert.deepEqual(after.mapping.find((m) => m.role === "pmo")?.claims, ["programme-managers"]);
+  // Restore the PMO group so later PMO-session tests still resolve (overrides are
+  // module-global and REPLACE env).
+  await req("/api/admin/role-map", {
+    method: "PUT",
+    headers: { cookie: ADMIN, "content-type": "application/json" },
+    body: JSON.stringify({ pmo: ["omni-pmo"] }),
+  });
+});
+
+test("RBAC: a PMO CANNOT change technical settings (still admin-only)", async () => {
+  const res = await req("/api/settings", {
+    method: "PATCH",
+    headers: { cookie: PMO, "content-type": "application/json" },
+    body: JSON.stringify({ brokerUrl: "http://evil.example" }),
+  });
+  assert.equal(res.status, 403);
+});
+
+test("admin-only backends (raw SQL / Mongo) are hidden from non-admins in the wizard", async () => {
+  const forViewer = (await (await req("/api/setup/backends", { headers: { cookie: VIEWER } })).json()) as { id: string; adminOnly: boolean }[];
+  assert.equal(forViewer.some((b) => b.id === "sql" || b.id === "mongodb"), false, "non-admin must not be offered DB backends");
+  assert.ok(forViewer.some((b) => b.id === "excel"), "but the Excel import source is fine for anyone");
+
+  const forAdmin = (await (await req("/api/setup/backends", { headers: { cookie: ADMIN } })).json()) as { id: string; adminOnly: boolean }[];
+  const sql = forAdmin.find((b) => b.id === "sql");
+  assert.ok(sql?.adminOnly, "admin sees the SQL backend, flagged admin-only");
 });
 
 test("RBAC: an admin is NOT blocked by the contributor gate", async () => {

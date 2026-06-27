@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import type { Request } from "express";
 
 import { versionConflict } from "../lib/concurrency";
-import { roleFromClaims } from "../lib/rbac";
+import { roleFromClaims, grantsFromClaims } from "../lib/rbac";
 import { idempotencyKey } from "../broker/n8n";
 import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
@@ -75,8 +75,95 @@ test("roleFromClaims: admin outranks manager when user has both", () => {
   delete process.env["OIDC_MANAGER_ROLES"];
 });
 
+test("roleFromClaims: maps the configured PMO role (between manager and admin)", () => {
+  process.env["OIDC_PMO_ROLES"] = "programme-managers";
+  assert.equal(roleFromClaims(["Programme-Managers"], { isDemo: false }), "pmo");
+  delete process.env["OIDC_PMO_ROLES"];
+});
+
+test("roleFromClaims: admin outranks pmo; pmo outranks manager", () => {
+  process.env["OIDC_ADMIN_ROLES"] = "platform-admins";
+  process.env["OIDC_PMO_ROLES"] = "programme-managers";
+  process.env["OIDC_MANAGER_ROLES"] = "delivery-leads";
+  // Holding both PMO and admin → admin (the superset; one person can hold both).
+  assert.equal(roleFromClaims(["programme-managers", "platform-admins"], { isDemo: false }), "admin");
+  // Holding both PMO and manager → pmo (the higher of the two).
+  assert.equal(roleFromClaims(["programme-managers", "delivery-leads"], { isDemo: false }), "pmo");
+  delete process.env["OIDC_ADMIN_ROLES"];
+  delete process.env["OIDC_PMO_ROLES"];
+  delete process.env["OIDC_MANAGER_ROLES"];
+});
+
 test("roleFromClaims: unmatched claims fall back to contributor by default", () => {
   assert.equal(roleFromClaims(["some-random-group"], { isDemo: false }), "contributor");
+});
+
+test("grants: pmo and admin are ORTHOGONAL authorities, joinable, each implying manager base", () => {
+  process.env["OIDC_ADMIN_ROLES"] = "tech";
+  process.env["OIDC_PMO_ROLES"] = "gov";
+  try {
+    // Pure admin: technical authority, NO governance — and manager-level base.
+    const admin = grantsFromClaims(["tech"], { isDemo: false });
+    assert.deepEqual([...admin.authorities].sort(), ["admin"]);
+    assert.equal(admin.base, "manager");
+
+    // Pure PMO: governance authority, NO technical.
+    const pmo = grantsFromClaims(["gov"], { isDemo: false });
+    assert.deepEqual([...pmo.authorities].sort(), ["pmo"]);
+    assert.equal(pmo.base, "manager");
+
+    // The JOIN: holding both grants the union.
+    const both = grantsFromClaims(["gov", "tech"], { isDemo: false });
+    assert.deepEqual([...both.authorities].sort(), ["admin", "pmo"]);
+
+    // A plain manager has neither authority.
+    process.env["OIDC_MANAGER_ROLES"] = "lead";
+    const mgr = grantsFromClaims(["lead"], { isDemo: false });
+    assert.equal(mgr.authorities.size, 0);
+    assert.equal(mgr.base, "manager");
+  } finally {
+    delete process.env["OIDC_ADMIN_ROLES"];
+    delete process.env["OIDC_PMO_ROLES"];
+    delete process.env["OIDC_MANAGER_ROLES"];
+  }
+});
+
+test("grants: demo holds every authority (out-of-box usable)", () => {
+  const g = grantsFromClaims([], { isDemo: true });
+  assert.deepEqual([...g.authorities].sort(), ["admin", "pmo"]);
+  assert.equal(g.base, "manager");
+});
+
+test("role-map override: an admin override replaces the env list for that role", async () => {
+  const { setRoleMap, resetRoleMap, getRoleMap } = await import("../lib/rbac");
+  process.env["OIDC_PMO_ROLES"] = "from-env";
+  try {
+    // Base: env maps "from-env" → pmo.
+    assert.equal(roleFromClaims(["from-env"], { isDemo: false }), "pmo");
+    // Override pmo to a different group → the env group no longer lands in pmo.
+    setRoleMap({ pmo: ["from-override"] });
+    assert.equal(roleFromClaims(["from-override"], { isDemo: false }), "pmo");
+    assert.equal(roleFromClaims(["from-env"], { isDemo: false }), "contributor", "override REPLACES env for that role");
+    assert.equal(getRoleMap().find((m) => m.role === "pmo")?.source, "override");
+  } finally {
+    resetRoleMap();
+    delete process.env["OIDC_PMO_ROLES"];
+  }
+});
+
+test("role-map override is restrict-to-known-roles: it can't invent a role or grant", async () => {
+  const { setRoleMap, resetRoleMap, getRoleMap } = await import("../lib/rbac");
+  try {
+    const before = getRoleMap();
+    setRoleMap({ wizard: ["x"], admin: "not-an-array", pmo: ["ok-group", 123, ""] } as Record<string, unknown>);
+    const after = getRoleMap();
+    // No "wizard" role exists; admin (bad value) untouched; pmo cleaned to valid strings.
+    assert.equal(after.some((m) => (m.role as string) === "wizard"), false);
+    assert.deepEqual(after.find((m) => m.role === "admin")?.claims, before.find((m) => m.role === "admin")?.claims);
+    assert.deepEqual(after.find((m) => m.role === "pmo")?.claims, ["ok-group"]);
+  } finally {
+    resetRoleMap();
+  }
 });
 
 test("roleFromClaims: OIDC_DEFAULT_ROLE overrides the fallback", () => {
@@ -574,10 +661,13 @@ test("buildConfigExport: compose and k8s render their own shapes", () => {
 test("BACKENDS: every manifest is well-formed", () => {
   assert.ok(BACKENDS.length >= 5);
   for (const b of BACKENDS) {
-    // Auth is either a per-user header or an n8n-managed credential.
-    assert.ok(b.id && b.label && (b.authHeader || b.credentialType), `manifest ${b.id} missing fields`);
+    assert.ok(b.id && b.label, `manifest ${b.id} missing fields`);
     assert.ok(b.via, `manifest ${b.id} missing via`);
     assert.ok(Array.isArray(b.requiredEnv));
+    // An "import" source (Excel/CSV) feeds /api/import, not a live broker — it
+    // carries no auth + no contract read actions. Live/database backends must.
+    if (b.kind === "import") continue;
+    assert.ok(b.authHeader || b.credentialType, `manifest ${b.id} missing auth`);
     assert.ok(b.actions.list_projects && b.actions.list_issues, `${b.id} must map core reads`);
   }
 });

@@ -22,6 +22,8 @@ import labelsRouter from "./labels";
 import webhooksRouter from "./webhooks";
 import mcpRouter from "./mcp";
 import rulesetRouter from "./ruleset";
+import importRouter from "./import";
+import roleMapRouter from "./role-map";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -98,5 +100,7 @@ router.use(requireAuth, odataRouter);
 router.use(requireAuth, historyRouter);
 router.use(requireAuth, brokerLogRouter);
 router.use(requireAuth, rulesetRouter);
+router.use(requireAuth, importRouter);
+router.use(requireAuth, roleMapRouter);
 
 export default router;

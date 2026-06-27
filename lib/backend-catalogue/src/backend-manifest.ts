@@ -53,5 +53,21 @@ export interface BackendManifest {
   requiredEnv: string[];
   /** Default capability flags this backend can populate out of the box. */
   capabilities: Record<string, boolean>;
+  /**
+   * What kind of source this is:
+   *  - "live"     (default) a SaaS/HTTP API brokered continuously.
+   *  - "import"   a one-shot tabular source (Excel/CSV) — fed through the column
+   *               mapper + /api/import, NOT brokered live.
+   *  - "database" a direct datastore (SQL/Mongo) reached via an HTTP sidecar that
+   *               holds the connection — for internally-hosted / legacy systems.
+   */
+  kind?: "live" | "import" | "database";
+  /**
+   * Sensitive/technical backend that ONLY an admin may configure. Raw SQL and
+   * MongoDB give arbitrary query power over internal stores, so they are gated to
+   * admin — defence-in-depth on top of the already admin-gated settings route, and
+   * a UX signal that this is a technical, not a business, integration.
+   */
+  adminOnly?: boolean;
   notes?: string;
 }

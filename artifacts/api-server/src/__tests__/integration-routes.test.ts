@@ -353,6 +353,83 @@ test("GET /api/setup/backends returns the workflow catalogue", async () => {
   assert.ok(json.length > 0);
 });
 
+test("setup/backends surfaces the Excel import source (kind=import, no live brokers)", async () => {
+  const json = await readJson(await get("/api/setup/backends"));
+  const excel = json.find((b: { id: string }) => b.id === "excel");
+  assert.ok(excel, "Excel backend present");
+  assert.equal(excel.kind, "import");
+  assert.deepEqual(excel.brokers, [], "an import source is not brokered live");
+  assert.equal(excel.adminOnly, false);
+});
+
+// ── Tabular import (column/field mapper over HTTP) ────────────────────────────
+const postImport = (path: string, body: unknown) =>
+  get(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+test("POST /api/import/preview auto-maps columns and previews mapped rows", async () => {
+  const res = await postImport("/api/import/preview", {
+    rows: [{ Summary: "Build login", Owner: "alice", Points: "5", Mystery: "x" }],
+  });
+  assert.equal(res.status, 200);
+  const json = await readJson(res);
+  const title = json.mapping.find((m: { column: string }) => m.column === "Summary");
+  assert.equal(title.suggestedField, "title");
+  assert.ok(json.unmapped.includes("Mystery"));
+  assert.equal(json.preview[0].title, "Build login");
+  assert.equal(json.preview[0].storyPoints, 5);
+});
+
+test("POST /api/import/preview 400s when given neither headers nor rows", async () => {
+  const res = await postImport("/api/import/preview", {});
+  assert.equal(res.status, 400);
+});
+
+test("POST /api/import/commit writes mapped rows through the broker (demo)", async () => {
+  const res = await postImport("/api/import/commit", {
+    projectId: "proj-1",
+    rows: [
+      { Summary: "Imported A", Owner: "alice" },
+      { Summary: "Imported B", Owner: "bob" },
+    ],
+  });
+  assert.equal(res.status, 201);
+  const json = await readJson(res);
+  assert.equal(json.created.length, 2);
+  assert.equal(json.skipped.length, 0);
+  assert.ok(json.fields.some((f: { field: string }) => f.field === "title"));
+});
+
+test("POST /api/import/commit 400s without a title column in the mapping", async () => {
+  const res = await postImport("/api/import/commit", {
+    projectId: "proj-1",
+    rows: [{ Owner: "alice", Points: "3" }],
+  });
+  assert.equal(res.status, 400);
+  assert.match((await readJson(res)).error, /title/);
+});
+
+test("import/commit honours the business ruleset per row (a hard rule skips the row)", async () => {
+  const put = (body: unknown) => get("/api/admin/ruleset", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  try {
+    await put({ "require-description": "hard" }); // every created issue must have a description
+    const res = await postImport("/api/import/commit", {
+      projectId: "proj-1",
+      rows: [
+        { Summary: "Has desc", Details: "a description", Owner: "alice" },
+        { Summary: "No desc", Owner: "bob" },
+      ],
+    });
+    // One row passes, one is skipped by the business rule → 207 multi-status.
+    assert.equal(res.status, 207);
+    const json = await readJson(res);
+    assert.equal(json.created.length, 1);
+    assert.equal(json.skipped.length, 1);
+    assert.equal(json.skipped[0].rule, "require-description");
+  } finally {
+    await put({ "require-description": "off" });
+  }
+});
+
 test("GET /api/setup/export?format=env returns dotenv text", async () => {
   const res = await get("/api/setup/export?format=env");
   assert.equal(res.status, 200);
