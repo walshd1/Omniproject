@@ -3,6 +3,7 @@ import { getProjects, type Row } from "../lib/data";
 import { getPortfolioHealth } from "./portfolio";
 import { formatPrometheus, type AnyMetric } from "../lib/metrics";
 import { runtimeMetrics } from "../lib/runtime-metrics";
+import { ragBuckets } from "../broker/vocabulary";
 
 /**
  * BI / observability integration endpoints.
@@ -43,7 +44,7 @@ router.get("/metrics", async (req, res) => {
     }
 
     // Portfolio RAG counts (best-effort).
-    const rag: Record<string, number> = { GREEN: 0, AMBER: 0, RED: 0 };
+    const rag: Record<string, number> = ragBuckets();
     try {
       for (const r of await getPortfolioHealth(req)) {
         if (r.ragStatus in rag) rag[r.ragStatus] += 1;

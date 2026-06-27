@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Canonical value vocabularies below the seam** (**Stable**) — the cross-backend
+  meanings the gateway reasons about (status lifecycle, priority, RAG) now live in
+  one typed module (`broker/vocabulary.ts`) instead of being hard-coded as `"done"`
+  / `GREEN`/`AMBER`/`RED` in neutral code. Wire fields stay open strings; a backend
+  can declare a typed **`StatusVocabulary`** to map its dialect to canonical
+  statuses as *data*, so a vendor's status names are abstracted below the seam
+  rather than branched on in code. A new **vocabulary guard** test keeps these
+  meanings in their one home, the same way the broker guard keeps vendor names below
+  the seam. `programmes`, the Prometheus RAG gauge and the demo/reference brokers all
+  consume the shared module (de-duplicating the RAG/`ragFor`/financial-health logic).
 - **Open invitation to audit & pentest** (**Stable**) — a published vulnerability
   disclosure policy with explicit **scope, rules of engagement and safe-harbour**
   terms (test only your own instance; n8n/IdP/backends out of scope; no DoS), plus a

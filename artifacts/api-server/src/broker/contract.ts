@@ -159,6 +159,26 @@ export const OUTBOUND_HEADERS = {
 /** The signature scheme prefix (algorithm tag) on OUTBOUND_HEADERS.signature. */
 export const SIGNATURE_SCHEME = "sha256" as const;
 
+// ── Canonical value vocabularies ─────────────────────────────────────────────
+// The cross-backend meanings (status/priority/RAG) a broker normalises into.
+// Defined in ./vocabulary.ts and surfaced here so they're part of the one
+// published contract import surface. Wire fields stay open strings — these are
+// the canonical tokens the gateway classifies into, plus the typed StatusVocabulary
+// a backend declares to map its dialect below the seam.
+export {
+  CANONICAL_STATUS,
+  STATUS_CLASS,
+  CANONICAL_PRIORITY,
+  RAG_STATUSES,
+} from "./vocabulary";
+export type {
+  CanonicalStatus,
+  StatusClass,
+  CanonicalPriority,
+  RagStatus,
+  StatusVocabulary,
+} from "./vocabulary";
+
 // ── Single import surface ────────────────────────────────────────────────────
 // Re-export the domain entity + Broker types so a contract consumer (or the
 // generator) has one place to import the whole published surface from.

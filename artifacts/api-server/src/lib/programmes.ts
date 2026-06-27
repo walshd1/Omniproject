@@ -1,4 +1,5 @@
 import type { Row } from "./data";
+import { type RagStatus, ragFor, financialHealthFrom } from "../broker/vocabulary";
 
 /**
  * Programmes are a grouping of related projects, **derived** from each project's
@@ -32,7 +33,7 @@ export interface ProgrammeFinancials {
   variance: number;
   /** Rounded percentage variance against budget, when budget > 0. */
   variancePct: number | null;
-  health: "GREEN" | "AMBER" | "RED";
+  health: RagStatus;
   /** How many member projects contributed financial figures. */
   projectsCounted: number;
   /**
@@ -58,7 +59,7 @@ export interface ProgrammeRollup {
   issueCount: number;
   completedCount: number;
   completionRate: number;
-  ragStatus: "GREEN" | "AMBER" | "RED";
+  ragStatus: RagStatus;
   updatedAt: string | null;
   /** Present only when ≥1 member project carries financial data. */
   financials?: ProgrammeFinancials | null;
@@ -66,12 +67,6 @@ export interface ProgrammeRollup {
 
 export interface ProgrammeDetail extends ProgrammeRollup {
   projects: Row[];
-}
-
-function ragFor(completionRate: number): "GREEN" | "AMBER" | "RED" {
-  if (completionRate >= 60) return "GREEN";
-  if (completionRate >= 25) return "AMBER";
-  return "RED";
 }
 
 function num(v: unknown): number {
@@ -85,15 +80,6 @@ function optNum(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
-
-const financialHealth = (cpi: number | null, budget: number, actualCost: number): "GREEN" | "AMBER" | "RED" => {
-  // Prefer cost-performance when earned value is known; else fall back to the
-  // spend ratio against budget.
-  if (cpi !== null) return cpi < 0.9 ? "RED" : cpi < 1 ? "AMBER" : "GREEN";
-  if (budget <= 0) return "GREEN";
-  const ratio = actualCost / budget;
-  return ratio > 1 ? "RED" : ratio >= 0.9 ? "AMBER" : "GREEN";
-};
 
 /**
  * Sum member projects' denormalised financial fields. Returns null when no
@@ -141,7 +127,7 @@ export function aggregateFinancials(projects: Row[]): ProgrammeFinancials | null
     cpi,
     variance,
     variancePct: budget > 0 ? Math.round((variance / budget) * 100) : null,
-    health: financialHealth(cpi, budget, actualCost),
+    health: financialHealthFrom(cpi, budget, actualCost),
     projectsCounted: counted,
     reporting: { total: projects.length, costed: counted, earnedValue: evCount, committed: committedCount },
   };

@@ -1,6 +1,7 @@
 import { getSettings } from "../lib/settings";
 import { versionConflict } from "../lib/concurrency";
 import { CAPABILITY_DOMAINS, FIELD_KEYS, ENTITY_KEYS } from "../lib/capabilities";
+import { isDone, isClosed } from "./vocabulary";
 import {
   SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
   SAMPLE_PORTFOLIO, DEMO_FX, sampleActivity, sampleNotifications, persistDemoState,
@@ -65,14 +66,14 @@ const SAMPLE_NATIVE_FIELDS: Record<string, string> = {
  * demo-data. The project card reads these counts for its completion %, so they
  * must move when an issue is created/deleted OR when a status crosses done —
  * otherwise the card drifts from the board and the (always-recomputed) summary.
- * "Completed" matches the summary definition (status === "done").
+ * "Completed" matches the summary definition (a done-class status — isDone).
  */
 function recountProject(projectId: string): void {
   const proj = SAMPLE_PROJECTS.find((p) => p["id"] === projectId);
   if (!proj) return;
   const issues = SAMPLE_ISSUES[projectId] ?? [];
   proj["issueCount"] = issues.length;
-  proj["completedCount"] = issues.filter((i) => (i as { status?: string }).status === "done").length;
+  proj["completedCount"] = issues.filter((i) => isDone((i as { status?: string }).status)).length;
 }
 
 export class DemoBroker implements Broker {
@@ -158,7 +159,7 @@ export class DemoBroker implements Broker {
         ...(input.blockedReason != null ? { blockedReason: input.blockedReason } : {}),
         ...(input.mitigation != null ? { mitigation: input.mitigation } : {}),
         ...(input.defectCount != null ? { defectCount: input.defectCount } : {}),
-        source: backend === "openproject" ? "openproject" : "plane",
+        source: backend || "demo",
         version: 1,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -238,17 +239,18 @@ export class DemoBroker implements Broker {
     for (const issue of issues) {
       byStatus[issue.status] = (byStatus[issue.status] ?? 0) + 1;
       byPriority[issue.priority] = (byPriority[issue.priority] ?? 0) + 1;
-      if (issue.dueDate && new Date(issue.dueDate) < now && issue.status !== "done" && issue.status !== "cancelled") overdue++;
+      if (issue.dueDate && new Date(issue.dueDate) < now && !isClosed(issue.status)) overdue++;
     }
     const total = issues.length;
-    const completionRate = total > 0 ? Math.round(((byStatus["done"] ?? 0) / total) * 100) : 0;
+    const doneCount = issues.filter((i) => isDone(i.status)).length;
+    const completionRate = total > 0 ? Math.round((doneCount / total) * 100) : 0;
     return { projectId, total, byStatus, byPriority, completionRate, overdue };
   }
 
   async projectHistory(_ctx: ActorContext, projectId: string): Promise<HistoryPoint[]> {
     const issues = (SAMPLE_ISSUES[projectId] ?? []) as Array<{ status: string }>;
     const total = issues.length;
-    const done = issues.filter((i) => i.status === "done").length;
+    const done = issues.filter((i) => isDone(i.status)).length;
     const finalRate = total > 0 ? Math.round((done / total) * 100) : 0;
     const weeks = 8;
     const out: HistoryPoint[] = [];

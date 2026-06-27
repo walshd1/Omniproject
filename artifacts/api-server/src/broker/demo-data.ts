@@ -1,5 +1,6 @@
 import { DEV_PERSIST_FILE, saveState, loadState } from "../lib/dev-persist";
 import { INDICATIVE_FX_RATES } from "../lib/fx-fallback";
+import { CANONICAL_STATUS, CANONICAL_PRIORITY, isDone } from "./vocabulary";
 import type { Row, FxRates } from "./types";
 
 /**
@@ -62,8 +63,8 @@ for (const list of Object.values(SAMPLE_ISSUES)) {
   const n = Number(process.env["DEMO_SCALE_PROJECTS"]);
   if (!Number.isFinite(n) || n <= 0) return;
   const perProject = Math.max(1, Number(process.env["DEMO_SCALE_ISSUES"]) || 10);
-  const STATUSES = ["backlog", "todo", "in_progress", "in_review", "done", "cancelled"];
-  const PRIORITIES = ["none", "low", "medium", "high", "urgent"];
+  const STATUSES = [...CANONICAL_STATUS];
+  const PRIORITIES = [...CANONICAL_PRIORITY];
   const now = Date.now();
   for (let p = 0; p < n; p++) {
     const pid = `gen-${String(p + 1).padStart(4, "0")}`;
@@ -97,13 +98,13 @@ for (const list of Object.values(SAMPLE_ISSUES)) {
 // issues so the demo is internally consistent across /projects, /summary,
 // /history and /metrics (otherwise the project-card completion % derived from
 // these counts would disagree with the board's actual issues). "Completed"
-// mirrors the summary's definition (status === "done"). Projects with no seeded
-// issues are left untouched.
+// mirrors the summary's definition (a done-class status — isDone). Projects with
+// no seeded issues are left untouched.
 for (const project of SAMPLE_PROJECTS) {
   const issues = SAMPLE_ISSUES[project["id"] as string];
   if (!issues?.length) continue;
   project["issueCount"] = issues.length;
-  project["completedCount"] = issues.filter((i) => i["status"] === "done").length;
+  project["completedCount"] = issues.filter((i) => isDone(i["status"] as string)).length;
 }
 
 /** Canned activity-feed rows for demo mode (no backend). */
