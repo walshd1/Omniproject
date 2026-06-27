@@ -47,6 +47,18 @@ test("cross-plane: a broker can offer things on other planes (n8n → notificati
   assert.ok(n8n?.alsoProvides.some((x) => x.plane === "notifications"));
 });
 
+test("notifications speak MQTT (IoT pub/sub) and MCP (AI agent, pull-based)", async () => {
+  const { notificationCatalogue } = await import("./notification-catalogue");
+  const cat = notificationCatalogue();
+  const mqtt = cat.find((n) => n.id === "mqtt");
+  assert.equal(mqtt?.kind, "iot");
+  assert.equal(mqtt?.capabilities.delivery, "mqtt");
+  assert.equal(mqtt?.capabilities.inboundReply, true); // two-way pub/sub
+  const mcp = cat.find((n) => n.id === "mcp");
+  assert.equal(mcp?.kind, "agent");
+  assert.equal(mcp?.capabilities.delivery, "mcp");
+});
+
 test("backend kinds: Excel is an import source; SQL/Mongo are admin-only databases", () => {
   const cat = backendCatalogue();
   const excel = cat.find((b) => b.id === "excel");

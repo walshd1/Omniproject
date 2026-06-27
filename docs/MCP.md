@@ -22,6 +22,16 @@ stays stateless and the agent inherits capability-gating and the audit trail.
 | `omniproject_project_summary` | roll-up (totals, completion %, overdue) | `projectId` |
 | `omniproject_portfolio_health` | portfolio RAG / health | — |
 | `omniproject_capabilities` | which capability domains the backend supports | — |
+| `omniproject_list_reports` | report types available for this backend (Gantt/burndown/EVM/…) | — |
+| `omniproject_list_screens` | SPA screens the caller can open (+ each route) | — |
+| `omniproject_list_notifications` | the user's recent notifications/alerts (the MCP notification channel) | — |
+
+`list_reports` and `list_screens` tie MCP to the **reports** and **screens** planes,
+filtered to what's actually usable — a report only appears if the active backend
+declares the capability it needs, and a screen only if the caller's role clears its
+`requiresRole` (and the backend can feed it). So an agent discovers an honest menu
+("show me the EVM report", "open the Gantt for project X") rather than dead options.
+`list_notifications` is the pull side of the **MCP notification channel**.
 
 ## Write tools — ⚠️ here be dragons (opt-in, double-gated)
 

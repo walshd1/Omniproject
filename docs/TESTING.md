@@ -38,7 +38,33 @@ via Vitest + React Testing Library + jsdom (`vitest.config.ts`) at **~89% lines 
 - **Architecture invariants** — [`broker-guard.test.ts`](../artifacts/api-server/src/__tests__/broker-guard.test.ts)
   (no n8n leakage above the seam) and [`deploy-guard.test.ts`](../artifacts/api-server/src/__tests__/deploy-guard.test.ts)
   (deploy files don't drift).
-- Both builds (gateway + SPA) run in CI.
+- **Property / edge-case verification** — [`properties.test.ts`](../artifacts/api-server/src/__tests__/properties.test.ts)
+  asserts *invariants over hundreds of generated inputs* rather than a few examples,
+  using a tiny dependency-free harness ([`lib/proptest.ts`](../artifacts/api-server/src/lib/proptest.ts)).
+  Both builds (gateway + SPA) run in CI.
+
+#### The structured approach to edge cases + data verification
+
+The rule of thumb: when a claim is *"for ALL inputs, X never happens"*, write it as a
+property, not a handful of examples. The harness exists so these stay **deterministic**
+in CI (a flaky test is worse than none — see the session-crypto post-mortem):
+
+- A **seeded PRNG** drives generation; the seed is **fixed by default and logged**,
+  so CI is reproducible. On failure the harness prints the run index, the seed and
+  the offending input — replay with `PROPTEST_SEED=<n>`.
+- Explore more of the space locally with `PROPTEST_RUNS=2000` (or vary `PROPTEST_SEED`);
+  CI runs the default fixed seed so it never flakes.
+
+What we encode as properties (the **safety + data** invariants the product rests on):
+
+| Invariant | Property |
+| --- | --- |
+| Business ruleset is **restrict-only** | for any config + action, a warn-only setup never blocks, "off" is inert, and no config yields an "allow"/grant mode |
+| RBAC authorities are **orthogonal** | for any claim set, `pmo`/`admin` are independent + bounded, and any authority implies manager-base |
+| Column mapper is **lossless + leak-free** | a canonical field is claimed by ≤1 column; a non-empty value never silently nulls; output never carries a raw header key |
+
+When you add a pure function with a safety or data-shape guarantee, add a property
+for it here rather than (only) example tests.
 
 ### 2. Security
 [`security.test.ts`](../artifacts/api-server/src/__tests__/security.test.ts) drives the

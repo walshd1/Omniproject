@@ -325,6 +325,22 @@ test("POST /api/mcp tools/call reads through the broker (demo projects)", async 
   assert.ok(Array.isArray(projects) && projects.length > 0, "MCP returned the demo projects");
 });
 
+test("POST /api/mcp exposes reports + screens + notifications (cross-plane discovery)", async () => {
+  const list = await readJson(await mcp({ id: 30, method: "tools/list" }));
+  const names = list.result.tools.map((t: { name: string }) => t.name);
+  for (const n of ["omniproject_list_reports", "omniproject_list_screens", "omniproject_list_notifications"]) {
+    assert.ok(names.includes(n), `MCP advertises ${n}`);
+  }
+  // Reports — the demo backend supports financials, so EVM is listed.
+  const reports = JSON.parse((await readJson(await mcp({ id: 31, method: "tools/call", params: { name: "omniproject_list_reports", arguments: {} } }))).result.content[0].text);
+  assert.ok(reports.some((r: { id: string }) => r.id === "evm"));
+  assert.ok(reports.every((r: { id: string; produces: unknown }) => r.id && Array.isArray(r.produces)));
+  // Screens carry their SPA route; the demo session is admin so Settings is visible.
+  const screens = JSON.parse((await readJson(await mcp({ id: 32, method: "tools/call", params: { name: "omniproject_list_screens", arguments: {} } }))).result.content[0].text);
+  assert.ok(screens.some((s: { id: string; route: string }) => s.id === "gantt" && s.route.includes("/gantt")));
+  assert.ok(screens.some((s: { id: string }) => s.id === "settings"), "admin sees the admin screen");
+});
+
 test("POST /api/mcp writes are OFF by default — create_issue refused (here be dragons)", async () => {
   // No MCP_WRITE_ENABLED in this test env → write tools hidden + refused.
   const list = await readJson(await mcp({ id: 4, method: "tools/list" }));

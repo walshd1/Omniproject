@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import healthRouter from "./health";
 import contractRouter from "./contract";
+import apiSpecRouter from "./api-spec";
 import authRouter, { getSession } from "./auth";
 import brokerCommandRouter from "./broker-command";
 import projectsRouter from "./projects";
@@ -24,6 +25,7 @@ import mcpRouter from "./mcp";
 import rulesetRouter from "./ruleset";
 import importRouter from "./import";
 import roleMapRouter from "./role-map";
+import rawApiRouter from "./raw-api";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -58,6 +60,9 @@ router.use(healthRouter);
 
 // Public: the versioned broker contract (documentation, not data).
 router.use(contractRouter);
+
+// Public: the broker-agnostic consumer API spec + discovery (documentation).
+router.use(apiSpecRouter);
 
 // Inbound notification ingest from n8n/tools — authed by NOTIFY_INGEST_SECRET,
 // not by a user session, and exempt from the per-IP limiter (one n8n source).
@@ -102,5 +107,6 @@ router.use(requireAuth, brokerLogRouter);
 router.use(requireAuth, rulesetRouter);
 router.use(requireAuth, importRouter);
 router.use(requireAuth, roleMapRouter);
+router.use(requireAuth, rawApiRouter);
 
 export default router;

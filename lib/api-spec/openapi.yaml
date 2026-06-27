@@ -3,7 +3,12 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: OmniProject API — thin proxy gateway to n8n webhooks
+  description: >-
+    OmniProject API — the stable, broker-agnostic consumer (northbound) API. It
+    surfaces projects, issues, programmes, reports and admin operations above the
+    swappable broker seam, so it stays the same regardless of which broker (n8n by
+    default) reaches your backends. The southbound broker contract a broker must
+    implement is published separately at GET /api/contract.
 servers:
   - url: /api
     description: Base API path
@@ -11,9 +16,9 @@ tags:
   - name: health
     description: Health operations
   - name: proxy
-    description: n8n proxy gateway
+    description: Broker-agnostic gateway edge
   - name: projects
-    description: Project and issue management via n8n
+    description: Project and issue management above the broker seam
 paths:
   /healthz:
     get:
