@@ -64,6 +64,27 @@ export const BUSINESS_RULES: BusinessRule[] = [
   },
 ];
 
+/**
+ * Admin-authored FIELD rules — "what must go in fields" + dependency enforcement.
+ * Data, not code (just field-presence, fixed logic — still restrict-only):
+ *  - required field:  { action: "create_issue", field: "estimateHours", mode: "hard" }
+ *                     → "no task can be created without an effort estimate".
+ *  - dependency:      { action: "create_issue", field: "costCenter",
+ *                       whenPresent: "billable", mode: "warn" }
+ *                     → costCenter required ONLY when billable is set.
+ */
+export interface FieldRule {
+  id: string;
+  /** Exact action ("create_issue") or "any-write". */
+  action: string;
+  /** The field that must be present + non-empty. */
+  field: string;
+  /** Dependency: only required when THIS field is present. */
+  whenPresent?: string;
+  mode: RuleMode;
+  message?: string;
+}
+
 // ── Admin-configurable modes (in-memory; seed from BUSINESS_RULE_MODES JSON) ──
 const VALID: RuleMode[] = ["hard", "warn", "off"];
 
@@ -81,6 +102,35 @@ function seedModes(): Record<string, RuleMode> {
   return out;
 }
 let modes: Record<string, RuleMode> = seedModes();
+
+function isFieldRule(x: unknown): x is FieldRule {
+  const r = x as FieldRule;
+  return !!r && typeof r.id === "string" && typeof r.action === "string" && typeof r.field === "string"
+    && (VALID as string[]).includes(r.mode) && (r.whenPresent === undefined || typeof r.whenPresent === "string");
+}
+function seedFieldRules(): FieldRule[] {
+  const raw = process.env["BUSINESS_FIELD_RULES"]?.trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(isFieldRule) : [];
+  } catch {
+    logger.warn("BUSINESS_FIELD_RULES is not valid JSON — ignoring");
+    return [];
+  }
+}
+let fieldRules: FieldRule[] = seedFieldRules();
+
+export function getFieldRules(): FieldRule[] {
+  return fieldRules.map((r) => ({ ...r }));
+}
+
+/** Admin replaces the field-rule set. Only well-formed rules (valid mode, string
+ *  action/field) are accepted — they can only REQUIRE a field, never grant. */
+export function setFieldRules(next: unknown): FieldRule[] {
+  if (Array.isArray(next)) fieldRules = next.filter(isFieldRule).map((r) => ({ id: r.id, action: r.action, field: r.field, mode: r.mode, ...(r.whenPresent ? { whenPresent: r.whenPresent } : {}), ...(r.message ? { message: r.message } : {}) }));
+  return getFieldRules();
+}
 
 /** The effective mode of every rule (configured, else its default). */
 export function getRuleModes(): Record<string, RuleMode> {
@@ -112,6 +162,7 @@ export function rulesetCatalogue() {
 export function evaluateRuleset(ctx: RuleContext): RuleVerdict {
   const m = getRuleModes();
   const warnings: { id: string; message: string }[] = [];
+  // 1. Built-in rules.
   for (const r of BUSINESS_RULES) {
     const mode = m[r.id]!;
     if (mode === "off") continue;
@@ -119,10 +170,22 @@ export function evaluateRuleset(ctx: RuleContext): RuleVerdict {
     if (mode === "hard") return { allow: false, blocked: { id: r.id, message: r.message(ctx) }, warnings };
     warnings.push({ id: r.id, message: r.message(ctx) });
   }
+  // 2. Admin field rules ("what must go in fields" + dependencies).
+  for (const fr of fieldRules) {
+    if (fr.mode === "off") continue;
+    const actionMatch = fr.action === ctx.action || (fr.action === "any-write" && ctx.write);
+    if (!actionMatch) continue;
+    if (fr.whenPresent && !has(ctx.payload, fr.whenPresent)) continue; // dependency not triggered
+    if (has(ctx.payload, fr.field)) continue; // requirement satisfied
+    const message = fr.message ?? (fr.whenPresent ? `'${fr.field}' is required when '${fr.whenPresent}' is set (business rule).` : `'${fr.field}' is required (business rule).`);
+    if (fr.mode === "hard") return { allow: false, blocked: { id: fr.id, message }, warnings };
+    warnings.push({ id: fr.id, message });
+  }
   return { allow: true, blocked: null, warnings };
 }
 
-/** Test-only reset to the env-seeded modes. */
+/** Test-only reset to the env-seeded config. */
 export function resetRuleModes(): void {
   modes = seedModes();
+  fieldRules = seedFieldRules();
 }

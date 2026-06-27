@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { getSession } from "./auth";
-import { rulesetCatalogue, setRuleModes } from "../lib/ruleset";
+import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules } from "../lib/ruleset";
 import { recordAudit } from "../lib/audit";
 
 /**
@@ -28,6 +28,25 @@ router.put("/admin/ruleset", requireRole("admin"), (req, res) => {
     meta: { modes },
   });
   res.json(rulesetCatalogue());
+});
+
+// Admin field rules — "what must go in fields" + dependencies. PUT replaces the
+// whole set. These can only REQUIRE a field (restrict-only); they never grant.
+router.get("/admin/ruleset/fields", requireRole("admin"), (_req, res) => {
+  res.json(getFieldRules());
+});
+router.put("/admin/ruleset/fields", requireRole("admin"), (req, res) => {
+  const rules = setFieldRules(req.body);
+  recordAudit({
+    ts: new Date().toISOString(),
+    category: "admin",
+    action: "ruleset_fields_update",
+    actor: getSession(req) ? { sub: getSession(req)!.sub, role: roleForReq(req) } : null,
+    result: "success",
+    status: 200,
+    meta: { count: rules.length },
+  });
+  res.json(rules);
 });
 
 export default router;
