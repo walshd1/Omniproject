@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Vendor spoof broker (dev-only)** — `BROKER_SPOOF=<vendor>` makes the gateway
+  present AS that vendor (e.g. `openproject`) without a real backend: it reads the
+  vendor's JSON config from the catalogue and serves contract-compliant demo data
+  gated to that vendor's **declared capability surface** (so spoofing OpenProject
+  turns financials/raid/resources OFF, exactly as the real backend would). A thin
+  facade that composes the demo broker; lets you exercise capability gating, screens,
+  reports and the capture/replay tooling against a realistic vendor profile when the
+  real backend is unreachable. Hard-gated to dev mode (null in production); writes are
+  simulated, not real.
 - **Dev-mode production guard (refuse-to-boot) + transaction tagging** — the safety
   interlock for dev mode now that it grants dangerous powers. The gateway **refuses
   to boot** when dev mode is active AND the environment shows production signals

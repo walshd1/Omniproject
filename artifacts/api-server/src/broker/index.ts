@@ -5,6 +5,7 @@ import { N8nBroker, N8N_ENV_CONFIGURED, pingBroker } from "./n8n";
 import { DemoBroker } from "./demo";
 import { BrokerError, type Broker, type ActorContext } from "./types";
 import { instrumented, wrapWithTrace } from "./trace";
+import { spoofBrokerFromEnv } from "./spoof";
 
 /**
  * Broker selection + the request→domain context adapter.
@@ -21,7 +22,11 @@ let singleton: Broker | null = null;
  *  call is logged at the seam; in production the wrap is never applied. */
 export function getBroker(): Broker {
   if (!singleton) {
-    const base: Broker = N8N_ENV_CONFIGURED ? new N8nBroker() : new DemoBroker();
+    // Dev-only: BROKER_SPOOF=<vendor> presents AS that vendor (e.g. openproject)
+    // with its declared capabilities, over the demo data — for testing without a
+    // real backend. Null outside dev mode, so production is unaffected.
+    const spoof = spoofBrokerFromEnv();
+    const base: Broker = spoof ?? (N8N_ENV_CONFIGURED ? new N8nBroker() : new DemoBroker());
     singleton = instrumented() ? wrapWithTrace(base) : base;
   }
   return singleton;
