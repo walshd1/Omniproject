@@ -18,8 +18,15 @@ test("seal/open round-trips and never leaks the plaintext", () => {
 test("open returns null on tampering (GCM auth tag fails)", () => {
   process.env["SESSION_SECRET"] = SECRET;
   const sealed = seal("hello");
-  // Flip a character in the ciphertext region.
-  const tampered = sealed.slice(0, -2) + (sealed.endsWith("A") ? "B" : "A") + sealed.slice(-1);
+  // Corrupt a character in the middle of the base64 body (well clear of any
+  // trailing padding), guaranteeing it actually CHANGES — flip it to a different
+  // character than whatever is there. (The old logic checked the last char but
+  // replaced the second-to-last, so when that char was already "A" the "tamper"
+  // was a no-op and open() round-tripped — a ~1/64 flake.)
+  const i = Math.floor(sealed.length / 2);
+  const replacement = sealed[i] === "A" ? "B" : "A";
+  const tampered = sealed.slice(0, i) + replacement + sealed.slice(i + 1);
+  assert.notEqual(tampered, sealed, "the tamper must actually change the ciphertext");
   assert.equal(open(tampered), null);
 });
 
