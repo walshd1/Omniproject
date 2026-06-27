@@ -30,8 +30,11 @@ export function auditMiddleware(req: Request, res: Response, next: NextFunction)
       write: ["POST", "PATCH", "PUT", "DELETE"].includes(req.method),
       // Tag every transaction performed on a dev/debug instance, so dev activity
       // (impersonation, entitlement overrides, spoofed brokers) is unmistakable in
-      // the audit trail and can be filtered/excluded from real records.
-      ...(isDevMode() ? { meta: { devMode: true } } : {}),
+      // the audit trail and can be filtered/excluded from real records. When the
+      // request runs under an impersonation, record who really initiated it + why.
+      ...(isDevMode()
+        ? { meta: { devMode: true, ...(session?.impersonation ? { impersonatedBy: session.impersonation.by, impersonationReason: session.impersonation.reason } : {}) } }
+        : {}),
     });
   });
   next();

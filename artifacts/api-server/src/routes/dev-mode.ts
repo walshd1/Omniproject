@@ -1,9 +1,12 @@
 import { Router } from "express";
 import { backendCatalogue } from "@workspace/backend-catalogue";
 import { devModeStatus, isDevMode } from "../lib/dev-mode";
-import { requireRole } from "../lib/rbac";
+import { requireRole, roleFromClaims } from "../lib/rbac";
 import { getDevBrokerConfig, setDevBrokerConfig, DEV_DATA_SOURCES, type DevDataSource } from "../broker/dev-broker";
 import { resetBroker } from "../broker";
+import { getRealSession, startImpersonation, stopImpersonation } from "./auth";
+import { activeImpersonation, IMPERSONATION_TTL_MS } from "../lib/impersonation";
+import { recordAudit } from "../lib/audit";
 
 /**
  * Dev-mode routes.
@@ -70,6 +73,95 @@ router.post("/dev-mode/broker", requireRole("admin"), (req, res) => {
   }
   resetBroker(); // next getBroker() rebuilds with the new combo
   res.json({ switched: true, config });
+});
+
+// ── Ephemeral dev-mode impersonation ──────────────────────────────────────────
+// Auth bypass for reproducing role-specific issues. Hard-gated: dev only; the
+// REAL caller must be admin; a reason is required (the UI approval dialog); and it
+// expires (IMPERSONATION_TTL_MS). Every start/stop is audited with the reason.
+
+const isDemoAuth = () => !process.env["OIDC_ISSUER_URL"]?.trim();
+
+/** GET — the current impersonation (for the UI banner), or null. */
+router.get("/dev-mode/impersonate", (req, res) => {
+  if (!isDevMode()) {
+    res.status(409).json({ error: "dev mode is not active" });
+    return;
+  }
+  const imp = activeImpersonation(getRealSession(req));
+  res.json({ impersonation: imp ? { sub: imp.sub, email: imp.email, roles: imp.roles, reason: imp.reason, by: imp.by, expiresAt: imp.expiresAt } : null });
+});
+
+/** POST — start impersonating { sub, email?, roles?, reason }. Real-admin only. */
+router.post("/dev-mode/impersonate", (req, res) => {
+  if (!isDevMode()) {
+    res.status(409).json({ error: "dev mode is not active" });
+    return;
+  }
+  const real = getRealSession(req);
+  const realRole = roleFromClaims(real?.roles ?? [], { isDemo: isDemoAuth() });
+  if (!real || realRole !== "admin") {
+    res.status(403).json({ error: "only a real admin may start an impersonation" });
+    return;
+  }
+  const body = (req.body ?? {}) as { sub?: unknown; email?: unknown; roles?: unknown; reason?: unknown };
+  const sub = typeof body.sub === "string" ? body.sub.trim() : "";
+  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+  if (!sub) {
+    res.status(400).json({ error: "a target 'sub' is required" });
+    return;
+  }
+  if (reason.length < 3) {
+    res.status(400).json({ error: "a 'reason' is required to impersonate (it is recorded in the audit log)" });
+    return;
+  }
+  const roles = Array.isArray(body.roles) ? body.roles.filter((r): r is string => typeof r === "string") : undefined;
+  const expiresAt = Date.now() + IMPERSONATION_TTL_MS;
+  const ok = startImpersonation(req, res, {
+    sub,
+    ...(typeof body.email === "string" && body.email.trim() ? { email: body.email.trim() } : {}),
+    ...(roles && roles.length ? { roles } : {}),
+    reason,
+    by: real.sub,
+    expiresAt,
+  });
+  if (!ok) {
+    res.status(401).json({ error: "no active session to attach the impersonation to" });
+    return;
+  }
+  recordAudit({
+    ts: new Date().toISOString(),
+    category: "admin",
+    action: "dev_impersonate_start",
+    actor: { sub: real.sub, email: real.email, role: "admin" },
+    status: 200,
+    write: true,
+    meta: { devMode: true, target: sub, reason, expiresAt },
+  });
+  res.json({ impersonating: true, sub, reason, expiresAt });
+});
+
+/** DELETE — stop impersonating (de-escalation; any impersonator may stop). */
+router.delete("/dev-mode/impersonate", (req, res) => {
+  if (!isDevMode()) {
+    res.status(409).json({ error: "dev mode is not active" });
+    return;
+  }
+  const real = getRealSession(req);
+  const imp = real?.impersonation;
+  stopImpersonation(req, res);
+  if (imp) {
+    recordAudit({
+      ts: new Date().toISOString(),
+      category: "admin",
+      action: "dev_impersonate_stop",
+      actor: { sub: imp.by },
+      status: 200,
+      write: true,
+      meta: { devMode: true, target: imp.sub, reason: imp.reason },
+    });
+  }
+  res.json({ impersonating: false });
 });
 
 export default router;

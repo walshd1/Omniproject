@@ -30,7 +30,7 @@ test("vendorCapabilities reads the vendor's declared surface from its JSON confi
 test("flavouring the DEMO broker as a vendor gates its capabilities (sales preview)", async () => {
   const demo = new DemoBroker();
   const asOpenProject = applyVendorProfile(demo, "openproject");
-  assert.equal(asOpenProject.kind, "openproject");
+  assert.equal(asOpenProject.kind, "openproject-demo");
   assert.equal(asOpenProject.live, false); // still not a real integration
   const caps = await asOpenProject.capabilities({} as never);
   assert.equal(caps["issues"], true);

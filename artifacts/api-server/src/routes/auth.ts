@@ -15,8 +15,10 @@ import {
   decodeIdTokenClaims,
   verifyIdToken,
   type Session,
+  type Impersonation,
 } from "../lib/oidc";
 import { roleForReq } from "../lib/rbac";
+import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
 
 const router = Router();
@@ -60,9 +62,34 @@ function setSession(res: Response, session: Session): void {
   });
 }
 
-// Exposed so other routes (e.g. the n8n proxy) can pull the bearer token.
+// Exposed so other routes (e.g. the n8n proxy) can pull the bearer token. Applies
+// any active (dev-only, non-expired) impersonation, so the whole app — incl. RBAC —
+// sees the impersonated identity. The raw session is available via getRealSession.
 export function getSession(req: Request): Session | null {
+  return effectiveSession(readSession(req));
+}
+
+/** The REAL signed-in session, ignoring any impersonation — used to authorise
+ *  starting/stopping an impersonation against the genuine actor. */
+export function getRealSession(req: Request): Session | null {
   return readSession(req);
+}
+
+/** Begin an ephemeral impersonation on the current session (overwrites any prior
+ *  one). Returns false if there is no session to attach it to. */
+export function startImpersonation(req: Request, res: Response, imp: Impersonation): boolean {
+  const real = readSession(req);
+  if (!real) return false;
+  setSession(res, { ...real, impersonation: imp });
+  return true;
+}
+
+/** Clear any impersonation from the current session. */
+export function stopImpersonation(req: Request, res: Response): void {
+  const real = readSession(req);
+  if (!real) return;
+  const { impersonation: _drop, ...rest } = real;
+  setSession(res, rest as Session);
 }
 
 // ── GET /api/auth/me ──────────────────────────────────────────────────────────

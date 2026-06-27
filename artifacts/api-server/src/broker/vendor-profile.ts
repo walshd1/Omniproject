@@ -37,7 +37,10 @@ export function applyVendorProfile(base: Broker, vendorId: string | null, caps?:
   if (!vendorId || !c) return base;
   const on = (d: string) => !!c[d];
   const overrides: Record<string, unknown> = {
-    kind: vendorId,
+    // The presented kind carries a `-demo` suffix: this is a thin-file vendor
+    // spoof over sample/recorded data, NOT a live integration, and the name must
+    // make that unmistakable wherever it surfaces. `vendorId` keeps the clean id.
+    kind: `${vendorId}-demo`,
     live: false,
     vendorId,
     capabilities: async () => Object.fromEntries(CAPABILITY_DOMAINS.map((d) => [d, on(d)])),

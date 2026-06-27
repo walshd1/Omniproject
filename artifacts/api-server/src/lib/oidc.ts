@@ -38,9 +38,24 @@ export interface SessionUser {
   roles?: string[];
 }
 
+/**
+ * An EPHEMERAL dev-mode impersonation overlaid on a session. Honoured only in dev
+ * mode and only until `expiresAt`; carries the real initiator (`by`) and the
+ * required `reason` so every impersonated action is accountable.
+ */
+export interface Impersonation {
+  sub: string;
+  email?: string;
+  roles?: string[];
+  reason: string;
+  by: string;
+  expiresAt: number;
+}
+
 export interface Session extends SessionUser {
   accessToken: string;
   idToken?: string;
+  impersonation?: Impersonation;
 }
 
 const issuerUrl = process.env["OIDC_ISSUER_URL"]?.trim();

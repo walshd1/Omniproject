@@ -9,6 +9,7 @@ import { BrandingProvider } from "./lib/branding";
 import { A11yProvider } from "./lib/a11y-prefs";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DevModeWatermark } from "./components/DevModeWatermark";
+import { DevImpersonationControl } from "./components/DevImpersonationControl";
 
 // Layout (eager — it wraps every authenticated route)
 import { AppLayout } from "./components/layout/AppLayout";
@@ -117,6 +118,7 @@ function App() {
           </WouterRouter>
           <Toaster />
           <DevModeWatermark />
+          <DevImpersonationControl />
         </TooltipProvider>
         </A11yProvider>
       </BrandingProvider>

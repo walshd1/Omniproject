@@ -8,6 +8,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Ephemeral, approved, reason-logged dev impersonation** — the dev-mode auth
+  bypass (act AS another user to reproduce a role-specific issue) with hard
+  guardrails. Starting one needs an explicit **approval dialog with a typed reason**
+  (the dialog won't submit without it); only a **real admin** may start it; it is
+  **ephemeral** (30-min TTL, cleared on logout, stripped once expired) and **dev-only**
+  (a stale impersonation cookie is inert in production / after leaving dev mode).
+  Every start/stop is **audited with the reason**, and each impersonated request is
+  tagged `impersonatedBy`/`impersonationReason` so the real actor is always
+  accountable. A banner shows who/why with a one-click Stop. `GET/POST/DELETE
+  /api/dev-mode/impersonate`.
+- **Thin-file spoof names carry a `-demo` suffix** — whenever a vendor is presented
+  via a thin vendor file over sample/recorded data (demo preview or dev broker), the
+  shown `kind` is e.g. `openproject-demo`, so it can never be mistaken for a live
+  integration. The clean vendor id is kept separately.
 - **Demo vendor preview — present the demo AS a prospect's stack** — the vendor
   capability overlay (previously dev-only) now also flavours the **demonstration**
   broker: set `backendSource` (Settings, or `BACKEND_SOURCE`) to a vendor id and the

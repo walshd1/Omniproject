@@ -23,7 +23,7 @@ const cfg = (over: Partial<DevBrokerConfig> = {}): DevBrokerConfig => ({ vendor:
 
 test("vendor profile gates capabilities to the vendor's declared surface", async () => {
   const b = buildDevBroker(cfg({ vendor: "openproject", source: "demo" }));
-  assert.equal(b.kind, "openproject");
+  assert.equal(b.kind, "openproject-demo");
   const caps = await b.capabilities({} as never);
   assert.equal(caps["issues"], true);
   assert.equal(caps["financials"], false); // OpenProject declares no financials
@@ -101,7 +101,7 @@ test("devBrokerFromEnv is dev-gated and only takes over for a non-default combo"
   withEnv({ NODE_ENV: "development", OMNI_DEV_MODE: "1" }, () => {
     const b = devBrokerFromEnv();
     assert.ok(b);
-    assert.equal(b!.kind, "openproject");
+    assert.equal(b!.kind, "openproject-demo");
   });
   setDevBrokerConfig(saved); // restore
 });
