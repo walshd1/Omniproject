@@ -6,6 +6,51 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+A **governance, ingestion & extensibility** release. No breaking API changes (all
+additive); the RBAC change only tightens the top tiers. Everything below stays
+**broker-agnostic, above the seam**, and every new gate is **restrict-only** or
+**additive** — no security control was loosened.
+
+### Added
+
+- **Seven integration planes** (**Stable**) — backends, brokers, outputs,
+  notifications, methodologies, reports and screens, each a registry in the shared
+  `@workspace/backend-catalogue` following one principle: a neutral manifest with
+  **capabilities kept separate from tools, linked**. Cross-plane links via
+  `alsoProvides`; a `verify-plane` tool keeps every shipped entry honest. See
+  [docs/INTEGRATION-PLANES.md](docs/INTEGRATION-PLANES.md) + the per-plane guides in
+  [docs/dev/](docs/dev/).
+- **Business ruleset engine** (**Stable**) — an extra, PMO-configurable governance
+  layer on top of the hard rules. Built-in rules (read-only freeze, no-deletes,
+  require assignee/description, schedule-sanity `due-after-start`) plus admin field
+  rules ("require an estimate", "cost-centre when billable"). **Restrict-only**: it
+  runs after the hard gates and can only deny/warn, never grant. See
+  [docs/ops/BUSINESS-RULES.md](docs/ops/BUSINESS-RULES.md).
+- **Reference rulesets per methodology** (**Stable**) — curated, named ruleset
+  bundles for Scrum, Kanban, Scrumban, Waterfall, PRINCE2 and SAFe, applied by the
+  PMO for compliance + completeness (`GET`/`POST /api/admin/ruleset/reference`).
+- **PMO role + orthogonal authorities** (**Stable**) — a linear base ladder
+  (viewer → contributor → manager) plus two **independent, joinable authorities**:
+  **PMO** (business governance) and **admin** (technical config). A pure admin can't
+  edit business rules and a pure PMO can't touch technical config; holding both
+  grants the union. See [docs/ops/ROLES.md](docs/ops/ROLES.md).
+- **Role-mapping editor** (**Stable**) — admin-only, audited `GET`/`PUT
+  /api/admin/role-map` to map IdP groups to the fixed roles at runtime. By design a
+  *mapping* editor, not a permission creator — it can't invent a role or grant a
+  permission, so the RBAC boundary stays statically verifiable.
+- **Excel/CSV import + column mapper** (**Stable**) — a pure, tested column →
+  canonical-field mapper (exact / synonym / fuzzy) behind `POST /api/import/preview`
+  and `/commit`; commit writes through the live backend and runs the business
+  ruleset **per row** (import can't bypass governance). See
+  [docs/ops/IMPORT.md](docs/ops/IMPORT.md).
+- **Admin-gated raw SQL + MongoDB backends** (**Stable**) — for internally-hosted /
+  legacy stores. The gateway **never ships raw SQL**: it posts a contract action +
+  typed params to a sidecar that owns the parameterised queries + credentials. See
+  [docs/ops/DATABASE-BACKENDS.md](docs/ops/DATABASE-BACKENDS.md).
+- **Read-only MCP server** (**Stable**) — speak the Model Context Protocol over the
+  broker seam; write tools are opt-in (`MCP_WRITE_ENABLED`) and contributor-gated.
+  See [docs/MCP.md](docs/MCP.md).
+
 ## [0.4.0] — 2026-06-25
 
 A **modelling, history & test-maturity** release. No breaking API changes. It adds

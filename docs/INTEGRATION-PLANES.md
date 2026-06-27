@@ -14,7 +14,7 @@ Slack); a Scrum **methodology** also implies a burndown **report** + a board
 
 | Plane | What it is | Manifest (capabilities) | Tools (the how) | Registry |
 | --- | --- | --- | --- | --- |
-| **Backends** | systems of record (Jira, SAP, Salesforce, …) | domains it can populate (`issues`, `financials`, `crm`, …), required env, transport | the n8n binding (per-action node/HTTP mappings) + workflow generator | `backendCatalogue()` |
+| **Backends** | systems of record (Jira, SAP, Salesforce, …), plus an Excel/CSV **import** source and admin-gated raw **SQL** / **MongoDB** | domains it can populate (`issues`, `financials`, `crm`, …), `kind` (`live` \| `import` \| `database`), `adminOnly`, required env, transport | the n8n binding (per-action node/HTTP mappings) + workflow generator | `backendCatalogue()` |
 | **Brokers** | the automation/translation hop | `synchronous`, `selfHostable`, `managedAuth`, `eventsInbound/Outbound`; which transports it drives | the **build method** (workflow generator / scenario / DAG / component / flow / function / blueprint) | `brokerCatalogue()` |
 | **Outputs** | outward interfaces (data/events out) | `readOnly`, `streaming`, `auth` | the concrete surface (MCP tool names, OData entity sets, export formats, event names) | `outputCatalogue()` |
 | **Notifications** | channels alerts are delivered TO (Slack, Teams, email, PagerDuty, …) | `channels`, `directMessage`, `richFormatting`, `threads`, `inboundReply`, `delivery` | the event payloads it carries (`notification`, `alert`, `audit`, …) | `notificationCatalogue()` |
@@ -23,6 +23,20 @@ Slack); a Scrum **methodology** also implies a burndown **report** + a board
 | **Screens** | SPA views (Home, Gantt, Reports, Settings, …) | `requiresRole`, `requiresCapability`, `dataLineage`, `exportable` | the widgets on the screen | `screenCatalogue()` |
 
 Surfaced read-only at `GET /api/setup/{backends,brokers,outputs,notifications,methodologies,reports,screens}` (+ `/planes`).
+
+**Backend kinds.** A backend is `live` (a brokered SaaS/HTTP API, the default), an
+`import` source (Excel/CSV — fed through the column mapper + `/api/import`, not
+brokered live, so it lists no brokers), or a `database` (raw SQL / MongoDB reached
+via an HTTP sidecar that holds the connection). `database` backends are `adminOnly`
+and hidden from non-admins in the wizard. See
+[ops/IMPORT.md](ops/IMPORT.md) and [ops/DATABASE-BACKENDS.md](ops/DATABASE-BACKENDS.md).
+
+**Companion sub-registry — reference rulesets.** The methodologies plane has a
+data companion, `referenceRulesetCatalogue()`: a curated **business-ruleset
+bundle per methodology** (Scrum/Kanban/Waterfall/PRINCE2/SAFe) the PMO can apply
+for compliance + completeness. It is just data in the same catalogue, so it
+inherits the [restrict-only](ops/BUSINESS-RULES.md) safety guarantees of the rule
+engine. Surfaced (PMO-gated) at `GET /api/admin/ruleset/reference`.
 
 ## How the planes link
 

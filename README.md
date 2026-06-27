@@ -121,6 +121,12 @@ fixed connector list to wait on (and a different broker can widen it further):
 - **Inbound, via n8n** — any of n8n's hundreds of native integrations, *or* anything
   reachable over HTTP/REST/GraphQL/SOAP/gRPC/SQL through n8n's generic nodes.
   Jira today, a bespoke in-house API tomorrow, two backends at once — same UI.
+- **Internally-hosted / legacy with no API** — **admin-gated raw SQL** (Postgres /
+  MySQL / SQL Server) and **MongoDB** backends, reached through a sidecar that owns
+  the parameterised queries + credentials, so the gateway **never ships raw SQL**
+  and stays stateless. See [docs/ops/DATABASE-BACKENDS.md](docs/ops/DATABASE-BACKENDS.md).
+- **One-shot from a spreadsheet** — an **Excel/CSV import** source with a column/
+  field mapper, for legacy systems that can only export a sheet.
 - **Inbound, via webhook** — any tool can `POST` events straight into
   `/api/notifications/ingest` (secret-authenticated) to drive real-time updates.
 - **Outbound, via webhook** — push OmniProject events to *any* endpoint — a SIEM,
@@ -142,10 +148,37 @@ fixed connector list to wait on (and a different broker can widen it further):
   Heatmap (over-allocation alerts), and a Financial EVM chart (CPI/SPI).
 - **Export & BI** — one-click report export to Excel, CSV, JSON, Markdown and PDF;
   a read-only API token plus an OData v4 read service and a Prometheus `/metrics`
-  endpoint for Power BI / SAP / Grafana.
+  endpoint for Power BI / SAP / Grafana; and a read-only **MCP server** (write
+  tools opt-in) so an AI agent can read through the same seam — see [docs/MCP.md](docs/MCP.md).
+- **Import** — bring work items in from an **Excel/CSV** export (or any tabular
+  source) with a **column → canonical-field mapper** that auto-suggests mappings
+  (exact / synonym / fuzzy); preview, confirm, then write through your live
+  backend. See [docs/ops/IMPORT.md](docs/ops/IMPORT.md).
+- **Business rulesets** — a PMO-configurable **governance** engine layered on top
+  of the hard security rules: require an assignee/estimate, freeze a portfolio,
+  ban deletes, enforce schedule sanity — all **restrict-only** (it can tighten,
+  never grant). Ships **reference rulesets per methodology** (Scrum, Kanban,
+  Waterfall, PRINCE2, SAFe) for compliance + completeness. See
+  [docs/ops/BUSINESS-RULES.md](docs/ops/BUSINESS-RULES.md).
+- **Roles & access** — a linear base ladder (viewer → contributor → manager) plus
+  two **orthogonal, joinable authorities**: **PMO** (business governance) and
+  **admin** (technical config). An admin-only, audited **role-mapping editor** maps
+  IdP groups to roles at runtime. See [docs/ops/ROLES.md](docs/ops/ROLES.md).
 - **AI assist** — connect a local model (Ollama) or a public model (OpenRouter / OpenAI / Anthropic).
 - **SSO** — env-gated OIDC against any provider; demo mode when unconfigured.
 - **Keyboard-driven** — `Cmd+K` palette and `g d/p/r/s/e` navigation.
+
+### Seven integration planes — separate but linked
+
+Everything pluggable in OmniProject is modelled the same way: a neutral manifest
+with **capabilities kept separate from concrete tools, linked into one
+definition**, in a shared catalogue (`@workspace/backend-catalogue`). There are
+**seven planes**, each its own registry: **backends** (systems of record),
+**brokers** (the automation/translation layer), **outputs** (MCP/OData/BI/metrics/
+exports), **notifications** (Slack/Teams/email/incident channels), **methodologies**
+(Scrum/Kanban/Waterfall/…), **reports** (Gantt/burndown/EVM/…) and **screens** (the
+SPA views). A plane verifier (`pnpm --filter @workspace/scripts verify-plane`) keeps
+every shipped entry honest. See [docs/INTEGRATION-PLANES.md](docs/INTEGRATION-PLANES.md).
 
 ### Exploration mode — snapshots, what-if & dependencies *(Beta)*
 
@@ -214,6 +247,13 @@ later, when you trust it.
 - **As the user, not a shared key** — the user's own OIDC token is forwarded, so
   the backend authorises each write under *their* identity. The gateway's RBAC is
   an extra gate, not the only one.
+- **Tiered RBAC** — viewer → contributor → manager, plus two orthogonal,
+  joinable authorities: **PMO** (business governance) and **admin** (technical
+  config). Group→role mapping is env-configured and runtime-editable by an admin.
+- **Business rulesets** — an extra, PMO-configurable governance layer that is
+  **restrict-only**: it runs *after* the hard gates and can only deny or warn,
+  never grant — so it can codify policy (require fields, freeze writes, ban
+  deletes) without ever becoming a way to escalate privilege.
 - **No silent overwrites** — optimistic concurrency (`expectedVersion`) returns a
   `409` instead of clobbering a change made elsewhere.
 - **No duplicates or loops** — a deterministic idempotency key + an origin
@@ -232,8 +272,8 @@ security headers; TLS gateway↔n8n in production; secret redaction in logs (and
 the settings read endpoint); rate limiting; and a supply chain with a dependency
 release-age delay.
 
-It's covered by **~640 automated tests** (240 gateway + 401 SPA) behind
-**enforced CI coverage gates** (~84% gateway / ~88% SPA lines), an **axe-core
+It's covered by **~820 automated tests** (421 gateway + 401 SPA) behind
+**enforced CI coverage gates** (~91% gateway / ~89% SPA lines), an **axe-core
 WCAG 2.1 AA accessibility** job, a live **n8n contract verification**, and a
 **load-test harness** that exercises 2,000 concurrent users over 200 projects and
 fails above a 1% error rate. (Honest caveat: SPA *function* coverage is ~64%, and
@@ -366,6 +406,10 @@ the common gotchas (router-name consistency, the `Host()` backticks, cross-provi
 | `SESSION_SECRET` | gateway | Signs the session cookie; **required in production** (the gateway refuses to boot on a default/empty value) and shared across replicas |
 | `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | gateway | Enable real SSO (all three required) |
 | `OIDC_SCOPE` | gateway | Scopes (default `openid profile email`) |
+| `OIDC_{ADMIN,PMO,MANAGER,CONTRIBUTOR,VIEWER}_ROLES` | gateway | Comma lists mapping IdP groups → roles (admin/PMO are orthogonal authorities; runtime-editable via `/api/admin/role-map`). `OIDC_DEFAULT_ROLE` sets the no-match fallback |
+| `BUSINESS_RULE_MODES` / `BUSINESS_FIELD_RULES` | gateway | Optional JSON seed for the business ruleset (built-in rule modes + field rules); also editable by the PMO at runtime |
+| `SQL_SIDECAR_URL` / `SQL_SIDECAR_TOKEN` · `MONGO_SIDECAR_URL` / `MONGO_SIDECAR_TOKEN` | sidecar | Connection for the admin-gated raw-SQL / MongoDB backends (the sidecar holds the DB credentials) |
+| `NOTIFY_INGEST_SECRET` | gateway | Bearer that authenticates inbound real-time events on `/api/notifications/ingest` |
 | `API_TOKENS` | gateway | Comma-separated **read-only** tokens for Power BI / scheduled exports |
 | `AI_PROVIDER` | gateway | `none \| ollama \| openrouter \| openai \| anthropic` |
 | `AI_MODEL` | gateway | Model name (per-provider default otherwise) |
@@ -385,8 +429,19 @@ full security and integration reference.
 - **[docs/TECHNICAL.md](docs/TECHNICAL.md)** — architecture, n8n contract,
   security model, API surface, data schemas, extending the system.
 - **[docs/BROKER.md](docs/BROKER.md)** — the `Broker` seam and its invariants.
+- **[docs/INTEGRATION-PLANES.md](docs/INTEGRATION-PLANES.md)** — the seven
+  integration planes and the shared catalogue, with a per-plane dev guide under
+  [docs/dev/](docs/dev/) and the `verify-plane` tool.
 - **[docs/METHODOLOGIES.md](docs/METHODOLOGIES.md)** — the methodology views and
   how to add your own (no black-boxed designer).
+- **[docs/ops/ROLES.md](docs/ops/ROLES.md)** — the RBAC model (base ladder + the
+  orthogonal PMO/admin authorities) and the admin-only role-mapping editor.
+- **[docs/ops/BUSINESS-RULES.md](docs/ops/BUSINESS-RULES.md)** — the restrict-only
+  business ruleset engine and the per-methodology reference rulesets.
+- **[docs/ops/IMPORT.md](docs/ops/IMPORT.md)** — Excel/CSV import and the
+  column/field mapper.
+- **[docs/ops/DATABASE-BACKENDS.md](docs/ops/DATABASE-BACKENDS.md)** — the
+  admin-gated raw-SQL / MongoDB backends for internally-hosted / legacy stores.
 - **[docs/N8N-WORKFLOWS.md](docs/N8N-WORKFLOWS.md)** — generate, wire & verify
   workflows; what's open vs. the licensed prebuilt enterprise integrations.
 - **[docs/REVERSE-PROXY.md](docs/REVERSE-PROXY.md)** — putting omni-shell behind
