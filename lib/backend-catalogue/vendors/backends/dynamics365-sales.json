@@ -1,0 +1,50 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ name: $json.body.payload.title }) }}",
+      "method": "POST",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/opportunities"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/opportunities({{ $json.body.payload.issueId }})"
+    },
+    "list_issues": {
+      "method": "GET",
+      "note": "Opportunities scoped to the account (projectId).",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/opportunities?$filter=_parentaccountid_value eq {{ $json.body.payload.projectId }}"
+    },
+    "list_projects": {
+      "method": "GET",
+      "note": "Accounts map to projects.",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/accounts"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ name: $json.body.payload.title }) }}",
+      "method": "PATCH",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/opportunities({{ $json.body.payload.issueId }})"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "crm": true,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "microsoftDynamicsOAuth2Api",
+  "docsUrl": "https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview",
+  "id": "dynamics365-sales",
+  "label": "Microsoft Dynamics 365 Sales",
+  "notes": "CRM on Dataverse: Account → project, Opportunity → issue. Auth via n8n's Microsoft Dynamics OAuth2 credential. Sibling to the dynamics365 Project Operations binding.",
+  "requiredEnv": [
+    "DATAVERSE_URL"
+  ],
+  "via": "HTTP + n8n-managed Dynamics OAuth (Dataverse Web API)"
+}

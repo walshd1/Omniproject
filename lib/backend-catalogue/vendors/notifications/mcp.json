@@ -1,0 +1,21 @@
+{
+  "capabilities": {
+    "channels": false,
+    "delivery": "mcp",
+    "directMessage": true,
+    "inboundReply": true,
+    "richFormatting": true,
+    "threads": false
+  },
+  "docsUrl": "https://modelcontextprotocol.io/",
+  "id": "mcp",
+  "kind": "agent",
+  "label": "MCP (AI agent)",
+  "notes": "Surfaces notifications to an AI agent over OmniProject's MCP server (the OUTPUTS `mcp` surface), read via the omniproject_list_notifications tool. Pull-based (the agent polls), inheriting RBAC + audit; no outbound push.",
+  "tools": [
+    "notification",
+    "alert",
+    "audit",
+    "config.changed"
+  ]
+}

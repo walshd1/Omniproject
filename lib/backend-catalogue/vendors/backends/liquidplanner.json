@@ -1,0 +1,46 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ task: { name: $json.body.payload.title, description: $json.body.payload.description, parent_id: $json.body.payload.projectId } }) }}",
+      "method": "POST",
+      "url": "={{ $env.LIQUIDPLANNER_WORKSPACE_URL }}/tasks"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.LIQUIDPLANNER_WORKSPACE_URL }}/tasks/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "={{ $env.LIQUIDPLANNER_WORKSPACE_URL }}/tasks?filter[]=project_id={{ $json.body.payload.projectId }}"
+    },
+    "list_projects": {
+      "method": "GET",
+      "url": "={{ $env.LIQUIDPLANNER_WORKSPACE_URL }}/projects"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ task: { name: $json.body.payload.title } }) }}",
+      "method": "PUT",
+      "url": "={{ $env.LIQUIDPLANNER_WORKSPACE_URL }}/tasks/{{ $json.body.payload.issueId }}"
+    }
+  },
+  "authHeader": "=Bearer {{ $json.body.payload.userContext.token }}",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": true,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": true,
+    "scheduling": true
+  },
+  "docsUrl": "https://www.liquidplanner.com/support/articles/api-up/",
+  "id": "liquidplanner",
+  "label": "LiquidPlanner",
+  "notes": "Predictive-scheduling PM: workspaces → projects (LP plans/packages), tasks → issues; ranged estimates, workload + time tracking feed the scheduling/resources/history domains. LIQUIDPLANNER_WORKSPACE_URL is the workspace API base (…/api/v1/workspaces/<id>). Confirm the endpoint/field shapes against your workspace — reference mappings.",
+  "requiredEnv": [
+    "LIQUIDPLANNER_WORKSPACE_URL"
+  ],
+  "via": "HTTP + per-user API token (workspace-scoped)"
+}

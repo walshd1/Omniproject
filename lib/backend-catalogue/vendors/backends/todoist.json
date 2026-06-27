@@ -1,0 +1,47 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ content: $json.body.payload.title, project_id: $json.body.payload.projectId }) }}",
+      "method": "POST",
+      "url": "https://api.todoist.com/rest/v2/tasks"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "https://api.todoist.com/rest/v2/tasks/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "https://api.todoist.com/rest/v2/tasks?project_id={{ $json.body.payload.projectId }}"
+    },
+    "list_projects": {
+      "method": "GET",
+      "note": "Todoist projects.",
+      "url": "https://api.todoist.com/rest/v2/projects"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ content: $json.body.payload.title }) }}",
+      "method": "POST",
+      "url": "https://api.todoist.com/rest/v2/tasks/{{ $json.body.payload.issueId }}"
+    }
+  },
+  "authHeader": "=Bearer {{ $env.TODOIST_TOKEN }}",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "docsUrl": "https://developer.todoist.com/rest/v2/",
+  "id": "todoist",
+  "label": "Todoist",
+  "notes": "Projects → projects, tasks → issues. issueId = task id. TODOIST_TOKEN is a per-account Todoist API token.",
+  "requiredEnv": [
+    "TODOIST_TOKEN"
+  ],
+  "via": "HTTP (Todoist REST v2) + bearer token"
+}

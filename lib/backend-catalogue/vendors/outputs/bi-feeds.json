@@ -1,0 +1,16 @@
+{
+  "capabilities": {
+    "auth": "api-token",
+    "readOnly": true,
+    "streaming": false
+  },
+  "id": "bi-feeds",
+  "kind": "bi-feed",
+  "label": "BI feed manifest",
+  "notes": "A manifest of JSON feeds for Power BI / Sheets connectors.",
+  "route": "GET /api/bi/feeds",
+  "tools": [
+    "portfolio_health",
+    "prometheus_metrics"
+  ]
+}

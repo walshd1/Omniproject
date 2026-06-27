@@ -40,7 +40,7 @@ const ROOTS: GuardRoot[] = [
       "artifacts/api-server/src/lib/openapi.generated.ts",
     ],
   },
-  { dir: "lib/backend-catalogue/src", exempt: [] },
+  { dir: "lib/backend-catalogue/src", exempt: ["lib/backend-catalogue/src/vendors.generated.ts"] },
   { dir: "scripts/src", exempt: [] },
 ];
 

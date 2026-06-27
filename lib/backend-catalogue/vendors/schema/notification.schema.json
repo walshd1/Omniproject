@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/vendors/notification.schema.json",
+  "title": "OmniProject notification vendor",
+  "description": "A channel alerts/events are delivered TO. One file per vendor under vendors/notifications/<id>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "docsUrl", "kind", "capabilities", "tools"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string" },
+    "docsUrl": { "type": "string" },
+    "kind": { "enum": ["chat", "email", "incident", "sms", "webhook", "iot", "agent"] },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channels", "directMessage", "richFormatting", "threads", "inboundReply", "delivery"],
+      "properties": {
+        "channels": { "type": "boolean" },
+        "directMessage": { "type": "boolean" },
+        "richFormatting": { "type": "boolean" },
+        "threads": { "type": "boolean" },
+        "inboundReply": { "type": "boolean" },
+        "delivery": { "enum": ["incoming-webhook", "oauth-app", "api-key", "smtp", "hmac-webhook", "mqtt", "mcp"] }
+      }
+    },
+    "tools": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "string" }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "capabilities": {
+    "channels": false,
+    "delivery": "hmac-webhook",
+    "directMessage": false,
+    "inboundReply": false,
+    "richFormatting": false,
+    "threads": false
+  },
+  "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/BROKER-HTTP-BINDING.md",
+  "id": "generic-webhook",
+  "kind": "webhook",
+  "label": "Generic webhook",
+  "notes": "OmniProject's own HMAC-signed outbound events (the OUTPUTS `webhooks` surface) — point any consumer at it.",
+  "tools": [
+    "notification",
+    "alert",
+    "audit",
+    "config.changed"
+  ]
+}

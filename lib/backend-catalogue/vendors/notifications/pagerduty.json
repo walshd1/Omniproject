@@ -1,0 +1,19 @@
+{
+  "capabilities": {
+    "channels": false,
+    "delivery": "api-key",
+    "directMessage": false,
+    "inboundReply": false,
+    "richFormatting": false,
+    "threads": false
+  },
+  "docsUrl": "https://developer.pagerduty.com/docs/events-api-v2/overview/",
+  "id": "pagerduty",
+  "kind": "incident",
+  "label": "PagerDuty",
+  "notes": "Events API v2 — escalate a triggered/acknowledged/resolved incident (for SLA/health breaches).",
+  "tools": [
+    "alert",
+    "audit"
+  ]
+}

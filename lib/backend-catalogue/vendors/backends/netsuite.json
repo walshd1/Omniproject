@@ -1,0 +1,49 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ title: $json.body.payload.title, company: $json.body.payload.projectId }) }}",
+      "method": "POST",
+      "url": "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "note": "Project tasks scoped to the job (projectId) via the SuiteQL-style q filter.",
+      "url": "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask?q=company ANY_OF {{ $json.body.payload.projectId }}"
+    },
+    "list_projects": {
+      "method": "GET",
+      "note": "NetSuite projects are 'job' records.",
+      "url": "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/job?limit=1000"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ title: $json.body.payload.title }) }}",
+      "method": "PATCH",
+      "url": "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask/{{ $json.body.payload.issueId }}"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": true,
+    "raid": false,
+    "resources": true,
+    "scheduling": true
+  },
+  "credentialType": "oAuth1Api",
+  "docsUrl": "https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_1540391670.html",
+  "id": "netsuite",
+  "label": "Oracle NetSuite",
+  "notes": "Auth is NetSuite token-based (OAuth 1.0a TBA) configured as an n8n OAuth1 credential (consumer key/secret + token key/secret + realm/account id). NETSUITE_BASE_URL e.g. https://<account>.suitetalk.api.netsuite.com. job → project, projectTask → issue; finance entities (job costing) back the financials capability. Confirm record/field names against your NetSuite account + SuiteTalk version.",
+  "requiredEnv": [
+    "NETSUITE_BASE_URL"
+  ],
+  "via": "HTTP (SuiteTalk REST) + n8n-managed token auth (OAuth 1.0a TBA)"
+}

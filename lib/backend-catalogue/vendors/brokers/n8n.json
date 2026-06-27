@@ -1,0 +1,26 @@
+{
+  "alsoProvides": [
+    {
+      "note": "the same workflow can post to Slack/Teams/email",
+      "plane": "notifications"
+    }
+  ],
+  "build": "workflow-generator",
+  "capabilities": {
+    "eventsInbound": true,
+    "eventsOutbound": true,
+    "managedAuth": true,
+    "selfHostable": true,
+    "synchronous": true
+  },
+  "docsUrl": "https://docs.n8n.io/",
+  "hosted": false,
+  "id": "n8n",
+  "kind": "low-code",
+  "label": "n8n",
+  "notes": "The reference broker. Self-hostable, maintained nodes for most backends, synchronous webhook response.",
+  "transports": [
+    "http",
+    "native-node"
+  ]
+}

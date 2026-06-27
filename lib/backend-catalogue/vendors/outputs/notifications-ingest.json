@@ -1,0 +1,15 @@
+{
+  "capabilities": {
+    "auth": "hmac",
+    "readOnly": false,
+    "streaming": false
+  },
+  "id": "notifications-ingest",
+  "kind": "events-in",
+  "label": "Notification ingest",
+  "notes": "Inbound: a broker/tool pushes an event in (NOTIFY_INGEST_SECRET).",
+  "route": "POST /api/notifications/ingest",
+  "tools": [
+    "notification"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ label: $json.body.payload.title, fk_project: $json.body.payload.projectId }) }}",
+      "method": "POST",
+      "url": "={{ $env.DOLIBARR_URL }}/api/index.php/tasks"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.DOLIBARR_URL }}/api/index.php/tasks/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "={{ $env.DOLIBARR_URL }}/api/index.php/projects/{{ $json.body.payload.projectId }}/tasks"
+    },
+    "list_projects": {
+      "method": "GET",
+      "note": "Dolibarr projects.",
+      "url": "={{ $env.DOLIBARR_URL }}/api/index.php/projects"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ label: $json.body.payload.title }) }}",
+      "method": "PUT",
+      "url": "={{ $env.DOLIBARR_URL }}/api/index.php/tasks/{{ $json.body.payload.issueId }}"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "httpHeaderAuth",
+  "docsUrl": "https://wiki.dolibarr.org/index.php?title=Module_Web_Services_API_REST_(developer)",
+  "id": "dolibarr",
+  "label": "Dolibarr (SMB ERP)",
+  "notes": "Open-source SMB ERP. projects → projects, tasks → issues. Auth via the DOLAPIKEY header (configure an n8n Header Auth credential named DOLAPIKEY). DOLIBARR_URL e.g. https://erp.example.com.",
+  "requiredEnv": [
+    "DOLIBARR_URL"
+  ],
+  "via": "HTTP (Dolibarr REST) + n8n Header-Auth credential (DOLAPIKEY)"
+}

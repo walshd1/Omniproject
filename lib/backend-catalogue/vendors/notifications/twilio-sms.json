@@ -1,0 +1,18 @@
+{
+  "capabilities": {
+    "channels": false,
+    "delivery": "api-key",
+    "directMessage": true,
+    "inboundReply": true,
+    "richFormatting": false,
+    "threads": false
+  },
+  "docsUrl": "https://www.twilio.com/docs/sms",
+  "id": "twilio-sms",
+  "kind": "sms",
+  "label": "SMS (Twilio)",
+  "notes": "Plain-text SMS for critical alerts; keep payloads tiny.",
+  "tools": [
+    "alert"
+  ]
+}

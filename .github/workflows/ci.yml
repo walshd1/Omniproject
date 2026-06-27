@@ -76,6 +76,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the vendor catalogue is in sync with the vendor JSON
+        run: |
+          pnpm --filter @workspace/scripts run gen-vendors
+          if ! git diff --quiet -- lib/backend-catalogue/src/vendors.generated.ts; then
+            echo "::error::Vendor catalogue is out of date. Run 'pnpm --filter @workspace/scripts run gen-vendors' and commit the result."
+            git --no-pager diff --stat -- lib/backend-catalogue/src/vendors.generated.ts
+            exit 1
+          fi
+
       - name: Verify the function map is in sync with the code comments
         run: |
           pnpm --filter @workspace/scripts run gen-function-map

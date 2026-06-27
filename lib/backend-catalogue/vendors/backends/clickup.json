@@ -1,0 +1,83 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.clickUp",
+      "parameters": {
+        "list": "={{ $json.body.payload.projectId }}",
+        "name": "={{ $json.body.payload.title }}",
+        "operation": "create",
+        "resource": "task"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.clickUp",
+      "parameters": {
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "delete",
+        "resource": "task"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.clickUp",
+      "note": "projectId = ClickUp list id.",
+      "parameters": {
+        "list": "={{ $json.body.payload.projectId }}",
+        "operation": "getAll",
+        "resource": "task",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.clickUp",
+      "note": "Folders in the space map to projects; or use lists directly.",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "folder",
+        "returnAll": true,
+        "space": "={{ $env.CLICKUP_SPACE_ID }}"
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.clickUp",
+      "parameters": {
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "update",
+        "resource": "task",
+        "updateFields": {
+          "name": "={{ $json.body.payload.title }}"
+        }
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "clickUpApi",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.clickup/",
+  "id": "clickup",
+  "label": "ClickUp",
+  "notes": "Spaces/lists → projects, tasks → issues. List all lists via an extra node if you want list_projects.",
+  "requiredEnv": [
+    "CLICKUP_SPACE_ID"
+  ],
+  "via": "Native n8n node (clickUpApi credential)"
+}

@@ -1,0 +1,25 @@
+{
+  "alsoProvides": [
+    {
+      "note": "scenarios can also deliver to chat/email channels",
+      "plane": "notifications"
+    }
+  ],
+  "build": "scenario-template",
+  "capabilities": {
+    "eventsInbound": true,
+    "eventsOutbound": true,
+    "managedAuth": true,
+    "selfHostable": false,
+    "synchronous": true
+  },
+  "docsUrl": "https://www.make.com/en/help/tools/webhooks",
+  "hosted": true,
+  "id": "make",
+  "kind": "low-code",
+  "label": "Make (Integromat)",
+  "notes": "Custom webhook + Webhook Response modules return a synchronous body — a drop-in n8n alternative for the full contract.",
+  "transports": [
+    "http"
+  ]
+}

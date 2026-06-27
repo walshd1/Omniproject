@@ -1,0 +1,47 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title }) }}",
+      "method": "POST",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks({{ $json.body.payload.issueId }})"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks?$filter=_msdyn_project_value eq {{ $json.body.payload.projectId }}&$select=msdyn_subject,msdyn_start,msdyn_finish,msdyn_progress"
+    },
+    "list_projects": {
+      "method": "GET",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projects?$select=msdyn_subject,msdyn_scheduledstart,msdyn_scheduledend"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title }) }}",
+      "method": "PATCH",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks({{ $json.body.payload.issueId }})"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": true,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "microsoftDynamicsOAuth2Api",
+  "docsUrl": "https://learn.microsoft.com/en-us/dynamics365/project-operations/",
+  "id": "msproject",
+  "label": "Microsoft Project (Project for the web)",
+  "notes": "Project for the web stores schedules in Dataverse (msdyn_project / msdyn_projecttask). For classic Project Online, point at the PWA OData (/_api/ProjectData) with a Microsoft OAuth credential instead.",
+  "requiredEnv": [
+    "DATAVERSE_URL"
+  ],
+  "via": "HTTP + n8n-managed Dynamics OAuth (Dataverse Web API)"
+}

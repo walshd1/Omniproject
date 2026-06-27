@@ -1,5 +1,6 @@
 import type { TransportMethod } from "./backend-manifest";
 import type { CrossPlaneRef } from "./planes";
+import { BROKERS_DATA } from "./vendors.generated";
 
 /**
  * BROKER registry — the automation/translation layer that sits between the
@@ -69,54 +70,7 @@ export interface BrokerDefinition extends BrokerManifest {
   build: BrokerBuildMethod;
 }
 
-const HTTP: TransportMethod[] = ["http"];
-
-export const BROKERS: BrokerDefinition[] = [
-  {
-    id: "n8n", label: "n8n", docsUrl: "https://docs.n8n.io/", kind: "low-code", hosted: false,
-    capabilities: { synchronous: true, selfHostable: true, managedAuth: true, eventsInbound: true, eventsOutbound: true },
-    transports: ["http", "native-node"], build: "workflow-generator",
-    alsoProvides: [{ plane: "notifications", note: "the same workflow can post to Slack/Teams/email" }],
-    notes: "The reference broker. Self-hostable, maintained nodes for most backends, synchronous webhook response.",
-  },
-  {
-    id: "make", label: "Make (Integromat)", docsUrl: "https://www.make.com/en/help/tools/webhooks", kind: "low-code", hosted: true,
-    capabilities: { synchronous: true, selfHostable: false, managedAuth: true, eventsInbound: true, eventsOutbound: true },
-    transports: HTTP, build: "scenario-template",
-    alsoProvides: [{ plane: "notifications", note: "scenarios can also deliver to chat/email channels" }],
-    notes: "Custom webhook + Webhook Response modules return a synchronous body — a drop-in n8n alternative for the full contract.",
-  },
-  {
-    id: "pipedream", label: "Pipedream", docsUrl: "https://pipedream.com/docs/", kind: "code-first", hosted: true,
-    capabilities: { synchronous: true, selfHostable: false, managedAuth: true, eventsInbound: true, eventsOutbound: true },
-    transports: HTTP, build: "component-template",
-    notes: "Code-first components on an HTTP source can `$respond()` synchronously — a strong fit for the binding.",
-  },
-  {
-    id: "power-automate", label: "Microsoft Power Automate", docsUrl: "https://learn.microsoft.com/en-us/power-automate/", kind: "low-code", hosted: true,
-    capabilities: { synchronous: true, selfHostable: false, managedAuth: true, eventsInbound: true, eventsOutbound: true },
-    transports: HTTP, build: "flow-template",
-    notes: "An HTTP-request-triggered cloud flow with a Response action serves the contract (premium connector). Native Microsoft 365 / Dataverse reach.",
-  },
-  {
-    id: "airflow", label: "Apache Airflow", docsUrl: "https://airflow.apache.org/docs/", kind: "code-first", hosted: false,
-    capabilities: { synchronous: false, selfHostable: true, managedAuth: false, eventsInbound: true, eventsOutbound: false },
-    transports: HTTP, build: "dag-template",
-    notes: "Batch/scheduled DAGs — NOT a live read-through broker (no synchronous response). Use it to sync a backend into a store that a real broker reads, or to push events. Honest limit, like Zapier.",
-  },
-  {
-    id: "serverless", label: "Serverless function (any cloud)", docsUrl: "https://docs.aws.amazon.com/lambda/latest/dg/welcome.html", kind: "serverless", hosted: false,
-    capabilities: { synchronous: true, selfHostable: true, managedAuth: false, eventsInbound: true, eventsOutbound: true },
-    transports: HTTP, build: "function-template",
-    notes: "One HTTP function (Lambda / Cloud Functions / Azure Functions / a container) implementing the binding. Deploy anywhere; you wire backend auth yourself.",
-  },
-  {
-    id: "http-sidecar", label: "Custom HTTP sidecar", docsUrl: "https://github.com/walshd1/omniproject/blob/main/docs/BROKER-HTTP-BINDING.md", kind: "self-hosted-service", hosted: false,
-    capabilities: { synchronous: true, selfHostable: true, managedAuth: false, eventsInbound: true, eventsOutbound: true },
-    transports: HTTP, build: "implement-blueprint",
-    notes: "A service you write against the binding (see reference-broker-blueprint.ts). Maximum control; the DB-backed broker (RFC-003) is one.",
-  },
-];
+export const BROKERS: BrokerDefinition[] = BROKERS_DATA;
 
 /** One broker definition by id, or undefined. */
 export function getBrokerDef(id: string): BrokerDefinition | undefined {

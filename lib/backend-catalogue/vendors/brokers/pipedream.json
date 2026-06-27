@@ -1,0 +1,19 @@
+{
+  "build": "component-template",
+  "capabilities": {
+    "eventsInbound": true,
+    "eventsOutbound": true,
+    "managedAuth": true,
+    "selfHostable": false,
+    "synchronous": true
+  },
+  "docsUrl": "https://pipedream.com/docs/",
+  "hosted": true,
+  "id": "pipedream",
+  "kind": "code-first",
+  "label": "Pipedream",
+  "notes": "Code-first components on an HTTP source can `$respond()` synchronously — a strong fit for the binding.",
+  "transports": [
+    "http"
+  ]
+}

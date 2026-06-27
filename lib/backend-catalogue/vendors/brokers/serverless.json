@@ -1,0 +1,19 @@
+{
+  "build": "function-template",
+  "capabilities": {
+    "eventsInbound": true,
+    "eventsOutbound": true,
+    "managedAuth": false,
+    "selfHostable": true,
+    "synchronous": true
+  },
+  "docsUrl": "https://docs.aws.amazon.com/lambda/latest/dg/welcome.html",
+  "hosted": false,
+  "id": "serverless",
+  "kind": "serverless",
+  "label": "Serverless function (any cloud)",
+  "notes": "One HTTP function (Lambda / Cloud Functions / Azure Functions / a container) implementing the binding. Deploy anywhere; you wire backend auth yourself.",
+  "transports": [
+    "http"
+  ]
+}

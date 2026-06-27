@@ -1,0 +1,49 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ toBottom: true, cells: [{ columnId: 0, value: $json.body.payload.title }] }) }}",
+      "method": "POST",
+      "note": "Set the real columnId for your title column.",
+      "url": "https://api.smartsheet.com/2.0/sheets/{{ $json.body.payload.projectId }}/rows"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "https://api.smartsheet.com/2.0/sheets/{{ $json.body.payload.projectId }}/rows?ids={{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "note": "Rows on the sheet (projectId) map to issues.",
+      "url": "https://api.smartsheet.com/2.0/sheets/{{ $json.body.payload.projectId }}"
+    },
+    "list_projects": {
+      "method": "GET",
+      "note": "Sheets map to projects.",
+      "url": "https://api.smartsheet.com/2.0/sheets"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ id: $json.body.payload.issueId, cells: [{ columnId: 0, value: $json.body.payload.title }] }) }}",
+      "method": "PUT",
+      "url": "https://api.smartsheet.com/2.0/sheets/{{ $json.body.payload.projectId }}/rows"
+    }
+  },
+  "authHeader": "=Bearer {{ $env.SMARTSHEET_TOKEN }}",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "docsUrl": "https://smartsheet.redoc.ly/",
+  "id": "smartsheet",
+  "label": "Smartsheet",
+  "notes": "Sheets → projects, rows → issues. issueId = row id; map your title column id after import.",
+  "requiredEnv": [
+    "SMARTSHEET_TOKEN"
+  ],
+  "via": "HTTP (Smartsheet API) + bearer token"
+}

@@ -1,0 +1,49 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ title: $json.body.payload.title, body: $json.body.payload.description, labels: $json.body.payload.labels }) }}",
+      "method": "POST",
+      "url": "=https://api.github.com/repos/{{ $env.GITHUB_OWNER }}/{{ $json.body.payload.projectId }}/issues"
+    },
+    "delete_issue": {
+      "body": "={{ JSON.stringify({ state: 'closed' }) }}",
+      "method": "PATCH",
+      "note": "GitHub issues can't be deleted via REST — closing is the closest mapping.",
+      "url": "=https://api.github.com/repos/{{ $env.GITHUB_OWNER }}/{{ $json.body.payload.projectId }}/issues/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "=https://api.github.com/repos/{{ $env.GITHUB_OWNER }}/{{ $json.body.payload.projectId }}/issues?state=all"
+    },
+    "list_projects": {
+      "method": "GET",
+      "note": "GitHub has no 'projects' primitive in the issues API — repos are mapped to projects here.",
+      "url": "=https://api.github.com/orgs/{{ $env.GITHUB_OWNER }}/repos"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ title: $json.body.payload.title, state: $json.body.payload.status === 'done' ? 'closed' : 'open' }) }}",
+      "method": "PATCH",
+      "url": "=https://api.github.com/repos/{{ $env.GITHUB_OWNER }}/{{ $json.body.payload.projectId }}/issues/{{ $json.body.payload.issueId }}"
+    }
+  },
+  "authHeader": "=Bearer {{ $json.body.payload.userContext.token }}",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": false
+  },
+  "docsUrl": "https://docs.github.com/en/rest/issues",
+  "id": "github",
+  "label": "GitHub Issues",
+  "notes": "projectId = repository name. Map issue.state (open/closed) ↔ status; GitHub has no native start/due dates (scheduling off).",
+  "requiredEnv": [
+    "GITHUB_OWNER"
+  ],
+  "via": "HTTP + per-user token"
+}

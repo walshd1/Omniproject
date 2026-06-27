@@ -1,0 +1,91 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.odoo",
+      "parameters": {
+        "customResource": "project.task",
+        "fieldsToCreateOrUpdate": {
+          "fields": [
+            {
+              "fieldName": "name",
+              "fieldValue": "={{ $json.body.payload.title }}"
+            },
+            {
+              "fieldName": "project_id",
+              "fieldValue": "={{ $json.body.payload.projectId }}"
+            }
+          ]
+        },
+        "operation": "create",
+        "resource": "custom"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.odoo",
+      "parameters": {
+        "customResource": "project.task",
+        "customResourceId": "={{ $json.body.payload.issueId }}",
+        "operation": "delete",
+        "resource": "custom"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.odoo",
+      "parameters": {
+        "customResource": "project.task",
+        "filters": {
+          "project_id": "={{ $json.body.payload.projectId }}"
+        },
+        "operation": "getAll",
+        "resource": "custom"
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.odoo",
+      "note": "project.project records map to projects.",
+      "parameters": {
+        "customResource": "project.project",
+        "operation": "getAll",
+        "resource": "custom"
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.odoo",
+      "parameters": {
+        "customResource": "project.task",
+        "customResourceId": "={{ $json.body.payload.issueId }}",
+        "operation": "update",
+        "resource": "custom"
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "odooApi",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.odoo/",
+  "id": "odoo",
+  "label": "Odoo",
+  "notes": "Odoo via the custom-model resource: project.project → projects, project.task → issues. Auth + URL live in the Odoo credential. Confirm model/field names for your Odoo modules.",
+  "requiredEnv": [],
+  "via": "Native n8n node (odooApi credential)"
+}

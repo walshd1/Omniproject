@@ -1,0 +1,82 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.hubspot",
+      "note": "HubSpot deals REQUIRE a pipeline + dealstage — set defaults in the node; associate to the company (projectId).",
+      "parameters": {
+        "additionalFields": {
+          "dealName": "={{ $json.body.payload.title }}"
+        },
+        "operation": "create",
+        "resource": "deal"
+      },
+      "typeVersion": 2
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.hubspot",
+      "parameters": {
+        "dealId": "={{ $json.body.payload.issueId }}",
+        "operation": "delete",
+        "resource": "deal"
+      },
+      "typeVersion": 2
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.hubspot",
+      "note": "Deals map to issues; associate to the company (projectId) — HubSpot getAll has no direct company filter, so filter on the association after import.",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "deal",
+        "returnAll": true
+      },
+      "typeVersion": 2
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.hubspot",
+      "note": "Companies map to projects.",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "company",
+        "returnAll": true
+      },
+      "typeVersion": 2
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.hubspot",
+      "parameters": {
+        "dealId": "={{ $json.body.payload.issueId }}",
+        "operation": "update",
+        "resource": "deal",
+        "updateFields": {
+          "dealName": "={{ $json.body.payload.title }}"
+        }
+      },
+      "typeVersion": 2
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "crm": true,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "hubspotApi",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.hubspot/",
+  "id": "hubspot",
+  "label": "HubSpot",
+  "notes": "CRM mapping: Company → project, Deal → issue. crm + financials capabilities light up amount / pipeline / stage. Confirm resource/param names against the installed HubSpot node version after import.",
+  "requiredEnv": [],
+  "via": "Native n8n node (hubspotApi or hubspotOAuth2Api credential)"
+}

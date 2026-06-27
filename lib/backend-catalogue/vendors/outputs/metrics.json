@@ -1,0 +1,17 @@
+{
+  "capabilities": {
+    "auth": "api-token",
+    "readOnly": true,
+    "streaming": false
+  },
+  "id": "metrics",
+  "kind": "metrics",
+  "label": "Prometheus metrics",
+  "notes": "RED runtime metrics + portfolio gauges (docs/ops/PILOT-READINESS.md).",
+  "route": "GET /api/metrics",
+  "tools": [
+    "omniproject_http_requests_total",
+    "omniproject_broker_request_duration_ms",
+    "omniproject_portfolio_rag"
+  ]
+}

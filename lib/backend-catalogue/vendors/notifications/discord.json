@@ -1,0 +1,21 @@
+{
+  "capabilities": {
+    "channels": true,
+    "delivery": "incoming-webhook",
+    "directMessage": false,
+    "inboundReply": false,
+    "richFormatting": true,
+    "threads": true
+  },
+  "docsUrl": "https://discord.com/developers/docs/resources/webhook",
+  "id": "discord",
+  "kind": "chat",
+  "label": "Discord",
+  "notes": "Channel webhook with embeds.",
+  "tools": [
+    "notification",
+    "alert",
+    "audit",
+    "config.changed"
+  ]
+}

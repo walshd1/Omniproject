@@ -1,0 +1,82 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.zendesk",
+      "parameters": {
+        "description": "={{ $json.body.payload.title }}",
+        "operation": "create",
+        "resource": "ticket"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.zendesk",
+      "parameters": {
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "delete",
+        "resource": "ticket"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.zendesk",
+      "note": "Tickets scoped to the organization (projectId).",
+      "parameters": {
+        "operation": "getAll",
+        "options": {
+          "query": "organization:{{ $json.body.payload.projectId }}"
+        },
+        "resource": "ticket",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.zendesk",
+      "note": "Organizations map to projects.",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "organization",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.zendesk",
+      "parameters": {
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "update",
+        "resource": "ticket",
+        "updateFields": {
+          "subject": "={{ $json.body.payload.title }}"
+        }
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true,
+    "service": true
+  },
+  "credentialType": "zendeskApi",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.zendesk/",
+  "id": "zendesk",
+  "label": "Zendesk",
+  "notes": "Support/ITSM: Organization → project, Ticket → issue. service capability lights up SLA/CSAT fields.",
+  "requiredEnv": [],
+  "via": "Native n8n node (zendeskApi credential)"
+}

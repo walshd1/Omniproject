@@ -1,0 +1,47 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ subject: $json.body.payload.title, description: { raw: $json.body.payload.description }, _links: { project: { href: '/api/v3/projects/' + $json.body.payload.projectId } } }) }}",
+      "method": "POST",
+      "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/work_packages"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/work_packages/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/projects/{{ $json.body.payload.projectId }}/work_packages"
+    },
+    "list_projects": {
+      "method": "GET",
+      "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/projects"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ lockVersion: $json.body.payload.expectedVersion, subject: $json.body.payload.title }) }}",
+      "method": "PATCH",
+      "note": "OpenProject enforces optimistic concurrency via lockVersion — pass expectedVersion through as lockVersion.",
+      "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/work_packages/{{ $json.body.payload.issueId }}"
+    }
+  },
+  "authHeader": "=Bearer {{ $json.body.payload.userContext.token }}",
+  "capabilities": {
+    "baseline": true,
+    "blockers": false,
+    "financials": false,
+    "history": true,
+    "issues": true,
+    "portfolio": true,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "docsUrl": "https://www.openproject.org/docs/api/",
+  "id": "openproject",
+  "label": "OpenProject",
+  "notes": "OpenProject work packages map to OmniProject issues. lockVersion ↔ version gives real optimistic concurrency. Baselines + journals give history/baseline.",
+  "requiredEnv": [
+    "OPENPROJECT_INSTANCE_URL"
+  ],
+  "via": "HTTP + per-user OIDC token"
+}

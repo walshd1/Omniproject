@@ -1,0 +1,46 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ project: $json.body.payload.projectId, name: $json.body.payload.title, description: $json.body.payload.description }) }}",
+      "method": "POST",
+      "url": "={{ $env.CELOXIS_INSTANCE_URL }}/psa/api/v3/tasks"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.CELOXIS_INSTANCE_URL }}/psa/api/v3/tasks/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "={{ $env.CELOXIS_INSTANCE_URL }}/psa/api/v3/tasks?project={{ $json.body.payload.projectId }}"
+    },
+    "list_projects": {
+      "method": "GET",
+      "url": "={{ $env.CELOXIS_INSTANCE_URL }}/psa/api/v3/projects"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ name: $json.body.payload.title, state: $json.body.payload.status }) }}",
+      "method": "PUT",
+      "url": "={{ $env.CELOXIS_INSTANCE_URL }}/psa/api/v3/tasks/{{ $json.body.payload.issueId }}"
+    }
+  },
+  "authHeader": "=Bearer {{ $json.body.payload.userContext.token }}",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": true,
+    "raid": false,
+    "resources": true,
+    "scheduling": true
+  },
+  "docsUrl": "https://www.celoxis.com/cw/api/v3",
+  "id": "celoxis",
+  "label": "Celoxis",
+  "notes": "Mid-market PPM: projects → projects, tasks → issues; schedules, resources + financials supported. Celoxis API v3 uses a per-user token (forwarded for real per-user audit). Confirm the v3 paths/field names against your instance — these are reference mappings.",
+  "requiredEnv": [
+    "CELOXIS_INSTANCE_URL"
+  ],
+  "via": "HTTP + per-user API token"
+}

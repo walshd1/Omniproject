@@ -1,0 +1,21 @@
+{
+  "capabilities": {
+    "channels": true,
+    "delivery": "incoming-webhook",
+    "directMessage": true,
+    "inboundReply": false,
+    "richFormatting": true,
+    "threads": true
+  },
+  "docsUrl": "https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/connectors-using",
+  "id": "teams",
+  "kind": "chat",
+  "label": "Microsoft Teams",
+  "notes": "Incoming Webhook / Workflows connector for channel posts (Adaptive Cards), or Graph API for DMs.",
+  "tools": [
+    "notification",
+    "alert",
+    "audit",
+    "config.changed"
+  ]
+}

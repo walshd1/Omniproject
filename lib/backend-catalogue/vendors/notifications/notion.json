@@ -1,0 +1,21 @@
+{
+  "capabilities": {
+    "channels": false,
+    "delivery": "api-key",
+    "directMessage": false,
+    "inboundReply": false,
+    "richFormatting": true,
+    "threads": false
+  },
+  "docsUrl": "https://developers.notion.com/reference/post-page",
+  "id": "notion",
+  "kind": "webhook",
+  "label": "Notion",
+  "notes": "Send reports + status to a Notion database as pages (e.g. a weekly highlight report). Delivery rides the broker — an n8n Notion node (or the reference sidecar) creates the page from the report payload using a Notion integration token; this plane describes the channel. No bespoke code needed (build-your-own also works against the same seam).",
+  "tools": [
+    "report",
+    "notification",
+    "audit",
+    "config.changed"
+  ]
+}

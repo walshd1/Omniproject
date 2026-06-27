@@ -1,0 +1,47 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ fields: { project: { key: $json.body.payload.projectId }, summary: $json.body.payload.title, issuetype: { name: 'Task' } } }) }}",
+      "method": "POST",
+      "url": "={{ $env.JIRA_INSTANCE_URL }}/rest/api/3/issue"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.JIRA_INSTANCE_URL }}/rest/api/3/issue/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "={{ $env.JIRA_INSTANCE_URL }}/rest/api/3/search?jql=project={{ $json.body.payload.projectId }}"
+    },
+    "list_projects": {
+      "method": "GET",
+      "url": "={{ $env.JIRA_INSTANCE_URL }}/rest/api/3/project/search"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ fields: { summary: $json.body.payload.title } }) }}",
+      "method": "PUT",
+      "url": "={{ $env.JIRA_INSTANCE_URL }}/rest/api/3/issue/{{ $json.body.payload.issueId }}"
+    }
+  },
+  "authHeader": "=Basic {{ $env.JIRA_BASIC_AUTH }}",
+  "capabilities": {
+    "baseline": false,
+    "blockers": true,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "docsUrl": "https://developer.atlassian.com/cloud/jira/platform/rest/v3/",
+  "id": "jira",
+  "label": "Jira (Cloud)",
+  "notes": "JIRA_BASIC_AUTH = base64('email:api_token'). Sprints/story points come from Agile fields (board API + customfield_*); attach sprint:/sp: labels in the Normalize node.",
+  "requiredEnv": [
+    "JIRA_INSTANCE_URL",
+    "JIRA_BASIC_AUTH"
+  ],
+  "via": "HTTP + Basic (email:token)"
+}

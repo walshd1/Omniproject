@@ -9,6 +9,7 @@
  * Outputs are NOT brokers and NOT backends: data flows OUT through them, always
  * through the same broker seam + RBAC + audit, so they add no at-rest scope.
  */
+import { OUTPUTS_DATA } from "./vendors.generated";
 
 export type OutputKind =
   | "read-api" // structured read projection (OData-style)
@@ -44,56 +45,7 @@ export interface OutputDefinition extends OutputManifest {
   tools: string[];
 }
 
-export const OUTPUTS: OutputDefinition[] = [
-  {
-    id: "mcp", label: "MCP server", route: "POST /api/mcp", kind: "agent-api",
-    capabilities: { readOnly: true, streaming: false, auth: "session-or-token" },
-    tools: ["omniproject_list_projects", "omniproject_list_issues", "omniproject_project_summary", "omniproject_portfolio_health", "omniproject_capabilities"],
-    notes: "JSON-RPC tools for MCP clients/agents; reads through the broker seam (docs/MCP.md).",
-  },
-  {
-    id: "odata", label: "OData / Power BI", route: "GET /api/odata", kind: "read-api",
-    capabilities: { readOnly: true, streaming: false, auth: "api-token" },
-    tools: ["Projects", "Issues", "Portfolio"],
-    notes: "Read-only OData entity sets for Power BI / Excel.",
-  },
-  {
-    id: "bi-feeds", label: "BI feed manifest", route: "GET /api/bi/feeds", kind: "bi-feed",
-    capabilities: { readOnly: true, streaming: false, auth: "api-token" },
-    tools: ["portfolio_health", "prometheus_metrics"],
-    notes: "A manifest of JSON feeds for Power BI / Sheets connectors.",
-  },
-  {
-    id: "metrics", label: "Prometheus metrics", route: "GET /api/metrics", kind: "metrics",
-    capabilities: { readOnly: true, streaming: false, auth: "api-token" },
-    tools: ["omniproject_http_requests_total", "omniproject_broker_request_duration_ms", "omniproject_portfolio_rag"],
-    notes: "RED runtime metrics + portfolio gauges (docs/ops/PILOT-READINESS.md).",
-  },
-  {
-    id: "exports", label: "File exports", route: "GET /api/export.{csv,json,xlsx,pdf,md}", kind: "export",
-    capabilities: { readOnly: true, streaming: false, auth: "user-action" },
-    tools: ["csv", "json", "xlsx", "pdf", "md"],
-    notes: "User-initiated exports with CSV-injection neutralisation + data-lineage.",
-  },
-  {
-    id: "webhooks", label: "Outbound events", route: "subscriptions → HMAC-signed POST", kind: "events-out",
-    capabilities: { readOnly: false, streaming: false, auth: "hmac" },
-    tools: ["notification", "audit", "config.changed", "webhook.test"],
-    notes: "OmniProject signs outbound events; receivers verify the HMAC (Zapier/IFTTT/Make can consume these).",
-  },
-  {
-    id: "notifications-ingest", label: "Notification ingest", route: "POST /api/notifications/ingest", kind: "events-in",
-    capabilities: { readOnly: false, streaming: false, auth: "hmac" },
-    tools: ["notification"],
-    notes: "Inbound: a broker/tool pushes an event in (NOTIFY_INGEST_SECRET).",
-  },
-  {
-    id: "notifications-stream", label: "Live notification stream", route: "GET /api/notifications/stream (SSE)", kind: "events-out",
-    capabilities: { readOnly: true, streaming: true, auth: "session" },
-    tools: ["notification"],
-    notes: "Server-Sent Events to the in-app bell; multi-replica via the notify bus.",
-  },
-];
+export const OUTPUTS: OutputDefinition[] = OUTPUTS_DATA;
 
 /** One output-interface definition by id, or undefined. */
 export function getOutput(id: string): OutputDefinition | undefined {

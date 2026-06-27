@@ -6,6 +6,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Vendor definitions are now JSON files in a directory** (**Stable**) — every
+  vendor (backend, broker, notification, output) is authored as one JSON file under
+  `lib/backend-catalogue/vendors/<plane>/<id>.json`, validated against a per-plane
+  JSON Schema. To add a vendor you design + verify the JSON and drop it in — no
+  TypeScript. A `gen-vendors` step validates every file and embeds the result into a
+  portable, type-checked `vendors.generated.ts` (so the catalogue still ships no
+  runtime files and works in the browser), kept honest by a CI drift guard. Pure
+  form change: the 64 shipped vendors are byte-for-byte the same data. See
+  [lib/backend-catalogue/vendors/README.md](lib/backend-catalogue/vendors/README.md).
+
 ### Added
 
 - **Canonical value vocabularies below the seam** (**Stable**) — the cross-backend
