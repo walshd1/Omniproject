@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Generic ScreenRenderer + panel registry** (**Beta**) — one renderer that lays a
+  screen's panels onto a grid and delegates each to its panel renderer by `kind`, so
+  screens, views and reports all render from JSON through ONE component (each widget
+  kind written once). A screen is `{ panels[] }`; a panel is `{ kind, config }`.
+  Ships the self-contained leaf kinds (metric, text, table, list); the complex kinds
+  (board, chart, timeline, register) get registered as the existing components are
+  wrapped as panels next. Panels are individually selectable; a `methodology` preset
+  activates the panels tagged with it (per-context or throughout); capability gating
+  hides a panel whose backend domain isn't fed; an unknown kind degrades to a
+  placeholder. Additive — nothing migrated yet.
 - **Board views are JSON-defined + methodology-tagged** (**Stable**) — the first of
   the renderable planes to move from hand-written TypeScript to JSON. Each view
   (Kanban, Scrum, Gantt, PRINCE2, RAID, List) is authored under
