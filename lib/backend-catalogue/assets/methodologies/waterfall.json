@@ -1,0 +1,38 @@
+{
+  "id": "waterfall",
+  "label": "Waterfall",
+  "docsUrl": "https://en.wikipedia.org/wiki/Waterfall_model",
+  "kind": "traditional",
+  "capabilities": {
+    "iterations": false,
+    "board": false,
+    "wipLimits": false,
+    "phases": true,
+    "baseline": true,
+    "estimation": "hours"
+  },
+  "tools": {
+    "states": [
+      "initiation",
+      "planning",
+      "execution",
+      "monitoring",
+      "closure"
+    ],
+    "ceremonies": [
+      "stage-gate-review"
+    ]
+  },
+  "alsoProvides": [
+    {
+      "plane": "reports",
+      "note": "Gantt + EVM"
+    },
+    {
+      "plane": "screens",
+      "note": "schedule / Gantt"
+    }
+  ],
+  "notes": "Sequential phases, baselines, critical path.",
+  "order": 40
+}

@@ -1,0 +1,41 @@
+{
+  "id": "scrum",
+  "label": "Scrum",
+  "docsUrl": "https://scrumguides.org/",
+  "kind": "agile",
+  "capabilities": {
+    "iterations": true,
+    "board": true,
+    "wipLimits": false,
+    "phases": false,
+    "baseline": false,
+    "estimation": "story-points"
+  },
+  "tools": {
+    "states": [
+      "backlog",
+      "todo",
+      "in_progress",
+      "review",
+      "done"
+    ],
+    "ceremonies": [
+      "sprint-planning",
+      "daily-standup",
+      "review",
+      "retrospective"
+    ]
+  },
+  "alsoProvides": [
+    {
+      "plane": "reports",
+      "note": "burndown / velocity"
+    },
+    {
+      "plane": "screens",
+      "note": "sprint board"
+    }
+  ],
+  "notes": "Time-boxed sprints, story points, the four ceremonies.",
+  "order": 10
+}

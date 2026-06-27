@@ -1,0 +1,38 @@
+{
+  "id": "kanban",
+  "label": "Kanban",
+  "docsUrl": "https://kanban.university/kanban-guide/",
+  "kind": "agile",
+  "capabilities": {
+    "iterations": false,
+    "board": true,
+    "wipLimits": true,
+    "phases": false,
+    "baseline": false,
+    "estimation": "none"
+  },
+  "tools": {
+    "states": [
+      "backlog",
+      "todo",
+      "in_progress",
+      "done"
+    ],
+    "ceremonies": [
+      "replenishment",
+      "cadence-review"
+    ]
+  },
+  "alsoProvides": [
+    {
+      "plane": "reports",
+      "note": "cumulative flow"
+    },
+    {
+      "plane": "screens",
+      "note": "WIP-limited board"
+    }
+  ],
+  "notes": "Continuous flow, explicit WIP limits, no fixed iterations.",
+  "order": 20
+}

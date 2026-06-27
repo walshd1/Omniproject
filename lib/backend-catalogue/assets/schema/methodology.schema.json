@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/methodology.schema.json",
+  "title": "OmniProject methodology",
+  "description": "A PM methodology OmniProject can shape itself to. One file per methodology under assets/methodologies/<id>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "docsUrl", "kind", "capabilities", "tools", "order"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string" },
+    "docsUrl": { "type": "string" },
+    "kind": { "enum": ["agile", "hybrid", "traditional"] },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["iterations", "board", "wipLimits", "phases", "baseline", "estimation"],
+      "properties": {
+        "iterations": { "type": "boolean" },
+        "board": { "type": "boolean" },
+        "wipLimits": { "type": "boolean" },
+        "phases": { "type": "boolean" },
+        "baseline": { "type": "boolean" },
+        "estimation": { "enum": ["story-points", "hours", "t-shirt", "none"] }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["states", "ceremonies"],
+      "properties": {
+        "states": { "type": "array", "items": { "type": "string" } },
+        "ceremonies": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "alsoProvides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["plane"],
+        "properties": {
+          "plane": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "notes": { "type": "string" },
+    "order": { "type": "integer", "description": "Display order in the methodology picker." }
+  }
+}

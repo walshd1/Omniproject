@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Methodologies are JSON-defined** — the last hand-written catalogue array moves to
+  JSON. Each methodology (Scrum, Kanban, Scrumban, Waterfall, PRINCE2, SAFe) is
+  authored under `assets/methodologies/<id>.json` (validated against a JSON Schema,
+  embedded by `gen-methodologies`, drift-guarded in CI, overlayable per deployment);
+  the catalogue sources `METHODOLOGIES` from the generated array sorted by `order`.
+  Every catalogue plane — backends, brokers, outputs, notifications, fields, views,
+  reports, screens, methodologies — is now JSON over generic code. This is also the
+  groundwork for importable methodology **packs**.
 - **AI providers + column coercion are registry-driven** — two more bespoke
   `switch` statements become registries. `ai.ts` now holds an `AI_PROVIDERS` registry
   (`provider → { status, chat }`), so the AI status + chat paths route by lookup and
