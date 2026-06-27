@@ -274,6 +274,17 @@ test("GET /api/setup/notifications lists channels (Slack/Teams/…) with capabil
   assert.ok(slack && slack.capabilities.richFormatting === true);
 });
 
+test("GET /api/setup/{methodologies,reports,screens,planes} expose the new planes", async () => {
+  const methods = await readJson(await get("/api/setup/methodologies"));
+  assert.ok(methods.some((m: { id: string }) => m.id === "scrum"));
+  const reports = await readJson(await get("/api/setup/reports"));
+  assert.equal(reports.find((r: { id: string }) => r.id === "evm").capabilities.requiresCapability, "financials");
+  const screens = await readJson(await get("/api/setup/screens"));
+  assert.ok(screens.some((s: { id: string }) => s.id === "gantt"));
+  const planes = await readJson(await get("/api/setup/planes"));
+  assert.equal(planes.length, 7);
+});
+
 test("business ruleset: admin sets a hard rule that then blocks a write (422)", async () => {
   const put = (body: unknown) => get("/api/admin/ruleset", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   try {

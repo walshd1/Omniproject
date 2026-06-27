@@ -1,4 +1,5 @@
 import type { TransportMethod } from "./backend-manifest";
+import type { CrossPlaneRef } from "./planes";
 
 /**
  * BROKER registry — the automation/translation layer that sits between the
@@ -57,6 +58,9 @@ export interface BrokerManifest {
   capabilities: BrokerCapabilities;
   /** Which backend transports this broker can drive (native-node is n8n-only). */
   transports: TransportMethod[];
+  /** Other planes this broker also offers — a broker can span planes (e.g. an n8n
+   *  workflow that also delivers to Slack). */
+  alsoProvides?: CrossPlaneRef[];
   notes?: string;
 }
 
@@ -72,12 +76,14 @@ export const BROKERS: BrokerDefinition[] = [
     id: "n8n", label: "n8n", docsUrl: "https://docs.n8n.io/", kind: "low-code", hosted: false,
     capabilities: { synchronous: true, selfHostable: true, managedAuth: true, eventsInbound: true, eventsOutbound: true },
     transports: ["http", "native-node"], build: "workflow-generator",
+    alsoProvides: [{ plane: "notifications", note: "the same workflow can post to Slack/Teams/email" }],
     notes: "The reference broker. Self-hostable, maintained nodes for most backends, synchronous webhook response.",
   },
   {
     id: "make", label: "Make (Integromat)", docsUrl: "https://www.make.com/en/help/tools/webhooks", kind: "low-code", hosted: true,
     capabilities: { synchronous: true, selfHostable: false, managedAuth: true, eventsInbound: true, eventsOutbound: true },
     transports: HTTP, build: "scenario-template",
+    alsoProvides: [{ plane: "notifications", note: "scenarios can also deliver to chat/email channels" }],
     notes: "Custom webhook + Webhook Response modules return a synchronous body — a drop-in n8n alternative for the full contract.",
   },
   {
@@ -134,6 +140,7 @@ export function brokerCatalogue() {
     capabilities: b.capabilities,
     transports: b.transports,
     build: b.build,
+    alsoProvides: b.alsoProvides ?? [],
     /** Can it serve the live read-through contract at all? */
     dataBroker: b.capabilities.synchronous,
     notes: b.notes,

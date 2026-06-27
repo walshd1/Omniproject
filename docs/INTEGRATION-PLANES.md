@@ -1,10 +1,16 @@
-# Integration planes — backends, brokers, outputs, notifications
+# Integration planes — seven of them
 
-OmniProject has **four integration planes**, and they all follow the same
+OmniProject has **seven integration planes**, and they all follow the same
 architectural principle: a **neutral manifest** (identity + **capabilities**) kept
 **separate from** its concrete **tools** (the how), the two **linked** into one
 definition. All live in `@workspace/backend-catalogue` as pure, shared data so the
-gateway and the setup wizard can't drift.
+gateway and the setup wizard can't drift. The plane meta-registry
+(`planeCatalogue()`, `GET /api/setup/planes`) lists every plane + its dev docs.
+
+**Cross-plane:** an entry may span planes — declared with `alsoProvides`. E.g. the
+n8n / Make brokers also deliver **notifications** (the same workflow posts to
+Slack); a Scrum **methodology** also implies a burndown **report** + a board
+**screen**.
 
 | Plane | What it is | Manifest (capabilities) | Tools (the how) | Registry |
 | --- | --- | --- | --- | --- |
@@ -12,8 +18,11 @@ gateway and the setup wizard can't drift.
 | **Brokers** | the automation/translation hop | `synchronous`, `selfHostable`, `managedAuth`, `eventsInbound/Outbound`; which transports it drives | the **build method** (workflow generator / scenario / DAG / component / flow / function / blueprint) | `brokerCatalogue()` |
 | **Outputs** | outward interfaces (data/events out) | `readOnly`, `streaming`, `auth` | the concrete surface (MCP tool names, OData entity sets, export formats, event names) | `outputCatalogue()` |
 | **Notifications** | channels alerts are delivered TO (Slack, Teams, email, PagerDuty, …) | `channels`, `directMessage`, `richFormatting`, `threads`, `inboundReply`, `delivery` | the event payloads it carries (`notification`, `alert`, `audit`, …) | `notificationCatalogue()` |
+| **Methodologies** | PM methodologies (Scrum, Kanban, Waterfall, SAFe, PRINCE2, …) | `iterations`, `board`, `wipLimits`, `phases`, `baseline`, `estimation` | the workflow `states` + `ceremonies` it introduces | `methodologyCatalogue()` |
+| **Reports** | report / visualisation types (Gantt, burndown, EVM, …) | `requiresCapability` (links to backends), `timeSeries`, `exports` | the metrics / series it produces | `reportCatalogue()` |
+| **Screens** | SPA views (Home, Gantt, Reports, Settings, …) | `requiresRole`, `requiresCapability`, `dataLineage`, `exportable` | the widgets on the screen | `screenCatalogue()` |
 
-Surfaced read-only at `GET /api/setup/{backends,brokers,outputs,notifications}`.
+Surfaced read-only at `GET /api/setup/{backends,brokers,outputs,notifications,methodologies,reports,screens}` (+ `/planes`).
 
 ## How the planes link
 
