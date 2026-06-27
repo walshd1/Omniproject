@@ -34,7 +34,9 @@ import {
   getBaseline,
   getRaid,
   getNotifications,
+  brokerChangeToken,
 } from "../lib/data";
+import { conditionalJson } from "../lib/conditional";
 import { analyticsLimiter } from "../lib/rate-limit";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { getFxRates } from "../lib/currency";
@@ -68,7 +70,10 @@ function passesBusinessRules(req: Request, res: Response, action: string, projec
 
 router.get("/projects", async (req, res) => {
   try {
-    res.json(await getProjects(req));
+    await conditionalJson(req, res, {
+      token: await brokerChangeToken(req, "projects"),
+      read: () => getProjects(req),
+    });
   } catch (err) {
     req.log.error({ err }, "list_projects failed");
     respondBrokerError(res, err);
@@ -82,7 +87,10 @@ router.get("/projects/:projectId/issues", async (req, res) => {
     return;
   }
   try {
-    res.json(await getIssues(req, parse.data.projectId));
+    await conditionalJson(req, res, {
+      token: await brokerChangeToken(req, `issues:${parse.data.projectId}`),
+      read: () => getIssues(req, parse.data.projectId),
+    });
   } catch (err) {
     req.log.error({ err }, "list_issues failed");
     respondBrokerError(res, err);

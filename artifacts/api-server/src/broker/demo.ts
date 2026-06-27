@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { getSettings } from "../lib/settings";
 import { versionConflict } from "../lib/concurrency";
 import { CAPABILITY_DOMAINS, FIELD_KEYS, ENTITY_KEYS } from "../lib/capabilities";
@@ -378,6 +379,18 @@ export class DemoBroker implements Broker {
         provenance: "sample" as const,
       };
     });
+  }
+
+  async changeToken(_ctx: ActorContext, resource: string): Promise<string | null> {
+    // A cheap version of a resource slice, so the gateway can serve 304 for an
+    // unchanged read. Volatile resources (activity/fx/notifications carry timestamps)
+    // return null so they fall back to the payload hash. A real broker maps this to a
+    // backend ETag / max(updatedAt).
+    const hash = (v: unknown) => crypto.createHash("sha1").update(JSON.stringify(v) ?? "").digest("base64url");
+    if (resource === "projects") return hash(SAMPLE_PROJECTS);
+    if (resource.startsWith("issues:")) return hash(SAMPLE_ISSUES[resource.slice("issues:".length)] ?? []);
+    if (resource.startsWith("raid:")) return hash(SAMPLE_RAID[resource.slice("raid:".length)] ?? []);
+    return null;
   }
 
   async verify(): Promise<VerifyReport> {

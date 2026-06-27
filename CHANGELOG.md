@@ -8,6 +8,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Conditional / delta reads — refresh only what changed, still zero-data-at-rest**
+  — read endpoints now support HTTP conditional GET: an unchanged read returns
+  `304 Not Modified` instead of re-sending the payload, so a client that already has
+  the data keeps it. The data lives ONLY in the client cache; the gateway stores
+  nothing — it just relays a version check. New OPTIONAL broker contract method
+  `changeToken(ctx, resource)` supplies a cheap version (a backend ETag /
+  max(updatedAt) / cursor); when the client's token matches, the gateway returns
+  `304` **without performing the full backend read at all** — cutting the heavy
+  cross-network round-trip that the live-read design otherwise pays on every request.
+  Brokers that don't implement it degrade gracefully to a payload-hash ETag (still
+  saves re-sending unchanged bytes). The backend stays the single source of truth;
+  nothing is cached on the server. Wired on `/projects` and project issues; the demo
+  broker implements `changeToken` (per-resource state hash). Pairs with the SPA's
+  existing React Query cache (shared keys + `staleTime`) so common data is fetched
+  once across pages and revalidated cheaply.
 - **Dev-mode entitlement (paid-feature) toggle** — force individual premium features
   on or off to preview the licensed vs unlicensed UX without minting a real licence.
   A dev override layer that `resolveLicense` applies last, so it is **inert in

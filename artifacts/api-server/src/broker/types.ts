@@ -332,4 +332,14 @@ export interface Broker {
   fxRates(ctx: ActorContext): Promise<FxRates>;
   /** Time-travel: replay recorded portfolio states from the logging server. */
   replay(ctx: ActorContext, opts: { from?: string; to?: string }): Promise<HistoryState[]>;
+  /**
+   * OPTIONAL — a cheap, opaque CHANGE TOKEN for a resource (e.g. `"projects"`,
+   * `"issues:proj-001"`), used for conditional/delta reads: the gateway compares it
+   * to the client's last-seen token and, on a match, returns 304 WITHOUT performing
+   * the full read — so the heavy backend call is skipped. Map it to a backend ETag,
+   * a max(updatedAt), or a sync cursor. Return null when the resource has no cheap
+   * version (the gateway falls back to hashing the full payload). Brokers that don't
+   * implement this are unaffected — conditional reads degrade to the payload hash.
+   */
+  changeToken?(ctx: ActorContext, resource: string): Promise<string | null>;
 }

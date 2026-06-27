@@ -11,6 +11,13 @@ import { getBroker, contextFromReq } from "../broker";
 export type { Row, Summary, HistoryPoint, Baseline } from "../broker/types";
 export { getDemoState, persistDemoState } from "../broker/demo-data";
 
+/** A cheap change token for a resource (for conditional/delta reads), or null when
+ *  the active broker can't supply one (the caller falls back to a payload hash). */
+export const brokerChangeToken = (req: Request, resource: string): Promise<string | null> => {
+  const b = getBroker();
+  return typeof b.changeToken === "function" ? b.changeToken(contextFromReq(req), resource) : Promise.resolve(null);
+};
+
 /** List all projects the actor can see, via the active broker. */
 export const getProjects = (req: Request) => getBroker().listProjects(contextFromReq(req));
 /** List the issues of one project, via the active broker. */
