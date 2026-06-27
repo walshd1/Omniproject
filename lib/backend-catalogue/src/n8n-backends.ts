@@ -332,6 +332,25 @@ export const BACKENDS: BackendDefinition[] = [
     notes: "CRM mapping: Company → project, Deal → issue. crm + financials capabilities light up amount / pipeline / stage. Confirm resource/param names against the installed HubSpot node version after import.",
   },
 
+  {
+    id: "pipedrive",
+    label: "Pipedrive",
+    docsUrl: "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.pipedrive/",
+    via: "Native n8n node (pipedriveApi credential)",
+    authHeader: "",
+    requiredEnv: [],
+    credentialType: "pipedriveApi",
+    capabilities: { ...CAPS_CORE, crm: true, financials: true },
+    actions: {
+      list_projects: { kind: "n8nNode", node: "n8n-nodes-base.pipedrive", typeVersion: 1, parameters: { resource: "organization", operation: "getAll", returnAll: true }, note: "Organizations map to projects." },
+      list_issues: { kind: "n8nNode", node: "n8n-nodes-base.pipedrive", typeVersion: 1, parameters: { resource: "deal", operation: "getAll", returnAll: true, filters: { org_id: "={{ $json.body.payload.projectId }}" } }, note: "Deals map to issues; org_id scopes them to the organization (projectId)." },
+      create_issue: { kind: "n8nNode", node: "n8n-nodes-base.pipedrive", typeVersion: 1, parameters: { resource: "deal", operation: "create", title: "={{ $json.body.payload.title }}", additionalFields: { org_id: "={{ $json.body.payload.projectId }}" } } },
+      update_issue: { kind: "n8nNode", node: "n8n-nodes-base.pipedrive", typeVersion: 1, parameters: { resource: "deal", operation: "update", dealId: "={{ $json.body.payload.issueId }}", updateFields: { title: "={{ $json.body.payload.title }}" } } },
+      delete_issue: { kind: "n8nNode", node: "n8n-nodes-base.pipedrive", typeVersion: 1, parameters: { resource: "deal", operation: "delete", dealId: "={{ $json.body.payload.issueId }}" } },
+    },
+    notes: "CRM mapping: Organization → project, Deal → issue. crm + financials capabilities light up deal value / stage. Confirm field + param names against the installed Pipedrive node version after import.",
+  },
+
   // ── Microsoft: HTTP via Dataverse with n8n-managed OAuth credential ──────────
   {
     id: "dynamics365",
