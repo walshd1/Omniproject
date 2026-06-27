@@ -19,18 +19,36 @@ export interface McpTool {
   name: string;
   description: string;
   inputSchema: { type: "object"; properties: Record<string, unknown>; required?: string[] };
-  /** The broker action this tool reads. */
+  /** The broker action this tool maps to. */
   action: string;
+  /** Mutating tool — gated behind MCP_WRITE_ENABLED + a contributor+ session. */
+  write?: boolean;
 }
 
-/** The read-only tool surface exposed to MCP clients. */
-export const MCP_TOOLS: McpTool[] = [
+// ⚠️ HERE BE DRAGONS — MCP writes let an AGENT mutate your real backend through
+// the gateway. They are OFF unless MCP_WRITE_ENABLED is set AND the caller holds a
+// contributor+ session (never a read-only API token). The warning is repeated in
+// every write tool's description so the model sees it too.
+const DRAGONS = "⚠️ WRITE — mutates the real backend. An agent calling this changes live data. Confirm intent before use.";
+
+/** Read tools (always available to any authed principal). */
+const READ_TOOLS: McpTool[] = [
   { name: "omniproject_list_projects", action: "list_projects", description: "List all projects/programmes the signed-in user can see.", inputSchema: { type: "object", properties: {} } },
   { name: "omniproject_list_issues", action: "list_issues", description: "List the work items (issues/tasks/deals) in a project.", inputSchema: { type: "object", properties: { projectId: { type: "string", description: "The project id." } }, required: ["projectId"] } },
   { name: "omniproject_project_summary", action: "project_summary", description: "Get the roll-up summary (totals, completion %, overdue) for a project.", inputSchema: { type: "object", properties: { projectId: { type: "string" } }, required: ["projectId"] } },
   { name: "omniproject_portfolio_health", action: "get_portfolio_health", description: "Get portfolio-wide RAG / health across all projects.", inputSchema: { type: "object", properties: {} } },
   { name: "omniproject_capabilities", action: "get_capabilities", description: "Report which capability domains the active backend supports.", inputSchema: { type: "object", properties: {} } },
 ];
+
+/** Write tools (gated — see DRAGONS). Advertised only when writes are enabled. */
+const WRITE_TOOLS: McpTool[] = [
+  { name: "omniproject_create_issue", action: "create_issue", write: true, description: `Create a work item in a project. ${DRAGONS}`, inputSchema: { type: "object", properties: { projectId: { type: "string" }, title: { type: "string" }, description: { type: "string" }, status: { type: "string" } }, required: ["projectId", "title"] } },
+  { name: "omniproject_update_issue", action: "update_issue", write: true, description: `Update a work item. Pass expectedVersion for optimistic concurrency. ${DRAGONS}`, inputSchema: { type: "object", properties: { projectId: { type: "string" }, issueId: { type: "string" }, title: { type: "string" }, status: { type: "string" }, expectedVersion: { type: "number" } }, required: ["projectId", "issueId"] } },
+  { name: "omniproject_delete_issue", action: "delete_issue", write: true, description: `Delete a work item — IRREVERSIBLE. ${DRAGONS}`, inputSchema: { type: "object", properties: { projectId: { type: "string" }, issueId: { type: "string" } }, required: ["projectId", "issueId"] } },
+];
+
+/** The full tool surface (reads + gated writes). */
+export const MCP_TOOLS: McpTool[] = [...READ_TOOLS, ...WRITE_TOOLS];
 
 export function toolByName(name: string): McpTool | undefined {
   return MCP_TOOLS.find((t) => t.name === name);
@@ -58,9 +76,20 @@ export type McpExecutor = (tool: McpTool, args: Record<string, unknown>) => Prom
  * notification (no `id`) — the caller should then send 202/no body. Pure: all
  * side effects go through `exec`.
  */
-export async function handleMcp(req: JsonRpcRequest, exec: McpExecutor, serverVersion: string): Promise<JsonRpcResponse | null> {
+/** Write policy for this caller (computed by the route from env + RBAC). */
+export interface McpPolicy {
+  /** MCP_WRITE_ENABLED — writes are off by default (here be dragons). */
+  writesEnabled: boolean;
+  /** This caller may write (contributor+ session, never a read-only token). */
+  canWrite: boolean;
+}
+
+export async function handleMcp(req: JsonRpcRequest, exec: McpExecutor, serverVersion: string, policy: McpPolicy = { writesEnabled: false, canWrite: false }): Promise<JsonRpcResponse | null> {
   const id = req.id ?? null;
   const isNotification = req.id === undefined;
+  // Advertise write tools only when writes are enabled (a disabled server looks
+  // read-only to the client).
+  const visibleTools = policy.writesEnabled ? MCP_TOOLS : READ_TOOLS;
 
   switch (req.method) {
     case "initialize":
@@ -71,12 +100,17 @@ export async function handleMcp(req: JsonRpcRequest, exec: McpExecutor, serverVe
     case "ping":
       return ok(id, {});
     case "tools/list":
-      return ok(id, { tools: MCP_TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
+      return ok(id, { tools: visibleTools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
     case "tools/call": {
       const name = String(req.params?.["name"] ?? "");
       const args = (req.params?.["arguments"] as Record<string, unknown>) ?? {};
       const tool = toolByName(name);
       if (!tool) return err(id, -32602, `unknown tool: ${name}`);
+      // Gate writes: disabled server OR insufficient privilege → refuse loudly.
+      if (tool.write) {
+        if (!policy.writesEnabled) return err(id, -32004, "MCP writes are disabled — set MCP_WRITE_ENABLED to allow them (here be dragons).");
+        if (!policy.canWrite) return err(id, -32004, "MCP writes require a contributor+ session (not a read-only token).");
+      }
       for (const reqd of tool.inputSchema.required ?? []) {
         if (args[reqd] === undefined || args[reqd] === null || args[reqd] === "") {
           return err(id, -32602, `missing required argument: ${reqd}`);
