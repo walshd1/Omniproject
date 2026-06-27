@@ -8,6 +8,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Per-kind broker dispatch — heterogeneous brokers, actually routed** — the
+  per-kind routing *decision* (`brokerForCommand`) is now a real *dispatch*. Because
+  every broker platform speaks the same HTTP contract, routing a command to a kind is
+  binding the one HTTP adapter to that kind's endpoint: `BROKER_ENDPOINTS` declares
+  per-kind URLs (e.g. `n8n=…,node-red=…`), `endpointsForKind` resolves them, and
+  `routeBrokerCall(intent, fn)` binds the call to the selected kind's endpoint for its
+  scope via an `AsyncLocalStorage` override at the `webhookPool()` chokepoint — so no
+  adapter method is threaded with it and concurrent requests never bleed endpoints. A
+  kind with no declared endpoint falls back to `BROKER_URL` (single-broker deployments
+  unchanged). This closes the gap flagged in #41/#42: n8n and Node-RED can now each be
+  dispatched to their own endpoint over the uniform contract.
 - **Per-user accessibility look-and-feel override** — a personal, client-side overlay
   layered over the company branding: text size (0.85–1.5×), high contrast (underlined
   links + thick focus rings), and reduced motion, in the Settings → Accessibility

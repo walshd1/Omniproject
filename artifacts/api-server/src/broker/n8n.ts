@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { getSettings } from "../lib/settings";
+import { currentEndpointOverride } from "./endpoint-context";
 import { recordAudit } from "../lib/audit";
 import { INDICATIVE_FX_RATES } from "../lib/fx-fallback";
 import { VERIFIABLE_ACTIONS } from "./verifiable-actions";
@@ -70,6 +71,10 @@ const DEFAULT_WEBHOOK = "http://localhost:5678/webhook/omniproject";
  * restart. This is entirely below the seam — nothing above N8nBroker knows.
  */
 export function webhookPool(): string[] {
+  // A per-kind routing scope (the broker router) overrides the pool for this call —
+  // so a command routed to a specific connected broker kind hits that kind's URL.
+  const routed = currentEndpointOverride();
+  if (routed) return routed;
   const list = process.env["BROKER_URLS"]?.trim();
   if (list) {
     const urls = list.split(",").map((u) => u.trim()).filter(Boolean);
