@@ -20,3 +20,7 @@ export * from "./n8n-generator";
 export * from "./broker-catalogue";
 export * from "./output-catalogue";
 export * from "./notification-catalogue";
+export * from "./planes";
+export * from "./methodology-catalogue";
+export * from "./report-catalogue";
+export * from "./screen-catalogue";

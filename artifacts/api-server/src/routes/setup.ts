@@ -5,7 +5,7 @@ import { isOidcConfigured } from "../lib/oidc";
 import { resolveCapabilities } from "../lib/capabilities";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
-import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue } from "@workspace/backend-catalogue";
+import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, methodologyCatalogue, reportCatalogue, screenCatalogue, planeCatalogue } from "@workspace/backend-catalogue";
 import { busMode } from "../lib/notify-bus";
 import { brokerLogBusMode } from "../lib/broker-log-bus";
 import { rateLimitMode } from "../lib/rate-limit";
@@ -137,6 +137,19 @@ router.get("/setup/outputs", (_req, res) => {
 });
 router.get("/setup/notifications", (_req, res) => {
   res.json(notificationCatalogue());
+});
+router.get("/setup/methodologies", (_req, res) => {
+  res.json(methodologyCatalogue());
+});
+router.get("/setup/reports", (_req, res) => {
+  res.json(reportCatalogue());
+});
+router.get("/setup/screens", (_req, res) => {
+  res.json(screenCatalogue());
+});
+// The plane meta-registry — all seven planes + their dev docs.
+router.get("/setup/planes", (_req, res) => {
+  res.json(planeCatalogue());
 });
 
 // POST /api/setup/generate-workflow — emit an importable n8n workflow for the
