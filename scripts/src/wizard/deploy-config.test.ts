@@ -58,6 +58,24 @@ test("renderCompose always has the shell; bundles n8n/redis/authentik only when 
   assert.match(full, /REDIS_URL:/);          // shell wired to redis
 });
 
+test("bundling a reverse proxy adds Traefik, drops the shell's host port, routes by PUBLIC_URL host", () => {
+  const cfg = base({ publicUrl: "https://omni.acme.com", reverseProxy: { acmeEmail: "ops@acme.com" } });
+  const compose = renderCompose(cfg);
+  assert.match(compose, / {2}traefik:/);
+  assert.match(compose, /traefik_letsencrypt:/);                 // ACME storage volume
+  assert.match(compose, /certificatesresolvers\.le\.acme/);      // Let's Encrypt resolver
+  assert.match(compose, /routers\.omni\.rule=Host\(`omni\.acme\.com`\)/);
+  assert.ok(!/127\.0\.0\.1:3000:3000/.test(compose), "shell port is not published when behind Traefik");
+  assert.match(renderEnv(cfg), /ACME_EMAIL=ops@acme\.com/);
+});
+
+test("bundling Ollama adds the service + volume and points the shell at it internally", () => {
+  const cfg = base({ ai: { provider: "ollama", model: "llama3.1" }, bundleOllama: true });
+  assert.match(renderCompose(cfg), / {2}ollama:/);
+  assert.match(renderCompose(cfg), /ollama_data:/);
+  assert.equal(envMap(cfg)["OLLAMA_URL"], "http://ollama:11434");
+});
+
 test("the generated compose references PUBLIC_URL + SESSION_SECRET as required vars", () => {
   const c = renderCompose(base());
   assert.match(c, /PUBLIC_URL:\s+\$\{PUBLIC_URL:\?/);

@@ -17,6 +17,9 @@
     "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "@workspace/backend-catalogue": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
     "tsx": "catalog:"

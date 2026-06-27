@@ -3,7 +3,7 @@ import { stdin, stdout } from "node:process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { backendCatalogue } from "../../../artifacts/api-server/src/lib/n8n-backends";
+import { backendCatalogue } from "@workspace/backend-catalogue";
 import {
   renderEnv, renderCompose, validateDeployConfig, effectiveBrokerUrl,
   type DeployConfig, type IdpChoice, type AiProvider,
@@ -123,15 +123,20 @@ async function main(): Promise<void> {
         { id: "openai", label: "OpenAI" },
         { id: "openrouter", label: "OpenRouter" },
         { id: "anthropic", label: "Anthropic" },
-        { id: "ollama", label: "Ollama (self-hosted, external)" },
+        { id: "ollama", label: "Ollama (self-hosted local LLM)" },
       ],
       "none",
     )) as AiProvider;
     const ai: DeployConfig["ai"] = { provider: aiProvider };
+    let bundleOllama = false;
     if (aiProvider !== "none") {
       ai.model = await ask("  Model id:", aiProvider === "anthropic" ? "claude-sonnet-4-6" : aiProvider === "ollama" ? "llama3.1" : "gpt-4o-mini");
-      if (aiProvider === "ollama") ai.ollamaUrl = await ask("  Ollama URL:", "http://ollama:11434");
-      else ai.apiKey = await ask(`  ${aiProvider} API key:`);
+      if (aiProvider === "ollama") {
+        bundleOllama = await confirm("  Bundle a local Ollama service in the compose?", true);
+        if (!bundleOllama) ai.ollamaUrl = await ask("  External Ollama URL:", "http://ollama.internal:11434");
+      } else {
+        ai.apiKey = await ask(`  ${aiProvider} API key:`);
+      }
     }
 
     // ── 4. Optional logging / time-travel ─────────────────────────────────────
@@ -145,6 +150,17 @@ async function main(): Promise<void> {
     const bundleRedis = multiReplica && (await confirm("  Bundle a Redis service for it?", true));
     const redisUrl = multiReplica && !bundleRedis ? await ask("  External Redis URL:", "redis://redis.internal:6379") : undefined;
 
+    // Reverse proxy / TLS termination. Bundling Traefik means you don't need your
+    // own ingress — it gets a real cert for PUBLIC_URL's host via Let's Encrypt.
+    const wantProxy = await confirm("Bundle a reverse proxy (Traefik) to terminate TLS for PUBLIC_URL via Let's Encrypt?", false);
+    let reverseProxy: DeployConfig["reverseProxy"];
+    if (wantProxy) {
+      console.log(dim("  Needs PUBLIC_URL to be a real, publicly-resolvable https domain (ACME HTTP-01 on :80/:443)."));
+      const host = publicUrl.replace(/^https?:\/\//, "").replace(/[:/].*$/, "") || "example.com";
+      const acmeEmail = await ask("  Email for Let's Encrypt registration:", `admin@${host}`);
+      reverseProxy = { acmeEmail };
+    }
+
     const config: DeployConfig = {
       publicUrl, port, sessionSecret: rand(48),
       broker: { backendId: effectiveBackendId, bundleN8n, brokerUrl, ...(psk ? { psk } : {}) },
@@ -152,6 +168,8 @@ async function main(): Promise<void> {
       ...(loggingSyncUrl ? { loggingSyncUrl } : {}),
       ...(redisUrl ? { redisUrl } : {}),
       ...(bundleRedis ? { bundleRedis } : {}),
+      ...(bundleOllama ? { bundleOllama } : {}),
+      ...(reverseProxy ? { reverseProxy } : {}),
     };
 
     // ── Validate (security self-check) ────────────────────────────────────────
