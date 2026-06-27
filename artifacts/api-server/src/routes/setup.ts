@@ -10,7 +10,7 @@ import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
 import { connectedBrokerKinds } from "../broker/registry";
 import { requireRole, hasRole } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
-import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, notificationKindCatalogue, methodologyCatalogue, methodologyPack, allMethodologyTags, reportCatalogue, screenCatalogue, reportsForMethodology, screensForMethodology, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology } from "@workspace/backend-catalogue";
+import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, notificationKindCatalogue, methodologyCatalogue, methodologyPack, allMethodologyTags, reportCatalogue, screenCatalogue, reportsForMethodology, screensForMethodology, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, dedupeEntities, matchCandidates, normaliseKey } from "@workspace/backend-catalogue";
 import { isEntitled, resolveLicense } from "../lib/license";
 import { auditStatus } from "../lib/audit";
 import { DEV_PERSIST_ENABLED } from "../lib/dev-persist";
@@ -198,6 +198,29 @@ router.get("/setup/screens", async (req, res) => {
 // The plane meta-registry — all seven planes + their dev docs.
 router.get("/setup/planes", (_req, res) => {
   res.json(planeCatalogue());
+});
+
+// Entity-resolution PREVIEW — illustrates reconciling the same real-world entity
+// across backends. Runs the stateless helpers over an ILLUSTRATIVE sample (no real
+// customer data; nothing is stored). A real deployment feeds records from its
+// connected backends and persists any CONFIRMED mapping as JSON in its config dir —
+// the truth stays in the backends, never at rest here.
+router.get("/setup/entity-resolution/preview", (_req, res) => {
+  interface SampleContact { source: string; name: string; email?: string; externalId?: string }
+  const sample: SampleContact[] = [
+    { source: "jira", name: "Alice Smith", email: "alice@acme.io", externalId: "u-1" },
+    { source: "salesforce", name: "Alice Smith", email: "ALICE@acme.io", externalId: "c-9" },
+    { source: "erp", name: "alice  smith", email: "alice@acme.io" },
+    { source: "jira", name: "Bob Jones", email: "bob@acme.io", externalId: "u-2" },
+  ];
+  res.json({
+    note: "Illustrative sample — no customer data is read or stored. Confirmed mappings would live in the config dir as JSON.",
+    deduped: dedupeEntities(sample, (c) => normaliseKey(c.email)),
+    candidates: matchCandidates(sample, [
+      { name: "email", fn: (c) => normaliseKey(c.email) },
+      { name: "name", fn: (c) => normaliseKey(c.name) },
+    ]),
+  });
 });
 
 // POST /api/setup/generate-workflow — emit an importable n8n workflow for the
