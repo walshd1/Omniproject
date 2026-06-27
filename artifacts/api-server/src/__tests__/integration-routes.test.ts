@@ -253,6 +253,29 @@ test("GET /api/readyz reports broker reachability (demo → ready)", async () =>
   assert.equal(json.kind, "demo");
 });
 
+// ── MCP server (POST /api/mcp, JSON-RPC) ─────────────────────────────────────
+
+const mcp = (rpc: unknown, init?: RequestInit) =>
+  get("/api/mcp", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(rpc), ...init });
+
+test("POST /api/mcp requires auth (401 without a session/token)", async () => {
+  const res = await fetch(`${base}/api/mcp`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: 1, method: "initialize" }) });
+  assert.equal(res.status, 401);
+});
+
+test("POST /api/mcp initialize + tools/list speak MCP", async () => {
+  const init = await readJson(await mcp({ id: 1, method: "initialize" }));
+  assert.equal(init.result.serverInfo.name, "omniproject");
+  const list = await readJson(await mcp({ id: 2, method: "tools/list" }));
+  assert.ok(list.result.tools.some((t: { name: string }) => t.name === "omniproject_list_projects"));
+});
+
+test("POST /api/mcp tools/call reads through the broker (demo projects)", async () => {
+  const r = await readJson(await mcp({ id: 3, method: "tools/call", params: { name: "omniproject_list_projects", arguments: {} } }));
+  const projects = JSON.parse(r.result.content[0].text);
+  assert.ok(Array.isArray(projects) && projects.length > 0, "MCP returned the demo projects");
+});
+
 test("GET /api/metrics emits RED metrics (rate, errors, duration histogram)", async () => {
   await get("/api/export.csv?dataset=projects"); // generate at least one request
   const res = await get("/api/metrics");

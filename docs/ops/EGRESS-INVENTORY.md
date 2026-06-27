@@ -44,6 +44,7 @@ Backend system of record (Jira / OpenProject / SAP / …)  ── owns authorisa
 | E1 | **Broker hop** | gateway → `BROKER_URL`/`BROKER_URLS` → backend | Project/issue data **in transit** (never at rest) | **On** (the product) — **encrypt it**: see §3b |
 | E2 | **Logging sync** (time-travel history) | `LOGGING_SYNC_URL`; `loggingSync` | Point-in-time portfolio snapshots — the **one durable** concession | **Off** (opt-in) |
 | E3 | **OData / Power-BI** | `routes/odata.ts` | Read-only BI projection of portfolio data | Gated (BI token) |
+| E3a | **MCP server** | `routes/mcp.ts` (`POST /api/mcp`) | Read-only portfolio reads for MCP clients/agents, through the broker + RBAC + audit | Gated (session or read-only API token) |
 | E4 | **FX rates read-through** | `FX_RATE*`; `lib/currency.ts` | Outbound to an FX provider; **no** project data sent | On (read-only, falls back to indicative) |
 | E5 | **AI provider** | `AI_PROVIDER`; `routes/ai.ts` | Whatever the user asks the assistant about | **Off** unless configured |
 | E6 | **Notifications** | `routes/notifications-stream.ts`, `webhooks.ts` | Inbound ingest + outbound HMAC-signed events | Gated |
