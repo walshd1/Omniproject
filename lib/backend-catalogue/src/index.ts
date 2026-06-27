@@ -8,6 +8,8 @@
  *   - BROKERS  — the automation/translation layer (./broker-catalogue).
  *   - OUTPUTS  — the outward interfaces: MCP, OData, BI, metrics, exports, events
  *     (./output-catalogue).
+ *   - NOTIFICATIONS — the channels alerts are delivered TO: Slack, Teams, email,
+ *     incident tools (./notification-catalogue).
  *
  * Referenced by BOTH the gateway and the setup wizard, so they can never drift.
  * Pure data + pure functions, zero runtime dependencies.
@@ -17,3 +19,4 @@ export * from "./n8n-backends";
 export * from "./n8n-generator";
 export * from "./broker-catalogue";
 export * from "./output-catalogue";
+export * from "./notification-catalogue";
