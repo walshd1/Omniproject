@@ -52,6 +52,51 @@ export interface ScreenDef {
   panels: Panel[];
 }
 
+/** A saved arrangement for one screen (drag-customised, persisted to config JSON). */
+export interface ScreenLayout {
+  /** Panel ids in display order; panels not listed keep their order, appended after. */
+  order?: string[];
+  /** Per-panel grid span override (1–12). */
+  spans?: Record<string, number>;
+  /** Panel ids hidden from this screen. */
+  hidden?: string[];
+}
+
+/**
+ * Apply a saved layout to a screen: hide, re-span, then reorder its panels. Pure —
+ * returns a new ScreenDef; an absent layout returns the screen unchanged. Unknown
+ * panel ids in the layout are ignored, and panels missing from `order` keep their
+ * original relative order after the listed ones (so a new panel never disappears).
+ */
+export function applyLayout(screen: ScreenDef, layout?: ScreenLayout | null): ScreenDef {
+  if (!layout) return screen;
+  let panels = screen.panels;
+  if (layout.hidden?.length) {
+    const hide = new Set(layout.hidden);
+    panels = panels.filter((p) => !hide.has(p.id));
+  }
+  if (layout.spans) {
+    panels = panels.map((p) => (typeof layout.spans![p.id] === "number" ? { ...p, span: layout.spans![p.id] } : p));
+  }
+  if (layout.order?.length) {
+    const rank = new Map(layout.order.map((id, i) => [id, i]));
+    panels = panels
+      .map((p, i) => ({ p, i }))
+      .sort((a, b) => (rank.get(a.p.id) ?? Infinity) - (rank.get(b.p.id) ?? Infinity) || a.i - b.i)
+      .map(({ p }) => p);
+  }
+  return { ...screen, panels };
+}
+
+/** The panel order after a drag that moves `dragId` to just before `targetId`. */
+export function reorderPanels(ids: string[], dragId: string, targetId: string): string[] {
+  if (dragId === targetId) return ids;
+  const without = ids.filter((id) => id !== dragId);
+  const at = without.indexOf(targetId);
+  if (at < 0) return ids;
+  return [...without.slice(0, at), dragId, ...without.slice(at)];
+}
+
 /**
  * Panels that apply to a methodology — those tagged with it, the neutral ("*")
  * ones, and untagged panels (which are methodology-neutral). Drives the "set

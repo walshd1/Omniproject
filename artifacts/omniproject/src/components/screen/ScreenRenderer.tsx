@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { type ScreenDef, type Panel, panelsForMethodology, visiblePanels } from "../../lib/screen";
+import { type ScreenDef, type Panel, type ScreenLayout, panelsForMethodology, visiblePanels, applyLayout, reorderPanels } from "../../lib/screen";
 import { PANEL_RENDERERS } from "./registry";
 import { BoundPanel } from "./BoundPanel";
 
@@ -17,21 +17,47 @@ export function ScreenRenderer({
   screen,
   methodology,
   caps,
+  layout,
+  editable,
+  onLayoutChange,
 }: {
   screen: ScreenDef;
   methodology?: string;
   caps?: Record<string, boolean>;
+  /** A saved arrangement to apply (drag-customised panel order/spans/hidden). */
+  layout?: ScreenLayout | null;
+  /** Enable drag-to-rearrange; reordering calls `onLayoutChange`. */
+  editable?: boolean;
+  onLayoutChange?: (layout: ScreenLayout) => void;
 }) {
-  let panels = screen.panels;
+  let panels = applyLayout(screen, layout).panels;
   if (methodology) panels = panelsForMethodology(panels, methodology);
   panels = visiblePanels(panels, caps);
+
+  const [dragId, setDragId] = useState<string | null>(null);
+
+  const onDrop = (targetId: string) => {
+    if (!dragId || !onLayoutChange) return;
+    const order = reorderPanels(panels.map((p) => p.id), dragId, targetId);
+    setDragId(null);
+    onLayoutChange({ ...(layout ?? {}), order });
+  };
 
   return (
     <div className="grid grid-cols-12 gap-4" data-testid="screen-renderer" data-screen={screen.id}>
       {panels.map((panel) => {
         const span = Math.min(Math.max(panel.span ?? 12, 1), 12);
         return (
-          <div key={panel.id} style={{ gridColumn: `span ${span} / span ${span}` }}>
+          <div
+            key={panel.id}
+            style={{ gridColumn: `span ${span} / span ${span}` }}
+            draggable={editable}
+            data-testid={`panel-wrap-${panel.id}`}
+            onDragStart={editable ? () => setDragId(panel.id) : undefined}
+            onDragOver={editable ? (e) => e.preventDefault() : undefined}
+            onDrop={editable ? () => onDrop(panel.id) : undefined}
+            className={editable ? "cursor-move rounded ring-1 ring-dashed ring-border" : undefined}
+          >
             <PanelSlot panel={panel} />
           </div>
         );

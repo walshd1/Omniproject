@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Drag-to-rearrange screens/reports, persisted to the customer's config** — panels
+  can be dragged to reorder (and resized/hidden) on a screen, and the arrangement is
+  saved as a per-screen layout override. It lives in the settings store, so it rides
+  the existing snapshot / config-bundle / export machinery straight into the
+  **customer's config JSON** (and the debug bundle). `applyLayout(screen, layout)` is
+  a pure hide→re-span→reorder transform; `ScreenRenderer` gains `editable` +
+  `onLayoutChange` (HTML5 drag, dependency-free) and a `layout` prop to render the
+  saved arrangement. `GET /api/setup/screens/:id/layout` (open, the SPA needs it) +
+  `PUT` (manager+, captures a config version). New panels never disappear — anything
+  missing from a saved order keeps its place after the listed panels.
 - **Rendering primitives — live, progressive, windowed (built on per-panel binding)**
   — instead of rendering a screen in one blocking pass, panels now compose finer
   primitives:

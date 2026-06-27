@@ -802,6 +802,7 @@ const SAMPLE_SETTINGS = {
   webhooks: [],
   loggingSync: { enabled: false, url: null, acknowledgedWarranty: false },
   fieldOverrides: { fields: {}, entities: {} },
+  screenLayouts: {},
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {

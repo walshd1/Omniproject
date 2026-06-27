@@ -89,6 +89,22 @@ export interface SettingsState {
    * one the backend exposes but shouldn't). Config, never project data.
    */
   fieldOverrides: BackendFieldMap;
+  /**
+   * Per-screen layout overrides (drag-arranged panel order / spans / hidden), keyed
+   * by screen id. Presentation config — part of the snapshot/export so it travels in
+   * the customer's config JSON. Never project data.
+   */
+  screenLayouts: Record<string, ScreenLayout>;
+}
+
+/** A saved arrangement for one screen. */
+export interface ScreenLayout {
+  /** Panel ids in display order (panels not listed keep their original order, after). */
+  order?: string[];
+  /** Per-panel grid span override (1–12). */
+  spans?: Record<string, number>;
+  /** Panel ids hidden from this screen. */
+  hidden?: string[];
 }
 
 function brandingFromEnv(): BrandingConfig | null {
@@ -166,6 +182,7 @@ const store: SettingsState = {
   webhooks: webhooksFromEnv(),
   loggingSync: loggingSyncFromEnv(),
   fieldOverrides: { fields: {}, entities: {} },
+  screenLayouts: {},
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
@@ -184,6 +201,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "webhooks",
   "loggingSync",
   "fieldOverrides",
+  "screenLayouts",
 ];
 
 /** A snapshot copy of the current in-memory settings (never the live reference). */
