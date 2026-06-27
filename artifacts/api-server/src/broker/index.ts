@@ -5,7 +5,7 @@ import { N8nBroker, N8N_ENV_CONFIGURED, pingBroker } from "./n8n";
 import { DemoBroker } from "./demo";
 import { BrokerError, type Broker, type ActorContext } from "./types";
 import { instrumented, wrapWithTrace } from "./trace";
-import { spoofBrokerFromEnv } from "./spoof";
+import { devBrokerFromEnv } from "./dev-broker";
 
 /**
  * Broker selection + the request→domain context adapter.
@@ -22,14 +22,20 @@ let singleton: Broker | null = null;
  *  call is logged at the seam; in production the wrap is never applied. */
 export function getBroker(): Broker {
   if (!singleton) {
-    // Dev-only: BROKER_SPOOF=<vendor> presents AS that vendor (e.g. openproject)
-    // with its declared capabilities, over the demo data — for testing without a
-    // real backend. Null outside dev mode, so production is unaffected.
-    const spoof = spoofBrokerFromEnv();
-    const base: Broker = spoof ?? (N8N_ENV_CONFIGURED ? new N8nBroker() : new DemoBroker());
+    // Dev-only: the dev broker presents AS a chosen vendor over a chosen data
+    // source (demo/bundle/cassette) for testing without a real backend. Null
+    // outside dev mode, so production is unaffected.
+    const dev = devBrokerFromEnv();
+    const base: Broker = dev ?? (N8N_ENV_CONFIGURED ? new N8nBroker() : new DemoBroker());
     singleton = instrumented() ? wrapWithTrace(base) : base;
   }
   return singleton;
+}
+
+/** Drop the cached broker so the next getBroker() rebuilds it — used when the dev
+ *  broker config is switched on the fly. */
+export function resetBroker(): void {
+  singleton = null;
 }
 
 /** Diagnostics: "n8n" | "demo". */

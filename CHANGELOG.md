@@ -8,15 +8,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
-- **Vendor spoof broker (dev-only)** — `BROKER_SPOOF=<vendor>` makes the gateway
-  present AS that vendor (e.g. `openproject`) without a real backend: it reads the
-  vendor's JSON config from the catalogue and serves contract-compliant demo data
-  gated to that vendor's **declared capability surface** (so spoofing OpenProject
-  turns financials/raid/resources OFF, exactly as the real backend would). A thin
-  facade that composes the demo broker; lets you exercise capability gating, screens,
-  reports and the capture/replay tooling against a realistic vendor profile when the
-  real backend is unreachable. Hard-gated to dev mode (null in production); writes are
-  simulated, not real.
+- **Dev broker — any vendor × any data source, switchable on the fly (dev-only)** —
+  a developer/debug broker, distinct from the DemoBroker (which stays the
+  demonstration broker for training/sales). The dev broker presents AS any **vendor**
+  (e.g. `openproject`, gated to that vendor's declared capabilities from its JSON
+  config) over any **data source**: `demo` (built-in sample), `bundle` (a debug
+  bundle's `demo-state.json`), or `cassette` (a captured traffic tape, replayed). The
+  vendor × source combination is **switchable at runtime** via `POST /api/dev-mode/broker`
+  (admin, dev-only) — no restart — so you can reproduce an issue by loading its
+  bundle/cassette under the right vendor profile. Seeded from `BROKER_SPOOF` /
+  `DEV_BROKER_SOURCE` / `DEV_BROKER_REF`. Composes the data broker (cycle-safe Proxy);
+  hard-gated to dev mode (null in production); writes are simulated.
 - **Dev-mode production guard (refuse-to-boot) + transaction tagging** — the safety
   interlock for dev mode now that it grants dangerous powers. The gateway **refuses
   to boot** when dev mode is active AND the environment shows production signals
