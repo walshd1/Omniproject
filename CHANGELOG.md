@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Dev-mode production guard (refuse-to-boot) + transaction tagging** — the safety
+  interlock for dev mode now that it grants dangerous powers. The gateway **refuses
+  to boot** when dev mode is active AND the environment shows production signals
+  (real OIDC/SSO, a configured licence, or a non-local `PUBLIC_URL`) — the
+  combination that means "this is probably a real deployment". Fail-closed and not
+  tied to `SECURITY_STRICT`; a narrow explicit `OMNI_DEV_MODE_ACK_INSECURE=1`
+  downgrades the refusal to a loud warning for local testing, never silences it.
+  Plus: every response on a dev instance carries an `X-OmniProject-Dev-Mode: true`
+  header, and every audited transaction is tagged `meta.devMode:true`, so dev
+  activity is unmistakable in the trail and filterable out of real records.
 - **Dev mode: debug bundle + on-screen watermark + dev compose** — pulls the debug
   tooling into one developer-instance concept.
   - **Debug bundle (`Setup → Debug bundle`, admin)** — a single reproducible ZIP to

@@ -16,6 +16,8 @@ import { wellKnownRouter } from "./routes/well-known";
 import { logger } from "./lib/logger";
 import { runWithTiming, getUpstreamMs } from "./lib/request-timing";
 import { runSecuritySelfCheck } from "./lib/security-check";
+import { runDevModeGuard } from "./lib/dev-mode-guard";
+import { isDevMode } from "./lib/dev-mode";
 import { httpRequestStarted, recordHttpRequest } from "./lib/runtime-metrics";
 import { errorHandler } from "./lib/error-handler";
 
@@ -52,6 +54,11 @@ function resolveSessionSecret(): string {
 // boot in SECURITY_STRICT mode on a critical finding). Complements the hard
 // SESSION_SECRET fail-fast above.
 runSecuritySelfCheck(process.env, logger);
+
+// Hard interlock: refuse to boot if DEV MODE is active in a production-like
+// environment (real SSO / licence / public host). Dev mode can impersonate users
+// and toggle paid features, so it must never run where it could be reached.
+runDevModeGuard(process.env, logger);
 
 app.use(
   pinoHttp({
@@ -98,6 +105,15 @@ app.use(cookieParser(SESSION_SECRET));
 const BODY_LIMIT = process.env["BODY_LIMIT"]?.trim() || "256kb";
 app.use(express.json({ limit: BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
+
+// Dev-mode signalling: mark every response so a proxy/monitor/anyone can see this
+// is a developer instance (never set in production — dev mode is gated off there).
+if (isDevMode()) {
+  app.use((_req, res, next) => {
+    res.setHeader("X-OmniProject-Dev-Mode", "true");
+    next();
+  });
+}
 
 // Per-request timing: run the request inside a timing context the broker adds
 // upstream wait to, and emit X-Omni-Upstream-Ms / X-Omni-Total-Ms so the gateway
