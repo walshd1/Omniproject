@@ -1,5 +1,11 @@
 /**
- * n8n BINDING + backend data — the n8n-specific transport half of the catalogue.
+ * BACKEND catalogue — the systems-of-record plane (Jira, OpenProject, SAP, …).
+ *
+ * Holds the `BACKENDS` array + accessors (getBackend, isEnterpriseBackend,
+ * transportOf, backendCatalogue) and the REFERENCE n8n binding types (how each
+ * contract action maps to an n8n node / HTTP call). The binding is the n8n-specific
+ * transport half; a different broker would attach its own binding to the same
+ * neutral manifest (./backend-manifest.ts).
  *
  * The broker-neutral half (identity, capabilities, required env) lives in
  * `./backend-manifest.ts`. This file declares the binding TYPES and exposes the

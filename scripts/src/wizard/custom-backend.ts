@@ -62,7 +62,7 @@ export function renderKnownWorkflow(id: string): string | null {
 
 /**
  * A contributable `BackendManifest` source stub — paste into the BACKENDS array
- * in `lib/backend-catalogue/src/n8n-backends.ts` to promote a custom backend to a
+ * in `lib/backend-catalogue/src/backend-catalogue.ts` to promote a custom backend to a
  * first-class shipped catalogue entry (so the wizard + gateway both know it next
  * time). Mirrors the skeleton's action mappings.
  */
@@ -77,7 +77,7 @@ export function renderManifestSource(id: string, label: string): string {
   return `// Contributed catalogue entry for ${label}.
 // 1. Replace the placeholder URLs/auth/capabilities with your real backend's.
 // 2. Add this object to the BACKENDS array in
-//    lib/backend-catalogue/src/n8n-backends.ts.
+//    lib/backend-catalogue/src/backend-catalogue.ts.
 // 3. Run \`pnpm --filter @workspace/scripts gen-contract\` + the test suites.
 {
   id: ${JSON.stringify(id)},
@@ -177,7 +177,7 @@ every field up front.
 ## 7. Make it permanent (optional)
 If you generated the contribution files, you have:
 - \`${id}.backend.ts\` — a **catalogue entry** (\`BackendManifest\`). Drop it into the
-  \`BACKENDS\` array in \`lib/backend-catalogue/src/n8n-backends.ts\` and it becomes a
+  \`BACKENDS\` array in \`lib/backend-catalogue/src/backend-catalogue.ts\` and it becomes a
   first-class backend the wizard + gateway both offer next time.
 - \`${id}.fieldmap.json\` — a **field map** (\`surface\`/\`store\` per field + entity).
   Serve it from your broker's field-map action, or load it via the admin

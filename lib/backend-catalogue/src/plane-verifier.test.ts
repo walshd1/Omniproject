@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { verifyPlaneEntry } from "./plane-verifier";
-import { BACKENDS } from "./n8n-backends";
+import { BACKENDS } from "./backend-catalogue";
 import { BROKERS } from "./broker-catalogue";
 import { OUTPUTS } from "./output-catalogue";
 import { NOTIFICATIONS } from "./notification-catalogue";

@@ -1,4 +1,4 @@
-import type { BackendDefinition, ActionMapping } from "./n8n-backends";
+import type { BackendDefinition, ActionMapping } from "./backend-catalogue";
 import type { ContractAction } from "./backend-manifest";
 
 /**

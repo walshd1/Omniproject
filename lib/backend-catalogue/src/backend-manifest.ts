@@ -4,7 +4,7 @@
  * A `BackendManifest` describes WHAT a backend is and what it can do —
  * independent of how it is brokered. The n8n-specific transport (how each
  * contract action maps to an n8n node / HTTP call, the per-user auth expression)
- * lives separately as the `N8nBinding` in `./n8n-backends.ts`. A concrete
+ * lives separately as the `N8nBinding` in `./backend-catalogue.ts`. A concrete
  * catalogue entry (`BackendDefinition`) is a manifest **plus** a binding.
  *
  * This is the seam to cut along when a second broker arrives: a non-n8n broker
