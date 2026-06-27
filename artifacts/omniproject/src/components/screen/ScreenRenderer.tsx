@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { type ScreenDef, type Panel, panelsForMethodology, visiblePanels } from "../../lib/screen";
 import { PANEL_RENDERERS } from "./registry";
+import { BoundPanel } from "./BoundPanel";
 
 /**
  * ScreenRenderer — the ONE generic renderer behind screens, views and reports.
@@ -38,17 +40,22 @@ export function ScreenRenderer({
   );
 }
 
-/** Render one panel via its registered renderer, or a graceful placeholder. */
+/** Render one panel via its registered renderer, or a graceful placeholder. A panel
+ *  with a `source` is wrapped in BoundPanel so it fetches + refreshes on its own. */
 function PanelSlot({ panel }: { panel: Panel }) {
-  const Renderer = PANEL_RENDERERS[panel.kind];
-  if (Renderer) return <Renderer panel={panel} />;
-  return (
-    <Card>
-      <CardContent>
-        <p className="text-sm text-muted-foreground" data-testid="unknown-panel">
-          {panel.title ?? panel.id}: no renderer for panel kind “{panel.kind}”.
-        </p>
-      </CardContent>
-    </Card>
-  );
+  const renderInner = (p: Panel): ReactNode => {
+    const Renderer = PANEL_RENDERERS[p.kind];
+    if (Renderer) return <Renderer panel={p} />;
+    return (
+      <Card>
+        <CardContent>
+          <p className="text-sm text-muted-foreground" data-testid="unknown-panel">
+            {p.title ?? p.id}: no renderer for panel kind “{p.kind}”.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  };
+  if (panel.source) return <BoundPanel panel={panel} render={renderInner} />;
+  return renderInner(panel);
 }

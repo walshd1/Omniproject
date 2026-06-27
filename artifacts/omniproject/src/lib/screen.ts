@@ -23,6 +23,19 @@ export interface Panel {
   span?: number;
   /** Panel-kind-specific configuration (data + display). */
   config?: Record<string, unknown>;
+  /**
+   * Optional per-panel data binding. When set, this panel fetches its OWN data from
+   * `source.url` under its own query key, so it loads, revalidates and REFRESHES
+   * INDEPENDENTLY of every other panel on the screen — "refresh just this graph".
+   * The fetched object is merged into `config`. Omit it for a static panel whose
+   * data is inlined in `config`.
+   */
+  source?: PanelSource;
+}
+
+export interface PanelSource {
+  /** The read endpoint for this panel's data (returns a config-shaped object). */
+  url: string;
 }
 
 export interface ScreenDef {

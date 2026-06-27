@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Per-panel data binding & independent refresh** — a screen panel can now declare
+  a `source` (a read endpoint); it fetches its OWN data under its OWN query key and
+  gets its OWN refresh control, so you can **refresh just one graph/table on a screen**
+  without touching the rest. Built on the existing primitives: the per-panel query is
+  keyed `["panel-data", url]` (refresh = refetch that one key, or
+  `invalidateQueries` it), and because the read endpoints support conditional reads
+  (ETag / broker `changeToken`), an unchanged refresh returns 304 and nothing
+  re-renders. Panels without a `source` stay static (data inlined in `config`), so
+  existing screens are unaffected. The fetched object is merged into the panel's
+  `config`.
 - **Opt-in server-side read cache (`READ_CACHE_TTL_MS`)** — a short-TTL in-memory
   cache of broker reads for dispersed/high-latency deployments. It is a deliberate
   performance mode that **trades the "never stale" guarantee for latency**, so it is
