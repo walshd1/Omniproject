@@ -109,10 +109,12 @@ export const NOTIFICATIONS: NotificationDefinition[] = [
   },
 ];
 
+/** One notification channel by id, or undefined. */
 export function getNotificationChannel(id: string): NotificationDefinition | undefined {
   return NOTIFICATIONS.find((n) => n.id === id);
 }
 
+/** All notification channels (a defensive copy). */
 export function notificationCatalogue(): NotificationDefinition[] {
   return NOTIFICATIONS.map((n) => ({ ...n }));
 }

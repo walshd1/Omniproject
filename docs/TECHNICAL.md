@@ -1,7 +1,8 @@
 # OmniProject — Technical Reference
 
 Audience: **IT, platform engineers, and implementers** integrating OmniProject
-with an organization's identity provider, n8n, and project backends.
+with an organization's identity provider, the broker (n8n by default), and
+project backends.
 
 For installation and day-to-day use, see the [README](../README.md). This
 document covers architecture, the n8n integration contract, the security model,
@@ -127,16 +128,16 @@ Downstream calls run **as the active user**. The gateway:
 1. Reads identity **only** from the validated session cookie — never from the
    request body or query string.
 2. **Strips** any client-supplied `userContext`/`origin` from inbound payloads.
-3. Injects a server-side context block into the outbound n8n payload:
+3. Injects a server-side context block into the outbound broker payload:
    `payload.userContext = { sub, email, name, token }`.
 
-n8n then authenticates to the backend with that per-user token
-(`{{ $json.body.payload.userContext.token }}`), preserving per-user auditing
-instead of a shared admin key.
+The broker then authenticates to the backend with that per-user token
+(in the reference broker, `{{ $json.body.payload.userContext.token }}`),
+preserving per-user auditing instead of a shared admin key.
 
-> ⚠️ Because the user's access token travels in the request body to n8n, the
-> gateway ↔ n8n hop **must be TLS** in production. Logs never capture bodies and
-> token fields are redacted (see §5).
+> ⚠️ Because the user's access token travels in the request body to the broker,
+> the gateway ↔ broker hop **must be TLS** in production. Logs never capture
+> bodies and token fields are redacted (see §5).
 
 ### Read-only API tokens (machine / BI clients)
 
@@ -281,11 +282,11 @@ schemas live in `lib/api-client-react` / `lib/api-zod` (do not hand-edit).
 - **Redaction:** pino redacts `authorization` / `cookie` headers, `set-cookie`,
   and any `token` / `*.token` / `userContext.token` fields. Tokens never appear
   in logs (verified by the contract test).
-- **Idempotency:** see §3 — protects n8n and downstream APIs from duplicate
-  triggers and edit races.
+- **Idempotency:** see §3 — protects the broker and downstream APIs from
+  duplicate triggers and edit races.
 - **Transport:** terminate TLS at the ingress/proxy; the gateway honours
-  `X-Forwarded-*` (`trust proxy`). The gateway↔n8n hop must be TLS (user token in
-  body).
+  `X-Forwarded-*` (`trust proxy`). The gateway↔broker hop must be TLS (user token
+  in body).
 - **Supply chain:** `pnpm-workspace.yaml` enforces a `minimumReleaseAge` of 1
   day on dependencies; CSV/XLSX export is implemented dependency-free.
 
@@ -306,8 +307,8 @@ Canonical definitions are in `openapi.yaml`. Summary:
   - CPI = EV / AC, SPI = EV / PV. `financialHealth` is a derived RAG.
 - **PortfolioHealthSummary** — `projectId, projectName, ragStatus` (`GREEN | AMBER | RED`)`, scheduleVarianceDays, budgetVariancePercentage, activeBlockersCount`.
 
-> n8n is responsible for **computing/normalizing** these (e.g. EVM math, RAG
-> rollups) from the backend before returning them.
+> The broker is responsible for **computing/normalizing** these (e.g. EVM math,
+> RAG rollups) from the backend before returning them.
 
 ---
 
@@ -357,7 +358,7 @@ broker without adding an interface method.
   header. Add a locale by extending `LOCALES` + `TRANSLATIONS`; add a string by
   adding a key to each locale.
 - **Multi-currency**: financials are read in each backend's native currency and
-  formatted locale-aware. FX rates are read-through via n8n (`get_fx_rates`,
+  formatted locale-aware. FX rates are read-through via the broker (`get_fx_rates`,
   source `fx_provider`; demo rates as fallback) at `GET /api/fx-rates`; the
   Earned-Value report has a **display-currency** selector that converts via
   `convertAmount()` (base-anchored, unit-tested). No rates are stored.
@@ -383,9 +384,9 @@ server**. Scope is configurable: full logging of all actions, or a subset.
 
 Setup → *Status* shows the active level + whether a sink is configured.
 
-**Brokered n8n actions log their outcome.** Each `category: "broker"` event is
+**Brokered actions log their outcome.** Each `category: "broker"` event is
 recorded *after* the call with `result` (success/error), upstream `status` and
-`ms`, plus the `actor` (sub/email/role) — so logs answer "who ran which n8n
+`ms`, plus the `actor` (sub/email/role) — so logs answer "who ran which broker
 action, when, and did it succeed?". Example:
 `{"category":"broker","action":"create_issue","actor":{"sub":"…","role":"admin"},"result":"success","status":200,"ms":54}`.
 

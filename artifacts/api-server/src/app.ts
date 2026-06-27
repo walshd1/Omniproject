@@ -1,3 +1,10 @@
+/**
+ * Express application assembly — wires the middleware chain (security headers,
+ * body limits, request logging/timing, session cookies), mounts the `/api`
+ * router, and serves the built SPA from STATIC_DIR in single-container mode. The
+ * gateway's composition root; route logic lives in routes/, broker logic below
+ * the seam in broker/.
+ */
 import path from "node:path";
 import fs from "node:fs";
 import express, { type Express } from "express";

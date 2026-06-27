@@ -67,6 +67,7 @@ export const isOidcConfigured = oidcConfig !== null;
 let discoveryCache: { doc: OidcDiscovery; at: number } | null = null;
 const DISCOVERY_TTL_MS = 10 * 60 * 1000;
 
+/** Fetch (and cache) the issuer's OIDC discovery document. */
 export async function discover(config: OidcConfig): Promise<OidcDiscovery> {
   if (discoveryCache && Date.now() - discoveryCache.at < DISCOVERY_TTL_MS) return discoveryCache.doc;
   const url = `${config.issuerUrl}/.well-known/openid-configuration`;
@@ -88,10 +89,12 @@ function base64url(buf: Buffer): string {
   return buf.toString("base64url");
 }
 
+/** A URL-safe random token (state/nonce/PKCE verifier), `bytes` of entropy. */
 export function randomToken(bytes = 32): string {
   return base64url(crypto.randomBytes(bytes));
 }
 
+/** The S256 PKCE code_challenge for a verifier (base64url SHA-256). */
 export function pkceChallenge(verifier: string): string {
   return base64url(crypto.createHash("sha256").update(verifier).digest());
 }
@@ -105,6 +108,8 @@ interface TokenResponse {
   expires_in?: number;
 }
 
+/** Exchange an authorization code (with the PKCE verifier) for the token set at
+ *  the IdP's token endpoint. */
 export async function exchangeCode(params: {
   config: OidcConfig;
   discovery: OidcDiscovery;

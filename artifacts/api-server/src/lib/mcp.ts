@@ -56,6 +56,7 @@ const WRITE_TOOLS: McpTool[] = [
 /** The full tool surface (reads + gated writes). */
 export const MCP_TOOLS: McpTool[] = [...READ_TOOLS, ...WRITE_TOOLS];
 
+/** Look up an MCP tool definition by its name. */
 export function toolByName(name: string): McpTool | undefined {
   return MCP_TOOLS.find((t) => t.name === name);
 }
@@ -77,11 +78,6 @@ const err = (id: string | number | null, code: number, message: string): JsonRpc
  *  broker + the authenticated request context). Throws on backend failure. */
 export type McpExecutor = (tool: McpTool, args: Record<string, unknown>) => Promise<unknown>;
 
-/**
- * Handle one JSON-RPC message. Returns the response object, or `null` for a
- * notification (no `id`) — the caller should then send 202/no body. Pure: all
- * side effects go through `exec`.
- */
 /** Write policy for this caller (computed by the route from env + RBAC). */
 export interface McpPolicy {
   /** MCP_WRITE_ENABLED — writes are off by default (here be dragons). */
@@ -90,6 +86,11 @@ export interface McpPolicy {
   canWrite: boolean;
 }
 
+/**
+ * Handle one JSON-RPC message. Returns the response object, or `null` for a
+ * notification (no `id`) — the caller should then send 202/no body. Pure: all
+ * side effects go through `exec`.
+ */
 export async function handleMcp(req: JsonRpcRequest, exec: McpExecutor, serverVersion: string, policy: McpPolicy = { writesEnabled: false, canWrite: false }): Promise<JsonRpcResponse | null> {
   const id = req.id ?? null;
   const isNotification = req.id === undefined;

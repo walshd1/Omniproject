@@ -110,6 +110,7 @@ export function validateClaims(
 const jwksCache = new Map<string, { keys: Jwk[]; at: number }>();
 const JWKS_TTL_MS = 10 * 60 * 1000;
 
+/** Fetch the issuer's JWKS signing keys, cached for 10 minutes. */
 export async function fetchJwks(jwksUri: string, fetchImpl: typeof fetch = fetch): Promise<Jwk[]> {
   const cached = jwksCache.get(jwksUri);
   if (cached && Date.now() - cached.at < JWKS_TTL_MS) return cached.keys;

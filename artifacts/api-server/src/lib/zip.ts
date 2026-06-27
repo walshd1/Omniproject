@@ -28,6 +28,7 @@ export function crc32(buf: Buffer): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
+/** Pack the given entries into a ZIP archive (stored, no compression) as a Buffer. */
 export function buildZip(entries: ZipEntry[]): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];

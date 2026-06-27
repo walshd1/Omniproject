@@ -106,6 +106,7 @@ for (const project of SAMPLE_PROJECTS) {
   project["completedCount"] = issues.filter((i) => i["status"] === "done").length;
 }
 
+/** Canned activity-feed rows for demo mode (no backend). */
 export function sampleActivity(): Row[] {
   return [
     { id: "act-001", action: "status_changed", actor: "alice", projectId: "proj-001", issueId: "iss-005", issueTitle: "Frontend command palette keyboard navigation", detail: "in_progress → done", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString() },
@@ -145,6 +146,7 @@ export const SAMPLE_PORTFOLIO: Row[] = [
   { projectId: "proj-004", projectName: "Monitoring Stack", ragStatus: "GREEN", scheduleVarianceDays: 0, budgetVariancePercentage: 3.1, activeBlockersCount: 1 },
 ];
 
+/** Canned notification rows for demo mode (no backend). */
 export function sampleNotifications(): Row[] {
   return [
     { id: "ntf-001", kind: "assignment", title: "Assigned: Migrate auth service to OIDC", body: "alice assigned you on Platform Rewrite.", projectId: "proj-001", issueId: "iss-001", read: false, timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString() },

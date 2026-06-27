@@ -1,3 +1,9 @@
+/**
+ * Project, programme-membership, issue + task-item endpoints — the core read/write
+ * surface. Reads serve through the active broker; writes are RBAC-gated
+ * (contributor+) and then pass the business ruleset (passesBusinessRules) before
+ * the brokered write. Validation is the zod contract; this is the thin shell.
+ */
 import { Router } from "express";
 import {
   CreateIssueBody,

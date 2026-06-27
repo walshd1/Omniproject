@@ -1,3 +1,8 @@
+/**
+ * Data-export endpoints — GET /api/export.{csv,xlsx,json,md,pdf} render the
+ * projects/issues/activity datasets in each format for download. Thin shell; the
+ * serialisers live in lib/{csv,xlsx,md,pdf}, the data in lib/data.
+ */
 import { Router, type Request, type Response } from "express";
 import { getProjects, getIssues, getActivity, type Row } from "../lib/data";
 import { toCsv, type CsvValue } from "../lib/csv";

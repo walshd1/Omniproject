@@ -40,6 +40,7 @@ export function isLiveBroker(): boolean {
  * interface), so it always uses an N8nBroker bound to the configured webhook.
  */
 const commandBroker = new N8nBroker();
+/** Forward an arbitrary action + payload through the adapter's command edge. */
 export function brokerCommand(ctx: ActorContext, action: string, payload: Record<string, unknown>, source: string): Promise<unknown> {
   return commandBroker.commandWithSource(ctx, action, payload, source);
 }
@@ -54,6 +55,7 @@ export interface BrokerReadiness { ready: boolean; kind: string; status?: number
 let readyCache: { at: number; result: BrokerReadiness } | null = null;
 const READY_TTL_MS = 5_000;
 
+/** Probe (and briefly cache) whether this replica can reach its backend. */
 export async function brokerReadiness(timeoutMs = 2000): Promise<BrokerReadiness> {
   if (readyCache && Date.now() - readyCache.at < READY_TTL_MS) return readyCache.result;
   const kind = brokerKind();

@@ -37,11 +37,13 @@ export function clientMatches(client: { sub?: string; email?: string; roles: str
   return false;
 }
 
+/** Register an SSE client; returns an unsubscribe fn that drops it. */
 export function addClient(client: NotifyClient): () => void {
   clients.add(client);
   return () => clients.delete(client);
 }
 
+/** How many SSE clients are currently connected (for diagnostics). */
 export function clientCount(): number {
   return clients.size;
 }

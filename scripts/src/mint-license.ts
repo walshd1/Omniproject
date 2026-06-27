@@ -1,6 +1,3 @@
-export {};
-import crypto from "node:crypto";
-
 /**
  * Licence minting / key generation helper (vendor-side).
  *
@@ -22,6 +19,7 @@ import crypto from "node:crypto";
  *
  * Pure Node crypto — no dependencies, and no network.
  */
+import crypto from "node:crypto";
 
 const FEATURES = ["branding", "labels", "webhooks", "enterprise_workflows"] as const;
 const TOKEN_PREFIX = "omni-lic.v1";

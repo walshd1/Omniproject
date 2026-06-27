@@ -49,10 +49,12 @@ export const REPORTS: ReportDefinition[] = [
   { id: "raid-register", label: "RAID register", docsUrl: "", kind: "quality", capabilities: { requiresCapability: "raid", timeSeries: false, exports: CSV_PDF }, tools: ["risks", "assumptions", "issues", "dependencies"], notes: "Risks, assumptions, issues, dependencies." },
 ];
 
+/** One report definition by id, or undefined. */
 export function getReport(id: string): ReportDefinition | undefined {
   return REPORTS.find((r) => r.id === id);
 }
 
+/** All report definitions (a defensive copy). */
 export function reportCatalogue(): ReportDefinition[] {
   return REPORTS.map((r) => ({ ...r }));
 }

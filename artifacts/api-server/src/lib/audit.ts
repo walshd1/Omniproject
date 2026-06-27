@@ -45,6 +45,7 @@ export interface AuditEvent {
 
 const WRITE_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 
+/** The configured audit verbosity (off | writes | all) from AUDIT_LEVEL. */
 export function auditLevel(): AuditLevel {
   const raw = process.env["AUDIT_LEVEL"]?.trim().toLowerCase();
   // Default to "writes" for any unset/unrecognised value (audit mutations, not reads).
@@ -75,6 +76,7 @@ export interface HttpSink {
 
 const MAX_BUFFER = 1000;
 
+/** Build a batching HTTP audit sink (buffers events + flushes to a SIEM URL). */
 export function createHttpSink(opts: {
   url: string;
   token?: string;

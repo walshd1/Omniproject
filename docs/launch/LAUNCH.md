@@ -16,8 +16,9 @@ noted. Keep this updated as the messaging evolves.
 ### The one-liner (GitHub "About", post openers)
 
 > **A project-management overlay with no database.** Your tools stay the single
-> source of truth; n8n is the only broker — so nothing syncs, nothing migrates,
-> and if n8n can reach it (or it speaks a webhook), you can federate it.
+> source of truth; everything goes through one neutral broker — n8n by default —
+> so nothing syncs, nothing migrates, and if the broker can reach it (or it speaks
+> a webhook), you can federate it.
 
 ### The pitch, in beats
 
@@ -25,23 +26,25 @@ noted. Keep this updated as the messaging evolves.
    (Gantt, milestones), and resource capacity/allocation — not just a task board.
 2. **No database** — nothing is copied, so nothing can drift; your backends stay
    the single source of truth and OmniProject is just a *view*.
-3. **n8n is the only broker** — no hand-rolled connectors to rot; one workflow per
-   backend, the user's own token forwarded for real per-user audit.
-4. **Connect to anything** — hundreds of n8n integrations, anything over
-   HTTP/REST/GraphQL/SOAP/SQL, plus inbound/outbound webhooks.
-5. **Not another system** — it fits the workflow (tools, n8n, SSO) you already
-   run; adopt the views and connections you want, ignore the rest.
+3. **One neutral broker — n8n as the reference default** — no hand-rolled
+   connectors to rot; one workflow per backend, the user's own token forwarded for
+   real per-user audit.
+4. **Connect to anything** — hundreds of broker integrations (n8n ships with
+   hundreds out of the box), anything over HTTP/REST/GraphQL/SOAP/SQL, plus
+   inbound/outbound webhooks.
+5. **Not another system** — it fits the workflow (tools, your broker, SSO) you
+   already run; adopt the views and connections you want, ignore the rest.
 6. **Speaks your methodology** — Kanban, Scrum, Gantt/Waterfall, PRINCE2, RAID,
    list — one dataset, switch per team.
 7. **Safe to try with real data** — it stores nothing, and *you* control whether
-   it can write at all: wire only read actions in n8n and it's physically
+   it can write at all: wire only read actions in your broker and it's physically
    read-only. Dry-run verify, sandbox, and one-click rollback. (The #1 objection
    for any new tool — "I'm not letting it write to my Jira" — answered up front.)
 
 ### What's genuinely differentiated (be honest)
 
 The *category* (PM aggregator / single pane of glass) is crowded. The
-*architecture* — **stateless + n8n-as-the-only-broker** — is not; no direct
+*architecture* — **stateless + broker-agnostic (n8n as the reference broker)** — is not; no direct
 competitor builds it this way. Lead with the architecture, not "single pane of
 glass." The honest gap to close at launch is **validation**: get one real team
 running it against a real backend; that matters more than any next feature.
@@ -53,7 +56,7 @@ running it against a real backend; that matters more than any next feature.
 | Channel | Fit | Watch out for |
 | ------- | --- | ------------- |
 | **r/selfhosted** | Strong — self-hostable, single container, open source | Lead with the free/self-host story; don't front-load the paywall. Disclose you're the dev. |
-| **r/n8n** | Perfect niche — n8n is the whole broker layer | Go technical; show the contract + blueprints. |
+| **r/n8n** | Perfect niche — n8n is the reference broker | Go technical; show the contract + blueprints. |
 | **r/opensource** | Good — Apache core, transparent open-core | Be upfront about the open-core model. |
 | **r/SideProject** | Indie-friendly, forgiving of self-promo | Tell the solo-dev story. |
 | **r/projectmanagement** | Your end users | Strict on self-promo — read rules, may need a flair/mod approval. Frame as "a free tool for X". |
@@ -71,7 +74,7 @@ especially criticism.
 
 ### r/selfhosted · r/opensource
 
-**Title:** *I built a programme-management dashboard with no database — your existing tools stay the source of truth, nothing ever syncs (n8n is the only broker)*
+**Title:** *I built a programme-management dashboard with no database — your existing tools stay the source of truth, nothing ever syncs (one neutral broker, n8n by default)*
 
 > Hey all — solo dev here. I kept hitting the same wall: teams run Jira *and*
 > OpenProject *and* a bit of ServiceNow, and there's no single view across them
@@ -79,9 +82,9 @@ especially criticism.
 >
 > It's a **read-through overlay** for programme & project management, and the key
 > idea is that **it stores no data of its own.** Your existing tools stay the
-> system of record; every read and write is brokered live through **n8n** — so if
-> n8n can reach it, OmniProject can federate it. There's no copy, so there's
-> nothing to fall out of sync.
+> system of record; every read and write is brokered live through **one neutral
+> broker — n8n by default** — so if the broker can reach it, OmniProject can
+> federate it. There's no copy, so there's nothing to fall out of sync.
 >
 > **What it does**
 > - One view across multiple backends (Jira, OpenProject, GitHub, GitLab, Azure
@@ -98,7 +101,7 @@ especially criticism.
 > included so you're not wiring nodes by hand.
 >
 > **On trusting it with real data:** it stores nothing, and *you* control what it
-> can do — because you write the n8n workflow. Wire only the read actions and
+> can do — because you write the broker workflow. Wire only the read actions and
 > it's physically read-only against your backend; there's a dry-run verify mode, a
 > sandbox, and one-click rollback. Start read-only, add writes when you trust it.
 >
@@ -108,22 +111,23 @@ especially criticism.
 > real feedback and start a community.
 >
 > Repo: `<your link>` — would genuinely love your thoughts on the
-> stateless / n8n-as-broker approach. What backends should I add next?
+> stateless / broker-agnostic approach (n8n as the reference broker). What
+> backends should I add next?
 
 ### r/n8n
 
-**Title:** *A project-management overlay that stores zero data — n8n is its entire backend. No DB, no sync drift*
+**Title:** *A project-management overlay that stores zero data — n8n is the reference broker for its entire integration layer. No DB, no sync drift*
 
-> Built an open-source PM/programme dashboard where **n8n is the entire
-> integration layer**. The gateway holds no data; it sends a normalized contract
-> (`{action, payload, userContext}`) to one n8n webhook, and your workflow maps it
-> to whatever backend you've wired — Jira, OpenProject, SAP, etc. The user's own
-> OIDC token is forwarded so writes happen *as the user* (real per-user audit, not
-> a shared admin key).
+> Built an open-source PM/programme dashboard that brokers everything through a
+> single neutral seam, **with n8n as the reference broker**. The gateway holds no
+> data; it sends a normalized contract (`{action, payload, userContext}`) to one
+> webhook, and your n8n workflow maps it to whatever backend you've wired — Jira,
+> OpenProject, SAP, etc. The user's own OIDC token is forwarded so writes happen
+> *as the user* (real per-user audit, not a shared admin key).
 >
-> Ships with importable workflow blueprints + a generator for ~15 backends, an
-> idempotency/loop-guard contract, and a verify mode that probes your n8n without
-> touching the backend. Apache-2.0 core.
+> Ships with importable n8n workflow blueprints + a generator for ~15 backends, an
+> idempotency/loop-guard contract, and a verify mode that probes your broker
+> without touching the backend. Apache-2.0 core.
 >
 > Because the workflow *is* the integration, you control exactly what it can do —
 > wire only the read actions and it's physically read-only against your backend.
@@ -132,23 +136,24 @@ especially criticism.
 
 ### Hacker News — Show HN
 
-**Title:** *Show HN: OmniProject – a programme-management overlay with no database (n8n is the only broker)*
+**Title:** *Show HN: OmniProject – a programme-management overlay with no database (one neutral broker, n8n by default)*
 
 > OmniProject is a read-through overlay for programme & project management that
 > stores no data of its own. Your existing tools (Jira, OpenProject, ServiceNow,
-> SAP, …) stay the system of record; every read and write is brokered through n8n,
-> so anything n8n can reach can be federated and there's no cached copy to drift.
+> SAP, …) stay the system of record; every read and write is brokered through one
+> neutral broker (n8n by default), so anything the broker can reach can be
+> federated and there's no cached copy to drift.
 >
 > It does programme rollup + portfolio health, finance (EVM/CPI/SPI,
 > multi-currency), time/Gantt and resource capacity, and renders the same dataset
 > as Kanban / Scrum / Gantt / PRINCE2 / RAID. OIDC + RBAC, real-time
 > notifications, audit. One container on port 3000; demo mode needs zero config.
 >
-> Stack: TypeScript, React 19, Express, n8n. Apache-2.0 core with a small
-> licensed-feature tier. Pre-1.0, no warranty. Feedback very welcome — especially
-> on the stateless, n8n-as-sole-broker architecture.
+> Stack: TypeScript, React 19, Express, n8n (the reference broker). Apache-2.0 core
+> with a small licensed-feature tier. Pre-1.0, no warranty. Feedback very welcome —
+> especially on the stateless, broker-agnostic architecture (n8n as the reference broker).
 >
-> Safe to evaluate against real systems: it persists nothing, and since the n8n
+> Safe to evaluate against real systems: it persists nothing, and since the broker
 > workflow is the integration, wiring only read actions makes it physically
 > read-only. Dry-run verify, sandbox, and one-click rollback are built in.
 >
@@ -163,8 +168,9 @@ Paste as the Release body when tagging `0.1.0`. (Template — adapt per release.
 > ## OmniProject 0.1.0 — first public release
 >
 > A **read-through overlay** for programme & project management with **no database
-> of its own** — your tools stay the single source of truth, and **n8n is the
-> exclusive broker**. Nothing is copied, so nothing drifts.
+> of its own** — your tools stay the single source of truth, and everything flows
+> through **one neutral broker, with n8n as the reference default**. Nothing is
+> copied, so nothing drifts.
 >
 > ### Highlights
 > - **Programme management** — programme/portfolio rollup (RAG/health) with

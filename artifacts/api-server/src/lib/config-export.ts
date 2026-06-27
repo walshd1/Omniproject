@@ -106,6 +106,7 @@ function renderK8s(entries: Entry[]): string {
   return lines.join("\n") + "\n";
 }
 
+/** Render the deploy config in the requested format (.env / docker-compose / k8s). */
 export function buildConfigExport(input: ConfigExportInput, format: ExportFormat): string {
   const entries = configEntries(input);
   switch (format) {

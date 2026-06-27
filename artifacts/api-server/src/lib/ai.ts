@@ -36,6 +36,7 @@ function resolvedModel(provider: AiProvider): string {
   return getSettings().aiModel?.trim() || DEFAULT_MODEL[provider];
 }
 
+/** Report whether AI assist is configured + which provider/model is active. */
 export function aiStatus(): AiStatus {
   const provider = getSettings().aiProvider;
   const model = provider === "none" ? null : resolvedModel(provider);
@@ -102,6 +103,8 @@ export interface ChatResult {
   model: string;
 }
 
+/** Send a chat-completion to the configured provider and return the reply. Throws
+ *  AiError when no provider is configured or the upstream call fails. */
 export async function aiChat(messages: ChatMessage[]): Promise<ChatResult> {
   const provider = getSettings().aiProvider;
   const model = resolvedModel(provider);

@@ -95,10 +95,12 @@ export const OUTPUTS: OutputDefinition[] = [
   },
 ];
 
+/** One output-interface definition by id, or undefined. */
 export function getOutput(id: string): OutputDefinition | undefined {
   return OUTPUTS.find((o) => o.id === id);
 }
 
+/** All output-interface definitions (a defensive copy). */
 export function outputCatalogue(): OutputDefinition[] {
   return OUTPUTS.map((o) => ({ ...o }));
 }

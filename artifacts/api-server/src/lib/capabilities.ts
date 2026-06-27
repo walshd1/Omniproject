@@ -114,6 +114,7 @@ const GROUP_DOMAIN: Record<FieldGroup, CapabilityDomain> = {
   strategy: "portfolio",
 };
 
+/** Build the per-domain field manifest a backend exposes from its enabled capability domains. */
 export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean>>): BackendFieldMap {
   const issues = !!enabled.issues;
   const portfolio = !!enabled.portfolio;
@@ -251,6 +252,7 @@ export interface FieldManifest {
   relationshipCandidates: RelationshipEdge[];
 }
 
+/** Resolve the field manifest: reconcile the backend's enumerated fields against the canonical registry (known vs new/custom). */
 export async function resolveFieldManifest(req: Request): Promise<FieldManifest> {
   const broker = getBroker();
   const ctx = contextFromReq(req);

@@ -186,6 +186,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "fieldOverrides",
 ];
 
+/** A snapshot copy of the current in-memory settings (never the live reference). */
 export function getSettings(): SettingsState {
   return { ...store };
 }
@@ -283,6 +284,8 @@ function validatePatch(patch: Record<string, unknown>): void {
   }
 }
 
+/** Validate + apply a partial settings patch, returning the new settings. Throws
+ *  SettingsValidationError on bad input (rejected atomically — nothing persists). */
 export function updateSettings(patch: Record<string, unknown>): SettingsState {
   validatePatch(patch);
   const writable = store as unknown as Record<string, unknown>;

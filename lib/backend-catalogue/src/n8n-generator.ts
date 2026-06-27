@@ -106,6 +106,7 @@ function codeNode(id: string, name: string, jsCode: string, pos: [number, number
   return { parameters: { jsCode }, id, name, type: "n8n-nodes-base.code", typeVersion: 2, position: pos };
 }
 
+/** Generate an importable n8n workflow JSON for a backend from its binding. */
 export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPath?: string } = {}): N8nWorkflow {
   const webhookPath = opts.webhookPath?.trim() || "omniproject";
   const actions = Object.keys(manifest.actions) as ContractAction[];

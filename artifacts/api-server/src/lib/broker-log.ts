@@ -28,6 +28,7 @@ const MAX = (() => {
  *  so a fleet-wide log is attributable. Operator-set `REPLICA_ID` wins; otherwise
  *  a random short id (unique per process). */
 const REPLICA = process.env["REPLICA_ID"]?.trim() || crypto.randomUUID().slice(0, 8);
+/** This process's short, stable replica label (operator `REPLICA_ID` or a random id). */
 export function brokerLogReplicaId(): string {
   return REPLICA;
 }
@@ -125,6 +126,7 @@ export function subscribeBrokerLog(l: Listener): () => void {
   return () => listeners.delete(l);
 }
 
+/** Current number of buffered broker-log entries (bounded ring). */
 export function brokerLogSize(): number {
   return ring.length;
 }

@@ -11,6 +11,7 @@ function cell(v: MdValue): string {
   return String(v).replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
+/** Render a titled GitHub-flavoured Markdown table from headers + rows. */
 export function toMarkdown(title: string, headers: string[], rows: MdValue[][]): string {
   const head = `| ${headers.map(cell).join(" | ")} |`;
   const sep = `| ${headers.map(() => "---").join(" | ")} |`;

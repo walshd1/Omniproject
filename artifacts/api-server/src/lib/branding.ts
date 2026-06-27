@@ -93,6 +93,7 @@ export function saveBranding(input: unknown): BrandingConfig {
   return branding;
 }
 
+/** Reset white-label branding back to the product defaults. */
 export function clearBranding(): void {
   updateSettings({ branding: null });
 }

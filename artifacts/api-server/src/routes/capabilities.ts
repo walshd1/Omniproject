@@ -1,3 +1,9 @@
+/**
+ * Capability + field-manifest endpoints. GET /api/capabilities reports which data
+ * domains the connected backend(s) can populate (so the UI gates features); GET
+ * /api/fields/manifest reconciles the backend's fields against the canonical
+ * registry. Read-only; the gating logic itself lives in lib/capabilities.
+ */
 import { Router } from "express";
 import { resolveCapabilities, resolveFieldManifest } from "../lib/capabilities";
 import { requireRole } from "../lib/rbac";

@@ -39,6 +39,7 @@ if (RAW_FILE && IS_PROD) {
   );
 }
 
+/** Dev-only: persist the in-memory demo state to disk (off in prod). */
 export function saveState(file: string, state: DemoState): void {
   // Write to a temp file then rename: rename is atomic on the same filesystem, so
   // a crash mid-write can't leave a truncated/half-written file. (A partial JSON
@@ -48,6 +49,7 @@ export function saveState(file: string, state: DemoState): void {
   fs.renameSync(tmp, file);
 }
 
+/** Dev-only: load a previously persisted demo state, or null if none. */
 export function loadState(file: string): DemoState | null {
   try {
     if (!fs.existsSync(file)) return null;
