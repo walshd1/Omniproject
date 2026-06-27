@@ -8,6 +8,7 @@ import {
   routeNotification,
 } from "./notification-routing";
 import { getNotificationChannel } from "./notification-catalogue";
+import { KNOWN_NOTIFICATION_KINDS } from "./notification-kinds";
 
 test("the route catalogue is JSON-defined, id-unique and order-sorted", () => {
   assert.ok(NOTIFICATION_ROUTES.length > 0);
@@ -25,6 +26,16 @@ test("every route dispatches only to REAL catalogue channels (no dangling channe
     for (const c of r.channels) if (!getNotificationChannel(c)) dangling.push(`${r.id} → "${c}"`);
   }
   assert.deepEqual(dangling, [], "a route names a channel that isn't in the notification catalogue");
+});
+
+test("every route matches only KNOWN notification kinds (no typo'd kind)", () => {
+  // The kind analogue of the channel guard: a route firing on a kind nothing emits
+  // would be dead config. "*" (any) is always allowed.
+  const unknown: string[] = [];
+  for (const r of notificationRouteCatalogue()) {
+    for (const k of r.match.kinds) if (k !== "*" && !KNOWN_NOTIFICATION_KINDS.has(k)) unknown.push(`${r.id} → "${k}"`);
+  }
+  assert.deepEqual(unknown, [], "a route matches a kind that isn't in the notification-kind registry");
 });
 
 test("routeMatches honours explicit kinds and the \"*\" wildcard", () => {

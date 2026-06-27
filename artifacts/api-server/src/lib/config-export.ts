@@ -106,16 +106,18 @@ function renderK8s(entries: Entry[]): string {
   return lines.join("\n") + "\n";
 }
 
+/**
+ * Format → renderer registry (the same registry idiom as the data EXPORTERS and the
+ * setup-status SECTIONS): adding a deploy format is one entry, not a new switch arm.
+ */
+const RENDERERS: Record<ExportFormat, (entries: Entry[]) => string> = {
+  env: renderEnv,
+  compose: renderCompose,
+  k8s: renderK8s,
+};
+
 /** Render the deploy config in the requested format (.env / docker-compose / k8s). */
 export function buildConfigExport(input: ConfigExportInput, format: ExportFormat): string {
-  const entries = configEntries(input);
-  switch (format) {
-    case "compose":
-      return renderCompose(entries);
-    case "k8s":
-      return renderK8s(entries);
-    case "env":
-    default:
-      return renderEnv(entries);
-  }
+  const render = RENDERERS[format] ?? renderEnv;
+  return render(configEntries(input));
 }
