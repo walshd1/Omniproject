@@ -20,6 +20,7 @@ import licenseRouter from "./license";
 import brandingRouter from "./branding";
 import labelsRouter from "./labels";
 import webhooksRouter from "./webhooks";
+import mcpRouter from "./mcp";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -64,6 +65,11 @@ router.use(apiLimiter);
 
 // Audit every action (level-gated) with actor, status and latency.
 router.use(auditMiddleware);
+
+// MCP (Model Context Protocol) server — POST /api/mcp, JSON-RPC. Read-only tools
+// over the broker seam; self-auths (session OR read-only API token) since MCP is
+// POST but the v1 tools are reads. Mounted here so it's rate-limited + audited.
+router.use(mcpRouter);
 
 router.use(authRouter);
 
