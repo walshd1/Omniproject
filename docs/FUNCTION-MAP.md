@@ -224,6 +224,7 @@ Capability signal — which data domains the wired backend(s) can populate, so t
 | --- | --- |
 | `deriveFieldMap` | Build the per-domain field manifest a backend exposes from its enabled capability domains. |
 | `resolveCapabilities` | Resolve which data domains the active backend can populate. |
+| `resolveSupport` | The unified SUPPORT set the compatibility predicate gates on: the backend capability domains (already unioned across connected backends by `resolveCapabilities`) PLUS the connected broker(s)' capability keys — one flat map spanning BOTH planes. |
 | `resolveFieldManifest` | Resolve the field manifest: reconcile the backend's enumerated fields against the canonical registry (known vs new/custom). |
 
 ### `artifacts/api-server/src/lib/column-mapper.ts`
@@ -868,6 +869,8 @@ BROKER registry — the automation/translation layer that sits between the gatew
 | --- | --- |
 | `getBrokerDef` | One broker definition by id, or undefined. |
 | `brokersForTransport` | Brokers that can act as the live DATA hop for a backend transport: synchronous AND able to drive that transport. |
+| `brokerSupport` | The capability support a single broker contributes to the surface set: its capability flags (synchronous, eventsOutbound, …) as a flat key→boolean map. |
+| `brokerSupportUnion` | OR-union the capability support across several CONNECTED brokers: a key is supported if ANY connected broker supports it — so an asset needing `eventsOutbound` lights up when at least one broker can do it. |
 | `brokerCatalogue` | Lightweight catalogue view (capabilities + linked build method per broker). |
 
 ### `lib/backend-catalogue/src/compatibility.ts`
@@ -877,6 +880,7 @@ Compatibility predicate — the single rule deciding whether a surfaceable asset
 | Function | What it does |
 | --- | --- |
 | `isCapabilityMet` | Compatibility predicate — the single rule deciding whether a surfaceable asset (report, screen, view, panel, …) should appear, given the resolved SUPPORT set. |
+| `unionSupport` | OR-union several support maps into one: a key is supported if ANY map marks it `true`. |
 
 ### `lib/backend-catalogue/src/index.ts`
 

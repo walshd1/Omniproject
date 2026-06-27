@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BROKERS, brokerCatalogue, getBrokerDef, brokersForTransport } from "./broker-catalogue";
+import { BROKERS, brokerCatalogue, getBrokerDef, brokersForTransport, brokerSupport, brokerSupportUnion, BROKER_CAPABILITY_KEYS } from "./broker-catalogue";
+import { unionSupport, isCapabilityMet } from "./compatibility";
 
 test("the broker registry lists every supported broker with a build method", () => {
   const ids = BROKERS.map((b) => b.id).sort();
@@ -37,4 +38,39 @@ test("Make, Pipedream, Power Automate and serverless are all synchronous data br
   for (const id of ["make", "pipedream", "power-automate", "serverless", "http-sidecar"]) {
     assert.equal(getBrokerDef(id)?.capabilities.synchronous, true, `${id} should be synchronous`);
   }
+});
+
+test("brokerSupport flattens a broker's capability flags into a key→boolean map", () => {
+  const n8n = brokerSupport("n8n");
+  // Every broker capability key is present and matches the definition.
+  for (const k of BROKER_CAPABILITY_KEYS) assert.equal(n8n[k], getBrokerDef("n8n")!.capabilities[k]);
+  // Unknown id ⇒ contributes nothing (so the resolver simply skips it).
+  assert.deepEqual(brokerSupport("nope"), {});
+});
+
+test("brokerSupportUnion ORs capability support across connected brokers", () => {
+  // A key is supported if ANY connected broker supports it.
+  const union = brokerSupportUnion(["n8n", "airflow"]);
+  for (const k of BROKER_CAPABILITY_KEYS) {
+    const anyOn = getBrokerDef("n8n")!.capabilities[k] || getBrokerDef("airflow")!.capabilities[k];
+    assert.equal(!!union[k], anyOn, `${k} should be the OR across the two brokers`);
+  }
+  // Only truthy keys appear (false flags are absent, not `false`).
+  for (const v of Object.values(union)) assert.equal(v, true);
+  assert.deepEqual(brokerSupportUnion([]), {});
+});
+
+test("unionSupport folds backend domains + broker keys into ONE support set, taking only true flags", () => {
+  // A backend-shaped object carries strings/objects too — only its boolean-true keys are taken.
+  const backend = { issues: true, financials: false, mode: "demo", fields: {} } as Record<string, unknown>;
+  const broker = brokerSupportUnion(["n8n"]);
+  const support = unionSupport(backend, broker);
+  assert.equal(support["issues"], true);
+  assert.equal("financials" in support, false); // false flag dropped
+  assert.equal("mode" in support, false); // non-boolean dropped
+  // A report needing a backend domain and an event surface needing a broker key are
+  // both gated by the SAME predicate over this one map.
+  assert.equal(isCapabilityMet("issues", support), true);
+  assert.equal(isCapabilityMet("eventsOutbound", support), !!getBrokerDef("n8n")!.capabilities.eventsOutbound);
+  assert.equal(isCapabilityMet("financials", support), false);
 });

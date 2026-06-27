@@ -6,7 +6,7 @@
  */
 import { Router, type Response } from "express";
 import { getSettings, updateSettings } from "../lib/settings";
-import { resolveCapabilities } from "../lib/capabilities";
+import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
 import { requireRole, hasRole } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, methodologyCatalogue, reportCatalogue, screenCatalogue, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, methodologyTags } from "@workspace/backend-catalogue";
@@ -157,13 +157,13 @@ router.get("/setup/views", (req, res) => {
 // is the resolved set — already the union across every connected backend.)
 router.get("/setup/reports", async (req, res) => {
   if (req.query["available"] !== "1") { res.json(reportCatalogue()); return; }
-  const caps = (await resolveCapabilities(req).catch(() => null)) as unknown as Record<string, boolean> | null;
-  res.json(caps ? availableReports(caps) : reportCatalogue());
+  const support = await resolveSupport(req).catch(() => null);
+  res.json(support ? availableReports(support) : reportCatalogue());
 });
 router.get("/setup/screens", async (req, res) => {
   if (req.query["available"] !== "1") { res.json(screenCatalogue()); return; }
-  const caps = (await resolveCapabilities(req).catch(() => null)) as unknown as Record<string, boolean> | null;
-  res.json(caps ? availableScreens(caps) : screenCatalogue());
+  const support = await resolveSupport(req).catch(() => null);
+  res.json(support ? availableScreens(support) : screenCatalogue());
 });
 // The plane meta-registry — all seven planes + their dev docs.
 router.get("/setup/planes", (_req, res) => {

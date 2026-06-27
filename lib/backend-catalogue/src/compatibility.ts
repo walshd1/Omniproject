@@ -13,3 +13,20 @@
 export function isCapabilityMet(requirement: string | null | undefined, support: Record<string, boolean>): boolean {
   return !requirement || support[requirement] === true;
 }
+
+/**
+ * OR-union several support maps into one: a key is supported if ANY map marks it
+ * `true`. This is how the resolver folds the backend domains and the broker
+ * capability keys into ONE flat support set for `isCapabilityMet` — both planes,
+ * one map. Only `=== true` values are copied, so a caller can pass a richer object
+ * (e.g. the full resolved Capabilities, which also carries strings/objects) and
+ * only its boolean capability flags are taken.
+ */
+export function unionSupport(...sets: Array<Record<string, unknown> | null | undefined>): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const set of sets) {
+    if (!set) continue;
+    for (const k of Object.keys(set)) if (set[k] === true) out[k] = true;
+  }
+  return out;
+}
