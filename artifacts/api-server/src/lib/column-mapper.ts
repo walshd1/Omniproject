@@ -145,36 +145,46 @@ export function suggestColumnMapping(headers: string[], registry: FieldDescripto
   return scored;
 }
 
+// Per-type coercers — each is best-effort + lossless (returns the raw value when it
+// can't parse). Numeric types share one. Registered below so adding a type's
+// coercion is one entry, not a switch arm.
+const toNumber = (raw: unknown): unknown => {
+  const n = typeof raw === "number" ? raw : Number(String(raw).replace(/[, %£$€]/g, ""));
+  return Number.isNaN(n) ? raw : n;
+};
+const toBoolean = (raw: unknown): unknown => {
+  const s = String(raw).toLowerCase();
+  if (["true", "yes", "y", "1"].includes(s)) return true;
+  if (["false", "no", "n", "0"].includes(s)) return false;
+  return raw;
+};
+const toDate = (raw: unknown): unknown => {
+  const d = raw instanceof Date ? raw : new Date(String(raw));
+  return Number.isNaN(d.getTime()) ? raw : d.toISOString().slice(0, 10);
+};
+const toLabels = (raw: unknown): unknown => {
+  if (Array.isArray(raw)) return raw;
+  return String(raw).split(/[;,]/).map((s) => s.trim()).filter(Boolean);
+};
+
+/** Registry: canonical field type → its value coercer (absent = passthrough). */
+const COERCERS: Partial<Record<FieldType, (raw: unknown) => unknown>> = {
+  number: toNumber,
+  currency: toNumber,
+  percent: toNumber,
+  duration: toNumber,
+  boolean: toBoolean,
+  date: toDate,
+  labels: toLabels,
+};
+
 /** Coerce a raw cell value to the canonical field's type. Best-effort + lossless
  *  when it can't (returns the trimmed string), so a preview never silently nulls. */
 export function coerceValue(value: unknown, type: FieldType): unknown {
   if (value == null || value === "") return null;
   const raw = typeof value === "string" ? value.trim() : value;
-  switch (type) {
-    case "number":
-    case "currency":
-    case "percent":
-    case "duration": {
-      const n = typeof raw === "number" ? raw : Number(String(raw).replace(/[, %£$€]/g, ""));
-      return Number.isNaN(n) ? raw : n;
-    }
-    case "boolean": {
-      const s = String(raw).toLowerCase();
-      if (["true", "yes", "y", "1"].includes(s)) return true;
-      if (["false", "no", "n", "0"].includes(s)) return false;
-      return raw;
-    }
-    case "date": {
-      const d = raw instanceof Date ? raw : new Date(String(raw));
-      return Number.isNaN(d.getTime()) ? raw : d.toISOString().slice(0, 10);
-    }
-    case "labels": {
-      if (Array.isArray(raw)) return raw;
-      return String(raw).split(/[;,]/).map((s) => s.trim()).filter(Boolean);
-    }
-    default:
-      return raw;
-  }
+  const coerce = COERCERS[type];
+  return coerce ? coerce(raw) : raw;
 }
 
 export interface MappingEntry {
