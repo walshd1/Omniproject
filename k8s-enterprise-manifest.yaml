@@ -119,9 +119,13 @@ spec:
               path: /api/healthz
               port: 3000
             periodSeconds: 20
+          # Readiness gates traffic on actual backend reachability (/api/readyz
+          # returns 503 when the broker is unreachable) so the Service stops
+          # routing here during a backend outage — WITHOUT restarting the pod
+          # (that's liveness's job, kept on the dependency-free /api/healthz).
           readinessProbe:
             httpGet:
-              path: /api/healthz
+              path: /api/readyz
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 10

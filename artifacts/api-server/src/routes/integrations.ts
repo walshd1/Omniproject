@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { getProjects, type Row } from "../lib/data";
 import { getPortfolioHealth } from "./portfolio";
-import { formatPrometheus, type Metric } from "../lib/metrics";
+import { formatPrometheus, type AnyMetric } from "../lib/metrics";
+import { runtimeMetrics } from "../lib/runtime-metrics";
 
 /**
  * BI / observability integration endpoints.
@@ -20,6 +21,9 @@ function num(v: unknown): number {
 }
 
 router.get("/metrics", async (req, res) => {
+  // RED metrics (rate/errors/duration) are pure in-process counters — emit them
+  // FIRST and unconditionally so observability survives a backend outage.
+  const runtime = runtimeMetrics();
   try {
     const projects = await getProjects(req);
     let issues = 0;
@@ -48,7 +52,8 @@ router.get("/metrics", async (req, res) => {
       /* portfolio not available — omit RAG */
     }
 
-    const metrics: Metric[] = [
+    const metrics: AnyMetric[] = [
+      ...runtime,
       { name: "omniproject_build_info", help: "Build info", type: "gauge", samples: [{ value: 1, labels: { app: "omniproject" } }] },
       { name: "omniproject_projects_total", help: "Number of projects", type: "gauge", samples: [{ value: projects.length }] },
       { name: "omniproject_issues_total", help: "Total issues across projects", type: "gauge", samples: [{ value: issues }] },
@@ -61,8 +66,11 @@ router.get("/metrics", async (req, res) => {
 
     res.type("text/plain; version=0.0.4").send(formatPrometheus(metrics));
   } catch (err) {
-    req.log.error({ err }, "metrics collection failed");
-    res.status(502).type("text/plain").send("# metrics unavailable\n");
+    // The backend read failed — still serve the RED metrics (200) so scrapers see
+    // request/error/latency + the in-flight count during an outage, with a comment
+    // noting the portfolio gauges are unavailable.
+    req.log.error({ err }, "portfolio metrics collection failed; serving runtime metrics only");
+    res.type("text/plain; version=0.0.4").send(formatPrometheus(runtime) + "# portfolio metrics unavailable (backend read failed)\n");
   }
 });
 

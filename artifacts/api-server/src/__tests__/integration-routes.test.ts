@@ -237,6 +237,33 @@ test("GET /api/setup/status reflects the gateway wiring", async () => {
   assert.equal(json.scale.rateLimit, "in-process");
 });
 
+// ── Health / readiness / RED metrics (pilot observability) ───────────────────
+
+test("GET /api/healthz is liveness — always ok, no auth, dependency-free", async () => {
+  const res = await fetch(`${base}/api/healthz`); // no session cookie
+  assert.equal(res.status, 200);
+  assert.equal((await readJson(res)).status, "ok");
+});
+
+test("GET /api/readyz reports broker reachability (demo → ready)", async () => {
+  const res = await fetch(`${base}/api/readyz`);
+  assert.equal(res.status, 200);
+  const json = await readJson(res);
+  assert.equal(json.ready, true);
+  assert.equal(json.kind, "demo");
+});
+
+test("GET /api/metrics emits RED metrics (rate, errors, duration histogram)", async () => {
+  await get("/api/export.csv?dataset=projects"); // generate at least one request
+  const res = await get("/api/metrics");
+  assert.equal(res.status, 200);
+  const text = await res.text();
+  assert.match(text, /omniproject_http_requests_total\{status="2xx"\}/);
+  assert.match(text, /omniproject_http_errors_total/);
+  assert.match(text, /# TYPE omniproject_http_request_duration_ms histogram/);
+  assert.match(text, /omniproject_http_in_flight/);
+});
+
 test("GET /api/setup/backends returns the workflow catalogue", async () => {
   const res = await get("/api/setup/backends");
   assert.equal(res.status, 200);
