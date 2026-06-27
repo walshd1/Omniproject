@@ -893,6 +893,16 @@ Compatibility predicate — the single rule deciding whether a surfaceable asset
 | `isCapabilityMet` | Compatibility predicate — the single rule deciding whether a surfaceable asset (report, screen, view, panel, …) should appear, given the resolved SUPPORT set. |
 | `unionSupport` | OR-union several support maps into one: a key is supported if ANY map marks it `true`. |
 
+### `lib/backend-catalogue/src/entity-resolution.ts`
+
+ENTITY RESOLUTION — stateless helpers for reconciling the SAME real-world entity appearing in more than one backend (the person who is a Jira assignee AND a Salesforce contact; the project that spans a PM tool AND an ERP).
+
+| Function | What it does |
+| --- | --- |
+| `dedupeEntities` | Group records by a deterministic key and merge each group. |
+| `matchCandidates` | Surface likely-same entities WITHOUT merging them: for each matcher, group records by its derived key and report every group of ≥2. |
+| `normaliseKey` | A handy normaliser for building soft match keys (lowercased, trimmed, collapsed). |
+
 ### `lib/backend-catalogue/src/field-vocabulary.ts`
 
 Canonical FIELD vocabulary — the single source of truth for the work-item fields OmniProject knows how to surface and store above the seam.

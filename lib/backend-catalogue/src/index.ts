@@ -34,3 +34,4 @@ export * from "./notification-routing";
 export * from "./notification-kinds";
 export * from "./field-vocabulary";
 export * from "./methodology-pack";
+export * from "./entity-resolution";

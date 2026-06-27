@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Cross-backend entity resolution (stateless)** — helpers for reconciling the SAME
+  real-world entity appearing in more than one backend (a person who is a Jira
+  assignee AND a Salesforce contact). `dedupeEntities(records, keyFn, mergeFn?)` MERGES
+  records that share a DETERMINISTIC key (safe to auto-apply; keyless records never
+  merge); `matchCandidates(records, matchers)` SURFACES likely-same records (same
+  normalised email/name) as CANDIDATES for human confirmation — never auto-merged, so
+  a fuzzy collision can't silently corrupt a view. Pure + stateless: no customer data
+  is held; a confirmed mapping would persist as JSON in the config dir (the truth
+  stays in the backends). `GET /api/setup/entity-resolution/preview` demonstrates both
+  over an illustrative sample.
 - **Per-kind broker command routing (decision layer)** — `brokerForCommand(intent)`
   chooses which connected broker KIND should serve a command given what it needs
   (`transport` and/or `capability`), built on the multi-broker registry. The rule:
