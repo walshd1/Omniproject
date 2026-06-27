@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Per-user accessibility look-and-feel override** — a personal, client-side overlay
+  layered over the company branding: text size (0.85–1.5×), high contrast (underlined
+  links + thick focus rings), and reduced motion, in the Settings → Accessibility
+  panel. It lives in `localStorage` only — nothing is sent to the server, and
+  clearing it reverts to the company look — fully in keeping with the stateless,
+  nothing-at-rest ethos (the company config is untouched; this is a personal layer).
+  Corrupt/missing storage falls back to company defaults, never an error.
 - **Graph + map visual primitives (panel kinds)** — two new `PanelKind`s registered
   in the ScreenRenderer panel registry, so they're JSON-composable like every other
   panel and capability-gated. `graph` renders a network/dependency graph from

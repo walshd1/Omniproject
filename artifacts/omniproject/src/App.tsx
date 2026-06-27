@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import { useEffect, lazy, Suspense } from "react";
 import { useStore } from "./store/useStore";
 import { BrandingProvider } from "./lib/branding";
+import { A11yProvider } from "./lib/a11y-prefs";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // Layout (eager — it wraps every authenticated route)
@@ -97,6 +98,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrandingProvider>
+        <A11yProvider>
         <TooltipProvider>
           <ThemeInitializer />
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
@@ -114,6 +116,7 @@ function App() {
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
+        </A11yProvider>
       </BrandingProvider>
     </QueryClientProvider>
   );
