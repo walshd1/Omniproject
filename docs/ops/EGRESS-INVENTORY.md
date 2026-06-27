@@ -66,6 +66,7 @@ request-scoped and gone at the end of the response:
 | **Settings store** (`lib/settings.ts`) | Gateway **config** — broker URL, backend source, capability/field overrides, time-travel toggle | Config, **not project data**; admin-gated to write |
 | **Logging server** (E2) | Snapshots, *outside* the gateway | Opt-in egress; the operator owns that store and its retention |
 | **Read cache** (`lib/read-cache.ts`) | Optional short-TTL read memoisation | **Off by default**; ephemeral, in-process, nothing across a restart |
+| **Redis fan-out** (`REDIS_URL`, *multi-replica*) | Pub/Sub broadcasts (notifications, the **already-redacted** broker-log projection) + rate-limit counters | **Off by default**; ephemeral broadcast, not a datastore — **never** project data or credentials. See `MULTI-REPLICA.md` |
 | **Delegation denylist** (*future*) | A `jti`/hash fingerprint set for instant revoke | **Not built**; design stores a one-way hash only (no identities) |
 
 ---

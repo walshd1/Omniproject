@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { pushBrokerEvent, getBrokerLog, subscribeBrokerLog, brokerLogSize, clearBrokerLog } from "./broker-log";
+import { pushBrokerEvent, getBrokerLog, subscribeBrokerLog, brokerLogSize, clearBrokerLog, foldRemoteEntry, registerBrokerLogPublisher, brokerLogReplicaId, type BrokerLogEntry } from "./broker-log";
 import type { AuditEvent } from "./audit";
 
 afterEach(() => clearBrokerLog());
@@ -45,4 +45,36 @@ test("subscribers receive live entries and can unsubscribe", () => {
   unsub();
   pushBrokerEvent(ev({ action: "c" })); // after unsubscribe → not seen
   assert.deepEqual(seen, ["a", "b"]);
+});
+
+// ── Multi-replica fan-out ────────────────────────────────────────────────────
+
+test("local entries are stamped with THIS replica's label (fleet attribution)", () => {
+  pushBrokerEvent(ev({ action: "list_issues" }));
+  assert.equal(getBrokerLog()[0]!.replica, brokerLogReplicaId());
+});
+
+test("foldRemoteEntry surfaces another replica's entry locally + notifies subscribers", () => {
+  const seen: BrokerLogEntry[] = [];
+  const unsub = subscribeBrokerLog((e) => seen.push(e));
+  const remote: BrokerLogEntry = { ts: "2026-01-01T00:00:01Z", action: "create_issue", result: "success", status: 200, ms: 7, projectId: "p9", actor: "u-remote", note: null, replica: "node-B" };
+  foldRemoteEntry(remote);
+  unsub();
+  // It appears in this replica's ring, keeping the originating node's label…
+  const last = getBrokerLog().at(-1)!;
+  assert.equal(last.replica, "node-B");
+  assert.equal(last.action, "create_issue");
+  // …and reached the live subscriber (so an admin watching node-A sees node-B).
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0]!.replica, "node-B");
+});
+
+test("publishers get LOCAL entries but NOT folded remote ones (no echo storm)", () => {
+  const published: BrokerLogEntry[] = [];
+  const off = registerBrokerLogPublisher((e) => published.push(e));
+  pushBrokerEvent(ev({ action: "local-one" }));               // local → published
+  foldRemoteEntry({ ts: "t", action: "remote-one", result: "success", status: 200, ms: 1, projectId: null, actor: null, note: null, replica: "node-C" }); // remote → NOT re-published
+  off();
+  pushBrokerEvent(ev({ action: "after-unregister" }));        // publisher gone
+  assert.deepEqual(published.map((e) => e.action), ["local-one"]);
 });
