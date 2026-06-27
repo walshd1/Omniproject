@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { getJson } from "../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +14,6 @@ import { Input } from "@/components/ui/input";
 interface BackendItem { id: string; label: string }
 interface RequiredCredential { name: string; secret: boolean; backends: string[] }
 interface Connections { credentials: RequiredCredential[]; templates: { env: string; compose: string } }
-
-async function getJson<T>(url: string): Promise<T> {
-  return (await fetch(url, { credentials: "same-origin" })).json();
-}
 
 export function ConnectionsAdmin() {
   const { data: backends } = useQuery<BackendItem[]>({ queryKey: ["setup-backends"], queryFn: () => getJson("/api/setup/backends"), retry: false });

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getJson } from "../lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
@@ -11,10 +12,6 @@ import { Button } from "@/components/ui/button";
  */
 interface DevStatus { devMode: boolean }
 interface Entitlements { catalog: string[]; overrides: Record<string, boolean>; effective: string[] }
-
-async function getJson<T>(url: string): Promise<T> {
-  return (await fetch(url, { credentials: "same-origin" })).json();
-}
 
 export function DevEntitlementsControl() {
   const qc = useQueryClient();

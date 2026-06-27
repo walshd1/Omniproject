@@ -25,15 +25,18 @@ import { getDevEntitlementOverrides, setDevEntitlementOverride, clearDevEntitlem
  */
 const router = Router();
 
+/** Gate a route to an active dev instance (409 otherwise) — applied to every
+ *  dev-only endpoint so the check lives in one place, not in each handler. */
+function requireDevMode(_req: import("express").Request, res: import("express").Response, next: import("express").NextFunction): void {
+  if (isDevMode()) { next(); return; }
+  res.status(409).json({ error: "dev mode is not active" });
+}
+
 router.get("/dev-mode", (_req, res) => {
   res.json(devModeStatus());
 });
 
-router.get("/dev-mode/broker", requireRole("admin"), (_req, res) => {
-  if (!isDevMode()) {
-    res.status(409).json({ error: "dev mode is not active" });
-    return;
-  }
+router.get("/dev-mode/broker", requireDevMode, requireRole("admin"), (_req, res) => {
   res.json({
     config: getDevBrokerConfig(),
     sources: DEV_DATA_SOURCES,
@@ -41,11 +44,7 @@ router.get("/dev-mode/broker", requireRole("admin"), (_req, res) => {
   });
 });
 
-router.post("/dev-mode/broker", requireRole("admin"), (req, res) => {
-  if (!isDevMode()) {
-    res.status(409).json({ error: "dev mode is not active" });
-    return;
-  }
+router.post("/dev-mode/broker", requireDevMode, requireRole("admin"), (req, res) => {
   const body = (req.body ?? {}) as { vendor?: unknown; source?: unknown; ref?: unknown };
   const patch: Partial<{ vendor: string | null; source: DevDataSource; ref: string | null }> = {};
 
@@ -91,21 +90,13 @@ function isRealAdmin(req: import("express").Request): boolean {
 }
 
 /** GET — the current impersonation (for the UI banner), or null. */
-router.get("/dev-mode/impersonate", (req, res) => {
-  if (!isDevMode()) {
-    res.status(409).json({ error: "dev mode is not active" });
-    return;
-  }
+router.get("/dev-mode/impersonate", requireDevMode, (req, res) => {
   const imp = activeImpersonation(getRealSession(req));
   res.json({ impersonation: imp ? { sub: imp.sub, email: imp.email, roles: imp.roles, reason: imp.reason, by: imp.by, expiresAt: imp.expiresAt } : null });
 });
 
 /** POST — start impersonating { sub, email?, roles?, reason }. Real-admin only. */
-router.post("/dev-mode/impersonate", (req, res) => {
-  if (!isDevMode()) {
-    res.status(409).json({ error: "dev mode is not active" });
-    return;
-  }
+router.post("/dev-mode/impersonate", requireDevMode, (req, res) => {
   const real = getRealSession(req);
   const realRole = roleFromClaims(real?.roles ?? [], { isDemo: isDemoAuth() });
   if (!real || realRole !== "admin") {
@@ -150,11 +141,7 @@ router.post("/dev-mode/impersonate", (req, res) => {
 });
 
 /** DELETE — stop impersonating (de-escalation; any impersonator may stop). */
-router.delete("/dev-mode/impersonate", (req, res) => {
-  if (!isDevMode()) {
-    res.status(409).json({ error: "dev mode is not active" });
-    return;
-  }
+router.delete("/dev-mode/impersonate", requireDevMode, (req, res) => {
   const real = getRealSession(req);
   const imp = real?.impersonation;
   stopImpersonation(req, res);
@@ -177,20 +164,12 @@ router.delete("/dev-mode/impersonate", (req, res) => {
 // without a real licence. Dev-only; real admin; ephemeral (in-memory); audited.
 
 /** GET — the catalogue, current overrides, and the effective entitlements. */
-router.get("/dev-mode/entitlements", (req, res) => {
-  if (!isDevMode()) {
-    res.status(409).json({ error: "dev mode is not active" });
-    return;
-  }
+router.get("/dev-mode/entitlements", requireDevMode, (req, res) => {
   res.json({ catalog: LICENSE_FEATURES, overrides: getDevEntitlementOverrides(), effective: licenseSummary().features });
 });
 
 /** POST — force a feature: { feature, enabled: true|false|null(clear) }. */
-router.post("/dev-mode/entitlements", (req, res) => {
-  if (!isDevMode()) {
-    res.status(409).json({ error: "dev mode is not active" });
-    return;
-  }
+router.post("/dev-mode/entitlements", requireDevMode, (req, res) => {
   if (!isRealAdmin(req)) {
     res.status(403).json({ error: "only a real admin may override entitlements" });
     return;
@@ -219,11 +198,7 @@ router.post("/dev-mode/entitlements", (req, res) => {
 });
 
 /** DELETE — clear all overrides. */
-router.delete("/dev-mode/entitlements", (req, res) => {
-  if (!isDevMode()) {
-    res.status(409).json({ error: "dev mode is not active" });
-    return;
-  }
+router.delete("/dev-mode/entitlements", requireDevMode, (req, res) => {
   if (!isRealAdmin(req)) {
     res.status(403).json({ error: "only a real admin may override entitlements" });
     return;

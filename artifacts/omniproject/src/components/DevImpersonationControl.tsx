@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getJson } from "../lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,10 +18,6 @@ import { Textarea } from "@/components/ui/textarea";
  */
 interface DevStatus { devMode: boolean }
 interface ImpersonationState { sub: string; email?: string; roles?: string[]; reason: string; by: string; expiresAt: number }
-
-async function getJson<T>(url: string): Promise<T> {
-  return (await fetch(url, { credentials: "same-origin" })).json();
-}
 
 export function DevImpersonationControl() {
   const qc = useQueryClient();
