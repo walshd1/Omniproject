@@ -246,6 +246,14 @@ Optimistic-concurrency helper.
 | --- | --- |
 | `versionConflict` | Optimistic-concurrency helper. |
 
+### `artifacts/api-server/src/lib/config-bundle.ts`
+
+"Lock this config" export — dump the current effective config as the EXACT folder-of-JSON the config-directory loader reads (read ≡ dump).
+
+| Function | What it does |
+| --- | --- |
+| `buildConfigBundle` | "Lock this config" export — dump the current effective config as the EXACT folder-of-JSON the config-directory loader reads (read ≡ dump). |
+
 ### `artifacts/api-server/src/lib/config-dir.ts`
 
 Deployment config directory loader (OMNI_CONFIG_DIR).
@@ -950,6 +958,7 @@ Runtime vendor overlay — lets a deployment ADD or OVERRIDE vendors at boot wit
 | `clearVendorOverlay` | Drop all registered overlays (used by tests and a config reload). |
 | `withOverlay` | Merge a plane's overlay over its shipped defaults: an overlay entry overrides a default with the same id; new ids are appended. |
 | `vendorOverlayCounts` | How many overlay entries are registered per plane (for the config-dir status). |
+| `vendorOverlayEntries` | The registered overlay vendors per plane (for the "lock this config" dump). |
 
 ### `lib/backend-catalogue/src/vendor-schema.ts`
 

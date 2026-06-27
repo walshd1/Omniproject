@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **"Lock this config" export — read ≡ dump** (**Stable**) — `GET
+  /api/setup/config-bundle` (admin) downloads the current effective config as the
+  EXACT folder-of-JSON the loader reads: `config.json` + the deployment's overlay
+  `vendors/<plane>/*.json` + `rulesets/field-rules.json` & `rule-modes.json`, zipped.
+  The customer keeps the bundle and mounts it as `OMNI_CONFIG_DIR` to persist their
+  look-and-feel; the gateway stores nothing. The config-dir loader now also reads
+  `rulesets/` (governance ruleset, restrict-only) and inventories `artifacts/`
+  (things generated against our reference). The bundle is **config only** — never
+  customer data (enforced by the config-purity guard).
 - **Per-vendor vocab maps + one-click nomenclature** (**Stable**) — a backend's
   vendor JSON can declare how it names things: a **`nomenclature`** preset (canonical
   term → the vendor's word, e.g. Zendesk "Ticket", ServiceNow "Incident", Trello

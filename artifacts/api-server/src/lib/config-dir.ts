@@ -3,6 +3,7 @@ import path from "node:path";
 import { registerVendor, type VendorPlane } from "@workspace/backend-catalogue";
 import { applySnapshot } from "./config-snapshot";
 import { updateSettings } from "./settings";
+import { setFieldRules, setRuleModes } from "./ruleset";
 import { logger } from "./logger";
 
 /**
@@ -13,12 +14,15 @@ import { logger } from "./logger";
  * on disk is the persistence). The same folder is what the admin "lock this
  * config" export dumps — read and dump share one shape.
  *
- *   <dir>/config.json            settings + label overrides (a config snapshot)
- *   <dir>/vendors/<plane>/*.json add / override vendors (validated per plane)
+ *   <dir>/config.json              settings + label overrides (a config snapshot)
+ *   <dir>/vendors/<plane>/*.json   add / override vendors (validated per plane)
+ *   <dir>/rulesets/field-rules.json + rule-modes.json   the governance ruleset
+ *   <dir>/artifacts/               things generated against our reference (kept)
  *
- * Every file is schema-validated (the same schema the author designed against);
- * an invalid file is logged + skipped, never crashes boot. The load summary is
- * kept for the admin status endpoint.
+ * Every vendor file is schema-validated (the same schema the author designed
+ * against); an invalid file is logged + skipped, never crashes boot. This is the
+ * exact shape the admin "lock this config" export dumps — read ≡ dump. The load
+ * summary is kept for the admin status endpoint.
  */
 
 const PLANES: VendorPlane[] = ["backends", "brokers", "notifications", "outputs"];
@@ -28,11 +32,17 @@ export interface ConfigDirSummary {
   present: boolean;
   vendors: Record<string, number>;
   configApplied: boolean;
+  rulesetsApplied: boolean;
+  artifacts: number;
   warnings: string[];
   errors: string[];
 }
 
-let lastSummary: ConfigDirSummary = { dir: null, present: false, vendors: {}, configApplied: false, warnings: [], errors: [] };
+function emptySummary(dir: string | null): ConfigDirSummary {
+  return { dir, present: false, vendors: {}, configApplied: false, rulesetsApplied: false, artifacts: 0, warnings: [], errors: [] };
+}
+
+let lastSummary: ConfigDirSummary = emptySummary(null);
 
 /** The most recent config-directory load result (for the admin status endpoint). */
 export function configDirSummary(): ConfigDirSummary {
@@ -53,7 +63,7 @@ function readJsonDir(dir: string): Array<{ file: string; data: unknown }> {
  * defaults to OMNI_CONFIG_DIR.
  */
 export function loadConfigDir(dir = process.env["OMNI_CONFIG_DIR"]?.trim()): ConfigDirSummary {
-  const summary: ConfigDirSummary = { dir: dir ?? null, present: false, vendors: {}, configApplied: false, warnings: [], errors: [] };
+  const summary = emptySummary(dir ?? null);
   if (!dir) { lastSummary = summary; return summary; }
   if (!fs.existsSync(dir)) {
     summary.errors.push(`OMNI_CONFIG_DIR "${dir}" does not exist`);
@@ -90,12 +100,39 @@ export function loadConfigDir(dir = process.env["OMNI_CONFIG_DIR"]?.trim()): Con
     }
   }
 
+  // rulesets/: the governance ruleset (field rules + rule modes). Restrict-only —
+  // setFieldRules/setRuleModes only accept well-formed, known, non-granting input.
+  summary.rulesetsApplied = applyRuleset(path.join(dir, "rulesets"), summary);
+
+  // artifacts/: things generated against our reference (n8n workflows, blueprints).
+  // The gateway keeps them with the config but doesn't execute them — just inventory.
+  const artifactsDir = path.join(dir, "artifacts");
+  if (fs.existsSync(artifactsDir)) summary.artifacts = fs.readdirSync(artifactsDir).length;
+
   logger.info(
-    { dir, vendors: summary.vendors, configApplied: summary.configApplied, errors: summary.errors.length },
+    { dir, vendors: summary.vendors, configApplied: summary.configApplied, rulesetsApplied: summary.rulesetsApplied, artifacts: summary.artifacts, errors: summary.errors.length },
     "loaded deployment config directory",
   );
   lastSummary = summary;
   return summary;
+}
+
+/** Apply rulesets/field-rules.json + rule-modes.json if present; true when either applied. */
+function applyRuleset(dir: string, summary: ConfigDirSummary): boolean {
+  let applied = false;
+  const apply = (file: string, fn: (data: unknown) => void): void => {
+    const full = path.join(dir, file);
+    if (!fs.existsSync(full)) return;
+    try {
+      fn(JSON.parse(fs.readFileSync(full, "utf8")));
+      applied = true;
+    } catch (err) {
+      summary.errors.push(`rulesets/${file}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+  apply("field-rules.json", (d) => setFieldRules(d));
+  apply("rule-modes.json", (d) => setRuleModes(d as Record<string, unknown>));
+  return applied;
 }
 
 /** Read a JSON directory, recording (not throwing) a parse error per file. */

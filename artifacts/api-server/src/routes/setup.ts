@@ -22,6 +22,7 @@ import { getDemoState } from "../lib/data";
 import { buildZip } from "../lib/zip";
 import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 import { configDirSummary } from "../lib/config-dir";
+import { buildConfigBundle } from "../lib/config-bundle";
 import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
 import {
   storeView,
@@ -133,6 +134,13 @@ router.get("/setup/export", requireRole("admin"), (req, res) => {
 // (OMNI_CONFIG_DIR) loaded at boot (vendor overlay counts, config applied, errors).
 router.get("/setup/config-dir", requireRole("admin"), (_req, res) => {
   res.json(configDirSummary());
+});
+
+// GET /api/setup/config-bundle — admin "lock this config": download the current
+// effective config as the exact folder-of-JSON the loader reads (read ≡ dump).
+router.get("/setup/config-bundle", requireRole("admin"), (_req, res) => {
+  const zip = buildConfigBundle();
+  res.type("application/zip").set("Content-Disposition", 'attachment; filename="omniproject-config.zip"').send(zip);
 });
 
 // GET /api/setup/backends — catalogue for the workflow wizard. Admin-only backends
