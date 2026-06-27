@@ -274,6 +274,23 @@ test("GET /api/setup/notifications lists channels (Slack/Teams/…) with capabil
   assert.ok(slack && slack.capabilities.richFormatting === true);
 });
 
+test("business ruleset: admin sets a hard rule that then blocks a write (422)", async () => {
+  const put = (body: unknown) => get("/api/admin/ruleset", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  try {
+    // Default: off → a write is allowed by the engine.
+    const cat0 = await readJson(await get("/api/admin/ruleset"));
+    assert.equal(cat0.find((r: { id: string }) => r.id === "no-deletes").mode, "off");
+
+    // Admin sets no-deletes = hard → a delete is now blocked by the business rule.
+    await put({ "no-deletes": "hard" });
+    const del = await get("/api/projects/proj-1/issues/iss-001", { method: "DELETE" });
+    assert.equal(del.status, 422);
+    assert.equal((await readJson(del)).rule, "no-deletes");
+  } finally {
+    await put({ "no-deletes": "off" }); // reset shared module state
+  }
+});
+
 // ── MCP server (POST /api/mcp, JSON-RPC) ─────────────────────────────────────
 
 const mcp = (rpc: unknown, init?: RequestInit) =>
