@@ -1,0 +1,47 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title }) }}",
+      "method": "POST",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks({{ $json.body.payload.issueId }})"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks?$filter=_msdyn_project_value eq {{ $json.body.payload.projectId }}"
+    },
+    "list_projects": {
+      "method": "GET",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projects"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title }) }}",
+      "method": "PATCH",
+      "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks({{ $json.body.payload.issueId }})"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": true,
+    "blockers": false,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": true,
+    "raid": false,
+    "resources": true,
+    "scheduling": true
+  },
+  "credentialType": "microsoftDynamicsOAuth2Api",
+  "docsUrl": "https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview",
+  "id": "dynamics365",
+  "label": "Microsoft Dynamics 365 (Project Operations)",
+  "notes": "Auth is handled by n8n's Microsoft Dynamics OAuth2 credential (no per-user token). Project Operations runs on Dataverse — msdyn_project / msdyn_projecttask, with finance entities for EVM. DATAVERSE_URL e.g. https://org.crm.dynamics.com.",
+  "requiredEnv": [
+    "DATAVERSE_URL"
+  ],
+  "via": "HTTP + n8n-managed Dynamics OAuth (Dataverse Web API)"
+}

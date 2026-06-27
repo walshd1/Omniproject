@@ -1,0 +1,47 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ projectId: $json.body.payload.projectId, name: $json.body.payload.title, description: $json.body.payload.description }) }}",
+      "method": "POST",
+      "url": "={{ $env.PLANVIEW_INSTANCE_URL }}/api/work"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.PLANVIEW_INSTANCE_URL }}/api/work/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "={{ $env.PLANVIEW_INSTANCE_URL }}/api/projects/{{ $json.body.payload.projectId }}/work"
+    },
+    "list_projects": {
+      "method": "GET",
+      "url": "={{ $env.PLANVIEW_INSTANCE_URL }}/api/projects"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ name: $json.body.payload.title, state: $json.body.payload.status }) }}",
+      "method": "PUT",
+      "url": "={{ $env.PLANVIEW_INSTANCE_URL }}/api/work/{{ $json.body.payload.issueId }}"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": true,
+    "blockers": false,
+    "financials": true,
+    "history": true,
+    "issues": true,
+    "portfolio": true,
+    "raid": true,
+    "resources": true,
+    "scheduling": true
+  },
+  "credentialType": "oAuth2Api",
+  "docsUrl": "https://developer.planview.com/",
+  "id": "planview",
+  "label": "Planview (Portfolios / AdaptiveWork)",
+  "notes": "Enterprise PPM: portfolios → programmes/projects, work items → issues; resource + financial + baseline data are first-class (good fit for the strategy/KPI fields). Planview's REST surface varies by product (Portfolios vs AdaptiveWork/Clarizen) and version — confirm the endpoints + OAuth scopes against your tenant. Workflow generation is premium (enterprise tier).",
+  "requiredEnv": [
+    "PLANVIEW_INSTANCE_URL"
+  ],
+  "via": "HTTP + Planview OAuth2 (managed credential)"
+}

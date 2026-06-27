@@ -1,0 +1,47 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify([{ Name: $json.body.payload.title, ProjectObjectId: $json.body.payload.projectId }]) }}",
+      "method": "POST",
+      "url": "={{ $env.P6_URL }}/p6ws/restapi/activity"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.P6_URL }}/p6ws/restapi/activity/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "={{ $env.P6_URL }}/p6ws/restapi/activity?ProjectObjectId={{ $json.body.payload.projectId }}"
+    },
+    "list_projects": {
+      "method": "GET",
+      "url": "={{ $env.P6_URL }}/p6ws/restapi/project"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify([{ ObjectId: $json.body.payload.issueId, Name: $json.body.payload.title }]) }}",
+      "method": "PUT",
+      "url": "={{ $env.P6_URL }}/p6ws/restapi/activity"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": true,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": true,
+    "raid": false,
+    "resources": true,
+    "scheduling": true
+  },
+  "credentialType": "httpBasicAuth",
+  "docsUrl": "https://docs.oracle.com/cd/F25600_01/English/Integration/P6_Integration_API/index.htm",
+  "id": "primavera",
+  "label": "Oracle Primavera P6 EPPM",
+  "notes": "Primavera P6 EPPM REST: projects → projects, activities → issues; baselines + resource assignments are first-class. Endpoint shapes vary by P6 version — confirm against your /p6ws/restapi build.",
+  "requiredEnv": [
+    "P6_URL"
+  ],
+  "via": "HTTP + n8n Basic credential (P6 REST)"
+}

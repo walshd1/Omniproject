@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/vendors/broker.schema.json",
+  "title": "OmniProject broker vendor",
+  "description": "An automation/translation platform that drives a backend binding. One file per vendor under vendors/brokers/<id>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "docsUrl", "kind", "hosted", "capabilities", "transports", "build"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string" },
+    "docsUrl": { "type": "string" },
+    "kind": { "enum": ["low-code", "code-first", "serverless", "self-hosted-service"] },
+    "hosted": { "type": "boolean" },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["synchronous", "selfHostable", "managedAuth", "eventsInbound", "eventsOutbound"],
+      "properties": {
+        "synchronous": { "type": "boolean" },
+        "selfHostable": { "type": "boolean" },
+        "managedAuth": { "type": "boolean" },
+        "eventsInbound": { "type": "boolean" },
+        "eventsOutbound": { "type": "boolean" }
+      }
+    },
+    "transports": { "type": "array", "items": { "enum": ["http", "native-node"] } },
+    "build": { "enum": ["workflow-generator", "scenario-template", "component-template", "flow-template", "dag-template", "function-template", "implement-blueprint"] },
+    "notes": { "type": "string" },
+    "alsoProvides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["plane"],
+        "properties": {
+          "plane": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      }
+    }
+  }
+}

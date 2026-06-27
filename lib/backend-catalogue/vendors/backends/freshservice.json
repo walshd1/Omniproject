@@ -1,0 +1,77 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.freshservice",
+      "parameters": {
+        "operation": "create",
+        "resource": "ticket",
+        "subject": "={{ $json.body.payload.title }}"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.freshservice",
+      "parameters": {
+        "operation": "delete",
+        "resource": "ticket",
+        "ticketId": "={{ $json.body.payload.issueId }}"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.freshservice",
+      "note": "Tickets map to issues; filter by department after import.",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "ticket"
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.freshservice",
+      "note": "Departments map to projects (or swap for a custom grouping).",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "department"
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.freshservice",
+      "parameters": {
+        "operation": "update",
+        "resource": "ticket",
+        "ticketId": "={{ $json.body.payload.issueId }}",
+        "updateFields": {
+          "subject": "={{ $json.body.payload.title }}"
+        }
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true,
+    "service": true
+  },
+  "credentialType": "freshserviceApi",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.freshservice/",
+  "id": "freshservice",
+  "label": "Freshservice (Freshworks ITSM)",
+  "notes": "Freshworks ITSM. Departments → projects, Tickets → issues. service capability on.",
+  "requiredEnv": [],
+  "via": "Native n8n node (freshserviceApi credential)"
+}

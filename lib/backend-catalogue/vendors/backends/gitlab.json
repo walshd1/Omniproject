@@ -1,0 +1,46 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ title: $json.body.payload.title, description: $json.body.payload.description, due_date: $json.body.payload.dueDate }) }}",
+      "method": "POST",
+      "url": "={{ $env.GITLAB_INSTANCE_URL }}/api/v4/projects/{{ $json.body.payload.projectId }}/issues"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.GITLAB_INSTANCE_URL }}/api/v4/projects/{{ $json.body.payload.projectId }}/issues/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "={{ $env.GITLAB_INSTANCE_URL }}/api/v4/projects/{{ $json.body.payload.projectId }}/issues"
+    },
+    "list_projects": {
+      "method": "GET",
+      "url": "={{ $env.GITLAB_INSTANCE_URL }}/api/v4/projects?membership=true"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ title: $json.body.payload.title, state_event: $json.body.payload.status === 'done' ? 'close' : 'reopen' }) }}",
+      "method": "PUT",
+      "url": "={{ $env.GITLAB_INSTANCE_URL }}/api/v4/projects/{{ $json.body.payload.projectId }}/issues/{{ $json.body.payload.issueId }}"
+    }
+  },
+  "authHeader": "=Bearer {{ $json.body.payload.userContext.token }}",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "docsUrl": "https://docs.gitlab.com/ee/api/issues.html",
+  "id": "gitlab",
+  "label": "GitLab Issues",
+  "notes": "projectId = GitLab numeric project id. iid vs id: writes use the issue iid within the project.",
+  "requiredEnv": [
+    "GITLAB_INSTANCE_URL"
+  ],
+  "via": "HTTP + per-user token"
+}

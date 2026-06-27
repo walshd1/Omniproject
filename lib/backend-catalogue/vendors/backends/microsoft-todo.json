@@ -1,0 +1,81 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.microsoftToDo",
+      "parameters": {
+        "operation": "create",
+        "resource": "task",
+        "taskListId": "={{ $json.body.payload.projectId }}",
+        "title": "={{ $json.body.payload.title }}"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.microsoftToDo",
+      "parameters": {
+        "operation": "delete",
+        "resource": "task",
+        "taskId": "={{ $json.body.payload.issueId }}",
+        "taskListId": "={{ $json.body.payload.projectId }}"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.microsoftToDo",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "task",
+        "returnAll": true,
+        "taskListId": "={{ $json.body.payload.projectId }}"
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.microsoftToDo",
+      "note": "Task lists map to projects.",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "list",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.microsoftToDo",
+      "parameters": {
+        "operation": "update",
+        "resource": "task",
+        "taskId": "={{ $json.body.payload.issueId }}",
+        "taskListId": "={{ $json.body.payload.projectId }}",
+        "updateFields": {
+          "title": "={{ $json.body.payload.title }}"
+        }
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "microsoftToDoOAuth2Api",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.microsofttodo/",
+  "id": "microsoft-todo",
+  "label": "Microsoft To Do",
+  "notes": "Personal task manager: task lists → projects, tasks → issues. Updates/deletes need both the list id (projectId) and the task id (issueId).",
+  "requiredEnv": [],
+  "via": "Native n8n node (microsoftToDoOAuth2Api credential)"
+}

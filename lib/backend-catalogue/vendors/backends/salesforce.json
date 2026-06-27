@@ -1,0 +1,94 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.salesforce",
+      "note": "Salesforce opportunities REQUIRE StageName + CloseDate — set defaults in the node after import.",
+      "parameters": {
+        "additionalFields": {
+          "accountId": "={{ $json.body.payload.projectId }}"
+        },
+        "name": "={{ $json.body.payload.title }}",
+        "operation": "create",
+        "resource": "opportunity"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.salesforce",
+      "parameters": {
+        "operation": "delete",
+        "opportunityId": "={{ $json.body.payload.issueId }}",
+        "resource": "opportunity"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.salesforce",
+      "note": "Opportunities map to issues; the SOQL filter scopes them to the account (projectId).",
+      "parameters": {
+        "operation": "getAll",
+        "options": {
+          "conditionsUi": {
+            "conditionValues": [
+              {
+                "field": "AccountId",
+                "operation": "equal",
+                "value": "={{ $json.body.payload.projectId }}"
+              }
+            ]
+          }
+        },
+        "resource": "opportunity",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.salesforce",
+      "note": "Accounts map to projects.",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "account",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.salesforce",
+      "parameters": {
+        "operation": "update",
+        "opportunityId": "={{ $json.body.payload.issueId }}",
+        "resource": "opportunity",
+        "updateFields": {
+          "name": "={{ $json.body.payload.title }}"
+        }
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "crm": true,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "salesforceOAuth2Api",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.salesforce/",
+  "id": "salesforce",
+  "label": "Salesforce",
+  "notes": "CRM mapping: Account → project, Opportunity → issue. crm + financials capabilities light up deal value / stage / close date. Confirm field + param names against your Salesforce edition after import.",
+  "requiredEnv": [],
+  "via": "Native n8n node (salesforceOAuth2Api credential)"
+}

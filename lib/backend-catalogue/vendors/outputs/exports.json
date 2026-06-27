@@ -1,0 +1,19 @@
+{
+  "capabilities": {
+    "auth": "user-action",
+    "readOnly": true,
+    "streaming": false
+  },
+  "id": "exports",
+  "kind": "export",
+  "label": "File exports",
+  "notes": "User-initiated exports with CSV-injection neutralisation + data-lineage.",
+  "route": "GET /api/export.{csv,json,xlsx,pdf,md}",
+  "tools": [
+    "csv",
+    "json",
+    "xlsx",
+    "pdf",
+    "md"
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.pipedrive",
+      "parameters": {
+        "additionalFields": {
+          "org_id": "={{ $json.body.payload.projectId }}"
+        },
+        "operation": "create",
+        "resource": "deal",
+        "title": "={{ $json.body.payload.title }}"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.pipedrive",
+      "parameters": {
+        "dealId": "={{ $json.body.payload.issueId }}",
+        "operation": "delete",
+        "resource": "deal"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.pipedrive",
+      "note": "Deals map to issues; org_id scopes them to the organization (projectId).",
+      "parameters": {
+        "filters": {
+          "org_id": "={{ $json.body.payload.projectId }}"
+        },
+        "operation": "getAll",
+        "resource": "deal",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.pipedrive",
+      "note": "Organizations map to projects.",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "organization",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.pipedrive",
+      "parameters": {
+        "dealId": "={{ $json.body.payload.issueId }}",
+        "operation": "update",
+        "resource": "deal",
+        "updateFields": {
+          "title": "={{ $json.body.payload.title }}"
+        }
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "crm": true,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "pipedriveApi",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.pipedrive/",
+  "id": "pipedrive",
+  "label": "Pipedrive",
+  "notes": "CRM mapping: Organization → project, Deal → issue. crm + financials capabilities light up deal value / stage. Confirm field + param names against the installed Pipedrive node version after import.",
+  "requiredEnv": [],
+  "via": "Native n8n node (pipedriveApi credential)"
+}

@@ -1,0 +1,77 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.mondayCom",
+      "parameters": {
+        "boardId": "={{ $json.body.payload.projectId }}",
+        "name": "={{ $json.body.payload.title }}",
+        "operation": "create",
+        "resource": "boardItem"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.mondayCom",
+      "parameters": {
+        "itemId": "={{ $json.body.payload.issueId }}",
+        "operation": "delete",
+        "resource": "boardItem"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.mondayCom",
+      "parameters": {
+        "boardId": "={{ $json.body.payload.projectId }}",
+        "operation": "getAll",
+        "resource": "boardItem",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.mondayCom",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "board",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.mondayCom",
+      "note": "Monday updates set a specific column value — map status/name to your board columns after import.",
+      "parameters": {
+        "boardId": "={{ $json.body.payload.projectId }}",
+        "itemId": "={{ $json.body.payload.issueId }}",
+        "operation": "changeColumnValue",
+        "resource": "boardItem"
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "mondayComApi",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.mondaycom/",
+  "id": "monday",
+  "label": "Monday.com",
+  "notes": "projectId = board id, issueId = item id. Boards map to projects, items to issues. Column mapping is board-specific — finish it in the node.",
+  "requiredEnv": [],
+  "via": "Native n8n node (mondayComApi credential)"
+}

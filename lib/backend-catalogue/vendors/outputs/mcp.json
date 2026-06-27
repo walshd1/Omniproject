@@ -1,0 +1,19 @@
+{
+  "capabilities": {
+    "auth": "session-or-token",
+    "readOnly": true,
+    "streaming": false
+  },
+  "id": "mcp",
+  "kind": "agent-api",
+  "label": "MCP server",
+  "notes": "JSON-RPC tools for MCP clients/agents; reads through the broker seam (docs/MCP.md).",
+  "route": "POST /api/mcp",
+  "tools": [
+    "omniproject_list_projects",
+    "omniproject_list_issues",
+    "omniproject_project_summary",
+    "omniproject_portfolio_health",
+    "omniproject_capabilities"
+  ]
+}

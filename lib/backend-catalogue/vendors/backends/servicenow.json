@@ -1,0 +1,101 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.serviceNow",
+      "parameters": {
+        "fields": {
+          "field": [
+            {
+              "column": "short_description",
+              "value": "={{ $json.body.payload.title }}"
+            },
+            {
+              "column": "parent",
+              "value": "={{ $json.body.payload.projectId }}"
+            }
+          ]
+        },
+        "fieldsToSend": "defined",
+        "operation": "create",
+        "resource": "tableRecord",
+        "tableName": "pm_project_task"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.serviceNow",
+      "parameters": {
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "delete",
+        "resource": "tableRecord",
+        "tableName": "pm_project_task"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.serviceNow",
+      "parameters": {
+        "filters": {
+          "query": "=parent={{ $json.body.payload.projectId }}"
+        },
+        "operation": "getAll",
+        "resource": "tableRecord",
+        "returnAll": true,
+        "tableName": "pm_project_task"
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.serviceNow",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "tableRecord",
+        "returnAll": true,
+        "tableName": "pm_project"
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.serviceNow",
+      "parameters": {
+        "fields": {
+          "field": [
+            {
+              "column": "short_description",
+              "value": "={{ $json.body.payload.title }}"
+            }
+          ]
+        },
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "update",
+        "resource": "tableRecord",
+        "tableName": "pm_project_task"
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": true,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "serviceNowBasicApi",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.servicenow/",
+  "id": "servicenow",
+  "label": "ServiceNow (PPM)",
+  "notes": "Uses the generic tableRecord resource against the PPM tables (pm_project / pm_project_task). Adjust table/field names to your ServiceNow PPM model.",
+  "requiredEnv": [],
+  "via": "Native n8n node (serviceNowBasicApi credential)"
+}

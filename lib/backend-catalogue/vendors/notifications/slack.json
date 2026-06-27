@@ -1,0 +1,21 @@
+{
+  "capabilities": {
+    "channels": true,
+    "delivery": "incoming-webhook",
+    "directMessage": true,
+    "inboundReply": true,
+    "richFormatting": true,
+    "threads": true
+  },
+  "docsUrl": "https://api.slack.com/messaging/webhooks",
+  "id": "slack",
+  "kind": "chat",
+  "label": "Slack",
+  "notes": "Incoming Webhook for simple posts, or a Bot/OAuth app for DMs + threads + slash-command replies. Block Kit for rich messages.",
+  "tools": [
+    "notification",
+    "alert",
+    "audit",
+    "config.changed"
+  ]
+}

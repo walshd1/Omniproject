@@ -1,0 +1,86 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.asana",
+      "parameters": {
+        "name": "={{ $json.body.payload.title }}",
+        "operation": "create",
+        "otherProperties": {
+          "notes": "={{ $json.body.payload.description }}",
+          "projects": "={{ [$json.body.payload.projectId] }}"
+        },
+        "resource": "task"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.asana",
+      "parameters": {
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "delete",
+        "resource": "task"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.asana",
+      "parameters": {
+        "filters": {
+          "project": "={{ $json.body.payload.projectId }}"
+        },
+        "operation": "getAll",
+        "resource": "task",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.asana",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "project",
+        "returnAll": true,
+        "workspace": "={{ $env.ASANA_WORKSPACE_ID }}"
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.asana",
+      "parameters": {
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "update",
+        "otherProperties": {
+          "name": "={{ $json.body.payload.title }}"
+        },
+        "resource": "task"
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "asanaApi",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.asana/",
+  "id": "asana",
+  "label": "Asana",
+  "notes": "Uses the maintained Asana node + an Asana credential in n8n. projectId = Asana project gid, issueId = task gid. Confirm field names in the node after import.",
+  "requiredEnv": [
+    "ASANA_WORKSPACE_ID"
+  ],
+  "via": "Native n8n node (asanaApi credential)"
+}

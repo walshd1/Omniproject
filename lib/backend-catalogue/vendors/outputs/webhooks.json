@@ -1,0 +1,18 @@
+{
+  "capabilities": {
+    "auth": "hmac",
+    "readOnly": false,
+    "streaming": false
+  },
+  "id": "webhooks",
+  "kind": "events-out",
+  "label": "Outbound events",
+  "notes": "OmniProject signs outbound events; receivers verify the HMAC (Zapier/IFTTT/Make can consume these).",
+  "route": "subscriptions → HMAC-signed POST",
+  "tools": [
+    "notification",
+    "audit",
+    "config.changed",
+    "webhook.test"
+  ]
+}

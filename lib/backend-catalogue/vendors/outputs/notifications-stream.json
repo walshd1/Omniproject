@@ -1,0 +1,15 @@
+{
+  "capabilities": {
+    "auth": "session",
+    "readOnly": true,
+    "streaming": true
+  },
+  "id": "notifications-stream",
+  "kind": "events-out",
+  "label": "Live notification stream",
+  "notes": "Server-Sent Events to the in-app bell; multi-replica via the notify bus.",
+  "route": "GET /api/notifications/stream (SSE)",
+  "tools": [
+    "notification"
+  ]
+}

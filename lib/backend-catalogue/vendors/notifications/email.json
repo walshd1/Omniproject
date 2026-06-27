@@ -1,0 +1,20 @@
+{
+  "capabilities": {
+    "channels": false,
+    "delivery": "smtp",
+    "directMessage": true,
+    "inboundReply": false,
+    "richFormatting": true,
+    "threads": false
+  },
+  "docsUrl": "https://datatracker.ietf.org/doc/html/rfc5321",
+  "id": "email",
+  "kind": "email",
+  "label": "Email",
+  "notes": "SMTP or a transactional-email API (SendGrid/SES/Postmark). HTML for rich.",
+  "tools": [
+    "notification",
+    "alert",
+    "audit"
+  ]
+}

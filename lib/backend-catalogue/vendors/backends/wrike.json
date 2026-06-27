@@ -1,0 +1,76 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.wrike",
+      "parameters": {
+        "folderId": "={{ $json.body.payload.projectId }}",
+        "operation": "create",
+        "resource": "task",
+        "title": "={{ $json.body.payload.title }}"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.wrike",
+      "parameters": {
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "delete",
+        "resource": "task"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.wrike",
+      "parameters": {
+        "folderId": "={{ $json.body.payload.projectId }}",
+        "operation": "getAll",
+        "resource": "task",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.wrike",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "folder",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.wrike",
+      "parameters": {
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "update",
+        "resource": "task",
+        "title": "={{ $json.body.payload.title }}"
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "wrikeOAuth2Api",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.wrike/",
+  "id": "wrike",
+  "label": "Wrike",
+  "notes": "Folders/projects → projects, tasks → issues.",
+  "requiredEnv": [],
+  "via": "Native n8n node (wrikeOAuth2Api credential)"
+}

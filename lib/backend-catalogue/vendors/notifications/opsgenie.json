@@ -1,0 +1,19 @@
+{
+  "capabilities": {
+    "channels": false,
+    "delivery": "api-key",
+    "directMessage": false,
+    "inboundReply": false,
+    "richFormatting": false,
+    "threads": false
+  },
+  "docsUrl": "https://docs.opsgenie.com/docs/alert-api",
+  "id": "opsgenie",
+  "kind": "incident",
+  "label": "Opsgenie",
+  "notes": "Alert API — on-call escalation, an Atlassian-stack alternative to PagerDuty.",
+  "tools": [
+    "alert",
+    "audit"
+  ]
+}

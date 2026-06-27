@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/vendors/output.schema.json",
+  "title": "OmniProject output vendor",
+  "description": "An outward interface that exposes portfolio data/events. One file per vendor under vendors/outputs/<id>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "route", "kind", "capabilities", "tools"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string" },
+    "route": { "type": "string" },
+    "kind": { "enum": ["read-api", "bi-feed", "agent-api", "export", "metrics", "events-out", "events-in"] },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["readOnly", "streaming", "auth"],
+      "properties": {
+        "readOnly": { "type": "boolean" },
+        "streaming": { "type": "boolean" },
+        "auth": { "enum": ["session", "api-token", "session-or-token", "hmac", "user-action"] }
+      }
+    },
+    "tools": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "string" }
+  }
+}

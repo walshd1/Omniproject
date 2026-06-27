@@ -1,0 +1,21 @@
+{
+  "capabilities": {
+    "channels": true,
+    "delivery": "mqtt",
+    "directMessage": false,
+    "inboundReply": true,
+    "richFormatting": false,
+    "threads": false
+  },
+  "docsUrl": "https://mqtt.org/",
+  "id": "mqtt",
+  "kind": "iot",
+  "label": "MQTT",
+  "notes": "Publish events as JSON to an MQTT topic (e.g. omniproject/alerts) for IoT dashboards, building/ops systems, or any subscriber. Delivery rides the broker seam — an n8n/MQTT node (or the reference sidecar) does the publish; this plane describes the channel. QoS/retain are wired in your broker.",
+  "tools": [
+    "notification",
+    "alert",
+    "audit",
+    "config.changed"
+  ]
+}

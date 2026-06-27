@@ -1,0 +1,52 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.MONGO_SIDECAR_URL }}/create_issue"
+    },
+    "delete_issue": {
+      "body": "={{ JSON.stringify({ issueId: $json.body.payload.issueId }) }}",
+      "method": "POST",
+      "url": "={{ $env.MONGO_SIDECAR_URL }}/delete_issue"
+    },
+    "list_issues": {
+      "body": "={{ JSON.stringify({ projectId: $json.body.payload.projectId }) }}",
+      "method": "POST",
+      "url": "={{ $env.MONGO_SIDECAR_URL }}/list_issues"
+    },
+    "list_projects": {
+      "body": "={{ JSON.stringify({ userContext: $json.body.payload.userContext }) }}",
+      "method": "POST",
+      "url": "={{ $env.MONGO_SIDECAR_URL }}/list_projects"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.MONGO_SIDECAR_URL }}/update_issue"
+    }
+  },
+  "adminOnly": true,
+  "authHeader": "=Bearer {{ $env.MONGO_SIDECAR_TOKEN }}",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/ops/DATABASE-BACKENDS.md",
+  "id": "mongodb",
+  "kind": "database",
+  "label": "MongoDB",
+  "notes": "For internally-hosted / legacy document stores. Run the reference Mongo sidecar (docs/ops/DATABASE-BACKENDS.md): it maps each contract action to a find/insert/update/delete on your collection with values bound (not concatenated), holding the connection string. Admin-only. Confirm the collection + field mapping against your documents.",
+  "requiredEnv": [
+    "MONGO_SIDECAR_URL",
+    "MONGO_SIDECAR_TOKEN"
+  ],
+  "via": "HTTP sidecar that holds the Mongo connection — admin-only"
+}

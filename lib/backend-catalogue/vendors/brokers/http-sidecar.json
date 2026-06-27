@@ -1,0 +1,19 @@
+{
+  "build": "implement-blueprint",
+  "capabilities": {
+    "eventsInbound": true,
+    "eventsOutbound": true,
+    "managedAuth": false,
+    "selfHostable": true,
+    "synchronous": true
+  },
+  "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/BROKER-HTTP-BINDING.md",
+  "hosted": false,
+  "id": "http-sidecar",
+  "kind": "self-hosted-service",
+  "label": "Custom HTTP sidecar",
+  "notes": "A service you write against the binding (see reference-broker-blueprint.ts). Maximum control; the DB-backed broker (RFC-003) is one.",
+  "transports": [
+    "http"
+  ]
+}

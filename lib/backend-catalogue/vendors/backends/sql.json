@@ -1,0 +1,52 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.SQL_SIDECAR_URL }}/create_issue"
+    },
+    "delete_issue": {
+      "body": "={{ JSON.stringify({ issueId: $json.body.payload.issueId }) }}",
+      "method": "POST",
+      "url": "={{ $env.SQL_SIDECAR_URL }}/delete_issue"
+    },
+    "list_issues": {
+      "body": "={{ JSON.stringify({ projectId: $json.body.payload.projectId }) }}",
+      "method": "POST",
+      "url": "={{ $env.SQL_SIDECAR_URL }}/list_issues"
+    },
+    "list_projects": {
+      "body": "={{ JSON.stringify({ userContext: $json.body.payload.userContext }) }}",
+      "method": "POST",
+      "url": "={{ $env.SQL_SIDECAR_URL }}/list_projects"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify($json.body.payload) }}",
+      "method": "POST",
+      "url": "={{ $env.SQL_SIDECAR_URL }}/update_issue"
+    }
+  },
+  "adminOnly": true,
+  "authHeader": "=Bearer {{ $env.SQL_SIDECAR_TOKEN }}",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/ops/DATABASE-BACKENDS.md",
+  "id": "sql",
+  "kind": "database",
+  "label": "Raw SQL (PostgreSQL / MySQL / SQL Server)",
+  "notes": "For internally-hosted / legacy relational stores. Run the reference SQL sidecar (docs/ops/DATABASE-BACKENDS.md) next to your database: it maps each contract action to a PARAMETERISED query you define for your schema, holding the DB credentials so the gateway stays stateless. Admin-only — raw database access is technical config. Confirm the per-action query + column→field mapping against your schema.",
+  "requiredEnv": [
+    "SQL_SIDECAR_URL",
+    "SQL_SIDECAR_TOKEN"
+  ],
+  "via": "HTTP sidecar that holds the DB connection — admin-only"
+}

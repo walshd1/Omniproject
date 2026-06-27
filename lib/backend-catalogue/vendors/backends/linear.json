@@ -1,0 +1,78 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.linear",
+      "parameters": {
+        "operation": "create",
+        "resource": "issue",
+        "teamId": "={{ $json.body.payload.projectId }}",
+        "title": "={{ $json.body.payload.title }}"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.linear",
+      "parameters": {
+        "issueId": "={{ $json.body.payload.issueId }}",
+        "operation": "delete",
+        "resource": "issue"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.linear",
+      "parameters": {
+        "filters": {
+          "teamId": "={{ $json.body.payload.projectId }}"
+        },
+        "operation": "getAll",
+        "resource": "issue",
+        "returnAll": true
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.linear",
+      "note": "Teams (or Projects) map to projects — swap the resource to match your Linear node version.",
+      "parameters": {
+        "operation": "getAll",
+        "resource": "team"
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.linear",
+      "parameters": {
+        "issueId": "={{ $json.body.payload.issueId }}",
+        "operation": "update",
+        "resource": "issue",
+        "title": "={{ $json.body.payload.title }}"
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "linearApi",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.linear/",
+  "id": "linear",
+  "label": "Linear",
+  "notes": "Teams → projects, issues → issues. Confirm resource/param names against the installed Linear node version.",
+  "requiredEnv": [],
+  "via": "Native n8n node (linearApi credential)"
+}

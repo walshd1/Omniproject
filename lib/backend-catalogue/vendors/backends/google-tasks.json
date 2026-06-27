@@ -1,0 +1,46 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ title: $json.body.payload.title }) }}",
+      "method": "POST",
+      "url": "https://tasks.googleapis.com/tasks/v1/lists/{{ $json.body.payload.projectId }}/tasks"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "https://tasks.googleapis.com/tasks/v1/lists/{{ $json.body.payload.projectId }}/tasks/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "https://tasks.googleapis.com/tasks/v1/lists/{{ $json.body.payload.projectId }}/tasks"
+    },
+    "list_projects": {
+      "method": "GET",
+      "note": "Task lists map to projects.",
+      "url": "https://tasks.googleapis.com/tasks/v1/users/@me/lists"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ title: $json.body.payload.title }) }}",
+      "method": "PATCH",
+      "url": "https://tasks.googleapis.com/tasks/v1/lists/{{ $json.body.payload.projectId }}/tasks/{{ $json.body.payload.issueId }}"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "googleTasksOAuth2Api",
+  "docsUrl": "https://developers.google.com/tasks/reference/rest",
+  "id": "google-tasks",
+  "label": "Google Tasks",
+  "notes": "Task lists → projects, tasks → issues. Auth via an n8n Google OAuth2 credential scoped to Tasks.",
+  "requiredEnv": [],
+  "via": "HTTP (Google Tasks API) + n8n-managed Google OAuth"
+}

@@ -1,0 +1,80 @@
+{
+  "actions": {
+    "create_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.trello",
+      "parameters": {
+        "description": "={{ $json.body.payload.description }}",
+        "listId": "={{ $json.body.payload.projectId }}",
+        "name": "={{ $json.body.payload.title }}",
+        "operation": "create",
+        "resource": "card"
+      },
+      "typeVersion": 1
+    },
+    "delete_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.trello",
+      "parameters": {
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "delete",
+        "resource": "card"
+      },
+      "typeVersion": 1
+    },
+    "list_issues": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.trello",
+      "note": "projectId = a Trello list id; cards on the list map to issues.",
+      "parameters": {
+        "id": "={{ $json.body.payload.projectId }}",
+        "operation": "getCards",
+        "resource": "list"
+      },
+      "typeVersion": 1
+    },
+    "list_projects": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.trello",
+      "note": "Trello has no list-all-boards node op — fetch member boards via an extra node, or map boards→projects, lists→projects to taste.",
+      "parameters": {
+        "id": "={{ $json.body.payload.projectId }}",
+        "operation": "get",
+        "resource": "board"
+      },
+      "typeVersion": 1
+    },
+    "update_issue": {
+      "kind": "n8nNode",
+      "node": "n8n-nodes-base.trello",
+      "parameters": {
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "update",
+        "resource": "card",
+        "updateFields": {
+          "name": "={{ $json.body.payload.title }}"
+        }
+      },
+      "typeVersion": 1
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": false
+  },
+  "credentialType": "trelloApi",
+  "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.trello/",
+  "id": "trello",
+  "label": "Trello",
+  "notes": "Kanban-shaped: boards/lists → projects, cards → issues. Scheduling off unless you use Trello due dates.",
+  "requiredEnv": [],
+  "via": "Native n8n node (trelloApi credential)"
+}

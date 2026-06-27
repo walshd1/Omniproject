@@ -1,0 +1,48 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ ProjectElementDescription: $json.body.payload.title }) }}",
+      "method": "POST",
+      "note": "SAP OData writes require a CSRF token: add a GET node sending 'X-CSRF-Token: Fetch', then pass the returned token + cookies on this write.",
+      "url": "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProjectElement"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProjectElement(guid'{{ $json.body.payload.issueId }}')"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProjectElement?$filter=ProjectUUID eq {{ $json.body.payload.projectId }}&$format=json"
+    },
+    "list_projects": {
+      "method": "GET",
+      "url": "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProject?$format=json"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ ProjectElementDescription: $json.body.payload.title }) }}",
+      "method": "PATCH",
+      "url": "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProjectElement(guid'{{ $json.body.payload.issueId }}')"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": true,
+    "blockers": false,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": true,
+    "raid": false,
+    "resources": true,
+    "scheduling": true
+  },
+  "credentialType": "oAuth2Api",
+  "docsUrl": "https://api.sap.com/api/API_ENTERPRISE_PROJECT_SRV/overview",
+  "id": "sap",
+  "label": "SAP S/4HANA (Enterprise Project / PS)",
+  "notes": "S/4HANA Project System / Enterprise Project Management via OData. Auth via n8n's OAuth2 credential (S/4HANA Cloud) or switch to httpBasicAuth on-prem. Writes need the X-CSRF-Token handshake. For classic RFC/BAPI use an SAP community node or route through SAP Integration Suite / PI-PO.",
+  "requiredEnv": [
+    "SAP_S4_URL"
+  ],
+  "via": "HTTP + n8n OAuth2 credential (OData; Basic on-prem)"
+}

@@ -1,0 +1,51 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ serviceDeskId: $json.body.payload.projectId, requestFieldValues: { summary: $json.body.payload.title } }) }}",
+      "method": "POST",
+      "note": "Set requestTypeId for your service desk.",
+      "url": "={{ $env.JIRA_BASE_URL }}/rest/servicedeskapi/request"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.JIRA_BASE_URL }}/rest/api/3/issue/{{ $json.body.payload.issueId }}"
+    },
+    "list_issues": {
+      "method": "GET",
+      "note": "Customer requests scoped to the service desk (projectId).",
+      "url": "={{ $env.JIRA_BASE_URL }}/rest/servicedeskapi/request?serviceDeskId={{ $json.body.payload.projectId }}"
+    },
+    "list_projects": {
+      "method": "GET",
+      "note": "Service desks map to projects.",
+      "url": "={{ $env.JIRA_BASE_URL }}/rest/servicedeskapi/servicedesk"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ fields: { summary: $json.body.payload.title } }) }}",
+      "method": "PUT",
+      "url": "={{ $env.JIRA_BASE_URL }}/rest/api/3/issue/{{ $json.body.payload.issueId }}"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true,
+    "service": true
+  },
+  "credentialType": "jiraSoftwareCloudApi",
+  "docsUrl": "https://developer.atlassian.com/cloud/jira/service-desk/rest/",
+  "id": "jira-service-management",
+  "label": "Jira Service Management",
+  "notes": "ITSM on Jira: service desks → projects, requests → issues. Reads use servicedeskapi; writes fall back to the Jira core v3 API. JIRA_BASE_URL e.g. https://your-org.atlassian.net.",
+  "requiredEnv": [
+    "JIRA_BASE_URL"
+  ],
+  "via": "HTTP (JSM servicedeskapi) + n8n-managed Jira credential"
+}

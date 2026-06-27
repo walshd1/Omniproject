@@ -1,0 +1,50 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify([{ op: 'add', path: '/fields/System.Title', value: $json.body.payload.title }]) }}",
+      "method": "POST",
+      "note": "Content-Type must be application/json-patch+json for work-item create/update.",
+      "url": "={{ $env.AZDO_ORG_URL }}/{{ $json.body.payload.projectId }}/_apis/wit/workitems/$Task?api-version=7.1"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.AZDO_ORG_URL }}/_apis/wit/workitems/{{ $json.body.payload.issueId }}?api-version=7.1"
+    },
+    "list_issues": {
+      "body": "={{ JSON.stringify({ query: \"SELECT [System.Id] FROM workitems WHERE [System.TeamProject] = @project\" }) }}",
+      "method": "POST",
+      "note": "WIQL returns work-item ids; a follow-up batch GET hydrates fields. Add a second HTTP node for /_apis/wit/workitems?ids=...",
+      "url": "={{ $env.AZDO_ORG_URL }}/{{ $json.body.payload.projectId }}/_apis/wit/wiql?api-version=7.1"
+    },
+    "list_projects": {
+      "method": "GET",
+      "url": "={{ $env.AZDO_ORG_URL }}/_apis/projects?api-version=7.1"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify([{ op: 'add', path: '/fields/System.Title', value: $json.body.payload.title }]) }}",
+      "method": "PATCH",
+      "url": "={{ $env.AZDO_ORG_URL }}/_apis/wit/workitems/{{ $json.body.payload.issueId }}?api-version=7.1"
+    }
+  },
+  "authHeader": "=Basic {{ $env.AZDO_BASIC_AUTH }}",
+  "capabilities": {
+    "baseline": false,
+    "blockers": true,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "docsUrl": "https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/",
+  "id": "azure-devops",
+  "label": "Azure DevOps (Boards)",
+  "notes": "AZDO_BASIC_AUTH = base64(':PAT'). Work-item writes need the json-patch+json content type — set it on the HTTP node after import.",
+  "requiredEnv": [
+    "AZDO_ORG_URL",
+    "AZDO_BASIC_AUTH"
+  ],
+  "via": "HTTP + Basic (PAT)"
+}

@@ -1,0 +1,47 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ name: $json.body.payload.title, description_html: $json.body.payload.description }) }}",
+      "method": "POST",
+      "url": "={{ $env.PLANE_INSTANCE_URL }}/api/v1/workspaces/{{ $env.PLANE_WORKSPACE_SLUG }}/projects/{{ $json.body.payload.projectId }}/issues/"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "url": "={{ $env.PLANE_INSTANCE_URL }}/api/v1/workspaces/{{ $env.PLANE_WORKSPACE_SLUG }}/projects/{{ $json.body.payload.projectId }}/issues/{{ $json.body.payload.issueId }}/"
+    },
+    "list_issues": {
+      "method": "GET",
+      "url": "={{ $env.PLANE_INSTANCE_URL }}/api/v1/workspaces/{{ $env.PLANE_WORKSPACE_SLUG }}/projects/{{ $json.body.payload.projectId }}/issues/"
+    },
+    "list_projects": {
+      "method": "GET",
+      "url": "={{ $env.PLANE_INSTANCE_URL }}/api/v1/workspaces/{{ $env.PLANE_WORKSPACE_SLUG }}/projects/"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ name: $json.body.payload.title }) }}",
+      "method": "PATCH",
+      "url": "={{ $env.PLANE_INSTANCE_URL }}/api/v1/workspaces/{{ $env.PLANE_WORKSPACE_SLUG }}/projects/{{ $json.body.payload.projectId }}/issues/{{ $json.body.payload.issueId }}/"
+    }
+  },
+  "authHeader": "=Bearer {{ $json.body.payload.userContext.token }}",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": false,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "docsUrl": "https://docs.plane.so/api-reference/introduction",
+  "id": "plane",
+  "label": "Plane",
+  "notes": "Plane uses an X-API-Key header in many deployments; swap the Authorization header for X-API-Key if you use a service token instead of per-user OIDC.",
+  "requiredEnv": [
+    "PLANE_INSTANCE_URL",
+    "PLANE_WORKSPACE_SLUG"
+  ],
+  "via": "HTTP + per-user token / X-API-Key"
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/vendors/backend.schema.json",
+  "title": "OmniProject backend vendor",
+  "description": "A system-of-record backend: the neutral manifest plus its n8n binding. One file per vendor under vendors/backends/<id>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "docsUrl", "via", "requiredEnv", "capabilities", "authHeader", "actions"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "label": { "type": "string" },
+    "docsUrl": { "type": "string" },
+    "via": { "type": "string", "description": "How this backend authenticates / is wired (human-readable, for the wizard)." },
+    "requiredEnv": { "type": "array", "items": { "type": "string" } },
+    "capabilities": { "type": "object", "additionalProperties": { "type": "boolean" } },
+    "kind": { "enum": ["live", "import", "database"] },
+    "adminOnly": { "type": "boolean" },
+    "notes": { "type": "string" },
+    "credentialType": { "type": "string" },
+    "authHeader": { "type": "string", "description": "n8n expression for the per-user Authorization header value." },
+    "actions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "enum": ["http", "n8nNode"] },
+          "method": { "enum": ["GET", "POST", "PATCH", "PUT", "DELETE"] },
+          "url": { "type": "string" },
+          "body": { "type": "string" },
+          "credentialType": { "type": "string" },
+          "node": { "type": "string" },
+          "typeVersion": { "type": "number" },
+          "parameters": { "type": "object" },
+          "note": { "type": "string" }
+        }
+      }
+    }
+  }
+}
