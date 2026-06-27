@@ -1,3 +1,9 @@
+/**
+ * Programme endpoints — GET /api/programmes (the derived programme roll-up across
+ * projects) and /api/programmes/:id (one programme's detail). Programmes are
+ * DERIVED from projects' programmeId, not stored; the grouping maths is in
+ * lib/programmes, this is the read-only shell.
+ */
 import { Router } from "express";
 import { getProjects } from "../lib/data";
 import { groupProgrammes, programmeDetail } from "../lib/programmes";

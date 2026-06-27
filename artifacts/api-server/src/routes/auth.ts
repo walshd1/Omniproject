@@ -1,3 +1,9 @@
+/**
+ * Authentication routes + the session helpers the rest of the gateway reads from.
+ * Drives the OIDC Authorization-Code-+-PKCE login/callback/logout, mints the
+ * signed httpOnly session cookie, and (in demo mode, no IdP) issues a local admin
+ * session. `getSession(req)` here is the single source of the caller's identity.
+ */
 import { Router, type Request, type Response } from "express";
 import {
   oidcConfig,

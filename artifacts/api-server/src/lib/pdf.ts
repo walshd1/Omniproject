@@ -55,6 +55,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+/** Render a simple table to a minimal, dependency-free PDF document (Buffer). */
 export function buildPdf(table: PdfTable): Buffer {
   const stamp = new Date().toISOString().slice(0, 10);
   const allLines = [table.title, `Exported ${stamp} - ${table.rows.length} rows`, "", ...toLines(table)];

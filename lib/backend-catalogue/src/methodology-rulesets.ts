@@ -117,11 +117,13 @@ export const REFERENCE_RULESETS: Record<string, ReferenceRuleset> = {
   },
 };
 
+/** The reference ruleset bundle for a methodology (a deep copy), or undefined. */
 export function getReferenceRuleset(methodology: string): ReferenceRuleset | undefined {
   const rs = REFERENCE_RULESETS[methodology];
   return rs ? { ...rs, modes: { ...rs.modes }, fieldRules: rs.fieldRules.map((r) => ({ ...r })) } : undefined;
 }
 
+/** All reference ruleset bundles, ordered to match the methodology catalogue. */
 export function referenceRulesetCatalogue(): ReferenceRuleset[] {
   // Ordered to match the methodology catalogue so the two planes line up.
   return METHODOLOGIES.map((m) => getReferenceRuleset(m.id)).filter((x): x is ReferenceRuleset => x !== undefined);

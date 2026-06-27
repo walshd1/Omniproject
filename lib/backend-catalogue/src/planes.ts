@@ -56,10 +56,12 @@ export const PLANES: PlaneDescriptor[] = [
 /** The planes a specific VENDOR/product can be an entry on — never anywhere else. */
 export const VENDOR_PLANES: readonly PlaneId[] = PLANES.filter((p) => p.vendor).map((p) => p.id);
 
+/** Look up a single plane descriptor by its id. */
 export function getPlane(id: string): PlaneDescriptor | undefined {
   return PLANES.find((p) => p.id === id);
 }
 
+/** All plane descriptors (a defensive copy). */
 export function planeCatalogue(): PlaneDescriptor[] {
   return PLANES.map((p) => ({ ...p }));
 }

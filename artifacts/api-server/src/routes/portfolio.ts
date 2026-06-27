@@ -1,3 +1,8 @@
+/**
+ * Portfolio analytics endpoints — portfolio-wide RAG/health and resource-capacity
+ * roll-ups read through the broker (rate-limited as analytics). Read-only; the
+ * aggregation maths lives in lib/ (resource-pool etc.), the data in the broker.
+ */
 import { Router, type Request } from "express";
 import { getBroker, contextFromReq, respondBrokerError, type PortfolioRow } from "../broker";
 import { analyticsLimiter } from "../lib/rate-limit";

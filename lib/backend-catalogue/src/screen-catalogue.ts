@@ -45,10 +45,12 @@ export const SCREENS: ScreenDefinition[] = [
   { id: "settings", label: "Settings", route: "/settings", kind: "admin", capabilities: { requiresRole: "admin", requiresCapability: null, dataLineage: false, exportable: false }, tools: ["broker-config", "translation-editor", "broker-log", "ruleset"], notes: "Admin configuration." },
 ];
 
+/** One screen definition by id, or undefined. */
 export function getScreen(id: string): ScreenDefinition | undefined {
   return SCREENS.find((s) => s.id === id);
 }
 
+/** All screen definitions (a defensive copy). */
 export function screenCatalogue(): ScreenDefinition[] {
   return SCREENS.map((s) => ({ ...s }));
 }

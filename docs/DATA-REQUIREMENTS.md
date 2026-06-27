@@ -3,12 +3,12 @@
 What each view and report needs from the **underlying system(s)**, and what it
 does when that data isn't available.
 
-> **Core principle:** OmniProject renders only what n8n returns, and **n8n can
-> only return what the backend exposes.** If a system doesn't *track* a data
-> domain (resources, costs, baselines, blockers), n8n cannot synthesize it — the
-> dependent view degrades or shows an explicit "not available" state. Wiring the
-> n8n webhook is necessary but **not sufficient**; the backend must actually hold
-> the data.
+> **Core principle:** OmniProject renders only what the broker returns, and **the
+> broker can only return what the backend exposes.** If a system doesn't *track* a
+> data domain (resources, costs, baselines, blockers), the broker cannot
+> synthesise it — the dependent view degrades or shows an explicit "not available"
+> state. Wiring the broker's webhook is necessary but **not sufficient**; the
+> backend must actually hold the data.
 
 ---
 
@@ -23,7 +23,7 @@ The board/list/timeline views are driven by `list_issues` / `list_projects`.
 | `startDate` / `dueDate` | **Gantt** bars, overdue, sprint bucketing, PRINCE2 milestones | Gantt shows "no scheduled issues"; no overdue/exception flags |
 | `assignee` | who's doing the work; **prerequisite for resource reporting** | shown as "—"; resource rollups impossible |
 | `labels` | `sprint:` / `stage:` / `sp:` derivations | falls back to status-based sprint/stage and priority-weighted points |
-| `programmeId` / `programmeName` (on **projects**) | **Programmes** view — grouping related projects with a programme-wide roll-up | projects with no `programmeId` are standalone; have n8n attach these from your backend's programme/portfolio field. A programme is derived (exists only when ≥1 project references it). |
+| `programmeId` / `programmeName` (on **projects**) | **Programmes** view — grouping related projects with a programme-wide roll-up | projects with no `programmeId` are standalone; have the broker attach these from your backend's programme/portfolio field. A programme is derived (exists only when ≥1 project references it). |
 
 So the Kanban, List, Scrum, and PRINCE2 views always render (with fallbacks), but
 their **fidelity** depends on scheduling dates, assignees, and labels existing in
@@ -34,7 +34,7 @@ the backend.
 ## 2. Reports — hard data dependencies
 
 These three reports each depend on a **data domain a basic issue tracker may not
-have**. This is where "if n8n can't see it, it can't populate it" bites.
+have**. This is where "if the broker can't see it, it can't populate it" bites.
 
 ### Resource Heatmap — `get_resource_capacity`
 
@@ -45,11 +45,11 @@ Requires **resource / capacity management** data:
 | `resourceName`, `role` | a people / role directory | HR/IdP directory, or the backend's user + role model |
 | `assignedHours` | task **estimates** or **time bookings** per person | estimates (story points/hours) or time tracking |
 | `availableHours` | person **capacity** (FTE × working days − leave) | a resource/capacity module or HR calendar |
-| `allocationPercentage`, `utilizationState` | `assignedHours / availableHours` | computed by n8n from the above |
+| `allocationPercentage`, `utilizationState` | `assignedHours / availableHours` | computed by the broker from the above |
 
 **Dependency:** a plain tracker (e.g. Plane, or Jira without Tempo/Advanced
-Roadmaps) does **not** track availability/allocation — n8n has nothing to return,
-and the heatmap shows *"requires a resource-management source."* Populate it from
+Roadmaps) does **not** track availability/allocation — the broker has nothing to
+return, and the heatmap shows *"requires a resource-management source."* Populate it from
 e.g. **Jira + Tempo/Plans**, **OpenProject** (with the resources module),
 **TaskJuggler**, **MS Dynamics 365 BC Jobs**, or **SAP**.
 
@@ -80,9 +80,9 @@ A composite rollup that inherits the dependencies above:
 | `scheduleVarianceDays` | a **schedule baseline** (planned vs current dates) |
 | `budgetVariancePercentage` | a **finance source** (budget vs actuals) |
 | `activeBlockersCount` | **blocker/dependency** data — issue-link types ("blocks"), a flag, or a `blocked` label |
-| `ragStatus` | n8n's rollup of the above |
+| `ragStatus` | the broker's rollup of the above |
 
-Where a feeding domain is absent, n8n should omit/zero that metric (and the RAG
+Where a feeding domain is absent, the broker should omit/zero that metric (and the RAG
 should reflect reduced confidence) rather than fabricate it.
 
 ---
@@ -118,8 +118,8 @@ What to wire for each data domain:
 | Blockers / dependencies | issue-link types ("blocks"), a `blocked` flag/label |
 
 A single OmniProject instance can **federate several** of these — e.g. issues
-from Jira, capacity from Tempo, financials from SAP — because n8n composes the
-response per action. The `X-OmniProject-Source` header on each action
+from Jira, capacity from Tempo, financials from SAP — because the broker composes
+the response per action. The `X-OmniProject-Source` header on each action
 (`capacity_engine`, `financial_ledger`, `portfolio_master`) lets your workflow
 route to the right system.
 
@@ -157,9 +157,9 @@ Resolution order:
 
 1. **`CAPABILITIES` env** (gateway-declared) — comma list of enabled domains,
    e.g. `CAPABILITIES=issues,scheduling,resources,portfolio`.
-2. **n8n** action `get_capabilities` (`source: capability_probe`) — the workflow
+2. **Broker** action `get_capabilities` (`source: capability_probe`) — the workflow
    declares what its backends expose (see the `Capabilities (edit me)` node in
-   the [blueprint](../artifacts/n8n-blueprints/omniproject-core-sync.json));
+   the [n8n blueprint](../artifacts/n8n-blueprints/omniproject-core-sync.json));
    cached ~60s. Conservative defaults (core domains only) if the workflow doesn't
    implement it.
 3. **Demo** — all domains on (sample data covers everything).
@@ -168,7 +168,7 @@ Resolution order:
 
 OmniProject is a **stateless overlay**: it keeps no database of its own, so the
 systems of record underneath it (OpenProject, Jira, …) stay authoritative for
-history and baselines. These domains are **read-through** via n8n actions; if the
+history and baselines. These domains are **read-through** via broker actions; if the
 backend doesn't track them, the corresponding view/report reports unavailable
 rather than fabricating data.
 
@@ -195,7 +195,7 @@ Contract notes:
 Every analytics figure is labelled so a synthesised number is never shown as
 fact (`Provenance` enum):
 
-- **`sourced`** — read from the backend system of record via n8n.
+- **`sourced`** — read from the backend system of record via the broker.
 - **`derived`** — computed by the gateway from real issue data (e.g. a trend
   reconstructed from current issue state).
 - **`sample`** — demo/placeholder data; no backend wired.

@@ -142,6 +142,7 @@ function seedFieldRules(): FieldRule[] {
 }
 let fieldRules: FieldRule[] = seedFieldRules();
 
+/** The current admin-authored field rules (a defensive copy). */
 export function getFieldRules(): FieldRule[] {
   return fieldRules.map((r) => ({ ...r }));
 }

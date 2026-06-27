@@ -6,8 +6,9 @@ recommended on-ramp: **demo → read-only → dry-run verify → sandbox → add
 with one-click rollback the whole way. Nothing here risks your production data.
 
 > Why this is low-risk by construction: OmniProject **stores nothing** (no
-> database/cache/copy), and **the n8n workflow *is* the integration** — so the
-> gateway can only do what your workflow implements. See
+> database/cache/copy), and **the broker *is* the integration** (the n8n
+> workflow, by default) — so the gateway can only do what your workflow
+> implements. See
 > [README → Safe to try with your real data](../README.md#safe-to-try-with-your-real-data)
 > and [SECURITY.md](../SECURITY.md).
 

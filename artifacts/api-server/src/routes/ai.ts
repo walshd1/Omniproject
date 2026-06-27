@@ -1,3 +1,8 @@
+/**
+ * AI-assist endpoints — GET /api/ai/status (which provider is wired) and POST
+ * /api/ai/chat (proxy a chat completion to the configured model). Thin shell; the
+ * provider plumbing (Ollama/OpenRouter/OpenAI/Anthropic) lives in lib/ai.
+ */
 import { Router } from "express";
 import { aiStatus, aiChat, AiError, type ChatMessage } from "../lib/ai";
 

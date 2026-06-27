@@ -104,6 +104,7 @@ export function initBrokerLogBus(): BrokerLogBus {
   return bus;
 }
 
+/** Which fan-out backend the broker-log stream uses: in-process or Redis. */
 export function brokerLogBusMode(): "in-process" | "redis" {
   return initBrokerLogBus().mode;
 }

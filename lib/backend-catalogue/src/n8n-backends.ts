@@ -782,6 +782,7 @@ export const BACKENDS: BackendDefinition[] = [
   },
 ];
 
+/** One backend definition by id, or undefined. */
 export function getBackend(id: string): BackendDefinition | undefined {
   return BACKENDS.find((b) => b.id === id);
 }
@@ -794,6 +795,7 @@ export function getBackend(id: string): BackendDefinition | undefined {
  */
 const ENTERPRISE_BACKENDS = new Set(["sap", "primavera", "dynamics365", "dynamics365-sales", "msproject", "netsuite", "enterprise", "planview"]);
 
+/** True when a backend is enterprise-tier (premium workflow generation). */
 export function isEnterpriseBackend(id: string): boolean {
   return ENTERPRISE_BACKENDS.has(id);
 }

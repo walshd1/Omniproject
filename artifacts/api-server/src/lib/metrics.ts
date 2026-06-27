@@ -45,6 +45,7 @@ function mergeLabels(base: Record<string, string> | undefined, extra: Record<str
   return base ? { ...base, ...extra } : extra;
 }
 
+/** Render the metric set in Prometheus text exposition format. */
 export function formatPrometheus(metrics: AnyMetric[]): string {
   const lines: string[] = [];
   for (const m of metrics) {

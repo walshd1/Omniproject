@@ -1,3 +1,8 @@
+/**
+ * GET /api/contract — serve the published, versioned SOUTHBOUND broker contract
+ * (the interface a broker must implement) + its JSON Schema. Public documentation,
+ * not data; the schema is generated from the broker types (gen-contract).
+ */
 import { Router, type IRouter } from "express";
 import { CONTRACT_VERSION } from "../broker/contract";
 import { BROKER_CONTRACT_SCHEMA } from "../broker/contract.schema.generated";

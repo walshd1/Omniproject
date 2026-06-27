@@ -88,10 +88,12 @@ export const METHODOLOGIES: MethodologyDefinition[] = [
   },
 ];
 
+/** One methodology definition by id, or undefined. */
 export function getMethodology(id: string): MethodologyDefinition | undefined {
   return METHODOLOGIES.find((m) => m.id === id);
 }
 
+/** All methodology definitions (a defensive copy). */
 export function methodologyCatalogue(): MethodologyDefinition[] {
   return METHODOLOGIES.map((m) => ({ ...m }));
 }

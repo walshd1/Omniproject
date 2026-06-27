@@ -56,7 +56,7 @@ live entirely outside the gateway's own storage:
 
 The gateway stays a thin lens. See [BROKER.md](BROKER.md) for the seam this rides
 on — `replay(ctx, { from?, to? })` is a first-class `Broker` method, so nothing
-above the seam knows the history came from n8n or a logging server.
+above the seam knows the history came from the broker or a logging server.
 
 ## The opt-in gate — admin-only + warranty acknowledgement
 

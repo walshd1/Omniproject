@@ -1,3 +1,9 @@
+/**
+ * The /api router assembly — mounts every route module in order and applies the
+ * cross-cutting gates: public routes first (health, contract, OpenAPI spec,
+ * ingest), then the rate limiter + audit, then the authenticated surface behind
+ * requireAuth. The single place that defines what is public vs authed.
+ */
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import healthRouter from "./health";
 import contractRouter from "./contract";

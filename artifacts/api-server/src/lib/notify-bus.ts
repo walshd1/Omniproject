@@ -89,11 +89,13 @@ class NotifyBus {
 
 let bus: NotifyBus | null = null;
 
+/** The process-wide notification fan-out bus (lazily created singleton). */
 export function getNotifyBus(): NotifyBus {
   if (!bus) bus = new NotifyBus();
   return bus;
 }
 
+/** Which fan-out backend the bus uses: in-process or Redis. */
 export function busMode(): "in-process" | "redis" {
   return getNotifyBus().mode;
 }

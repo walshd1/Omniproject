@@ -34,6 +34,7 @@ export interface LatencySummary {
   max: number;
 }
 
+/** Summarise a load-run's latencies/throughput/errors into a report row. */
 export function summarise(latencies: ReadonlyArray<number>): LatencySummary {
   if (latencies.length === 0) return { count: 0, min: 0, mean: 0, p50: 0, p90: 0, p99: 0, max: 0 };
   const sorted = [...latencies].sort((a, b) => a - b);

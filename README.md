@@ -27,7 +27,7 @@ to fall out of sync — the backend is always right, and OmniProject just render
 - **Not another data store to secure or comply with** — no project data at rest in
   OmniProject means a far smaller blast radius and an easy answer for data-
   residency / audit reviews.
-- **Swap or add backends without migrating** — anything n8n can reach can be
+- **Swap or add backends without migrating** — anything the broker can reach can be
   federated underneath; the UI never changes.
 
 **It's not another system to adopt — it's a layer that fits the workflow you
@@ -118,9 +118,10 @@ Because the reference broker is n8n — and anything n8n can reach becomes a
 backend — the set of systems you can plug in is effectively open-ended, with no
 fixed connector list to wait on (and a different broker can widen it further):
 
-- **Inbound, via n8n** — any of n8n's hundreds of native integrations, *or* anything
-  reachable over HTTP/REST/GraphQL/SOAP/gRPC/SQL through n8n's generic nodes.
-  Jira today, a bespoke in-house API tomorrow, two backends at once — same UI.
+- **Inbound, via the broker** — with n8n as the reference broker, any of its hundreds
+  of native integrations, *or* anything reachable over HTTP/REST/GraphQL/SOAP/gRPC/SQL
+  through its generic nodes. Jira today, a bespoke in-house API tomorrow, two backends
+  at once — same UI.
 - **Internally-hosted / legacy with no API** — **admin-gated raw SQL** (Postgres /
   MySQL / SQL Server) and **MongoDB** backends, reached through a sidecar that owns
   the parameterised queries + credentials, so the gateway **never ships raw SQL**

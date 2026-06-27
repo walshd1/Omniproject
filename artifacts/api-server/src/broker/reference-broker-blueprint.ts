@@ -173,6 +173,7 @@ export interface BrokerCoreResult {
   encrypted: boolean;
 }
 
+/** Core broker call: parse (decrypting a PSK envelope), route the action, return the result. */
 export async function processBrokerCall(input: BrokerCoreInput, be: BrokerBackend = backend): Promise<BrokerCoreResult> {
   // 1. Parse the body (decrypting a PSK envelope first if present).
   let body: Row;

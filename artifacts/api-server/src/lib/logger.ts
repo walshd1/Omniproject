@@ -1,3 +1,8 @@
+/**
+ * The shared pino logger — one configured instance for the whole gateway (level
+ * from LOG_LEVEL, pretty in dev, JSON in prod). Import this rather than calling
+ * console.* so every line is structured and redaction/levels apply uniformly.
+ */
 import pino from "pino";
 
 const isProduction = process.env.NODE_ENV === "production";

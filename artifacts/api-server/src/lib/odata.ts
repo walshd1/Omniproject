@@ -126,6 +126,7 @@ export interface ODataQuery {
   $count?: string;
 }
 
+/** Apply $filter/$select/$top/$skip/$orderby/$count to a row set (in-memory OData query). */
 export function applyODataQuery(rows: Row[], q: ODataQuery): { rows: Row[]; count?: number } {
   let out = rows;
 
@@ -163,6 +164,7 @@ export function applyODataQuery(rows: Row[], q: ODataQuery): { rows: Row[]; coun
   return wantCount ? { rows: out, count: total } : { rows: out };
 }
 
+/** Wrap a row set in the OData v4 entity-set JSON envelope (@odata.context etc.). */
 export function entitySetEnvelope(baseUrl: string, set: string, rows: Row[], count?: number) {
   return {
     "@odata.context": `${baseUrl}$metadata#${set}`,

@@ -1,3 +1,9 @@
+/**
+ * Setup-wizard + operations endpoints — backend/plane catalogues, workflow
+ * generation + verification, config export/snapshot/restore, the sandbox→promote→
+ * rollback environment controls, and the debug bundle. Mostly admin-gated; this is
+ * the operator-facing surface for wiring + lifecycle, not project data.
+ */
 import { Router, type Response } from "express";
 import { getSettings, updateSettings } from "../lib/settings";
 import { isLiveBroker } from "../broker";

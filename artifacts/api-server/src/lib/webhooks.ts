@@ -44,11 +44,13 @@ function subs(): WebhookSubscription[] {
   return getSettings().webhooks ?? [];
 }
 
+/** Strip the signing secret from a subscription for safe display (keeps a `secretSet` flag). */
 export function redact(s: WebhookSubscription): RedactedSubscription {
   const { secret, ...rest } = s;
   return { ...rest, secretSet: !!secret };
 }
 
+/** All configured webhook subscriptions, secret-redacted. */
 export function listWebhooks(): RedactedSubscription[] {
   return subs().map(redact);
 }
@@ -85,6 +87,7 @@ export function createWebhook(input: unknown): WebhookSubscription {
   return sub;
 }
 
+/** Remove a subscription by id; returns false if no such subscription existed. */
 export function deleteWebhook(id: string): boolean {
   const next = subs().filter((s) => s.id !== id);
   if (next.length === subs().length) return false;
@@ -92,6 +95,7 @@ export function deleteWebhook(id: string): boolean {
   return true;
 }
 
+/** The full subscription (incl. secret) by id, for internal delivery use. */
 export function getWebhook(id: string): WebhookSubscription | undefined {
   return subs().find((s) => s.id === id);
 }

@@ -29,6 +29,7 @@ export interface ConfigSnapshot {
   settings: Pick<SettingsState, SnapshotKey>;
 }
 
+/** Capture the current settings as a portable, versioned config snapshot. */
 export function buildSnapshot(settings: SettingsState): ConfigSnapshot {
   return {
     schema: SNAPSHOT_SCHEMA,

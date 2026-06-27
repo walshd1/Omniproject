@@ -100,6 +100,8 @@ export interface StoreView {
   persisted: boolean;
 }
 
+/** The store summary for the UI: active env, env names, versions (newest first),
+ *  the last known-good id, and whether it's disk-persisted. */
 export function storeView(): StoreView {
   const s = ensure();
   return {
@@ -121,6 +123,7 @@ export function captureVersion(label?: string): ConfigVersion {
   return v;
 }
 
+/** Create a named environment, seeded by cloning the active env's current config. */
 export function createEnvironment(name: string): StoreView {
   const s = ensure();
   if (!name || !/^[a-z0-9][a-z0-9_-]*$/i.test(name)) throw new Error("Invalid environment name");
@@ -132,6 +135,7 @@ export function createEnvironment(name: string): StoreView {
   return storeView();
 }
 
+/** Switch the active environment and apply its config to the live settings. */
 export function activateEnvironment(name: string): StoreView {
   const s = ensure();
   if (!s.environments[name]) throw new Error(`Unknown environment "${name}"`);
@@ -143,6 +147,7 @@ export function activateEnvironment(name: string): StoreView {
   return storeView();
 }
 
+/** Flag a version as known-good (a safe rollback target). */
 export function markKnownGood(id: string): StoreView {
   const s = ensure();
   const v = s.versions.find((x) => x.id === id);
@@ -152,6 +157,7 @@ export function markKnownGood(id: string): StoreView {
   return storeView();
 }
 
+/** The most recent known-good version for an environment, or null if none. */
 export function lastKnownGood(env: string): ConfigVersion | null {
   const s = ensure();
   for (let i = s.versions.length - 1; i >= 0; i--) {
@@ -174,6 +180,7 @@ export function rollbackTo(id: string): { applied: ConfigVersion; warnings: stri
   return { applied: target, warnings };
 }
 
+/** One-click rollback of the active environment to its last known-good version. */
 export function rollbackToLastKnownGood(): { applied: ConfigVersion; warnings: string[] } {
   const s = ensure();
   const good = lastKnownGood(s.activeEnv);

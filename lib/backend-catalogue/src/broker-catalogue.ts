@@ -118,6 +118,7 @@ export const BROKERS: BrokerDefinition[] = [
   },
 ];
 
+/** One broker definition by id, or undefined. */
 export function getBrokerDef(id: string): BrokerDefinition | undefined {
   return BROKERS.find((b) => b.id === id);
 }
