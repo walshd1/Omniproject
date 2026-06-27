@@ -59,9 +59,9 @@ function Field({ label, hint, ...rest }: { label: string; hint?: string } & Reac
 interface BrandingForm {
   appName: string; shortName: string; logoUrl: string; primaryColor: string;
   loginHeading: string; footerText: string; supportUrl: string;
-  fontFamily: string; fontScale: string; backgroundColor: string;
+  fontFamily: string;
 }
-const EMPTY_BRAND: BrandingForm = { appName: "", shortName: "", logoUrl: "", primaryColor: "", loginHeading: "", footerText: "", supportUrl: "", fontFamily: "", fontScale: "", backgroundColor: "" };
+const EMPTY_BRAND: BrandingForm = { appName: "", shortName: "", logoUrl: "", primaryColor: "", loginHeading: "", footerText: "", supportUrl: "", fontFamily: "" };
 
 function BrandingPanel({ entitled }: { entitled: boolean }) {
   const qc = useQueryClient();
@@ -82,8 +82,6 @@ function BrandingPanel({ entitled }: { entitled: boolean }) {
       loginHeading: data.loginHeading === "Orchestration Shell" ? "" : data.loginHeading ?? "",
       footerText: data.footerText ?? "", supportUrl: data.supportUrl ?? "",
       fontFamily: data.fontFamily ?? "",
-      fontScale: data.fontScale && data.fontScale !== 1 ? String(data.fontScale) : "",
-      backgroundColor: data.backgroundColor ?? "",
     });
   }, [data]);
 
@@ -124,9 +122,7 @@ function BrandingPanel({ entitled }: { entitled: boolean }) {
         <Field label="Login heading" value={form.loginHeading} onChange={set("loginHeading")} placeholder="Orchestration Shell" />
         <Field label="Footer text" value={form.footerText} onChange={set("footerText")} placeholder="© Acme Corp" />
         <Field label="Support URL" value={form.supportUrl} onChange={set("supportUrl")} placeholder="https://support.acme.com" />
-        <Field label="Font family" value={form.fontFamily} onChange={set("fontFamily")} placeholder="Inter, system-ui, sans-serif" hint="Theme: a CSS font-family stack applied on all screens." />
-        <Field label="Font scale" value={form.fontScale} onChange={set("fontScale")} placeholder="1.0" hint="Theme: base text scale 0.8–1.5 (multiplies the root size)." />
-        <Field label="Background colour" value={form.backgroundColor} onChange={set("backgroundColor")} placeholder="#0b1020" hint="Theme: page background hex colour applied on all screens." />
+        <Field label="Font family" value={form.fontFamily} onChange={set("fontFamily")} placeholder="Inter, system-ui, sans-serif" hint="Brand font applied on all screens. (Text size + background colour are per-user, in Settings → Accessibility.)" />
         <div className="flex gap-3">
           <Button type="button" onClick={save} disabled={saving} className="rounded-none uppercase font-bold tracking-wider">{saving ? "Saving…" : "Save branding"}</Button>
           <AlertDialog>

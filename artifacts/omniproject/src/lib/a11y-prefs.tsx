@@ -12,21 +12,25 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
  */
 
 export interface A11yPrefs {
-  /** UI text scale, 0.85–1.5 (1 = company default). */
+  /** UI text scale, 0.85–1.5 (1 = company default). Per-user font SIZE. */
   fontScale: number;
+  /** Personal page background colour (hex), or null for the company default. */
+  backgroundColor: string | null;
   /** Stronger borders, underlined links, thick focus outlines. */
   highContrast: boolean;
   /** Near-instant transitions/animations. */
   reduceMotion: boolean;
 }
 
-export const DEFAULT_A11Y: A11yPrefs = { fontScale: 1, highContrast: false, reduceMotion: false };
+export const DEFAULT_A11Y: A11yPrefs = { fontScale: 1, backgroundColor: null, highContrast: false, reduceMotion: false };
 
 const KEY = "omni:a11y";
 const MIN_SCALE = 0.85;
 const MAX_SCALE = 1.5;
+const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 const clampScale = (n: number): number => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(n * 100) / 100));
+const cleanColor = (v: unknown): string | null => (typeof v === "string" && HEX.test(v) ? v : null);
 
 /** Read prefs from localStorage, falling back to defaults on anything unexpected. */
 export function loadA11yPrefs(): A11yPrefs {
@@ -37,6 +41,7 @@ export function loadA11yPrefs(): A11yPrefs {
     const p = JSON.parse(raw) as Partial<A11yPrefs>;
     return {
       fontScale: typeof p.fontScale === "number" ? clampScale(p.fontScale) : DEFAULT_A11Y.fontScale,
+      backgroundColor: cleanColor(p.backgroundColor),
       highContrast: !!p.highContrast,
       reduceMotion: !!p.reduceMotion,
     };
@@ -55,6 +60,8 @@ export function applyA11yPrefs(p: A11yPrefs): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   root.style.setProperty("--user-font-scale", String(clampScale(p.fontScale)));
+  if (p.backgroundColor) root.style.setProperty("--user-bg", p.backgroundColor);
+  else root.style.removeProperty("--user-bg");
   root.setAttribute("data-contrast", p.highContrast ? "high" : "normal");
   root.setAttribute("data-reduce-motion", p.reduceMotion ? "true" : "false");
 }
@@ -62,6 +69,7 @@ export function applyA11yPrefs(p: A11yPrefs): void {
 interface A11yContextValue {
   prefs: A11yPrefs;
   setFontScale: (n: number) => void;
+  setBackgroundColor: (hex: string | null) => void;
   toggleHighContrast: () => void;
   toggleReduceMotion: () => void;
   reset: () => void;
@@ -81,6 +89,7 @@ export function A11yProvider({ children }: { children: ReactNode }) {
   const value: A11yContextValue = {
     prefs,
     setFontScale: (n) => setPrefs((p) => ({ ...p, fontScale: clampScale(n) })),
+    setBackgroundColor: (hex) => setPrefs((p) => ({ ...p, backgroundColor: cleanColor(hex) })),
     toggleHighContrast: () => setPrefs((p) => ({ ...p, highContrast: !p.highContrast })),
     toggleReduceMotion: () => setPrefs((p) => ({ ...p, reduceMotion: !p.reduceMotion })),
     reset: () => setPrefs(DEFAULT_A11Y),

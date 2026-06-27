@@ -5,12 +5,13 @@ import { Label } from "@/components/ui/label";
 import { useA11yPrefs, A11Y_SCALE_BOUNDS } from "../../lib/a11y-prefs";
 
 /**
- * Accessibility controls — a per-user overlay (text size, high contrast, reduced
- * motion) stored only in this browser. It sits on top of the company branding and
- * never touches the server, so each person can make the shared theme work for them.
+ * Accessibility controls — a per-user overlay (text SIZE, background COLOUR, high
+ * contrast, reduced motion) stored only in this browser. It sits on top of the
+ * company branding and never touches the server, so each person can make the shared
+ * theme work for them.
  */
 export function A11yControls() {
-  const { prefs, setFontScale, toggleHighContrast, toggleReduceMotion, reset } = useA11yPrefs();
+  const { prefs, setFontScale, setBackgroundColor, toggleHighContrast, toggleReduceMotion, reset } = useA11yPrefs();
   const pct = Math.round(prefs.fontScale * 100);
   return (
     <Card>
@@ -24,6 +25,22 @@ export function A11yControls() {
             <Button variant="outline" size="sm" aria-label="Decrease text size" disabled={prefs.fontScale <= A11Y_SCALE_BOUNDS.min} onClick={() => setFontScale(prefs.fontScale - 0.1)}>A−</Button>
             <span className="w-12 text-center text-sm tabular-nums" role="status" aria-live="polite">{pct}%</span>
             <Button variant="outline" size="sm" aria-label="Increase text size" disabled={prefs.fontScale >= A11Y_SCALE_BOUNDS.max} onClick={() => setFontScale(prefs.fontScale + 0.1)}>A+</Button>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="a11y-bg">Background colour</Label>
+          <div className="flex items-center gap-2">
+            <input
+              id="a11y-bg"
+              type="color"
+              aria-label="Background colour"
+              value={prefs.backgroundColor ?? "#f2f3f5"}
+              onChange={(e) => setBackgroundColor(e.target.value)}
+              className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+            />
+            {prefs.backgroundColor && (
+              <Button variant="ghost" size="sm" onClick={() => setBackgroundColor(null)} aria-label="Clear background colour">Clear</Button>
+            )}
           </div>
         </div>
         <div className="flex items-center justify-between gap-4">

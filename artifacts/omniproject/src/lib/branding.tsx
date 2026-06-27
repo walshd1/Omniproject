@@ -23,8 +23,6 @@ export interface Branding {
   footerText: string;
   supportUrl: string;
   fontFamily: string;
-  fontScale: number;
-  backgroundColor: string;
   entitled: boolean;
   locked: boolean;
 }
@@ -38,8 +36,6 @@ const DEFAULTS: Branding = {
   footerText: "",
   supportUrl: "",
   fontFamily: "",
-  fontScale: 1,
-  backgroundColor: "",
   entitled: false,
   locked: false,
 };
@@ -72,12 +68,10 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     const setOrClear = (prop: string, v: string) => (v ? root.style.setProperty(prop, v) : root.style.removeProperty(prop));
     setOrClear("--brand-primary", value.primaryColor);
-    // Theme: font family, base font scale, and page background — applied on ALL
-    // screens via CSS custom properties (the customer's theme, stored as JSON).
+    // Customer brand FONT FAMILY (applied on all screens). Font SIZE + background
+    // COLOUR are per-user (lib/a11y-prefs), not part of the company branding.
     setOrClear("--brand-font-family", value.fontFamily);
-    root.style.setProperty("--brand-font-scale", String(value.fontScale || 1));
-    setOrClear("--brand-bg", value.backgroundColor);
-  }, [value.appName, value.primaryColor, value.fontFamily, value.fontScale, value.backgroundColor]);
+  }, [value.appName, value.primaryColor, value.fontFamily]);
 
   return (
     <BrandingContext.Provider value={value}>

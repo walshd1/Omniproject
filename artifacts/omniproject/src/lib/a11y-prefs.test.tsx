@@ -32,9 +32,10 @@ describe("a11y-prefs store", () => {
   });
 
   it("applyA11yPrefs writes the CSS var + data-attributes the stylesheet honours", () => {
-    applyA11yPrefs({ fontScale: 1.2, highContrast: true, reduceMotion: true });
+    applyA11yPrefs({ fontScale: 1.2, backgroundColor: "#101418", highContrast: true, reduceMotion: true });
     const root = document.documentElement;
     expect(root.style.getPropertyValue("--user-font-scale")).toBe("1.2");
+    expect(root.style.getPropertyValue("--user-bg")).toBe("#101418");
     expect(root.getAttribute("data-contrast")).toBe("high");
     expect(root.getAttribute("data-reduce-motion")).toBe("true");
   });
