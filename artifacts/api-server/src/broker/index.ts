@@ -32,6 +32,19 @@ export function isLiveBroker(): boolean {
 }
 
 /**
+ * Generic command passthrough — forward an arbitrary action + payload through the
+ * n8n adapter's command edge. This lives in the broker barrel (the seam) so the
+ * adapter import stays here; the command edges above the seam (`/broker/command`,
+ * the raw escape hatch) call THIS instead of importing the adapter themselves.
+ * The generic command is an n8n-adapter concern (not on the neutral Broker
+ * interface), so it always uses an N8nBroker bound to the configured webhook.
+ */
+const commandBroker = new N8nBroker();
+export function brokerCommand(ctx: ActorContext, action: string, payload: Record<string, unknown>, source: string): Promise<unknown> {
+  return commandBroker.commandWithSource(ctx, action, payload, source);
+}
+
+/**
  * Readiness: can this replica reach its backend? The demo/in-process broker has
  * no external dependency, so it is always ready; a live broker is pinged (bounded)
  * to confirm reachability. Result is briefly cached so a readiness probe loop

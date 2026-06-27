@@ -24,6 +24,7 @@ import mcpRouter from "./mcp";
 import rulesetRouter from "./ruleset";
 import importRouter from "./import";
 import roleMapRouter from "./role-map";
+import rawApiRouter from "./raw-api";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -102,5 +103,6 @@ router.use(requireAuth, brokerLogRouter);
 router.use(requireAuth, rulesetRouter);
 router.use(requireAuth, importRouter);
 router.use(requireAuth, roleMapRouter);
+router.use(requireAuth, rawApiRouter);
 
 export default router;

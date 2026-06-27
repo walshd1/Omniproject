@@ -38,6 +38,12 @@ const READ_TOOLS: McpTool[] = [
   { name: "omniproject_project_summary", action: "project_summary", description: "Get the roll-up summary (totals, completion %, overdue) for a project.", inputSchema: { type: "object", properties: { projectId: { type: "string" } }, required: ["projectId"] } },
   { name: "omniproject_portfolio_health", action: "get_portfolio_health", description: "Get portfolio-wide RAG / health across all projects.", inputSchema: { type: "object", properties: {} } },
   { name: "omniproject_capabilities", action: "get_capabilities", description: "Report which capability domains the active backend supports.", inputSchema: { type: "object", properties: {} } },
+  // Plane discovery — let an agent see which REPORTS and SCREENS are available
+  // (capability/role-filtered to what this backend + caller can actually use), so
+  // it can reason about "show me the EVM report" / "open the Gantt screen".
+  { name: "omniproject_list_reports", action: "list_reports", description: "List the report/visualisation types available for the active backend (Gantt, burndown, EVM, …), filtered to the capabilities this backend supports.", inputSchema: { type: "object", properties: {} } },
+  { name: "omniproject_list_screens", action: "list_screens", description: "List the SPA screens/views available to the signed-in user (filtered by their role and the backend's capabilities), with each screen's route.", inputSchema: { type: "object", properties: {} } },
+  { name: "omniproject_list_notifications", action: "get_notifications", description: "List the signed-in user's recent notifications/alerts (the MCP notification channel — pull-based).", inputSchema: { type: "object", properties: {} } },
 ];
 
 /** Write tools (gated — see DRAGONS). Advertised only when writes are enabled. */

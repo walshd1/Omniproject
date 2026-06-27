@@ -5,6 +5,8 @@ import { hasRole } from "../lib/rbac";
 import { getBroker, contextFromReq } from "../broker";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
 import { recordAudit } from "../lib/audit";
+import { reportCatalogue, screenCatalogue } from "@workspace/backend-catalogue";
+import type { Role } from "../lib/rbac";
 
 /**
  * MCP endpoint — POST /api/mcp (JSON-RPC 2.0). Lets an MCP client read the
@@ -42,6 +44,23 @@ router.post("/mcp", async (req, res) => {
       case "project_summary": return broker.projectSummary(ctx, pid);
       case "get_portfolio_health": return broker.portfolioHealth(ctx);
       case "get_capabilities": return broker.capabilities(ctx);
+      case "get_notifications": return broker.notifications(ctx);
+      // Cross-plane discovery: reports + screens, filtered to what's actually
+      // usable so the agent isn't told about a report the backend can't feed or a
+      // screen the caller can't open.
+      case "list_reports": {
+        const caps = (await broker.capabilities(ctx)) as Record<string, boolean>;
+        return reportCatalogue()
+          .filter((r) => r.capabilities.requiresCapability === null || caps[r.capabilities.requiresCapability] === true)
+          .map((r) => ({ id: r.id, label: r.label, kind: r.kind, requiresCapability: r.capabilities.requiresCapability, exports: r.capabilities.exports, produces: r.tools }));
+      }
+      case "list_screens": {
+        const caps = (await broker.capabilities(ctx)) as Record<string, boolean>;
+        return screenCatalogue()
+          .filter((s) => hasRole(req, s.capabilities.requiresRole as Role))
+          .filter((s) => s.capabilities.requiresCapability === null || caps[s.capabilities.requiresCapability] === true)
+          .map((s) => ({ id: s.id, label: s.label, route: s.route, kind: s.kind, requiresRole: s.capabilities.requiresRole, widgets: s.tools }));
+      }
       // Gated writes (the policy check in handleMcp already refused unauthorised callers).
       case "create_issue": return broker.writeIssue(ctx, "create", { projectId: pid, title: String(args["title"] ?? ""), ...(args["description"] ? { description: String(args["description"]) } : {}), ...(args["status"] ? { status: String(args["status"]) } : {}) });
       case "update_issue": return broker.writeIssue(ctx, "update", { projectId: pid, issueId: String(args["issueId"] ?? ""), ...(args["title"] ? { title: String(args["title"]) } : {}), ...(args["status"] ? { status: String(args["status"]) } : {}), ...(args["expectedVersion"] != null ? { expectedVersion: Number(args["expectedVersion"]) } : {}) });

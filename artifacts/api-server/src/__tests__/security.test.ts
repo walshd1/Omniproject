@@ -232,6 +232,31 @@ test("role-map editor is admin-only (PMO is business, not technical)", async () 
   });
 });
 
+test("raw API escape hatch: admin-only, off by default, and still bolted to the broker seam", async () => {
+  const callRaw = (cookie: string) => req("/api/admin/raw", {
+    method: "POST",
+    headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({ action: "anything", payload: {} }),
+  });
+  // Non-admins (incl. PMO — it's technical, not business) are walled off at RBAC.
+  assert.equal((await callRaw(VIEWER)).status, 403);
+  assert.equal((await callRaw(PMO)).status, 403);
+  // Admin clears RBAC, but the hatch is bolted shut unless RAW_API_ENABLED is set.
+  const off = await callRaw(ADMIN);
+  assert.equal(off.status, 503);
+  assert.match(String(((await off.json()) as { error?: string }).error ?? ""), /RAW_API_ENABLED|disabled/i);
+  // Opting in gets past the env gate — but it STILL requires a configured broker
+  // (it can't be turned into an SSRF/relay): no broker here ⇒ not the 503 anymore.
+  process.env["RAW_API_ENABLED"] = "1";
+  try {
+    const on = await callRaw(ADMIN);
+    assert.notEqual(on.status, 503, "the env gate opened");
+    assert.notEqual(on.status, 403);
+  } finally {
+    delete process.env["RAW_API_ENABLED"];
+  }
+});
+
 test("RBAC: a PMO CANNOT change technical settings (still admin-only)", async () => {
   const res = await req("/api/settings", {
     method: "PATCH",

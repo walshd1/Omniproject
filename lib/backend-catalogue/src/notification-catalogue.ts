@@ -10,7 +10,7 @@
  * the catalogue of what's supported + how each authenticates.
  */
 
-export type NotificationKind = "chat" | "email" | "incident" | "sms" | "webhook";
+export type NotificationKind = "chat" | "email" | "incident" | "sms" | "webhook" | "iot" | "agent";
 
 export interface NotificationCapabilities {
   /** Post to a shared channel/room. */
@@ -24,7 +24,7 @@ export interface NotificationCapabilities {
   /** Can route an inbound reply back in (two-way). */
   inboundReply: boolean;
   /** How it authenticates / is wired. */
-  delivery: "incoming-webhook" | "oauth-app" | "api-key" | "smtp" | "hmac-webhook";
+  delivery: "incoming-webhook" | "oauth-app" | "api-key" | "smtp" | "hmac-webhook" | "mqtt" | "mcp";
 }
 
 export interface NotificationManifest {
@@ -83,6 +83,21 @@ export const NOTIFICATIONS: NotificationDefinition[] = [
     id: "generic-webhook", label: "Generic webhook", docsUrl: "https://github.com/walshd1/omniproject/blob/main/docs/BROKER-HTTP-BINDING.md", kind: "webhook",
     capabilities: { channels: false, directMessage: false, richFormatting: false, threads: false, inboundReply: false, delivery: "hmac-webhook" },
     tools: EVENTS, notes: "OmniProject's own HMAC-signed outbound events (the OUTPUTS `webhooks` surface) — point any consumer at it.",
+  },
+  {
+    id: "mqtt", label: "MQTT", docsUrl: "https://mqtt.org/", kind: "iot",
+    // Pub/sub to a broker topic. Two-way: a subscriber can also publish a command
+    // back on a reply topic, so `inboundReply` is honestly true.
+    capabilities: { channels: true, directMessage: false, richFormatting: false, threads: false, inboundReply: true, delivery: "mqtt" },
+    tools: EVENTS, notes: "Publish events as JSON to an MQTT topic (e.g. omniproject/alerts) for IoT dashboards, building/ops systems, or any subscriber. Delivery rides the broker seam — an n8n/MQTT node (or the reference sidecar) does the publish; this plane describes the channel. QoS/retain are wired in your broker.",
+  },
+  {
+    id: "mcp", label: "MCP (AI agent)", docsUrl: "https://modelcontextprotocol.io/", kind: "agent",
+    // Delivered THROUGH the MCP server: an agent pulls notifications via the
+    // read-only `omniproject_list_notifications` tool (and can act on them), so it
+    // is structured + two-way, but there is no push — the agent polls.
+    capabilities: { channels: false, directMessage: true, richFormatting: true, threads: false, inboundReply: true, delivery: "mcp" },
+    tools: EVENTS, notes: "Surfaces notifications to an AI agent over OmniProject's MCP server (the OUTPUTS `mcp` surface), read via the omniproject_list_notifications tool. Pull-based (the agent polls), inheriting RBAC + audit; no outbound push.",
   },
 ];
 
