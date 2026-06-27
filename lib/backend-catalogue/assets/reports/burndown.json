@@ -18,5 +18,10 @@
     "scopeChange"
   ],
   "notes": "Remaining work vs the ideal line over a sprint.",
-  "order": 20
+  "order": 20,
+  "methodologies": [
+    "scrum",
+    "scrumban",
+    "safe"
+  ]
 }

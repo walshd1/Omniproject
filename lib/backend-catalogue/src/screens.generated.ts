@@ -22,7 +22,11 @@ export const SCREENS_DATA: ScreenDefinition[] = [
       "what-if"
     ],
     "notes": "Schedule + drag-to-reschedule (write-through).",
-    "order": 50
+    "order": 50,
+    "methodologies": [
+      "waterfall",
+      "prince2"
+    ]
   },
   {
     "id": "home",

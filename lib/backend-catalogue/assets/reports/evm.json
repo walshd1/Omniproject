@@ -23,5 +23,9 @@
     "BAC"
   ],
   "notes": "Cost/schedule performance — needs financials + baseline.",
-  "order": 60
+  "order": 60,
+  "methodologies": [
+    "waterfall",
+    "prince2"
+  ]
 }

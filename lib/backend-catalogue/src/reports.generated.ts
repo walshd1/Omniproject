@@ -24,7 +24,12 @@ export const REPORTS_DATA: ReportDefinition[] = [
       "scopeChange"
     ],
     "notes": "Remaining work vs the ideal line over a sprint.",
-    "order": 20
+    "order": 20,
+    "methodologies": [
+      "scrum",
+      "scrumban",
+      "safe"
+    ]
   },
   {
     "id": "burnup",
@@ -45,7 +50,11 @@ export const REPORTS_DATA: ReportDefinition[] = [
       "scope"
     ],
     "notes": "Completed vs total scope (shows scope creep).",
-    "order": 30
+    "order": 30,
+    "methodologies": [
+      "scrum",
+      "safe"
+    ]
   },
   {
     "id": "cumulative-flow",
@@ -67,7 +76,11 @@ export const REPORTS_DATA: ReportDefinition[] = [
       "cycleTime"
     ],
     "notes": "WIP per state over time (Kanban).",
-    "order": 40
+    "order": 40,
+    "methodologies": [
+      "kanban",
+      "scrumban"
+    ]
   },
   {
     "id": "evm",
@@ -94,7 +107,11 @@ export const REPORTS_DATA: ReportDefinition[] = [
       "BAC"
     ],
     "notes": "Cost/schedule performance — needs financials + baseline.",
-    "order": 60
+    "order": 60,
+    "methodologies": [
+      "waterfall",
+      "prince2"
+    ]
   },
   {
     "id": "financial-summary",
@@ -142,7 +159,11 @@ export const REPORTS_DATA: ReportDefinition[] = [
       "baseline"
     ],
     "notes": "Schedule with dependencies + critical path.",
-    "order": 10
+    "order": 10,
+    "methodologies": [
+      "waterfall",
+      "prince2"
+    ]
   },
   {
     "id": "portfolio-rag",
@@ -231,6 +252,11 @@ export const REPORTS_DATA: ReportDefinition[] = [
       "rollingAverage"
     ],
     "notes": "Story points completed per sprint.",
-    "order": 50
+    "order": 50,
+    "methodologies": [
+      "scrum",
+      "scrumban",
+      "safe"
+    ]
   }
 ];

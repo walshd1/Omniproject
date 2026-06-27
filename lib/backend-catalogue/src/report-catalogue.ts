@@ -34,6 +34,8 @@ export interface ReportManifest {
 export interface ReportDefinition extends ReportManifest {
   /** The metrics / columns / series this report produces. */
   tools: string[];
+  /** Methodology tags — "*"/omitted = neutral (all). */
+  methodologies?: string[];
   /** Display order in the report picker. */
   order: number;
 }
@@ -61,4 +63,10 @@ export function reportCatalogue(): ReportDefinition[] {
  */
 export function availableReports(caps: Record<string, boolean>): ReportDefinition[] {
   return reportCatalogue().filter((r) => isCapabilityMet(r.capabilities.requiresCapability, caps));
+}
+
+/** Reports tagged with a methodology — those carrying its tag, plus the neutral
+ *  ("*"/untagged) ones. The report-plane analogue of `viewsForMethodology`. */
+export function reportsForMethodology(methodology: string): ReportDefinition[] {
+  return REPORTS.filter((r) => !r.methodologies || r.methodologies.includes("*") || r.methodologies.includes(methodology));
 }

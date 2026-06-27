@@ -23,6 +23,7 @@
     },
     "tools": { "type": "array", "items": { "type": "string" } },
     "notes": { "type": "string" },
+    "methodologies": { "type": "array", "description": "Methodology TAGS this report belongs to (\"*\" or omitted = neutral / all).", "items": { "type": "string" } },
     "order": { "type": "integer", "description": "Display order in the report picker." }
   }
 }
