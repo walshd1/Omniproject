@@ -90,7 +90,7 @@ interface Plane {
 }
 
 const PLANES: Plane[] = [
-  { dir: "backends", schema: "backend.schema.json", constName: "BACKENDS_DATA", typeName: "BackendDefinition", typeModule: "./n8n-backends" },
+  { dir: "backends", schema: "backend.schema.json", constName: "BACKENDS_DATA", typeName: "BackendDefinition", typeModule: "./backend-catalogue" },
   { dir: "brokers", schema: "broker.schema.json", constName: "BROKERS_DATA", typeName: "BrokerDefinition", typeModule: "./broker-catalogue" },
   { dir: "notifications", schema: "notification.schema.json", constName: "NOTIFICATIONS_DATA", typeName: "NotificationDefinition", typeModule: "./notification-catalogue" },
   { dir: "outputs", schema: "output.schema.json", constName: "OUTPUTS_DATA", typeName: "OutputDefinition", typeModule: "./output-catalogue" },

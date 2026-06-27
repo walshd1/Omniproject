@@ -8,6 +8,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Renamed `n8n-backends.ts` → `backend-catalogue.ts`** — the file holds the
+  broker-neutral backend catalogue plus the *reference* n8n binding; the old name
+  wrongly implied the backends themselves were n8n-coupled. Now parallel to
+  `broker-catalogue` / `notification-catalogue` / `output-catalogue`. No API change.
 - **Vendor definitions are now JSON files in a directory** (**Stable**) — every
   vendor (backend, broker, notification, output) is authored as one JSON file under
   `lib/backend-catalogue/vendors/<plane>/<id>.json`, validated against a per-plane

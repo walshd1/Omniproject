@@ -7,7 +7,7 @@ import { reportCatalogue, getReport } from "./report-catalogue";
 import { screenCatalogue, getScreen } from "./screen-catalogue";
 import { PLANES, planeCatalogue } from "./planes";
 import { brokerCatalogue } from "./broker-catalogue";
-import { backendCatalogue, isAdminOnlyBackend } from "./n8n-backends";
+import { backendCatalogue, isAdminOnlyBackend } from "./backend-catalogue";
 
 test("planes meta-registry lists all seven planes with dev docs", () => {
   const ids = PLANES.map((p) => p.id).sort();

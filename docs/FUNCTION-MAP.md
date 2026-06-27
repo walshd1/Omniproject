@@ -810,6 +810,18 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 
 The seven vendor-neutral integration-plane registries (backends, brokers, outputs, notifications, methodologies, reports, screens) shared across the workspace.
 
+### `lib/backend-catalogue/src/backend-catalogue.ts`
+
+BACKEND catalogue — the systems-of-record plane (Jira, OpenProject, SAP, …).
+
+| Function | What it does |
+| --- | --- |
+| `getBackend` | One backend definition by id, or undefined. |
+| `isEnterpriseBackend` | True when a backend is enterprise-tier (premium workflow generation). |
+| `isAdminOnlyBackend` | Backends only an admin may configure (raw SQL / Mongo — arbitrary query power over internal stores). |
+| `transportOf` | The integration METHOD for a backend, DERIVED from its binding (single source of truth — can't drift): any native n8n node ⇒ "native-node" (n8n-tied), otherwise plain "http" (portable across n8n / Make / a custom sidecar). |
+| `backendCatalogue` | Lightweight catalogue for the wizard UI (no n8n expressions). |
+
 ### `lib/backend-catalogue/src/backend-manifest.ts`
 
 Broker-NEUTRAL backend catalogue types.
@@ -845,18 +857,6 @@ REFERENCE RULESETS — a curated, named business-ruleset bundle per methodology,
 | --- | --- |
 | `getReferenceRuleset` | The reference ruleset bundle for a methodology (a deep copy), or undefined. |
 | `referenceRulesetCatalogue` | All reference ruleset bundles, ordered to match the methodology catalogue. |
-
-### `lib/backend-catalogue/src/n8n-backends.ts`
-
-n8n BINDING + backend data — the n8n-specific transport half of the catalogue.
-
-| Function | What it does |
-| --- | --- |
-| `getBackend` | One backend definition by id, or undefined. |
-| `isEnterpriseBackend` | True when a backend is enterprise-tier (premium workflow generation). |
-| `isAdminOnlyBackend` | Backends only an admin may configure (raw SQL / Mongo — arbitrary query power over internal stores). |
-| `transportOf` | The integration METHOD for a backend, DERIVED from its binding (single source of truth — can't drift): any native n8n node ⇒ "native-node" (n8n-tied), otherwise plain "http" (portable across n8n / Make / a custom sidecar). |
-| `backendCatalogue` | Lightweight catalogue for the wizard UI (no n8n expressions). |
 
 ### `lib/backend-catalogue/src/n8n-generator.ts`
 
@@ -998,7 +998,7 @@ Onboarding a backend OmniProject doesn't ship a mapping for yet ("custom", or an
 | `isCustomBackend` | True when this backend has no shipped mapping and needs guided onboarding. |
 | `renderSkeletonWorkflow` | A structurally-valid, importable n8n workflow skeleton for a custom backend. |
 | `renderKnownWorkflow` | For a SHIPPED backend, the ready-to-import workflow (or null if it has no mapping). |
-| `renderManifestSource` | A contributable `BackendManifest` source stub — paste into the BACKENDS array in `lib/backend-catalogue/src/n8n-backends.ts` to promote a custom backend to a first-class shipped catalogue entry (so the wizard + gateway both know it next time). |
+| `renderManifestSource` | A contributable `BackendManifest` source stub — paste into the BACKENDS array in `lib/backend-catalogue/src/backend-catalogue.ts` to promote a custom backend to a first-class shipped catalogue entry (so the wizard + gateway both know it next time). |
 | `renderFieldMap` | A contributable `BackendFieldMap` stub (surface/store per field + entity). |
 | `renderBindingGuide` | The step-by-step binding guide for onboarding a custom backend. |
 
