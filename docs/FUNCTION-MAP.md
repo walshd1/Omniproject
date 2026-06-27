@@ -637,6 +637,14 @@ Gateway-local settings store.
 | `redactSettingsForRead` | A read-safe view of settings for the GET endpoint. |
 | `updateSettings` | Validate + apply a partial settings patch, returning the new settings. |
 
+### `artifacts/api-server/src/lib/setup-status.ts`
+
+Setup-status report — a registry of SECTIONS, each contributing a slice of the `GET /api/setup/status` payload.
+
+| Function | What it does |
+| --- | --- |
+| `buildSetupStatus` | Assemble the setup/status report from the registered sections. |
+
 ### `artifacts/api-server/src/lib/shutdown.ts`
 
 Graceful shutdown — on SIGTERM/SIGINT (e.g. `docker stop`, a rolling deploy), stop accepting new connections, drain the live SSE streams, let in-flight requests finish, then exit.
