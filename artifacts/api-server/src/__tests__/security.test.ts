@@ -95,6 +95,24 @@ test("the broker contract is public and reports a version + JSON Schema", async 
   assert.ok(body.schema && body.schema.$defs && Object.keys(body.schema.$defs).length > 0, "schema has $defs");
 });
 
+test("the broker-agnostic consumer API spec is public (OpenAPI YAML + discovery)", async () => {
+  // Both are documentation, served before auth — no cookie.
+  const spec = await req("/api/openapi.yaml");
+  assert.equal(spec.status, 200);
+  assert.match(spec.headers.get("content-type") ?? "", /yaml/);
+  const text = await spec.text();
+  assert.match(text, /^openapi: 3/);
+  assert.match(text, /broker-agnostic/i, "the spec frames itself as broker-agnostic");
+
+  const disc = await req("/api/discovery");
+  assert.equal(disc.status, 200);
+  const body = (await disc.json()) as { brokerAgnostic: boolean; openapi: { url: string }; brokerContract: string; paths: string[] };
+  assert.equal(body.brokerAgnostic, true);
+  assert.match(body.openapi.url, /\/api\/openapi\.yaml$/);
+  assert.match(body.brokerContract, /\/api\/contract$/); // links to the southbound contract
+  assert.ok(Array.isArray(body.paths) && body.paths.includes("/projects"));
+});
+
 test("RBAC: a viewer CANNOT create an issue (403)", async () => {
   const res = await req("/api/projects/proj-1/issues", {
     method: "POST",

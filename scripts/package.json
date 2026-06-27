@@ -8,6 +8,7 @@
     "wizard": "tsx ./src/wizard/wizard.ts",
     "verify-plane": "tsx ./src/verify-plane.ts",
     "gen-contract": "tsx ./src/gen-contract.ts",
+    "gen-openapi": "tsx ./src/gen-openapi-bundle.ts",
     "verify-n8n": "tsx ./src/verify-n8n-bidirectional.ts",
     "e2e-smoke": "tsx ./src/e2e-smoke.ts",
     "stress": "tsx ./src/stress-test.ts",

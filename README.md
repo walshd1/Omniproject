@@ -146,6 +146,12 @@ fixed connector list to wait on (and a different broker can widen it further):
   button, or the `Cmd+K` palette.
 - **Enterprise reporting** (`/reports`) — Portfolio KPI cards (RAG), a Resource
   Heatmap (over-allocation alerts), and a Financial EVM chart (CPI/SPI).
+- **A broker-agnostic API** — the consumer-facing API lives *above* the swappable
+  broker seam, so it's the same regardless of which broker reaches your backends.
+  The full **OpenAPI spec is served at runtime** (`GET /api/openapi.yaml`) with a
+  JSON discovery doc (`GET /api/discovery`) — build against a stable contract, not
+  against n8n. (The *southbound* contract a broker implements is the separate
+  `GET /api/contract`.)
 - **Export & BI** — one-click report export to Excel, CSV, JSON, Markdown and PDF;
   a read-only API token plus an OData v4 read service and a Prometheus `/metrics`
   endpoint for Power BI / SAP / Grafana; and a read-only **MCP server** (write

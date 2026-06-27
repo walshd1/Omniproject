@@ -67,6 +67,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the served OpenAPI bundle is in sync with the spec
+        run: |
+          pnpm --filter @workspace/scripts run gen-openapi
+          if ! git diff --quiet -- artifacts/api-server/src/lib/openapi.generated.ts; then
+            echo "::error::Served OpenAPI bundle is out of date. Run 'pnpm --filter @workspace/scripts run gen-openapi' and commit the result."
+            git --no-pager diff --stat -- artifacts/api-server/src/lib/openapi.generated.ts
+            exit 1
+          fi
+
       - name: Build gateway
         run: pnpm --filter @workspace/api-server run build
 

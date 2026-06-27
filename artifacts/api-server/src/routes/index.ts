@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import healthRouter from "./health";
 import contractRouter from "./contract";
+import apiSpecRouter from "./api-spec";
 import authRouter, { getSession } from "./auth";
 import brokerCommandRouter from "./broker-command";
 import projectsRouter from "./projects";
@@ -59,6 +60,9 @@ router.use(healthRouter);
 
 // Public: the versioned broker contract (documentation, not data).
 router.use(contractRouter);
+
+// Public: the broker-agnostic consumer API spec + discovery (documentation).
+router.use(apiSpecRouter);
 
 // Inbound notification ingest from n8n/tools — authed by NOTIFY_INGEST_SECRET,
 // not by a user session, and exempt from the per-IP limiter (one n8n source).
