@@ -1,0 +1,34 @@
+{
+  "id": "prince2",
+  "label": "PRINCE2",
+  "docsUrl": "https://www.prince2.com/uk/prince2-methodology",
+  "kind": "traditional",
+  "capabilities": {
+    "iterations": false,
+    "board": false,
+    "wipLimits": false,
+    "phases": true,
+    "baseline": true,
+    "estimation": "hours"
+  },
+  "tools": {
+    "states": [
+      "starting-up",
+      "initiating",
+      "delivering",
+      "closing"
+    ],
+    "ceremonies": [
+      "stage-boundary",
+      "exception-report"
+    ]
+  },
+  "alsoProvides": [
+    {
+      "plane": "reports",
+      "note": "highlight / exception reports"
+    }
+  ],
+  "notes": "Process-driven stage management with management products.",
+  "order": 50
+}

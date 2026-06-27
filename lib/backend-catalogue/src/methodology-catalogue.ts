@@ -1,4 +1,5 @@
 import type { CrossPlaneRef } from "./planes";
+import { METHODOLOGIES_DATA } from "./methodologies.generated";
 
 /**
  * METHODOLOGY registry — the PM methodologies OmniProject can shape itself to
@@ -41,52 +42,14 @@ export interface MethodologyManifest {
 export interface MethodologyDefinition extends MethodologyManifest {
   /** Default workflow states + ceremonies/artefacts it introduces. */
   tools: { states: string[]; ceremonies: string[] };
+  /** Display order in the methodology picker. */
+  order: number;
 }
 
-export const METHODOLOGIES: MethodologyDefinition[] = [
-  {
-    id: "scrum", label: "Scrum", docsUrl: "https://scrumguides.org/", kind: "agile",
-    capabilities: { iterations: true, board: true, wipLimits: false, phases: false, baseline: false, estimation: "story-points" },
-    tools: { states: ["backlog", "todo", "in_progress", "review", "done"], ceremonies: ["sprint-planning", "daily-standup", "review", "retrospective"] },
-    alsoProvides: [{ plane: "reports", note: "burndown / velocity" }, { plane: "screens", note: "sprint board" }],
-    notes: "Time-boxed sprints, story points, the four ceremonies.",
-  },
-  {
-    id: "kanban", label: "Kanban", docsUrl: "https://kanban.university/kanban-guide/", kind: "agile",
-    capabilities: { iterations: false, board: true, wipLimits: true, phases: false, baseline: false, estimation: "none" },
-    tools: { states: ["backlog", "todo", "in_progress", "done"], ceremonies: ["replenishment", "cadence-review"] },
-    alsoProvides: [{ plane: "reports", note: "cumulative flow" }, { plane: "screens", note: "WIP-limited board" }],
-    notes: "Continuous flow, explicit WIP limits, no fixed iterations.",
-  },
-  {
-    id: "scrumban", label: "Scrumban", docsUrl: "https://www.atlassian.com/agile/project-management/scrumban", kind: "hybrid",
-    capabilities: { iterations: true, board: true, wipLimits: true, phases: false, baseline: false, estimation: "story-points" },
-    tools: { states: ["backlog", "todo", "in_progress", "review", "done"], ceremonies: ["planning", "daily-standup"] },
-    alsoProvides: [{ plane: "reports", note: "cumulative flow + velocity" }],
-    notes: "Scrum cadence with Kanban WIP limits.",
-  },
-  {
-    id: "waterfall", label: "Waterfall", docsUrl: "https://en.wikipedia.org/wiki/Waterfall_model", kind: "traditional",
-    capabilities: { iterations: false, board: false, wipLimits: false, phases: true, baseline: true, estimation: "hours" },
-    tools: { states: ["initiation", "planning", "execution", "monitoring", "closure"], ceremonies: ["stage-gate-review"] },
-    alsoProvides: [{ plane: "reports", note: "Gantt + EVM" }, { plane: "screens", note: "schedule / Gantt" }],
-    notes: "Sequential phases, baselines, critical path.",
-  },
-  {
-    id: "prince2", label: "PRINCE2", docsUrl: "https://www.prince2.com/uk/prince2-methodology", kind: "traditional",
-    capabilities: { iterations: false, board: false, wipLimits: false, phases: true, baseline: true, estimation: "hours" },
-    tools: { states: ["starting-up", "initiating", "delivering", "closing"], ceremonies: ["stage-boundary", "exception-report"] },
-    alsoProvides: [{ plane: "reports", note: "highlight / exception reports" }],
-    notes: "Process-driven stage management with management products.",
-  },
-  {
-    id: "safe", label: "SAFe", docsUrl: "https://scaledagileframework.com/", kind: "hybrid",
-    capabilities: { iterations: true, board: true, wipLimits: true, phases: false, baseline: false, estimation: "story-points" },
-    tools: { states: ["funnel", "backlog", "in_progress", "review", "done"], ceremonies: ["pi-planning", "sprint-planning", "system-demo", "inspect-and-adapt"] },
-    alsoProvides: [{ plane: "reports", note: "PI burnup / portfolio" }, { plane: "screens", note: "programme board" }],
-    notes: "Scaled agile across teams (ARTs, PIs); the enterprise-agile option.",
-  },
-];
+/** Every shipped methodology, in display order. Authored as JSON under
+ *  assets/methodologies/<id>.json and embedded by gen-methodologies (drift-guarded
+ *  in CI). Being data is what lets a methodology PACK ship as an importable bundle. */
+export const METHODOLOGIES: MethodologyDefinition[] = [...METHODOLOGIES_DATA].sort((a, b) => a.order - b.order);
 
 /** One methodology definition by id, or undefined. */
 export function getMethodology(id: string): MethodologyDefinition | undefined {

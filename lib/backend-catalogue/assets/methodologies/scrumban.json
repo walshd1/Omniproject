@@ -1,0 +1,35 @@
+{
+  "id": "scrumban",
+  "label": "Scrumban",
+  "docsUrl": "https://www.atlassian.com/agile/project-management/scrumban",
+  "kind": "hybrid",
+  "capabilities": {
+    "iterations": true,
+    "board": true,
+    "wipLimits": true,
+    "phases": false,
+    "baseline": false,
+    "estimation": "story-points"
+  },
+  "tools": {
+    "states": [
+      "backlog",
+      "todo",
+      "in_progress",
+      "review",
+      "done"
+    ],
+    "ceremonies": [
+      "planning",
+      "daily-standup"
+    ]
+  },
+  "alsoProvides": [
+    {
+      "plane": "reports",
+      "note": "cumulative flow + velocity"
+    }
+  ],
+  "notes": "Scrum cadence with Kanban WIP limits.",
+  "order": 30
+}

@@ -122,6 +122,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the methodology catalogue is in sync with its JSON
+        run: |
+          pnpm --filter @workspace/scripts run gen-methodologies
+          if ! git diff --quiet -- lib/backend-catalogue/src/methodologies.generated.ts; then
+            echo "::error::Methodology catalogue is out of date. Run 'pnpm --filter @workspace/scripts run gen-methodologies' and commit the result."
+            git --no-pager diff --stat -- lib/backend-catalogue/src/methodologies.generated.ts
+            exit 1
+          fi
+
       - name: Verify the function map is in sync with the code comments
         run: |
           pnpm --filter @workspace/scripts run gen-function-map

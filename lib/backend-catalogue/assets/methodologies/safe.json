@@ -1,0 +1,41 @@
+{
+  "id": "safe",
+  "label": "SAFe",
+  "docsUrl": "https://scaledagileframework.com/",
+  "kind": "hybrid",
+  "capabilities": {
+    "iterations": true,
+    "board": true,
+    "wipLimits": true,
+    "phases": false,
+    "baseline": false,
+    "estimation": "story-points"
+  },
+  "tools": {
+    "states": [
+      "funnel",
+      "backlog",
+      "in_progress",
+      "review",
+      "done"
+    ],
+    "ceremonies": [
+      "pi-planning",
+      "sprint-planning",
+      "system-demo",
+      "inspect-and-adapt"
+    ]
+  },
+  "alsoProvides": [
+    {
+      "plane": "reports",
+      "note": "PI burnup / portfolio"
+    },
+    {
+      "plane": "screens",
+      "note": "programme board"
+    }
+  ],
+  "notes": "Scaled agile across teams (ARTs, PIs); the enterprise-agile option.",
+  "order": 60
+}
