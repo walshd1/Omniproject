@@ -39,6 +39,19 @@ test("deriveFieldMap: no portfolio ⇒ programme entity unsupported", () => {
   assert.equal(map.fields.programmeId.surface, false);
 });
 
+test("deriveFieldMap: strategy fields (KPIs/goals) are portfolio-tier (project + programme)", () => {
+  // With portfolio on, the strategic-alignment fields surface so a project or
+  // programme can show which goals/KPIs it relates to.
+  const on = deriveFieldMap(ALL);
+  assert.equal(on.fields.strategicGoals.surface, true);
+  assert.equal(on.fields.kpis.surface, true);
+  assert.equal(on.fields.objectives.surface, true);
+  // …and they go dark when the backend has no portfolio capability.
+  const off = deriveFieldMap({ ...ALL, portfolio: false });
+  assert.equal(off.fields.strategicGoals.surface, false);
+  assert.equal(off.fields.kpis.surface, false);
+});
+
 test("deriveFieldMap: project is read-through by default (surface, no store)", () => {
   const map = deriveFieldMap(ALL);
   assert.deepEqual(map.entities.project, { surface: true, store: false });

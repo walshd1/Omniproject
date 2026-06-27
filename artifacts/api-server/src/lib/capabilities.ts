@@ -109,6 +109,9 @@ const GROUP_DOMAIN: Record<FieldGroup, CapabilityDomain> = {
   quality: "quality",
   crm: "crm",
   service: "service",
+  // Strategic alignment (goals/KPIs/OKRs) is portfolio-tier — it lights up at the
+  // project + programme level when the backend supports the portfolio domain.
+  strategy: "portfolio",
 };
 
 export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean>>): BackendFieldMap {

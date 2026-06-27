@@ -1,19 +1,17 @@
 /*
  * Generic broker command passthrough (the command-palette edge).
  *
- * Route: POST /api/broker/command. This is the one place above the seam
- * permitted to import the n8n adapter directly (it IS the adapter's command
- * edge); see docs/BROKER.md → boundary invariants.
+ * Route: POST /api/broker/command. Forwards an arbitrary action through the
+ * neutral `brokerCommand()` seam helper — this route never imports a concrete
+ * adapter, so the boundary holds with ZERO exceptions. See docs/BROKER.md.
  */
 import { Router, type Request, type Response } from "express";
 import { BrokerCommandBody } from "@workspace/api-zod";
-import { N8nBroker } from "../broker/n8n";
-import { contextFromReq, respondBrokerError, isLiveBroker, BrokerError } from "../broker";
+import { contextFromReq, respondBrokerError, isLiveBroker, BrokerError, brokerCommand } from "../broker";
 import { getSettings } from "../lib/settings";
 import { requireRole } from "../lib/rbac";
 
 const router = Router();
-const broker = new N8nBroker();
 
 /**
  * Is there a broker endpoint to forward a command to? True when one is configured
@@ -58,7 +56,7 @@ async function handle(req: Request, res: Response): Promise<void> {
   const { userContext: _ignoredUserContext, origin: _ignoredOrigin, ...payload } = rawPayload;
 
   try {
-    const result = await broker.commandWithSource(contextFromReq(req), action, payload, source ?? "unknown");
+    const result = await brokerCommand(contextFromReq(req), action, payload, source ?? "unknown");
     res.json(result);
   } catch (err: unknown) {
     req.log.error({ err, action }, "broker command failed");

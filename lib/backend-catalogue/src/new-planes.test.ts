@@ -59,6 +59,26 @@ test("notifications speak MQTT (IoT pub/sub) and MCP (AI agent, pull-based)", as
   assert.equal(mcp?.capabilities.delivery, "mcp");
 });
 
+test("Notion is a report destination channel (broker-delivered)", async () => {
+  const { getNotificationChannel } = await import("./notification-catalogue");
+  const notion = getNotificationChannel("notion");
+  assert.ok(notion);
+  assert.ok(notion!.tools.includes("report"), "carries report payloads");
+  assert.equal(notion!.capabilities.delivery, "api-key");
+});
+
+test("Planview (enterprise) + Celoxis backends are catalogued, capability-honest", async () => {
+  const cat = backendCatalogue();
+  const planview = cat.find((b) => b.id === "planview");
+  assert.equal(planview?.kind, "live");
+  assert.equal(planview?.tier, "enterprise");
+  assert.equal(planview?.capabilities.portfolio, true);
+  assert.ok(planview?.actions.includes("list_projects") && planview?.actions.includes("list_issues"));
+  const celoxis = cat.find((b) => b.id === "celoxis");
+  assert.equal(celoxis?.tier, "standard");
+  assert.equal(celoxis?.capabilities.financials, true);
+});
+
 test("backend kinds: Excel is an import source; SQL/Mongo are admin-only databases", () => {
   const cat = backendCatalogue();
   const excel = cat.find((b) => b.id === "excel");

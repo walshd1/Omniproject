@@ -73,11 +73,13 @@ test("guard: the n8n call API does not appear outside src/broker", () => {
   assert.deepEqual(offenders, [], `The n8n call API must stay inside src/broker/ (use the Broker interface instead): ${offenders.join(", ")}`);
 });
 
-// ── C. Only the broker + frozen surface may import the n8n adapter ──────────────
-// Importing src/broker/n8n directly is the adapter's own concern; the only
-// permitted consumer above it is the broker-command route (documented).
+// ── C. NOTHING above the seam may import the n8n adapter — zero exceptions ───────
+// Importing src/broker/n8n directly is the adapter's own concern. The command
+// edges (/broker/command, the raw escape hatch) go through the neutral
+// `brokerCommand()` seam helper, so the allowlist is empty: not one file above the
+// seam names the adapter.
 const ADAPTER_IMPORT = /from\s+["'][^"']*\/broker\/n8n["']/;
-const ADAPTER_IMPORT_ALLOWED = new Set(["routes/broker-command.ts"]);
+const ADAPTER_IMPORT_ALLOWED = new Set<string>(); // intentionally empty — keep it that way
 
 test("guard: nothing above the seam imports the n8n adapter directly", () => {
   const offenders: string[] = [];
@@ -86,5 +88,5 @@ test("guard: nothing above the seam imports the n8n adapter directly", () => {
     if (rel.startsWith("broker/") || rel.startsWith("__tests__/") || ADAPTER_IMPORT_ALLOWED.has(rel)) continue;
     if (ADAPTER_IMPORT.test(fs.readFileSync(file, "utf8"))) offenders.push(rel);
   }
-  assert.deepEqual(offenders, [], `Import the Broker interface (../broker), not the n8n adapter: ${offenders.join(", ")}`);
+  assert.deepEqual(offenders, [], `Import the Broker interface (../broker) or brokerCommand(), not the n8n adapter: ${offenders.join(", ")}`);
 });

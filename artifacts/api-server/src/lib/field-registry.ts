@@ -43,6 +43,7 @@ export type FieldGroup =
   | "quality" // risk & quality (health/RAG, impact/urgency, blocked)
   | "crm" // CRM/sales (deal value, probability, forecast)
   | "service" // ITSM/service (SLA, CSAT, change)
+  | "strategy" // strategic alignment (goals, KPIs, OKRs) — project + programme level
   | "relationship"
   | "derived";
 
@@ -178,6 +179,16 @@ export const FIELD_REGISTRY: FieldDescriptor[] = [
   { key: "requester", label: "Requester", type: "user", group: "service" },
   { key: "affectedService", label: "Affected service", type: "reference", references: "service", group: "service" },
   { key: "changeType", label: "Change type", type: "enum", group: "service" },
+  // Strategy — what each project/programme is aligned to (portfolio-tier). Lets a
+  // project or programme surface which strategic goals + KPIs it contributes to.
+  { key: "strategicGoals", label: "Strategic goals", type: "labels", group: "strategy" },
+  { key: "kpis", label: "KPIs", type: "labels", group: "strategy" },
+  { key: "objectives", label: "Objectives / OKRs", type: "labels", group: "strategy" },
+  { key: "strategicTheme", label: "Strategic theme", type: "enum", group: "strategy" },
+  { key: "valueStream", label: "Value stream", type: "string", group: "strategy" },
+  { key: "strategicContribution", label: "Strategic contribution", type: "percent", group: "strategy" },
+  { key: "expectedBenefit", label: "Expected benefit", type: "text", group: "strategy" },
+  { key: "benefitRealised", label: "Benefit realised", type: "percent", group: "strategy" },
   // Relationships
   { key: "programmeId", label: "Programme", type: "reference", references: "programme", group: "relationship" },
   { key: "parentTask", label: "Parent", type: "reference", references: "task", group: "relationship" },
