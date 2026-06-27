@@ -10,6 +10,7 @@ import { A11yProvider } from "./lib/a11y-prefs";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DevModeWatermark } from "./components/DevModeWatermark";
 import { DevImpersonationControl } from "./components/DevImpersonationControl";
+import { DevEntitlementsControl } from "./components/DevEntitlementsControl";
 
 // Layout (eager — it wraps every authenticated route)
 import { AppLayout } from "./components/layout/AppLayout";
@@ -119,6 +120,7 @@ function App() {
           <Toaster />
           <DevModeWatermark />
           <DevImpersonationControl />
+          <DevEntitlementsControl />
         </TooltipProvider>
         </A11yProvider>
       </BrandingProvider>

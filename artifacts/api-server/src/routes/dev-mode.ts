@@ -7,6 +7,8 @@ import { resetBroker } from "../broker";
 import { getRealSession, startImpersonation, stopImpersonation } from "./auth";
 import { activeImpersonation, IMPERSONATION_TTL_MS } from "../lib/impersonation";
 import { recordAudit } from "../lib/audit";
+import { LICENSE_FEATURES, licenseSummary, type LicenseFeature } from "../lib/license";
+import { getDevEntitlementOverrides, setDevEntitlementOverride, clearDevEntitlementOverrides } from "../lib/dev-entitlements";
 
 /**
  * Dev-mode routes.
@@ -81,6 +83,12 @@ router.post("/dev-mode/broker", requireRole("admin"), (req, res) => {
 // expires (IMPERSONATION_TTL_MS). Every start/stop is audited with the reason.
 
 const isDemoAuth = () => !process.env["OIDC_ISSUER_URL"]?.trim();
+
+/** Is the REAL caller (ignoring impersonation) an admin? */
+function isRealAdmin(req: import("express").Request): boolean {
+  const real = getRealSession(req);
+  return roleFromClaims(real?.roles ?? [], { isDemo: isDemoAuth() }) === "admin";
+}
 
 /** GET — the current impersonation (for the UI banner), or null. */
 router.get("/dev-mode/impersonate", (req, res) => {
@@ -162,6 +170,75 @@ router.delete("/dev-mode/impersonate", (req, res) => {
     });
   }
   res.json({ impersonating: false });
+});
+
+// ── Dev-mode entitlement (paid-feature) toggle ────────────────────────────────
+// Force individual premium features on/off to test licensed vs unlicensed UX
+// without a real licence. Dev-only; real admin; ephemeral (in-memory); audited.
+
+/** GET — the catalogue, current overrides, and the effective entitlements. */
+router.get("/dev-mode/entitlements", (req, res) => {
+  if (!isDevMode()) {
+    res.status(409).json({ error: "dev mode is not active" });
+    return;
+  }
+  res.json({ catalog: LICENSE_FEATURES, overrides: getDevEntitlementOverrides(), effective: licenseSummary().features });
+});
+
+/** POST — force a feature: { feature, enabled: true|false|null(clear) }. */
+router.post("/dev-mode/entitlements", (req, res) => {
+  if (!isDevMode()) {
+    res.status(409).json({ error: "dev mode is not active" });
+    return;
+  }
+  if (!isRealAdmin(req)) {
+    res.status(403).json({ error: "only a real admin may override entitlements" });
+    return;
+  }
+  const body = (req.body ?? {}) as { feature?: unknown; enabled?: unknown };
+  const feature = typeof body.feature === "string" ? body.feature : "";
+  if (!LICENSE_FEATURES.includes(feature as LicenseFeature)) {
+    res.status(400).json({ error: `feature must be one of ${LICENSE_FEATURES.join(", ")}` });
+    return;
+  }
+  if (body.enabled !== true && body.enabled !== false && body.enabled !== null) {
+    res.status(400).json({ error: "enabled must be true, false, or null (to clear)" });
+    return;
+  }
+  setDevEntitlementOverride(feature, body.enabled);
+  recordAudit({
+    ts: new Date().toISOString(),
+    category: "admin",
+    action: "dev_entitlement_override",
+    actor: { sub: getRealSession(req)?.sub ?? "unknown", role: "admin" },
+    status: 200,
+    write: true,
+    meta: { devMode: true, feature, enabled: body.enabled },
+  });
+  res.json({ overrides: getDevEntitlementOverrides(), effective: licenseSummary().features });
+});
+
+/** DELETE — clear all overrides. */
+router.delete("/dev-mode/entitlements", (req, res) => {
+  if (!isDevMode()) {
+    res.status(409).json({ error: "dev mode is not active" });
+    return;
+  }
+  if (!isRealAdmin(req)) {
+    res.status(403).json({ error: "only a real admin may override entitlements" });
+    return;
+  }
+  clearDevEntitlementOverrides();
+  recordAudit({
+    ts: new Date().toISOString(),
+    category: "admin",
+    action: "dev_entitlement_clear",
+    actor: { sub: getRealSession(req)?.sub ?? "unknown", role: "admin" },
+    status: 200,
+    write: true,
+    meta: { devMode: true },
+  });
+  res.json({ overrides: getDevEntitlementOverrides(), effective: licenseSummary().features });
 });
 
 export default router;

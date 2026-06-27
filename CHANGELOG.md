@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Dev-mode entitlement (paid-feature) toggle** — force individual premium features
+  on or off to preview the licensed vs unlicensed UX without minting a real licence.
+  A dev override layer that `resolveLicense` applies last, so it is **inert in
+  production** (dev mode is gated off there; a CI guard asserts it), **ephemeral**
+  (in-memory, gone on restart), **real-admin only**, and **audited** on every change.
+  Drives the existing entitlement checks (`isEntitled`/`requireEntitlement`)
+  unchanged. Endpoints `GET/POST/DELETE /api/dev-mode/entitlements` + a dev-instance
+  UI panel with a per-feature toggle and a "forced" marker.
 - **Ephemeral, approved, reason-logged dev impersonation** — the dev-mode auth
   bypass (act AS another user to reproduce a role-specific issue) with hard
   guardrails. Starting one needs an explicit **approval dialog with a typed reason**

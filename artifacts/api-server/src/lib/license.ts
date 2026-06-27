@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { applyDevEntitlementOverrides } from "./dev-entitlements";
 
 /**
  * Licensing / entitlements — the paywall for premium overlay features.
@@ -174,8 +175,16 @@ export function premiumEnforced(): boolean {
   return process.env["PREMIUM_ENFORCEMENT"]?.trim().toLowerCase() === "on";
 }
 
-/** Resolve current entitlements from env/config. Pure w.r.t. the supplied `now`. */
+/** Resolve current entitlements from env/config, then apply any DEV-mode overrides
+ *  (a no-op in production). Pure w.r.t. the supplied `now`. */
 export function resolveLicense(now = Date.now()): LicenseStatus {
+  const status = resolveBaseLicense(now);
+  const features = applyDevEntitlementOverrides(status.features, LICENSE_FEATURES);
+  return features === status.features ? status : { ...status, features };
+}
+
+/** The env/config-derived entitlements, before any dev override. */
+function resolveBaseLicense(now = Date.now()): LicenseStatus {
   // Pre-community: grant everything unless enforcement is explicitly switched on.
   if (!premiumEnforced()) {
     return {
