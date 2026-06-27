@@ -63,6 +63,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Two more patterns abstracted into registries** (**Stable**, internal) — applying
+  the same "generic engine + registry of handlers" shape as the ScreenRenderer:
+  (A) `gen-vendors` and `gen-views` now share one `gen-registry` engine (read JSON →
+  validate → emit typed module), so a new asset plane is a descriptor, not a copied
+  generator; (B) the config-directory loader is now a registry of per-subdir loaders
+  (vendors / config.json / rulesets / artifacts), so adding `views/`/`screens/` to
+  the config folder is a one-line registration. Behaviour-preserving: byte-identical
+  generated output and unchanged config-load behaviour.
 - **Renamed `n8n-backends.ts` → `backend-catalogue.ts`** — the file holds the
   broker-neutral backend catalogue plus the *reference* n8n binding; the old name
   wrongly implied the backends themselves were n8n-coupled. Now parallel to
