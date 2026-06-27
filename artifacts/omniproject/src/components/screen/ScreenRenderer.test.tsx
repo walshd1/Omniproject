@@ -45,9 +45,13 @@ describe("ScreenRenderer", () => {
     };
     renderWithProviders(<ScreenRenderer screen={s} />);
     expect(screen.getByText(/2 nodes, 1 edge/)).toBeInTheDocument();
-    expect(screen.getByText(/Gateway/)).toBeInTheDocument(); // edge label resolved
+    expect(screen.getAllByText(/Gateway/).length).toBeGreaterThan(0); // node label resolved
     expect(screen.getByText(/1 location/)).toBeInTheDocument();
-    expect(screen.getByText(/London/)).toBeInTheDocument();
+    expect(screen.getAllByText(/London/).length).toBeGreaterThan(0);
+    // Real SVG visuals render (not just the accessible summary).
+    expect(screen.getByTestId("graph-svg").querySelectorAll("circle").length).toBe(2);
+    expect(screen.getByTestId("graph-svg").querySelectorAll("line").length).toBe(1);
+    expect(screen.getByTestId("map-svg").querySelectorAll("circle").length).toBe(1);
     // Neither degrades to the unknown placeholder.
     expect(screen.queryByTestId("unknown-panel")).not.toBeInTheDocument();
   });

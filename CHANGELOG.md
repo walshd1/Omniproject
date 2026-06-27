@@ -8,6 +8,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Rich graph + map rendering (dependency-free SVG)** — the `graph` and `map`
+  panels now render real visuals, not just the accessible summary: `graph` draws a
+  node-link diagram with a circular layout; `map` plots points via an
+  equirectangular projection onto an SVG world grid. Both are dependency-free (no
+  D3/Leaflet) and make NO external tile calls — fitting the no-egress ethos — and
+  keep an accessible (screen-reader) list alongside the visual.
 - **Per-kind broker dispatch — heterogeneous brokers, actually routed** — the
   per-kind routing *decision* (`brokerForCommand`) is now a real *dispatch*. Because
   every broker platform speaks the same HTTP contract, routing a command to a kind is
