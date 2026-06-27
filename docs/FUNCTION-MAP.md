@@ -124,6 +124,20 @@ Broker boundary — domain contract.
 
 The read-only broker actions the setup "verify" probe and the n8n adapter's VerifyReport both exercise.
 
+### `artifacts/api-server/src/broker/vocabulary.ts`
+
+Canonical value vocabularies — the cross-backend meanings the gateway reasons about (status lifecycle, priority, RAG), defined ONCE so no neutral module hard-codes "done" or GREEN/AMBER/RED.
+
+| Function | What it does |
+| --- | --- |
+| `normaliseStatus` | Resolve a native status to a canonical one: a backend's declared vocabulary wins, then the shared synonyms, then null. |
+| `statusClassOf` | The lifecycle class of a native status; "open" when it can't be classified. |
+| `isDone` | True when a native status means the work is finished (the completion test). |
+| `isClosed` | True when a status is terminal (done OR cancelled) — e.g. excluded from "overdue". |
+| `ragFor` | RAG from a completion percentage (≥60 green, ≥25 amber, else red). |
+| `financialHealthFrom` | RAG from cost performance: prefer CPI when earned value is known, else the spend ratio. |
+| `ragBuckets` | A zeroed RAG tally (e.g. for the Prometheus portfolio gauge). |
+
 ### `artifacts/api-server/src/index.ts`
 
 Start the broker-log fan-out at boot so this replica begins RECEIVING the fleet's live entries immediately (not just emitting its own).

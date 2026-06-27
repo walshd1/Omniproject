@@ -13,6 +13,7 @@
  */
 import http from "node:http";
 import { sealPayload } from "../lib/broker-psk";
+import { isDone } from "./vocabulary";
 import { processBrokerCall, BrokerHttpError, type BrokerBackend } from "./reference-broker-blueprint";
 
 type Row = Record<string, unknown>;
@@ -55,7 +56,7 @@ function inMemoryBackend(store: Store): BrokerBackend {
     async listTaskItems() { return []; },
     async projectSummary(_ctx, projectId) {
       const issues = store.issues[projectId] ?? [];
-      const completed = issues.filter((i) => i["status"] === "done").length;
+      const completed = issues.filter((i) => isDone(i["status"] as string)).length;
       return { projectId, total: issues.length, completed, overdue: 0, byStatus: {}, completionPct: issues.length ? Math.round((completed / issues.length) * 100) : 0 };
     },
     async projectHistory() { return []; },
