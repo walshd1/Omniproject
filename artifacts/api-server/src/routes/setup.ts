@@ -13,9 +13,8 @@ import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, notificationKindCatalogue, methodologyCatalogue, methodologyPack, allMethodologyTags, reportCatalogue, screenCatalogue, reportsForMethodology, screensForMethodology, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, dedupeEntities, matchCandidates, normaliseKey } from "@workspace/backend-catalogue";
 import { isEntitled, resolveLicense } from "../lib/license";
 import { auditStatus } from "../lib/audit";
-import { DEV_PERSIST_ENABLED } from "../lib/dev-persist";
-import { getDemoState } from "../lib/data";
-import { buildZip } from "../lib/zip";
+import { isDevMode } from "../lib/dev-mode";
+import { buildDebugBundleZip } from "../lib/debug-bundle";
 import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 import { configDirSummary } from "../lib/config-dir";
 import { buildConfigBundle } from "../lib/config-bundle";
@@ -366,35 +365,19 @@ router.post("/setup/rollback", requireRole("admin"), (req, res) => {
   }
 });
 
-// GET /api/setup/debug-bundle — a ZIP of config + demo data state for
-// reproducible bug reports / sharing to GitHub. Available ONLY in stateful dev
-// mode (refused in production), admin-only. This is a debugging aid, not a prod
-// feature — production is stateless and has no data state to bundle.
+// GET /api/setup/debug-bundle — a reproducible ZIP of config + loaded vendors +
+// demo data + captured broker/notify/export traffic, for sharing on a GitHub issue
+// or reloading on another instance to replicate a problem. Available ONLY in dev
+// mode (refused in production — dev mode is hard-gated off there), admin-only.
 router.get("/setup/debug-bundle", requireRole("admin"), (_req, res) => {
-  if (!DEV_PERSIST_ENABLED) {
+  if (!isDevMode()) {
     res.status(409).json({
-      error: "Debug bundle is available only in stateful developer mode (DEV_PERSIST_FILE, non-production). Production is stateless.",
+      error: "Debug bundle is available only in developer mode (a non-production build with OMNI_DEV_MODE / DEV_PERSIST_FILE / BROKER_TRACE / BROKER_CAPTURE). Production is stateless and never bundles.",
     });
     return;
   }
   const now = new Date().toISOString();
-  const config = buildSnapshot(getSettings());
-  const state = getDemoState();
-  const readme =
-    "# OmniProject debug bundle\n\n" +
-    `Generated ${now}.\n\n` +
-    "For **reproducible bug reports** only — share on a GitHub issue. Contains:\n" +
-    "- `config.json` — gateway configuration snapshot (no secrets; those live in env).\n" +
-    "- `demo-state.json` — the in-memory demo dataset (projects/issues/RAID).\n\n" +
-    "To reproduce locally: run a **non-production** build with `DEV_PERSIST_FILE` pointed\n" +
-    "at a copy of `demo-state.json`, and apply `config.json` via Setup → Restore.\n" +
-    "Stateful mode is a debugging aid; **never enable it in production** (it is ignored there).\n";
-
-  const zip = buildZip([
-    { name: "README.md", data: Buffer.from(readme, "utf8") },
-    { name: "config.json", data: Buffer.from(JSON.stringify(config, null, 2), "utf8") },
-    { name: "demo-state.json", data: Buffer.from(JSON.stringify(state, null, 2), "utf8") },
-  ]);
+  const zip = buildDebugBundleZip(now);
   res
     .type("application/zip")
     .set("Content-Disposition", `attachment; filename="omniproject-debug-bundle-${now.slice(0, 10)}.zip"`)

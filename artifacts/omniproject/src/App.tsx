@@ -8,6 +8,7 @@ import { useStore } from "./store/useStore";
 import { BrandingProvider } from "./lib/branding";
 import { A11yProvider } from "./lib/a11y-prefs";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { DevModeWatermark } from "./components/DevModeWatermark";
 
 // Layout (eager — it wraps every authenticated route)
 import { AppLayout } from "./components/layout/AppLayout";
@@ -115,6 +116,7 @@ function App() {
             </ErrorBoundary>
           </WouterRouter>
           <Toaster />
+          <DevModeWatermark />
         </TooltipProvider>
         </A11yProvider>
       </BrandingProvider>

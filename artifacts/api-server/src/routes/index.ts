@@ -32,6 +32,7 @@ import rulesetRouter from "./ruleset";
 import importRouter from "./import";
 import roleMapRouter from "./role-map";
 import rawApiRouter from "./raw-api";
+import devModeRouter from "./dev-mode";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -92,6 +93,9 @@ router.use(authRouter);
 // handlers self-guard with requireRole("admin") + the licence entitlement.
 router.use(brandingRouter);
 router.use(labelsRouter);
+// Public dev-mode status: the SPA watermarks the screen pre-auth. Always reports
+// devMode:false in production (dev mode is hard-gated off there).
+router.use(devModeRouter);
 
 // Protected routes: require an authenticated session (or read-only API token).
 router.use(requireAuth, licenseRouter);

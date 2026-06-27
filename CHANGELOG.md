@@ -8,6 +8,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Dev mode: debug bundle + on-screen watermark + dev compose** — pulls the debug
+  tooling into one developer-instance concept.
+  - **Debug bundle (`Setup → Debug bundle`, admin)** — a single reproducible ZIP to
+    replicate an issue elsewhere: `config.json` (snapshot) + `config-dir/*.json`
+    (loaded JSON config) + `vendors.json` (loaded backend/broker catalogues) +
+    `demo-state.json` + `capture-tape.jsonl` (the captured broker/notify/export
+    traffic) + a `manifest.json`. Reload on another dev instance via Setup → Restore,
+    `DEV_PERSIST_FILE`, and `pnpm broker:replay`.
+  - **On-screen DEV MODE watermark** — the SPA reads the public `/api/dev-mode`
+    status and shows a clear diagonal watermark + a corner badge listing the armed
+    surfaces (trace/capture/persist), so a debug build can't be mistaken for prod.
+  - **`docker-compose.dev.yml`** — layer over any base compose
+    (`-f docker-compose.standalone.yml -f docker-compose.dev.yml`) to build a
+    watermarked dev instance with trace + capture + stateful persistence armed and a
+    writable `/data` volume for the tape.
+  - **Hard-gated:** `isDevMode()` / the bundle / the watermark are all inert under
+    `NODE_ENV=production` (CI guard tests assert it); `/api/dev-mode` reports only
+    which surfaces are on — no paths or secrets.
 - **Plane trace + capture/replay (dev-only debug tooling)** — a developer aid that
   makes dispatch planes observable at the *method* boundary, and lets you capture
   activity on one instance and replay it on another.
