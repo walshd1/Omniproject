@@ -15,6 +15,7 @@ import { isEntitled, resolveLicense } from "../lib/license";
 import { auditStatus } from "../lib/audit";
 import { isDevMode } from "../lib/dev-mode";
 import { buildDebugBundleZip } from "../lib/debug-bundle";
+import { requiredCredentials, renderCredentialTemplate } from "../lib/connection-credentials";
 import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 import { configDirSummary } from "../lib/config-dir";
 import { buildConfigBundle } from "../lib/config-bundle";
@@ -221,6 +222,25 @@ router.put("/setup/screens/:id/layout", requireRole("manager"), (req, res) => {
   captureVersion(`screen layout: ${id}`);
   res.json({ id, layout });
 });
+// GET /api/setup/connections?backends=a,b — the vendor credentials the broker(s)
+// need for the selected backends, plus fill-in templates. Admin-only. Returns only
+// credential NAMES + placeholders; OmniProject never holds the secret values.
+router.get("/setup/connections", requireRole("admin"), (req, res) => {
+  const raw = typeof req.query["backends"] === "string" ? (req.query["backends"] as string) : "";
+  const fromQuery = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  const source = getSettings().backendSource;
+  const backends = fromQuery.length ? fromQuery : source && source !== "all" && source !== "none" ? [source] : [];
+  const credentials = requiredCredentials(backends);
+  res.json({
+    backends,
+    credentials,
+    templates: {
+      env: renderCredentialTemplate(credentials, "env"),
+      compose: renderCredentialTemplate(credentials, "compose"),
+    },
+  });
+});
+
 // The plane meta-registry — all seven planes + their dev docs.
 router.get("/setup/planes", (_req, res) => {
   res.json(planeCatalogue());

@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Connections screen — credential scaffolding, secrets never stored** — an
+  admin-gated screen that works out which credentials the broker(s) need for the
+  backends in use (the union of each vendor's `requiredEnv`) and generates a fill-in
+  `.env` / docker-compose template (secrets rendered as Docker-secret mounts, plain
+  config as env refs). It deals ONLY in credential NAMES + placeholders — OmniProject
+  never receives or stores a secret value, keeping the stateless / zero-at-rest
+  posture; the secret lives with the broker (its env / Docker secret / credential
+  vault). Per-user-auth vendors need no stored key at all (the caller's token is
+  forwarded through the seam). `GET /api/setup/connections?backends=…` (admin).
 - **Drag-to-rearrange screens/reports, persisted to the customer's config** — panels
   can be dragged to reorder (and resized/hidden) on a screen, and the arrangement is
   saved as a per-screen layout override. It lives in the settings store, so it rides
