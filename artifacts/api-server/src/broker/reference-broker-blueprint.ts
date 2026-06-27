@@ -117,40 +117,63 @@ function openPsk(token: string): string | null {
  *  type their real implementation against this. */
 export type BrokerBackend = typeof backend;
 
-/** Route one binding action to the backend. The single switch a broker owns. The
- *  backend is injected so every transport template reuses this unchanged. */
+/** The pre-extracted call context handed to every binding action's handler. */
+interface BindingCtx {
+  be: BrokerBackend;
+  ctx: ActorCtx;
+  payload: Row;
+  /** `projectId` from the payload (or ""). */
+  pid: string;
+  /** `issueId` from the payload (or ""). */
+  iid: string;
+}
+
+/**
+ * The canonical BINDING-ACTION registry — every action a broker can route, keyed by
+ * action name to the backend call it makes. This is the single source of the
+ * binding vocabulary (was a switch); a transport template reuses it unchanged, and
+ * the conformance/contract suites + the MCP guard validate against its key set so
+ * the action vocabulary can't drift across the seam.
+ */
+const BINDING_ACTIONS: Record<string, (b: BindingCtx) => unknown> = {
+  list_projects: ({ be, ctx }) => be.listProjects(ctx),
+  list_issues: ({ be, ctx, pid }) => be.listIssues(ctx, pid),
+  get_issue: ({ be, ctx, pid, iid }) => be.getIssue(ctx, pid, iid),
+  list_project_members: ({ be, ctx, pid }) => be.listProjectMembers(ctx, pid),
+  list_task_items: ({ be, ctx, pid, payload }) => be.listTaskItems(ctx, pid, String(payload["taskId"] ?? "")),
+  project_summary: ({ be, ctx, pid }) => be.projectSummary(ctx, pid),
+  get_project_history: ({ be, ctx, pid }) => be.projectHistory(ctx, pid),
+  get_baseline: ({ be, ctx, pid }) => be.baseline(ctx, pid),
+  get_raid: ({ be, ctx, pid }) => be.raid(ctx, pid),
+  get_notifications: ({ be, ctx }) => be.notifications(ctx),
+  get_portfolio_health: ({ be, ctx }) => be.portfolioHealth(ctx),
+  get_resource_capacity: ({ be, ctx, pid }) => be.resourceCapacity(ctx, pid),
+  get_project_financials: ({ be, ctx, pid }) => be.projectFinancials(ctx, pid),
+  get_capabilities: ({ be, ctx }) => be.capabilities(ctx),
+  get_fx_rates: ({ be, ctx }) => be.fxRates(ctx),
+  replay: ({ be, ctx, payload }) => be.replay(ctx, payload["from"] as string, payload["to"] as string),
+  list_activity: ({ be, ctx }) => be.activity(ctx),
+  create_project: ({ be, ctx, payload }) => be.createProject(ctx, payload),
+  update_project: ({ be, ctx, pid, payload }) => be.updateProject(ctx, pid, payload),
+  create_issue: ({ be, ctx, pid, payload }) => be.createIssue(ctx, pid, payload),
+  update_issue: ({ be, ctx, pid, iid, payload }) => be.updateIssue(ctx, pid, iid, payload),
+  delete_issue: ({ be, ctx, pid, iid }) => be.deleteIssue(ctx, pid, iid),
+  create_raid_entry: ({ be, ctx, pid, payload }) => be.createRaidEntry(ctx, pid, payload),
+  create_task_item: ({ be, ctx, pid, payload }) => be.createTaskItem(ctx, pid, String(payload["taskId"] ?? ""), payload),
+};
+
+/** The canonical set of binding action names (the registry's keys). */
+export const BINDING_ACTION_NAMES: readonly string[] = Object.keys(BINDING_ACTIONS);
+
+/** Route one binding action to the backend via the registry. The backend is
+ *  injected so every transport template reuses this unchanged. */
 async function dispatch(action: string, payload: Row, ctx: ActorCtx, be: BrokerBackend): Promise<unknown> {
-  const pid = String(payload["projectId"] ?? "");
-  const iid = String(payload["issueId"] ?? "");
-  switch (action) {
-    case "list_projects": return be.listProjects(ctx);
-    case "list_issues": return be.listIssues(ctx, pid);
-    case "get_issue": return be.getIssue(ctx, pid, iid);
-    case "list_project_members": return be.listProjectMembers(ctx, pid);
-    case "list_task_items": return be.listTaskItems(ctx, pid, String(payload["taskId"] ?? ""));
-    case "project_summary": return be.projectSummary(ctx, pid);
-    case "get_project_history": return be.projectHistory(ctx, pid);
-    case "get_baseline": return be.baseline(ctx, pid);
-    case "get_raid": return be.raid(ctx, pid);
-    case "get_notifications": return be.notifications(ctx);
-    case "get_portfolio_health": return be.portfolioHealth(ctx);
-    case "get_resource_capacity": return be.resourceCapacity(ctx, pid);
-    case "get_project_financials": return be.projectFinancials(ctx, pid);
-    case "get_capabilities": return be.capabilities(ctx);
-    case "get_fx_rates": return be.fxRates(ctx);
-    case "replay": return be.replay(ctx, payload["from"] as string, payload["to"] as string);
-    case "list_activity": return be.activity(ctx);
-    case "create_project": return be.createProject(ctx, payload);
-    case "update_project": return be.updateProject(ctx, pid, payload);
-    case "create_issue": return be.createIssue(ctx, pid, payload);
-    case "update_issue": return be.updateIssue(ctx, pid, iid, payload);
-    case "delete_issue": return be.deleteIssue(ctx, pid, iid);
-    case "create_raid_entry": return be.createRaidEntry(ctx, pid, payload);
-    case "create_task_item": return be.createTaskItem(ctx, pid, String(payload["taskId"] ?? ""), payload);
-    default:
-      // Unknown action — a bad request, not a server error.
-      throw new BrokerHttpError(400, { success: false, message: `unknown action: ${action}` });
+  const handler = BINDING_ACTIONS[action];
+  if (!handler) {
+    // Unknown action — a bad request, not a server error.
+    throw new BrokerHttpError(400, { success: false, message: `unknown action: ${action}` });
   }
+  return handler({ be, ctx, payload, pid: String(payload["projectId"] ?? ""), iid: String(payload["issueId"] ?? "") });
 }
 
 /** The transport-agnostic BROKER CORE: parse (incl. PSK) → extract actor → verify
