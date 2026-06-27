@@ -1,0 +1,9 @@
+{
+  "id": "assignments",
+  "label": "Work assignments",
+  "description": "When work is assigned, notify the assignee by email and team chat.",
+  "match": { "kinds": ["assignment", "mention"] },
+  "channels": ["email", "slack", "teams"],
+  "methodologies": ["*"],
+  "order": 20
+}

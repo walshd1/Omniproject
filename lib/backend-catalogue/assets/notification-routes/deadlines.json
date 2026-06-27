@@ -1,0 +1,9 @@
+{
+  "id": "deadlines",
+  "label": "Approaching deadlines",
+  "description": "Due-soon and overdue reminders go out over email so nothing slips quietly.",
+  "match": { "kinds": ["due_soon", "overdue"] },
+  "channels": ["email"],
+  "methodologies": ["*"],
+  "order": 30
+}
