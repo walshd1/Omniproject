@@ -8,6 +8,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Multi-broker router — many broker kinds connected at once** (**Stable**) — a
+  registry above the seam (`broker/registry.ts`) that knows which broker KINDS are
+  connected to a deployment, so the capability resolver can union what they
+  collectively support. Reality of the seam: OmniProject speaks ONE HTTP contract to
+  every broker platform, so "many brokers at once" isn't many gateway adapters — it's
+  several platforms wired below the seam (e.g. n8n for the live data hop + Make for
+  outbound events). The connected set = the active broker (PRIMARY, the live
+  data/command hop) ∪ any kinds declared in **`BROKER_KINDS`** (catalogue ids;
+  unknown ids dropped so a typo can't surface phantom capabilities). `resolveSupport`
+  now unions broker capabilities across `connectedBrokerKinds()` instead of the
+  single active kind, and `brokersSupporting(capabilityKey)` is the routing
+  primitive ("which connected kind can deliver `eventsOutbound`?"). `GET
+  /api/setup/brokers?connected=1` surfaces the wired set. The live data/command hop
+  remains the configured synchronous broker (`getBroker()`); this widens *capability
+  surfacing* across kinds, not per-kind command routing.
 - **Compatibility model: one predicate, a two-plane resolver + an incompatibility
   guard** (**Stable**) — how we know which of anything to surface based on what the
   broker(s) AND backend(s) support, unified.

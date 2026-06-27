@@ -7,6 +7,7 @@
 import { Router, type Response } from "express";
 import { getSettings, updateSettings } from "../lib/settings";
 import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
+import { connectedBrokerKinds } from "../broker/registry";
 import { requireRole, hasRole } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, methodologyCatalogue, reportCatalogue, screenCatalogue, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, methodologyTags } from "@workspace/backend-catalogue";
@@ -132,8 +133,13 @@ router.get("/setup/backends", (req, res) => {
 
 // The other two integration planes (same shape): which brokers can serve the
 // data hop, and which outward interfaces expose data/events.
-router.get("/setup/brokers", (_req, res) => {
-  res.json(brokerCatalogue());
+// Full broker catalogue, or — with ?connected=1 — only the broker KIND(S) actually
+// wired to this deployment (the active hop ∪ BROKER_KINDS), the set the capability
+// resolver unions over.
+router.get("/setup/brokers", (req, res) => {
+  if (req.query["connected"] !== "1") { res.json(brokerCatalogue()); return; }
+  const kinds = new Set(connectedBrokerKinds());
+  res.json(brokerCatalogue().filter((b) => kinds.has(b.id)));
 });
 router.get("/setup/outputs", (_req, res) => {
   res.json(outputCatalogue());
