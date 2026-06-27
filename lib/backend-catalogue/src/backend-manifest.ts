@@ -26,6 +26,27 @@ export type ContractAction =
 export type BackendTier = "standard" | "enterprise";
 
 /**
+ * How a backend is reached — the integration METHOD, broker-neutral:
+ *  - "http"        a plain REST API. Portable across ANY HTTP-capable broker
+ *                  (n8n, Make, or a custom sidecar).
+ *  - "native-node" an n8n maintained node carries the auth/integration. Tied to
+ *                  n8n unless you rebuild it as HTTP modules for another broker.
+ */
+export type TransportMethod = "http" | "native-node";
+
+/** Brokers that can serve a given transport (which automation layer to point
+ *  BROKER_URL at). Make = n8n alternative (synchronous webhook); http-sidecar =
+ *  your own service implementing the binding. */
+export type BrokerKind = "n8n" | "make" | "http-sidecar";
+
+/** Which brokers can serve a transport method. HTTP is broker-portable; a native
+ *  n8n node is n8n-only. Zapier/IFTTT are deliberately absent — they're async and
+ *  can't answer the synchronous read-through contract (event edges only). */
+export function brokersForTransport(t: TransportMethod): BrokerKind[] {
+  return t === "http" ? ["n8n", "make", "http-sidecar"] : ["n8n"];
+}
+
+/**
  * The broker-neutral description of a backend: identity, where it's documented,
  * what an operator must configure, and which capability domains it can populate.
  * No transport specifics (no n8n nodes, URLs or auth expressions) live here.
