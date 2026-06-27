@@ -291,6 +291,15 @@ test("POST /api/mcp tools/call reads through the broker (demo projects)", async 
   assert.ok(Array.isArray(projects) && projects.length > 0, "MCP returned the demo projects");
 });
 
+test("POST /api/mcp writes are OFF by default — create_issue refused (here be dragons)", async () => {
+  // No MCP_WRITE_ENABLED in this test env → write tools hidden + refused.
+  const list = await readJson(await mcp({ id: 4, method: "tools/list" }));
+  assert.ok(!list.result.tools.some((t: { name: string }) => t.name === "omniproject_create_issue"));
+  const call = await readJson(await mcp({ id: 5, method: "tools/call", params: { name: "omniproject_create_issue", arguments: { projectId: "proj-1", title: "nope" } } }));
+  assert.equal(call.error.code, -32004);
+  assert.match(call.error.message, /disabled/i);
+});
+
 test("GET /api/metrics emits RED metrics (rate, errors, duration histogram)", async () => {
   await get("/api/export.csv?dataset=projects"); // generate at least one request
   const res = await get("/api/metrics");

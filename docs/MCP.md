@@ -23,8 +23,22 @@ stays stateless and the agent inherits capability-gating and the audit trail.
 | `omniproject_portfolio_health` | portfolio RAG / health | — |
 | `omniproject_capabilities` | which capability domains the backend supports | — |
 
-Writes are deliberately **not** exposed in v1 — a gated follow-up (they'd require a
-contributor+ session, not a read-only token).
+## Write tools — ⚠️ here be dragons (opt-in, double-gated)
+
+Write tools let an **agent mutate your real backend** through the gateway, so they
+are **off by default** and double-gated:
+
+| Gate | Requirement |
+| --- | --- |
+| **Server** | `MCP_WRITE_ENABLED` must be set (`1`/`true`/`on`). Until then the server looks read-only: write tools aren't even advertised in `tools/list`, and a call returns JSON-RPC `-32004`. |
+| **Caller** | a **contributor+ session** — never a read-only API token (a leaked BI token can't write). Otherwise `-32004`. |
+
+When enabled, the tools are `omniproject_create_issue`, `omniproject_update_issue`
+(supports `expectedVersion` for optimistic concurrency), and
+`omniproject_delete_issue` (**irreversible**). Each carries the ⚠️ warning in its
+description so the model sees it, each write goes through the broker's RBAC + write
+path, and each is audited (`category: broker`, `write: true`). Leave
+`MCP_WRITE_ENABLED` unset to keep MCP strictly read-only.
 
 ## Configuring a client
 

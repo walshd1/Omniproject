@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { handleMcp, MCP_TOOLS, MCP_PROTOCOL_VERSION, toolByName, type McpExecutor } from "./mcp";
+import { handleMcp, MCP_TOOLS, MCP_PROTOCOL_VERSION, toolByName, type McpExecutor, type McpPolicy } from "./mcp";
 
 const echoExec: McpExecutor = async (tool, args) => ({ tool: tool.action, args });
 const throwExec: McpExecutor = async () => { throw new Error("backend unreachable"); };
+const WRITE_OK: McpPolicy = { writesEnabled: true, canWrite: true };
 
 test("initialize returns the protocol version + tools capability", async () => {
   const r = await handleMcp({ id: 1, method: "initialize" }, echoExec, "9.9.9");
@@ -14,13 +15,33 @@ test("initialize returns the protocol version + tools capability", async () => {
   assert.equal((result["serverInfo"] as Record<string, unknown>)["version"], "9.9.9");
 });
 
-test("tools/list advertises the read-only tool surface with input schemas", async () => {
-  const r = await handleMcp({ id: 2, method: "tools/list" }, echoExec, "0");
-  const tools = (r as { result: { tools: { name: string; inputSchema: unknown }[] } }).result.tools;
-  assert.equal(tools.length, MCP_TOOLS.length);
-  assert.ok(tools.some((t) => t.name === "omniproject_list_projects"));
-  const li = tools.find((t) => t.name === "omniproject_list_issues")!;
-  assert.deepEqual((li.inputSchema as { required: string[] }).required, ["projectId"]);
+test("tools/list hides write tools by default; shows them when writes are enabled", async () => {
+  const ro = await handleMcp({ id: 2, method: "tools/list" }, echoExec, "0"); // default policy = read-only
+  const roTools = (ro as { result: { tools: { name: string }[] } }).result.tools;
+  assert.ok(roTools.some((t) => t.name === "omniproject_list_projects"));
+  assert.ok(!roTools.some((t) => t.name === "omniproject_create_issue"), "write tools hidden when disabled");
+
+  const rw = await handleMcp({ id: 2, method: "tools/list" }, echoExec, "0", WRITE_OK);
+  const rwTools = (rw as { result: { tools: { name: string; description: string }[] } }).result.tools;
+  assert.equal(rwTools.length, MCP_TOOLS.length);
+  const create = rwTools.find((t) => t.name === "omniproject_create_issue")!;
+  assert.match(create.description, /HERE BE DRAGONS|WRITE/); // the loud warning is in the description
+});
+
+test("write tools are gated: disabled → -32004, enabled-but-no-privilege → -32004, allowed → runs", async () => {
+  const call = { id: 9, method: "tools/call", params: { name: "omniproject_create_issue", arguments: { projectId: "p1", title: "x" } } };
+  // Default (writes disabled):
+  const off = await handleMcp(call, echoExec, "0");
+  assert.ok(off && "error" in off && off.error.code === -32004);
+  assert.match((off as { error: { message: string } }).error.message, /disabled/i);
+  // Enabled but caller can't write (e.g. a read-only token):
+  const noPriv = await handleMcp(call, echoExec, "0", { writesEnabled: true, canWrite: false });
+  assert.ok(noPriv && "error" in noPriv && noPriv.error.code === -32004);
+  assert.match((noPriv as { error: { message: string } }).error.message, /contributor/i);
+  // Fully allowed:
+  const okCall = await handleMcp(call, echoExec, "0", WRITE_OK);
+  assert.ok(okCall && "result" in okCall);
+  assert.equal(JSON.parse((okCall as { result: { content: { text: string }[] } }).result.content[0]!.text).tool, "create_issue");
 });
 
 test("tools/call runs the executor and returns a text content block", async () => {
