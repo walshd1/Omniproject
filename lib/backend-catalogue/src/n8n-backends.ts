@@ -240,6 +240,60 @@ export const BACKENDS: BackendDefinition[] = [
     notes: "Uses the generic tableRecord resource against the PPM tables (pm_project / pm_project_task). Adjust table/field names to your ServiceNow PPM model.",
   },
   {
+    id: "zendesk",
+    label: "Zendesk",
+    docsUrl: "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.zendesk/",
+    via: "Native n8n node (zendeskApi credential)",
+    authHeader: "",
+    requiredEnv: [],
+    credentialType: "zendeskApi",
+    capabilities: { ...CAPS_CORE, service: true },
+    actions: {
+      list_projects: { kind: "n8nNode", node: "n8n-nodes-base.zendesk", typeVersion: 1, parameters: { resource: "organization", operation: "getAll", returnAll: true }, note: "Organizations map to projects." },
+      list_issues: { kind: "n8nNode", node: "n8n-nodes-base.zendesk", typeVersion: 1, parameters: { resource: "ticket", operation: "getAll", returnAll: true, options: { query: "organization:{{ $json.body.payload.projectId }}" } }, note: "Tickets scoped to the organization (projectId)." },
+      create_issue: { kind: "n8nNode", node: "n8n-nodes-base.zendesk", typeVersion: 1, parameters: { resource: "ticket", operation: "create", description: "={{ $json.body.payload.title }}" } },
+      update_issue: { kind: "n8nNode", node: "n8n-nodes-base.zendesk", typeVersion: 1, parameters: { resource: "ticket", operation: "update", id: "={{ $json.body.payload.issueId }}", updateFields: { subject: "={{ $json.body.payload.title }}" } } },
+      delete_issue: { kind: "n8nNode", node: "n8n-nodes-base.zendesk", typeVersion: 1, parameters: { resource: "ticket", operation: "delete", id: "={{ $json.body.payload.issueId }}" } },
+    },
+    notes: "Support/ITSM: Organization → project, Ticket → issue. service capability lights up SLA/CSAT fields.",
+  },
+  {
+    id: "freshservice",
+    label: "Freshservice (Freshworks ITSM)",
+    docsUrl: "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.freshservice/",
+    via: "Native n8n node (freshserviceApi credential)",
+    authHeader: "",
+    requiredEnv: [],
+    credentialType: "freshserviceApi",
+    capabilities: { ...CAPS_CORE, service: true },
+    actions: {
+      list_projects: { kind: "n8nNode", node: "n8n-nodes-base.freshservice", typeVersion: 1, parameters: { resource: "department", operation: "getAll" }, note: "Departments map to projects (or swap for a custom grouping)." },
+      list_issues: { kind: "n8nNode", node: "n8n-nodes-base.freshservice", typeVersion: 1, parameters: { resource: "ticket", operation: "getAll" }, note: "Tickets map to issues; filter by department after import." },
+      create_issue: { kind: "n8nNode", node: "n8n-nodes-base.freshservice", typeVersion: 1, parameters: { resource: "ticket", operation: "create", subject: "={{ $json.body.payload.title }}" } },
+      update_issue: { kind: "n8nNode", node: "n8n-nodes-base.freshservice", typeVersion: 1, parameters: { resource: "ticket", operation: "update", ticketId: "={{ $json.body.payload.issueId }}", updateFields: { subject: "={{ $json.body.payload.title }}" } } },
+      delete_issue: { kind: "n8nNode", node: "n8n-nodes-base.freshservice", typeVersion: 1, parameters: { resource: "ticket", operation: "delete", ticketId: "={{ $json.body.payload.issueId }}" } },
+    },
+    notes: "Freshworks ITSM. Departments → projects, Tickets → issues. service capability on.",
+  },
+  {
+    id: "jira-service-management",
+    label: "Jira Service Management",
+    docsUrl: "https://developer.atlassian.com/cloud/jira/service-desk/rest/",
+    via: "HTTP (JSM servicedeskapi) + n8n-managed Jira credential",
+    authHeader: "",
+    requiredEnv: ["JIRA_BASE_URL"],
+    credentialType: "jiraSoftwareCloudApi",
+    capabilities: { ...CAPS_CORE, service: true },
+    actions: {
+      list_projects: { method: "GET", url: "={{ $env.JIRA_BASE_URL }}/rest/servicedeskapi/servicedesk", note: "Service desks map to projects." },
+      list_issues: { method: "GET", url: "={{ $env.JIRA_BASE_URL }}/rest/servicedeskapi/request?serviceDeskId={{ $json.body.payload.projectId }}", note: "Customer requests scoped to the service desk (projectId)." },
+      create_issue: { method: "POST", url: "={{ $env.JIRA_BASE_URL }}/rest/servicedeskapi/request", body: "={{ JSON.stringify({ serviceDeskId: $json.body.payload.projectId, requestFieldValues: { summary: $json.body.payload.title } }) }}", note: "Set requestTypeId for your service desk." },
+      update_issue: { method: "PUT", url: "={{ $env.JIRA_BASE_URL }}/rest/api/3/issue/{{ $json.body.payload.issueId }}", body: "={{ JSON.stringify({ fields: { summary: $json.body.payload.title } }) }}" },
+      delete_issue: { method: "DELETE", url: "={{ $env.JIRA_BASE_URL }}/rest/api/3/issue/{{ $json.body.payload.issueId }}" },
+    },
+    notes: "ITSM on Jira: service desks → projects, requests → issues. Reads use servicedeskapi; writes fall back to the Jira core v3 API. JIRA_BASE_URL e.g. https://your-org.atlassian.net.",
+  },
+  {
     id: "trello",
     label: "Trello",
     docsUrl: "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.trello/",
@@ -292,6 +346,43 @@ export const BACKENDS: BackendDefinition[] = [
       delete_issue: { kind: "n8nNode", node: "n8n-nodes-base.clickUp", typeVersion: 1, parameters: { resource: "task", operation: "delete", id: "={{ $json.body.payload.issueId }}" } },
     },
     notes: "Spaces/lists → projects, tasks → issues. List all lists via an extra node if you want list_projects.",
+  },
+
+  // ── PM: modern issue trackers / sheets ───────────────────────────────────────
+  {
+    id: "linear",
+    label: "Linear",
+    docsUrl: "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.linear/",
+    via: "Native n8n node (linearApi credential)",
+    authHeader: "",
+    requiredEnv: [],
+    credentialType: "linearApi",
+    capabilities: { ...CAPS_CORE },
+    actions: {
+      list_projects: { kind: "n8nNode", node: "n8n-nodes-base.linear", typeVersion: 1, parameters: { resource: "team", operation: "getAll" }, note: "Teams (or Projects) map to projects — swap the resource to match your Linear node version." },
+      list_issues: { kind: "n8nNode", node: "n8n-nodes-base.linear", typeVersion: 1, parameters: { resource: "issue", operation: "getAll", returnAll: true, filters: { teamId: "={{ $json.body.payload.projectId }}" } } },
+      create_issue: { kind: "n8nNode", node: "n8n-nodes-base.linear", typeVersion: 1, parameters: { resource: "issue", operation: "create", teamId: "={{ $json.body.payload.projectId }}", title: "={{ $json.body.payload.title }}" } },
+      update_issue: { kind: "n8nNode", node: "n8n-nodes-base.linear", typeVersion: 1, parameters: { resource: "issue", operation: "update", issueId: "={{ $json.body.payload.issueId }}", title: "={{ $json.body.payload.title }}" } },
+      delete_issue: { kind: "n8nNode", node: "n8n-nodes-base.linear", typeVersion: 1, parameters: { resource: "issue", operation: "delete", issueId: "={{ $json.body.payload.issueId }}" } },
+    },
+    notes: "Teams → projects, issues → issues. Confirm resource/param names against the installed Linear node version.",
+  },
+  {
+    id: "smartsheet",
+    label: "Smartsheet",
+    docsUrl: "https://smartsheet.redoc.ly/",
+    via: "HTTP (Smartsheet API) + bearer token",
+    authHeader: "=Bearer {{ $env.SMARTSHEET_TOKEN }}",
+    requiredEnv: ["SMARTSHEET_TOKEN"],
+    capabilities: { ...CAPS_CORE },
+    actions: {
+      list_projects: { method: "GET", url: "https://api.smartsheet.com/2.0/sheets", note: "Sheets map to projects." },
+      list_issues: { method: "GET", url: "https://api.smartsheet.com/2.0/sheets/{{ $json.body.payload.projectId }}", note: "Rows on the sheet (projectId) map to issues." },
+      create_issue: { method: "POST", url: "https://api.smartsheet.com/2.0/sheets/{{ $json.body.payload.projectId }}/rows", body: "={{ JSON.stringify({ toBottom: true, cells: [{ columnId: 0, value: $json.body.payload.title }] }) }}", note: "Set the real columnId for your title column." },
+      update_issue: { method: "PUT", url: "https://api.smartsheet.com/2.0/sheets/{{ $json.body.payload.projectId }}/rows", body: "={{ JSON.stringify({ id: $json.body.payload.issueId, cells: [{ columnId: 0, value: $json.body.payload.title }] }) }}" },
+      delete_issue: { method: "DELETE", url: "https://api.smartsheet.com/2.0/sheets/{{ $json.body.payload.projectId }}/rows?ids={{ $json.body.payload.issueId }}" },
+    },
+    notes: "Sheets → projects, rows → issues. issueId = row id; map your title column id after import.",
   },
 
   // ── CRM: accounts/companies → projects, opportunities/deals → issues ─────────
@@ -389,6 +480,25 @@ export const BACKENDS: BackendDefinition[] = [
     notes: "Project for the web stores schedules in Dataverse (msdyn_project / msdyn_projecttask). For classic Project Online, point at the PWA OData (/_api/ProjectData) with a Microsoft OAuth credential instead.",
   },
 
+  {
+    id: "dynamics365-sales",
+    label: "Microsoft Dynamics 365 Sales",
+    docsUrl: "https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview",
+    via: "HTTP + n8n-managed Dynamics OAuth (Dataverse Web API)",
+    authHeader: "",
+    requiredEnv: ["DATAVERSE_URL"],
+    credentialType: "microsoftDynamicsOAuth2Api",
+    capabilities: { ...CAPS_CORE, crm: true, financials: true },
+    actions: {
+      list_projects: { method: "GET", url: "={{ $env.DATAVERSE_URL }}/api/data/v9.2/accounts", note: "Accounts map to projects." },
+      list_issues: { method: "GET", url: "={{ $env.DATAVERSE_URL }}/api/data/v9.2/opportunities?$filter=_parentaccountid_value eq {{ $json.body.payload.projectId }}", note: "Opportunities scoped to the account (projectId)." },
+      create_issue: { method: "POST", url: "={{ $env.DATAVERSE_URL }}/api/data/v9.2/opportunities", body: "={{ JSON.stringify({ name: $json.body.payload.title }) }}" },
+      update_issue: { method: "PATCH", url: "={{ $env.DATAVERSE_URL }}/api/data/v9.2/opportunities({{ $json.body.payload.issueId }})", body: "={{ JSON.stringify({ name: $json.body.payload.title }) }}" },
+      delete_issue: { method: "DELETE", url: "={{ $env.DATAVERSE_URL }}/api/data/v9.2/opportunities({{ $json.body.payload.issueId }})" },
+    },
+    notes: "CRM on Dataverse: Account → project, Opportunity → issue. Auth via n8n's Microsoft Dynamics OAuth2 credential. Sibling to the dynamics365 Project Operations binding.",
+  },
+
   // ── ERP: NetSuite (HTTP SuiteTalk REST; no native n8n node) ──────────────────
   {
     id: "netsuite",
@@ -407,6 +517,44 @@ export const BACKENDS: BackendDefinition[] = [
       delete_issue: { method: "DELETE", url: "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask/{{ $json.body.payload.issueId }}" },
     },
     notes: "Auth is NetSuite token-based (OAuth 1.0a TBA) configured as an n8n OAuth1 credential (consumer key/secret + token key/secret + realm/account id). NETSUITE_BASE_URL e.g. https://<account>.suitetalk.api.netsuite.com. job → project, projectTask → issue; finance entities (job costing) back the financials capability. Confirm record/field names against your NetSuite account + SuiteTalk version.",
+  },
+
+  // ── ERP: Odoo (native node) + Dolibarr (HTTP, SMB) ──────────────────────────
+  {
+    id: "odoo",
+    label: "Odoo",
+    docsUrl: "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.odoo/",
+    via: "Native n8n node (odooApi credential)",
+    authHeader: "",
+    requiredEnv: [],
+    credentialType: "odooApi",
+    capabilities: { ...CAPS_CORE, financials: true },
+    actions: {
+      list_projects: { kind: "n8nNode", node: "n8n-nodes-base.odoo", typeVersion: 1, parameters: { resource: "custom", customResource: "project.project", operation: "getAll" }, note: "project.project records map to projects." },
+      list_issues: { kind: "n8nNode", node: "n8n-nodes-base.odoo", typeVersion: 1, parameters: { resource: "custom", customResource: "project.task", operation: "getAll", filters: { project_id: "={{ $json.body.payload.projectId }}" } } },
+      create_issue: { kind: "n8nNode", node: "n8n-nodes-base.odoo", typeVersion: 1, parameters: { resource: "custom", customResource: "project.task", operation: "create", fieldsToCreateOrUpdate: { fields: [{ fieldName: "name", fieldValue: "={{ $json.body.payload.title }}" }, { fieldName: "project_id", fieldValue: "={{ $json.body.payload.projectId }}" }] } } },
+      update_issue: { kind: "n8nNode", node: "n8n-nodes-base.odoo", typeVersion: 1, parameters: { resource: "custom", customResource: "project.task", operation: "update", customResourceId: "={{ $json.body.payload.issueId }}" } },
+      delete_issue: { kind: "n8nNode", node: "n8n-nodes-base.odoo", typeVersion: 1, parameters: { resource: "custom", customResource: "project.task", operation: "delete", customResourceId: "={{ $json.body.payload.issueId }}" } },
+    },
+    notes: "Odoo via the custom-model resource: project.project → projects, project.task → issues. Auth + URL live in the Odoo credential. Confirm model/field names for your Odoo modules.",
+  },
+  {
+    id: "dolibarr",
+    label: "Dolibarr (SMB ERP)",
+    docsUrl: "https://wiki.dolibarr.org/index.php?title=Module_Web_Services_API_REST_(developer)",
+    via: "HTTP (Dolibarr REST) + n8n Header-Auth credential (DOLAPIKEY)",
+    authHeader: "",
+    requiredEnv: ["DOLIBARR_URL"],
+    credentialType: "httpHeaderAuth",
+    capabilities: { ...CAPS_CORE, financials: true },
+    actions: {
+      list_projects: { method: "GET", url: "={{ $env.DOLIBARR_URL }}/api/index.php/projects", note: "Dolibarr projects." },
+      list_issues: { method: "GET", url: "={{ $env.DOLIBARR_URL }}/api/index.php/projects/{{ $json.body.payload.projectId }}/tasks" },
+      create_issue: { method: "POST", url: "={{ $env.DOLIBARR_URL }}/api/index.php/tasks", body: "={{ JSON.stringify({ label: $json.body.payload.title, fk_project: $json.body.payload.projectId }) }}" },
+      update_issue: { method: "PUT", url: "={{ $env.DOLIBARR_URL }}/api/index.php/tasks/{{ $json.body.payload.issueId }}", body: "={{ JSON.stringify({ label: $json.body.payload.title }) }}" },
+      delete_issue: { method: "DELETE", url: "={{ $env.DOLIBARR_URL }}/api/index.php/tasks/{{ $json.body.payload.issueId }}" },
+    },
+    notes: "Open-source SMB ERP. projects → projects, tasks → issues. Auth via the DOLAPIKEY header (configure an n8n Header Auth credential named DOLAPIKEY). DOLIBARR_URL e.g. https://erp.example.com.",
   },
 
   // ── Massive corporate backbones (HTTP + n8n-managed credential) ─────────────
@@ -476,7 +624,7 @@ export function getBackend(id: string): BackendDefinition | undefined {
  * large corporate ERPs / scheduling systems that are the paid-for integrations.
  * The standard backends (Jira, OpenProject, GitHub, …) stay free.
  */
-const ENTERPRISE_BACKENDS = new Set(["sap", "primavera", "dynamics365", "msproject", "netsuite", "enterprise"]);
+const ENTERPRISE_BACKENDS = new Set(["sap", "primavera", "dynamics365", "dynamics365-sales", "msproject", "netsuite", "enterprise"]);
 
 export function isEnterpriseBackend(id: string): boolean {
   return ENTERPRISE_BACKENDS.has(id);

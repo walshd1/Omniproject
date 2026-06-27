@@ -211,3 +211,21 @@ a future action.)
 
 This is the whole integration surface. Anything OmniProject can do, it does
 through these actions; if your service answers them, it is a first-class broker.
+
+## 6. Alternative brokers (Make / Zapier / IFTTT)
+
+n8n is the *reference* broker, not the only one — any automation platform that can
+answer this binding can take its place. The hard requirement is a **synchronous**
+webhook: the gateway POSTs `{ action, payload }` and **waits for `{ success, data }`
+in the same HTTP response**. That cleanly splits the iPaaS options:
+
+| Platform | As a data broker? | Why |
+| --- | --- | --- |
+| **Make** (Integromat) | **Yes** | Its *Custom webhook* + *Webhook response* modules return a synchronous body, so a Make scenario can dispatch to the backend and reply with `{ success, data }`. Build one scenario that switches on `action`, point `BROKER_URL` at the webhook, and run the conformance suite — same path as n8n. |
+| **Zapier** | **Inbound/events only** | Zaps run asynchronously and can't return a custom synchronous HTTP body to the caller, so Zapier can't serve read-through reads. It *is* useful on the edges: trigger Zaps **from** OmniProject's outbound HMAC events (§4), or have a Zap **push** updates into `POST /api/notifications/ingest`. |
+| **IFTTT** | **Inbound/events only** | Webhooks (Maker) are fire-and-forget triggers with no synchronous response and minimal logic — same role as Zapier: event in/out, not the data broker. |
+
+So: **Make** is a drop-in alternative to n8n for the full read/write contract;
+**Zapier/IFTTT** widen the *event* surface (notifications in, automations out) but
+sit alongside a real broker rather than replacing it. For the data hop, the
+HTTP-binding sidecar (§5) or n8n/Make remain the supported paths.
