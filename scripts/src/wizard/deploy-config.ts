@@ -1,4 +1,4 @@
-import { securityFindings, type SecurityFinding } from "./security-check";
+import { securityFindings, type SecurityFinding } from "../../../artifacts/api-server/src/lib/security-check";
 
 /**
  * Deployment config model + pure generators for the first-run setup wizard.

@@ -2,7 +2,10 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
+    // No rootDir: these are tsx-run tooling scripts (never emitted), and the
+    // setup wizard imports a few PURE libs from @workspace/api-server by relative
+    // path (single source of truth for the backend catalogue + security check).
+    "noEmit": true,
     "types": ["node"]
   },
   "include": ["src"]

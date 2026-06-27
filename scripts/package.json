@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "wizard": "tsx ./src/wizard/wizard.ts",
     "gen-contract": "tsx ./src/gen-contract.ts",
     "verify-n8n": "tsx ./src/verify-n8n-bidirectional.ts",
     "e2e-smoke": "tsx ./src/e2e-smoke.ts",
