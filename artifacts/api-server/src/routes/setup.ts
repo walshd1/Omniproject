@@ -21,6 +21,7 @@ import { DEV_PERSIST_ENABLED } from "../lib/dev-persist";
 import { getDemoState } from "../lib/data";
 import { buildZip } from "../lib/zip";
 import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
+import { configDirSummary } from "../lib/config-dir";
 import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
 import {
   storeView,
@@ -126,6 +127,12 @@ router.get("/setup/export", requireRole("admin"), (req, res) => {
     format,
   );
   res.type("text/plain").send(text);
+});
+
+// GET /api/setup/config-dir — admin: what the deployment config directory
+// (OMNI_CONFIG_DIR) loaded at boot (vendor overlay counts, config applied, errors).
+router.get("/setup/config-dir", requireRole("admin"), (_req, res) => {
+  res.json(configDirSummary());
 });
 
 // GET /api/setup/backends — catalogue for the workflow wizard. Admin-only backends
