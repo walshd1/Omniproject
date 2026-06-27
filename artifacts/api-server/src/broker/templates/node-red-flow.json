@@ -1,0 +1,48 @@
+[
+  {
+    "id": "omni-tab",
+    "type": "tab",
+    "label": "OmniProject broker",
+    "disabled": false,
+    "info": "Synchronous OmniProject broker binding. Import into Node-RED, deploy, then point BROKER_URL at http://<node-red-host>:1880/omniproject and run the OmniProject conformance suite. Handles the verify handshake + get_capabilities out of the box; wire the data actions to your backend via an HTTP Request node (see node-red-flow.md)."
+  },
+  {
+    "id": "omni-http-in",
+    "type": "http in",
+    "z": "omni-tab",
+    "name": "broker webhook",
+    "url": "/omniproject",
+    "method": "post",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 150,
+    "y": 140,
+    "wires": [["omni-fn"]]
+  },
+  {
+    "id": "omni-fn",
+    "type": "function",
+    "z": "omni-tab",
+    "name": "binding",
+    "func": "// OmniProject broker binding (the contract is docs/BROKER-HTTP-BINDING.md).\nconst body = msg.payload || {};\nconst action = body.action;\n\n// 1) verify handshake — answer WITHOUT calling a backend.\nif (body.verify === true) {\n    msg.statusCode = 200;\n    msg.payload = { success: true, data: { verified: true } };\n    return msg;\n}\n\n// 2) capabilities — declare which data domains your backend can feed.\nif (action === 'get_capabilities') {\n    msg.statusCode = 200;\n    msg.payload = { success: true, data: { issues: true, scheduling: true, resources: true, financials: true, portfolio: true, history: true, raid: true } };\n    return msg;\n}\n\n// 3) data actions — wire these to your backend with an HTTP Request node, then\n//    normalise the result to { success: true, data: <result> }. Until then, report\n//    them honestly as unimplemented (a 501, not a silent empty success).\nmsg.statusCode = 501;\nmsg.payload = { success: false, message: 'action \"' + action + '\" not wired — add an HTTP Request node to your backend (see node-red-flow.md)' };\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 360,
+    "y": 140,
+    "wires": [["omni-http-response"]]
+  },
+  {
+    "id": "omni-http-response",
+    "type": "http response",
+    "z": "omni-tab",
+    "name": "respond",
+    "statusCode": "",
+    "headers": {},
+    "x": 570,
+    "y": 140,
+    "wires": []
+  }
+]
