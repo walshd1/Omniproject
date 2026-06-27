@@ -5,7 +5,7 @@ import { isOidcConfigured } from "../lib/oidc";
 import { resolveCapabilities } from "../lib/capabilities";
 import { requireRole, roleForReq, hasRole } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
-import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, methodologyCatalogue, reportCatalogue, screenCatalogue, planeCatalogue } from "@workspace/backend-catalogue";
+import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, methodologyCatalogue, reportCatalogue, screenCatalogue, planeCatalogue, availableReports, availableScreens } from "@workspace/backend-catalogue";
 import { busMode } from "../lib/notify-bus";
 import { brokerLogBusMode } from "../lib/broker-log-bus";
 import { rateLimitMode } from "../lib/rate-limit";
@@ -145,11 +145,19 @@ router.get("/setup/notifications", (_req, res) => {
 router.get("/setup/methodologies", (_req, res) => {
   res.json(methodologyCatalogue());
 });
-router.get("/setup/reports", (_req, res) => {
-  res.json(reportCatalogue());
+// Full catalogue (what OmniProject CAN do), or — with ?available=1 — only the
+// entries the CONNECTED backend(s) can actually feed. The hard rule: if none of
+// the connected backends support a report/screen, ?available=1 omits it. (`caps`
+// is the resolved set — already the union across every connected backend.)
+router.get("/setup/reports", async (req, res) => {
+  if (req.query["available"] !== "1") { res.json(reportCatalogue()); return; }
+  const caps = (await resolveCapabilities(req).catch(() => null)) as unknown as Record<string, boolean> | null;
+  res.json(caps ? availableReports(caps) : reportCatalogue());
 });
-router.get("/setup/screens", (_req, res) => {
-  res.json(screenCatalogue());
+router.get("/setup/screens", async (req, res) => {
+  if (req.query["available"] !== "1") { res.json(screenCatalogue()); return; }
+  const caps = (await resolveCapabilities(req).catch(() => null)) as unknown as Record<string, boolean> | null;
+  res.json(caps ? availableScreens(caps) : screenCatalogue());
 });
 // The plane meta-registry — all seven planes + their dev docs.
 router.get("/setup/planes", (_req, res) => {

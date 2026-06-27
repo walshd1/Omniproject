@@ -67,7 +67,7 @@ test("Notion is a report destination channel (broker-delivered)", async () => {
   assert.equal(notion!.capabilities.delivery, "api-key");
 });
 
-test("Planview (enterprise) + Celoxis backends are catalogued, capability-honest", async () => {
+test("Planview (enterprise) + Celoxis + LiquidPlanner backends are catalogued, capability-honest", async () => {
   const cat = backendCatalogue();
   const planview = cat.find((b) => b.id === "planview");
   assert.equal(planview?.kind, "live");
@@ -77,6 +77,37 @@ test("Planview (enterprise) + Celoxis backends are catalogued, capability-honest
   const celoxis = cat.find((b) => b.id === "celoxis");
   assert.equal(celoxis?.tier, "standard");
   assert.equal(celoxis?.capabilities.financials, true);
+  const lp = cat.find((b) => b.id === "liquidplanner");
+  assert.equal(lp?.capabilities.scheduling, true);
+  assert.equal(lp?.capabilities.resources, true);
+});
+
+test("INVARIANT: a vendor is only ever a backend/broker/notification/output — never its own plane", async () => {
+  const { PLANES, VENDOR_PLANES } = await import("./planes");
+  // The four vendor planes, and only those.
+  assert.deepEqual([...VENDOR_PLANES].sort(), ["backends", "brokers", "notifications", "outputs"]);
+  // Methodologies/reports/screens are vendor-NEUTRAL concepts.
+  for (const id of ["methodologies", "reports", "screens"]) {
+    assert.equal(PLANES.find((p) => p.id === id)?.vendor, false, `${id} must be a neutral plane`);
+  }
+  // Every plane is classified (no undefined), and vendor ⊕ neutral partitions them.
+  for (const p of PLANES) assert.equal(typeof p.vendor, "boolean");
+});
+
+test("HARD RULE: availableReports/availableScreens hide what no connected backend supports", async () => {
+  const { availableReports } = await import("./report-catalogue");
+  const { availableScreens } = await import("./screen-catalogue");
+  // A backend with ONLY issues (no scheduling/financials/portfolio/…): EVM (needs
+  // financials) and the Gantt (needs scheduling) must NOT appear.
+  const issuesOnly = { issues: true };
+  const reports = availableReports(issuesOnly);
+  assert.equal(reports.some((r) => r.id === "evm"), false, "no financials ⇒ no EVM");
+  assert.equal(reports.some((r) => r.id === "gantt"), false, "no scheduling ⇒ no Gantt report");
+  const screens = availableScreens(issuesOnly);
+  assert.equal(screens.some((s) => s.id === "gantt"), false, "no scheduling ⇒ no Gantt screen");
+  assert.ok(screens.some((s) => s.id === "home"), "capability-free screens still show");
+  // Union semantics: with scheduling on (one backend supplies it), Gantt returns.
+  assert.ok(availableReports({ issues: true, scheduling: true }).some((r) => r.id === "gantt"));
 });
 
 test("backend kinds: Excel is an import source; SQL/Mongo are admin-only databases", () => {
