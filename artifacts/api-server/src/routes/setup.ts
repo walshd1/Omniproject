@@ -10,7 +10,7 @@ import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
 import { connectedBrokerKinds } from "../broker/registry";
 import { requireRole, hasRole } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
-import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, notificationKindCatalogue, methodologyCatalogue, reportCatalogue, screenCatalogue, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, methodologyTags } from "@workspace/backend-catalogue";
+import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, notificationKindCatalogue, methodologyCatalogue, methodologyPack, reportCatalogue, screenCatalogue, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, methodologyTags } from "@workspace/backend-catalogue";
 import { isEntitled, resolveLicense } from "../lib/license";
 import { auditStatus } from "../lib/audit";
 import { DEV_PERSIST_ENABLED } from "../lib/dev-persist";
@@ -158,6 +158,15 @@ router.get("/setup/notification-kinds", (_req, res) => {
 });
 router.get("/setup/methodologies", (_req, res) => {
   res.json(methodologyCatalogue());
+});
+// A methodology PACK — the methodology's definition + every asset carrying its tag
+// (views, notification routes, ruleset), as one importable JSON bundle. Admin only:
+// it's the portable look-and-feel an operator drops into another deployment's config.
+router.get("/setup/methodology-pack/:id", requireRole("admin"), (req, res) => {
+  const pack = methodologyPack(String(req.params["id"]));
+  if (!pack) { res.status(404).json({ error: "Unknown methodology" }); return; }
+  res.setHeader("Content-Disposition", `attachment; filename="methodology-${pack.methodology.id}.json"`);
+  res.json(pack);
 });
 // The board views (JSON-defined) + the DERIVED methodology tag list. With
 // ?methodology=<tag>, only the views that methodology activates (+ neutral ones).

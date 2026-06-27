@@ -917,6 +917,14 @@ METHODOLOGY registry — the PM methodologies OmniProject can shape itself to (S
 | `getMethodology` | One methodology definition by id, or undefined. |
 | `methodologyCatalogue` | All methodology definitions (a defensive copy). |
 
+### `lib/backend-catalogue/src/methodology-pack.ts`
+
+METHODOLOGY PACKS — a methodology is a DERIVED grouping, not a plane: a "pack" is the methodology's definition plus every asset that carries its methodology tag, collected from across the catalogue.
+
+| Function | What it does |
+| --- | --- |
+| `methodologyPack` | Assemble the pack for a methodology: its definition + every catalogue asset carrying its tag. |
+
 ### `lib/backend-catalogue/src/methodology-rulesets.ts`
 
 REFERENCE RULESETS — a curated, named business-ruleset bundle per methodology, to help a PMO get compliance + completeness right out of the box.
