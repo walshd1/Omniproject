@@ -1,21 +1,19 @@
 /**
- * Reference HTTP broker sidecar — the minimal, in-memory implementation of the
- * broker HTTP binding (docs/BROKER-HTTP-BINDING.md).
+ * Reference HTTP broker sidecar — a RUNNABLE in-memory broker (the CI conformance
+ * fixture + author template).
  *
- * Two jobs:
- *   1. **CI fixture** — the conformance suite runs against it over real HTTP
- *      (http-conformance.test.ts), proving the seam works for ANY out-of-process
- *      broker, not just the in-process demo. This is the scaffolding that makes a
- *      DB-backed sidecar (RFC-003) a drop-in: point BROKER_URL at a service that
- *      passes conformance and the core needs zero changes.
- *   2. **Author template** — `pnpm --filter @workspace/api-server run sidecar`
- *      starts it; a real sidecar swaps the in-memory store for Postgres/Mongo/etc.
+ * Clean separation, same as every other broker here: the binding plumbing
+ * (envelope, PSK, verify short-circuit, the action router, the error taxonomy)
+ * comes from the shared `processBrokerCall` core — this file is ONLY the in-memory
+ * `BrokerBackend` (the store logic) + the Node-HTTP transport glue. A real sidecar
+ * swaps `inMemoryBackend` for Postgres/Mongo/etc. and changes nothing else.
  *
- * It speaks exactly the binding: POST `{action, payload, …}` → `{success, data}`,
- * HTTP status codes for the error taxonomy, optimistic concurrency via 409.
+ *   1. CI fixture — http-conformance.test.ts runs the conformance suite against it.
+ *   2. Author template — `pnpm --filter @workspace/api-server run sidecar`.
  */
 import http from "node:http";
-import { pskEnabled, sealPayload, openPayload } from "../lib/broker-psk";
+import { sealPayload } from "../lib/broker-psk";
+import { processBrokerCall, BrokerHttpError, type BrokerBackend } from "./reference-broker-blueprint";
 
 type Row = Record<string, unknown>;
 
@@ -45,107 +43,91 @@ const CAPABILITIES = {
   baseline: true, blockers: true, history: true, raid: true, quality: false, crm: false, service: false,
 };
 
-/** Dispatch one binding action against the store. Throws `{status}` to map onto
- *  the error taxonomy; returns the normalised `data` otherwise. */
-function dispatch(store: Store, action: string, payload: Row): unknown {
-  const pid = String(payload["projectId"] ?? "");
-  const now = new Date().toISOString();
-  switch (action) {
-    case "list_projects": return store.projects;
-    case "list_issues": return store.issues[pid] ?? [];
-    case "get_issue": return (store.issues[pid] ?? []).find((i) => i["id"] === payload["issueId"]) ?? null;
-    case "list_project_members": return [{ id: "u-ref-1", name: "Ada Reference", email: null, access: "write", skills: ["reference"], availableHours: 40, allocatedHours: 20 }];
-    case "list_task_items": return [];
-    case "project_summary": {
-      const issues = store.issues[pid] ?? [];
+/** The in-memory system of record. This is the ONLY broker-specific code — the
+ *  binding lives in the shared core. Throw BrokerHttpError to drive the taxonomy. */
+function inMemoryBackend(store: Store): BrokerBackend {
+  const now = () => new Date().toISOString();
+  return {
+    async listProjects() { return store.projects; },
+    async listIssues(_ctx, projectId) { return store.issues[projectId] ?? []; },
+    async getIssue(_ctx, projectId, issueId) { return (store.issues[projectId] ?? []).find((i) => i["id"] === issueId) ?? null; },
+    async listProjectMembers() { return [{ id: "u-ref-1", name: "Ada Reference", email: null, access: "write", skills: ["reference"], availableHours: 40, allocatedHours: 20 }]; },
+    async listTaskItems() { return []; },
+    async projectSummary(_ctx, projectId) {
+      const issues = store.issues[projectId] ?? [];
       const completed = issues.filter((i) => i["status"] === "done").length;
-      return { projectId: pid, total: issues.length, completed, overdue: 0, byStatus: {}, completionPct: issues.length ? Math.round((completed / issues.length) * 100) : 0 };
-    }
-    case "get_project_history": return [];
-    case "get_baseline": return null;
-    case "get_raid": return [];
-    case "create_raid_entry": return { id: `raid-${Date.now()}`, projectId: pid, ...payload, provenance: "sourced", createdAt: now, updatedAt: now };
-    case "get_notifications": return [];
-    case "get_portfolio_health": return [];
-    case "get_resource_capacity": return [];
-    case "get_project_financials": return { projectId: pid, currency: "GBP", budget: null, actualCost: null, earnedValue: null, committed: null };
-    case "get_capabilities": return CAPABILITIES;
-    case "get_fx_rates": return { base: "GBP", rates: { GBP: 1, USD: 1.27, EUR: 1.17 } };
-    case "replay": return [];
-    case "list_activity": return [];
-    case "create_project": {
-      const proj = { id: `proj-ref-${store.projects.length + 1}`, name: payload["name"], identifier: payload["identifier"] ?? "NEW", description: payload["description"] ?? null, source: "reference", programmeId: payload["programmeId"] ?? null, programmeName: null, issueCount: 0, completedCount: 0, memberCount: 0, updatedAt: now };
+      return { projectId, total: issues.length, completed, overdue: 0, byStatus: {}, completionPct: issues.length ? Math.round((completed / issues.length) * 100) : 0 };
+    },
+    async projectHistory() { return []; },
+    async baseline() { return null; },
+    async raid() { return []; },
+    async notifications() { return []; },
+    async portfolioHealth() { return []; },
+    async resourceCapacity() { return []; },
+    async projectFinancials(_ctx, projectId) { return { projectId, currency: "GBP", budget: null, actualCost: null, earnedValue: null, committed: null }; },
+    async capabilities() { return CAPABILITIES; },
+    async fxRates() { return { base: "GBP", rates: { GBP: 1, USD: 1.27, EUR: 1.17 } }; },
+    async replay() { return []; },
+    async activity() { return []; },
+    async createProject(_ctx, input) {
+      const proj = { id: `proj-ref-${store.projects.length + 1}`, name: input["name"], identifier: input["identifier"] ?? "NEW", description: input["description"] ?? null, source: "reference", programmeId: input["programmeId"] ?? null, programmeName: null, issueCount: 0, completedCount: 0, memberCount: 0, updatedAt: now() };
       store.projects.push(proj);
       return proj;
-    }
-    case "update_project": {
-      const proj = store.projects.find((p) => p["id"] === pid);
-      if (!proj) throw { status: 404 };
-      Object.assign(proj, payload, { updatedAt: now });
+    },
+    async updateProject(_ctx, projectId, input) {
+      const proj = store.projects.find((p) => p["id"] === projectId);
+      if (!proj) throw new BrokerHttpError(404);
+      Object.assign(proj, input, { updatedAt: now() });
       return proj;
-    }
-    case "create_issue": {
-      const issue = { id: `iss-ref-${++store.issueSeq}`, projectId: pid, title: payload["title"], status: payload["status"] ?? "backlog", priority: payload["priority"] ?? "none", labels: payload["labels"] ?? [], source: "reference", version: 1, createdAt: now, updatedAt: now };
-      (store.issues[pid] ??= []).push(issue);
+    },
+    async createIssue(_ctx, projectId, input) {
+      const issue = { id: `iss-ref-${++store.issueSeq}`, projectId, title: input["title"], status: input["status"] ?? "backlog", priority: input["priority"] ?? "none", labels: input["labels"] ?? [], source: "reference", version: 1, createdAt: now(), updatedAt: now() };
+      (store.issues[projectId] ??= []).push(issue);
       return issue;
-    }
-    case "update_issue": {
-      const issue = (store.issues[pid] ?? []).find((i) => i["id"] === payload["issueId"]);
-      if (!issue) throw { status: 404 };
-      const expected = payload["expectedVersion"];
-      if (expected != null && expected !== issue["version"]) throw { status: 409, body: issue };
-      const { projectId: _p, issueId: _i, expectedVersion: _v, ...patch } = payload;
-      Object.assign(issue, patch, { version: (issue["version"] as number) + 1, updatedAt: now });
+    },
+    async updateIssue(_ctx, projectId, issueId, input) {
+      const issue = (store.issues[projectId] ?? []).find((i) => i["id"] === issueId);
+      if (!issue) throw new BrokerHttpError(404);
+      const expected = input["expectedVersion"];
+      if (expected != null && expected !== issue["version"]) throw new BrokerHttpError(409, issue); // current row for the gateway to surface
+      const { projectId: _p, issueId: _i, expectedVersion: _v, ...patch } = input;
+      Object.assign(issue, patch, { version: (issue["version"] as number) + 1, updatedAt: now() });
       return issue;
-    }
-    case "delete_issue": {
-      const list = store.issues[pid] ?? [];
-      const idx = list.findIndex((i) => i["id"] === payload["issueId"]);
+    },
+    async deleteIssue(_ctx, projectId, issueId) {
+      const list = store.issues[projectId] ?? [];
+      const idx = list.findIndex((i) => i["id"] === issueId);
       if (idx !== -1) list.splice(idx, 1);
       return null;
-    }
-    case "create_task_item": return { id: `ti-${Date.now()}`, taskId: payload["taskId"], kind: payload["kind"] ?? "note", content: payload["content"] ?? "", author: null, createdAt: now };
-    default:
-      // Verify probes and any unrecognised action: a healthy no-op success.
-      return null;
-  }
+    },
+    async createRaidEntry(_ctx, projectId, input) {
+      return { id: `raid-${Date.now()}`, projectId, ...input, provenance: "sourced", createdAt: now(), updatedAt: now() };
+    },
+    async createTaskItem(_ctx, _projectId, taskId, input) {
+      return { id: `ti-${Date.now()}`, taskId, kind: input["kind"] ?? "note", content: input["content"] ?? "", author: null, createdAt: now() };
+    },
+  };
 }
 
-/** Build (but don't start) the reference sidecar HTTP server. */
+/** Build (but don't start) the reference sidecar HTTP server — a thin adapter over
+ *  the shared core + the in-memory backend, with PSK-symmetric wire encoding. */
 export function createReferenceSidecar(): http.Server {
-  const store = seed();
+  const backend = inMemoryBackend(seed());
   return http.createServer((req, res) => {
     if (req.method !== "POST") { res.writeHead(405).end(); return; }
     let raw = "";
     req.on("data", (c) => { raw += c; });
     req.on("end", () => {
-      let body: Row = {};
-      try { body = raw ? JSON.parse(raw) : {}; } catch { res.writeHead(400).end(); return; }
-
-      // PSK (lib/broker-psk.ts): if the gateway encrypted the envelope, the body
-      // is `{ v, enc }` — decrypt it back to the real envelope. We reply encrypted
-      // too, so neither direction exposes project data or the bearer token on the
-      // wire. A bad/absent key fails the auth tag → 400 (never a silent passthrough).
-      const encrypted = typeof body["enc"] === "string";
-      if (encrypted) {
-        const opened = pskEnabled() ? openPayload(body["enc"] as string) : null;
-        if (opened === null) { res.writeHead(400).end(); return; }
-        try { body = JSON.parse(opened) as Row; } catch { res.writeHead(400).end(); return; }
-      }
-      const action = String((req.headers["x-omniproject-action"] as string) || body["action"] || "");
-      const payload = (body["payload"] as Row) ?? {};
-      const reply = (status: number, obj: unknown): void => {
-        const text = JSON.stringify(obj);
-        res.writeHead(status, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject" });
-        res.end(encrypted ? JSON.stringify({ v: 1, enc: sealPayload(text) }) : text);
-      };
-      try {
-        const data = dispatch(store, action, payload);
-        reply(200, { success: true, data, message: null });
-      } catch (e) {
-        const err = e as { status?: number; body?: unknown };
-        reply(err.status ?? 500, err.body ?? { success: false, message: "error" });
-      }
+      void processBrokerCall(
+        { rawBody: raw, actionHeader: req.headers["x-omniproject-action"] as string | undefined, authHeader: req.headers["authorization"] as string | undefined },
+        backend,
+      ).then((r) => {
+        const text = JSON.stringify(r.body);
+        // Reply encrypted when the request was (so the wire stays opaque both ways).
+        const wire = r.encrypted ? JSON.stringify({ v: 1, enc: sealPayload(text) }) : text;
+        res.writeHead(r.status, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject" });
+        res.end(wire);
+      });
     });
   });
 }

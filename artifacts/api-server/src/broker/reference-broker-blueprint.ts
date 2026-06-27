@@ -33,6 +33,10 @@ export interface ActorCtx {
   role?: string;
   /** Backend routing hint (which system of record), from the `source` field. */
   source?: string;
+  /** Dedup token — a provider MAY use it to collapse duplicate triggers. */
+  idempotencyKey?: string;
+  /** Loop-guard origin tag. A provider SHOULD echo it on emitted events. */
+  origin?: string;
 }
 
 /** Thrown by every unimplemented backend operation. Maps to HTTP 501. */
@@ -161,24 +165,33 @@ export interface BrokerCoreInput {
   /** Optional `Authorization` header value (per-user impersonation). */
   authHeader?: string;
 }
-export interface BrokerCoreResult { status: number; body: unknown }
+export interface BrokerCoreResult {
+  status: number;
+  body: unknown;
+  /** True when the request arrived PSK-encrypted — the transport SHOULD encrypt
+   *  the response the same way (symmetric wire format). */
+  encrypted: boolean;
+}
 
 export async function processBrokerCall(input: BrokerCoreInput, be: BrokerBackend = backend): Promise<BrokerCoreResult> {
   // 1. Parse the body (decrypting a PSK envelope first if present).
   let body: Row;
+  let encrypted = false;
   try {
     let json: Row = input.rawBody ? (JSON.parse(input.rawBody) as Row) : {};
     if (typeof json["enc"] === "string") {
       const opened = openPsk(json["enc"] as string);
-      if (opened === null) return { status: 400, body: { success: false, message: "bad PSK envelope" } };
+      if (opened === null) return { status: 400, body: { success: false, message: "bad PSK envelope" }, encrypted: false };
       json = JSON.parse(opened) as Row;
+      encrypted = true;
     }
     body = json;
   } catch {
-    return { status: 400, body: { success: false, message: "invalid JSON" } };
+    return { status: 400, body: { success: false, message: "invalid JSON" }, encrypted: false };
   }
 
-  // 2. Extract action + the authenticated actor (forward, never store).
+  // 2. Extract action + the FULL control surface (a provider shouldn't be
+  //    neutered — it gets the actor, source routing, idempotency + origin).
   const action = String(input.actionHeader || body["action"] || "");
   const payload = (body["payload"] as Row) ?? {};
   const userContext = (payload["userContext"] as Row | undefined) ?? undefined;
@@ -188,21 +201,23 @@ export async function processBrokerCall(input: BrokerCoreInput, be: BrokerBacken
     sub: userContext?.["sub"] as string | undefined,
     role: userContext?.["role"] as string | undefined,
     source: body["source"] as string | undefined,
+    idempotencyKey: body["idempotencyKey"] as string | undefined,
+    origin: body["origin"] as string | undefined,
   };
 
   // 3. `verify` short-circuit: a dry-run probe must NOT touch the backend.
   if (body["verify"] === true || payload["verify"] === true) {
-    return { status: 200, body: { success: true, data: { action, verified: true }, message: "verify ok" } };
+    return { status: 200, body: { success: true, data: { action, verified: true }, message: "verify ok" }, encrypted };
   }
 
   // 4. Dispatch + map results/errors onto the envelope + taxonomy.
   try {
     const data = await dispatch(action, payload, ctx, be);
-    return { status: 200, body: { success: true, data, message: null } };
+    return { status: 200, body: { success: true, data, message: null }, encrypted };
   } catch (e) {
-    if (e instanceof NotImplemented) return { status: 501, body: { success: false, message: e.message } };
+    if (e instanceof NotImplemented) return { status: 501, body: { success: false, message: e.message }, encrypted };
     const err = e as BrokerHttpError;
-    return { status: typeof err?.status === "number" ? err.status : 500, body: err.body ?? { success: false, message: "error" } };
+    return { status: typeof err?.status === "number" ? err.status : 500, body: err.body ?? { success: false, message: "error" }, encrypted };
   }
 }
 
