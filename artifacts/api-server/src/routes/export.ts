@@ -9,6 +9,7 @@ import { toCsv, type CsvValue } from "../lib/csv";
 import { buildXlsx, type Sheet } from "../lib/xlsx";
 import { toMarkdown } from "../lib/md";
 import { buildPdf } from "../lib/pdf";
+import { traceFn } from "../broker/trace";
 
 const router = Router();
 
@@ -102,6 +103,8 @@ const EXPORTERS: Record<string, { contentType: string; render: (d: Dataset) => s
 /** One handler for every single-dataset format — looks the serialiser up by extension. */
 function datasetExport(format: string) {
   const exporter = EXPORTERS[format]!;
+  // Trace/capture the serialiser as the `export` plane (same decorator as the seam).
+  const render = traceFn("export", format, exporter.render);
   return async (req: Request, res: Response) => {
     const dataset = String(req.query["dataset"] ?? "projects");
     const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
@@ -111,7 +114,7 @@ function datasetExport(format: string) {
         res.status(400).json({ error: "dataset must be projects, issues, or activity" });
         return;
       }
-      send(res, `${d.base}.${format}`, exporter.contentType, exporter.render(d));
+      send(res, `${d.base}.${format}`, exporter.contentType, render(d));
     } catch (err) {
       req.log.error({ err, dataset, format }, "export failed");
       res.status(502).json({ error: "Export failed" });

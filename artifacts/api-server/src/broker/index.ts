@@ -4,7 +4,7 @@ import { roleForReq } from "../lib/rbac";
 import { N8nBroker, N8N_ENV_CONFIGURED, pingBroker } from "./n8n";
 import { DemoBroker } from "./demo";
 import { BrokerError, type Broker, type ActorContext } from "./types";
-import { traceEnabled, wrapWithTrace } from "./trace";
+import { instrumented, wrapWithTrace } from "./trace";
 
 /**
  * Broker selection + the request→domain context adapter.
@@ -22,7 +22,7 @@ let singleton: Broker | null = null;
 export function getBroker(): Broker {
   if (!singleton) {
     const base: Broker = N8N_ENV_CONFIGURED ? new N8nBroker() : new DemoBroker();
-    singleton = traceEnabled() ? wrapWithTrace(base) : base;
+    singleton = instrumented() ? wrapWithTrace(base) : base;
   }
   return singleton;
 }

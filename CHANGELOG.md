@@ -8,21 +8,33 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
-- **Broker trace mode + single-instruction CLI (shipped but inert in prod)** — a
-  developer aid that makes the seam observable at the *method* boundary. A Proxy
-  decorator (`wrapWithTrace`) over the `Broker` interface logs every call
-  (`→ method` / `← method` with timing, `✗` on failure) through the shared pino
-  logger, so you can see which of the ~25 broker methods ran, in what order, with
-  what shape — and `pnpm broker:send <method> [jsonArg…] [--twice]` fires a single
-  instruction through the seam (against the demo broker or a real backend) and, with
-  `--twice`, sends it again and diffs the two results to flag a non-idempotent path.
-  Being a Proxy it needs no per-method wiring and auto-covers future methods.
-  **Strongly gated:** every debug surface is inert under `NODE_ENV=production`
-  (a CI guard test asserts it); off by default, opt in with `BROKER_TRACE=1` on a
-  non-prod build; redaction-by-default (credentials never emitted, values summarised
-  to shape only) with full payloads behind a second non-prod flag
-  `BROKER_TRACE_PAYLOADS=1`. The CLI is a `scripts` entry, never an HTTP route, so it
-  adds nothing to the running server's surface.
+- **Plane trace + capture/replay (dev-only debug tooling)** — a developer aid that
+  makes dispatch planes observable at the *method* boundary, and lets you capture
+  activity on one instance and replay it on another.
+  - **Trace** — `traced(plane, obj)` wraps any dispatch object in a Proxy that logs
+    every call (`→ plane.method` / `← plane.method` with timing, `✗` on failure)
+    through the shared pino logger. Applied to the **broker** seam, plus the
+    **notify** (routing decision) and **export** (serialisers) planes; report *data*
+    already flows through the traced broker. Being a Proxy it needs no per-method
+    wiring and auto-covers methods added later.
+  - **Single-instruction CLI** — `pnpm broker:send <method> [jsonArg…] [--twice]`
+    fires one instruction through the seam; `--twice` sends it again and diffs the
+    two results to flag a non-idempotent path.
+  - **Capture tape** — point `BROKER_CAPTURE` at a path and every exchange is
+    appended to an ordered JSONL tape (`{seq, ts, plane, method, args, result, ms,
+    ok}`), payloads full but always secret-scrubbed. The tape is portable: copy it to
+    another instance.
+  - **Replay** — `pnpm broker:replay <tape>` summarises it; `--serve <method>`
+    returns the *recorded* response (a deterministic offline cassette — also sidesteps
+    an egress block); `--redrive` re-issues the recorded instructions against the live
+    broker on another instance and diffs each result against the recording to surface
+    divergence. Re-drive is **read-only by default** (writes skipped unless
+    `--allow-writes`; `--dry-run` lists only).
+  - **Strongly gated, dev-only:** every surface is inert under `NODE_ENV=production`
+    (a CI guard test asserts it); off by default; redaction-by-default with full trace
+    payloads behind a second flag `BROKER_TRACE_PAYLOADS=1`; capture writes real
+    activity to disk so it is a non-prod/CI artifact kept out of the production image.
+    The CLIs are `scripts` entries, never HTTP routes — no new server surface.
 - **Rich graph + map rendering (dependency-free SVG)** — the `graph` and `map`
   panels now render real visuals, not just the accessible summary: `graph` draws a
   node-link diagram with a circular layout; `map` plots points via an

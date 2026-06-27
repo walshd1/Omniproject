@@ -7,7 +7,11 @@ import { getNotifyBus, busMode } from "../lib/notify-bus";
 import { emitWebhookEvent } from "../lib/webhooks";
 import { routeNotification, getNotificationChannel, notificationSeverity } from "@workspace/backend-catalogue";
 import { logger } from "../lib/logger";
+import { traceFn } from "../broker/trace";
 import type { NotificationIngest, IngestedNotification } from "../broker/contract";
+
+/** The notify-plane dispatch decision, traced/capturable like the broker seam. */
+const tracedRouteNotification = traceFn("notify", "route", routeNotification);
 
 /**
  * Two routers:
@@ -102,7 +106,7 @@ ingestRouter.post("/notifications/ingest", ingestAuth, async (req: Request, res:
   // delivery channels this event goes to (gated to channels that actually exist).
   // The DECISION rides along with the outbound event; DELIVERY stays below the seam
   // — the broker workflow reads `dispatch[].channel` and posts to Slack/PagerDuty/…
-  const dispatch = routeNotification({ kind: notification.kind }, (id) => !!getNotificationChannel(id));
+  const dispatch = tracedRouteNotification({ kind: notification.kind }, (id) => !!getNotificationChannel(id));
   // The kind's canonical severity (info | warning | critical) from the registry —
   // so a downstream channel can prioritise (page on critical, digest on info).
   const severity = notificationSeverity(notification.kind);
