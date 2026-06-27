@@ -5,7 +5,7 @@ import { unionSupport, isCapabilityMet } from "./compatibility";
 
 test("the broker registry lists every supported broker with a build method", () => {
   const ids = BROKERS.map((b) => b.id).sort();
-  assert.deepEqual(ids, ["http-sidecar", "make", "n8n", "pipedream", "power-automate", "serverless"]);
+  assert.deepEqual(ids, ["http-sidecar", "make", "n8n", "node-red", "pipedream", "power-automate", "serverless"]);
   for (const b of BROKERS) {
     assert.ok(b.label && b.docsUrl && b.build, `${b.id} missing fields`);
     assert.ok(typeof b.capabilities.synchronous === "boolean");

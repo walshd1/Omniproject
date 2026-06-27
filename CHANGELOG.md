@@ -8,6 +8,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Node-RED broker — with an importable flow you can truly test against** (**Stable**)
+  — a seventh reference broker, added as a single JSON drop
+  (`vendors/brokers/node-red.json`) — the architecture's promise in action. Node-RED
+  is open-source and self-hosted, and its `HTTP In → HTTP Response` flow answers the
+  read-through contract **synchronously**, so it's a genuine data hop (synchronous,
+  self-hostable, inbound + outbound events; no managed per-connector auth — you wire
+  credentials yourself). A free, self-hostable alternative to n8n. Ships an
+  **importable flow** (`broker/templates/node-red-flow.json` + guide) that answers the
+  verify handshake + capabilities out of the box — deploy it, point `BROKER_URL` at
+  it, and you're exercising OmniProject against a **real external broker**, not just
+  the in-memory sidecar. A test guards the flow JSON + its binding so it can't rot.
 - **Methodology is a cross-plane derived grouping (presets across reports + screens)**
   (**Stable**) — reports and screens now carry a `methodologies` tag like views, so a
   methodology spans every renderable plane. `reportsForMethodology(id)` /

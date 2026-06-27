@@ -22,6 +22,7 @@ import { withOverlay } from "./vendor-overlay";
 /** The brokers OmniProject knows how to be driven by (all synchronous data hops). */
 export type BrokerKind =
   | "n8n"
+  | "node-red"
   | "make"
   | "pipedream"
   | "power-automate"

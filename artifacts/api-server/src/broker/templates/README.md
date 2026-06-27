@@ -14,6 +14,7 @@ platform-specific**:
 | **http-sidecar** | `implement-blueprint` | `../reference-broker-blueprint.ts` | **Yes** — defines the core |
 | Make | `scenario-template` | `make-scenario.md` | No — visual runtime, mirrors the structure |
 | Power Automate | `flow-template` | `power-automate-flow.md` | No — cloud-flow runtime, mirrors the structure |
+| **Node-RED** | `implement-blueprint` | `node-red-flow.json` (+ `.md`) | No — flow runtime, but **importable**: deploy it and `BROKER_URL` at it to truly test against a real external broker |
 
 > **Airflow is not a broker.** It can't serve the synchronous read-through hop, so
 > it lives in the **outputs** plane as a scheduled `batch-egress`
