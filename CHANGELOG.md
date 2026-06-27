@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **ScreenRenderer hosts the real methodology views as panels** (**Beta**) — a
+  `view` panel kind bridges the generic renderer to the existing heavy view
+  components (Kanban board, Gantt, Scrum, PRINCE2, RAID, List) via the shared
+  `VIEW_COMPONENTS` registry. A screen can now embed any view as a panel (config:
+  `{ view, projectId }`); the components are reused unchanged and self-fetch their
+  data, so the renderer needs no data plumbing — the payoff of writing the board /
+  Gantt once. Still additive (no page migrated yet).
 - **Generic ScreenRenderer + panel registry** (**Beta**) — one renderer that lays a
   screen's panels onto a grid and delegates each to its panel renderer by `kind`, so
   screens, views and reports all render from JSON through ONE component (each widget
