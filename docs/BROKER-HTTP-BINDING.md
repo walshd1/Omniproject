@@ -212,6 +212,21 @@ a future action.)
 This is the whole integration surface. Anything OmniProject can do, it does
 through these actions; if your service answers them, it is a first-class broker.
 
+**Two reference implementations to start from:**
+
+- **`broker/reference-sidecar.ts`** — a small, *runnable* in-memory broker. It's
+  the CI conformance fixture and a quick demo; you can `tsx` it and point
+  `BROKER_URL` at it to see the seam work end to end.
+- **`broker/reference-broker-blueprint.ts`** — a **functionally complete but
+  deliberately non-functional** design. It implements the *entire* plumbing
+  correctly (envelope parsing, optional PSK decrypt, the `verify` short-circuit,
+  per-user auth extraction, the full action router, the response envelope, the
+  error taxonomy incl. 409, and outbound HMAC event signing) — but every
+  `backend.*` call throws `NotImplemented` (→ HTTP 501). It is intentionally not
+  deployable: a skeleton you **complete** by wiring each method to your system of
+  record, not an architecture you ship as-is. Implement `backend`, run
+  conformance, deploy.
+
 ## 6. Alternative brokers (Make / Zapier / IFTTT)
 
 n8n is the *reference* broker, not the only one — any automation platform that can
