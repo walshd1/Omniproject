@@ -4,6 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { loadConfigDir } from "../lib/config-dir";
+import { buildConfigBundle } from "../lib/config-bundle";
+import { getFieldRules } from "../lib/ruleset";
 import { getBackend, backendCatalogue, clearVendorOverlay } from "@workspace/backend-catalogue";
 
 /**
@@ -72,4 +74,27 @@ test("a non-existent OMNI_CONFIG_DIR is reported, not thrown", () => {
   const summary = loadConfigDir(path.join(os.tmpdir(), "definitely-not-here-omni"));
   assert.equal(summary.present, false);
   assert.equal(summary.errors.length, 1);
+});
+
+test("rulesets/field-rules.json is applied from the config dir", () => {
+  clearVendorOverlay();
+  const dir = makeConfigDir({
+    "rulesets/field-rules.json": [
+      { id: "r1", action: "writeIssue", field: "estimateHours", mode: "warn" },
+    ],
+  });
+  const summary = loadConfigDir(dir);
+  assert.equal(summary.rulesetsApplied, true);
+  assert.ok(getFieldRules().some((r) => r.id === "r1" && r.field === "estimateHours"));
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("the config bundle is a non-empty zip carrying config.json + rulesets (read ≡ dump)", () => {
+  const zip = buildConfigBundle();
+  assert.ok(Buffer.isBuffer(zip) && zip.length > 0);
+  assert.equal(zip.subarray(0, 2).toString("latin1"), "PK"); // ZIP magic
+  const text = zip.toString("latin1");
+  assert.match(text, /config\.json/);
+  assert.match(text, /rulesets\/field-rules\.json/);
+  assert.match(text, /rulesets\/rule-modes\.json/);
 });

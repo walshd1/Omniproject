@@ -65,3 +65,13 @@ export function vendorOverlayCounts(): Record<VendorPlane, number> {
     outputs: overlay.outputs.size,
   };
 }
+
+/** The registered overlay vendors per plane (for the "lock this config" dump). */
+export function vendorOverlayEntries(): Record<VendorPlane, Array<{ id: string }>> {
+  return {
+    backends: [...overlay.backends.values()],
+    brokers: [...overlay.brokers.values()],
+    notifications: [...overlay.notifications.values()],
+    outputs: [...overlay.outputs.values()],
+  };
+}
