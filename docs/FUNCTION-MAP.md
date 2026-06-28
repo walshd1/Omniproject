@@ -312,12 +312,13 @@ Autonomous principals.
 
 | Function | What it does |
 | --- | --- |
+| `autonomousTtlMs` | — |
 | `autonomousSub` | The namespaced, clearly-non-human principal id for an autonomous actor. |
 | `actorKindOf` | The kind of principal a spec describes. |
 | `registerAutonomousActor` | Register (or raise/lower) the max role an autonomous actor id may run as (admin/config). |
 | `authorizedRole` | The max role a known actor may run as, or undefined if it isn't an allowed source. |
 | `mintAutonomousContext` | Mint a KEYED, RBAC-roled ActorContext for an autonomous actor. |
-| `assertMintFresh` | Confirm a minted context is FRESH for this run: stamped, not in the future, and within `maxAgeMs` of `now`. |
+| `assertMintFresh` | Confirm a minted context is FRESH for this run: stamped, not in the future, not past its short expiry, and within the (short) TTL of `now`. |
 | `isAutonomous` | Is this context an autonomous (non-human) principal? |
 | `assertAutonomousCan` | Enforce RBAC for an autonomous actor before it performs `need`-gated work. |
 

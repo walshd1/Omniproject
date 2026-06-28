@@ -33,6 +33,23 @@ export interface AutonomousSpec {
   reason?: string;
 }
 
+/**
+ * Autonomous sessions are deliberately SHORT-LIVED. Re-keying an autonomous actor is
+ * free (mint a fresh sessionBind), so there's no reason to let one live long: a tight
+ * window shrinks the value of a leaked key to near-zero. Default 30s; configurable via
+ * AUTONOMOUS_SESSION_SECONDS but hard-clamped to [5s, 5min] so it can never be made
+ * long-lived. Consumers should re-mint per action rather than reuse a context.
+ */
+const DEFAULT_TTL_MS = 30_000;
+const MIN_TTL_MS = 5_000;
+const MAX_TTL_MS = 300_000;
+
+export function autonomousTtlMs(): number {
+  const secs = Number(process.env["AUTONOMOUS_SESSION_SECONDS"]?.trim());
+  if (!Number.isFinite(secs) || secs <= 0) return DEFAULT_TTL_MS;
+  return Math.min(MAX_TTL_MS, Math.max(MIN_TTL_MS, secs * 1000));
+}
+
 /** The namespaced, clearly-non-human principal id for an autonomous actor. */
 export function autonomousSub(spec: Pick<AutonomousSpec, "id" | "onBehalfOf">): string {
   return spec.onBehalfOf ? `agent:${spec.id}:${spec.onBehalfOf}` : `automation:${spec.id}`;
@@ -106,6 +123,8 @@ export function mintAutonomousContext(spec: AutonomousSpec, now: number): ActorC
     name: spec.reason ? `${spec.id} (${spec.reason})` : spec.id,
     actorKind: actorKindOf(spec),
     issuedAt: now,
+    // Short-lived by design — the session expires quickly; re-mint to re-key (free).
+    expiresAt: now + autonomousTtlMs(),
     sessionBind: { sub, smono: process.hrtime.bigint().toString(), salt: randomBytes(16).toString("hex") },
   };
   // The result must reflect the time it was minted for — a self-check that the stamp
@@ -115,13 +134,16 @@ export function mintAutonomousContext(spec: AutonomousSpec, now: number): ActorC
 }
 
 /**
- * Confirm a minted context is FRESH for this run: stamped, not in the future, and within
- * `maxAgeMs` of `now`. A consumer of an autonomous context calls this so a cached or
- * replayed principal (minted long ago, or for a different run) can't be reused.
+ * Confirm a minted context is FRESH for this run: stamped, not in the future, not past
+ * its short expiry, and within the (short) TTL of `now`. A consumer of an autonomous
+ * context calls this so a cached or replayed principal can't be reused beyond its tiny
+ * window — re-mint instead (re-keying is free). `maxAgeMs` defaults to the configured
+ * autonomous TTL; an explicit `expiresAt` on the context is also enforced.
  */
-export function assertMintFresh(ctx: Pick<ActorContext, "issuedAt">, now: number, maxAgeMs = 30_000): void {
+export function assertMintFresh(ctx: Pick<ActorContext, "issuedAt" | "expiresAt">, now: number, maxAgeMs = autonomousTtlMs()): void {
   if (typeof ctx.issuedAt !== "number") throw new AutonomousMintDenied("context carries no mint timestamp");
   if (ctx.issuedAt > now) throw new AutonomousMintDenied("mint timestamp is in the future");
+  if (typeof ctx.expiresAt === "number" && now > ctx.expiresAt) throw new AutonomousMintDenied("minted context has expired");
   if (now - ctx.issuedAt > maxAgeMs) throw new AutonomousMintDenied("minted context is stale");
 }
 

@@ -45,6 +45,9 @@ export interface ActorContext {
   /** For a minted autonomous principal: the invocation time it was minted for (epoch ms),
    *  so a consumer can prove it's fresh and not a replayed/cached context. */
   issuedAt?: number;
+  /** For a minted autonomous principal: its (short) expiry — autonomous sessions are
+   *  deliberately brief since re-keying is free. */
+  expiresAt?: number;
 }
 
 /** A normalised project row. */

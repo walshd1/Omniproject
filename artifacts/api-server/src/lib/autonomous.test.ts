@@ -1,8 +1,8 @@
-import { test } from "node:test";
+import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   mintAutonomousContext, autonomousSub, actorKindOf, assertAutonomousCan, isAutonomous,
-  assertMintFresh, registerAutonomousActor, authorizedRole, AutonomousForbidden, AutonomousMintDenied,
+  assertMintFresh, autonomousTtlMs, registerAutonomousActor, authorizedRole, AutonomousForbidden, AutonomousMintDenied,
 } from "./autonomous";
 import { deriveSessionBrokerKey } from "./session-key";
 import { sessionMac } from "./provenance";
@@ -65,6 +65,25 @@ test("assertMintFresh accepts a just-minted context and rejects stale/future one
   assert.throws(() => assertMintFresh(ctx, NOW - 1_000), AutonomousMintDenied); // before it was minted
   assert.throws(() => assertMintFresh({}, NOW), AutonomousMintDenied); // no stamp at all
 });
+
+test("autonomous sessions are SHORT by design: default 30s TTL + an expiry stamp", () => {
+  assert.equal(autonomousTtlMs(), 30_000);
+  const ctx = mintAutonomousContext({ id: "health-watch", role: "viewer" }, NOW);
+  assert.equal(ctx.expiresAt, NOW + 30_000);
+  // Past the expiry it is rejected even if a generous maxAge were passed.
+  assert.throws(() => assertMintFresh(ctx, NOW + 31_000, 10 * 60_000), AutonomousMintDenied);
+});
+
+test("the TTL is configurable but hard-clamped so it can never be made long-lived", () => {
+  process.env["AUTONOMOUS_SESSION_SECONDS"] = "10";
+  assert.equal(autonomousTtlMs(), 10_000);
+  process.env["AUTONOMOUS_SESSION_SECONDS"] = "99999"; // clamped down to the 5-min ceiling
+  assert.equal(autonomousTtlMs(), 300_000);
+  process.env["AUTONOMOUS_SESSION_SECONDS"] = "1"; // clamped up to the 5s floor
+  assert.equal(autonomousTtlMs(), 5_000);
+});
+
+afterEach(() => { delete process.env["AUTONOMOUS_SESSION_SECONDS"]; });
 
 test("registerAutonomousActor admits a new known source (admin/config)", () => {
   registerAutonomousActor("nightly-rollup", "manager");
