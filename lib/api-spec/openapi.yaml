@@ -1774,6 +1774,13 @@ components:
         aiProvider:
           type: string
           enum: [none, openai, ollama, anthropic, openrouter]
+        sttProvider:
+          type: string
+          description: >-
+            Speech-to-text engine. "browser" runs on-device (no audio egress);
+            "whisper" is an AI-assisted, off-device transcription provider
+            (governance-gated). "none" disables dictation server-side.
+          enum: [none, browser, whisper]
         aiModel:
           type: ["string", "null"]
         backendSource:
@@ -1834,6 +1841,11 @@ components:
         aiProvider:
           type: string
           enum: [none, openai, ollama, anthropic, openrouter]
+        sttProvider:
+          type: string
+          description: >-
+            Speech-to-text engine ("none" | "browser" on-device | "whisper" AI-assisted).
+          enum: [none, browser, whisper]
         aiModel:
           type: ["string", "null"]
         backendSource:

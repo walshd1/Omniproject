@@ -18,6 +18,16 @@ function coerceAiProvider(raw: unknown): AiProvider {
   return (AI_PROVIDERS as readonly string[]).includes(raw as string) ? (raw as AiProvider) : "none";
 }
 
+/** AI-assisted speech-to-text engines. "browser" = the device's own recogniser (local,
+ *  zero audio egress); "whisper" = an OpenAI-compatible /audio/transcriptions endpoint
+ *  (self-hosted Whisper server OR a cloud one). Whisper is just one provider. */
+export const STT_PROVIDERS = ["none", "browser", "whisper"] as const;
+export type SttProvider = (typeof STT_PROVIDERS)[number];
+
+function coerceSttProvider(raw: unknown): SttProvider {
+  return (STT_PROVIDERS as readonly string[]).includes(raw as string) ? (raw as SttProvider) : "none";
+}
+
 /** Thrown when an admin settings write fails validation; the route maps it to 400. */
 export class SettingsValidationError extends Error {
   constructor(message: string) {
@@ -74,6 +84,7 @@ export interface SettingsState {
   /** The active broker's webhook/endpoint URL (n8n by default). */
   brokerUrl: string | null;
   aiProvider: AiProvider;
+  sttProvider: SttProvider;
   aiModel: string | null;
   backendSource: BackendSource;
   oidcIssuerUrl: string | null;
@@ -235,6 +246,7 @@ function loggingSyncFromEnv(): LoggingSyncConfig {
 const store: SettingsState = {
   brokerUrl: process.env["BROKER_URL"]?.trim() || null,
   aiProvider: coerceAiProvider(process.env["AI_PROVIDER"]?.trim() || "none"),
+  sttProvider: coerceSttProvider(process.env["STT_PROVIDER"]?.trim() || "none"),
   aiModel: process.env["AI_MODEL"] ?? null,
   backendSource: process.env["BACKEND_SOURCE"]?.trim() || "all",
   oidcIssuerUrl: process.env["OIDC_ISSUER_URL"] ?? null,
@@ -256,6 +268,7 @@ export function isTimeTravelEnabled(): boolean {
 const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "brokerUrl",
   "aiProvider",
+  "sttProvider",
   "aiModel",
   "backendSource",
   "oidcIssuerUrl",
@@ -312,6 +325,9 @@ function validateFieldOverrides(value: unknown): void {
 function validatePatch(patch: Record<string, unknown>): void {
   if ("aiProvider" in patch && !(AI_PROVIDERS as readonly string[]).includes(patch["aiProvider"] as string)) {
     throw new SettingsValidationError(`aiProvider must be one of: ${AI_PROVIDERS.join(", ")}`);
+  }
+  if ("sttProvider" in patch && !(STT_PROVIDERS as readonly string[]).includes(patch["sttProvider"] as string)) {
+    throw new SettingsValidationError(`sttProvider must be one of: ${STT_PROVIDERS.join(", ")}`);
   }
   for (const key of ["brokerUrl", "oidcIssuerUrl"] as const) {
     if (key in patch && patch[key] != null) {

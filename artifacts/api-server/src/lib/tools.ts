@@ -94,9 +94,18 @@ function brokerCapabilities(): GovernedCapability[] {
   }));
 }
 
+/** Speech-to-text engines, governed like AI providers. "browser" runs on the device
+ *  (local, zero audio egress); "whisper" sends audio to a configured endpoint. */
+function sttCapabilities(): GovernedCapability[] {
+  return [
+    { id: "stt:browser", kind: "ai-provider", label: "STT — device (local)", description: "The browser's own speech recogniser. Audio never leaves the device.", supportedStates: ["user-defined"], surfaceAware: true },
+    { id: "stt:whisper", kind: "ai-provider", label: "STT — Whisper", description: "An OpenAI-compatible Whisper endpoint (self-hosted or cloud). Sends audio off-device.", supportedStates: ANY, surfaceAware: true },
+  ];
+}
+
 /** Every governed capability across all kinds. */
 export function listCapabilities(): GovernedCapability[] {
-  return [...AI_TOOLS, MCP_CAPABILITY, ...providerCapabilities(), ...brokerCapabilities(), ...vendorCapabilities()];
+  return [...AI_TOOLS, MCP_CAPABILITY, ...providerCapabilities(), ...sttCapabilities(), ...brokerCapabilities(), ...vendorCapabilities()];
 }
 
 const byId = new Map(listCapabilities().map((c) => [c.id, c]));

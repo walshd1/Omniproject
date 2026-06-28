@@ -46,6 +46,7 @@ export function Settings() {
   const [formData, setFormData] = useState({
     brokerUrl: "",
     aiProvider: "none",
+    sttProvider: "none",
     aiModel: "",
     backendSource: "all",
     oidcIssuerUrl: "",
@@ -58,6 +59,7 @@ export function Settings() {
       setFormData({
         brokerUrl: settings.brokerUrl || "",
         aiProvider: settings.aiProvider || "none",
+        sttProvider: settings.sttProvider || "none",
         aiModel: settings.aiModel || "",
         backendSource: settings.backendSource || "all",
         oidcIssuerUrl: settings.oidcIssuerUrl || "",
@@ -76,6 +78,7 @@ export function Settings() {
     const payload: SettingsUpdate = {
       brokerUrl: formData.brokerUrl.trim() || null,
       aiProvider: formData.aiProvider as SettingsUpdate["aiProvider"],
+      sttProvider: formData.sttProvider as SettingsUpdate["sttProvider"],
       aiModel: formData.aiModel.trim() || null,
       backendSource: formData.backendSource as SettingsUpdate["backendSource"],
       oidcIssuerUrl: formData.oidcIssuerUrl.trim() || null,
@@ -220,6 +223,29 @@ export function Settings() {
               </div>
             </div>
           )}
+
+          <div className="space-y-2 pt-2 border-t border-border">
+            <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">SPEECH-TO-TEXT</label>
+            <Select
+              value={formData.sttProvider}
+              onValueChange={(v) => setFormData((p) => ({ ...p, sttProvider: v }))}
+            >
+              <SelectTrigger className="rounded-none border-border h-12 font-mono uppercase">
+                <SelectValue placeholder="Select engine" />
+              </SelectTrigger>
+              <SelectContent className="rounded-none border-border font-mono uppercase">
+                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="browser">On-device — Browser (no egress)</SelectItem>
+                <SelectItem value="whisper">AI-assisted — Whisper</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Dictation engine. <span className="font-mono">Browser</span> transcribes on the device — audio never
+              leaves the machine. <span className="font-mono">Whisper</span> is AI-assisted (audio is uploaded), so it
+              is governance-gated and honours the AI kill switch. The Whisper endpoint/key are read from the gateway
+              environment.
+            </p>
+          </div>
         </div>
 
         {/* ── Auth ── */}

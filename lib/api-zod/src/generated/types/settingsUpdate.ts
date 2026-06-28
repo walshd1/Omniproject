@@ -8,11 +8,14 @@
 import type { FieldMapOverride } from './fieldMapOverride';
 import type { LoggingSync } from './loggingSync';
 import type { SettingsUpdateAiProvider } from './settingsUpdateAiProvider';
+import type { SettingsUpdateSttProvider } from './settingsUpdateSttProvider';
 
 export interface SettingsUpdate {
   /** @nullable */
   brokerUrl?: string | null;
   aiProvider?: SettingsUpdateAiProvider;
+  /** Speech-to-text engine ("none" | "browser" on-device | "whisper" AI-assisted). */
+  sttProvider?: SettingsUpdateSttProvider;
   /** @nullable */
   aiModel?: string | null;
   /** Free-form backend routing hint passed to the broker (see Settings.backendSource). */

@@ -784,6 +784,18 @@ export const SettingsAiProvider = {
 } as const;
 
 /**
+ * Speech-to-text engine. "browser" runs on-device (no audio egress); "whisper" is an AI-assisted, off-device transcription provider (governance-gated). "none" disables dictation server-side.
+ */
+export type SettingsSttProvider = typeof SettingsSttProvider[keyof typeof SettingsSttProvider];
+
+
+export const SettingsSttProvider = {
+  none: 'none',
+  browser: 'browser',
+  whisper: 'whisper',
+} as const;
+
+/**
  * Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject's stateless posture; egressed data is the operator's responsibility and outside OmniProject's warranty. Enabling it unlocks historical time-travel.
  */
 export interface LoggingSync {
@@ -813,6 +825,8 @@ export interface Settings {
      */
   brokerUrl?: string | null;
   aiProvider: SettingsAiProvider;
+  /** Speech-to-text engine. "browser" runs on-device (no audio egress); "whisper" is an AI-assisted, off-device transcription provider (governance-gated). "none" disables dictation server-side. */
+  sttProvider?: SettingsSttProvider;
   /** @nullable */
   aiModel?: string | null;
   /** Free-form backend routing hint passed to the broker (e.g. "all", "jira", "azure-devops", "servicenow", "plane", "openproject"). "all" means no filter — whatever the broker is wired to. */
@@ -834,10 +848,24 @@ export const SettingsUpdateAiProvider = {
   openrouter: 'openrouter',
 } as const;
 
+/**
+ * Speech-to-text engine ("none" | "browser" on-device | "whisper" AI-assisted).
+ */
+export type SettingsUpdateSttProvider = typeof SettingsUpdateSttProvider[keyof typeof SettingsUpdateSttProvider];
+
+
+export const SettingsUpdateSttProvider = {
+  none: 'none',
+  browser: 'browser',
+  whisper: 'whisper',
+} as const;
+
 export interface SettingsUpdate {
   /** @nullable */
   brokerUrl?: string | null;
   aiProvider?: SettingsUpdateAiProvider;
+  /** Speech-to-text engine ("none" | "browser" on-device | "whisper" AI-assisted). */
+  sttProvider?: SettingsUpdateSttProvider;
   /** @nullable */
   aiModel?: string | null;
   /** Free-form backend routing hint passed to the broker (see Settings.backendSource). */

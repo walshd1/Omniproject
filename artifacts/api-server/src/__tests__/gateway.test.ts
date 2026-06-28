@@ -794,6 +794,7 @@ test("certify all HTTP backends: read URLs fully resolve (no dangling placeholde
 const SAMPLE_SETTINGS = {
   brokerUrl: "https://n8n/x",
   aiProvider: "ollama" as const,
+  sttProvider: "none" as const,
   aiModel: "llama3.2",
   backendSource: "sap",
   oidcIssuerUrl: "https://idp",

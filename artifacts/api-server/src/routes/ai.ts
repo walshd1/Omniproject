@@ -15,6 +15,7 @@ import { answerCopilot } from "../lib/copilot";
 import { getBroker, contextFromReq } from "../broker";
 import { hasRole } from "../lib/rbac";
 import { aiContainmentLevel, aiSourceLevel } from "../lib/ai-containment";
+import { transcribe, sttStatus, sttCapabilityId, SttError } from "../lib/stt";
 
 const router = Router();
 
@@ -140,6 +141,39 @@ router.post("/ai/copilot", async (req, res) => {
     const status = err instanceof AiError ? err.status : 502;
     req.log.error({ err }, "copilot failed");
     res.status(status).json({ error: err instanceof Error ? err.message : "copilot failed" });
+  }
+});
+
+// ── GET /api/ai/stt — which speech-to-text engine is active (and is it local?) ──
+router.get("/ai/stt", (_req, res) => {
+  res.json(sttStatus());
+});
+
+// ── POST /api/ai/transcribe — AI-assisted speech-to-text (Whisper et al) ──
+// Only for off-device providers; the browser engine transcribes client-side. Governance-
+// gated (the active stt:<provider> capability must be on for this surface) + kill-switch
+// honoured. Body: { audio: base64, mime }.
+router.post("/ai/transcribe", async (req, res) => {
+  const body = (req.body ?? {}) as { audio?: unknown; mime?: unknown; surface?: unknown };
+  if (typeof body.audio !== "string" || !body.audio) { res.status(400).json({ error: "Body must be { audio: base64, mime }." }); return; }
+
+  const surface = screenIdForRoute(typeof body.surface === "string" ? body.surface : undefined);
+  const session = getSession(req);
+  try {
+    enforceCapability(sttCapabilityId(), { surface, actor: session ? { sub: session.sub, email: session.email } : null });
+  } catch (err) {
+    if (err instanceof CapabilityBlockedError) { res.status(403).json({ error: `Speech-to-text is unavailable here: ${err.message}` }); return; }
+    throw err;
+  }
+
+  try {
+    const audio = Buffer.from(body.audio, "base64");
+    const result = await transcribe(audio, typeof body.mime === "string" ? body.mime : "audio/webm");
+    res.json(result);
+  } catch (err) {
+    const status = err instanceof SttError ? err.status : 502;
+    req.log.error({ err }, "transcription failed");
+    res.status(status).json({ error: err instanceof Error ? err.message : "transcription failed" });
   }
 });
 

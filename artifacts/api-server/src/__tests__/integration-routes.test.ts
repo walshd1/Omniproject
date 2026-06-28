@@ -225,6 +225,23 @@ test("POST /api/ai/chat rejects a malformed body with 400", async () => {
   assert.equal(res.status, 400);
 });
 
+test("GET /api/ai/stt reports the active speech-to-text engine", async () => {
+  const res = await get("/api/ai/stt");
+  assert.equal(res.status, 200);
+  const json = await readJson(res);
+  assert.ok("provider" in json);
+  assert.ok("local" in json);
+});
+
+test("POST /api/ai/transcribe rejects a body without audio with 400", async () => {
+  const res = await get("/api/ai/transcribe", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ mime: "audio/webm" }),
+  });
+  assert.equal(res.status, 400);
+});
+
 // ── Setup / Connection Center ─────────────────────────────────────────────────
 
 test("GET /api/setup/status reflects the gateway wiring", async () => {
