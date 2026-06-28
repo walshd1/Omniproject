@@ -19,6 +19,31 @@ The stateless Express gateway: routes above the broker seam, the broker adapter 
 
 Express application assembly — wires the middleware chain (security headers, body limits, request logging/timing, session cookies), mounts the `/api` router, and serves the built SPA from STATIC_DIR in single-container mode.
 
+### `artifacts/api-server/src/broker/cache.ts`
+
+OPT-IN server-side read cache — a short-TTL, in-memory cache of broker reads.
+
+| Function | What it does |
+| --- | --- |
+| `readCacheTtlMs` | The configured TTL in ms (0 ⇒ disabled). |
+| `readCacheEnabled` | Is the opt-in read cache active? |
+| `readCacheStats` | Cache hit/miss counters (for diagnostics). |
+| `invalidateReadCache` | Clear the active read cache, if any (called by write/command paths + resetBroker). |
+| `wrapWithCache` | Wrap a broker so its reads are cached for the configured TTL (writes clear it). |
+| `resetReadCacheStats` | Test-only: reset the hit/miss counters. |
+
+### `artifacts/api-server/src/broker/capture.ts`
+
+Capture tape — an ordered, append-only JSONL recording of plane exchanges over time, so a developer can capture activity on one instance and replay it on another (capture.ts records; replay.ts plays back).
+
+| Function | What it does |
+| --- | --- |
+| `captureEnabled` | Is capture armed? (Non-prod + BROKER_CAPTURE points at a path.) |
+| `capturePath` | The armed tape path, or null. |
+| `recordExchange` | Append one (secret-scrubbed) exchange to the armed tape. |
+| `resetCaptureSeq` | Test-only: reset the per-process sequence counter. |
+| `readTape` | Read a tape file into ordered exchanges (skips blank/corrupt lines). |
+
 ### `artifacts/api-server/src/broker/conformance.ts`
 
 Broker conformance suite — broker-agnostic.
@@ -42,10 +67,22 @@ Demo dataset — the canned data the DemoBroker serves.
 | `sampleNotifications` | Canned notification rows for demo mode (no backend). |
 | `getDemoState` | ── Stateful dev mode (opt-in via DEV_PERSIST_FILE; demo only) ───────────────── |
 | `persistDemoState` | Persist the in-memory demo dataset so it survives a restart (dev/test only). |
+| `loadDemoState` | Hydrate the demo dataset from disk on boot when stateful dev mode is enabled. |
 
 ### `artifacts/api-server/src/broker/demo.ts`
 
 Demo broker — the fake adapter.
+
+### `artifacts/api-server/src/broker/dev-broker.ts`
+
+Dev broker — the DEVELOPER/debug broker (distinct from the DemoBroker, which is the demonstration broker for training/sales).
+
+| Function | What it does |
+| --- | --- |
+| `getDevBrokerConfig` | The current dev-broker config (vendor × data source). |
+| `setDevBrokerConfig` | Update the dev-broker config (the caller resets the broker singleton to apply). |
+| `buildDevBroker` | Build a dev broker for an explicit config. |
+| `devBrokerFromEnv` | The active dev broker, or null to fall back to the normal broker. |
 
 ### `artifacts/api-server/src/broker/endpoint-context.ts`
 
@@ -63,6 +100,9 @@ Broker selection + the request→domain context adapter.
 | Function | What it does |
 | --- | --- |
 | `getBroker` | The active broker (n8n when configured, else demo). |
+| `resetBroker` | Drop the cached broker so the next getBroker() rebuilds it — used when the dev broker config is switched on the fly. |
+| `brokerVerifyConnection` | Test a backend connection through the active broker, or null if unsupported. |
+| `brokerStoreCredential` | Delegate a credential to the broker's vault, or null if the broker has none. |
 | `brokerKind` | Diagnostics: "n8n" | "demo". |
 | `isLiveBroker` | True when the active broker is backed by a real backend (not demo). |
 | `brokerCommand` | Forward an arbitrary action + payload through the adapter's command edge. |
@@ -123,6 +163,21 @@ The broker router / registry — which broker KINDS are connected to this deploy
 | `brokersSupporting` | The routing primitive: which connected broker kinds can serve a given capability (e.g. "who can deliver `eventsOutbound`?"). |
 | `brokerForCommand` | Per-kind command ROUTING — choose which connected broker KIND should serve a command, given what it needs (transport + capability). |
 
+### `artifacts/api-server/src/broker/replay-cli.ts`
+
+Capture-tape replay CLI (dev-only).
+
+### `artifacts/api-server/src/broker/replay.ts`
+
+Replay engine — play a capture tape (capture.ts) two ways:
+
+| Function | What it does |
+| --- | --- |
+| `isWriteMethod` | Replay engine — play a capture tape (capture.ts) two ways: |
+| `exchangeKey` | A stable key for matching a recorded call: method + args AFTER the actor ctx (arg 0 is the ActorContext, which varies per instance and is scrubbed). |
+| `buildReplayBroker` | Serve mode: a Broker backed by a tape. |
+| `redrive` | Re-drive a tape against a live broker (instance B), diffing each live result against the recording. |
+
 ### `artifacts/api-server/src/broker/router.ts`
 
 Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into an actual per-kind DISPATCH.
@@ -131,6 +186,10 @@ Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into a
 | --- | --- |
 | `endpointsForKind` | Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into an actual per-kind DISPATCH. |
 | `routeBrokerCall` | Route a broker call to the kind that should serve it. |
+
+### `artifacts/api-server/src/broker/send-cli.ts`
+
+Single-instruction broker CLI — fire ONE broker method through the seam and inspect the exchange, with tracing forced on.
 
 ### `artifacts/api-server/src/broker/templates/pipedream-component.ts`
 
@@ -145,9 +204,38 @@ SERVERLESS broker template — deploy on ANY cloud (AWS Lambda, Google Cloud Fun
 | `lambdaHandler` | AWS Lambda (Function URL / API Gateway proxy). |
 | `httpHandler` | Google Cloud Functions / Azure Functions / a container (Express-like req/res). |
 
+### `artifacts/api-server/src/broker/trace.ts`
+
+Plane trace decorator — makes any dispatch plane observable at the METHOD boundary.
+
+| Function | What it does |
+| --- | --- |
+| `debugAllowed` | Debug surfaces are inert in production, full stop. |
+| `traceEnabled` | Is method-boundary tracing active? (Non-prod + opt-in.) |
+| `payloadsEnabled` | May we emit full (secret-scrubbed) payloads in the LOG, not just shapes? |
+| `instrumented` | Should a plane be instrumented at all (trace and/or capture armed)? |
+| `shape` | A structural descriptor — types/keys/lengths, NO values. |
+| `redactDeep` | Full values with secret keys masked and arrays bounded. |
+| `errView` | A compact, leak-free error projection (BrokerError code preferred). |
+| `traceFn` | Wrap a single function so its calls are traced + (optionally) captured. |
+| `traced` | Wrap every method of an object so the whole plane is traced + capturable. |
+| `wrapWithTrace` | Broker-seam convenience (the original entry point). |
+| `firstDifference` | Deep structural equality over two results, used by the single-instruction CLI's `--twice` mode and by re-drive replay to flag divergence. |
+
 ### `artifacts/api-server/src/broker/types.ts`
 
 Broker boundary — domain contract.
+
+### `artifacts/api-server/src/broker/vendor-profile.ts`
+
+Vendor profile overlay — present a broker AS a specific vendor by overlaying that vendor's identity + DECLARED capability surface (from its JSON config) onto an underlying data broker.
+
+| Function | What it does |
+| --- | --- |
+| `vendorCapabilities` | Vendor profile overlay — present a broker AS a specific vendor by overlaying that vendor's identity + DECLARED capability surface (from its JSON config) onto an underlying data broker. |
+| `isVendorId` | Is this a real vendor id (not a neutral "all"/"none"/empty selector)? |
+| `demoVendorFor` | Decide the demo vendor to present, with the hard rule that a thin-file spoof NEVER appears over real data. |
+| `applyVendorProfile` | Overlay a vendor's identity + capability gating onto a base broker. |
 
 ### `artifacts/api-server/src/broker/verifiable-actions.ts`
 
@@ -276,6 +364,17 @@ Optimistic-concurrency helper.
 | --- | --- |
 | `versionConflict` | Optimistic-concurrency helper. |
 
+### `artifacts/api-server/src/lib/conditional.ts`
+
+Conditional (delta) reads — let a client revalidate a read and get back "nothing changed" instead of the whole payload, WITHOUT the gateway storing any data.
+
+| Function | What it does |
+| --- | --- |
+| `hashETag` | Conditional (delta) reads — let a client revalidate a read and get back "nothing changed" instead of the whole payload, WITHOUT the gateway storing any data. |
+| `tokenETag` | A weak ETag derived from a broker-supplied change token. |
+| `ifNoneMatch` | The caller's If-None-Match value, if any. |
+| `conditionalJson` | Send a read response with delta semantics. |
+
 ### `artifacts/api-server/src/lib/config-bundle.ts`
 
 "Lock this config" export — dump the current effective config as the EXACT folder-of-JSON the config-directory loader reads (read ≡ dump).
@@ -328,6 +427,16 @@ Configuration environments + versioned rollback.
 | `promote` | Copy one environment's config onto another (e.g. promote sandbox → production). |
 | `__resetConfigStore` | Test-only: reset the in-memory store. |
 
+### `artifacts/api-server/src/lib/connection-credentials.ts`
+
+Connection-credential scaffolding — works out WHICH credentials a deployment's brokers need for the vendors they reach (each vendor declares its `requiredEnv`) and renders a fill-in template for the operator's secret store.
+
+| Function | What it does |
+| --- | --- |
+| `isSecretEnv` | Heuristic: is this env var a secret to protect (vs a plain instance URL etc.)? |
+| `requiredCredentials` | The union of required env across the given backends, tagged secret/config. |
+| `renderCredentialTemplate` | Render a fill-in template (placeholders only) for the operator to complete. |
+
 ### `artifacts/api-server/src/lib/csv.ts`
 
 Minimal, dependency-free CSV serializer (RFC 4180).
@@ -352,6 +461,7 @@ Data accessor facade.
 
 | Function | What it does |
 | --- | --- |
+| `brokerChangeToken` | A cheap change token for a resource (for conditional/delta reads), or null when the active broker can't supply one (the caller falls back to a payload hash). |
 | `getProjects` | List all projects the actor can see, via the active broker. |
 | `getIssues` | List the issues of one project, via the active broker. |
 | `getActivity` | The cross-project activity feed, via the active broker. |
@@ -360,6 +470,46 @@ Data accessor facade.
 | `getBaseline` | One project's baseline snapshot, via the active broker. |
 | `getRaid` | One project's RAID log (risks/assumptions/issues/dependencies), via the active broker. |
 | `getNotifications` | The actor's notification feed, via the active broker. |
+
+### `artifacts/api-server/src/lib/debug-bundle.ts`
+
+Debug bundle — a single reproducible dump that lets you replicate an issue on another instance.
+
+| Function | What it does |
+| --- | --- |
+| `buildDebugBundleEntries` | Assemble the bundle entries + manifest for a given timestamp. |
+| `buildDebugBundleZip` | Build the bundle as a ZIP buffer. |
+
+### `artifacts/api-server/src/lib/dev-entitlements.ts`
+
+Dev-mode entitlement overrides — force individual paid features on or off to test the licensed vs unlicensed UX without minting a real licence.
+
+| Function | What it does |
+| --- | --- |
+| `getDevEntitlementOverrides` | The current overrides as a plain object (feature → forced state). |
+| `setDevEntitlementOverride` | Force a feature on/off, or pass null to clear that feature's override. |
+| `clearDevEntitlementOverrides` | Clear every override (e.g. on "reset" or in tests). |
+| `applyDevEntitlementOverrides` | Apply the dev overrides to a base feature list (dev mode only). |
+
+### `artifacts/api-server/src/lib/dev-mode-guard.ts`
+
+Dev-mode production guard — the hard safety interlock that stops a developer/ debug instance from running where it could do harm.
+
+| Function | What it does |
+| --- | --- |
+| `devModeActive` | Dev mode computed purely from an env map (mirrors lib/dev-mode.isDevMode). |
+| `productionSignals` | Production signals that must not coexist with dev mode. |
+| `evaluateDevModeGuard` | Evaluate the guard (pure). |
+| `runDevModeGuard` | Boot hook: evaluate the guard, log loudly, and THROW (refuse to boot) when dev mode collides with production signals. |
+
+### `artifacts/api-server/src/lib/dev-mode.ts`
+
+Dev mode — the single source of truth for "is this a developer/debug instance?".
+
+| Function | What it does |
+| --- | --- |
+| `isDevMode` | Is this a developer/debug instance? Always false in production. |
+| `devModeStatus` | A small, public-safe projection — no paths, no secrets, just which surfaces are on. |
 
 ### `artifacts/api-server/src/lib/dev-persist.ts`
 
@@ -404,6 +554,15 @@ Field registry (gateway view) — the reconcile / validate behaviour over the ca
 
 Indicative, GBP-based FX table used as a sample/fallback only — NOT live market data (note the epoch `asOf` and `provenance: "sample"`).
 
+### `artifacts/api-server/src/lib/impersonation.ts`
+
+Ephemeral dev-mode impersonation — let a developer act AS another user to reproduce a role-specific issue, with hard guardrails:
+
+| Function | What it does |
+| --- | --- |
+| `activeImpersonation` | The active impersonation on a session (dev mode + not expired), else null. |
+| `effectiveSession` | The effective session: the impersonated identity overlaid when an impersonation is active, otherwise the session with any inert/expired impersonation stripped (so it never leaks downstream). |
+
 ### `artifacts/api-server/src/lib/jwks.ts`
 
 Dependency-free JWKS / JWT signature verification.
@@ -435,7 +594,7 @@ Licensing / entitlements — the paywall for premium overlay features.
 | `signLicense` | Sign a licence payload with an Ed25519 private key (PEM). |
 | `verifyLicense` | Verify a licence token's signature + expiry against an Ed25519 public key. |
 | `premiumEnforced` | Pre-community period: premium is FREE to run. |
-| `resolveLicense` | Resolve current entitlements from env/config. |
+| `resolveLicense` | Resolve current entitlements from env/config, then apply any DEV-mode overrides (a no-op in production). |
 | `isEntitled` | Is a premium feature currently entitled? |
 | `licenseSummary` | A safe summary for the UI / status endpoints (no signature material). |
 | `requireEntitlement` | Express middleware: 402 Payment Required unless `feature` is entitled. |
@@ -693,6 +852,17 @@ Outbound-URL safety for admin-configured endpoints (the broker URL and premium w
 | `assertSafeOutboundUrl` | Throw `UnsafeUrlError` unless `raw` is a well-formed, non-metadata http(s) URL. |
 | `isSafeOutboundUrl` | Non-throwing predicate form of {@link assertSafeOutboundUrl}. |
 
+### `artifacts/api-server/src/lib/user-prefs.ts`
+
+Per-user UI/accessibility preferences, persisted server-side keyed by the user's `sub` so a person's setup (text size, background colour, contrast, motion) follows them across SESSIONS and devices — not just one browser.
+
+| Function | What it does |
+| --- | --- |
+| `sanitizeUserPrefs` | Coerce arbitrary input to valid prefs, filling each missing field from defaults. |
+| `getUserPrefs` | A user's stored prefs, or the code defaults when they have none. |
+| `hasUserPrefs` | Has this user saved prefs? (Lets the client tell "stored" from "defaults".) |
+| `setUserPrefs` | Persist (sanitised) prefs for a user; returns what was stored. |
+
 ### `artifacts/api-server/src/lib/webhooks.ts`
 
 SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
@@ -757,6 +927,9 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 | Function | What it does |
 | --- | --- |
 | `getSession` | Exposed so other routes (e.g. the n8n proxy) can pull the bearer token. |
+| `getRealSession` | The REAL signed-in session, ignoring any impersonation — used to authorise starting/stopping an impersonation against the genuine actor. |
+| `startImpersonation` | Begin an ephemeral impersonation on the current session (overwrites any prior one). |
+| `stopImpersonation` | Clear any impersonation from the current session. |
 
 ### `artifacts/api-server/src/routes/branding.ts`
 
@@ -777,6 +950,10 @@ Capability + field-manifest endpoints.
 ### `artifacts/api-server/src/routes/contract.ts`
 
 GET /api/contract — serve the published, versioned SOUTHBOUND broker contract (the interface a broker must implement) + its JSON Schema.
+
+### `artifacts/api-server/src/routes/dev-mode.ts`
+
+Dev-mode routes.
 
 ### `artifacts/api-server/src/routes/export.ts`
 
@@ -814,9 +991,13 @@ Licence endpoint — GET /api/license reports the current licence summary + prem
 
 MCP endpoint — POST /api/mcp (JSON-RPC 2.0).
 
+### `artifacts/api-server/src/routes/me.ts`
+
+The signed-in user's own preferences.
+
 ### `artifacts/api-server/src/routes/notifications-stream.ts`
 
-Two routers: - streamRouter: GET /notifications/stream (SSE) — requires a user session.
+The notify-plane dispatch decision, traced/capturable like the broker seam.
 
 ### `artifacts/api-server/src/routes/odata.ts`
 

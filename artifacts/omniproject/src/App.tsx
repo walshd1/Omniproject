@@ -11,6 +11,8 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DevModeWatermark } from "./components/DevModeWatermark";
 import { DevImpersonationControl } from "./components/DevImpersonationControl";
 import { DevEntitlementsControl } from "./components/DevEntitlementsControl";
+import { SwitchScanner } from "./components/SwitchScanner";
+import { VoiceInput } from "./components/VoiceInput";
 
 // Layout (eager — it wraps every authenticated route)
 import { AppLayout } from "./components/layout/AppLayout";
@@ -118,6 +120,8 @@ function App() {
             </ErrorBoundary>
           </WouterRouter>
           <Toaster />
+          <SwitchScanner />
+          <VoiceInput />
           <DevModeWatermark />
           <DevImpersonationControl />
           <DevEntitlementsControl />

@@ -8,6 +8,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Accessibility mode: switch scanning, screen-reader narration, voice dictation** —
+  three opt-in per-user accessibility features that drive the app from the user's OWN
+  assistive setup (nothing bundled, nothing sent off-device, in keeping with the
+  zero-at-rest ethos):
+  - **Switch-access scanning** — for users who drive everything from one or two
+    physical switches. *Single-switch* sweeps a highlight across the interactive
+    controls on a timer (adjustable dwell, 0.5–5s) and Space/Enter selects;
+    *two-switch* steps the highlight by hand on Space/→/↓ and selects on Enter. The
+    current control gets a bold ring and is announced to the screen reader.
+  - **Screen-reader narration** — a shared ARIA live region the app speaks through so
+    dynamic changes reach NVDA/JAWS/VoiceOver; a per-user toggle gates the extra
+    verbose narration so it doesn't chatter at everyone.
+  - **Voice dictation** — a floating mic that dictates into the focused text field
+    using the browser's native Web Speech API (on-device). Shown only when the user
+    opts in AND the platform supports it, so there's never a button that can't work.
+  All three persist in per-user prefs (JSON, server-side, code defaults) so they
+  follow the user across sessions and devices, layered over company branding.
 - **Per-user prefs persist across sessions + devices (JSON, code defaults)** — a
   person's accessibility setup (text size, background colour, high contrast, reduced
   motion) is now stored server-side as JSON keyed by their user id, so it FOLLOWS THEM

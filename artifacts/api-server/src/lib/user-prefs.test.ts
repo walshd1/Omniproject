@@ -19,6 +19,17 @@ test("sanitize clamps font scale and validates the colour", () => {
   assert.equal(sanitizeUserPrefs({ highContrast: 1, reduceMotion: "yes" }).highContrast, true);
 });
 
+test("sanitize validates switch-scan mode, clamps the scan rate, coerces a11y toggles", () => {
+  assert.equal(sanitizeUserPrefs({ switchScan: "single" }).switchScan, "single");
+  assert.equal(sanitizeUserPrefs({ switchScan: "two" }).switchScan, "two");
+  assert.equal(sanitizeUserPrefs({ switchScan: "nonsense" }).switchScan, "off");
+  assert.equal(sanitizeUserPrefs({ scanRateMs: 99 }).scanRateMs, 500);
+  assert.equal(sanitizeUserPrefs({ scanRateMs: 99999 }).scanRateMs, 5000);
+  assert.equal(sanitizeUserPrefs({ screenReader: 1 }).screenReader, true);
+  assert.equal(sanitizeUserPrefs({ speechInput: "yes" }).speechInput, true);
+  assert.equal(sanitizeUserPrefs({}).speechInput, false);
+});
+
 test("get/set/has round-trip per user; unknown user ⇒ defaults", () => {
   const sub = `u-${Math.round(performance.now())}`; // unique-ish key (no Date.now in tests)
   assert.equal(hasUserPrefs(sub), false);

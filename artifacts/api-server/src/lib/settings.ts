@@ -113,6 +113,14 @@ export interface UserPrefs {
   backgroundColor: string | null;
   highContrast: boolean;
   reduceMotion: boolean;
+  /** Switch-access scanning: off, single-switch (auto-scan) or two-switch (step). */
+  switchScan: "off" | "single" | "two";
+  /** Auto-scan dwell time per item, ms (single-switch only). */
+  scanRateMs: number;
+  /** Verbose live-region announcements to aid screen-reader users. */
+  screenReader: boolean;
+  /** Show the dictation mic (on-device speech-to-text via the user's own browser). */
+  speechInput: boolean;
 }
 
 /** A saved arrangement for one screen. */

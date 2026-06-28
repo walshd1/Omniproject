@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { setAnnounceVerbose } from "./announce";
 
 /**
  * Per-user accessibility preferences — a CLIENT-SIDE layer that an individual user
@@ -11,6 +12,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
  * things a person needs to make any company theme usable for them.
  */
 
+export type SwitchScanMode = "off" | "single" | "two";
+
 export interface A11yPrefs {
   /** UI text scale, 0.85–1.5 (1 = company default). Per-user font SIZE. */
   fontScale: number;
@@ -20,17 +23,33 @@ export interface A11yPrefs {
   highContrast: boolean;
   /** Near-instant transitions/animations. */
   reduceMotion: boolean;
+  /** Switch-access scanning: off, single-switch (auto-scan) or two-switch (step). */
+  switchScan: SwitchScanMode;
+  /** Auto-scan dwell time per item, ms (single-switch). */
+  scanRateMs: number;
+  /** Verbose live-region announcements to aid screen-reader users. */
+  screenReader: boolean;
+  /** Show the dictation mic (on-device speech-to-text via the user's own browser). */
+  speechInput: boolean;
 }
 
-export const DEFAULT_A11Y: A11yPrefs = { fontScale: 1, backgroundColor: null, highContrast: false, reduceMotion: false };
+export const DEFAULT_A11Y: A11yPrefs = {
+  fontScale: 1, backgroundColor: null, highContrast: false, reduceMotion: false,
+  switchScan: "off", scanRateMs: 1500, screenReader: false, speechInput: false,
+};
 
 const KEY = "omni:a11y";
 const MIN_SCALE = 0.85;
 const MAX_SCALE = 1.5;
+const MIN_SCAN = 500;
+const MAX_SCAN = 5000;
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const SCAN_MODES: SwitchScanMode[] = ["off", "single", "two"];
 
 const clampScale = (n: number): number => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(n * 100) / 100));
+const clampScan = (n: number): number => Math.min(MAX_SCAN, Math.max(MIN_SCAN, Math.round(n)));
 const cleanColor = (v: unknown): string | null => (typeof v === "string" && HEX.test(v) ? v : null);
+const cleanScanMode = (v: unknown): SwitchScanMode => (SCAN_MODES.includes(v as SwitchScanMode) ? (v as SwitchScanMode) : "off");
 
 /** Read prefs from localStorage, falling back to defaults on anything unexpected. */
 export function loadA11yPrefs(): A11yPrefs {
@@ -44,6 +63,10 @@ export function loadA11yPrefs(): A11yPrefs {
       backgroundColor: cleanColor(p.backgroundColor),
       highContrast: !!p.highContrast,
       reduceMotion: !!p.reduceMotion,
+      switchScan: cleanScanMode(p.switchScan),
+      scanRateMs: typeof p.scanRateMs === "number" ? clampScan(p.scanRateMs) : DEFAULT_A11Y.scanRateMs,
+      screenReader: !!p.screenReader,
+      speechInput: !!p.speechInput,
     };
   } catch {
     return DEFAULT_A11Y; // corrupt value ⇒ company defaults, no impact
@@ -64,6 +87,7 @@ export function applyA11yPrefs(p: A11yPrefs): void {
   else root.style.removeProperty("--user-bg");
   root.setAttribute("data-contrast", p.highContrast ? "high" : "normal");
   root.setAttribute("data-reduce-motion", p.reduceMotion ? "true" : "false");
+  setAnnounceVerbose(p.screenReader);
 }
 
 interface A11yContextValue {
@@ -72,6 +96,10 @@ interface A11yContextValue {
   setBackgroundColor: (hex: string | null) => void;
   toggleHighContrast: () => void;
   toggleReduceMotion: () => void;
+  setSwitchScan: (mode: SwitchScanMode) => void;
+  setScanRate: (ms: number) => void;
+  toggleScreenReader: () => void;
+  toggleSpeechInput: () => void;
   reset: () => void;
 }
 
@@ -125,6 +153,10 @@ export function A11yProvider({ children }: { children: ReactNode }) {
     setBackgroundColor: (hex) => change({ ...prefs, backgroundColor: cleanColor(hex) }),
     toggleHighContrast: () => change({ ...prefs, highContrast: !prefs.highContrast }),
     toggleReduceMotion: () => change({ ...prefs, reduceMotion: !prefs.reduceMotion }),
+    setSwitchScan: (mode) => change({ ...prefs, switchScan: cleanScanMode(mode) }),
+    setScanRate: (ms) => change({ ...prefs, scanRateMs: clampScan(ms) }),
+    toggleScreenReader: () => change({ ...prefs, screenReader: !prefs.screenReader }),
+    toggleSpeechInput: () => change({ ...prefs, speechInput: !prefs.speechInput }),
     reset: () => change(DEFAULT_A11Y),
   };
   return <A11yContext.Provider value={value}>{children}</A11yContext.Provider>;

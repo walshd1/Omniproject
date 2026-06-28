@@ -32,7 +32,7 @@ describe("a11y-prefs store", () => {
   });
 
   it("applyA11yPrefs writes the CSS var + data-attributes the stylesheet honours", () => {
-    applyA11yPrefs({ fontScale: 1.2, backgroundColor: "#101418", highContrast: true, reduceMotion: true });
+    applyA11yPrefs({ ...DEFAULT_A11Y, fontScale: 1.2, backgroundColor: "#101418", highContrast: true, reduceMotion: true });
     const root = document.documentElement;
     expect(root.style.getPropertyValue("--user-font-scale")).toBe("1.2");
     expect(root.style.getPropertyValue("--user-bg")).toBe("#101418");

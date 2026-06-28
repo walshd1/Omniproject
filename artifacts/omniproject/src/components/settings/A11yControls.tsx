@@ -2,17 +2,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useA11yPrefs, A11Y_SCALE_BOUNDS } from "../../lib/a11y-prefs";
+import { useA11yPrefs, A11Y_SCALE_BOUNDS, type SwitchScanMode } from "../../lib/a11y-prefs";
+import { isSpeechSupported } from "../../lib/speech";
+
+const SCAN_OPTIONS: { value: SwitchScanMode; label: string }[] = [
+  { value: "off", label: "Off" },
+  { value: "single", label: "Single-switch (auto-scan)" },
+  { value: "two", label: "Two-switch (step)" },
+];
 
 /**
  * Accessibility controls — a per-user overlay (text SIZE, background COLOUR, high
- * contrast, reduced motion) stored only in this browser. It sits on top of the
- * company branding and never touches the server, so each person can make the shared
- * theme work for them.
+ * contrast, reduced motion, switch-access scanning, screen-reader narration and
+ * voice dictation). Cached in this browser and persisted server-side per user, so a
+ * person's setup follows them across sessions and devices on top of company branding.
  */
 export function A11yControls() {
-  const { prefs, setFontScale, setBackgroundColor, toggleHighContrast, toggleReduceMotion, reset } = useA11yPrefs();
+  const {
+    prefs, setFontScale, setBackgroundColor, toggleHighContrast, toggleReduceMotion,
+    setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput, reset,
+  } = useA11yPrefs();
   const pct = Math.round(prefs.fontScale * 100);
+  const speechSupported = isSpeechSupported();
   return (
     <Card>
       <CardHeader>
@@ -51,10 +62,59 @@ export function A11yControls() {
           <Label htmlFor="a11y-motion">Reduce motion</Label>
           <Switch id="a11y-motion" checked={prefs.reduceMotion} onCheckedChange={toggleReduceMotion} />
         </div>
-        <div className="flex justify-end">
+
+        <div className="space-y-3 border-t border-border pt-4">
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="a11y-scan">Switch-access scanning</Label>
+            <select
+              id="a11y-scan"
+              value={prefs.switchScan}
+              onChange={(e) => setSwitchScan(e.target.value as SwitchScanMode)}
+              className="h-9 rounded-md border border-border bg-transparent px-2 text-sm"
+            >
+              {SCAN_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          {prefs.switchScan === "single" && (
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="a11y-scanrate">Scan speed</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="a11y-scanrate"
+                  type="range"
+                  min={500}
+                  max={5000}
+                  step={250}
+                  value={prefs.scanRateMs}
+                  onChange={(e) => setScanRate(Number(e.target.value))}
+                  aria-label="Auto-scan dwell time"
+                />
+                <span className="w-14 text-right text-sm tabular-nums">{(prefs.scanRateMs / 1000).toFixed(2)}s</span>
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Single-switch sweeps automatically — press Space or Enter to choose. Two-switch
+            steps on Space (or →/↓) and chooses on Enter.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+          <Label htmlFor="a11y-reader">Screen-reader narration</Label>
+          <Switch id="a11y-reader" checked={prefs.screenReader} onCheckedChange={toggleScreenReader} />
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label htmlFor="a11y-speech">Voice dictation</Label>
+            {!speechSupported && <p className="text-xs text-muted-foreground">Not available in this browser.</p>}
+          </div>
+          <Switch id="a11y-speech" checked={prefs.speechInput} disabled={!speechSupported} onCheckedChange={toggleSpeechInput} />
+        </div>
+
+        <div className="flex justify-end border-t border-border pt-4">
           <Button variant="ghost" size="sm" onClick={reset}>Reset to company default</Button>
         </div>
-        <p className="text-xs text-muted-foreground">Saved only in this browser — it never changes the company theme or the server.</p>
+        <p className="text-xs text-muted-foreground">Saved to your account so it follows you across devices — it never changes the company theme.</p>
       </CardContent>
     </Card>
   );

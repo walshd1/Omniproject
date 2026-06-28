@@ -180,6 +180,15 @@ html {
   scroll-behavior: auto !important;
 }
 
+/* Switch-access scanning (lib/switch-scan): a bold ring on the control the sweep is
+   currently highlighting, so a switch user can see what pressing the switch will pick. */
+[data-scan-current="true"] {
+  outline: 3px solid hsl(var(--primary)) !important;
+  outline-offset: 2px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 6px hsl(var(--primary) / 0.25) !important;
+}
+
 /* High contrast: always-underline links + thick focus rings (WCAG-aligned, theme-safe). */
 [data-contrast="high"] a:not([role="button"]) {
   text-decoration: underline;
