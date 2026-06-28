@@ -5,6 +5,7 @@ import { sealConfig, readMaybeSealed } from "./config-crypto";
 import { awsSecretsStore } from "./vault-aws";
 import { azureKeyVaultStore } from "./vault-azure";
 import { kmsVaultKey } from "./kms";
+import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
 import { logger } from "./logger";
 
 /**
@@ -63,23 +64,12 @@ function subKey(ref: string): Buffer {
 }
 
 function sealSecret(ref: string, value: string): string {
-  const key = subKey(ref);
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-  const ct = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-  return ENV_PREFIX + Buffer.concat([iv, cipher.getAuthTag(), ct]).toString("base64url");
+  return ENV_PREFIX + aesGcmSeal(value, subKey(ref));
 }
 
 function openSecret(ref: string, env: string): string | null {
   if (!env.startsWith(ENV_PREFIX)) return null;
-  try {
-    const raw = Buffer.from(env.slice(ENV_PREFIX.length), "base64url");
-    const decipher = crypto.createDecipheriv("aes-256-gcm", subKey(ref), raw.subarray(0, 12));
-    decipher.setAuthTag(raw.subarray(12, 28));
-    return Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString("utf8");
-  } catch {
-    return null;
-  }
+  return aesGcmOpen(env.slice(ENV_PREFIX.length), subKey(ref));
 }
 
 function localFile(): string | null {
