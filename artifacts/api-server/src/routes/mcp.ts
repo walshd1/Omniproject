@@ -1,7 +1,7 @@
 import { Router, type Request } from "express";
 import { getSession } from "./auth";
 import { hasValidApiToken } from "../lib/api-token";
-import { hasRole } from "../lib/rbac";
+import { hasRole, isDeprovisioned } from "../lib/rbac";
 import { envFlag } from "../lib/env";
 import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
@@ -90,6 +90,13 @@ router.post("/mcp", async (req, res) => {
   const body = (req.body ?? {}) as { id?: string | number | null; method?: string; params?: Record<string, unknown> };
   if (!getSession(req) && !hasValidApiToken(req)) {
     res.status(401).json({ jsonrpc: "2.0", id: body.id ?? null, error: { code: -32001, message: "Unauthorized" } });
+    return;
+  }
+  // MCP is mounted OUTSIDE the generic requireAuth (to allow read-only API tokens), so the
+  // SCIM-deprovisioning check that requireAuth does for sessions must be repeated here — else
+  // a deactivated user whose session hasn't expired could still act through MCP.
+  if (getSession(req) && isDeprovisioned(req)) {
+    res.status(403).json({ jsonrpc: "2.0", id: body.id ?? null, error: { code: -32002, message: "Account has been deactivated." } });
     return;
   }
 

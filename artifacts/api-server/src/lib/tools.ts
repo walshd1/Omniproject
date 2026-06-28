@@ -1,6 +1,7 @@
 import { BACKENDS, BROKERS, SCREENS } from "@workspace/backend-catalogue";
 import { getSettings, updateSettings, AI_PROVIDERS, type DeploymentState, type CapabilitySetting } from "./settings";
 import { recordAudit } from "./audit";
+import { isSafeOutboundUrl } from "./url-safety";
 
 /**
  * Capability governance — one model for every "thing that can move data or be turned
@@ -216,6 +217,8 @@ export interface EndpointCheck {
 export async function checkEndpointReachable(url: string, timeoutMs = 3000): Promise<EndpointCheck> {
   const valid = validEndpoint(url);
   if (!valid) return { reachable: false, error: "not a valid http(s) URL" };
+  // Don't let the admin reachability-tester be turned into an SSRF probe of cloud metadata.
+  if (!isSafeOutboundUrl(valid)) return { reachable: false, error: "blocked: link-local/metadata address" };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {

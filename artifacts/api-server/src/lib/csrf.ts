@@ -1,6 +1,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import { envFlag } from "./env";
+import { requireTls } from "./deployment-profile";
 
 /**
  * CSRF hardening for cookie-authenticated mutations (security item B).
@@ -78,7 +79,7 @@ export function setCsrfCookie(res: Response, token: string): void {
   res.cookie(CSRF_COOKIE, token, {
     httpOnly: false, // the SPA must read it to echo X-CSRF-Token
     sameSite: "lax",
-    secure: process.env["NODE_ENV"] === "production",
+    secure: requireTls(), // mirror the session cookie's Secure decision (TLS-aware, not NODE_ENV)
     path: "/",
     maxAge: 1000 * 60 * 60 * 8, // mirror the session lifetime
   });

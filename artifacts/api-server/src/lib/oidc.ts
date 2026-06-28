@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { verifyIdToken as jwksVerify } from "./jwks";
+import { assertSafeOutboundUrl } from "./url-safety";
 
 /**
  * Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
@@ -100,6 +101,7 @@ const DISCOVERY_TTL_MS = 10 * 60 * 1000;
 export async function discover(config: OidcConfig): Promise<OidcDiscovery> {
   if (discoveryCache && Date.now() - discoveryCache.at < DISCOVERY_TTL_MS) return discoveryCache.doc;
   const url = `${config.issuerUrl}/.well-known/openid-configuration`;
+  assertSafeOutboundUrl(url, "OIDC issuer");
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     throw new Error(`OIDC discovery failed (${res.status}) at ${url}`);
@@ -155,6 +157,8 @@ export async function exchangeCode(params: {
     code_verifier: params.codeVerifier,
   });
 
+  // token_endpoint comes from the issuer's discovery doc (IdP-controlled) — guard it too.
+  assertSafeOutboundUrl(params.discovery.token_endpoint, "token_endpoint");
   const res = await fetch(params.discovery.token_endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
