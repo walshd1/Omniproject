@@ -1,0 +1,82 @@
+# OmniProject bootstrap blueprint for the BUNDLED Authentik IdP.
+#
+# Mounted into the Authentik server + worker (see docker-compose.standalone.yml) and applied
+# automatically on boot, so a charity / self-hoster does NOT have to hand-build the OAuth app
+# and groups. After this applies you only need to:
+#   1. set OIDC_CLIENT_SECRET in .env to the same value as AUTHENTIK_OMNI_CLIENT_SECRET, and
+#   2. create your staff users and add each to the omni-* group for their role.
+#
+# What it creates:
+#   - the role groups omni-admins / omni-pmo / omni-managers / omni-contributors / omni-viewers
+#     (names match the OIDC_*_ROLES env in the compose file);
+#   - a scope mapping that emits the user's group names in the `groups` claim (OmniProject reads
+#     `groups` and maps them to roles);
+#   - an OAuth2 / OpenID provider + application with slug `omniproject`, so the issuer is
+#     https://authentik.local/application/o/omniproject/ and the redirect URI is the app callback.
+#
+# HONEST NOTE: blueprint schema is Authentik-version-specific; verify in the Authentik admin
+# after first boot. The manual steps in docs/DEPLOY-LOCAL.md remain the fallback source of truth.
+version: 1
+metadata:
+  name: omniproject-bootstrap
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+context:
+  client_id: omniproject
+  redirect_uri: https://app.local/api/auth/callback
+entries:
+  # ── Role groups (names == OIDC_*_ROLES in compose) ──────────────────────────────
+  - model: authentik_core.group
+    identifiers: { name: omni-admins }
+    attrs: { name: omni-admins }
+  - model: authentik_core.group
+    identifiers: { name: omni-pmo }
+    attrs: { name: omni-pmo }
+  - model: authentik_core.group
+    identifiers: { name: omni-managers }
+    attrs: { name: omni-managers }
+  - model: authentik_core.group
+    identifiers: { name: omni-contributors }
+    attrs: { name: omni-contributors }
+  - model: authentik_core.group
+    identifiers: { name: omni-viewers }
+    attrs: { name: omni-viewers }
+
+  # ── Scope mapping: emit the user's group names in the `groups` claim ────────────
+  - model: authentik_providers_oauth2.scopemapping
+    id: omni-groups-scope
+    identifiers: { name: "OmniProject groups" }
+    attrs:
+      name: "OmniProject groups"
+      scope_name: groups
+      description: "OmniProject role groups"
+      expression: |
+        return {"groups": [group.name for group in request.user.ak_groups.all()]}
+
+  # ── OAuth2 / OpenID provider ────────────────────────────────────────────────────
+  - model: authentik_providers_oauth2.oauth2provider
+    id: omni-provider
+    identifiers: { name: omniproject }
+    attrs:
+      name: omniproject
+      client_type: confidential
+      client_id: !Context client_id
+      # The provider's client secret is taken from the env so both sides share ONE value.
+      client_secret: !Env [AUTHENTIK_OMNI_CLIENT_SECRET, ""]
+      authorization_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      redirect_uris: !Context redirect_uri
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+        - !KeyOf omni-groups-scope
+
+  # ── Application bound to the provider (slug drives the issuer URL) ───────────────
+  - model: authentik_core.application
+    identifiers: { slug: omniproject }
+    attrs:
+      name: OmniProject
+      slug: omniproject
+      provider: !KeyOf omni-provider
+      meta_launch_url: https://app.local/

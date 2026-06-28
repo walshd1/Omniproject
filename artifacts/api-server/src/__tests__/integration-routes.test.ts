@@ -225,6 +225,16 @@ test("POST /api/ai/chat rejects a malformed body with 400", async () => {
   assert.equal(res.status, 400);
 });
 
+test("GET /api/setup/idp guides identity setup (mode, callback URL, role→group map)", async () => {
+  const res = await get("/api/setup/idp");
+  assert.equal(res.status, 200);
+  const json = await readJson(res);
+  assert.equal(json.mode, "demo"); // no OIDC_ISSUER_URL in the test env
+  assert.match(json.callbackUrl, /\/api\/auth\/callback$/);
+  assert.ok(Array.isArray(json.roleGroups));
+  assert.equal(json.suggestedGroups.admin, "omni-admins"); // bundled-IdP default group names
+});
+
 test("responses carry W3C traceparent + x-request-id, continuing an incoming trace", async () => {
   const incoming = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
   const res = await get("/api/healthz", { headers: { traceparent: incoming } });

@@ -116,6 +116,15 @@ services:
       OIDC_ISSUER_URL: https://authentik.local/application/o/omniproject/
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-omniproject}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set OIDC_CLIENT_SECRET in .env}
+      # Request the groups scope so the bundled IdP emits the user's role groups.
+      OIDC_SCOPE: ${OIDC_SCOPE:-openid profile email groups}
+      # Group → role mapping. The bundled blueprint creates these omni-* groups; add a staff
+      # user to the group for their role. Override to match your own IdP's group names.
+      OIDC_ADMIN_ROLES: ${OIDC_ADMIN_ROLES:-omni-admins}
+      OIDC_PMO_ROLES: ${OIDC_PMO_ROLES:-omni-pmo}
+      OIDC_MANAGER_ROLES: ${OIDC_MANAGER_ROLES:-omni-managers}
+      OIDC_CONTRIBUTOR_ROLES: ${OIDC_CONTRIBUTOR_ROLES:-omni-contributors}
+      OIDC_VIEWER_ROLES: ${OIDC_VIEWER_ROLES:-omni-viewers}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env (long random string)}
       # Node must trust the mkcert root CA to call https://authentik.local.
       NODE_EXTRA_CA_CERTS: /certs/rootCA.pem
@@ -257,8 +266,13 @@ services:
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?set AUTHENTIK_SECRET_KEY in .env (50+ random chars)}
       AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+      # The bundled blueprint sets the OmniProject provider's client secret from this, so the
+      # shell + the IdP share ONE value (set OIDC_CLIENT_SECRET in .env).
+      AUTHENTIK_OMNI_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set OIDC_CLIENT_SECRET in .env}
     volumes:
       - authentik_media:/media
+      # Auto-create the OmniProject OAuth app + omni-* role groups on boot (see infra/authentik).
+      - ./infra/authentik/blueprints:/blueprints/omniproject:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.authentik.rule=Host(`authentik.local`)"
@@ -291,8 +305,11 @@ services:
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_PG_PASSWORD:?set AUTHENTIK_PG_PASSWORD in .env}
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?set AUTHENTIK_SECRET_KEY in .env (50+ random chars)}
+      AUTHENTIK_OMNI_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set OIDC_CLIENT_SECRET in .env}
     volumes:
       - authentik_media:/media
+      # The worker applies blueprints — mount the OmniProject bootstrap here too.
+      - ./infra/authentik/blueprints:/blueprints/omniproject:ro
     healthcheck:
       test: ["CMD", "ak", "healthcheck"]
       interval: 15s

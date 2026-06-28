@@ -9,7 +9,7 @@ import { getSettings, updateSettings } from "../lib/settings";
 import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
 import { connectedBrokerKinds } from "../broker/registry";
 import { contextFromReq, brokerVerifyConnection, brokerStoreCredential } from "../broker";
-import { requireRole, hasRole } from "../lib/rbac";
+import { requireRole, hasRole, getRoleMap } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, notificationKindCatalogue, methodologyCatalogue, methodologyPack, allMethodologyTags, reportCatalogue, screenCatalogue, reportsForMethodology, screensForMethodology, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, dedupeEntities, matchCandidates, normaliseKey } from "@workspace/backend-catalogue";
 import { isEntitled, resolveLicense } from "../lib/license";
@@ -77,6 +77,30 @@ router.get("/setup/profile", requireRole("admin"), (_req, res) => {
     // suggested env, recommendations).
     catalogue: profileCatalogue(),
   });
+});
+
+// GET /api/setup/idp — guided identity setup, especially the BUNDLED IdP (Authentik) path for
+// charities/self-hosters with no corporate IdP. OmniProject delegates identity, so this tells
+// the admin exactly how to give staff real accounts + roles. Admin-only; no secrets.
+router.get("/setup/idp", requireRole("admin"), (req, res) => {
+  const issuer = process.env["OIDC_ISSUER_URL"]?.trim() || "";
+  const mode = issuer ? "oidc" : "demo";
+  let issuerOrigin = "";
+  try { if (issuer) issuerOrigin = new URL(issuer).origin; } catch { /* malformed issuer */ }
+  // "Bundled" = the Authentik that ships in docker-compose.standalone.yml.
+  const bundled = /authentik/i.test(issuer);
+  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] || req.protocol;
+  const host = req.headers["x-forwarded-host"] || req.get("host");
+  const base = (process.env["PUBLIC_URL"]?.trim() || `${proto}://${host}`).replace(/\/+$/, "");
+  // The redirect URI the IdP must allow (the one thing operators get wrong).
+  const callbackUrl = `${base}/api/auth/callback`;
+  // The live group→role mapping (so they know which IdP group grants which role)…
+  const roleGroups = getRoleMap().map((m) => ({ role: m.role, groups: m.claims }));
+  // …and the default group names the bundled blueprint creates (for demo-mode guidance).
+  const suggestedGroups: Record<string, string> = {
+    admin: "omni-admins", pmo: "omni-pmo", manager: "omni-managers", contributor: "omni-contributors", viewer: "omni-viewers",
+  };
+  res.json({ mode, issuer, issuerOrigin, bundled, callbackUrl, roleGroups, suggestedGroups, profile: deploymentProfile() });
 });
 
 // POST /api/setup/profile — pick the deployment profile from the wizard (admin). Persists it

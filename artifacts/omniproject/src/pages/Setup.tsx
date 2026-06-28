@@ -5,6 +5,7 @@ import { useT } from "../lib/i18n";
 import { LoadingState } from "../components/LoadingState";
 import { DataState } from "../components/DataState";
 import { ProfileStep } from "../components/setup/ProfileStep";
+import { IdpStep } from "../components/setup/IdpStep";
 import { StatusStep } from "../components/setup/StatusStep";
 import { ConnectStep } from "../components/setup/ConnectStep";
 import { PersistStep } from "../components/setup/PersistStep";
@@ -38,6 +39,7 @@ export function Setup() {
         </div>
 
         <ProfileStep isAdmin={isAdmin} />
+        {isAdmin && <IdpStep />}
         <StatusStep status={status} />
         <ConnectStep url={url} setUrl={setUrl} isAdmin={isAdmin} />
         <PersistStep brokerUrlSet={status?.broker.urlSet} />
