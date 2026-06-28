@@ -8,6 +8,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Security
 
+- **Admin-gated key revocation** — a versioned key registry (session / provenance /
+  broker) where each version's signing material is DERIVED from an env master
+  (`HMAC(master, "name:vN")`), so an admin can **revoke + rotate** a key with no new
+  secret to distribute. Revoking retires the current version and rolls forward: sessions
+  signed under a revoked version are rejected at once (instant "log everyone out"
+  response to a suspected compromise — including a per-user variant), and provenance
+  entries under a revoked version still verify but are flagged untrusted (a leaked key
+  could have forged them). Sessions carry their key version (`kver`); provenance entries
+  too, so history stays verifiable across rotations. New `GET /api/security/keys`, `POST
+  /api/security/keys/:name/revoke`, `POST /api/security/sessions/revoke-user` (admin,
+  audited); a Settings → "Security — key revocation" admin card. RAM-only state.
 - **Provable broker-call provenance (zero-at-rest) + gateway↔broker request HMAC** — a
   keyed-MAC, hash-chained record of every broker call that holds ONLY fingerprints,
   never content: the request/response bytes pass through the broker as they must, and we

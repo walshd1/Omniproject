@@ -604,6 +604,21 @@ Dependency-free JWKS / JWT signature verification.
 | `fetchJwks` | Fetch the issuer's JWKS signing keys, cached for 10 minutes. |
 | `verifyIdToken` | Full verification: fetch JWKS, verify signature against the matching key, and validate iss/aud/exp/nbf. |
 
+### `artifacts/api-server/src/lib/key-registry.ts`
+
+Key registry with admin-gated revocation.
+
+| Function | What it does |
+| --- | --- |
+| `currentVersion` | The current (active) version of a key. |
+| `isActive` | Is this version of a key still active (not revoked)? |
+| `derivedKey` | Derive the signing material for a key version (hex). |
+| `listKeys` | Every known key's status (for the admin view). |
+| `revokeKey` | Revoke a key's current version and roll forward to a fresh derived key. |
+| `revokeUserSessions` | Revoke all of one user's sessions (issued before now). |
+| `userSessionsRevokedAt` | The instant a user's sessions were revoked, or 0. |
+| `__resetKeyRegistry` | Test-only: reset all key state. |
+
 ### `artifacts/api-server/src/lib/labels.ts`
 
 SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
@@ -1113,6 +1128,10 @@ Role-mapping editor — ADMIN-only, audited.
 ### `artifacts/api-server/src/routes/ruleset.ts`
 
 Business ruleset config — PMO governance.
+
+### `artifacts/api-server/src/routes/security.ts`
+
+Admin-gated key revocation.
 
 ### `artifacts/api-server/src/routes/settings.ts`
 

@@ -60,6 +60,8 @@ export interface Session extends SessionUser {
   iat?: number;
   /** Epoch ms of the last activity (for the sliding idle timeout). */
   seen?: number;
+  /** The session-key version this cookie was signed under (for key revocation). */
+  kver?: number;
 }
 
 const issuerUrl = process.env["OIDC_ISSUER_URL"]?.trim();

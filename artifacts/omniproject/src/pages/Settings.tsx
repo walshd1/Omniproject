@@ -19,6 +19,7 @@ import { BrokerLog } from "../components/settings/BrokerLog";
 import { A11yControls } from "../components/settings/A11yControls";
 import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
 import { GovernanceDashboard } from "../components/settings/GovernanceDashboard";
+import { SecurityKeys } from "../components/settings/SecurityKeys";
 import { DataState } from "../components/DataState";
 import { LoadingState } from "../components/LoadingState";
 import { urlFormatError } from "../lib/validation";
@@ -258,6 +259,10 @@ export function Settings() {
       </div>
 
       <PremiumAdmin />
+
+      <div className="mt-10">
+        <SecurityKeys />
+      </div>
 
       <div className="mt-10">
         <GovernanceDashboard />

@@ -1,4 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { derivedKey } from "./key-registry";
 
 /**
  * Gateway↔broker request signing (security item C, folded into provenance): a detached
@@ -9,12 +10,8 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
  * signature that doubles as the provenance MAC (same shared key).
  */
 function key(): string {
-  return (
-    process.env["PROVENANCE_KEY"]?.trim() ||
-    process.env["BROKER_PSK"]?.trim() ||
-    process.env["SESSION_SECRET"]?.trim() ||
-    "omni-provenance-dev-key-not-for-production"
-  );
+  // The broker signing key from the revocable key registry (rotates on revoke).
+  return derivedKey("broker");
 }
 
 export interface RequestSignature {

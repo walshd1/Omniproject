@@ -21,6 +21,7 @@ import { roleForReq } from "../lib/rbac";
 import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
 import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
+import { currentVersion, isActive, userSessionsRevokedAt } from "../lib/key-registry";
 
 const router = Router();
 
@@ -55,6 +56,10 @@ function readSession(req: Request): Session | null {
     // Idle / absolute timeout: an expired session reads as "no session" everywhere,
     // so every protected route rejects it (limits unattended-session risk).
     if (isSessionExpired(session, Date.now())) return null;
+    // Key revocation: a session signed under a revoked session-key version, or a user
+    // whose sessions were revoked after this one was issued, is rejected at once.
+    if (!isActive("session", session.kver ?? 1)) return null;
+    if (session.sub && session.iat && session.iat < userSessionsRevokedAt(session.sub)) return null;
     return session;
   } catch {
     return null;
@@ -65,7 +70,7 @@ function setSession(res: Response, session: Session): void {
   const now = Date.now();
   // Stamp issue + activity times (preserve the original issue time so the absolute
   // cap can't be reset by activity). Signed (cookie-parser) AND sealed (AES-256-GCM).
-  const stamped: Session = { ...session, iat: session.iat ?? now, seen: now };
+  const stamped: Session = { ...session, iat: session.iat ?? now, seen: now, kver: session.kver ?? currentVersion("session") };
   res.cookie(SESSION_COOKIE, seal(JSON.stringify(stamped)), {
     ...cookieBase,
     maxAge: 1000 * 60 * 60 * 8, // 8h
