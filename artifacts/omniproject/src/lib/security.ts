@@ -64,3 +64,28 @@ export async function exportConfigBundle(): Promise<{ bundle: string; exportKey:
   }
   return (await res.json()) as { bundle: string; exportKey: string; warning: string };
 }
+
+export interface MaintenanceState { engaged: boolean; reason: string }
+
+/** The current read-only maintenance-lockdown state (admin). */
+export function useMaintenance() {
+  return useQuery<MaintenanceState>({
+    queryKey: ["maintenance"],
+    queryFn: () => getJson("/api/admin/maintenance"),
+    staleTime: 15_000,
+  });
+}
+
+/** Engage / release read-only maintenance lockdown (admin; step-up gated). */
+export async function setMaintenance(engaged: boolean, reason: string): Promise<void> {
+  const res = await fetch("/api/admin/maintenance", {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ engaged, reason }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+    throw new Error(body.code === "step_up_required" ? "step_up_required" : body.error ?? `Failed (${res.status})`);
+  }
+}

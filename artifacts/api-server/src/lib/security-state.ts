@@ -5,6 +5,7 @@ import { listAutonomousGrants, setAutonomousGrants, type AutonomousWriteGrant } 
 import { getContainmentRelax, setContainmentRelax, type AiContainment } from "./ai-containment";
 import { listApprovedActions, listApprovedVocab, setApproved } from "./approved-actions";
 import { aiKillEngaged, engageAiKill, releaseAiKill } from "./ai-kill";
+import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "./maintenance";
 import { logger } from "./logger";
 
 /**
@@ -28,6 +29,7 @@ interface SecuritySnapshot {
   containment: AiContainment;
   approved: { actions: string[]; vocab: string[] };
   aiKill: boolean;
+  maintenance?: { engaged: boolean; reason: string };
 }
 
 /** Gather the current security state into one serialisable object. */
@@ -38,6 +40,7 @@ export function collectSecurityState(): SecuritySnapshot {
     containment: getContainmentRelax(),
     approved: { actions: listApprovedActions(), vocab: listApprovedVocab() },
     aiKill: aiKillEngaged(),
+    maintenance: { engaged: maintenanceEngaged(), reason: maintenanceReason() },
   };
 }
 
@@ -48,6 +51,7 @@ export function applySecurityState(s: SecuritySnapshot): void {
   if (s.containment) setContainmentRelax(s.containment);
   if (s.approved) setApproved(s.approved);
   if (s.aiKill) engageAiKill(); else releaseAiKill();
+  if (s.maintenance?.engaged) engageMaintenance(s.maintenance.reason); else releaseMaintenance();
 }
 
 /** Persist the current security state (sealed) — no-op unless SECURITY_STATE_FILE is set. */

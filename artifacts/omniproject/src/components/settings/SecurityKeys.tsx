@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth, roleAtLeast, logout } from "../../lib/auth";
-import { useSecurityKeys, revokeKey, revokeUserSessions, useConfigKeyFingerprint, exportConfigBundle, type KeyStatus } from "../../lib/security";
+import { useSecurityKeys, revokeKey, revokeUserSessions, useConfigKeyFingerprint, exportConfigBundle, useMaintenance, setMaintenance, type KeyStatus } from "../../lib/security";
 import { stepUp } from "../../lib/step-up";
 
 /**
@@ -17,7 +17,16 @@ export function SecurityKeys() {
   const qc = useQueryClient();
   const { data } = useSecurityKeys();
   const { data: configFp } = useConfigKeyFingerprint();
+  const { data: maintenance } = useMaintenance();
   const [sub, setSub] = useState("");
+  const [lockReason, setLockReason] = useState("");
+
+  const onToggleMaintenance = async (engage: boolean): Promise<void> => {
+    if (engage && !window.confirm("Put the system into READ-ONLY maintenance mode? All changes will be blocked until you lift it.")) return;
+    if (!(await stepUp())) return;
+    try { await setMaintenance(engage, lockReason); await qc.invalidateQueries({ queryKey: ["maintenance"] }); setLockReason(""); }
+    catch { /* surfaced by the unchanged state */ }
+  };
   const [exported, setExported] = useState<{ bundle: string; exportKey: string; warning: string } | null>(null);
 
   if (!roleAtLeast(auth?.role, "admin")) return null;
@@ -81,6 +90,35 @@ export function SecurityKeys() {
           >
             Revoke user's sessions
           </Button>
+        </div>
+
+        {/* Break-glass: read-only maintenance lockdown. */}
+        <div className="space-y-2 border-t border-border pt-3" data-testid="maintenance">
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span className="flex items-center gap-2">
+              Maintenance lockdown
+              {maintenance?.engaged
+                ? <span className="rounded bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800">READ-ONLY</span>
+                : <span className="rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">live</span>}
+            </span>
+            {maintenance?.engaged
+              ? <Button variant="outline" size="sm" data-testid="maintenance-release" onClick={() => void onToggleMaintenance(false)}>Lift lockdown</Button>
+              : <Button variant="outline" size="sm" data-testid="maintenance-engage" onClick={() => void onToggleMaintenance(true)}>Engage read-only</Button>}
+          </div>
+          {!maintenance?.engaged && (
+            <input
+              value={lockReason}
+              onChange={(e) => setLockReason(e.target.value)}
+              placeholder="reason (shown to users; optional)"
+              aria-label="Maintenance reason"
+              className="h-9 w-full rounded-md border border-border bg-transparent px-2 text-sm"
+            />
+          )}
+          <p className="text-xs text-muted-foreground">
+            Freezes all changes (503) while keeping reads live — for incidents or change windows.
+            Sign-in and this toggle stay available so you can lift it. Survives a restart.
+            {maintenance?.engaged && maintenance.reason && <> Reason: <span className="font-medium">{maintenance.reason}</span></>}
+          </p>
         </div>
 
         {/* Config-at-rest key: confirm-by-fingerprint + export (to move encrypted files). */}

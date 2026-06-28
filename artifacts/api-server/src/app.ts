@@ -29,6 +29,7 @@ import { initKms } from "./lib/kms";
 import { contentSecurityPolicy, cspHeaderName } from "./lib/csp";
 import { tracingMiddleware } from "./lib/tracing";
 import { ipAllowGuard } from "./lib/ip-allow";
+import { maintenanceGuard } from "./lib/maintenance";
 
 const app: Express = express();
 
@@ -212,6 +213,10 @@ app.use((req, res, next) => {
   res.on("close", done); // client aborted before finish
   next();
 });
+
+// Maintenance lockdown: under read-only mode, refuse mutating requests (auth + the toggle +
+// health stay exempt so an admin can sign in and lift it). No-op unless engaged.
+app.use(maintenanceGuard);
 
 app.use("/api", router);
 

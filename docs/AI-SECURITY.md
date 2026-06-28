@@ -92,6 +92,10 @@ anonymous system call:
   export, the kill switch, containment relax, action approval. `lib/step-up.ts`.
 - **CSRF**: cookie-authenticated mutations need a same-origin Origin/Referer and a
   double-submit token. `lib/csrf.ts`.
+- **Maintenance lockdown** (break-glass read-only): an admin can freeze ALL writes (503) while
+  reads keep working — for incidents or change windows. Auth, the toggle, and health stay
+  exempt so you can sign in and lift it; persisted so a restart can't silently un-freeze.
+  `lib/maintenance.ts`, `PUT /api/admin/maintenance` (admin + step-up).
 
 ## 5. Config at rest & portability
 

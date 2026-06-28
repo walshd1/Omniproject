@@ -8,6 +8,7 @@ import { exportConfig } from "../lib/config-store";
 import { persistSecurityState } from "../lib/security-state";
 import { listKeys, revokeKey, revokeUserSessions, KEY_NAMES, type KeyName } from "../lib/key-registry";
 import { auditAnchor, verifyAuditChain, type SealedAuditEvent } from "../lib/audit-chain";
+import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "../lib/maintenance";
 
 /**
  * Admin-gated key revocation. An admin can retire a signing key (session / provenance /
@@ -62,6 +63,26 @@ router.post("/security/config/export", requireRole("admin"), requireStepUp, (req
     exportKey: out.exportKey,
     warning: "Move the bundle file and keep the ephemeral key separate. The key decrypts ONLY this bundle and nothing else. Your internal at-rest key has been rotated — past copies of the live files no longer share its key.",
   });
+});
+
+// ── Maintenance lockdown (break-glass read-only mode) ────────────────────────────
+// Read the current lockdown state (any admin). Surfaced on the dashboard.
+router.get("/admin/maintenance", requireRole("admin"), (_req, res) => {
+  res.json({ engaged: maintenanceEngaged(), reason: maintenanceReason() });
+});
+
+// Engage / release read-only lockdown (admin + step-up). While engaged, every write is
+// refused with 503 except auth, this toggle, and health. Persisted so a restart can't silently
+// un-freeze a deployment mid-incident. Audited.
+router.put("/admin/maintenance", requireRole("admin"), requireStepUp, (req, res) => {
+  const body = (req.body ?? {}) as { engaged?: unknown; reason?: unknown };
+  const engage = body.engaged === true;
+  const reason = typeof body.reason === "string" ? body.reason.slice(0, 280) : "";
+  if (engage) engageMaintenance(reason); else releaseMaintenance();
+  persistSecurityState();
+  const session = getSession(req);
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: engage ? "maintenance.engage" : "maintenance.release", actor: session ? { sub: session.sub, email: session.email } : null, write: true, result: "success", meta: { reason } });
+  res.json({ engaged: maintenanceEngaged(), reason: maintenanceReason() });
 });
 
 // ── Tamper-evident audit chain ──────────────────────────────────────────────────
