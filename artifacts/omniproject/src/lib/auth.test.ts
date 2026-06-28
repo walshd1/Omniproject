@@ -14,9 +14,25 @@ describe("roleAtLeast", () => {
     expect(roleAtLeast(undefined, "contributor")).toBe(false);
   });
 
-  it("admin meets every minimum", () => {
+  it("admin meets every BASE minimum + the admin authority", () => {
     const mins: Role[] = ["viewer", "contributor", "manager", "admin"];
     for (const m of mins) expect(roleAtLeast("admin", m)).toBe(true);
+  });
+
+  it("treats pmo and admin as orthogonal authorities (matching the gateway)", () => {
+    // Both authorities confer manager-level base, so they clear the base ladder…
+    for (const m of ["viewer", "contributor", "manager"] as Role[]) {
+      expect(roleAtLeast("pmo", m)).toBe(true);
+      expect(roleAtLeast("admin", m)).toBe(true);
+    }
+    // …but the authorities are independent: neither satisfies the other.
+    expect(roleAtLeast("admin", "pmo")).toBe(false);
+    expect(roleAtLeast("pmo", "admin")).toBe(false);
+    expect(roleAtLeast("pmo", "pmo")).toBe(true);
+    expect(roleAtLeast("admin", "admin")).toBe(true);
+    // A plain manager holds no authority.
+    expect(roleAtLeast("manager", "pmo")).toBe(false);
+    expect(roleAtLeast("manager", "admin")).toBe(false);
   });
 });
 
