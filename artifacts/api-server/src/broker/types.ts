@@ -42,6 +42,9 @@ export interface ActorContext {
   /** What kind of principal this is (default human). Autonomous actors carry their
    *  own keyed sessionBind + RBAC role, so they're keyed and provenance-bound too. */
   actorKind?: ActorKind;
+  /** For a minted autonomous principal: the invocation time it was minted for (epoch ms),
+   *  so a consumer can prove it's fresh and not a replayed/cached context. */
+  issuedAt?: number;
 }
 
 /** A normalised project row. */

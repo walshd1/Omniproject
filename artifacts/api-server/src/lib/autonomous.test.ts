@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  mintAutonomousContext, autonomousSub, actorKindOf, assertAutonomousCan, isAutonomous, AutonomousForbidden,
+  mintAutonomousContext, autonomousSub, actorKindOf, assertAutonomousCan, isAutonomous,
+  assertMintFresh, registerAutonomousActor, authorizedRole, AutonomousForbidden, AutonomousMintDenied,
 } from "./autonomous";
 import { deriveSessionBrokerKey } from "./session-key";
 import { sessionMac } from "./provenance";
@@ -9,7 +10,10 @@ import { sessionMac } from "./provenance";
 /**
  * Autonomous actors are keyed, RBAC-roled principals — the same machinery as a human
  * session (per-session key + provenance binding + role gate), never anonymous calls.
+ * The minter is privileged: allowlist-gated and time-bound.
  */
+const NOW = 1_700_000_000_000;
+
 test("namespaced identity distinguishes automation from delegated agents", () => {
   assert.equal(autonomousSub({ id: "health-watch" }), "automation:health-watch");
   assert.equal(autonomousSub({ id: "nl-action", onBehalfOf: "alice" }), "agent:nl-action:alice");
@@ -17,10 +21,11 @@ test("namespaced identity distinguishes automation from delegated agents", () =>
   assert.equal(actorKindOf({ onBehalfOf: "alice" }), "agent");
 });
 
-test("a minted context is KEYED: it carries a fresh per-session binding", () => {
-  const ctx = mintAutonomousContext({ id: "health-watch", role: "contributor" });
+test("a minted context is KEYED + time-stamped with the invocation time", () => {
+  const ctx = mintAutonomousContext({ id: "health-watch", role: "contributor" }, NOW);
   assert.equal(ctx.sub, "automation:health-watch");
   assert.equal(ctx.actorKind, "automation");
+  assert.equal(ctx.issuedAt, NOW);
   assert.ok(ctx.sessionBind, "autonomous actors get a sessionBind");
   assert.equal(ctx.sessionBind!.sub, ctx.sub);
   // The binding drives a real per-session broker key + a provenance session fingerprint.
@@ -30,26 +35,47 @@ test("a minted context is KEYED: it carries a fresh per-session binding", () => 
 });
 
 test("each mint gets fresh entropy ⇒ a distinct key (no key reuse across runs)", () => {
-  const a = mintAutonomousContext({ id: "health-watch", role: "viewer" });
-  const b = mintAutonomousContext({ id: "health-watch", role: "viewer" });
+  const a = mintAutonomousContext({ id: "health-watch", role: "viewer" }, NOW);
+  const b = mintAutonomousContext({ id: "health-watch", role: "viewer" }, NOW + 1);
   assert.notEqual(a.sessionBind!.salt, b.sessionBind!.salt);
   assert.notEqual(deriveSessionBrokerKey(a.sessionBind!), deriveSessionBrokerKey(b.sessionBind!));
 });
 
-test("RBAC applies: an actor cannot exceed the role it was granted", () => {
-  const contributor = mintAutonomousContext({ id: "nl-action", role: "contributor", onBehalfOf: "alice" });
-  // It can do contributor-level work…
-  assert.doesNotThrow(() => assertAutonomousCan(contributor, "contributor"));
-  // …but NOT admin/pmo-gated work.
-  assert.throws(() => assertAutonomousCan(contributor, "admin"), AutonomousForbidden);
-  assert.throws(() => assertAutonomousCan(contributor, "manager"), AutonomousForbidden);
+test("KNOWN SOURCE ONLY: an unregistered actor id cannot be minted", () => {
+  assert.equal(authorizedRole("totally-unknown"), undefined);
+  assert.throws(() => mintAutonomousContext({ id: "totally-unknown", role: "viewer" }, NOW), AutonomousMintDenied);
 });
 
-test("an admin-roled automation clears admin but a pure admin is not a PMO", () => {
-  const admin = mintAutonomousContext({ id: "reconciler", role: "admin" });
-  assert.doesNotThrow(() => assertAutonomousCan(admin, "admin"));
-  assert.doesNotThrow(() => assertAutonomousCan(admin, "manager"));
-  assert.throws(() => assertAutonomousCan(admin, "pmo"), AutonomousForbidden);
+test("the requested role may not exceed the registered cap", () => {
+  // portfolio-copilot is capped at viewer.
+  assert.equal(authorizedRole("portfolio-copilot"), "viewer");
+  assert.throws(() => mintAutonomousContext({ id: "portfolio-copilot", role: "admin" }, NOW), AutonomousMintDenied);
+  assert.doesNotThrow(() => mintAutonomousContext({ id: "portfolio-copilot", role: "viewer" }, NOW));
+});
+
+test("TIME-BOUND: an invalid/absent invocation time is refused", () => {
+  assert.throws(() => mintAutonomousContext({ id: "health-watch", role: "viewer" }, 0), AutonomousMintDenied);
+  assert.throws(() => mintAutonomousContext({ id: "health-watch", role: "viewer" }, NaN), AutonomousMintDenied);
+});
+
+test("assertMintFresh accepts a just-minted context and rejects stale/future ones", () => {
+  const ctx = mintAutonomousContext({ id: "health-watch", role: "viewer" }, NOW);
+  assert.doesNotThrow(() => assertMintFresh(ctx, NOW + 1_000)); // 1s later, fresh
+  assert.throws(() => assertMintFresh(ctx, NOW + 60_000), AutonomousMintDenied); // 60s later, stale
+  assert.throws(() => assertMintFresh(ctx, NOW - 1_000), AutonomousMintDenied); // before it was minted
+  assert.throws(() => assertMintFresh({}, NOW), AutonomousMintDenied); // no stamp at all
+});
+
+test("registerAutonomousActor admits a new known source (admin/config)", () => {
+  registerAutonomousActor("nightly-rollup", "manager");
+  assert.doesNotThrow(() => mintAutonomousContext({ id: "nightly-rollup", role: "manager" }, NOW));
+});
+
+test("RBAC applies: an actor cannot exceed the role it was granted", () => {
+  const contributor = mintAutonomousContext({ id: "nl-action", role: "contributor", onBehalfOf: "alice" }, NOW);
+  assert.doesNotThrow(() => assertAutonomousCan(contributor, "contributor"));
+  assert.throws(() => assertAutonomousCan(contributor, "admin"), AutonomousForbidden);
+  assert.throws(() => assertAutonomousCan(contributor, "manager"), AutonomousForbidden);
 });
 
 test("a missing role defaults to least privilege (viewer)", () => {
