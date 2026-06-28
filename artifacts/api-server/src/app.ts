@@ -165,14 +165,30 @@ app.use(wellKnownRouter);
 const staticDir = process.env["STATIC_DIR"];
 if (staticDir && fs.existsSync(staticDir)) {
   const indexHtml = path.join(staticDir, "index.html");
-  app.use(express.static(staticDir));
+  // Vite emits content-hashed, immutable asset filenames, so they can be cached
+  // forever — a big repeat-visit win. The shell entrypoints (index.html, the
+  // service worker) must always revalidate so a new deploy is picked up at once.
+  const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+  app.use(
+    express.static(staticDir, {
+      maxAge: ONE_YEAR_MS,
+      immutable: true,
+      setHeaders(res, filePath) {
+        if (filePath.endsWith("index.html") || filePath.endsWith("sw.js")) {
+          res.setHeader("Cache-Control", "no-cache");
+        }
+      },
+    }),
+  );
 
-  // SPA history fallback: serve index.html for non-API GET routes.
+  // SPA history fallback: serve index.html for non-API GET routes (never cached,
+  // so it always references the latest hashed assets).
   app.use((req, res, next) => {
     if (req.method !== "GET" || req.path.startsWith("/api")) {
       next();
       return;
     }
+    res.setHeader("Cache-Control", "no-cache");
     res.sendFile(indexHtml);
   });
 
