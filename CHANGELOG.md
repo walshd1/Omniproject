@@ -16,6 +16,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Shared primitives + catalogue-sourced backend suggestions (no behaviour change).**
+  - `lib/crypto-keys` — `deriveKeyCached` (memoised sha256(secret)), `decodeKey32` (base64
+    32-byte key parse) and `fingerprint` (truncated sha256 hex) replace the same boilerplate
+    hand-rolled in `session-crypto`, `broker-psk`, `config-crypto`, `vault-store`, `vault` and
+    `error-handler`.
+  - `lib/env` — `envFlag` replaces the repeated `/^(1|true|on|yes)$/i` env parsing in `csrf`,
+    `mcp`, `raw-api` and `provenance`.
+  - The Settings **backend-source datalist** is now populated from the catalogue
+    (`/api/setup/backends`) rather than a hardcoded vendor list — no vendor ids sit in the SPA
+    ("all" remains the only built-in, non-vendor suggestion).
 - **Architecture-conformance pass (audit-driven; no behaviour change).** Three sweeps
   (vendor-leak, AI-config-in-TS, single-implementation) confirmed the codebase holds its
   principles — zero vendor code above the broker seam, registries applied consistently — and

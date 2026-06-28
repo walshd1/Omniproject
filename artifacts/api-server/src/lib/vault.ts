@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+import { fingerprint } from "./crypto-keys";
 import { activeVaultStore, vaultBackendId } from "./vault-store";
 import { logger } from "./logger";
 
@@ -77,7 +77,7 @@ export async function deleteSecret(ref: string): Promise<void> {
 export function secretFingerprint(ref: string): string | null {
   const value = getSecret(ref);
   if (value === null) return null;
-  return crypto.createHash("sha256").update(value).digest("hex").slice(0, 8);
+  return fingerprint(value, 8);
 }
 
 /** The refs that currently have a secret (no values). */

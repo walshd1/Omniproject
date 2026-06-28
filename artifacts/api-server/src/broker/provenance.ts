@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { record } from "../lib/provenance";
+import { envFlag } from "../lib/env";
 import type { SessionBind } from "../lib/session-key";
 import type { Broker } from "./types";
 
@@ -13,7 +14,7 @@ import type { Broker } from "./types";
  * On by default; set PROVENANCE_DISABLED to turn it off (e.g. for a hot read path).
  */
 export function provenanceEnabled(): boolean {
-  return !/^(1|true|on|yes)$/i.test(process.env["PROVENANCE_DISABLED"]?.trim() ?? "");
+  return !envFlag("PROVENANCE_DISABLED");
 }
 
 function actorOf(args: unknown[]): string | null {

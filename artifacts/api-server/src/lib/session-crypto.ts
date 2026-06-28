@@ -1,5 +1,5 @@
-import crypto from "node:crypto";
 import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
+import { deriveKeyCached } from "./crypto-keys";
 
 /**
  * Authenticated encryption for the session cookie.
@@ -18,13 +18,8 @@ import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
 const PREFIX = "v1."; // version marker so the format can evolve / migrate
 const DEV_SECRET = "omniproject-dev-secret-change-in-production";
 
-let cache: { secret: string; key: Buffer } | null = null;
 function key(): Buffer {
-  const secret = process.env["SESSION_SECRET"]?.trim() || DEV_SECRET;
-  if (!cache || cache.secret !== secret) {
-    cache = { secret, key: crypto.createHash("sha256").update(secret).digest() };
-  }
-  return cache.key;
+  return deriveKeyCached(process.env["SESSION_SECRET"]?.trim() || DEV_SECRET);
 }
 
 /** Encrypt + authenticate a string. Returns a versioned base64url token. */

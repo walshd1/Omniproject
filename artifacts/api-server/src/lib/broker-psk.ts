@@ -1,5 +1,5 @@
-import crypto from "node:crypto";
 import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
+import { deriveKeyCached } from "./crypto-keys";
 
 /**
  * Opt-in pre-shared-key (PSK) encryption for the broker hop — a *fallback below
@@ -34,8 +34,6 @@ import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
 
 const PREFIX = "p1."; // version marker so the wire format can evolve / migrate
 
-let cache: { secret: string; key: Buffer } | null = null;
-
 /** The raw shared key from the environment, or undefined when PSK is off. */
 function rawPsk(): string | undefined {
   return process.env["BROKER_PSK"]?.trim() || undefined;
@@ -49,10 +47,7 @@ export function pskEnabled(): boolean {
 function key(): Buffer {
   const secret = rawPsk();
   if (!secret) throw new Error("BROKER_PSK is not set");
-  if (!cache || cache.secret !== secret) {
-    cache = { secret, key: crypto.createHash("sha256").update(secret).digest() };
-  }
-  return cache.key;
+  return deriveKeyCached(secret);
 }
 
 /** Encrypt + authenticate a string. Returns a versioned base64url token. */

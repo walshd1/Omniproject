@@ -2,6 +2,7 @@ import { Router, type Request } from "express";
 import { getSession } from "./auth";
 import { hasValidApiToken } from "../lib/api-token";
 import { hasRole } from "../lib/rbac";
+import { envFlag } from "../lib/env";
 import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
 import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../lib/approved-actions";
@@ -107,7 +108,7 @@ router.post("/mcp", async (req, res) => {
 
   // Write policy: OFF unless MCP_WRITE_ENABLED, and only for a contributor+
   // SESSION (a read-only API token can never write). Here be dragons.
-  const writesEnabled = /^(1|true|on|yes)$/i.test(process.env["MCP_WRITE_ENABLED"]?.trim() ?? "");
+  const writesEnabled = envFlag("MCP_WRITE_ENABLED");
   const policy: McpPolicy = { writesEnabled, canWrite: writesEnabled && !!getSession(req) && hasRole(req, "contributor") };
 
   const ctx = contextFromReq(req);

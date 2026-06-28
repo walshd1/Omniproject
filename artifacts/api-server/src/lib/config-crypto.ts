@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { kmsConfigKey } from "./kms";
 import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
+import { decodeKey32, fingerprint } from "./crypto-keys";
 
 /**
  * Config-at-rest encryption + secure export.
@@ -40,9 +41,7 @@ function rawKey(): Buffer | null {
   const kms = kmsConfigKey();
   if (kms) return kms;
   const raw = process.env["CONFIG_KEY_RAW"]?.trim();
-  if (!raw) return null;
-  const buf = Buffer.from(raw, "base64");
-  return buf.length === 32 ? buf : null;
+  return raw ? decodeKey32(raw) : null;
 }
 
 /** The internal key for a version (raw override wins; else derived, domain-separated). */
@@ -90,7 +89,7 @@ export function rotateInternalKey(): number {
 
 /** A non-secret fingerprint of the CURRENT internal key (confirm a match without revealing). */
 export function internalKeyFingerprint(): string {
-  return crypto.createHash("sha256").update(internalKey(currentVersion)).digest("hex").slice(0, 12);
+  return fingerprint(internalKey(currentVersion));
 }
 
 export interface ExportedBundle {

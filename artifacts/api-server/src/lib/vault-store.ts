@@ -6,6 +6,7 @@ import { awsSecretsStore } from "./vault-aws";
 import { azureKeyVaultStore } from "./vault-azure";
 import { kmsVaultKey } from "./kms";
 import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
+import { decodeKey32 } from "./crypto-keys";
 import { logger } from "./logger";
 
 /**
@@ -49,8 +50,8 @@ function rootKey(): Buffer {
   if (kms) return kms;
   const raw = process.env["VAULT_KEY"]?.trim();
   if (raw) {
-    const buf = Buffer.from(raw, "base64");
-    if (buf.length === 32) return buf;
+    const k = decodeKey32(raw);
+    if (k) return k;
   }
   const master =
     process.env["SESSION_SECRET"]?.trim() ||

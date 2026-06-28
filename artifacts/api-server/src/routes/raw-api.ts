@@ -5,6 +5,7 @@ import { requireRole, roleForReq } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { getSession } from "./auth";
 import { recordAudit } from "../lib/audit";
+import { envFlag } from "../lib/env";
 
 /**
  * ⚠️⚠️⚠️ RAW BROKER PASSTHROUGH — THE ESCAPE HATCH OF LAST RESORT ⚠️⚠️⚠️
@@ -37,7 +38,7 @@ const WARNING =
   "⚠️ RAW passthrough: bypasses the typed contract, capability gating and business ruleset. Admin-only, audited, last resort. Verify the action + payload against your backend.";
 
 function rawEnabled(): boolean {
-  return /^(1|true|on|yes)$/i.test(process.env["RAW_API_ENABLED"]?.trim() ?? "");
+  return envFlag("RAW_API_ENABLED");
 }
 
 function brokerConfigured(): boolean {
