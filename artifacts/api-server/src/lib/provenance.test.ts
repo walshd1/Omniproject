@@ -46,6 +46,18 @@ test("contentMac binds to actor + sequence position (can't be lifted elsewhere)"
   assert.notEqual(a, contentMac({ x: 1 }, "u1", 1));
 });
 
+test("records seq + elapsed-since-start offsets; tampering the timeline breaks the chain", () => {
+  record({ callId: "c1", hop: "invoke", action: "a", actor: "u1", content: [1] });
+  record({ callId: "c1", hop: "result", action: "a", actor: "u1", content: [2] });
+  const entries = recentProvenance();
+  assert.equal(entries[0]!.seq, 0);
+  assert.equal(entries[0]!.elapsedMs, 0); // first entry is the t0 reference
+  assert.ok(entries[1]!.elapsedMs >= 0 && entries[1]!.seq === 1);
+  // Rewriting the elapsed offset invalidates the entry's MAC.
+  entries[1] = { ...entries[1]!, elapsedMs: entries[1]!.elapsedMs + 9_999 };
+  assert.equal(verifyChain(entries).ok, false);
+});
+
 test("the broker Proxy records actor + invoke + result per call", async () => {
   const stub = { listProjects: async (_ctx: unknown) => [{ id: "p1", name: "P" }] } as unknown as Broker;
   const wrapped = wrapWithProvenance(stub);
