@@ -111,6 +111,15 @@ Broker selection + the request→domain context adapter.
 | `contextFromReq` | Build the domain ActorContext (forwarded identity + transport auth) from a request. |
 | `respondBrokerError` | Map a thrown broker error onto an HTTP response (status from the taxonomy). |
 
+### `artifacts/api-server/src/broker/key-guard.ts`
+
+Keyed-access guard for the live broker.
+
+| Function | What it does |
+| --- | --- |
+| `assertKeyedAccess` | Keyed-access guard for the live broker. |
+| `wrapWithKeyGuard` | Wrap a (live) broker so every call is hard-rejected unless a valid key is present. |
+
 ### `artifacts/api-server/src/broker/n8n.ts`
 
 n8n broker — THE one place that knows the broker is n8n.

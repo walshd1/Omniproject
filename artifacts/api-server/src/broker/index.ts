@@ -6,6 +6,8 @@ import { DemoBroker } from "./demo";
 import { BrokerError, type Broker, type ActorContext } from "./types";
 import { instrumented, wrapWithTrace } from "./trace";
 import { provenanceEnabled, wrapWithProvenance } from "./provenance";
+import { wrapWithKeyGuard } from "./key-guard";
+import { isDevMode } from "../lib/dev-mode";
 import { devBrokerFromEnv } from "./dev-broker";
 import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
 import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
@@ -31,6 +33,11 @@ export function getBroker(): Broker {
     // outside dev mode, so production is unaffected.
     const dev = devBrokerFromEnv();
     let base: Broker = dev ?? (N8N_ENV_CONFIGURED ? new N8nBroker() : new DemoBroker());
+    // Keyed-access posture: a LIVE broker is hard-gated behind a configured key
+    // (BROKER_PSK) outside dev mode — no keyless request reaches a real vendor/broker.
+    // Innermost so a cache hit (which reaches no broker) isn't blocked. Demo/dev brokers
+    // serve sample data and reach no vendor, so they're exempt.
+    if (N8N_ENV_CONFIGURED && !dev && !isDevMode()) base = wrapWithKeyGuard(base);
     // Demonstration flavour: present the demo AS the vendor named by `backendSource`,
     // gated to its declared capabilities, so a prospect previews the product on THEIR
     // stack over sample data. `demoVendorFor` enforces the hard rule that a thin-file
