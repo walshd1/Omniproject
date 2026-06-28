@@ -36,6 +36,9 @@ Every operation a broker must (or, where marked optional, may) implement. Each t
 | `describeFields` _(optional)_ | — | `Promise<EnumeratedField[]>` | Optional API enumeration: report the fields this backend exposes, so wiring a new system of record can reconcile them against the canonical registry and flag fields the seam doesn't yet understand. See lib/field-registry.ts. |
 | `fxRates` | — | `Promise<FxRates>` |  |
 | `replay` | `opts: { from?: string; to?: string }` | `Promise<HistoryState[]>` | Time-travel: replay recorded portfolio states from the logging server. |
+| `changeToken` _(optional)_ | `resource: string` | `Promise<string | null>` | OPTIONAL — a cheap, opaque CHANGE TOKEN for a resource (e.g. `"projects"`, `"issues:proj-001"`), used for conditional/delta reads: the gateway compares it to the client's last-seen token and, on a match, returns 304 WITHOUT performing the full read — so the heavy backend call is skipped. Map it to a backend ETag, a max(updatedAt), or a sync cursor. Return null when the resource has no cheap version (the gateway falls back to hashing the full payload). Brokers that don't implement this are unaffected — conditional reads degrade to the payload hash. |
+| `verifyConnection` _(optional)_ | `backend: string` | `Promise<{ ok: boolean; detail?: string }>` | OPTIONAL — verify the broker can reach a backend with its configured credentials (a "test connection"). Returns `{ ok }`. Brokers that don't implement it report "unsupported" upstream. |
+| `storeCredential` _(optional)_ | `input: { backend: string; name: string; value: string }` | `Promise<{ stored: boolean; ref?: string }>` | OPTIONAL — delegate a vendor credential to the BROKER's own encrypted credential store (e.g. n8n credentials). The secret is relayed ONCE through the gateway and never persisted here; the broker owns it thereafter. Returns a non-secret reference. Brokers without a vault report "unsupported" so the operator falls back to the env/Docker-secret scaffolding. |
 
 ## Response envelope & provenance
 
@@ -75,6 +78,16 @@ Forwarded actor identity. A write is performed "as" this principal so the backen
 | `role` | string | — |  |
 | `token` | string | — |  |
 | `authHeader` | string | — |  |
+| `sessionBind` | [SessionBind](#sessionbind) | — | Binding material for the per-session broker signing key (lib/session-key). Present for authenticated calls; absent for system/unauthenticated ones (which fall back to the static broker key). |
+| `actorKind` | [ActorKind](#actorkind) | — | What kind of principal this is (default human). Autonomous actors carry their own keyed sessionBind + RBAC role, so they're keyed and provenance-bound too. |
+| `issuedAt` | number | — | For a minted autonomous principal: the invocation time it was minted for (epoch ms), so a consumer can prove it's fresh and not a replayed/cached context. |
+| `expiresAt` | number | — | For a minted autonomous principal: its (short) expiry — autonomous sessions are deliberately brief since re-keying is free. |
+
+### ActorKind
+
+Who initiated an action. Autonomous actors (scheduled jobs, AI agents) are first-class principals — keyed, RBAC-roled and provenance-bound like a human.
+
+Enum: `human`, `automation`, `agent`
 
 ### BackendFieldMap
 
@@ -393,3 +406,9 @@ Dry-run verification of the broker contract — must never mutate a backend.
 | --- | --- | --- | --- |
 | `ok` | boolean | yes |  |
 | `actions` | object[] | yes |  |
+
+## ⚠️ Unmapped contract fields
+
+The generator could not map these to a code type — review before relying on them:
+
+- Type `SessionBind` is referenced by the contract but has no definition in broker/{types,contract}.ts.

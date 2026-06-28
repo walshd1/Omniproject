@@ -28,10 +28,34 @@ export const BROKER_CONTRACT_SCHEMA = {
         },
         "authHeader": {
           "type": "string"
+        },
+        "sessionBind": {
+          "$ref": "#/$defs/SessionBind",
+          "description": "Binding material for the per-session broker signing key (lib/session-key). Present for authenticated calls; absent for system/unauthenticated ones (which fall back to the static broker key)."
+        },
+        "actorKind": {
+          "$ref": "#/$defs/ActorKind",
+          "description": "What kind of principal this is (default human). Autonomous actors carry their own keyed sessionBind + RBAC role, so they're keyed and provenance-bound too."
+        },
+        "issuedAt": {
+          "type": "number",
+          "description": "For a minted autonomous principal: the invocation time it was minted for (epoch ms), so a consumer can prove it's fresh and not a replayed/cached context."
+        },
+        "expiresAt": {
+          "type": "number",
+          "description": "For a minted autonomous principal: its (short) expiry — autonomous sessions are deliberately brief since re-keying is free."
         }
       },
       "additionalProperties": false,
       "description": "Forwarded actor identity. A write is performed \"as\" this principal so the backend system of record authorises it under the real user (not a shared admin key). `authHeader` is the transport credential to forward; `token` is the same access token echoed in the per-user context. Demo brokers ignore both."
+    },
+    "ActorKind": {
+      "enum": [
+        "human",
+        "automation",
+        "agent"
+      ],
+      "description": "Who initiated an action. Autonomous actors (scheduled jobs, AI agents) are first-class principals — keyed, RBAC-roled and provenance-bound like a human."
     },
     "BackendFieldMap": {
       "type": "object",
