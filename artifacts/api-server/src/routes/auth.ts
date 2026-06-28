@@ -4,7 +4,7 @@
  * signed httpOnly session cookie, and (in demo mode, no IdP) issues a local admin
  * session. `getSession(req)` here is the single source of the caller's identity.
  */
-import { Router, type Request, type Response } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import {
   oidcConfig,
   isOidcConfigured,
@@ -20,11 +20,14 @@ import {
 import { roleForReq } from "../lib/rbac";
 import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
+import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
 
 const router = Router();
 
 const SESSION_COOKIE = "omni_session";
 const FLOW_COOKIE = "omni_oidc_flow";
+// Re-seal an active session at most this often (don't re-sign on every request).
+const SLIDE_THROTTLE_MS = 60_000;
 
 const cookieBase = {
   httpOnly: true as const,
@@ -48,18 +51,43 @@ function readSession(req: Request): Session | null {
   try {
     // Prefer the sealed (encrypted) payload; fall back to legacy plaintext JSON
     // so existing sessions survive the upgrade (they re-seal on the next write).
-    return JSON.parse(open(raw) ?? raw) as Session;
+    const session = JSON.parse(open(raw) ?? raw) as Session;
+    // Idle / absolute timeout: an expired session reads as "no session" everywhere,
+    // so every protected route rejects it (limits unattended-session risk).
+    if (isSessionExpired(session, Date.now())) return null;
+    return session;
   } catch {
     return null;
   }
 }
 
 function setSession(res: Response, session: Session): void {
-  // Signed (cookie-parser) AND sealed (AES-256-GCM) — tamper-proof and opaque.
-  res.cookie(SESSION_COOKIE, seal(JSON.stringify(session)), {
+  const now = Date.now();
+  // Stamp issue + activity times (preserve the original issue time so the absolute
+  // cap can't be reset by activity). Signed (cookie-parser) AND sealed (AES-256-GCM).
+  const stamped: Session = { ...session, iat: session.iat ?? now, seen: now };
+  res.cookie(SESSION_COOKIE, seal(JSON.stringify(stamped)), {
     ...cookieBase,
     maxAge: 1000 * 60 * 60 * 8, // 8h
   });
+}
+
+/**
+ * Slide the idle timeout forward on activity: re-stamp `seen` (throttled) so an active
+ * user stays signed in, and tidy up an expired/garbage session cookie. Mounted early,
+ * after the cookie parser, so it runs before any route reads the session.
+ */
+export function slideSession(req: Request, res: Response, next: NextFunction): void {
+  const raw = req.signedCookies?.[SESSION_COOKIE];
+  if (raw) {
+    const session = readSession(req); // null when expired or unreadable
+    if (!session) {
+      res.clearCookie(SESSION_COOKIE, cookieBase);
+    } else if (!session.iat || !session.seen || Date.now() - session.seen > SLIDE_THROTTLE_MS) {
+      setSession(res, session);
+    }
+  }
+  next();
 }
 
 // Exposed so other routes (e.g. the n8n proxy) can pull the bearer token. Applies
@@ -101,6 +129,8 @@ router.get("/auth/me", (req, res) => {
       mode: isOidcConfigured ? "oidc" : "demo",
       user: { sub: session.sub, name: session.name, email: session.email },
       role: roleForReq(req),
+      // Lets the SPA warn before, and redirect on, an idle/absolute timeout.
+      sessionTimeout: timeoutPolicy(),
     });
     return;
   }

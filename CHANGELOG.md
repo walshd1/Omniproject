@@ -6,6 +6,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Security
+
+- **Session idle + absolute timeout** — sessions now expire after a sliding idle period
+  (default 30 min) and a hard absolute lifetime (default 8 h), enforced server-side in
+  the sealed cookie via `iat`/`seen` stamps: an expired session reads as "no session"
+  everywhere, so every protected route rejects it (limits unattended-session /
+  shoulder-surfing risk, and bounds a stolen long-lived cookie). Active sessions slide
+  forward on activity (throttled re-seal); pre-upgrade cookies are stamped on first use
+  rather than force-expired. Configurable via `SESSION_IDLE_MINUTES` /
+  `SESSION_ABSOLUTE_HOURS` (0 disables either). The SPA gets the policy from
+  `/api/auth/me` and shows a countdown warning before signing the user out and
+  returning to login. (Part of a broader security pass; CSRF hardening + a gateway↔broker
+  request HMAC + step-up re-auth + an injection-hardening audit are queued next.)
+
 ### Performance
 
 - **Dev-mode performance overlay + Server-Timing** — the gateway now emits a standard

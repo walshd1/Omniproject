@@ -11,6 +11,7 @@ import { PlatformProvider } from "./lib/platform-context";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DevModeWatermark } from "./components/DevModeWatermark";
 import { DevPerfOverlay } from "./components/DevPerfOverlay";
+import { SessionTimeoutWatcher } from "./components/SessionTimeoutWatcher";
 import { DevImpersonationControl } from "./components/DevImpersonationControl";
 import { DevEntitlementsControl } from "./components/DevEntitlementsControl";
 import { SwitchScanner } from "./components/SwitchScanner";
@@ -125,6 +126,7 @@ function App() {
             <DevPerfOverlay />
           </WouterRouter>
           <Toaster />
+          <SessionTimeoutWatcher />
           <SwitchScanner />
           <VoiceInput />
           <DevModeWatermark />

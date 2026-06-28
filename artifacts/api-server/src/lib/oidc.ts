@@ -56,6 +56,10 @@ export interface Session extends SessionUser {
   accessToken: string;
   idToken?: string;
   impersonation?: Impersonation;
+  /** Epoch ms the session was first issued (for the absolute-lifetime cap). */
+  iat?: number;
+  /** Epoch ms of the last activity (for the sliding idle timeout). */
+  seen?: number;
 }
 
 const issuerUrl = process.env["OIDC_ISSUER_URL"]?.trim();

@@ -69,6 +69,19 @@ test("a session (any role) can read", async () => {
   assert.equal(res.status, 200);
 });
 
+test("an idle-expired session is rejected (401) — sliding timeout enforced", async () => {
+  // Last activity an hour ago — past the 30m default idle limit.
+  const idle = signedSessionCookie({ sub: "stale-1", roles: [], seen: Date.now() - 60 * 60_000 });
+  const res = await req("/api/projects", { headers: { cookie: idle } });
+  assert.equal(res.status, 401);
+});
+
+test("a session past its absolute lifetime is rejected (401)", async () => {
+  const old = signedSessionCookie({ sub: "old-1", roles: [], iat: Date.now() - 9 * 60 * 60_000, seen: Date.now() });
+  const res = await req("/api/projects", { headers: { cookie: old } });
+  assert.equal(res.status, 401);
+});
+
 test("responses carry the timing headers (upstream vs total)", async () => {
   const res = await req("/api/projects", { headers: { cookie: VIEWER } });
   // Present on every response; demo broker has no upstream hop so it reads 0.

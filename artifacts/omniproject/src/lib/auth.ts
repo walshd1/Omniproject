@@ -13,6 +13,8 @@ export interface AuthState {
   mode: "oidc" | "demo";
   user: AuthUser | null;
   role: Role;
+  /** Server session-timeout policy (ms); 0 = disabled. Drives the idle warning. */
+  sessionTimeout?: { idleMs: number; absoluteMs: number };
 }
 
 const RANK: Record<Role, number> = { viewer: 0, contributor: 1, manager: 2, admin: 3 };

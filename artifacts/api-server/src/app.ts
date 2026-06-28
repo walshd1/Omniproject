@@ -21,6 +21,7 @@ import { isDevMode } from "./lib/dev-mode";
 import { httpRequestStarted, recordHttpRequest } from "./lib/runtime-metrics";
 import { errorHandler } from "./lib/error-handler";
 import { compression } from "./lib/compression";
+import { slideSession } from "./routes/auth";
 
 const app: Express = express();
 
@@ -104,6 +105,8 @@ app.use((req, res, next) => {
 });
 
 app.use(cookieParser(SESSION_SECRET));
+// Enforce + slide the session idle/absolute timeout before any route reads it.
+app.use(slideSession);
 // Hard-enforce request body size (defence against memory-exhaustion / oversized
 // payloads). Explicit + configurable rather than relying on Express's implicit
 // 100kb default. Project payloads are small; 256kb is generous headroom.

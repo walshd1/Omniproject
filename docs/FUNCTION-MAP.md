@@ -825,6 +825,17 @@ Authenticated encryption for the session cookie.
 | `seal` | Encrypt + authenticate a string. |
 | `open` | Decrypt + verify. |
 
+### `artifacts/api-server/src/lib/session-timeout.ts`
+
+Session timeout policy — a sliding IDLE timeout plus an ABSOLUTE lifetime cap.
+
+| Function | What it does |
+| --- | --- |
+| `idleMs` | Idle timeout in ms (0 = disabled). |
+| `absoluteMs` | Absolute session lifetime in ms (0 = disabled). |
+| `isSessionExpired` | Has this session expired by idle or absolute age at `now`? Missing timestamps are treated as NOT expired so pre-upgrade cookies survive — they get stamped on the next request and are enforced from then on (see auth.ts slideSession). |
+| `timeoutPolicy` | Public view of the policy, for the frontend idle warning / countdown. |
+
 ### `artifacts/api-server/src/lib/settings.ts`
 
 Gateway-local settings store.
@@ -960,6 +971,7 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 
 | Function | What it does |
 | --- | --- |
+| `slideSession` | Slide the idle timeout forward on activity: re-stamp `seen` (throttled) so an active user stays signed in, and tidy up an expired/garbage session cookie. |
 | `getSession` | Exposed so other routes (e.g. the n8n proxy) can pull the bearer token. |
 | `getRealSession` | The REAL signed-in session, ignoring any impersonation — used to authorise starting/stopping an impersonation against the genuine actor. |
 | `startImpersonation` | Begin an ephemeral impersonation on the current session (overwrites any prior one). |
