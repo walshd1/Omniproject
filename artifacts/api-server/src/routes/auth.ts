@@ -94,6 +94,7 @@ function setSession(res: Response, session: Session): void {
   };
   res.cookie(SESSION_COOKIE, seal(JSON.stringify(stamped)), {
     ...cookieBase,
+    secure: requireTls(), // re-evaluate per set, so a wizard profile change applies to new sessions
     maxAge: 1000 * 60 * 60 * 8, // 8h
   });
 }

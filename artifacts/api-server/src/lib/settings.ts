@@ -8,7 +8,13 @@
  */
 
 import { assertSafeOutboundUrl, isSafeOutboundUrl, UnsafeUrlError } from "./url-safety";
+import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "./deployment-profile";
 import type { BackendFieldMap } from "../broker/types";
+
+function coerceProfile(raw: unknown): DeploymentProfile | undefined {
+  const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return (DEPLOYMENT_PROFILES as readonly string[]).includes(v) ? (v as DeploymentProfile) : undefined;
+}
 
 export const AI_PROVIDERS = ["none", "openai", "ollama", "anthropic", "openrouter"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
@@ -85,6 +91,8 @@ export interface SettingsState {
   brokerUrl: string | null;
   aiProvider: AiProvider;
   sttProvider: SttProvider;
+  /** Deployment context chosen in the setup wizard (relaxes enterprise couplings by choice). */
+  deploymentProfile?: DeploymentProfile;
   aiModel: string | null;
   backendSource: BackendSource;
   oidcIssuerUrl: string | null;
@@ -247,6 +255,7 @@ const store: SettingsState = {
   brokerUrl: process.env["BROKER_URL"]?.trim() || null,
   aiProvider: coerceAiProvider(process.env["AI_PROVIDER"]?.trim() || "none"),
   sttProvider: coerceSttProvider(process.env["STT_PROVIDER"]?.trim() || "none"),
+  deploymentProfile: coerceProfile(process.env["DEPLOYMENT_PROFILE"]),
   aiModel: process.env["AI_MODEL"] ?? null,
   backendSource: process.env["BACKEND_SOURCE"]?.trim() || "all",
   oidcIssuerUrl: process.env["OIDC_ISSUER_URL"] ?? null,
@@ -269,6 +278,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "brokerUrl",
   "aiProvider",
   "sttProvider",
+  "deploymentProfile",
   "aiModel",
   "backendSource",
   "oidcIssuerUrl",
@@ -328,6 +338,9 @@ function validatePatch(patch: Record<string, unknown>): void {
   }
   if ("sttProvider" in patch && !(STT_PROVIDERS as readonly string[]).includes(patch["sttProvider"] as string)) {
     throw new SettingsValidationError(`sttProvider must be one of: ${STT_PROVIDERS.join(", ")}`);
+  }
+  if ("deploymentProfile" in patch && patch["deploymentProfile"] != null && !(DEPLOYMENT_PROFILES as readonly string[]).includes(patch["deploymentProfile"] as string)) {
+    throw new SettingsValidationError(`deploymentProfile must be one of: ${DEPLOYMENT_PROFILES.join(", ")}`);
   }
   for (const key of ["brokerUrl", "oidcIssuerUrl"] as const) {
     if (key in patch && patch[key] != null) {
@@ -393,5 +406,10 @@ export function updateSettings(patch: Record<string, unknown>): SettingsState {
       writable[key] = patch[key];
     }
   }
+  // A profile change takes effect for the runtime accessors (TLS posture, reporting, …).
+  if ("deploymentProfile" in patch) setRuntimeProfile(store.deploymentProfile ?? null);
   return { ...store };
 }
+
+// Apply the initial (env-seeded) profile to the runtime accessor at module load.
+setRuntimeProfile(store.deploymentProfile ?? null);

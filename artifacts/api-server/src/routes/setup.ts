@@ -21,7 +21,7 @@ import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 import { configDirSummary } from "../lib/config-dir";
 import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus } from "../lib/setup-status";
-import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
+import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
 import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
 import {
   storeView,
@@ -73,7 +73,23 @@ router.get("/setup/profile", requireRole("admin"), (_req, res) => {
       rateLimit: !isOn(process.env["RATE_LIMIT_DISABLED"]),
     },
     profiles: DEPLOYMENT_PROFILES,
+    // The picker catalogue: every customer type's posture + preset (audience, what it relaxes,
+    // suggested env, recommendations).
+    catalogue: profileCatalogue(),
   });
+});
+
+// POST /api/setup/profile — pick the deployment profile from the wizard (admin). Persists it
+// (overrides the env default) so the TLS posture + the no-IdP severity follow the chosen type.
+// Infra-level env (DEPLOYMENT_PROFILE) remains the source of truth across a fresh boot.
+router.post("/setup/profile", requireRole("admin"), (req, res) => {
+  const profile = typeof req.body?.profile === "string" ? req.body.profile.trim().toLowerCase() : "";
+  if (!(DEPLOYMENT_PROFILES as readonly string[]).includes(profile)) {
+    res.status(400).json({ error: `profile must be one of: ${DEPLOYMENT_PROFILES.join(", ")}` });
+    return;
+  }
+  updateSettings({ deploymentProfile: profile });
+  res.json({ profile: deploymentProfile(), posture: profilePosture(), tls: { servedOverTls: requireTls() } });
 });
 
 // POST /api/setup/test-n8n — non-destructive reachability + capability probe of

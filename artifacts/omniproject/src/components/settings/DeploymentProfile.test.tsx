@@ -7,7 +7,7 @@ import type { DeploymentProfileView } from "../../lib/deployment-profile";
 
 const VIEW: DeploymentProfileView = {
   profile: "self-hosted",
-  posture: { label: "Self-hosted / homelab", tls: "lan-ok", demoAuthSeverity: "warn", summary: "Small self-hoster on a private network.", recommend: ["Set a strong SESSION_SECRET"] },
+  posture: { label: "Self-hosted / homelab", audience: "Homelab", tls: "lan-ok", demoAuthSeverity: "warn", summary: "Small self-hoster on a private network.", relaxes: [], presetEnv: [], recommend: ["Set a strong SESSION_SECRET"] },
   tls: { servedOverTls: false },
   demoAuth: { active: true, accepted: false, severity: "warn" },
   hardening: { oidc: false, scim: false, ipAllowlist: false, sessionCap: false, kms: false, makerChecker: false, securityStrict: false, rateLimit: true },

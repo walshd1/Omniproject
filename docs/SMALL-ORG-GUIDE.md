@@ -18,6 +18,14 @@ That boots, serves **plain HTTP on your LAN** (sessions keep working — no brok
 cookies), authenticates in demo mode, and shows sample data until you wire a backend. Nothing
 is stored at rest beyond your encrypted config.
 
+## Pick your type in the setup wizard
+
+The **Setup** wizard opens with **“Choose your deployment type”** — a card per customer type
+(Enterprise · Business/SME · Non-profit/charity · Self-hosted · Demo) showing what each one
+relaxes and the env it suggests. Picking one persists the choice (admins). For a permanent,
+boot-time setting also set `DEPLOYMENT_PROFILE` in your environment (it stays authoritative
+across a fresh start).
+
 ## The deployment profile
 
 `DEPLOYMENT_PROFILE` tells the gateway your context so the couplings that exist for enterprises
