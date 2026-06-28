@@ -18,10 +18,12 @@ export const DEFAULT_USER_PREFS: UserPrefs = {
   scanRateMs: 1500,
   screenReader: false,
   speechInput: false,
+  mobileMode: "auto",
 };
 
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const SCAN_MODES = ["off", "single", "two"] as const;
+const MOBILE_MODES = ["auto", "on", "off"] as const;
 const clampScale = (n: number): number => Math.min(1.5, Math.max(0.85, Math.round(n * 100) / 100));
 const clampScanRate = (n: number): number => Math.min(5000, Math.max(500, Math.round(n)));
 
@@ -37,6 +39,7 @@ export function sanitizeUserPrefs(input: unknown): UserPrefs {
     scanRateMs: typeof o["scanRateMs"] === "number" ? clampScanRate(o["scanRateMs"] as number) : DEFAULT_USER_PREFS.scanRateMs,
     screenReader: !!o["screenReader"],
     speechInput: !!o["speechInput"],
+    mobileMode: (MOBILE_MODES as readonly string[]).includes(o["mobileMode"] as string) ? (o["mobileMode"] as UserPrefs["mobileMode"]) : "auto",
   };
 }
 

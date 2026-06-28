@@ -180,6 +180,24 @@ html {
   scroll-behavior: auto !important;
 }
 
+/* ── Mobile mode (lib/platform-context) ──────────────────────────────────────────
+   data-mobile / data-touch / data-standalone are set on <html> from the resolved
+   platform. Touch layouts get WCAG-sized (≥44px) hit targets; installed/standalone
+   PWAs inset fixed UI past the device safe areas (notch / home indicator). */
+[data-mobile="true"] button,
+[data-mobile="true"] [role="button"],
+[data-mobile="true"] a[href],
+[data-mobile="true"] select,
+[data-mobile="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]) {
+  min-height: 44px;
+}
+
+/* Keep the floating dictation mic clear of the iOS home indicator when installed. */
+[data-standalone="true"] [data-testid="voice-input"] {
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  right: calc(1rem + env(safe-area-inset-right, 0px));
+}
+
 /* Switch-access scanning (lib/switch-scan): a bold ring on the control the sweep is
    currently highlighting, so a switch user can see what pressing the switch will pick. */
 [data-scan-current="true"] {

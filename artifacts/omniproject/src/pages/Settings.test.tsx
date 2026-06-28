@@ -7,6 +7,7 @@ import {
 } from "@workspace/api-client-react";
 import { renderWithProviders } from "../test/utils";
 import { A11yProvider } from "../lib/a11y-prefs";
+import { PlatformProvider } from "../lib/platform-context";
 import { Settings } from "./Settings";
 
 function settings(over: Partial<SettingsType> = {}): SettingsType {
@@ -46,7 +47,7 @@ beforeEach(() => {
 
 describe("Settings", () => {
   it("renders the configuration form sections seeded from settings", () => {
-    renderWithProviders(<A11yProvider><Settings /></A11yProvider>, { client: seed(settings()) });
+    renderWithProviders(<A11yProvider><PlatformProvider><Settings /></PlatformProvider></A11yProvider>, { client: seed(settings()) });
     expect(screen.getByRole("heading", { level: 1, name: /system configuration/i })).toBeInTheDocument();
     expect(screen.getByText(/orchestration/i)).toBeInTheDocument();
     expect(screen.getByText(/ai model/i)).toBeInTheDocument();
@@ -57,13 +58,13 @@ describe("Settings", () => {
   });
 
   it("shows the model field only when an AI provider is selected", () => {
-    renderWithProviders(<A11yProvider><Settings /></A11yProvider>, { client: seed(settings({ aiProvider: "openai", aiModel: "gpt-4o-mini" })) });
+    renderWithProviders(<A11yProvider><PlatformProvider><Settings /></PlatformProvider></A11yProvider>, { client: seed(settings({ aiProvider: "openai", aiModel: "gpt-4o-mini" })) });
     expect(screen.getByText(/^model$/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /test connection/i })).toBeInTheDocument();
   });
 
   it("hides the model field when the provider is none", () => {
-    renderWithProviders(<A11yProvider><Settings /></A11yProvider>, { client: seed(settings({ aiProvider: "none" })) });
+    renderWithProviders(<A11yProvider><PlatformProvider><Settings /></PlatformProvider></A11yProvider>, { client: seed(settings({ aiProvider: "none" })) });
     expect(screen.queryByRole("button", { name: /test connection/i })).not.toBeInTheDocument();
   });
 });

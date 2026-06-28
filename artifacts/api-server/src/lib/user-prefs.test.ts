@@ -28,6 +28,10 @@ test("sanitize validates switch-scan mode, clamps the scan rate, coerces a11y to
   assert.equal(sanitizeUserPrefs({ screenReader: 1 }).screenReader, true);
   assert.equal(sanitizeUserPrefs({ speechInput: "yes" }).speechInput, true);
   assert.equal(sanitizeUserPrefs({}).speechInput, false);
+  assert.equal(sanitizeUserPrefs({ mobileMode: "on" }).mobileMode, "on");
+  assert.equal(sanitizeUserPrefs({ mobileMode: "off" }).mobileMode, "off");
+  assert.equal(sanitizeUserPrefs({ mobileMode: "bogus" }).mobileMode, "auto");
+  assert.equal(sanitizeUserPrefs({}).mobileMode, "auto");
 });
 
 test("get/set/has round-trip per user; unknown user ⇒ defaults", () => {

@@ -2,8 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the app paint into iOS notch/safe areas (we inset with env()). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>OmniProject</title>
+
+    <!-- Installable PWA (relative hrefs so they resolve under any base path). -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#FF3C00" />
+    <link rel="apple-touch-icon" href="icons/app-icon.svg" />
+    <!-- iOS standalone web-app chrome. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="OmniProject" />
     <meta name="description" content="OmniProject — one pane of glass over the project tools you already run, brokered through n8n." />
     <meta name="robots" content="index, follow" />
     <meta property="og:title" content="OmniProject" />

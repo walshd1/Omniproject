@@ -121,6 +121,8 @@ export interface UserPrefs {
   screenReader: boolean;
   /** Show the dictation mic (on-device speech-to-text via the user's own browser). */
   speechInput: boolean;
+  /** Touch-optimised mobile layout: follow the device (auto) or force on/off. */
+  mobileMode: "auto" | "on" | "off";
 }
 
 /** A saved arrangement for one screen. */

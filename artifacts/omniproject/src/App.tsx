@@ -7,6 +7,7 @@ import { useEffect, lazy, Suspense } from "react";
 import { useStore } from "./store/useStore";
 import { BrandingProvider } from "./lib/branding";
 import { A11yProvider } from "./lib/a11y-prefs";
+import { PlatformProvider } from "./lib/platform-context";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DevModeWatermark } from "./components/DevModeWatermark";
 import { DevImpersonationControl } from "./components/DevImpersonationControl";
@@ -104,6 +105,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrandingProvider>
         <A11yProvider>
+        <PlatformProvider>
         <TooltipProvider>
           <ThemeInitializer />
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
@@ -126,6 +128,7 @@ function App() {
           <DevImpersonationControl />
           <DevEntitlementsControl />
         </TooltipProvider>
+        </PlatformProvider>
         </A11yProvider>
       </BrandingProvider>
     </QueryClientProvider>

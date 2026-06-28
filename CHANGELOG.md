@@ -8,6 +8,26 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Platform & capability detection, mobile mode, PWA, native-ready seam** — the app
+  now tailors itself to the device the right way: **feature-detection first**, with
+  coarse OS/engine hints used only for wording and install routing (never to gate a
+  capability — UA strings lie). New `lib/platform.ts` + `usePlatform()` report live
+  capabilities (speech, touch, Web Share, service worker, standalone/installed, a
+  reserved native-bridge flag) and form factor.
+  - **Mobile mode** — a touch-optimised layout that follows the device automatically,
+    with a per-user override (auto / on / off) persisted in prefs. Drives
+    `data-form-factor` / `data-mobile` / `data-touch` / `data-standalone` on the root;
+    touch layouts get WCAG-sized (≥44px) hit targets and installed PWAs inset fixed UI
+    past device safe areas (notch / home indicator).
+  - **Installable PWA** — web app manifest + maskable icons, theme-color, iOS
+    `apple-mobile-web-app-*` meta and `viewport-fit=cover`. An **app-shell service
+    worker** (prod only) caches ONLY hashed static assets — never `/api`, `/auth` or
+    any non-GET request — so the stateless / zero-at-rest posture is fully preserved;
+    navigations are network-first so a new deploy is never shadowed by a stale shell.
+  - **Native-ready seam** — speech, notifications and platform sit behind interfaces,
+    and `usePlatform().nativeBridge` detects an injected `window.OmniNative`, so a
+    later Capacitor (or similar) shell can supply native implementations — including
+    truly on-device, cross-platform dictation — reusing this exact codebase.
 - **Accessibility mode: switch scanning, screen-reader narration, voice dictation** —
   three opt-in per-user accessibility features that drive the app from the user's OWN
   assistive setup (nothing bundled, nothing sent off-device, in keeping with the

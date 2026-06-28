@@ -2,13 +2,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useA11yPrefs, A11Y_SCALE_BOUNDS, type SwitchScanMode } from "../../lib/a11y-prefs";
+import { useA11yPrefs, A11Y_SCALE_BOUNDS, type SwitchScanMode, type MobileMode } from "../../lib/a11y-prefs";
 import { isSpeechSupported } from "../../lib/speech";
+import { usePlatform } from "../../lib/platform-context";
 
 const SCAN_OPTIONS: { value: SwitchScanMode; label: string }[] = [
   { value: "off", label: "Off" },
   { value: "single", label: "Single-switch (auto-scan)" },
   { value: "two", label: "Two-switch (step)" },
+];
+
+const MOBILE_OPTIONS: { value: MobileMode; label: string }[] = [
+  { value: "auto", label: "Auto (follow device)" },
+  { value: "on", label: "Always on" },
+  { value: "off", label: "Always off" },
 ];
 
 /**
@@ -20,10 +27,11 @@ const SCAN_OPTIONS: { value: SwitchScanMode; label: string }[] = [
 export function A11yControls() {
   const {
     prefs, setFontScale, setBackgroundColor, toggleHighContrast, toggleReduceMotion,
-    setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput, reset,
+    setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput, setMobileMode, reset,
   } = useA11yPrefs();
   const pct = Math.round(prefs.fontScale * 100);
   const speechSupported = isSpeechSupported();
+  const { isMobile, platform } = usePlatform();
   return (
     <Card>
       <CardHeader>
@@ -109,6 +117,23 @@ export function A11yControls() {
             {!speechSupported && <p className="text-xs text-muted-foreground">Not available in this browser.</p>}
           </div>
           <Switch id="a11y-speech" checked={prefs.speechInput} disabled={!speechSupported} onCheckedChange={toggleSpeechInput} />
+        </div>
+
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+          <div>
+            <Label htmlFor="a11y-mobile">Mobile layout</Label>
+            <p className="text-xs text-muted-foreground">
+              Currently {isMobile ? "on" : "off"} ({platform.formFactor}).
+            </p>
+          </div>
+          <select
+            id="a11y-mobile"
+            value={prefs.mobileMode}
+            onChange={(e) => setMobileMode(e.target.value as MobileMode)}
+            className="h-9 rounded-md border border-border bg-transparent px-2 text-sm"
+          >
+            {MOBILE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </div>
 
         <div className="flex justify-end border-t border-border pt-4">
