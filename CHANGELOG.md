@@ -37,6 +37,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Capability governance — call-time enforcement + screen-registry surfaces** —
+  governance is now enforced, not just configured. `enforceCapability(id, {surface,
+  actor})` resolves a capability's effective state for the calling screen and **throws
+  if it's off**, and `decideCapability` records every decision (allowed or denied) to
+  the audit log — so there's a trail of which AI/vendor ran where and for whom. The AI
+  chat route (`POST /api/ai/chat`) is the first enforced call site: the active provider
+  must be permitted on the calling surface or the request is refused (403) and logged.
+  Existing AI config keeps working — the active provider defaults to its natural state
+  unless an admin overrides it. Per-surface overrides are now **picked from the screen
+  registry** (`GET /api/governance` returns the screen list), not free-typed, so an
+  override can't silently miss on a typo.
 - **Capability governance — tri-state (off / user-defined / public) for every AI
   tool, the MCP, AI providers and vendors** — one admin-controlled model for where each
   capability runs: `off`, `user-defined` (the CUSTOMER controls it — truly local or

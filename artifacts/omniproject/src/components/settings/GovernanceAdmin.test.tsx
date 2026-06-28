@@ -17,7 +17,7 @@ const CAPS: ResolvedCapability[] = [
 function seed(role: string | undefined): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
   if (role) qc.setQueryData(["auth", "me"], { sub: "u1", role });
-  qc.setQueryData(["governance"], { capabilities: CAPS });
+  qc.setQueryData(["governance"], { capabilities: CAPS, surfaces: [{ id: "reports", label: "Reports" }, { id: "projects", label: "Projects" }] });
   return qc;
 }
 
@@ -52,8 +52,11 @@ describe("GovernanceAdmin", () => {
     expect(JSON.parse((call[1] as { body: string }).body).state).toBe("public");
   });
 
-  it("shows an AI tool's per-surface override (finance)", () => {
+  it("shows an AI tool's per-surface override and a registry-backed screen picker", () => {
     renderWithProviders(<GovernanceAdmin />, { client: seed("admin") });
+    // The existing 'finance' override (an id with no registry label) shows as-is...
     expect(screen.getByText("finance")).toBeInTheDocument();
+    // ...and new overrides are PICKED from the screen registry, not typed.
+    expect(screen.getAllByLabelText("Add a screen override").length).toBeGreaterThan(0);
   });
 });

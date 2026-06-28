@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   listCapabilities, getCapability, offeredStates, resolveState, resolveCapability,
   sanitizeCapabilitySetting, setCapabilityState, effectiveState,
+  listSurfaces, defaultSettingFor, decideCapability, enforceCapability, CapabilityBlockedError,
 } from "./tools";
+import { updateSettings } from "./settings";
 import type { CapabilitySetting } from "./settings";
 
 /**
@@ -66,6 +68,47 @@ test("setCapabilityState persists and effectiveState reads it back per surface",
   assert.equal(effectiveState("tts"), "public");
   assert.equal(effectiveState("tts", "finance"), "off");
   assert.equal(effectiveState("unknown-cap"), "off"); // unknown ⇒ off
+});
+
+test("listSurfaces comes from the screen registry (id + label)", () => {
+  const surfaces = listSurfaces();
+  assert.ok(surfaces.length > 0);
+  for (const s of surfaces) { assert.equal(typeof s.id, "string"); assert.equal(typeof s.label, "string"); }
+});
+
+test("the active AI provider defaults on, so existing config keeps working", () => {
+  updateSettings({ aiProvider: "openai", capabilityStates: {} });
+  // No explicit governance set, yet the active provider resolves to its natural state.
+  assert.equal(effectiveState("provider:openai"), "public");
+  assert.equal(defaultSettingFor(getCapability("provider:openai")!).state, "public");
+  // A non-active provider stays off until enabled.
+  assert.equal(effectiveState("provider:anthropic"), "off");
+});
+
+test("enforceCapability allows an on capability and throws when it's off", () => {
+  updateSettings({ aiProvider: "openai", capabilityStates: {} });
+  const ok = enforceCapability("provider:openai", { actor: { sub: "u1" } });
+  assert.equal(ok.allowed, true);
+  assert.equal(ok.state, "public");
+  // anthropic is off ⇒ blocked.
+  assert.throws(() => enforceCapability("provider:anthropic"), CapabilityBlockedError);
+});
+
+test("enforcement is per-surface: on globally, blocked on a restricted screen", () => {
+  setCapabilityState("provider:openai", { state: "public", surfaces: { finance: "off" } });
+  updateSettings({ aiProvider: "openai" });
+  assert.equal(enforceCapability("provider:openai").allowed, true); // global
+  assert.throws(() => enforceCapability("provider:openai", { surface: "finance" }), CapabilityBlockedError);
+});
+
+test("decideCapability reports the endpoint for a user-defined capability", () => {
+  setCapabilityState("provider:ollama", { state: "user-defined", endpoint: "http://localhost:11434" });
+  const d = decideCapability("provider:ollama", { actor: { sub: "u1" } });
+  assert.equal(d.allowed, true);
+  assert.equal(d.state, "user-defined");
+  assert.equal(d.endpoint, "http://localhost:11434");
+  // An unknown capability is denied (and logged).
+  assert.equal(decideCapability("nope").allowed, false);
 });
 
 test("resolveCapability exposes options + current state for the admin UI", () => {

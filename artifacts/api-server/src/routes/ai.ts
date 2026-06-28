@@ -5,6 +5,9 @@
  */
 import { Router } from "express";
 import { aiStatus, aiChat, AiError, type ChatMessage } from "../lib/ai";
+import { getSettings } from "../lib/settings";
+import { getSession } from "./auth";
+import { enforceCapability, CapabilityBlockedError } from "../lib/tools";
 
 const router = Router();
 
@@ -35,6 +38,18 @@ router.post("/ai/chat", async (req, res) => {
   if (!messages) {
     res.status(400).json({ error: "Body must be { messages: [{ role, content }] }." });
     return;
+  }
+
+  // Strong, logged governance gate: the active AI provider must be permitted on the
+  // calling surface (the client sends the current screen id). Denials are audited.
+  const provider = getSettings().aiProvider;
+  const surface = typeof (req.body as { surface?: unknown }).surface === "string" ? (req.body as { surface: string }).surface : undefined;
+  const session = getSession(req);
+  try {
+    enforceCapability(`provider:${provider}`, { surface, actor: session ? { sub: session.sub, email: session.email } : null });
+  } catch (err) {
+    if (err instanceof CapabilityBlockedError) { res.status(403).json({ error: `AI is unavailable here: ${err.message}` }); return; }
+    throw err;
   }
 
   try {

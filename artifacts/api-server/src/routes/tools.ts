@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireRole } from "../lib/rbac";
 import { captureVersion } from "../lib/config-store";
-import { listResolvedCapabilities, setCapabilityState, UnknownCapabilityError } from "../lib/tools";
+import { listResolvedCapabilities, listSurfaces, setCapabilityState, UnknownCapabilityError } from "../lib/tools";
 
 /**
  * Capability governance plane — the admin-set deployment state (off / user-defined /
@@ -16,7 +16,7 @@ import { listResolvedCapabilities, setCapabilityState, UnknownCapabilityError } 
 const router = Router();
 
 router.get("/governance", (_req, res) => {
-  res.json({ capabilities: listResolvedCapabilities() });
+  res.json({ capabilities: listResolvedCapabilities(), surfaces: listSurfaces() });
 });
 
 // Changing any capability's deployment state is an admin decision, and versioned so

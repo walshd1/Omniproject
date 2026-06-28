@@ -35,8 +35,15 @@ export interface CapabilityWrite {
   surfaces?: Record<string, DeploymentState>;
 }
 
+export interface Surface {
+  id: string;
+  label: string;
+}
+
 interface GovernanceResponse {
   capabilities: ResolvedCapability[];
+  /** Governable surfaces (screens) from the registry — for the per-surface picker. */
+  surfaces: Surface[];
 }
 
 /** Plain-language description of each state — what the admin is choosing. */

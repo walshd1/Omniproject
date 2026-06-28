@@ -1,5 +1,6 @@
-import { BACKENDS } from "@workspace/backend-catalogue";
+import { BACKENDS, SCREENS } from "@workspace/backend-catalogue";
 import { getSettings, updateSettings, AI_PROVIDERS, type DeploymentState, type CapabilitySetting } from "./settings";
+import { recordAudit } from "./audit";
 
 /**
  * Capability governance — one model for every "thing that can move data or be turned
@@ -121,9 +122,21 @@ export interface ResolvedCapability extends GovernedCapability {
   surfaces: Record<string, DeploymentState>;
 }
 
+/**
+ * The default setting when an admin hasn't set one. An AI provider that IS the active
+ * provider defaults to its natural state, so existing AI config keeps working without a
+ * separate governance switch; everything else is "off" until an admin turns it on.
+ */
+export function defaultSettingFor(cap: GovernedCapability): CapabilitySetting {
+  if (cap.kind === "ai-provider" && cap.id === `provider:${getSettings().aiProvider}`) {
+    return { state: cap.supportedStates[0] ?? "off" };
+  }
+  return { state: "off" };
+}
+
 /** Resolve one capability against the stored settings (no surface applied). */
 export function resolveCapability(cap: GovernedCapability, states: Record<string, CapabilitySetting>): ResolvedCapability {
-  const setting = states[cap.id];
+  const setting = states[cap.id] ?? defaultSettingFor(cap);
   return {
     ...cap,
     options: offeredStates(cap),
@@ -143,7 +156,75 @@ export function listResolvedCapabilities(): ResolvedCapability[] {
 export function effectiveState(id: string, surface?: string): DeploymentState {
   const cap = getCapability(id);
   if (!cap) return "off";
-  return resolveState(cap, getSettings().capabilityStates[id], surface);
+  const setting = getSettings().capabilityStates[id] ?? defaultSettingFor(cap);
+  return resolveState(cap, setting, surface);
+}
+
+/** Governable surfaces (screens) from the registry — drives the admin override picker. */
+export function listSurfaces(): { id: string; label: string }[] {
+  return SCREENS.map((s) => ({ id: s.id, label: s.label }));
+}
+
+export interface Actor {
+  sub?: string;
+  email?: string;
+  role?: string;
+}
+
+export interface CapabilityDecision {
+  id: string;
+  kind: CapabilityKind | null;
+  surface: string | null;
+  state: DeploymentState;
+  /** Usable here (state is not "off"). */
+  allowed: boolean;
+  /** For a user-defined capability, the customer endpoint to call. */
+  endpoint: string | null;
+}
+
+/** Thrown by enforceCapability when a capability is off for the surface in question. */
+export class CapabilityBlockedError extends Error {
+  readonly id: string;
+  readonly surface: string | null;
+  constructor(id: string, surface: string | null) {
+    super(`capability "${id}" is turned off${surface ? ` on surface "${surface}"` : ""}`);
+    this.name = "CapabilityBlockedError";
+    this.id = id;
+    this.surface = surface;
+  }
+}
+
+/**
+ * Resolve a capability-use decision for a surface AND record it to the audit log —
+ * whether allowed or denied — so there's always a trail of which AI/vendor ran where
+ * and for whom. The call site uses the returned {state, endpoint} to run correctly.
+ */
+export function decideCapability(id: string, opts: { surface?: string; actor?: Actor | null } = {}): CapabilityDecision {
+  const cap = getCapability(id);
+  const surface = opts.surface ?? null;
+  const state = effectiveState(id, opts.surface);
+  const allowed = state !== "off";
+  const endpoint = state === "user-defined" ? (getSettings().capabilityStates[id]?.endpoint ?? null) : null;
+  recordAudit({
+    ts: new Date().toISOString(),
+    category: "admin",
+    action: allowed ? "capability.use" : "capability.blocked",
+    actor: opts.actor ?? null,
+    write: true,
+    result: allowed ? "success" : "error",
+    meta: { capability: id, kind: cap?.kind ?? null, surface, state },
+  });
+  return { id, kind: cap?.kind ?? null, surface, state, allowed, endpoint };
+}
+
+/**
+ * Strong call-time gate: decide + log, and THROW CapabilityBlockedError when the
+ * capability is off for this surface. Every governed call site routes through here.
+ */
+export function enforceCapability(id: string, opts: { surface?: string; actor?: Actor | null } = {}): CapabilityDecision {
+  const decision = decideCapability(id, opts);
+  if (!decision.allowed) throw new CapabilityBlockedError(id, decision.surface);
+  return decision;
 }
 
 const STATES: readonly DeploymentState[] = ["off", "user-defined", "public"];

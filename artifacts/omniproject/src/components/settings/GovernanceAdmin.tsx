@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import {
   useGovernance, saveCapability, STATE_INFO, KIND_LABEL,
-  type ResolvedCapability, type DeploymentState, type CapabilityKind, type CapabilityWrite,
+  type ResolvedCapability, type DeploymentState, type CapabilityKind, type CapabilityWrite, type Surface,
 } from "../../lib/tools";
 
 /**
@@ -25,6 +25,7 @@ export function GovernanceAdmin() {
 
   if (!roleAtLeast(auth?.role, "admin")) return null;
   if (!data?.capabilities) return null;
+  const surfaces = data.surfaces ?? [];
 
   const save = async (id: string, setting: CapabilityWrite): Promise<void> => {
     await saveCapability(id, setting);
@@ -47,7 +48,7 @@ export function GovernanceAdmin() {
         {groups.map((g) => (
           <section key={g.kind} className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{KIND_LABEL[g.kind]}</h3>
-            {g.items.map((cap) => <CapabilityRow key={cap.id} cap={cap} onSave={save} />)}
+            {g.items.map((cap) => <CapabilityRow key={cap.id} cap={cap} surfaces={surfaces} onSave={save} />)}
           </section>
         ))}
       </CardContent>
@@ -55,7 +56,7 @@ export function GovernanceAdmin() {
   );
 }
 
-function CapabilityRow({ cap, onSave }: { cap: ResolvedCapability; onSave: (id: string, s: CapabilityWrite) => void }) {
+function CapabilityRow({ cap, surfaces, onSave }: { cap: ResolvedCapability; surfaces: Surface[]; onSave: (id: string, s: CapabilityWrite) => void }) {
   // Always send the full setting so state changes don't drop the endpoint/surfaces.
   const base: CapabilityWrite = { state: cap.state, endpoint: cap.endpoint, surfaces: cap.surfaces };
 
@@ -91,13 +92,14 @@ function CapabilityRow({ cap, onSave }: { cap: ResolvedCapability; onSave: (id: 
         </div>
       )}
 
-      {cap.surfaceAware && <SurfaceOverrides cap={cap} base={base} onSave={onSave} />}
+      {cap.surfaceAware && <SurfaceOverrides cap={cap} base={base} surfaces={surfaces} onSave={onSave} />}
     </div>
   );
 }
 
-function SurfaceOverrides({ cap, base, onSave }: { cap: ResolvedCapability; base: CapabilityWrite; onSave: (id: string, s: CapabilityWrite) => void }) {
+function SurfaceOverrides({ cap, base, surfaces, onSave }: { cap: ResolvedCapability; base: CapabilityWrite; surfaces: Surface[]; onSave: (id: string, s: CapabilityWrite) => void }) {
   const entries = Object.entries(cap.surfaces);
+  const labelFor = (id: string): string => surfaces.find((s) => s.id === id)?.label ?? id;
   const setSurface = (surface: string, state: DeploymentState | null): void => {
     const next = { ...cap.surfaces };
     if (state === null) delete next[surface];
@@ -110,9 +112,9 @@ function SurfaceOverrides({ cap, base, onSave }: { cap: ResolvedCapability; base
       <p className="text-xs text-muted-foreground">Per-screen overrides (e.g. stricter on finance):</p>
       {entries.map(([surface, state]) => (
         <div key={surface} className="flex items-center gap-2 text-sm">
-          <span className="font-mono text-xs">{surface}</span>
+          <span className="flex-1 truncate text-xs">{labelFor(surface)}</span>
           <select
-            aria-label={`${cap.label} on ${surface}`}
+            aria-label={`${cap.label} on ${labelFor(surface)}`}
             value={state}
             onChange={(e) => setSurface(surface, e.target.value as DeploymentState)}
             className="h-8 rounded border border-border bg-transparent px-1 text-xs"
@@ -122,24 +124,32 @@ function SurfaceOverrides({ cap, base, onSave }: { cap: ResolvedCapability; base
           <Button variant="ghost" size="sm" className="h-6 px-1 text-xs" onClick={() => setSurface(surface, null)}>remove</Button>
         </div>
       ))}
-      <AddSurface options={cap.options} onAdd={(surface, state) => setSurface(surface, state)} />
+      <AddSurface
+        options={cap.options}
+        available={surfaces.filter((s) => !(s.id in cap.surfaces))}
+        onAdd={(surface, state) => setSurface(surface, state)}
+      />
     </div>
   );
 }
 
-function AddSurface({ options, onAdd }: { options: DeploymentState[]; onAdd: (surface: string, state: DeploymentState) => void }) {
+function AddSurface({ options, available, onAdd }: { options: DeploymentState[]; available: Surface[]; onAdd: (surface: string, state: DeploymentState) => void }) {
+  if (available.length === 0) return null; // every screen already has an override
   return (
     <form
       className="flex items-center gap-2"
       onSubmit={(e) => {
         e.preventDefault();
         const form = e.currentTarget;
-        const surface = (form.elements.namedItem("surface") as HTMLInputElement).value.trim();
+        const surface = (form.elements.namedItem("surface") as HTMLSelectElement).value;
         const state = (form.elements.namedItem("state") as HTMLSelectElement).value as DeploymentState;
-        if (surface) { onAdd(surface, state); form.reset(); }
+        if (surface) onAdd(surface, state);
       }}
     >
-      <input name="surface" placeholder="screen id (e.g. finance)" className="h-8 flex-1 rounded border border-border bg-transparent px-2 text-xs" />
+      {/* Screens come from the registry — pick, don't type, so an override can't be a typo. */}
+      <select name="surface" aria-label="Add a screen override" className="h-8 flex-1 rounded border border-border bg-transparent px-1 text-xs">
+        {available.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+      </select>
       <select name="state" defaultValue={options[options.length - 1]} className="h-8 rounded border border-border bg-transparent px-1 text-xs">
         {options.map((s) => <option key={s} value={s}>{STATE_INFO[s].label}</option>)}
       </select>
