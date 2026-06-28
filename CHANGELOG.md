@@ -76,6 +76,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Portfolio copilot — methodology RAG personas, RAG/freeform toggle, published as an
+  AI action** — the read-only copilot now retrieves the most relevant **methodology
+  persona** for a question (Agile Delivery Lead, Programme Director, PMO Analyst, Risk &
+  Assurance Manager, Stage-Gate PM) and lenses the answer through that reference guidance —
+  deterministic keyword + methodology scoring, no extra egress (the same scoped, aggregated
+  snapshot still reaches the model; the persona is trusted reference text, not user
+  instructions). A new **answer-mode toggle** lets the user pick **RAG** (methodology lens,
+  default) or **Freeform** (plain answer, no persona); the chosen persona is reported back
+  and shown as "Answered as a …". The copilot is also **published as an AI action**
+  (`portfolio_copilot`) — it appears in the admin action catalogue, ships **approved by
+  default** (read-only), and is callable over MCP as `omniproject_portfolio_copilot`,
+  inheriting the same approval allowlist, governance gate and audit as every other action.
+  Kill-switch `COPILOT_PERSONAS=off` disables persona retrieval entirely.
 - **Capability governance — MCP + vendor enforcement, screen-id wiring, endpoint
   checks** — enforcement now extends beyond AI: the **MCP** route refuses (JSON-RPC
   error + log) unless the MCP capability is on, and the **broker-command** edge enforces

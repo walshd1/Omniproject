@@ -44,6 +44,11 @@ const READ_TOOLS: McpTool[] = [
   { name: "omniproject_list_reports", action: "list_reports", description: "List the report/visualisation types available for the active backend (Gantt, burndown, EVM, …), filtered to the capabilities this backend supports.", inputSchema: { type: "object", properties: {} } },
   { name: "omniproject_list_screens", action: "list_screens", description: "List the SPA screens/views available to the signed-in user (filtered by their role and the backend's capabilities), with each screen's route.", inputSchema: { type: "object", properties: {} } },
   { name: "omniproject_list_notifications", action: "get_notifications", description: "List the signed-in user's recent notifications/alerts (the MCP notification channel — pull-based).", inputSchema: { type: "object", properties: {} } },
+  // Portfolio copilot as an action: read-only NL Q&A over the scoped portfolio read model.
+  // Egress-scoped + injection-hardened (lib/copilot) — exposes no further action surface; the
+  // model only ever sees the minimal aggregated snapshot. `mode` picks RAG (methodology lens)
+  // or freeform; `methodology` optionally pins which lens RAG retrieves.
+  { name: "omniproject_portfolio_copilot", action: "portfolio_copilot", description: "Ask a plain-language question about portfolio health and get a read-only narrative answer over a minimal, aggregated snapshot (RAG, variances, blockers). Optionally lens the answer through a delivery methodology.", inputSchema: { type: "object", properties: { question: { type: "string", description: "The portfolio question to answer." }, mode: { type: "string", enum: ["rag", "freeform"], description: "rag (default) applies a methodology persona; freeform answers plainly." }, methodology: { type: "string", description: "Optional methodology hint (e.g. scrum, prince2) to pin the RAG lens." } }, required: ["question"] } },
 ];
 
 /** Write tools (gated — see DRAGONS). Advertised only when writes are enabled. */

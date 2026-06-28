@@ -18,6 +18,11 @@ test("default-safe: read actions approved, write actions NOT", () => {
   assert.deepEqual(listApprovedActions().sort(), [...DEFAULT_APPROVED_ACTIONS].sort());
 });
 
+test("the read-only portfolio copilot action is approved out of the box", () => {
+  // Published as an AI action, but read-only, so it ships on the default allowlist.
+  assert.equal(isActionApproved("portfolio_copilot"), true);
+});
+
 test("an admin can approve (and revoke) a write action", () => {
   approveAction("update_issue");
   assert.equal(isActionApproved("update_issue"), true);
