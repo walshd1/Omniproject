@@ -37,6 +37,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Capability governance — MCP + vendor enforcement, screen-id wiring, endpoint
+  checks** — enforcement now extends beyond AI: the **MCP** route refuses (JSON-RPC
+  error + log) unless the MCP capability is on, and the **broker-command** edge enforces
+  the active vendor's capability when it names a specific backend. The client now sends
+  its current route on AI calls and the gateway **normalises it to a registry screen id**
+  (`screenIdForRoute`), so per-surface overrides always match the canonical screen rather
+  than a free-typed string. User-defined endpoints are **validated as http(s) URLs** on
+  save, and an admin can **test reachability** from the governance card (`POST
+  /api/governance/:id/test`).
 - **Capability governance — brokers, no-AI-by-default, and an admin dashboard** —
   brokers (the n8n-style seam) are now governed by the same tri-state as everything
   else (self-hosted/in-cluster = `user-defined`; managed = `public`), derived from the

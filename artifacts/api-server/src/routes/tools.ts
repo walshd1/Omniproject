@@ -4,8 +4,9 @@ import { captureVersion } from "../lib/config-store";
 import { getSession } from "./auth";
 import {
   listResolvedCapabilities, listSurfaces, setCapabilityState, noteCapabilityConfigured,
-  recentCapabilityLog, UnknownCapabilityError,
+  recentCapabilityLog, checkEndpointReachable, getCapability, UnknownCapabilityError,
 } from "../lib/tools";
+import { getSettings } from "../lib/settings";
 
 /**
  * Capability governance plane — the admin-set deployment state (off / user-defined /
@@ -26,6 +27,18 @@ router.get("/governance", (_req, res) => {
 // Live activity for the admin governance dashboard (uses, blocks, config changes).
 router.get("/governance/log", requireRole("admin"), (_req, res) => {
   res.json({ entries: recentCapabilityLog() });
+});
+
+// Probe a user-defined endpoint's reachability (admin). Tests the endpoint in the
+// request body, or the one already stored for the capability.
+router.post("/governance/:id/test", requireRole("admin"), async (req, res) => {
+  const id = String(req.params["id"]);
+  if (!getCapability(id)) { res.status(404).json({ error: "unknown capability" }); return; }
+  const body = (req.body ?? {}) as { endpoint?: unknown };
+  const endpoint = typeof body.endpoint === "string" && body.endpoint.trim()
+    ? body.endpoint
+    : (getSettings().capabilityStates[id]?.endpoint ?? "");
+  res.json(await checkEndpointReachable(String(endpoint)));
 });
 
 // Changing any capability's deployment state is an admin decision, and versioned so

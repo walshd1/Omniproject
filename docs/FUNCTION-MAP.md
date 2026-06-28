@@ -867,6 +867,9 @@ Capability governance — one model for every "thing that can move data or be tu
 | `listResolvedCapabilities` | Every capability resolved against the current settings. |
 | `effectiveState` | Resolve a single capability's effective state for a surface (the runtime check). |
 | `listSurfaces` | Governable surfaces (screens) from the registry — drives the admin override picker. |
+| `validEndpoint` | Validate a user-defined endpoint: a well-formed http(s) URL, or null. |
+| `screenIdForRoute` | Normalise a client-supplied surface (which may be a route path like "/reports") to a canonical screen id from the registry, so per-surface overrides always match. |
+| `checkEndpointReachable` | Probe a user-defined endpoint: any HTTP response = reachable; a network error or timeout = not. |
 | `recentCapabilityLog` | Recent capability activity (uses, blocks, config changes), newest first. |
 | `decideCapability` | Resolve a capability-use decision for a surface AND record it — to the audit log and the live activity ring — whether allowed or denied, so there's always a trail of which AI/vendor/broker ran where and for whom. |
 | `noteCapabilityConfigured` | Record an admin turning a capability on/off (audited + shown on the dashboard). |

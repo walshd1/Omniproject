@@ -167,6 +167,58 @@ export function listSurfaces(): { id: string; label: string }[] {
   return SCREENS.map((s) => ({ id: s.id, label: s.label }));
 }
 
+/** Validate a user-defined endpoint: a well-formed http(s) URL, or null. */
+export function validEndpoint(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  try {
+    const u = new URL(t);
+    return u.protocol === "http:" || u.protocol === "https:" ? t.slice(0, 2048) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Normalise a client-supplied surface (which may be a route path like "/reports") to
+ * a canonical screen id from the registry, so per-surface overrides always match. An
+ * already-valid screen id passes through; an unknown surface returns undefined (so the
+ * global state applies). This is how governance surfaces are wired to the screen registry.
+ */
+export function screenIdForRoute(input?: string): string | undefined {
+  if (!input) return undefined;
+  if (SCREENS.some((s) => s.id === input)) return input;
+  const norm = (r: string): string => r.replace(/\/+$/, "") || "/";
+  const path = norm((input.split(/[?#]/)[0] ?? "/") || "/");
+  const exact = SCREENS.find((s) => norm(s.route) === path);
+  if (exact) return exact.id;
+  const suffix = SCREENS.filter((s) => norm(s.route) !== "/").find((s) => path.endsWith(norm(s.route)));
+  return suffix?.id;
+}
+
+export interface EndpointCheck {
+  reachable: boolean;
+  status?: number;
+  error?: string;
+}
+
+/** Probe a user-defined endpoint: any HTTP response = reachable; a network error or
+ *  timeout = not. Admin-initiated (like the connection test), with a short timeout. */
+export async function checkEndpointReachable(url: string, timeoutMs = 3000): Promise<EndpointCheck> {
+  const valid = validEndpoint(url);
+  if (!valid) return { reachable: false, error: "not a valid http(s) URL" };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(valid, { method: "GET", signal: controller.signal });
+    return { reachable: true, status: res.status };
+  } catch (err) {
+    return { reachable: false, error: err instanceof Error ? err.message : "unreachable" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export interface Actor {
   sub?: string;
   email?: string;
@@ -279,8 +331,7 @@ export function sanitizeCapabilitySetting(cap: GovernedCapability, input: unknow
   const wanted = STATES.includes(o["state"] as DeploymentState) ? (o["state"] as DeploymentState) : "off";
   const state: DeploymentState = wanted === "off" || cap.supportedStates.includes(wanted) ? wanted : "off";
 
-  const endpointRaw = typeof o["endpoint"] === "string" ? (o["endpoint"] as string).trim() : "";
-  const endpoint = endpointRaw ? endpointRaw.slice(0, 2048) : null;
+  const endpoint = validEndpoint(typeof o["endpoint"] === "string" ? (o["endpoint"] as string) : "");
 
   let surfaces: Record<string, DeploymentState> | undefined;
   if (cap.surfaceAware && o["surfaces"] && typeof o["surfaces"] === "object") {

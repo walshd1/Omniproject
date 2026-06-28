@@ -4,7 +4,9 @@ import {
   listCapabilities, getCapability, offeredStates, resolveState, resolveCapability,
   sanitizeCapabilitySetting, setCapabilityState, effectiveState,
   listSurfaces, decideCapability, enforceCapability, CapabilityBlockedError, recentCapabilityLog, noteCapabilityConfigured,
+  validEndpoint, screenIdForRoute, checkEndpointReachable,
 } from "./tools";
+import { SCREENS } from "@workspace/backend-catalogue";
 import { updateSettings } from "./settings";
 import type { CapabilitySetting } from "./settings";
 
@@ -129,6 +131,34 @@ test("decideCapability reports the endpoint for a user-defined capability", () =
   assert.equal(d.endpoint, "http://localhost:11434");
   // An unknown capability is denied (and logged).
   assert.equal(decideCapability("nope").allowed, false);
+});
+
+test("validEndpoint accepts http(s) URLs and rejects the rest", () => {
+  assert.equal(validEndpoint("http://localhost:11434"), "http://localhost:11434");
+  assert.equal(validEndpoint("https://n8n.example.com/x"), "https://n8n.example.com/x");
+  assert.equal(validEndpoint("  "), null);
+  assert.equal(validEndpoint("not a url"), null);
+  assert.equal(validEndpoint("ftp://host/x"), null);
+});
+
+test("screenIdForRoute normalises a route path to a registry screen id", () => {
+  const screen = SCREENS[0]!;
+  assert.equal(screenIdForRoute(screen.id), screen.id); // already an id
+  assert.equal(screenIdForRoute(screen.route), screen.id); // by route
+  assert.equal(screenIdForRoute(`${screen.route}?x=1`), screen.id); // query stripped
+  assert.equal(screenIdForRoute("/no-such-route"), undefined); // unknown ⇒ global state
+  assert.equal(screenIdForRoute(undefined), undefined);
+});
+
+test("checkEndpointReachable: HTTP response ⇒ reachable, network error ⇒ not", async () => {
+  assert.deepEqual(await checkEndpointReachable("nonsense"), { reachable: false, error: "not a valid http(s) URL" });
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => ({ status: 200 })) as unknown as typeof fetch;
+  assert.deepEqual(await checkEndpointReachable("http://up.local"), { reachable: true, status: 200 });
+  globalThis.fetch = (async () => { throw new Error("ECONNREFUSED"); }) as unknown as typeof fetch;
+  const down = await checkEndpointReachable("http://down.local");
+  assert.equal(down.reachable, false);
+  globalThis.fetch = original;
 });
 
 test("resolveCapability exposes options + current state for the admin UI", () => {

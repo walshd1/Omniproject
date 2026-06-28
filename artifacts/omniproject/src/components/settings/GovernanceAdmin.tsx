@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import {
-  useGovernance, saveCapability, STATE_INFO, KIND_LABEL,
+  useGovernance, saveCapability, testCapabilityEndpoint, STATE_INFO, KIND_LABEL,
   type ResolvedCapability, type DeploymentState, type CapabilityKind, type CapabilityWrite, type Surface,
 } from "../../lib/tools";
 
@@ -78,21 +79,45 @@ function CapabilityRow({ cap, surfaces, onSave }: { cap: ResolvedCapability; sur
         </select>
       </div>
 
-      {cap.state === "user-defined" && (
-        <div className="mt-3 flex items-center gap-2">
-          <Label htmlFor={`cap-${cap.id}-endpoint`} className="text-xs text-muted-foreground">Your endpoint</Label>
-          <input
-            id={`cap-${cap.id}-endpoint`}
-            type="url"
-            defaultValue={cap.endpoint ?? ""}
-            placeholder="http://localhost:11434"
-            onBlur={(e) => { if (e.target.value !== (cap.endpoint ?? "")) onSave(cap.id, { ...base, endpoint: e.target.value }); }}
-            className="h-8 flex-1 rounded border border-border bg-transparent px-2 text-sm"
-          />
-        </div>
-      )}
+      {cap.state === "user-defined" && <EndpointField cap={cap} base={base} onSave={onSave} />}
 
       {cap.surfaceAware && <SurfaceOverrides cap={cap} base={base} surfaces={surfaces} onSave={onSave} />}
+    </div>
+  );
+}
+
+function EndpointField({ cap, base, onSave }: { cap: ResolvedCapability; base: CapabilityWrite; onSave: (id: string, s: CapabilityWrite) => void }) {
+  const [value, setValue] = useState(cap.endpoint ?? "");
+  const [result, setResult] = useState<{ reachable: boolean; status?: number; error?: string } | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  const test = async (): Promise<void> => {
+    setTesting(true);
+    try { setResult(await testCapabilityEndpoint(cap.id, value)); } finally { setTesting(false); }
+  };
+
+  return (
+    <div className="mt-3 space-y-1">
+      <div className="flex items-center gap-2">
+        <Label htmlFor={`cap-${cap.id}-endpoint`} className="text-xs text-muted-foreground">Your endpoint</Label>
+        <input
+          id={`cap-${cap.id}-endpoint`}
+          type="url"
+          value={value}
+          placeholder="http://localhost:11434"
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={() => { if (value !== (cap.endpoint ?? "")) onSave(cap.id, { ...base, endpoint: value }); }}
+          className="h-8 flex-1 rounded border border-border bg-transparent px-2 text-sm"
+        />
+        <Button type="button" variant="outline" size="sm" className="h-8 px-2 text-xs" disabled={testing || !value} onClick={test}>
+          {testing ? "Testing…" : "Test"}
+        </Button>
+      </div>
+      {result && (
+        <p data-testid={`endpoint-result-${cap.id}`} className={`text-xs ${result.reachable ? "text-emerald-600" : "text-red-600"}`}>
+          {result.reachable ? `Reachable${result.status ? ` (HTTP ${result.status})` : ""}` : `Unreachable: ${result.error ?? "no response"}`}
+        </p>
+      )}
     </div>
   );
 }

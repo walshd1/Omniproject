@@ -99,6 +99,17 @@ export function useGovernance() {
   });
 }
 
+/** Probe a user-defined endpoint's reachability (admin). */
+export async function testCapabilityEndpoint(id: string, endpoint: string): Promise<{ reachable: boolean; status?: number; error?: string }> {
+  const res = await fetch(`/api/governance/${encodeURIComponent(id)}/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ endpoint }),
+  });
+  return res.json();
+}
+
 /** Persist one capability's setting (admin only; the gateway enforces the role). */
 export async function saveCapability(id: string, setting: CapabilityWrite): Promise<void> {
   await fetch(`/api/governance/${encodeURIComponent(id)}`, {

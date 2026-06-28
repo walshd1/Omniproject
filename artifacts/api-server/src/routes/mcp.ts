@@ -5,6 +5,7 @@ import { hasRole } from "../lib/rbac";
 import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
 import { recordAudit } from "../lib/audit";
+import { enforceCapability, CapabilityBlockedError } from "../lib/tools";
 import { resolveSupport } from "../lib/capabilities";
 import { availableReports, availableScreens } from "@workspace/backend-catalogue";
 import type { Role } from "../lib/rbac";
@@ -75,6 +76,19 @@ router.post("/mcp", async (req, res) => {
   if (!getSession(req) && !hasValidApiToken(req)) {
     res.status(401).json({ jsonrpc: "2.0", id: body.id ?? null, error: { code: -32001, message: "Unauthorized" } });
     return;
+  }
+
+  // Governance gate: the MCP capability must be turned on (off by default). Denials
+  // are logged. Returned as a JSON-RPC error so MCP clients see a clean refusal.
+  try {
+    const s = getSession(req);
+    enforceCapability("mcp", { actor: s ? { sub: s.sub, email: s.email } : null });
+  } catch (err) {
+    if (err instanceof CapabilityBlockedError) {
+      res.status(403).json({ jsonrpc: "2.0", id: body.id ?? null, error: { code: -32004, message: "MCP is turned off by the administrator" } });
+      return;
+    }
+    throw err;
   }
 
   // Write policy: OFF unless MCP_WRITE_ENABLED, and only for a contributor+

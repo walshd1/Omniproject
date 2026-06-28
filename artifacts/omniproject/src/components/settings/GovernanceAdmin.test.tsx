@@ -12,6 +12,7 @@ import type { ResolvedCapability } from "../../lib/tools";
 const CAPS: ResolvedCapability[] = [
   { id: "tts", kind: "ai-tool", label: "Text-to-speech", description: "Read aloud", supportedStates: ["user-defined", "public"], surfaceAware: true, options: ["off", "user-defined", "public"], state: "public", endpoint: null, surfaces: { finance: "off" } },
   { id: "provider:openai", kind: "ai-provider", label: "AI provider — openai", description: "Cloud LLM", supportedStates: ["public"], surfaceAware: false, options: ["off", "public"], state: "off", endpoint: null, surfaces: {} },
+  { id: "provider:ollama", kind: "ai-provider", label: "AI provider — ollama", description: "Local LLM", supportedStates: ["user-defined"], surfaceAware: true, options: ["off", "user-defined"], state: "user-defined", endpoint: "http://localhost:11434", surfaces: {} },
 ];
 
 function seed(role: string | undefined): QueryClient {
@@ -50,6 +51,20 @@ describe("GovernanceAdmin", () => {
     const call = putCall()!;
     expect(decodeURIComponent(String(call[0]))).toBe("/api/governance/provider:openai");
     expect(JSON.parse((call[1] as { body: string }).body).state).toBe("public");
+  });
+
+  it("tests a user-defined endpoint and reports reachability", async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(String(url).includes("/test") ? { reachable: true, status: 200 } : { capabilities: CAPS, surfaces: [] }),
+      }),
+    );
+    renderWithProviders(<GovernanceAdmin />, { client: seed("admin") });
+    fireEvent.click(screen.getByRole("button", { name: "Test" }));
+    await waitFor(() => expect(screen.getByTestId("endpoint-result-provider:ollama")).toHaveTextContent(/Reachable/));
+    const testCall = fetchMock.mock.calls.find((c) => String(c[0]).includes("/test"));
+    expect(testCall).toBeTruthy();
   });
 
   it("shows an AI tool's per-surface override and a registry-backed screen picker", () => {

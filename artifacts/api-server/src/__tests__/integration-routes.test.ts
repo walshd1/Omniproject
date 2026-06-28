@@ -35,6 +35,10 @@ let base: string;
 
 before(async () => {
   const { default: app } = await import("../app");
+  // MCP is off by default (no-AI/nothing-on posture); an admin enables it. Turn it on
+  // so the MCP route tests below exercise the live path rather than a governance 403.
+  const { setCapabilityState } = await import("../lib/tools");
+  setCapabilityState("mcp", { state: "user-defined" });
   server = app.listen(0);
   await new Promise<void>((r) => server.once("listening", () => r()));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

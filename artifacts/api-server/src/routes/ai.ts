@@ -7,7 +7,7 @@ import { Router } from "express";
 import { aiStatus, aiChat, AiError, type ChatMessage } from "../lib/ai";
 import { getSettings } from "../lib/settings";
 import { getSession } from "./auth";
-import { enforceCapability, CapabilityBlockedError } from "../lib/tools";
+import { enforceCapability, CapabilityBlockedError, screenIdForRoute } from "../lib/tools";
 
 const router = Router();
 
@@ -43,7 +43,9 @@ router.post("/ai/chat", async (req, res) => {
   // Strong, logged governance gate: the active AI provider must be permitted on the
   // calling surface (the client sends the current screen id). Denials are audited.
   const provider = getSettings().aiProvider;
-  const surface = typeof (req.body as { surface?: unknown }).surface === "string" ? (req.body as { surface: string }).surface : undefined;
+  // The client sends its current route; normalise it to a registry screen id so
+  // per-surface overrides match (an unknown route ⇒ the global state applies).
+  const surface = screenIdForRoute(typeof (req.body as { surface?: unknown }).surface === "string" ? (req.body as { surface: string }).surface : undefined);
   const session = getSession(req);
   try {
     enforceCapability(`provider:${provider}`, { surface, actor: session ? { sub: session.sub, email: session.email } : null });
