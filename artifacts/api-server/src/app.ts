@@ -129,8 +129,17 @@ app.use((req, res, next) => {
     const origEnd = res.end.bind(res);
     res.end = ((...args: Parameters<typeof origEnd>) => {
       if (!res.headersSent) {
-        res.setHeader("X-Omni-Upstream-Ms", String(Math.round(getUpstreamMs())));
-        res.setHeader("X-Omni-Total-Ms", String(Date.now() - start));
+        const upstream = Math.round(getUpstreamMs());
+        const total = Date.now() - start;
+        res.setHeader("X-Omni-Upstream-Ms", String(upstream));
+        res.setHeader("X-Omni-Total-Ms", String(total));
+        // Standard Server-Timing so the browser's Performance API exposes the
+        // gateway/upstream split natively (powers the dev-mode timing overlay and
+        // shows up in devtools) — no fetch interception or custom-header CORS needed.
+        res.setHeader(
+          "Server-Timing",
+          `upstream;dur=${upstream}, gateway;dur=${Math.max(0, total - upstream)}, total;dur=${total}`,
+        );
       }
       return origEnd(...args);
     }) as typeof res.end;

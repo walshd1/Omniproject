@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Performance
 
+- **Dev-mode performance overlay + Server-Timing** — the gateway now emits a standard
+  `Server-Timing` header (`upstream` / `gateway` / `total`) alongside the existing
+  `X-Omni-*` headers, so the browser's Performance API (and devtools) expose the
+  gateway-vs-backend split natively. A dev-mode-only on-screen HUD surfaces the numbers
+  we tune against the "2 clicks, under 1 second" adoption bar: initial load
+  (TTFB → DOMContentLoaded → load), live per-API latency (count, p50/p95/max, average
+  gateway vs upstream split), and route-switch responsiveness — colour-banded against
+  the 1s budget. Gated exactly like the DEV MODE watermark, so it never ships to
+  production.
 - **HTTP compression (gzip/brotli) on the gateway** — a dependency-free middleware
   now compresses API + SPA responses (brotli preferred, gzip fallback), typically
   ~3× smaller on the JS/CSS/JSON payloads. It buffers then compresses on `end`, and

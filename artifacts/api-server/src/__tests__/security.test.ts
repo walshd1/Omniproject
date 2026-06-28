@@ -74,6 +74,8 @@ test("responses carry the timing headers (upstream vs total)", async () => {
   // Present on every response; demo broker has no upstream hop so it reads 0.
   assert.match(res.headers.get("x-omni-upstream-ms") ?? "", /^\d+$/);
   assert.match(res.headers.get("x-omni-total-ms") ?? "", /^\d+$/);
+  // Standard Server-Timing carries the same split for the browser Performance API.
+  assert.match(res.headers.get("server-timing") ?? "", /upstream;dur=\d+.*gateway;dur=\d+.*total;dur=\d+/);
 });
 
 test("an oversized request body is rejected (hard buffer limit, 413)", async () => {

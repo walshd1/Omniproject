@@ -10,6 +10,7 @@ import { A11yProvider } from "./lib/a11y-prefs";
 import { PlatformProvider } from "./lib/platform-context";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DevModeWatermark } from "./components/DevModeWatermark";
+import { DevPerfOverlay } from "./components/DevPerfOverlay";
 import { DevImpersonationControl } from "./components/DevImpersonationControl";
 import { DevEntitlementsControl } from "./components/DevEntitlementsControl";
 import { SwitchScanner } from "./components/SwitchScanner";
@@ -120,6 +121,8 @@ function App() {
                 <Router />
               </Suspense>
             </ErrorBoundary>
+            {/* Inside the router so it can time route switches; dev-mode-gated. */}
+            <DevPerfOverlay />
           </WouterRouter>
           <Toaster />
           <SwitchScanner />
