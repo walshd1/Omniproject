@@ -4,7 +4,8 @@ import { requireStepUp } from "../lib/step-up";
 import { aiContainmentLevel, aiSourceLevel, getContainmentRelax, setContainmentRelax, type AiContainment } from "../lib/ai-containment";
 import { listAutonomousGrants } from "../lib/autonomous-grant";
 import { aiKillEngaged, engageAiKill, releaseAiKill } from "../lib/ai-kill";
-import { listApprovedActions, listApprovedVocab, setApproved, approveAction, approveTerm } from "../lib/approved-actions";
+import { listApprovedActions, listApprovedVocab, setApproved, approveAction, revokeApprovedAction, approveTerm, isActionApproved } from "../lib/approved-actions";
+import { MCP_TOOLS } from "../lib/mcp";
 import { recordAudit } from "../lib/audit";
 import { captureVersion } from "../lib/config-store";
 import { getSession } from "./auth";
@@ -46,16 +47,30 @@ router.get("/governance/approved", requireRole("admin"), (_req, res) => {
   res.json({ actions: listApprovedActions(), vocab: listApprovedVocab() });
 });
 
+// The full AI ACTION CATALOGUE (every canonical action) annotated with its approved
+// state — populates the AI admin screen so approval is a visible per-action toggle, not
+// a blind allowlist. The catalogue is the superset; approving makes an action possible.
+router.get("/governance/actions", requireRole("admin"), (_req, res) => {
+  // Dedup by canonical action (read + write tools can share one); writes are the gated ones.
+  const seen = new Map<string, { action: string; label: string; description: string; write: boolean; approved: boolean }>();
+  for (const t of MCP_TOOLS) {
+    if (!seen.has(t.action)) seen.set(t.action, { action: t.action, label: t.name, description: t.description, write: !!t.write, approved: isActionApproved(t.action) });
+  }
+  res.json({ actions: [...seen.values()] });
+});
+
 // Extend / replace the approved allowlist (admin + step-up — widening what AI may do is
 // a sensitive change). `replace` swaps the whole file; otherwise the items are added.
 router.put("/governance/approved", requireRole("admin"), requireStepUp, (req, res) => {
-  const body = (req.body ?? {}) as { actions?: unknown; vocab?: unknown; replace?: unknown };
+  const body = (req.body ?? {}) as { actions?: unknown; remove?: unknown; vocab?: unknown; replace?: unknown };
   const acts = Array.isArray(body.actions) ? body.actions.filter((a): a is string => typeof a === "string") : undefined;
+  const remove = Array.isArray(body.remove) ? body.remove.filter((a): a is string => typeof a === "string") : undefined;
   const terms = Array.isArray(body.vocab) ? body.vocab.filter((v): v is string => typeof v === "string") : undefined;
   if (body.replace === true) {
     setApproved({ ...(acts ? { actions: acts } : {}), ...(terms ? { vocab: terms } : {}) });
   } else {
     for (const a of acts ?? []) approveAction(a);
+    for (const a of remove ?? []) revokeApprovedAction(a);
     for (const v of terms ?? []) approveTerm(v);
   }
   const session = getSession(req);

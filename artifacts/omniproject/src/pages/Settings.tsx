@@ -18,6 +18,7 @@ import { TranslationLayer } from "../components/settings/TranslationLayer";
 import { BrokerLog } from "../components/settings/BrokerLog";
 import { A11yControls } from "../components/settings/A11yControls";
 import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
+import { ActionCatalogue } from "../components/settings/ActionCatalogue";
 import { GovernanceDashboard } from "../components/settings/GovernanceDashboard";
 import { SecurityKeys } from "../components/settings/SecurityKeys";
 import { ProvenanceDashboard } from "../components/settings/ProvenanceDashboard";
@@ -290,6 +291,10 @@ export function Settings() {
 
       <div className="mt-10">
         <GovernanceAdmin />
+      </div>
+
+      <div className="mt-10">
+        <ActionCatalogue />
       </div>
 
       <A11yControls />
