@@ -214,3 +214,4 @@ These are deliberate, documented limits — not defects:
 | `MAX_SESSIONS_PER_USER` | Concurrent-session cap per user (0 = unlimited; newest logins win). Per-replica RAM. |
 | `AUTONOMOUS_SESSION_SECONDS` | Autonomous session TTL (default 30, clamped ≤ 5 min). |
 | `OMNI_DEV_MODE` | Dev mode (hard-gated inert in production). |
+| `DEPLOYMENT_PROFILE` / `PUBLIC_TLS` / `ACCEPT_DEMO_AUTH` | Deployment context; lets SMEs/charities/self-hosters relax TLS + no-SSO couplings by explicit choice (see `docs/SMALL-ORG-GUIDE.md`). |

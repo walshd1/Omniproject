@@ -21,6 +21,7 @@ import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 import { configDirSummary } from "../lib/config-dir";
 import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus } from "../lib/setup-status";
+import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
 import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
 import {
   storeView,
@@ -35,6 +36,8 @@ import {
 
 const router = Router();
 
+const isOn = (v: string | undefined): boolean => v?.trim().toLowerCase() === "true" || v?.trim().toLowerCase() === "on";
+
 /**
  * Setup / Connection Center endpoints. These are gateway control-plane (like
  * /auth), so the SPA calls them directly rather than through the generated data
@@ -46,6 +49,31 @@ const router = Router();
 // Assembled from a registry of status sections (see lib/setup-status.ts).
 router.get("/setup/status", async (req, res) => {
   res.json(await buildSetupStatus(req));
+});
+
+// GET /api/setup/profile — the deployment profile + posture, and which enterprise hardening
+// is on vs off (everything is opt-in). Lets the setup UI show "you've relaxed X by choice"
+// vs "recommended for your profile". Admin-only; reports config, never secrets.
+router.get("/setup/profile", requireRole("admin"), (_req, res) => {
+  const posture = profilePosture();
+  res.json({
+    profile: deploymentProfile(),
+    posture,
+    tls: { servedOverTls: requireTls() },
+    demoAuth: { active: !process.env["OIDC_ISSUER_URL"]?.trim(), accepted: acceptDemoAuth(), severity: demoAuthSeverity() },
+    // The advanced controls and whether each is currently engaged (all default OFF).
+    hardening: {
+      oidc: !!process.env["OIDC_ISSUER_URL"]?.trim(),
+      scim: !!process.env["SCIM_TOKEN"]?.trim(),
+      ipAllowlist: !!process.env["IP_ALLOWLIST"]?.trim(),
+      sessionCap: Number(process.env["MAX_SESSIONS_PER_USER"]) > 0,
+      kms: (process.env["KMS_PROVIDER"]?.trim() || "none") !== "none",
+      makerChecker: !!process.env["DUAL_CONTROL_ACTIONS"]?.trim(),
+      securityStrict: isOn(process.env["SECURITY_STRICT"]),
+      rateLimit: !isOn(process.env["RATE_LIMIT_DISABLED"]),
+    },
+    profiles: DEPLOYMENT_PROFILES,
+  });
 });
 
 // POST /api/setup/test-n8n — non-destructive reachability + capability probe of

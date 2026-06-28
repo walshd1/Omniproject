@@ -13,6 +13,19 @@ test("production without OIDC is a CRITICAL finding (demo auth = everyone admin)
   assert.ok(crit && crit.severity === "critical");
 });
 
+test("a self-hosted/charity profile makes no-IdP an accepted choice (warn, not critical)", () => {
+  const f = securityFindings({ NODE_ENV: "production", DEPLOYMENT_PROFILE: "self-hosted" });
+  const finding = f.find((x) => x.id === "demo-auth-in-prod");
+  assert.ok(finding && finding.severity === "warn");
+  assert.equal(f.filter((x) => x.severity === "critical").length, 0); // won't trip SECURITY_STRICT
+});
+
+test("explicitly accepting demo auth downgrades it to info even on a strict profile", () => {
+  const f = securityFindings({ NODE_ENV: "production", DEPLOYMENT_PROFILE: "enterprise", ACCEPT_DEMO_AUTH: "1" });
+  const finding = f.find((x) => x.id === "demo-auth-in-prod");
+  assert.ok(finding && finding.severity === "info");
+});
+
 test("production with OIDC + rate limiting clears the criticals", () => {
   const f = securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm" });
   assert.equal(f.filter((x) => x.severity === "critical").length, 0);

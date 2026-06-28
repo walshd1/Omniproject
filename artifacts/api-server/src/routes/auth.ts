@@ -24,6 +24,7 @@ import { seal, open } from "../lib/session-crypto";
 import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
 import { currentVersion, isActive, userSessionsRevokedAt } from "../lib/key-registry";
 import { registerSession } from "../lib/session-registry";
+import { requireTls } from "../lib/deployment-profile";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
 
 const router = Router();
@@ -37,7 +38,9 @@ const cookieBase = {
   httpOnly: true as const,
   signed: true as const,
   sameSite: "lax" as const,
-  secure: process.env["NODE_ENV"] === "production",
+  // Secure cookies follow the deployment's TLS posture, NOT raw NODE_ENV — so a self-hoster /
+  // charity can run a production-stable instance on plain HTTP (LAN) without breaking sessions.
+  secure: requireTls(),
   path: "/",
 };
 

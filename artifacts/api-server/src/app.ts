@@ -30,6 +30,7 @@ import { contentSecurityPolicy, cspHeaderName } from "./lib/csp";
 import { tracingMiddleware } from "./lib/tracing";
 import { ipAllowGuard } from "./lib/ip-allow";
 import { maintenanceGuard } from "./lib/maintenance";
+import { requireTls } from "./lib/deployment-profile";
 
 const app: Express = express();
 
@@ -138,8 +139,9 @@ app.use((req, res, next) => {
   // Content-Security-Policy: strict-by-default, fully overridable per deployment, and
   // settable to report-only while a deployment tunes it for its asset origins.
   res.setHeader(cspHeaderName(), contentSecurityPolicy());
-  // HSTS only over HTTPS in production (meaningless/counterproductive on plain http).
-  if (process.env["NODE_ENV"] === "production") {
+  // HSTS only when the deployment is actually served over TLS (per the profile/PUBLIC_TLS) —
+  // meaningless/counterproductive on a plain-HTTP LAN deployment.
+  if (requireTls()) {
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
   next();

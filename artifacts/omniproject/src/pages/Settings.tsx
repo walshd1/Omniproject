@@ -21,6 +21,7 @@ import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
 import { ActionCatalogue } from "../components/settings/ActionCatalogue";
 import { AiProvidersAdmin } from "../components/settings/AiProvidersAdmin";
 import { GovernanceDashboard } from "../components/settings/GovernanceDashboard";
+import { DeploymentProfile } from "../components/settings/DeploymentProfile";
 import { SecurityKeys } from "../components/settings/SecurityKeys";
 import { ProvenanceDashboard } from "../components/settings/ProvenanceDashboard";
 import { NlCommand } from "../components/settings/NlCommand";
@@ -310,6 +311,10 @@ export function Settings() {
 
       <div className="mt-10">
         <ProvenanceDashboard />
+      </div>
+
+      <div className="mt-10">
+        <DeploymentProfile />
       </div>
 
       <div className="mt-10">
