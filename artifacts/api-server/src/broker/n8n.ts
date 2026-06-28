@@ -30,6 +30,7 @@ import { addUpstreamMs } from "../lib/request-timing";
 import { assertEgressAllowed } from "../lib/egress";
 import { pskEnabled, sealPayload, openPayload, PSK_HEADER, PSK_PREFIX } from "../lib/broker-psk";
 import { signBrokerRequest } from "../lib/broker-hmac";
+import { assertSafeBrokerPayload, assertSafeAuthHeader } from "../lib/payload-guard";
 
 /**
  * n8n broker — THE one place that knows the broker is n8n.
@@ -138,6 +139,13 @@ async function callN8n<T = unknown>(
     origin,
     ...(actor ? { userContext: actor } : {}),
   };
+
+  // Injection guard at the egress: no control characters anywhere (CRLF/NUL header &
+  // response splitting), and identifier-shaped fields carry no URL-structural characters
+  // (so a crafted id can't reshape the backend request path/query). Broker-agnostic
+  // defence-in-depth — a hostile value never reaches the backend.
+  assertSafeBrokerPayload(enrichedPayload);
+  assertSafeAuthHeader(opts.ctx.authHeader);
 
   const startedAt = Date.now();
   const audit = (result: "success" | "error", status: number, extra?: Record<string, unknown>) => {

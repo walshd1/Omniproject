@@ -10,10 +10,12 @@
 const UNSAFE = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const CSRF_COOKIE = "omni_csrf";
 
-/** Read a cookie value by name from document.cookie (browser only). */
+/** Read a cookie value by name from document.cookie (browser only). The name is
+ *  regex-escaped so a metacharacter can't alter the match. */
 export function readCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = document.cookie.match(new RegExp(`(?:^|; )${safe}=([^;]*)`));
   return match ? decodeURIComponent(match[1]!) : null;
 }
 

@@ -770,6 +770,16 @@ Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
 | `verifyIdToken` | Cryptographically verify the ID token against the issuer's JWKS and validate iss/aud/exp/nbf. |
 | `decodeIdTokenClaims` | Decode the JWT id_token to extract user claims. |
 
+### `artifacts/api-server/src/lib/payload-guard.ts`
+
+Egress injection guard for the broker seam (security item: injection hardening).
+
+| Function | What it does |
+| --- | --- |
+| `assertSafeIdentifier` | Reject an identifier value carrying control or URL-structural characters. |
+| `assertSafeAuthHeader` | Reject a forwarded auth header carrying control characters (CRLF header injection). |
+| `assertSafeBrokerPayload` | Recursively validate an outbound payload: no control characters in any string, and identifier-shaped keys hold no URL-structural characters. |
+
 ### `artifacts/api-server/src/lib/pdf.ts`
 
 Minimal, dependency-free PDF writer.
