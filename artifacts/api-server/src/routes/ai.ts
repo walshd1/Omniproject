@@ -8,6 +8,8 @@ import { aiStatus, aiChat, AiError, type ChatMessage } from "../lib/ai";
 import { getSettings } from "../lib/settings";
 import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, screenIdForRoute } from "../lib/tools";
+import { planAction } from "../lib/nl-action";
+import { hasRole } from "../lib/rbac";
 
 const router = Router();
 
@@ -61,6 +63,35 @@ router.post("/ai/chat", async (req, res) => {
     const status = err instanceof AiError ? err.status : 502;
     req.log.error({ err }, "AI chat failed");
     res.status(status).json({ error: err instanceof Error ? err.message : "AI request failed" });
+  }
+});
+
+// ── POST /api/ai/nl-action — map a natural-language instruction to a canonical action ──
+// PLANS only; never executes. Writes are surfaced (write:true) for the SPA to confirm,
+// and only offered when the caller is a contributor+ (a viewer is never shown a mutation).
+router.post("/ai/nl-action", async (req, res) => {
+  const text = typeof (req.body as { text?: unknown }).text === "string" ? (req.body as { text: string }).text : "";
+  if (!text.trim()) { res.status(400).json({ error: "Body must be { text }." }); return; }
+
+  const provider = getSettings().aiProvider;
+  const surface = screenIdForRoute(typeof (req.body as { surface?: unknown }).surface === "string" ? (req.body as { surface: string }).surface : undefined);
+  const session = getSession(req);
+  try {
+    enforceCapability(`provider:${provider}`, { surface, actor: session ? { sub: session.sub, email: session.email } : null });
+  } catch (err) {
+    if (err instanceof CapabilityBlockedError) { res.status(403).json({ error: `AI is unavailable here: ${err.message}` }); return; }
+    throw err;
+  }
+
+  try {
+    // Writes are only planned for a contributor+ caller; a viewer gets read actions only.
+    const allowWrites = hasRole(req, "contributor");
+    const plan = await planAction({ text, allowWrites, complete: async (prompt) => (await aiChat([{ role: "user", content: prompt }])).content });
+    res.json({ plan });
+  } catch (err) {
+    const status = err instanceof AiError ? err.status : 502;
+    req.log.error({ err }, "nl-action planning failed");
+    res.status(status).json({ error: err instanceof Error ? err.message : "planning failed" });
   }
 });
 

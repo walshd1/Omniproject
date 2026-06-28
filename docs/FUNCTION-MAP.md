@@ -730,6 +730,16 @@ Minimal resolver for the n8n expressions used in backend manifest URLs, so we ca
 | `resolveTemplate` | Resolve a manifest URL/header template. |
 | `isFullyResolved` | True when no `{{…}}` placeholders remain (the template fully resolved). |
 
+### `artifacts/api-server/src/lib/nl-action.ts`
+
+Natural-language → canonical action planner.
+
+| Function | What it does |
+| --- | --- |
+| `plannerPrompt` | Build the planner prompt: the catalogue + a strict JSON output contract. |
+| `toPlan` | Validate a parsed model reply against the tool catalogue into a typed plan. |
+| `planAction` | Plan an action from natural language. |
+
 ### `artifacts/api-server/src/lib/nomenclature.ts`
 
 SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
