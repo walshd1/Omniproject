@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { planNlAction, executePlannedAction, type ActionPlan } from "../../lib/nl-action";
+import { ContainmentBadge } from "../ContainmentBadge";
 
 /**
  * Natural-language command. Type an instruction; the gateway PLANS it into one canonical
@@ -39,7 +40,12 @@ export function NlCommand() {
 
   return (
     <Card data-testid="nl-command">
-      <CardHeader><CardTitle>Command (natural language)</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          Command (natural language)
+          <ContainmentBadge />
+        </CardTitle>
+      </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
           Describe what you want (e.g. “list my projects”, “show issues in Apollo”). It’s

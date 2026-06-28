@@ -56,6 +56,11 @@ export function getAutonomousGrant(actorId: string): AutonomousWriteGrant | unde
   return GRANTS.get(actorId);
 }
 
+/** Every active write grant (for the admin dashboard). No secrets — pure scope data. */
+export function listAutonomousGrants(): AutonomousWriteGrant[] {
+  return [...GRANTS.values()];
+}
+
 /** Replace the whole grant set (admin applies the config JSON). */
 export function setAutonomousGrants(grants: AutonomousWriteGrant[]): void {
   GRANTS.clear();

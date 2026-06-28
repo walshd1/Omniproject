@@ -10,6 +10,7 @@ import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, screenIdForRoute } from "../lib/tools";
 import { planAction } from "../lib/nl-action";
 import { hasRole } from "../lib/rbac";
+import { aiContainmentLevel, aiSourceLevel } from "../lib/ai-containment";
 
 const router = Router();
 
@@ -64,6 +65,14 @@ router.post("/ai/chat", async (req, res) => {
     req.log.error({ err }, "AI chat failed");
     res.status(status).json({ error: err instanceof Error ? err.message : "AI request failed" });
   }
+});
+
+// ── GET /api/ai/containment — the current AI exposure level (for every AI surface) ──
+// Non-sensitive: lets any AI-tool surface show the "leash" (how constrained autonomous
+// AI behaviour is right now) alongside the feature.
+router.get("/ai/containment", (req, res) => {
+  const surface = screenIdForRoute(typeof req.query["surface"] === "string" ? req.query["surface"] : undefined);
+  res.json({ level: aiContainmentLevel(surface), source: aiSourceLevel(surface) });
 });
 
 // ── POST /api/ai/nl-action — map a natural-language instruction to a canonical action ──

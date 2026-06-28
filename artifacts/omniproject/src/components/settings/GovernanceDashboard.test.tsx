@@ -14,11 +14,12 @@ const offCap = (id: string, kind: ResolvedCapability["kind"]): ResolvedCapabilit
   options: ["off", "user-defined", "public"], state: "off", endpoint: null, surfaces: {},
 });
 
-function seed(role: string | undefined, caps: ResolvedCapability[], entries: CapabilityLogEntry[]): QueryClient {
+function seed(role: string | undefined, caps: ResolvedCapability[], entries: CapabilityLogEntry[], autonomous?: { level: string; source: string; relax: string; grants: unknown[] }): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
   if (role) qc.setQueryData(["auth", "me"], { sub: "u1", role });
   qc.setQueryData(["governance"], { capabilities: caps, surfaces: [] });
   qc.setQueryData(["governance-log"], { entries });
+  qc.setQueryData(["autonomous-grants"], autonomous ?? { level: "public", source: "off", relax: "public", grants: [] });
   return qc;
 }
 
@@ -47,5 +48,21 @@ describe("GovernanceDashboard", () => {
     expect(screen.getByTestId("activity-log")).toBeInTheDocument();
     expect(screen.getByText("blocked")).toBeInTheDocument();
     expect(screen.getByText(/on finance/)).toBeInTheDocument();
+  });
+
+  it("surfaces full containment by default and default-deny when there are no grants", () => {
+    renderWithProviders(<GovernanceDashboard />, { client: seed("admin", [offCap("provider:openai", "ai-provider")], [], { level: "public", source: "off", relax: "public", grants: [] }) });
+    expect(screen.getByTestId("autonomous-posture")).toHaveTextContent("Full containment");
+    expect(screen.getByTestId("no-grants")).toBeInTheDocument();
+  });
+
+  it("lists active autonomous write grants with their scope", () => {
+    const autonomous = { level: "local", source: "local", relax: "off", grants: [{ actorId: "health-watch", actions: ["update_issue"], projects: ["P1"], fields: ["status"], maxWrites: 5 }] };
+    renderWithProviders(<GovernanceDashboard />, { client: seed("admin", [offCap("provider:openai", "ai-provider")], [], autonomous) });
+    const list = screen.getByTestId("grant-list");
+    expect(list).toHaveTextContent("health-watch");
+    expect(list).toHaveTextContent("update_issue");
+    expect(list).toHaveTextContent("P1");
+    expect(list).toHaveTextContent("≤5 writes");
   });
 });

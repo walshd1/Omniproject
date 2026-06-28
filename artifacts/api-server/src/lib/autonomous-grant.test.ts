@@ -1,17 +1,21 @@
-import { test, afterEach } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   authorizeAutonomousWrite, registerAutonomousGrant, setAutonomousGrants, actorIdOf,
   __resetAutonomousGrants, AutonomousWriteDenied,
 } from "./autonomous-grant";
 import { mintAutonomousContext } from "./autonomous";
+import { setContainmentRelax, __resetContainmentRelax } from "./ai-containment";
 
 /**
  * The anti-backdoor control: autonomous writes are default-deny and tightly scoped by
  * action, project, surface, field and time, with a rate cap and a fresh-session check.
  */
 const NOW = 1_700_000_000_000;
-afterEach(() => __resetAutonomousGrants());
+// These tests isolate the SCOPE logic; relax containment to "off" so the default-full
+// containment gate (tested separately in ai-containment.test) doesn't reject the wildcards.
+beforeEach(() => setContainmentRelax("off"));
+afterEach(() => { __resetAutonomousGrants(); __resetContainmentRelax(); });
 
 function actor(role: "viewer" | "contributor" = "contributor", now = NOW) {
   return mintAutonomousContext({ id: "health-watch", role, onBehalfOf: undefined }, now);
@@ -74,6 +78,13 @@ test("rate cap stops a runaway actor", () => {
   assert.doesNotThrow(a);
   assert.doesNotThrow(a);
   assert.throws(a, AutonomousWriteDenied); // third write over the cap
+});
+
+test("DEFAULT FULL containment: a broad grant is denied even when the AI source is off", () => {
+  __resetContainmentRelax(); // back to the default-full posture
+  registerAutonomousGrant({ actorId: "health-watch", actions: ["update_issue"], projects: ["*"] });
+  // AI source is off in tests, but the default relax floor is "public" ⇒ full containment.
+  assert.throws(() => authorizeAutonomousWrite(actor(), { action: "update_issue", now: NOW }), AutonomousWriteDenied);
 });
 
 test("setAutonomousGrants replaces the whole set", () => {

@@ -36,8 +36,13 @@ export function classifyEndpointLocality(endpoint: string | null | undefined): "
   catch { return "remote"; }
 }
 
-/** The containment level implied by the currently-configured AI provider + its governance state. */
-export function aiContainmentLevel(surface?: string): AiContainment {
+/** Strictness ordering — public is the most contained, off the least. */
+const STRICTNESS: Record<AiContainment, number> = { off: 0, local: 1, remote: 2, public: 3 };
+const strictest = (a: AiContainment, b: AiContainment): AiContainment => (STRICTNESS[a] >= STRICTNESS[b] ? a : b);
+
+/** The EXPOSURE level implied by the configured AI provider + its governance state — i.e.
+ *  WHERE the AI runs, the hard floor below which containment can never be relaxed. */
+export function aiSourceLevel(surface?: string): AiContainment {
   const provider = getSettings().aiProvider;
   if (!provider || provider === "none") return "off";
   const id = `provider:${provider}`;
@@ -45,7 +50,27 @@ export function aiContainmentLevel(surface?: string): AiContainment {
   try { state = effectiveState(id, surface); } catch { return "public"; }
   if (state === "off") return "off";
   if (state === "public") return "public";
-  // user-defined: local vs remote by the configured endpoint.
   const endpoint = getSettings().capabilityStates?.[id]?.endpoint ?? null;
   return classifyEndpointLocality(endpoint);
+}
+
+// The admin RELAX floor. Default "public" ⇒ FULL containment for ALL sources, regardless
+// of where the AI runs. An admin lowers this to deliberately relax; even then the source
+// level is also a floor, so a remote/public AI stays maximally contained.
+let relaxFloor: AiContainment = "public";
+
+/** Relax the default-full containment toward `level` (admin). Source floor still applies. */
+export function setContainmentRelax(level: AiContainment): void { relaxFloor = level; }
+/** The current admin relax floor (default "public" = full containment). */
+export function getContainmentRelax(): AiContainment { return relaxFloor; }
+/** Test-only: restore the default-full posture. */
+export function __resetContainmentRelax(): void { relaxFloor = "public"; }
+
+/**
+ * The ENFORCED containment level: the strictest of the admin relax floor (default full)
+ * and the AI source level. So by default every source is fully contained; an admin can
+ * relax, but never below what the AI's exposure warrants.
+ */
+export function aiContainmentLevel(surface?: string): AiContainment {
+  return strictest(relaxFloor, aiSourceLevel(surface));
 }

@@ -285,7 +285,11 @@ AI exposure → containment level.
 | --- | --- |
 | `isLocalHost` | Is a host on the local machine or a private network (RFC1918 / loopback / .local)? |
 | `classifyEndpointLocality` | Classify a user-defined endpoint as local or remote (no endpoint ⇒ remote, i.e. stricter). |
-| `aiContainmentLevel` | The containment level implied by the currently-configured AI provider + its governance state. |
+| `aiSourceLevel` | The EXPOSURE level implied by the configured AI provider + its governance state — i.e. WHERE the AI runs, the hard floor below which containment can never be relaxed. |
+| `setContainmentRelax` | Relax the default-full containment toward `level` (admin). |
+| `getContainmentRelax` | The current admin relax floor (default "public" = full containment). |
+| `__resetContainmentRelax` | Test-only: restore the default-full posture. |
+| `aiContainmentLevel` | The ENFORCED containment level: the strictest of the admin relax floor (default full) and the AI source level. |
 
 ### `artifacts/api-server/src/lib/ai.ts`
 
@@ -324,6 +328,7 @@ Autonomous WRITE authorisation — the hard limit that stops an autonomous sessi
 | --- | --- |
 | `registerAutonomousGrant` | Seed/replace an autonomous write grant (admin/config). |
 | `getAutonomousGrant` | The grant for an actor id, or undefined (⇒ default deny). |
+| `listAutonomousGrants` | Every active write grant (for the admin dashboard). |
 | `setAutonomousGrants` | Replace the whole grant set (admin applies the config JSON). |
 | `__resetAutonomousGrants` | Test-only: clear grants + counters. |
 | `actorIdOf` | The registry id behind an autonomous principal's sub (automation:<id> / agent:<id>:<who>). |

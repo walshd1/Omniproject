@@ -1,6 +1,6 @@
-import { test } from "node:test";
+import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { isLocalHost, classifyEndpointLocality } from "./ai-containment";
+import { isLocalHost, classifyEndpointLocality, aiContainmentLevel, aiSourceLevel, setContainmentRelax, getContainmentRelax, __resetContainmentRelax } from "./ai-containment";
 import { assertGrantContainment, type AutonomousWriteGrant } from "./autonomous-grant";
 import { AutonomousWriteDenied } from "./autonomous-grant";
 
@@ -8,6 +8,22 @@ import { AutonomousWriteDenied } from "./autonomous-grant";
  * AI exposure → containment: the more exposed the AI, the tighter an autonomous write
  * grant must be. Public/remote forbid wildcards and mandate a time bound + write cap.
  */
+afterEach(() => __resetContainmentRelax());
+
+test("DEFAULT is FULL containment for all sources (relax floor = public)", () => {
+  assert.equal(getContainmentRelax(), "public");
+  // AI source is off in tests, but the enforced level is the strictest of (relax, source).
+  assert.equal(aiSourceLevel(), "off");
+  assert.equal(aiContainmentLevel(), "public");
+});
+
+test("an admin can relax, but never below the AI source floor", () => {
+  setContainmentRelax("off"); // fully relaxed
+  assert.equal(aiContainmentLevel(), "off"); // source is off in tests ⇒ off
+  setContainmentRelax("local");
+  assert.equal(aiContainmentLevel(), "local"); // at least local
+});
+
 test("local vs remote host classification", () => {
   for (const h of ["localhost", "127.0.0.1", "10.1.2.3", "192.168.0.5", "172.16.0.1", "box.local"]) assert.equal(isLocalHost(h), true, h);
   for (const h of ["api.openai.com", "8.8.8.8", "203.0.113.4", "172.32.0.1"]) assert.equal(isLocalHost(h), false, h);

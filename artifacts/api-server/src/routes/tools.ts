@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { requireRole } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
+import { aiContainmentLevel, aiSourceLevel, getContainmentRelax, setContainmentRelax, type AiContainment } from "../lib/ai-containment";
+import { listAutonomousGrants } from "../lib/autonomous-grant";
 import { captureVersion } from "../lib/config-store";
 import { getSession } from "./auth";
 import {
@@ -28,6 +30,25 @@ router.get("/governance", (_req, res) => {
 // Live activity for the admin governance dashboard (uses, blocks, config changes).
 router.get("/governance/log", requireRole("admin"), (_req, res) => {
   res.json({ entries: recentCapabilityLog() });
+});
+
+// Autonomous posture for the admin dashboard: the ENFORCED containment level + how it's
+// derived (the AI source floor and the admin relax setting) + the active write grants.
+router.get("/governance/autonomous", requireRole("admin"), (_req, res) => {
+  res.json({ level: aiContainmentLevel(), source: aiSourceLevel(), relax: getContainmentRelax(), grants: listAutonomousGrants() });
+});
+
+// Relax (or re-tighten) the default-full containment posture (admin + step-up). The AI
+// source level remains a hard floor, so a remote/public AI can never be relaxed below max.
+const CONTAINMENT_LEVELS: AiContainment[] = ["off", "local", "remote", "public"];
+router.put("/governance/containment", requireRole("admin"), requireStepUp, (req, res) => {
+  const level = (req.body as { level?: unknown }).level;
+  if (typeof level !== "string" || !CONTAINMENT_LEVELS.includes(level as AiContainment)) {
+    res.status(400).json({ error: `level must be one of ${CONTAINMENT_LEVELS.join(", ")}` });
+    return;
+  }
+  setContainmentRelax(level as AiContainment);
+  res.json({ relax: getContainmentRelax(), level: aiContainmentLevel(), source: aiSourceLevel() });
 });
 
 // Probe a user-defined endpoint's reachability (admin). Tests the endpoint in the
