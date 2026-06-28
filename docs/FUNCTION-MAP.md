@@ -319,6 +319,21 @@ Read-only API tokens for non-interactive clients (e.g. Power BI's Web connector,
 | --- | --- |
 | `hasValidApiToken` | True when the request carries a valid read-only API token. |
 
+### `artifacts/api-server/src/lib/approved-actions.ts`
+
+Customer-wide APPROVED vocabulary + actions.
+
+| Function | What it does |
+| --- | --- |
+| `isActionApproved` | Is this canonical action on the customer's approved allowlist? |
+| `approveAction` | Approve an action (admin extends the allowlist). |
+| `revokeApprovedAction` | Remove an action from the allowlist (admin tightens). |
+| `listApprovedActions` | The approved action allowlist. |
+| `approveTerm` | Approve a vocabulary term. |
+| `listApprovedVocab` | The approved vocabulary. |
+| `setApproved` | Replace the whole allowlist (an admin applies the customer-wide file). |
+| `__resetApproved` | Test-only: restore the default-safe allowlist (reads approved, no vocab). |
+
 ### `artifacts/api-server/src/lib/audit.ts`
 
 Action audit logging.

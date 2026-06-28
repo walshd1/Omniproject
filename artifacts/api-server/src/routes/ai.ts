@@ -9,6 +9,8 @@ import { getSettings } from "../lib/settings";
 import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, screenIdForRoute } from "../lib/tools";
 import { planAction } from "../lib/nl-action";
+import { MCP_TOOLS } from "../lib/mcp";
+import { isActionApproved } from "../lib/approved-actions";
 import { answerCopilot } from "../lib/copilot";
 import { getBroker, contextFromReq } from "../broker";
 import { hasRole } from "../lib/rbac";
@@ -97,7 +99,9 @@ router.post("/ai/nl-action", async (req, res) => {
   try {
     // Writes are only planned for a contributor+ caller; a viewer gets read actions only.
     const allowWrites = hasRole(req, "contributor");
-    const plan = await planAction({ text, allowWrites, complete: async (prompt) => (await aiChat([{ role: "user", content: prompt }])).content });
+    // Hard limit: the planner may only choose from the customer's APPROVED actions.
+    const tools = MCP_TOOLS.filter((t) => isActionApproved(t.action));
+    const plan = await planAction({ text, tools, allowWrites, complete: async (prompt) => (await aiChat([{ role: "user", content: prompt }])).content });
     res.json({ plan });
   } catch (err) {
     const status = err instanceof AiError ? err.status : 502;

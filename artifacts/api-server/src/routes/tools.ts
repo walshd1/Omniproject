@@ -4,6 +4,7 @@ import { requireStepUp } from "../lib/step-up";
 import { aiContainmentLevel, aiSourceLevel, getContainmentRelax, setContainmentRelax, type AiContainment } from "../lib/ai-containment";
 import { listAutonomousGrants } from "../lib/autonomous-grant";
 import { aiKillEngaged, engageAiKill, releaseAiKill } from "../lib/ai-kill";
+import { listApprovedActions, listApprovedVocab, setApproved, approveAction, approveTerm } from "../lib/approved-actions";
 import { recordAudit } from "../lib/audit";
 import { captureVersion } from "../lib/config-store";
 import { getSession } from "./auth";
@@ -38,6 +39,28 @@ router.get("/governance/log", requireRole("admin"), (_req, res) => {
 // derived (the AI source floor and the admin relax setting) + the active write grants.
 router.get("/governance/autonomous", requireRole("admin"), (_req, res) => {
   res.json({ level: aiContainmentLevel(), source: aiSourceLevel(), relax: getContainmentRelax(), grants: listAutonomousGrants(), aiKill: aiKillEngaged() });
+});
+
+// The customer-wide APPROVED vocabulary + actions allowlist (read: any admin).
+router.get("/governance/approved", requireRole("admin"), (_req, res) => {
+  res.json({ actions: listApprovedActions(), vocab: listApprovedVocab() });
+});
+
+// Extend / replace the approved allowlist (admin + step-up — widening what AI may do is
+// a sensitive change). `replace` swaps the whole file; otherwise the items are added.
+router.put("/governance/approved", requireRole("admin"), requireStepUp, (req, res) => {
+  const body = (req.body ?? {}) as { actions?: unknown; vocab?: unknown; replace?: unknown };
+  const acts = Array.isArray(body.actions) ? body.actions.filter((a): a is string => typeof a === "string") : undefined;
+  const terms = Array.isArray(body.vocab) ? body.vocab.filter((v): v is string => typeof v === "string") : undefined;
+  if (body.replace === true) {
+    setApproved({ ...(acts ? { actions: acts } : {}), ...(terms ? { vocab: terms } : {}) });
+  } else {
+    for (const a of acts ?? []) approveAction(a);
+    for (const v of terms ?? []) approveTerm(v);
+  }
+  const session = getSession(req);
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "approved.update", actor: session ? { sub: session.sub, email: session.email } : null, write: true, result: "success", meta: { actions: listApprovedActions().length, vocab: listApprovedVocab().length } });
+  res.json({ actions: listApprovedActions(), vocab: listApprovedVocab() });
 });
 
 // Break-glass AI kill switch (admin + step-up): one toggle stops all AI calls and

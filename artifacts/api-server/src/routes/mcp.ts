@@ -4,6 +4,7 @@ import { hasValidApiToken } from "../lib/api-token";
 import { hasRole } from "../lib/rbac";
 import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
+import { isActionApproved } from "../lib/approved-actions";
 import { recordAudit } from "../lib/audit";
 import { enforceCapability, CapabilityBlockedError } from "../lib/tools";
 import { resolveSupport } from "../lib/capabilities";
@@ -102,6 +103,8 @@ router.post("/mcp", async (req, res) => {
     if (req.body?.method === "tools/call") {
       recordAudit({ ts: new Date().toISOString(), category: tool.write ? "broker" : "request", action: `mcp:${tool.name}`, actor: getSession(req) ? { sub: getSession(req)!.sub } : null, projectId: (args["projectId"] as string) ?? null, write: !!tool.write, result: "success", status: 200 });
     }
+    // Hard limit: only the customer's APPROVED actions can execute, whatever the agent asks.
+    if (!isActionApproved(tool.action)) throw new Error(`action "${tool.action}" is not on the approved allowlist`);
     const handler = MCP_HANDLERS[tool.action];
     if (!handler) throw new Error(`unsupported tool action: ${tool.action}`);
     return handler({ broker, ctx, req, pid: String(args["projectId"] ?? ""), args });
