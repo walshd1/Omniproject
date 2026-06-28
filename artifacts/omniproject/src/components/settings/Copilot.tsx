@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { askCopilot } from "../../lib/copilot";
 import { ContainmentBadge } from "../ContainmentBadge";
+import { DictateButton } from "../DictateButton";
 
 /**
  * Portfolio copilot — ask questions about the portfolio in plain language. Read-only: it
@@ -42,6 +43,7 @@ export function Copilot() {
             aria-label="Portfolio question"
             className="h-9 flex-1 rounded-md border border-border bg-transparent px-2 text-sm"
           />
+          <DictateButton onText={(t) => setQuestion((prev) => (prev ? `${prev} ${t}` : t))} />
           <Button size="sm" disabled={busy || !question.trim()} onClick={() => void onAsk()} data-testid="copilot-ask">{busy ? "Thinking…" : "Ask"}</Button>
         </div>
         {error && <p className="text-sm text-red-600" data-testid="copilot-error">{error}</p>}

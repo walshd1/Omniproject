@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { planNlAction, executePlannedAction, type ActionPlan } from "../../lib/nl-action";
 import { ContainmentBadge } from "../ContainmentBadge";
+import { DictateButton } from "../DictateButton";
 
 /**
  * Natural-language command. Type an instruction; the gateway PLANS it into one canonical
@@ -60,6 +61,7 @@ export function NlCommand() {
             aria-label="Natural-language instruction"
             className="h-9 flex-1 rounded-md border border-border bg-transparent px-2 text-sm"
           />
+          <DictateButton onText={(t) => setText((prev) => (prev ? `${prev} ${t}` : t))} />
           <Button size="sm" disabled={busy || !text.trim()} onClick={() => void onPlan()} data-testid="nl-plan">Plan</Button>
         </div>
 
