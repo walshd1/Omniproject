@@ -23,6 +23,7 @@ import { SecurityKeys } from "../components/settings/SecurityKeys";
 import { ProvenanceDashboard } from "../components/settings/ProvenanceDashboard";
 import { NlCommand } from "../components/settings/NlCommand";
 import { HealthWatch } from "../components/settings/HealthWatch";
+import { Copilot } from "../components/settings/Copilot";
 import { DataState } from "../components/DataState";
 import { LoadingState } from "../components/LoadingState";
 import { urlFormatError } from "../lib/validation";
@@ -273,6 +274,10 @@ export function Settings() {
 
       <div className="mt-10">
         <HealthWatch />
+      </div>
+
+      <div className="mt-10">
+        <Copilot />
       </div>
 
       <div className="mt-10">

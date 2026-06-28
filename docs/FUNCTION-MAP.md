@@ -531,6 +531,17 @@ Connection-credential scaffolding — works out WHICH credentials a deployment's
 | `requiredCredentials` | The union of required env across the given backends, tagged secret/config. |
 | `renderCredentialTemplate` | Render a fill-in template (placeholders only) for the operator to complete. |
 
+### `artifacts/api-server/src/lib/copilot.ts`
+
+Portfolio copilot — read-only NL Q&A over the portfolio read model.
+
+| Function | What it does |
+| --- | --- |
+| `sanitizeForPrompt` | Strip control characters and cap length so a data value can't break the prompt frame. |
+| `scopeContext` | Project portfolio rows down to the minimal, sanitised snapshot the model may see. |
+| `copilotMessages` | Build the copilot messages: a hardening system prompt + the delimited data + question. |
+| `answerCopilot` | Answer a question over the scoped read model. |
+
 ### `artifacts/api-server/src/lib/csrf.ts`
 
 CSRF hardening for cookie-authenticated mutations (security item B).

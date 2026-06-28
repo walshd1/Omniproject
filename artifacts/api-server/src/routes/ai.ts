@@ -9,6 +9,8 @@ import { getSettings } from "../lib/settings";
 import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, screenIdForRoute } from "../lib/tools";
 import { planAction } from "../lib/nl-action";
+import { answerCopilot } from "../lib/copilot";
+import { getBroker, contextFromReq } from "../broker";
 import { hasRole } from "../lib/rbac";
 import { aiContainmentLevel, aiSourceLevel } from "../lib/ai-containment";
 
@@ -101,6 +103,38 @@ router.post("/ai/nl-action", async (req, res) => {
     const status = err instanceof AiError ? err.status : 502;
     req.log.error({ err }, "nl-action planning failed");
     res.status(status).json({ error: err instanceof Error ? err.message : "planning failed" });
+  }
+});
+
+// ── POST /api/ai/copilot — read-only NL Q&A over the scoped portfolio read model ──
+// Never writes, exposes no actions to the model, and sends only a minimal aggregated
+// snapshot (egress-scoped + injection-hardened in lib/copilot). Governance-gated.
+router.post("/ai/copilot", async (req, res) => {
+  const question = typeof (req.body as { question?: unknown }).question === "string" ? (req.body as { question: string }).question : "";
+  if (!question.trim()) { res.status(400).json({ error: "Body must be { question }." }); return; }
+
+  const provider = getSettings().aiProvider;
+  const surface = screenIdForRoute(typeof (req.body as { surface?: unknown }).surface === "string" ? (req.body as { surface: string }).surface : undefined);
+  const session = getSession(req);
+  try {
+    enforceCapability(`provider:${provider}`, { surface, actor: session ? { sub: session.sub, email: session.email } : null });
+  } catch (err) {
+    if (err instanceof CapabilityBlockedError) { res.status(403).json({ error: `AI is unavailable here: ${err.message}` }); return; }
+    throw err;
+  }
+
+  try {
+    const result = await answerCopilot({
+      question,
+      broker: getBroker(),
+      ctx: contextFromReq(req),
+      complete: async (messages) => (await aiChat(messages)).content,
+    });
+    res.json(result);
+  } catch (err) {
+    const status = err instanceof AiError ? err.status : 502;
+    req.log.error({ err }, "copilot failed");
+    res.status(status).json({ error: err instanceof Error ? err.message : "copilot failed" });
   }
 });
 
