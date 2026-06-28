@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { EGRESS_INFO, consentToTool, revokeToolConsent, saveToolPolicy } from "./tools";
+import { STATE_INFO, KIND_LABEL, saveCapability } from "./tools";
 
 /**
- * Client tools helpers: egress copy completeness + the consent/policy fetch calls.
+ * Client governance helpers: state copy completeness + the admin save call.
  */
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
@@ -11,29 +11,24 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe("EGRESS_INFO", () => {
-  it("describes every egress class with a tone", () => {
-    for (const cls of ["none", "self-hosted", "third-party"] as const) {
-      expect(EGRESS_INFO[cls].label).toBeTruthy();
-      expect(EGRESS_INFO[cls].blurb).toBeTruthy();
-      expect(["safe", "caution", "warn"]).toContain(EGRESS_INFO[cls].tone);
+describe("copy", () => {
+  it("describes every deployment state and capability kind", () => {
+    for (const s of ["off", "user-defined", "public"] as const) {
+      expect(STATE_INFO[s].label).toBeTruthy();
+      expect(["muted", "safe", "warn"]).toContain(STATE_INFO[s].tone);
+    }
+    for (const k of ["ai-tool", "mcp", "ai-provider", "vendor"] as const) {
+      expect(KIND_LABEL[k]).toBeTruthy();
     }
   });
 });
 
-describe("consent + policy calls", () => {
-  it("POSTs consent for a tool", async () => {
-    await consentToTool("whisper-dictation");
-    expect(fetchMock).toHaveBeenCalledWith("/api/tools/whisper-dictation/consent", expect.objectContaining({ method: "POST" }));
-  });
-  it("DELETEs consent for a tool", async () => {
-    await revokeToolConsent("portfolio-copilot");
-    expect(fetchMock).toHaveBeenCalledWith("/api/tools/portfolio-copilot/consent", expect.objectContaining({ method: "DELETE" }));
-  });
-  it("PUTs the admin policy as JSON", async () => {
-    await saveToolPolicy({ allowedEgress: ["none", "self-hosted"], disabled: [] });
-    expect(fetchMock).toHaveBeenCalledWith("/api/tools/policy", expect.objectContaining({ method: "PUT" }));
+describe("saveCapability", () => {
+  it("PUTs the capability setting as JSON", async () => {
+    await saveCapability("tts", { state: "public", surfaces: { finance: "off" } });
+    expect(fetchMock).toHaveBeenCalledWith("/api/governance/tts", expect.objectContaining({ method: "PUT" }));
     const body = JSON.parse((fetchMock.mock.calls[0]![1] as { body: string }).body);
-    expect(body.allowedEgress).toContain("self-hosted");
+    expect(body.state).toBe("public");
+    expect(body.surfaces.finance).toBe("off");
   });
 });

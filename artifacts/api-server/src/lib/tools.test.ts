@@ -1,77 +1,72 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  TOOLS, DEFAULT_TOOL_POLICY, lowestEgress, resolveTool, listResolvedTools,
-  sanitizeToolPolicy, getConsentedTools, addToolConsent, revokeToolConsent, isKnownTool,
+  listCapabilities, getCapability, offeredStates, resolveState, resolveCapability,
+  sanitizeCapabilitySetting, setCapabilityState, effectiveState,
 } from "./tools";
-import type { ToolPolicy } from "./settings";
+import type { CapabilitySetting } from "./settings";
 
 /**
- * Tool Registry governance: locked-down-by-default egress policy + per-user consent,
- * and the hard rule that every tool offers a local path.
+ * Capability governance: tri-state (off/user-defined/public), only-offer-what's-
+ * supported, and per-surface overrides for AI tools.
  */
 
-test("HARD RULE: every tool offers at least one local egress mode (no cloud-only tools)", () => {
-  for (const t of TOOLS) {
-    const local = t.egressModes.some((m) => m === "none" || m === "self-hosted");
-    assert.ok(local, `tool "${t.id}" must offer a local (none/self-hosted) mode`);
-  }
+test("the registry covers AI tools, the MCP, AI providers and vendors", () => {
+  const kinds = new Set(listCapabilities().map((c) => c.kind));
+  for (const k of ["ai-tool", "mcp", "ai-provider", "vendor"]) assert.ok(kinds.has(k as never), `missing kind ${k}`);
 });
 
-test("lowestEgress prefers the most local mode", () => {
-  assert.equal(lowestEgress(["third-party", "self-hosted", "none"]), "none");
-  assert.equal(lowestEgress(["third-party", "self-hosted"]), "self-hosted");
-  assert.equal(lowestEgress([]), null);
+test("a provider offers only the states it actually supports", () => {
+  const ollama = getCapability("provider:ollama")!;
+  const openai = getCapability("provider:openai")!;
+  assert.deepEqual(ollama.supportedStates, ["user-defined"]); // local-only
+  assert.deepEqual(openai.supportedStates, ["public"]); // cloud-only
+  // "off" is always an option on top of what's supported.
+  assert.deepEqual(offeredStates(ollama), ["off", "user-defined"]);
+  assert.deepEqual(offeredStates(openai), ["off", "public"]);
 });
 
-test("default policy (locked) allows only on-device tools, blocks the rest", () => {
-  const resolved = listResolvedTools(DEFAULT_TOOL_POLICY, []);
-  const whisper = resolved.find((t) => t.id === "whisper-dictation")!;
-  const copilot = resolved.find((t) => t.id === "portfolio-copilot")!;
-  // Whisper can run on-device → available with no consent needed.
-  assert.equal(whisper.available, true);
-  assert.equal(whisper.effectiveEgress, "none");
-  assert.equal(whisper.requiresConsent, false);
-  // Copilot has no local-only mode → blocked until the admin relaxes egress.
-  assert.equal(copilot.available, false);
-  assert.equal(copilot.reason, "blocked by the data-egress policy");
+test("resolveState clamps an unsupported choice down to off", () => {
+  const openai = getCapability("provider:openai")!;
+  // openai can't be "user-defined" → treated as off.
+  assert.equal(resolveState(openai, { state: "user-defined" }), "off");
+  assert.equal(resolveState(openai, { state: "public" }), "public");
+  assert.equal(resolveState(openai, undefined), "off"); // unset ⇒ off
 });
 
-test("relaxing to self-hosted unlocks LLM tools but demands consent first", () => {
-  const policy: ToolPolicy = { allowedEgress: ["none", "self-hosted"], disabled: [] };
-  const copilot = resolveTool(TOOLS.find((t) => t.id === "portfolio-copilot")!, policy, []);
-  assert.equal(copilot.available, true);
-  assert.equal(copilot.effectiveEgress, "self-hosted");
-  assert.equal(copilot.requiresConsent, true);
-  // Once consented, no further prompt.
-  const after = resolveTool(TOOLS.find((t) => t.id === "portfolio-copilot")!, policy, ["portfolio-copilot"]);
-  assert.equal(after.requiresConsent, false);
+test("AI tools honour per-surface overrides; non-AI capabilities ignore them", () => {
+  const tts = getCapability("tts")!;
+  const setting: CapabilitySetting = { state: "public", surfaces: { finance: "user-defined" } };
+  assert.equal(resolveState(tts, setting), "public"); // global
+  assert.equal(resolveState(tts, setting, "finance"), "user-defined"); // overridden on finance
+  assert.equal(resolveState(tts, setting, "home"), "public"); // other screens keep global
+
+  const ollama = getCapability("provider:ollama")!; // not surface-aware
+  assert.equal(resolveState(ollama, { state: "user-defined", surfaces: { finance: "off" } }, "finance"), "user-defined");
 });
 
-test("an admin can switch a tool off entirely", () => {
-  const policy: ToolPolicy = { allowedEgress: ["none"], disabled: ["whisper-dictation"] };
-  const whisper = resolveTool(TOOLS.find((t) => t.id === "whisper-dictation")!, policy, []);
-  assert.equal(whisper.available, false);
-  assert.match(whisper.reason ?? "", /administrator/);
+test("sanitize keeps only supportable states + surface overrides", () => {
+  const openai = getCapability("provider:openai")!;
+  assert.equal(sanitizeCapabilitySetting(openai, { state: "user-defined" }).state, "off"); // unsupported
+  assert.equal(sanitizeCapabilitySetting(openai, { state: "public" }).state, "public");
+
+  const tts = getCapability("tts")!;
+  const clean = sanitizeCapabilitySetting(tts, { state: "public", surfaces: { finance: "off", bad: "nonsense" } });
+  assert.equal(clean.surfaces?.finance, "off");
+  assert.equal("bad" in (clean.surfaces ?? {}), false); // invalid value dropped
 });
 
-test("sanitizeToolPolicy always keeps 'none', filters junk, validates ids", () => {
-  assert.deepEqual(sanitizeToolPolicy({}).allowedEgress, ["none"]);
-  assert.deepEqual(sanitizeToolPolicy({ allowedEgress: ["third-party"] }).allowedEgress, ["none", "third-party"]);
-  assert.deepEqual(sanitizeToolPolicy({ allowedEgress: ["bogus", "self-hosted"] }).allowedEgress, ["none", "self-hosted"]);
-  assert.deepEqual(sanitizeToolPolicy({ disabled: ["whisper-dictation", "nope"] }).disabled, ["whisper-dictation"]);
+test("setCapabilityState persists and effectiveState reads it back per surface", () => {
+  setCapabilityState("tts", { state: "public", surfaces: { finance: "off" } });
+  assert.equal(effectiveState("tts"), "public");
+  assert.equal(effectiveState("tts", "finance"), "off");
+  assert.equal(effectiveState("unknown-cap"), "off"); // unknown ⇒ off
 });
 
-test("consent round-trips per user and is idempotent", () => {
-  const sub = `u-${Math.round(performance.now())}`;
-  assert.deepEqual(getConsentedTools(sub), []);
-  assert.deepEqual(addToolConsent(sub, "portfolio-copilot"), ["portfolio-copilot"]);
-  assert.deepEqual(addToolConsent(sub, "portfolio-copilot"), ["portfolio-copilot"]); // idempotent
-  assert.equal(getConsentedTools(sub).includes("portfolio-copilot"), true);
-  assert.deepEqual(revokeToolConsent(sub, "portfolio-copilot"), []);
-});
-
-test("isKnownTool guards unknown ids", () => {
-  assert.equal(isKnownTool("whisper-dictation"), true);
-  assert.equal(isKnownTool("made-up"), false);
+test("resolveCapability exposes options + current state for the admin UI", () => {
+  setCapabilityState("provider:ollama", { state: "user-defined", endpoint: "http://localhost:11434" });
+  const r = resolveCapability(getCapability("provider:ollama")!, { "provider:ollama": { state: "user-defined", endpoint: "http://localhost:11434" } });
+  assert.deepEqual(r.options, ["off", "user-defined"]);
+  assert.equal(r.state, "user-defined");
+  assert.equal(r.endpoint, "http://localhost:11434");
 });

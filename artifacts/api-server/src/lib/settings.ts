@@ -106,17 +106,12 @@ export interface SettingsState {
    */
   userPrefs: Record<string, UserPrefs>;
   /**
-   * Admin data-governance policy for the optional tools plane. Locked to on-device
-   * only by default; relaxing it to self-hosted/third-party egress is the admin's
-   * deliberate, per-class choice. Config, never project data.
+   * Admin data-governance for the governed capabilities (AI tools, the MCP, AI
+   * providers and vendors), keyed by capability id. Off by default; the admin sets
+   * each to off / user-defined / public (and, for AI tools, per-surface). Customer-
+   * level config — rides the snapshot/export — never project data.
    */
-  toolPolicy: ToolPolicy;
-  /**
-   * Per-user tool consent: the tool ids each user (`sub`) has acknowledged the
-   * data-egress of, so a relaxed (non-local) tool is used only after that person has
-   * seen and accepted where their data goes. Audit-class config, never project data.
-   */
-  toolConsent: Record<string, string[]>;
+  capabilityStates: Record<string, CapabilitySetting>;
 }
 
 /** One user's persisted UI/accessibility preferences. */
@@ -137,17 +132,29 @@ export interface UserPrefs {
   mobileMode: "auto" | "on" | "off";
 }
 
-/** Where a tool's data goes: nowhere (on-device), the customer's own infra, or a
- *  third party. The unit the Tool Registry's egress policy is expressed in. */
-export type EgressClass = "none" | "self-hosted" | "third-party";
+/**
+ * The deployment state of a governed capability (an AI tool, the MCP, an AI provider
+ * or a vendor):
+ *   - "off"          — not used.
+ *   - "user-defined" — runs somewhere the CUSTOMER controls: truly local (on-device /
+ *                      in-cluster) or a customer-owned remote endpoint. Private.
+ *   - "public"       — a third-party SaaS provider.
+ * Each capability advertises only the states it actually supports; the UI offers those.
+ */
+export type DeploymentState = "off" | "user-defined" | "public";
 
-/** Admin data-governance policy for the optional tools (AI + integrations). Locked
- *  down by default (on-device only); an admin relaxes it per egress class. */
-export interface ToolPolicy {
-  /** Egress classes the admin permits. "none" is always allowed (it never leaves). */
-  allowedEgress: EgressClass[];
-  /** Tool ids the admin has switched off entirely. */
-  disabled: string[];
+/** An admin's chosen state for one governed capability (customer-level JSON). */
+export interface CapabilitySetting {
+  /** The chosen state. Ignored (treated as "off") if the capability can't support it. */
+  state: DeploymentState;
+  /** For "user-defined": the customer's own endpoint (local or remote). */
+  endpoint?: string | null;
+  /**
+   * Per-surface overrides for AI tools — a screen/context id → state. Lets one piece
+   * of AI be set differently per screen (e.g. TTS public everywhere but "user-defined"
+   * or "off" on the finance screen). Only honoured for surface-aware capabilities.
+   */
+  surfaces?: Record<string, DeploymentState>;
 }
 
 /** A saved arrangement for one screen. */
@@ -238,8 +245,7 @@ const store: SettingsState = {
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
   userPrefs: {},
-  toolPolicy: { allowedEgress: ["none"], disabled: [] },
-  toolConsent: {},
+  capabilityStates: {},
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
@@ -260,8 +266,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "fieldOverrides",
   "screenLayouts",
   "userPrefs",
-  "toolPolicy",
-  "toolConsent",
+  "capabilityStates",
 ];
 
 /** A snapshot copy of the current in-memory settings (never the live reference). */

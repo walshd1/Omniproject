@@ -37,19 +37,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
-- **Tool Registry + data-egress policy + per-user consent gate** — the governance
-  substrate every optional tool (AI dictation, NL→action, health watch, portfolio
-  copilot) plugs into. Each tool declares the data-egress modes it can run in
-  (`none` on-device / `self-hosted` on the customer's own infra / `third-party`
-  cloud). A **HARD RULE** — enforced by a registry test — requires every tool to offer
-  at least one LOCAL mode, so no capability is ever cloud-only. The admin policy is
-  **locked to on-device by default**; relaxing it to self-hosted/third-party egress is
-  a deliberate, versioned (`captureVersion`) choice, and any non-local tool then needs
-  the user's **one-time, informed consent** (a dialog that spells out exactly where
-  their data goes) before first use. New `GET /api/tools`, `POST`/`DELETE
-  /api/tools/:id/consent`, `PUT /api/tools/policy` (admin); a Settings → "Tools & AI —
-  data governance" admin card; policy + consent persist in the config snapshot. This is
-  "lock it down, let people relax it with information" expressed once, for all tools.
+- **Capability governance — tri-state (off / user-defined / public) for every AI
+  tool, the MCP, AI providers and vendors** — one admin-controlled model for where each
+  capability runs: `off`, `user-defined` (the CUSTOMER controls it — truly local or
+  their own remote endpoint) or `public` (third-party SaaS). Each capability advertises
+  only the states it can actually run in, so the UI offers just those (a cloud-only
+  provider shows only `public`; a local-only one only `user-defined`). **AI tools are
+  surface-aware**: their state can be overridden per screen/context — e.g. text-to-speech
+  `public` everywhere but `user-defined` or `off` on the finance screen. Everything is
+  off by default, **admin-gated**, versioned (`captureVersion`) and stored in
+  customer-level JSON (rides the snapshot/export). AI providers are seeded with their
+  real options (Ollama → user-defined; OpenAI/Anthropic/OpenRouter → public) and vendors
+  are derived from the backend catalogue. New `GET /api/governance` + `PUT
+  /api/governance/:id` (admin); a Settings → "Tools, AI & vendors — data governance"
+  admin card. (Supersedes the earlier egress-class + per-user-consent design and its
+  "every tool must offer local" rule — governance is now wholly admin-controlled and
+  per-surface.)
 - **Platform & capability detection, mobile mode, PWA, native-ready seam** — the app
   now tailors itself to the device the right way: **feature-detection first**, with
   coarse OS/engine hints used only for wording and install routing (never to gate a

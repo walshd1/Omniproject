@@ -855,20 +855,19 @@ Graceful shutdown — on SIGTERM/SIGINT (e.g. `docker stop`, a rolling deploy), 
 
 ### `artifacts/api-server/src/lib/tools.ts`
 
-The Tool Registry — the governance substrate every optional tool (AI dictation, NL→action, health watch, portfolio copilot, …) plugs into.
+Capability governance — one model for every "thing that can move data or be turned on/off": AI tools, the MCP, AI providers and vendors.
 
 | Function | What it does |
 | --- | --- |
-| `lowestEgress` | The most-local egress mode in a list (none < self-hosted < third-party), or null. |
-| `resolveTool` | Resolve one tool against the admin policy and a user's prior consent. |
-| `listResolvedTools` | Resolve every tool for a given policy + user consent set. |
-| `isKnownTool` | Is this a known tool id? |
-| `sanitizeToolPolicy` | Coerce untrusted input to a valid policy. |
-| `getToolPolicy` | The current admin policy. |
-| `setToolPolicy` | Persist a (sanitised) admin policy; returns what was stored. |
-| `getConsentedTools` | Tool ids a user has consented to. |
-| `addToolConsent` | Record a user's consent for a tool (idempotent); returns their full consent set. |
-| `revokeToolConsent` | Withdraw a user's consent for a tool; returns their remaining consent set. |
+| `listCapabilities` | Every governed capability across all kinds. |
+| `getCapability` | Look up a capability by id. |
+| `offeredStates` | The states the UI should offer for a capability: "off" plus whatever it supports. |
+| `resolveState` | The effective state of a capability — optionally on a given surface. |
+| `resolveCapability` | Resolve one capability against the stored settings (no surface applied). |
+| `listResolvedCapabilities` | Every capability resolved against the current settings. |
+| `effectiveState` | Resolve a single capability's effective state for a surface (the runtime check). |
+| `sanitizeCapabilitySetting` | Coerce an admin's input for one capability to a valid, supportable setting. |
+| `setCapabilityState` | Persist an admin's setting for one capability; returns the stored setting. |
 
 ### `artifacts/api-server/src/lib/url-safety.ts`
 
@@ -1068,7 +1067,7 @@ Setup-wizard + operations endpoints — backend/plane catalogues, workflow gener
 
 ### `artifacts/api-server/src/routes/tools.ts`
 
-The tools plane — the optional AI/integration capabilities, governed by the admin data-egress policy and per-user consent (see lib/tools).
+Capability governance plane — the admin-set deployment state (off / user-defined / public, and per-surface for AI tools) of every AI tool, the MCP, AI providers and vendors (see lib/tools).
 
 ### `artifacts/api-server/src/routes/webhooks.ts`
 

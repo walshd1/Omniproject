@@ -1,148 +1,183 @@
-import { getSettings, updateSettings, type EgressClass, type ToolPolicy } from "./settings";
+import { BACKENDS } from "@workspace/backend-catalogue";
+import { getSettings, updateSettings, AI_PROVIDERS, type DeploymentState, type CapabilitySetting } from "./settings";
 
 /**
- * The Tool Registry — the governance substrate every optional tool (AI dictation,
- * NL→action, health watch, portfolio copilot, …) plugs into.
+ * Capability governance — one model for every "thing that can move data or be turned
+ * on/off": AI tools, the MCP, AI providers and vendors.
  *
- * The product's posture is "lock it down, let people relax it with information": a
- * tool is usable only if its data-egress is within the admin's policy, and any
- * non-local egress additionally needs that user's one-time, informed consent. By a
- * HARD RULE (enforced in tools.test.ts) every tool must offer at least one LOCAL
- * mode — on-device ("none") or on the customer's own infra ("self-hosted") — so no
- * capability is ever cloud-only. Third-party cloud is always an additional, opt-in
- * choice, never the only one.
+ * Each capability is set by an admin to one of three states: "off", "user-defined"
+ * (the customer controls it — truly local OR a customer-owned remote endpoint) or
+ * "public" (third-party SaaS). A capability advertises only the states it CAN run in,
+ * so the UI offers just those (a cloud-only provider shows only "public"; a local-only
+ * one only "user-defined"). AI tools are surface-aware: their state can be overridden
+ * per screen/context, so e.g. text-to-speech can be public everywhere but "user-defined"
+ * or "off" on the finance screen. All states live in customer-level JSON; changing them
+ * is admin-gated.
  */
 
-export interface ToolDescriptor {
+export type CapabilityKind = "ai-tool" | "mcp" | "ai-provider" | "vendor";
+
+export interface GovernedCapability {
   id: string;
+  kind: CapabilityKind;
   label: string;
   description: string;
-  /** The egress modes this tool can run in. At least one MUST be local (see above). */
-  egressModes: EgressClass[];
+  /** The non-off states this capability can run in. "off" is always available. */
+  supportedStates: DeploymentState[];
+  /** AI tools: their state can be overridden per surface (screen/context). */
+  surfaceAware: boolean;
+}
+
+/** Both customer-controlled and public — the common case for flexible AI tools. */
+const ANY: DeploymentState[] = ["user-defined", "public"];
+
+/** The AI tools + the MCP. Surface-aware so each can be tuned per screen. */
+const AI_TOOLS: GovernedCapability[] = [
+  { id: "dictation", kind: "ai-tool", label: "Voice dictation (speech-to-text)", description: "Dictate into fields. In-browser/your own Whisper, or a cloud STT.", supportedStates: ANY, surfaceAware: true },
+  { id: "tts", kind: "ai-tool", label: "Text-to-speech", description: "Read content aloud. On-device/your own voice service, or a cloud one.", supportedStates: ANY, surfaceAware: true },
+  { id: "nl-action", kind: "ai-tool", label: "Natural-language actions", description: "Turn an instruction into a canonical action via an LLM.", supportedStates: ANY, surfaceAware: true },
+  { id: "health-watch", kind: "ai-tool", label: "Health & anomaly watch", description: "Flags slipping projects / budget / SLA breaches. Rules locally, or AI-assisted.", supportedStates: ANY, surfaceAware: true },
+  { id: "portfolio-copilot", kind: "ai-tool", label: "Portfolio copilot", description: "Natural-language questions + summaries over the portfolio, via an LLM.", supportedStates: ANY, surfaceAware: true },
+];
+
+const MCP_CAPABILITY: GovernedCapability = {
+  id: "mcp", kind: "mcp", label: "MCP server", description: "Model Context Protocol endpoint for external agents.", supportedStates: ANY, surfaceAware: false,
+};
+
+/** The state(s) each AI provider can offer (what it actually is). */
+const PROVIDER_STATES: Partial<Record<(typeof AI_PROVIDERS)[number], DeploymentState[]>> = {
+  ollama: ["user-defined"], // local / self-hosted only
+  openai: ["public"],
+  anthropic: ["public"],
+  openrouter: ["public"],
+};
+
+function providerCapabilities(): GovernedCapability[] {
+  return AI_PROVIDERS.filter((p) => PROVIDER_STATES[p]).map((p) => ({
+    id: `provider:${p}`,
+    kind: "ai-provider" as const,
+    label: `AI provider — ${p}`,
+    description: PROVIDER_STATES[p]!.includes("public") ? "A third-party LLM API." : "A local / self-hosted LLM runtime.",
+    supportedStates: PROVIDER_STATES[p]!,
+    surfaceAware: false,
+  }));
+}
+
+function vendorCapabilities(): GovernedCapability[] {
+  // Derived from the backend catalogue. Most backends can be self-hosted (user-defined)
+  // or used as SaaS (public); the admin picks the actual state per deployment.
+  return BACKENDS.map((b) => ({
+    id: `vendor:${b.id}`,
+    kind: "vendor" as const,
+    label: `Vendor — ${b.label}`,
+    description: `Connect ${b.label} as a backend.`,
+    supportedStates: ANY,
+    surfaceAware: false,
+  }));
+}
+
+/** Every governed capability across all kinds. */
+export function listCapabilities(): GovernedCapability[] {
+  return [...AI_TOOLS, MCP_CAPABILITY, ...providerCapabilities(), ...vendorCapabilities()];
+}
+
+const byId = new Map(listCapabilities().map((c) => [c.id, c]));
+
+/** Look up a capability by id. */
+export function getCapability(id: string): GovernedCapability | undefined {
+  return byId.get(id);
+}
+
+/** The states the UI should offer for a capability: "off" plus whatever it supports. */
+export function offeredStates(cap: GovernedCapability): DeploymentState[] {
+  return ["off", ...cap.supportedStates];
 }
 
 /**
- * The tools. Their implementations land in later increments; the registry governs
- * them from day one. Each lists every egress mode it can run in — the resolver picks
- * the most local one the policy permits.
+ * The effective state of a capability — optionally on a given surface. Falls back to
+ * "off" when unset or when the chosen state isn't one the capability can support.
  */
-export const TOOLS: ToolDescriptor[] = [
-  {
-    id: "whisper-dictation",
-    label: "Voice dictation (Whisper)",
-    description: "Speech-to-text into any field. On-device (in-browser WASM), the customer's own Whisper server, or a cloud API.",
-    egressModes: ["none", "self-hosted", "third-party"],
-  },
-  {
-    id: "nl-action",
-    label: "Natural-language actions",
-    description: "Turn a typed/spoken instruction into a canonical action (e.g. \"create a task in X due Friday\") via an LLM.",
-    egressModes: ["self-hosted", "third-party"],
-  },
-  {
-    id: "health-watch",
-    label: "Health & anomaly watch",
-    description: "Flags slipping projects, budget overruns and SLA breaches. Rules-only on-device, or AI-assisted.",
-    egressModes: ["none", "self-hosted", "third-party"],
-  },
-  {
-    id: "portfolio-copilot",
-    label: "Portfolio copilot",
-    description: "Natural-language questions and exec summaries over the live portfolio, via an LLM.",
-    egressModes: ["self-hosted", "third-party"],
-  },
-];
-
-/** The default, locked-down policy: on-device tools only until an admin relaxes it. */
-export const DEFAULT_TOOL_POLICY: ToolPolicy = { allowedEgress: ["none"], disabled: [] };
-
-const EGRESS_RANK: Record<EgressClass, number> = { none: 0, "self-hosted": 1, "third-party": 2 };
-const EGRESS_CLASSES: readonly EgressClass[] = ["none", "self-hosted", "third-party"];
-
-/** The most-local egress mode in a list (none < self-hosted < third-party), or null. */
-export function lowestEgress(modes: readonly EgressClass[]): EgressClass | null {
-  let best: EgressClass | null = null;
-  for (const m of modes) if (best === null || EGRESS_RANK[m] < EGRESS_RANK[best]) best = m;
-  return best;
-}
-
-export interface ResolvedTool extends ToolDescriptor {
-  /** Usable for this user right now (policy permits a mode + admin hasn't disabled it). */
-  available: boolean;
-  /** The egress mode it would run in (most local the policy permits), or null if blocked. */
-  effectiveEgress: EgressClass | null;
-  /** Needs a one-time consent before first use (its effective egress leaves the device). */
-  requiresConsent: boolean;
-  /** Whether the asking user has already consented. */
-  consented: boolean;
-  /** Why it is unavailable, if it is (for the UI). */
-  reason: string | null;
-}
-
-/** Resolve one tool against the admin policy and a user's prior consent. */
-export function resolveTool(tool: ToolDescriptor, policy: ToolPolicy, consentedIds: readonly string[]): ResolvedTool {
-  const consented = consentedIds.includes(tool.id);
-  if (policy.disabled.includes(tool.id)) {
-    return { ...tool, available: false, effectiveEgress: null, requiresConsent: false, consented, reason: "switched off by your administrator" };
+export function resolveState(cap: GovernedCapability, setting: CapabilitySetting | undefined, surface?: string): DeploymentState {
+  let state = setting?.state ?? "off";
+  if (surface && cap.surfaceAware && setting?.surfaces && surface in setting.surfaces) {
+    state = setting.surfaces[surface]!;
   }
-  const effectiveEgress = lowestEgress(tool.egressModes.filter((m) => policy.allowedEgress.includes(m)));
-  if (effectiveEgress === null) {
-    return { ...tool, available: false, effectiveEgress: null, requiresConsent: false, consented, reason: "blocked by the data-egress policy" };
-  }
-  const requiresConsent = effectiveEgress !== "none" && !consented;
-  return { ...tool, available: true, effectiveEgress, requiresConsent, consented, reason: null };
+  if (state === "off") return "off";
+  return cap.supportedStates.includes(state) ? state : "off";
 }
 
-/** Resolve every tool for a given policy + user consent set. */
-export function listResolvedTools(policy: ToolPolicy, consentedIds: readonly string[]): ResolvedTool[] {
-  return TOOLS.map((t) => resolveTool(t, policy, consentedIds));
+export interface ResolvedCapability extends GovernedCapability {
+  /** Admin-offered options for this capability ("off" + its supported states). */
+  options: DeploymentState[];
+  /** Its globally-set state (no surface applied), clamped to what it supports. */
+  state: DeploymentState;
+  /** The customer endpoint for a user-defined capability, if set. */
+  endpoint: string | null;
+  /** Per-surface overrides (AI tools only). */
+  surfaces: Record<string, DeploymentState>;
 }
 
-/** Is this a known tool id? */
-export function isKnownTool(id: string): boolean {
-  return TOOLS.some((t) => t.id === id);
+/** Resolve one capability against the stored settings (no surface applied). */
+export function resolveCapability(cap: GovernedCapability, states: Record<string, CapabilitySetting>): ResolvedCapability {
+  const setting = states[cap.id];
+  return {
+    ...cap,
+    options: offeredStates(cap),
+    state: resolveState(cap, setting),
+    endpoint: setting?.endpoint ?? null,
+    surfaces: cap.surfaceAware ? (setting?.surfaces ?? {}) : {},
+  };
 }
 
-/** Coerce untrusted input to a valid policy. "none" is always kept (it never leaves). */
-export function sanitizeToolPolicy(input: unknown): ToolPolicy {
+/** Every capability resolved against the current settings. */
+export function listResolvedCapabilities(): ResolvedCapability[] {
+  const states = getSettings().capabilityStates;
+  return listCapabilities().map((c) => resolveCapability(c, states));
+}
+
+/** Resolve a single capability's effective state for a surface (the runtime check). */
+export function effectiveState(id: string, surface?: string): DeploymentState {
+  const cap = getCapability(id);
+  if (!cap) return "off";
+  return resolveState(cap, getSettings().capabilityStates[id], surface);
+}
+
+const STATES: readonly DeploymentState[] = ["off", "user-defined", "public"];
+
+/** Coerce an admin's input for one capability to a valid, supportable setting. */
+export function sanitizeCapabilitySetting(cap: GovernedCapability, input: unknown): CapabilitySetting {
   const o = (input ?? {}) as Record<string, unknown>;
-  const rawAllowed = Array.isArray(o["allowedEgress"]) ? (o["allowedEgress"] as unknown[]) : [];
-  const allowed = rawAllowed.filter((x): x is EgressClass => EGRESS_CLASSES.includes(x as EgressClass));
-  const disabled = (Array.isArray(o["disabled"]) ? (o["disabled"] as unknown[]) : []).filter(
-    (x): x is string => typeof x === "string" && isKnownTool(x),
-  );
-  return { allowedEgress: Array.from(new Set<EgressClass>(["none", ...allowed])), disabled: Array.from(new Set(disabled)) };
+  const wanted = STATES.includes(o["state"] as DeploymentState) ? (o["state"] as DeploymentState) : "off";
+  const state: DeploymentState = wanted === "off" || cap.supportedStates.includes(wanted) ? wanted : "off";
+
+  const endpointRaw = typeof o["endpoint"] === "string" ? (o["endpoint"] as string).trim() : "";
+  const endpoint = endpointRaw ? endpointRaw.slice(0, 2048) : null;
+
+  let surfaces: Record<string, DeploymentState> | undefined;
+  if (cap.surfaceAware && o["surfaces"] && typeof o["surfaces"] === "object") {
+    surfaces = {};
+    for (const [k, v] of Object.entries(o["surfaces"] as Record<string, unknown>)) {
+      if (!STATES.includes(v as DeploymentState)) continue;
+      const sv = v as DeploymentState;
+      if (sv === "off" || cap.supportedStates.includes(sv)) surfaces[k] = sv;
+    }
+  }
+  return { state, endpoint, ...(surfaces ? { surfaces } : {}) };
 }
 
-/** The current admin policy. */
-export function getToolPolicy(): ToolPolicy {
-  return getSettings().toolPolicy;
-}
-
-/** Persist a (sanitised) admin policy; returns what was stored. */
-export function setToolPolicy(input: unknown): ToolPolicy {
-  const clean = sanitizeToolPolicy(input);
-  updateSettings({ toolPolicy: clean });
+/** Persist an admin's setting for one capability; returns the stored setting. */
+export function setCapabilityState(id: string, input: unknown): CapabilitySetting {
+  const cap = getCapability(id);
+  if (!cap) throw new UnknownCapabilityError(id);
+  const clean = sanitizeCapabilitySetting(cap, input);
+  updateSettings({ capabilityStates: { ...getSettings().capabilityStates, [id]: clean } });
   return clean;
 }
 
-/** Tool ids a user has consented to. */
-export function getConsentedTools(sub: string): string[] {
-  return getSettings().toolConsent[sub] ?? [];
-}
-
-/** Record a user's consent for a tool (idempotent); returns their full consent set. */
-export function addToolConsent(sub: string, toolId: string): string[] {
-  const current = getConsentedTools(sub);
-  if (current.includes(toolId)) return current;
-  const next = [...current, toolId];
-  updateSettings({ toolConsent: { ...getSettings().toolConsent, [sub]: next } });
-  return next;
-}
-
-/** Withdraw a user's consent for a tool; returns their remaining consent set. */
-export function revokeToolConsent(sub: string, toolId: string): string[] {
-  const next = getConsentedTools(sub).filter((id) => id !== toolId);
-  updateSettings({ toolConsent: { ...getSettings().toolConsent, [sub]: next } });
-  return next;
+/** Thrown when an unknown capability id is addressed. */
+export class UnknownCapabilityError extends Error {
+  constructor(id: string) {
+    super(`unknown capability: ${id}`);
+    this.name = "UnknownCapabilityError";
+  }
 }

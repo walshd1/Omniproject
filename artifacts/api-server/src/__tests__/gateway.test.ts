@@ -804,8 +804,7 @@ const SAMPLE_SETTINGS = {
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
   userPrefs: {},
-  toolPolicy: { allowedEgress: ["none"] as Array<"none" | "self-hosted" | "third-party">, disabled: [] },
-  toolConsent: {},
+  capabilityStates: {},
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {
