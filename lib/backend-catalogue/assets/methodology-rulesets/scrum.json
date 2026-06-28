@@ -1,0 +1,19 @@
+{
+  "id": "scrum",
+  "label": "Scrum compliance baseline",
+  "rationale": "Stories should be owned and estimated so the sprint is plannable; schedule sanity stays hard.",
+  "modes": {
+    "due-after-start": "hard",
+    "require-assignee": "warn",
+    "require-description": "warn"
+  },
+  "fieldRules": [
+    {
+      "id": "scrum-estimate",
+      "action": "create_issue",
+      "field": "storyPoints",
+      "mode": "warn",
+      "message": "Stories should carry a story-point estimate (Scrum)."
+    }
+  ]
+}
