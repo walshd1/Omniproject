@@ -1,7 +1,8 @@
 import { Router, type Request } from "express";
 import { getSession } from "./auth";
 import { hasValidApiToken } from "../lib/api-token";
-import { hasRole } from "../lib/rbac";
+import { hasRole, roleForReq } from "../lib/rbac";
+import { getSettings } from "../lib/settings";
 import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
 import { isActionApproved, listApprovedVocab } from "../lib/approved-actions";
@@ -117,7 +118,10 @@ router.post("/mcp", async (req, res) => {
       recordAudit({ ts: new Date().toISOString(), category: tool.write ? "broker" : "request", action: `mcp:${tool.name}`, actor: getSession(req) ? { sub: getSession(req)!.sub } : null, projectId: (args["projectId"] as string) ?? null, write: !!tool.write, result: "success", status: 200 });
     }
     // Hard limit: only the customer's APPROVED actions can execute, whatever the agent asks.
-    if (!isActionApproved(tool.action)) throw new Error(`action "${tool.action}" is not on the approved allowlist`);
+    // Scoped approvals are checked with the caller's role + active backend (the MCP channel
+    // has no SPA surface, so a surface-scoped approval is SPA-only and won't satisfy here).
+    if (!isActionApproved(tool.action, { role: roleForReq(req), backend: getSettings().backendSource }))
+      throw new Error(`action "${tool.action}" is not on the approved allowlist for this caller/backend`);
     const handler = MCP_HANDLERS[tool.action];
     if (!handler) throw new Error(`unsupported tool action: ${tool.action}`);
     return handler({ broker, ctx, req, pid: String(args["projectId"] ?? ""), args });

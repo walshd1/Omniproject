@@ -351,14 +351,16 @@ Customer-wide APPROVED vocabulary + actions.
 
 | Function | What it does |
 | --- | --- |
-| `isActionApproved` | Is this canonical action on the customer's approved allowlist? |
-| `approveAction` | Approve an action (admin extends the allowlist). |
+| `isActionApproved` | Is this canonical action approved for the given context? An unscoped approval is allowed everywhere; a scoped one must satisfy every constrained dimension (fail-closed). |
+| `approveAction` | Approve an action (admin extends the allowlist), optionally scoped. |
 | `revokeApprovedAction` | Remove an action from the allowlist (admin tightens). |
-| `listApprovedActions` | The approved action allowlist. |
+| `listApprovedActions` | The approved action ids (scope-agnostic — backwards-compatible view). |
+| `listApprovedActionRules` | The approved actions with their scopes (catalogue + durable state). |
+| `actionScope` | The scope pinned to an approved action, or undefined if not approved. |
 | `approveTerm` | Approve a vocabulary term. |
 | `listApprovedVocab` | The approved vocabulary. |
 | `setApproved` | Replace the whole allowlist (an admin applies the customer-wide file). |
-| `__resetApproved` | Test-only: restore the default-safe allowlist (reads approved, no vocab). |
+| `__resetApproved` | Test-only: restore the default-safe allowlist (reads approved globally, no vocab). |
 
 ### `artifacts/api-server/src/lib/audit-chain.ts`
 

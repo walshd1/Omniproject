@@ -13,7 +13,7 @@ import { MCP_TOOLS } from "../lib/mcp";
 import { isActionApproved, listApprovedVocab } from "../lib/approved-actions";
 import { answerCopilot } from "../lib/copilot";
 import { getBroker, contextFromReq } from "../broker";
-import { hasRole } from "../lib/rbac";
+import { hasRole, roleForReq } from "../lib/rbac";
 import { aiContainmentLevel, aiSourceLevel } from "../lib/ai-containment";
 import { transcribe, sttStatus, sttCapabilityId, SttError } from "../lib/stt";
 
@@ -100,8 +100,10 @@ router.post("/ai/nl-action", async (req, res) => {
   try {
     // Writes are only planned for a contributor+ caller; a viewer gets read actions only.
     const allowWrites = hasRole(req, "contributor");
-    // Hard limit: the planner may only choose from the customer's APPROVED actions.
-    const tools = MCP_TOOLS.filter((t) => isActionApproved(t.action));
+    // Hard limit: the planner may only choose from the customer's APPROVED actions, evaluated
+    // for THIS request's surface, role and active backend (the full per-scope matrix).
+    const approvalCtx = { surface, role: roleForReq(req), backend: getSettings().backendSource };
+    const tools = MCP_TOOLS.filter((t) => isActionApproved(t.action, approvalCtx));
     const plan = await planAction({ text, tools, allowWrites, complete: async (prompt) => (await aiChat([{ role: "user", content: prompt }])).content });
     res.json({ plan });
   } catch (err) {

@@ -3,7 +3,7 @@ import { sealConfig, readMaybeSealed } from "./config-crypto";
 import { snapshotKeys, restoreKeys, type KeyRegistrySnapshot } from "./key-registry";
 import { listAutonomousGrants, setAutonomousGrants, type AutonomousWriteGrant } from "./autonomous-grant";
 import { getContainmentRelax, setContainmentRelax, type AiContainment } from "./ai-containment";
-import { listApprovedActions, listApprovedVocab, setApproved } from "./approved-actions";
+import { listApprovedActions, listApprovedActionRules, listApprovedVocab, setApproved, type ActionApproval } from "./approved-actions";
 import { aiKillEngaged, engageAiKill, releaseAiKill } from "./ai-kill";
 import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "./maintenance";
 import { logger } from "./logger";
@@ -27,7 +27,9 @@ interface SecuritySnapshot {
   keys: KeyRegistrySnapshot;
   grants: AutonomousWriteGrant[];
   containment: AiContainment;
-  approved: { actions: string[]; vocab: string[] };
+  // `actions` (ids) is kept for back-compat with older sealed files; `rules` carries the
+  // per-surface/role/backend scopes and wins on restore when present.
+  approved: { actions: string[]; vocab: string[]; rules?: ActionApproval[] };
   aiKill: boolean;
   maintenance?: { engaged: boolean; reason: string };
 }
@@ -38,7 +40,7 @@ export function collectSecurityState(): SecuritySnapshot {
     keys: snapshotKeys(),
     grants: listAutonomousGrants(),
     containment: getContainmentRelax(),
-    approved: { actions: listApprovedActions(), vocab: listApprovedVocab() },
+    approved: { actions: listApprovedActions(), vocab: listApprovedVocab(), rules: listApprovedActionRules() },
     aiKill: aiKillEngaged(),
     maintenance: { engaged: maintenanceEngaged(), reason: maintenanceReason() },
   };
@@ -49,7 +51,7 @@ export function applySecurityState(s: SecuritySnapshot): void {
   if (s.keys) restoreKeys(s.keys);
   if (s.grants) setAutonomousGrants(s.grants);
   if (s.containment) setContainmentRelax(s.containment);
-  if (s.approved) setApproved(s.approved);
+  if (s.approved) setApproved(s.approved); // rules wins when present, else falls back to actions ids
   if (s.aiKill) engageAiKill(); else releaseAiKill();
   if (s.maintenance?.engaged) engageMaintenance(s.maintenance.reason); else releaseMaintenance();
 }

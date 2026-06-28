@@ -49,4 +49,24 @@ describe("ActionCatalogue", () => {
       expect(JSON.parse((call![1] as { body: string }).body)).toEqual({ actions: ["update_issue"] });
     });
   });
+
+  it("scopes an approved action to a surface + min role via PUT rules", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
+    qc.setQueryData(["auth", "me"], { sub: "u1", role: "admin" });
+    qc.setQueryData(["action-catalogue"], { actions: ACTIONS, surfaces: ["projects", "settings"] });
+    renderWithProviders(<ActionCatalogue />, { client: qc });
+
+    fireEvent.click(screen.getByTestId("scope-list_projects")); // open the scope editor
+    fireEvent.click(screen.getByTestId("scope-surface-list_projects-projects")); // pick a surface
+    fireEvent.change(screen.getByTestId("scope-minrole-list_projects"), { target: { value: "manager" } });
+    fireEvent.click(screen.getByTestId("scope-save-list_projects"));
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find((c) => String(c[0]).includes("/api/governance/approved"));
+      expect(call).toBeTruthy();
+      expect(JSON.parse((call![1] as { body: string }).body)).toEqual({
+        rules: [{ action: "list_projects", scope: { surfaces: ["projects"], minRole: "manager" } }],
+      });
+    });
+  });
 });
