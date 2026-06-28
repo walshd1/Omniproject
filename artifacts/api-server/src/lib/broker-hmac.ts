@@ -1,5 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { derivedKey } from "./key-registry";
+import { currentVersion, derivedKey } from "./key-registry";
+import { deriveSessionBrokerKey, type SessionBind } from "./session-key";
 
 /**
  * Gateway↔broker request signing (security item C, folded into provenance): a detached
@@ -8,27 +9,41 @@ import { derivedKey } from "./key-registry";
  * untrusted networks. The PSK seal (lib/broker-psk) already gives in-transit
  * confidentiality + integrity; this adds replay defence and a verifiable, persistable
  * signature that doubles as the provenance MAC (same shared key).
+ *
+ * The signing key is PER SESSION when binding material is supplied (an authenticated
+ * call): `deriveSessionBrokerKey(bind)` ties the signature to one user + one session,
+ * so the broker proves not just "from the gateway" but "from THIS user's valid session"
+ * — and a captured signature can't be reused under another identity. System/
+ * unauthenticated calls (readiness pings) sign under the static broker key.
  */
-function key(): string {
-  // The broker signing key from the revocable key registry (rotates on revoke).
-  return derivedKey("broker");
+
+/** The signing key: per-session when bound, else the static (revocable) broker key. */
+function keyFor(bind?: SessionBind): string {
+  return bind ? deriveSessionBrokerKey(bind) : derivedKey("broker");
 }
 
 export interface RequestSignature {
   ts: number;
   nonce: string;
   sig: string;
+  /** The (non-secret) binding the broker needs to re-derive the per-session key.
+   *  Echoed back so the caller can put it on the wire. Absent for static-key calls. */
+  bind?: SessionBind;
 }
 
-function sign(ts: number, nonce: string, body: string): string {
-  return createHmac("sha256", key()).update(`${ts}.${nonce}.${body}`).digest("hex");
+function sign(ts: number, nonce: string, body: string, bind?: SessionBind): string {
+  return createHmac("sha256", keyFor(bind)).update(`${ts}.${nonce}.${body}`).digest("hex");
 }
 
-/** Sign a request body for the broker (fresh timestamp + nonce). */
-export function signBrokerRequest(body: string): RequestSignature {
+/** Sign a request body for the broker (fresh timestamp + nonce). When `bind` is given
+ *  the signature uses that session's derived key and the binding is echoed back. */
+export function signBrokerRequest(body: string, bind?: SessionBind): RequestSignature {
   const ts = Date.now();
   const nonce = randomUUID();
-  return { ts, nonce, sig: sign(ts, nonce, body) };
+  // Stamp the broker-key version so the binding survives a later key rotation.
+  const bound = bind ? { ...bind, bkver: bind.bkver ?? currentVersion("broker") } : undefined;
+  const sig = sign(ts, nonce, body, bound);
+  return bound ? { ts, nonce, sig, bind: bound } : { ts, nonce, sig };
 }
 
 export type VerifyResult = "ok" | "expired" | "replay" | "bad-signature";
@@ -46,13 +61,16 @@ function pruneSeen(now: number, maxAgeMs: number): void {
  * window, and the nonce hasn't been used (replay). The broker calls this; we test it.
  */
 export function verifyBrokerRequest(
-  input: { ts: number; nonce: string; sig: string; body: string },
+  input: { ts: number; nonce: string; sig: string; body: string; bind?: SessionBind },
   opts: { maxAgeMs?: number; now?: number } = {},
 ): VerifyResult {
   const maxAgeMs = opts.maxAgeMs ?? DEFAULT_MAX_AGE_MS;
   const now = opts.now ?? Date.now();
 
-  const expected = sign(input.ts, input.nonce, input.body);
+  // Re-derive under the SAME key: the per-session key when bound (proving this user's
+  // session signed it), else the static broker key. A binding for a different user /
+  // session / broker-key version yields a different key, so the signature won't match.
+  const expected = sign(input.ts, input.nonce, input.body, input.bind);
   const a = Buffer.from(expected);
   const b = Buffer.from(input.sig);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return "bad-signature";

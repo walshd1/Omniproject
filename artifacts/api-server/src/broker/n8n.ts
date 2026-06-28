@@ -193,8 +193,20 @@ async function callN8n<T = unknown>(
   // the provenance chain. The PSK seal already covers confidentiality + integrity; this
   // adds replay defence and a verifiable signature. Additive headers — a broker that
   // doesn't check them simply ignores them.
-  const sig = signBrokerRequest(typeof init.body === "string" ? init.body : "");
+  const sig = signBrokerRequest(typeof init.body === "string" ? init.body : "", opts.ctx.sessionBind);
   init.headers = { ...(init.headers as Record<string, string>), "X-Omni-Sig": sig.sig, "X-Omni-Ts": String(sig.ts), "X-Omni-Nonce": sig.nonce };
+  // When the signature used a per-session key, ship the (non-secret) binding so the
+  // broker re-derives that key from its master and confirms the request came from THIS
+  // user's valid session. No binding ⇒ the broker verifies under the static key.
+  if (sig.bind) {
+    init.headers = {
+      ...(init.headers as Record<string, string>),
+      "X-Omni-Bind-Sub": sig.bind.sub,
+      "X-Omni-Bind-Mono": sig.bind.smono,
+      "X-Omni-Bind-Salt": sig.bind.salt,
+      "X-Omni-Bind-Kver": String(sig.bind.bkver ?? ""),
+    };
+  }
 
   // Round-robin across the n8n pool; fail over to the next instance ONLY on a
   // connection-level error (a returned HTTP status is a real response, not an

@@ -62,6 +62,12 @@ export interface Session extends SessionUser {
   seen?: number;
   /** The session-key version this cookie was signed under (for key revocation). */
   kver?: number;
+  /** Monotonic-clock reading (ns, as a string) at session creation — the
+   *  non-rewindable "session start time" bound into the per-session broker key. */
+  smono?: string;
+  /** CSPRNG entropy minted once per session, so the per-session broker key is fresh
+   *  on every login (and unique even across a process restart that resets `smono`). */
+  salt?: string;
 }
 
 const issuerUrl = process.env["OIDC_ISSUER_URL"]?.trim();

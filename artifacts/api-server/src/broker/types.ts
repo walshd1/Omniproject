@@ -13,6 +13,8 @@
  * published, versioned contract these types generate lives in docs/CONTRACT.md.
  */
 
+import type { SessionBind } from "../lib/session-key";
+
 /** Loosely-typed record — the normalised row shape the broker exchanges. */
 export type Row = Record<string, unknown>;
 
@@ -29,6 +31,10 @@ export interface ActorContext {
   role?: string;
   token?: string;
   authHeader?: string;
+  /** Binding material for the per-session broker signing key (lib/session-key).
+   *  Present for authenticated calls; absent for system/unauthenticated ones (which
+   *  fall back to the static broker key). */
+  sessionBind?: SessionBind;
 }
 
 /** A normalised project row. */

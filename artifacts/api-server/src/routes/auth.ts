@@ -4,6 +4,7 @@
  * signed httpOnly session cookie, and (in demo mode, no IdP) issues a local admin
  * session. `getSession(req)` here is the single source of the caller's identity.
  */
+import { randomBytes } from "node:crypto";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import {
   oidcConfig,
@@ -70,7 +71,18 @@ function setSession(res: Response, session: Session): void {
   const now = Date.now();
   // Stamp issue + activity times (preserve the original issue time so the absolute
   // cap can't be reset by activity). Signed (cookie-parser) AND sealed (AES-256-GCM).
-  const stamped: Session = { ...session, iat: session.iat ?? now, seen: now, kver: session.kver ?? currentVersion("session") };
+  // `smono` + `salt` are minted ONCE per session (preserved across re-seals like iat),
+  // so the per-session broker key (lib/session-key) is fresh on each login but stable
+  // for the life of the session: the monotonic reading is the non-rewindable session
+  // start time; the salt is CSPRNG entropy that survives a process-clock reset.
+  const stamped: Session = {
+    ...session,
+    iat: session.iat ?? now,
+    seen: now,
+    kver: session.kver ?? currentVersion("session"),
+    smono: session.smono ?? process.hrtime.bigint().toString(),
+    salt: session.salt ?? randomBytes(16).toString("hex"),
+  };
   res.cookie(SESSION_COOKIE, seal(JSON.stringify(stamped)), {
     ...cookieBase,
     maxAge: 1000 * 60 * 60 * 8, // 8h

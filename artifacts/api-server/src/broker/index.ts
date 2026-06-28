@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { getSession } from "../routes/auth";
+import { sessionBindFromSession } from "../lib/session-key";
 import { roleForReq } from "../lib/rbac";
 import { N8nBroker, N8N_ENV_CONFIGURED, pingBroker } from "./n8n";
 import { DemoBroker } from "./demo";
@@ -141,7 +142,10 @@ export function contextFromReq(req: Request): ActorContext {
     ? Array.isArray(explicit) ? explicit[0] : explicit
     : session?.accessToken ? `Bearer ${session.accessToken}` : undefined;
   if (!session) return { authHeader };
-  return { sub: session.sub, email: session.email, name: session.name, role: roleForReq(req), token: session.accessToken, authHeader };
+  // Bind the per-session broker signing key to this user + session (null for older
+  // cookies that predate the scheme — those fall back to the static broker key).
+  const sessionBind = sessionBindFromSession(session) ?? undefined;
+  return { sub: session.sub, email: session.email, name: session.name, role: roleForReq(req), token: session.accessToken, authHeader, sessionBind };
 }
 
 /** Map a thrown broker error onto an HTTP response (status from the taxonomy). */

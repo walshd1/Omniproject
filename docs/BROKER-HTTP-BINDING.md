@@ -131,6 +131,51 @@ are dropped (so nothing sensitive is on the wire in cleartext):
 
 ---
 
+## 2b. Request signature + per-session key (`X-Omni-Sig`)
+
+Every request carries a **detached HMAC** so you can refuse forged, replayed or
+stale traffic — additive headers; a broker that ignores them still works.
+
+| Header | Meaning |
+|---|---|
+| `X-Omni-Sig` | `HMAC-SHA256(key, "<ts>.<nonce>.<rawBody>")`, hex. |
+| `X-Omni-Ts` | Signing time (epoch ms). Reject outside a freshness window (default 5 min). |
+| `X-Omni-Nonce` | Single-use; cache and reject repeats (replay defence). |
+
+**The signing `key` is per session, not the static PSK.** For an authenticated
+call it is derived as:
+
+```
+key = HMAC-SHA256( HMAC-SHA256(BROKER_PSK, "broker:v<bkver>"),  sub + "\n" + smono + "\n" + salt )
+```
+
+- The inner `HMAC(BROKER_PSK, "broker:v<bkver>")` means **only a holder of the
+  master can produce a valid signature** — proving the request came from the
+  gateway (and `bkver` lets a revoked key version roll forward).
+- `sub ‖ smono ‖ salt` **binds the key to one user and one session**, so a
+  captured signature can't be reused under another identity, and a leaked
+  session key dies with the session.
+
+The binding material rides in headers (non-secret — security is the master, which
+never travels):
+
+| Header | Meaning |
+|---|---|
+| `X-Omni-Bind-Sub` | The acting subject (`sub`) the key is bound to. |
+| `X-Omni-Bind-Mono` | `smono` — monotonic-clock reading at session start. |
+| `X-Omni-Bind-Salt` | `salt` — per-session CSPRNG entropy. |
+| `X-Omni-Bind-Kver` | `bkver` — broker-key version to derive under. |
+
+**To verify:** re-derive `key` from your copy of `BROKER_PSK` and the four
+`X-Omni-Bind-*` values, recompute `X-Omni-Sig` over `"<ts>.<nonce>.<rawBody>"`,
+and compare in constant time; then check the timestamp window and nonce. When the
+`X-Omni-Bind-*` headers are **absent** (system/unauthenticated calls such as the
+readiness ping), verify under the static key `HMAC(BROKER_PSK, "broker:v<bkver>")`
+with the current version. Reference: `signBrokerRequest` / `verifyBrokerRequest`
+in `lib/broker-hmac.ts` and `deriveSessionBrokerKey` in `lib/session-key.ts`.
+
+---
+
 ## 3. Action catalogue
 
 Every action, the broker method it backs, whether the user context is forwarded
