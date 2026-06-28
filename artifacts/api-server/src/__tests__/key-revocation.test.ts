@@ -23,7 +23,8 @@ function cookie(session: object): string {
   return `omni_session=${encodeURIComponent("s:" + value + "." + mac)}`;
 }
 const now = Date.now();
-const ADMIN = cookie({ sub: "admin-1", roles: ["omni-admins"], iat: now, seen: now });
+// Admin sessions for these tests are freshly stepped-up (revoke is a step-up-gated action).
+const ADMIN = cookie({ sub: "admin-1", roles: ["omni-admins"], iat: now, seen: now, stepUpAt: now });
 const USER = cookie({ sub: "user-1", roles: [], iat: now, seen: now });
 
 before(async () => {

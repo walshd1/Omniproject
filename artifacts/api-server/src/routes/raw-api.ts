@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { contextFromReq, respondBrokerError, isLiveBroker, BrokerError, brokerCommand } from "../broker";
 import { getSettings } from "../lib/settings";
 import { requireRole, roleForReq } from "../lib/rbac";
+import { requireStepUp } from "../lib/step-up";
 import { getSession } from "./auth";
 import { recordAudit } from "../lib/audit";
 
@@ -91,6 +92,6 @@ async function handle(req: Request, res: Response): Promise<void> {
   }
 }
 
-router.post("/admin/raw", requireRole("admin"), handle);
+router.post("/admin/raw", requireRole("admin"), requireStepUp, handle);
 
 export default router;

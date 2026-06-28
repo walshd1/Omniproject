@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "../lib/rbac";
+import { requireStepUp } from "../lib/step-up";
 import { captureVersion } from "../lib/config-store";
 import { getSession } from "./auth";
 import {
@@ -43,7 +44,7 @@ router.post("/governance/:id/test", requireRole("admin"), async (req, res) => {
 
 // Changing any capability's deployment state is an admin decision, and versioned so
 // it can be rolled back like any other config change.
-router.put("/governance/:id", requireRole("admin"), (req, res) => {
+router.put("/governance/:id", requireRole("admin"), requireStepUp, (req, res) => {
   const id = String(req.params["id"]);
   const session = getSession(req);
   try {

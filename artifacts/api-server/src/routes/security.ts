@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "../lib/rbac";
+import { requireStepUp } from "../lib/step-up";
 import { getSession } from "./auth";
 import { recordAudit } from "../lib/audit";
 import { listKeys, revokeKey, revokeUserSessions, KEY_NAMES, type KeyName } from "../lib/key-registry";
@@ -18,7 +19,7 @@ router.get("/security/keys", requireRole("admin"), (_req, res) => {
   res.json({ keys: listKeys() });
 });
 
-router.post("/security/keys/:name/revoke", requireRole("admin"), (req, res) => {
+router.post("/security/keys/:name/revoke", requireRole("admin"), requireStepUp, (req, res) => {
   const name = String(req.params["name"]);
   if (!isKeyName(name)) { res.status(404).json({ error: "unknown key" }); return; }
   const session = getSession(req);
@@ -28,7 +29,7 @@ router.post("/security/keys/:name/revoke", requireRole("admin"), (req, res) => {
   res.json({ status });
 });
 
-router.post("/security/sessions/revoke-user", requireRole("admin"), (req, res) => {
+router.post("/security/sessions/revoke-user", requireRole("admin"), requireStepUp, (req, res) => {
   const sub = typeof (req.body as { sub?: unknown })?.sub === "string" ? (req.body as { sub: string }).sub : "";
   if (!sub) { res.status(400).json({ error: "sub is required" }); return; }
   revokeUserSessions(sub);

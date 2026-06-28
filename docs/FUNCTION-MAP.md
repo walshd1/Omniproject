@@ -957,6 +957,16 @@ Graceful shutdown — on SIGTERM/SIGINT (e.g. `docker stop`, a rolling deploy), 
 | `gracefulShutdown` | Run one graceful shutdown. |
 | `installShutdownHandlers` | Install SIGTERM/SIGINT handlers that run a single graceful shutdown. |
 
+### `artifacts/api-server/src/lib/step-up.ts`
+
+Step-up (re-authentication) for the highest-risk actions (security item D).
+
+| Function | What it does |
+| --- | --- |
+| `stepUpWindowMs` | How long a step-up stays fresh (STEP_UP_MINUTES, default 5). |
+| `stepUpFresh` | Has this session re-authenticated within the freshness window? |
+| `requireStepUp` | Middleware: require a fresh step-up. |
+
 ### `artifacts/api-server/src/lib/tools.ts`
 
 Capability governance — one model for every "thing that can move data or be turned on/off": AI tools, the MCP, AI providers and vendors.

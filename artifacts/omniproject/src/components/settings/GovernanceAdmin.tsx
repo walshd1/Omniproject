@@ -8,6 +8,7 @@ import {
   useGovernance, saveCapability, testCapabilityEndpoint, STATE_INFO, KIND_LABEL,
   type ResolvedCapability, type DeploymentState, type CapabilityKind, type CapabilityWrite, type Surface,
 } from "../../lib/tools";
+import { stepUp } from "../../lib/step-up";
 
 /**
  * Admin governance for AI tools, the MCP, AI providers and vendors. Each is set to
@@ -29,6 +30,8 @@ export function GovernanceAdmin() {
   const surfaces = data.surfaces ?? [];
 
   const save = async (id: string, setting: CapabilityWrite): Promise<void> => {
+    // Changing an egress/governance setting is step-up gated — get a fresh re-auth first.
+    if (!(await stepUp())) return;
     await saveCapability(id, setting);
     await qc.invalidateQueries({ queryKey: ["governance"] });
   };

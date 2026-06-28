@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth, roleAtLeast, logout } from "../../lib/auth";
 import { useSecurityKeys, revokeKey, revokeUserSessions, type KeyStatus } from "../../lib/security";
+import { stepUp } from "../../lib/step-up";
 
 /**
  * Admin key revocation. Retire a compromised signing key (session / provenance / broker)
@@ -24,6 +25,9 @@ export function SecurityKeys() {
     const warn = key.name === "session" ? " This signs EVERYONE out, including you." : "";
     const reason = window.prompt(`Revoke + rotate the "${key.name}" key?${warn}\nReason (optional):`);
     if (reason === null) return; // cancelled
+    // Key revocation is step-up gated: obtain a fresh re-auth first (demo confirms in
+    // place; OIDC navigates to the IdP and the user retries after returning).
+    if (!(await stepUp())) return;
     await revokeKey(key.name, reason);
     if (key.name === "session") { void logout(); return; }
     await qc.invalidateQueries({ queryKey: ["security-keys"] });

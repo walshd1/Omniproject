@@ -62,6 +62,8 @@ export interface Session extends SessionUser {
   seen?: number;
   /** The session-key version this cookie was signed under (for key revocation). */
   kver?: number;
+  /** Epoch ms of the last step-up (re-authentication) — gates the highest-risk actions. */
+  stepUpAt?: number;
   /** Monotonic-clock reading (ns, as a string) at session creation — the
    *  non-rewindable "session start time" bound into the per-session broker key. */
   smono?: string;

@@ -42,9 +42,13 @@ function signedSessionCookie(session: object): string {
 const VIEWER = signedSessionCookie({ sub: "viewer-1", roles: [] });
 const MANAGER = signedSessionCookie({ sub: "manager-1", roles: ["omni-managers"] });
 const PMO = signedSessionCookie({ sub: "pmo-1", roles: ["omni-pmo"] });
-const ADMIN = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"] });
+// Freshly stepped-up admin (some sensitive routes — raw escape hatch, governance,
+// key revocation — require a recent re-auth on top of the admin role).
+const ADMIN = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"], stepUpAt: Date.now() });
+// An admin WITHOUT a recent step-up — for asserting the step-up wall.
+const ADMIN_NO_STEPUP = signedSessionCookie({ sub: "admin-2", roles: ["omni-admins"] });
 // Holds BOTH authorities — the join (governance + technical).
-const PMO_ADMIN = signedSessionCookie({ sub: "both-1", roles: ["omni-pmo", "omni-admins"] });
+const PMO_ADMIN = signedSessionCookie({ sub: "both-1", roles: ["omni-pmo", "omni-admins"], stepUpAt: Date.now() });
 
 before(async () => {
   const { default: app } = await import("../app");
@@ -274,6 +278,11 @@ test("raw API escape hatch: admin-only, off by default, and still bolted to the 
   // Non-admins (incl. PMO — it's technical, not business) are walled off at RBAC.
   assert.equal((await callRaw(VIEWER)).status, 403);
   assert.equal((await callRaw(PMO)).status, 403);
+  // An admin WITHOUT a recent step-up is refused with the step-up signal — holding the
+  // role isn't enough for this escape hatch; a fresh re-auth is required.
+  const stale = await callRaw(ADMIN_NO_STEPUP);
+  assert.equal(stale.status, 403);
+  assert.equal(((await stale.json()) as { code?: string }).code, "step_up_required");
   // Admin clears RBAC, but the hatch is bolted shut unless RAW_API_ENABLED is set.
   const off = await callRaw(ADMIN);
   assert.equal(off.status, 503);

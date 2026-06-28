@@ -212,10 +212,11 @@ router.get("/auth/callback", async (req, res) => {
     return;
   }
 
-  const { state, verifier, returnTo } = JSON.parse(flowRaw) as {
+  const { state, verifier, returnTo, stepup } = JSON.parse(flowRaw) as {
     state: string;
     verifier: string;
     returnTo: string;
+    stepup?: boolean;
   };
 
   if (req.query["error"]) {
@@ -257,6 +258,8 @@ router.get("/auth/callback", async (req, res) => {
       roles: claims?.roles,
       accessToken: tokens.access_token,
       idToken: tokens.id_token,
+      // A step-up re-auth (prompt=login) stamps freshness so a sensitive action proceeds.
+      ...(stepup ? { stepUpAt: Date.now() } : {}),
     });
     setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
 
@@ -272,6 +275,59 @@ router.post("/auth/logout", (req, res) => {
   res.clearCookie(SESSION_COOKIE, cookieBase);
   res.clearCookie("omni_csrf", { ...cookieBase, httpOnly: false, signed: false });
   res.json({ ok: true });
+});
+
+// ── Step-up re-authentication ───────────────────────────────────────────────────
+// Stamp a fresh `stepUpAt` on the session so the highest-risk actions (key
+// revocation, egress/governance changes, the raw escape hatch) can demand a recent
+// re-auth (see lib/step-up). Demo mode confirms in place; OIDC re-authenticates at the
+// IdP with prompt=login (the SPA should navigate to GET /api/auth/step-up).
+router.post("/auth/step-up", (req, res) => {
+  const session = readSession(req);
+  if (!session) { res.status(401).json({ error: "authentication required" }); return; }
+  if (oidcConfig) {
+    // A real re-auth must go through the IdP — tell the SPA where to send the user.
+    const returnTo = typeof (req.body as { returnTo?: unknown })?.returnTo === "string" ? (req.body as { returnTo: string }).returnTo : "/";
+    res.status(409).json({ error: "re-authentication required", code: "step_up_redirect", url: `/api/auth/step-up?returnTo=${encodeURIComponent(returnTo)}` });
+    return;
+  }
+  setSession(res, { ...session, stepUpAt: Date.now() });
+  res.json({ ok: true, stepUpAt: Date.now() });
+});
+
+// GET initiator: demo stamps + returns; OIDC bounces through the IdP (prompt=login),
+// and the callback stamps stepUpAt when it sees the `stepup` flow.
+router.get("/auth/step-up", async (req, res) => {
+  const returnTo = typeof req.query["returnTo"] === "string" ? req.query["returnTo"] : "/";
+  const session = readSession(req);
+  if (!session) { res.redirect(`/api/auth/login?returnTo=${encodeURIComponent(returnTo)}`); return; }
+
+  if (!oidcConfig) {
+    setSession(res, { ...session, stepUpAt: Date.now() });
+    res.redirect(returnTo);
+    return;
+  }
+  try {
+    const discovery = await discover(oidcConfig);
+    const state = randomToken();
+    const verifier = randomToken(48);
+    const redirectUri = `${baseUrl(req)}/api/auth/callback`;
+    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, returnTo, stepup: true }), { ...cookieBase, maxAge: 1000 * 60 * 10 });
+    const authUrl = new URL(discovery.authorization_endpoint);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", oidcConfig.clientId);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("scope", oidcConfig.scope);
+    authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("code_challenge", pkceChallenge(verifier));
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("prompt", "login"); // force a fresh credential prompt
+    authUrl.searchParams.set("max_age", "0");
+    res.redirect(authUrl.toString());
+  } catch (err) {
+    req.log.error({ err }, "step-up initiation failed");
+    res.status(502).send("Re-authentication is temporarily unavailable.");
+  }
 });
 
 export default router;
