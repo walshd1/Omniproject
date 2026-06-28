@@ -10,6 +10,7 @@
  * fatal.
  */
 import { demoAuthSeverity } from "./deployment-profile";
+import { checkRequiredEnv } from "./env-config";
 
 export type Severity = "critical" | "warn" | "info";
 
@@ -100,6 +101,11 @@ export function securityFindings(env: Env): SecurityFinding[] {
       message: "Logging-server egress (LOGGING_SYNC_URL) is enabled — project state leaves the stateless core. " +
         "Ensure the destination store is one you own and govern.",
     });
+  }
+  // Validated security-critical env (weak/missing secrets, disabled rate-limit): each issue is
+  // a CRITICAL finding so it surfaces at boot (and refuses to boot under SECURITY_STRICT).
+  for (const issue of checkRequiredEnv(env)) {
+    out.push({ id: "env-config", severity: "critical", message: issue });
   }
   return out;
 }

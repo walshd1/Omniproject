@@ -5,13 +5,25 @@ import { recordAudit } from "../lib/audit";
 import { getSession } from "./auth";
 import { assertSafeIdentifier } from "../lib/payload-guard";
 import {
-  AI_PROVIDER_KINDS, AI_CAPABILITIES, type AiProviderKind,
+  AI_PROVIDER_KINDS, AI_CAPABILITIES,
   listProviders, upsertProvider, removeProvider,
   setProviderKey, clearProviderKey, providerKeyState,
   setCapabilityProviders, providersSnapshot,
 } from "../lib/ai-providers";
 import { vaultBackendId, VAULT_BACKENDS } from "../lib/vault-store";
 import { kmsProvider, kmsEnabled } from "../lib/kms";
+import { v, parseOr400 } from "../lib/validate";
+
+// Typed + bounded schemas for the admin write bodies (untrusted boundary input).
+const PROVIDER_BODY = v.object({
+  id: v.string({ trim: true, min: 1, max: 80 }),
+  kind: v.enum(AI_PROVIDER_KINDS),
+  label: v.string({ trim: true, min: 1, max: 120 }),
+  endpoint: v.optional(v.string({ trim: true, max: 2_000 })),
+  model: v.optional(v.string({ trim: true, max: 200 })),
+});
+const KEY_BODY = v.object({ key: v.string({ trim: true, min: 1, max: 8_000 }) });
+const CAP_BODY = v.object({ providers: v.array(v.string({ trim: true, min: 1, max: 80 }), { max: 50 }) });
 
 /**
  * AI Providers admin plane. Providers are first-class entities; their API keys go into the
@@ -41,20 +53,17 @@ router.get("/ai/providers", requireRole("admin"), (_req, res) => {
 
 // ── POST /api/ai/providers — add / update a provider entity (admin + step-up) ───
 router.post("/ai/providers", requireRole("admin"), requireStepUp, (req, res) => {
-  const body = (req.body ?? {}) as { id?: unknown; kind?: unknown; label?: unknown; endpoint?: unknown; model?: unknown };
-  const id = typeof body.id === "string" ? body.id.trim() : "";
-  const kind = body.kind as AiProviderKind;
-  const label = typeof body.label === "string" ? body.label.trim() : "";
-  if (!id || !label) { res.status(400).json({ error: "Body must be { id, kind, label, endpoint?, model? }." }); return; }
-  if (!AI_PROVIDER_KINDS.includes(kind)) { res.status(400).json({ error: `kind must be one of: ${AI_PROVIDER_KINDS.join(", ")}.` }); return; }
+  const parsed = parseOr400(req, res, PROVIDER_BODY);
+  if (!parsed) return;
+  const { id, kind, label } = parsed;
   try {
     assertSafeIdentifier("id", id); // ids ride into vault refs + file keys — keep them safe
   } catch {
     res.status(400).json({ error: "id contains unsafe characters." });
     return;
   }
-  const endpoint = typeof body.endpoint === "string" && body.endpoint.trim() ? body.endpoint.trim() : undefined;
-  const model = typeof body.model === "string" && body.model.trim() ? body.model.trim() : undefined;
+  const endpoint = parsed.endpoint || undefined;
+  const model = parsed.model || undefined;
   upsertProvider({ id, kind, label, ...(endpoint ? { endpoint } : {}), ...(model ? { model } : {}) });
   audit(req, "ai-provider.upsert", { id, kind });
   res.json({ ok: true, providers: providersSnapshot().providers });
@@ -74,10 +83,10 @@ router.delete("/ai/providers/:id", requireRole("admin"), requireStepUp, async (r
 router.put("/ai/providers/:id/key", requireRole("admin"), requireStepUp, async (req, res) => {
   const id = String(req.params["id"]);
   if (!listProviders().some((p) => p.id === id)) { res.status(404).json({ error: "Unknown provider." }); return; }
-  const key = typeof (req.body as { key?: unknown }).key === "string" ? (req.body as { key: string }).key.trim() : "";
-  if (!key) { res.status(400).json({ error: "Body must be { key }." }); return; }
+  const parsed = parseOr400(req, res, KEY_BODY);
+  if (!parsed) return;
   try {
-    await setProviderKey(id, key); // awaited so an external-store failure surfaces
+    await setProviderKey(id, parsed.key); // awaited so an external-store failure surfaces
   } catch (err) {
     req.log.error({ err }, "vault: storing provider key failed");
     res.status(502).json({ error: "Could not store the key in the secrets backend." });
@@ -105,12 +114,10 @@ router.delete("/ai/providers/:id/key", requireRole("admin"), requireStepUp, asyn
 router.put("/ai/capabilities/:cap", requireRole("admin"), requireStepUp, (req, res) => {
   const cap = String(req.params["cap"]);
   if (!AI_CAPABILITIES.some((c) => c.id === cap)) { res.status(404).json({ error: "Unknown capability." }); return; }
-  const providers = (req.body as { providers?: unknown }).providers;
-  if (!Array.isArray(providers) || providers.some((p) => typeof p !== "string")) {
-    res.status(400).json({ error: "Body must be { providers: string[] }." });
-    return;
-  }
-  setCapabilityProviders(cap, providers as string[]);
+  const parsed = parseOr400(req, res, CAP_BODY);
+  if (!parsed) return;
+  const providers = parsed.providers;
+  setCapabilityProviders(cap, providers);
   audit(req, "ai-provider.mapping.set", { cap, providers });
   res.json({ ok: true, mapping: providersSnapshot().mapping });
 });

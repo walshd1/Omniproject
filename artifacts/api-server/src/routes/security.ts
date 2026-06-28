@@ -11,6 +11,11 @@ import { auditAnchor, verifyAuditChain, type SealedAuditEvent } from "../lib/aud
 import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "../lib/maintenance";
 import { requiresDualControl, propose, approve, reject, listProposals, registerExecutor, type Actor } from "../lib/dual-control";
 import type { Request, Response } from "express";
+import { v, parseOr400 } from "../lib/validate";
+
+// Typed + bounded bodies for the admin write endpoints (untrusted input).
+const REVOKE_KEY_BODY = v.object({ reason: v.optional(v.string({ trim: true, max: 500 })) });
+const REVOKE_USER_BODY = v.object({ sub: v.string({ trim: true, min: 1, max: 256 }) });
 
 /**
  * Admin-gated key revocation. An admin can retire a signing key (session / provenance /
@@ -57,7 +62,9 @@ router.post("/security/keys/:name/revoke", requireRole("admin"), requireStepUp, 
   const name = String(req.params["name"]);
   if (!isKeyName(name)) { res.status(404).json({ error: "unknown key" }); return; }
   const session = getSession(req);
-  const reason = typeof (req.body as { reason?: unknown })?.reason === "string" ? (req.body as { reason: string }).reason : undefined;
+  const body = parseOr400(req, res, REVOKE_KEY_BODY);
+  if (!body) return;
+  const reason = body.reason;
   // Four-eyes: when key.revoke is dual-controlled, queue it for a second admin instead.
   if (heldForDualControl("key.revoke", { name, by: session?.sub ?? null, reason }, req, res)) return;
   const status = revokeKey(name, { by: session?.sub ?? null, reason });
@@ -67,8 +74,9 @@ router.post("/security/keys/:name/revoke", requireRole("admin"), requireStepUp, 
 });
 
 router.post("/security/sessions/revoke-user", requireRole("admin"), requireStepUp, (req, res) => {
-  const sub = typeof (req.body as { sub?: unknown })?.sub === "string" ? (req.body as { sub: string }).sub : "";
-  if (!sub) { res.status(400).json({ error: "sub is required" }); return; }
+  const parsed = parseOr400(req, res, REVOKE_USER_BODY);
+  if (!parsed) return;
+  const sub = parsed.sub;
   revokeUserSessions(sub);
   persistSecurityState();
   const session = getSession(req);

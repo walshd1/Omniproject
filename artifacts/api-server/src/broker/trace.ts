@@ -89,7 +89,7 @@ export function errView(err: unknown): Record<string, unknown> {
 export function traceFn<F extends (...args: never[]) => unknown>(plane: string, method: string, fn: F, thisArg?: unknown): F {
   const wrapped = function (this: unknown, ...args: unknown[]): unknown {
     const self = thisArg ?? this;
-    if (!instrumented()) return (fn as (...a: unknown[]) => unknown).apply(self, args);
+    if (!instrumented()) return (fn as unknown as (...a: unknown[]) => unknown).apply(self, args);
     const started = Date.now();
     if (traceEnabled()) log.debug({ plane, method, args: args.map(view) }, `→ ${plane}.${method}`);
     const onOk = (result: unknown) => {
@@ -104,7 +104,7 @@ export function traceFn<F extends (...args: never[]) => unknown>(plane: string, 
     };
     let out: unknown;
     try {
-      out = (fn as (...a: unknown[]) => unknown).apply(self, args);
+      out = (fn as unknown as (...a: unknown[]) => unknown).apply(self, args);
     } catch (err) {
       onErr(err);
       throw err;

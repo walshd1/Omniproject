@@ -6,6 +6,28 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Security
+
+- **Zero-trust boundary validation + strict TypeScript.** Untrusted request inputs are now
+  PARSED against an explicit schema rather than `as`-cast into a typed shape:
+  - **`lib/validate`** — a tiny, dependency-free schema validator (`v.string/number/boolean/
+    enum/array/object/optional` + `parseOr400`). Each validator both narrows the type and
+    enforces a rule (presence, type, length, range, pattern, allowed set), so "typed +
+    validated" is one step. A schema failure returns `400 { error, issues }`.
+  - Applied to the hand-rolled admin/AI endpoints that previously cast `req.body`
+    unchecked — AI chat / nl-action / copilot / transcribe, the AI-provider registry +
+    key + capability-mapping writes, capability containment + endpoint-probe, key/session
+    revocation, and reference-ruleset apply. Free-text fields gained max-length caps (a
+    cheap DoS guard on otherwise-unbounded input).
+  - **`lib/env-config`** — env vars are untrusted input too: typed accessors
+    (`envStr/envInt/envEnum/envUrl`, the URL one routed through the SSRF guard) plus a
+    boot-time `checkRequiredEnv` that flags weak production config (short `SCIM_TOKEN`,
+    `RATE_LIMIT_DISABLED` in prod). Wired into the security self-check as critical findings
+    (refuses boot under `SECURITY_STRICT`).
+  - **`strict: true`** (plus `strictFunctionTypes`, `noImplicitOverride`) enabled across the
+    monorepo — every variable is soundly typed, with zero resulting type errors after a small
+    set of `override`/cast fixes.
+
 ### Fixed
 
 - **Frontend RBAC now matches the gateway's orthogonal model.** The SPA ranked roles
