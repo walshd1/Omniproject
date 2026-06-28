@@ -53,9 +53,16 @@ export function AiProvidersAdmin() {
           <span className="font-mono text-xs text-muted-foreground">{p.id} · {p.kind}</span>
           {p.endpoint && <div className="truncate text-xs text-muted-foreground">{p.endpoint}</div>}
         </div>
-        <span className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-medium ${p.ready ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-          {p.ready ? "ready" : "no key"}
-        </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {p.stale && p.hasKey && (
+            <span data-testid={`stale-${p.id}`} title={p.ageDays != null ? `Key is ${p.ageDays} days old — rotate it` : "Key age unknown — rotate it"} className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+              rotate
+            </span>
+          )}
+          <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${p.ready ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+            {p.ready ? "ready" : "no key"}
+          </span>
+        </div>
       </div>
       <div className="flex items-center gap-2">
         <input

@@ -6,7 +6,7 @@ import {
   getCapabilityProviders, setCapabilityProviders, resolveProviderForCapability,
   providersSnapshot, __resetProviders,
 } from "./ai-providers";
-import { __resetVault } from "./vault";
+import { __resetVault, setSecret } from "./vault";
 import { updateSettings, getSettings } from "./settings";
 
 /**
@@ -33,6 +33,25 @@ test("keys live in the vault and are write-only (state exposes presence + finger
   assert.equal(JSON.stringify(providersSnapshot()).includes("sk-abc"), false);
   await clearProviderKey("openai");
   assert.equal(providerKeyState("openai").hasKey, false);
+});
+
+test("key state records a rotation time; a just-rotated key isn't stale", async () => {
+  await setProviderKey("openai", "sk-abc");
+  const st = providerKeyState("openai");
+  assert.equal(st.hasKey, true);
+  assert.equal(st.rotatedAt !== null, true);
+  assert.equal(st.ageDays, 0);
+  assert.equal(st.stale, false); // just rotated
+});
+
+test("a key present with no recorded rotation time is flagged stale", async () => {
+  // Simulate a key restored straight into the vault (e.g. from an external store) with no
+  // rotation metadata — the admin should be nudged to re-set/rotate it.
+  await setSecret("aiprovider:anthropic", "sk-from-external");
+  const st = providerKeyState("anthropic");
+  assert.equal(st.hasKey, true);
+  assert.equal(st.rotatedAt, null);
+  assert.equal(st.stale, true);
 });
 
 test("providerReady: ollama is keyless; key-gated kinds need a vault key", async () => {

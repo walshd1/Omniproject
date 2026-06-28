@@ -4,6 +4,7 @@ import path from "node:path";
 import { sealConfig, readMaybeSealed } from "./config-crypto";
 import { awsSecretsStore } from "./vault-aws";
 import { azureKeyVaultStore } from "./vault-azure";
+import { kmsVaultKey } from "./kms";
 import { logger } from "./logger";
 
 /**
@@ -42,6 +43,9 @@ export interface VaultStore {
 const ENV_PREFIX = "k1."; // per-secret envelope
 
 function rootKey(): Buffer {
+  // A KMS-unwrapped key (BYOK envelope) wins — the plaintext key never sat in env.
+  const kms = kmsVaultKey();
+  if (kms) return kms;
   const raw = process.env["VAULT_KEY"]?.trim();
   if (raw) {
     const buf = Buffer.from(raw, "base64");

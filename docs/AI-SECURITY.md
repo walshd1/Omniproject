@@ -133,7 +133,14 @@ anonymous system call:
   - the root key is `VAULT_KEY` (else derived from the env master, domain-separated from the
     config key) — **one root protects many secrets**, and the secrets never sit in the
     environment. The vault file lives company-wide (`VAULT_FILE` / `<OMNI_CONFIG_DIR>/vault.json`).
+  - **KMS / BYOK** (`lib/kms.ts`, `KMS_PROVIDER` = `none` | `aws` | `azure` | `local`): instead of
+    the plaintext root in env, supply a KMS-WRAPPED blob (`VAULT_KEY_ENC`) that AWS KMS or Azure
+    Key Vault unwraps at boot — the key-encryption-key never leaves the HSM/KMS.
+  - **Rotation surfacing**: each stored key records its set-time; the admin screen flags a key
+    older than `AI_KEY_MAX_AGE_DAYS` (default 90), or with no rotation record, as "rotate".
 - All provider/key/mapping writes are **admin + step-up + audited** (`ai-provider.*`).
+- **Content-Security-Policy**: a strict, SPA-compatible CSP ships by default and is fully
+  overridable / report-only per deployment (`lib/csp.ts`, `CONTENT_SECURITY_POLICY`, `CSP_*`).
 
 ## 6. Residual boundaries (honest)
 
@@ -166,6 +173,9 @@ These are deliberate, documented limits — not defects:
 | `AWS_REGION` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` / `VAULT_AWS_SECRET_ID` | AWS Secrets Manager (native). |
 | `VAULT_AZURE_VAULT_URL` / `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` / `VAULT_AZURE_SECRET_NAME` | Azure Key Vault (native). |
 | `VAULT_HTTP_URL` / `VAULT_HTTP_TOKEN` | Generic REST secrets store (`http`). |
+| `KMS_PROVIDER` / `VAULT_KEY_ENC` | BYOK envelope: KMS unwraps the vault root key at boot (`aws` uses KMS Decrypt; `azure` uses `VAULT_KMS_KEY_URL`). |
+| `AI_KEY_MAX_AGE_DAYS` | Age (default 90) past which a stored provider key is flagged for rotation. |
+| `CONTENT_SECURITY_POLICY` / `CSP_*` | Override / extend / report-only the served CSP. |
 | `SECURITY_STATE_FILE` | Enables durable security state (revocations etc. survive restart). |
 | `AUDIT_KEY` | Dedicated audit-chain key (else derived from the master). `AUDIT_CHAIN_FILE` persists the chain head across restarts. |
 | `STEP_UP_MINUTES` | Step-up freshness window (default 5). |

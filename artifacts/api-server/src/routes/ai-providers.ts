@@ -11,6 +11,7 @@ import {
   setCapabilityProviders, providersSnapshot,
 } from "../lib/ai-providers";
 import { vaultBackendId, VAULT_BACKENDS } from "../lib/vault-store";
+import { kmsProvider, kmsEnabled } from "../lib/kms";
 
 /**
  * AI Providers admin plane. Providers are first-class entities; their API keys go into the
@@ -34,7 +35,7 @@ router.get("/ai/providers", requireRole("admin"), (_req, res) => {
     ...providersSnapshot(),
     kinds: AI_PROVIDER_KINDS,
     capabilities: AI_CAPABILITIES,
-    vault: { backend: vaultBackendId(), backends: VAULT_BACKENDS },
+    vault: { backend: vaultBackendId(), backends: VAULT_BACKENDS, kms: kmsEnabled() ? kmsProvider() : "none" },
   });
 });
 

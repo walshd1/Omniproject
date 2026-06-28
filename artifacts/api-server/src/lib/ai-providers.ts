@@ -63,9 +63,11 @@ interface ProvidersState {
   providers: AiProviderConfig[];
   // capability id → ordered provider ids (empty/absent ⇒ fall back to the Settings default).
   mapping: Record<string, string[]>;
+  // provider id → epoch ms when its key was last set (for rotation/expiry surfacing).
+  keyRotatedAt: Record<string, number>;
 }
 
-let state: ProvidersState = { providers: seedProviders(), mapping: {} };
+let state: ProvidersState = { providers: seedProviders(), mapping: {}, keyRotatedAt: {} };
 let loaded = false;
 
 function file(): string | null {
@@ -84,6 +86,7 @@ function ensureLoaded(): void {
     const parsed = JSON.parse(readMaybeSealed(fs.readFileSync(f, "utf8"))) as Partial<ProvidersState>;
     if (Array.isArray(parsed.providers) && parsed.providers.length) state.providers = parsed.providers;
     if (parsed.mapping && typeof parsed.mapping === "object") state.mapping = parsed.mapping;
+    if (parsed.keyRotatedAt && typeof parsed.keyRotatedAt === "object") state.keyRotatedAt = parsed.keyRotatedAt;
     logger.info({ providers: state.providers.length }, "ai-providers: restored from disk");
   } catch (err) {
     logger.warn({ err }, "ai-providers: failed to restore — using defaults");
@@ -128,24 +131,46 @@ export async function removeProvider(id: string): Promise<void> {
     state.mapping[cap] = (state.mapping[cap] ?? []).filter((pid) => pid !== id);
   }
   await deleteSecret(keyRef(id));
+  delete state.keyRotatedAt[id];
   persist();
 }
 
 // ── Keys (vault-backed; write-only across the boundary) ─────────────────────────
 function keyRef(providerId: string): string { return `aiprovider:${providerId}`; }
 
-/** Store a provider's API key in the vault. The plaintext is never kept here. */
-export function setProviderKey(id: string, key: string): Promise<void> { return setSecret(keyRef(id), key); }
+/** How many days a stored key may age before it's flagged stale (AI_KEY_MAX_AGE_DAYS, default 90). */
+export function keyMaxAgeDays(): number {
+  const n = Number(process.env["AI_KEY_MAX_AGE_DAYS"]);
+  return Number.isFinite(n) && n > 0 ? n : 90;
+}
 
-/** Remove a provider's stored key. */
-export function clearProviderKey(id: string): Promise<void> { return deleteSecret(keyRef(id)); }
+/** Store a provider's API key in the vault, recording the rotation time. Plaintext is never kept here. */
+export async function setProviderKey(id: string, key: string): Promise<void> {
+  ensureLoaded();
+  await setSecret(keyRef(id), key);
+  state.keyRotatedAt[id] = Date.now();
+  persist();
+}
+
+/** Remove a provider's stored key (and its rotation timestamp). */
+export async function clearProviderKey(id: string): Promise<void> {
+  ensureLoaded();
+  await deleteSecret(keyRef(id));
+  if (id in state.keyRotatedAt) { delete state.keyRotatedAt[id]; persist(); }
+}
 
 /** INTERNAL: resolve a provider's key for an upstream call. Never expose over a route. */
 export function resolveProviderKey(id: string): string | null { return getSecret(keyRef(id)); }
 
-/** Non-secret key state for the admin screen: presence + a short fingerprint. */
-export function providerKeyState(id: string): { hasKey: boolean; fingerprint: string | null } {
-  return { hasKey: hasSecret(keyRef(id)), fingerprint: secretFingerprint(keyRef(id)) };
+/** Non-secret key state for the admin screen: presence, fingerprint, and rotation age. */
+export function providerKeyState(id: string): { hasKey: boolean; fingerprint: string | null; rotatedAt: number | null; ageDays: number | null; stale: boolean } {
+  ensureLoaded();
+  const hasKey = hasSecret(keyRef(id));
+  const rotatedAt = state.keyRotatedAt[id] ?? null;
+  const ageDays = rotatedAt !== null ? Math.floor((Date.now() - rotatedAt) / 86_400_000) : null;
+  // A present key with no recorded rotation time (or older than the max age) is flagged stale.
+  const stale = hasKey && (ageDays === null || ageDays >= keyMaxAgeDays());
+  return { hasKey, fingerprint: secretFingerprint(keyRef(id)), rotatedAt, ageDays, stale };
 }
 
 /** Is this provider usable right now (keyless kind, or a key/endpoint is present)? */
@@ -203,6 +228,6 @@ export function providersSnapshot(): { providers: Array<AiProviderConfig & { has
 
 /** Test-only: reset to seed defaults and force reload. */
 export function __resetProviders(): void {
-  state = { providers: seedProviders(), mapping: {} };
+  state = { providers: seedProviders(), mapping: {}, keyRotatedAt: {} };
   loaded = false;
 }

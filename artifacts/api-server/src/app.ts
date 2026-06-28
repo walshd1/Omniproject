@@ -25,6 +25,8 @@ import { slideSession } from "./routes/auth";
 import { csrfGuard } from "./lib/csrf";
 import { loadSecurityState } from "./lib/security-state";
 import { hydrateVault } from "./lib/vault";
+import { initKms } from "./lib/kms";
+import { contentSecurityPolicy, cspHeaderName } from "./lib/csp";
 
 const app: Express = express();
 
@@ -69,10 +71,11 @@ runSecuritySelfCheck(process.env, logger);
 // SECURITY_STATE_FILE is set.
 loadSecurityState();
 
-// Hydrate the AI key vault from its (possibly external) store so synchronous reads are
-// served from cache. The local file store also lazy-loads on first read, so this matters
-// mainly for external backends (HashiCorp/HCP/AWS/Azure); fire-and-forget at boot.
-void hydrateVault();
+// Unwrap the KMS-wrapped vault root key (BYOK), then hydrate the AI key vault from its
+// (possibly external) store so synchronous reads are served from cache. KMS must resolve
+// BEFORE hydrate so the local store opens its file under the right key. Fire-and-forget at
+// boot; reads tolerate an empty cache until hydration completes.
+void (async () => { await initKms(); await hydrateVault(); })();
 
 // Hard interlock: refuse to boot if DEV MODE is active in a production-like
 // environment (real SSO / licence / public host). Dev mode can impersonate users
@@ -109,7 +112,11 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("X-DNS-Prefetch-Control", "off");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  // microphone=(self): the on-device / Whisper dictation needs same-origin mic access.
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
+  // Content-Security-Policy: strict-by-default, fully overridable per deployment, and
+  // settable to report-only while a deployment tunes it for its asset origins.
+  res.setHeader(cspHeaderName(), contentSecurityPolicy());
   // HSTS only over HTTPS in production (meaningless/counterproductive on plain http).
   if (process.env["NODE_ENV"] === "production") {
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");

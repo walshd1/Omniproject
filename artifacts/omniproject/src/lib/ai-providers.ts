@@ -17,6 +17,10 @@ export interface AiProviderRow {
   hasKey: boolean;
   fingerprint: string | null;
   ready: boolean;
+  /** Key rotation surfacing (vault-backed). */
+  rotatedAt?: number | null;
+  ageDays?: number | null;
+  stale?: boolean;
 }
 
 export interface AiCapabilityDef { id: string; label: string; surface: "chat" | "stt" }
