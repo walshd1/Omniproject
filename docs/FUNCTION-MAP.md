@@ -356,6 +356,16 @@ Column → canonical-field mapper.
 | `applyColumnMapping` | Apply a confirmed mapping to raw rows, producing canonical payloads. |
 | `mappingFromSuggestions` | Derive the confirmed-mapping list from suggestions (drops the unmapped ones). |
 
+### `artifacts/api-server/src/lib/compression.ts`
+
+Dependency-free response compression (gzip/brotli) for the gateway.
+
+| Function | What it does |
+| --- | --- |
+| `negotiateEncoding` | Best encoding the client accepts — brotli preferred, then gzip, else none. |
+| `isCompressible` | Is a response with these headers safe — and worth — compressing? |
+| `compression` | Express middleware: negotiate + buffer-then-compress, with safe pass-throughs. |
+
 ### `artifacts/api-server/src/lib/concurrency.ts`
 
 Optimistic-concurrency helper.

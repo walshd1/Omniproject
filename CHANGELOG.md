@@ -6,6 +6,26 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Performance
+
+- **HTTP compression (gzip/brotli) on the gateway** — a dependency-free middleware
+  now compresses API + SPA responses (brotli preferred, gzip fallback), typically
+  ~3× smaller on the JS/CSS/JSON payloads. It buffers then compresses on `end`, and
+  deliberately passes through Server-Sent Events, ranged, binary and already-encoded
+  responses untouched (SSE set `no-transform` + use `writeHead`, so they keep
+  streaming live). A strong ETag is weakened when compressed so caches never cross the
+  encodings. Traefik's edge `compress` middleware is also enabled in the standalone
+  deploy (defence-in-depth; it skips already-encoded responses).
+- **Immutable static-asset caching** — Vite's content-hashed assets are now served
+  `Cache-Control: public, max-age=31536000, immutable` (big repeat-visit win) while
+  `index.html` and the service worker stay `no-cache`, so a new deploy is picked up at
+  once.
+- **Lighter, faster first paint (web)** — removed the Inter webfont (4 weights
+  downloaded on every load but never used; the UI is JetBrains Mono throughout) and
+  moved the mono font from a render-blocking CSS `@import` to a parallel `<link>`.
+  Platform re-detection on resize is coalesced to one pass per animation frame and only
+  re-renders when something actually changed.
+
 ### Added
 
 - **Platform & capability detection, mobile mode, PWA, native-ready seam** — the app

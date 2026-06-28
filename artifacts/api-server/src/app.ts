@@ -20,12 +20,17 @@ import { runDevModeGuard } from "./lib/dev-mode-guard";
 import { isDevMode } from "./lib/dev-mode";
 import { httpRequestStarted, recordHttpRequest } from "./lib/runtime-metrics";
 import { errorHandler } from "./lib/error-handler";
+import { compression } from "./lib/compression";
 
 const app: Express = express();
 
 // Honour X-Forwarded-* headers (Traefik / k8s ingress) so OIDC redirect URIs
 // and secure-cookie detection resolve to the public origin.
 app.set("trust proxy", true);
+
+// Response compression (gzip/brotli) — first in the chain so it wraps the final
+// body of every API + SPA response. SSE/ranged/binary responses pass through.
+app.use(compression());
 
 // The session-cookie signing key. In production it MUST come from the
 // environment: an unset/empty/default value would sign auth cookies with a
