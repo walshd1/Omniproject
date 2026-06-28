@@ -25,7 +25,7 @@ import { recordBrokerCall } from "./runtime-metrics";
  */
 
 export type AuditLevel = "off" | "writes" | "all";
-export type AuditCategory = "request" | "broker" | "auth" | "admin";
+export type AuditCategory = "request" | "broker" | "auth" | "admin" | "autonomous";
 
 export interface AuditEvent {
   ts: string;
@@ -60,7 +60,8 @@ export function shouldAudit(
   if (level === "off") return false;
   if (level === "all") return true;
   // level === "writes"
-  if (ev.category === "auth" || ev.category === "admin") return true;
+  // auth, admin and autonomous decisions are security-relevant — always recorded.
+  if (ev.category === "auth" || ev.category === "admin" || ev.category === "autonomous") return true;
   if (ev.write) return true;
   if (ev.method && WRITE_METHODS.has(ev.method.toUpperCase())) return true;
   return false;

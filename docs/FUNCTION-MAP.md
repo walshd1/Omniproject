@@ -306,6 +306,19 @@ Action audit logging.
 | `recordAudit` | Record one audit event: stdout (pino) + the external sink, gated by level. |
 | `auditStatus` | Status for the setup/diagnostics view. |
 
+### `artifacts/api-server/src/lib/autonomous-grant.ts`
+
+Autonomous WRITE authorisation — the hard limit that stops an autonomous session being a backdoor.
+
+| Function | What it does |
+| --- | --- |
+| `registerAutonomousGrant` | Seed/replace an autonomous write grant (admin/config). |
+| `getAutonomousGrant` | The grant for an actor id, or undefined (⇒ default deny). |
+| `setAutonomousGrants` | Replace the whole grant set (admin applies the config JSON). |
+| `__resetAutonomousGrants` | Test-only: clear grants + counters. |
+| `actorIdOf` | The registry id behind an autonomous principal's sub (automation:<id> / agent:<id>:<who>). |
+| `authorizeAutonomousWrite` | Authorise an autonomous write, or throw. |
+
 ### `artifacts/api-server/src/lib/autonomous.ts`
 
 Autonomous principals.
