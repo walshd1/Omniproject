@@ -19,6 +19,10 @@ The stateless Express gateway: routes above the broker seam, the broker adapter 
 
 Express application assembly — wires the middleware chain (security headers, body limits, request logging/timing, session cookies), mounts the `/api` router, and serves the built SPA from STATIC_DIR in single-container mode.
 
+| Function | What it does |
+| --- | --- |
+| `bootstrap` | Async boot side-effects that must run BEFORE the server serves AND before any sealed config/state is read. |
+
 ### `artifacts/api-server/src/broker/cache.ts`
 
 OPT-IN server-side read cache — a short-TTL, in-memory cache of broker reads.
@@ -275,7 +279,7 @@ Canonical value vocabularies — the cross-backend meanings the gateway reasons 
 
 ### `artifacts/api-server/src/index.ts`
 
-Load this deployment's config directory (OMNI_CONFIG_DIR) BEFORE serving, so the vendor overlay + settings from the operator's folder of JSON are in place when the first request lands.
+Server entrypoint.
 
 ### `artifacts/api-server/src/lib/ai-containment.ts`
 
@@ -302,14 +306,36 @@ Global AI kill switch.
 | `aiKillEngaged` | Is the AI kill switch currently engaged? |
 | `__resetAiKill` | Test-only: reset to the default (released). |
 
+### `artifacts/api-server/src/lib/ai-providers.ts`
+
+AI provider registry + capability→provider mapping.
+
+| Function | What it does |
+| --- | --- |
+| `listProviders` | ── Provider entities ────────────────────────────────────────────────────────── |
+| `getProvider` | The provider entity with this id, or undefined. |
+| `upsertProvider` | Add or replace a provider entity (by id). |
+| `removeProvider` | Remove a provider entity, its stored key, and any mapping references to it. |
+| `keyMaxAgeDays` | How many days a stored key may age before it's flagged stale (AI_KEY_MAX_AGE_DAYS, default 90). |
+| `setProviderKey` | Store a provider's API key in the vault, recording the rotation time. |
+| `clearProviderKey` | Remove a provider's stored key (and its rotation timestamp). |
+| `resolveProviderKey` | INTERNAL: resolve a provider's key for an upstream call. |
+| `providerKeyState` | Non-secret key state for the admin screen: presence, fingerprint, and rotation age. |
+| `providerReady` | Is this provider usable right now (keyless kind, or a key/endpoint is present)? |
+| `getCapabilityProviders` | ── Capability → provider mapping ──────────────────────────────────────────────── |
+| `setCapabilityProviders` | Set the ordered provider list for a capability (unknown provider ids are dropped). |
+| `resolveProviderForCapability` | Resolve the provider that should serve a capability: the first READY provider in the capability's ordered mapping. |
+| `providersSnapshot` | A snapshot of the whole provider config (for status/admin views; no secrets). |
+| `__resetProviders` | Test-only: reset to seed defaults and force reload. |
+
 ### `artifacts/api-server/src/lib/ai.ts`
 
 AI provider client.
 
 | Function | What it does |
 | --- | --- |
-| `aiStatus` | Report whether AI assist is configured + which provider/model is active. |
-| `aiChat` | Send a chat-completion to the configured provider and return the reply. |
+| `aiStatus` | Report whether AI chat is configured + which provider/model is active. |
+| `aiChat` | Send a chat-completion to the resolved provider and return the reply. |
 
 ### `artifacts/api-server/src/lib/api-token.ts`
 
@@ -333,6 +359,17 @@ Customer-wide APPROVED vocabulary + actions.
 | `listApprovedVocab` | The approved vocabulary. |
 | `setApproved` | Replace the whole allowlist (an admin applies the customer-wide file). |
 | `__resetApproved` | Test-only: restore the default-safe allowlist (reads approved, no vocab). |
+
+### `artifacts/api-server/src/lib/audit-chain.ts`
+
+Tamper-evident audit trail.
+
+| Function | What it does |
+| --- | --- |
+| `sealAuditEvent` | Seal an event into the chain: advances the head and returns the event with its seal. |
+| `auditAnchor` | The current chain anchor — what an external verifier checks the tip against. |
+| `verifyAuditChain` | Verify an ordered list of sealed audit events. |
+| `__resetAuditChain` | Test-only: reset the in-memory head. |
 
 ### `artifacts/api-server/src/lib/audit.ts`
 
@@ -377,6 +414,15 @@ Autonomous principals.
 | `assertMintFresh` | Confirm a minted context is FRESH for this run: stamped, not in the future, not past its short expiry, and within the (short) TTL of `now`. |
 | `isAutonomous` | Is this context an autonomous (non-human) principal? |
 | `assertAutonomousCan` | Enforce RBAC for an autonomous actor before it performs `need`-gated work. |
+
+### `artifacts/api-server/src/lib/aws-sigv4.ts`
+
+AWS Signature V4 for the JSON (`x-amz-json-1.1`) services we call (Secrets Manager, KMS).
+
+| Function | What it does |
+| --- | --- |
+| `awsSignedHeaders` | Build the signed headers for a POST to an AWS JSON API endpoint at `host`. |
+| `awsCredsFromEnv` | Read AWS credentials + region from the environment. |
 
 ### `artifacts/api-server/src/lib/branding.ts`
 
@@ -575,6 +621,15 @@ Portfolio copilot — read-only NL Q&A over the portfolio read model.
 | `copilotMessages` | Build the copilot messages: a hardening system prompt + the delimited data + question. |
 | `answerCopilot` | Answer a question over the scoped read model. |
 
+### `artifacts/api-server/src/lib/csp.ts`
+
+Content-Security-Policy for the served SPA.
+
+| Function | What it does |
+| --- | --- |
+| `contentSecurityPolicy` | Build the CSP policy string (env override wins; else the strict default + any extras). |
+| `cspHeaderName` | The header name to use — report-only when CSP_REPORT_ONLY is set (observe without blocking). |
+
 ### `artifacts/api-server/src/lib/csrf.ts`
 
 CSRF hardening for cookie-authenticated mutations (security item B).
@@ -629,6 +684,20 @@ Debug bundle — a single reproducible dump that lets you replicate an issue on 
 | `buildDebugBundleEntries` | Assemble the bundle entries + manifest for a given timestamp. |
 | `buildDebugBundleZip` | Build the bundle as a ZIP buffer. |
 
+### `artifacts/api-server/src/lib/deployment-profile.ts`
+
+Deployment profile — lets a deployment declare its CONTEXT so the gateway's defaults fit it, and so enterprise-grade requirements can be relaxed BY EXPLICIT CHOICE where they would otherwise break a small org.
+
+| Function | What it does |
+| --- | --- |
+| `setRuntimeProfile` | Set the runtime (persisted) profile — called by the settings layer on load/change. |
+| `deploymentProfile` | The active deployment profile. |
+| `profilePosture` | The posture for the active profile. |
+| `profileCatalogue` | Every profile's posture (the picker catalogue + per-customer-type presets). |
+| `acceptDemoAuth` | Has the operator explicitly accepted no-IdP demo auth (everyone admin)? |
+| `requireTls` | Should the gateway treat itself as served over TLS (secure cookies + HSTS)? An explicit PUBLIC_TLS wins; otherwise "lan-ok" profiles default to HTTP, and "required" profiles to "secure in production" — so the default (business) profile keeps today's behaviour exactly, while a self-hoster/charity can run production-stable on plain HTTP without breaking sessions. |
+| `demoAuthSeverity` | The severity of the no-IdP finding for this deployment: the profile's default, or "info" once the operator explicitly accepts it (so SECURITY_STRICT won't block a deliberate choice). |
+
 ### `artifacts/api-server/src/lib/dev-entitlements.ts`
 
 Dev-mode entitlement overrides — force individual paid features on or off to test the licensed vs unlicensed UX without minting a real licence.
@@ -668,6 +737,22 @@ Stateful developer mode (opt-in).
 | --- | --- |
 | `saveState` | Dev-only: persist the in-memory demo state to disk (off in prod). |
 | `loadState` | Dev-only: load a previously persisted demo state, or null if none. |
+
+### `artifacts/api-server/src/lib/dual-control.ts`
+
+Maker-checker (four-eyes) dual control for sensitive admin actions.
+
+| Function | What it does |
+| --- | --- |
+| `registerExecutor` | Register how an action is applied once approved (one per action id). |
+| `dualControlActions` | The set of action ids that require dual control (from DUAL_CONTROL_ACTIONS). |
+| `requiresDualControl` | Does this action require a second approver? |
+| `propose` | Create a pending proposal for an action (the maker step). |
+| `listProposals` | Pending proposals (for the admin queue). |
+| `getProposal` | A single proposal by id. |
+| `approve` | Approve and EXECUTE a proposal (the checker step). |
+| `reject` | Reject a pending proposal (any admin, including the proposer). |
+| `__resetDualControl` | Test-only: clear the proposal queue (executors persist). |
 
 ### `artifacts/api-server/src/lib/egress.ts`
 
@@ -723,6 +808,18 @@ Ephemeral dev-mode impersonation — let a developer act AS another user to repr
 | `activeImpersonation` | The active impersonation on a session (dev mode + not expired), else null. |
 | `effectiveSession` | The effective session: the impersonated identity overlaid when an impersonation is active, otherwise the session with any inert/expired impersonation stripped (so it never leaks downstream). |
 
+### `artifacts/api-server/src/lib/ip-allow.ts`
+
+App-layer IP allowlisting — defence in depth even behind an ingress/LB.
+
+| Function | What it does |
+| --- | --- |
+| `ipInCidr` | Does `ip` fall within `cidr` (or equal a bare IP)? |
+| `ipAllowlist` | The configured allowlist entries (empty ⇒ allowlisting off). |
+| `ipAllowed` | Is this client IP allowed? True when the allowlist is empty (feature off). |
+| `clientIp` | Resolve the client IP — socket peer, or the first X-Forwarded-For hop when TRUST_PROXY. |
+| `ipAllowGuard` | Middleware: refuse a client whose IP isn't allowlisted (no-op when the list is empty). |
+
 ### `artifacts/api-server/src/lib/jwks.ts`
 
 Dependency-free JWKS / JWT signature verification.
@@ -752,6 +849,20 @@ Key registry with admin-gated revocation.
 | `restoreKeys` | Restore revocation state from a snapshot (boot-time durability). |
 | `__resetKeyRegistry` | Test-only: reset all key state. |
 
+### `artifacts/api-server/src/lib/kms.ts`
+
+KMS / BYOK envelope unwrap for the gateway's ROOT keys.
+
+| Function | What it does |
+| --- | --- |
+| `kmsProvider` | The configured KMS provider (KMS_PROVIDER), defaulting to none. |
+| `kmsEnabled` | Is any KMS-wrapped root key configured? |
+| `unwrapDataKey` | Unwrap a wrapped key blob with the configured KMS. |
+| `initKms` | Resolve KMS-wrapped root keys at boot, BEFORE any sealed file is read. |
+| `kmsVaultKey` | The KMS-unwrapped vault root key, or null when KMS isn't used / hasn't resolved yet. |
+| `kmsConfigKey` | The KMS-unwrapped config-at-rest key, or null. |
+| `__resetKms` | Test-only: reset the caches + init flag. |
+
 ### `artifacts/api-server/src/lib/labels.ts`
 
 SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
@@ -779,6 +890,20 @@ Licensing / entitlements — the paywall for premium overlay features.
 ### `artifacts/api-server/src/lib/logger.ts`
 
 The shared pino logger — one configured instance for the whole gateway (level from LOG_LEVEL, pretty in dev, JSON in prod).
+
+### `artifacts/api-server/src/lib/maintenance.ts`
+
+Maintenance lockdown (break-glass read-only mode).
+
+| Function | What it does |
+| --- | --- |
+| `engageMaintenance` | Engage read-only lockdown (optionally with a human-readable reason shown to clients). |
+| `releaseMaintenance` | Release lockdown — normal read/write resumes. |
+| `maintenanceEngaged` | Is the gateway in read-only lockdown? |
+| `maintenanceReason` | The reason shown with a blocked write (empty when not set). |
+| `isMaintenanceExempt` | Should this request be allowed through despite a write + lockdown? |
+| `maintenanceGuard` | Middleware: under lockdown, refuse mutating requests (except exempt paths) with 503. |
+| `__resetMaintenance` | Test-only: reset to the default (released). |
 
 ### `artifacts/api-server/src/lib/mcp.ts`
 
@@ -896,6 +1021,16 @@ Minimal, dependency-free PDF writer.
 | --- | --- |
 | `buildPdf` | Render a simple table to a minimal, dependency-free PDF document (Buffer). |
 
+### `artifacts/api-server/src/lib/personas.ts`
+
+Methodology RAG — experienced PM/PgM persona reference packs for the portfolio copilot.
+
+| Function | What it does |
+| --- | --- |
+| `personasEnabled` | Is methodology-persona RAG enabled? (On by default; COPILOT_PERSONAS=off disables it.) |
+| `personaById` | A persona by id, or undefined. |
+| `selectPersonas` | Retrieve the most relevant persona(s) for a question. |
+
 ### `artifacts/api-server/src/lib/programmes.ts`
 
 Programmes are a grouping of related projects, **derived** from each project's optional `programmeId` (owned by the backend).
@@ -952,6 +1087,7 @@ Role-based access control.
 | `grantsFromClaims` | Pure mapping from a user's raw claim groups to their GRANTS (base rung + the set of authorities), using the configured role lists. |
 | `roleFromClaims` | Back-compat single-role view of a user's claims (the representative label). |
 | `grantsForReq` | Resolve a request's session (or API token) to its grants. |
+| `isDeprovisioned` | Is this request's principal DEPROVISIONED in the SCIM directory? (known + active=false.) |
 | `roleForReq` | A representative role label for the request (display/audit only). |
 | `grantsForRole` | The canonical grants for a single named role (the inverse of `displayRole`) — so a non-request principal (an autonomous actor) can be assigned grants from one role. |
 | `grantsSatisfy` | Do these grants satisfy the gate `need`? (The request-free core of `hasRole`.) - a BASE role (viewer/contributor/manager) → base rung ≥ that rank (an authority confers manager-level base, so a PMO or admin clears `manager`); - an AUTHORITY (pmo/admin) → that exact authority is held. |
@@ -1012,6 +1148,30 @@ Runtime RED metrics (Rate, Errors, Duration) — the always-available observabil
 | `runtimeMetrics` | Snapshot the RED metrics as Prometheus metric descriptors. |
 | `resetRuntimeMetrics` | Test-only reset of all counters. |
 
+### `artifacts/api-server/src/lib/scim.ts`
+
+SCIM 2.0 directory (RFC 7643/7644).
+
+| Function | What it does |
+| --- | --- |
+| `scimEnabled` | Is SCIM provisioning enabled? (Only when a bearer token is configured.) |
+| `scimTokenValid` | Constant-time check of a presented SCIM bearer token. |
+| `createUser` | ── Users ──────────────────────────────────────────────────────────────────────── Create a user resource. |
+| `getUser` | The user with this id, or null. |
+| `replaceUser` | Replace a user (PUT). |
+| `patchUser` | Apply a SCIM PATCH (the subset IdPs use — most importantly toggling `active`). |
+| `deleteUser` | Delete (hard) a user. |
+| `listUsers` | List users, optionally filtered by a simple `attr eq "value"` SCIM filter. |
+| `createGroup` | ── Groups ───────────────────────────────────────────────────────────────────── Create a group resource. |
+| `getGroup` | The group with this id, or null. |
+| `replaceGroup` | Replace/patch a group's membership + name, then re-sync each user's group display names. |
+| `patchGroup` | Apply a group PATCH (add/remove members — what IdPs send for group assignment). |
+| `deleteGroup` | Delete a group. |
+| `listGroups` | List groups (optional `displayName eq "..."` filter). |
+| `directoryDecision` | ── Login overlay (consumed by rbac + the auth gate) ──────────────────────────── |
+| `scimStats` | Directory counts for diagnostics. |
+| `__resetScim` | Test-only: wipe the directory. |
+
 ### `artifacts/api-server/src/lib/security-check.ts`
 
 Startup security self-check — surface dangerous *production* configurations loudly at boot so a customer can't silently deploy the headline.
@@ -1049,6 +1209,17 @@ Per-session broker signing key.
 | --- | --- |
 | `deriveSessionBrokerKey` | Derive the per-session broker signing key (hex) from its binding material. |
 | `sessionBindFromSession` | Pull the binding material off a session, or null when it predates the scheme (older cookie, or a system/unauthenticated call) — callers fall back to the static broker key in that case. |
+
+### `artifacts/api-server/src/lib/session-registry.ts`
+
+Concurrent-session cap.
+
+| Function | What it does |
+| --- | --- |
+| `maxSessionsPerUser` | The configured per-user concurrent-session cap (0 / unset ⇒ unlimited). |
+| `registerSession` | Record activity for (sub, sid) and report whether this session is within the cap. |
+| `activeSessionCount` | How many sessions the registry currently tracks for a user (diagnostics). |
+| `__resetSessionRegistry` | Test-only: clear the registry. |
 
 ### `artifacts/api-server/src/lib/session-timeout.ts`
 
@@ -1099,6 +1270,16 @@ Step-up (re-authentication) for the highest-risk actions (security item D).
 | `stepUpFresh` | Has this session re-authenticated within the freshness window? |
 | `requireStepUp` | Middleware: require a fresh step-up. |
 
+### `artifacts/api-server/src/lib/stt.ts`
+
+AI-assisted speech-to-text — provider-pluggable, governed, with Whisper as ONE provider.
+
+| Function | What it does |
+| --- | --- |
+| `sttStatus` | The configured STT provider + whether it runs locally (no server round-trip / egress). |
+| `transcribe` | Transcribe an audio clip with the configured AI-assisted provider. |
+| `sttCapabilityId` | The governance capability id for the active STT provider (for the enforce gate). |
+
 ### `artifacts/api-server/src/lib/tools.ts`
 
 Capability governance — one model for every "thing that can move data or be turned on/off": AI tools, the MCP, AI providers and vendors.
@@ -1123,6 +1304,18 @@ Capability governance — one model for every "thing that can move data or be tu
 | `sanitizeCapabilitySetting` | Coerce an admin's input for one capability to a valid, supportable setting. |
 | `setCapabilityState` | Persist an admin's setting for one capability; returns the stored setting. |
 
+### `artifacts/api-server/src/lib/tracing.ts`
+
+Distributed tracing via W3C Trace Context — no OTel SDK, just the wire format + a minimal OTLP/HTTP exporter.
+
+| Function | What it does |
+| --- | --- |
+| `parseTraceparent` | Parse a W3C `traceparent` header, or null if absent/malformed. |
+| `formatTraceparent` | Format a `traceparent` for the given trace + span. |
+| `currentTraceparent` | The current request's `traceparent` (for downstream propagation), or null outside a request. |
+| `currentTrace` | The active trace context, or null. |
+| `tracingMiddleware` | Express middleware: establish/continue the trace, correlate the logger, propagate, export. |
+
 ### `artifacts/api-server/src/lib/url-safety.ts`
 
 Outbound-URL safety for admin-configured endpoints (the broker URL and premium webhook targets), which are passed to `fetch()`.
@@ -1142,6 +1335,46 @@ Per-user UI/accessibility preferences, persisted server-side keyed by the user's
 | `getUserPrefs` | A user's stored prefs, or the code defaults when they have none. |
 | `hasUserPrefs` | Has this user saved prefs? (Lets the client tell "stored" from "defaults".) |
 | `setUserPrefs` | Persist (sanitised) prefs for a user; returns what was stored. |
+
+### `artifacts/api-server/src/lib/vault-aws.ts`
+
+AWS Secrets Manager vault store (native).
+
+| Function | What it does |
+| --- | --- |
+| `awsSecretsStore` | Build a HashiCorp/registry-shaped VaultStore backed by AWS Secrets Manager. |
+
+### `artifacts/api-server/src/lib/vault-azure.ts`
+
+Azure Key Vault vault store (native).
+
+| Function | What it does |
+| --- | --- |
+| `azureKeyVaultStore` | Build a registry-shaped VaultStore backed by Azure Key Vault. |
+
+### `artifacts/api-server/src/lib/vault-store.ts`
+
+Vault STORAGE seam.
+
+| Function | What it does |
+| --- | --- |
+| `vaultBackendId` | The configured backend id (VAULT_BACKEND), defaulting to the local encrypted file. |
+| `activeVaultStore` | Resolve the active storage backend from the registry. |
+
+### `artifacts/api-server/src/lib/vault.ts`
+
+AI secret vault — where provider API keys live now that they are OUT of docker/env.
+
+| Function | What it does |
+| --- | --- |
+| `hydrateVault` | Load every secret from the active store into the cache. |
+| `setSecret` | Store (or replace) a secret. |
+| `getSecret` | INTERNAL: the plaintext secret, or null. |
+| `hasSecret` | Is a secret present for this ref? (Safe to expose — boolean only.) |
+| `deleteSecret` | Remove a secret from the cache and the active store. |
+| `secretFingerprint` | A short, non-reversible fingerprint of the stored secret (for "did it save?" UX), or null. |
+| `listSecretRefs` | The refs that currently have a secret (no values). |
+| `__resetVault` | Test-only: wipe the in-memory cache and force a reload on next access. |
 
 ### `artifacts/api-server/src/lib/webhooks.ts`
 
@@ -1183,6 +1416,10 @@ Minimal, dependency-free STORED (uncompressed) ZIP writer.
 | --- | --- |
 | `crc32` | Standard zlib/PKZIP CRC-32 (reflected, polynomial 0xEDB88320) — the checksum the ZIP local/central headers below require for each stored entry. |
 | `buildZip` | Pack the given entries into a ZIP archive (stored, no compression) as a Buffer. |
+
+### `artifacts/api-server/src/routes/ai-providers.ts`
+
+AI Providers admin plane.
 
 ### `artifacts/api-server/src/routes/ai.ts`
 
@@ -1319,6 +1556,10 @@ Role-mapping editor — ADMIN-only, audited.
 ### `artifacts/api-server/src/routes/ruleset.ts`
 
 Business ruleset config — PMO governance.
+
+### `artifacts/api-server/src/routes/scim.ts`
+
+SCIM 2.0 provisioning endpoints (RFC 7644).
 
 ### `artifacts/api-server/src/routes/security.ts`
 
