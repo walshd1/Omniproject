@@ -22,6 +22,7 @@ export interface Branding {
   loginHeading: string;
   footerText: string;
   supportUrl: string;
+  fontFamily: string;
   entitled: boolean;
   locked: boolean;
 }
@@ -34,6 +35,7 @@ const DEFAULTS: Branding = {
   loginHeading: "Orchestration Shell",
   footerText: "",
   supportUrl: "",
+  fontFamily: "",
   entitled: false,
   locked: false,
 };
@@ -63,12 +65,13 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.title = value.appName;
-    if (value.primaryColor) {
-      document.documentElement.style.setProperty("--brand-primary", value.primaryColor);
-    } else {
-      document.documentElement.style.removeProperty("--brand-primary");
-    }
-  }, [value.appName, value.primaryColor]);
+    const root = document.documentElement;
+    const setOrClear = (prop: string, v: string) => (v ? root.style.setProperty(prop, v) : root.style.removeProperty(prop));
+    setOrClear("--brand-primary", value.primaryColor);
+    // Customer brand FONT FAMILY (applied on all screens). Font SIZE + background
+    // COLOUR are per-user (lib/a11y-prefs), not part of the company branding.
+    setOrClear("--brand-font-family", value.fontFamily);
+  }, [value.appName, value.primaryColor, value.fontFamily]);
 
   return (
     <BrandingContext.Provider value={value}>

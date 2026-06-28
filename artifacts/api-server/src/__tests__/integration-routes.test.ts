@@ -35,6 +35,10 @@ let base: string;
 
 before(async () => {
   const { default: app } = await import("../app");
+  // MCP is off by default (no-AI/nothing-on posture); an admin enables it. Turn it on
+  // so the MCP route tests below exercise the live path rather than a governance 403.
+  const { setCapabilityState } = await import("../lib/tools");
+  setCapabilityState("mcp", { state: "user-defined" });
   server = app.listen(0);
   await new Promise<void>((r) => server.once("listening", () => r()));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -217,6 +221,57 @@ test("POST /api/ai/chat rejects a malformed body with 400", async () => {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ messages: [] }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test("GET /api/setup/idp guides identity setup (mode, callback URL, role→group map)", async () => {
+  const res = await get("/api/setup/idp");
+  assert.equal(res.status, 200);
+  const json = await readJson(res);
+  assert.equal(json.mode, "demo"); // no OIDC_ISSUER_URL in the test env
+  assert.match(json.callbackUrl, /\/api\/auth\/callback$/);
+  assert.ok(Array.isArray(json.roleGroups));
+  assert.equal(json.suggestedGroups.admin, "omni-admins"); // bundled-IdP default group names
+});
+
+test("responses carry W3C traceparent + x-request-id, continuing an incoming trace", async () => {
+  const incoming = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+  const res = await get("/api/healthz", { headers: { traceparent: incoming } });
+  const tp = res.headers.get("traceparent");
+  assert.ok(tp, "traceparent header present");
+  assert.match(tp!, /^00-4bf92f3577b34da6a3ce929d0e0e4736-[\da-f]{16}-01$/); // same trace, new span
+  assert.ok(res.headers.get("x-request-id"), "x-request-id header present");
+});
+
+test("GET /api/ai/providers returns the registry + capability map, with no secrets", async () => {
+  const res = await get("/api/ai/providers");
+  assert.equal(res.status, 200);
+  const json = await readJson(res);
+  assert.ok(Array.isArray(json.providers));
+  assert.ok(Array.isArray(json.capabilities));
+  assert.ok(Array.isArray(json.kinds));
+  // Each provider row carries presence, never a key value.
+  for (const p of json.providers) {
+    assert.equal("hasKey" in p, true);
+    assert.equal("key" in p, false);
+    assert.equal("secret" in p, false);
+  }
+});
+
+test("GET /api/ai/stt reports the active speech-to-text engine", async () => {
+  const res = await get("/api/ai/stt");
+  assert.equal(res.status, 200);
+  const json = await readJson(res);
+  assert.ok("provider" in json);
+  assert.ok("local" in json);
+});
+
+test("POST /api/ai/transcribe rejects a body without audio with 400", async () => {
+  const res = await get("/api/ai/transcribe", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ mime: "audio/webm" }),
   });
   assert.equal(res.status, 400);
 });

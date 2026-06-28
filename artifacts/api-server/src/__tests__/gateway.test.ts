@@ -794,6 +794,7 @@ test("certify all HTTP backends: read URLs fully resolve (no dangling placeholde
 const SAMPLE_SETTINGS = {
   brokerUrl: "https://n8n/x",
   aiProvider: "ollama" as const,
+  sttProvider: "none" as const,
   aiModel: "llama3.2",
   backendSource: "sap",
   oidcIssuerUrl: "https://idp",
@@ -802,6 +803,9 @@ const SAMPLE_SETTINGS = {
   webhooks: [],
   loggingSync: { enabled: false, url: null, acknowledgedWarranty: false },
   fieldOverrides: { fields: {}, entities: {} },
+  screenLayouts: {},
+  userPrefs: {},
+  capabilityStates: {},
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {
@@ -984,6 +988,12 @@ test("branding: sanitize rejects a non-hex colour", () => {
 
 test("branding: sanitize rejects a non-http logo url", () => {
   assert.throws(() => sanitizeBranding({ logoUrl: "javascript:alert(1)" }), /URL/);
+});
+
+test("branding: accepts a safe brand font family, rejects an unsafe one", () => {
+  const b = sanitizeBranding({ fontFamily: "Inter, system-ui, sans-serif" });
+  assert.equal(b.fontFamily, "Inter, system-ui, sans-serif");
+  assert.throws(() => sanitizeBranding({ fontFamily: "url(evil)" }), /fontFamily/);
 });
 
 test("branding: effective falls back to product defaults when unlicensed (enforced)", () => {

@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Dev / debug override — layer ON TOP of a base compose to turn the gateway into a
+# WATERMARKED developer instance with the debug tooling armed:
+#
+#   docker compose -f docker-compose.standalone.yml -f docker-compose.dev.yml up
+#
+# What it flips on (all hard-gated to non-production in the app):
+#   - NODE_ENV=development          → dev mode active; the UI shows a DEV MODE watermark
+#   - OMNI_DEV_MODE=1               → explicit master switch for /api/dev-mode
+#   - BROKER_TRACE=1                → trace every broker/notify/export method at the seam
+#   - BROKER_CAPTURE=/data/…        → record a replayable capture tape of all traffic
+#   - DEV_PERSIST_FILE=/data/…      → stateful demo data, so the debug bundle has state
+#
+# The capture tape + demo state land in the `omni_dev_data` volume; pull them (or a
+# full debug bundle from Setup → Debug bundle) and replay on another dev instance.
+#
+# DEV ONLY. Never layer this onto a production deployment — it deliberately turns
+# OFF the stateless posture. The debug surfaces are inert in NODE_ENV=production
+# regardless, but this file also flips NODE_ENV, so keep it well away from prod.
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  omni-shell:
+    environment:
+      NODE_ENV: development
+      OMNI_DEV_MODE: "1"
+      LOG_LEVEL: debug
+      BROKER_TRACE: "1"
+      # Trace shows arg/result SHAPES by default; set to "1" to log full
+      # (secret-scrubbed) payloads — real backend PII, so leave off unless needed.
+      BROKER_TRACE_PAYLOADS: "0"
+      BROKER_CAPTURE: /data/capture.jsonl
+      DEV_PERSIST_FILE: /data/demo-state.json
+      # Convenience default so a dev instance boots without an .env; the prod
+      # compose still demands a real secret.
+      SESSION_SECRET: ${SESSION_SECRET:-dev-only-insecure-session-secret-change-me}
+    # The base service runs a read-only root fs; mount a writable volume for the
+    # capture tape + persisted demo state.
+    volumes:
+      - "omni_dev_data:/data"
+
+volumes:
+  omni_dev_data:

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { getSession } from "../routes/auth";
+import { directoryDecision } from "./scim";
 
 /**
  * Role-based access control.
@@ -179,7 +180,19 @@ export function grantsForReq(req: Request): Grants {
   // No session → read-only API tokens (and unauthenticated callers) are viewers.
   if (!session) return { base: "viewer", authorities: new Set<Authority>() };
   const isDemo = !process.env["OIDC_ISSUER_URL"]?.trim();
-  return grantsFromClaims(session.roles ?? [], { isDemo });
+  // A SCIM-provisioned user's group memberships are merged in as extra role claims, so the
+  // IdP's group→role assignment flows through without re-issuing OIDC claims.
+  const decision = directoryDecision({ email: session.email, sub: session.sub });
+  const claims = decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
+  return grantsFromClaims(claims, { isDemo });
+}
+
+/** Is this request's principal DEPROVISIONED in the SCIM directory? (known + active=false.) */
+export function isDeprovisioned(req: Request): boolean {
+  const session = getSession(req);
+  if (!session) return false;
+  const decision = directoryDecision({ email: session.email, sub: session.sub });
+  return decision.known && !decision.active;
 }
 
 /** A representative role label for the request (display/audit only). */
@@ -187,17 +200,31 @@ export function roleForReq(req: Request): Role {
   return displayRole(grantsForReq(req));
 }
 
+/** The canonical grants for a single named role (the inverse of `displayRole`) — so a
+ *  non-request principal (an autonomous actor) can be assigned grants from one role. */
+export function grantsForRole(role: Role): Grants {
+  if (role === "admin") return { base: "manager", authorities: new Set<Authority>(["admin"]) };
+  if (role === "pmo") return { base: "manager", authorities: new Set<Authority>(["pmo"]) };
+  if (role === "manager") return { base: "manager", authorities: new Set<Authority>() };
+  if (role === "contributor") return { base: "contributor", authorities: new Set<Authority>() };
+  return { base: "viewer", authorities: new Set<Authority>() };
+}
+
 /**
- * Does the request satisfy the gate `need`?
+ * Do these grants satisfy the gate `need`? (The request-free core of `hasRole`.)
  *  - a BASE role (viewer/contributor/manager) → base rung ≥ that rank (an authority
  *    confers manager-level base, so a PMO or admin clears `manager`);
  *  - an AUTHORITY (pmo/admin) → that exact authority is held. A pure admin does NOT
  *    satisfy `pmo`, and a pure PMO does NOT satisfy `admin` — they are orthogonal.
  */
-export function hasRole(req: Request, need: Role): boolean {
-  const g = grantsForReq(req);
+export function grantsSatisfy(g: Grants, need: Role): boolean {
   if (isAuthority(need)) return g.authorities.has(need);
   return BASE_RANK[g.base] >= BASE_RANK[need as BaseRole];
+}
+
+/** Does the request satisfy the gate `need`? */
+export function hasRole(req: Request, need: Role): boolean {
+  return grantsSatisfy(grantsForReq(req), need);
 }
 
 /** Express middleware: require the `need` grant, else 403. */

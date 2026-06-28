@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireRole, roleForReq, getRoleMap, setRoleMap, ROLES } from "../lib/rbac";
+import { requireStepUp } from "../lib/step-up";
 import { getSession } from "./auth";
 import { recordAudit } from "../lib/audit";
 
@@ -17,7 +18,7 @@ router.get("/admin/role-map", requireRole("admin"), (_req, res) => {
   res.json({ roles: ROLES, mapping: getRoleMap() });
 });
 
-router.put("/admin/role-map", requireRole("admin"), (req, res) => {
+router.put("/admin/role-map", requireRole("admin"), requireStepUp, (req, res) => {
   const mapping = setRoleMap(req.body);
   recordAudit({
     ts: new Date().toISOString(),

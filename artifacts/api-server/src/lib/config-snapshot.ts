@@ -19,7 +19,7 @@ export const SNAPSHOT_VERSION = 1;
 // Branding + label overrides are portable presentation config (no secrets) so
 // they ride along in snapshots. Webhook subscriptions are deliberately excluded
 // — they carry signing secrets and are environment-specific (see WEBHOOKS env).
-const SNAPSHOT_KEYS = ["brokerUrl", "aiProvider", "aiModel", "backendSource", "oidcIssuerUrl", "branding", "labelOverrides"] as const;
+const SNAPSHOT_KEYS = ["brokerUrl", "aiProvider", "aiModel", "backendSource", "oidcIssuerUrl", "branding", "labelOverrides", "screenLayouts", "userPrefs"] as const;
 type SnapshotKey = (typeof SNAPSHOT_KEYS)[number];
 
 export interface ConfigSnapshot {
@@ -43,6 +43,8 @@ export function buildSnapshot(settings: SettingsState): ConfigSnapshot {
       oidcIssuerUrl: settings.oidcIssuerUrl,
       branding: settings.branding,
       labelOverrides: settings.labelOverrides,
+      screenLayouts: settings.screenLayouts,
+      userPrefs: settings.userPrefs,
     },
   };
 }

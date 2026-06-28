@@ -1,0 +1,163 @@
+import { Router } from "express";
+import { requireRole } from "../lib/rbac";
+import { requireStepUp } from "../lib/step-up";
+import { getSession } from "./auth";
+import { recordAudit } from "../lib/audit";
+import { internalKeyFingerprint } from "../lib/config-crypto";
+import { exportConfig } from "../lib/config-store";
+import { persistSecurityState } from "../lib/security-state";
+import { listKeys, revokeKey, revokeUserSessions, KEY_NAMES, type KeyName } from "../lib/key-registry";
+import { auditAnchor, verifyAuditChain, type SealedAuditEvent } from "../lib/audit-chain";
+import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "../lib/maintenance";
+import { requiresDualControl, propose, approve, reject, listProposals, registerExecutor, type Actor } from "../lib/dual-control";
+import type { Request, Response } from "express";
+
+/**
+ * Admin-gated key revocation. An admin can retire a signing key (session / provenance /
+ * broker) — rolling it to a fresh derived version so anything signed by the revoked
+ * version is rejected (sessions) or flagged untrusted (provenance) — or revoke a single
+ * user's sessions. Every action is audited. RAM-only state (cleared on restart).
+ */
+const router = Router();
+
+const isKeyName = (s: string): s is KeyName => (KEY_NAMES as readonly string[]).includes(s);
+
+function actorOf(req: Request): Actor { const s = getSession(req); return { sub: s?.sub ?? "?", email: s?.email }; }
+
+/**
+ * If an action requires dual control, hold it as a proposal (202) instead of executing, and
+ * return true so the caller stops. The registered executor applies it once a second admin
+ * approves. Returns false (proceed normally) when dual control is off for this action.
+ */
+function heldForDualControl(action: string, params: unknown, req: Request, res: Response): boolean {
+  if (!requiresDualControl(action)) return false;
+  const p = propose(action, params, actorOf(req), new Date().toISOString());
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: `${action}.proposed`, actor: actorOf(req), write: true, result: "success", meta: { proposalId: p.id } });
+  res.status(202).json({ pending: true, proposalId: p.id, message: "A second admin must approve this change before it takes effect." });
+  return true;
+}
+
+// Executors — how each dual-controlled action is applied on approval (params only; no code in
+// the queue). Adding an action to DUAL_CONTROL_ACTIONS without an executor here is rejected.
+registerExecutor("maintenance.engage", (params) => {
+  engageMaintenance((params as { reason?: string })?.reason ?? "");
+  persistSecurityState();
+});
+registerExecutor("key.revoke", (params) => {
+  const { name, by, reason } = params as { name: KeyName; by: string | null; reason?: string };
+  revokeKey(name, { by, reason });
+  persistSecurityState();
+});
+
+router.get("/security/keys", requireRole("admin"), (_req, res) => {
+  res.json({ keys: listKeys() });
+});
+
+router.post("/security/keys/:name/revoke", requireRole("admin"), requireStepUp, (req, res) => {
+  const name = String(req.params["name"]);
+  if (!isKeyName(name)) { res.status(404).json({ error: "unknown key" }); return; }
+  const session = getSession(req);
+  const reason = typeof (req.body as { reason?: unknown })?.reason === "string" ? (req.body as { reason: string }).reason : undefined;
+  // Four-eyes: when key.revoke is dual-controlled, queue it for a second admin instead.
+  if (heldForDualControl("key.revoke", { name, by: session?.sub ?? null, reason }, req, res)) return;
+  const status = revokeKey(name, { by: session?.sub ?? null, reason });
+  persistSecurityState(); // a revocation must survive a restart
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "key.revoke", actor: session ? { sub: session.sub, email: session.email } : null, write: true, meta: { key: name, newVersion: status.version, reason: reason ?? null } });
+  res.json({ status });
+});
+
+router.post("/security/sessions/revoke-user", requireRole("admin"), requireStepUp, (req, res) => {
+  const sub = typeof (req.body as { sub?: unknown })?.sub === "string" ? (req.body as { sub: string }).sub : "";
+  if (!sub) { res.status(400).json({ error: "sub is required" }); return; }
+  revokeUserSessions(sub);
+  persistSecurityState();
+  const session = getSession(req);
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "sessions.revoke-user", actor: session ? { sub: session.sub, email: session.email } : null, write: true, meta: { sub } });
+  res.json({ ok: true });
+});
+
+// The current internal-key FINGERPRINT (non-secret) — confirm a match without revealing.
+router.get("/security/config-key", requireRole("admin"), (_req, res) => {
+  res.json({ fingerprint: internalKeyFingerprint() });
+});
+
+// SECURE config export (admin + step-up). The internal at-rest key is NEVER exported:
+// the live config is decrypted, re-encrypted under a one-time EPHEMERAL key, and the
+// internal key is then ROTATED + the on-disk store re-sealed. Returns the portable bundle
+// + the ephemeral key (the only secret that leaves, decrypting just this bundle). Audited.
+router.post("/security/config/export", requireRole("admin"), requireStepUp, (req, res) => {
+  const out = exportConfig();
+  const session = getSession(req);
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "config.export", actor: session ? { sub: session.sub, email: session.email } : null, write: true, result: "success", meta: { fromVersion: out.fromVersion, toVersion: out.toVersion, fingerprint: internalKeyFingerprint() } });
+  res.json({
+    bundle: out.bundle,
+    exportKey: out.exportKey,
+    warning: "Move the bundle file and keep the ephemeral key separate. The key decrypts ONLY this bundle and nothing else. Your internal at-rest key has been rotated — past copies of the live files no longer share its key.",
+  });
+});
+
+// ── Maintenance lockdown (break-glass read-only mode) ────────────────────────────
+// Read the current lockdown state (any admin). Surfaced on the dashboard.
+router.get("/admin/maintenance", requireRole("admin"), (_req, res) => {
+  res.json({ engaged: maintenanceEngaged(), reason: maintenanceReason() });
+});
+
+// Engage / release read-only lockdown (admin + step-up). While engaged, every write is
+// refused with 503 except auth, this toggle, and health. Persisted so a restart can't silently
+// un-freeze a deployment mid-incident. Audited.
+router.put("/admin/maintenance", requireRole("admin"), requireStepUp, (req, res) => {
+  const body = (req.body ?? {}) as { engaged?: unknown; reason?: unknown };
+  const engage = body.engaged === true;
+  const reason = typeof body.reason === "string" ? body.reason.slice(0, 280) : "";
+  // Engaging a freeze is the impactful direction — gate it with four-eyes when configured;
+  // releasing (recovery) stays unilateral so an incident can always be cleared.
+  if (engage && heldForDualControl("maintenance.engage", { reason }, req, res)) return;
+  if (engage) engageMaintenance(reason); else releaseMaintenance();
+  persistSecurityState();
+  const session = getSession(req);
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: engage ? "maintenance.engage" : "maintenance.release", actor: session ? { sub: session.sub, email: session.email } : null, write: true, result: "success", meta: { reason } });
+  res.json({ engaged: maintenanceEngaged(), reason: maintenanceReason() });
+});
+
+// ── Tamper-evident audit chain ──────────────────────────────────────────────────
+// GET the current chain anchor (seq + tip hash + key version) so an external verifier can
+// confirm the SIEM copy ends where the gateway says it does. Admin; no secrets exposed.
+router.get("/security/audit/anchor", requireRole("admin"), (_req, res) => {
+  res.json(auditAnchor());
+});
+
+// POST a slice of sealed audit events (e.g. pulled from the SIEM) to verify their integrity:
+// recomputes the keyed hash chain and reports the first broken link, if any. Admin.
+router.post("/security/audit/verify", requireRole("admin"), (req, res) => {
+  const body = (req.body ?? {}) as { events?: unknown; expectedFirstPrev?: unknown };
+  if (!Array.isArray(body.events)) { res.status(400).json({ error: "Body must be { events: SealedAuditEvent[], expectedFirstPrev? }." }); return; }
+  const expectedFirstPrev = typeof body.expectedFirstPrev === "string" ? body.expectedFirstPrev : undefined;
+  res.json(verifyAuditChain(body.events as SealedAuditEvent[], expectedFirstPrev));
+});
+
+// ── Dual-control approval queue (maker-checker) ──────────────────────────────────
+// The pending proposals awaiting a second approver (any admin can view the queue).
+router.get("/admin/approvals", requireRole("admin"), (_req, res) => {
+  res.json({ proposals: listProposals() });
+});
+
+// Approve + EXECUTE a proposal (admin + step-up). Enforces four-eyes: the approver must differ
+// from the proposer. Returns 409 on a four-eyes / missing-executor violation.
+router.post("/admin/approvals/:id/approve", requireRole("admin"), requireStepUp, async (req, res) => {
+  const id = String(req.params["id"]);
+  const result = await approve(id, actorOf(req), new Date().toISOString());
+  if (!result.ok) { res.status(/different admin|executor/i.test(result.error ?? "") ? 409 : 404).json({ error: result.error }); return; }
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "approval.approve", actor: actorOf(req), write: true, result: "success", meta: { proposalId: id, approved: result.proposal?.action } });
+  res.json({ ok: true, proposal: result.proposal });
+});
+
+// Reject a proposal (admin + step-up; any admin, incl. the proposer).
+router.post("/admin/approvals/:id/reject", requireRole("admin"), requireStepUp, (req, res) => {
+  const id = String(req.params["id"]);
+  const result = reject(id, actorOf(req), new Date().toISOString());
+  if (!result.ok) { res.status(404).json({ error: result.error }); return; }
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "approval.reject", actor: actorOf(req), write: true, result: "success", meta: { proposalId: id } });
+  res.json({ ok: true, proposal: result.proposal });
+});
+
+export default router;

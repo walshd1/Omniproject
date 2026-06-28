@@ -10,6 +10,14 @@
   "docsUrl": "https://pipedream.com/docs/",
   "hosted": true,
   "id": "pipedream",
+  "keyFormat": {
+    "env": [
+      "BROKER_PSK"
+    ],
+    "header": "X-Omni-Sig",
+    "pattern": "^.{16,}$",
+    "scheme": "psk"
+  },
   "kind": "code-first",
   "label": "Pipedream",
   "notes": "Code-first components on an HTTP source can `$respond()` synchronously — a strong fit for the binding.",

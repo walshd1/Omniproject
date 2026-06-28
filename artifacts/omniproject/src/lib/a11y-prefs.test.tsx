@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { loadA11yPrefs, applyA11yPrefs, DEFAULT_A11Y, A11yProvider } from "./a11y-prefs";
+import { PlatformProvider } from "./platform-context";
 import { A11yControls } from "../components/settings/A11yControls";
+
+// A11yControls reads both the prefs and the platform context.
+const Providers = ({ children }: { children: ReactNode }) => (
+  <A11yProvider><PlatformProvider>{children}</PlatformProvider></A11yProvider>
+);
 
 /**
  * Per-user accessibility overlay — client-side only, layered over company branding.
@@ -32,9 +39,10 @@ describe("a11y-prefs store", () => {
   });
 
   it("applyA11yPrefs writes the CSS var + data-attributes the stylesheet honours", () => {
-    applyA11yPrefs({ fontScale: 1.2, highContrast: true, reduceMotion: true });
+    applyA11yPrefs({ ...DEFAULT_A11Y, fontScale: 1.2, backgroundColor: "#101418", highContrast: true, reduceMotion: true });
     const root = document.documentElement;
     expect(root.style.getPropertyValue("--user-font-scale")).toBe("1.2");
+    expect(root.style.getPropertyValue("--user-bg")).toBe("#101418");
     expect(root.getAttribute("data-contrast")).toBe("high");
     expect(root.getAttribute("data-reduce-motion")).toBe("true");
   });
@@ -42,21 +50,21 @@ describe("a11y-prefs store", () => {
 
 describe("A11yControls", () => {
   it("toggles high contrast and persists it client-side", () => {
-    render(<A11yProvider><A11yControls /></A11yProvider>);
+    render(<Providers><A11yControls /></Providers>);
     fireEvent.click(screen.getByLabelText("High contrast"));
     expect(document.documentElement.getAttribute("data-contrast")).toBe("high");
     expect(JSON.parse(localStorage.getItem("omni:a11y")!).highContrast).toBe(true);
   });
 
   it("increases the text size and reflects the percentage", () => {
-    render(<A11yProvider><A11yControls /></A11yProvider>);
+    render(<Providers><A11yControls /></Providers>);
     fireEvent.click(screen.getByLabelText("Increase text size"));
     expect(screen.getByText("110%")).toBeInTheDocument();
     expect(document.documentElement.style.getPropertyValue("--user-font-scale")).toBe("1.1");
   });
 
   it("resets back to the company default", () => {
-    render(<A11yProvider><A11yControls /></A11yProvider>);
+    render(<Providers><A11yControls /></Providers>);
     fireEvent.click(screen.getByLabelText("Increase text size"));
     fireEvent.click(screen.getByText("Reset to company default"));
     expect(screen.getByText("100%")).toBeInTheDocument();

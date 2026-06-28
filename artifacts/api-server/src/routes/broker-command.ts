@@ -10,6 +10,8 @@ import { BrokerCommandBody } from "@workspace/api-zod";
 import { contextFromReq, respondBrokerError, isLiveBroker, BrokerError, brokerCommand } from "../broker";
 import { getSettings } from "../lib/settings";
 import { requireRole } from "../lib/rbac";
+import { getSession } from "./auth";
+import { enforceCapability, CapabilityBlockedError, getCapability } from "../lib/tools";
 
 const router = Router();
 
@@ -49,6 +51,23 @@ async function handle(req: Request, res: Response): Promise<void> {
   }
 
   const { action, source } = parse.data;
+
+  // Vendor governance: when the active backend names a specific vendor, that vendor's
+  // capability must be turned on (off by default). Denials are logged. When the source
+  // is "all"/unknown we can't attribute to one vendor, so the gate is skipped.
+  const vendorId = getSettings().backendSource?.trim();
+  if (vendorId && getCapability(`vendor:${vendorId}`)) {
+    try {
+      const s = getSession(req);
+      enforceCapability(`vendor:${vendorId}`, { actor: s ? { sub: s.sub, email: s.email } : null });
+    } catch (err) {
+      if (err instanceof CapabilityBlockedError) {
+        respondBrokerError(res, new BrokerError("unavailable", `Vendor "${vendorId}" is turned off by the administrator`));
+        return;
+      }
+      throw err;
+    }
+  }
 
   // Never trust client-supplied identity. Strip any userContext/origin from the
   // raw body; the server injects identity from the validated OIDC session.

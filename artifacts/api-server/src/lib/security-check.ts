@@ -9,6 +9,7 @@
  * prod) — this catches the *combinations* that are insecure but not individually
  * fatal.
  */
+import { demoAuthSeverity } from "./deployment-profile";
 
 export type Severity = "critical" | "warn" | "info";
 
@@ -28,14 +29,20 @@ export function securityFindings(env: Env): SecurityFinding[] {
   const prod = env["NODE_ENV"] === "production";
   if (!prod) return out; // dev/test deployments are expected to be relaxed
 
-  // The big one: production with no OIDC means demo auth — every session is admin.
+  // The big one: production with no OIDC means demo auth — every session is admin. Its
+  // severity follows the DEPLOYMENT_PROFILE: a blocker for enterprise/business, an accepted
+  // choice (warn/info) for a self-hoster/charity, or info once explicitly acknowledged
+  // (ACCEPT_DEMO_AUTH=1) — so a deliberate small-org choice isn't treated as a critical fault.
   if (!set(env["OIDC_ISSUER_URL"])) {
+    const severity = demoAuthSeverity(env);
     out.push({
       id: "demo-auth-in-prod",
-      severity: "critical",
+      severity,
       message:
-        "OIDC_ISSUER_URL is not set in production: authentication is in DEMO mode, where every " +
-        "session is treated as admin. Configure OIDC (or accept this is a public demo).",
+        "OIDC_ISSUER_URL is not set: authentication is in DEMO mode, where every session is " +
+        "treated as admin. " + (severity === "critical"
+          ? "Configure OIDC SSO (or set DEPLOYMENT_PROFILE / ACCEPT_DEMO_AUTH=1 to accept this for a small/LAN deployment)."
+          : "Accepted for this deployment profile — use the bundled IdP if you need real per-user accounts."),
     });
   }
   // Broker traffic not encrypted: a plain http:// broker URL to a non-loopback
@@ -55,6 +62,17 @@ export function securityFindings(env: Env): SecurityFinding[] {
           "sidecar / service-mesh mTLS.",
       });
     }
+  }
+  // Opt-in read cache relaxes the stateless "never stale" guarantee.
+  if (set(env["READ_CACHE_TTL_MS"]) && Number(env["READ_CACHE_TTL_MS"]) > 0) {
+    out.push({
+      id: "read-cache-on",
+      severity: "warn",
+      message:
+        `READ_CACHE_TTL_MS is set in production (${env["READ_CACHE_TTL_MS"]}ms): reads may be served stale up to this TTL — ` +
+        "the zero-drift guarantee is relaxed and backend data is briefly held in RAM. Intentional for high-latency/dispersed " +
+        "deployments; unset it to return to fully live reads.",
+    });
   }
   // Abuse protection disabled.
   if (on(env["RATE_LIMIT_DISABLED"])) {

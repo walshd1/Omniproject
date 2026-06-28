@@ -34,6 +34,23 @@ export type BackendTier = "standard" | "enterprise";
  */
 export type TransportMethod = "http" | "native-node";
 
+/**
+ * The shape of the key required to reach a backend or broker — declared in its JSON
+ * so keyless access can be hard-rejected and credentials scaffolded (the value itself
+ * is NEVER stored by OmniProject; this only describes where the operator's key lives
+ * and what it must look like).
+ */
+export interface KeyFormat {
+  /** The auth scheme the target expects. "none" = genuinely keyless (e.g. demo). */
+  scheme: "psk" | "bearer" | "apiKey" | "basic" | "oauth2" | "per-user" | "none";
+  /** Operator-side env var(s) the key lives in. */
+  env?: string[];
+  /** HTTP header the key is presented in, if any. */
+  header?: string;
+  /** Optional regex the key value must match (its format). */
+  pattern?: string;
+}
+
 // The broker registry (which brokers can serve a transport) lives in
 // ./broker-catalogue.ts — brokers are their own plane, derived from broker
 // capabilities rather than hardcoded here, so the two stay separate but linked.
@@ -69,6 +86,9 @@ export interface BackendManifest {
    * a UX signal that this is a technical, not a business, integration.
    */
   adminOnly?: boolean;
+  /** The shape of the key required to reach this backend (declared in its JSON), so
+   *  keyless access can be hard-rejected and credentials scaffolded. */
+  keyFormat?: KeyFormat;
   notes?: string;
   /**
    * Optional VOCAB MAPS — how this vendor names things, so a customer used to its

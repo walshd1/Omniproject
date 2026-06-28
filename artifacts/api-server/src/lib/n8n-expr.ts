@@ -14,11 +14,13 @@ export interface ExprContext {
   payload?: Record<string, unknown>;
 }
 
-// Walks a dotted path over a plain object. No prototype-key guard is needed: this
-// runs ONLY during offline certification against sample payloads (read-only, never
-// on live request data), so it is not a security boundary.
+// Walks a dotted path over a plain object. Although this runs only during offline
+// certification against sample payloads (not a live security boundary), it skips
+// prototype keys so it can never be reused into a prototype-pollution read.
+const PROTO_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 function getPath(obj: unknown, path: string): unknown {
   return path.split(".").reduce<unknown>((acc, key) => {
+    if (PROTO_KEYS.has(key)) return undefined;
     if (acc && typeof acc === "object") return (acc as Record<string, unknown>)[key];
     return undefined;
   }, obj);

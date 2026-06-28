@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { getSession } from "./auth";
 import { roleForReq } from "../lib/rbac";
 import { recordAudit, auditLevel } from "../lib/audit";
+import { isDevMode } from "../lib/dev-mode";
 
 /**
  * Audits every /api/* action at the configured level. Mounted after the rate
@@ -27,6 +28,13 @@ export function auditMiddleware(req: Request, res: Response, next: NextFunction)
       ms: Date.now() - start,
       ip: req.ip,
       write: ["POST", "PATCH", "PUT", "DELETE"].includes(req.method),
+      // Tag every transaction performed on a dev/debug instance, so dev activity
+      // (impersonation, entitlement overrides, spoofed brokers) is unmistakable in
+      // the audit trail and can be filtered/excluded from real records. When the
+      // request runs under an impersonation, record who really initiated it + why.
+      ...(isDevMode()
+        ? { meta: { devMode: true, ...(session?.impersonation ? { impersonatedBy: session.impersonation.by, impersonationReason: session.impersonation.reason } : {}) } }
+        : {}),
     });
   });
   next();

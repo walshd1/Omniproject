@@ -29,6 +29,9 @@ import { GATEWAY_ORIGIN, REQUEST_HEADERS, type BrokerEnvelope } from "./contract
 import { addUpstreamMs } from "../lib/request-timing";
 import { assertEgressAllowed } from "../lib/egress";
 import { pskEnabled, sealPayload, openPayload, PSK_HEADER, PSK_PREFIX } from "../lib/broker-psk";
+import { signBrokerRequest } from "../lib/broker-hmac";
+import { assertSafeBrokerPayload, assertSafeAuthHeader } from "../lib/payload-guard";
+import { currentTraceparent } from "../lib/tracing";
 
 /**
  * n8n broker — THE one place that knows the broker is n8n.
@@ -138,6 +141,13 @@ async function callN8n<T = unknown>(
     ...(actor ? { userContext: actor } : {}),
   };
 
+  // Injection guard at the egress: no control characters anywhere (CRLF/NUL header &
+  // response splitting), and identifier-shaped fields carry no URL-structural characters
+  // (so a crafted id can't reshape the backend request path/query). Broker-agnostic
+  // defence-in-depth — a hostile value never reaches the backend.
+  assertSafeBrokerPayload(enrichedPayload);
+  assertSafeAuthHeader(opts.ctx.authHeader);
+
   const startedAt = Date.now();
   const audit = (result: "success" | "error", status: number, extra?: Record<string, unknown>) => {
     // Attribute this call's wait to the request's upstream-timing total (no-op
@@ -186,6 +196,30 @@ async function callN8n<T = unknown>(
         },
         body: JSON.stringify(envelope),
       };
+
+  // Detached request signature (+ timestamp + nonce): lets a PSK-aware broker refuse
+  // REPLAYED or forged requests across untrusted networks. The same keyed MAC underpins
+  // the provenance chain. The PSK seal already covers confidentiality + integrity; this
+  // adds replay defence and a verifiable signature. Additive headers — a broker that
+  // doesn't check them simply ignores them.
+  const sig = signBrokerRequest(typeof init.body === "string" ? init.body : "", opts.ctx.sessionBind);
+  init.headers = { ...(init.headers as Record<string, string>), "X-Omni-Sig": sig.sig, "X-Omni-Ts": String(sig.ts), "X-Omni-Nonce": sig.nonce };
+  // When the signature used a per-session key, ship the (non-secret) binding so the
+  // broker re-derives that key from its master and confirms the request came from THIS
+  // user's valid session. No binding ⇒ the broker verifies under the static key.
+  if (sig.bind) {
+    init.headers = {
+      ...(init.headers as Record<string, string>),
+      "X-Omni-Bind-Sub": sig.bind.sub,
+      "X-Omni-Bind-Mono": sig.bind.smono,
+      "X-Omni-Bind-Salt": sig.bind.salt,
+      "X-Omni-Bind-Kver": String(sig.bind.bkver ?? ""),
+    };
+  }
+
+  // Forward the W3C trace context so the broker hop joins the same distributed trace.
+  const traceparent = currentTraceparent();
+  if (traceparent) init.headers = { ...(init.headers as Record<string, string>), traceparent };
 
   // Round-robin across the n8n pool; fail over to the next instance ONLY on a
   // connection-level error (a returned HTTP status is a real response, not an

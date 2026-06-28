@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { openConfig } from "./config-crypto";
 import { registerVendor, type VendorPlane } from "@workspace/backend-catalogue";
 import { applySnapshot } from "./config-snapshot";
 import { updateSettings } from "./settings";
@@ -55,12 +56,22 @@ export function configDirSummary(): ConfigDirSummary {
   return lastSummary;
 }
 
+/** Read a config file, transparently decrypting it if sealed at rest (else plaintext).
+ *  A sealed file that won't open (wrong key / tampered) throws a clear error. */
+function readConfigJson(file: string): unknown {
+  const raw = fs.readFileSync(file, "utf8");
+  if (!raw.startsWith("c1.")) return JSON.parse(raw); // plaintext
+  const opened = openConfig(raw);
+  if (opened === null) throw new Error(`${path.basename(file)}: could not decrypt (wrong config key?)`);
+  return JSON.parse(opened);
+}
+
 /** Read every `*.json` file in a directory (empty list if it doesn't exist). */
 function readJsonDir(dir: string): Array<{ file: string; data: unknown }> {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir)
     .filter((f) => f.endsWith(".json"))
-    .map((f) => ({ file: f, data: JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")) }));
+    .map((f) => ({ file: f, data: readConfigJson(path.join(dir, f)) }));
 }
 
 /**
@@ -119,7 +130,7 @@ function loadConfigJson(dir: string, summary: ConfigDirSummary): void {
   const file = path.join(dir, "config.json");
   if (!fs.existsSync(file)) return;
   try {
-    const { patch, warnings } = applySnapshot(JSON.parse(fs.readFileSync(file, "utf8")));
+    const { patch, warnings } = applySnapshot(readConfigJson(file));
     updateSettings(patch);
     summary.configApplied = true;
     summary.warnings.push(...warnings);
@@ -134,7 +145,7 @@ function loadRulesets(dir: string, summary: ConfigDirSummary): void {
     const full = path.join(dir, "rulesets", file);
     if (!fs.existsSync(full)) return;
     try {
-      fn(JSON.parse(fs.readFileSync(full, "utf8")));
+      fn(readConfigJson(full));
       summary.rulesetsApplied = true;
     } catch (err) {
       summary.errors.push(`rulesets/${file}: ${err instanceof Error ? err.message : String(err)}`);

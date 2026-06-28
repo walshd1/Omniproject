@@ -10,6 +10,14 @@
   "docsUrl": "https://docs.aws.amazon.com/lambda/latest/dg/welcome.html",
   "hosted": false,
   "id": "serverless",
+  "keyFormat": {
+    "env": [
+      "BROKER_PSK"
+    ],
+    "header": "X-Omni-Sig",
+    "pattern": "^.{16,}$",
+    "scheme": "psk"
+  },
   "kind": "serverless",
   "label": "Serverless function (any cloud)",
   "notes": "One HTTP function (Lambda / Cloud Functions / Azure Functions / a container) implementing the binding. Deploy anywhere; you wire backend auth yourself.",

@@ -19,6 +19,31 @@ The stateless Express gateway: routes above the broker seam, the broker adapter 
 
 Express application assembly — wires the middleware chain (security headers, body limits, request logging/timing, session cookies), mounts the `/api` router, and serves the built SPA from STATIC_DIR in single-container mode.
 
+### `artifacts/api-server/src/broker/cache.ts`
+
+OPT-IN server-side read cache — a short-TTL, in-memory cache of broker reads.
+
+| Function | What it does |
+| --- | --- |
+| `readCacheTtlMs` | The configured TTL in ms (0 ⇒ disabled). |
+| `readCacheEnabled` | Is the opt-in read cache active? |
+| `readCacheStats` | Cache hit/miss counters (for diagnostics). |
+| `invalidateReadCache` | Clear the active read cache, if any (called by write/command paths + resetBroker). |
+| `wrapWithCache` | Wrap a broker so its reads are cached for the configured TTL (writes clear it). |
+| `resetReadCacheStats` | Test-only: reset the hit/miss counters. |
+
+### `artifacts/api-server/src/broker/capture.ts`
+
+Capture tape — an ordered, append-only JSONL recording of plane exchanges over time, so a developer can capture activity on one instance and replay it on another (capture.ts records; replay.ts plays back).
+
+| Function | What it does |
+| --- | --- |
+| `captureEnabled` | Is capture armed? (Non-prod + BROKER_CAPTURE points at a path.) |
+| `capturePath` | The armed tape path, or null. |
+| `recordExchange` | Append one (secret-scrubbed) exchange to the armed tape. |
+| `resetCaptureSeq` | Test-only: reset the per-process sequence counter. |
+| `readTape` | Read a tape file into ordered exchanges (skips blank/corrupt lines). |
+
 ### `artifacts/api-server/src/broker/conformance.ts`
 
 Broker conformance suite — broker-agnostic.
@@ -42,10 +67,22 @@ Demo dataset — the canned data the DemoBroker serves.
 | `sampleNotifications` | Canned notification rows for demo mode (no backend). |
 | `getDemoState` | ── Stateful dev mode (opt-in via DEV_PERSIST_FILE; demo only) ───────────────── |
 | `persistDemoState` | Persist the in-memory demo dataset so it survives a restart (dev/test only). |
+| `loadDemoState` | Hydrate the demo dataset from disk on boot when stateful dev mode is enabled. |
 
 ### `artifacts/api-server/src/broker/demo.ts`
 
 Demo broker — the fake adapter.
+
+### `artifacts/api-server/src/broker/dev-broker.ts`
+
+Dev broker — the DEVELOPER/debug broker (distinct from the DemoBroker, which is the demonstration broker for training/sales).
+
+| Function | What it does |
+| --- | --- |
+| `getDevBrokerConfig` | The current dev-broker config (vendor × data source). |
+| `setDevBrokerConfig` | Update the dev-broker config (the caller resets the broker singleton to apply). |
+| `buildDevBroker` | Build a dev broker for an explicit config. |
+| `devBrokerFromEnv` | The active dev broker, or null to fall back to the normal broker. |
 
 ### `artifacts/api-server/src/broker/endpoint-context.ts`
 
@@ -63,6 +100,9 @@ Broker selection + the request→domain context adapter.
 | Function | What it does |
 | --- | --- |
 | `getBroker` | The active broker (n8n when configured, else demo). |
+| `resetBroker` | Drop the cached broker so the next getBroker() rebuilds it — used when the dev broker config is switched on the fly. |
+| `brokerVerifyConnection` | Test a backend connection through the active broker, or null if unsupported. |
+| `brokerStoreCredential` | Delegate a credential to the broker's vault, or null if the broker has none. |
 | `brokerKind` | Diagnostics: "n8n" | "demo". |
 | `isLiveBroker` | True when the active broker is backed by a real backend (not demo). |
 | `brokerCommand` | Forward an arbitrary action + payload through the adapter's command edge. |
@@ -70,6 +110,15 @@ Broker selection + the request→domain context adapter.
 | `resetReadinessCache` | Test-only: drop the readiness cache. |
 | `contextFromReq` | Build the domain ActorContext (forwarded identity + transport auth) from a request. |
 | `respondBrokerError` | Map a thrown broker error onto an HTTP response (status from the taxonomy). |
+
+### `artifacts/api-server/src/broker/key-guard.ts`
+
+Keyed-access guard for the live broker.
+
+| Function | What it does |
+| --- | --- |
+| `assertKeyedAccess` | Keyed-access guard for the live broker. |
+| `wrapWithKeyGuard` | Wrap a (live) broker so every call is hard-rejected unless a valid key is present. |
 
 ### `artifacts/api-server/src/broker/n8n.ts`
 
@@ -81,6 +130,15 @@ n8n broker — THE one place that knows the broker is n8n.
 | `orderedTargets` | The pool rotated by a round-robin offset, so consecutive calls spread load and a failed instance is followed by the next one. |
 | `idempotencyKey` | Deterministic idempotency key: sha256(action + projectId + issueId + timestamp_rounded_to_nearest_minute) Identical actions on the same entity within the same minute collapse to the same key, letting n8n drop duplicate triggers / webhook storms. |
 | `pingBroker` | Lightweight readiness probe: is the broker reachable RIGHT NOW? One bounded POST to the first pool endpoint — any HTTP response counts as reachable (we are checking connectivity, not authorisation); only a connection error/timeout is "not ready". |
+
+### `artifacts/api-server/src/broker/provenance.ts`
+
+Provenance decorator for the broker seam.
+
+| Function | What it does |
+| --- | --- |
+| `provenanceEnabled` | Provenance decorator for the broker seam. |
+| `wrapWithProvenance` | Wrap a broker so every call records a chained invoke/result fingerprint (additive). |
 
 ### `artifacts/api-server/src/broker/reference-backend-blueprint.ts`
 
@@ -123,6 +181,21 @@ The broker router / registry — which broker KINDS are connected to this deploy
 | `brokersSupporting` | The routing primitive: which connected broker kinds can serve a given capability (e.g. "who can deliver `eventsOutbound`?"). |
 | `brokerForCommand` | Per-kind command ROUTING — choose which connected broker KIND should serve a command, given what it needs (transport + capability). |
 
+### `artifacts/api-server/src/broker/replay-cli.ts`
+
+Capture-tape replay CLI (dev-only).
+
+### `artifacts/api-server/src/broker/replay.ts`
+
+Replay engine — play a capture tape (capture.ts) two ways:
+
+| Function | What it does |
+| --- | --- |
+| `isWriteMethod` | Replay engine — play a capture tape (capture.ts) two ways: |
+| `exchangeKey` | A stable key for matching a recorded call: method + args AFTER the actor ctx (arg 0 is the ActorContext, which varies per instance and is scrubbed). |
+| `buildReplayBroker` | Serve mode: a Broker backed by a tape. |
+| `redrive` | Re-drive a tape against a live broker (instance B), diffing each live result against the recording. |
+
 ### `artifacts/api-server/src/broker/router.ts`
 
 Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into an actual per-kind DISPATCH.
@@ -131,6 +204,10 @@ Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into a
 | --- | --- |
 | `endpointsForKind` | Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into an actual per-kind DISPATCH. |
 | `routeBrokerCall` | Route a broker call to the kind that should serve it. |
+
+### `artifacts/api-server/src/broker/send-cli.ts`
+
+Single-instruction broker CLI — fire ONE broker method through the seam and inspect the exchange, with tracing forced on.
 
 ### `artifacts/api-server/src/broker/templates/pipedream-component.ts`
 
@@ -145,9 +222,38 @@ SERVERLESS broker template — deploy on ANY cloud (AWS Lambda, Google Cloud Fun
 | `lambdaHandler` | AWS Lambda (Function URL / API Gateway proxy). |
 | `httpHandler` | Google Cloud Functions / Azure Functions / a container (Express-like req/res). |
 
+### `artifacts/api-server/src/broker/trace.ts`
+
+Plane trace decorator — makes any dispatch plane observable at the METHOD boundary.
+
+| Function | What it does |
+| --- | --- |
+| `debugAllowed` | Debug surfaces are inert in production, full stop. |
+| `traceEnabled` | Is method-boundary tracing active? (Non-prod + opt-in.) |
+| `payloadsEnabled` | May we emit full (secret-scrubbed) payloads in the LOG, not just shapes? |
+| `instrumented` | Should a plane be instrumented at all (trace and/or capture armed)? |
+| `shape` | A structural descriptor — types/keys/lengths, NO values. |
+| `redactDeep` | Full values with secret keys masked and arrays bounded. |
+| `errView` | A compact, leak-free error projection (BrokerError code preferred). |
+| `traceFn` | Wrap a single function so its calls are traced + (optionally) captured. |
+| `traced` | Wrap every method of an object so the whole plane is traced + capturable. |
+| `wrapWithTrace` | Broker-seam convenience (the original entry point). |
+| `firstDifference` | Deep structural equality over two results, used by the single-instruction CLI's `--twice` mode and by re-drive replay to flag divergence. |
+
 ### `artifacts/api-server/src/broker/types.ts`
 
 Broker boundary — domain contract.
+
+### `artifacts/api-server/src/broker/vendor-profile.ts`
+
+Vendor profile overlay — present a broker AS a specific vendor by overlaying that vendor's identity + DECLARED capability surface (from its JSON config) onto an underlying data broker.
+
+| Function | What it does |
+| --- | --- |
+| `vendorCapabilities` | Vendor profile overlay — present a broker AS a specific vendor by overlaying that vendor's identity + DECLARED capability surface (from its JSON config) onto an underlying data broker. |
+| `isVendorId` | Is this a real vendor id (not a neutral "all"/"none"/empty selector)? |
+| `demoVendorFor` | Decide the demo vendor to present, with the hard rule that a thin-file spoof NEVER appears over real data. |
+| `applyVendorProfile` | Overlay a vendor's identity + capability gating onto a base broker. |
 
 ### `artifacts/api-server/src/broker/verifiable-actions.ts`
 
@@ -171,6 +277,31 @@ Canonical value vocabularies — the cross-backend meanings the gateway reasons 
 
 Load this deployment's config directory (OMNI_CONFIG_DIR) BEFORE serving, so the vendor overlay + settings from the operator's folder of JSON are in place when the first request lands.
 
+### `artifacts/api-server/src/lib/ai-containment.ts`
+
+AI exposure → containment level.
+
+| Function | What it does |
+| --- | --- |
+| `isLocalHost` | Is a host on the local machine or a private network (RFC1918 / loopback / .local)? |
+| `classifyEndpointLocality` | Classify a user-defined endpoint as local or remote (no endpoint ⇒ remote, i.e. stricter). |
+| `aiSourceLevel` | The EXPOSURE level implied by the configured AI provider + its governance state — i.e. WHERE the AI runs, the hard floor below which containment can never be relaxed. |
+| `setContainmentRelax` | Relax the default-full containment toward `level` (admin). |
+| `getContainmentRelax` | The current admin relax floor (default "public" = full containment). |
+| `__resetContainmentRelax` | Test-only: restore the default-full posture. |
+| `aiContainmentLevel` | The ENFORCED containment level: the strictest of the admin relax floor (default full) and the AI source level. |
+
+### `artifacts/api-server/src/lib/ai-kill.ts`
+
+Global AI kill switch.
+
+| Function | What it does |
+| --- | --- |
+| `engageAiKill` | Engage the kill switch — all AI calls and autonomous writes stop immediately. |
+| `releaseAiKill` | Release the kill switch — the prior governance + grant posture resumes. |
+| `aiKillEngaged` | Is the AI kill switch currently engaged? |
+| `__resetAiKill` | Test-only: reset to the default (released). |
+
 ### `artifacts/api-server/src/lib/ai.ts`
 
 AI provider client.
@@ -188,6 +319,21 @@ Read-only API tokens for non-interactive clients (e.g. Power BI's Web connector,
 | --- | --- |
 | `hasValidApiToken` | True when the request carries a valid read-only API token. |
 
+### `artifacts/api-server/src/lib/approved-actions.ts`
+
+Customer-wide APPROVED vocabulary + actions.
+
+| Function | What it does |
+| --- | --- |
+| `isActionApproved` | Is this canonical action on the customer's approved allowlist? |
+| `approveAction` | Approve an action (admin extends the allowlist). |
+| `revokeApprovedAction` | Remove an action from the allowlist (admin tightens). |
+| `listApprovedActions` | The approved action allowlist. |
+| `approveTerm` | Approve a vocabulary term. |
+| `listApprovedVocab` | The approved vocabulary. |
+| `setApproved` | Replace the whole allowlist (an admin applies the customer-wide file). |
+| `__resetApproved` | Test-only: restore the default-safe allowlist (reads approved, no vocab). |
+
 ### `artifacts/api-server/src/lib/audit.ts`
 
 Action audit logging.
@@ -200,6 +346,38 @@ Action audit logging.
 | `recordAudit` | Record one audit event: stdout (pino) + the external sink, gated by level. |
 | `auditStatus` | Status for the setup/diagnostics view. |
 
+### `artifacts/api-server/src/lib/autonomous-grant.ts`
+
+Autonomous WRITE authorisation — the hard limit that stops an autonomous session being a backdoor.
+
+| Function | What it does |
+| --- | --- |
+| `registerAutonomousGrant` | Seed/replace an autonomous write grant (admin/config). |
+| `getAutonomousGrant` | The grant for an actor id, or undefined (⇒ default deny). |
+| `listAutonomousGrants` | Every active write grant (for the admin dashboard). |
+| `setAutonomousGrants` | Replace the whole grant set (admin applies the config JSON). |
+| `__resetAutonomousGrants` | Test-only: clear grants + counters. |
+| `actorIdOf` | The registry id behind an autonomous principal's sub (automation:<id> / agent:<id>:<who>). |
+| `assertGrantContainment` | Containment check, scaled to AI exposure. |
+| `previewAutonomousWrite` | DRY-RUN: would this autonomous write be permitted, and why or why not? No side effects (no audit entry, no rate consumed) — for previewing what an actor COULD do before it acts. |
+| `authorizeAutonomousWrite` | Authorise an autonomous write, or throw. |
+
+### `artifacts/api-server/src/lib/autonomous.ts`
+
+Autonomous principals.
+
+| Function | What it does |
+| --- | --- |
+| `autonomousTtlMs` | — |
+| `autonomousSub` | The namespaced, clearly-non-human principal id for an autonomous actor. |
+| `actorKindOf` | The kind of principal a spec describes. |
+| `registerAutonomousActor` | Register (or raise/lower) the max role an autonomous actor id may run as (admin/config). |
+| `authorizedRole` | The max role a known actor may run as, or undefined if it isn't an allowed source. |
+| `mintAutonomousContext` | Mint a KEYED, RBAC-roled ActorContext for an autonomous actor. |
+| `assertMintFresh` | Confirm a minted context is FRESH for this run: stamped, not in the future, not past its short expiry, and within the (short) TTL of `now`. |
+| `isAutonomous` | Is this context an autonomous (non-human) principal? |
+| `assertAutonomousCan` | Enforce RBAC for an autonomous actor before it performs `need`-gated work. |
+
 ### `artifacts/api-server/src/lib/branding.ts`
 
 SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
@@ -210,6 +388,16 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 | `effectiveBranding` | The branding the UI should render right now (defaults unless entitled). |
 | `saveBranding` | Persist branding overrides (callers must enforce the entitlement). |
 | `clearBranding` | Reset white-label branding back to the product defaults. |
+
+### `artifacts/api-server/src/lib/broker-hmac.ts`
+
+Gateway↔broker request signing (security item C, folded into provenance): a detached HMAC over the request body plus a timestamp and a single-use nonce, so the broker can prove the request came from the gateway and refuse REPLAYS and STALE traffic across untrusted networks.
+
+| Function | What it does |
+| --- | --- |
+| `signBrokerRequest` | Sign a request body for the broker (fresh timestamp + nonce). |
+| `verifyBrokerRequest` | Verify a signed broker request: signature matches, timestamp is within the freshness window, and the nonce hasn't been used (replay). |
+| `__resetBrokerHmac` | Test-only: clear the replay cache. |
 
 ### `artifacts/api-server/src/lib/broker-log-bus.ts`
 
@@ -268,6 +456,16 @@ Column → canonical-field mapper.
 | `applyColumnMapping` | Apply a confirmed mapping to raw rows, producing canonical payloads. |
 | `mappingFromSuggestions` | Derive the confirmed-mapping list from suggestions (drops the unmapped ones). |
 
+### `artifacts/api-server/src/lib/compression.ts`
+
+Dependency-free response compression (gzip/brotli) for the gateway.
+
+| Function | What it does |
+| --- | --- |
+| `negotiateEncoding` | Best encoding the client accepts — brotli preferred, then gzip, else none. |
+| `isCompressible` | Is a response with these headers safe — and worth — compressing? |
+| `compression` | Express middleware: negotiate + buffer-then-compress, with safe pass-throughs. |
+
 ### `artifacts/api-server/src/lib/concurrency.ts`
 
 Optimistic-concurrency helper.
@@ -276,6 +474,17 @@ Optimistic-concurrency helper.
 | --- | --- |
 | `versionConflict` | Optimistic-concurrency helper. |
 
+### `artifacts/api-server/src/lib/conditional.ts`
+
+Conditional (delta) reads — let a client revalidate a read and get back "nothing changed" instead of the whole payload, WITHOUT the gateway storing any data.
+
+| Function | What it does |
+| --- | --- |
+| `hashETag` | Conditional (delta) reads — let a client revalidate a read and get back "nothing changed" instead of the whole payload, WITHOUT the gateway storing any data. |
+| `tokenETag` | A weak ETag derived from a broker-supplied change token. |
+| `ifNoneMatch` | The caller's If-None-Match value, if any. |
+| `conditionalJson` | Send a read response with delta semantics. |
+
 ### `artifacts/api-server/src/lib/config-bundle.ts`
 
 "Lock this config" export — dump the current effective config as the EXACT folder-of-JSON the config-directory loader reads (read ≡ dump).
@@ -283,6 +492,21 @@ Optimistic-concurrency helper.
 | Function | What it does |
 | --- | --- |
 | `buildConfigBundle` | "Lock this config" export — dump the current effective config as the EXACT folder-of-JSON the config-directory loader reads (read ≡ dump). |
+
+### `artifacts/api-server/src/lib/config-crypto.ts`
+
+Config-at-rest encryption + secure export.
+
+| Function | What it does |
+| --- | --- |
+| `sealConfig` | Seal a config string under the current internal key (version embedded). |
+| `openConfig` | Open an internal-format token, or null. |
+| `readMaybeSealed` | Read possibly-sealed config text: open if sealed, else return as-is (plaintext migration). |
+| `rotateInternalKey` | Rotate the internal key forward (new seals use the next version). |
+| `internalKeyFingerprint` | A non-secret fingerprint of the CURRENT internal key (confirm a match without revealing). |
+| `exportConfigBundle` | Produce a portable, ephemerally-keyed bundle of `plaintext`, then ROTATE the internal key. |
+| `openBundle` | Open an exported bundle with its ephemeral key (the import side, on another deployment). |
+| `__resetConfigCrypto` | Test-only: reset the internal key version. |
 
 ### `artifacts/api-server/src/lib/config-dir.ts`
 
@@ -317,6 +541,8 @@ Configuration environments + versioned rollback.
 
 | Function | What it does |
 | --- | --- |
+| `serializeState` | The current config state as JSON (decrypted) — what an export bundle wraps. |
+| `exportConfig` | Securely export the config: re-encrypt the decrypted state under a one-time ephemeral key, then ROTATE the internal key and re-seal the on-disk store under the new version. |
 | `storeView` | The store summary for the UI: active env, env names, versions (newest first), the last known-good id, and whether it's disk-persisted. |
 | `captureVersion` | Capture the current settings as a new version of the active environment. |
 | `createEnvironment` | Create a named environment, seeded by cloning the active env's current config. |
@@ -327,6 +553,38 @@ Configuration environments + versioned rollback.
 | `rollbackToLastKnownGood` | One-click rollback of the active environment to its last known-good version. |
 | `promote` | Copy one environment's config onto another (e.g. promote sandbox → production). |
 | `__resetConfigStore` | Test-only: reset the in-memory store. |
+
+### `artifacts/api-server/src/lib/connection-credentials.ts`
+
+Connection-credential scaffolding — works out WHICH credentials a deployment's brokers need for the vendors they reach (each vendor declares its `requiredEnv`) and renders a fill-in template for the operator's secret store.
+
+| Function | What it does |
+| --- | --- |
+| `isSecretEnv` | Heuristic: is this env var a secret to protect (vs a plain instance URL etc.)? |
+| `requiredCredentials` | The union of required env across the given backends, tagged secret/config. |
+| `renderCredentialTemplate` | Render a fill-in template (placeholders only) for the operator to complete. |
+
+### `artifacts/api-server/src/lib/copilot.ts`
+
+Portfolio copilot — read-only NL Q&A over the portfolio read model.
+
+| Function | What it does |
+| --- | --- |
+| `sanitizeForPrompt` | Strip control characters and cap length so a data value can't break the prompt frame. |
+| `scopeContext` | Project portfolio rows down to the minimal, sanitised snapshot the model may see. |
+| `copilotMessages` | Build the copilot messages: a hardening system prompt + the delimited data + question. |
+| `answerCopilot` | Answer a question over the scoped read model. |
+
+### `artifacts/api-server/src/lib/csrf.ts`
+
+CSRF hardening for cookie-authenticated mutations (security item B).
+
+| Function | What it does |
+| --- | --- |
+| `newCsrfToken` | Mint a fresh CSRF token (hex). |
+| `setCsrfCookie` | Set the double-submit cookie (readable by the SPA's JS so it can echo the header). |
+| `ensureCsrfCookie` | Ensure a session-bearing request has a CSRF token; mint one if absent (upgrade path). |
+| `csrfGuard` | The CSRF guard middleware (mount after cookieParser + slideSession). |
 
 ### `artifacts/api-server/src/lib/csv.ts`
 
@@ -352,6 +610,7 @@ Data accessor facade.
 
 | Function | What it does |
 | --- | --- |
+| `brokerChangeToken` | A cheap change token for a resource (for conditional/delta reads), or null when the active broker can't supply one (the caller falls back to a payload hash). |
 | `getProjects` | List all projects the actor can see, via the active broker. |
 | `getIssues` | List the issues of one project, via the active broker. |
 | `getActivity` | The cross-project activity feed, via the active broker. |
@@ -360,6 +619,46 @@ Data accessor facade.
 | `getBaseline` | One project's baseline snapshot, via the active broker. |
 | `getRaid` | One project's RAID log (risks/assumptions/issues/dependencies), via the active broker. |
 | `getNotifications` | The actor's notification feed, via the active broker. |
+
+### `artifacts/api-server/src/lib/debug-bundle.ts`
+
+Debug bundle — a single reproducible dump that lets you replicate an issue on another instance.
+
+| Function | What it does |
+| --- | --- |
+| `buildDebugBundleEntries` | Assemble the bundle entries + manifest for a given timestamp. |
+| `buildDebugBundleZip` | Build the bundle as a ZIP buffer. |
+
+### `artifacts/api-server/src/lib/dev-entitlements.ts`
+
+Dev-mode entitlement overrides — force individual paid features on or off to test the licensed vs unlicensed UX without minting a real licence.
+
+| Function | What it does |
+| --- | --- |
+| `getDevEntitlementOverrides` | The current overrides as a plain object (feature → forced state). |
+| `setDevEntitlementOverride` | Force a feature on/off, or pass null to clear that feature's override. |
+| `clearDevEntitlementOverrides` | Clear every override (e.g. on "reset" or in tests). |
+| `applyDevEntitlementOverrides` | Apply the dev overrides to a base feature list (dev mode only). |
+
+### `artifacts/api-server/src/lib/dev-mode-guard.ts`
+
+Dev-mode production guard — the hard safety interlock that stops a developer/ debug instance from running where it could do harm.
+
+| Function | What it does |
+| --- | --- |
+| `devModeActive` | Dev mode computed purely from an env map (mirrors lib/dev-mode.isDevMode). |
+| `productionSignals` | Production signals that must not coexist with dev mode. |
+| `evaluateDevModeGuard` | Evaluate the guard (pure). |
+| `runDevModeGuard` | Boot hook: evaluate the guard, log loudly, and THROW (refuse to boot) when dev mode collides with production signals. |
+
+### `artifacts/api-server/src/lib/dev-mode.ts`
+
+Dev mode — the single source of truth for "is this a developer/debug instance?".
+
+| Function | What it does |
+| --- | --- |
+| `isDevMode` | Is this a developer/debug instance? Always false in production. |
+| `devModeStatus` | A small, public-safe projection — no paths, no secrets, just which surfaces are on. |
 
 ### `artifacts/api-server/src/lib/dev-persist.ts`
 
@@ -404,6 +703,26 @@ Field registry (gateway view) — the reconcile / validate behaviour over the ca
 
 Indicative, GBP-based FX table used as a sample/fallback only — NOT live market data (note the epoch `asOf` and `provenance: "sample"`).
 
+### `artifacts/api-server/src/lib/health-watch.ts`
+
+Health / anomaly watch.
+
+| Function | What it does |
+| --- | --- |
+| `evaluateHealth` | Evaluate every rule against every portfolio row → findings (pure; `at` injected). |
+| `recentFindings` | The most recent findings (newest last). |
+| `__resetHealthWatch` | Test-only: clear the findings ring. |
+| `runHealthWatch` | Run the watch: mint the keyed actor, read the portfolio THROUGH the broker as that actor, evaluate the rules, notify per finding, and record the run. |
+
+### `artifacts/api-server/src/lib/impersonation.ts`
+
+Ephemeral dev-mode impersonation — let a developer act AS another user to reproduce a role-specific issue, with hard guardrails:
+
+| Function | What it does |
+| --- | --- |
+| `activeImpersonation` | The active impersonation on a session (dev mode + not expired), else null. |
+| `effectiveSession` | The effective session: the impersonated identity overlaid when an impersonation is active, otherwise the session with any inert/expired impersonation stripped (so it never leaks downstream). |
+
 ### `artifacts/api-server/src/lib/jwks.ts`
 
 Dependency-free JWKS / JWT signature verification.
@@ -415,6 +734,23 @@ Dependency-free JWKS / JWT signature verification.
 | `validateClaims` | Validate the standard claims. |
 | `fetchJwks` | Fetch the issuer's JWKS signing keys, cached for 10 minutes. |
 | `verifyIdToken` | Full verification: fetch JWKS, verify signature against the matching key, and validate iss/aud/exp/nbf. |
+
+### `artifacts/api-server/src/lib/key-registry.ts`
+
+Key registry with admin-gated revocation.
+
+| Function | What it does |
+| --- | --- |
+| `currentVersion` | The current (active) version of a key. |
+| `isActive` | Is this version of a key still active (not revoked)? |
+| `derivedKey` | Derive the signing material for a key version (hex). |
+| `listKeys` | Every known key's status (for the admin view). |
+| `revokeKey` | Revoke a key's current version and roll forward to a fresh derived key. |
+| `revokeUserSessions` | Revoke all of one user's sessions (issued before now). |
+| `userSessionsRevokedAt` | The instant a user's sessions were revoked, or 0. |
+| `snapshotKeys` | Serialisable snapshot of all revocation state (for durable persistence). |
+| `restoreKeys` | Restore revocation state from a snapshot (boot-time durability). |
+| `__resetKeyRegistry` | Test-only: reset all key state. |
 
 ### `artifacts/api-server/src/lib/labels.ts`
 
@@ -435,7 +771,7 @@ Licensing / entitlements — the paywall for premium overlay features.
 | `signLicense` | Sign a licence payload with an Ed25519 private key (PEM). |
 | `verifyLicense` | Verify a licence token's signature + expiry against an Ed25519 public key. |
 | `premiumEnforced` | Pre-community period: premium is FREE to run. |
-| `resolveLicense` | Resolve current entitlements from env/config. |
+| `resolveLicense` | Resolve current entitlements from env/config, then apply any DEV-mode overrides (a no-op in production). |
 | `isEntitled` | Is a premium feature currently entitled? |
 | `licenseSummary` | A safe summary for the UI / status endpoints (no signature material). |
 | `requireEntitlement` | Express middleware: 402 Payment Required unless `feature` is entitled. |
@@ -477,6 +813,16 @@ Minimal resolver for the n8n expressions used in backend manifest URLs, so we ca
 | --- | --- |
 | `resolveTemplate` | Resolve a manifest URL/header template. |
 | `isFullyResolved` | True when no `{{…}}` placeholders remain (the template fully resolved). |
+
+### `artifacts/api-server/src/lib/nl-action.ts`
+
+Natural-language → canonical action planner.
+
+| Function | What it does |
+| --- | --- |
+| `plannerPrompt` | Build the planner prompt: the catalogue + a strict JSON output contract. |
+| `toPlan` | Validate a parsed model reply against the tool catalogue into a typed plan. |
+| `planAction` | Plan an action from natural language. |
 
 ### `artifacts/api-server/src/lib/nomenclature.ts`
 
@@ -532,6 +878,16 @@ Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
 | `verifyIdToken` | Cryptographically verify the ID token against the issuer's JWKS and validate iss/aud/exp/nbf. |
 | `decodeIdTokenClaims` | Decode the JWT id_token to extract user claims. |
 
+### `artifacts/api-server/src/lib/payload-guard.ts`
+
+Egress injection guard for the broker seam (security item: injection hardening).
+
+| Function | What it does |
+| --- | --- |
+| `assertSafeIdentifier` | Reject an identifier value carrying control or URL-structural characters. |
+| `assertSafeAuthHeader` | Reject a forwarded auth header carrying control characters (CRLF header injection). |
+| `assertSafeBrokerPayload` | Recursively validate an outbound payload: no control characters in any string, and identifier-shaped keys hold no URL-structural characters. |
+
 ### `artifacts/api-server/src/lib/pdf.ts`
 
 Minimal, dependency-free PDF writer.
@@ -560,6 +916,22 @@ Tiny, dependency-free PROPERTY-TESTING harness — the structured approach to ed
 | `mulberry32` | mulberry32 — a fast, well-distributed seedable PRNG (no crypto needed here). |
 | `check` | Assert `prop` holds for `runs` generated inputs. |
 
+### `artifacts/api-server/src/lib/provenance.ts`
+
+Provenance chain — a keyed-MAC, hash-chained record of every broker call, holding ONLY fingerprints, never content.
+
+| Function | What it does |
+| --- | --- |
+| `canonical` | Deterministic JSON: object keys sorted recursively, so the MAC is stable. |
+| `contentMac` | The fingerprint of some content, bound to the actor + sequence position. |
+| `sessionMac` | Keyed fingerprint of the initiating session — the SAME binding the broker key uses (sub‖smono‖salt), under the provenance key. |
+| `record` | Append one fingerprint to the chain and return the (content-free) entry. |
+| `recentProvenance` | Recent chain entries (optionally just one call's), oldest→newest. |
+| `verifyChain` | Verify a CONTIGUOUS slice of the chain: each entry's own MAC recomputes (so no field was altered), the links join (prevMac === previous mac), and order is monotonic. |
+| `verifyContent` | Prove "nothing changed": re-present content and confirm it matches the fingerprint. |
+| `verifySession` | Prove "this exact session initiated it": re-present the session binding and confirm it matches the entry's session fingerprint. |
+| `__resetProvenance` | Test-only: reset the in-memory chain. |
+
 ### `artifacts/api-server/src/lib/rate-limit.ts`
 
 Rate limiting to protect n8n / OpenRouter from spam and scripting loops.
@@ -581,7 +953,9 @@ Role-based access control.
 | `roleFromClaims` | Back-compat single-role view of a user's claims (the representative label). |
 | `grantsForReq` | Resolve a request's session (or API token) to its grants. |
 | `roleForReq` | A representative role label for the request (display/audit only). |
-| `hasRole` | Does the request satisfy the gate `need`? - a BASE role (viewer/contributor/manager) → base rung ≥ that rank (an authority confers manager-level base, so a PMO or admin clears `manager`); - an AUTHORITY (pmo/admin) → that exact authority is held. |
+| `grantsForRole` | The canonical grants for a single named role (the inverse of `displayRole`) — so a non-request principal (an autonomous actor) can be assigned grants from one role. |
+| `grantsSatisfy` | Do these grants satisfy the gate `need`? (The request-free core of `hasRole`.) - a BASE role (viewer/contributor/manager) → base rung ≥ that rank (an authority confers manager-level base, so a PMO or admin clears `manager`); - an AUTHORITY (pmo/admin) → that exact authority is held. |
+| `hasRole` | Does the request satisfy the gate `need`? |
 | `requireRole` | Express middleware: require the `need` grant, else 403. |
 
 ### `artifacts/api-server/src/lib/read-cache.ts`
@@ -647,6 +1021,17 @@ Startup security self-check — surface dangerous *production* configurations lo
 | `securityFindings` | Evaluate the deployment config and return any security findings (pure). |
 | `runSecuritySelfCheck` | Boot hook: log findings at their severity. |
 
+### `artifacts/api-server/src/lib/security-state.ts`
+
+Durable security state.
+
+| Function | What it does |
+| --- | --- |
+| `collectSecurityState` | Gather the current security state into one serialisable object. |
+| `applySecurityState` | Apply a security snapshot to the live registries. |
+| `persistSecurityState` | Persist the current security state (sealed) — no-op unless SECURITY_STATE_FILE is set. |
+| `loadSecurityState` | Restore the security state at boot (sealed file; plaintext tolerated for migration). |
+
 ### `artifacts/api-server/src/lib/session-crypto.ts`
 
 Authenticated encryption for the session cookie.
@@ -655,6 +1040,26 @@ Authenticated encryption for the session cookie.
 | --- | --- |
 | `seal` | Encrypt + authenticate a string. |
 | `open` | Decrypt + verify. |
+
+### `artifacts/api-server/src/lib/session-key.ts`
+
+Per-session broker signing key.
+
+| Function | What it does |
+| --- | --- |
+| `deriveSessionBrokerKey` | Derive the per-session broker signing key (hex) from its binding material. |
+| `sessionBindFromSession` | Pull the binding material off a session, or null when it predates the scheme (older cookie, or a system/unauthenticated call) — callers fall back to the static broker key in that case. |
+
+### `artifacts/api-server/src/lib/session-timeout.ts`
+
+Session timeout policy — a sliding IDLE timeout plus an ABSOLUTE lifetime cap.
+
+| Function | What it does |
+| --- | --- |
+| `idleMs` | Idle timeout in ms (0 = disabled). |
+| `absoluteMs` | Absolute session lifetime in ms (0 = disabled). |
+| `isSessionExpired` | Has this session expired by idle or absolute age at `now`? Missing timestamps are treated as NOT expired so pre-upgrade cookies survive — they get stamped on the next request and are enforced from then on (see auth.ts slideSession). |
+| `timeoutPolicy` | Public view of the policy, for the frontend idle warning / countdown. |
 
 ### `artifacts/api-server/src/lib/settings.ts`
 
@@ -684,6 +1089,40 @@ Graceful shutdown — on SIGTERM/SIGINT (e.g. `docker stop`, a rolling deploy), 
 | `gracefulShutdown` | Run one graceful shutdown. |
 | `installShutdownHandlers` | Install SIGTERM/SIGINT handlers that run a single graceful shutdown. |
 
+### `artifacts/api-server/src/lib/step-up.ts`
+
+Step-up (re-authentication) for the highest-risk actions (security item D).
+
+| Function | What it does |
+| --- | --- |
+| `stepUpWindowMs` | How long a step-up stays fresh (STEP_UP_MINUTES, default 5). |
+| `stepUpFresh` | Has this session re-authenticated within the freshness window? |
+| `requireStepUp` | Middleware: require a fresh step-up. |
+
+### `artifacts/api-server/src/lib/tools.ts`
+
+Capability governance — one model for every "thing that can move data or be turned on/off": AI tools, the MCP, AI providers and vendors.
+
+| Function | What it does |
+| --- | --- |
+| `listCapabilities` | Every governed capability across all kinds. |
+| `getCapability` | Look up a capability by id. |
+| `offeredStates` | The states the UI should offer for a capability: "off" plus whatever it supports. |
+| `resolveState` | The effective state of a capability — optionally on a given surface. |
+| `resolveCapability` | Resolve one capability against the stored settings (no surface applied). |
+| `listResolvedCapabilities` | Every capability resolved against the current settings. |
+| `effectiveState` | Resolve a single capability's effective state for a surface (the runtime check). |
+| `listSurfaces` | Governable surfaces (screens) from the registry — drives the admin override picker. |
+| `validEndpoint` | Validate a user-defined endpoint: a well-formed http(s) URL, or null. |
+| `screenIdForRoute` | Normalise a client-supplied surface (which may be a route path like "/reports") to a canonical screen id from the registry, so per-surface overrides always match. |
+| `checkEndpointReachable` | Probe a user-defined endpoint: any HTTP response = reachable; a network error or timeout = not. |
+| `recentCapabilityLog` | Recent capability activity (uses, blocks, config changes), newest first. |
+| `decideCapability` | Resolve a capability-use decision for a surface AND record it — to the audit log and the live activity ring — whether allowed or denied, so there's always a trail of which AI/vendor/broker ran where and for whom. |
+| `noteCapabilityConfigured` | Record an admin turning a capability on/off (audited + shown on the dashboard). |
+| `enforceCapability` | Strong call-time gate: decide + log, and THROW CapabilityBlockedError when the capability is off for this surface. |
+| `sanitizeCapabilitySetting` | Coerce an admin's input for one capability to a valid, supportable setting. |
+| `setCapabilityState` | Persist an admin's setting for one capability; returns the stored setting. |
+
 ### `artifacts/api-server/src/lib/url-safety.ts`
 
 Outbound-URL safety for admin-configured endpoints (the broker URL and premium webhook targets), which are passed to `fetch()`.
@@ -692,6 +1131,17 @@ Outbound-URL safety for admin-configured endpoints (the broker URL and premium w
 | --- | --- |
 | `assertSafeOutboundUrl` | Throw `UnsafeUrlError` unless `raw` is a well-formed, non-metadata http(s) URL. |
 | `isSafeOutboundUrl` | Non-throwing predicate form of {@link assertSafeOutboundUrl}. |
+
+### `artifacts/api-server/src/lib/user-prefs.ts`
+
+Per-user UI/accessibility preferences, persisted server-side keyed by the user's `sub` so a person's setup (text size, background colour, contrast, motion) follows them across SESSIONS and devices — not just one browser.
+
+| Function | What it does |
+| --- | --- |
+| `sanitizeUserPrefs` | Coerce arbitrary input to valid prefs, filling each missing field from defaults. |
+| `getUserPrefs` | A user's stored prefs, or the code defaults when they have none. |
+| `hasUserPrefs` | Has this user saved prefs? (Lets the client tell "stored" from "defaults".) |
+| `setUserPrefs` | Persist (sanitised) prefs for a user; returns what was stored. |
 
 ### `artifacts/api-server/src/lib/webhooks.ts`
 
@@ -756,7 +1206,11 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 
 | Function | What it does |
 | --- | --- |
+| `slideSession` | Slide the idle timeout forward on activity: re-stamp `seen` (throttled) so an active user stays signed in, and tidy up an expired/garbage session cookie. |
 | `getSession` | Exposed so other routes (e.g. the n8n proxy) can pull the bearer token. |
+| `getRealSession` | The REAL signed-in session, ignoring any impersonation — used to authorise starting/stopping an impersonation against the genuine actor. |
+| `startImpersonation` | Begin an ephemeral impersonation on the current session (overwrites any prior one). |
+| `stopImpersonation` | Clear any impersonation from the current session. |
 
 ### `artifacts/api-server/src/routes/branding.ts`
 
@@ -778,9 +1232,17 @@ Capability + field-manifest endpoints.
 
 GET /api/contract — serve the published, versioned SOUTHBOUND broker contract (the interface a broker must implement) + its JSON Schema.
 
+### `artifacts/api-server/src/routes/dev-mode.ts`
+
+Dev-mode routes.
+
 ### `artifacts/api-server/src/routes/export.ts`
 
 Data-export endpoints — GET /api/export.{csv,xlsx,json,md,pdf} render the projects/issues/activity datasets in each format for download.
+
+### `artifacts/api-server/src/routes/health-watch.ts`
+
+Health / anomaly watch.
 
 ### `artifacts/api-server/src/routes/health.ts`
 
@@ -814,9 +1276,13 @@ Licence endpoint — GET /api/license reports the current licence summary + prem
 
 MCP endpoint — POST /api/mcp (JSON-RPC 2.0).
 
+### `artifacts/api-server/src/routes/me.ts`
+
+The signed-in user's own preferences.
+
 ### `artifacts/api-server/src/routes/notifications-stream.ts`
 
-Two routers: - streamRouter: GET /notifications/stream (SSE) — requires a user session.
+The notify-plane dispatch decision, traced/capturable like the broker seam.
 
 ### `artifacts/api-server/src/routes/odata.ts`
 
@@ -838,6 +1304,10 @@ Programme endpoints — GET /api/programmes (the derived programme roll-up acros
 
 Project, programme-membership, issue + task-item endpoints — the core read/write surface.
 
+### `artifacts/api-server/src/routes/provenance.ts`
+
+Provenance verification (admin) — read + verify the broker-call chain.
+
 ### `artifacts/api-server/src/routes/raw-api.ts`
 
 ⚠️⚠️⚠️ RAW BROKER PASSTHROUGH — THE ESCAPE HATCH OF LAST RESORT ⚠️⚠️⚠️
@@ -850,6 +1320,10 @@ Role-mapping editor — ADMIN-only, audited.
 
 Business ruleset config — PMO governance.
 
+### `artifacts/api-server/src/routes/security.ts`
+
+Admin-gated key revocation.
+
 ### `artifacts/api-server/src/routes/settings.ts`
 
 Gateway-local settings (the broker URL, AI provider, …).
@@ -857,6 +1331,10 @@ Gateway-local settings (the broker URL, AI provider, …).
 ### `artifacts/api-server/src/routes/setup.ts`
 
 Setup-wizard + operations endpoints — backend/plane catalogues, workflow generation + verification, config export/snapshot/restore, the sandbox→promote→ rollback environment controls, and the debug bundle.
+
+### `artifacts/api-server/src/routes/tools.ts`
+
+Capability governance plane — the admin-set deployment state (off / user-defined / public, and per-surface for AI tools) of every AI tool, the MCP, AI providers and vendors (see lib/tools).
 
 ### `artifacts/api-server/src/routes/webhooks.ts`
 
@@ -932,6 +1410,17 @@ GENERATED by scripts/src/gen-fields.ts — do not edit.
 ### `lib/backend-catalogue/src/index.ts`
 
 @workspace/backend-catalogue — the shared source of truth for OmniProject's three integration planes, each modelled the same way (neutral manifest + capabilities kept SEPARATE from its concrete tools, linked into one definition):
+
+### `lib/backend-catalogue/src/key-format.ts`
+
+KEY-FORMAT resolution — what key does a target require to be reached?
+
+| Function | What it does |
+| --- | --- |
+| `deriveBackendKeyFormat` | Derive a backend's key format from its binding fields (the single source of truth already in the JSON). |
+| `backendKeyFormat` | The key a backend requires — explicit JSON override, else derived from the binding. |
+| `brokerKeyFormat` | The key a broker requires — explicit JSON override, else the BROKER_PSK default. |
+| `isKeyless` | True when reaching this target genuinely needs no key (import sources, demo). |
 
 ### `lib/backend-catalogue/src/methodologies.generated.ts`
 

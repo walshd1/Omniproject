@@ -178,13 +178,21 @@ export function persistDemoState(): void {
 }
 
 // Hydrate the demo dataset from disk on boot when stateful dev mode is enabled.
+/**
+ * Replace the in-memory demo dataset with a supplied one (projects/issues/raid) —
+ * the loader behind both stateful-dev hydration and the dev broker's "bundle" data
+ * source (load a debug bundle's demo-state.json on the fly). Mutates the existing
+ * arrays/maps in place so every holder of the references sees the new data.
+ */
+export function loadDemoState(state: { projects: unknown[]; issues: Record<string, unknown[]>; raid: Record<string, unknown[]> }): void {
+  SAMPLE_PROJECTS.splice(0, SAMPLE_PROJECTS.length, ...(state.projects as Row[]));
+  for (const k of Object.keys(SAMPLE_ISSUES)) delete SAMPLE_ISSUES[k];
+  Object.assign(SAMPLE_ISSUES, state.issues as Record<string, Row[]>);
+  for (const k of Object.keys(SAMPLE_RAID)) delete SAMPLE_RAID[k];
+  Object.assign(SAMPLE_RAID, state.raid as Record<string, Row[]>);
+}
+
 if (DEV_PERSIST_FILE && !BACKEND_CONFIGURED) {
   const saved = loadState(DEV_PERSIST_FILE);
-  if (saved) {
-    SAMPLE_PROJECTS.splice(0, SAMPLE_PROJECTS.length, ...(saved.projects as Row[]));
-    for (const k of Object.keys(SAMPLE_ISSUES)) delete SAMPLE_ISSUES[k];
-    Object.assign(SAMPLE_ISSUES, saved.issues as Record<string, Row[]>);
-    for (const k of Object.keys(SAMPLE_RAID)) delete SAMPLE_RAID[k];
-    Object.assign(SAMPLE_RAID, saved.raid as Record<string, Row[]>);
-  }
+  if (saved) loadDemoState(saved);
 }

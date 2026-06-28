@@ -16,14 +16,39 @@ import { wellKnownRouter } from "./routes/well-known";
 import { logger } from "./lib/logger";
 import { runWithTiming, getUpstreamMs } from "./lib/request-timing";
 import { runSecuritySelfCheck } from "./lib/security-check";
+import { runDevModeGuard } from "./lib/dev-mode-guard";
+import { isDevMode } from "./lib/dev-mode";
 import { httpRequestStarted, recordHttpRequest } from "./lib/runtime-metrics";
 import { errorHandler } from "./lib/error-handler";
+import { compression } from "./lib/compression";
+import { slideSession } from "./routes/auth";
+import { csrfGuard } from "./lib/csrf";
+import { loadSecurityState } from "./lib/security-state";
+import { hydrateVault } from "./lib/vault";
+import { initKms } from "./lib/kms";
+import { contentSecurityPolicy, cspHeaderName } from "./lib/csp";
+import { tracingMiddleware } from "./lib/tracing";
+import { ipAllowGuard } from "./lib/ip-allow";
+import { maintenanceGuard } from "./lib/maintenance";
+import { requireTls } from "./lib/deployment-profile";
 
 const app: Express = express();
 
 // Honour X-Forwarded-* headers (Traefik / k8s ingress) so OIDC redirect URIs
 // and secure-cookie detection resolve to the public origin.
 app.set("trust proxy", true);
+
+// Response compression (gzip/brotli) — first in the chain so it wraps the final
+// body of every API + SPA response. SSE/ranged/binary responses pass through.
+app.use(compression());
+
+// App-layer IP allowlisting (defence in depth; no-op unless IP_ALLOWLIST is set). Runs early
+// so a disallowed network is refused before any work. Health/readiness probes are exempt so
+// orchestration checks from the LB always succeed.
+app.use((req, res, next) => {
+  if (req.path.endsWith("/healthz") || req.path.endsWith("/readyz")) { next(); return; }
+  ipAllowGuard(req, res, next);
+});
 
 // The session-cookie signing key. In production it MUST come from the
 // environment: an unset/empty/default value would sign auth cookies with a
@@ -53,6 +78,28 @@ function resolveSessionSecret(): string {
 // SESSION_SECRET fail-fast above.
 runSecuritySelfCheck(process.env, logger);
 
+// Hard interlock: refuse to boot if DEV MODE is active in a production-like
+// environment (real SSO / licence / public host). Dev mode can impersonate users
+// and toggle paid features, so it must never run where it could be reached.
+runDevModeGuard(process.env, logger);
+
+/**
+ * Async boot side-effects that must run BEFORE the server serves AND before any sealed
+ * config/state is read. Order matters:
+ *   1. initKms() — unwrap KMS-wrapped root keys (config + vault) so the at-rest crypto opens
+ *      under the right material;
+ *   2. loadSecurityState() — restore revocations/grants/etc. (reads the SEALED state file);
+ *   3. hydrateVault() — fill the AI key vault cache from its (possibly external) store.
+ * The caller (index.ts) awaits this before loadConfigDir() + listen(). No-op-friendly: with
+ * no KMS / no state file / local vault, each step is cheap or lazy, so tests that import the
+ * app without calling bootstrap() still work.
+ */
+export async function bootstrap(): Promise<void> {
+  await initKms();
+  loadSecurityState();
+  await hydrateVault();
+}
+
 app.use(
   pinoHttp({
     logger,
@@ -72,6 +119,10 @@ app.use(
     },
   }),
 );
+// W3C trace context: continue/begin a trace, correlate req.log, echo traceparent +
+// x-request-id, propagate via AsyncLocalStorage, and export an OTLP span when configured.
+// Runs right after pinoHttp so it can enrich the request logger.
+app.use(tracingMiddleware);
 app.use(cors());
 
 // Baseline security headers on every response (API + SPA). Deliberately
@@ -83,21 +134,42 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("X-DNS-Prefetch-Control", "off");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  // HSTS only over HTTPS in production (meaningless/counterproductive on plain http).
-  if (process.env["NODE_ENV"] === "production") {
+  // microphone=(self): the on-device / Whisper dictation needs same-origin mic access.
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
+  // Content-Security-Policy: strict-by-default, fully overridable per deployment, and
+  // settable to report-only while a deployment tunes it for its asset origins.
+  res.setHeader(cspHeaderName(), contentSecurityPolicy());
+  // HSTS only when the deployment is actually served over TLS (per the profile/PUBLIC_TLS) —
+  // meaningless/counterproductive on a plain-HTTP LAN deployment.
+  if (requireTls()) {
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
   next();
 });
 
 app.use(cookieParser(SESSION_SECRET));
+// Enforce + slide the session idle/absolute timeout before any route reads it.
+app.use(slideSession);
+// CSRF: reject cross-origin / token-less cookie-authenticated mutations. Runs after
+// the cookie parser (needs the session + csrf cookies) and after slideSession (which
+// issues the csrf cookie for active sessions). Machine callers carry no session cookie
+// and pass through untouched.
+app.use(csrfGuard);
 // Hard-enforce request body size (defence against memory-exhaustion / oversized
 // payloads). Explicit + configurable rather than relying on Express's implicit
 // 100kb default. Project payloads are small; 256kb is generous headroom.
 const BODY_LIMIT = process.env["BODY_LIMIT"]?.trim() || "256kb";
 app.use(express.json({ limit: BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
+
+// Dev-mode signalling: mark every response so a proxy/monitor/anyone can see this
+// is a developer instance (never set in production — dev mode is gated off there).
+if (isDevMode()) {
+  app.use((_req, res, next) => {
+    res.setHeader("X-OmniProject-Dev-Mode", "true");
+    next();
+  });
+}
 
 // Per-request timing: run the request inside a timing context the broker adds
 // upstream wait to, and emit X-Omni-Upstream-Ms / X-Omni-Total-Ms so the gateway
@@ -108,8 +180,17 @@ app.use((req, res, next) => {
     const origEnd = res.end.bind(res);
     res.end = ((...args: Parameters<typeof origEnd>) => {
       if (!res.headersSent) {
-        res.setHeader("X-Omni-Upstream-Ms", String(Math.round(getUpstreamMs())));
-        res.setHeader("X-Omni-Total-Ms", String(Date.now() - start));
+        const upstream = Math.round(getUpstreamMs());
+        const total = Date.now() - start;
+        res.setHeader("X-Omni-Upstream-Ms", String(upstream));
+        res.setHeader("X-Omni-Total-Ms", String(total));
+        // Standard Server-Timing so the browser's Performance API exposes the
+        // gateway/upstream split natively (powers the dev-mode timing overlay and
+        // shows up in devtools) — no fetch interception or custom-header CORS needed.
+        res.setHeader(
+          "Server-Timing",
+          `upstream;dur=${upstream}, gateway;dur=${Math.max(0, total - upstream)}, total;dur=${total}`,
+        );
       }
       return origEnd(...args);
     }) as typeof res.end;
@@ -135,6 +216,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// Maintenance lockdown: under read-only mode, refuse mutating requests (auth + the toggle +
+// health stay exempt so an admin can sign in and lift it). No-op unless engaged.
+app.use(maintenanceGuard);
+
 app.use("/api", router);
 
 // Public security.txt (RFC 9116) — mounted before the SPA fallback so the
@@ -149,14 +234,30 @@ app.use(wellKnownRouter);
 const staticDir = process.env["STATIC_DIR"];
 if (staticDir && fs.existsSync(staticDir)) {
   const indexHtml = path.join(staticDir, "index.html");
-  app.use(express.static(staticDir));
+  // Vite emits content-hashed, immutable asset filenames, so they can be cached
+  // forever — a big repeat-visit win. The shell entrypoints (index.html, the
+  // service worker) must always revalidate so a new deploy is picked up at once.
+  const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+  app.use(
+    express.static(staticDir, {
+      maxAge: ONE_YEAR_MS,
+      immutable: true,
+      setHeaders(res, filePath) {
+        if (filePath.endsWith("index.html") || filePath.endsWith("sw.js")) {
+          res.setHeader("Cache-Control", "no-cache");
+        }
+      },
+    }),
+  );
 
-  // SPA history fallback: serve index.html for non-API GET routes.
+  // SPA history fallback: serve index.html for non-API GET routes (never cached,
+  // so it always references the latest hashed assets).
   app.use((req, res, next) => {
     if (req.method !== "GET" || req.path.startsWith("/api")) {
       next();
       return;
     }
+    res.setHeader("Cache-Control", "no-cache");
     res.sendFile(indexHtml);
   });
 

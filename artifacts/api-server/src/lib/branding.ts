@@ -26,6 +26,7 @@ export const DEFAULT_BRANDING: Required<BrandingConfig> = {
   loginHeading: "Orchestration Shell",
   footerText: "",
   supportUrl: "",
+  fontFamily: "",
 };
 
 export interface EffectiveBranding extends Required<BrandingConfig> {
@@ -55,6 +56,10 @@ export function sanitizeBranding(input: unknown): BrandingConfig {
   };
   const color = str("primaryColor", 32);
   if (color && !HEX.test(color)) throw new Error("primaryColor must be a hex colour like #2563eb");
+  // Font family: a safe CSS font stack — letters/spaces/quotes/commas/hyphens only,
+  // so it can't smuggle a value into the inline style we set.
+  const fontFamily = str("fontFamily", 200);
+  if (fontFamily && !/^[\w \-'",]+$/.test(fontFamily)) throw new Error("fontFamily may contain only letters, spaces, quotes, commas and hyphens");
 
   return {
     appName: str("appName", 60),
@@ -64,6 +69,7 @@ export function sanitizeBranding(input: unknown): BrandingConfig {
     loginHeading: str("loginHeading", 120),
     footerText: str("footerText", 240),
     supportUrl: url("supportUrl"),
+    fontFamily,
   };
 }
 
@@ -81,6 +87,7 @@ export function effectiveBranding(): EffectiveBranding {
         loginHeading: override.loginHeading || DEFAULT_BRANDING.loginHeading,
         footerText: override.footerText || DEFAULT_BRANDING.footerText,
         supportUrl: override.supportUrl || DEFAULT_BRANDING.supportUrl,
+        fontFamily: override.fontFamily || DEFAULT_BRANDING.fontFamily,
       }
     : { ...DEFAULT_BRANDING };
   return { ...merged, entitled, locked: hasOverride && !entitled };

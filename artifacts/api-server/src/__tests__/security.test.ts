@@ -42,9 +42,13 @@ function signedSessionCookie(session: object): string {
 const VIEWER = signedSessionCookie({ sub: "viewer-1", roles: [] });
 const MANAGER = signedSessionCookie({ sub: "manager-1", roles: ["omni-managers"] });
 const PMO = signedSessionCookie({ sub: "pmo-1", roles: ["omni-pmo"] });
-const ADMIN = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"] });
+// Freshly stepped-up admin (some sensitive routes — raw escape hatch, governance,
+// key revocation — require a recent re-auth on top of the admin role).
+const ADMIN = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"], stepUpAt: Date.now() });
+// An admin WITHOUT a recent step-up — for asserting the step-up wall.
+const ADMIN_NO_STEPUP = signedSessionCookie({ sub: "admin-2", roles: ["omni-admins"] });
 // Holds BOTH authorities — the join (governance + technical).
-const PMO_ADMIN = signedSessionCookie({ sub: "both-1", roles: ["omni-pmo", "omni-admins"] });
+const PMO_ADMIN = signedSessionCookie({ sub: "both-1", roles: ["omni-pmo", "omni-admins"], stepUpAt: Date.now() });
 
 before(async () => {
   const { default: app } = await import("../app");
@@ -69,11 +73,26 @@ test("a session (any role) can read", async () => {
   assert.equal(res.status, 200);
 });
 
+test("an idle-expired session is rejected (401) — sliding timeout enforced", async () => {
+  // Last activity an hour ago — past the 30m default idle limit.
+  const idle = signedSessionCookie({ sub: "stale-1", roles: [], seen: Date.now() - 60 * 60_000 });
+  const res = await req("/api/projects", { headers: { cookie: idle } });
+  assert.equal(res.status, 401);
+});
+
+test("a session past its absolute lifetime is rejected (401)", async () => {
+  const old = signedSessionCookie({ sub: "old-1", roles: [], iat: Date.now() - 9 * 60 * 60_000, seen: Date.now() });
+  const res = await req("/api/projects", { headers: { cookie: old } });
+  assert.equal(res.status, 401);
+});
+
 test("responses carry the timing headers (upstream vs total)", async () => {
   const res = await req("/api/projects", { headers: { cookie: VIEWER } });
   // Present on every response; demo broker has no upstream hop so it reads 0.
   assert.match(res.headers.get("x-omni-upstream-ms") ?? "", /^\d+$/);
   assert.match(res.headers.get("x-omni-total-ms") ?? "", /^\d+$/);
+  // Standard Server-Timing carries the same split for the browser Performance API.
+  assert.match(res.headers.get("server-timing") ?? "", /upstream;dur=\d+.*gateway;dur=\d+.*total;dur=\d+/);
 });
 
 test("an oversized request body is rejected (hard buffer limit, 413)", async () => {
@@ -259,6 +278,11 @@ test("raw API escape hatch: admin-only, off by default, and still bolted to the 
   // Non-admins (incl. PMO — it's technical, not business) are walled off at RBAC.
   assert.equal((await callRaw(VIEWER)).status, 403);
   assert.equal((await callRaw(PMO)).status, 403);
+  // An admin WITHOUT a recent step-up is refused with the step-up signal — holding the
+  // role isn't enough for this escape hatch; a fresh re-auth is required.
+  const stale = await callRaw(ADMIN_NO_STEPUP);
+  assert.equal(stale.status, 403);
+  assert.equal(((await stale.json()) as { code?: string }).code, "step_up_required");
   // Admin clears RBAC, but the hatch is bolted shut unless RAW_API_ENABLED is set.
   const off = await callRaw(ADMIN);
   assert.equal(off.status, 503);

@@ -4,7 +4,8 @@
  * signed httpOnly session cookie, and (in demo mode, no IdP) issues a local admin
  * session. `getSession(req)` here is the single source of the caller's identity.
  */
-import { Router, type Request, type Response } from "express";
+import { randomBytes } from "node:crypto";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import {
   oidcConfig,
   isOidcConfigured,
@@ -15,20 +16,31 @@ import {
   decodeIdTokenClaims,
   verifyIdToken,
   type Session,
+  type Impersonation,
 } from "../lib/oidc";
 import { roleForReq } from "../lib/rbac";
+import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
+import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
+import { currentVersion, isActive, userSessionsRevokedAt } from "../lib/key-registry";
+import { registerSession } from "../lib/session-registry";
+import { requireTls } from "../lib/deployment-profile";
+import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
 
 const router = Router();
 
 const SESSION_COOKIE = "omni_session";
 const FLOW_COOKIE = "omni_oidc_flow";
+// Re-seal an active session at most this often (don't re-sign on every request).
+const SLIDE_THROTTLE_MS = 60_000;
 
 const cookieBase = {
   httpOnly: true as const,
   signed: true as const,
   sameSite: "lax" as const,
-  secure: process.env["NODE_ENV"] === "production",
+  // Secure cookies follow the deployment's TLS posture, NOT raw NODE_ENV — so a self-hoster /
+  // charity can run a production-stable instance on plain HTTP (LAN) without breaking sessions.
+  secure: requireTls(),
   path: "/",
 };
 
@@ -46,23 +58,96 @@ function readSession(req: Request): Session | null {
   try {
     // Prefer the sealed (encrypted) payload; fall back to legacy plaintext JSON
     // so existing sessions survive the upgrade (they re-seal on the next write).
-    return JSON.parse(open(raw) ?? raw) as Session;
+    const session = JSON.parse(open(raw) ?? raw) as Session;
+    // Idle / absolute timeout: an expired session reads as "no session" everywhere,
+    // so every protected route rejects it (limits unattended-session risk).
+    if (isSessionExpired(session, Date.now())) return null;
+    // Key revocation: a session signed under a revoked session-key version, or a user
+    // whose sessions were revoked after this one was issued, is rejected at once.
+    if (!isActive("session", session.kver ?? 1)) return null;
+    if (session.sub && session.iat && session.iat < userSessionsRevokedAt(session.sub)) return null;
+    // Concurrent-session cap: a session pushed outside MAX_SESSIONS_PER_USER (an older login
+    // once the user signs in beyond the limit) reads as signed-out. No-op when the cap is unset
+    // or the session predates salting. Keyed by the stable per-session salt.
+    if (session.sub && session.salt && !registerSession(session.sub, session.salt, Date.now())) return null;
+    return session;
   } catch {
     return null;
   }
 }
 
 function setSession(res: Response, session: Session): void {
-  // Signed (cookie-parser) AND sealed (AES-256-GCM) — tamper-proof and opaque.
-  res.cookie(SESSION_COOKIE, seal(JSON.stringify(session)), {
+  const now = Date.now();
+  // Stamp issue + activity times (preserve the original issue time so the absolute
+  // cap can't be reset by activity). Signed (cookie-parser) AND sealed (AES-256-GCM).
+  // `smono` + `salt` are minted ONCE per session (preserved across re-seals like iat),
+  // so the per-session broker key (lib/session-key) is fresh on each login but stable
+  // for the life of the session: the monotonic reading is the non-rewindable session
+  // start time; the salt is CSPRNG entropy that survives a process-clock reset.
+  const stamped: Session = {
+    ...session,
+    iat: session.iat ?? now,
+    seen: now,
+    kver: session.kver ?? currentVersion("session"),
+    smono: session.smono ?? process.hrtime.bigint().toString(),
+    salt: session.salt ?? randomBytes(16).toString("hex"),
+  };
+  res.cookie(SESSION_COOKIE, seal(JSON.stringify(stamped)), {
     ...cookieBase,
+    secure: requireTls(), // re-evaluate per set, so a wizard profile change applies to new sessions
     maxAge: 1000 * 60 * 60 * 8, // 8h
   });
 }
 
-// Exposed so other routes (e.g. the n8n proxy) can pull the bearer token.
+/**
+ * Slide the idle timeout forward on activity: re-stamp `seen` (throttled) so an active
+ * user stays signed in, and tidy up an expired/garbage session cookie. Mounted early,
+ * after the cookie parser, so it runs before any route reads the session.
+ */
+export function slideSession(req: Request, res: Response, next: NextFunction): void {
+  const raw = req.signedCookies?.[SESSION_COOKIE];
+  if (raw) {
+    const session = readSession(req); // null when expired or unreadable
+    if (!session) {
+      res.clearCookie(SESSION_COOKIE, cookieBase);
+      res.clearCookie("omni_csrf", { ...cookieBase, httpOnly: false, signed: false });
+    } else {
+      if (!session.iat || !session.seen || Date.now() - session.seen > SLIDE_THROTTLE_MS) setSession(res, session);
+      // Make sure an active session always has a CSRF token to echo (upgrade path).
+      ensureCsrfCookie(req, res);
+    }
+  }
+  next();
+}
+
+// Exposed so other routes (e.g. the n8n proxy) can pull the bearer token. Applies
+// any active (dev-only, non-expired) impersonation, so the whole app — incl. RBAC —
+// sees the impersonated identity. The raw session is available via getRealSession.
 export function getSession(req: Request): Session | null {
+  return effectiveSession(readSession(req));
+}
+
+/** The REAL signed-in session, ignoring any impersonation — used to authorise
+ *  starting/stopping an impersonation against the genuine actor. */
+export function getRealSession(req: Request): Session | null {
   return readSession(req);
+}
+
+/** Begin an ephemeral impersonation on the current session (overwrites any prior
+ *  one). Returns false if there is no session to attach it to. */
+export function startImpersonation(req: Request, res: Response, imp: Impersonation): boolean {
+  const real = readSession(req);
+  if (!real) return false;
+  setSession(res, { ...real, impersonation: imp });
+  return true;
+}
+
+/** Clear any impersonation from the current session. */
+export function stopImpersonation(req: Request, res: Response): void {
+  const real = readSession(req);
+  if (!real) return;
+  const { impersonation: _drop, ...rest } = real;
+  setSession(res, rest as Session);
 }
 
 // ── GET /api/auth/me ──────────────────────────────────────────────────────────
@@ -74,6 +159,8 @@ router.get("/auth/me", (req, res) => {
       mode: isOidcConfigured ? "oidc" : "demo",
       user: { sub: session.sub, name: session.name, email: session.email },
       role: roleForReq(req),
+      // Lets the SPA warn before, and redirect on, an idle/absolute timeout.
+      sessionTimeout: timeoutPolicy(),
     });
     return;
   }
@@ -87,6 +174,7 @@ router.get("/auth/login", async (req, res) => {
   // Demo mode: no IdP configured — establish a local demo session.
   if (!oidcConfig) {
     setSession(res, { sub: "demo-user", name: "Demo User", email: "demo@omniproject.local", accessToken: "demo-token" });
+    setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
     res.redirect(returnTo);
     return;
   }
@@ -133,10 +221,11 @@ router.get("/auth/callback", async (req, res) => {
     return;
   }
 
-  const { state, verifier, returnTo } = JSON.parse(flowRaw) as {
+  const { state, verifier, returnTo, stepup } = JSON.parse(flowRaw) as {
     state: string;
     verifier: string;
     returnTo: string;
+    stepup?: boolean;
   };
 
   if (req.query["error"]) {
@@ -178,7 +267,10 @@ router.get("/auth/callback", async (req, res) => {
       roles: claims?.roles,
       accessToken: tokens.access_token,
       idToken: tokens.id_token,
+      // A step-up re-auth (prompt=login) stamps freshness so a sensitive action proceeds.
+      ...(stepup ? { stepUpAt: Date.now() } : {}),
     });
+    setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
 
     res.redirect(returnTo || "/");
   } catch (err) {
@@ -190,7 +282,61 @@ router.get("/auth/callback", async (req, res) => {
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────
 router.post("/auth/logout", (req, res) => {
   res.clearCookie(SESSION_COOKIE, cookieBase);
+  res.clearCookie("omni_csrf", { ...cookieBase, httpOnly: false, signed: false });
   res.json({ ok: true });
+});
+
+// ── Step-up re-authentication ───────────────────────────────────────────────────
+// Stamp a fresh `stepUpAt` on the session so the highest-risk actions (key
+// revocation, egress/governance changes, the raw escape hatch) can demand a recent
+// re-auth (see lib/step-up). Demo mode confirms in place; OIDC re-authenticates at the
+// IdP with prompt=login (the SPA should navigate to GET /api/auth/step-up).
+router.post("/auth/step-up", (req, res) => {
+  const session = readSession(req);
+  if (!session) { res.status(401).json({ error: "authentication required" }); return; }
+  if (oidcConfig) {
+    // A real re-auth must go through the IdP — tell the SPA where to send the user.
+    const returnTo = typeof (req.body as { returnTo?: unknown })?.returnTo === "string" ? (req.body as { returnTo: string }).returnTo : "/";
+    res.status(409).json({ error: "re-authentication required", code: "step_up_redirect", url: `/api/auth/step-up?returnTo=${encodeURIComponent(returnTo)}` });
+    return;
+  }
+  setSession(res, { ...session, stepUpAt: Date.now() });
+  res.json({ ok: true, stepUpAt: Date.now() });
+});
+
+// GET initiator: demo stamps + returns; OIDC bounces through the IdP (prompt=login),
+// and the callback stamps stepUpAt when it sees the `stepup` flow.
+router.get("/auth/step-up", async (req, res) => {
+  const returnTo = typeof req.query["returnTo"] === "string" ? req.query["returnTo"] : "/";
+  const session = readSession(req);
+  if (!session) { res.redirect(`/api/auth/login?returnTo=${encodeURIComponent(returnTo)}`); return; }
+
+  if (!oidcConfig) {
+    setSession(res, { ...session, stepUpAt: Date.now() });
+    res.redirect(returnTo);
+    return;
+  }
+  try {
+    const discovery = await discover(oidcConfig);
+    const state = randomToken();
+    const verifier = randomToken(48);
+    const redirectUri = `${baseUrl(req)}/api/auth/callback`;
+    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, returnTo, stepup: true }), { ...cookieBase, maxAge: 1000 * 60 * 10 });
+    const authUrl = new URL(discovery.authorization_endpoint);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", oidcConfig.clientId);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("scope", oidcConfig.scope);
+    authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("code_challenge", pkceChallenge(verifier));
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("prompt", "login"); // force a fresh credential prompt
+    authUrl.searchParams.set("max_age", "0");
+    res.redirect(authUrl.toString());
+  } catch (err) {
+    req.log.error({ err }, "step-up initiation failed");
+    res.status(502).send("Re-authentication is temporarily unavailable.");
+  }
 });
 
 export default router;

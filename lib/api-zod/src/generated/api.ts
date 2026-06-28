@@ -763,6 +763,7 @@ export const GetFieldManifestResponse = zod.object({
 export const GetSettingsResponse = zod.object({
   "brokerUrl": zod.string().nullish().describe('The active broker\'s webhook\/endpoint URL (n8n by default).'),
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']),
+  "sttProvider": zod.enum(['none', 'browser', 'whisper']).optional().describe('Speech-to-text engine. \"browser\" runs on-device (no audio egress); \"whisper\" is an AI-assisted, off-device transcription provider (governance-gated). \"none\" disables dictation server-side.'),
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
   "oidcIssuerUrl": zod.string().nullish(),
@@ -790,6 +791,7 @@ export const GetSettingsResponse = zod.object({
 export const UpdateSettingsBody = zod.object({
   "brokerUrl": zod.string().nullish(),
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']).optional(),
+  "sttProvider": zod.enum(['none', 'browser', 'whisper']).optional().describe('Speech-to-text engine (\"none\" | \"browser\" on-device | \"whisper\" AI-assisted).'),
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().optional().describe('Free-form backend routing hint passed to the broker (see Settings.backendSource).'),
   "oidcIssuerUrl": zod.string().nullish(),
@@ -813,6 +815,7 @@ export const UpdateSettingsBody = zod.object({
 export const UpdateSettingsResponse = zod.object({
   "brokerUrl": zod.string().nullish().describe('The active broker\'s webhook\/endpoint URL (n8n by default).'),
   "aiProvider": zod.enum(['none', 'openai', 'ollama', 'anthropic', 'openrouter']),
+  "sttProvider": zod.enum(['none', 'browser', 'whisper']).optional().describe('Speech-to-text engine. \"browser\" runs on-device (no audio egress); \"whisper\" is an AI-assisted, off-device transcription provider (governance-gated). \"none\" disables dictation server-side.'),
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
   "oidcIssuerUrl": zod.string().nullish(),

@@ -56,9 +56,10 @@ stringData:
   OIDC_CLIENT_SECRET: ""          # REQUIRED
   SESSION_SECRET: ""              # REQUIRED — empty => gateway refuses to start
   API_TOKENS: ""                  # read-only tokens for Power BI / exports (comma-separated)
-  OPENROUTER_API_KEY: ""          # for AI_PROVIDER=openrouter
-  OPENAI_API_KEY: ""
-  ANTHROPIC_API_KEY: ""
+  # AI provider API keys are NOT secrets here — they are entered in the admin UI and held
+  # in the encrypted vault. Only the vault root secret is needed (else derived from
+  # SESSION_SECRET). The vault file lives under OMNI_CONFIG_DIR (mount it persistently).
+  VAULT_KEY: ""                   # base64 32 bytes; optional (SESSION_SECRET-derived if empty)
 
 ---
 # ── OmniProject Shell — Deployment ───────────────────────────────────────────

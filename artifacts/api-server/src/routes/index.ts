@@ -19,6 +19,7 @@ import brokerLogRouter from "./broker-log";
 import setupRouter from "./setup";
 import { streamRouter, ingestRouter } from "./notifications-stream";
 import aiRouter from "./ai";
+import aiProvidersRouter from "./ai-providers";
 import exportRouter from "./export";
 import integrationsRouter from "./integrations";
 import odataRouter from "./odata";
@@ -32,6 +33,14 @@ import rulesetRouter from "./ruleset";
 import importRouter from "./import";
 import roleMapRouter from "./role-map";
 import rawApiRouter from "./raw-api";
+import devModeRouter from "./dev-mode";
+import meRouter from "./me";
+import toolsRouter from "./tools";
+import provenanceRouter from "./provenance";
+import securityRouter from "./security";
+import healthWatchRouter from "./health-watch";
+import scimRouter from "./scim";
+import { isDeprovisioned } from "../lib/rbac";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -47,6 +56,9 @@ const router: IRouter = Router();
  */
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (getSession(req)) {
+    // SCIM lifecycle: a deprovisioned (active=false) user is denied even with a valid OIDC
+    // session, so the IdP disabling an account takes effect here immediately.
+    if (isDeprovisioned(req)) { res.status(403).json({ error: "Account has been deactivated." }); return; }
     next();
     return;
   }
@@ -85,6 +97,10 @@ router.use(auditMiddleware);
 // POST but the v1 tools are reads. Mounted here so it's rate-limited + audited.
 router.use(mcpRouter);
 
+// SCIM 2.0 provisioning — self-authed by the SCIM bearer token (not a user session), so
+// it's mounted outside requireAuth. Rate-limited + audited like the rest of /api.
+router.use(scimRouter);
+
 router.use(authRouter);
 
 // Public presentation config: branding + label overrides are needed pre-login
@@ -92,6 +108,10 @@ router.use(authRouter);
 // handlers self-guard with requireRole("admin") + the licence entitlement.
 router.use(brandingRouter);
 router.use(labelsRouter);
+// Public dev-mode status: the SPA watermarks the screen pre-auth. Always reports
+// devMode:false in production (dev mode is hard-gated off there).
+router.use(devModeRouter);
+router.use(meRouter);
 
 // Protected routes: require an authenticated session (or read-only API token).
 router.use(requireAuth, licenseRouter);
@@ -105,6 +125,7 @@ router.use(requireAuth, capabilitiesRouter);
 router.use(requireAuth, setupRouter);
 router.use(requireAuth, streamRouter);
 router.use(requireAuth, aiRouter);
+router.use(requireAuth, aiProvidersRouter);
 router.use(requireAuth, exportRouter);
 router.use(requireAuth, integrationsRouter);
 router.use(requireAuth, odataRouter);
@@ -114,5 +135,9 @@ router.use(requireAuth, rulesetRouter);
 router.use(requireAuth, importRouter);
 router.use(requireAuth, roleMapRouter);
 router.use(requireAuth, rawApiRouter);
+router.use(requireAuth, toolsRouter);
+router.use(requireAuth, provenanceRouter);
+router.use(requireAuth, securityRouter);
+router.use(requireAuth, healthWatchRouter);
 
 export default router;

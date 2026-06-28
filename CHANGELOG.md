@@ -6,8 +6,350 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Security
+
+- **Admin-gated key revocation** — a versioned key registry (session / provenance /
+  broker) where each version's signing material is DERIVED from an env master
+  (`HMAC(master, "name:vN")`), so an admin can **revoke + rotate** a key with no new
+  secret to distribute. Revoking retires the current version and rolls forward: sessions
+  signed under a revoked version are rejected at once (instant "log everyone out"
+  response to a suspected compromise — including a per-user variant), and provenance
+  entries under a revoked version still verify but are flagged untrusted (a leaked key
+  could have forged them). Sessions carry their key version (`kver`); provenance entries
+  too, so history stays verifiable across rotations. New `GET /api/security/keys`, `POST
+  /api/security/keys/:name/revoke`, `POST /api/security/sessions/revoke-user` (admin,
+  audited); a Settings → "Security — key revocation" admin card. RAM-only state.
+- **Provable broker-call provenance (zero-at-rest) + gateway↔broker request HMAC** — a
+  keyed-MAC, hash-chained record of every broker call that holds ONLY fingerprints,
+  never content: the request/response bytes pass through the broker as they must, and we
+  persist just `HMAC_k(content ‖ actor ‖ seq)`, chained so the whole sequence is
+  tamper-evident — so zero-at-rest is fully preserved. Each call records a chained
+  `invoke`/`result` fingerprint with the initiating actor and a monotonic order (no
+  external clock/anchor needed — the hash links order the chain; wall-clock is an
+  annotation). Admin verify endpoints prove ORDER + NON-ALTERATION (`GET /api/provenance`,
+  `.../call/:id`) and prove "nothing changed" by RE-PRESENTING the content
+  (`POST .../call/:id/verify`) — we never store content to reconstruct it. The same
+  shared key signs outbound broker requests (`X-Omni-Sig/-Ts/-Nonce`) so a PSK-aware
+  broker can refuse REPLAYED or forged traffic (`lib/broker-hmac`: timestamp window +
+  single-use nonce). Honest boundary: on-device initiation/display and wall-clock are
+  attestations, not proof; this targets internal consistency, not external attestation.
+- **Session idle + absolute timeout** — sessions now expire after a sliding idle period
+  (default 30 min) and a hard absolute lifetime (default 8 h), enforced server-side in
+  the sealed cookie via `iat`/`seen` stamps: an expired session reads as "no session"
+  everywhere, so every protected route rejects it (limits unattended-session /
+  shoulder-surfing risk, and bounds a stolen long-lived cookie). Active sessions slide
+  forward on activity (throttled re-seal); pre-upgrade cookies are stamped on first use
+  rather than force-expired. Configurable via `SESSION_IDLE_MINUTES` /
+  `SESSION_ABSOLUTE_HOURS` (0 disables either). The SPA gets the policy from
+  `/api/auth/me` and shows a countdown warning before signing the user out and
+  returning to login. (Part of a broader security pass; CSRF hardening + a gateway↔broker
+  request HMAC + step-up re-auth + an injection-hardening audit are queued next.)
+
+### Performance
+
+- **Dev-mode performance overlay + Server-Timing** — the gateway now emits a standard
+  `Server-Timing` header (`upstream` / `gateway` / `total`) alongside the existing
+  `X-Omni-*` headers, so the browser's Performance API (and devtools) expose the
+  gateway-vs-backend split natively. A dev-mode-only on-screen HUD surfaces the numbers
+  we tune against the "2 clicks, under 1 second" adoption bar: initial load
+  (TTFB → DOMContentLoaded → load), live per-API latency (count, p50/p95/max, average
+  gateway vs upstream split), and route-switch responsiveness — colour-banded against
+  the 1s budget. Gated exactly like the DEV MODE watermark, so it never ships to
+  production.
+- **HTTP compression (gzip/brotli) on the gateway** — a dependency-free middleware
+  now compresses API + SPA responses (brotli preferred, gzip fallback), typically
+  ~3× smaller on the JS/CSS/JSON payloads. It buffers then compresses on `end`, and
+  deliberately passes through Server-Sent Events, ranged, binary and already-encoded
+  responses untouched (SSE set `no-transform` + use `writeHead`, so they keep
+  streaming live). A strong ETag is weakened when compressed so caches never cross the
+  encodings. Traefik's edge `compress` middleware is also enabled in the standalone
+  deploy (defence-in-depth; it skips already-encoded responses).
+- **Immutable static-asset caching** — Vite's content-hashed assets are now served
+  `Cache-Control: public, max-age=31536000, immutable` (big repeat-visit win) while
+  `index.html` and the service worker stay `no-cache`, so a new deploy is picked up at
+  once.
+- **Lighter, faster first paint (web)** — removed the Inter webfont (4 weights
+  downloaded on every load but never used; the UI is JetBrains Mono throughout) and
+  moved the mono font from a render-blocking CSS `@import` to a parallel `<link>`.
+  Platform re-detection on resize is coalesced to one pass per animation frame and only
+  re-renders when something actually changed.
+
 ### Added
 
+- **Capability governance — MCP + vendor enforcement, screen-id wiring, endpoint
+  checks** — enforcement now extends beyond AI: the **MCP** route refuses (JSON-RPC
+  error + log) unless the MCP capability is on, and the **broker-command** edge enforces
+  the active vendor's capability when it names a specific backend. The client now sends
+  its current route on AI calls and the gateway **normalises it to a registry screen id**
+  (`screenIdForRoute`), so per-surface overrides always match the canonical screen rather
+  than a free-typed string. User-defined endpoints are **validated as http(s) URLs** on
+  save, and an admin can **test reachability** from the governance card (`POST
+  /api/governance/:id/test`).
+- **Capability governance — brokers, no-AI-by-default, and an admin dashboard** —
+  brokers (the n8n-style seam) are now governed by the same tri-state as everything
+  else (self-hosted/in-cluster = `user-defined`; managed = `public`), derived from the
+  broker catalogue. The default is now **NO AI and nothing brokered** — every
+  capability is `off` until an admin explicitly turns it on (the active AI provider no
+  longer auto-enables). Admin state changes are audited (`capability.configured`), and a
+  new **Governance dashboard** (Settings, admin-only) shows what's enabled (counts per
+  kind + the live list with per-screen overrides) and a **live activity trail** of
+  recent uses / blocks / config changes (capability, surface, who, when) via
+  `GET /api/governance/log`.
+- **Capability governance — call-time enforcement + screen-registry surfaces** —
+  governance is now enforced, not just configured. `enforceCapability(id, {surface,
+  actor})` resolves a capability's effective state for the calling screen and **throws
+  if it's off**, and `decideCapability` records every decision (allowed or denied) to
+  the audit log — so there's a trail of which AI/vendor ran where and for whom. The AI
+  chat route (`POST /api/ai/chat`) is the first enforced call site: the active provider
+  must be permitted on the calling surface or the request is refused (403) and logged.
+  Existing AI config keeps working — the active provider defaults to its natural state
+  unless an admin overrides it. Per-surface overrides are now **picked from the screen
+  registry** (`GET /api/governance` returns the screen list), not free-typed, so an
+  override can't silently miss on a typo.
+- **Capability governance — tri-state (off / user-defined / public) for every AI
+  tool, the MCP, AI providers and vendors** — one admin-controlled model for where each
+  capability runs: `off`, `user-defined` (the CUSTOMER controls it — truly local or
+  their own remote endpoint) or `public` (third-party SaaS). Each capability advertises
+  only the states it can actually run in, so the UI offers just those (a cloud-only
+  provider shows only `public`; a local-only one only `user-defined`). **AI tools are
+  surface-aware**: their state can be overridden per screen/context — e.g. text-to-speech
+  `public` everywhere but `user-defined` or `off` on the finance screen. Everything is
+  off by default, **admin-gated**, versioned (`captureVersion`) and stored in
+  customer-level JSON (rides the snapshot/export). AI providers are seeded with their
+  real options (Ollama → user-defined; OpenAI/Anthropic/OpenRouter → public) and vendors
+  are derived from the backend catalogue. New `GET /api/governance` + `PUT
+  /api/governance/:id` (admin); a Settings → "Tools, AI & vendors — data governance"
+  admin card. (Supersedes the earlier egress-class + per-user-consent design and its
+  "every tool must offer local" rule — governance is now wholly admin-controlled and
+  per-surface.)
+- **Platform & capability detection, mobile mode, PWA, native-ready seam** — the app
+  now tailors itself to the device the right way: **feature-detection first**, with
+  coarse OS/engine hints used only for wording and install routing (never to gate a
+  capability — UA strings lie). New `lib/platform.ts` + `usePlatform()` report live
+  capabilities (speech, touch, Web Share, service worker, standalone/installed, a
+  reserved native-bridge flag) and form factor.
+  - **Mobile mode** — a touch-optimised layout that follows the device automatically,
+    with a per-user override (auto / on / off) persisted in prefs. Drives
+    `data-form-factor` / `data-mobile` / `data-touch` / `data-standalone` on the root;
+    touch layouts get WCAG-sized (≥44px) hit targets and installed PWAs inset fixed UI
+    past device safe areas (notch / home indicator).
+  - **Installable PWA** — web app manifest + maskable icons, theme-color, iOS
+    `apple-mobile-web-app-*` meta and `viewport-fit=cover`. An **app-shell service
+    worker** (prod only) caches ONLY hashed static assets — never `/api`, `/auth` or
+    any non-GET request — so the stateless / zero-at-rest posture is fully preserved;
+    navigations are network-first so a new deploy is never shadowed by a stale shell.
+  - **Native-ready seam** — speech, notifications and platform sit behind interfaces,
+    and `usePlatform().nativeBridge` detects an injected `window.OmniNative`, so a
+    later Capacitor (or similar) shell can supply native implementations — including
+    truly on-device, cross-platform dictation — reusing this exact codebase.
+- **Accessibility mode: switch scanning, screen-reader narration, voice dictation** —
+  three opt-in per-user accessibility features that drive the app from the user's OWN
+  assistive setup (nothing bundled, nothing sent off-device, in keeping with the
+  zero-at-rest ethos):
+  - **Switch-access scanning** — for users who drive everything from one or two
+    physical switches. *Single-switch* sweeps a highlight across the interactive
+    controls on a timer (adjustable dwell, 0.5–5s) and Space/Enter selects;
+    *two-switch* steps the highlight by hand on Space/→/↓ and selects on Enter. The
+    current control gets a bold ring and is announced to the screen reader.
+  - **Screen-reader narration** — a shared ARIA live region the app speaks through so
+    dynamic changes reach NVDA/JAWS/VoiceOver; a per-user toggle gates the extra
+    verbose narration so it doesn't chatter at everyone.
+  - **Voice dictation** — a floating mic that dictates into the focused text field
+    using the browser's native Web Speech API (on-device). Shown only when the user
+    opts in AND the platform supports it, so there's never a button that can't work.
+  All three persist in per-user prefs (JSON, server-side, code defaults) so they
+  follow the user across sessions and devices, layered over company branding.
+- **Per-user prefs persist across sessions + devices (JSON, code defaults)** — a
+  person's accessibility setup (text size, background colour, high contrast, reduced
+  motion) is now stored server-side as JSON keyed by their user id, so it FOLLOWS THEM
+  across sessions and devices — important for users with dyslexia / visual impairment
+  who shouldn't have to reconfigure each time. Standard defaults live in code
+  (`DEFAULT_USER_PREFS`) and fill anything unset. localStorage stays as an instant,
+  flash-free cache; the server is the source of truth once signed in (and only
+  hydrates when the user actually has a saved entry, so a fresh device never clobbers
+  a local setup). `GET/PUT /api/me/prefs`; rides the config snapshot/export like
+  branding. Font FAMILY remains company branding; SIZE + COLOUR are per-user.
+- **Connections: test-connection + broker-vault delegation** — the Connections
+  screen now also lets an admin **test** a backend connection through the broker, and
+  optionally **delegate a secret to the broker's own encrypted vault** instead of
+  using the env template. New OPTIONAL broker contract methods `verifyConnection` and
+  `storeCredential` (demo broker stubs both; a real broker maps them to its API +
+  credential store). The vault relay sends the secret **once** through the gateway
+  and OmniProject **stores nothing and never logs the value** — it returns only a
+  non-secret reference; brokers without a vault report `501` so the operator falls
+  back to the scaffolding. `POST /api/setup/connections/test` + `…/vault` (admin).
+- **Connections screen — credential scaffolding, secrets never stored** — an
+  admin-gated screen that works out which credentials the broker(s) need for the
+  backends in use (the union of each vendor's `requiredEnv`) and generates a fill-in
+  `.env` / docker-compose template (secrets rendered as Docker-secret mounts, plain
+  config as env refs). It deals ONLY in credential NAMES + placeholders — OmniProject
+  never receives or stores a secret value, keeping the stateless / zero-at-rest
+  posture; the secret lives with the broker (its env / Docker secret / credential
+  vault). Per-user-auth vendors need no stored key at all (the caller's token is
+  forwarded through the seam). `GET /api/setup/connections?backends=…` (admin).
+- **Drag-to-rearrange screens/reports, persisted to the customer's config** — panels
+  can be dragged to reorder (and resized/hidden) on a screen, and the arrangement is
+  saved as a per-screen layout override. It lives in the settings store, so it rides
+  the existing snapshot / config-bundle / export machinery straight into the
+  **customer's config JSON** (and the debug bundle). `applyLayout(screen, layout)` is
+  a pure hide→re-span→reorder transform; `ScreenRenderer` gains `editable` +
+  `onLayoutChange` (HTML5 drag, dependency-free) and a `layout` prop to render the
+  saved arrangement. `GET /api/setup/screens/:id/layout` (open, the SPA needs it) +
+  `PUT` (manager+, captures a config version). New panels never disappear — anything
+  missing from a saved order keeps its place after the listed panels.
+- **Rendering primitives — live, progressive, windowed (built on per-panel binding)**
+  — instead of rendering a screen in one blocking pass, panels now compose finer
+  primitives:
+  - **Shared live event stream** (`lib/live-events.ts`) — ONE `EventSource` to the
+    notification SSE that all subscribers share (lazy connect/disconnect), replacing
+    per-component streams.
+  - **Live per-panel revalidation** — a panel opting into `source.live` (optionally
+    `liveOn: [kinds]`) revalidates ONLY itself when a relevant notification arrives —
+    push, not polling; the refetch is conditional (304 when unchanged). A small "live"
+    badge marks it.
+  - **Progressive rendering** — a sourced panel shows a skeleton while it loads, so a
+    screen paints panel-by-panel instead of blocking on the slowest.
+  - **Windowed tables** — the table panel renders only the first `maxRows` (default
+    50) with a "show all" expander, so a large dataset doesn't paint thousands of DOM
+    nodes up front.
+- **Per-panel data binding & independent refresh** — a screen panel can now declare
+  a `source` (a read endpoint); it fetches its OWN data under its OWN query key and
+  gets its OWN refresh control, so you can **refresh just one graph/table on a screen**
+  without touching the rest. Built on the existing primitives: the per-panel query is
+  keyed `["panel-data", url]` (refresh = refetch that one key, or
+  `invalidateQueries` it), and because the read endpoints support conditional reads
+  (ETag / broker `changeToken`), an unchanged refresh returns 304 and nothing
+  re-renders. Panels without a `source` stay static (data inlined in `config`), so
+  existing screens are unaffected. The fetched object is merged into the panel's
+  `config`.
+- **Opt-in server-side read cache (`READ_CACHE_TTL_MS`)** — a short-TTL in-memory
+  cache of broker reads for dispersed/high-latency deployments. It is a deliberate
+  performance mode that **trades the "never stale" guarantee for latency**, so it is
+  **off by default**, behind an explicit flag, and **warned loudly**: a boot-time
+  `logger.warn` in any environment plus a production security-self-check finding.
+  Safety: **per-actor keyed** (one user's cached data is never served to another),
+  **write-through** (any broker write — or a generic command/raw write via
+  `invalidateReadCache()` — clears it so your change is immediately visible),
+  **bounded + per-replica + RAM-only** (never disk, gone on restart). Available in
+  prod and dev; unset the flag for fully live reads.
+- **Conditional / delta reads — refresh only what changed, still zero-data-at-rest**
+  — read endpoints now support HTTP conditional GET: an unchanged read returns
+  `304 Not Modified` instead of re-sending the payload, so a client that already has
+  the data keeps it. The data lives ONLY in the client cache; the gateway stores
+  nothing — it just relays a version check. New OPTIONAL broker contract method
+  `changeToken(ctx, resource)` supplies a cheap version (a backend ETag /
+  max(updatedAt) / cursor); when the client's token matches, the gateway returns
+  `304` **without performing the full backend read at all** — cutting the heavy
+  cross-network round-trip that the live-read design otherwise pays on every request.
+  Brokers that don't implement it degrade gracefully to a payload-hash ETag (still
+  saves re-sending unchanged bytes). The backend stays the single source of truth;
+  nothing is cached on the server. Wired on `/projects` and project issues; the demo
+  broker implements `changeToken` (per-resource state hash). Pairs with the SPA's
+  existing React Query cache (shared keys + `staleTime`) so common data is fetched
+  once across pages and revalidated cheaply.
+- **Dev-mode entitlement (paid-feature) toggle** — force individual premium features
+  on or off to preview the licensed vs unlicensed UX without minting a real licence.
+  A dev override layer that `resolveLicense` applies last, so it is **inert in
+  production** (dev mode is gated off there; a CI guard asserts it), **ephemeral**
+  (in-memory, gone on restart), **real-admin only**, and **audited** on every change.
+  Drives the existing entitlement checks (`isEntitled`/`requireEntitlement`)
+  unchanged. Endpoints `GET/POST/DELETE /api/dev-mode/entitlements` + a dev-instance
+  UI panel with a per-feature toggle and a "forced" marker.
+- **Ephemeral, approved, reason-logged dev impersonation** — the dev-mode auth
+  bypass (act AS another user to reproduce a role-specific issue) with hard
+  guardrails. Starting one needs an explicit **approval dialog with a typed reason**
+  (the dialog won't submit without it); only a **real admin** may start it; it is
+  **ephemeral** (30-min TTL, cleared on logout, stripped once expired) and **dev-only**
+  (a stale impersonation cookie is inert in production / after leaving dev mode).
+  Every start/stop is **audited with the reason**, and each impersonated request is
+  tagged `impersonatedBy`/`impersonationReason` so the real actor is always
+  accountable. A banner shows who/why with a one-click Stop. `GET/POST/DELETE
+  /api/dev-mode/impersonate`.
+- **Thin-file spoofs never appear over real data** — `demoVendorFor` enforces that a
+  thin-file vendor preview applies ONLY in pure demo mode (no real backend) and never
+  when a real broker is connected or the dev broker is active. So a production
+  deployment with a real broker always shows the REAL vendor — only real
+  vendors/brokers connected to real data appear in prod.
+- **Thin-file spoof names carry a `-demo` suffix** — whenever a vendor is presented
+  via a thin vendor file over sample/recorded data (demo preview or dev broker), the
+  shown `kind` is e.g. `openproject-demo`, so it can never be mistaken for a live
+  integration. The clean vendor id is kept separately.
+- **Demo vendor preview — present the demo AS a prospect's stack** — the vendor
+  capability overlay (previously dev-only) now also flavours the **demonstration**
+  broker: set `backendSource` (Settings, or `BACKEND_SOURCE`) to a vendor id and the
+  demo presents AS that vendor — gated to its declared capabilities from the vendor
+  JSON — over sample data. So a prospect can preview how the product looks on THEIR
+  setup (e.g. OpenProject, no financials/raid) with no real broker or backend
+  installed. Production-safe: it only ever flavours demo data and never a real broker
+  (`live` stays false; a configured n8n/dev broker is untouched). Changing
+  `backendSource` rebuilds the demo live. The overlay (`applyVendorProfile`) is now
+  shared by the dev broker and the demo path.
+- **Dev broker — any vendor × any data source, switchable on the fly (dev-only)** —
+  a developer/debug broker, distinct from the DemoBroker (which stays the
+  demonstration broker for training/sales). The dev broker presents AS any **vendor**
+  (e.g. `openproject`, gated to that vendor's declared capabilities from its JSON
+  config) over any **data source**: `demo` (built-in sample), `bundle` (a debug
+  bundle's `demo-state.json`), or `cassette` (a captured traffic tape, replayed). The
+  vendor × source combination is **switchable at runtime** via `POST /api/dev-mode/broker`
+  (admin, dev-only) — no restart — so you can reproduce an issue by loading its
+  bundle/cassette under the right vendor profile. Seeded from `BROKER_SPOOF` /
+  `DEV_BROKER_SOURCE` / `DEV_BROKER_REF`. Composes the data broker (cycle-safe Proxy);
+  hard-gated to dev mode (null in production); writes are simulated.
+- **Dev-mode production guard (refuse-to-boot) + transaction tagging** — the safety
+  interlock for dev mode now that it grants dangerous powers. The gateway **refuses
+  to boot** when dev mode is active AND the environment shows production signals
+  (real OIDC/SSO, a configured licence, or a non-local `PUBLIC_URL`) — the
+  combination that means "this is probably a real deployment". Fail-closed and not
+  tied to `SECURITY_STRICT`; a narrow explicit `OMNI_DEV_MODE_ACK_INSECURE=1`
+  downgrades the refusal to a loud warning for local testing, never silences it.
+  Plus: every response on a dev instance carries an `X-OmniProject-Dev-Mode: true`
+  header, and every audited transaction is tagged `meta.devMode:true`, so dev
+  activity is unmistakable in the trail and filterable out of real records.
+- **Dev mode: debug bundle + on-screen watermark + dev compose** — pulls the debug
+  tooling into one developer-instance concept.
+  - **Debug bundle (`Setup → Debug bundle`, admin)** — a single reproducible ZIP to
+    replicate an issue elsewhere: `config.json` (snapshot) + `config-dir/*.json`
+    (loaded JSON config) + `vendors.json` (loaded backend/broker catalogues) +
+    `demo-state.json` + `capture-tape.jsonl` (the captured broker/notify/export
+    traffic) + a `manifest.json`. Reload on another dev instance via Setup → Restore,
+    `DEV_PERSIST_FILE`, and `pnpm broker:replay`.
+  - **On-screen DEV MODE watermark** — the SPA reads the public `/api/dev-mode`
+    status and shows a clear diagonal watermark + a corner badge listing the armed
+    surfaces (trace/capture/persist), so a debug build can't be mistaken for prod.
+  - **`docker-compose.dev.yml`** — layer over any base compose
+    (`-f docker-compose.standalone.yml -f docker-compose.dev.yml`) to build a
+    watermarked dev instance with trace + capture + stateful persistence armed and a
+    writable `/data` volume for the tape.
+  - **Hard-gated:** `isDevMode()` / the bundle / the watermark are all inert under
+    `NODE_ENV=production` (CI guard tests assert it); `/api/dev-mode` reports only
+    which surfaces are on — no paths or secrets.
+- **Plane trace + capture/replay (dev-only debug tooling)** — a developer aid that
+  makes dispatch planes observable at the *method* boundary, and lets you capture
+  activity on one instance and replay it on another.
+  - **Trace** — `traced(plane, obj)` wraps any dispatch object in a Proxy that logs
+    every call (`→ plane.method` / `← plane.method` with timing, `✗` on failure)
+    through the shared pino logger. Applied to the **broker** seam, plus the
+    **notify** (routing decision) and **export** (serialisers) planes; report *data*
+    already flows through the traced broker. Being a Proxy it needs no per-method
+    wiring and auto-covers methods added later.
+  - **Single-instruction CLI** — `pnpm broker:send <method> [jsonArg…] [--twice]`
+    fires one instruction through the seam; `--twice` sends it again and diffs the
+    two results to flag a non-idempotent path.
+  - **Capture tape** — point `BROKER_CAPTURE` at a path and every exchange is
+    appended to an ordered JSONL tape (`{seq, ts, plane, method, args, result, ms,
+    ok}`), payloads full but always secret-scrubbed. The tape is portable: copy it to
+    another instance.
+  - **Replay** — `pnpm broker:replay <tape>` summarises it; `--serve <method>`
+    returns the *recorded* response (a deterministic offline cassette — also sidesteps
+    an egress block); `--redrive` re-issues the recorded instructions against the live
+    broker on another instance and diffs each result against the recording to surface
+    divergence. Re-drive is **read-only by default** (writes skipped unless
+    `--allow-writes`; `--dry-run` lists only).
+  - **Strongly gated, dev-only:** every surface is inert under `NODE_ENV=production`
+    (a CI guard test asserts it); off by default; redaction-by-default with full trace
+    payloads behind a second flag `BROKER_TRACE_PAYLOADS=1`; capture writes real
+    activity to disk so it is a non-prod/CI artifact kept out of the production image.
+    The CLIs are `scripts` entries, never HTTP routes — no new server surface.
 - **Rich graph + map rendering (dependency-free SVG)** — the `graph` and `map`
   panels now render real visuals, not just the accessible summary: `graph` draws a
   node-link diagram with a circular layout; `map` plots points via an

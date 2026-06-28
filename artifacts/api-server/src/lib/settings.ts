@@ -8,7 +8,13 @@
  */
 
 import { assertSafeOutboundUrl, isSafeOutboundUrl, UnsafeUrlError } from "./url-safety";
+import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "./deployment-profile";
 import type { BackendFieldMap } from "../broker/types";
+
+function coerceProfile(raw: unknown): DeploymentProfile | undefined {
+  const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return (DEPLOYMENT_PROFILES as readonly string[]).includes(v) ? (v as DeploymentProfile) : undefined;
+}
 
 export const AI_PROVIDERS = ["none", "openai", "ollama", "anthropic", "openrouter"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
@@ -16,6 +22,16 @@ export type AiProvider = (typeof AI_PROVIDERS)[number];
 /** Coerce an untrusted value (env or request) to a valid AiProvider, else "none". */
 function coerceAiProvider(raw: unknown): AiProvider {
   return (AI_PROVIDERS as readonly string[]).includes(raw as string) ? (raw as AiProvider) : "none";
+}
+
+/** AI-assisted speech-to-text engines. "browser" = the device's own recogniser (local,
+ *  zero audio egress); "whisper" = an OpenAI-compatible /audio/transcriptions endpoint
+ *  (self-hosted Whisper server OR a cloud one). Whisper is just one provider. */
+export const STT_PROVIDERS = ["none", "browser", "whisper"] as const;
+export type SttProvider = (typeof STT_PROVIDERS)[number];
+
+function coerceSttProvider(raw: unknown): SttProvider {
+  return (STT_PROVIDERS as readonly string[]).includes(raw as string) ? (raw as SttProvider) : "none";
 }
 
 /** Thrown when an admin settings write fails validation; the route maps it to 400. */
@@ -38,6 +54,9 @@ export interface BrandingConfig {
   loginHeading: string | null;
   footerText: string | null;
   supportUrl: string | null;
+  /** Theme: base font family applied to all screens (a CSS font-family stack).
+   *  Font SIZE and background COLOUR are per-user (client-side a11y prefs), not here. */
+  fontFamily: string | null;
 }
 
 /** Outbound webhook subscription (premium: gated by the `webhooks` entitlement). */
@@ -71,6 +90,9 @@ export interface SettingsState {
   /** The active broker's webhook/endpoint URL (n8n by default). */
   brokerUrl: string | null;
   aiProvider: AiProvider;
+  sttProvider: SttProvider;
+  /** Deployment context chosen in the setup wizard (relaxes enterprise couplings by choice). */
+  deploymentProfile?: DeploymentProfile;
   aiModel: string | null;
   backendSource: BackendSource;
   oidcIssuerUrl: string | null;
@@ -89,6 +111,79 @@ export interface SettingsState {
    * one the backend exposes but shouldn't). Config, never project data.
    */
   fieldOverrides: BackendFieldMap;
+  /**
+   * Per-screen layout overrides (drag-arranged panel order / spans / hidden), keyed
+   * by screen id. Presentation config — part of the snapshot/export so it travels in
+   * the customer's config JSON. Never project data.
+   */
+  screenLayouts: Record<string, ScreenLayout>;
+  /**
+   * Per-user UI preferences (accessibility: text size, background colour, contrast,
+   * motion), keyed by the user's `sub`. Stored as JSON with code defaults so a
+   * person's setup PERSISTS ACROSS SESSIONS and devices — important for users with
+   * dyslexia / visual impairment. Personal config, never project data.
+   */
+  userPrefs: Record<string, UserPrefs>;
+  /**
+   * Admin data-governance for the governed capabilities (AI tools, the MCP, AI
+   * providers and vendors), keyed by capability id. Off by default; the admin sets
+   * each to off / user-defined / public (and, for AI tools, per-surface). Customer-
+   * level config — rides the snapshot/export — never project data.
+   */
+  capabilityStates: Record<string, CapabilitySetting>;
+}
+
+/** One user's persisted UI/accessibility preferences. */
+export interface UserPrefs {
+  fontScale: number;
+  backgroundColor: string | null;
+  highContrast: boolean;
+  reduceMotion: boolean;
+  /** Switch-access scanning: off, single-switch (auto-scan) or two-switch (step). */
+  switchScan: "off" | "single" | "two";
+  /** Auto-scan dwell time per item, ms (single-switch only). */
+  scanRateMs: number;
+  /** Verbose live-region announcements to aid screen-reader users. */
+  screenReader: boolean;
+  /** Show the dictation mic (on-device speech-to-text via the user's own browser). */
+  speechInput: boolean;
+  /** Touch-optimised mobile layout: follow the device (auto) or force on/off. */
+  mobileMode: "auto" | "on" | "off";
+}
+
+/**
+ * The deployment state of a governed capability (an AI tool, the MCP, an AI provider
+ * or a vendor):
+ *   - "off"          — not used.
+ *   - "user-defined" — runs somewhere the CUSTOMER controls: truly local (on-device /
+ *                      in-cluster) or a customer-owned remote endpoint. Private.
+ *   - "public"       — a third-party SaaS provider.
+ * Each capability advertises only the states it actually supports; the UI offers those.
+ */
+export type DeploymentState = "off" | "user-defined" | "public";
+
+/** An admin's chosen state for one governed capability (customer-level JSON). */
+export interface CapabilitySetting {
+  /** The chosen state. Ignored (treated as "off") if the capability can't support it. */
+  state: DeploymentState;
+  /** For "user-defined": the customer's own endpoint (local or remote). */
+  endpoint?: string | null;
+  /**
+   * Per-surface overrides for AI tools — a screen/context id → state. Lets one piece
+   * of AI be set differently per screen (e.g. TTS public everywhere but "user-defined"
+   * or "off" on the finance screen). Only honoured for surface-aware capabilities.
+   */
+  surfaces?: Record<string, DeploymentState>;
+}
+
+/** A saved arrangement for one screen. */
+export interface ScreenLayout {
+  /** Panel ids in display order (panels not listed keep their original order, after). */
+  order?: string[];
+  /** Per-panel grid span override (1–12). */
+  spans?: Record<string, number>;
+  /** Panel ids hidden from this screen. */
+  hidden?: string[];
 }
 
 function brandingFromEnv(): BrandingConfig | null {
@@ -100,6 +195,7 @@ function brandingFromEnv(): BrandingConfig | null {
     loginHeading: process.env["BRAND_LOGIN_HEADING"]?.trim() || null,
     footerText: process.env["BRAND_FOOTER_TEXT"]?.trim() || null,
     supportUrl: process.env["BRAND_SUPPORT_URL"]?.trim() || null,
+    fontFamily: process.env["BRAND_FONT_FAMILY"]?.trim() || null,
   };
   return Object.values(b).some(Boolean) ? b : null;
 }
@@ -158,6 +254,8 @@ function loggingSyncFromEnv(): LoggingSyncConfig {
 const store: SettingsState = {
   brokerUrl: process.env["BROKER_URL"]?.trim() || null,
   aiProvider: coerceAiProvider(process.env["AI_PROVIDER"]?.trim() || "none"),
+  sttProvider: coerceSttProvider(process.env["STT_PROVIDER"]?.trim() || "none"),
+  deploymentProfile: coerceProfile(process.env["DEPLOYMENT_PROFILE"]),
   aiModel: process.env["AI_MODEL"] ?? null,
   backendSource: process.env["BACKEND_SOURCE"]?.trim() || "all",
   oidcIssuerUrl: process.env["OIDC_ISSUER_URL"] ?? null,
@@ -166,6 +264,9 @@ const store: SettingsState = {
   webhooks: webhooksFromEnv(),
   loggingSync: loggingSyncFromEnv(),
   fieldOverrides: { fields: {}, entities: {} },
+  screenLayouts: {},
+  userPrefs: {},
+  capabilityStates: {},
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
@@ -176,6 +277,8 @@ export function isTimeTravelEnabled(): boolean {
 const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "brokerUrl",
   "aiProvider",
+  "sttProvider",
+  "deploymentProfile",
   "aiModel",
   "backendSource",
   "oidcIssuerUrl",
@@ -184,6 +287,9 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "webhooks",
   "loggingSync",
   "fieldOverrides",
+  "screenLayouts",
+  "userPrefs",
+  "capabilityStates",
 ];
 
 /** A snapshot copy of the current in-memory settings (never the live reference). */
@@ -229,6 +335,12 @@ function validateFieldOverrides(value: unknown): void {
 function validatePatch(patch: Record<string, unknown>): void {
   if ("aiProvider" in patch && !(AI_PROVIDERS as readonly string[]).includes(patch["aiProvider"] as string)) {
     throw new SettingsValidationError(`aiProvider must be one of: ${AI_PROVIDERS.join(", ")}`);
+  }
+  if ("sttProvider" in patch && !(STT_PROVIDERS as readonly string[]).includes(patch["sttProvider"] as string)) {
+    throw new SettingsValidationError(`sttProvider must be one of: ${STT_PROVIDERS.join(", ")}`);
+  }
+  if ("deploymentProfile" in patch && patch["deploymentProfile"] != null && !(DEPLOYMENT_PROFILES as readonly string[]).includes(patch["deploymentProfile"] as string)) {
+    throw new SettingsValidationError(`deploymentProfile must be one of: ${DEPLOYMENT_PROFILES.join(", ")}`);
   }
   for (const key of ["brokerUrl", "oidcIssuerUrl"] as const) {
     if (key in patch && patch[key] != null) {
@@ -294,5 +406,10 @@ export function updateSettings(patch: Record<string, unknown>): SettingsState {
       writable[key] = patch[key];
     }
   }
+  // A profile change takes effect for the runtime accessors (TLS posture, reporting, …).
+  if ("deploymentProfile" in patch) setRuntimeProfile(store.deploymentProfile ?? null);
   return { ...store };
 }
+
+// Apply the initial (env-seeded) profile to the runtime accessor at module load.
+setRuntimeProfile(store.deploymentProfile ?? null);

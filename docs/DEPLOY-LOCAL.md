@@ -62,15 +62,29 @@ Services start in dependency order — the shell waits for n8n **and** Authentik
 report healthy, Authentik waits for Postgres. First boot pulls images and
 runs Authentik migrations (≈1–2 min); the `start_period` budgets for it.
 
-## 5. Configure the Authentik OIDC application (one time)
+## 5. Identity: the OmniProject app + role groups are pre-created
 
-1. Open `https://authentik.local`, finish the initial admin setup.
-2. Create an **OAuth2/OpenID Provider** + **Application** with slug `omniproject`
-   so the issuer is `https://authentik.local/application/o/omniproject/`.
-3. Set the redirect URI to `https://app.local/api/auth/callback`.
-4. Put the provider's **Client ID** (`omniproject`) and **Client Secret** into
-   `.env` (`OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET`) and `docker compose … up -d`
-   again to pick them up.
+The bundled **Authentik** auto-applies `infra/authentik/blueprints/omniproject.yaml` on boot,
+which creates the OmniProject **OAuth2/OpenID provider + application** (slug `omniproject`, so
+the issuer is `https://authentik.local/application/o/omniproject/`, redirect URI
+`https://app.local/api/auth/callback`) **and** the role groups
+`omni-admins · omni-pmo · omni-managers · omni-contributors · omni-viewers`. The provider's
+client secret is taken from `OIDC_CLIENT_SECRET` in `.env`, so both sides share one value.
+
+So the one-time setup is just:
+
+1. Finish the initial Authentik admin setup at `https://authentik.local`.
+2. Ensure `OIDC_CLIENT_SECRET` is set in `.env` (the blueprint + the shell both read it).
+
+### Create staff accounts (charities / self-hosters)
+
+In the Authentik admin → **Directory → Users**, create a user per staff member, then add each
+to the `omni-*` group for their role (admin → `omni-admins`, …). Their OmniProject role follows
+from the group — no per-user setup in OmniProject. The app's **Setup → Staff accounts & roles**
+step shows this mapping and the exact callback URL.
+
+> If you'd rather wire it by hand (or the blueprint doesn't apply on your Authentik version),
+> create the provider/application/groups manually with the same slug + redirect URI.
 
 Then open **https://app.local**.
 

@@ -10,6 +10,14 @@
   "docsUrl": "https://learn.microsoft.com/en-us/power-automate/",
   "hosted": true,
   "id": "power-automate",
+  "keyFormat": {
+    "env": [
+      "BROKER_PSK"
+    ],
+    "header": "X-Omni-Sig",
+    "pattern": "^.{16,}$",
+    "scheme": "psk"
+  },
   "kind": "low-code",
   "label": "Microsoft Power Automate",
   "notes": "An HTTP-request-triggered cloud flow with a Response action serves the contract (premium connector). Native Microsoft 365 / Dataverse reach.",

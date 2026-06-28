@@ -16,6 +16,14 @@
   "docsUrl": "https://docs.n8n.io/",
   "hosted": false,
   "id": "n8n",
+  "keyFormat": {
+    "env": [
+      "BROKER_PSK"
+    ],
+    "header": "X-Omni-Sig",
+    "pattern": "^.{16,}$",
+    "scheme": "psk"
+  },
   "kind": "low-code",
   "label": "n8n",
   "notes": "The reference broker. Self-hostable, maintained nodes for most backends, synchronous webhook response.",

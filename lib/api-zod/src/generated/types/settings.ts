@@ -8,6 +8,7 @@
 import type { FieldMapOverride } from './fieldMapOverride';
 import type { LoggingSync } from './loggingSync';
 import type { SettingsAiProvider } from './settingsAiProvider';
+import type { SettingsSttProvider } from './settingsSttProvider';
 
 export interface Settings {
   /**
@@ -16,6 +17,8 @@ export interface Settings {
      */
   brokerUrl?: string | null;
   aiProvider: SettingsAiProvider;
+  /** Speech-to-text engine. "browser" runs on-device (no audio egress); "whisper" is an AI-assisted, off-device transcription provider (governance-gated). "none" disables dictation server-side. */
+  sttProvider?: SettingsSttProvider;
   /** @nullable */
   aiModel?: string | null;
   /** Free-form backend routing hint passed to the broker (e.g. "all", "jira", "azure-devops", "servicenow", "plane", "openproject"). "all" means no filter — whatever the broker is wired to. */

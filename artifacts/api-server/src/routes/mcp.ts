@@ -4,7 +4,9 @@ import { hasValidApiToken } from "../lib/api-token";
 import { hasRole } from "../lib/rbac";
 import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
+import { isActionApproved } from "../lib/approved-actions";
 import { recordAudit } from "../lib/audit";
+import { enforceCapability, CapabilityBlockedError } from "../lib/tools";
 import { resolveSupport } from "../lib/capabilities";
 import { availableReports, availableScreens } from "@workspace/backend-catalogue";
 import type { Role } from "../lib/rbac";
@@ -77,6 +79,19 @@ router.post("/mcp", async (req, res) => {
     return;
   }
 
+  // Governance gate: the MCP capability must be turned on (off by default). Denials
+  // are logged. Returned as a JSON-RPC error so MCP clients see a clean refusal.
+  try {
+    const s = getSession(req);
+    enforceCapability("mcp", { actor: s ? { sub: s.sub, email: s.email } : null });
+  } catch (err) {
+    if (err instanceof CapabilityBlockedError) {
+      res.status(403).json({ jsonrpc: "2.0", id: body.id ?? null, error: { code: -32004, message: "MCP is turned off by the administrator" } });
+      return;
+    }
+    throw err;
+  }
+
   // Write policy: OFF unless MCP_WRITE_ENABLED, and only for a contributor+
   // SESSION (a read-only API token can never write). Here be dragons.
   const writesEnabled = /^(1|true|on|yes)$/i.test(process.env["MCP_WRITE_ENABLED"]?.trim() ?? "");
@@ -88,6 +103,8 @@ router.post("/mcp", async (req, res) => {
     if (req.body?.method === "tools/call") {
       recordAudit({ ts: new Date().toISOString(), category: tool.write ? "broker" : "request", action: `mcp:${tool.name}`, actor: getSession(req) ? { sub: getSession(req)!.sub } : null, projectId: (args["projectId"] as string) ?? null, write: !!tool.write, result: "success", status: 200 });
     }
+    // Hard limit: only the customer's APPROVED actions can execute, whatever the agent asks.
+    if (!isActionApproved(tool.action)) throw new Error(`action "${tool.action}" is not on the approved allowlist`);
     const handler = MCP_HANDLERS[tool.action];
     if (!handler) throw new Error(`unsupported tool action: ${tool.action}`);
     return handler({ broker, ctx, req, pid: String(args["projectId"] ?? ""), args });

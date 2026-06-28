@@ -63,6 +63,39 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
       "credentialType": {
         "type": "string"
       },
+      "keyFormat": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The shape of the key required to reach this vendor (used to hard-reject keyless access and to scaffold credentials).",
+        "required": [
+          "scheme"
+        ],
+        "properties": {
+          "scheme": {
+            "enum": [
+              "psk",
+              "bearer",
+              "apiKey",
+              "basic",
+              "oauth2",
+              "per-user",
+              "none"
+            ]
+          },
+          "env": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "header": {
+            "type": "string"
+          },
+          "pattern": {
+            "type": "string"
+          }
+        }
+      },
       "nomenclature": {
         "type": "object",
         "description": "Canonical label-catalogue key → this vendor's preferred word (a one-click nomenclature preset).",
@@ -235,6 +268,42 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
       },
       "notes": {
         "type": "string"
+      },
+      "keyFormat": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The shape of the key required to reach this broker (used to hard-reject keyless access and to scaffold credentials).",
+        "required": [
+          "scheme"
+        ],
+        "properties": {
+          "scheme": {
+            "enum": [
+              "psk",
+              "bearer",
+              "apiKey",
+              "basic",
+              "oauth2",
+              "per-user",
+              "none"
+            ]
+          },
+          "env": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Operator-side env var(s) the key lives in."
+          },
+          "header": {
+            "type": "string",
+            "description": "HTTP header the key is presented in, if any."
+          },
+          "pattern": {
+            "type": "string",
+            "description": "Optional regex the key value must match (its format)."
+          }
+        }
       },
       "alsoProvides": {
         "type": "array",

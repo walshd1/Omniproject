@@ -7,7 +7,15 @@ import { useEffect, lazy, Suspense } from "react";
 import { useStore } from "./store/useStore";
 import { BrandingProvider } from "./lib/branding";
 import { A11yProvider } from "./lib/a11y-prefs";
+import { PlatformProvider } from "./lib/platform-context";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { DevModeWatermark } from "./components/DevModeWatermark";
+import { DevPerfOverlay } from "./components/DevPerfOverlay";
+import { SessionTimeoutWatcher } from "./components/SessionTimeoutWatcher";
+import { DevImpersonationControl } from "./components/DevImpersonationControl";
+import { DevEntitlementsControl } from "./components/DevEntitlementsControl";
+import { SwitchScanner } from "./components/SwitchScanner";
+import { VoiceInput } from "./components/VoiceInput";
 
 // Layout (eager — it wraps every authenticated route)
 import { AppLayout } from "./components/layout/AppLayout";
@@ -99,6 +107,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrandingProvider>
         <A11yProvider>
+        <PlatformProvider>
         <TooltipProvider>
           <ThemeInitializer />
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
@@ -113,9 +122,18 @@ function App() {
                 <Router />
               </Suspense>
             </ErrorBoundary>
+            {/* Inside the router so it can time route switches; dev-mode-gated. */}
+            <DevPerfOverlay />
           </WouterRouter>
           <Toaster />
+          <SessionTimeoutWatcher />
+          <SwitchScanner />
+          <VoiceInput />
+          <DevModeWatermark />
+          <DevImpersonationControl />
+          <DevEntitlementsControl />
         </TooltipProvider>
+        </PlatformProvider>
         </A11yProvider>
       </BrandingProvider>
     </QueryClientProvider>

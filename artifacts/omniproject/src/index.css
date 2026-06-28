@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap');
+/* JetBrains Mono is loaded via a <link> in index.html (parallel, non-blocking)
+   rather than a render-blocking @import here. */
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -139,6 +140,10 @@
 
   body {
     @apply font-mono antialiased bg-background text-foreground;
+    /* Font family = customer brand (lib/branding); background colour = PER-USER
+       (lib/a11y-prefs), each falling back to the default when unset. */
+    font-family: var(--brand-font-family, ui-monospace, SFMono-Regular, monospace);
+    background-color: var(--user-bg, hsl(var(--background)));
   }
 }
 
@@ -162,6 +167,7 @@
   --user-font-scale: 1;
 }
 html {
+  /* Per-user font SIZE (lib/a11y-prefs), applied on every screen. */
   font-size: calc(100% * var(--user-font-scale, 1));
 }
 
@@ -173,6 +179,33 @@ html {
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
+}
+
+/* ── Mobile mode (lib/platform-context) ──────────────────────────────────────────
+   data-mobile / data-touch / data-standalone are set on <html> from the resolved
+   platform. Touch layouts get WCAG-sized (≥44px) hit targets; installed/standalone
+   PWAs inset fixed UI past the device safe areas (notch / home indicator). */
+[data-mobile="true"] button,
+[data-mobile="true"] [role="button"],
+[data-mobile="true"] a[href],
+[data-mobile="true"] select,
+[data-mobile="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]) {
+  min-height: 44px;
+}
+
+/* Keep the floating dictation mic clear of the iOS home indicator when installed. */
+[data-standalone="true"] [data-testid="voice-input"] {
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  right: calc(1rem + env(safe-area-inset-right, 0px));
+}
+
+/* Switch-access scanning (lib/switch-scan): a bold ring on the control the sweep is
+   currently highlighting, so a switch user can see what pressing the switch will pick. */
+[data-scan-current="true"] {
+  outline: 3px solid hsl(var(--primary)) !important;
+  outline-offset: 2px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 6px hsl(var(--primary) / 0.25) !important;
 }
 
 /* High contrast: always-underline links + thick focus rings (WCAG-aligned, theme-safe). */

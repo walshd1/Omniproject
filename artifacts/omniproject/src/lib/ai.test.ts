@@ -57,7 +57,8 @@ describe("aiChat", () => {
     expect(url).toBe("/api/ai/chat");
     expect(init.method).toBe("POST");
     expect(init.headers).toEqual({ "Content-Type": "application/json" });
-    expect(JSON.parse(init.body)).toEqual({ messages });
+    // Body carries the messages plus the current screen (surface) for governance.
+    expect(JSON.parse(init.body).messages).toEqual(messages);
   });
 
   it("throws the server-provided error message on failure", async () => {

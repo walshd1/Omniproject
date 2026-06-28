@@ -8,18 +8,20 @@ import { Router, type Response } from "express";
 import { getSettings, updateSettings } from "../lib/settings";
 import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
 import { connectedBrokerKinds } from "../broker/registry";
-import { requireRole, hasRole } from "../lib/rbac";
+import { contextFromReq, brokerVerifyConnection, brokerStoreCredential } from "../broker";
+import { requireRole, hasRole, getRoleMap } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, notificationKindCatalogue, methodologyCatalogue, methodologyPack, allMethodologyTags, reportCatalogue, screenCatalogue, reportsForMethodology, screensForMethodology, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, dedupeEntities, matchCandidates, normaliseKey } from "@workspace/backend-catalogue";
 import { isEntitled, resolveLicense } from "../lib/license";
 import { auditStatus } from "../lib/audit";
-import { DEV_PERSIST_ENABLED } from "../lib/dev-persist";
-import { getDemoState } from "../lib/data";
-import { buildZip } from "../lib/zip";
+import { isDevMode } from "../lib/dev-mode";
+import { buildDebugBundleZip } from "../lib/debug-bundle";
+import { requiredCredentials, renderCredentialTemplate } from "../lib/connection-credentials";
 import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 import { configDirSummary } from "../lib/config-dir";
 import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus } from "../lib/setup-status";
+import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
 import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
 import {
   storeView,
@@ -34,6 +36,8 @@ import {
 
 const router = Router();
 
+const isOn = (v: string | undefined): boolean => v?.trim().toLowerCase() === "true" || v?.trim().toLowerCase() === "on";
+
 /**
  * Setup / Connection Center endpoints. These are gateway control-plane (like
  * /auth), so the SPA calls them directly rather than through the generated data
@@ -45,6 +49,71 @@ const router = Router();
 // Assembled from a registry of status sections (see lib/setup-status.ts).
 router.get("/setup/status", async (req, res) => {
   res.json(await buildSetupStatus(req));
+});
+
+// GET /api/setup/profile — the deployment profile + posture, and which enterprise hardening
+// is on vs off (everything is opt-in). Lets the setup UI show "you've relaxed X by choice"
+// vs "recommended for your profile". Admin-only; reports config, never secrets.
+router.get("/setup/profile", requireRole("admin"), (_req, res) => {
+  const posture = profilePosture();
+  res.json({
+    profile: deploymentProfile(),
+    posture,
+    tls: { servedOverTls: requireTls() },
+    demoAuth: { active: !process.env["OIDC_ISSUER_URL"]?.trim(), accepted: acceptDemoAuth(), severity: demoAuthSeverity() },
+    // The advanced controls and whether each is currently engaged (all default OFF).
+    hardening: {
+      oidc: !!process.env["OIDC_ISSUER_URL"]?.trim(),
+      scim: !!process.env["SCIM_TOKEN"]?.trim(),
+      ipAllowlist: !!process.env["IP_ALLOWLIST"]?.trim(),
+      sessionCap: Number(process.env["MAX_SESSIONS_PER_USER"]) > 0,
+      kms: (process.env["KMS_PROVIDER"]?.trim() || "none") !== "none",
+      makerChecker: !!process.env["DUAL_CONTROL_ACTIONS"]?.trim(),
+      securityStrict: isOn(process.env["SECURITY_STRICT"]),
+      rateLimit: !isOn(process.env["RATE_LIMIT_DISABLED"]),
+    },
+    profiles: DEPLOYMENT_PROFILES,
+    // The picker catalogue: every customer type's posture + preset (audience, what it relaxes,
+    // suggested env, recommendations).
+    catalogue: profileCatalogue(),
+  });
+});
+
+// GET /api/setup/idp — guided identity setup, especially the BUNDLED IdP (Authentik) path for
+// charities/self-hosters with no corporate IdP. OmniProject delegates identity, so this tells
+// the admin exactly how to give staff real accounts + roles. Admin-only; no secrets.
+router.get("/setup/idp", requireRole("admin"), (req, res) => {
+  const issuer = process.env["OIDC_ISSUER_URL"]?.trim() || "";
+  const mode = issuer ? "oidc" : "demo";
+  let issuerOrigin = "";
+  try { if (issuer) issuerOrigin = new URL(issuer).origin; } catch { /* malformed issuer */ }
+  // "Bundled" = the Authentik that ships in docker-compose.standalone.yml.
+  const bundled = /authentik/i.test(issuer);
+  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] || req.protocol;
+  const host = req.headers["x-forwarded-host"] || req.get("host");
+  const base = (process.env["PUBLIC_URL"]?.trim() || `${proto}://${host}`).replace(/\/+$/, "");
+  // The redirect URI the IdP must allow (the one thing operators get wrong).
+  const callbackUrl = `${base}/api/auth/callback`;
+  // The live group→role mapping (so they know which IdP group grants which role)…
+  const roleGroups = getRoleMap().map((m) => ({ role: m.role, groups: m.claims }));
+  // …and the default group names the bundled blueprint creates (for demo-mode guidance).
+  const suggestedGroups: Record<string, string> = {
+    admin: "omni-admins", pmo: "omni-pmo", manager: "omni-managers", contributor: "omni-contributors", viewer: "omni-viewers",
+  };
+  res.json({ mode, issuer, issuerOrigin, bundled, callbackUrl, roleGroups, suggestedGroups, profile: deploymentProfile() });
+});
+
+// POST /api/setup/profile — pick the deployment profile from the wizard (admin). Persists it
+// (overrides the env default) so the TLS posture + the no-IdP severity follow the chosen type.
+// Infra-level env (DEPLOYMENT_PROFILE) remains the source of truth across a fresh boot.
+router.post("/setup/profile", requireRole("admin"), (req, res) => {
+  const profile = typeof req.body?.profile === "string" ? req.body.profile.trim().toLowerCase() : "";
+  if (!(DEPLOYMENT_PROFILES as readonly string[]).includes(profile)) {
+    res.status(400).json({ error: `profile must be one of: ${DEPLOYMENT_PROFILES.join(", ")}` });
+    return;
+  }
+  updateSettings({ deploymentProfile: profile });
+  res.json({ profile: deploymentProfile(), posture: profilePosture(), tls: { servedOverTls: requireTls() } });
 });
 
 // POST /api/setup/test-n8n — non-destructive reachability + capability probe of
@@ -195,6 +264,87 @@ router.get("/setup/screens", async (req, res) => {
   const support = await resolveSupport(req).catch(() => null);
   res.json(support ? availableScreens(support) : screenCatalogue());
 });
+
+// Per-screen layout overrides (drag-arranged panel order / spans / hidden). Stored
+// in the settings store, so they ride the snapshot/export into the customer's JSON.
+// GET is open (the SPA needs it to render); PUT is manager+ (a shared customer view).
+router.get("/setup/screens/:id/layout", (req, res) => {
+  const layout = getSettings().screenLayouts[String(req.params["id"])] ?? null;
+  res.json({ id: req.params["id"], layout });
+});
+
+router.put("/setup/screens/:id/layout", requireRole("manager"), (req, res) => {
+  const id = String(req.params["id"]);
+  const body = (req.body ?? {}) as { order?: unknown; spans?: unknown; hidden?: unknown };
+  const layout: { order?: string[]; spans?: Record<string, number>; hidden?: string[] } = {};
+  if (Array.isArray(body.order)) layout.order = body.order.filter((x): x is string => typeof x === "string");
+  if (body.spans && typeof body.spans === "object") {
+    layout.spans = Object.fromEntries(
+      Object.entries(body.spans as Record<string, unknown>)
+        .filter(([, v]) => typeof v === "number" && (v as number) >= 1 && (v as number) <= 12) as [string, number][],
+    );
+  }
+  if (Array.isArray(body.hidden)) layout.hidden = body.hidden.filter((x): x is string => typeof x === "string");
+
+  const next = { ...getSettings().screenLayouts, [id]: layout };
+  updateSettings({ screenLayouts: next });
+  captureVersion(`screen layout: ${id}`);
+  res.json({ id, layout });
+});
+// GET /api/setup/connections?backends=a,b — the vendor credentials the broker(s)
+// need for the selected backends, plus fill-in templates. Admin-only. Returns only
+// credential NAMES + placeholders; OmniProject never holds the secret values.
+router.get("/setup/connections", requireRole("admin"), (req, res) => {
+  const raw = typeof req.query["backends"] === "string" ? (req.query["backends"] as string) : "";
+  const fromQuery = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  const source = getSettings().backendSource;
+  const backends = fromQuery.length ? fromQuery : source && source !== "all" && source !== "none" ? [source] : [];
+  const credentials = requiredCredentials(backends);
+  res.json({
+    backends,
+    credentials,
+    templates: {
+      env: renderCredentialTemplate(credentials, "env"),
+      compose: renderCredentialTemplate(credentials, "compose"),
+    },
+  });
+});
+
+// POST /api/setup/connections/test — ask the broker to verify it can reach a
+// backend with its configured credentials. Admin-only.
+router.post("/setup/connections/test", requireRole("admin"), async (req, res) => {
+  const backend = typeof req.body?.backend === "string" ? req.body.backend.trim() : "";
+  if (!backend) { res.status(400).json({ error: "backend is required" }); return; }
+  const p = brokerVerifyConnection(contextFromReq(req), backend);
+  if (!p) { res.status(501).json({ ok: false, error: "this broker does not support connection tests" }); return; }
+  try {
+    res.json(await p);
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err instanceof Error ? err.message : "verify failed" });
+  }
+});
+
+// POST /api/setup/connections/vault — DELEGATE a vendor credential to the broker's
+// own encrypted credential store. The secret is relayed ONCE and never persisted by
+// OmniProject (not stored, not logged). 501 when the broker has no vault. Admin-only.
+router.post("/setup/connections/vault", requireRole("admin"), async (req, res) => {
+  const backend = typeof req.body?.backend === "string" ? req.body.backend.trim() : "";
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const value = typeof req.body?.value === "string" ? req.body.value : "";
+  if (!backend || !name || !value) { res.status(400).json({ error: "backend, name and value are required" }); return; }
+  const p = brokerStoreCredential(contextFromReq(req), { backend, name, value });
+  if (!p) {
+    res.status(501).json({ stored: false, error: "this broker has no credential vault — use the env/Docker-secret template instead" });
+    return;
+  }
+  try {
+    const result = await p; // result carries only a non-secret ref
+    res.json({ stored: result.stored, ref: result.ref ?? null });
+  } catch (err) {
+    res.status(502).json({ stored: false, error: err instanceof Error ? err.message : "vault store failed" });
+  }
+});
+
 // The plane meta-registry — all seven planes + their dev docs.
 router.get("/setup/planes", (_req, res) => {
   res.json(planeCatalogue());
@@ -366,35 +516,19 @@ router.post("/setup/rollback", requireRole("admin"), (req, res) => {
   }
 });
 
-// GET /api/setup/debug-bundle — a ZIP of config + demo data state for
-// reproducible bug reports / sharing to GitHub. Available ONLY in stateful dev
-// mode (refused in production), admin-only. This is a debugging aid, not a prod
-// feature — production is stateless and has no data state to bundle.
+// GET /api/setup/debug-bundle — a reproducible ZIP of config + loaded vendors +
+// demo data + captured broker/notify/export traffic, for sharing on a GitHub issue
+// or reloading on another instance to replicate a problem. Available ONLY in dev
+// mode (refused in production — dev mode is hard-gated off there), admin-only.
 router.get("/setup/debug-bundle", requireRole("admin"), (_req, res) => {
-  if (!DEV_PERSIST_ENABLED) {
+  if (!isDevMode()) {
     res.status(409).json({
-      error: "Debug bundle is available only in stateful developer mode (DEV_PERSIST_FILE, non-production). Production is stateless.",
+      error: "Debug bundle is available only in developer mode (a non-production build with OMNI_DEV_MODE / DEV_PERSIST_FILE / BROKER_TRACE / BROKER_CAPTURE). Production is stateless and never bundles.",
     });
     return;
   }
   const now = new Date().toISOString();
-  const config = buildSnapshot(getSettings());
-  const state = getDemoState();
-  const readme =
-    "# OmniProject debug bundle\n\n" +
-    `Generated ${now}.\n\n` +
-    "For **reproducible bug reports** only — share on a GitHub issue. Contains:\n" +
-    "- `config.json` — gateway configuration snapshot (no secrets; those live in env).\n" +
-    "- `demo-state.json` — the in-memory demo dataset (projects/issues/RAID).\n\n" +
-    "To reproduce locally: run a **non-production** build with `DEV_PERSIST_FILE` pointed\n" +
-    "at a copy of `demo-state.json`, and apply `config.json` via Setup → Restore.\n" +
-    "Stateful mode is a debugging aid; **never enable it in production** (it is ignored there).\n";
-
-  const zip = buildZip([
-    { name: "README.md", data: Buffer.from(readme, "utf8") },
-    { name: "config.json", data: Buffer.from(JSON.stringify(config, null, 2), "utf8") },
-    { name: "demo-state.json", data: Buffer.from(JSON.stringify(state, null, 2), "utf8") },
-  ]);
+  const zip = buildDebugBundleZip(now);
   res
     .type("application/zip")
     .set("Content-Disposition", `attachment; filename="omniproject-debug-bundle-${now.slice(0, 10)}.zip"`)

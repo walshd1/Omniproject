@@ -23,7 +23,9 @@ export async function aiChat(messages: ChatMessage[]): Promise<{ content: string
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages }),
+    // Send the current screen so the gateway can apply per-surface AI governance
+    // (the server normalises this route to a registry screen id).
+    body: JSON.stringify({ messages, surface: typeof window !== "undefined" ? window.location.pathname : undefined }),
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
