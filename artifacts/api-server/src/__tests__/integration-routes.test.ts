@@ -225,6 +225,15 @@ test("POST /api/ai/chat rejects a malformed body with 400", async () => {
   assert.equal(res.status, 400);
 });
 
+test("responses carry W3C traceparent + x-request-id, continuing an incoming trace", async () => {
+  const incoming = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+  const res = await get("/api/healthz", { headers: { traceparent: incoming } });
+  const tp = res.headers.get("traceparent");
+  assert.ok(tp, "traceparent header present");
+  assert.match(tp!, /^00-4bf92f3577b34da6a3ce929d0e0e4736-[\da-f]{16}-01$/); // same trace, new span
+  assert.ok(res.headers.get("x-request-id"), "x-request-id header present");
+});
+
 test("GET /api/ai/providers returns the registry + capability map, with no secrets", async () => {
   const res = await get("/api/ai/providers");
   assert.equal(res.status, 200);

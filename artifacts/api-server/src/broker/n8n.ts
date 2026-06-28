@@ -31,6 +31,7 @@ import { assertEgressAllowed } from "../lib/egress";
 import { pskEnabled, sealPayload, openPayload, PSK_HEADER, PSK_PREFIX } from "../lib/broker-psk";
 import { signBrokerRequest } from "../lib/broker-hmac";
 import { assertSafeBrokerPayload, assertSafeAuthHeader } from "../lib/payload-guard";
+import { currentTraceparent } from "../lib/tracing";
 
 /**
  * n8n broker — THE one place that knows the broker is n8n.
@@ -215,6 +216,10 @@ async function callN8n<T = unknown>(
       "X-Omni-Bind-Kver": String(sig.bind.bkver ?? ""),
     };
   }
+
+  // Forward the W3C trace context so the broker hop joins the same distributed trace.
+  const traceparent = currentTraceparent();
+  if (traceparent) init.headers = { ...(init.headers as Record<string, string>), traceparent };
 
   // Round-robin across the n8n pool; fail over to the next instance ONLY on a
   // connection-level error (a returned HTTP status is a real response, not an

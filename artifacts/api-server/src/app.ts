@@ -27,6 +27,7 @@ import { loadSecurityState } from "./lib/security-state";
 import { hydrateVault } from "./lib/vault";
 import { initKms } from "./lib/kms";
 import { contentSecurityPolicy, cspHeaderName } from "./lib/csp";
+import { tracingMiddleware } from "./lib/tracing";
 
 const app: Express = express();
 
@@ -101,6 +102,10 @@ app.use(
     },
   }),
 );
+// W3C trace context: continue/begin a trace, correlate req.log, echo traceparent +
+// x-request-id, propagate via AsyncLocalStorage, and export an OTLP span when configured.
+// Runs right after pinoHttp so it can enrich the request logger.
+app.use(tracingMiddleware);
 app.use(cors());
 
 // Baseline security headers on every response (API + SPA). Deliberately

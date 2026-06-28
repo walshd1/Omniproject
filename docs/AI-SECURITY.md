@@ -101,6 +101,10 @@ anonymous system call:
   one-time ephemeral key, then **rotates the internal key**. Move the bundle, carry the
   ephemeral key separately, decrypt offline (`tools/decrypt-config-bundle.mjs`), drop in
   place — the target re-seals under its own key. `POST /api/security/config/export`.
+- **Distributed tracing** (`lib/tracing.ts`): W3C Trace Context on every request — continues an
+  incoming `traceparent` or starts one, correlates `req.log` (traceId/requestId), echoes
+  `traceparent` + `x-request-id`, propagates through the broker hop, and exports an OTLP span
+  when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (no SDK; Datadog/Jaeger/Honeycomb/Tempo).
 - **Durable security state** (`SECURITY_STATE_FILE`): key revocations, grants, containment,
   approvals and the kill switch are sealed to disk and restored at boot, so a revocation
   survives a restart. `lib/security-state.ts`.
