@@ -25,6 +25,7 @@
 export const DEFAULT_APPROVED_ACTIONS: readonly string[] = [
   "list_projects", "list_issues", "project_summary", "get_portfolio_health",
   "get_capabilities", "get_notifications", "list_reports", "list_screens",
+  "portfolio_copilot",
 ];
 
 const actions = new Set<string>(DEFAULT_APPROVED_ACTIONS);

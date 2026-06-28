@@ -21,6 +21,25 @@ describe("Copilot", () => {
     await waitFor(() => expect(screen.getByTestId("copilot-answer")).toHaveTextContent("Two projects are RED."));
   });
 
+  it("shows the methodology persona and lets you switch to freeform mode", async () => {
+    const copilotBodies = (): Record<string, unknown>[] =>
+      fetchMock.mock.calls.filter((c) => c[0] === "/api/ai/copilot").map((c) => JSON.parse(c[1].body));
+    fetchMock.mockResolvedValue(jsonRes({ answer: "Risks summarised.", projects: 3, persona: { id: "risk-assurance-manager", title: "Risk & Assurance Manager" } }));
+    renderWithProviders(<Copilot />, { client: client() });
+    // Default mode is RAG — the request carries mode:"rag" and the persona is shown.
+    fireEvent.change(screen.getByLabelText("Portfolio question"), { target: { value: "top risks?" } });
+    fireEvent.click(screen.getByTestId("copilot-ask"));
+    await waitFor(() => expect(screen.getByTestId("copilot-persona")).toHaveTextContent("Risk & Assurance Manager"));
+    expect(copilotBodies()[0]).toMatchObject({ mode: "rag" });
+    // Switch to freeform — the next ask carries mode:"freeform" and no persona is shown.
+    fetchMock.mockResolvedValue(jsonRes({ answer: "Plain answer.", projects: 3 }));
+    fireEvent.click(screen.getByTestId("copilot-mode-freeform"));
+    fireEvent.click(screen.getByTestId("copilot-ask"));
+    await waitFor(() => expect(screen.getByTestId("copilot-answer")).toHaveTextContent("Plain answer."));
+    expect(copilotBodies()[1]).toMatchObject({ mode: "freeform" });
+    expect(screen.queryByTestId("copilot-persona")).toBeNull();
+  });
+
   it("surfaces an error", async () => {
     fetchMock.mockResolvedValue(jsonRes({ error: "AI is unavailable here" }, false, 403));
     renderWithProviders(<Copilot />, { client: client() });

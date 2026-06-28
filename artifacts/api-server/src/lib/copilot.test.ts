@@ -59,6 +59,41 @@ test("approved vocabulary is surfaced to the model when provided", () => {
   assert.match(system, /Sprint, Epic/);
 });
 
+test("the retrieved methodology persona is injected and reported", async () => {
+  const broker = { portfolioHealth: async () => [row({})] } as unknown as Broker;
+  let sent = "";
+  const result = await answerCopilot({
+    question: "what are our top risks and blockers?",
+    broker,
+    ctx: { sub: "u1" },
+    complete: async (messages) => { sent = JSON.stringify(messages); return "Risks summarised."; },
+  });
+  assert.match(sent, /Risk & Assurance Manager/); // the lens is applied
+  assert.equal(result.persona?.id, "risk-assurance-manager"); // and reported back
+});
+
+test("freeform mode answers without retrieving or injecting a persona", async () => {
+  const broker = { portfolioHealth: async () => [row({})] } as unknown as Broker;
+  let sent = "";
+  const result = await answerCopilot({
+    question: "what are our top risks and blockers?", // would pick the risk persona in rag mode
+    broker, ctx: { sub: "u1" }, mode: "freeform",
+    complete: async (messages) => { sent = JSON.stringify(messages); return "Plain answer."; },
+  });
+  assert.equal(result.persona, undefined); // no lens reported
+  assert.equal(/Risk & Assurance Manager/.test(sent), false); // and none injected
+});
+
+test("COPILOT_PERSONAS=off suppresses persona injection", async () => {
+  process.env["COPILOT_PERSONAS"] = "off";
+  const broker = { portfolioHealth: async () => [row({})] } as unknown as Broker;
+  let sent = "";
+  const result = await answerCopilot({ question: "top risks?", broker, ctx: {}, complete: async (m) => { sent = JSON.stringify(m); return "x"; } });
+  assert.equal(result.persona, undefined);
+  assert.equal(/Risk & Assurance Manager/.test(sent), false);
+  delete process.env["COPILOT_PERSONAS"];
+});
+
 test("an empty question short-circuits without calling the model", async () => {
   let called = false;
   const broker = { portfolioHealth: async () => { called = true; return []; } } as unknown as Broker;

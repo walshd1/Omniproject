@@ -128,12 +128,19 @@ router.post("/ai/copilot", async (req, res) => {
     throw err;
   }
 
+  // Retrieval mode: "rag" (default) lenses the answer through a methodology persona;
+  // "freeform" answers plainly. An optional methodology hint pins which lens RAG picks.
+  const rawMode = (req.body as { mode?: unknown }).mode;
+  const mode: "rag" | "freeform" = rawMode === "freeform" ? "freeform" : "rag";
+  const methodology = typeof (req.body as { methodology?: unknown }).methodology === "string" ? (req.body as { methodology: string }).methodology : undefined;
   try {
     const result = await answerCopilot({
       question,
       broker: getBroker(),
       ctx: contextFromReq(req),
       vocab: listApprovedVocab(), // ask the model to use the customer's approved terminology
+      mode,
+      ...(methodology ? { methodology } : {}),
       complete: async (messages) => (await aiChat(messages)).content,
     });
     res.json(result);

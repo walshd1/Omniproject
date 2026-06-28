@@ -4,7 +4,9 @@ import { hasValidApiToken } from "../lib/api-token";
 import { hasRole } from "../lib/rbac";
 import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
-import { isActionApproved } from "../lib/approved-actions";
+import { isActionApproved, listApprovedVocab } from "../lib/approved-actions";
+import { answerCopilot } from "../lib/copilot";
+import { aiChat } from "../lib/ai";
 import { recordAudit } from "../lib/audit";
 import { enforceCapability, CapabilityBlockedError } from "../lib/tools";
 import { resolveSupport } from "../lib/capabilities";
@@ -62,6 +64,17 @@ const MCP_HANDLERS: Record<string, (d: McpCtx) => Promise<unknown> | unknown> = 
       .filter((s) => hasRole(req, s.capabilities.requiresRole as Role))
       .map((s) => ({ id: s.id, label: s.label, route: s.route, kind: s.kind, requiresRole: s.capabilities.requiresRole, widgets: s.tools }));
   },
+  // Portfolio copilot as an action — read-only NL Q&A. Runs THROUGH the same scoped,
+  // injection-hardened path as the SPA copilot (lib/copilot): only the minimal aggregated
+  // snapshot reaches the model, and no further action surface is exposed.
+  portfolio_copilot: async ({ broker, ctx, args }) => answerCopilot({
+    question: String(args["question"] ?? ""),
+    broker, ctx,
+    vocab: listApprovedVocab(),
+    mode: args["mode"] === "freeform" ? "freeform" : "rag",
+    ...(typeof args["methodology"] === "string" ? { methodology: args["methodology"] } : {}),
+    complete: async (messages) => (await aiChat(messages)).content,
+  }),
   // Gated writes (the policy check in handleMcp already refused unauthorised callers).
   create_issue: ({ broker, ctx, pid, args }) => broker.writeIssue(ctx, "create", { projectId: pid, title: String(args["title"] ?? ""), ...(args["description"] ? { description: String(args["description"]) } : {}), ...(args["status"] ? { status: String(args["status"]) } : {}) }),
   update_issue: ({ broker, ctx, pid, args }) => broker.writeIssue(ctx, "update", { projectId: pid, issueId: String(args["issueId"] ?? ""), ...(args["title"] ? { title: String(args["title"]) } : {}), ...(args["status"] ? { status: String(args["status"]) } : {}), ...(args["expectedVersion"] != null ? { expectedVersion: Number(args["expectedVersion"]) } : {}) }),
