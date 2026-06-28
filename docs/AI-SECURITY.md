@@ -142,6 +142,20 @@ anonymous system call:
 - **Content-Security-Policy**: a strict, SPA-compatible CSP ships by default and is fully
   overridable / report-only per deployment (`lib/csp.ts`, `CONTENT_SECURITY_POLICY`, `CSP_*`).
 
+## 5b. Identity lifecycle (SCIM 2.0)
+
+OmniProject is stateless — the IdP authenticates via OIDC — so SCIM (`lib/scim.ts`,
+`routes/scim.ts`) doesn't own passwords or sessions; it owns the **lifecycle overlay** an
+enterprise IdP (Okta / Entra) drives:
+
+- **Provisioning** — `POST/PUT/PATCH/DELETE /api/scim/v2/Users` and `/Groups`, bearer-authed
+  with `SCIM_TOKEN` (separate from user sessions; off → 404). All mutations audited.
+- **Deprovisioning** — a `PATCH active=false` (or `DELETE`) means the user is **denied at the
+  gate even with a valid OIDC token**, so an IdP disabling an account takes effect immediately.
+- **Group → role** — a user's SCIM group memberships are merged into their OIDC role claims at
+  request time, so the IdP's group assignment drives RBAC without re-issuing claims.
+- The directory is small and persisted **sealed** (`SCIM_STATE_FILE` / `<OMNI_CONFIG_DIR>/scim.json`).
+
 ## 6. Residual boundaries (honest)
 
 These are deliberate, documented limits — not defects:
@@ -178,6 +192,7 @@ These are deliberate, documented limits — not defects:
 | `CONTENT_SECURITY_POLICY` / `CSP_*` | Override / extend / report-only the served CSP. |
 | `SECURITY_STATE_FILE` | Enables durable security state (revocations etc. survive restart). |
 | `AUDIT_KEY` | Dedicated audit-chain key (else derived from the master). `AUDIT_CHAIN_FILE` persists the chain head across restarts. |
+| `SCIM_TOKEN` | Enables SCIM 2.0 provisioning + the bearer the IdP presents. `SCIM_STATE_FILE` persists the directory (sealed). |
 | `STEP_UP_MINUTES` | Step-up freshness window (default 5). |
 | `AUTONOMOUS_SESSION_SECONDS` | Autonomous session TTL (default 30, clamped ≤ 5 min). |
 | `OMNI_DEV_MODE` | Dev mode (hard-gated inert in production). |

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { getSession } from "../routes/auth";
+import { directoryDecision } from "./scim";
 
 /**
  * Role-based access control.
@@ -179,7 +180,19 @@ export function grantsForReq(req: Request): Grants {
   // No session → read-only API tokens (and unauthenticated callers) are viewers.
   if (!session) return { base: "viewer", authorities: new Set<Authority>() };
   const isDemo = !process.env["OIDC_ISSUER_URL"]?.trim();
-  return grantsFromClaims(session.roles ?? [], { isDemo });
+  // A SCIM-provisioned user's group memberships are merged in as extra role claims, so the
+  // IdP's group→role assignment flows through without re-issuing OIDC claims.
+  const decision = directoryDecision({ email: session.email, sub: session.sub });
+  const claims = decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
+  return grantsFromClaims(claims, { isDemo });
+}
+
+/** Is this request's principal DEPROVISIONED in the SCIM directory? (known + active=false.) */
+export function isDeprovisioned(req: Request): boolean {
+  const session = getSession(req);
+  if (!session) return false;
+  const decision = directoryDecision({ email: session.email, sub: session.sub });
+  return decision.known && !decision.active;
 }
 
 /** A representative role label for the request (display/audit only). */

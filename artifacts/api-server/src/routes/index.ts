@@ -39,6 +39,8 @@ import toolsRouter from "./tools";
 import provenanceRouter from "./provenance";
 import securityRouter from "./security";
 import healthWatchRouter from "./health-watch";
+import scimRouter from "./scim";
+import { isDeprovisioned } from "../lib/rbac";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -54,6 +56,9 @@ const router: IRouter = Router();
  */
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (getSession(req)) {
+    // SCIM lifecycle: a deprovisioned (active=false) user is denied even with a valid OIDC
+    // session, so the IdP disabling an account takes effect here immediately.
+    if (isDeprovisioned(req)) { res.status(403).json({ error: "Account has been deactivated." }); return; }
     next();
     return;
   }
@@ -91,6 +96,10 @@ router.use(auditMiddleware);
 // over the broker seam; self-auths (session OR read-only API token) since MCP is
 // POST but the v1 tools are reads. Mounted here so it's rate-limited + audited.
 router.use(mcpRouter);
+
+// SCIM 2.0 provisioning — self-authed by the SCIM bearer token (not a user session), so
+// it's mounted outside requireAuth. Rate-limited + audited like the rest of /api.
+router.use(scimRouter);
 
 router.use(authRouter);
 
