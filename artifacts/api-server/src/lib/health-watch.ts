@@ -37,6 +37,26 @@ export interface Thresholds {
 
 export const DEFAULT_THRESHOLDS: Thresholds = { scheduleSlipDays: 5, budgetOverrunPct: 10, blockers: 1 };
 
+// The active thresholds — defaults, optionally tuned per deployment from the config dir
+// (rulesets/health-thresholds.json), so an operator can match their SLAs without a rebuild.
+let activeThresholds: Thresholds = { ...DEFAULT_THRESHOLDS };
+
+/** The thresholds the watch currently runs with. */
+export function getHealthThresholds(): Thresholds { return activeThresholds; }
+
+/** Tune the thresholds (config-dir load or admin). Only finite, non-negative numbers are
+ *  accepted; anything missing/invalid falls back to the default for that field. */
+export function setHealthThresholds(input: unknown): Thresholds {
+  const o = (input ?? {}) as Record<string, unknown>;
+  const num = (v: unknown, d: number): number => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : d);
+  activeThresholds = {
+    scheduleSlipDays: num(o["scheduleSlipDays"], DEFAULT_THRESHOLDS.scheduleSlipDays),
+    budgetOverrunPct: num(o["budgetOverrunPct"], DEFAULT_THRESHOLDS.budgetOverrunPct),
+    blockers: num(o["blockers"], DEFAULT_THRESHOLDS.blockers),
+  };
+  return activeThresholds;
+}
+
 interface HealthRule {
   id: string;
   severity: Severity;
@@ -74,9 +94,10 @@ export function recentFindings(): HealthFinding[] {
   return [...ring];
 }
 
-/** Test-only: clear the findings ring. */
+/** Test-only: clear the findings ring + restore default thresholds. */
 export function __resetHealthWatch(): void {
   ring.length = 0;
+  activeThresholds = { ...DEFAULT_THRESHOLDS };
 }
 
 export type NotifyFn = (finding: HealthFinding) => void;
@@ -97,7 +118,7 @@ export async function runHealthWatch(opts: RunOptions): Promise<HealthFinding[]>
   const ctx: ActorContext = mintAutonomousContext({ id: "health-watch", role: "viewer", reason: "scheduled health scan" }, opts.now);
   const rows = await opts.broker.portfolioHealth(ctx);
   const at = new Date(opts.now).toISOString();
-  const findings = evaluateHealth(rows, at, opts.thresholds);
+  const findings = evaluateHealth(rows, at, opts.thresholds ?? getHealthThresholds());
 
   for (const f of findings) {
     opts.notify(f);

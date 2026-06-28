@@ -5,6 +5,7 @@ import { registerVendor, type VendorPlane } from "@workspace/backend-catalogue";
 import { applySnapshot } from "./config-snapshot";
 import { updateSettings } from "./settings";
 import { setFieldRules, setRuleModes } from "./ruleset";
+import { setHealthThresholds } from "./health-watch";
 import { logger } from "./logger";
 
 /**
@@ -153,6 +154,7 @@ function loadRulesets(dir: string, summary: ConfigDirSummary): void {
   };
   apply("field-rules.json", (d) => setFieldRules(d));
   apply("rule-modes.json", (d) => setRuleModes(d as Record<string, unknown>));
+  apply("health-thresholds.json", (d) => setHealthThresholds(d));
 }
 
 /** artifacts/ — things generated against our reference; kept with the config, just inventoried. */
