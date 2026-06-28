@@ -1,4 +1,4 @@
-import { BACKENDS, SCREENS } from "@workspace/backend-catalogue";
+import { BACKENDS, BROKERS, SCREENS } from "@workspace/backend-catalogue";
 import { getSettings, updateSettings, AI_PROVIDERS, type DeploymentState, type CapabilitySetting } from "./settings";
 import { recordAudit } from "./audit";
 
@@ -19,7 +19,7 @@ import { recordAudit } from "./audit";
  * states live in customer-level JSON; changing them is admin-gated.
  */
 
-export type CapabilityKind = "ai-tool" | "mcp" | "ai-provider" | "vendor";
+export type CapabilityKind = "ai-tool" | "mcp" | "ai-provider" | "vendor" | "broker";
 
 export interface GovernedCapability {
   id: string;
@@ -81,9 +81,22 @@ function vendorCapabilities(): GovernedCapability[] {
   }));
 }
 
+function brokerCapabilities(): GovernedCapability[] {
+  // The broker seam (n8n by default). Self-hosted/in-cluster brokers are user-defined;
+  // a managed broker is public. Same tri-state as everything else.
+  return BROKERS.map((b) => ({
+    id: `broker:${b.id}`,
+    kind: "broker" as const,
+    label: `Broker — ${b.label}`,
+    description: `Route backend traffic through ${b.label}.`,
+    supportedStates: ANY,
+    surfaceAware: true,
+  }));
+}
+
 /** Every governed capability across all kinds. */
 export function listCapabilities(): GovernedCapability[] {
-  return [...AI_TOOLS, MCP_CAPABILITY, ...providerCapabilities(), ...vendorCapabilities()];
+  return [...AI_TOOLS, MCP_CAPABILITY, ...providerCapabilities(), ...brokerCapabilities(), ...vendorCapabilities()];
 }
 
 const byId = new Map(listCapabilities().map((c) => [c.id, c]));
@@ -122,21 +135,9 @@ export interface ResolvedCapability extends GovernedCapability {
   surfaces: Record<string, DeploymentState>;
 }
 
-/**
- * The default setting when an admin hasn't set one. An AI provider that IS the active
- * provider defaults to its natural state, so existing AI config keeps working without a
- * separate governance switch; everything else is "off" until an admin turns it on.
- */
-export function defaultSettingFor(cap: GovernedCapability): CapabilitySetting {
-  if (cap.kind === "ai-provider" && cap.id === `provider:${getSettings().aiProvider}`) {
-    return { state: cap.supportedStates[0] ?? "off" };
-  }
-  return { state: "off" };
-}
-
 /** Resolve one capability against the stored settings (no surface applied). */
 export function resolveCapability(cap: GovernedCapability, states: Record<string, CapabilitySetting>): ResolvedCapability {
-  const setting = states[cap.id] ?? defaultSettingFor(cap);
+  const setting = states[cap.id];
   return {
     ...cap,
     options: offeredStates(cap),
@@ -152,12 +153,13 @@ export function listResolvedCapabilities(): ResolvedCapability[] {
   return listCapabilities().map((c) => resolveCapability(c, states));
 }
 
-/** Resolve a single capability's effective state for a surface (the runtime check). */
+/** Resolve a single capability's effective state for a surface (the runtime check).
+ *  Default is OFF for everything — no AI, no brokered/vendor traffic — until an admin
+ *  explicitly turns a capability on. Secure (and silent) by default. */
 export function effectiveState(id: string, surface?: string): DeploymentState {
   const cap = getCapability(id);
   if (!cap) return "off";
-  const setting = getSettings().capabilityStates[id] ?? defaultSettingFor(cap);
-  return resolveState(cap, setting, surface);
+  return resolveState(cap, getSettings().capabilityStates[id], surface);
 }
 
 /** Governable surfaces (screens) from the registry — drives the admin override picker. */
@@ -194,10 +196,37 @@ export class CapabilityBlockedError extends Error {
   }
 }
 
+/** One entry in the live capability activity log (for the admin dashboard). */
+export interface CapabilityLogEntry {
+  ts: string;
+  action: "use" | "blocked" | "configured";
+  capability: string;
+  kind: CapabilityKind | null;
+  surface: string | null;
+  state: DeploymentState;
+  actor: string | null;
+}
+
+const LOG_MAX = 200;
+const activityLog: CapabilityLogEntry[] = [];
+
+function pushLog(entry: CapabilityLogEntry): void {
+  activityLog.push(entry);
+  if (activityLog.length > LOG_MAX) activityLog.shift();
+}
+
+/** Recent capability activity (uses, blocks, config changes), newest first. */
+export function recentCapabilityLog(): CapabilityLogEntry[] {
+  return [...activityLog].reverse();
+}
+
+const actorLabel = (a?: Actor | null): string | null => a?.email ?? a?.sub ?? null;
+
 /**
- * Resolve a capability-use decision for a surface AND record it to the audit log —
- * whether allowed or denied — so there's always a trail of which AI/vendor ran where
- * and for whom. The call site uses the returned {state, endpoint} to run correctly.
+ * Resolve a capability-use decision for a surface AND record it — to the audit log and
+ * the live activity ring — whether allowed or denied, so there's always a trail of
+ * which AI/vendor/broker ran where and for whom. The call site uses the returned
+ * {state, endpoint} to run correctly.
  */
 export function decideCapability(id: string, opts: { surface?: string; actor?: Actor | null } = {}): CapabilityDecision {
   const cap = getCapability(id);
@@ -214,7 +243,22 @@ export function decideCapability(id: string, opts: { surface?: string; actor?: A
     result: allowed ? "success" : "error",
     meta: { capability: id, kind: cap?.kind ?? null, surface, state },
   });
+  pushLog({ ts: new Date().toISOString(), action: allowed ? "use" : "blocked", capability: id, kind: cap?.kind ?? null, surface, state, actor: actorLabel(opts.actor) });
   return { id, kind: cap?.kind ?? null, surface, state, allowed, endpoint };
+}
+
+/** Record an admin turning a capability on/off (audited + shown on the dashboard). */
+export function noteCapabilityConfigured(id: string, setting: CapabilitySetting, actor?: Actor | null): void {
+  const cap = getCapability(id);
+  recordAudit({
+    ts: new Date().toISOString(),
+    category: "admin",
+    action: "capability.configured",
+    actor: actor ?? null,
+    write: true,
+    meta: { capability: id, kind: cap?.kind ?? null, state: setting.state, surfaces: setting.surfaces ?? {} },
+  });
+  pushLog({ ts: new Date().toISOString(), action: "configured", capability: id, kind: cap?.kind ?? null, surface: null, state: setting.state, actor: actorLabel(actor) });
 }
 
 /**

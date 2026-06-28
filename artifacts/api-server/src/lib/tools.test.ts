@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   listCapabilities, getCapability, offeredStates, resolveState, resolveCapability,
   sanitizeCapabilitySetting, setCapabilityState, effectiveState,
-  listSurfaces, defaultSettingFor, decideCapability, enforceCapability, CapabilityBlockedError,
+  listSurfaces, decideCapability, enforceCapability, CapabilityBlockedError, recentCapabilityLog, noteCapabilityConfigured,
 } from "./tools";
 import { updateSettings } from "./settings";
 import type { CapabilitySetting } from "./settings";
@@ -76,22 +76,42 @@ test("listSurfaces comes from the screen registry (id + label)", () => {
   for (const s of surfaces) { assert.equal(typeof s.id, "string"); assert.equal(typeof s.label, "string"); }
 });
 
-test("the active AI provider defaults on, so existing config keeps working", () => {
+test("default is NO AI — everything off until an admin turns it on", () => {
   updateSettings({ aiProvider: "openai", capabilityStates: {} });
-  // No explicit governance set, yet the active provider resolves to its natural state.
-  assert.equal(effectiveState("provider:openai"), "public");
-  assert.equal(defaultSettingFor(getCapability("provider:openai")!).state, "public");
-  // A non-active provider stays off until enabled.
-  assert.equal(effectiveState("provider:anthropic"), "off");
+  // Even with an AI provider configured, nothing is on until governance enables it.
+  assert.equal(effectiveState("provider:openai"), "off");
+  assert.equal(effectiveState("dictation"), "off");
+  assert.equal(effectiveState("broker:n8n"), "off");
+});
+
+test("brokers are governed by the same tri-state", () => {
+  const broker = getCapability("broker:n8n");
+  assert.ok(broker, "n8n broker should be registered");
+  assert.equal(broker!.kind, "broker");
+  setCapabilityState("broker:n8n", { state: "user-defined", endpoint: "http://n8n:5678" });
+  assert.equal(effectiveState("broker:n8n"), "user-defined");
 });
 
 test("enforceCapability allows an on capability and throws when it's off", () => {
-  updateSettings({ aiProvider: "openai", capabilityStates: {} });
+  updateSettings({ capabilityStates: {} });
+  setCapabilityState("provider:openai", { state: "public" });
   const ok = enforceCapability("provider:openai", { actor: { sub: "u1" } });
   assert.equal(ok.allowed, true);
   assert.equal(ok.state, "public");
   // anthropic is off ⇒ blocked.
   assert.throws(() => enforceCapability("provider:anthropic"), CapabilityBlockedError);
+});
+
+test("activity log captures uses, blocks and config changes for the dashboard", () => {
+  setCapabilityState("provider:openai", { state: "public" });
+  noteCapabilityConfigured("provider:openai", { state: "public" }, { sub: "admin-1" });
+  decideCapability("provider:openai", { actor: { sub: "u2" } }); // a "use"
+  decideCapability("provider:anthropic"); // a "blocked" (off)
+  const log = recentCapabilityLog();
+  const actions = log.slice(0, 3).map((e) => e.action);
+  assert.ok(actions.includes("blocked"));
+  assert.ok(actions.includes("use"));
+  assert.ok(log.some((e) => e.action === "configured"));
 });
 
 test("enforcement is per-surface: on globally, blocked on a restricted screen", () => {

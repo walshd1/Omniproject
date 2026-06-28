@@ -16,7 +16,7 @@ import {
  * SaaS vendor allowed generally but forced off on a sensitive screen. Admin-only (the
  * gateway also enforces it).
  */
-const KIND_ORDER: CapabilityKind[] = ["ai-tool", "mcp", "ai-provider", "vendor"];
+const KIND_ORDER: CapabilityKind[] = ["ai-tool", "mcp", "ai-provider", "broker", "vendor"];
 
 export function GovernanceAdmin() {
   const { data: auth } = useAuth();

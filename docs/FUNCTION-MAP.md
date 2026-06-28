@@ -863,12 +863,13 @@ Capability governance — one model for every "thing that can move data or be tu
 | `getCapability` | Look up a capability by id. |
 | `offeredStates` | The states the UI should offer for a capability: "off" plus whatever it supports. |
 | `resolveState` | The effective state of a capability — optionally on a given surface. |
-| `defaultSettingFor` | The default setting when an admin hasn't set one. |
 | `resolveCapability` | Resolve one capability against the stored settings (no surface applied). |
 | `listResolvedCapabilities` | Every capability resolved against the current settings. |
 | `effectiveState` | Resolve a single capability's effective state for a surface (the runtime check). |
 | `listSurfaces` | Governable surfaces (screens) from the registry — drives the admin override picker. |
-| `decideCapability` | Resolve a capability-use decision for a surface AND record it to the audit log — whether allowed or denied — so there's always a trail of which AI/vendor ran where and for whom. |
+| `recentCapabilityLog` | Recent capability activity (uses, blocks, config changes), newest first. |
+| `decideCapability` | Resolve a capability-use decision for a surface AND record it — to the audit log and the live activity ring — whether allowed or denied, so there's always a trail of which AI/vendor/broker ran where and for whom. |
+| `noteCapabilityConfigured` | Record an admin turning a capability on/off (audited + shown on the dashboard). |
 | `enforceCapability` | Strong call-time gate: decide + log, and THROW CapabilityBlockedError when the capability is off for this surface. |
 | `sanitizeCapabilitySetting` | Coerce an admin's input for one capability to a valid, supportable setting. |
 | `setCapabilityState` | Persist an admin's setting for one capability; returns the stored setting. |

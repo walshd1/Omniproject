@@ -18,6 +18,7 @@ import { TranslationLayer } from "../components/settings/TranslationLayer";
 import { BrokerLog } from "../components/settings/BrokerLog";
 import { A11yControls } from "../components/settings/A11yControls";
 import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
+import { GovernanceDashboard } from "../components/settings/GovernanceDashboard";
 import { DataState } from "../components/DataState";
 import { LoadingState } from "../components/LoadingState";
 import { urlFormatError } from "../lib/validation";
@@ -257,6 +258,10 @@ export function Settings() {
       </div>
 
       <PremiumAdmin />
+
+      <div className="mt-10">
+        <GovernanceDashboard />
+      </div>
 
       <div className="mt-10">
         <GovernanceAdmin />

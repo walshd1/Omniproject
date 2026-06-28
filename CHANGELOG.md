@@ -37,6 +37,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Capability governance — brokers, no-AI-by-default, and an admin dashboard** —
+  brokers (the n8n-style seam) are now governed by the same tri-state as everything
+  else (self-hosted/in-cluster = `user-defined`; managed = `public`), derived from the
+  broker catalogue. The default is now **NO AI and nothing brokered** — every
+  capability is `off` until an admin explicitly turns it on (the active AI provider no
+  longer auto-enables). Admin state changes are audited (`capability.configured`), and a
+  new **Governance dashboard** (Settings, admin-only) shows what's enabled (counts per
+  kind + the live list with per-screen overrides) and a **live activity trail** of
+  recent uses / blocks / config changes (capability, surface, who, when) via
+  `GET /api/governance/log`.
 - **Capability governance — call-time enforcement + screen-registry surfaces** —
   governance is now enforced, not just configured. `enforceCapability(id, {surface,
   actor})` resolves a capability's effective state for the calling screen and **throws

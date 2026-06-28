@@ -10,7 +10,7 @@ import { getJson } from "./api";
  * (screen). All admin-gated; all stored in customer-level JSON.
  */
 export type DeploymentState = "off" | "user-defined" | "public";
-export type CapabilityKind = "ai-tool" | "mcp" | "ai-provider" | "vendor";
+export type CapabilityKind = "ai-tool" | "mcp" | "ai-provider" | "vendor" | "broker";
 
 export interface ResolvedCapability {
   id: string;
@@ -66,8 +66,29 @@ export const KIND_LABEL: Record<CapabilityKind, string> = {
   "ai-tool": "AI tools",
   mcp: "MCP",
   "ai-provider": "AI providers",
+  broker: "Brokers",
   vendor: "Vendors",
 };
+
+/** One entry in the live capability activity log (for the admin dashboard). */
+export interface CapabilityLogEntry {
+  ts: string;
+  action: "use" | "blocked" | "configured";
+  capability: string;
+  kind: CapabilityKind | null;
+  surface: string | null;
+  state: DeploymentState;
+  actor: string | null;
+}
+
+/** Load recent capability activity (uses, blocks, config changes) — admin dashboard. */
+export function useGovernanceLog() {
+  return useQuery<{ entries: CapabilityLogEntry[] }>({
+    queryKey: ["governance-log"],
+    queryFn: () => getJson("/api/governance/log"),
+    staleTime: 10_000,
+  });
+}
 
 /** Load every governed capability with its offered states + current setting. */
 export function useGovernance() {
