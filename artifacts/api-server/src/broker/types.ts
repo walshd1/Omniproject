@@ -18,6 +18,10 @@ import type { SessionBind } from "../lib/session-key";
 /** Loosely-typed record — the normalised row shape the broker exchanges. */
 export type Row = Record<string, unknown>;
 
+/** Who initiated an action. Autonomous actors (scheduled jobs, AI agents) are
+ *  first-class principals — keyed, RBAC-roled and provenance-bound like a human. */
+export type ActorKind = "human" | "automation" | "agent";
+
 /**
  * Forwarded actor identity. A write is performed "as" this principal so the
  * backend system of record authorises it under the real user (not a shared
@@ -35,6 +39,9 @@ export interface ActorContext {
    *  Present for authenticated calls; absent for system/unauthenticated ones (which
    *  fall back to the static broker key). */
   sessionBind?: SessionBind;
+  /** What kind of principal this is (default human). Autonomous actors carry their
+   *  own keyed sessionBind + RBAC role, so they're keyed and provenance-bound too. */
+  actorKind?: ActorKind;
 }
 
 /** A normalised project row. */

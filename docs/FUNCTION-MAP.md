@@ -306,6 +306,18 @@ Action audit logging.
 | `recordAudit` | Record one audit event: stdout (pino) + the external sink, gated by level. |
 | `auditStatus` | Status for the setup/diagnostics view. |
 
+### `artifacts/api-server/src/lib/autonomous.ts`
+
+Autonomous principals.
+
+| Function | What it does |
+| --- | --- |
+| `autonomousSub` | The namespaced, clearly-non-human principal id for an autonomous actor. |
+| `actorKindOf` | The kind of principal a spec describes. |
+| `mintAutonomousContext` | Mint a KEYED, RBAC-roled ActorContext for an autonomous actor. |
+| `isAutonomous` | Is this context an autonomous (non-human) principal? |
+| `assertAutonomousCan` | Enforce RBAC for an autonomous actor before it performs `need`-gated work. |
+
 ### `artifacts/api-server/src/lib/branding.ts`
 
 SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
@@ -474,6 +486,17 @@ Connection-credential scaffolding — works out WHICH credentials a deployment's
 | `isSecretEnv` | Heuristic: is this env var a secret to protect (vs a plain instance URL etc.)? |
 | `requiredCredentials` | The union of required env across the given backends, tagged secret/config. |
 | `renderCredentialTemplate` | Render a fill-in template (placeholders only) for the operator to complete. |
+
+### `artifacts/api-server/src/lib/csrf.ts`
+
+CSRF hardening for cookie-authenticated mutations (security item B).
+
+| Function | What it does |
+| --- | --- |
+| `newCsrfToken` | Mint a fresh CSRF token (hex). |
+| `setCsrfCookie` | Set the double-submit cookie (readable by the SPA's JS so it can echo the header). |
+| `ensureCsrfCookie` | Ensure a session-bearing request has a CSRF token; mint one if absent (upgrade path). |
+| `csrfGuard` | The CSRF guard middleware (mount after cookieParser + slideSession). |
 
 ### `artifacts/api-server/src/lib/csv.ts`
 
@@ -809,7 +832,9 @@ Role-based access control.
 | `roleFromClaims` | Back-compat single-role view of a user's claims (the representative label). |
 | `grantsForReq` | Resolve a request's session (or API token) to its grants. |
 | `roleForReq` | A representative role label for the request (display/audit only). |
-| `hasRole` | Does the request satisfy the gate `need`? - a BASE role (viewer/contributor/manager) → base rung ≥ that rank (an authority confers manager-level base, so a PMO or admin clears `manager`); - an AUTHORITY (pmo/admin) → that exact authority is held. |
+| `grantsForRole` | The canonical grants for a single named role (the inverse of `displayRole`) — so a non-request principal (an autonomous actor) can be assigned grants from one role. |
+| `grantsSatisfy` | Do these grants satisfy the gate `need`? (The request-free core of `hasRole`.) - a BASE role (viewer/contributor/manager) → base rung ≥ that rank (an authority confers manager-level base, so a PMO or admin clears `manager`); - an AUTHORITY (pmo/admin) → that exact authority is held. |
+| `hasRole` | Does the request satisfy the gate `need`? |
 | `requireRole` | Express middleware: require the `need` grant, else 403. |
 
 ### `artifacts/api-server/src/lib/read-cache.ts`

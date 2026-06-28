@@ -145,7 +145,7 @@ export function contextFromReq(req: Request): ActorContext {
   // Bind the per-session broker signing key to this user + session (null for older
   // cookies that predate the scheme — those fall back to the static broker key).
   const sessionBind = sessionBindFromSession(session) ?? undefined;
-  return { sub: session.sub, email: session.email, name: session.name, role: roleForReq(req), token: session.accessToken, authHeader, sessionBind };
+  return { sub: session.sub, email: session.email, name: session.name, role: roleForReq(req), token: session.accessToken, authHeader, sessionBind, actorKind: "human" };
 }
 
 /** Map a thrown broker error onto an HTTP response (status from the taxonomy). */
