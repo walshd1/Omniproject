@@ -24,6 +24,7 @@ import { compression } from "./lib/compression";
 import { slideSession } from "./routes/auth";
 import { csrfGuard } from "./lib/csrf";
 import { loadSecurityState } from "./lib/security-state";
+import { hydrateVault } from "./lib/vault";
 
 const app: Express = express();
 
@@ -67,6 +68,11 @@ runSecuritySelfCheck(process.env, logger);
 // actions, kill switch) from disk so a revocation survives a restart. No-op unless
 // SECURITY_STATE_FILE is set.
 loadSecurityState();
+
+// Hydrate the AI key vault from its (possibly external) store so synchronous reads are
+// served from cache. The local file store also lazy-loads on first read, so this matters
+// mainly for external backends (HashiCorp/HCP/AWS/Azure); fire-and-forget at boot.
+void hydrateVault();
 
 // Hard interlock: refuse to boot if DEV MODE is active in a production-like
 // environment (real SSO / licence / public host). Dev mode can impersonate users

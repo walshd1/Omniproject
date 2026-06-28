@@ -121,24 +121,24 @@ export function upsertProvider(cfg: AiProviderConfig): void {
 }
 
 /** Remove a provider entity, its stored key, and any mapping references to it. */
-export function removeProvider(id: string): void {
+export async function removeProvider(id: string): Promise<void> {
   ensureLoaded();
   state.providers = state.providers.filter((p) => p.id !== id);
   for (const cap of Object.keys(state.mapping)) {
     state.mapping[cap] = (state.mapping[cap] ?? []).filter((pid) => pid !== id);
   }
-  deleteSecret(keyRef(id));
+  await deleteSecret(keyRef(id));
   persist();
 }
 
 // ── Keys (vault-backed; write-only across the boundary) ─────────────────────────
 function keyRef(providerId: string): string { return `aiprovider:${providerId}`; }
 
-/** Store a provider's API key in the encrypted vault. The plaintext is never kept here. */
-export function setProviderKey(id: string, key: string): void { setSecret(keyRef(id), key); }
+/** Store a provider's API key in the vault. The plaintext is never kept here. */
+export function setProviderKey(id: string, key: string): Promise<void> { return setSecret(keyRef(id), key); }
 
 /** Remove a provider's stored key. */
-export function clearProviderKey(id: string): void { deleteSecret(keyRef(id)); }
+export function clearProviderKey(id: string): Promise<void> { return deleteSecret(keyRef(id)); }
 
 /** INTERNAL: resolve a provider's key for an upstream call. Never expose over a route. */
 export function resolveProviderKey(id: string): string | null { return getSecret(keyRef(id)); }

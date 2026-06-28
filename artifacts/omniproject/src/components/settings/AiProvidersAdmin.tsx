@@ -79,9 +79,15 @@ export function AiProvidersAdmin() {
       <CardContent className="space-y-5">
         <p className="text-sm text-muted-foreground">
           Providers and their API keys live here, not in docker. Each key is stored in the
-          <strong> encrypted vault</strong> — write-only (we only confirm a fingerprint). Map each
+          <strong> secrets vault</strong> — write-only (we only confirm a fingerprint). Map each
           capability to one or more providers; the first <strong>ready</strong> one is used.
         </p>
+        {data.vault && (
+          <p className="text-xs text-muted-foreground" data-testid="vault-backend">
+            Secrets backend: <span className="font-mono font-medium">{data.vault.backend}</span>
+            {data.vault.backend === "local" ? " (OmniProject-owned encrypted file)" : " (external secrets manager)"}
+          </p>
+        )}
 
         <ul className="space-y-2">{data.providers.map(ProviderRow)}</ul>
 

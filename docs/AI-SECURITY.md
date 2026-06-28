@@ -105,8 +105,17 @@ anonymous system call:
 - **Capabilities map to an ordered provider list** (chat, nl-action, copilot, health-watch,
   stt). The first **ready** provider wins (primary + fallbacks). An unmapped capability falls
   back to the Settings default. Set in **Settings → AI providers** (admin + step-up).
+- **Where the keys live is pluggable** (`lib/vault-store.ts`, selected by `VAULT_BACKEND`):
+  - `local` (default) — an OmniProject-owned, doubly-encrypted file (below);
+  - `hashicorp` / `hcp` — HashiCorp Vault or HCP Vault (KV v2; `VAULT_ADDR` + `VAULT_TOKEN`);
+  - `http` — a generic REST secrets store (BYO / external-secrets sidecar);
+  - `aws` / `azure` — fronted today via the generic `http` contract (a managed-manager
+    endpoint or sidecar); a native adapter is one registry entry to add.
+  For external stores the **manager is the encryption boundary** (OmniProject doesn't
+  double-encrypt); reads are served from an in-memory cache hydrated at boot, writes are
+  awaited so a backend failure surfaces.
 - **API keys are out of docker/env entirely** (hard cut-over). They are entered in the admin
-  UI and held in the **encrypted vault** (`lib/vault.ts`):
+  UI and held in the **encrypted vault** (`lib/vault.ts`); with the default `local` backend:
   - each secret is **separately encrypted** under its own derived subkey
     (`HKDF-SHA256(root, ref)` → AES-256-GCM envelope), so envelopes don't share key material;
   - the **whole vault file is itself sealed** at rest with the config-store crypto — a second,
@@ -143,8 +152,11 @@ These are deliberate, documented limits — not defects:
 | `SESSION_SECRET` | Master for session/derived keys (required, non-default, in production). |
 | `BROKER_PSK` | Gateway↔broker pre-shared key (keyless live calls are hard-rejected outside dev). |
 | `CONFIG_KEY_RAW` / `CONFIG_KEY` | Config-at-rest key (raw, or derived from the master). |
-| `VAULT_KEY` | Root secret protecting the AI key vault (base64 32 bytes; derived from the master if unset). Provider API keys live in the vault, **not** in env. |
-| `VAULT_FILE` / `AI_PROVIDERS_FILE` | Where the sealed vault + provider registry persist (default under `OMNI_CONFIG_DIR`). |
+| `VAULT_BACKEND` | Secrets store for AI keys: `local` (default) \| `hashicorp` \| `hcp` \| `http` \| `aws` \| `azure`. |
+| `VAULT_KEY` | Root secret for the **local** vault (base64 32 bytes; derived from the master if unset). Provider API keys live in the vault, **not** in env. |
+| `VAULT_FILE` / `AI_PROVIDERS_FILE` | Where the sealed local vault + provider registry persist (default under `OMNI_CONFIG_DIR`). |
+| `VAULT_ADDR` / `VAULT_TOKEN` / `VAULT_KV_MOUNT` / `VAULT_KV_PATH` | HashiCorp/HCP Vault connection (KV v2). |
+| `VAULT_HTTP_URL` / `VAULT_HTTP_TOKEN` | Generic REST secrets store (`http`/`aws`/`azure` front). |
 | `SECURITY_STATE_FILE` | Enables durable security state (revocations etc. survive restart). |
 | `STEP_UP_MINUTES` | Step-up freshness window (default 5). |
 | `AUTONOMOUS_SESSION_SECONDS` | Autonomous session TTL (default 30, clamped ≤ 5 min). |

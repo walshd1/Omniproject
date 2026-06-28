@@ -52,10 +52,10 @@ test("aiStatus reports ollama as configured without a key", () => {
   assert.match(s.detail, /ollama\.test:11434/);
 });
 
-test("aiStatus reflects vault key presence for key-gated providers", () => {
+test("aiStatus reflects vault key presence for key-gated providers", async () => {
   // Anthropic with a vault key -> configured.
   updateSettings({ aiProvider: "anthropic", aiModel: null });
-  setProviderKey("anthropic", "test-anthropic-key");
+  await setProviderKey("anthropic", "test-anthropic-key");
   const anthropic = aiStatus();
   assert.equal(anthropic.provider, "anthropic");
   assert.equal(anthropic.configured, true);
@@ -64,7 +64,7 @@ test("aiStatus reflects vault key presence for key-gated providers", () => {
 
   // OpenAI with no key in the vault -> not configured, pointed at the AI Providers screen.
   updateSettings({ aiProvider: "openai" });
-  clearProviderKey("openai");
+  await clearProviderKey("openai");
   const openai = aiStatus();
   assert.equal(openai.provider, "openai");
   assert.equal(openai.configured, false);
@@ -86,7 +86,7 @@ test("aiChat throws AiError 400 when provider is 'none'", async () => {
 
 test("aiChat throws AiError 400 when a key-gated provider has no vault key", async () => {
   updateSettings({ aiProvider: "openai" });
-  clearProviderKey("openai");
+  await clearProviderKey("openai");
   await assert.rejects(
     () => aiChat([{ role: "user", content: "hi" }]),
     (err: unknown) => err instanceof AiError && err.status === 400 && /AI Providers/i.test(err.message),

@@ -24,21 +24,21 @@ test("seeds one provider per kind", () => {
   assert.deepEqual(kinds, ["anthropic", "ollama", "openai", "openrouter", "whisper"]);
 });
 
-test("keys live in the vault and are write-only (state exposes presence + fingerprint only)", () => {
-  setProviderKey("openai", "sk-abc");
+test("keys live in the vault and are write-only (state exposes presence + fingerprint only)", async () => {
+  await setProviderKey("openai", "sk-abc");
   const st = providerKeyState("openai");
   assert.equal(st.hasKey, true);
   assert.equal(typeof st.fingerprint, "string");
   // The snapshot for the admin screen never carries the secret.
   assert.equal(JSON.stringify(providersSnapshot()).includes("sk-abc"), false);
-  clearProviderKey("openai");
+  await clearProviderKey("openai");
   assert.equal(providerKeyState("openai").hasKey, false);
 });
 
-test("providerReady: ollama is keyless; key-gated kinds need a vault key", () => {
+test("providerReady: ollama is keyless; key-gated kinds need a vault key", async () => {
   assert.equal(providerReady("ollama"), true);
   assert.equal(providerReady("openai"), false);
-  setProviderKey("openai", "sk-abc");
+  await setProviderKey("openai", "sk-abc");
   assert.equal(providerReady("openai"), true);
 });
 
@@ -48,12 +48,12 @@ test("whisper is ready with either a key or an endpoint", () => {
   assert.equal(providerReady("whisper"), true);
 });
 
-test("capability mapping resolves the first READY provider in order", () => {
+test("capability mapping resolves the first READY provider in order", async () => {
   // Map chat to [openai, ollama]; openai has no key, so ollama (ready) wins.
   setCapabilityProviders("chat", ["openai", "ollama"]);
   assert.equal(resolveProviderForCapability("chat")?.id, "ollama");
   // Give openai a key and it now wins (earlier in the order).
-  setProviderKey("openai", "sk-abc");
+  await setProviderKey("openai", "sk-abc");
   assert.equal(resolveProviderForCapability("chat")?.id, "openai");
   assert.deepEqual(getCapabilityProviders("chat"), ["openai", "ollama"]);
 });
@@ -75,11 +75,11 @@ test("stt capability falls back to the whisper provider when Settings selects wh
   assert.equal(resolveProviderForCapability("stt"), null);
 });
 
-test("removeProvider drops the entity, its key, and mapping references", () => {
+test("removeProvider drops the entity, its key, and mapping references", async () => {
   upsertProvider({ id: "openai-2", kind: "openai", label: "OpenAI (team)" });
-  setProviderKey("openai-2", "sk-2");
+  await setProviderKey("openai-2", "sk-2");
   setCapabilityProviders("chat", ["openai-2", "ollama"]);
-  removeProvider("openai-2");
+  await removeProvider("openai-2");
   assert.equal(getProvider("openai-2"), undefined);
   assert.equal(providerKeyState("openai-2").hasKey, false);
   assert.deepEqual(getCapabilityProviders("chat"), ["ollama"]);

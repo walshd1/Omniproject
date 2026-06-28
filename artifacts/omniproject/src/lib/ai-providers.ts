@@ -26,6 +26,8 @@ export interface AiProvidersView {
   mapping: Record<string, string[]>;
   kinds: AiProviderKind[];
   capabilities: AiCapabilityDef[];
+  /** Which secrets store holds the keys (local file vs an external manager). */
+  vault?: { backend: string; backends: string[] };
 }
 
 /** The provider registry + capability map (admin). No secrets are present in the payload. */

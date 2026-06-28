@@ -10,6 +10,7 @@ import {
   setProviderKey, clearProviderKey, providerKeyState,
   setCapabilityProviders, providersSnapshot,
 } from "../lib/ai-providers";
+import { vaultBackendId, VAULT_BACKENDS } from "../lib/vault-store";
 
 /**
  * AI Providers admin plane. Providers are first-class entities; their API keys go into the
@@ -29,7 +30,12 @@ function audit(req: Parameters<typeof getSession>[0], action: string, meta?: Rec
 
 // ── GET /api/ai/providers — the registry + capability map (no secrets) ──────────
 router.get("/ai/providers", requireRole("admin"), (_req, res) => {
-  res.json({ ...providersSnapshot(), kinds: AI_PROVIDER_KINDS, capabilities: AI_CAPABILITIES });
+  res.json({
+    ...providersSnapshot(),
+    kinds: AI_PROVIDER_KINDS,
+    capabilities: AI_CAPABILITIES,
+    vault: { backend: vaultBackendId(), backends: VAULT_BACKENDS },
+  });
 });
 
 // ── POST /api/ai/providers — add / update a provider entity (admin + step-up) ───
@@ -54,9 +60,9 @@ router.post("/ai/providers", requireRole("admin"), requireStepUp, (req, res) => 
 });
 
 // ── DELETE /api/ai/providers/:id — remove an entity + its key (admin + step-up) ─
-router.delete("/ai/providers/:id", requireRole("admin"), requireStepUp, (req, res) => {
+router.delete("/ai/providers/:id", requireRole("admin"), requireStepUp, async (req, res) => {
   const id = String(req.params["id"]);
-  removeProvider(id);
+  await removeProvider(id);
   audit(req, "ai-provider.remove", { id });
   res.json({ ok: true, providers: providersSnapshot().providers });
 });
@@ -64,20 +70,32 @@ router.delete("/ai/providers/:id", requireRole("admin"), requireStepUp, (req, re
 // ── PUT /api/ai/providers/:id/key — store an API key in the vault (write-only) ──
 // The key goes straight into the encrypted vault; the response NEVER echoes it, only the
 // resulting presence + fingerprint so the admin can confirm the paste landed.
-router.put("/ai/providers/:id/key", requireRole("admin"), requireStepUp, (req, res) => {
+router.put("/ai/providers/:id/key", requireRole("admin"), requireStepUp, async (req, res) => {
   const id = String(req.params["id"]);
   if (!listProviders().some((p) => p.id === id)) { res.status(404).json({ error: "Unknown provider." }); return; }
   const key = typeof (req.body as { key?: unknown }).key === "string" ? (req.body as { key: string }).key.trim() : "";
   if (!key) { res.status(400).json({ error: "Body must be { key }." }); return; }
-  setProviderKey(id, key);
+  try {
+    await setProviderKey(id, key); // awaited so an external-store failure surfaces
+  } catch (err) {
+    req.log.error({ err }, "vault: storing provider key failed");
+    res.status(502).json({ error: "Could not store the key in the secrets backend." });
+    return;
+  }
   audit(req, "ai-provider.key.set", { id }); // never logs the key itself
   res.json(providerKeyState(id));
 });
 
 // ── DELETE /api/ai/providers/:id/key — remove a stored key (admin + step-up) ────
-router.delete("/ai/providers/:id/key", requireRole("admin"), requireStepUp, (req, res) => {
+router.delete("/ai/providers/:id/key", requireRole("admin"), requireStepUp, async (req, res) => {
   const id = String(req.params["id"]);
-  clearProviderKey(id);
+  try {
+    await clearProviderKey(id);
+  } catch (err) {
+    req.log.error({ err }, "vault: clearing provider key failed");
+    res.status(502).json({ error: "Could not remove the key from the secrets backend." });
+    return;
+  }
   audit(req, "ai-provider.key.clear", { id });
   res.json(providerKeyState(id));
 });
