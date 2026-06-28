@@ -6,7 +6,7 @@ import {
 } from "../../lib/tools";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAutonomousGrants, relaxContainment, setAiKill, CONTAINMENT_INFO, SOURCE_LABEL, type AiContainment } from "../../lib/containment";
-import { stepUp } from "../../lib/step-up";
+import { withStepUp } from "../../lib/step-up";
 
 /**
  * Admin governance dashboard — visibility into what's turned on and the live activity
@@ -29,17 +29,12 @@ export function GovernanceDashboard() {
   const { data: autonomous } = useAutonomousGrants();
   const qc = useQueryClient();
 
-  const onRelax = async (level: AiContainment): Promise<void> => {
-    if (!(await stepUp())) return; // changing containment is step-up gated
-    try { await relaxContainment(level); await qc.invalidateQueries({ queryKey: ["autonomous-grants"] }); }
-    catch { /* surfaced by the disabled/refetch state; keep the dashboard quiet */ }
-  };
+  // Both are step-up gated and kept quiet on failure (surfaced by the disabled/refetch state).
+  const onRelax = (level: AiContainment): Promise<unknown> =>
+    withStepUp(async () => { await relaxContainment(level); await qc.invalidateQueries({ queryKey: ["autonomous-grants"] }); });
 
-  const onToggleKill = async (engage: boolean): Promise<void> => {
-    if (!(await stepUp())) return;
-    try { await setAiKill(engage); await qc.invalidateQueries({ queryKey: ["autonomous-grants"] }); }
-    catch { /* quiet */ }
-  };
+  const onToggleKill = (engage: boolean): Promise<unknown> =>
+    withStepUp(async () => { await setAiKill(engage); await qc.invalidateQueries({ queryKey: ["autonomous-grants"] }); });
 
   if (!roleAtLeast(auth?.role, "admin")) return null;
   if (!data?.capabilities) return null;

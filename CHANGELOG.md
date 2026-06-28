@@ -6,6 +6,31 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Frontend `Role` was missing the `pmo` authority.** The gateway's role ladder is
+  viewer < contributor < manager < pmo < admin, but the SPA's `Role` union omitted `pmo`,
+  so `roleAtLeast(pmoUser, …)` computed `NaN` and silently treated a PMO as *below* every
+  gate. Added `pmo` to the union + rank.
+
+### Changed
+
+- **Clean-code + dedup pass after the recent high-churn work.** No behaviour change; an
+  audit (three sweeps over backend, frontend and the seam) drove targeted consolidation:
+  - SPA fetch/error boilerplate centralised — `safeJson` + a step-up-aware `responseError`
+    in `lib/api.ts` and a `withStepUp` wrapper in `lib/step-up.ts` replace the
+    copy-pasted `res.json().catch(() => ({}))` parse, the `step_up_required` throw (×6) and
+    the `if (!(await stepUp())) return; try {…} catch {}` handler shape across ~10 modules.
+  - The setup wizard's `GovernanceStep` now reuses the shared `useAutonomousGrants` /
+    `useActionCatalogue` hooks (and their query cache) and a shared `isScoped` helper,
+    dropping its duplicate inline types and a redundant fetch.
+  - Gateway: a single `approvalContextFromReq()` builds the `{ surface, role, backend }`
+    approval context for both enforcement points (NL→action planner + MCP executor), and the
+    AI routes share `enforceOr403` / `actorFromSession` / `surfaceFromBody` helpers in place
+    of four near-identical capability-gate blocks.
+  - New guard test: every read-only MCP tool must be in `DEFAULT_APPROVED_ACTIONS` (and no
+    write may be), so the "reads approved out of the box" contract can't silently drift.
+
 ### Security
 
 - **Admin-gated key revocation** — a versioned key registry (session / provenance /

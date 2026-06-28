@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getJson } from "./api";
+import { getJson, safeJson, responseError } from "./api";
 
 /**
  * AI Providers client (admin). Providers are first-class entities; each provider's API key
@@ -50,10 +50,7 @@ async function send(url: string, method: string, body?: unknown): Promise<void> 
     headers: { "Content-Type": "application/json" },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
-  if (!res.ok) {
-    const detail = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-    throw new Error(detail.code === "step_up_required" ? "step_up_required" : detail.error ?? `Failed (${res.status})`);
-  }
+  if (!res.ok) throw responseError(res, await safeJson(res));
 }
 
 /** Add or update a provider entity (admin; step-up gated server-side). */

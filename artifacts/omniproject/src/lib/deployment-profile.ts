@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getJson } from "./api";
+import { getJson, safeJson, responseError } from "./api";
 
 /**
  * Deployment-profile client. Reports the chosen profile (enterprise … self-hosted), what's
@@ -51,8 +51,7 @@ export async function setDeploymentProfile(profile: string): Promise<void> {
     body: JSON.stringify({ profile }),
   });
   if (!res.ok) {
-    const detail = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(detail.error ?? `Failed (${res.status})`);
+    throw responseError(res, await safeJson(res));
   }
 }
 

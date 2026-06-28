@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getJson } from "./api";
+import { getJson, safeJson, responseError } from "./api";
 
 /**
  * AI containment client. Containment is FULL by default for every source — an admin can
@@ -40,11 +40,13 @@ export function useAiContainment(surface?: string) {
   });
 }
 
-/** Enforced level + source + admin relax floor + active write grants + kill state (admin). */
-export function useAutonomousGrants() {
+/** Enforced level + source + admin relax floor + active write grants + kill state (admin).
+ *  `enabled` lets a caller skip the admin-only fetch. */
+export function useAutonomousGrants(enabled = true) {
   return useQuery<{ level: AiContainment; source: AiContainment; relax: AiContainment; grants: AutonomousGrant[]; aiKill: boolean }>({
     queryKey: ["autonomous-grants"],
     queryFn: () => getJson("/api/governance/autonomous"),
+    enabled,
     staleTime: 15_000,
   });
 }
@@ -57,10 +59,7 @@ export async function setAiKill(engage: boolean): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ engage }),
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-    throw new Error(body.code === "step_up_required" ? "step_up_required" : body.error ?? `Failed (${res.status})`);
-  }
+  if (!res.ok) throw responseError(res, await safeJson(res));
 }
 
 /** Relax (or re-tighten) the containment floor (admin; step-up gated server-side). */
@@ -71,8 +70,5 @@ export async function relaxContainment(level: AiContainment): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ level }),
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-    throw new Error(body.code === "step_up_required" ? "step_up_required" : body.error ?? `Failed (${res.status})`);
-  }
+  if (!res.ok) throw responseError(res, await safeJson(res));
 }

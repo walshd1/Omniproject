@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { getJson } from "../../lib/api";
+import { useAutonomousGrants } from "../../lib/containment";
+import { useActionCatalogue, isScoped } from "../../lib/actions";
 import { Dot, Step } from "./shared";
 
 /**
@@ -8,35 +8,13 @@ import { Dot, Step } from "./shared";
  * admin sees and tunes it during setup instead of discovering it later: the enforced
  * containment level, the approved-action allowlist (and how much of it is scoped), the
  * active autonomous write-grants, and the break-glass kill switch. Admin-only; the editors
- * themselves live in Settings → AI governance (linked from here).
+ * themselves live in Settings → AI governance (linked from here). Reuses the same hooks (and
+ * query cache) as the Settings governance cards, so the numbers always agree.
  */
-interface AutonomousPosture {
-  level: string;
-  source: string;
-  grants: unknown[];
-  aiKill: boolean;
-}
-interface ActionCatalogue {
-  actions: { approved: boolean; write: boolean; scope?: { surfaces?: string[]; minRole?: string; backends?: string[] } }[];
-}
-
-const isScoped = (s: ActionCatalogue["actions"][number]["scope"]): boolean =>
-  !!s && (!!s.surfaces?.length || !!s.minRole || !!s.backends?.length);
-
 export function GovernanceStep({ isAdmin }: { isAdmin: boolean }) {
-  // Admin-only data; skip the fetch entirely for non-admins (the step renders nothing).
-  const { data: posture } = useQuery<AutonomousPosture>({
-    queryKey: ["governance", "autonomous"],
-    queryFn: () => getJson("/api/governance/autonomous"),
-    enabled: isAdmin,
-    staleTime: 15_000,
-  });
-  const { data: catalogue } = useQuery<ActionCatalogue>({
-    queryKey: ["action-catalogue"],
-    queryFn: () => getJson("/api/governance/actions"),
-    enabled: isAdmin,
-    staleTime: 15_000,
-  });
+  // Admin-only data; the `enabled` flag skips the fetch for non-admins (the step renders nothing).
+  const { data: posture } = useAutonomousGrants(isAdmin);
+  const { data: catalogue } = useActionCatalogue(isAdmin);
 
   if (!isAdmin) return null;
 

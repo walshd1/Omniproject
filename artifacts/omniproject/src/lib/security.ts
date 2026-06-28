@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getJson } from "./api";
+import { getJson, safeJson, responseError } from "./api";
 
 /**
  * Admin key-revocation client (see the gateway's lib/key-registry + routes/security).
@@ -58,10 +58,7 @@ export function useConfigKeyFingerprint() {
  *  the one-time key; the internal at-rest key never leaves and is rotated server-side. */
 export async function exportConfigBundle(): Promise<{ bundle: string; exportKey: string; warning: string }> {
   const res = await fetch("/api/security/config/export", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" } });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-    throw new Error(body.code === "step_up_required" ? "step_up_required" : body.error ?? `Failed (${res.status})`);
-  }
+  if (!res.ok) throw responseError(res, await safeJson(res));
   return (await res.json()) as { bundle: string; exportKey: string; warning: string };
 }
 
@@ -84,8 +81,5 @@ export async function setMaintenance(engaged: boolean, reason: string): Promise<
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ engaged, reason }),
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-    throw new Error(body.code === "step_up_required" ? "step_up_required" : body.error ?? `Failed (${res.status})`);
-  }
+  if (!res.ok) throw responseError(res, await safeJson(res));
 }

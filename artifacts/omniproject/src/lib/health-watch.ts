@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getJson } from "./api";
+import { getJson, safeJson, responseError } from "./api";
 
 /** Health-watch client: trigger a scan (admin) and read recent findings (manager+). */
 export type Severity = "critical" | "warning" | "info";
@@ -26,8 +26,7 @@ export function useHealthFindings() {
 export async function runHealthWatch(): Promise<HealthFinding[]> {
   const res = await fetch("/api/health-watch/run", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" } });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Scan failed (${res.status})`);
+    throw responseError(res, await safeJson(res), `Scan failed (${res.status})`);
   }
   return ((await res.json()) as { findings: HealthFinding[] }).findings;
 }

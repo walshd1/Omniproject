@@ -1,4 +1,6 @@
-import { ROLES, type Role } from "./rbac";
+import type { Request } from "express";
+import { ROLES, roleForReq, type Role } from "./rbac";
+import { getSettings } from "./settings";
 
 /**
  * Customer-wide APPROVED vocabulary + actions.
@@ -71,6 +73,14 @@ const rank = (r: Role): number => ROLES.indexOf(r);
 function listAllows(allow: string[] | undefined, value: string | undefined): boolean {
   if (!allow || allow.length === 0) return true;
   return value != null && allow.includes(value);
+}
+
+/** Build the approval context for a request: the caller's role + the active backend, and the
+ *  surface when the caller knows it (omit it on channels with no SPA surface, e.g. MCP, where
+ *  a surface-scoped approval is then SPA-only by fail-closed design). One place so the two
+ *  enforcement points (the NL→action planner and the MCP executor) can't drift. */
+export function approvalContextFromReq(req: Request, surface?: string): ApprovalContext {
+  return { ...(surface ? { surface } : {}), role: roleForReq(req), backend: getSettings().backendSource };
 }
 
 /** Is this canonical action approved for the given context? An unscoped approval is allowed

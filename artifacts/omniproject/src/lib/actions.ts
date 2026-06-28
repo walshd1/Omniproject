@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getJson } from "./api";
+import { getJson, safeJson, responseError } from "./api";
 
 /**
  * AI action catalogue client. The catalogue is the SUPERSET of canonical actions; each
@@ -25,12 +25,18 @@ export interface CatalogueAction {
   scope?: ActionScope;
 }
 
+/** Does this scope narrow the action on any dimension (surface / role / backend)? */
+export function isScoped(scope: ActionScope | undefined): boolean {
+  return !!scope && (!!scope.surfaces?.length || !!scope.minRole || !!scope.backends?.length);
+}
+
 /** The full action catalogue annotated with approval state + scope, plus the surface ids
- *  available to scope against (admin). */
-export function useActionCatalogue() {
+ *  available to scope against (admin). `enabled` lets a caller skip the admin-only fetch. */
+export function useActionCatalogue(enabled = true) {
   return useQuery<{ actions: CatalogueAction[]; surfaces?: string[] }>({
     queryKey: ["action-catalogue"],
     queryFn: () => getJson("/api/governance/actions"),
+    enabled,
     staleTime: 15_000,
   });
 }
@@ -42,10 +48,7 @@ async function putApproved(body: unknown): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const b = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-    throw new Error(b.code === "step_up_required" ? "step_up_required" : b.error ?? `Failed (${res.status})`);
-  }
+  if (!res.ok) throw responseError(res, await safeJson(res));
 }
 
 /** Approve or revoke one action (admin; step-up gated server-side). Approving with no scope
