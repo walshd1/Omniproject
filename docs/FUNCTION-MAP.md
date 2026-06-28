@@ -351,6 +351,7 @@ Customer-wide APPROVED vocabulary + actions.
 
 | Function | What it does |
 | --- | --- |
+| `approvalContextFromReq` | Build the approval context for a request: the caller's role + the active backend, and the surface when the caller knows it (omit it on channels with no SPA surface, e.g. MCP, where a surface-scoped approval is then SPA-only by fail-closed design). |
 | `isActionApproved` | Is this canonical action approved for the given context? An unscoped approval is allowed everywhere; a scoped one must satisfy every constrained dimension (fail-closed). |
 | `approveAction` | Approve an action (admin extends the allowlist), optionally scoped. |
 | `revokeApprovedAction` | Remove an action from the allowlist (admin tightens). |

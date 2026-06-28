@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useActionCatalogue, setActionApproved, setActionScope, type CatalogueAction, type ActionScope } from "../../lib/actions";
-import { stepUp } from "../../lib/step-up";
+import { withStepUp } from "../../lib/step-up";
 
 /**
  * AI action catalogue (admin). The full set of canonical actions an AI tool COULD use,
@@ -41,15 +41,12 @@ export function ActionCatalogue() {
 
   const onToggle = async (a: CatalogueAction): Promise<void> => {
     if (a.write && !a.approved && !window.confirm(`Approve the WRITE action "${a.action}"? AI tools will be able to propose it (still gated by role + write-grants).`)) return;
-    if (!(await stepUp())) return; // approving/widening what AI may do is step-up gated
-    try { await setActionApproved(a.action, !a.approved); await refresh(); }
-    catch { /* quiet; the toggle simply won't flip */ }
+    // Approving/widening what AI may do is step-up gated; quiet on failure (the toggle won't flip).
+    await withStepUp(async () => { await setActionApproved(a.action, !a.approved); await refresh(); });
   };
 
   const onSaveScope = async (action: string, scope: ActionScope): Promise<void> => {
-    if (!(await stepUp())) return; // narrowing/widening scope is a sensitive change
-    try { await setActionScope(action, scope); setEditing(null); await refresh(); }
-    catch { /* quiet */ }
+    await withStepUp(async () => { await setActionScope(action, scope); setEditing(null); await refresh(); });
   };
 
   const Row = (a: CatalogueAction) => {

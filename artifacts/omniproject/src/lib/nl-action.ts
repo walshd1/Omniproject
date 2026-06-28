@@ -4,6 +4,8 @@
  * MCP tools/call endpoint, which re-enforces governance, RBAC and the write policy. The
  * planner never auto-runs; a write is always confirmed by the user here.
  */
+import { safeJson, responseError } from "./api";
+
 export type ActionPlan =
   | { kind: "action"; tool: string; action: string; args: Record<string, unknown>; write: boolean }
   | { kind: "clarify"; question: string }
@@ -17,10 +19,7 @@ export async function planNlAction(text: string, surface?: string): Promise<Acti
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text, ...(surface ? { surface } : {}) }),
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Planning failed (${res.status})`);
-  }
+  if (!res.ok) throw responseError(res, await safeJson(res), `Planning failed (${res.status})`);
   return ((await res.json()) as { plan: ActionPlan }).plan;
 }
 

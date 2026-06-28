@@ -21,6 +21,15 @@ export async function stepUp(returnTo: string = typeof window !== "undefined" ? 
   return false;
 }
 
+/** Run a sensitive mutation behind a step-up gate: re-auth first, then run `fn`. Returns
+ *  `fn`'s result, or null if the step-up was declined/redirected or `fn` threw (callers that
+ *  just refresh on success can ignore the result). Centralises the
+ *  `if (!(await stepUp())) return; try { … } catch {}` boilerplate in admin handlers. */
+export async function withStepUp<T>(fn: () => Promise<T>): Promise<T | null> {
+  if (!(await stepUp())) return null;
+  try { return await fn(); } catch { return null; }
+}
+
 /** Did a gateway response demand a step-up (403 + code)? Lets callers retry after stepUp(). */
 export async function isStepUpRequired(res: Response): Promise<boolean> {
   if (res.status !== 403) return false;

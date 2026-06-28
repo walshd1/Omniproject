@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { BINDING_ACTION_NAMES } from "./reference-broker-blueprint";
 import { MCP_HANDLER_ACTIONS } from "../routes/mcp";
 import { MCP_TOOLS } from "../lib/mcp";
+import { DEFAULT_APPROVED_ACTIONS } from "../lib/approved-actions";
 
 /**
  * Action-registry guards — the canonical action vocabularies (the binding-action
@@ -26,6 +27,18 @@ test("every declared MCP tool has a handler, and every handler is a declared too
   const orphanHandler = [...handled].filter((a) => !declared.has(a));
   assert.deepEqual(missingHandler, [], "an MCP tool is declared with no executor — it would throw 'unsupported tool action'");
   assert.deepEqual(orphanHandler, [], "an MCP handler exists for an action no tool declares — dead code");
+});
+
+test("every read-only MCP tool is approved by default (reads-approved-out-of-the-box contract)", () => {
+  // Guards the "reads are approved out of the box, writes are not" contract: a new READ tool
+  // must be added to DEFAULT_APPROVED_ACTIONS, and no WRITE tool may sneak onto it.
+  const approved = new Set(DEFAULT_APPROVED_ACTIONS);
+  const readActions = [...new Set(MCP_TOOLS.filter((t) => !t.write).map((t) => t.action))];
+  const writeActions = new Set(MCP_TOOLS.filter((t) => t.write).map((t) => t.action));
+  const missing = readActions.filter((a) => !approved.has(a));
+  const writesApproved = [...approved].filter((a) => writeActions.has(a));
+  assert.deepEqual(missing, [], "a read-only MCP tool is not in DEFAULT_APPROVED_ACTIONS — it won't be approved out of the box");
+  assert.deepEqual(writesApproved, [], "a WRITE action is on the default allowlist — writes must be admin-approved, never default");
 });
 
 test("the MCP action set overlaps but isn't a subset of the binding actions", () => {

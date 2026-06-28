@@ -6,7 +6,10 @@ export interface AuthUser {
   email?: string;
 }
 
-export type Role = "viewer" | "contributor" | "manager" | "admin";
+// Mirrors the gateway's rbac ROLES (viewer < contributor < manager < pmo < admin). `pmo` is
+// an authority above manager; omitting it made roleAtLeast(pmoUser, …) compute NaN and
+// silently treat a PMO as below every gate.
+export type Role = "viewer" | "contributor" | "manager" | "pmo" | "admin";
 
 export interface AuthState {
   authenticated: boolean;
@@ -17,7 +20,7 @@ export interface AuthState {
   sessionTimeout?: { idleMs: number; absoluteMs: number };
 }
 
-const RANK: Record<Role, number> = { viewer: 0, contributor: 1, manager: 2, admin: 3 };
+const RANK: Record<Role, number> = { viewer: 0, contributor: 1, manager: 2, pmo: 3, admin: 4 };
 
 /** True when the session role meets or exceeds `min`. */
 export function roleAtLeast(role: Role | undefined, min: Role): boolean {

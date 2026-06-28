@@ -3,17 +3,17 @@
  * /api/ai/chat (proxy a chat completion to the configured model). Thin shell; the
  * provider plumbing (Ollama/OpenRouter/OpenAI/Anthropic) lives in lib/ai.
  */
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { aiStatus, aiChat, AiError, type ChatMessage } from "../lib/ai";
 import { getSettings } from "../lib/settings";
 import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, screenIdForRoute } from "../lib/tools";
 import { planAction } from "../lib/nl-action";
 import { MCP_TOOLS } from "../lib/mcp";
-import { isActionApproved, listApprovedVocab } from "../lib/approved-actions";
+import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../lib/approved-actions";
 import { answerCopilot } from "../lib/copilot";
 import { getBroker, contextFromReq } from "../broker";
-import { hasRole, roleForReq } from "../lib/rbac";
+import { hasRole } from "../lib/rbac";
 import { aiContainmentLevel, aiSourceLevel } from "../lib/ai-containment";
 import { transcribe, sttStatus, sttCapabilityId, SttError } from "../lib/stt";
 
@@ -35,6 +35,31 @@ function parseMessages(body: unknown): ChatMessage[] | null {
   return messages;
 }
 
+/** The actor identity for capability logging, from the request session (or null). */
+function actorFromSession(req: Request): { sub: string; email?: string } | null {
+  const s = getSession(req);
+  return s ? { sub: s.sub, email: s.email } : null;
+}
+
+/** Normalise the client-sent surface (body.surface) to a registry screen id. */
+function surfaceFromBody(req: Request): string | undefined {
+  const s = (req.body as { surface?: unknown }).surface;
+  return screenIdForRoute(typeof s === "string" ? s : undefined);
+}
+
+/** Enforce an AI capability for a route. On a governance block, send 403 with the given
+ *  `label` prefix and return false (the caller returns); re-throw anything else. Collapses
+ *  the identical try/catch the AI routes all repeated. */
+function enforceOr403(req: Request, res: Response, capabilityId: string, opts: { surface?: string; label: string }): boolean {
+  try {
+    enforceCapability(capabilityId, { surface: opts.surface, actor: actorFromSession(req) });
+    return true;
+  } catch (err) {
+    if (err instanceof CapabilityBlockedError) { res.status(403).json({ error: `${opts.label}: ${err.message}` }); return false; }
+    throw err;
+  }
+}
+
 // ── GET /api/ai/status — which provider/model is active and ready ─────────────
 router.get("/ai/status", (_req, res) => {
   res.json(aiStatus());
@@ -53,14 +78,8 @@ router.post("/ai/chat", async (req, res) => {
   const provider = getSettings().aiProvider;
   // The client sends its current route; normalise it to a registry screen id so
   // per-surface overrides match (an unknown route ⇒ the global state applies).
-  const surface = screenIdForRoute(typeof (req.body as { surface?: unknown }).surface === "string" ? (req.body as { surface: string }).surface : undefined);
-  const session = getSession(req);
-  try {
-    enforceCapability(`provider:${provider}`, { surface, actor: session ? { sub: session.sub, email: session.email } : null });
-  } catch (err) {
-    if (err instanceof CapabilityBlockedError) { res.status(403).json({ error: `AI is unavailable here: ${err.message}` }); return; }
-    throw err;
-  }
+  const surface = surfaceFromBody(req);
+  if (!enforceOr403(req, res, `provider:${provider}`, { surface, label: "AI is unavailable here" })) return;
 
   try {
     const result = await aiChat(messages);
@@ -88,22 +107,15 @@ router.post("/ai/nl-action", async (req, res) => {
   if (!text.trim()) { res.status(400).json({ error: "Body must be { text }." }); return; }
 
   const provider = getSettings().aiProvider;
-  const surface = screenIdForRoute(typeof (req.body as { surface?: unknown }).surface === "string" ? (req.body as { surface: string }).surface : undefined);
-  const session = getSession(req);
-  try {
-    enforceCapability(`provider:${provider}`, { surface, actor: session ? { sub: session.sub, email: session.email } : null });
-  } catch (err) {
-    if (err instanceof CapabilityBlockedError) { res.status(403).json({ error: `AI is unavailable here: ${err.message}` }); return; }
-    throw err;
-  }
+  const surface = surfaceFromBody(req);
+  if (!enforceOr403(req, res, `provider:${provider}`, { surface, label: "AI is unavailable here" })) return;
 
   try {
     // Writes are only planned for a contributor+ caller; a viewer gets read actions only.
     const allowWrites = hasRole(req, "contributor");
     // Hard limit: the planner may only choose from the customer's APPROVED actions, evaluated
     // for THIS request's surface, role and active backend (the full per-scope matrix).
-    const approvalCtx = { surface, role: roleForReq(req), backend: getSettings().backendSource };
-    const tools = MCP_TOOLS.filter((t) => isActionApproved(t.action, approvalCtx));
+    const tools = MCP_TOOLS.filter((t) => isActionApproved(t.action, approvalContextFromReq(req, surface)));
     const plan = await planAction({ text, tools, allowWrites, complete: async (prompt) => (await aiChat([{ role: "user", content: prompt }])).content });
     res.json({ plan });
   } catch (err) {
@@ -121,14 +133,8 @@ router.post("/ai/copilot", async (req, res) => {
   if (!question.trim()) { res.status(400).json({ error: "Body must be { question }." }); return; }
 
   const provider = getSettings().aiProvider;
-  const surface = screenIdForRoute(typeof (req.body as { surface?: unknown }).surface === "string" ? (req.body as { surface: string }).surface : undefined);
-  const session = getSession(req);
-  try {
-    enforceCapability(`provider:${provider}`, { surface, actor: session ? { sub: session.sub, email: session.email } : null });
-  } catch (err) {
-    if (err instanceof CapabilityBlockedError) { res.status(403).json({ error: `AI is unavailable here: ${err.message}` }); return; }
-    throw err;
-  }
+  const surface = surfaceFromBody(req);
+  if (!enforceOr403(req, res, `provider:${provider}`, { surface, label: "AI is unavailable here" })) return;
 
   // Retrieval mode: "rag" (default) lenses the answer through a methodology persona;
   // "freeform" answers plainly. An optional methodology hint pins which lens RAG picks.
@@ -166,14 +172,8 @@ router.post("/ai/transcribe", async (req, res) => {
   const body = (req.body ?? {}) as { audio?: unknown; mime?: unknown; surface?: unknown };
   if (typeof body.audio !== "string" || !body.audio) { res.status(400).json({ error: "Body must be { audio: base64, mime }." }); return; }
 
-  const surface = screenIdForRoute(typeof body.surface === "string" ? body.surface : undefined);
-  const session = getSession(req);
-  try {
-    enforceCapability(sttCapabilityId(), { surface, actor: session ? { sub: session.sub, email: session.email } : null });
-  } catch (err) {
-    if (err instanceof CapabilityBlockedError) { res.status(403).json({ error: `Speech-to-text is unavailable here: ${err.message}` }); return; }
-    throw err;
-  }
+  const surface = surfaceFromBody(req);
+  if (!enforceOr403(req, res, sttCapabilityId(), { surface, label: "Speech-to-text is unavailable here" })) return;
 
   try {
     const audio = Buffer.from(body.audio, "base64");
