@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/methodology-ruleset.schema.json",
+  "title": "OmniProject methodology reference ruleset",
+  "description": "A curated, restrict-only business-ruleset bundle for one methodology. One file per methodology under assets/methodology-rulesets/<id>.json (id = the methodology id).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "label", "rationale", "modes", "fieldRules"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "The methodology id this bundle belongs to." },
+    "label": { "type": "string" },
+    "rationale": { "type": "string" },
+    "modes": {
+      "type": "object",
+      "description": "Built-in rule ids to set ON (every unlisted built-in applies as off).",
+      "additionalProperties": { "enum": ["hard", "warn", "off"] }
+    },
+    "fieldRules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "action", "field", "mode"],
+        "properties": {
+          "id": { "type": "string" },
+          "action": { "type": "string", "description": "Exact action (create_issue | update_issue | …) or any-write." },
+          "field": { "type": "string" },
+          "whenPresent": { "type": "string", "description": "Only required when THIS field is present." },
+          "mode": { "enum": ["hard", "warn", "off"] },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "id": "prince2",
+  "label": "PRINCE2 management-products baseline",
+  "rationale": "Process-driven control: tasks are described and dated, and identified risks carry a mitigation.",
+  "modes": {
+    "due-after-start": "hard",
+    "require-description": "hard"
+  },
+  "fieldRules": [
+    {
+      "id": "prince2-start",
+      "action": "create_issue",
+      "field": "startDate",
+      "mode": "warn",
+      "message": "Set a start date for stage planning (PRINCE2)."
+    },
+    {
+      "id": "prince2-due",
+      "action": "create_issue",
+      "field": "dueDate",
+      "mode": "warn",
+      "message": "Set a target finish for stage planning (PRINCE2)."
+    },
+    {
+      "id": "prince2-risk-mitigation",
+      "action": "any-write",
+      "field": "mitigation",
+      "whenPresent": "riskLevel",
+      "mode": "warn",
+      "message": "A rated risk should record its mitigation (PRINCE2 risk management)."
+    }
+  ]
+}

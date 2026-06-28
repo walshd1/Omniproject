@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/persona.schema.json",
+  "title": "OmniProject copilot persona",
+  "description": "An experienced PM/PgM methodology lens for the portfolio copilot's RAG. One file per persona under assets/personas/<id>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "methodologies", "keywords", "guidance"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "title": { "type": "string" },
+    "methodologies": { "type": "array", "items": { "type": "string" }, "description": "Methodology tags this lens suits (lowercased)." },
+    "keywords": { "type": "array", "items": { "type": "string" }, "description": "Question keywords that select this persona (lowercased)." },
+    "guidance": { "type": "string", "description": "Markdown guidance injected into the copilot system prompt." }
+  }
+}

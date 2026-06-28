@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateHealth, runHealthWatch, recentFindings, __resetHealthWatch, DEFAULT_THRESHOLDS, type HealthFinding } from "./health-watch";
+import { evaluateHealth, runHealthWatch, recentFindings, __resetHealthWatch, DEFAULT_THRESHOLDS, getHealthThresholds, setHealthThresholds, type HealthFinding } from "./health-watch";
 import type { Broker, PortfolioRow } from "../broker/types";
 
 /**
@@ -31,6 +31,14 @@ test("thresholds are respected (just under ⇒ no finding)", () => {
   const t = DEFAULT_THRESHOLDS;
   assert.deepEqual(evaluateHealth([row({ scheduleVarianceDays: t.scheduleSlipDays - 1 })], AT), []);
   assert.deepEqual(evaluateHealth([row({ budgetVariancePercentage: t.budgetOverrunPct - 1 })], AT), []);
+});
+
+test("setHealthThresholds tunes the active thresholds (merge over defaults, validate numbers)", () => {
+  // A tighter slip threshold makes a previously-fine row fire; invalid/missing fields fall back.
+  setHealthThresholds({ scheduleSlipDays: 2, budgetOverrunPct: -5, junk: "x" });
+  assert.deepEqual(getHealthThresholds(), { scheduleSlipDays: 2, budgetOverrunPct: DEFAULT_THRESHOLDS.budgetOverrunPct, blockers: DEFAULT_THRESHOLDS.blockers });
+  // runHealthWatch now uses the tuned thresholds when none are passed explicitly.
+  assert.ok(evaluateHealth([row({ scheduleVarianceDays: 3 })], AT, getHealthThresholds()).some((f) => f.ruleId === "schedule-slip"));
 });
 
 test("runHealthWatch reads via the broker as the keyed actor, notifies, and records findings", async () => {

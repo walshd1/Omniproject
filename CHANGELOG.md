@@ -8,6 +8,32 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Fixed
 
+- **Frontend RBAC now matches the gateway's orthogonal model.** The SPA ranked roles
+  linearly, but the gateway treats `pmo` and `admin` as independent authorities above
+  manager (a pure admin does not satisfy `pmo`). `roleAtLeast` was rewritten to replicate
+  `grantsSatisfy` (authority gates need the exact authority; base gates use the ladder), so
+  the UI gate matches what the backend enforces.
+
+### Changed
+
+- **Architecture-conformance pass (audit-driven; no behaviour change).** Three sweeps
+  (vendor-leak, AI-config-in-TS, single-implementation) confirmed the codebase holds its
+  principles — zero vendor code above the broker seam, registries applied consistently — and
+  drove four consolidations:
+  - **One AES-256-GCM primitive** (`lib/crypto-aes-gcm`). The config store, session cookie,
+    broker PSK hop and vault envelope each hand-rolled the identical seal/open; they now share
+    it (each keeps its own prefix + key derivation). Wire format unchanged — existing sealed
+    data opens as before.
+  - **Copilot personas are JSON data** — authored under
+    `lib/backend-catalogue/assets/personas/`, generated + drift-guarded like the methodology
+    catalogue (was an embedded TS array). The gateway keeps only the selection logic; the
+    content still bundles into the single-file build.
+  - **Methodology reference rulesets are JSON data** — the six bundles
+    (scrum/kanban/scrumban/waterfall/prince2/safe) moved to
+    `lib/backend-catalogue/assets/methodology-rulesets/`, generated + drift-guarded.
+  - **Health-watch KPI thresholds are tunable from the config dir**
+    (`rulesets/health-thresholds.json`), with the safe defaults retained.
+
 - **Frontend `Role` was missing the `pmo` authority.** The gateway's role ladder is
   viewer < contributor < manager < pmo < admin, but the SPA's `Role` union omitted `pmo`,
   so `roleAtLeast(pmoUser, …)` computed `NaN` and silently treated a PMO as *below* every

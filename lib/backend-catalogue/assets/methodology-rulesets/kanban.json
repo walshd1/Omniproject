@@ -1,0 +1,19 @@
+{
+  "id": "kanban",
+  "label": "Kanban flow baseline",
+  "rationale": "Pulled work should be owned, and a blocked card must say why so the flow is visible. No estimation is imposed.",
+  "modes": {
+    "due-after-start": "hard",
+    "require-assignee": "warn"
+  },
+  "fieldRules": [
+    {
+      "id": "kanban-blocked-reason",
+      "action": "any-write",
+      "field": "blockedReason",
+      "whenPresent": "blocked",
+      "mode": "warn",
+      "message": "A blocked card must record why it is blocked (Kanban flow)."
+    }
+  ]
+}

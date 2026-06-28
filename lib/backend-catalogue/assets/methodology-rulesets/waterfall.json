@@ -1,0 +1,32 @@
+{
+  "id": "waterfall",
+  "label": "Waterfall plan-completeness baseline",
+  "rationale": "Plan-driven work needs dated, estimated, described tasks to baseline and track a critical path.",
+  "modes": {
+    "due-after-start": "hard",
+    "require-description": "warn"
+  },
+  "fieldRules": [
+    {
+      "id": "waterfall-start",
+      "action": "create_issue",
+      "field": "startDate",
+      "mode": "hard",
+      "message": "A start date is required to baseline a plan-driven task (Waterfall)."
+    },
+    {
+      "id": "waterfall-due",
+      "action": "create_issue",
+      "field": "dueDate",
+      "mode": "hard",
+      "message": "A finish date is required to baseline a plan-driven task (Waterfall)."
+    },
+    {
+      "id": "waterfall-estimate",
+      "action": "create_issue",
+      "field": "estimateHours",
+      "mode": "warn",
+      "message": "An effort estimate (hours) should be set for resource planning (Waterfall)."
+    }
+  ]
+}

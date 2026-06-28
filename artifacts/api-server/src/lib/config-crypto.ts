@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { kmsConfigKey } from "./kms";
+import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
 
 /**
  * Config-at-rest encryption + secure export.
@@ -54,23 +55,10 @@ function internalKey(version: number): Buffer {
 let currentVersion = 1;
 function noteVersion(v: number): void { if (v > currentVersion) currentVersion = v; }
 
-function encrypt(plaintext: string, key: Buffer): string {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-  const ct = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
-  return Buffer.concat([iv, cipher.getAuthTag(), ct]).toString("base64url");
-}
-
-function decrypt(payload: string, key: Buffer): string | null {
-  try {
-    const raw = Buffer.from(payload, "base64url");
-    const decipher = crypto.createDecipheriv("aes-256-gcm", key, raw.subarray(0, 12));
-    decipher.setAuthTag(raw.subarray(12, 28));
-    return Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString("utf8");
-  } catch {
-    return null;
-  }
-}
+// AES-256-GCM seal/open is the shared primitive (lib/crypto-aes-gcm); this module owns only
+// the versioned INT_PREFIX framing + key derivation around it.
+const encrypt = aesGcmSeal;
+const decrypt = aesGcmOpen;
 
 /** Seal a config string under the current internal key (version embedded). */
 export function sealConfig(plaintext: string): string {

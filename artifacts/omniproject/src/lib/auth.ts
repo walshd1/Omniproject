@@ -6,9 +6,10 @@ export interface AuthUser {
   email?: string;
 }
 
-// Mirrors the gateway's rbac ROLES (viewer < contributor < manager < pmo < admin). `pmo` is
-// an authority above manager; omitting it made roleAtLeast(pmoUser, …) compute NaN and
-// silently treat a PMO as below every gate.
+// Mirrors the gateway's rbac model: a LINEAR base ladder (viewer < contributor < manager)
+// PLUS two ORTHOGONAL authorities (pmo, admin) that each confer manager-level base but are
+// independent of each other — a pure admin does NOT satisfy `pmo`, and vice-versa. The `role`
+// the gateway sends is the single representative label (highest authority, else base).
 export type Role = "viewer" | "contributor" | "manager" | "pmo" | "admin";
 
 export interface AuthState {
@@ -20,11 +21,20 @@ export interface AuthState {
   sessionTimeout?: { idleMs: number; absoluteMs: number };
 }
 
-const RANK: Record<Role, number> = { viewer: 0, contributor: 1, manager: 2, pmo: 3, admin: 4 };
+/** The linear base ladder. The authorities (pmo/admin) sit above it and confer manager base. */
+const BASE_RANK = { viewer: 0, contributor: 1, manager: 2 } as const;
+type BaseRole = keyof typeof BASE_RANK;
+const AUTHORITIES = new Set<Role>(["pmo", "admin"]);
+/** A role's base rung — an authority confers manager-level base. */
+const baseRank = (role: Role): number => (AUTHORITIES.has(role) ? BASE_RANK.manager : BASE_RANK[role as BaseRole]);
 
-/** True when the session role meets or exceeds `min`. */
+/** Does this role satisfy the gate `min`? Mirrors the gateway's `grantsSatisfy`:
+ *  - an AUTHORITY gate (pmo/admin) needs that EXACT authority (orthogonal — admin ≠ pmo);
+ *  - a BASE gate (viewer/contributor/manager) uses the ladder (pmo/admin clear `manager`). */
 export function roleAtLeast(role: Role | undefined, min: Role): boolean {
-  return RANK[role ?? "viewer"] >= RANK[min];
+  const r = role ?? "viewer";
+  if (AUTHORITIES.has(min)) return r === min;
+  return baseRank(r) >= BASE_RANK[min as BaseRole];
 }
 
 async function fetchAuth(): Promise<AuthState> {

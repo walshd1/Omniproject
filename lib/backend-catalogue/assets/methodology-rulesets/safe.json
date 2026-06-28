@@ -1,0 +1,26 @@
+{
+  "id": "safe",
+  "label": "SAFe scaled-agile baseline",
+  "rationale": "Backlog items are owned and estimated for PI planning, and blocked work is made explicit across teams.",
+  "modes": {
+    "due-after-start": "hard",
+    "require-assignee": "warn"
+  },
+  "fieldRules": [
+    {
+      "id": "safe-estimate",
+      "action": "create_issue",
+      "field": "storyPoints",
+      "mode": "warn",
+      "message": "Backlog items should be estimated for PI planning (SAFe)."
+    },
+    {
+      "id": "safe-blocked-reason",
+      "action": "any-write",
+      "field": "blockedReason",
+      "whenPresent": "blocked",
+      "mode": "warn",
+      "message": "Blocked work must be explicit across the ART (SAFe)."
+    }
+  ]
+}

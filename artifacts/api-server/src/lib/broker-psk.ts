@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
 
 /**
  * Opt-in pre-shared-key (PSK) encryption for the broker hop — a *fallback below
@@ -56,29 +57,14 @@ function key(): Buffer {
 
 /** Encrypt + authenticate a string. Returns a versioned base64url token. */
 export function sealPayload(plaintext: string): string {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", key(), iv);
-  const ct = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return PREFIX + Buffer.concat([iv, tag, ct]).toString("base64url");
+  return PREFIX + aesGcmSeal(plaintext, key());
 }
 
 /** Decrypt + verify. Returns null on a non-sealed value, tamper, or wrong key —
  *  never throws, so the broker/gateway can treat any failure as a bad request. */
 export function openPayload(token: string): string | null {
   if (typeof token !== "string" || !token.startsWith(PREFIX)) return null;
-  try {
-    const buf = Buffer.from(token.slice(PREFIX.length), "base64url");
-    if (buf.length < 28) return null; // 12 IV + 16 tag minimum
-    const iv = buf.subarray(0, 12);
-    const tag = buf.subarray(12, 28);
-    const ct = buf.subarray(28);
-    const d = crypto.createDecipheriv("aes-256-gcm", key(), iv);
-    d.setAuthTag(tag);
-    return Buffer.concat([d.update(ct), d.final()]).toString("utf8");
-  } catch {
-    return null;
-  }
+  return aesGcmOpen(token.slice(PREFIX.length), key());
 }
 
 /** The marker header set on an encrypted request so a broker can route/detect it

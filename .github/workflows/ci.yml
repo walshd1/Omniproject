@@ -131,6 +131,24 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the persona catalogue is in sync with its JSON
+        run: |
+          pnpm --filter @workspace/scripts run gen-personas
+          if ! git diff --quiet -- lib/backend-catalogue/src/personas.generated.ts; then
+            echo "::error::Persona catalogue is out of date. Run 'pnpm --filter @workspace/scripts run gen-personas' and commit the result."
+            git --no-pager diff --stat -- lib/backend-catalogue/src/personas.generated.ts
+            exit 1
+          fi
+
+      - name: Verify the methodology reference-ruleset catalogue is in sync with its JSON
+        run: |
+          pnpm --filter @workspace/scripts run gen-methodology-rulesets
+          if ! git diff --quiet -- lib/backend-catalogue/src/methodology-rulesets.generated.ts; then
+            echo "::error::Methodology reference-ruleset catalogue is out of date. Run 'pnpm --filter @workspace/scripts run gen-methodology-rulesets' and commit the result."
+            git --no-pager diff --stat -- lib/backend-catalogue/src/methodology-rulesets.generated.ts
+            exit 1
+          fi
+
       - name: Verify the function map is in sync with the code comments
         run: |
           pnpm --filter @workspace/scripts run gen-function-map

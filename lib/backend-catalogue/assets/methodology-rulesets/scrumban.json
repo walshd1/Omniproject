@@ -1,0 +1,26 @@
+{
+  "id": "scrumban",
+  "label": "Scrumban baseline",
+  "rationale": "Scrum's estimation discipline plus Kanban's blocked-work visibility.",
+  "modes": {
+    "due-after-start": "hard",
+    "require-assignee": "warn"
+  },
+  "fieldRules": [
+    {
+      "id": "scrumban-estimate",
+      "action": "create_issue",
+      "field": "storyPoints",
+      "mode": "warn",
+      "message": "Stories should carry a story-point estimate (Scrumban)."
+    },
+    {
+      "id": "scrumban-blocked-reason",
+      "action": "any-write",
+      "field": "blockedReason",
+      "whenPresent": "blocked",
+      "mode": "warn",
+      "message": "A blocked card must record why it is blocked (Scrumban)."
+    }
+  ]
+}
