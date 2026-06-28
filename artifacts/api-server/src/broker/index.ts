@@ -5,6 +5,7 @@ import { N8nBroker, N8N_ENV_CONFIGURED, pingBroker } from "./n8n";
 import { DemoBroker } from "./demo";
 import { BrokerError, type Broker, type ActorContext } from "./types";
 import { instrumented, wrapWithTrace } from "./trace";
+import { provenanceEnabled, wrapWithProvenance } from "./provenance";
 import { devBrokerFromEnv } from "./dev-broker";
 import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
 import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
@@ -40,6 +41,10 @@ export function getBroker(): Broker {
     // OPT-IN performance mode: a short-TTL in-memory read cache (READ_CACHE_TTL_MS).
     // Trades "never stale" for latency; off by default and announced loudly at boot.
     if (readCacheEnabled()) base = wrapWithCache(base);
+    // Provenance: chained, keyed-MAC fingerprints of every broker call (content stays
+    // in transit; only MACs persist). Outside the cache so logical calls are recorded
+    // even on a cache hit. Additive — never alters results.
+    if (provenanceEnabled()) base = wrapWithProvenance(base);
     singleton = instrumented() ? wrapWithTrace(base) : base;
   }
   return singleton;

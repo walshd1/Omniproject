@@ -29,6 +29,7 @@ import { GATEWAY_ORIGIN, REQUEST_HEADERS, type BrokerEnvelope } from "./contract
 import { addUpstreamMs } from "../lib/request-timing";
 import { assertEgressAllowed } from "../lib/egress";
 import { pskEnabled, sealPayload, openPayload, PSK_HEADER, PSK_PREFIX } from "../lib/broker-psk";
+import { signBrokerRequest } from "../lib/broker-hmac";
 
 /**
  * n8n broker — THE one place that knows the broker is n8n.
@@ -186,6 +187,14 @@ async function callN8n<T = unknown>(
         },
         body: JSON.stringify(envelope),
       };
+
+  // Detached request signature (+ timestamp + nonce): lets a PSK-aware broker refuse
+  // REPLAYED or forged requests across untrusted networks. The same keyed MAC underpins
+  // the provenance chain. The PSK seal already covers confidentiality + integrity; this
+  // adds replay defence and a verifiable signature. Additive headers — a broker that
+  // doesn't check them simply ignores them.
+  const sig = signBrokerRequest(typeof init.body === "string" ? init.body : "");
+  init.headers = { ...(init.headers as Record<string, string>), "X-Omni-Sig": sig.sig, "X-Omni-Ts": String(sig.ts), "X-Omni-Nonce": sig.nonce };
 
   // Round-robin across the n8n pool; fail over to the next instance ONLY on a
   // connection-level error (a returned HTTP status is a real response, not an

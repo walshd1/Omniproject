@@ -8,6 +8,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Security
 
+- **Provable broker-call provenance (zero-at-rest) + gateway↔broker request HMAC** — a
+  keyed-MAC, hash-chained record of every broker call that holds ONLY fingerprints,
+  never content: the request/response bytes pass through the broker as they must, and we
+  persist just `HMAC_k(content ‖ actor ‖ seq)`, chained so the whole sequence is
+  tamper-evident — so zero-at-rest is fully preserved. Each call records a chained
+  `invoke`/`result` fingerprint with the initiating actor and a monotonic order (no
+  external clock/anchor needed — the hash links order the chain; wall-clock is an
+  annotation). Admin verify endpoints prove ORDER + NON-ALTERATION (`GET /api/provenance`,
+  `.../call/:id`) and prove "nothing changed" by RE-PRESENTING the content
+  (`POST .../call/:id/verify`) — we never store content to reconstruct it. The same
+  shared key signs outbound broker requests (`X-Omni-Sig/-Ts/-Nonce`) so a PSK-aware
+  broker can refuse REPLAYED or forged traffic (`lib/broker-hmac`: timestamp window +
+  single-use nonce). Honest boundary: on-device initiation/display and wall-clock are
+  attestations, not proof; this targets internal consistency, not external attestation.
 - **Session idle + absolute timeout** — sessions now expire after a sliding idle period
   (default 30 min) and a hard absolute lifetime (default 8 h), enforced server-side in
   the sealed cookie via `iat`/`seen` stamps: an expired session reads as "no session"

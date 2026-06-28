@@ -122,6 +122,15 @@ n8n broker — THE one place that knows the broker is n8n.
 | `idempotencyKey` | Deterministic idempotency key: sha256(action + projectId + issueId + timestamp_rounded_to_nearest_minute) Identical actions on the same entity within the same minute collapse to the same key, letting n8n drop duplicate triggers / webhook storms. |
 | `pingBroker` | Lightweight readiness probe: is the broker reachable RIGHT NOW? One bounded POST to the first pool endpoint — any HTTP response counts as reachable (we are checking connectivity, not authorisation); only a connection error/timeout is "not ready". |
 
+### `artifacts/api-server/src/broker/provenance.ts`
+
+Provenance decorator for the broker seam.
+
+| Function | What it does |
+| --- | --- |
+| `provenanceEnabled` | Provenance decorator for the broker seam. |
+| `wrapWithProvenance` | Wrap a broker so every call records a chained invoke/result fingerprint (additive). |
+
 ### `artifacts/api-server/src/broker/reference-backend-blueprint.ts`
 
 REFERENCE BACKEND BLUEPRINT — a complete-but-placeholder backend binding to copy from (the backend plane's deliberately non-functional reference).
@@ -298,6 +307,16 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 | `effectiveBranding` | The branding the UI should render right now (defaults unless entitled). |
 | `saveBranding` | Persist branding overrides (callers must enforce the entitlement). |
 | `clearBranding` | Reset white-label branding back to the product defaults. |
+
+### `artifacts/api-server/src/lib/broker-hmac.ts`
+
+Gateway↔broker request signing (security item C, folded into provenance): a detached HMAC over the request body plus a timestamp and a single-use nonce, so the broker can prove the request came from the gateway and refuse REPLAYS and STALE traffic across untrusted networks.
+
+| Function | What it does |
+| --- | --- |
+| `signBrokerRequest` | Sign a request body for the broker (fresh timestamp + nonce). |
+| `verifyBrokerRequest` | Verify a signed broker request: signature matches, timestamp is within the freshness window, and the nonce hasn't been used (replay). |
+| `__resetBrokerHmac` | Test-only: clear the replay cache. |
 
 ### `artifacts/api-server/src/lib/broker-log-bus.ts`
 
@@ -729,6 +748,20 @@ Tiny, dependency-free PROPERTY-TESTING harness — the structured approach to ed
 | `mulberry32` | mulberry32 — a fast, well-distributed seedable PRNG (no crypto needed here). |
 | `check` | Assert `prop` holds for `runs` generated inputs. |
 
+### `artifacts/api-server/src/lib/provenance.ts`
+
+Provenance chain — a keyed-MAC, hash-chained record of every broker call, holding ONLY fingerprints, never content.
+
+| Function | What it does |
+| --- | --- |
+| `canonical` | Deterministic JSON: object keys sorted recursively, so the MAC is stable. |
+| `contentMac` | The fingerprint of some content, bound to the actor + sequence position. |
+| `record` | Append one fingerprint to the chain and return the (content-free) entry. |
+| `recentProvenance` | Recent chain entries (optionally just one call's), oldest→newest. |
+| `verifyChain` | Verify a CONTIGUOUS slice of the chain: each entry's own MAC recomputes (so no field was altered), the links join (prevMac === previous mac), and order is monotonic. |
+| `verifyContent` | Prove "nothing changed": re-present content and confirm it matches the fingerprint. |
+| `__resetProvenance` | Test-only: reset the in-memory chain. |
+
 ### `artifacts/api-server/src/lib/rate-limit.ts`
 
 Rate limiting to protect n8n / OpenRouter from spam and scripting loops.
@@ -1064,6 +1097,10 @@ Programme endpoints — GET /api/programmes (the derived programme roll-up acros
 ### `artifacts/api-server/src/routes/projects.ts`
 
 Project, programme-membership, issue + task-item endpoints — the core read/write surface.
+
+### `artifacts/api-server/src/routes/provenance.ts`
+
+Provenance verification (admin) — read + verify the broker-call chain.
 
 ### `artifacts/api-server/src/routes/raw-api.ts`
 
