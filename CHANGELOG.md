@@ -37,6 +37,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Tool Registry + data-egress policy + per-user consent gate** — the governance
+  substrate every optional tool (AI dictation, NL→action, health watch, portfolio
+  copilot) plugs into. Each tool declares the data-egress modes it can run in
+  (`none` on-device / `self-hosted` on the customer's own infra / `third-party`
+  cloud). A **HARD RULE** — enforced by a registry test — requires every tool to offer
+  at least one LOCAL mode, so no capability is ever cloud-only. The admin policy is
+  **locked to on-device by default**; relaxing it to self-hosted/third-party egress is
+  a deliberate, versioned (`captureVersion`) choice, and any non-local tool then needs
+  the user's **one-time, informed consent** (a dialog that spells out exactly where
+  their data goes) before first use. New `GET /api/tools`, `POST`/`DELETE
+  /api/tools/:id/consent`, `PUT /api/tools/policy` (admin); a Settings → "Tools & AI —
+  data governance" admin card; policy + consent persist in the config snapshot. This is
+  "lock it down, let people relax it with information" expressed once, for all tools.
 - **Platform & capability detection, mobile mode, PWA, native-ready seam** — the app
   now tailors itself to the device the right way: **feature-detection first**, with
   coarse OS/engine hints used only for wording and install routing (never to gate a

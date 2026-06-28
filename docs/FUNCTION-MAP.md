@@ -853,6 +853,23 @@ Graceful shutdown — on SIGTERM/SIGINT (e.g. `docker stop`, a rolling deploy), 
 | `gracefulShutdown` | Run one graceful shutdown. |
 | `installShutdownHandlers` | Install SIGTERM/SIGINT handlers that run a single graceful shutdown. |
 
+### `artifacts/api-server/src/lib/tools.ts`
+
+The Tool Registry — the governance substrate every optional tool (AI dictation, NL→action, health watch, portfolio copilot, …) plugs into.
+
+| Function | What it does |
+| --- | --- |
+| `lowestEgress` | The most-local egress mode in a list (none < self-hosted < third-party), or null. |
+| `resolveTool` | Resolve one tool against the admin policy and a user's prior consent. |
+| `listResolvedTools` | Resolve every tool for a given policy + user consent set. |
+| `isKnownTool` | Is this a known tool id? |
+| `sanitizeToolPolicy` | Coerce untrusted input to a valid policy. |
+| `getToolPolicy` | The current admin policy. |
+| `setToolPolicy` | Persist a (sanitised) admin policy; returns what was stored. |
+| `getConsentedTools` | Tool ids a user has consented to. |
+| `addToolConsent` | Record a user's consent for a tool (idempotent); returns their full consent set. |
+| `revokeToolConsent` | Withdraw a user's consent for a tool; returns their remaining consent set. |
+
 ### `artifacts/api-server/src/lib/url-safety.ts`
 
 Outbound-URL safety for admin-configured endpoints (the broker URL and premium webhook targets), which are passed to `fetch()`.
@@ -1048,6 +1065,10 @@ Gateway-local settings (the broker URL, AI provider, …).
 ### `artifacts/api-server/src/routes/setup.ts`
 
 Setup-wizard + operations endpoints — backend/plane catalogues, workflow generation + verification, config export/snapshot/restore, the sandbox→promote→ rollback environment controls, and the debug bundle.
+
+### `artifacts/api-server/src/routes/tools.ts`
+
+The tools plane — the optional AI/integration capabilities, governed by the admin data-egress policy and per-user consent (see lib/tools).
 
 ### `artifacts/api-server/src/routes/webhooks.ts`
 

@@ -105,6 +105,18 @@ export interface SettingsState {
    * dyslexia / visual impairment. Personal config, never project data.
    */
   userPrefs: Record<string, UserPrefs>;
+  /**
+   * Admin data-governance policy for the optional tools plane. Locked to on-device
+   * only by default; relaxing it to self-hosted/third-party egress is the admin's
+   * deliberate, per-class choice. Config, never project data.
+   */
+  toolPolicy: ToolPolicy;
+  /**
+   * Per-user tool consent: the tool ids each user (`sub`) has acknowledged the
+   * data-egress of, so a relaxed (non-local) tool is used only after that person has
+   * seen and accepted where their data goes. Audit-class config, never project data.
+   */
+  toolConsent: Record<string, string[]>;
 }
 
 /** One user's persisted UI/accessibility preferences. */
@@ -123,6 +135,19 @@ export interface UserPrefs {
   speechInput: boolean;
   /** Touch-optimised mobile layout: follow the device (auto) or force on/off. */
   mobileMode: "auto" | "on" | "off";
+}
+
+/** Where a tool's data goes: nowhere (on-device), the customer's own infra, or a
+ *  third party. The unit the Tool Registry's egress policy is expressed in. */
+export type EgressClass = "none" | "self-hosted" | "third-party";
+
+/** Admin data-governance policy for the optional tools (AI + integrations). Locked
+ *  down by default (on-device only); an admin relaxes it per egress class. */
+export interface ToolPolicy {
+  /** Egress classes the admin permits. "none" is always allowed (it never leaves). */
+  allowedEgress: EgressClass[];
+  /** Tool ids the admin has switched off entirely. */
+  disabled: string[];
 }
 
 /** A saved arrangement for one screen. */
@@ -213,6 +238,8 @@ const store: SettingsState = {
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
   userPrefs: {},
+  toolPolicy: { allowedEgress: ["none"], disabled: [] },
+  toolConsent: {},
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
@@ -233,6 +260,8 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "fieldOverrides",
   "screenLayouts",
   "userPrefs",
+  "toolPolicy",
+  "toolConsent",
 ];
 
 /** A snapshot copy of the current in-memory settings (never the live reference). */

@@ -34,6 +34,7 @@ import roleMapRouter from "./role-map";
 import rawApiRouter from "./raw-api";
 import devModeRouter from "./dev-mode";
 import meRouter from "./me";
+import toolsRouter from "./tools";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -120,5 +121,6 @@ router.use(requireAuth, rulesetRouter);
 router.use(requireAuth, importRouter);
 router.use(requireAuth, roleMapRouter);
 router.use(requireAuth, rawApiRouter);
+router.use(requireAuth, toolsRouter);
 
 export default router;

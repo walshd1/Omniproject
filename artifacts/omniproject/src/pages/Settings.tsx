@@ -17,6 +17,7 @@ import { LoggingSyncSettings } from "../components/settings/LoggingSyncSettings"
 import { TranslationLayer } from "../components/settings/TranslationLayer";
 import { BrokerLog } from "../components/settings/BrokerLog";
 import { A11yControls } from "../components/settings/A11yControls";
+import { ToolsAdmin } from "../components/settings/ToolsAdmin";
 import { DataState } from "../components/DataState";
 import { LoadingState } from "../components/LoadingState";
 import { urlFormatError } from "../lib/validation";
@@ -256,6 +257,10 @@ export function Settings() {
       </div>
 
       <PremiumAdmin />
+
+      <div className="mt-10">
+        <ToolsAdmin />
+      </div>
 
       <A11yControls />
     </div>
