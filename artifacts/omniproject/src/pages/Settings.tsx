@@ -21,6 +21,7 @@ import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
 import { GovernanceDashboard } from "../components/settings/GovernanceDashboard";
 import { SecurityKeys } from "../components/settings/SecurityKeys";
 import { ProvenanceDashboard } from "../components/settings/ProvenanceDashboard";
+import { NlCommand } from "../components/settings/NlCommand";
 import { DataState } from "../components/DataState";
 import { LoadingState } from "../components/LoadingState";
 import { urlFormatError } from "../lib/validation";
@@ -263,6 +264,10 @@ export function Settings() {
 
       <div className="mt-10">
         <SecurityKeys />
+      </div>
+
+      <div className="mt-10">
+        <NlCommand />
       </div>
 
       <div className="mt-10">
