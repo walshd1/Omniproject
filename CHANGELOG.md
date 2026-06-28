@@ -76,6 +76,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Per-surface / per-role / per-backend approved-actions (the full scope matrix) + a
+  setup-wizard AI-governance walkthrough** — the customer-wide approved-actions allowlist
+  was global (an action was approved everywhere or nowhere). An approval can now be
+  **scoped** to a set of SURFACES (screen ids), a **minimum ROLE**, and/or a set of
+  **BACKENDS** — any combination. An unscoped approval stays global (the default, so
+  nothing regresses); a scoped one is **fail-closed** — a constrained dimension whose
+  context is unknown at the call site (e.g. surface scoping evaluated on the MCP channel)
+  is treated as "not allowed", so a narrowing can never leak. Enforced at both gates: the
+  MCP executor checks the caller's role + active backend, and the NL→action planner checks
+  the request's surface + role + backend. The admin **action catalogue** gained an inline
+  scope editor (surface chips, a min-role dropdown, a backends list) and shows each
+  action's scope; scopes round-trip through the sealed security-state file (back-compatible
+  with older `actions`-only snapshots). A new **AI-governance step** in the setup wizard
+  gives admins a guided, read-only pass over the leash during setup — enforced containment
+  level, approved-action counts (how many are writes / scoped), active autonomous
+  write-grants, and the break-glass kill switch — linking into Settings to tune each.
 - **Portfolio copilot — methodology RAG personas, RAG/freeform toggle, published as an
   AI action** — the read-only copilot now retrieves the most relevant **methodology
   persona** for a question (Agile Delivery Lead, Programme Director, PMO Analyst, Risk &

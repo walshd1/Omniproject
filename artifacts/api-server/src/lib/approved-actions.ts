@@ -1,3 +1,5 @@
+import { ROLES, type Role } from "./rbac";
+
 /**
  * Customer-wide APPROVED vocabulary + actions.
  *
@@ -11,6 +13,12 @@
  * deployment can answer and look things up, but cannot be steered into a mutation until a
  * human has deliberately widened the allowlist.
  *
+ * SCOPED approval (optional, narrows further): an approval can be pinned to a SURFACE
+ * (screen id), a minimum ROLE, and/or a set of BACKENDS — the full matrix. An approval
+ * with no scope is GLOBAL (approved everywhere, the default). A scoped approval is
+ * fail-closed: a constrained dimension whose context value is unknown at the call site
+ * is treated as "not allowed", so a narrowing can never leak into an unknown context.
+ *
  * Vocabulary is the approved term list surfaced to the tools (advisory — the model is
  * asked to use it); actions are HARD-enforced (the planner filters to approved, and the
  * MCP executor refuses an unapproved action).
@@ -21,41 +29,110 @@
  * makes it *possible*, not *always allowed*.
  */
 
-/** The safe default: read-only canonical actions. Writes are NOT approved by default. */
+/** A narrowing applied to an approved action. Any dimension left unset = unconstrained. */
+export interface ActionScope {
+  /** Screen ids the action is approved on (empty/undefined = every surface). */
+  surfaces?: string[];
+  /** Minimum role rank the caller must hold (undefined = any role). */
+  minRole?: Role;
+  /** Backend routing ids the action is approved against (empty/undefined = every backend). */
+  backends?: string[];
+}
+
+/** The live context an enforcement point knows about when checking an approval. */
+export interface ApprovalContext {
+  surface?: string;
+  role?: Role;
+  backend?: string;
+}
+
+/** An approved action plus its (possibly empty) scope — the serialisable/catalogue form. */
+export interface ActionApproval {
+  action: string;
+  scope: ActionScope;
+}
+
+/** The safe default: read-only canonical actions, approved globally (no scope). Writes are
+ *  NOT approved by default. */
 export const DEFAULT_APPROVED_ACTIONS: readonly string[] = [
   "list_projects", "list_issues", "project_summary", "get_portfolio_health",
   "get_capabilities", "get_notifications", "list_reports", "list_screens",
   "portfolio_copilot",
 ];
 
-const actions = new Set<string>(DEFAULT_APPROVED_ACTIONS);
+/** Approved action → its scope ({} = global/unconstrained). */
+const actions = new Map<string, ActionScope>(DEFAULT_APPROVED_ACTIONS.map((a) => [a, {}]));
 const vocab = new Set<string>();
 
-/** Is this canonical action on the customer's approved allowlist? */
-export function isActionApproved(action: string): boolean {
-  return actions.has(action);
+const rank = (r: Role): number => ROLES.indexOf(r);
+
+/** An allowlist dimension is satisfied when it's empty (unconstrained) or contains the value
+ *  (fail-closed: a constrained dimension with no context value is denied). */
+function listAllows(allow: string[] | undefined, value: string | undefined): boolean {
+  if (!allow || allow.length === 0) return true;
+  return value != null && allow.includes(value);
 }
 
-/** Approve an action (admin extends the allowlist). */
-export function approveAction(action: string): void { actions.add(action); }
+/** Is this canonical action approved for the given context? An unscoped approval is allowed
+ *  everywhere; a scoped one must satisfy every constrained dimension (fail-closed). */
+export function isActionApproved(action: string, ctx: ApprovalContext = {}): boolean {
+  const scope = actions.get(action);
+  if (!scope) return false;
+  if (!listAllows(scope.surfaces, ctx.surface)) return false;
+  if (scope.minRole && (!ctx.role || rank(ctx.role) < rank(scope.minRole))) return false;
+  if (!listAllows(scope.backends, ctx.backend)) return false;
+  return true;
+}
+
+/** Normalise a raw scope object to a clean ActionScope (drop empties/invalids). */
+function cleanScope(raw: unknown): ActionScope {
+  const s = (raw ?? {}) as { surfaces?: unknown; minRole?: unknown; backends?: unknown };
+  const scope: ActionScope = {};
+  const strs = (v: unknown): string[] | undefined => {
+    const arr = Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : [];
+    return arr.length ? [...new Set(arr)] : undefined;
+  };
+  const surfaces = strs(s.surfaces); if (surfaces) scope.surfaces = surfaces;
+  const backends = strs(s.backends); if (backends) scope.backends = backends;
+  if (typeof s.minRole === "string" && (ROLES as readonly string[]).includes(s.minRole)) scope.minRole = s.minRole as Role;
+  return scope;
+}
+
+/** Approve an action (admin extends the allowlist), optionally scoped. No scope = global. */
+export function approveAction(action: string, scope?: ActionScope): void {
+  if (action.trim()) actions.set(action, cleanScope(scope));
+}
 /** Remove an action from the allowlist (admin tightens). */
 export function revokeApprovedAction(action: string): void { actions.delete(action); }
-/** The approved action allowlist. */
-export function listApprovedActions(): string[] { return [...actions]; }
+/** The approved action ids (scope-agnostic — backwards-compatible view). */
+export function listApprovedActions(): string[] { return [...actions.keys()]; }
+/** The approved actions with their scopes (catalogue + durable state). */
+export function listApprovedActionRules(): ActionApproval[] {
+  return [...actions.entries()].map(([action, scope]) => ({ action, scope }));
+}
+/** The scope pinned to an approved action, or undefined if not approved. */
+export function actionScope(action: string): ActionScope | undefined { return actions.get(action); }
 
 /** Approve a vocabulary term. */
 export function approveTerm(term: string): void { if (term.trim()) vocab.add(term.trim()); }
 /** The approved vocabulary. */
 export function listApprovedVocab(): string[] { return [...vocab]; }
 
-/** Replace the whole allowlist (an admin applies the customer-wide file). */
-export function setApproved(input: { actions?: string[]; vocab?: string[] }): void {
-  if (input.actions) { actions.clear(); for (const a of input.actions) actions.add(a); }
+/** Replace the whole allowlist (an admin applies the customer-wide file). Accepts either the
+ *  scoped `rules` form or the plain `actions` id list (approved globally) for back-compat. */
+export function setApproved(input: { actions?: string[]; rules?: ActionApproval[]; vocab?: string[] }): void {
+  if (input.rules) {
+    actions.clear();
+    for (const r of input.rules) if (r && typeof r.action === "string" && r.action.trim()) actions.set(r.action, cleanScope(r.scope));
+  } else if (input.actions) {
+    actions.clear();
+    for (const a of input.actions) if (a.trim()) actions.set(a, {});
+  }
   if (input.vocab) { vocab.clear(); for (const v of input.vocab) approveTerm(v); }
 }
 
-/** Test-only: restore the default-safe allowlist (reads approved, no vocab). */
+/** Test-only: restore the default-safe allowlist (reads approved globally, no vocab). */
 export function __resetApproved(): void {
-  actions.clear(); for (const a of DEFAULT_APPROVED_ACTIONS) actions.add(a);
+  actions.clear(); for (const a of DEFAULT_APPROVED_ACTIONS) actions.set(a, {});
   vocab.clear();
 }

@@ -4,7 +4,7 @@ import { requireStepUp } from "../lib/step-up";
 import { aiContainmentLevel, aiSourceLevel, getContainmentRelax, setContainmentRelax, type AiContainment } from "../lib/ai-containment";
 import { listAutonomousGrants } from "../lib/autonomous-grant";
 import { aiKillEngaged, engageAiKill, releaseAiKill } from "../lib/ai-kill";
-import { listApprovedActions, listApprovedVocab, setApproved, approveAction, revokeApprovedAction, approveTerm, isActionApproved } from "../lib/approved-actions";
+import { listApprovedActions, listApprovedVocab, setApproved, approveAction, revokeApprovedAction, approveTerm, isActionApproved, actionScope, type ActionScope } from "../lib/approved-actions";
 import { MCP_TOOLS } from "../lib/mcp";
 import { persistSecurityState } from "../lib/security-state";
 import { recordAudit } from "../lib/audit";
@@ -53,24 +53,32 @@ router.get("/governance/approved", requireRole("admin"), (_req, res) => {
 // a blind allowlist. The catalogue is the superset; approving makes an action possible.
 router.get("/governance/actions", requireRole("admin"), (_req, res) => {
   // Dedup by canonical action (read + write tools can share one); writes are the gated ones.
-  const seen = new Map<string, { action: string; label: string; description: string; write: boolean; approved: boolean }>();
+  // `approved` reflects whether the action is on the allowlist at all; `scope` carries any
+  // per-surface/role/backend narrowing so the admin UI can show and edit the matrix.
+  const seen = new Map<string, { action: string; label: string; description: string; write: boolean; approved: boolean; scope: ActionScope }>();
   for (const t of MCP_TOOLS) {
-    if (!seen.has(t.action)) seen.set(t.action, { action: t.action, label: t.name, description: t.description, write: !!t.write, approved: isActionApproved(t.action) });
+    if (!seen.has(t.action)) seen.set(t.action, { action: t.action, label: t.name, description: t.description, write: !!t.write, approved: actionScope(t.action) !== undefined, scope: actionScope(t.action) ?? {} });
   }
-  res.json({ actions: [...seen.values()] });
+  res.json({ actions: [...seen.values()], surfaces: listSurfaces().map((s) => s.id) });
 });
 
 // Extend / replace the approved allowlist (admin + step-up — widening what AI may do is
 // a sensitive change). `replace` swaps the whole file; otherwise the items are added.
 router.put("/governance/approved", requireRole("admin"), requireStepUp, (req, res) => {
-  const body = (req.body ?? {}) as { actions?: unknown; remove?: unknown; vocab?: unknown; replace?: unknown };
+  const body = (req.body ?? {}) as { actions?: unknown; rules?: unknown; remove?: unknown; vocab?: unknown; replace?: unknown };
   const acts = Array.isArray(body.actions) ? body.actions.filter((a): a is string => typeof a === "string") : undefined;
   const remove = Array.isArray(body.remove) ? body.remove.filter((a): a is string => typeof a === "string") : undefined;
   const terms = Array.isArray(body.vocab) ? body.vocab.filter((v): v is string => typeof v === "string") : undefined;
+  // Scoped approvals: { action, scope:{surfaces?,minRole?,backends?} } — re-approving an
+  // action with a scope narrows it (cleanScope drops invalid fields). Empty scope = global.
+  const rules = Array.isArray(body.rules)
+    ? body.rules.filter((r): r is { action: string; scope?: ActionScope } => !!r && typeof (r as { action?: unknown }).action === "string")
+    : undefined;
   if (body.replace === true) {
-    setApproved({ ...(acts ? { actions: acts } : {}), ...(terms ? { vocab: terms } : {}) });
+    setApproved({ ...(rules ? { rules: rules.map((r) => ({ action: r.action, scope: r.scope ?? {} })) } : acts ? { actions: acts } : {}), ...(terms ? { vocab: terms } : {}) });
   } else {
     for (const a of acts ?? []) approveAction(a);
+    for (const r of rules ?? []) approveAction(r.action, r.scope); // set/replace the action's scope
     for (const a of remove ?? []) revokeApprovedAction(a);
     for (const v of terms ?? []) approveTerm(v);
   }

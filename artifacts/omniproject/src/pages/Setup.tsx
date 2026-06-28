@@ -13,6 +13,7 @@ import { GenerateStep } from "../components/setup/GenerateStep";
 import { VerifyStep } from "../components/setup/VerifyStep";
 import { BackupStep } from "../components/setup/BackupStep";
 import { EnvironmentsStep } from "../components/setup/EnvironmentsStep";
+import { GovernanceStep } from "../components/setup/GovernanceStep";
 
 export function Setup() {
   const { t } = useT();
@@ -47,6 +48,7 @@ export function Setup() {
         <VerifyStep isAdmin={isAdmin} status={status} />
         <BackupStep isAdmin={isAdmin} status={status} />
         <EnvironmentsStep isAdmin={isAdmin} />
+        <GovernanceStep isAdmin={isAdmin} />
       </div>
     </div>
   );
