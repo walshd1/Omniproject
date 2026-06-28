@@ -98,6 +98,27 @@ anonymous system call:
   approvals and the kill switch are sealed to disk and restored at boot, so a revocation
   survives a restart. `lib/security-state.ts`.
 
+## 5a. AI providers & the key vault
+
+- **Providers are first-class entities** (`id`, `kind`, `label`, `endpoint?`, `model?`) —
+  `lib/ai-providers.ts`. You can have several of a kind (e.g. two OpenAI accounts).
+- **Capabilities map to an ordered provider list** (chat, nl-action, copilot, health-watch,
+  stt). The first **ready** provider wins (primary + fallbacks). An unmapped capability falls
+  back to the Settings default. Set in **Settings → AI providers** (admin + step-up).
+- **API keys are out of docker/env entirely** (hard cut-over). They are entered in the admin
+  UI and held in the **encrypted vault** (`lib/vault.ts`):
+  - each secret is **separately encrypted** under its own derived subkey
+    (`HKDF-SHA256(root, ref)` → AES-256-GCM envelope), so envelopes don't share key material;
+  - the **whole vault file is itself sealed** at rest with the config-store crypto — a second,
+    independent layer ("super-encrypted");
+  - keys are **write-only across the API**: no route ever returns a plaintext key, only
+    presence + a short fingerprint; the internal `getSecret` is used solely to sign the
+    upstream call;
+  - the root key is `VAULT_KEY` (else derived from the env master, domain-separated from the
+    config key) — **one root protects many secrets**, and the secrets never sit in the
+    environment. The vault file lives company-wide (`VAULT_FILE` / `<OMNI_CONFIG_DIR>/vault.json`).
+- All provider/key/mapping writes are **admin + step-up + audited** (`ai-provider.*`).
+
 ## 6. Residual boundaries (honest)
 
 These are deliberate, documented limits — not defects:
@@ -122,6 +143,8 @@ These are deliberate, documented limits — not defects:
 | `SESSION_SECRET` | Master for session/derived keys (required, non-default, in production). |
 | `BROKER_PSK` | Gateway↔broker pre-shared key (keyless live calls are hard-rejected outside dev). |
 | `CONFIG_KEY_RAW` / `CONFIG_KEY` | Config-at-rest key (raw, or derived from the master). |
+| `VAULT_KEY` | Root secret protecting the AI key vault (base64 32 bytes; derived from the master if unset). Provider API keys live in the vault, **not** in env. |
+| `VAULT_FILE` / `AI_PROVIDERS_FILE` | Where the sealed vault + provider registry persist (default under `OMNI_CONFIG_DIR`). |
 | `SECURITY_STATE_FILE` | Enables durable security state (revocations etc. survive restart). |
 | `STEP_UP_MINUTES` | Step-up freshness window (default 5). |
 | `AUTONOMOUS_SESSION_SECONDS` | Autonomous session TTL (default 30, clamped ≤ 5 min). |

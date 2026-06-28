@@ -123,7 +123,10 @@ services:
       AI_PROVIDER: ${AI_PROVIDER:-none}        # none | ollama | openrouter | openai | anthropic
       AI_MODEL: ${AI_MODEL:-}
       OLLAMA_URL: http://ollama:11434
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # AI provider API keys are NOT passed in here — they live in the encrypted vault,
+      # entered via Settings → AI providers. Only the vault root secret is set (defaults
+      # to SESSION_SECRET-derived if VAULT_KEY is unset).
+      VAULT_KEY: ${VAULT_KEY:-}
     volumes:
       - "./certs:/certs:ro"
     labels:

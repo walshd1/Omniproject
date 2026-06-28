@@ -59,10 +59,11 @@ services:
       # ── AI: BYO public provider (optional; no local LLM in this profile) ────
       AI_PROVIDER: ${AI_PROVIDER:-none}          # none | openrouter | openai | anthropic | ollama
       AI_MODEL: ${AI_MODEL:-}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      OLLAMA_URL: ${OLLAMA_URL:-}                 # set to an external Ollama if used
+      OLLAMA_URL: ${OLLAMA_URL:-}                 # endpoint, not a secret
+      # AI provider API keys are NOT env vars — they are entered via Settings → AI
+      # providers and held in the encrypted vault. Only the vault root secret is set here
+      # (falls back to a SESSION_SECRET-derived key if VAULT_KEY is unset).
+      VAULT_KEY: ${VAULT_KEY:-}
     depends_on:
       n8n:
         condition: service_healthy

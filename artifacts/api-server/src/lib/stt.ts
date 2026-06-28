@@ -1,6 +1,7 @@
 import { getSettings, type SttProvider } from "./settings";
 import { aiKillEngaged } from "./ai-kill";
 import { effectiveState } from "./tools";
+import { getProvider, resolveProviderKey } from "./ai-providers";
 
 /**
  * AI-assisted speech-to-text — provider-pluggable, governed, with Whisper as ONE provider.
@@ -24,12 +25,14 @@ export function sttStatus(): { provider: SttProvider; local: boolean } {
   return { provider, local: provider === "browser" };
 }
 
-/** The Whisper endpoint + key (operator config). Endpoint via the capability's user-defined
- *  state; key from the environment (never stored by OmniProject). */
+/** The Whisper endpoint + key. The endpoint comes from the whisper provider entity (or its
+ *  capability state, or WHISPER_URL); the KEY comes from the encrypted vault — never the
+ *  environment (hard cut-over: AI keys are out of docker). */
 function whisperConfig(): { url: string; key: string | undefined } {
-  const endpoint = getSettings().capabilityStates?.["stt:whisper"]?.endpoint?.trim();
+  const provider = getProvider("whisper");
+  const endpoint = provider?.endpoint?.trim() || getSettings().capabilityStates?.["stt:whisper"]?.endpoint?.trim();
   const url = endpoint || process.env["WHISPER_URL"]?.trim() || "http://localhost:9000/v1/audio/transcriptions";
-  return { url, key: process.env["WHISPER_API_KEY"]?.trim() || undefined };
+  return { url, key: resolveProviderKey("whisper") ?? undefined };
 }
 
 /**

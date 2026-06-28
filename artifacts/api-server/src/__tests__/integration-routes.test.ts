@@ -225,6 +225,21 @@ test("POST /api/ai/chat rejects a malformed body with 400", async () => {
   assert.equal(res.status, 400);
 });
 
+test("GET /api/ai/providers returns the registry + capability map, with no secrets", async () => {
+  const res = await get("/api/ai/providers");
+  assert.equal(res.status, 200);
+  const json = await readJson(res);
+  assert.ok(Array.isArray(json.providers));
+  assert.ok(Array.isArray(json.capabilities));
+  assert.ok(Array.isArray(json.kinds));
+  // Each provider row carries presence, never a key value.
+  for (const p of json.providers) {
+    assert.equal("hasKey" in p, true);
+    assert.equal("key" in p, false);
+    assert.equal("secret" in p, false);
+  }
+});
+
 test("GET /api/ai/stt reports the active speech-to-text engine", async () => {
   const res = await get("/api/ai/stt");
   assert.equal(res.status, 200);

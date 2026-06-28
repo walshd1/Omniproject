@@ -19,6 +19,7 @@ import { BrokerLog } from "../components/settings/BrokerLog";
 import { A11yControls } from "../components/settings/A11yControls";
 import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
 import { ActionCatalogue } from "../components/settings/ActionCatalogue";
+import { AiProvidersAdmin } from "../components/settings/AiProvidersAdmin";
 import { GovernanceDashboard } from "../components/settings/GovernanceDashboard";
 import { SecurityKeys } from "../components/settings/SecurityKeys";
 import { ProvenanceDashboard } from "../components/settings/ProvenanceDashboard";
@@ -317,6 +318,10 @@ export function Settings() {
 
       <div className="mt-10">
         <GovernanceAdmin />
+      </div>
+
+      <div className="mt-10">
+        <AiProvidersAdmin />
       </div>
 
       <div className="mt-10">

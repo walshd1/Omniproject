@@ -433,7 +433,8 @@ the common gotchas (router-name consistency, the `Host()` backticks, cross-provi
 | `API_TOKENS` | gateway | Comma-separated **read-only** tokens for Power BI / scheduled exports |
 | `AI_PROVIDER` | gateway | `none \| ollama \| openrouter \| openai \| anthropic` |
 | `AI_MODEL` | gateway | Model name (per-provider default otherwise) |
-| `OLLAMA_URL` / `OPENROUTER_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | gateway | Provider connection (per `AI_PROVIDER`) |
+| `OLLAMA_URL` | gateway | Local Ollama endpoint (not a secret) |
+| `VAULT_KEY` | gateway | Root secret protecting the AI key vault (base64 32 bytes; derived from `SESSION_SECRET` if unset). **Provider API keys are entered in Settings → AI providers and stored in the encrypted vault — never as env vars.** |
 | `LOGGING_SYNC_URL` / `LOGGING_SYNC_ACK_WARRANTY` | gateway | Opt-in state-history egress for time-travel (off by default; out-of-warranty) |
 | `STATIC_DIR` | gateway | Serve the built SPA from here (single-container mode; set by the image) |
 | `API_PROXY_TARGET` | SPA dev | Where the Vite dev server proxies `/api` (default `http://localhost:8080`) |
