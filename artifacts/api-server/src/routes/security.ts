@@ -7,6 +7,7 @@ import { internalKeyFingerprint } from "../lib/config-crypto";
 import { exportConfig } from "../lib/config-store";
 import { persistSecurityState } from "../lib/security-state";
 import { listKeys, revokeKey, revokeUserSessions, KEY_NAMES, type KeyName } from "../lib/key-registry";
+import { auditAnchor, verifyAuditChain, type SealedAuditEvent } from "../lib/audit-chain";
 
 /**
  * Admin-gated key revocation. An admin can retire a signing key (session / provenance /
@@ -61,6 +62,22 @@ router.post("/security/config/export", requireRole("admin"), requireStepUp, (req
     exportKey: out.exportKey,
     warning: "Move the bundle file and keep the ephemeral key separate. The key decrypts ONLY this bundle and nothing else. Your internal at-rest key has been rotated — past copies of the live files no longer share its key.",
   });
+});
+
+// ── Tamper-evident audit chain ──────────────────────────────────────────────────
+// GET the current chain anchor (seq + tip hash + key version) so an external verifier can
+// confirm the SIEM copy ends where the gateway says it does. Admin; no secrets exposed.
+router.get("/security/audit/anchor", requireRole("admin"), (_req, res) => {
+  res.json(auditAnchor());
+});
+
+// POST a slice of sealed audit events (e.g. pulled from the SIEM) to verify their integrity:
+// recomputes the keyed hash chain and reports the first broken link, if any. Admin.
+router.post("/security/audit/verify", requireRole("admin"), (req, res) => {
+  const body = (req.body ?? {}) as { events?: unknown; expectedFirstPrev?: unknown };
+  if (!Array.isArray(body.events)) { res.status(400).json({ error: "Body must be { events: SealedAuditEvent[], expectedFirstPrev? }." }); return; }
+  const expectedFirstPrev = typeof body.expectedFirstPrev === "string" ? body.expectedFirstPrev : undefined;
+  res.json(verifyAuditChain(body.events as SealedAuditEvent[], expectedFirstPrev));
 });
 
 export default router;

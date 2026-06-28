@@ -78,8 +78,15 @@ anonymous system call:
 - Every broker call is fingerprinted into a keyed, hash-chained, content-free provenance
   ring, bound to the initiating **session** (not just an actor string). Forging history
   needs both the provenance key and the broker master. `lib/provenance.ts`.
-- Keys are versioned and **admin-revocable** (session / provenance / broker); a revocation
-  rolls forward and rejects anything signed under the old version.
+- Keys are versioned and **admin-revocable** (session / provenance / broker / audit); a
+  revocation rolls forward and rejects anything signed under the old version.
+- **Tamper-evident audit trail** (`lib/audit-chain.ts`): every recorded audit event is sealed
+  into an append-only, keyed hash chain (`seq` + `prevHash` + `HMAC(auditKey, …)`). The
+  sealed fields ride into stdout/the SIEM, so the external copy is self-verifying — removing,
+  reordering or altering any event breaks the chain and is detectable without the key being
+  forgeable. `GET /api/security/audit/anchor` exposes the tip; `POST /api/security/audit/verify`
+  (and the offline `tools/verify-audit-chain.mjs`) recompute it. Tamper-EVIDENT, not
+  non-repudiation against the gateway itself.
 - Sensitive actions require **step-up re-auth** (recent re-authentication on top of the
   admin role): key revocation, governance/egress changes, the raw escape hatch, config
   export, the kill switch, containment relax, action approval. `lib/step-up.ts`.
@@ -160,6 +167,7 @@ These are deliberate, documented limits — not defects:
 | `VAULT_AZURE_VAULT_URL` / `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` / `VAULT_AZURE_SECRET_NAME` | Azure Key Vault (native). |
 | `VAULT_HTTP_URL` / `VAULT_HTTP_TOKEN` | Generic REST secrets store (`http`). |
 | `SECURITY_STATE_FILE` | Enables durable security state (revocations etc. survive restart). |
+| `AUDIT_KEY` | Dedicated audit-chain key (else derived from the master). `AUDIT_CHAIN_FILE` persists the chain head across restarts. |
 | `STEP_UP_MINUTES` | Step-up freshness window (default 5). |
 | `AUTONOMOUS_SESSION_SECONDS` | Autonomous session TTL (default 30, clamped ≤ 5 min). |
 | `OMNI_DEV_MODE` | Dev mode (hard-gated inert in production). |

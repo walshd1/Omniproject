@@ -16,7 +16,7 @@ import { createHmac } from "node:crypto";
  * Per-user session revocation is separate: a `sub → revokedAt` mark; a user's sessions
  * issued before that instant are rejected (uses the session `iat`). All RAM-only.
  */
-export const KEY_NAMES = ["session", "provenance", "broker"] as const;
+export const KEY_NAMES = ["session", "provenance", "broker", "audit"] as const;
 export type KeyName = (typeof KEY_NAMES)[number];
 
 interface KeyState {
@@ -39,6 +39,7 @@ function master(name: string): string {
     session: process.env["SESSION_SECRET"]?.trim(),
     provenance: process.env["PROVENANCE_KEY"]?.trim(),
     broker: process.env["BROKER_PSK"]?.trim(),
+    audit: process.env["AUDIT_KEY"]?.trim(),
   };
   return (
     perName[name] ||

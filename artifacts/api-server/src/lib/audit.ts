@@ -1,6 +1,7 @@
 import { logger } from "./logger";
 import { pushBrokerEvent } from "./broker-log";
 import { recordBrokerCall } from "./runtime-metrics";
+import { sealAuditEvent } from "./audit-chain";
 
 /**
  * Action audit logging.
@@ -152,8 +153,11 @@ export function recordAudit(ev: AuditEvent): void {
     recordBrokerCall(ev.result, ev.ms);
   }
   if (!shouldAudit(auditLevel(), ev)) return;
-  logger.info({ audit: true, ...ev }, "audit");
-  ensureSink()?.enqueue(ev);
+  // Seal into the tamper-evident hash chain, then emit the SEALED event so the stdout/SIEM
+  // copy is self-verifying (each record carries its seq + prevHash + keyed hash).
+  const sealed = sealAuditEvent(ev);
+  logger.info({ audit: true, ...sealed }, "audit");
+  ensureSink()?.enqueue(sealed);
 }
 
 /** Status for the setup/diagnostics view. */
