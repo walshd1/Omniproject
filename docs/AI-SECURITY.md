@@ -201,5 +201,7 @@ These are deliberate, documented limits — not defects:
 | `AUDIT_KEY` | Dedicated audit-chain key (else derived from the master). `AUDIT_CHAIN_FILE` persists the chain head across restarts. |
 | `SCIM_TOKEN` | Enables SCIM 2.0 provisioning + the bearer the IdP presents. `SCIM_STATE_FILE` persists the directory (sealed). |
 | `STEP_UP_MINUTES` | Step-up freshness window (default 5). |
+| `IP_ALLOWLIST` / `TRUST_PROXY` | App-layer IP allowlist (IPv4/IPv6 CIDRs); health probes exempt. `TRUST_PROXY` reads the client IP from `X-Forwarded-For`. |
+| `MAX_SESSIONS_PER_USER` | Concurrent-session cap per user (0 = unlimited; newest logins win). Per-replica RAM. |
 | `AUTONOMOUS_SESSION_SECONDS` | Autonomous session TTL (default 30, clamped ≤ 5 min). |
 | `OMNI_DEV_MODE` | Dev mode (hard-gated inert in production). |

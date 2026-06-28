@@ -23,6 +23,7 @@ import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
 import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
 import { currentVersion, isActive, userSessionsRevokedAt } from "../lib/key-registry";
+import { registerSession } from "../lib/session-registry";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
 
 const router = Router();
@@ -62,6 +63,10 @@ function readSession(req: Request): Session | null {
     // whose sessions were revoked after this one was issued, is rejected at once.
     if (!isActive("session", session.kver ?? 1)) return null;
     if (session.sub && session.iat && session.iat < userSessionsRevokedAt(session.sub)) return null;
+    // Concurrent-session cap: a session pushed outside MAX_SESSIONS_PER_USER (an older login
+    // once the user signs in beyond the limit) reads as signed-out. No-op when the cap is unset
+    // or the session predates salting. Keyed by the stable per-session salt.
+    if (session.sub && session.salt && !registerSession(session.sub, session.salt, Date.now())) return null;
     return session;
   } catch {
     return null;

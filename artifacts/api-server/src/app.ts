@@ -28,6 +28,7 @@ import { hydrateVault } from "./lib/vault";
 import { initKms } from "./lib/kms";
 import { contentSecurityPolicy, cspHeaderName } from "./lib/csp";
 import { tracingMiddleware } from "./lib/tracing";
+import { ipAllowGuard } from "./lib/ip-allow";
 
 const app: Express = express();
 
@@ -38,6 +39,14 @@ app.set("trust proxy", true);
 // Response compression (gzip/brotli) — first in the chain so it wraps the final
 // body of every API + SPA response. SSE/ranged/binary responses pass through.
 app.use(compression());
+
+// App-layer IP allowlisting (defence in depth; no-op unless IP_ALLOWLIST is set). Runs early
+// so a disallowed network is refused before any work. Health/readiness probes are exempt so
+// orchestration checks from the LB always succeed.
+app.use((req, res, next) => {
+  if (req.path.endsWith("/healthz") || req.path.endsWith("/readyz")) { next(); return; }
+  ipAllowGuard(req, res, next);
+});
 
 // The session-cookie signing key. In production it MUST come from the
 // environment: an unset/empty/default value would sign auth cookies with a
