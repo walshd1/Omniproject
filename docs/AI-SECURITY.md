@@ -108,9 +108,9 @@ anonymous system call:
 - **Where the keys live is pluggable** (`lib/vault-store.ts`, selected by `VAULT_BACKEND`):
   - `local` (default) — an OmniProject-owned, doubly-encrypted file (below);
   - `hashicorp` / `hcp` — HashiCorp Vault or HCP Vault (KV v2; `VAULT_ADDR` + `VAULT_TOKEN`);
-  - `http` — a generic REST secrets store (BYO / external-secrets sidecar);
-  - `aws` / `azure` — fronted today via the generic `http` contract (a managed-manager
-    endpoint or sidecar); a native adapter is one registry entry to add.
+  - `aws` — AWS Secrets Manager, **native** (SigV4-signed; `lib/vault-aws.ts`);
+  - `azure` — Azure Key Vault, **native** (AAD client-credentials; `lib/vault-azure.ts`);
+  - `http` — a generic REST secrets store (BYO / external-secrets sidecar) for any other manager.
   For external stores the **manager is the encryption boundary** (OmniProject doesn't
   double-encrypt); reads are served from an in-memory cache hydrated at boot, writes are
   awaited so a backend failure surfaces.
@@ -156,7 +156,9 @@ These are deliberate, documented limits — not defects:
 | `VAULT_KEY` | Root secret for the **local** vault (base64 32 bytes; derived from the master if unset). Provider API keys live in the vault, **not** in env. |
 | `VAULT_FILE` / `AI_PROVIDERS_FILE` | Where the sealed local vault + provider registry persist (default under `OMNI_CONFIG_DIR`). |
 | `VAULT_ADDR` / `VAULT_TOKEN` / `VAULT_KV_MOUNT` / `VAULT_KV_PATH` | HashiCorp/HCP Vault connection (KV v2). |
-| `VAULT_HTTP_URL` / `VAULT_HTTP_TOKEN` | Generic REST secrets store (`http`/`aws`/`azure` front). |
+| `AWS_REGION` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` / `VAULT_AWS_SECRET_ID` | AWS Secrets Manager (native). |
+| `VAULT_AZURE_VAULT_URL` / `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` / `VAULT_AZURE_SECRET_NAME` | Azure Key Vault (native). |
+| `VAULT_HTTP_URL` / `VAULT_HTTP_TOKEN` | Generic REST secrets store (`http`). |
 | `SECURITY_STATE_FILE` | Enables durable security state (revocations etc. survive restart). |
 | `STEP_UP_MINUTES` | Step-up freshness window (default 5). |
 | `AUTONOMOUS_SESSION_SECONDS` | Autonomous session TTL (default 30, clamped ≤ 5 min). |

@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { sealConfig, readMaybeSealed } from "./config-crypto";
+import { awsSecretsStore } from "./vault-aws";
+import { azureKeyVaultStore } from "./vault-azure";
 import { logger } from "./logger";
 
 /**
@@ -12,10 +14,10 @@ import { logger } from "./logger";
  *                 encrypted under its own derived subkey, and the whole file is sealed again
  *                 (two layers). Self-contained; no external dependency.
  *   - "hashicorp" : HashiCorp Vault / HCP Vault (KV v2 over HTTP). VAULT_ADDR + VAULT_TOKEN.
- *   - "http"      : a generic REST secrets store (BYO / sidecar). VAULT_HTTP_URL + token.
- *                 This is also how a managed manager (AWS Secrets Manager, Azure Key Vault)
- *                 is fronted today — point it at the provider's endpoint or an external-
- *                 secrets sidecar that speaks this small contract.
+ *   - "aws"       : AWS Secrets Manager, native (SigV4-signed). lib/vault-aws.
+ *   - "azure"     : Azure Key Vault, native (AAD client-credentials). lib/vault-azure.
+ *   - "http"      : a generic REST secrets store (BYO / external-secrets sidecar).
+ *                 VAULT_HTTP_URL + token — for any manager without a native adapter.
  *
  * For EXTERNAL stores the manager IS the encryption boundary, so OmniProject keeps the
  * secret in plaintext over the wire to that store (TLS) — it does not double-encrypt. Only
@@ -179,16 +181,16 @@ function httpStore(): VaultStore {
   };
 }
 
-/** The registry of storage backends. "aws"/"azure" are fronted by the generic http contract
- *  (a managed-manager endpoint or external-secrets sidecar) until a native adapter is added —
- *  adding one is one entry here, not a new branch elsewhere. */
+/** The registry of storage backends. Adding a manager is one entry here, not a new branch
+ *  elsewhere. AWS Secrets Manager and Azure Key Vault are NATIVE (SigV4 / AAD); the generic
+ *  `http` contract remains for any other store or an external-secrets sidecar. */
 const BACKENDS: Record<string, () => VaultStore> = {
   local: () => localStore,
   hashicorp: hashicorpStore,
   hcp: hashicorpStore, // HCP Vault is HashiCorp Vault with VAULT_ADDR pointed at the cloud
   http: httpStore,
-  aws: httpStore,
-  azure: httpStore,
+  aws: awsSecretsStore,
+  azure: azureKeyVaultStore,
 };
 
 /** The configured backend id (VAULT_BACKEND), defaulting to the local encrypted file. */
