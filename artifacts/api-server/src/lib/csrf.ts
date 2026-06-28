@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
+import { envFlag } from "./env";
 
 /**
  * CSRF hardening for cookie-authenticated mutations (security item B).
@@ -32,7 +33,7 @@ const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /** Off-switch for emergencies / unusual proxies (logged at boot by the self-check). */
 function disabled(): boolean {
-  return /^(1|true|on|yes)$/i.test(process.env["CSRF_DISABLED"]?.trim() ?? "");
+  return envFlag("CSRF_DISABLED");
 }
 
 /** Our own origin(s): PUBLIC_URL, the request's derived origin, + any trusted extras. */

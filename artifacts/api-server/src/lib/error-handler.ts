@@ -1,5 +1,5 @@
-import crypto from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
+import { fingerprint as hashHex } from "./crypto-keys";
 import { logger } from "./logger";
 import { recordUnhandledError } from "./runtime-metrics";
 
@@ -25,7 +25,7 @@ export function fingerprint(err: unknown): string {
   const e = err as { name?: string; message?: string; stack?: string };
   const topFrame = (e?.stack?.split("\n")[1] ?? "").trim();
   const basis = `${e?.name ?? "Error"}:${e?.message ?? ""}:${topFrame}`;
-  return crypto.createHash("sha256").update(basis).digest("hex").slice(0, 12);
+  return hashHex(basis);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Express needs the 4-arg arity to treat this as an error handler.

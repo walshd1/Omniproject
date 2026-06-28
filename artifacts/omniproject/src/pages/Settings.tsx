@@ -5,13 +5,14 @@ import {
   getGetCapabilitiesQueryKey,
   type SettingsUpdate,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
+import { fetchBackends } from "../lib/setup";
 import { PremiumAdmin } from "../components/PremiumAdmin";
 import { LoggingSyncSettings } from "../components/settings/LoggingSyncSettings";
 import { TranslationLayer } from "../components/settings/TranslationLayer";
@@ -44,6 +45,9 @@ export function Settings() {
   const updateSettings = useUpdateSettings();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  // Backend-source suggestions come from the catalogue (admin-filtered server-side), so no
+  // vendor ids are hardcoded in the SPA. "all" (no-filter) is the only built-in suggestion.
+  const { data: backends } = useQuery({ queryKey: ["setup-backends"], queryFn: fetchBackends, staleTime: 60_000 });
 
   const [formData, setFormData] = useState({
     brokerUrl: "",
@@ -157,18 +161,11 @@ export function Settings() {
             />
             <datalist id="backend-suggestions">
               <option value="all" />
-              <option value="jira" />
-              <option value="azure-devops" />
-              <option value="servicenow" />
-              <option value="github" />
-              <option value="monday" />
-              <option value="asana" />
-              <option value="plane" />
-              <option value="openproject" />
+              {(backends ?? []).map((b) => <option key={b.id} value={b.id} />)}
             </datalist>
             <p className="text-xs text-muted-foreground">
               Optional routing hint sent to n8n. Use <span className="font-mono">all</span> for any backend n8n is wired
-              to, or name a specific system (Jira, Azure DevOps, ServiceNow, …). No specific backend is required.
+              to, or pick a specific backend id from the suggestions. No specific backend is required.
             </p>
           </div>
         </div>

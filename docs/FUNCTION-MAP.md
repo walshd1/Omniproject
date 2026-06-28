@@ -633,6 +633,16 @@ The one AES-256-GCM seal/open primitive.
 | `aesGcmSeal` | Encrypt + authenticate `plaintext` with a 32-byte key → `base64url(iv ‖ tag ‖ ct)`. |
 | `aesGcmOpen` | Inverse of `aesGcmSeal` (pass the body WITHOUT any domain prefix). |
 
+### `artifacts/api-server/src/lib/crypto-keys.ts`
+
+Small shared key/hash primitives, so the same derivations aren't hand-rolled in every crypto module.
+
+| Function | What it does |
+| --- | --- |
+| `deriveKeyCached` | Derive a 32-byte AES key from a high-entropy secret via SHA-256, cached by secret. |
+| `decodeKey32` | Parse a base64 key that must be exactly 32 bytes (an AES-256 key), or null if it isn't. |
+| `fingerprint` | A short hex fingerprint of a value (SHA-256, truncated). |
+
 ### `artifacts/api-server/src/lib/csp.ts`
 
 Content-Security-Policy for the served SPA.
@@ -774,6 +784,14 @@ Egress / SSRF guard for the gateway's outbound HTTP.
 | --- | --- |
 | `assertEgressAllowed` | Validate a URL is allowed for server-side egress; throws EgressError if not. |
 | `safeFetch` | fetch() with the egress guard applied first. |
+
+### `artifacts/api-server/src/lib/env.ts`
+
+Tiny environment-variable helpers, so the same parsing isn't re-spelled at each read site.
+
+| Function | What it does |
+| --- | --- |
+| `envFlag` | Tiny environment-variable helpers, so the same parsing isn't re-spelled at each read site. |
 
 ### `artifacts/api-server/src/lib/error-handler.ts`
 
