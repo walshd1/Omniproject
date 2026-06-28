@@ -10,9 +10,11 @@ import {
 
 /**
  * Admin governance for AI tools, the MCP, AI providers and vendors. Each is set to
- * off / user-defined / public — and only the states it supports are offered. AI tools
- * can additionally be set per surface (e.g. text-to-speech public everywhere but
- * "user-defined" or "off" on finance). Admin-only (the gateway also enforces it).
+ * off / user-defined / public — and only the states it supports are offered. Every
+ * capability can additionally be overridden per surface (a capability × surface matrix)
+ * — e.g. text-to-speech public everywhere but "user-defined" or "off" on finance, or a
+ * SaaS vendor allowed generally but forced off on a sensitive screen. Admin-only (the
+ * gateway also enforces it).
  */
 const KIND_ORDER: CapabilityKind[] = ["ai-tool", "mcp", "ai-provider", "vendor"];
 

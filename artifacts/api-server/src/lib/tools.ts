@@ -9,10 +9,13 @@ import { getSettings, updateSettings, AI_PROVIDERS, type DeploymentState, type C
  * (the customer controls it — truly local OR a customer-owned remote endpoint) or
  * "public" (third-party SaaS). A capability advertises only the states it CAN run in,
  * so the UI offers just those (a cloud-only provider shows only "public"; a local-only
- * one only "user-defined"). AI tools are surface-aware: their state can be overridden
- * per screen/context, so e.g. text-to-speech can be public everywhere but "user-defined"
- * or "off" on the finance screen. All states live in customer-level JSON; changing them
- * is admin-gated.
+ * one only "user-defined").
+ *
+ * Governance is a CAPABILITY × SURFACE matrix: every capability has a global default
+ * and can be overridden per surface (screen/context). So e.g. text-to-speech can be
+ * public everywhere but "user-defined" or "off" on finance; equally a cloud AI provider
+ * or a SaaS vendor can be allowed generally but forced off on a sensitive screen. All
+ * states live in customer-level JSON; changing them is admin-gated.
  */
 
 export type CapabilityKind = "ai-tool" | "mcp" | "ai-provider" | "vendor";
@@ -24,7 +27,8 @@ export interface GovernedCapability {
   description: string;
   /** The non-off states this capability can run in. "off" is always available. */
   supportedStates: DeploymentState[];
-  /** AI tools: their state can be overridden per surface (screen/context). */
+  /** Whether the state can be overridden per surface (screen/context). True for every
+   *  capability — governance is a full capability × surface matrix. */
   surfaceAware: boolean;
 }
 
@@ -41,7 +45,7 @@ const AI_TOOLS: GovernedCapability[] = [
 ];
 
 const MCP_CAPABILITY: GovernedCapability = {
-  id: "mcp", kind: "mcp", label: "MCP server", description: "Model Context Protocol endpoint for external agents.", supportedStates: ANY, surfaceAware: false,
+  id: "mcp", kind: "mcp", label: "MCP server", description: "Model Context Protocol endpoint for external agents.", supportedStates: ANY, surfaceAware: true,
 };
 
 /** The state(s) each AI provider can offer (what it actually is). */
@@ -59,7 +63,7 @@ function providerCapabilities(): GovernedCapability[] {
     label: `AI provider — ${p}`,
     description: PROVIDER_STATES[p]!.includes("public") ? "A third-party LLM API." : "A local / self-hosted LLM runtime.",
     supportedStates: PROVIDER_STATES[p]!,
-    surfaceAware: false,
+    surfaceAware: true,
   }));
 }
 
@@ -72,7 +76,7 @@ function vendorCapabilities(): GovernedCapability[] {
     label: `Vendor — ${b.label}`,
     description: `Connect ${b.label} as a backend.`,
     supportedStates: ANY,
-    surfaceAware: false,
+    surfaceAware: true,
   }));
 }
 

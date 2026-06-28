@@ -34,15 +34,20 @@ test("resolveState clamps an unsupported choice down to off", () => {
   assert.equal(resolveState(openai, undefined), "off"); // unset ⇒ off
 });
 
-test("AI tools honour per-surface overrides; non-AI capabilities ignore them", () => {
+test("every capability honours per-surface overrides (capability × surface matrix)", () => {
   const tts = getCapability("tts")!;
   const setting: CapabilitySetting = { state: "public", surfaces: { finance: "user-defined" } };
-  assert.equal(resolveState(tts, setting), "public"); // global
+  assert.equal(resolveState(tts, setting), "public"); // global default
   assert.equal(resolveState(tts, setting, "finance"), "user-defined"); // overridden on finance
-  assert.equal(resolveState(tts, setting, "home"), "public"); // other screens keep global
+  assert.equal(resolveState(tts, setting, "home"), "public"); // other screens keep the default
 
-  const ollama = getCapability("provider:ollama")!; // not surface-aware
-  assert.equal(resolveState(ollama, { state: "user-defined", surfaces: { finance: "off" } }, "finance"), "user-defined");
+  // Not just AI tools — a provider or vendor can be forced off on a sensitive screen.
+  const openai = getCapability("provider:openai")!;
+  assert.equal(resolveState(openai, { state: "public", surfaces: { finance: "off" } }, "finance"), "off");
+  const vendor = getCapability("vendor:openproject");
+  if (vendor) {
+    assert.equal(resolveState(vendor, { state: "public", surfaces: { finance: "off" } }, "finance"), "off");
+  }
 });
 
 test("sanitize keeps only supportable states + surface overrides", () => {

@@ -5,7 +5,8 @@ import { getJson } from "./api";
  * Client view of capability governance (see the gateway's lib/tools). Every AI tool,
  * the MCP, AI providers and vendors are set by an admin to off / user-defined (the
  * customer controls it — local or their own remote endpoint) / public (SaaS). A
- * capability offers only the states it supports, and AI tools can be set per surface
+ * capability offers only the states it supports. Governance is a capability × surface
+ * matrix: every capability has a global default and can be overridden per surface
  * (screen). All admin-gated; all stored in customer-level JSON.
  */
 export type DeploymentState = "off" | "user-defined" | "public";
