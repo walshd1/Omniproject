@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { sealConfig, readMaybeSealed } from "./config-crypto";
+import { sealConfig, readMaybeSealed, exportConfigBundle, type ExportedBundle } from "./config-crypto";
 import { getSettings, updateSettings } from "./settings";
 import { buildSnapshot, applySnapshot, type ConfigSnapshot } from "./config-snapshot";
 import { logger } from "./logger";
@@ -91,6 +91,23 @@ function record(env: string, snapshot: ConfigSnapshot, label?: string): ConfigVe
   s.versions.push(version);
   if (s.versions.length > MAX_VERSIONS) s.versions.splice(0, s.versions.length - MAX_VERSIONS);
   return version;
+}
+
+/** The current config state as JSON (decrypted) — what an export bundle wraps. */
+export function serializeState(): string {
+  return JSON.stringify({ ...ensure(), counter }, null, 2);
+}
+
+/**
+ * Securely export the config: re-encrypt the decrypted state under a one-time ephemeral
+ * key, then ROTATE the internal key and re-seal the on-disk store under the new version.
+ * Returns the portable bundle + its ephemeral key (the only secret that leaves). The
+ * internal at-rest key is never exported and changes after every export.
+ */
+export function exportConfig(): ExportedBundle {
+  const out = exportConfigBundle(serializeState());
+  persist(); // re-seal the live store under the just-rotated internal key
+  return out;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

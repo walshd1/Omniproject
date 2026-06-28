@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth, roleAtLeast, logout } from "../../lib/auth";
-import { useSecurityKeys, revokeKey, revokeUserSessions, useConfigKeyFingerprint, exportConfigKey, type KeyStatus } from "../../lib/security";
+import { useSecurityKeys, revokeKey, revokeUserSessions, useConfigKeyFingerprint, exportConfigBundle, type KeyStatus } from "../../lib/security";
 import { stepUp } from "../../lib/step-up";
 
 /**
@@ -18,15 +18,15 @@ export function SecurityKeys() {
   const { data } = useSecurityKeys();
   const { data: configFp } = useConfigKeyFingerprint();
   const [sub, setSub] = useState("");
-  const [exported, setExported] = useState<{ key: string; warning: string } | null>(null);
+  const [exported, setExported] = useState<{ bundle: string; exportKey: string; warning: string } | null>(null);
 
   if (!roleAtLeast(auth?.role, "admin")) return null;
   if (!data?.keys) return null;
 
-  const onExportConfigKey = async (): Promise<void> => {
-    if (!window.confirm("Export the config encryption key? It decrypts your config files — handle it like any secret.")) return;
+  const onExportConfig = async (): Promise<void> => {
+    if (!window.confirm("Export config? The internal key stays put and is rotated; you'll get an encrypted bundle + a one-time key to carry separately.")) return;
     if (!(await stepUp())) return; // step-up gated
-    try { const r = await exportConfigKey(); setExported({ key: r.key, warning: r.warning }); }
+    try { setExported(await exportConfigBundle()); }
     catch { /* surfaced by absence of output */ }
   };
 
@@ -90,13 +90,20 @@ export function SecurityKeys() {
               Config encryption key{" "}
               {configFp && <span className="font-mono text-xs text-muted-foreground">#{configFp.fingerprint}</span>}
             </span>
-            <Button variant="outline" size="sm" data-testid="export-config-key" onClick={() => void onExportConfigKey()}>Export key</Button>
+            <Button variant="outline" size="sm" data-testid="export-config-key" onClick={() => void onExportConfig()}>Export bundle</Button>
           </div>
-          <p className="text-xs text-muted-foreground">Config files are encrypted at rest. Export the key to carry encrypted files to another deployment (set it there as <code>CONFIG_KEY_RAW</code>).</p>
+          <p className="text-xs text-muted-foreground">Config is encrypted at rest. Export re-encrypts a portable bundle under a one-time key (the internal key never leaves and is rotated). Move the bundle, carry the key separately, import on the target.</p>
           {exported && (
-            <div className="rounded border border-amber-300 bg-amber-50 p-2" data-testid="exported-key">
-              <p className="mb-1 text-xs text-amber-800">{exported.warning}</p>
-              <code className="block break-all rounded bg-background p-1 font-mono text-xs">{exported.key}</code>
+            <div className="space-y-2 rounded border border-amber-300 bg-amber-50 p-2" data-testid="exported-key">
+              <p className="text-xs text-amber-800">{exported.warning}</p>
+              <div>
+                <div className="text-[11px] font-semibold text-amber-800">One-time key (carry separately)</div>
+                <code className="block break-all rounded bg-background p-1 font-mono text-xs">{exported.exportKey}</code>
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold text-amber-800">Encrypted bundle (the file to move)</div>
+                <code className="block max-h-24 overflow-auto break-all rounded bg-background p-1 font-mono text-[11px]">{exported.bundle}</code>
+              </div>
             </div>
           )}
         </div>

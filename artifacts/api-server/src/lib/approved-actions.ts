@@ -14,6 +14,11 @@
  * Vocabulary is the approved term list surfaced to the tools (advisory — the model is
  * asked to use it); actions are HARD-enforced (the planner filters to approved, and the
  * MCP executor refuses an unapproved action).
+ *
+ * This list is the SUPERSET / ceiling — the most an AI tool could ever do. The in-app
+ * gates restrict FURTHER below it, per request: governance per-surface state (AI off on a
+ * screen), RBAC role, and the autonomous write-scope grants. So approving an action here
+ * makes it *possible*, not *always allowed*.
  */
 
 /** The safe default: read-only canonical actions. Writes are NOT approved by default. */

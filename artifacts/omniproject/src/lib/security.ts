@@ -54,12 +54,13 @@ export function useConfigKeyFingerprint() {
   });
 }
 
-/** Export the raw config encryption key (admin; step-up gated server-side). Returned once. */
-export async function exportConfigKey(): Promise<{ key: string; fingerprint: string; warning: string }> {
-  const res = await fetch("/api/security/config-key/export", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" } });
+/** Securely export config (admin; step-up gated). Returns an ephemeral-keyed bundle +
+ *  the one-time key; the internal at-rest key never leaves and is rotated server-side. */
+export async function exportConfigBundle(): Promise<{ bundle: string; exportKey: string; warning: string }> {
+  const res = await fetch("/api/security/config/export", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" } });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
     throw new Error(body.code === "step_up_required" ? "step_up_required" : body.error ?? `Failed (${res.status})`);
   }
-  return (await res.json()) as { key: string; fingerprint: string; warning: string };
+  return (await res.json()) as { bundle: string; exportKey: string; warning: string };
 }

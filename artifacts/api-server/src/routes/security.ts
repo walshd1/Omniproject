@@ -3,7 +3,8 @@ import { requireRole } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { getSession } from "./auth";
 import { recordAudit } from "../lib/audit";
-import { exportConfigKey, configKeyFingerprint } from "../lib/config-crypto";
+import { internalKeyFingerprint } from "../lib/config-crypto";
+import { exportConfig } from "../lib/config-store";
 import { listKeys, revokeKey, revokeUserSessions, KEY_NAMES, type KeyName } from "../lib/key-registry";
 
 /**
@@ -39,22 +40,23 @@ router.post("/security/sessions/revoke-user", requireRole("admin"), requireStepU
   res.json({ ok: true });
 });
 
-// The config-key FINGERPRINT (non-secret) — lets an admin confirm two deployments share
-// a key without revealing it. Any admin may read it.
+// The current internal-key FINGERPRINT (non-secret) — confirm a match without revealing.
 router.get("/security/config-key", requireRole("admin"), (_req, res) => {
-  res.json({ fingerprint: configKeyFingerprint() });
+  res.json({ fingerprint: internalKeyFingerprint() });
 });
 
-// EXPORT the raw config encryption key (admin + step-up). Sensitive: this is the secret
-// that decrypts the at-rest config files, so an admin can carry encrypted files to another
-// deployment and decrypt them there. Returned once, loudly, and audited.
-router.post("/security/config-key/export", requireRole("admin"), requireStepUp, (req, res) => {
+// SECURE config export (admin + step-up). The internal at-rest key is NEVER exported:
+// the live config is decrypted, re-encrypted under a one-time EPHEMERAL key, and the
+// internal key is then ROTATED + the on-disk store re-sealed. Returns the portable bundle
+// + the ephemeral key (the only secret that leaves, decrypting just this bundle). Audited.
+router.post("/security/config/export", requireRole("admin"), requireStepUp, (req, res) => {
+  const out = exportConfig();
   const session = getSession(req);
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "config-key.export", actor: session ? { sub: session.sub, email: session.email } : null, write: true, result: "success", meta: { fingerprint: configKeyFingerprint() } });
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "config.export", actor: session ? { sub: session.sub, email: session.email } : null, write: true, result: "success", meta: { fromVersion: out.fromVersion, toVersion: out.toVersion, fingerprint: internalKeyFingerprint() } });
   res.json({
-    key: exportConfigKey(),
-    fingerprint: configKeyFingerprint(),
-    warning: "This is the secret that decrypts your config files. Store it like any key; anyone with it can read exported config. Set it as CONFIG_KEY_RAW (base64) on the target deployment to decrypt moved files.",
+    bundle: out.bundle,
+    exportKey: out.exportKey,
+    warning: "Move the bundle file and keep the ephemeral key separate. The key decrypts ONLY this bundle and nothing else. Your internal at-rest key has been rotated — past copies of the live files no longer share its key.",
   });
 });
 

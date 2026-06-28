@@ -494,15 +494,18 @@ Conditional (delta) reads — let a client revalidate a read and get back "nothi
 
 ### `artifacts/api-server/src/lib/config-crypto.ts`
 
-Config-at-rest encryption.
+Config-at-rest encryption + secure export.
 
 | Function | What it does |
 | --- | --- |
-| `sealConfig` | Seal a config string → a versioned base64url token. |
-| `openConfig` | Open a sealed token, or null if it isn't one / fails authentication. |
+| `sealConfig` | Seal a config string under the current internal key (version embedded). |
+| `openConfig` | Open an internal-format token, or null. |
 | `readMaybeSealed` | Read possibly-sealed config text: open if sealed, else return as-is (plaintext migration). |
-| `exportConfigKey` | The exportable config key (base64). |
-| `configKeyFingerprint` | A short, non-secret fingerprint of the key, so two deployments can confirm a match without revealing the key. |
+| `rotateInternalKey` | Rotate the internal key forward (new seals use the next version). |
+| `internalKeyFingerprint` | A non-secret fingerprint of the CURRENT internal key (confirm a match without revealing). |
+| `exportConfigBundle` | Produce a portable, ephemerally-keyed bundle of `plaintext`, then ROTATE the internal key. |
+| `openBundle` | Open an exported bundle with its ephemeral key (the import side, on another deployment). |
+| `__resetConfigCrypto` | Test-only: reset the internal key version. |
 
 ### `artifacts/api-server/src/lib/config-dir.ts`
 
@@ -537,6 +540,8 @@ Configuration environments + versioned rollback.
 
 | Function | What it does |
 | --- | --- |
+| `serializeState` | The current config state as JSON (decrypted) — what an export bundle wraps. |
+| `exportConfig` | Securely export the config: re-encrypt the decrypted state under a one-time ephemeral key, then ROTATE the internal key and re-seal the on-disk store under the new version. |
 | `storeView` | The store summary for the UI: active env, env names, versions (newest first), the last known-good id, and whether it's disk-persisted. |
 | `captureVersion` | Capture the current settings as a new version of the active environment. |
 | `createEnvironment` | Create a named environment, seeded by cloning the active env's current config. |
