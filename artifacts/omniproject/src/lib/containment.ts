@@ -40,13 +40,27 @@ export function useAiContainment(surface?: string) {
   });
 }
 
-/** Enforced level + source + admin relax floor + active write grants (admin). */
+/** Enforced level + source + admin relax floor + active write grants + kill state (admin). */
 export function useAutonomousGrants() {
-  return useQuery<{ level: AiContainment; source: AiContainment; relax: AiContainment; grants: AutonomousGrant[] }>({
+  return useQuery<{ level: AiContainment; source: AiContainment; relax: AiContainment; grants: AutonomousGrant[]; aiKill: boolean }>({
     queryKey: ["autonomous-grants"],
     queryFn: () => getJson("/api/governance/autonomous"),
     staleTime: 15_000,
   });
+}
+
+/** Engage/release the global AI kill switch (admin; step-up gated server-side). */
+export async function setAiKill(engage: boolean): Promise<void> {
+  const res = await fetch("/api/governance/ai-kill", {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ engage }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+    throw new Error(body.code === "step_up_required" ? "step_up_required" : body.error ?? `Failed (${res.status})`);
+  }
 }
 
 /** Relax (or re-tighten) the containment floor (admin; step-up gated server-side). */

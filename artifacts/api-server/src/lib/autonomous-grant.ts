@@ -1,6 +1,7 @@
 import type { ActorContext } from "../broker/types";
 import { isAutonomous, assertMintFresh, assertAutonomousCan, AutonomousForbidden } from "./autonomous";
 import { aiContainmentLevel, type AiContainment } from "./ai-containment";
+import { aiKillEngaged } from "./ai-kill";
 import { recordAudit } from "./audit";
 
 /**
@@ -153,6 +154,10 @@ function deny(ctx: ActorContext, req: WriteRequest, reason: string): never {
  */
 export function authorizeAutonomousWrite(ctx: ActorContext, req: WriteRequest): void {
   if (!isAutonomous(ctx)) return; // humans use the normal RBAC route, not this gate
+
+  // 0) Break-glass: the global kill switch suspends ALL autonomous writes (grants are
+  //    left intact, so releasing it restores the prior posture).
+  if (aiKillEngaged()) deny(ctx, req, "AI kill switch engaged");
 
   // 1) The session must be a fresh, non-expired keyed mint — a stale/replayed autonomous
   //    session can never be used to write (closes the "old token = backdoor" hole).

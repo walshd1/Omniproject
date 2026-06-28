@@ -291,6 +291,17 @@ AI exposure → containment level.
 | `__resetContainmentRelax` | Test-only: restore the default-full posture. |
 | `aiContainmentLevel` | The ENFORCED containment level: the strictest of the admin relax floor (default full) and the AI source level. |
 
+### `artifacts/api-server/src/lib/ai-kill.ts`
+
+Global AI kill switch.
+
+| Function | What it does |
+| --- | --- |
+| `engageAiKill` | Engage the kill switch — all AI calls and autonomous writes stop immediately. |
+| `releaseAiKill` | Release the kill switch — the prior governance + grant posture resumes. |
+| `aiKillEngaged` | Is the AI kill switch currently engaged? |
+| `__resetAiKill` | Test-only: reset to the default (released). |
+
 ### `artifacts/api-server/src/lib/ai.ts`
 
 AI provider client.

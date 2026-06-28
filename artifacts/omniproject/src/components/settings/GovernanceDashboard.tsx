@@ -5,7 +5,7 @@ import {
   type CapabilityKind, type DeploymentState, type CapabilityLogEntry,
 } from "../../lib/tools";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAutonomousGrants, relaxContainment, CONTAINMENT_INFO, SOURCE_LABEL, type AiContainment } from "../../lib/containment";
+import { useAutonomousGrants, relaxContainment, setAiKill, CONTAINMENT_INFO, SOURCE_LABEL, type AiContainment } from "../../lib/containment";
 import { stepUp } from "../../lib/step-up";
 
 /**
@@ -35,6 +35,12 @@ export function GovernanceDashboard() {
     catch { /* surfaced by the disabled/refetch state; keep the dashboard quiet */ }
   };
 
+  const onToggleKill = async (engage: boolean): Promise<void> => {
+    if (!(await stepUp())) return;
+    try { await setAiKill(engage); await qc.invalidateQueries({ queryKey: ["autonomous-grants"] }); }
+    catch { /* quiet */ }
+  };
+
   if (!roleAtLeast(auth?.role, "admin")) return null;
   if (!data?.capabilities) return null;
 
@@ -52,6 +58,9 @@ export function GovernanceDashboard() {
           <div className="rounded border border-border p-2" data-testid="autonomous-posture">
             <div className="mb-1 flex flex-wrap items-center gap-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Autonomous AI</h3>
+              {autonomous.aiKill
+                ? <button data-testid="ai-kill-toggle" onClick={() => void onToggleKill(false)} className="rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">AI KILLED — release</button>
+                : <button data-testid="ai-kill-toggle" onClick={() => void onToggleKill(true)} className="rounded border border-red-300 px-1.5 py-0.5 text-[11px] font-medium text-red-700" title="Break-glass: stop all AI + suspend autonomous writes">Kill AI</button>}
               <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ${CONTAINMENT_INFO[autonomous.level].cls}`} title={CONTAINMENT_INFO[autonomous.level].note}>
                 {CONTAINMENT_INFO[autonomous.level].label}
               </span>

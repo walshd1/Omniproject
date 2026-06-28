@@ -1,4 +1,5 @@
 import { getSettings, type AiProvider } from "./settings";
+import { aiKillEngaged } from "./ai-kill";
 
 /**
  * AI provider client. Users choose, in Settings, between a local model (Ollama)
@@ -139,6 +140,8 @@ export function aiStatus(): AiStatus {
 /** Send a chat-completion to the configured provider and return the reply. Throws
  *  AiError when no provider is configured or the upstream call fails. */
 export async function aiChat(messages: ChatMessage[]): Promise<ChatResult> {
+  // Break-glass: the global kill switch hard-stops every model call.
+  if (aiKillEngaged()) throw new AiError("AI is disabled by the kill switch.", 403);
   const provider = getSettings().aiProvider;
   const def = provider === "none" ? undefined : PROVIDERS[provider];
   if (!def) throw new AiError("No AI provider is configured.", 400);

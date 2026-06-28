@@ -3,6 +3,8 @@ import { requireRole } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { aiContainmentLevel, aiSourceLevel, getContainmentRelax, setContainmentRelax, type AiContainment } from "../lib/ai-containment";
 import { listAutonomousGrants } from "../lib/autonomous-grant";
+import { aiKillEngaged, engageAiKill, releaseAiKill } from "../lib/ai-kill";
+import { recordAudit } from "../lib/audit";
 import { captureVersion } from "../lib/config-store";
 import { getSession } from "./auth";
 import {
@@ -35,7 +37,17 @@ router.get("/governance/log", requireRole("admin"), (_req, res) => {
 // Autonomous posture for the admin dashboard: the ENFORCED containment level + how it's
 // derived (the AI source floor and the admin relax setting) + the active write grants.
 router.get("/governance/autonomous", requireRole("admin"), (_req, res) => {
-  res.json({ level: aiContainmentLevel(), source: aiSourceLevel(), relax: getContainmentRelax(), grants: listAutonomousGrants() });
+  res.json({ level: aiContainmentLevel(), source: aiSourceLevel(), relax: getContainmentRelax(), grants: listAutonomousGrants(), aiKill: aiKillEngaged() });
+});
+
+// Break-glass AI kill switch (admin + step-up): one toggle stops all AI calls and
+// suspends every autonomous write. Audited; grants are left intact so release restores them.
+router.put("/governance/ai-kill", requireRole("admin"), requireStepUp, (req, res) => {
+  const engage = (req.body as { engage?: unknown }).engage === true;
+  if (engage) engageAiKill(); else releaseAiKill();
+  const session = getSession(req);
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: engage ? "ai-kill.engage" : "ai-kill.release", actor: session ? { sub: session.sub, email: session.email } : null, write: true, result: "success" });
+  res.json({ aiKill: aiKillEngaged() });
 });
 
 // Relax (or re-tighten) the default-full containment posture (admin + step-up). The AI
