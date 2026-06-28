@@ -17,18 +17,34 @@ interface PlatformContextValue {
 
 const PlatformContext = createContext<PlatformContextValue | null>(null);
 
+/** A cheap identity for a platform snapshot — re-render only when this changes. */
+function signature(p: Platform): string {
+  return `${p.formFactor}|${p.touch}|${p.standalone}|${p.speechRecognition}|${p.webShare}|${p.serviceWorker}|${p.nativeBridge}|${p.os}|${p.engine}`;
+}
+
 export function PlatformProvider({ children }: { children: ReactNode }) {
   const { prefs } = useA11yPrefs();
   const [platform, setPlatform] = useState<Platform>(() => detectPlatform());
 
   // Re-detect when the viewport, orientation, or installed/standalone state changes.
+  // Resize fires in bursts (drag-resize, the mobile URL bar showing/hiding), so we
+  // coalesce to one detection per frame and only re-render when something a consumer
+  // cares about actually changed — not on every pixel.
   useEffect(() => {
-    const update = () => setPlatform(detectPlatform());
+    let frame = 0;
+    const update = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const next = detectPlatform();
+        setPlatform((prev) => (signature(prev) === signature(next) ? prev : next));
+      });
+    };
     window.addEventListener("resize", update);
     window.addEventListener("orientationchange", update);
     const standaloneMq = window.matchMedia?.("(display-mode: standalone)");
     standaloneMq?.addEventListener?.("change", update);
     return () => {
+      cancelAnimationFrame(frame);
       window.removeEventListener("resize", update);
       window.removeEventListener("orientationchange", update);
       standaloneMq?.removeEventListener?.("change", update);
