@@ -90,6 +90,11 @@ anonymous system call:
 - Sensitive actions require **step-up re-auth** (recent re-authentication on top of the
   admin role): key revocation, governance/egress changes, the raw escape hatch, config
   export, the kill switch, containment relax, action approval. `lib/step-up.ts`.
+- **Maker-checker (four-eyes)** — actions listed in `DUAL_CONTROL_ACTIONS` don't apply on the
+  first admin's request: they queue a proposal that a *different* admin must approve before it
+  executes. Step-up proves *who*; this adds a *second approver*. Wired for `key.revoke` and
+  `maintenance.engage` (extend by registering an executor). `lib/dual-control.ts`,
+  `GET/POST /api/admin/approvals*`.
 - **CSRF**: cookie-authenticated mutations need a same-origin Origin/Referer and a
   double-submit token. `lib/csrf.ts`.
 - **Maintenance lockdown** (break-glass read-only): an admin can freeze ALL writes (503) while
