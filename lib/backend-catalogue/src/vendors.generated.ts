@@ -2388,6 +2388,14 @@ export const BROKERS_DATA: BrokerDefinition[] = [
     "docsUrl": "https://github.com/walshd1/omniproject/blob/main/docs/BROKER-HTTP-BINDING.md",
     "hosted": false,
     "id": "http-sidecar",
+    "keyFormat": {
+      "env": [
+        "BROKER_PSK"
+      ],
+      "header": "X-Omni-Sig",
+      "pattern": "^.{16,}$",
+      "scheme": "psk"
+    },
     "kind": "self-hosted-service",
     "label": "Custom HTTP sidecar",
     "notes": "A service you write against the binding (see reference-broker-blueprint.ts). Maximum control; the DB-backed broker (RFC-003) is one.",
@@ -2413,6 +2421,14 @@ export const BROKERS_DATA: BrokerDefinition[] = [
     "docsUrl": "https://www.make.com/en/help/tools/webhooks",
     "hosted": true,
     "id": "make",
+    "keyFormat": {
+      "env": [
+        "BROKER_PSK"
+      ],
+      "header": "X-Omni-Sig",
+      "pattern": "^.{16,}$",
+      "scheme": "psk"
+    },
     "kind": "low-code",
     "label": "Make (Integromat)",
     "notes": "Custom webhook + Webhook Response modules return a synchronous body — a drop-in n8n alternative for the full contract.",
@@ -2438,6 +2454,14 @@ export const BROKERS_DATA: BrokerDefinition[] = [
     "docsUrl": "https://docs.n8n.io/",
     "hosted": false,
     "id": "n8n",
+    "keyFormat": {
+      "env": [
+        "BROKER_PSK"
+      ],
+      "header": "X-Omni-Sig",
+      "pattern": "^.{16,}$",
+      "scheme": "psk"
+    },
     "kind": "low-code",
     "label": "n8n",
     "notes": "The reference broker. Self-hostable, maintained nodes for most backends, synchronous webhook response.",
@@ -2464,6 +2488,14 @@ export const BROKERS_DATA: BrokerDefinition[] = [
     "docsUrl": "https://nodered.org/docs/user-guide/nodes#http-in",
     "hosted": false,
     "id": "node-red",
+    "keyFormat": {
+      "env": [
+        "BROKER_PSK"
+      ],
+      "header": "X-Omni-Sig",
+      "pattern": "^.{16,}$",
+      "scheme": "psk"
+    },
     "kind": "low-code",
     "label": "Node-RED",
     "notes": "Open-source, self-hosted flow runtime. An `HTTP In` -> function -> `HTTP Response` flow returns `{success,data}` synchronously — the full read-through contract, built from the reference blueprint. A free, self-hostable alternative to n8n; you wire credentials yourself (no managed per-connector auth).",
@@ -2483,6 +2515,14 @@ export const BROKERS_DATA: BrokerDefinition[] = [
     "docsUrl": "https://pipedream.com/docs/",
     "hosted": true,
     "id": "pipedream",
+    "keyFormat": {
+      "env": [
+        "BROKER_PSK"
+      ],
+      "header": "X-Omni-Sig",
+      "pattern": "^.{16,}$",
+      "scheme": "psk"
+    },
     "kind": "code-first",
     "label": "Pipedream",
     "notes": "Code-first components on an HTTP source can `$respond()` synchronously — a strong fit for the binding.",
@@ -2502,6 +2542,14 @@ export const BROKERS_DATA: BrokerDefinition[] = [
     "docsUrl": "https://learn.microsoft.com/en-us/power-automate/",
     "hosted": true,
     "id": "power-automate",
+    "keyFormat": {
+      "env": [
+        "BROKER_PSK"
+      ],
+      "header": "X-Omni-Sig",
+      "pattern": "^.{16,}$",
+      "scheme": "psk"
+    },
     "kind": "low-code",
     "label": "Microsoft Power Automate",
     "notes": "An HTTP-request-triggered cloud flow with a Response action serves the contract (premium connector). Native Microsoft 365 / Dataverse reach.",
@@ -2521,6 +2569,14 @@ export const BROKERS_DATA: BrokerDefinition[] = [
     "docsUrl": "https://docs.aws.amazon.com/lambda/latest/dg/welcome.html",
     "hosted": false,
     "id": "serverless",
+    "keyFormat": {
+      "env": [
+        "BROKER_PSK"
+      ],
+      "header": "X-Omni-Sig",
+      "pattern": "^.{16,}$",
+      "scheme": "psk"
+    },
     "kind": "serverless",
     "label": "Serverless function (any cloud)",
     "notes": "One HTTP function (Lambda / Cloud Functions / Azure Functions / a container) implementing the binding. Deploy anywhere; you wire backend auth yourself.",

@@ -16,6 +16,7 @@
  */
 export * from "./backend-manifest";
 export * from "./backend-catalogue";
+export * from "./key-format";
 export * from "./n8n-generator";
 export * from "./broker-catalogue";
 export * from "./output-catalogue";

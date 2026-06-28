@@ -16,6 +16,14 @@
   "docsUrl": "https://nodered.org/docs/user-guide/nodes#http-in",
   "hosted": false,
   "id": "node-red",
+  "keyFormat": {
+    "env": [
+      "BROKER_PSK"
+    ],
+    "header": "X-Omni-Sig",
+    "pattern": "^.{16,}$",
+    "scheme": "psk"
+  },
   "kind": "low-code",
   "label": "Node-RED",
   "notes": "Open-source, self-hosted flow runtime. An `HTTP In` -> function -> `HTTP Response` flow returns `{success,data}` synchronously — the full read-through contract, built from the reference blueprint. A free, self-hostable alternative to n8n; you wire credentials yourself (no managed per-connector auth).",

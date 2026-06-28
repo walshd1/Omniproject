@@ -16,6 +16,14 @@
   "docsUrl": "https://www.make.com/en/help/tools/webhooks",
   "hosted": true,
   "id": "make",
+  "keyFormat": {
+    "env": [
+      "BROKER_PSK"
+    ],
+    "header": "X-Omni-Sig",
+    "pattern": "^.{16,}$",
+    "scheme": "psk"
+  },
   "kind": "low-code",
   "label": "Make (Integromat)",
   "notes": "Custom webhook + Webhook Response modules return a synchronous body — a drop-in n8n alternative for the full contract.",

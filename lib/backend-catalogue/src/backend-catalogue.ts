@@ -29,6 +29,7 @@
 
 import type { BackendManifest, ContractAction, BackendTier, TransportMethod } from "./backend-manifest";
 import { brokersForTransport } from "./broker-catalogue";
+import { backendKeyFormat } from "./key-format";
 import { BACKENDS_DATA } from "./vendors.generated";
 import { withOverlay } from "./vendor-overlay";
 
@@ -128,6 +129,10 @@ export function backendCatalogue() {
       via: b.via,
       credentialType: b.credentialType ?? null,
       requiredEnv: b.requiredEnv,
+      // The key this backend needs to be reached (explicit JSON override, else
+      // derived from the binding) — so the wizard can scaffold the right credential
+      // and keyless access can be hard-rejected.
+      keyFormat: backendKeyFormat(b),
       actions: Object.keys(b.actions),
       capabilities: b.capabilities,
       notes: b.notes,

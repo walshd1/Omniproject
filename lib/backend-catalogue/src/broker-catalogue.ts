@@ -1,5 +1,6 @@
-import type { TransportMethod } from "./backend-manifest";
+import type { TransportMethod, KeyFormat } from "./backend-manifest";
 import type { CrossPlaneRef } from "./planes";
+import { brokerKeyFormat } from "./key-format";
 import { BROKERS_DATA } from "./vendors.generated";
 import { withOverlay } from "./vendor-overlay";
 
@@ -74,6 +75,8 @@ export interface BrokerManifest {
   /** Other planes this broker also offers — a broker can span planes (e.g. an n8n
    *  workflow that also delivers to Slack). */
   alsoProvides?: CrossPlaneRef[];
+  /** The shape of the key required to reach this broker (declared in its JSON). */
+  keyFormat?: KeyFormat;
   notes?: string;
 }
 
@@ -135,6 +138,8 @@ export function brokerCatalogue() {
     transports: b.transports,
     build: b.build,
     alsoProvides: b.alsoProvides ?? [],
+    /** The key this broker needs to be reached (the gateway↔broker PSK by default). */
+    keyFormat: brokerKeyFormat(b),
     /** Can it serve the live read-through contract at all? */
     dataBroker: b.capabilities.synchronous,
     notes: b.notes,
