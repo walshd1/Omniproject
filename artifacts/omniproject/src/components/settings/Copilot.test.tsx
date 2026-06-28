@@ -38,6 +38,12 @@ describe("Copilot", () => {
     await waitFor(() => expect(screen.getByTestId("copilot-answer")).toHaveTextContent("Plain answer."));
     expect(copilotBodies()[1]).toMatchObject({ mode: "freeform" });
     expect(screen.queryByTestId("copilot-persona")).toBeNull();
+    // Back to RAG — the toggle round-trips and the next ask carries mode:"rag" again.
+    fetchMock.mockResolvedValue(jsonRes({ answer: "Risks again.", projects: 3, persona: { id: "risk-assurance-manager", title: "Risk & Assurance Manager" } }));
+    fireEvent.click(screen.getByTestId("copilot-mode-rag"));
+    fireEvent.click(screen.getByTestId("copilot-ask"));
+    await waitFor(() => expect(screen.getByTestId("copilot-persona")).toHaveTextContent("Risk & Assurance Manager"));
+    expect(copilotBodies()[2]).toMatchObject({ mode: "rag" });
   });
 
   it("surfaces an error", async () => {
