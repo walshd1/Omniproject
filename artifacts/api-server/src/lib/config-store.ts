@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { sealConfig, readMaybeSealed } from "./config-crypto";
 import { getSettings, updateSettings } from "./settings";
 import { buildSnapshot, applySnapshot, type ConfigSnapshot } from "./config-snapshot";
 import { logger } from "./logger";
@@ -48,7 +49,8 @@ function nextId(): string {
 function persist(): void {
   if (!FILE || !state) return;
   try {
-    fs.writeFileSync(FILE, JSON.stringify({ ...state, counter }, null, 2));
+    // Encrypted at rest (AES-256-GCM) so a copy of the raw file is opaque off-box.
+    fs.writeFileSync(FILE, sealConfig(JSON.stringify({ ...state, counter }, null, 2)));
   } catch (err) {
     logger.warn({ err }, "config store: failed to persist");
   }
@@ -58,7 +60,8 @@ function load(): StoreState | null {
   if (!FILE) return null;
   try {
     if (!fs.existsSync(FILE)) return null;
-    const parsed = JSON.parse(fs.readFileSync(FILE, "utf8")) as StoreState & { counter?: number };
+    // Open the sealed file; tolerate a legacy plaintext file so existing stores migrate.
+    const parsed = JSON.parse(readMaybeSealed(fs.readFileSync(FILE, "utf8"))) as StoreState & { counter?: number };
     if (typeof parsed.counter === "number") counter = parsed.counter;
     return { activeEnv: parsed.activeEnv, environments: parsed.environments, versions: parsed.versions ?? [] };
   } catch (err) {

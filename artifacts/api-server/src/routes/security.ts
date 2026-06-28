@@ -3,6 +3,7 @@ import { requireRole } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { getSession } from "./auth";
 import { recordAudit } from "../lib/audit";
+import { exportConfigKey, configKeyFingerprint } from "../lib/config-crypto";
 import { listKeys, revokeKey, revokeUserSessions, KEY_NAMES, type KeyName } from "../lib/key-registry";
 
 /**
@@ -36,6 +37,25 @@ router.post("/security/sessions/revoke-user", requireRole("admin"), requireStepU
   const session = getSession(req);
   recordAudit({ ts: new Date().toISOString(), category: "admin", action: "sessions.revoke-user", actor: session ? { sub: session.sub, email: session.email } : null, write: true, meta: { sub } });
   res.json({ ok: true });
+});
+
+// The config-key FINGERPRINT (non-secret) — lets an admin confirm two deployments share
+// a key without revealing it. Any admin may read it.
+router.get("/security/config-key", requireRole("admin"), (_req, res) => {
+  res.json({ fingerprint: configKeyFingerprint() });
+});
+
+// EXPORT the raw config encryption key (admin + step-up). Sensitive: this is the secret
+// that decrypts the at-rest config files, so an admin can carry encrypted files to another
+// deployment and decrypt them there. Returned once, loudly, and audited.
+router.post("/security/config-key/export", requireRole("admin"), requireStepUp, (req, res) => {
+  const session = getSession(req);
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "config-key.export", actor: session ? { sub: session.sub, email: session.email } : null, write: true, result: "success", meta: { fingerprint: configKeyFingerprint() } });
+  res.json({
+    key: exportConfigKey(),
+    fingerprint: configKeyFingerprint(),
+    warning: "This is the secret that decrypts your config files. Store it like any key; anyone with it can read exported config. Set it as CONFIG_KEY_RAW (base64) on the target deployment to decrypt moved files.",
+  });
 });
 
 export default router;

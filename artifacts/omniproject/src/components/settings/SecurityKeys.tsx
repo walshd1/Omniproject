@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth, roleAtLeast, logout } from "../../lib/auth";
-import { useSecurityKeys, revokeKey, revokeUserSessions, type KeyStatus } from "../../lib/security";
+import { useSecurityKeys, revokeKey, revokeUserSessions, useConfigKeyFingerprint, exportConfigKey, type KeyStatus } from "../../lib/security";
 import { stepUp } from "../../lib/step-up";
 
 /**
@@ -16,10 +16,19 @@ export function SecurityKeys() {
   const { data: auth } = useAuth();
   const qc = useQueryClient();
   const { data } = useSecurityKeys();
+  const { data: configFp } = useConfigKeyFingerprint();
   const [sub, setSub] = useState("");
+  const [exported, setExported] = useState<{ key: string; warning: string } | null>(null);
 
   if (!roleAtLeast(auth?.role, "admin")) return null;
   if (!data?.keys) return null;
+
+  const onExportConfigKey = async (): Promise<void> => {
+    if (!window.confirm("Export the config encryption key? It decrypts your config files — handle it like any secret.")) return;
+    if (!(await stepUp())) return; // step-up gated
+    try { const r = await exportConfigKey(); setExported({ key: r.key, warning: r.warning }); }
+    catch { /* surfaced by absence of output */ }
+  };
 
   const onRevoke = async (key: KeyStatus): Promise<void> => {
     const warn = key.name === "session" ? " This signs EVERYONE out, including you." : "";
@@ -72,6 +81,24 @@ export function SecurityKeys() {
           >
             Revoke user's sessions
           </Button>
+        </div>
+
+        {/* Config-at-rest key: confirm-by-fingerprint + export (to move encrypted files). */}
+        <div className="space-y-2 border-t border-border pt-3" data-testid="config-key">
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span>
+              Config encryption key{" "}
+              {configFp && <span className="font-mono text-xs text-muted-foreground">#{configFp.fingerprint}</span>}
+            </span>
+            <Button variant="outline" size="sm" data-testid="export-config-key" onClick={() => void onExportConfigKey()}>Export key</Button>
+          </div>
+          <p className="text-xs text-muted-foreground">Config files are encrypted at rest. Export the key to carry encrypted files to another deployment (set it there as <code>CONFIG_KEY_RAW</code>).</p>
+          {exported && (
+            <div className="rounded border border-amber-300 bg-amber-50 p-2" data-testid="exported-key">
+              <p className="mb-1 text-xs text-amber-800">{exported.warning}</p>
+              <code className="block break-all rounded bg-background p-1 font-mono text-xs">{exported.key}</code>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

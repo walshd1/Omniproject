@@ -492,6 +492,18 @@ Conditional (delta) reads — let a client revalidate a read and get back "nothi
 | --- | --- |
 | `buildConfigBundle` | "Lock this config" export — dump the current effective config as the EXACT folder-of-JSON the config-directory loader reads (read ≡ dump). |
 
+### `artifacts/api-server/src/lib/config-crypto.ts`
+
+Config-at-rest encryption.
+
+| Function | What it does |
+| --- | --- |
+| `sealConfig` | Seal a config string → a versioned base64url token. |
+| `openConfig` | Open a sealed token, or null if it isn't one / fails authentication. |
+| `readMaybeSealed` | Read possibly-sealed config text: open if sealed, else return as-is (plaintext migration). |
+| `exportConfigKey` | The exportable config key (base64). |
+| `configKeyFingerprint` | A short, non-secret fingerprint of the key, so two deployments can confirm a match without revealing the key. |
+
 ### `artifacts/api-server/src/lib/config-dir.ts`
 
 Deployment config directory loader (OMNI_CONFIG_DIR).

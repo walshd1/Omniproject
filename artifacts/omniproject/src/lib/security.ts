@@ -44,3 +44,22 @@ export async function revokeUserSessions(sub: string): Promise<void> {
     body: JSON.stringify({ sub }),
   });
 }
+
+/** The non-secret config-key fingerprint (admin) — confirm two deployments share a key. */
+export function useConfigKeyFingerprint() {
+  return useQuery<{ fingerprint: string }>({
+    queryKey: ["config-key-fp"],
+    queryFn: () => getJson("/api/security/config-key"),
+    staleTime: 60_000,
+  });
+}
+
+/** Export the raw config encryption key (admin; step-up gated server-side). Returned once. */
+export async function exportConfigKey(): Promise<{ key: string; fingerprint: string; warning: string }> {
+  const res = await fetch("/api/security/config-key/export", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" } });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+    throw new Error(body.code === "step_up_required" ? "step_up_required" : body.error ?? `Failed (${res.status})`);
+  }
+  return (await res.json()) as { key: string; fingerprint: string; warning: string };
+}
