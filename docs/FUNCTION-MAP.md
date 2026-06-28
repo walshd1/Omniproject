@@ -747,6 +747,8 @@ Key registry with admin-gated revocation.
 | `revokeKey` | Revoke a key's current version and roll forward to a fresh derived key. |
 | `revokeUserSessions` | Revoke all of one user's sessions (issued before now). |
 | `userSessionsRevokedAt` | The instant a user's sessions were revoked, or 0. |
+| `snapshotKeys` | Serialisable snapshot of all revocation state (for durable persistence). |
+| `restoreKeys` | Restore revocation state from a snapshot (boot-time durability). |
 | `__resetKeyRegistry` | Test-only: reset all key state. |
 
 ### `artifacts/api-server/src/lib/labels.ts`
@@ -1017,6 +1019,17 @@ Startup security self-check — surface dangerous *production* configurations lo
 | --- | --- |
 | `securityFindings` | Evaluate the deployment config and return any security findings (pure). |
 | `runSecuritySelfCheck` | Boot hook: log findings at their severity. |
+
+### `artifacts/api-server/src/lib/security-state.ts`
+
+Durable security state.
+
+| Function | What it does |
+| --- | --- |
+| `collectSecurityState` | Gather the current security state into one serialisable object. |
+| `applySecurityState` | Apply a security snapshot to the live registries. |
+| `persistSecurityState` | Persist the current security state (sealed) — no-op unless SECURITY_STATE_FILE is set. |
+| `loadSecurityState` | Restore the security state at boot (sealed file; plaintext tolerated for migration). |
 
 ### `artifacts/api-server/src/lib/session-crypto.ts`
 

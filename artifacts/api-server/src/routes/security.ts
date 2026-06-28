@@ -5,6 +5,7 @@ import { getSession } from "./auth";
 import { recordAudit } from "../lib/audit";
 import { internalKeyFingerprint } from "../lib/config-crypto";
 import { exportConfig } from "../lib/config-store";
+import { persistSecurityState } from "../lib/security-state";
 import { listKeys, revokeKey, revokeUserSessions, KEY_NAMES, type KeyName } from "../lib/key-registry";
 
 /**
@@ -27,6 +28,7 @@ router.post("/security/keys/:name/revoke", requireRole("admin"), requireStepUp, 
   const session = getSession(req);
   const reason = typeof (req.body as { reason?: unknown })?.reason === "string" ? (req.body as { reason: string }).reason : undefined;
   const status = revokeKey(name, { by: session?.sub ?? null, reason });
+  persistSecurityState(); // a revocation must survive a restart
   recordAudit({ ts: new Date().toISOString(), category: "admin", action: "key.revoke", actor: session ? { sub: session.sub, email: session.email } : null, write: true, meta: { key: name, newVersion: status.version, reason: reason ?? null } });
   res.json({ status });
 });
@@ -35,6 +37,7 @@ router.post("/security/sessions/revoke-user", requireRole("admin"), requireStepU
   const sub = typeof (req.body as { sub?: unknown })?.sub === "string" ? (req.body as { sub: string }).sub : "";
   if (!sub) { res.status(400).json({ error: "sub is required" }); return; }
   revokeUserSessions(sub);
+  persistSecurityState();
   const session = getSession(req);
   recordAudit({ ts: new Date().toISOString(), category: "admin", action: "sessions.revoke-user", actor: session ? { sub: session.sub, email: session.email } : null, write: true, meta: { sub } });
   res.json({ ok: true });

@@ -23,6 +23,7 @@ import { errorHandler } from "./lib/error-handler";
 import { compression } from "./lib/compression";
 import { slideSession } from "./routes/auth";
 import { csrfGuard } from "./lib/csrf";
+import { loadSecurityState } from "./lib/security-state";
 
 const app: Express = express();
 
@@ -61,6 +62,11 @@ function resolveSessionSecret(): string {
 // boot in SECURITY_STRICT mode on a critical finding). Complements the hard
 // SESSION_SECRET fail-fast above.
 runSecuritySelfCheck(process.env, logger);
+
+// Restore durable security state (key revocations, grants, containment, approved
+// actions, kill switch) from disk so a revocation survives a restart. No-op unless
+// SECURITY_STATE_FILE is set.
+loadSecurityState();
 
 // Hard interlock: refuse to boot if DEV MODE is active in a production-like
 // environment (real SSO / licence / public host). Dev mode can impersonate users

@@ -6,6 +6,7 @@ import { listAutonomousGrants } from "../lib/autonomous-grant";
 import { aiKillEngaged, engageAiKill, releaseAiKill } from "../lib/ai-kill";
 import { listApprovedActions, listApprovedVocab, setApproved, approveAction, revokeApprovedAction, approveTerm, isActionApproved } from "../lib/approved-actions";
 import { MCP_TOOLS } from "../lib/mcp";
+import { persistSecurityState } from "../lib/security-state";
 import { recordAudit } from "../lib/audit";
 import { captureVersion } from "../lib/config-store";
 import { getSession } from "./auth";
@@ -74,6 +75,7 @@ router.put("/governance/approved", requireRole("admin"), requireStepUp, (req, re
     for (const v of terms ?? []) approveTerm(v);
   }
   const session = getSession(req);
+  persistSecurityState();
   recordAudit({ ts: new Date().toISOString(), category: "admin", action: "approved.update", actor: session ? { sub: session.sub, email: session.email } : null, write: true, result: "success", meta: { actions: listApprovedActions().length, vocab: listApprovedVocab().length } });
   res.json({ actions: listApprovedActions(), vocab: listApprovedVocab() });
 });
@@ -83,6 +85,7 @@ router.put("/governance/approved", requireRole("admin"), requireStepUp, (req, re
 router.put("/governance/ai-kill", requireRole("admin"), requireStepUp, (req, res) => {
   const engage = (req.body as { engage?: unknown }).engage === true;
   if (engage) engageAiKill(); else releaseAiKill();
+  persistSecurityState();
   const session = getSession(req);
   recordAudit({ ts: new Date().toISOString(), category: "admin", action: engage ? "ai-kill.engage" : "ai-kill.release", actor: session ? { sub: session.sub, email: session.email } : null, write: true, result: "success" });
   res.json({ aiKill: aiKillEngaged() });
@@ -98,6 +101,7 @@ router.put("/governance/containment", requireRole("admin"), requireStepUp, (req,
     return;
   }
   setContainmentRelax(level as AiContainment);
+  persistSecurityState();
   res.json({ relax: getContainmentRelax(), level: aiContainmentLevel(), source: aiSourceLevel() });
 });
 

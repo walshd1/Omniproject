@@ -104,6 +104,28 @@ export function userSessionsRevokedAt(sub: string): number {
   return userRevokedAt[sub] ?? 0;
 }
 
+export interface KeyRegistrySnapshot {
+  keys: Record<string, { version: number; revoked: number[]; rotatedAt: string | null; lastActor: string | null; lastReason: string | null }>;
+  userRevokedAt: Record<string, number>;
+}
+
+/** Serialisable snapshot of all revocation state (for durable persistence). */
+export function snapshotKeys(): KeyRegistrySnapshot {
+  const out: KeyRegistrySnapshot = { keys: {}, userRevokedAt: { ...userRevokedAt } };
+  for (const [name, s] of Object.entries(keys)) {
+    out.keys[name] = { version: s.version, revoked: [...s.revoked], rotatedAt: s.rotatedAt, lastActor: s.lastActor, lastReason: s.lastReason };
+  }
+  return out;
+}
+
+/** Restore revocation state from a snapshot (boot-time durability). */
+export function restoreKeys(snap: KeyRegistrySnapshot): void {
+  for (const [name, s] of Object.entries(snap.keys ?? {})) {
+    keys[name] = { version: s.version, revoked: new Set(s.revoked ?? []), rotatedAt: s.rotatedAt ?? null, lastActor: s.lastActor ?? null, lastReason: s.lastReason ?? null };
+  }
+  for (const [sub, ts] of Object.entries(snap.userRevokedAt ?? {})) userRevokedAt[sub] = ts;
+}
+
 /** Test-only: reset all key state. */
 export function __resetKeyRegistry(): void {
   for (const k of Object.keys(keys)) delete keys[k];
