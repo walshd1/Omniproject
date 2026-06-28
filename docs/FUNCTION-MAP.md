@@ -785,6 +785,18 @@ Egress / SSRF guard for the gateway's outbound HTTP.
 | `assertEgressAllowed` | Validate a URL is allowed for server-side egress; throws EgressError if not. |
 | `safeFetch` | fetch() with the egress guard applied first. |
 
+### `artifacts/api-server/src/lib/env-config.ts`
+
+Validated, typed environment access — the zero-trust stance applied to configuration: env vars are UNTRUSTED input too, so read them through typed accessors that enforce a rule (presence, type, range, format) instead of scattering `process.env[X]` casts.
+
+| Function | What it does |
+| --- | --- |
+| `envStr` | Validated, typed environment access — the zero-trust stance applied to configuration: env vars are UNTRUSTED input too, so read them through typed accessors that enforce a rule (presence, type, range, format) instead of scattering `process.env[X]` casts. |
+| `envInt` | An integer env var validated against an optional range; falls back when unset/invalid. |
+| `envEnum` | One of a fixed set; falls back when unset or not in the set. |
+| `envUrl` | An http(s) URL that passes the outbound-safety guard (no metadata/link-local), or undefined. |
+| `checkRequiredEnv` | Validate the security-critical env at boot. |
+
 ### `artifacts/api-server/src/lib/env.ts`
 
 Tiny environment-variable helpers, so the same parsing isn't re-spelled at each read site.
@@ -1368,6 +1380,14 @@ Per-user UI/accessibility preferences, persisted server-side keyed by the user's
 | `hasUserPrefs` | Has this user saved prefs? (Lets the client tell "stored" from "defaults".) |
 | `setUserPrefs` | Persist (sanitised) prefs for a user; returns what was stored. |
 
+### `artifacts/api-server/src/lib/validate.ts`
+
+Zero-trust request validation — a tiny, dependency-free schema validator for the gateway's UNTRUSTED boundary inputs (req.body / query / params).
+
+| Function | What it does |
+| --- | --- |
+| `parseOr400` | Parse an untrusted request part against a schema. |
+
 ### `artifacts/api-server/src/lib/vault-aws.ts`
 
 AWS Secrets Manager vault store (native).
@@ -1451,7 +1471,7 @@ Minimal, dependency-free STORED (uncompressed) ZIP writer.
 
 ### `artifacts/api-server/src/routes/ai-providers.ts`
 
-AI Providers admin plane.
+Typed + bounded schemas for the admin write bodies (untrusted boundary input).
 
 ### `artifacts/api-server/src/routes/ai.ts`
 
@@ -1588,7 +1608,7 @@ Role-mapping editor — ADMIN-only, audited.
 
 ### `artifacts/api-server/src/routes/ruleset.ts`
 
-Business ruleset config — PMO governance.
+`methodology` is an untrusted id used to look up a curated bundle — type + bound it.
 
 ### `artifacts/api-server/src/routes/scim.ts`
 
@@ -1596,7 +1616,7 @@ SCIM 2.0 provisioning endpoints (RFC 7644).
 
 ### `artifacts/api-server/src/routes/security.ts`
 
-Admin-gated key revocation.
+Typed + bounded bodies for the admin write endpoints (untrusted input).
 
 ### `artifacts/api-server/src/routes/settings.ts`
 

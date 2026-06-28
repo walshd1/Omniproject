@@ -16,24 +16,29 @@ import { getBroker, contextFromReq } from "../broker";
 import { hasRole } from "../lib/rbac";
 import { aiContainmentLevel, aiSourceLevel } from "../lib/ai-containment";
 import { transcribe, sttStatus, sttCapabilityId, SttError } from "../lib/stt";
+import { v, parseOr400 } from "../lib/validate";
 
 const router = Router();
 
-const VALID_ROLES = new Set(["system", "user", "assistant"]);
-
-function parseMessages(body: unknown): ChatMessage[] | null {
-  if (!body || typeof body !== "object") return null;
-  const raw = (body as { messages?: unknown }).messages;
-  if (!Array.isArray(raw) || raw.length === 0) return null;
-  const messages: ChatMessage[] = [];
-  for (const m of raw) {
-    if (!m || typeof m !== "object") return null;
-    const { role, content } = m as { role?: unknown; content?: unknown };
-    if (typeof role !== "string" || !VALID_ROLES.has(role) || typeof content !== "string") return null;
-    messages.push({ role: role as ChatMessage["role"], content });
-  }
-  return messages;
-}
+// Zero-trust schemas for the hand-rolled AI bodies: every field is typed AND bounded, so a
+// hostile/oversized payload is rejected with a 400 rather than narrowed by an `as` cast. The
+// max-length caps double as a cheap DoS guard on otherwise-unbounded free text.
+const CHAT_BODY = v.object({
+  messages: v.array(
+    v.object({ role: v.enum(["system", "user", "assistant"] as const), content: v.string({ max: 32_000 }) }),
+    { min: 1, max: 100 },
+  ),
+});
+const NL_ACTION_BODY = v.object({ text: v.string({ trim: true, min: 1, max: 8_000 }) });
+const COPILOT_BODY = v.object({
+  question: v.string({ trim: true, min: 1, max: 8_000 }),
+  mode: v.optional(v.enum(["rag", "freeform"] as const)),
+  methodology: v.optional(v.string({ trim: true, max: 120 })),
+});
+const TRANSCRIBE_BODY = v.object({
+  audio: v.string({ min: 1, max: 20_000_000 }), // base64 audio; express json limit is the hard ceiling
+  mime: v.optional(v.string({ max: 100 })),
+});
 
 /** The actor identity for capability logging, from the request session (or null). */
 function actorFromSession(req: Request): { sub: string; email?: string } | null {
@@ -67,11 +72,9 @@ router.get("/ai/status", (_req, res) => {
 
 // ── POST /api/ai/chat — route a chat completion to the selected provider ──────
 router.post("/ai/chat", async (req, res) => {
-  const messages = parseMessages(req.body);
-  if (!messages) {
-    res.status(400).json({ error: "Body must be { messages: [{ role, content }] }." });
-    return;
-  }
+  const parsed = parseOr400(req, res, CHAT_BODY);
+  if (!parsed) return;
+  const messages: ChatMessage[] = parsed.messages;
 
   // Strong, logged governance gate: the active AI provider must be permitted on the
   // calling surface (the client sends the current screen id). Denials are audited.
@@ -103,8 +106,9 @@ router.get("/ai/containment", (req, res) => {
 // PLANS only; never executes. Writes are surfaced (write:true) for the SPA to confirm,
 // and only offered when the caller is a contributor+ (a viewer is never shown a mutation).
 router.post("/ai/nl-action", async (req, res) => {
-  const text = typeof (req.body as { text?: unknown }).text === "string" ? (req.body as { text: string }).text : "";
-  if (!text.trim()) { res.status(400).json({ error: "Body must be { text }." }); return; }
+  const parsed = parseOr400(req, res, NL_ACTION_BODY);
+  if (!parsed) return;
+  const text = parsed.text;
 
   const provider = getSettings().aiProvider;
   const surface = surfaceFromBody(req);
@@ -129,8 +133,9 @@ router.post("/ai/nl-action", async (req, res) => {
 // Never writes, exposes no actions to the model, and sends only a minimal aggregated
 // snapshot (egress-scoped + injection-hardened in lib/copilot). Governance-gated.
 router.post("/ai/copilot", async (req, res) => {
-  const question = typeof (req.body as { question?: unknown }).question === "string" ? (req.body as { question: string }).question : "";
-  if (!question.trim()) { res.status(400).json({ error: "Body must be { question }." }); return; }
+  const parsed = parseOr400(req, res, COPILOT_BODY);
+  if (!parsed) return;
+  const question = parsed.question;
 
   const provider = getSettings().aiProvider;
   const surface = surfaceFromBody(req);
@@ -138,9 +143,8 @@ router.post("/ai/copilot", async (req, res) => {
 
   // Retrieval mode: "rag" (default) lenses the answer through a methodology persona;
   // "freeform" answers plainly. An optional methodology hint pins which lens RAG picks.
-  const rawMode = (req.body as { mode?: unknown }).mode;
-  const mode: "rag" | "freeform" = rawMode === "freeform" ? "freeform" : "rag";
-  const methodology = typeof (req.body as { methodology?: unknown }).methodology === "string" ? (req.body as { methodology: string }).methodology : undefined;
+  const mode: "rag" | "freeform" = parsed.mode ?? "rag";
+  const methodology = parsed.methodology;
   try {
     const result = await answerCopilot({
       question,
@@ -169,15 +173,15 @@ router.get("/ai/stt", (_req, res) => {
 // gated (the active stt:<provider> capability must be on for this surface) + kill-switch
 // honoured. Body: { audio: base64, mime }.
 router.post("/ai/transcribe", async (req, res) => {
-  const body = (req.body ?? {}) as { audio?: unknown; mime?: unknown; surface?: unknown };
-  if (typeof body.audio !== "string" || !body.audio) { res.status(400).json({ error: "Body must be { audio: base64, mime }." }); return; }
+  const parsed = parseOr400(req, res, TRANSCRIBE_BODY);
+  if (!parsed) return;
 
   const surface = surfaceFromBody(req);
   if (!enforceOr403(req, res, sttCapabilityId(), { surface, label: "Speech-to-text is unavailable here" })) return;
 
   try {
-    const audio = Buffer.from(body.audio, "base64");
-    const result = await transcribe(audio, typeof body.mime === "string" ? body.mime : "audio/webm");
+    const audio = Buffer.from(parsed.audio, "base64");
+    const result = await transcribe(audio, parsed.mime ?? "audio/webm");
     res.json(result);
   } catch (err) {
     const status = err instanceof SttError ? err.status : 502;

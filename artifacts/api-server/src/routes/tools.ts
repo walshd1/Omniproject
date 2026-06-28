@@ -15,6 +15,7 @@ import {
   recentCapabilityLog, checkEndpointReachable, getCapability, UnknownCapabilityError,
 } from "../lib/tools";
 import { getSettings } from "../lib/settings";
+import { v, parseOr400 } from "../lib/validate";
 
 /**
  * Capability governance plane — the admin-set deployment state (off / user-defined /
@@ -101,14 +102,13 @@ router.put("/governance/ai-kill", requireRole("admin"), requireStepUp, (req, res
 
 // Relax (or re-tighten) the default-full containment posture (admin + step-up). The AI
 // source level remains a hard floor, so a remote/public AI can never be relaxed below max.
-const CONTAINMENT_LEVELS: AiContainment[] = ["off", "local", "remote", "public"];
+const CONTAINMENT_LEVELS: readonly AiContainment[] = ["off", "local", "remote", "public"];
+const CONTAINMENT_BODY = v.object({ level: v.enum(CONTAINMENT_LEVELS) });
+const TEST_BODY = v.object({ endpoint: v.optional(v.string({ trim: true, max: 2_000 })) });
 router.put("/governance/containment", requireRole("admin"), requireStepUp, (req, res) => {
-  const level = (req.body as { level?: unknown }).level;
-  if (typeof level !== "string" || !CONTAINMENT_LEVELS.includes(level as AiContainment)) {
-    res.status(400).json({ error: `level must be one of ${CONTAINMENT_LEVELS.join(", ")}` });
-    return;
-  }
-  setContainmentRelax(level as AiContainment);
+  const parsed = parseOr400(req, res, CONTAINMENT_BODY);
+  if (!parsed) return;
+  setContainmentRelax(parsed.level);
   persistSecurityState();
   res.json({ relax: getContainmentRelax(), level: aiContainmentLevel(), source: aiSourceLevel() });
 });
@@ -118,8 +118,9 @@ router.put("/governance/containment", requireRole("admin"), requireStepUp, (req,
 router.post("/governance/:id/test", requireRole("admin"), async (req, res) => {
   const id = String(req.params["id"]);
   if (!getCapability(id)) { res.status(404).json({ error: "unknown capability" }); return; }
-  const body = (req.body ?? {}) as { endpoint?: unknown };
-  const endpoint = typeof body.endpoint === "string" && body.endpoint.trim()
+  const body = parseOr400(req, res, TEST_BODY);
+  if (!body) return;
+  const endpoint = (body.endpoint && body.endpoint.trim())
     ? body.endpoint
     : (getSettings().capabilityStates[id]?.endpoint ?? "");
   res.json(await checkEndpointReachable(String(endpoint)));

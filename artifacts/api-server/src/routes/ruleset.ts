@@ -4,6 +4,10 @@ import { getSession } from "./auth";
 import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules, applyRuleset } from "../lib/ruleset";
 import { referenceRulesetCatalogue, getReferenceRuleset } from "@workspace/backend-catalogue";
 import { recordAudit } from "../lib/audit";
+import { v, parseOr400 } from "../lib/validate";
+
+// `methodology` is an untrusted id used to look up a curated bundle — type + bound it.
+const APPLY_REFERENCE_BODY = v.object({ methodology: v.string({ trim: true, min: 1, max: 100 }) });
 
 /**
  * Business ruleset config — PMO governance. GET lists the rules + their current
@@ -64,11 +68,9 @@ router.get("/admin/ruleset/reference", requireRole("pmo"), (_req, res) => {
 // Apply one reference ruleset by methodology id. Deterministic + restrict-only
 // (routes through applyRuleset → setRuleModes/setFieldRules). Audited.
 router.post("/admin/ruleset/apply-reference", requireRole("pmo"), (req, res) => {
-  const methodology = (req.body as { methodology?: unknown } | undefined)?.methodology;
-  if (typeof methodology !== "string") {
-    res.status(400).json({ error: "Body must be { methodology: string }" });
-    return;
-  }
+  const parsed = parseOr400(req, res, APPLY_REFERENCE_BODY);
+  if (!parsed) return;
+  const methodology = parsed.methodology;
   const bundle = getReferenceRuleset(methodology);
   if (!bundle) {
     res.status(404).json({ error: `No reference ruleset for methodology '${methodology}'` });
