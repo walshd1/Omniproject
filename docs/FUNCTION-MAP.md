@@ -780,10 +780,12 @@ Provenance chain — a keyed-MAC, hash-chained record of every broker call, hold
 | --- | --- |
 | `canonical` | Deterministic JSON: object keys sorted recursively, so the MAC is stable. |
 | `contentMac` | The fingerprint of some content, bound to the actor + sequence position. |
+| `sessionMac` | Keyed fingerprint of the initiating session — the SAME binding the broker key uses (sub‖smono‖salt), under the provenance key. |
 | `record` | Append one fingerprint to the chain and return the (content-free) entry. |
 | `recentProvenance` | Recent chain entries (optionally just one call's), oldest→newest. |
 | `verifyChain` | Verify a CONTIGUOUS slice of the chain: each entry's own MAC recomputes (so no field was altered), the links join (prevMac === previous mac), and order is monotonic. |
 | `verifyContent` | Prove "nothing changed": re-present content and confirm it matches the fingerprint. |
+| `verifySession` | Prove "this exact session initiated it": re-present the session binding and confirm it matches the entry's session fingerprint. |
 | `__resetProvenance` | Test-only: reset the in-memory chain. |
 
 ### `artifacts/api-server/src/lib/rate-limit.ts`

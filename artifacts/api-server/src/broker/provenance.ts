@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { record } from "../lib/provenance";
+import type { SessionBind } from "../lib/session-key";
 import type { Broker } from "./types";
 
 /**
@@ -24,6 +25,14 @@ function actorOf(args: unknown[]): string | null {
   return null;
 }
 
+/** The per-session binding off the ctx arg, so the chain commits to the session identity
+ *  (null for system/unauthenticated calls). */
+function sessionBindOf(args: unknown[]): SessionBind | null {
+  const ctx = args[0];
+  if (ctx && typeof ctx === "object") return (ctx as { sessionBind?: SessionBind }).sessionBind ?? null;
+  return null;
+}
+
 /** Wrap a broker so every call records a chained invoke/result fingerprint (additive). */
 export function wrapWithProvenance<T extends Broker>(broker: T): T {
   return new Proxy(broker, {
@@ -34,20 +43,21 @@ export function wrapWithProvenance<T extends Broker>(broker: T): T {
       return (...args: unknown[]) => {
         const callId = randomUUID();
         const actor = actorOf(args);
+        const sessionBind = sessionBindOf(args);
         // Fingerprint the request (skip the ctx arg — it carries the auth token).
-        record({ callId, hop: "invoke", action, actor, content: args.slice(1) });
+        record({ callId, hop: "invoke", action, actor, sessionBind, content: args.slice(1) });
         try {
           const out = (value as (...a: unknown[]) => unknown).apply(target, args);
           if (out instanceof Promise) {
             return out.then(
-              (res) => { record({ callId, hop: "result", action, actor, content: res }); return res; },
-              (err) => { record({ callId, hop: "error", action, actor, content: { error: err instanceof Error ? err.message : String(err) } }); throw err; },
+              (res) => { record({ callId, hop: "result", action, actor, sessionBind, content: res }); return res; },
+              (err) => { record({ callId, hop: "error", action, actor, sessionBind, content: { error: err instanceof Error ? err.message : String(err) } }); throw err; },
             );
           }
-          record({ callId, hop: "result", action, actor, content: out });
+          record({ callId, hop: "result", action, actor, sessionBind, content: out });
           return out;
         } catch (err) {
-          record({ callId, hop: "error", action, actor, content: { error: err instanceof Error ? err.message : String(err) } });
+          record({ callId, hop: "error", action, actor, sessionBind, content: { error: err instanceof Error ? err.message : String(err) } });
           throw err;
         }
       };

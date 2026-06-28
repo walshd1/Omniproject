@@ -1,6 +1,6 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { canonical, contentMac, record, recentProvenance, verifyChain, verifyContent, __resetProvenance } from "./provenance";
+import { canonical, contentMac, sessionMac, record, recentProvenance, verifyChain, verifyContent, verifySession, __resetProvenance } from "./provenance";
 import { wrapWithProvenance } from "../broker/provenance";
 import type { Broker } from "../broker/types";
 
@@ -66,4 +66,41 @@ test("the broker Proxy records actor + invoke + result per call", async () => {
   assert.ok(entries.some((e) => e.hop === "invoke" && e.actor === "alice" && e.action === "listProjects"));
   assert.ok(entries.some((e) => e.hop === "result" && e.action === "listProjects"));
   assert.equal(verifyChain(entries).ok, true);
+});
+
+// ── Session binding ──────────────────────────────────────────────────────────
+const bind = { sub: "alice", smono: "12345", salt: "deadbeef" };
+
+test("an entry commits to the initiating session; verifySession re-presents the binding", () => {
+  record({ callId: "c1", hop: "invoke", action: "a", actor: "alice", sessionBind: bind, content: [1] });
+  const entry = recentProvenance("c1")[0]!;
+  assert.ok(entry.sessionMac, "session-bound entries carry a session fingerprint");
+  assert.equal(verifySession(entry, bind), true);
+  // A different session (different salt) does NOT match.
+  assert.equal(verifySession(entry, { ...bind, salt: "cafe" }), false);
+  assert.equal(verifySession(entry, null), false); // can't pass it off as a system call
+});
+
+test("system/unauthenticated entries bind a null session (and verify as such)", () => {
+  record({ callId: "c2", hop: "invoke", action: "ping", actor: null, content: [] });
+  const entry = recentProvenance("c2")[0]!;
+  assert.equal(entry.sessionMac, null);
+  assert.equal(verifySession(entry, null), true);
+  assert.equal(verifySession(entry, bind), false); // can't graft a session onto a system call
+});
+
+test("sessionMac binds the same identity the broker key uses (sub‖smono‖salt)", () => {
+  const base = sessionMac(bind)!;
+  assert.notEqual(base, sessionMac({ ...bind, sub: "bob" }));
+  assert.notEqual(base, sessionMac({ ...bind, smono: "99999" }));
+  assert.notEqual(base, sessionMac({ ...bind, salt: "cafe" }));
+  assert.equal(sessionMac(null), null);
+});
+
+test("forging the session fingerprint breaks the chain MAC", () => {
+  record({ callId: "c1", hop: "invoke", action: "a", actor: "alice", sessionBind: bind, content: [1] });
+  record({ callId: "c1", hop: "result", action: "a", actor: "alice", sessionBind: bind, content: [2] });
+  const entries = recentProvenance();
+  entries[1] = { ...entries[1]!, sessionMac: "deadbeef" }; // swap in another session's fingerprint
+  assert.equal(verifyChain(entries).ok, false);
 });

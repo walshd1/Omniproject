@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { currentVersion, derivedKey, isActive } from "./key-registry";
+import type { SessionBind } from "./session-key";
 
 /**
  * Provenance chain — a keyed-MAC, hash-chained record of every broker call, holding
@@ -42,6 +43,11 @@ export interface ProvenanceEntry {
   kver: number;
   /** HMAC over the canonicalised content + actor + seq (the fingerprint). */
   contentMac: string;
+  /** Keyed fingerprint of the initiating SESSION (sub‖smono‖salt) — binds the entry to
+   *  a session's cryptographic identity, not just the actor name, so forging "X's session
+   *  did this" needs the provenance key (and matching the broker witness needs the broker
+   *  master too). Null for system/unauthenticated calls. */
+  sessionMac: string | null;
   /** The previous entry's `mac` (the chain link), or null for the first. */
   prevMac: string | null;
   /** HMAC over this entry's fields incl. prevMac (makes the chain tamper-evident). */
@@ -74,10 +80,19 @@ export function contentMac(content: unknown, actor: string | null, seq: number, 
   return hmac(`${seq}|${actor ?? ""}|${canonical(content)}`, version);
 }
 
+/** Keyed fingerprint of the initiating session — the SAME binding the broker key uses
+ *  (sub‖smono‖salt), under the provenance key. Null when there is no session (system call),
+ *  so unauthenticated entries bind a null marker exactly like a null actor. */
+export function sessionMac(bind: SessionBind | null | undefined, version: number = currentVersion("provenance")): string | null {
+  if (!bind) return null;
+  return hmac(`${bind.sub}|${bind.smono}|${bind.salt}`, version);
+}
+
 function entryMac(e: Omit<ProvenanceEntry, "mac">): string {
-  // Elapsed offset + key version are in the MAC, so neither timeline nor signing key
-  // can be rewritten silently. A "|" delimiter keeps fields unambiguous.
-  return hmac([e.seq, e.prevMac ?? "", e.contentMac, e.tMono, e.elapsedMs, e.kver, e.actor ?? "", e.hop, e.action, e.callId].join("|"), e.kver);
+  // Elapsed offset, key version AND the session fingerprint are in the MAC, so neither the
+  // timeline, the signing key, nor the initiating session can be rewritten silently. A "|"
+  // delimiter keeps fields unambiguous.
+  return hmac([e.seq, e.prevMac ?? "", e.contentMac, e.sessionMac ?? "", e.tMono, e.elapsedMs, e.kver, e.actor ?? "", e.hop, e.action, e.callId].join("|"), e.kver);
 }
 
 const RING_MAX = 500;
@@ -88,7 +103,7 @@ let lastMac: string | null = null;
 let startMono: bigint | null = null;
 
 /** Append one fingerprint to the chain and return the (content-free) entry. */
-export function record(input: { callId: string; hop: ProvenanceHop; action: string; actor: string | null; content: unknown }): ProvenanceEntry {
+export function record(input: { callId: string; hop: ProvenanceHop; action: string; actor: string | null; content: unknown; sessionBind?: SessionBind | null }): ProvenanceEntry {
   const seq = seqCounter++;
   const now = process.hrtime.bigint();
   if (startMono === null) startMono = now;
@@ -105,6 +120,7 @@ export function record(input: { callId: string; hop: ProvenanceHop; action: stri
     tWall: new Date().toISOString(),
     kver,
     contentMac: cMac,
+    sessionMac: sessionMac(input.sessionBind, kver),
     prevMac: lastMac,
   };
   const mac = entryMac(partial);
@@ -162,6 +178,14 @@ export function verifyChain(entries: ProvenanceEntry[]): ChainVerdict {
 /** Prove "nothing changed": re-present content and confirm it matches the fingerprint. */
 export function verifyContent(entry: ProvenanceEntry, content: unknown): boolean {
   return safeEq(contentMac(content, entry.actor, entry.seq, entry.kver), entry.contentMac);
+}
+
+/** Prove "this exact session initiated it": re-present the session binding and confirm it
+ *  matches the entry's session fingerprint. A null binding matches a system-call entry. */
+export function verifySession(entry: ProvenanceEntry, bind: SessionBind | null | undefined): boolean {
+  const expected = sessionMac(bind, entry.kver);
+  if (expected === null || entry.sessionMac === null) return expected === entry.sessionMac;
+  return safeEq(expected, entry.sessionMac);
 }
 
 /** Test-only: reset the in-memory chain. */
