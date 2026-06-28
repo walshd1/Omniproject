@@ -1,8 +1,6 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import { sealConfig, readMaybeSealed } from "./config-crypto";
 import { logger } from "./logger";
+import { SealedFile, resolveConfigFile } from "./sealed-file";
 
 /**
  * SCIM 2.0 directory (RFC 7643/7644). OmniProject is stateless — identity is authenticated by
@@ -37,7 +35,7 @@ export interface ScimGroup {
 
 interface Directory { users: Record<string, ScimUser>; groups: Record<string, ScimGroup> }
 let dir: Directory = { users: {}, groups: {} };
-let loaded = false;
+const store = new SealedFile(() => resolveConfigFile("SCIM_STATE_FILE", "scim.json"), "scim");
 
 /** Is SCIM provisioning enabled? (Only when a bearer token is configured.) */
 export function scimEnabled(): boolean {
@@ -53,33 +51,17 @@ export function scimTokenValid(presented: string | undefined): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function file(): string | null {
-  const explicit = process.env["SCIM_STATE_FILE"]?.trim();
-  if (explicit) return explicit;
-  const d = process.env["OMNI_CONFIG_DIR"]?.trim();
-  return d ? path.join(d, "scim.json") : null;
-}
-
 function ensureLoaded(): void {
-  if (loaded) return;
-  loaded = true;
-  const f = file();
-  if (!f || !fs.existsSync(f)) return;
-  try {
-    const parsed = JSON.parse(readMaybeSealed(fs.readFileSync(f, "utf8"))) as Directory;
+  store.loadOnce((raw) => {
+    const parsed = JSON.parse(raw) as Directory;
     if (parsed.users) dir.users = parsed.users;
     if (parsed.groups) dir.groups = parsed.groups;
     logger.info({ users: Object.keys(dir.users).length, groups: Object.keys(dir.groups).length }, "scim: directory restored");
-  } catch (err) {
-    logger.warn({ err }, "scim: failed to restore — starting empty");
-  }
+  });
 }
 
 function persist(): void {
-  const f = file();
-  if (!f) return;
-  try { fs.writeFileSync(f, sealConfig(JSON.stringify(dir))); }
-  catch (err) { logger.warn({ err }, "scim: failed to persist"); }
+  store.write(JSON.stringify(dir));
 }
 
 const now = (): string => new Date().toISOString();
@@ -298,4 +280,4 @@ export function scimStats(): { enabled: boolean; users: number; groups: number }
 }
 
 /** Test-only: wipe the directory. */
-export function __resetScim(): void { dir = { users: {}, groups: {} }; loaded = false; }
+export function __resetScim(): void { dir = { users: {}, groups: {} }; store.reset(); }

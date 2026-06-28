@@ -1,5 +1,4 @@
-import fs from "node:fs";
-import { sealConfig, readMaybeSealed } from "./config-crypto";
+import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { snapshotKeys, restoreKeys, type KeyRegistrySnapshot } from "./key-registry";
 import { listAutonomousGrants, setAutonomousGrants, type AutonomousWriteGrant } from "./autonomous-grant";
 import { getContainmentRelax, setContainmentRelax, type AiContainment } from "./ai-containment";
@@ -21,7 +20,7 @@ import { logger } from "./logger";
  * Most defaults fail SAFE (approved → reads-only, containment → full, grants → empty), so
  * the durability matters most for the things that should STAY done: revocations.
  */
-const FILE = process.env["SECURITY_STATE_FILE"]?.trim();
+const store = new SealedFile(() => resolveConfigFile("SECURITY_STATE_FILE"), "security state");
 
 interface SecuritySnapshot {
   keys: KeyRegistrySnapshot;
@@ -58,19 +57,15 @@ export function applySecurityState(s: SecuritySnapshot): void {
 
 /** Persist the current security state (sealed) — no-op unless SECURITY_STATE_FILE is set. */
 export function persistSecurityState(): void {
-  if (!FILE) return;
-  try {
-    fs.writeFileSync(FILE, sealConfig(JSON.stringify(collectSecurityState())));
-  } catch (err) {
-    logger.warn({ err }, "security state: failed to persist");
-  }
+  store.write(JSON.stringify(collectSecurityState()));
 }
 
 /** Restore the security state at boot (sealed file; plaintext tolerated for migration). */
 export function loadSecurityState(): void {
-  if (!FILE || !fs.existsSync(FILE)) return;
+  const raw = store.read();
+  if (raw === null) return;
   try {
-    applySecurityState(JSON.parse(readMaybeSealed(fs.readFileSync(FILE, "utf8"))) as SecuritySnapshot);
+    applySecurityState(JSON.parse(raw) as SecuritySnapshot);
     logger.info("security state restored from disk");
   } catch (err) {
     logger.warn({ err }, "security state: failed to restore — starting from defaults");

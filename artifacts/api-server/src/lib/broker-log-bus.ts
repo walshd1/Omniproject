@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { foldRemoteEntry, registerBrokerLogPublisher, type BrokerLogEntry } from "./broker-log";
-import { logger } from "./logger";
+import { RedisBus } from "./redis-bus";
 
 /**
  * Broker-log fan-out bus — makes the admin live broker log **fleet-wide** under
@@ -24,35 +24,21 @@ import { logger } from "./logger";
 
 const CHANNEL = "omniproject:broker-log";
 
-interface MinimalRedis {
-  publish(channel: string, message: string): Promise<number>;
-  subscribe(channel: string): Promise<unknown>;
-  on(event: "message", cb: (channel: string, message: string) => void): void;
-  duplicate(): MinimalRedis;
-  quit(): Promise<unknown>;
-}
-
 interface Wire {
   from: string;
   entry: BrokerLogEntry;
 }
 
-class BrokerLogBus {
-  mode: "in-process" | "redis" = "in-process";
+class BrokerLogBus extends RedisBus {
   /** Unique per process — for suppressing our own Pub/Sub echo. */
   readonly instanceId = crypto.randomUUID();
-  private pub: MinimalRedis | null = null;
-  private ready: Promise<void> | null = null;
 
   constructor() {
-    const url = process.env["REDIS_URL"]?.trim();
-    if (url) {
-      this.ready = this.initRedis(url).catch((err) => {
-        logger.warn({ err }, "broker-log bus: Redis unavailable — falling back to per-replica log");
-        this.mode = "in-process";
-        this.pub = null;
-      });
-    }
+    super(CHANNEL, {
+      missingDep: "broker-log bus: REDIS_URL set but 'ioredis' is not installed — broker log shows THIS replica only. Run: pnpm --filter @workspace/api-server add ioredis",
+      fallback: "broker-log bus: Redis unavailable — falling back to per-replica log",
+      enabled: "broker-log bus: Redis Pub/Sub fan-out enabled (fleet-wide live log)",
+    });
     // Always register the publisher: in-process mode it is a no-op, in Redis mode
     // it broadcasts. Registering unconditionally keeps wiring simple.
     registerBrokerLogPublisher((entry) => {
@@ -60,38 +46,21 @@ class BrokerLogBus {
     });
   }
 
-  private async initRedis(url: string): Promise<void> {
-    const moduleName = "ioredis";
-    const mod = (await import(moduleName).catch(() => null)) as { default?: new (u: string) => MinimalRedis } | null;
-    const Redis = mod?.default;
-    if (!Redis) {
-      logger.warn("broker-log bus: REDIS_URL set but 'ioredis' is not installed — broker log shows THIS replica only. Run: pnpm --filter @workspace/api-server add ioredis");
-      return;
+  protected handleMessage(message: string): void {
+    try {
+      const wire = JSON.parse(message) as Wire;
+      if (wire.from === this.instanceId) return; // our own echo; already recorded locally
+      foldRemoteEntry(wire.entry);
+    } catch {
+      /* ignore malformed bus message */
     }
-    this.pub = new Redis(url);
-    const sub = this.pub.duplicate();
-    await sub.subscribe(CHANNEL);
-    sub.on("message", (_channel, message) => {
-      try {
-        const wire = JSON.parse(message) as Wire;
-        if (wire.from === this.instanceId) return; // our own echo; already recorded locally
-        foldRemoteEntry(wire.entry);
-      } catch {
-        /* ignore malformed bus message */
-      }
-    });
-    this.mode = "redis";
-    logger.info("broker-log bus: Redis Pub/Sub fan-out enabled (fleet-wide live log)");
   }
 
   /** Broadcast a locally-recorded entry to the other replicas. Fire-and-forget;
    *  in-process mode is a no-op (nothing to fan out). */
   async publish(entry: BrokerLogEntry): Promise<void> {
-    if (this.ready) await this.ready;
-    if (this.mode === "redis" && this.pub) {
-      const wire: Wire = { from: this.instanceId, entry };
-      await this.pub.publish(CHANNEL, JSON.stringify(wire));
-    }
+    const wire: Wire = { from: this.instanceId, entry };
+    await this.broadcast(JSON.stringify(wire));
   }
 }
 
