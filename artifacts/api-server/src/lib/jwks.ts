@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { assertSafeOutboundUrl } from "./url-safety";
 
 /**
  * Dependency-free JWKS / JWT signature verification.
@@ -114,6 +115,9 @@ const JWKS_TTL_MS = 10 * 60 * 1000;
 export async function fetchJwks(jwksUri: string, fetchImpl: typeof fetch = fetch): Promise<Jwk[]> {
   const cached = jwksCache.get(jwksUri);
   if (cached && Date.now() - cached.at < JWKS_TTL_MS) return cached.keys;
+  // The jwks_uri comes from the issuer's discovery doc (IdP-controlled), so guard it against
+  // a metadata/link-local SSRF pivot before fetching.
+  assertSafeOutboundUrl(jwksUri, "jwks_uri");
   const res = await fetchImpl(jwksUri, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new Error(`JWKS fetch failed (${res.status})`);
   const doc = (await res.json()) as { keys?: Jwk[] };

@@ -5,6 +5,7 @@
  */
 import crypto from "node:crypto";
 import { getSettings, updateSettings, type WebhookSubscription } from "./settings";
+import { assertSafeOutboundUrl } from "./url-safety";
 import { isEntitled } from "./license";
 import { logger } from "./logger";
 import {
@@ -65,6 +66,8 @@ export function createWebhook(input: unknown): WebhookSubscription {
   const o = input as Record<string, unknown>;
   const url = String(o["url"] ?? "").trim();
   if (!/^https?:\/\//i.test(url)) throw new Error("url must be an absolute http(s) URL");
+  // Same SSRF guard as the broker/logging-sync URLs: reject cloud-metadata/link-local targets.
+  assertSafeOutboundUrl(url, "webhook url");
 
   const events = Array.isArray(o["events"]) && o["events"].length
     ? (o["events"] as unknown[]).map(String).filter((e) => e === "*" || (WEBHOOK_EVENTS as readonly string[]).includes(e))

@@ -30,6 +30,15 @@ test("a provider offers only the states it actually supports", () => {
   assert.deepEqual(offeredStates(openai), ["off", "public"]);
 });
 
+test("checkEndpointReachable blocks cloud-metadata/link-local targets (SSRF guard)", async () => {
+  // Returns early (no fetch) for a metadata address, so it can't be used as an SSRF probe.
+  for (const url of ["http://169.254.169.254/latest/meta-data/", "http://[fe80::1]/", "http://169.254.0.1"]) {
+    const r = await checkEndpointReachable(url);
+    assert.equal(r.reachable, false, url);
+    assert.match(r.error ?? "", /blocked|metadata|link-local/i);
+  }
+});
+
 test("resolveState clamps an unsupported choice down to off", () => {
   const openai = getCapability("provider:openai")!;
   // openai can't be "user-defined" → treated as off.

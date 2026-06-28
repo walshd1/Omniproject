@@ -1480,6 +1480,7 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 | `getRealSession` | The REAL signed-in session, ignoring any impersonation — used to authorise starting/stopping an impersonation against the genuine actor. |
 | `startImpersonation` | Begin an ephemeral impersonation on the current session (overwrites any prior one). |
 | `stopImpersonation` | Clear any impersonation from the current session. |
+| `safeLocalPath` | Sanitise a post-auth `returnTo` to a SAME-ORIGIN path — prevents open redirects (CWE-601). |
 
 ### `artifacts/api-server/src/routes/branding.ts`
 

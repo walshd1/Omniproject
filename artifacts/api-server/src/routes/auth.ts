@@ -167,9 +167,19 @@ router.get("/auth/me", (req, res) => {
   res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null, role: "viewer" });
 });
 
+/** Sanitise a post-auth `returnTo` to a SAME-ORIGIN path — prevents open redirects (CWE-601).
+ *  Accepts only a path starting with a single "/"; anything absolute, protocol-relative ("//"
+ *  or "/\\"), or carrying control chars falls back to "/". */
+export function safeLocalPath(value: unknown): string {
+  if (typeof value !== "string" || !value.startsWith("/")) return "/";
+  if (value.startsWith("//") || value.startsWith("/\\")) return "/";
+  if (/[\u0000-\u001f\u007f]/.test(value)) return "/"; // CR/LF/control smuggling
+  return value;
+}
+
 // ── GET /api/auth/login ───────────────────────────────────────────────────────
 router.get("/auth/login", async (req, res) => {
-  const returnTo = typeof req.query["returnTo"] === "string" ? req.query["returnTo"] : "/";
+  const returnTo = safeLocalPath(req.query["returnTo"]);
 
   // Demo mode: no IdP configured — establish a local demo session.
   if (!oidcConfig) {
@@ -272,7 +282,7 @@ router.get("/auth/callback", async (req, res) => {
     });
     setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
 
-    res.redirect(returnTo || "/");
+    res.redirect(safeLocalPath(returnTo));
   } catch (err) {
     req.log.error({ err }, "OIDC token exchange failed");
     res.status(502).send("SSO token exchange failed. Please try again.");
@@ -296,7 +306,7 @@ router.post("/auth/step-up", (req, res) => {
   if (!session) { res.status(401).json({ error: "authentication required" }); return; }
   if (oidcConfig) {
     // A real re-auth must go through the IdP — tell the SPA where to send the user.
-    const returnTo = typeof (req.body as { returnTo?: unknown })?.returnTo === "string" ? (req.body as { returnTo: string }).returnTo : "/";
+    const returnTo = safeLocalPath((req.body as { returnTo?: unknown })?.returnTo);
     res.status(409).json({ error: "re-authentication required", code: "step_up_redirect", url: `/api/auth/step-up?returnTo=${encodeURIComponent(returnTo)}` });
     return;
   }
@@ -307,7 +317,7 @@ router.post("/auth/step-up", (req, res) => {
 // GET initiator: demo stamps + returns; OIDC bounces through the IdP (prompt=login),
 // and the callback stamps stepUpAt when it sees the `stepup` flow.
 router.get("/auth/step-up", async (req, res) => {
-  const returnTo = typeof req.query["returnTo"] === "string" ? req.query["returnTo"] : "/";
+  const returnTo = safeLocalPath(req.query["returnTo"]);
   const session = readSession(req);
   if (!session) { res.redirect(`/api/auth/login?returnTo=${encodeURIComponent(returnTo)}`); return; }
 

@@ -69,6 +69,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Security
 
+- **Pentest-audit hardening pass.** A full security audit (auth, crypto, injection, transport,
+  AI control) found the model strong; these verified gaps are now closed:
+  - **Open-redirect fixed (CWE-601).** The post-auth `returnTo` (login / OIDC callback /
+    step-up) is now sanitised to a same-origin path via `safeLocalPath` — absolute,
+    protocol-relative (`//`, `/\`) and control-char (CR/LF) values fall back to `/`, so a
+    crafted `?returnTo=https://evil` can't bounce a user off-site after sign-in.
+  - **SSRF guards applied consistently.** The existing cloud-metadata/link-local egress guard
+    now also covers the premium webhook URL, the capability reachability tester (request-body
+    endpoint), and the OIDC issuer discovery / `token_endpoint` / `jwks_uri` fetches (which
+    are IdP-controlled), blunting metadata-credential theft via a malicious config or IdP.
+  - **MCP honours SCIM deprovisioning.** The MCP endpoint (mounted outside the generic auth
+    middleware to allow read-only API tokens) now repeats the `isDeprovisioned` check for a
+    session principal, so a deactivated user whose session hasn't expired can't act via MCP.
+  - **CSRF cookie `Secure` flag** now follows `requireTls()` (TLS-aware), matching the session
+    cookie, instead of `NODE_ENV` — so it can't diverge under a relaxed deployment profile.
 - **Admin-gated key revocation** — a versioned key registry (session / provenance /
   broker) where each version's signing material is DERIVED from an env master
   (`HMAC(master, "name:vN")`), so an admin can **revoke + rotate** a key with no new
