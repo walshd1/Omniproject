@@ -1,5 +1,6 @@
 import type { ActorContext } from "../broker/types";
 import { isAutonomous, assertMintFresh, assertAutonomousCan, AutonomousForbidden } from "./autonomous";
+import { aiContainmentLevel, type AiContainment } from "./ai-containment";
 import { recordAudit } from "./audit";
 
 /**
@@ -36,6 +37,10 @@ export interface AutonomousWriteGrant {
   notAfter?: number;
   /** Per-process cap on writes under this grant (a runaway/looping guard). */
   maxWrites?: number;
+  /** Explicit opt-in to a BROAD (wildcard/unspecified) scope. Honoured only when AI is
+   *  local — remote/public AI hard-reject broad grants regardless. Forces an admin to
+   *  state intent; the default posture everywhere is many narrow grants, not one broad one. */
+  allowBroad?: boolean;
 }
 
 const GRANTS = new Map<string, AutonomousWriteGrant>();
@@ -73,6 +78,39 @@ export function actorIdOf(ctx: Pick<ActorContext, "sub">): string | null {
 /** Thrown when an autonomous write falls outside its grant (or there is no grant). */
 export class AutonomousWriteDenied extends Error {
   constructor(message: string) { super(message); this.name = "AutonomousWriteDenied"; }
+}
+
+/** A scope is BROAD when it is a wildcard or simply unspecified (⇒ unrestricted). */
+function isBroadScope(list?: string[]): boolean {
+  return !list || list.length === 0 || list.includes("*");
+}
+
+/**
+ * Containment check, scaled to AI exposure. The more exposed the AI, the tighter the
+ * grant must be:
+ *  - public / remote: NO broad scopes anywhere (projects, surfaces AND fields must be
+ *    explicitly enumerated), and a time bound (notAfter) + write cap (maxWrites) are
+ *    MANDATORY. Maximum constraint — many narrow grants, never one broad one.
+ *  - local: a broad scope is allowed ONLY with an explicit `allowBroad` opt-in (granular
+ *    is still the default even on local).
+ *  - off: AI can't drive an actor, so no extra constraint.
+ * Pure + testable; throws AutonomousWriteDenied on a too-broad grant for the level.
+ */
+export function assertGrantContainment(grant: AutonomousWriteGrant, level: AiContainment): void {
+  if (level === "public" || level === "remote") {
+    const broad: string[] = [];
+    if (isBroadScope(grant.projects)) broad.push("projects");
+    if (isBroadScope(grant.surfaces)) broad.push("surfaces");
+    if (isBroadScope(grant.fields)) broad.push("fields");
+    if (broad.length) throw new AutonomousWriteDenied(`AI is ${level}: ${broad.join("/")} must be explicitly enumerated (no wildcard)`);
+    if (typeof grant.notAfter !== "number") throw new AutonomousWriteDenied(`AI is ${level}: a time bound (notAfter) is mandatory`);
+    if (typeof grant.maxWrites !== "number") throw new AutonomousWriteDenied(`AI is ${level}: a write cap (maxWrites) is mandatory`);
+    return;
+  }
+  if (level === "local") {
+    const broad = isBroadScope(grant.projects) || isBroadScope(grant.surfaces) || isBroadScope(grant.fields);
+    if (broad && !grant.allowBroad) throw new AutonomousWriteDenied("broad scope requires an explicit allowBroad opt-in (granular preferred even on local)");
+  }
 }
 
 export interface WriteRequest {
@@ -124,6 +162,11 @@ export function authorizeAutonomousWrite(ctx: ActorContext, req: WriteRequest): 
   const id = actorIdOf(ctx);
   const grant = id ? getAutonomousGrant(id) : undefined;
   if (!id || !grant) deny(ctx, req, "no write grant for this actor");
+
+  // 3b) Containment scales with AI exposure: a remote/public AI hard-rejects any broad
+  //     grant and demands a time bound + write cap; local needs an explicit broad opt-in.
+  try { assertGrantContainment(grant!, aiContainmentLevel(req.surface ?? undefined)); }
+  catch (e) { deny(ctx, req, e instanceof AutonomousWriteDenied ? e.message : "grant too broad for AI exposure"); }
 
   // 4) WHAT — action must be explicitly allowed.
   if (!grant!.actions.includes(req.action)) deny(ctx, req, `action "${req.action}" not in grant`);

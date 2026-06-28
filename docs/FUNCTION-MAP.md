@@ -277,6 +277,16 @@ Canonical value vocabularies — the cross-backend meanings the gateway reasons 
 
 Load this deployment's config directory (OMNI_CONFIG_DIR) BEFORE serving, so the vendor overlay + settings from the operator's folder of JSON are in place when the first request lands.
 
+### `artifacts/api-server/src/lib/ai-containment.ts`
+
+AI exposure → containment level.
+
+| Function | What it does |
+| --- | --- |
+| `isLocalHost` | Is a host on the local machine or a private network (RFC1918 / loopback / .local)? |
+| `classifyEndpointLocality` | Classify a user-defined endpoint as local or remote (no endpoint ⇒ remote, i.e. stricter). |
+| `aiContainmentLevel` | The containment level implied by the currently-configured AI provider + its governance state. |
+
 ### `artifacts/api-server/src/lib/ai.ts`
 
 AI provider client.
@@ -317,6 +327,7 @@ Autonomous WRITE authorisation — the hard limit that stops an autonomous sessi
 | `setAutonomousGrants` | Replace the whole grant set (admin applies the config JSON). |
 | `__resetAutonomousGrants` | Test-only: clear grants + counters. |
 | `actorIdOf` | The registry id behind an autonomous principal's sub (automation:<id> / agent:<id>:<who>). |
+| `assertGrantContainment` | Containment check, scaled to AI exposure. |
 | `authorizeAutonomousWrite` | Authorise an autonomous write, or throw. |
 
 ### `artifacts/api-server/src/lib/autonomous.ts`
