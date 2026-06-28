@@ -1,4 +1,9 @@
-import app from "./app";
+/**
+ * Server entrypoint. Resolves KMS-wrapped root keys + durable state (bootstrap), loads the
+ * deployment config directory, starts the broker-log bus, then listens — and wires graceful
+ * shutdown. The Express app itself is built in ./app; this file only orchestrates boot order.
+ */
+import app, { bootstrap } from "./app";
 import { logger } from "./lib/logger";
 import { brokerKind } from "./broker";
 import { isOidcConfigured } from "./lib/oidc";
@@ -7,16 +12,6 @@ import { installShutdownHandlers } from "./lib/shutdown";
 import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
 import { loadConfigDir } from "./lib/config-dir";
 import { readCacheEnabled, readCacheTtlMs } from "./broker/cache";
-
-// Load this deployment's config directory (OMNI_CONFIG_DIR) BEFORE serving, so the
-// vendor overlay + settings from the operator's folder of JSON are in place when
-// the first request lands. No-op when the env var is unset.
-loadConfigDir();
-
-// Start the broker-log fan-out at boot so this replica begins RECEIVING the
-// fleet's live entries immediately (not just emitting its own). In-process unless
-// REDIS_URL is set — see lib/broker-log-bus.ts.
-initBrokerLogBus();
 
 const rawPort = process.env["PORT"];
 
@@ -41,23 +36,43 @@ if (readCacheEnabled()) {
   );
 }
 
-const server = app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+// Async boot: resolve KMS-wrapped root keys + durable state FIRST (so the at-rest crypto is
+// ready), THEN read the config directory and the broker-log bus, THEN serve. A KMS/unwrap
+// failure is logged (not fatal) inside bootstrap(); a hard config-read failure surfaces here.
+async function start(): Promise<void> {
+  await bootstrap();
 
-  logger.info(
-    {
-      port,
-      dataMode: brokerKind() === "demo" ? "demo (sample data)" : brokerKind(),
-      auth: isOidcConfigured ? "oidc" : "demo",
-      aiProvider: getSettings().aiProvider,
-      brokerLogBus: brokerLogBusMode(),
-    },
-    "Server listening",
-  );
+  // Load this deployment's config directory (OMNI_CONFIG_DIR) BEFORE serving, so the vendor
+  // overlay + settings from the operator's folder of JSON are in place when the first request
+  // lands. Runs after bootstrap() so a KMS-wrapped config key is already unwrapped.
+  loadConfigDir();
+
+  // Start the broker-log fan-out so this replica begins RECEIVING the fleet's live entries
+  // immediately. In-process unless REDIS_URL is set — see lib/broker-log-bus.ts.
+  initBrokerLogBus();
+
+  const server = app.listen(port, (err) => {
+    if (err) {
+      logger.error({ err }, "Error listening on port");
+      process.exit(1);
+    }
+    logger.info(
+      {
+        port,
+        dataMode: brokerKind() === "demo" ? "demo (sample data)" : brokerKind(),
+        auth: isOidcConfigured ? "oidc" : "demo",
+        aiProvider: getSettings().aiProvider,
+        brokerLogBus: brokerLogBusMode(),
+      },
+      "Server listening",
+    );
+  });
+
+  // Clean up on SIGTERM/SIGINT: drain SSE streams, finish in-flight requests, exit.
+  installShutdownHandlers(server, logger);
+}
+
+start().catch((err) => {
+  logger.error({ err }, "Fatal error during boot");
+  process.exit(1);
 });
-
-// Clean up on SIGTERM/SIGINT: drain SSE streams, finish in-flight requests, exit.
-installShutdownHandlers(server, logger);

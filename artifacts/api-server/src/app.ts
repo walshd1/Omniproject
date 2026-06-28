@@ -67,21 +67,27 @@ function resolveSessionSecret(): string {
 // SESSION_SECRET fail-fast above.
 runSecuritySelfCheck(process.env, logger);
 
-// Restore durable security state (key revocations, grants, containment, approved
-// actions, kill switch) from disk so a revocation survives a restart. No-op unless
-// SECURITY_STATE_FILE is set.
-loadSecurityState();
-
-// Unwrap the KMS-wrapped vault root key (BYOK), then hydrate the AI key vault from its
-// (possibly external) store so synchronous reads are served from cache. KMS must resolve
-// BEFORE hydrate so the local store opens its file under the right key. Fire-and-forget at
-// boot; reads tolerate an empty cache until hydration completes.
-void (async () => { await initKms(); await hydrateVault(); })();
-
 // Hard interlock: refuse to boot if DEV MODE is active in a production-like
 // environment (real SSO / licence / public host). Dev mode can impersonate users
 // and toggle paid features, so it must never run where it could be reached.
 runDevModeGuard(process.env, logger);
+
+/**
+ * Async boot side-effects that must run BEFORE the server serves AND before any sealed
+ * config/state is read. Order matters:
+ *   1. initKms() — unwrap KMS-wrapped root keys (config + vault) so the at-rest crypto opens
+ *      under the right material;
+ *   2. loadSecurityState() — restore revocations/grants/etc. (reads the SEALED state file);
+ *   3. hydrateVault() — fill the AI key vault cache from its (possibly external) store.
+ * The caller (index.ts) awaits this before loadConfigDir() + listen(). No-op-friendly: with
+ * no KMS / no state file / local vault, each step is cheap or lazy, so tests that import the
+ * app without calling bootstrap() still work.
+ */
+export async function bootstrap(): Promise<void> {
+  await initKms();
+  loadSecurityState();
+  await hydrateVault();
+}
 
 app.use(
   pinoHttp({

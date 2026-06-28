@@ -1,17 +1,19 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { unwrapDataKey, initKms, kmsVaultKey, kmsEnabled, kmsProvider, __resetKms } from "./kms";
+import { unwrapDataKey, initKms, kmsVaultKey, kmsConfigKey, kmsEnabled, kmsProvider, __resetKms } from "./kms";
+import { sealConfig, openConfig, __resetConfigCrypto } from "./config-crypto";
 
 /**
  * KMS / BYOK unwrap for the vault root key. External providers are exercised against a mocked
  * fetch; "local" is a dev passthrough.
  */
 const realFetch = globalThis.fetch;
-const KEYS = ["KMS_PROVIDER", "VAULT_KEY_ENC", "AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "VAULT_KMS_KEY_URL", "AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"];
+const KEYS = ["KMS_PROVIDER", "VAULT_KEY_ENC", "CONFIG_KEY_ENC", "AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "VAULT_KMS_KEY_URL", "AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"];
 afterEach(() => {
   globalThis.fetch = realFetch;
   for (const k of KEYS) delete process.env[k];
   __resetKms();
+  __resetConfigCrypto();
 });
 
 const KEY32 = Buffer.alloc(32, 7); // a deterministic 32-byte "key"
@@ -33,6 +35,20 @@ test("initKms unwraps VAULT_KEY_ENC and caches it for the vault", async () => {
   assert.equal(kmsEnabled(), true);
   await initKms();
   assert.deepEqual(kmsVaultKey(), KEY32);
+});
+
+test("initKms unwraps CONFIG_KEY_ENC and config-crypto seals/opens under it", async () => {
+  process.env["KMS_PROVIDER"] = "local";
+  process.env["CONFIG_KEY_ENC"] = KEY32.toString("base64");
+  await initKms();
+  assert.deepEqual(kmsConfigKey(), KEY32);
+  // A config token sealed now is readable now (round-trip under the KMS-provided key).
+  const token = sealConfig("hello-config");
+  assert.equal(openConfig(token), "hello-config");
+  // After dropping the KMS key, the token no longer opens (it was sealed under a different key).
+  __resetKms();
+  __resetConfigCrypto();
+  assert.equal(openConfig(token), null);
 });
 
 test("a non-32-byte unwrapped key is rejected (falls back, no cache)", async () => {

@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { kmsConfigKey } from "./kms";
 
 /**
  * Config-at-rest encryption + secure export.
@@ -31,8 +32,12 @@ function master(): string {
   );
 }
 
-/** The raw override key, or null. Used directly for the internal format when present. */
+/** The raw override key, or null. Used directly for the internal format when present. A
+ *  KMS-unwrapped config key (BYOK envelope, resolved at boot) takes precedence over
+ *  CONFIG_KEY_RAW — so the plaintext key never sat in the environment. */
 function rawKey(): Buffer | null {
+  const kms = kmsConfigKey();
+  if (kms) return kms;
   const raw = process.env["CONFIG_KEY_RAW"]?.trim();
   if (!raw) return null;
   const buf = Buffer.from(raw, "base64");

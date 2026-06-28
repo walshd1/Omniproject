@@ -2,24 +2,28 @@ import { awsSignedHeaders, awsCredsFromEnv } from "./aws-sigv4";
 import { logger } from "./logger";
 
 /**
- * KMS / BYOK envelope unwrap for the vault ROOT key. Instead of the plaintext vault key
- * sitting in the environment, the deployment supplies a KMS-WRAPPED blob (VAULT_KEY_ENC) and
- * a cloud KMS unwraps it at boot — so the key-encryption-key never leaves the HSM/KMS.
+ * KMS / BYOK envelope unwrap for the gateway's ROOT keys. Instead of a plaintext key sitting
+ * in the environment, the deployment supplies a KMS-WRAPPED blob and a cloud KMS unwraps it at
+ * boot — so the key-encryption-key never leaves the HSM/KMS. Two roots can be wrapped:
+ *   - VAULT_KEY_ENC   → the AI secrets-vault root key.
+ *   - CONFIG_KEY_ENC  → the config-AT-REST key (the one that seals config.json, the security
+ *                       state, snapshots, the vault file's outer layer, etc.).
  *
  * Pluggable, like the vault storage itself (KMS_PROVIDER):
- *   - "none" (default): no KMS; the vault uses VAULT_KEY / a derived key as before.
- *   - "aws"  : AWS KMS Decrypt (SigV4). VAULT_KEY_ENC = base64 CiphertextBlob.
+ *   - "none" (default): no KMS; keys come from VAULT_KEY / CONFIG_KEY_RAW / derived as before.
+ *   - "aws"  : AWS KMS Decrypt (SigV4). *_ENC = base64 CiphertextBlob.
  *   - "azure": Azure Key Vault key Decrypt (RSA-OAEP-256). VAULT_KMS_KEY_URL + AAD creds.
- *   - "local": dev/test passthrough — VAULT_KEY_ENC is just base64 of the 32-byte key (NO
- *             real wrapping). Lets the envelope path be exercised without a cloud KMS.
+ *   - "local": dev/test passthrough — *_ENC is just base64 of the 32-byte key (NO real
+ *             wrapping). Lets the envelope path be exercised without a cloud KMS.
  *
- * Unwrap is async (network), so it runs once at boot (initKms) and the result is cached for
- * the synchronous vault root-key read. HONEST SCOPE: protects the key at rest in env/config;
- * not against someone holding the running process or the KMS credentials.
+ * Unwrap is async (network), so it runs ONCE at boot (initKms, before any sealed file is read)
+ * and the results are cached for the synchronous key reads. HONEST SCOPE: protects the key at
+ * rest in env/config; not against someone holding the running process or the KMS credentials.
  */
 type KmsProvider = "none" | "aws" | "azure" | "local";
 
 let vaultKeyCache: Buffer | null = null;
+let configKeyCache: Buffer | null = null;
 let initialised = false;
 
 /** The configured KMS provider (KMS_PROVIDER), defaulting to none. */
@@ -28,9 +32,9 @@ export function kmsProvider(): KmsProvider {
   return p === "aws" || p === "azure" || p === "local" ? p : "none";
 }
 
-/** Is a KMS-wrapped vault key configured? */
+/** Is any KMS-wrapped root key configured? */
 export function kmsEnabled(): boolean {
-  return kmsProvider() !== "none" && !!process.env["VAULT_KEY_ENC"]?.trim();
+  return kmsProvider() !== "none" && (!!process.env["VAULT_KEY_ENC"]?.trim() || !!process.env["CONFIG_KEY_ENC"]?.trim());
 }
 
 // ── aws: KMS Decrypt ────────────────────────────────────────────────────────────
@@ -84,19 +88,33 @@ export async function unwrapDataKey(ciphertextB64: string): Promise<Buffer> {
   }
 }
 
-/** Resolve KMS-wrapped keys at boot (currently the vault root). Safe to call once; idempotent. */
+async function unwrapInto(envName: string, label: string): Promise<Buffer | null> {
+  const blob = process.env[envName]?.trim();
+  if (!blob) return null;
+  const key = await unwrapDataKey(blob);
+  if (key.length !== 32) throw new Error(`unwrapped ${label} key must be 32 bytes, got ${key.length}`);
+  return key;
+}
+
+/**
+ * Resolve KMS-wrapped root keys at boot, BEFORE any sealed file is read. Idempotent; failures
+ * are logged loudly (not fatal) so the gateway falls back to env/derived keys. The CONFIG key
+ * is unwrapped first so the config store opens correctly, then the vault key.
+ */
 export async function initKms(): Promise<void> {
   if (initialised) return;
   initialised = true;
   if (!kmsEnabled()) return;
   try {
-    const key = await unwrapDataKey(process.env["VAULT_KEY_ENC"]!.trim());
-    if (key.length !== 32) throw new Error(`unwrapped vault key must be 32 bytes, got ${key.length}`);
-    vaultKeyCache = key;
-    logger.info({ provider: kmsProvider() }, "kms: vault root key unwrapped");
+    const cfg = await unwrapInto("CONFIG_KEY_ENC", "config");
+    if (cfg) { configKeyCache = cfg; logger.info({ provider: kmsProvider() }, "kms: config-at-rest key unwrapped"); }
   } catch (err) {
-    // Fail LOUD but don't crash: the vault falls back to VAULT_KEY/derived. An operator who
-    // set KMS expects it to work, so this is a warning they must see.
+    logger.warn({ err, provider: kmsProvider() }, "kms: failed to unwrap config key — falling back");
+  }
+  try {
+    const vault = await unwrapInto("VAULT_KEY_ENC", "vault");
+    if (vault) { vaultKeyCache = vault; logger.info({ provider: kmsProvider() }, "kms: vault root key unwrapped"); }
+  } catch (err) {
     logger.warn({ err, provider: kmsProvider() }, "kms: failed to unwrap vault key — falling back");
   }
 }
@@ -106,8 +124,14 @@ export function kmsVaultKey(): Buffer | null {
   return vaultKeyCache;
 }
 
-/** Test-only: reset the cache + init flag. */
+/** The KMS-unwrapped config-at-rest key, or null. */
+export function kmsConfigKey(): Buffer | null {
+  return configKeyCache;
+}
+
+/** Test-only: reset the caches + init flag. */
 export function __resetKms(): void {
   vaultKeyCache = null;
+  configKeyCache = null;
   initialised = false;
 }
