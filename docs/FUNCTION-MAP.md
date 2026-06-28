@@ -359,6 +359,7 @@ Autonomous WRITE authorisation — the hard limit that stops an autonomous sessi
 | `__resetAutonomousGrants` | Test-only: clear grants + counters. |
 | `actorIdOf` | The registry id behind an autonomous principal's sub (automation:<id> / agent:<id>:<who>). |
 | `assertGrantContainment` | Containment check, scaled to AI exposure. |
+| `previewAutonomousWrite` | DRY-RUN: would this autonomous write be permitted, and why or why not? No side effects (no audit entry, no rate consumed) — for previewing what an actor COULD do before it acts. |
 | `authorizeAutonomousWrite` | Authorise an autonomous write, or throw. |
 
 ### `artifacts/api-server/src/lib/autonomous.ts`

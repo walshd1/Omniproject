@@ -1,7 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
-  authorizeAutonomousWrite, registerAutonomousGrant, setAutonomousGrants, actorIdOf,
+  authorizeAutonomousWrite, previewAutonomousWrite, registerAutonomousGrant, setAutonomousGrants, actorIdOf,
   __resetAutonomousGrants, AutonomousWriteDenied,
 } from "./autonomous-grant";
 import { mintAutonomousContext } from "./autonomous";
@@ -85,6 +85,25 @@ test("DEFAULT FULL containment: a broad grant is denied even when the AI source 
   registerAutonomousGrant({ actorId: "health-watch", actions: ["update_issue"], projects: ["*"] });
   // AI source is off in tests, but the default relax floor is "public" ⇒ full containment.
   assert.throws(() => authorizeAutonomousWrite(actor(), { action: "update_issue", now: NOW }), AutonomousWriteDenied);
+});
+
+test("DRY-RUN preview reports allow/deny with a reason and NO side effects", () => {
+  registerAutonomousGrant({ actorId: "health-watch", actions: ["update_issue"], projects: ["*"], maxWrites: 1 });
+  const a = actor();
+  // Allowed: a clean preview, with no rate consumed.
+  assert.deepEqual(previewAutonomousWrite(a, { action: "update_issue", now: NOW }), { allowed: true });
+  assert.deepEqual(previewAutonomousWrite(a, { action: "update_issue", now: NOW }), { allowed: true }); // still allowed — preview didn't consume the cap
+  // Denied with a reason.
+  const denied = previewAutonomousWrite(a, { action: "delete_issue", now: NOW });
+  assert.equal(denied.allowed, false);
+  assert.match(denied.reason ?? "", /not in grant/);
+  // A real authorize DOES consume the single cap; the next preview then reports the cap.
+  authorizeAutonomousWrite(a, { action: "update_issue", now: NOW });
+  assert.match(previewAutonomousWrite(a, { action: "update_issue", now: NOW }).reason ?? "", /write cap reached/);
+});
+
+test("a human context previews as allowed (not this gate's concern)", () => {
+  assert.deepEqual(previewAutonomousWrite({ sub: "u1", role: "contributor", actorKind: "human" }, { action: "update_issue", now: NOW }), { allowed: true });
 });
 
 test("setAutonomousGrants replaces the whole set", () => {

@@ -141,70 +141,66 @@ function logDecision(ctx: ActorContext, req: WriteRequest, outcome: "allowed" | 
   });
 }
 
-function deny(ctx: ActorContext, req: WriteRequest, reason: string): never {
-  // Log the denial first (fail-closed: a logging failure also denies, by throwing here).
-  logDecision(ctx, req, "denied", reason);
-  throw new AutonomousWriteDenied(`autonomous write denied (${reason})`);
+/**
+ * The pure decision: would this autonomous write be allowed? Returns the first failing
+ * reason, or null when allowed. NO side effects — no logging, no rate-counter increment —
+ * so it backs both the throwing authorize path AND a dry-run preview.
+ * Order: kill switch → fresh keyed session → RBAC → grant exists → containment → scope →
+ * time → rate cap.
+ */
+function checkWrite(ctx: ActorContext, req: WriteRequest): string | null {
+  if (aiKillEngaged()) return "AI kill switch engaged";
+  try { assertMintFresh(ctx, req.now); } catch { return "stale or unverified autonomous session"; }
+  try { assertAutonomousCan(ctx, "contributor"); }
+  catch (e) { if (e instanceof AutonomousForbidden) return "actor role below contributor"; throw e; }
+
+  const id = actorIdOf(ctx);
+  const grant = id ? getAutonomousGrant(id) : undefined;
+  if (!id || !grant) return "no write grant for this actor";
+
+  try { assertGrantContainment(grant, aiContainmentLevel(req.surface ?? undefined)); }
+  catch (e) { return e instanceof AutonomousWriteDenied ? e.message : "grant too broad for AI exposure"; }
+
+  if (!grant.actions.includes(req.action)) return `action "${req.action}" not in grant`;
+  if (typeof grant.notAfter === "number" && req.now > grant.notAfter) return "grant has expired";
+  if (req.projectId && grant.projects && !grant.projects.includes("*") && !grant.projects.includes(req.projectId)) return `project "${req.projectId}" out of scope`;
+  if (req.surface && grant.surfaces && !grant.surfaces.includes("*") && !grant.surfaces.includes(req.surface)) return `surface "${req.surface}" out of scope`;
+  if (req.fields?.length && grant.fields && !grant.fields.includes("*")) {
+    const bad = req.fields.find((f) => !grant.fields!.includes(f));
+    if (bad) return `field "${bad}" not writable under grant`;
+  }
+  if (typeof grant.maxWrites === "number" && (writeCounts.get(id) ?? 0) >= grant.maxWrites) return "write cap reached";
+  return null;
 }
 
 /**
- * Authorise an autonomous write, or throw. Order: fresh keyed session → RBAC role →
- * grant exists → action/where/field/time scope → rate cap → mandatory allow-log.
- * Non-autonomous contexts are not this gate's concern (returns immediately).
+ * DRY-RUN: would this autonomous write be permitted, and why or why not? No side effects
+ * (no audit entry, no rate consumed) — for previewing what an actor COULD do before it
+ * acts. Non-autonomous contexts are always "allowed" (not this gate's concern).
+ */
+export function previewAutonomousWrite(ctx: ActorContext, req: WriteRequest): { allowed: boolean; reason?: string } {
+  if (!isAutonomous(ctx)) return { allowed: true };
+  const reason = checkWrite(ctx, req);
+  return reason ? { allowed: false, reason } : { allowed: true };
+}
+
+/**
+ * Authorise an autonomous write, or throw. Runs the same checks as the preview, then —
+ * on pass — consumes a rate slot and writes the mandatory allow-log; on fail, logs the
+ * denial (fail-closed) and throws. Non-autonomous contexts pass through.
  */
 export function authorizeAutonomousWrite(ctx: ActorContext, req: WriteRequest): void {
   if (!isAutonomous(ctx)) return; // humans use the normal RBAC route, not this gate
 
-  // 0) Break-glass: the global kill switch suspends ALL autonomous writes (grants are
-  //    left intact, so releasing it restores the prior posture).
-  if (aiKillEngaged()) deny(ctx, req, "AI kill switch engaged");
-
-  // 1) The session must be a fresh, non-expired keyed mint — a stale/replayed autonomous
-  //    session can never be used to write (closes the "old token = backdoor" hole).
-  try { assertMintFresh(ctx, req.now); }
-  catch { deny(ctx, req, "stale or unverified autonomous session"); }
-
-  // 2) RBAC: a write needs at least contributor, capped to the actor's granted role.
-  try { assertAutonomousCan(ctx, "contributor"); }
-  catch (e) { if (e instanceof AutonomousForbidden) deny(ctx, req, "actor role below contributor"); throw e; }
-
-  // 3) Default deny: an actor with no grant cannot write at all.
-  const id = actorIdOf(ctx);
-  const grant = id ? getAutonomousGrant(id) : undefined;
-  if (!id || !grant) deny(ctx, req, "no write grant for this actor");
-
-  // 3b) Containment scales with AI exposure: a remote/public AI hard-rejects any broad
-  //     grant and demands a time bound + write cap; local needs an explicit broad opt-in.
-  try { assertGrantContainment(grant!, aiContainmentLevel(req.surface ?? undefined)); }
-  catch (e) { deny(ctx, req, e instanceof AutonomousWriteDenied ? e.message : "grant too broad for AI exposure"); }
-
-  // 4) WHAT — action must be explicitly allowed.
-  if (!grant!.actions.includes(req.action)) deny(ctx, req, `action "${req.action}" not in grant`);
-
-  // 5) HOW LONG — grant validity window (on top of the short session TTL).
-  if (typeof grant!.notAfter === "number" && req.now > grant!.notAfter) deny(ctx, req, "grant has expired");
-
-  // 6) WHERE — project + surface scope.
-  if (req.projectId && grant!.projects && !grant!.projects.includes("*") && !grant!.projects.includes(req.projectId)) {
-    deny(ctx, req, `project "${req.projectId}" out of scope`);
-  }
-  if (req.surface && grant!.surfaces && !grant!.surfaces.includes("*") && !grant!.surfaces.includes(req.surface)) {
-    deny(ctx, req, `surface "${req.surface}" out of scope`);
+  const reason = checkWrite(ctx, req);
+  if (reason) {
+    logDecision(ctx, req, "denied", reason); // fail-closed: a logging throw also denies
+    throw new AutonomousWriteDenied(`autonomous write denied (${reason})`);
   }
 
-  // 7) WHAT (fine) — field scope.
-  if (req.fields?.length && grant!.fields && !grant!.fields.includes("*")) {
-    const bad = req.fields.find((f) => !grant!.fields!.includes(f));
-    if (bad) deny(ctx, req, `field "${bad}" not writable under grant`);
-  }
-
-  // 8) Rate cap — a runaway/looping autonomous actor can't flood writes.
-  if (typeof grant!.maxWrites === "number") {
-    const used = writeCounts.get(id!) ?? 0;
-    if (used >= grant!.maxWrites) deny(ctx, req, "write cap reached");
-    writeCounts.set(id!, used + 1);
-  }
-
-  // 9) Mandatory allow-log (fail-closed: a logging throw propagates and the write aborts).
+  // Passed every check → consume the rate slot, then the mandatory allow-log.
+  const id = actorIdOf(ctx)!;
+  const grant = getAutonomousGrant(id)!;
+  if (typeof grant.maxWrites === "number") writeCounts.set(id, (writeCounts.get(id) ?? 0) + 1);
   logDecision(ctx, req, "allowed");
 }
