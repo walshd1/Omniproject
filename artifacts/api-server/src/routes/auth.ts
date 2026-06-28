@@ -23,6 +23,7 @@ import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
 import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
 import { currentVersion, isActive, userSessionsRevokedAt } from "../lib/key-registry";
+import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
 
 const router = Router();
 
@@ -100,8 +101,11 @@ export function slideSession(req: Request, res: Response, next: NextFunction): v
     const session = readSession(req); // null when expired or unreadable
     if (!session) {
       res.clearCookie(SESSION_COOKIE, cookieBase);
-    } else if (!session.iat || !session.seen || Date.now() - session.seen > SLIDE_THROTTLE_MS) {
-      setSession(res, session);
+      res.clearCookie("omni_csrf", { ...cookieBase, httpOnly: false, signed: false });
+    } else {
+      if (!session.iat || !session.seen || Date.now() - session.seen > SLIDE_THROTTLE_MS) setSession(res, session);
+      // Make sure an active session always has a CSRF token to echo (upgrade path).
+      ensureCsrfCookie(req, res);
     }
   }
   next();
@@ -161,6 +165,7 @@ router.get("/auth/login", async (req, res) => {
   // Demo mode: no IdP configured — establish a local demo session.
   if (!oidcConfig) {
     setSession(res, { sub: "demo-user", name: "Demo User", email: "demo@omniproject.local", accessToken: "demo-token" });
+    setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
     res.redirect(returnTo);
     return;
   }
@@ -253,6 +258,7 @@ router.get("/auth/callback", async (req, res) => {
       accessToken: tokens.access_token,
       idToken: tokens.id_token,
     });
+    setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
 
     res.redirect(returnTo || "/");
   } catch (err) {
@@ -264,6 +270,7 @@ router.get("/auth/callback", async (req, res) => {
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────
 router.post("/auth/logout", (req, res) => {
   res.clearCookie(SESSION_COOKIE, cookieBase);
+  res.clearCookie("omni_csrf", { ...cookieBase, httpOnly: false, signed: false });
   res.json({ ok: true });
 });
 
