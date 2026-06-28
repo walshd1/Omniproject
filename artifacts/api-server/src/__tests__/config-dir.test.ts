@@ -5,6 +5,9 @@ import os from "node:os";
 import path from "node:path";
 import { loadConfigDir } from "../lib/config-dir";
 import { buildConfigBundle } from "../lib/config-bundle";
+import { sealConfig } from "../lib/config-crypto";
+import { buildSnapshot } from "../lib/config-snapshot";
+import { getSettings } from "../lib/settings";
 import { getFieldRules } from "../lib/ruleset";
 import { getBackend, backendCatalogue, clearVendorOverlay } from "@workspace/backend-catalogue";
 
@@ -87,6 +90,26 @@ test("rulesets/field-rules.json is applied from the config dir", () => {
   assert.equal(summary.rulesetsApplied, true);
   assert.ok(getFieldRules().some((r) => r.id === "r1" && r.field === "estimateHours"));
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("a SEALED config.json is decrypted at boot (encrypted snapshots at rest)", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "omni-config-sealed-"));
+  // Write the snapshot SEALED (as the bundle does) — opaque on disk.
+  const sealed = sealConfig(JSON.stringify(buildSnapshot(getSettings())));
+  assert.ok(sealed.startsWith("c1.")); // not plaintext on disk
+  fs.writeFileSync(path.join(root, "config.json"), sealed);
+  const summary = loadConfigDir(root);
+  assert.equal(summary.configApplied, true); // decrypted + applied
+  assert.equal(summary.errors.length, 0);
+});
+
+test("a config.json sealed under a DIFFERENT key surfaces a clear decrypt error", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "omni-config-badkey-"));
+  // c1. token whose body is garbage ⇒ can't decrypt with this deployment's key.
+  fs.writeFileSync(path.join(root, "config.json"), "c1.1.bm90LWEtcmVhbC1ib2R5");
+  const summary = loadConfigDir(root);
+  assert.equal(summary.configApplied, false);
+  assert.match(summary.errors.join(" "), /could not decrypt/);
 });
 
 test("the config bundle is a non-empty zip carrying config.json + rulesets (read ≡ dump)", () => {

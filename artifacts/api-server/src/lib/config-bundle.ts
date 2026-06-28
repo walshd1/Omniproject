@@ -1,5 +1,6 @@
 import { vendorOverlayEntries } from "@workspace/backend-catalogue";
 import { buildSnapshot } from "./config-snapshot";
+import { sealConfig } from "./config-crypto";
 import { getSettings } from "./settings";
 import { getFieldRules, getRuleModes } from "./ruleset";
 import { buildZip, type ZipEntry } from "./zip";
@@ -17,22 +18,35 @@ import { buildZip, type ZipEntry } from "./zip";
  * Contains only CONFIG — never customer project/issue data (that is brokered live).
  */
 
-/** Build the config bundle as a ZIP buffer mirroring the OMNI_CONFIG_DIR layout. */
+/**
+ * Build the config bundle as a ZIP buffer mirroring the OMNI_CONFIG_DIR layout.
+ *
+ * The SENSITIVE snapshot files (config.json — settings, capability states, endpoints —
+ * and the governance rulesets) are SEALED at rest under the deployment's internal key, so
+ * a copy of the mounted folder is opaque off-box. The loader (config-dir) decrypts them
+ * transparently on the SAME deployment. Vendor overlay files are catalogue definitions
+ * (not secrets) and stay plaintext. To move config to a DIFFERENT deployment use the
+ * ephemeral export bundle (POST /api/security/config/export) instead.
+ */
 export function buildConfigBundle(): Buffer {
   const entries: ZipEntry[] = [];
   const addJson = (name: string, obj: unknown): void => {
     entries.push({ name, data: Buffer.from(JSON.stringify(obj, null, 2) + "\n") });
   };
+  // Sealed at rest (sensitive config); decrypted transparently by the loader.
+  const addSealed = (name: string, obj: unknown): void => {
+    entries.push({ name, data: Buffer.from(sealConfig(JSON.stringify(obj, null, 2)) + "\n") });
+  };
 
-  addJson("config.json", buildSnapshot(getSettings()));
+  addSealed("config.json", buildSnapshot(getSettings()));
 
   const overlay = vendorOverlayEntries();
   for (const [plane, defs] of Object.entries(overlay)) {
     for (const def of defs) addJson(`vendors/${plane}/${def.id}.json`, def);
   }
 
-  addJson("rulesets/field-rules.json", getFieldRules());
-  addJson("rulesets/rule-modes.json", getRuleModes());
+  addSealed("rulesets/field-rules.json", getFieldRules());
+  addSealed("rulesets/rule-modes.json", getRuleModes());
 
   return buildZip(entries);
 }
