@@ -10,7 +10,7 @@ import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, screenIdForRoute } from "../lib/tools";
 import { planAction } from "../lib/nl-action";
 import { MCP_TOOLS } from "../lib/mcp";
-import { isActionApproved } from "../lib/approved-actions";
+import { isActionApproved, listApprovedVocab } from "../lib/approved-actions";
 import { answerCopilot } from "../lib/copilot";
 import { getBroker, contextFromReq } from "../broker";
 import { hasRole } from "../lib/rbac";
@@ -132,6 +132,7 @@ router.post("/ai/copilot", async (req, res) => {
       question,
       broker: getBroker(),
       ctx: contextFromReq(req),
+      vocab: listApprovedVocab(), // ask the model to use the customer's approved terminology
       complete: async (messages) => (await aiChat(messages)).content,
     });
     res.json(result);

@@ -52,6 +52,13 @@ test("an injection attempt in a project name is neutralised (stays data, no acti
   assert.equal(result.projects, 1);
 });
 
+test("approved vocabulary is surfaced to the model when provided", () => {
+  const msgs = copilotMessages("status?", scopeContext([row({})]), ["Sprint", "Epic"]);
+  const system = msgs.find((m) => m.role === "system")!.content;
+  assert.match(system, /approved terminology/i);
+  assert.match(system, /Sprint, Epic/);
+});
+
 test("an empty question short-circuits without calling the model", async () => {
   let called = false;
   const broker = { portfolioHealth: async () => { called = true; return []; } } as unknown as Broker;
