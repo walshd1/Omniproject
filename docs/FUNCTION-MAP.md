@@ -648,6 +648,17 @@ Field registry (gateway view) — the reconcile / validate behaviour over the ca
 
 Indicative, GBP-based FX table used as a sample/fallback only — NOT live market data (note the epoch `asOf` and `provenance: "sample"`).
 
+### `artifacts/api-server/src/lib/health-watch.ts`
+
+Health / anomaly watch.
+
+| Function | What it does |
+| --- | --- |
+| `evaluateHealth` | Evaluate every rule against every portfolio row → findings (pure; `at` injected). |
+| `recentFindings` | The most recent findings (newest last). |
+| `__resetHealthWatch` | Test-only: clear the findings ring. |
+| `runHealthWatch` | Run the watch: mint the keyed actor, read the portfolio THROUGH the broker as that actor, evaluate the rules, notify per finding, and record the run. |
+
 ### `artifacts/api-server/src/lib/impersonation.ts`
 
 Ephemeral dev-mode impersonation — let a developer act AS another user to reproduce a role-specific issue, with hard guardrails:
@@ -1160,6 +1171,10 @@ Dev-mode routes.
 ### `artifacts/api-server/src/routes/export.ts`
 
 Data-export endpoints — GET /api/export.{csv,xlsx,json,md,pdf} render the projects/issues/activity datasets in each format for download.
+
+### `artifacts/api-server/src/routes/health-watch.ts`
+
+Health / anomaly watch.
 
 ### `artifacts/api-server/src/routes/health.ts`
 

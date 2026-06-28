@@ -37,6 +37,7 @@ import meRouter from "./me";
 import toolsRouter from "./tools";
 import provenanceRouter from "./provenance";
 import securityRouter from "./security";
+import healthWatchRouter from "./health-watch";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
@@ -126,5 +127,6 @@ router.use(requireAuth, rawApiRouter);
 router.use(requireAuth, toolsRouter);
 router.use(requireAuth, provenanceRouter);
 router.use(requireAuth, securityRouter);
+router.use(requireAuth, healthWatchRouter);
 
 export default router;
