@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **CycloneDX component SBOM + supply-chain docs.** CI now emits a full **CycloneDX** component SBOM
+  (versions for CVE correlation, via Syft) alongside the existing licence inventory and the
+  block-on-critical `pnpm audit`. New **`docs/SUPPLY-CHAIN.md`** documents what's in place and what's
+  parked (cosign/SLSA image signing, a gitleaks gate — both needing an infra/policy decision), and
+  **`docs/PARKED-DECISIONS.md`** consolidates every item from the enterprise/cybersec/SME-charity gap
+  review that awaits a maintainer call (first-party backend, hosted deploy, mTLS/FIPS, licensing,
+  i18n breadth, self-hosted font) so they can be reviewed together.
+
 - **Compliance & assurance evidence pack (docs).** Procurement-facing artifacts that turn the
   existing (strong) security posture into review-ready evidence: **`COMPLIANCE.md`** maps implemented
   controls to **SOC 2 / ISO 27001:2022 / NIST CSF 2.0** with a shared-responsibility model;
