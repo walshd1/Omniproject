@@ -125,6 +125,30 @@ omni.example.com {
 }
 ```
 
+## Deployment profile & TLS posture — which source wins
+
+The **deployment profile** (`enterprise` · `business` · `nonprofit` · `self-hosted` · `demo`)
+drives the TLS posture: whether session cookies are `Secure` and whether HSTS is sent. It can be
+set two ways, and they resolve with a deliberate precedence — worth knowing so it isn't a surprise
+when you terminate TLS at the edge:
+
+| Context | What decides the active profile |
+| --- | --- |
+| **Normal runtime** (request-time `Secure`-cookie / HSTS decisions, the wizard) | The **persisted wizard choice wins**, then the `DEPLOYMENT_PROFILE` env var, then the `business` default. So an admin can pick the context in-app on a fresh deploy without redeploying. |
+| **Boot security-check** (the startup posture validation) | Uses the **`DEPLOYMENT_PROFILE` env var only** — the persisted setting is deliberately *not* consulted, so what's validated at startup is the declared infrastructure posture, not a later in-app override. |
+
+Practical implications behind a TLS-terminating proxy:
+
+- Cookies are `Secure` whenever the active profile requires TLS (`enterprise`/`business`). The app
+  trusts `X-Forwarded-Proto` — make sure your proxy sets it (the nginx/Caddy snippets above do), or
+  a `Secure` cookie won't be sent back over what the app sees as plain HTTP and logins will "not
+  stick".
+- A LAN/self-hosted instance on plain HTTP should run the `self-hosted` (or `nonprofit`/`demo`)
+  profile so cookies aren't marked `Secure` — otherwise the browser drops them. Set
+  `DEPLOYMENT_PROFILE=self-hosted` for the boot default, or pick it in the wizard at runtime.
+- To pin the posture immutably from infrastructure (so no in-app change can relax it at the
+  security-check), set `DEPLOYMENT_PROFILE` in the environment and treat the wizard as advisory.
+
 ## Quick triage when it doesn't load
 
 Isolate the layer — app vs. proxy vs. CDN:

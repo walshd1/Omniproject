@@ -8,6 +8,7 @@
 import type { FieldMapOverride } from './fieldMapOverride';
 import type { LoggingSync } from './loggingSync';
 import type { SettingsAiProvider } from './settingsAiProvider';
+import type { SettingsDeploymentProfile } from './settingsDeploymentProfile';
 import type { SettingsSttProvider } from './settingsSttProvider';
 
 export interface Settings {
@@ -25,6 +26,8 @@ export interface Settings {
   backendSource: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
+  /** Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs/REVERSE-PROXY.md). */
+  deploymentProfile?: SettingsDeploymentProfile;
   loggingSync?: LoggingSync;
   fieldOverrides?: FieldMapOverride;
 }

@@ -796,6 +796,20 @@ export const SettingsSttProvider = {
 } as const;
 
 /**
+ * Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs/REVERSE-PROXY.md).
+ */
+export type SettingsDeploymentProfile = typeof SettingsDeploymentProfile[keyof typeof SettingsDeploymentProfile];
+
+
+export const SettingsDeploymentProfile = {
+  enterprise: 'enterprise',
+  business: 'business',
+  nonprofit: 'nonprofit',
+  'self-hosted': 'self-hosted',
+  demo: 'demo',
+} as const;
+
+/**
  * Opt-in state-history egress to an operator-owned logging server (off by default). The single deliberate relaxation of OmniProject's stateless posture; egressed data is the operator's responsibility and outside OmniProject's warranty. Enabling it unlocks historical time-travel.
  */
 export interface LoggingSync {
@@ -833,6 +847,8 @@ export interface Settings {
   backendSource: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
+  /** Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs/REVERSE-PROXY.md). */
+  deploymentProfile?: SettingsDeploymentProfile;
   loggingSync?: LoggingSync;
   fieldOverrides?: FieldMapOverride;
 }
@@ -860,6 +876,20 @@ export const SettingsUpdateSttProvider = {
   whisper: 'whisper',
 } as const;
 
+/**
+ * Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs/REVERSE-PROXY.md).
+ */
+export type SettingsUpdateDeploymentProfile = typeof SettingsUpdateDeploymentProfile[keyof typeof SettingsUpdateDeploymentProfile];
+
+
+export const SettingsUpdateDeploymentProfile = {
+  enterprise: 'enterprise',
+  business: 'business',
+  nonprofit: 'nonprofit',
+  'self-hosted': 'self-hosted',
+  demo: 'demo',
+} as const;
+
 export interface SettingsUpdate {
   /** @nullable */
   brokerUrl?: string | null;
@@ -872,6 +902,8 @@ export interface SettingsUpdate {
   backendSource?: string;
   /** @nullable */
   oidcIssuerUrl?: string | null;
+  /** Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs/REVERSE-PROXY.md). */
+  deploymentProfile?: SettingsUpdateDeploymentProfile;
   loggingSync?: LoggingSync;
   fieldOverrides?: FieldMapOverride;
 }
