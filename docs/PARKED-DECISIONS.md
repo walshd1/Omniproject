@@ -78,6 +78,16 @@ third-party request (better for privacy, charities, air-gapped, and a cleaner `f
 licence check (JetBrains Mono is OFL — fine to bundle).
 **Recommendation:** straightforward once the font files are added; low effort, real privacy win.
 
+### C4. Real email sending (magic-link without n8n)
+**What:** `sendMagicLink` is currently a **stub** (it logs the link); an SMTP sender would make
+passwordless sign-in actually work for a small org — a real charity unlock (most have Google
+Workspace / Microsoft 365 SMTP).
+**Why parked:** needs an SMTP client **dependency** (e.g. nodemailer) whose **esbuild bundling** into
+the self-contained runtime needs verifying (dynamic requires / optional deps), and SMTP can't be
+end-to-end tested in the build sandbox. Credentials would come from env (`SMTP_URL`), never stored.
+**Recommendation:** add nodemailer + a small `lib/email` (env-config, disabled when unset), verify the
+bundle, then wire `sendMagicLink`. Worth doing — just wants a watched first build.
+
 ---
 
 ## D. Already covered / not needed (recorded so we don't re-litigate)
@@ -86,5 +96,5 @@ licence check (JetBrains Mono is OFL — fine to bundle).
   `frame-ancestors`, nosniff, Referrer-/Permissions-Policy, CSRF). No work needed.
 - **Magic-link account enumeration** — already mitigated (always answers `ok`).
 - **Data map / DSAR / retention / backup / DR** — already in `ENTERPRISE-OPS.md`.
-- **SMTP/email, distroless image, component SBOM, compliance/threat-model/privacy/VPAT docs** —
-  **built** in this round (see the CHANGELOG).
+- **Component SBOM + compliance / threat-model / privacy / VPAT docs** — **built** this round
+  (see the CHANGELOG). Distroless image hardening is a follow-up code PR.
