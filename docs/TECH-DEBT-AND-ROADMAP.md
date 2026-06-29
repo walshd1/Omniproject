@@ -91,15 +91,6 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
 
 ## 5. Smaller debt / cleanups
 
-- **[debt] `deploymentProfile` isn't in the OpenAPI `Settings` schema.** It's a real persisted
-  setting but was added as an optional field set via `POST /api/setup/profile` (not the generated
-  client) to avoid codegen churn. Fold it into `openapi.yaml` + regen for consistency.
-- **[debt] Cookie `secure` vs HSTS resolution.** Both now follow `requireTls()`, but the cookie's
-  static `cookieBase.secure` (module-load) is overridden per-set; the static default is only used
-  for `clearCookie`. Minor — could compute it in one place.
-- **[debt] Two profile sources of truth.** `DEPLOYMENT_PROFILE` env (boot/security-check) vs the
-  persisted setting (runtime override). Intentional, but document the precedence prominently so
-  it's not surprising.
 - **[debt] Large branch / changelog churn.** The last integration was 85 commits; keep future
   work in smaller, single-concern PRs to ease review and reduce changelog conflicts.
 

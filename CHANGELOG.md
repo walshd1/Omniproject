@@ -39,6 +39,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Config-consistency cleanups (roadmap §5 smaller debt).** No behaviour change:
+  - **`deploymentProfile` is now in the OpenAPI `Settings` + `SettingsUpdate` schemas** (enum
+    `enterprise | business | nonprofit | self-hosted | demo`) and the regenerated client — it was a
+    real persisted setting returned by `GET /settings` / accepted by the update, just absent from
+    the spec.
+  - **Cookie `Secure` is single-sourced** in `routes/auth.ts`: `cookieBase()` computes
+    `requireTls()` fresh on every set/clear (one source of the flag) instead of a static
+    module-load value plus a per-set override — so a runtime deployment-profile change applies
+    consistently to session and flow cookies alike.
+  - **Documented the deployment-profile precedence** (persisted wizard choice vs `DEPLOYMENT_PROFILE`
+    env vs the boot security-check) in `docs/REVERSE-PROXY.md`.
+
 - **Modularity: large components decomposed (no behaviour change).** Pure extraction, identical
   rendered output / network calls / query keys:
   - **`IssueDialog`** (708 → 436 LOC) — form state + hydrate-on-open + `buildPayload` moved into a

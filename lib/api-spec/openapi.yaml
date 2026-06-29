@@ -1790,6 +1790,14 @@ components:
             means no filter — whatever the broker is wired to.
         oidcIssuerUrl:
           type: ["string", "null"]
+        deploymentProfile:
+          type: string
+          description: >-
+            Deployment context chosen in the setup wizard, which relaxes enterprise
+            couplings by choice (e.g. a charity/self-hosted instance on a plain-HTTP LAN).
+            Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE
+            env var takes precedence on a fresh boot (see docs/REVERSE-PROXY.md).
+          enum: [enterprise, business, nonprofit, self-hosted, demo]
         loggingSync:
           $ref: "#/components/schemas/LoggingSync"
         fieldOverrides:
@@ -1853,6 +1861,12 @@ components:
             Free-form backend routing hint passed to the broker (see Settings.backendSource).
         oidcIssuerUrl:
           type: ["string", "null"]
+        deploymentProfile:
+          type: string
+          description: >-
+            Set the deployment profile (admin). Persisted; the infra-level
+            DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs/REVERSE-PROXY.md).
+          enum: [enterprise, business, nonprofit, self-hosted, demo]
         loggingSync:
           $ref: "#/components/schemas/LoggingSync"
         fieldOverrides:

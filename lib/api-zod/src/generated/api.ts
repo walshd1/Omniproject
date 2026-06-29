@@ -767,6 +767,7 @@ export const GetSettingsResponse = zod.object({
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
   "oidcIssuerUrl": zod.string().nullish(),
+  "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity\/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs\/REVERSE-PROXY.md).'),
   "loggingSync": zod.object({
   "enabled": zod.boolean(),
   "url": zod.string().nullish(),
@@ -795,6 +796,7 @@ export const UpdateSettingsBody = zod.object({
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().optional().describe('Free-form backend routing hint passed to the broker (see Settings.backendSource).'),
   "oidcIssuerUrl": zod.string().nullish(),
+  "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs\/REVERSE-PROXY.md).'),
   "loggingSync": zod.object({
   "enabled": zod.boolean(),
   "url": zod.string().nullish(),
@@ -819,6 +821,7 @@ export const UpdateSettingsResponse = zod.object({
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
   "oidcIssuerUrl": zod.string().nullish(),
+  "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity\/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs\/REVERSE-PROXY.md).'),
   "loggingSync": zod.object({
   "enabled": zod.boolean(),
   "url": zod.string().nullish(),

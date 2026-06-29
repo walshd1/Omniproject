@@ -35,15 +35,20 @@ const FLOW_COOKIE = "omni_oidc_flow";
 // Re-seal an active session at most this often (don't re-sign on every request).
 const SLIDE_THROTTLE_MS = 60_000;
 
-const cookieBase = {
-  httpOnly: true as const,
-  signed: true as const,
-  sameSite: "lax" as const,
-  // Secure cookies follow the deployment's TLS posture, NOT raw NODE_ENV — so a self-hoster /
-  // charity can run a production-stable instance on plain HTTP (LAN) without breaking sessions.
-  secure: requireTls(),
-  path: "/",
-};
+// The shared cookie attributes. `secure` is computed FRESH on every call (the single source
+// of the flag) so a runtime deployment-profile change applies to the next set/clear alike —
+// no stale module-load value, no per-call override. Secure follows the deployment's TLS
+// posture, NOT raw NODE_ENV, so a self-hoster / charity can run a production-stable instance
+// on plain HTTP (LAN) without breaking sessions.
+function cookieBase() {
+  return {
+    httpOnly: true as const,
+    signed: true as const,
+    sameSite: "lax" as const,
+    secure: requireTls(),
+    path: "/",
+  };
+}
 
 function baseUrl(req: Request): string {
   const configured = process.env["PUBLIC_URL"]?.trim();
@@ -94,8 +99,7 @@ function setSession(res: Response, session: Session): void {
     salt: session.salt ?? randomBytes(16).toString("hex"),
   };
   res.cookie(SESSION_COOKIE, seal(JSON.stringify(stamped)), {
-    ...cookieBase,
-    secure: requireTls(), // re-evaluate per set, so a wizard profile change applies to new sessions
+    ...cookieBase(), // secure is evaluated here, so a wizard profile change applies to new sessions
     maxAge: 1000 * 60 * 60 * 8, // 8h
   });
 }
@@ -110,8 +114,8 @@ export function slideSession(req: Request, res: Response, next: NextFunction): v
   if (raw) {
     const session = readSession(req); // null when expired or unreadable
     if (!session) {
-      res.clearCookie(SESSION_COOKIE, cookieBase);
-      res.clearCookie("omni_csrf", { ...cookieBase, httpOnly: false, signed: false });
+      res.clearCookie(SESSION_COOKIE, cookieBase());
+      res.clearCookie("omni_csrf", { ...cookieBase(), httpOnly: false, signed: false });
     } else {
       if (!session.iat || !session.seen || Date.now() - session.seen > SLIDE_THROTTLE_MS) setSession(res, session);
       // Make sure an active session always has a CSRF token to echo (upgrade path).
@@ -201,7 +205,7 @@ router.get("/auth/login", async (req, res) => {
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
 
     res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo }), {
-      ...cookieBase,
+      ...cookieBase(),
       maxAge: 1000 * 60 * 10, // 10 min
     });
 
@@ -230,7 +234,7 @@ router.get("/auth/callback", async (req, res) => {
   }
 
   const flowRaw = req.signedCookies?.[FLOW_COOKIE];
-  res.clearCookie(FLOW_COOKIE, cookieBase);
+  res.clearCookie(FLOW_COOKIE, cookieBase());
 
   if (!flowRaw) {
     res.status(400).send("Login session expired. Please try again.");
@@ -305,8 +309,8 @@ router.get("/auth/callback", async (req, res) => {
 
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────
 router.post("/auth/logout", (req, res) => {
-  res.clearCookie(SESSION_COOKIE, cookieBase);
-  res.clearCookie("omni_csrf", { ...cookieBase, httpOnly: false, signed: false });
+  res.clearCookie(SESSION_COOKIE, cookieBase());
+  res.clearCookie("omni_csrf", { ...cookieBase(), httpOnly: false, signed: false });
   res.json({ ok: true });
 });
 
@@ -346,7 +350,7 @@ router.get("/auth/step-up", async (req, res) => {
     const verifier = randomToken(48);
     const nonce = randomToken();
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
-    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, stepup: true }), { ...cookieBase, maxAge: 1000 * 60 * 10 });
+    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, stepup: true }), { ...cookieBase(), maxAge: 1000 * 60 * 10 });
     const authUrl = new URL(discovery.authorization_endpoint);
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("client_id", oidcConfig.clientId);
