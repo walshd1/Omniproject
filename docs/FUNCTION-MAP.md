@@ -2184,6 +2184,16 @@ View catalogue generator.
 
 Broker-isolation guard.
 
+### `scripts/src/guard-compose.ts`
+
+Compose correctness guard — parses every docker-compose file in the repo and asserts a focused set of deployment-safety invariants that `docker compose config` (a pure syntax/interpolation check) does NOT catch:
+
+| Function | What it does |
+| --- | --- |
+| `isPinnedImage` | An image reference is pinned when it has an explicit tag (not `latest`) or a digest. |
+| `auditComposeDoc` | Check one parsed compose document; `prod` toggles the hardening invariants. |
+| `auditRepoCompose` | Audit every repo compose file; returns all invariant violations. |
+
 ### `scripts/src/guard-e2e-routes.ts`
 
 Route-coverage guard — every client route declared in the SPA's `App.tsx` (`path="…"`) must have a matching entry in the e2e route manifest (`artifacts/omniproject/e2e/routes.ts`), and vice versa.

@@ -115,6 +115,14 @@ services:
       RATE_LIMIT_DISABLED: "true"   # measure the gateway, not the limiter
     ports:
       - "5000:5000"
+    # So the rig can be brought up with `--wait` and the harness only starts once the
+    # gateway is actually serving (liveness is dependency-free on the broker).
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
 
 volumes:
   n8n-db:
