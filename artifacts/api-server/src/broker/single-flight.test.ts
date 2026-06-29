@@ -14,7 +14,7 @@ beforeEach(() => resetSingleFlightStats());
 /** A stub broker counting how many times each method actually runs upstream. */
 function stubBroker() {
   const counts: Record<string, number> = {};
-  const pending: Array<(v: unknown) => void> = [];
+  const pending: Array<() => void> = [];
   const base = {
     listIssues(actor: { sub: string }, projectId: string) {
       counts["listIssues"] = (counts["listIssues"] ?? 0) + 1;
@@ -27,7 +27,7 @@ function stubBroker() {
     },
   } as unknown as Broker;
   // Resolve every upstream call currently in flight.
-  return { base, counts, release: () => { while (pending.length) pending.shift()!(undefined); } };
+  return { base, counts, release: () => { while (pending.length) pending.shift()!(); } };
 }
 
 test("concurrent identical reads collapse to one upstream call", async () => {
