@@ -43,7 +43,11 @@ function PresetCards({ presets, callbackUrl }: { presets: IdpPreset[]; callbackU
           <details key={p.id} className="rounded border border-border p-3 text-sm">
             <summary className="cursor-pointer font-medium">{p.label}</summary>
             <p className="mt-1 text-xs text-muted-foreground">{p.audience}</p>
-            <p className="mt-2 text-xs"><span className="font-semibold">Issuer:</span> <span className="font-mono">{p.issuerTemplate}</span></p>
+            {p.kind === "oauth2" && p.endpoints ? (
+              <p className="mt-2 text-xs"><span className="font-semibold">Authorize:</span> <span className="font-mono">{p.endpoints.authUrl}</span></p>
+            ) : (
+              <p className="mt-2 text-xs"><span className="font-semibold">Issuer:</span> <span className="font-mono">{p.issuerTemplate}</span></p>
+            )}
             <p className="text-xs"><span className="font-semibold">Env:</span> <span className="font-mono">{p.envKeys.join(", ")}</span></p>
             <p className="mt-1 text-xs text-muted-foreground">{p.groupsClaimNote}</p>
             {p.consoleUrl && <a className="text-xs text-primary underline" href={p.consoleUrl} target="_blank" rel="noreferrer">Open provider console →</a>}

@@ -21,6 +21,8 @@ export interface AuthState {
   sessionTimeout?: { idleMs: number; absoluteMs: number };
   /** Whether SAML SSO is configured (offered alongside OIDC on the login screen). */
   samlConfigured?: boolean;
+  /** Whether generic OAuth2 (non-OIDC, e.g. GitHub) sign-in is configured. */
+  oauth2Configured?: boolean;
   /** Whether passwordless magic-link sign-in is enabled (no IdP). */
   magicLinkEnabled?: boolean;
 }
@@ -66,6 +68,11 @@ export function login(returnTo: string = window.location.pathname): void {
 /** Redirect into the SAML (SP-initiated) login flow. */
 export function samlLogin(returnTo: string = window.location.pathname): void {
   window.location.href = `/api/auth/saml/login?returnTo=${encodeURIComponent(returnTo || "/")}`;
+}
+
+/** Redirect into the generic OAuth2 (non-OIDC, e.g. GitHub) login flow. */
+export function oauth2Login(returnTo: string = window.location.pathname): void {
+  window.location.href = `/api/auth/oauth2/login?returnTo=${encodeURIComponent(returnTo || "/")}`;
 }
 
 /** Request a passwordless magic-link to an email. Resolves to a dev link when dev mode returns one. */

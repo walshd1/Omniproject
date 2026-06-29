@@ -14,10 +14,17 @@
 export interface IdpPreset {
   id: string;
   label: string;
+  /** Which login flow this preset drives: a standards OIDC relying party, or the generic
+   *  OAuth2 (Authorization Code) path for non-OIDC providers (e.g. GitHub). */
+  kind: "oidc" | "oauth2";
   /** Audience this preset suits (shown in the wizard). */
   audience: string;
-  /** The OIDC issuer URL, with `{placeholder}` tokens the operator fills (e.g. {tenant}). */
+  /** The OIDC issuer URL, with `{placeholder}` tokens the operator fills (e.g. {tenant}).
+   *  Empty for `oauth2` presets, which use explicit endpoints instead. */
   issuerTemplate: string;
+  /** OAuth2-only: the authorize / token / userinfo endpoints (non-OIDC providers have no
+   *  discovery document, so they are listed explicitly). Absent for `oidc` presets. */
+  endpoints?: { authUrl: string; tokenUrl: string; userInfoUrl: string };
   /** Recommended scope. */
   scope: string;
   /** How this provider exposes group/role membership for the role map (advisory). */
@@ -33,6 +40,7 @@ export interface IdpPreset {
 export const IDP_PRESETS: readonly IdpPreset[] = [
   {
     id: "google",
+    kind: "oidc",
     label: "Google Workspace",
     audience: "Charities / SMEs already on Google Workspace or Gmail.",
     issuerTemplate: "https://accounts.google.com",
@@ -49,6 +57,7 @@ export const IDP_PRESETS: readonly IdpPreset[] = [
   },
   {
     id: "microsoft",
+    kind: "oidc",
     label: "Microsoft Entra ID (Microsoft 365)",
     audience: "Organisations on Microsoft 365 / Entra ID (Azure AD).",
     issuerTemplate: "https://login.microsoftonline.com/{tenant}/v2.0",
@@ -66,6 +75,7 @@ export const IDP_PRESETS: readonly IdpPreset[] = [
   },
   {
     id: "authentik",
+    kind: "oidc",
     label: "Authentik (bundled / self-hosted)",
     audience: "No corporate IdP — run the bundled Authentik (docker-compose.standalone.yml).",
     issuerTemplate: "https://{authentik-host}/application/o/{app-slug}/",
@@ -81,6 +91,7 @@ export const IDP_PRESETS: readonly IdpPreset[] = [
   },
   {
     id: "generic",
+    kind: "oidc",
     label: "Other OIDC provider",
     audience: "Any standards-compliant OIDC IdP (Keycloak, Okta, Auth0, Ping, …).",
     issuerTemplate: "https://{your-issuer}",
@@ -90,6 +101,39 @@ export const IDP_PRESETS: readonly IdpPreset[] = [
     envKeys: ["OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"],
     consoleUrl: "",
     notes: ["Register a confidential web client; add the redirect URI below; emit a groups/roles claim."],
+  },
+  {
+    id: "github",
+    kind: "oauth2",
+    label: "GitHub (OAuth2)",
+    audience: "Teams who already sign in with GitHub (GitHub is OAuth2, not OIDC).",
+    issuerTemplate: "",
+    endpoints: {
+      authUrl: "https://github.com/login/oauth/authorize",
+      tokenUrl: "https://github.com/login/oauth/access_token",
+      userInfoUrl: "https://api.github.com/user",
+    },
+    scope: "read:user user:email",
+    groupsClaimNote:
+      "GitHub's /user has no roles. Authenticated users get the default role; map specific users by login/email in the role-map editor. (Org/team-based roles would need extra API calls — not wired here.)",
+    envKeys: [
+      "OAUTH2_AUTH_URL",
+      "OAUTH2_TOKEN_URL",
+      "OAUTH2_USERINFO_URL",
+      "OAUTH2_CLIENT_ID",
+      "OAUTH2_CLIENT_SECRET",
+      "OAUTH2_SCOPE",
+      "OAUTH2_USERINFO_SUB_FIELD=id",
+      "OAUTH2_USERINFO_NAME_FIELD=name",
+      "OAUTH2_USERINFO_EMAIL_FIELD=email",
+    ],
+    consoleUrl: "https://github.com/settings/developers",
+    notes: [
+      "Create an OAuth App in GitHub → Settings → Developer settings → OAuth Apps.",
+      "Set the Authorization callback URL to the redirect URI shown below (…/api/auth/oauth2/callback).",
+      "Copy the Client ID + generate a Client secret into OAUTH2_CLIENT_ID / OAUTH2_CLIENT_SECRET.",
+      "The endpoints above are pre-filled into the OAUTH2_*_URL env; GitHub uses id/login (not sub) for identity.",
+    ],
   },
 ] as const;
 

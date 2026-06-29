@@ -8,6 +8,25 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Generic OAuth 2.0 (Authorization Code + PKCE) sign-in for non-OIDC providers (e.g. GitHub).**
+  GitHub and similar issue opaque access tokens and expose identity via a userinfo endpoint rather
+  than a signed ID token, so they can't use the OIDC relying party. This adds the sibling path
+  (`lib/oauth2`): authorize → exchange the code (with the PKCE verifier) for an access token → call
+  the provider's userinfo endpoint → map the JSON fields onto a session user → mint the **same**
+  signed+sealed session cookie every other auth path uses (`setSession`). **Off by default**;
+  enabled only when `OAUTH2_AUTH_URL` / `OAUTH2_TOKEN_URL` / `OAUTH2_USERINFO_URL` /
+  `OAUTH2_CLIENT_ID` / `OAUTH2_CLIENT_SECRET` are all set (scope via `OAUTH2_SCOPE`; userinfo field
+  mapping via `OAUTH2_USERINFO_{SUB,NAME,EMAIL,ROLES}_FIELD`, with sub/id/login fallbacks so GitHub
+  works out of the box). Security: `state` + S256 **PKCE** binding to the browser flow, the strict
+  per-IP **`loginLimiter`** on `GET /api/auth/oauth2/login`, and **SSRF-guarded** token/userinfo
+  fetches (`assertSafeOutboundUrl`). The userinfo role/group field flows into the **same role-map**
+  as OIDC claims. A **GitHub preset** is added to `lib/idp-presets` (the preset model gains a
+  `kind: "oidc" | "oauth2"` discriminator + explicit `endpoints` for non-OIDC providers), surfaced
+  in the setup wizard, and a "Sign in with OAuth2" button appears on the login screen when enabled.
+  Endpoints: `GET /api/auth/oauth2/login` + `GET /api/auth/oauth2/callback`. Tests run without
+  network (injected fetch). *(This is OmniProject acting as an OAuth2 **client**; it is not an
+  authorization server.)*
+
 - **Optional self-host database backend — design doc** (`docs/SELF-HOST-DB.md`). The **non-preferred**
   stateful path for those with no existing PM tool: a **customer-owned Postgres backend BELOW the
   broker seam** (the gateway stays stateless/zero-at-rest — the DB is just another backend the broker

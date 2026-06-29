@@ -61,6 +61,8 @@ choices are visible, not accidental.
 ### SME / small business
 - `DEPLOYMENT_PROFILE=business` (the default). Configure OIDC SSO with whatever IdP you have
   (Google Workspace, Entra, Authentik…), serve over HTTPS, set `SESSION_SECRET` + `BROKER_PSK`.
+  No OIDC IdP but already on **GitHub**? Use the OAuth2 path instead: set the `OAUTH2_*` env
+  (the setup wizard's GitHub preset pre-fills the endpoints) for "Sign in with GitHub".
 - Turn on **only** the hardening you want — e.g. add a `MAX_SESSIONS_PER_USER` cap or an
   `IP_ALLOWLIST`; ignore SCIM/KMS/maker-checker unless you need them.
 

@@ -1115,6 +1115,18 @@ Real-time notification hub (Server-Sent Events).
 | `closeAllClients` | Close every live SSE connection and forget them — used on graceful shutdown so the HTTP server can finish closing instead of being held open by streams. |
 | `deliverLocal` | Fan a notification out to matching clients connected **to this process** and return how many received it. |
 
+### `artifacts/api-server/src/lib/oauth2.ts`
+
+Generic OAuth 2.0 Authorization-Code (+ PKCE) login for **non-OIDC** providers — e.g. GitHub, which issues opaque access tokens and exposes identity via a userinfo endpoint rather than a signed ID token.
+
+| Function | What it does |
+| --- | --- |
+| `buildAuthUrl` | Build the provider authorization URL the browser is redirected to (Authorization-Code + S256 PKCE). |
+| `exchangeCodeOAuth2` | Exchange the authorization code (+ PKCE verifier) for an access token. |
+| `fetchUserInfo` | Fetch the provider's userinfo with the bearer token. |
+| `mapUserInfo` | Map a provider's userinfo JSON onto a session user via the configured field mapping. |
+| `newOAuth2Flow` | A fresh `state` + PKCE verifier for a login flow. |
+
 ### `artifacts/api-server/src/lib/odata.ts`
 
 Minimal, dependency-free OData v4 service helpers.

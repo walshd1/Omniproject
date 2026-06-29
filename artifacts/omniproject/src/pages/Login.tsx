@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useAuth, login, samlLogin, requestMagicLink } from "../lib/auth";
+import { useAuth, login, samlLogin, oauth2Login, requestMagicLink } from "../lib/auth";
 import { useBranding } from "../lib/branding";
 
 export function Login() {
@@ -53,6 +53,17 @@ export function Login() {
             variant="outline"
           >
             SIGN IN WITH SAML
+          </Button>
+        )}
+
+        {auth?.oauth2Configured && (
+          <Button
+            onClick={() => oauth2Login("/")}
+            disabled={isLoading}
+            className="w-full mt-3 rounded-none border-2 border-foreground hover:bg-foreground hover:text-background transition-colors font-bold uppercase tracking-wider h-12"
+            variant="outline"
+          >
+            SIGN IN WITH OAUTH2
           </Button>
         )}
 

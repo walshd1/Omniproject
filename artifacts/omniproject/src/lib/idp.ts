@@ -9,8 +9,12 @@ import { getJson } from "./api";
 export interface IdpPreset {
   id: string;
   label: string;
+  /** "oidc" (standards relying party) or "oauth2" (non-OIDC, e.g. GitHub). */
+  kind: "oidc" | "oauth2";
   audience: string;
   issuerTemplate: string;
+  /** OAuth2-only explicit endpoints (non-OIDC providers have no discovery doc). */
+  endpoints?: { authUrl: string; tokenUrl: string; userInfoUrl: string };
   scope: string;
   groupsClaimNote: string;
   envKeys: string[];
