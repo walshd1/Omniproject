@@ -6,14 +6,16 @@ import { useListProjects, useListProgrammes, type Issue } from "@workspace/api-c
 import { getJson } from "../../lib/api";
 import { useFeatures, featureEnabled } from "../../lib/features";
 import { useGlobalSearch, searchEntities, type SearchHit } from "../../lib/global-search";
+import { useRecentItems } from "../../lib/recent-items";
 import { useSidePanel } from "../../lib/side-panel";
 
 /**
  * Global search (the "globalSearch" feature module). A command-palette-style overlay that
  * quick-finds across projects, issues and programmes from the existing read-model. Keyboard-first
  * (↑/↓ to move, Enter to jump, Esc to close); selecting an issue routes to its project and opens
- * the rich side-panel when that module is enabled. Opened with "/" (outside inputs) or via the
- * header search button; rendered once at the app shell and gated by `useFeatures`.
+ * the rich side-panel when that module is enabled. With no query yet, it offers the user's
+ * recently-visited items (lib/recent-items) as a one-keystroke way back. Opened with "/" (outside
+ * inputs) or via the header search button; rendered once at the app shell and gated by `useFeatures`.
  */
 
 const TYPE_LABEL: Record<SearchHit["type"], string> = { project: "Project", issue: "Issue", programme: "Programme" };
@@ -68,6 +70,12 @@ export function GlobalSearch() {
     [query, projects, programmes, issues],
   );
 
+  // With no query, offer the user's recently-visited items as a quick way back (findability).
+  const recents = useRecentItems((s) => s.items);
+  const isEmptyQuery = query.trim() === "";
+  // The keyboard/selection list is whatever is on screen: recents when idle, live hits when typing.
+  const list = isEmptyQuery ? recents : hits;
+
   useEffect(() => setActive(0), [query]);
 
   function go(hit: SearchHit) {
@@ -82,9 +90,9 @@ export function GlobalSearch() {
   }
 
   function onInputKey(e: React.KeyboardEvent) {
-    if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, hits.length - 1)); }
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, list.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
-    else if (e.key === "Enter" && hits[active]) { e.preventDefault(); go(hits[active]!); }
+    else if (e.key === "Enter" && list[active]) { e.preventDefault(); go(list[active]!); }
   }
 
   if (!enabled) return null;
@@ -110,24 +118,31 @@ export function GlobalSearch() {
             className="w-full px-4 py-3 text-lg bg-transparent border-b border-border outline-none text-foreground placeholder:text-muted-foreground font-mono"
           />
           <ul className="max-h-[320px] overflow-y-auto p-2" data-testid="global-search-results">
-            {query.trim() === "" ? (
+            {isEmptyQuery && list.length === 0 ? (
               <li className="p-4 text-sm text-center text-muted-foreground">Type to search.</li>
-            ) : hits.length === 0 ? (
+            ) : !isEmptyQuery && list.length === 0 ? (
               <li className="p-4 text-sm text-center text-muted-foreground" data-testid="global-search-empty">No matches.</li>
             ) : (
-              hits.map((hit, i) => (
-                <li key={`${hit.type}:${hit.id}`}>
-                  <button
-                    type="button"
-                    onClick={() => go(hit)}
-                    aria-selected={i === active}
-                    className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm ${i === active ? "bg-foreground text-background" : "hover:bg-muted"}`}
-                  >
-                    <span className="truncate">{hit.label}</span>
-                    <span className="shrink-0 text-xs font-black uppercase tracking-widest opacity-70">{TYPE_LABEL[hit.type]}</span>
-                  </button>
-                </li>
-              ))
+              <>
+                {isEmptyQuery && (
+                  <li className="px-3 pt-1 pb-2 text-xs font-black uppercase tracking-widest text-muted-foreground" data-testid="global-search-recent-heading">
+                    Recent
+                  </li>
+                )}
+                {list.map((hit, i) => (
+                  <li key={`${hit.type}:${hit.id}`}>
+                    <button
+                      type="button"
+                      onClick={() => go(hit)}
+                      aria-selected={i === active}
+                      className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm ${i === active ? "bg-foreground text-background" : "hover:bg-muted"}`}
+                    >
+                      <span className="truncate">{hit.label}</span>
+                      <span className="shrink-0 text-xs font-black uppercase tracking-widest opacity-70">{TYPE_LABEL[hit.type]}</span>
+                    </button>
+                  </li>
+                ))}
+              </>
             )}
           </ul>
         </Dialog.Content>

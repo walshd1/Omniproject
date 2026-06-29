@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Recently-visited items in global search (Phase 2 UX polish — findability).** Opening a project,
+  programme or work item now quietly records it, and the global-search overlay's idle state (no query
+  yet) offers those **Recent** items as a one-keystroke way back — instead of a bare "Type to search."
+  prompt. The recents are personal and ephemeral (per-browser `localStorage`, nothing sent to the
+  server, capped at 8, de-duplicated newest-first), in keeping with the nothing-at-rest ethos. They
+  reuse the search overlay's row rendering, routing and ↑/↓/Enter selection, so a recent is reachable
+  by **mouse and keyboard** exactly like a live hit. Covered by pure-reducer + store unit tests, a
+  side-panel recording test, GlobalSearch component tests, and a mouse-and-keyboard `recents` e2e.
+
 - **User-selectable UI density via design tokens (Phase 2 UX polish).** A new per-user **Density**
   preference (Comfortable / Compact) joins the accessibility overlay (`lib/a11y-prefs`). It applies
   app-wide from a single design token: the document root carries `data-density`, and under

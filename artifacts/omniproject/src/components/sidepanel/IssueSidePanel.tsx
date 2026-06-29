@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useSidePanel } from "../../lib/side-panel";
+import { useRecentItems } from "../../lib/recent-items";
 import { useFeatures, featureEnabled } from "../../lib/features";
 import { useAvailability, fieldVisible } from "../../lib/availability";
 import { useIssueFieldWrite } from "../../lib/use-issue-field-write";
@@ -74,9 +75,18 @@ export function IssueSidePanel() {
   const { data: activity } = useListActivity({ query: { enabled: enabled && open, queryKey: getListActivityQueryKey() } });
   const { write } = useIssueFieldWrite();
 
+  // Remember an opened work item for the "Recent" quick-find list (findability).
+  const recordRecent = useRecentItems((s) => s.record);
+  const openedIssue = (issues ?? []).find((i) => i.id === issueId) ?? null;
+  useEffect(() => {
+    if (open && openedIssue && projectId) {
+      recordRecent({ type: "issue", id: openedIssue.id, label: openedIssue.title, projectId });
+    }
+  }, [open, openedIssue, projectId, recordRecent]);
+
   if (!enabled) return null;
 
-  const issue = (issues ?? []).find((i) => i.id === issueId) ?? null;
+  const issue = openedIssue;
   const show = (key: string) => fieldVisible(availability, key);
 
   // Edit one field, optimistic + concurrency-safe, with a one-click Undo (shared writer).

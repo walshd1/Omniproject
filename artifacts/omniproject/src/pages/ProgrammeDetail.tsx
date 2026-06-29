@@ -1,7 +1,9 @@
 import { Link } from "wouter";
+import { useEffect } from "react";
 import { useGetProgramme, useGetCapabilities, type Project } from "@workspace/api-client-react";
 import { ArrowLeft, Layers } from "lucide-react";
 import { LoadingState } from "../components/LoadingState";
+import { useRecentItems } from "../lib/recent-items";
 import { ProgrammeFinancialsCard } from "../components/ProgrammeFinancialsCard";
 import { DataProvenance } from "../components/DataProvenance";
 
@@ -54,6 +56,12 @@ function ProjectRow({ p }: { p: Project }) {
 export function ProgrammeDetail({ programmeId }: { programmeId: string }) {
   const { data: prog, isLoading, isError, dataUpdatedAt } = useGetProgramme(programmeId);
   const { data: caps } = useGetCapabilities();
+
+  // Remember this visit for the "Recent" quick-find list (findability).
+  const recordRecent = useRecentItems((s) => s.record);
+  useEffect(() => {
+    if (prog) recordRecent({ type: "programme", id: prog.id, label: prog.name });
+  }, [prog, recordRecent]);
 
   if (isLoading) return <LoadingState />;
   if (isError || !prog) {
