@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Saved views (UX-parity module).** Save a **named view** — visible columns + sort (+ filters /
+  grouping captured in the model) — and switch between them. Scoped to a surface (the editable
+  grid first): pick a view to apply its column set + sort, **Save view** to name the current state,
+  or delete one. Views are **shared, customer-level** presentation config persisted via
+  `GET/PUT /api/views` to **`settings.savedViews`**, which **rides the config-bundle export** — so a
+  team's views travel with the deployment (any authenticated user can save/switch, like shared
+  filters; never project data). Shipped as the optional UI-only **`savedViews`** feature module
+  (gated by `useFeatures`). The grid gains sortable column headers and applies the active view's
+  column subset/order. `lib/saved-views`, `components/grid/SavedViewsBar`.
+
 - **Editable data grid with bulk inline edit (first UX-parity module).** A spreadsheet-style grid
   of a project's work items: **click-to-edit** cells (text / select / date / number by field type),
   **Enter** to commit / **Escape** to cancel, **multi-row select + bulk-apply** one field value to

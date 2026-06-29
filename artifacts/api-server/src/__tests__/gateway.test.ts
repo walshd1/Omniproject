@@ -823,6 +823,7 @@ const SAMPLE_SETTINGS = {
   capabilityStates: {},
   disabledFeatures: [],
   hiddenFields: [],
+  savedViews: [],
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {
