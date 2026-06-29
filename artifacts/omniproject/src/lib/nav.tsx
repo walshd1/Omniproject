@@ -4,9 +4,10 @@
  *
  * `i18nKey` resolves through useT(); `match` decides the sidebar active state.
  */
-import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, type LucideIcon } from "lucide-react";
+import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, type LucideIcon } from "lucide-react";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "./capabilities-fields";
+import { useFeatures, featureEnabled } from "./features";
 
 export interface NavItem {
   href: string;
@@ -21,10 +22,13 @@ export interface NavItem {
   match: (location: string) => boolean;
   /** If set, only show this item when the backend can surface that entity. */
   requiresEntity?: string;
+  /** If set, only show this item when that feature module is enabled. */
+  requiresFeature?: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", i18nKey: "nav.dashboard", label: "Dashboard", icon: Layers, chord: "G+D", match: (l) => l === "/" },
+  { href: "/my-work", i18nKey: "nav.myWork", label: "My Work", icon: Inbox, match: (l) => l.startsWith("/my-work"), requiresFeature: "myWork" },
   { href: "/programmes", i18nKey: "nav.programmes", label: "Programmes", icon: Boxes, match: (l) => l.startsWith("/programmes"), requiresEntity: "programme" },
   { href: "/projects", i18nKey: "nav.projects", label: "Projects", icon: Briefcase, chord: "G+P", match: (l) => l.startsWith("/projects") },
   { href: "/reports", i18nKey: "nav.reports", label: "Reports", icon: BarChart3, chord: "G+R", match: (l) => l.startsWith("/reports") },
@@ -41,5 +45,10 @@ export const NAV_ITEMS: NavItem[] = [
  */
 export function useVisibleNavItems(): NavItem[] {
   const { data: caps } = useGetCapabilities();
-  return NAV_ITEMS.filter((item) => !item.requiresEntity || canSurfaceEntity(caps, item.requiresEntity));
+  const { data: features } = useFeatures();
+  return NAV_ITEMS.filter(
+    (item) =>
+      (!item.requiresEntity || canSurfaceEntity(caps, item.requiresEntity)) &&
+      (!item.requiresFeature || featureEnabled(features, item.requiresFeature)),
+  );
 }
