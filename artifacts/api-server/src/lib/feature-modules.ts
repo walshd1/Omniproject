@@ -82,6 +82,13 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     label: "Rich side-panel",
     description: "A slide-over work-item detail panel with inline edit and recent activity.",
   },
+  {
+    // UI-only: a command-palette-style cross-entity quick-find over projects/issues/programmes from
+    // the existing read-model. Keyboard-first; the SPA gates it via useFeatures; nothing to mount.
+    id: "globalSearch",
+    label: "Global search",
+    description: "Fast cross-entity quick-find over projects, issues and programmes.",
+  },
 ];
 
 // Which modules actually got loaded+mounted this process (set by the mount step). Lets the
