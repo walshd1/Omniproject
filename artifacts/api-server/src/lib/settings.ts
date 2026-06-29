@@ -66,7 +66,7 @@ export interface WebhookSubscription {
   secret: string;
   events: string[];
   active: boolean;
-  description?: string;
+  description?: string | undefined;
 }
 
 /**
@@ -251,11 +251,13 @@ function loggingSyncFromEnv(): LoggingSyncConfig {
   };
 }
 
+const initialProfile = coerceProfile(process.env["DEPLOYMENT_PROFILE"]);
 const store: SettingsState = {
   brokerUrl: process.env["BROKER_URL"]?.trim() || null,
   aiProvider: coerceAiProvider(process.env["AI_PROVIDER"]?.trim() || "none"),
   sttProvider: coerceSttProvider(process.env["STT_PROVIDER"]?.trim() || "none"),
-  deploymentProfile: coerceProfile(process.env["DEPLOYMENT_PROFILE"]),
+  // Omit (rather than set undefined) when no profile is configured — exactOptionalPropertyTypes.
+  ...(initialProfile !== undefined ? { deploymentProfile: initialProfile } : {}),
   aiModel: process.env["AI_MODEL"] ?? null,
   backendSource: process.env["BACKEND_SOURCE"]?.trim() || "all",
   oidcIssuerUrl: process.env["OIDC_ISSUER_URL"] ?? null,

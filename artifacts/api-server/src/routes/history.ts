@@ -19,7 +19,7 @@ router.get("/history/replay", async (req, res) => {
   const from = typeof req.query["from"] === "string" ? (req.query["from"] as string) : undefined;
   const to = typeof req.query["to"] === "string" ? (req.query["to"] as string) : undefined;
   try {
-    res.json(await getBroker().replay(contextFromReq(req), { from, to }));
+    res.json(await getBroker().replay(contextFromReq(req), { ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }));
   } catch (err) {
     req.log.error({ err }, "history replay failed");
     respondBrokerError(res, err);

@@ -122,7 +122,7 @@ export function GovernanceDashboard() {
               {caps.filter((c) => c.state !== "off").map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-2">
                   <span className="truncate">{c.label}</span>
-                  <StateTag state={c.state} extra={Object.keys(c.surfaces).length ? `+${Object.keys(c.surfaces).length} screen overrides` : undefined} />
+                  <StateTag state={c.state} {...(Object.keys(c.surfaces).length ? { extra: `+${Object.keys(c.surfaces).length} screen overrides` } : {})} />
                 </li>
               ))}
             </ul>

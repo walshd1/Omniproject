@@ -101,7 +101,7 @@ ingestRouter.post("/notifications/ingest", ingestAuth, async (req: Request, res:
     read: false,
     timestamp: new Date().toISOString(),
   };
-  const localDelivered = await getNotifyBus().publish({ notification, target: body.target });
+  const localDelivered = await getNotifyBus().publish({ notification, ...(body.target !== undefined ? { target: body.target } : {}) });
   // Generic, above-the-seam DISPATCH: the JSON routing rules decide which external
   // delivery channels this event goes to (gated to channels that actually exist).
   // The DECISION rides along with the outbound event; DELIVERY stays below the seam

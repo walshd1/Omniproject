@@ -83,10 +83,10 @@ export function Settings() {
     }
     const payload: SettingsUpdate = {
       brokerUrl: formData.brokerUrl.trim() || null,
-      aiProvider: formData.aiProvider as SettingsUpdate["aiProvider"],
-      sttProvider: formData.sttProvider as SettingsUpdate["sttProvider"],
+      aiProvider: formData.aiProvider as NonNullable<SettingsUpdate["aiProvider"]>,
+      sttProvider: formData.sttProvider as NonNullable<SettingsUpdate["sttProvider"]>,
       aiModel: formData.aiModel.trim() || null,
-      backendSource: formData.backendSource as SettingsUpdate["backendSource"],
+      backendSource: formData.backendSource as NonNullable<SettingsUpdate["backendSource"]>,
       oidcIssuerUrl: formData.oidcIssuerUrl.trim() || null,
     };
     updateSettings.mutate(

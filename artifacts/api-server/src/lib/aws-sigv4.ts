@@ -5,7 +5,7 @@ import crypto from "node:crypto";
  * No SDK — just the signing the API requires. Shared by the AWS vault store and the KMS
  * unwrap path so the signing lives in exactly one place.
  */
-export interface AwsCreds { accessKeyId: string; secretAccessKey: string; sessionToken?: string }
+export interface AwsCreds { accessKeyId: string; secretAccessKey: string; sessionToken?: string | undefined }
 
 function hmac(key: Buffer | string, data: string): Buffer {
   return crypto.createHmac("sha256", key).update(data, "utf8").digest();

@@ -106,14 +106,18 @@ export function AgileBoard({ projectId }: { projectId: string }) {
             description: `${issue.id.slice(0, 8)} → ${statusLabel(status)}`,
             // Offer the inverse move back to where the card came from. Re-issued
             // optimistically like any other move (and itself undoable).
-            action: isUndo ? undefined : (
-              <ToastAction
-                altText={`Undo move back to ${statusLabel(fromStatus)}`}
-                onClick={() => moveIssue({ ...issue, status }, fromStatus, true)}
-              >
-                Undo
-              </ToastAction>
-            ),
+            ...(isUndo
+              ? {}
+              : {
+                  action: (
+                    <ToastAction
+                      altText={`Undo move back to ${statusLabel(fromStatus)}`}
+                      onClick={() => moveIssue({ ...issue, status }, fromStatus, true)}
+                    >
+                      Undo
+                    </ToastAction>
+                  ),
+                }),
           });
         },
         onError: () => {

@@ -41,7 +41,7 @@ export interface SessionBind {
   /** Per-session CSPRNG entropy (hex). */
   salt: string;
   /** Broker-key version the session key was derived under (for revocation/rotation). */
-  bkver?: number;
+  bkver?: number | undefined;
 }
 
 /** Derive the per-session broker signing key (hex) from its binding material. */

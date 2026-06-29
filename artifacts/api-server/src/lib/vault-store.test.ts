@@ -66,7 +66,7 @@ test("http store fronts a generic REST secrets API", async () => {
   process.env["VAULT_BACKEND"] = "http";
   process.env["VAULT_HTTP_URL"] = "https://secrets.example";
   process.env["VAULT_HTTP_TOKEN"] = "bearer-x";
-  const calls: Array<{ url: string; method: string; auth?: string }> = [];
+  const calls: Array<{ url: string; method: string; auth?: string | undefined }> = [];
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     calls.push({ url: String(url), method: (init?.method ?? "GET").toUpperCase(), auth: headers.get("Authorization") ?? undefined });

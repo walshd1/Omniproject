@@ -49,7 +49,7 @@ export function GanttChart({ projectId }: { projectId: string }) {
   const commitReschedule = (issue: Issue, deltaDays: number) => {
     if (deltaDays === 0) return;
     const dates = rescheduledDates(issue, deltaDays);
-    const data: IssueUpdate = { ...dates, expectedVersion: issue.version ?? undefined };
+    const data: IssueUpdate = { ...dates, ...(issue.version != null ? { expectedVersion: issue.version } : {}) };
     const key = getGetProjectIssuesQueryKey(projectId);
     const prev = queryClient.getQueryData<Issue[]>(key);
     // Optimistic: move the bar in the cache immediately.

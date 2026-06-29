@@ -28,15 +28,15 @@ type Row = Record<string, unknown>;
  *  backend so IT authorises — the gateway only gates its own actions). */
 export interface ActorCtx {
   /** The end user's forwarded bearer token (per-user impersonation). */
-  token?: string;
-  sub?: string;
-  role?: string;
+  token?: string | undefined;
+  sub?: string | undefined;
+  role?: string | undefined;
   /** Backend routing hint (which system of record), from the `source` field. */
-  source?: string;
+  source?: string | undefined;
   /** Dedup token — a provider MAY use it to collapse duplicate triggers. */
-  idempotencyKey?: string;
+  idempotencyKey?: string | undefined;
   /** Loop-guard origin tag. A provider SHOULD echo it on emitted events. */
-  origin?: string;
+  origin?: string | undefined;
 }
 
 /** Thrown by every unimplemented backend operation. Maps to HTTP 501. */
@@ -184,9 +184,9 @@ export interface BrokerCoreInput {
   /** The raw request body string. */
   rawBody: string;
   /** Optional `X-OmniProject-Action` header value. */
-  actionHeader?: string;
+  actionHeader?: string | undefined;
   /** Optional `Authorization` header value (per-user impersonation). */
-  authHeader?: string;
+  authHeader?: string | undefined;
 }
 export interface BrokerCoreResult {
   status: number;

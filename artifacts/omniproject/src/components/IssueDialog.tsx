@@ -141,9 +141,9 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
 
   const buildPayload = (): IssueInput => ({
     title: form.title.trim(),
-    description: form.description.trim() || undefined,
-    status: form.status as IssueInput["status"],
-    priority: form.priority as IssueInput["priority"],
+    ...(form.description.trim() ? { description: form.description.trim() } : {}),
+    status: form.status as NonNullable<IssueInput["status"]>,
+    priority: form.priority as NonNullable<IssueInput["priority"]>,
     assignee: form.assignee.trim() || null,
     labels: form.labels
       .split(",")
@@ -186,7 +186,7 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
     if (isEdit && issue) {
       // Optimistic concurrency: send the version we loaded so the gateway/backend
       // rejects the write with 409 if someone else changed it meanwhile.
-      const update: IssueUpdate = { ...payload, expectedVersion: issue.version ?? undefined };
+      const update: IssueUpdate = { ...payload, ...(issue.version != null ? { expectedVersion: issue.version } : {}) };
       updateIssue.mutate(
         { projectId, issueId: issue.id, data: update },
         {
@@ -254,9 +254,9 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
     // content is preserved.
     const restore: IssueInput = {
       title: issue.title,
-      description: issue.description ?? undefined,
-      status: issue.status as IssueInput["status"],
-      priority: issue.priority as IssueInput["priority"],
+      ...(issue.description != null ? { description: issue.description } : {}),
+      status: issue.status as NonNullable<IssueInput["status"]>,
+      priority: issue.priority as NonNullable<IssueInput["priority"]>,
       assignee: issue.assignee ?? null,
       labels: [...issue.labels],
       startDate: issue.startDate ?? null,

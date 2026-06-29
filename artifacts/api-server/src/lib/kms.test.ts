@@ -63,7 +63,7 @@ test("aws provider calls KMS Decrypt with a SigV4 Authorization", async () => {
   process.env["AWS_REGION"] = "eu-west-1";
   process.env["AWS_ACCESS_KEY_ID"] = "AKIDEXAMPLE";
   process.env["AWS_SECRET_ACCESS_KEY"] = "secret";
-  let captured: { url: string; target?: string; auth?: string; body?: string } = { url: "" };
+  let captured: { url: string; target?: string | undefined; auth?: string | undefined; body?: string | undefined } = { url: "" };
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     captured = { url: String(url), target: headers.get("X-Amz-Target") ?? undefined, auth: headers.get("Authorization") ?? undefined, body: String(init?.body) };

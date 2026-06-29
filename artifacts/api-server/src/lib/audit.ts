@@ -32,16 +32,16 @@ export interface AuditEvent {
   ts: string;
   category: AuditCategory;
   action: string;
-  actor?: { sub?: string; email?: string; role?: string } | null;
+  actor?: { sub?: string | undefined; email?: string | undefined; role?: string | undefined } | null;
   projectId?: string | null;
-  status?: number;
-  ms?: number;
-  ip?: string;
-  origin?: string;
-  write?: boolean;
+  status?: number | undefined;
+  ms?: number | undefined;
+  ip?: string | undefined;
+  origin?: string | undefined;
+  write?: boolean | undefined;
   /** Outcome of the action — set on brokered n8n actions so logs show success/failure. */
-  result?: "success" | "error";
-  meta?: Record<string, unknown>;
+  result?: "success" | "error" | undefined;
+  meta?: Record<string, unknown> | undefined;
 }
 
 const WRITE_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
@@ -56,7 +56,7 @@ export function auditLevel(): AuditLevel {
 /** Pure decision: should an event at this level be recorded? */
 export function shouldAudit(
   level: AuditLevel,
-  ev: { category: AuditCategory; method?: string; write?: boolean },
+  ev: { category: AuditCategory; method?: string | undefined; write?: boolean | undefined },
 ): boolean {
   if (level === "off") return false;
   if (level === "all") return true;
@@ -136,7 +136,8 @@ function ensureSink(): HttpSink | null {
   const url = process.env["AUDIT_HTTP_URL"]?.trim();
   if (!url) return null;
   if (!sink) {
-    sink = createHttpSink({ url, token: process.env["AUDIT_HTTP_TOKEN"]?.trim(), batch: Number(process.env["AUDIT_BATCH"]) || 50 });
+    const token = process.env["AUDIT_HTTP_TOKEN"]?.trim();
+    sink = createHttpSink({ url, ...(token !== undefined ? { token } : {}), batch: Number(process.env["AUDIT_BATCH"]) || 50 });
     const ms = Number(process.env["AUDIT_FLUSH_MS"]) || 5000;
     timer = setInterval(() => void sink?.flush(), ms);
     timer.unref?.(); // don't keep the process alive for the flush timer

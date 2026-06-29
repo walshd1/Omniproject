@@ -104,9 +104,6 @@ move from tamper-evident to non-repudiation for customers who need it.
   it's not surprising.
 - **[debt] Large branch / changelog churn.** The last integration was 85 commits; keep future
   work in smaller, single-concern PRs to ease review and reduce changelog conflicts.
-- **[debt] One strict-TS opt-in still off.** `strict: true` + `noUncheckedIndexedAccess` are on;
-  `exactOptionalPropertyTypes` (~83 sites) is the remaining deferral — a self-contained, mechanical
-  PR that makes optional-property handling provably sound.
 - **[debt] A few large multi-concern components.** `IssueDialog.tsx` (~720 LOC) mixes form state +
   payload marshalling + mutations + rendering; the dialog reset/close pattern is hand-rolled in
   ~16 dialogs; `ScheduleSandbox` interleaves drag geometry + resource contention + rendering.

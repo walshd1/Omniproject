@@ -11,15 +11,15 @@
  */
 
 export interface NotifyTarget {
-  sub?: string;
-  email?: string;
-  role?: string;
+  sub?: string | undefined;
+  email?: string | undefined;
+  role?: string | undefined;
 }
 
 export interface NotifyClient {
   id: string;
-  sub?: string;
-  email?: string;
+  sub?: string | undefined;
+  email?: string | undefined;
   roles: string[];
   send: (event: string, data: unknown) => void;
   /** End the underlying SSE response — called on graceful shutdown. */
@@ -29,7 +29,7 @@ export interface NotifyClient {
 const clients = new Set<NotifyClient>();
 
 /** Does a target address this client? An empty/absent target is a broadcast. */
-export function clientMatches(client: { sub?: string; email?: string; roles: string[] }, target?: NotifyTarget): boolean {
+export function clientMatches(client: { sub?: string | undefined; email?: string | undefined; roles: string[] }, target?: NotifyTarget): boolean {
   if (!target || (!target.sub && !target.email && !target.role)) return true;
   if (target.sub && client.sub === target.sub) return true;
   if (target.email && client.email === target.email) return true;

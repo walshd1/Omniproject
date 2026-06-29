@@ -34,9 +34,9 @@ export interface PortfolioSnapshot {
   schema: number;
   id: string;
   capturedAt: string; // ISO 8601
-  label?: string;
+  label?: string | undefined;
   /** capabilities.mode at capture time ("demo" ⇒ the points are sample data). */
-  mode?: string;
+  mode?: string | undefined;
   projects: SnapshotProject[];
   portfolio: SnapshotPortfolioRow[];
 }
@@ -55,7 +55,7 @@ export interface SnapshotBundle {
  * deterministic tests; it defaults to now.
  */
 export function createSnapshot(
-  input: { projects?: Project[]; portfolio?: PortfolioHealthSummary[]; mode?: string; label?: string },
+  input: { projects?: Project[] | undefined; portfolio?: PortfolioHealthSummary[] | undefined; mode?: string | undefined; label?: string | undefined },
   capturedAt: string = new Date().toISOString(),
 ): PortfolioSnapshot {
   return {

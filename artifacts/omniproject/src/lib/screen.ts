@@ -76,7 +76,11 @@ export function applyLayout(screen: ScreenDef, layout?: ScreenLayout | null): Sc
     panels = panels.filter((p) => !hide.has(p.id));
   }
   if (layout.spans) {
-    panels = panels.map((p) => (typeof layout.spans![p.id] === "number" ? { ...p, span: layout.spans![p.id] } : p));
+    const spans = layout.spans;
+    panels = panels.map((p) => {
+      const span = spans[p.id];
+      return typeof span === "number" ? { ...p, span } : p;
+    });
   }
   if (layout.order?.length) {
     const rank = new Map(layout.order.map((id, i) => [id, i]));

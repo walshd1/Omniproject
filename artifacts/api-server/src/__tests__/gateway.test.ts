@@ -295,7 +295,7 @@ test("shouldAudit: writes records mutations + auth/admin, not reads", () => {
 });
 
 test("audit HTTP sink: batches NDJSON to the logging server", async () => {
-  const calls: Array<{ url: string; body: string; auth?: string }> = [];
+  const calls: Array<{ url: string; body: string; auth?: string | undefined }> = [];
   const fetchStub = (async (url: string, init: RequestInit) => {
     calls.push({ url, body: String(init.body), auth: (init.headers as Record<string, string>)?.["Authorization"] });
     return new Response("ok", { status: 200 });

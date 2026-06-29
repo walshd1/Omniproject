@@ -23,7 +23,7 @@ function trend(f: ProjectFinancials) {
   });
 }
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function Stat({ label, value, accent }: { label: string; value: string; accent?: string | undefined }) {
   return (
     <div className="border border-border bg-background p-3">
       <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">{label}</div>

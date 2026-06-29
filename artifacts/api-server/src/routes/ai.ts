@@ -41,7 +41,7 @@ const TRANSCRIBE_BODY = v.object({
 });
 
 /** The actor identity for capability logging, from the request session (or null). */
-function actorFromSession(req: Request): { sub: string; email?: string } | null {
+function actorFromSession(req: Request): { sub: string; email?: string | undefined } | null {
   const s = getSession(req);
   return s ? { sub: s.sub, email: s.email } : null;
 }
@@ -55,7 +55,7 @@ function surfaceFromBody(req: Request): string | undefined {
 /** Enforce an AI capability for a route. On a governance block, send 403 with the given
  *  `label` prefix and return false (the caller returns); re-throw anything else. Collapses
  *  the identical try/catch the AI routes all repeated. */
-function enforceOr403(req: Request, res: Response, capabilityId: string, opts: { surface?: string; label: string }): boolean {
+function enforceOr403(req: Request, res: Response, capabilityId: string, opts: { surface?: string | undefined; label: string }): boolean {
   try {
     enforceCapability(capabilityId, { surface: opts.surface, actor: actorFromSession(req) });
     return true;

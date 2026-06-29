@@ -232,9 +232,9 @@ export async function checkEndpointReachable(url: string, timeoutMs = 3000): Pro
 }
 
 export interface Actor {
-  sub?: string;
-  email?: string;
-  role?: string;
+  sub?: string | undefined;
+  email?: string | undefined;
+  role?: string | undefined;
 }
 
 export interface CapabilityDecision {
@@ -292,7 +292,7 @@ const actorLabel = (a?: Actor | null): string | null => a?.email ?? a?.sub ?? nu
  * which AI/vendor/broker ran where and for whom. The call site uses the returned
  * {state, endpoint} to run correctly.
  */
-export function decideCapability(id: string, opts: { surface?: string; actor?: Actor | null } = {}): CapabilityDecision {
+export function decideCapability(id: string, opts: { surface?: string | undefined; actor?: Actor | null } = {}): CapabilityDecision {
   const cap = getCapability(id);
   const surface = opts.surface ?? null;
   const state = effectiveState(id, opts.surface);
@@ -329,7 +329,7 @@ export function noteCapabilityConfigured(id: string, setting: CapabilitySetting,
  * Strong call-time gate: decide + log, and THROW CapabilityBlockedError when the
  * capability is off for this surface. Every governed call site routes through here.
  */
-export function enforceCapability(id: string, opts: { surface?: string; actor?: Actor | null } = {}): CapabilityDecision {
+export function enforceCapability(id: string, opts: { surface?: string | undefined; actor?: Actor | null } = {}): CapabilityDecision {
   const decision = decideCapability(id, opts);
   if (!decision.allowed) throw new CapabilityBlockedError(id, decision.surface);
   return decision;

@@ -10,7 +10,7 @@ export function LoadingState({
   className = "p-8 text-center",
 }: {
   label?: string;
-  className?: string;
+  className?: string | undefined;
 }) {
   return (
     <div className={`${className} font-bold tracking-widest text-muted-foreground animate-pulse`.trim()}>

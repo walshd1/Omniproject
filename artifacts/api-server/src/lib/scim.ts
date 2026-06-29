@@ -18,17 +18,17 @@ export interface ScimEmail { value: string; primary?: boolean; type?: string }
 export interface ScimUser {
   id: string;
   userName: string;
-  externalId?: string;
+  externalId?: string | undefined;
   active: boolean;
-  displayName?: string;
-  emails?: ScimEmail[];
-  groups?: string[]; // group display names (role-claim-like)
+  displayName?: string | undefined;
+  emails?: ScimEmail[] | undefined;
+  groups?: string[] | undefined; // group display names (role-claim-like)
   meta: { resourceType: "User"; created: string; lastModified: string };
 }
 export interface ScimGroup {
   id: string;
   displayName: string;
-  externalId?: string;
+  externalId?: string | undefined;
   members: { value: string }[]; // member user ids
   meta: { resourceType: "Group"; created: string; lastModified: string };
 }
@@ -249,7 +249,7 @@ function syncGroupMembership(): void {
  * opinion (fall back to pure OIDC). `active=false` ⇒ deprovisioned (deny). `roleClaims` are
  * the user's group display names, merged into the OIDC role claims for grant resolution.
  */
-export function directoryDecision(identity: { email?: string; sub?: string; userName?: string }): { known: boolean; active: boolean; roleClaims: string[] } {
+export function directoryDecision(identity: { email?: string | undefined; sub?: string | undefined; userName?: string | undefined }): { known: boolean; active: boolean; roleClaims: string[] } {
   if (!scimEnabled()) return { known: false, active: true, roleClaims: [] };
   ensureLoaded();
   const email = identity.email?.toLowerCase();

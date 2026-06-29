@@ -29,16 +29,16 @@ export type ActorKind = "human" | "automation" | "agent";
  * the same access token echoed in the per-user context. Demo brokers ignore both.
  */
 export interface ActorContext {
-  sub?: string;
-  email?: string;
-  name?: string;
-  role?: string;
-  token?: string;
-  authHeader?: string;
+  sub?: string | undefined;
+  email?: string | undefined;
+  name?: string | undefined;
+  role?: string | undefined;
+  token?: string | undefined;
+  authHeader?: string | undefined;
   /** Binding material for the per-session broker signing key (lib/session-key).
    *  Present for authenticated calls; absent for system/unauthenticated ones (which
    *  fall back to the static broker key). */
-  sessionBind?: SessionBind;
+  sessionBind?: SessionBind | undefined;
   /** What kind of principal this is (default human). Autonomous actors carry their
    *  own keyed sessionBind + RBAC role, so they're keyed and provenance-bound too. */
   actorKind?: ActorKind;
@@ -108,36 +108,36 @@ export interface TaskItemWrite {
 /** A normalised issue mutation. `expectedVersion` drives optimistic concurrency. */
 export interface IssueWrite {
   projectId: string;
-  issueId?: string;
-  title?: string;
-  description?: string | null;
-  status?: string;
-  priority?: string;
-  assignee?: string | null;
-  labels?: string[];
-  startDate?: string | Date | null;
-  dueDate?: string | Date | null;
+  issueId?: string | undefined;
+  title?: string | undefined;
+  description?: string | null | undefined;
+  status?: string | undefined;
+  priority?: string | undefined;
+  assignee?: string | null | undefined;
+  labels?: string[] | undefined;
+  startDate?: string | Date | null | undefined;
+  dueDate?: string | Date | null | undefined;
   // Optional per-task financials (capability-gated, "financial" field group).
-  budget?: number | null;
-  actualCost?: number | null;
-  billable?: boolean | null;
-  costCenter?: string | null;
-  currency?: string | null;
+  budget?: number | null | undefined;
+  actualCost?: number | null | undefined;
+  billable?: boolean | null | undefined;
+  costCenter?: string | null | undefined;
+  currency?: string | null | undefined;
   // Optional effort / time-tracking (capability-gated, "effort"/"agile" groups).
-  estimateHours?: number | null;
-  loggedHours?: number | null;
-  remainingHours?: number | null;
-  storyPoints?: number | null;
+  estimateHours?: number | null | undefined;
+  loggedHours?: number | null | undefined;
+  remainingHours?: number | null | undefined;
+  storyPoints?: number | null | undefined;
   // Optional risk & quality (capability-gated, "quality" group).
-  healthStatus?: string | null;
-  riskLevel?: string | null;
-  impact?: string | null;
-  urgency?: string | null;
-  blocked?: boolean | null;
-  blockedReason?: string | null;
-  mitigation?: string | null;
-  defectCount?: number | null;
-  expectedVersion?: number;
+  healthStatus?: string | null | undefined;
+  riskLevel?: string | null | undefined;
+  impact?: string | null | undefined;
+  urgency?: string | null | undefined;
+  blocked?: boolean | null | undefined;
+  blockedReason?: string | null | undefined;
+  mitigation?: string | null | undefined;
+  defectCount?: number | null | undefined;
+  expectedVersion?: number | undefined;
 }
 
 /** A person on a project, with their access level (the backend is the source). */
@@ -171,11 +171,11 @@ export interface ResourceMember {
 
 /** A normalised project create/update. `name` is required on create. */
 export interface ProjectWrite {
-  name?: string;
-  identifier?: string | null;
-  description?: string | null;
+  name?: string | undefined;
+  identifier?: string | null | undefined;
+  description?: string | null | undefined;
   /** Set/clear to group the project under a programme (derived-programme model). */
-  programmeId?: string | null;
+  programmeId?: string | null | undefined;
 }
 
 export interface Summary {

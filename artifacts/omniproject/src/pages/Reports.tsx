@@ -25,7 +25,7 @@ function Gated({
   requires,
   children,
 }: {
-  caps?: Capabilities;
+  caps?: Capabilities | undefined;
   domain: keyof Capabilities;
   title: string;
   requires: string;

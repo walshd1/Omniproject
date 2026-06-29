@@ -23,7 +23,7 @@ afterEach(() => {
 
 async function open(label?: string) {
   const user = userEvent.setup();
-  renderWithProviders(<ExportMenu projectId={undefined} label={label} />);
+  renderWithProviders(<ExportMenu {...(label !== undefined ? { label } : {})} />);
   await user.click(screen.getByTestId("export-menu"));
   return user;
 }

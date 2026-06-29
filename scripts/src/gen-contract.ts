@@ -122,8 +122,14 @@ function convert(node: ts.TypeNode, ctx: string): JsonSchema {
 
   if (ts.isUnionTypeNode(node)) {
     const parts = node.types;
-    const nonNull = parts.filter((p) => !(ts.isLiteralTypeNode(p) && p.literal.kind === ts.SyntaxKind.NullKeyword) && p.kind !== ts.SyntaxKind.NullKeyword);
-    const nullable = nonNull.length !== parts.length;
+    const isNull = (p: ts.TypeNode) => (ts.isLiteralTypeNode(p) && p.literal.kind === ts.SyntaxKind.NullKeyword) || p.kind === ts.SyntaxKind.NullKeyword;
+    // `undefined` in an optional property's union (under exactOptionalPropertyTypes) is TS
+    // bookkeeping, not a wire-format difference — strip it so `T | undefined` ≡ `T`.
+    const isUndefined = (p: ts.TypeNode) => p.kind === ts.SyntaxKind.UndefinedKeyword;
+    const nonNull = parts.filter((p) => !isNull(p) && !isUndefined(p));
+    const nullable = parts.some(isNull);
+    // A bare `T | undefined` produces exactly the schema for `T` (no anyOf wrapper, no drift).
+    if (nonNull.length === 1 && !nullable) return convert(nonNull[0]!, ctx);
     // All string literals → enum.
     if (nonNull.every((p) => ts.isLiteralTypeNode(p) && ts.isStringLiteral(p.literal))) {
       const values = nonNull.map((p) => ((p as ts.LiteralTypeNode).literal as ts.StringLiteral).text);

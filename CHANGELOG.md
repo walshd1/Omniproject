@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Stricter TypeScript: `exactOptionalPropertyTypes` on (completes the strict-TS opt-ins).**
+  An optional property `x?: T` can no longer be silently assigned `undefined` — the code must
+  either omit it or declare `x?: T | undefined`. The ~127 resulting sites were fixed by either a
+  conditional spread (`...(v !== undefined ? { k: v } : {})`) where omission is the intent, or by
+  widening the type to `?: T | undefined` where "explicitly absent" is a real state — notably the
+  broker patch types (`IssueWrite`/`ProjectWrite`, where `undefined` means "no change"), OIDC
+  session claims, the audit-event shape, the SCIM directory records, and autonomous-write grants.
+  No runtime behaviour change; no `as`/`@ts-ignore`. With `strict`, `noUncheckedIndexedAccess`
+  and this now all on, indexed access and optional-property handling are provably sound.
+
 - **Stricter TypeScript: `noUncheckedIndexedAccess` on.** Every indexed access (`arr[i]`,
   `obj[key]`) is now typed `T | undefined`, so the compiler forces an explicit decision at each
   site. The ~35 resulting sites across the gateway, SPA, shared libs and tooling were fixed with

@@ -5,7 +5,7 @@ import { useFxRates, convertAmount, currencyList } from "../lib/currency";
 
 const HEALTH: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function Stat({ label, value, accent }: { label: string; value: string; accent?: string | undefined }) {
   return (
     <div className="px-3 py-2 border-l border-border first:border-l-0">
       <div className="text-[10px] text-muted-foreground uppercase tracking-widest">{label}</div>

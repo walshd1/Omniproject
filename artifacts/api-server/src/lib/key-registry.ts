@@ -85,7 +85,7 @@ export function listKeys(): KeyStatus[] {
 }
 
 /** Revoke a key's current version and roll forward to a fresh derived key. */
-export function revokeKey(name: KeyName, opts: { by?: string | null; reason?: string } = {}): KeyStatus {
+export function revokeKey(name: KeyName, opts: { by?: string | null; reason?: string | undefined } = {}): KeyStatus {
   const s = state(name);
   s.revoked.add(s.version);
   s.version += 1;
