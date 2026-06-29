@@ -6,6 +6,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **SPA modularity pass — shared hook + helpers, panel split (no behaviour change).**
+  - **`useInvalidateIssueQueries`** — the "after an issue mutation, refresh issues + summary +
+    projects + activity" invalidation list was hand-rolled in `IssueDialog`, `NewTaskDialog` and
+    `AgileBoard`; it now lives in one hook so the key set can't drift.
+  - **`parseNumberOrNull`** (`lib/validation`) — the optional-numeric-field coercion duplicated
+    inside `IssueDialog` is now a shared, tested helper.
+  - **`PremiumAdmin` split** — the three independent panels (white-label branding, company
+    nomenclature, outbound webhooks) moved into their own files under `components/premium/`
+    over a shared primitives module; `PremiumAdmin` is now a thin licence-gated container.
+
 ### Security
 
 - **Zero-trust boundary validation + strict TypeScript.** Untrusted request inputs are now

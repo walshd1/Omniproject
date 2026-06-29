@@ -1,15 +1,11 @@
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   useCreateIssue,
   useListProjects,
   useListProjectMembers,
-  getGetProjectIssuesQueryKey,
-  getGetProjectSummaryQueryKey,
-  getListProjectsQueryKey,
-  getListActivityQueryKey,
   type IssueInput,
 } from "@workspace/api-client-react";
+import { useInvalidateIssueQueries } from "../hooks/use-invalidate-issue-queries";
 import {
   Dialog,
   DialogContent,
@@ -31,7 +27,7 @@ import { STATUS_ORDER, STATUS_LABELS, PRIORITY_ORDER, PRIORITY_LABELS } from "..
  * create a free-floating task. Brokered via createIssue, as you.
  */
 export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const qc = useQueryClient();
+  const invalidateIssueQueries = useInvalidateIssueQueries();
   const { toast } = useToast();
   const create = useCreateIssue();
   const { data: projects } = useListProjects();
@@ -71,10 +67,7 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       { projectId: form.projectId, data },
       {
         onSuccess: () => {
-          qc.invalidateQueries({ queryKey: getGetProjectIssuesQueryKey(form.projectId) });
-          qc.invalidateQueries({ queryKey: getGetProjectSummaryQueryKey(form.projectId) });
-          qc.invalidateQueries({ queryKey: getListProjectsQueryKey() });
-          qc.invalidateQueries({ queryKey: getListActivityQueryKey() });
+          invalidateIssueQueries(form.projectId);
           toast({ title: "TASK CREATED", description: data.title });
           reset();
           onOpenChange(false);
