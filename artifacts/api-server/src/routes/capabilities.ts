@@ -6,6 +6,7 @@
  */
 import { Router } from "express";
 import { resolveCapabilities, resolveFieldManifest } from "../lib/capabilities";
+import { resolveAvailability } from "../lib/availability";
 import { requireRole } from "../lib/rbac";
 
 const router = Router();
@@ -17,6 +18,18 @@ router.get("/capabilities", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "capabilities resolution failed");
     res.status(502).json({ error: "Could not resolve capabilities" });
+  }
+});
+
+// GET /api/availability — what the connected backend ACTUALLY surfaces: superset ∩ (the backend's
+// schema manifest if it provides one — the stateful-DB path — else the static capability flags).
+// Read-only; the SPA uses it to show only the fields/tables the backend genuinely has.
+router.get("/availability", async (req, res) => {
+  try {
+    res.json(await resolveAvailability(req));
+  } catch (err) {
+    req.log.error({ err }, "availability resolution failed");
+    res.status(502).json({ error: "Could not resolve availability" });
   }
 });
 

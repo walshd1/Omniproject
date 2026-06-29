@@ -8,6 +8,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Backend schema manifest + availability resolver (`describeSchema` / `GET /api/availability`).**
+  A new **optional** broker method `describeSchema` returns a manifest — `{ tables, fields,
+  relationships, populated }` — and a gateway **availability resolver** computes what a backend
+  *actually* surfaces as **`superset ∩ (manifest, else capability flags)`**. **Scope:** the manifest
+  (and "surface only what is *populated*") applies **only when a backend owns its schema** — in
+  practice OmniProject's own stateful self-host DB. Every ordinary SaaS backend (the
+  stateless-overlay default) implements no `describeSchema`: data stays in the vendor and
+  availability is governed by the existing **static capability flags**, so the resolver **falls back
+  cleanly** (conformance-tested). `GET /api/availability` returns `{ source: "manifest" |
+  "capabilities", fields, tables, relationships }` (cached per backend kind, short TTL); the SPA gets
+  a `useAvailability` hook. Admin/PMO view-curation (Phase 1) layers on top. `lib/availability`.
+
 - **Superset enforcement + growth — the field registry is now a vendor-extensible, CI-enforced
   superset.** Two halves:
   - **Growth.** A backend descriptor may declare an optional **`fields[]`** array (each validated

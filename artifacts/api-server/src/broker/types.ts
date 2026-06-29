@@ -299,6 +299,26 @@ const STATUS_FOR: Record<BrokerErrorCode, number> = {
 };
 
 /**
+ * A backend's self-describing SCHEMA manifest — the tables, canonical fields and relationships it
+ * actually holds, plus which fields are POPULATED (have data). Returned by the optional
+ * `describeSchema`. Only a backend that owns its schema can answer this — in practice OmniProject's
+ * own stateful self-host database. Ordinary SaaS backends (the stateless-overlay default) do NOT
+ * implement it; the gateway then falls back to the static capability flags. The gateway uses it to
+ * surface only what a backend genuinely has (superset ∩ manifest).
+ */
+export interface SchemaManifest {
+  /** Canonical entity keys (tables) present, e.g. ["project", "issue", "programme"]. */
+  tables: string[];
+  /** Canonical field keys present in the schema (a subset of the superset). */
+  fields: string[];
+  /** Foreign-key/relationship edges between entities. */
+  relationships: { from: string; field: string; to: string }[];
+  /** Canonical field keys that actually hold data — a subset of `fields`. When given, the gateway
+   *  surfaces only these ("populated, not just possible"); when omitted, all `fields` are surfaced. */
+  populated?: string[];
+}
+
+/**
  * The broker contract. Domain operations only — implementers translate to/from
  * their transport. `kind` and `live` are for diagnostics, not behaviour.
  */
@@ -348,6 +368,14 @@ export interface Broker {
    * flag fields the seam doesn't yet understand. See lib/field-registry.ts.
    */
   describeFields?(ctx: ActorContext): Promise<EnumeratedField[]>;
+  /**
+   * Optional schema introspection: report the tables/fields/relationships this backend HOLDS and
+   * which fields are populated, so the gateway surfaces only what genuinely exists (superset ∩
+   * manifest). Only a backend that owns its schema implements it — in practice OmniProject's own
+   * stateful self-host DB. Absent on ordinary SaaS backends, where the gateway falls back to the
+   * static capability flags. See lib/availability.
+   */
+  describeSchema?(ctx: ActorContext): Promise<SchemaManifest | null>;
   fxRates(ctx: ActorContext): Promise<FxRates>;
   /** Time-travel: replay recorded portfolio states from the logging server. */
   replay(ctx: ActorContext, opts: { from?: string; to?: string }): Promise<HistoryState[]>;
