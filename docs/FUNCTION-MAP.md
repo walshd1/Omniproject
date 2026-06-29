@@ -447,6 +447,16 @@ Autonomous principals.
 | `isAutonomous` | Is this context an autonomous (non-human) principal? |
 | `assertAutonomousCan` | Enforce RBAC for an autonomous actor before it performs `need`-gated work. |
 
+### `artifacts/api-server/src/lib/availability.ts`
+
+Availability resolver — what the connected backend ACTUALLY surfaces, computed as `superset ∩ (manifest if the backend provides one, else the static capability flags)`.
+
+| Function | What it does |
+| --- | --- |
+| `__resetAvailabilityCacheForTest` | Test seam: clear the short-TTL cache. |
+| `availabilityFromManifest` | Intersect a backend schema manifest with the superset; honour `populated` when present. |
+| `resolveAvailability` | Resolve availability for the active backend. |
+
 ### `artifacts/api-server/src/lib/aws-sigv4.ts`
 
 AWS Signature V4 for the JSON (`x-amz-json-1.1`) services we call (Secrets Manager, KMS).

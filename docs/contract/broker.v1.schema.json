@@ -969,6 +969,63 @@
       "additionalProperties": {},
       "description": "Loosely-typed record — the normalised row shape the broker exchanges."
     },
+    "SchemaManifest": {
+      "type": "object",
+      "properties": {
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Canonical entity keys (tables) present, e.g. [\"project\", \"issue\", \"programme\"]."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Canonical field keys present in the schema (a subset of the superset)."
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "field": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "field",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Foreign-key/relationship edges between entities."
+        },
+        "populated": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Canonical field keys that actually hold data — a subset of `fields`. When given, the gateway surfaces only these (\"populated, not just possible\"); when omitted, all `fields` are surfaced."
+        }
+      },
+      "required": [
+        "tables",
+        "fields",
+        "relationships"
+      ],
+      "additionalProperties": false,
+      "description": "A backend's self-describing SCHEMA manifest — the tables, canonical fields and relationships it actually holds, plus which fields are POPULATED (have data). Returned by the optional `describeSchema`. Only a backend that owns its schema can answer this — in practice OmniProject's own stateful self-host database. Ordinary SaaS backends (the stateless-overlay default) do NOT implement it; the gateway then falls back to the static capability flags. The gateway uses it to surface only what a backend genuinely has (superset ∩ manifest)."
+    },
     "Summary": {
       "type": "object",
       "properties": {

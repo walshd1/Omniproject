@@ -34,6 +34,7 @@ Every operation a broker must (or, where marked optional, may) implement. Each t
 | `capabilities` | — | `Promise<CapabilityFlags>` |  |
 | `fieldMap` _(optional)_ | — | `Promise<BackendFieldMap | null>` | Optional finer-grained field/entity support. When a broker provides it, it overrides the domain-derived defaults; when omitted, the gateway derives a map from the domain flags. Lets a backend say "storyPoints: yes, dueDate: read-only, no programme grouping" precisely. |
 | `describeFields` _(optional)_ | — | `Promise<EnumeratedField[]>` | Optional API enumeration: report the fields this backend exposes, so wiring a new system of record can reconcile them against the canonical registry and flag fields the seam doesn't yet understand. See lib/field-registry.ts. |
+| `describeSchema` _(optional)_ | — | `Promise<SchemaManifest | null>` | Optional schema introspection: report the tables/fields/relationships this backend HOLDS and which fields are populated, so the gateway surfaces only what genuinely exists (superset ∩ manifest). Only a backend that owns its schema implements it — in practice OmniProject's own stateful self-host DB. Absent on ordinary SaaS backends, where the gateway falls back to the static capability flags. See lib/availability. |
 | `fxRates` | — | `Promise<FxRates>` |  |
 | `replay` | `opts: { from?: string; to?: string }` | `Promise<HistoryState[]>` | Time-travel: replay recorded portfolio states from the logging server. |
 | `changeToken` _(optional)_ | `resource: string` | `Promise<string | null>` | OPTIONAL — a cheap, opaque CHANGE TOKEN for a resource (e.g. `"projects"`, `"issues:proj-001"`), used for conditional/delta reads: the gateway compares it to the client's last-seen token and, on a match, returns 304 WITHOUT performing the full read — so the heavy backend call is skipped. Map it to a backend ETag, a max(updatedAt), or a sync cursor. Return null when the resource has no cheap version (the gateway falls back to hashing the full payload). Brokers that don't implement this are unaffected — conditional reads degrade to the payload hash. |
@@ -363,6 +364,17 @@ A person aggregated across the portfolio, for resource planning.
 Loosely-typed record — the normalised row shape the broker exchanges.
 
 Type: map → any
+
+### SchemaManifest
+
+A backend's self-describing SCHEMA manifest — the tables, canonical fields and relationships it actually holds, plus which fields are POPULATED (have data). Returned by the optional `describeSchema`. Only a backend that owns its schema can answer this — in practice OmniProject's own stateful self-host database. Ordinary SaaS backends (the stateless-overlay default) do NOT implement it; the gateway then falls back to the static capability flags. The gateway uses it to surface only what a backend genuinely has (superset ∩ manifest).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `tables` | string[] | yes | Canonical entity keys (tables) present, e.g. ["project", "issue", "programme"]. |
+| `fields` | string[] | yes | Canonical field keys present in the schema (a subset of the superset). |
+| `relationships` | object[] | yes | Foreign-key/relationship edges between entities. |
+| `populated` | string[] | — | Canonical field keys that actually hold data — a subset of `fields`. When given, the gateway surfaces only these ("populated, not just possible"); when omitted, all `fields` are surfaced. |
 
 ### Summary
 
