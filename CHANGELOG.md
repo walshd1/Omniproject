@@ -8,6 +8,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Editable data grid with bulk inline edit (first UX-parity module).** A spreadsheet-style grid
+  of a project's work items: **click-to-edit** cells (text / select / date / number by field type),
+  **Enter** to commit / **Escape** to cancel, **multi-row select + bulk-apply** one field value to
+  every selected row. Columns are **keyed by canonical field keys and gated by availability**
+  (superset ∩ backend − curation), so the grid shows exactly the editable fields the backend
+  supports and the admin/PMO kept — this is where deep per-column availability gating lands. Every
+  write goes **through the broker** with the **optimistic-concurrency token** (`expectedVersion` =
+  `Issue.version` / OpenProject `lock_version`); a concurrent change returns **409** and the grid
+  refreshes instead of clobbering (optimistic update with revert-on-error). Shipped as an
+  **optional feature module** (`grid`) — the feature registry now supports **UI-only modules** (no
+  backend route), listed + toggleable via `GET /api/features` and gated in the SPA by
+  `useFeatures`. Surfaced as a **Board | Grid** view toggle on the project page when enabled.
+  `components/grid/IssueGrid`. *(The remaining UX-parity modules — saved views, My Work, dashboard
+  builder, side-panel, search — follow as separate feature-module PRs.)*
+
 - **Admin/PMO field-visibility curation (Phase 1 UX).** On top of backend availability (superset ∩
   manifest-or-capabilities), an **admin OR PMO** can now HIDE available-but-unwanted fields from
   view. The availability resolver returns the full picture — `{ source, available (full backend

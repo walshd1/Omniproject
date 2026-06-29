@@ -152,6 +152,7 @@ router.use(requireAuth, healthWatchRouter);
  */
 async function mountFeatureModules(): Promise<void> {
   for (const m of FEATURE_MODULES) {
+    if (!m.load) continue; // UI-only module — no backend route to mount (SPA gates it)
     if (!isFeatureEnabled(m.id)) {
       logger.info({ feature: m.id }, "feature module disabled — backend code not loaded");
       continue;
