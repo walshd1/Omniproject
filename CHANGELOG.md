@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Global search (UX-parity module).** A command-palette-style **cross-entity quick-find** over
+  **projects, issues and programmes** from the existing read-model. **Keyboard-first** (open with
+  `/` outside inputs, `↑`/`↓` to move, `Enter` to jump, `Esc` to close); selecting an issue routes
+  to its project and **opens the rich side-panel** when that module is enabled. Ranking is a pure,
+  unit-tested engine (exact > prefix > word-boundary > substring; projects ahead of issues then
+  programmes on ties); issues are fetched per project only while the overlay is open. Shipped as the
+  optional UI-only **`globalSearch`** feature module (gated by `useFeatures`); rendered once at the
+  app shell. `components/search/GlobalSearch`, `lib/global-search`.
+
 - **Rich side-panel (UX-parity module).** A **slide-over work-item detail panel**: a quick read-out
   of the item's fields (**availability-gated** — only what the backend surfaces and the admin/PMO
   kept), **inline edit** of the common fields (status, priority, assignee, due date) **through the
