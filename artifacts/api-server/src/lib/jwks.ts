@@ -1,15 +1,18 @@
-import crypto from "node:crypto";
+import { jwtVerify, createLocalJWKSet, type JSONWebKeySet } from "jose";
 import { assertSafeOutboundUrl } from "./url-safety";
 
 /**
- * Dependency-free JWKS / JWT signature verification.
+ * JWKS / ID-token verification.
  *
- * The OIDC relying party previously decoded the ID token without checking its
- * signature (acceptable only because it arrived over TLS straight from the token
- * endpoint). This verifies the signature against the issuer's published JWKS and
- * validates the core claims, so a forged or tampered token is rejected.
- *
- * Uses only Node's crypto (createPublicKey supports JWK input), so no new deps.
+ * The cryptographic verification (signature + standard claims) is delegated to
+ * `jose` — a well-reviewed, widely-audited JOSE implementation — rather than
+ * hand-rolled against Node's primitives. We keep the parts that are policy, not
+ * crypto, in our own hands:
+ *   - the **algorithm allowlist** (asymmetric only: RS/PS/ES) so `alg:none` and
+ *     HMAC `alg`-confusion attacks are rejected before any key is consulted;
+ *   - the **SSRF guard** on the issuer-supplied `jwks_uri` — we fetch the keys
+ *     ourselves through `assertSafeOutboundUrl` and hand jose a *local* key set,
+ *     so jose never performs an unguarded outbound request.
  */
 
 export interface Jwk {
@@ -34,67 +37,37 @@ export interface JwtClaims {
   [k: string]: unknown;
 }
 
-interface ParsedJwt {
-  header: { alg: string; kid?: string; typ?: string };
-  claims: JwtClaims;
-  signingInput: string;
-  signature: Buffer;
-}
-
-const ALLOWED_ALGS = new Set([
+/** Asymmetric algorithms only. Excluding HS* and `none` blocks alg-confusion
+ *  (signing with the public key as an HMAC secret) and unsigned tokens. */
+export const ALLOWED_ALGS = [
   "RS256", "RS384", "RS512",
   "PS256", "PS384", "PS512",
   "ES256", "ES384", "ES512",
-]);
+];
 
-/** Split + decode a compact JWS. Throws on malformed input. */
-export function parseJwt(token: string): ParsedJwt {
+const LEEWAY_SEC = 60;
+
+/** Decode a compact JWS into its header + claims without verifying. For
+ *  diagnostics/routing only — never trust these values before `verifyIdToken`. */
+export function parseJwt(token: string): { header: { alg: string; kid?: string; typ?: string }; claims: JwtClaims } {
   const parts = token.split(".");
   if (parts.length !== 3) throw new Error("Malformed JWT (expected 3 segments)");
-  // length === 3 guarantees all three segments are present
-  const [seg0, seg1, seg2] = parts as [string, string, string];
+  const [seg0, seg1] = parts as [string, string, string];
   const header = JSON.parse(Buffer.from(seg0, "base64url").toString("utf8"));
   const claims = JSON.parse(Buffer.from(seg1, "base64url").toString("utf8"));
   if (!header.alg || typeof header.alg !== "string") throw new Error("JWT header missing alg");
-  return {
-    header,
-    claims,
-    signingInput: `${seg0}.${seg1}`,
-    signature: Buffer.from(seg2, "base64url"),
-  };
+  return { header, claims };
 }
 
-/** Verify a parsed JWT's signature against a single JWK. */
-export function verifySignatureWithJwk(parsed: ParsedJwt, jwk: Jwk): boolean {
-  const alg = parsed.header.alg;
-  if (!ALLOWED_ALGS.has(alg)) throw new Error(`Unsupported JWT alg: ${alg}`);
-
-  const keyObject = crypto.createPublicKey({ key: jwk, format: "jwk" } as crypto.JsonWebKeyInput);
-  const data = Buffer.from(parsed.signingInput);
-  const digest = `sha${alg.slice(2)}`; // sha256 | sha384 | sha512
-
-  if (alg.startsWith("RS")) {
-    return crypto.verify(digest, data, keyObject, parsed.signature);
-  }
-  if (alg.startsWith("PS")) {
-    return crypto.verify(
-      digest,
-      data,
-      { key: keyObject, padding: crypto.constants.RSA_PKCS1_PSS_PADDING, saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST },
-      parsed.signature,
-    );
-  }
-  // ES*: JWS uses raw r||s concatenation (IEEE P1363), not DER.
-  return crypto.verify(digest, data, { key: keyObject, dsaEncoding: "ieee-p1363" }, parsed.signature);
-}
-
-/** Validate the standard claims. Returns null on success, else the reason. */
+/** Validate the standard claims (pure comparison, no crypto). Returns null on
+ *  success, else the reason. `verifyIdToken` enforces these via jose; this is a
+ *  standalone helper for callers that already hold verified claims. */
 export function validateClaims(
   claims: JwtClaims,
   opts: { issuer: string; audience: string; now?: number; leewaySec?: number },
 ): string | null {
   const now = opts.now ?? Math.floor(Date.now() / 1000);
-  const leeway = opts.leewaySec ?? 60;
+  const leeway = opts.leewaySec ?? LEEWAY_SEC;
 
   if (claims.iss !== opts.issuer) return `issuer mismatch (got ${claims.iss})`;
 
@@ -108,17 +81,17 @@ export function validateClaims(
   return null;
 }
 
-// ── JWKS fetch + cache ────────────────────────────────────────────────────────
+// ── JWKS fetch + cache (SSRF-guarded) ───────────────────────────────────────────
 
 const jwksCache = new Map<string, { keys: Jwk[]; at: number }>();
 const JWKS_TTL_MS = 10 * 60 * 1000;
 
-/** Fetch the issuer's JWKS signing keys, cached for 10 minutes. */
+/** Fetch the issuer's JWKS signing keys, cached for 10 minutes. The `jwks_uri`
+ *  comes from the issuer's discovery doc (IdP-controlled), so it is guarded
+ *  against a metadata/link-local SSRF pivot before every fetch. */
 export async function fetchJwks(jwksUri: string, fetchImpl: typeof fetch = fetch): Promise<Jwk[]> {
   const cached = jwksCache.get(jwksUri);
   if (cached && Date.now() - cached.at < JWKS_TTL_MS) return cached.keys;
-  // The jwks_uri comes from the issuer's discovery doc (IdP-controlled), so guard it against
-  // a metadata/link-local SSRF pivot before fetching.
   assertSafeOutboundUrl(jwksUri, "jwks_uri");
   const res = await fetchImpl(jwksUri, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new Error(`JWKS fetch failed (${res.status})`);
@@ -128,42 +101,34 @@ export async function fetchJwks(jwksUri: string, fetchImpl: typeof fetch = fetch
   return keys;
 }
 
-function selectKeys(keys: Jwk[], kid?: string): Jwk[] {
-  if (kid) {
-    const exact = keys.filter((k) => k.kid === kid);
-    if (exact.length) return exact;
-  }
-  // No kid (or no match) → try signature-capable keys.
-  return keys.filter((k) => k.use === "sig" || k.use === undefined);
-}
-
 /**
- * Full verification: fetch JWKS, verify signature against the matching key, and
- * validate iss/aud/exp/nbf. Returns the verified claims or throws.
+ * Full verification: fetch the JWKS (SSRF-guarded), then have jose verify the
+ * signature against the matching key and validate iss/aud/exp/nbf under the
+ * asymmetric-only algorithm allowlist. Returns the verified claims or throws.
  */
 export async function verifyIdToken(
   idToken: string,
   opts: { jwksUri: string; issuer: string; audience: string; fetchImpl?: typeof fetch },
 ): Promise<JwtClaims> {
-  const parsed = parseJwt(idToken);
-  if (!ALLOWED_ALGS.has(parsed.header.alg)) throw new Error(`Unsupported JWT alg: ${parsed.header.alg}`);
-
   const keys = await fetchJwks(opts.jwksUri, opts.fetchImpl);
-  const candidates = selectKeys(keys, parsed.header.kid);
-  if (candidates.length === 0) throw new Error("No matching JWKS key");
+  if (keys.length === 0) throw new Error("No JWKS keys");
 
-  let verified = false;
-  for (const jwk of candidates) {
-    try {
-      if (verifySignatureWithJwk(parsed, jwk)) { verified = true; break; }
-    } catch {
-      // try the next candidate key
-    }
+  // jose verifies against a LOCAL set — we already did the guarded fetch, so jose
+  // performs no outbound request of its own.
+  const jwks = createLocalJWKSet({ keys } as unknown as JSONWebKeySet);
+
+  try {
+    const { payload } = await jwtVerify(idToken, jwks, {
+      issuer: opts.issuer,
+      audience: opts.audience,
+      algorithms: ALLOWED_ALGS,
+      clockTolerance: LEEWAY_SEC,
+    });
+    return payload as JwtClaims;
+  } catch (err) {
+    // Normalise jose's typed errors to the messages our callers/tests expect.
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/signature/i.test(msg)) throw new Error("JWT signature verification failed");
+    throw new Error(`JWT verification failed: ${msg}`);
   }
-  if (!verified) throw new Error("JWT signature verification failed");
-
-  const reason = validateClaims(parsed.claims, { issuer: opts.issuer, audience: opts.audience });
-  if (reason) throw new Error(`JWT claim validation failed: ${reason}`);
-
-  return parsed.claims;
 }

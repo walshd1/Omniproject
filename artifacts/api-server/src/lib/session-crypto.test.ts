@@ -1,6 +1,8 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { seal, open, SEALED_PREFIX } from "./session-crypto";
+import { aesGcmSeal } from "./crypto-aes-gcm";
+import { deriveKeyCached } from "./crypto-keys";
 
 const SECRET = "a-strong-test-session-secret-value";
 
@@ -35,6 +37,19 @@ test("open returns null for legacy/plaintext (non-sealed) values", () => {
   assert.equal(open('{"sub":"u1"}'), null);
   assert.equal(open(""), null);
   assert.equal(open("v1.not-valid-base64-@@@"), null);
+});
+
+test("new cookies are sealed under the v2 (HKDF) prefix", () => {
+  process.env["SESSION_SECRET"] = SECRET;
+  assert.ok(seal("x").startsWith("v2."));
+});
+
+test("legacy v1 (SHA-256) cookies still open after the HKDF migration", () => {
+  process.env["SESSION_SECRET"] = SECRET;
+  // Reproduce how a pre-HKDF release sealed: legacy key + "v1." prefix.
+  const payload = JSON.stringify({ sub: "u1" });
+  const legacy = "v1." + aesGcmSeal(payload, deriveKeyCached(SECRET));
+  assert.equal(open(legacy), payload);
 });
 
 test("a different secret cannot open the cookie (key separation)", () => {

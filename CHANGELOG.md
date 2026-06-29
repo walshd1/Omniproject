@@ -120,6 +120,28 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Security
 
+- **Crypto hardening — `jose` for OIDC ID-token verification + HKDF key derivation.** Two changes,
+  both reducing reliance on hand-rolled crypto without expanding the trusted surface:
+  - **ID-token verification now runs through `jose`** (a well-reviewed, widely-audited JOSE library)
+    behind the unchanged `verifyIdToken` seam (`lib/jwks`), replacing the hand-rolled signature
+    verification. The security policy stays in our hands: the **asymmetric-only algorithm allowlist**
+    (RS/PS/ES — no `HS*`, no `none`, so `alg`-confusion and unsigned tokens are rejected before any
+    key is consulted) and the **SSRF guard** on the issuer-supplied `jwks_uri` (we fetch the keys
+    ourselves through `assertSafeOutboundUrl` and hand jose a *local* key set, so jose performs no
+    unguarded outbound request). `jose` is the first runtime crypto dependency; it is pure-ESM and
+    bundles into the existing build. Added tests cover a known-good RS256/ES256 token, and rejection
+    of tampered, alg-confusion (HS256-signed-with-the-public-key), expired and wrong-audience tokens.
+  - **Symmetric key derivation moved from `SHA-256(secret)` to HKDF-SHA256** (`crypto.hkdfSync`, no
+    new dependency) via `deriveKey(secret, info)` in `lib/crypto-keys`, with a domain-separation
+    `info` label so the same secret can never yield a colliding key across uses. The **session cookie**
+    now seals under HKDF — **backward-compatible**: new cookies carry a `v2.` prefix, while cookies
+    sealed by an earlier release (`v1.`, legacy SHA-256) are still opened, so upgrading does not log
+    everyone out (they migrate to `v2.` on their next login/refresh). The opt-in **broker PSK** is
+    deliberately **left on the legacy derivation**: its `p1.` wire format is a published contract
+    mirrored by external broker implementations (the reference blueprint), so changing its KDF would
+    be a coordinated wire-format break rather than a drop-in hardening — and it keys off a *separate*
+    high-entropy secret (`BROKER_PSK`), so there is no cross-domain key-collision that HKDF would fix.
+
 - **Non-repudiation: optional Ed25519 signing of the audit + provenance anchors (`lib/signing.ts`).**
   The keyed-MAC chains are tamper-*evident* (a key-holder can detect alteration); signing the
   hash-linked chain TIP with a private key only the gateway holds makes the record
