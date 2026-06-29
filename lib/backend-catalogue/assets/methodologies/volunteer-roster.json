@@ -1,0 +1,33 @@
+{
+  "id": "volunteer-roster",
+  "label": "Volunteer roster",
+  "docsUrl": "https://www.ncvo.org.uk/help-and-guidance/involving-volunteers/",
+  "kind": "agile",
+  "capabilities": {
+    "iterations": false,
+    "board": true,
+    "wipLimits": true,
+    "phases": false,
+    "baseline": false,
+    "estimation": "none"
+  },
+  "tools": {
+    "states": [
+      "available",
+      "assigned",
+      "scheduled",
+      "checked-in",
+      "completed",
+      "no-show"
+    ],
+    "ceremonies": [
+      "weekly-rota",
+      "shift-debrief"
+    ]
+  },
+  "alsoProvides": [
+    { "plane": "screens", "note": "roster / shift board" }
+  ],
+  "notes": "Charity/SME starter template: coordinate volunteers across shifts as a WIP-limited board — available → assigned → scheduled → checked-in → completed.",
+  "order": 71
+}

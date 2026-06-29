@@ -1,0 +1,37 @@
+{
+  "id": "grant-tracking",
+  "label": "Grant tracking",
+  "docsUrl": "https://www.charityexcellence.co.uk/grant-management/",
+  "kind": "traditional",
+  "capabilities": {
+    "iterations": false,
+    "board": true,
+    "wipLimits": false,
+    "phases": true,
+    "baseline": true,
+    "estimation": "none"
+  },
+  "tools": {
+    "states": [
+      "prospect",
+      "drafting",
+      "submitted",
+      "under-review",
+      "awarded",
+      "declined",
+      "delivering",
+      "reporting",
+      "closed"
+    ],
+    "ceremonies": [
+      "funder-report",
+      "milestone-review"
+    ]
+  },
+  "alsoProvides": [
+    { "plane": "screens", "note": "grant lifecycle board" },
+    { "plane": "reports", "note": "pipeline value / spend vs award" }
+  ],
+  "notes": "Charity/SME starter template: a funder-grant lifecycle from prospect to close, with delivery phases, baselined timelines and funder reporting.",
+  "order": 70
+}

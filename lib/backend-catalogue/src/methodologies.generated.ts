@@ -5,6 +5,90 @@ import type { MethodologyDefinition } from "./methodology-catalogue";
 
 export const METHODOLOGIES_DATA: MethodologyDefinition[] = [
   {
+    "id": "fundraising-pipeline",
+    "label": "Fundraising pipeline",
+    "docsUrl": "https://www.institute-of-fundraising.org.uk/",
+    "kind": "agile",
+    "capabilities": {
+      "iterations": false,
+      "board": true,
+      "wipLimits": false,
+      "phases": false,
+      "baseline": false,
+      "estimation": "none"
+    },
+    "tools": {
+      "states": [
+        "lead",
+        "qualified",
+        "cultivating",
+        "ask-made",
+        "pledged",
+        "received",
+        "stewarding",
+        "lapsed"
+      ],
+      "ceremonies": [
+        "pipeline-review"
+      ]
+    },
+    "alsoProvides": [
+      {
+        "plane": "screens",
+        "note": "donor pipeline board"
+      },
+      {
+        "plane": "reports",
+        "note": "pipeline value / conversion / forecast"
+      }
+    ],
+    "notes": "Charity/SME starter template: a donor/fundraising pipeline (CRM-style stages) from lead to received and stewarding, with pipeline-value reporting.",
+    "order": 72
+  },
+  {
+    "id": "grant-tracking",
+    "label": "Grant tracking",
+    "docsUrl": "https://www.charityexcellence.co.uk/grant-management/",
+    "kind": "traditional",
+    "capabilities": {
+      "iterations": false,
+      "board": true,
+      "wipLimits": false,
+      "phases": true,
+      "baseline": true,
+      "estimation": "none"
+    },
+    "tools": {
+      "states": [
+        "prospect",
+        "drafting",
+        "submitted",
+        "under-review",
+        "awarded",
+        "declined",
+        "delivering",
+        "reporting",
+        "closed"
+      ],
+      "ceremonies": [
+        "funder-report",
+        "milestone-review"
+      ]
+    },
+    "alsoProvides": [
+      {
+        "plane": "screens",
+        "note": "grant lifecycle board"
+      },
+      {
+        "plane": "reports",
+        "note": "pipeline value / spend vs award"
+      }
+    ],
+    "notes": "Charity/SME starter template: a funder-grant lifecycle from prospect to close, with delivery phases, baselined timelines and funder reporting.",
+    "order": 70
+  },
+  {
     "id": "kanban",
     "label": "Kanban",
     "docsUrl": "https://kanban.university/kanban-guide/",
@@ -192,6 +276,42 @@ export const METHODOLOGIES_DATA: MethodologyDefinition[] = [
     ],
     "notes": "Scrum cadence with Kanban WIP limits.",
     "order": 30
+  },
+  {
+    "id": "volunteer-roster",
+    "label": "Volunteer roster",
+    "docsUrl": "https://www.ncvo.org.uk/help-and-guidance/involving-volunteers/",
+    "kind": "agile",
+    "capabilities": {
+      "iterations": false,
+      "board": true,
+      "wipLimits": true,
+      "phases": false,
+      "baseline": false,
+      "estimation": "none"
+    },
+    "tools": {
+      "states": [
+        "available",
+        "assigned",
+        "scheduled",
+        "checked-in",
+        "completed",
+        "no-show"
+      ],
+      "ceremonies": [
+        "weekly-rota",
+        "shift-debrief"
+      ]
+    },
+    "alsoProvides": [
+      {
+        "plane": "screens",
+        "note": "roster / shift board"
+      }
+    ],
+    "notes": "Charity/SME starter template: coordinate volunteers across shifts as a WIP-limited board — available → assigned → scheduled → checked-in → completed.",
+    "order": 71
   },
   {
     "id": "waterfall",
