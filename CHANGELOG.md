@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Compliance & assurance evidence pack (docs).** Procurement-facing artifacts that turn the
+  existing (strong) security posture into review-ready evidence: **`COMPLIANCE.md`** maps implemented
+  controls to **SOC 2 / ISO 27001:2022 / NIST CSF 2.0** with a shared-responsibility model;
+  **`THREAT-MODEL.md`** is a STRIDE model over the gateway/broker trust boundaries;
+  **`PRIVACY.md`** states the controller/processor position with an Article-30 ROPA template + a
+  sub-processor inventory; **`ACCESSIBILITY-CONFORMANCE.md`** is a WCAG 2.1 AA ACR (VPAT-style),
+  backed by the axe-core CI job and the keyboard-parity guard. Cross-linked from `SECURITY-AUDIT.md`.
+  Documentation only; every claim maps to a shipped control. (Data map / DSAR / retention / backup /
+  DR already live in `ENTERPRISE-OPS.md`.)
+
 - **Latency-aware adaptive read-cache TTL.** With `READ_CACHE_ADAPTIVE=true`, the opt-in read cache
   tunes each broker method's TTL from its **measured** upstream latency (an EWMA recorded on every
   real miss, `broker/adaptive-ttl.ts`). Combined model: below `READ_CACHE_ADAPTIVE_THRESHOLD_MS` a
