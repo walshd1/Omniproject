@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Consolidated security audit (`docs/SECURITY-AUDIT.md`).** A single, reviewer-facing map of the
+  full security posture — authentication & sessions (sliding idle + absolute cap, step-up re-auth),
+  RBAC + SCIM lifecycle, CSRF, the pluggable vault + config-at-rest crypto, the per-session broker
+  HMAC/nonce seam, the tamper-evident audit chain + optional Ed25519 non-repudiation, the egress/SSRF
+  guard and rate limiting — with a control-summary table, per-module pointers, configuration knobs,
+  and an honest residual-risk section. Cross-references `AI-SECURITY.md`, `EGRESS-INVENTORY.md` and
+  `COMPOSE-AUDIT.md`. Documentation only; no behaviour change.
+
 - **Docker Compose correctness guard + audit.** A new parseable guard
   (`scripts/src/guard-compose.ts`, `pnpm --filter @workspace/scripts run guard-compose`, run in CI's
   `verify` job) checks the deployment-safety invariants `docker compose config` can't see: every
