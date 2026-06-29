@@ -98,8 +98,9 @@ export function verifyLicense(token: string, publicKeyPem: string, now = Date.no
   if (parts.length !== 4 || `${parts[0]}.${parts[1]}` !== TOKEN_PREFIX) {
     return { valid: false, reason: "malformed licence token", payload: null };
   }
-  const body = parts[2];
-  const sigB64 = parts[3];
+  // length === 4 guarantees indices 2 and 3 are present
+  const body = parts[2]!;
+  const sigB64 = parts[3]!;
   const signingInput = `${TOKEN_PREFIX}.${body}`;
 
   let key: crypto.KeyObject;

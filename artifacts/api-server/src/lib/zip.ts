@@ -24,7 +24,8 @@ const CRC_TABLE = (() => {
 // the ZIP local/central headers below require for each stored entry.
 export function crc32(buf: Buffer): number {
   let crc = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) crc = CRC_TABLE[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
+  // i indexes buf in range; the table index is masked to 0..255 and CRC_TABLE has 256 entries
+  for (let i = 0; i < buf.length; i++) crc = CRC_TABLE[(crc ^ buf[i]!) & 0xff]! ^ (crc >>> 8);
   return (crc ^ 0xffffffff) >>> 0;
 }
 

@@ -28,9 +28,9 @@ function getPath(obj: unknown, path: string): unknown {
 
 function resolveExpr(expr: string, ctx: ExprContext): unknown {
   const env = expr.match(/^\$env\.([A-Za-z0-9_]+)$/);
-  if (env) return ctx.env?.[env[1]];
+  if (env) return ctx.env?.[env[1]!]; // group 1 present whenever the match succeeds
   const payload = expr.match(/^\$json\.body\.payload\.(.+)$/);
-  if (payload) return getPath(ctx.payload, payload[1]);
+  if (payload) return getPath(ctx.payload, payload[1]!); // group 1 present whenever the match succeeds
   return undefined;
 }
 

@@ -28,7 +28,7 @@ test("tampered ciphertext fails the auth tag → null", () => {
   const k = key();
   const sealed = aesGcmSeal("secret", k);
   const buf = Buffer.from(sealed, "base64url");
-  buf[buf.length - 1] ^= 0xff; // flip a ciphertext bit
+  buf[buf.length - 1]! ^= 0xff; // flip a ciphertext bit (sealed buffer is non-empty)
   assert.equal(aesGcmOpen(buf.toString("base64url"), k), null);
 });
 

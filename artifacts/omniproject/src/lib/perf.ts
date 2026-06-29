@@ -71,7 +71,7 @@ export function toApiSample(entry: PerformanceResourceTiming): ApiSample | null 
 export function quantile(sortedAsc: readonly number[], q: number): number {
   if (sortedAsc.length === 0) return 0;
   const idx = Math.min(sortedAsc.length - 1, Math.floor(q * sortedAsc.length));
-  return sortedAsc[idx];
+  return sortedAsc[idx]!; // idx is clamped to a valid index and length > 0 here
 }
 
 /** Summarise a set of samples (count, p50, p95, max, mean). */
@@ -83,7 +83,7 @@ export function summarise(samples: readonly number[]): Stat {
     count: sorted.length,
     p50: quantile(sorted, 0.5),
     p95: quantile(sorted, 0.95),
-    max: sorted[sorted.length - 1],
+    max: sorted[sorted.length - 1]!, // samples.length > 0 checked above
     avg: Math.round(sum / sorted.length),
   };
 }

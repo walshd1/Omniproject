@@ -118,9 +118,9 @@ export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPat
   const nodes: N8nNode[] = [];
   const connections: N8nWorkflow["connections"] = {};
   const connect = (from: string, to: string, outIndex = 0) => {
-    if (!connections[from]) connections[from] = { main: [] };
-    while (connections[from].main.length <= outIndex) connections[from].main.push([]);
-    connections[from].main[outIndex].push({ node: to, type: "main", index: 0 });
+    const conn = (connections[from] ??= { main: [] });
+    while (conn.main.length <= outIndex) conn.main.push([]);
+    conn.main[outIndex]!.push({ node: to, type: "main", index: 0 }); // loop above grew main past outIndex
   };
 
   // Static scaffold nodes.

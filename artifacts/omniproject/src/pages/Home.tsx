@@ -35,7 +35,7 @@ export function Home() {
     // deleted, or belongs to another backend since the last session).
     const valid = activeProjectId && projects.some((p) => p.id === activeProjectId);
     if (!valid) {
-      setActiveProjectId(projects[0].id);
+      setActiveProjectId(projects[0]!.id); // length > 0 checked above
     }
   }, [projects, activeProjectId, setActiveProjectId]);
 

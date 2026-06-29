@@ -69,7 +69,7 @@ test("createHttpSink flushes a batch as NDJSON with the bearer token", async () 
   // NDJSON: one JSON object per line.
   const lines = captured!.body.split("\n");
   assert.equal(lines.length, 2);
-  assert.equal(JSON.parse(lines[0]).action, "login");
+  assert.equal(JSON.parse(lines[0]!).action, "login"); // lines.length asserted === 2 above
 });
 
 test("createHttpSink auto-flushes when the batch threshold is reached", async () => {

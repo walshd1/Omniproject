@@ -310,10 +310,11 @@ test("audit HTTP sink: batches NDJSON to the logging server", async () => {
   assert.equal(delivered, 2);
   assert.equal(sink.size(), 0);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].auth, "Bearer secret");
+  const call0 = calls[0]!; // calls.length asserted === 1 above
+  assert.equal(call0.auth, "Bearer secret");
   // NDJSON: one JSON object per line.
-  assert.equal(calls[0].body.split("\n").length, 2);
-  assert.match(calls[0].body, /create_issue/);
+  assert.equal(call0.body.split("\n").length, 2);
+  assert.match(call0.body, /create_issue/);
 });
 
 test("audit HTTP sink: a failed flush re-buffers and never throws", async () => {
@@ -474,7 +475,7 @@ test("applyODataQuery: $filter eq, $orderby, $top/$skip, $select, $count", () =>
   assert.deepEqual(paged.rows.map((r) => r.id), ["2"]);
 
   const selected = applyODataQuery(ODATA_ROWS, { $select: "id,name" });
-  assert.deepEqual(Object.keys(selected.rows[0]), ["id", "name"]);
+  assert.deepEqual(Object.keys(selected.rows[0]!), ["id", "name"]); // ODATA_ROWS is non-empty
 
   const counted = applyODataQuery(ODATA_ROWS, { $filter: "source eq 'plane'", $count: "true" });
   assert.equal(counted.count, 2);
@@ -691,6 +692,7 @@ test("generateWorkflow: produces a valid, connected workflow", () => {
 test("generateWorkflow: always includes get_capabilities and an Unsupported fallback", () => {
   const wf = generateWorkflow(getBackend("github")!);
   const route = wf.connections["Route Action"];
+  assert.ok(route, "Route Action connection present");
   // rule outputs (one per action incl. get_capabilities) + 1 fallback.
   const actionCount = Object.keys(getBackend("github")!.actions).length + 1; // + get_capabilities
   assert.equal(route.main.length, actionCount + 1);

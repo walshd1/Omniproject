@@ -10,6 +10,7 @@
     "noImplicitOverride": true,
     "noImplicitReturns": true,
     "noUnusedLocals": false,
+    "noUncheckedIndexedAccess": true,
     "strict": true,
     "noImplicitAny": true,
     "noImplicitThis": true,

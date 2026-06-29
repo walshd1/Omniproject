@@ -142,7 +142,7 @@ router.post("/projects", requireRole("manager"), async (req, res) => {
   }
   const errors = validateEntityInput(bodyParse.data as Record<string, unknown>, PROJECT_DESCRIPTORS);
   if (errors.length) {
-    res.status(400).json({ error: errors[0].message, errors });
+    res.status(400).json({ error: errors[0]!.message, errors }); // errors.length checked above
     return;
   }
   try {

@@ -109,14 +109,14 @@ export function resolveReplica(
   overlay: ReplicaOverlay,
   req: InterceptedRequest,
 ): InterceptResult {
-  const path = req.url.split("?")[0];
+  const path = req.url.split("?")[0]!; // split always yields ≥1 element
   const method = req.method.toUpperCase();
   const coll = path.match(ISSUES_COLL);
   const item = path.match(ISSUE_ITEM);
 
   if (method === "GET") {
     if (coll) {
-      const pid = decodeURIComponent(coll[1]);
+      const pid = decodeURIComponent(coll[1]!); // group 1 present when ISSUES_COLL matches
       const base = (replica.responses[path] as Issue[] | undefined) ?? [];
       return { handled: true, data: applyIssueOverlay(base, overlay, pid) };
     }
@@ -125,15 +125,15 @@ export function resolveReplica(
   }
 
   if (method === "POST" && coll) {
-    const pid = decodeURIComponent(coll[1]);
+    const pid = decodeURIComponent(coll[1]!); // group 1 present when ISSUES_COLL matches
     const issue = synthIssue(pid, parseBody(req.body));
     (overlay.added[pid] ??= []).push(issue);
     return { handled: true, data: issue };
   }
 
   if (item) {
-    const pid = decodeURIComponent(item[1]);
-    const issueId = decodeURIComponent(item[2]);
+    const pid = decodeURIComponent(item[1]!); // groups 1 & 2 present when ISSUE_ITEM matches
+    const issueId = decodeURIComponent(item[2]!);
     if (method === "PATCH") {
       const patch = parseBody(req.body);
       delete patch.expectedVersion;

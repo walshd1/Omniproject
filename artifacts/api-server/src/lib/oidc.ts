@@ -203,7 +203,7 @@ export function decodeIdTokenClaims(idToken: string): SessionUser | null {
   const parts = idToken.split(".");
   if (parts.length !== 3) return null;
   try {
-    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    const payload = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8")); // length === 3 checked above
     return {
       sub: String(payload.sub ?? ""),
       name: payload.name ?? payload.preferred_username ?? undefined,

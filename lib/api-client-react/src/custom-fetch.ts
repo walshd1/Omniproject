@@ -121,7 +121,7 @@ function mergeHeaders(...sources: Array<HeadersInit | undefined>): Headers {
 
 function getMediaType(headers: Headers): string | null {
   const value = headers.get("content-type");
-  return value ? value.split(";", 1)[0].trim().toLowerCase() : null;
+  return value ? value.split(";", 1)[0]!.trim().toLowerCase() : null; // split always yields ≥1 element
 }
 
 function isJsonMediaType(mediaType: string | null): boolean {
