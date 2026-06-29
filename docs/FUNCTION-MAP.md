@@ -1206,6 +1206,22 @@ Methodology RAG — persona SELECTION for the portfolio copilot.
 | `personaById` | A persona by id, or undefined. |
 | `selectPersonas` | Retrieve the most relevant persona(s) for a question. |
 
+### `artifacts/api-server/src/lib/presence-hub.ts`
+
+Live collaboration presence hub (Server-Sent Events).
+
+| Function | What it does |
+| --- | --- |
+| `peerColor` | A stable colour for a user, derived from their `sub` so it's the same across sessions/devices. |
+| `toPeer` | Project a connection to the public peer shape, expiring a stale editing claim against `now`. |
+| `roomSnapshot` | The current peers in a room (editing claims expired against `now`). |
+| `broadcastRoom` | Push the room's current snapshot to every connection in it. |
+| `joinRoom` | Add a connection to a room and announce it. |
+| `setEditing` | Update a connection's editing claim (a field id, or null to release) + heartbeat it. |
+| `presenceStats` | Diagnostics for dev mode: how many rooms / connections are live right now. |
+| `closeAllPresence` | Close every live presence stream and forget them — used on graceful shutdown. |
+| `_resetPresenceForTest` | Test reset hook — drop all presence state without touching connections. |
+
 ### `artifacts/api-server/src/lib/programmes.ts`
 
 Programmes are a grouping of related projects, **derived** from each project's optional `programmeId` (owned by the backend).
@@ -1778,6 +1794,10 @@ Portfolio analytics endpoints — portfolio-wide RAG/health and resource-capacit
 | Function | What it does |
 | --- | --- |
 | `getPortfolioHealth` | Shared accessor (route + Prometheus metrics): portfolio-wide health rows. |
+
+### `artifacts/api-server/src/routes/presence.ts`
+
+Live-collaboration presence routes (the "presence" feature module).
 
 ### `artifacts/api-server/src/routes/programmes.ts`
 

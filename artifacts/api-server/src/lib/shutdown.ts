@@ -1,4 +1,5 @@
 import { closeAllClients } from "./notify-hub";
+import { closeAllPresence } from "./presence-hub";
 import { wipeInMemoryState } from "./wipe";
 
 /**
@@ -62,7 +63,7 @@ export function gracefulShutdown(opts: ShutdownOpts): void {
  *  closes live SSE streams AND wipes the bounded in-memory working sets. */
 export function installShutdownHandlers(server: ClosableServer, logger: ShutdownLogger): void {
   const drain = (): number => {
-    const streams = closeAllClients();
+    const streams = closeAllClients() + closeAllPresence();
     wipeInMemoryState();
     return streams;
   };

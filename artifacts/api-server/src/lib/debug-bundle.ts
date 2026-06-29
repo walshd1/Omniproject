@@ -9,6 +9,7 @@ import { getDemoState } from "./data";
 import { capturePath } from "../broker/capture";
 import { devModeStatus } from "./dev-mode";
 import { featureStatus } from "./feature-modules";
+import { presenceStats } from "./presence-hub";
 import { aiStatus } from "./ai";
 import { aiGovernanceStatus } from "./ai-governance";
 import { auditStatus } from "./audit";
@@ -116,6 +117,9 @@ export function buildDebugBundleEntries(now: string): { manifest: DebugBundleMan
     stt: sttStatus(),
     license: licenseSummary(),
     capabilityStates: getSettings().capabilityStates,
+    // Live, ephemeral collaboration footprint (rooms/connections currently held) — a repro shows
+    // whether real-time presence was active, not just the static config.
+    presence: presenceStats(),
   };
 
   const entries: ZipEntry[] = [

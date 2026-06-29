@@ -107,6 +107,31 @@ describe("IssueSidePanel", () => {
     expect(useSidePanel.getState().open).toBe(true);
   });
 
+  it("shows a collaborator's presence avatar + advisory editing lock from the SSE stream", async () => {
+    // Minimal EventSource mock so usePresence becomes active in jsdom.
+    class MockES {
+      static last: MockES | null = null;
+      listeners: Record<string, ((ev: MessageEvent) => void)[]> = {};
+      url: string;
+      constructor(url: string) { this.url = url; MockES.last = this; }
+      addEventListener(t: string, fn: (ev: MessageEvent) => void) { (this.listeners[t] ??= []).push(fn); }
+      emit(t: string, data: unknown) { for (const fn of this.listeners[t] ?? []) fn({ data: JSON.stringify(data) } as MessageEvent); }
+      close() { /* noop */ }
+    }
+    vi.stubGlobal("EventSource", MockES as unknown as typeof EventSource);
+
+    renderWithProviders(<IssueSidePanel />, { client: seed() });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    await screen.findByText("Wire the broker");
+
+    act(() => MockES.last!.emit("presence", { peers: [
+      { cid: "peer-1", sub: "bo", label: "Bo Diddley", color: "#dc2626", editing: "status", editingAt: Date.now() },
+    ] }));
+
+    expect(await screen.findByTestId("presence-avatars")).toBeInTheDocument();
+    expect(screen.getByTestId("lock-Status")).toHaveTextContent(/Bo Diddley editing/);
+  });
+
   it("lists only this item's activity", async () => {
     const activity: ActivityEntry[] = [
       { id: "a1", action: "status_changed", actor: "ada", projectId: "p1", issueId: "i1", timestamp: new Date(0).toISOString() } as ActivityEntry,
