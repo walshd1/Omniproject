@@ -35,7 +35,7 @@ import {
   activateEnvironment,
   promote,
 } from "../lib/config-store";
-import { parseJwt, verifySignatureWithJwk, validateClaims, verifyIdToken, type Jwk } from "../lib/jwks";
+import { parseJwt, validateClaims, verifyIdToken, type Jwk } from "../lib/jwks";
 import { clientMatches, addClient } from "../lib/notify-hub";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
 import { signLicense, verifyLicense, resolveLicense, isEntitled, type LicensePayload } from "../lib/license";
@@ -208,22 +208,11 @@ function mintRs256(payload: Record<string, unknown>): string {
 const NOW = Math.floor(Date.now() / 1000);
 const GOOD_CLAIMS = { iss: "https://idp.test", aud: "omni-client", exp: NOW + 600, iat: NOW, sub: "user-1", roles: ["pmo"] };
 
-test("parseJwt: extracts header/claims/signature", () => {
+test("parseJwt: extracts header/claims (decode only)", () => {
   const p = parseJwt(mintRs256(GOOD_CLAIMS));
   assert.equal(p.header.alg, "RS256");
+  assert.equal(p.header.kid, "test-key");
   assert.equal(p.claims.sub, "user-1");
-  assert.ok(p.signature.length > 0);
-});
-
-test("verifySignatureWithJwk: true for a valid signature", () => {
-  assert.equal(verifySignatureWithJwk(parseJwt(mintRs256(GOOD_CLAIMS)), TEST_JWK), true);
-});
-
-test("verifySignatureWithJwk: false for a tampered payload", () => {
-  const token = mintRs256(GOOD_CLAIMS);
-  const [h, , s] = token.split(".");
-  const forged = `${h}.${b64url(JSON.stringify({ ...GOOD_CLAIMS, sub: "attacker" }))}.${s}`;
-  assert.equal(verifySignatureWithJwk(parseJwt(forged), TEST_JWK), false);
 });
 
 test("validateClaims: passes for matching iss/aud and unexpired", () => {
@@ -250,6 +239,30 @@ test("verifyIdToken: throws on a forged signature", async () => {
   const forged = `${header}.${body}.${sig}`;
   const fetchStub = (async () => new Response(JSON.stringify({ keys: [TEST_JWK] }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
   await assert.rejects(verifyIdToken(forged, { jwksUri: "https://idp.test/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }), /signature/);
+});
+
+test("verifyIdToken: rejects an alg-confusion (HS256) token signed with the public key", async () => {
+  // Classic attack: forge an HS256 token using the RSA public key bytes as the
+  // HMAC secret. The asymmetric-only allowlist must reject it before verifying.
+  const pubPem = TEST_PUB.export({ format: "pem", type: "spki" }) as string;
+  const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT", kid: "test-key" }));
+  const body = b64url(JSON.stringify(GOOD_CLAIMS));
+  const sig = crypto.createHmac("sha256", pubPem).update(`${header}.${body}`).digest("base64url");
+  const forged = `${header}.${body}.${sig}`;
+  const fetchStub = (async () => new Response(JSON.stringify({ keys: [TEST_JWK] }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+  await assert.rejects(verifyIdToken(forged, { jwksUri: "https://idp.test/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }));
+});
+
+test("verifyIdToken: rejects an expired token", async () => {
+  const expired = mintRs256({ ...GOOD_CLAIMS, exp: NOW - 3600, iat: NOW - 7200 });
+  const fetchStub = (async () => new Response(JSON.stringify({ keys: [TEST_JWK] }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+  await assert.rejects(verifyIdToken(expired, { jwksUri: "https://idp.test/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }), /exp|expired|verification/i);
+});
+
+test("verifyIdToken: rejects a wrong-audience token", async () => {
+  const wrongAud = mintRs256({ ...GOOD_CLAIMS, aud: "someone-else" });
+  const fetchStub = (async () => new Response(JSON.stringify({ keys: [TEST_JWK] }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+  await assert.rejects(verifyIdToken(wrongAud, { jwksUri: "https://idp.test/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }), /aud|audience|verification/i);
 });
 
 // ── Notification hub targeting ─────────────────────────────────────────────────

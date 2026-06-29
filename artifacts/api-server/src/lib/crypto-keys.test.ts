@@ -1,7 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { deriveKeyCached, decodeKey32, fingerprint } from "./crypto-keys";
+import { deriveKey, deriveKeyCached, decodeKey32, fingerprint } from "./crypto-keys";
+
+test("deriveKey is HKDF-SHA256, 32 bytes, stable per (secret, info), domain-separated", () => {
+  const k = deriveKey("a-secret", "domain-a");
+  assert.equal(k.length, 32);
+  // Matches Node's HKDF with the module's fixed salt + the given info label.
+  const expected = Buffer.from(
+    crypto.hkdfSync("sha256", "a-secret", Buffer.from("omniproject/hkdf/v1"), "domain-a", 32),
+  );
+  assert.deepEqual(k, expected);
+  assert.equal(deriveKey("a-secret", "domain-a"), deriveKey("a-secret", "domain-a")); // cached
+  // Same secret, different info → independent keys (domain separation).
+  assert.notDeepEqual(deriveKey("a-secret", "domain-b"), k);
+  // HKDF differs from the legacy SHA-256 derivation.
+  assert.notDeepEqual(deriveKey("a-secret", "domain-a"), deriveKeyCached("a-secret"));
+});
 
 test("deriveKeyCached returns a 32-byte sha256 key and is stable per secret", () => {
   const k = deriveKeyCached("a-secret");

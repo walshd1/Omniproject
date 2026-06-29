@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 
 /**
- * Unit tests for the dependency-free JWKS / JWT verifier (lib/jwks). We mint
- * real RS256 and ES256 tokens with freshly generated key pairs and verify them
- * against the public JWK, plus exercise the claim validation and the cached
- * JWKS fetch (with an injected fetch impl — no real network).
+ * Tests for the JWKS / ID-token verifier (lib/jwks). The cryptographic
+ * verification is delegated to `jose`; these mint real RS256 and ES256 tokens
+ * with freshly generated key pairs and drive them through the `verifyIdToken`
+ * seam (with an injected fetch impl — no real network), plus exercise the pure
+ * `parseJwt` / `validateClaims` helpers and the SSRF-guarded `fetchJwks` cache.
  */
 const {
   parseJwt,
-  verifySignatureWithJwk,
   validateClaims,
   fetchJwks,
   verifyIdToken,
@@ -61,29 +61,6 @@ test("parseJwt throws when the header has no alg", () => {
   assert.throws(() => parseJwt(token), /missing alg/);
 });
 
-test("verifySignatureWithJwk verifies a genuine RS256 signature", () => {
-  const parsed = parseJwt(mintRs256({ sub: "rsa-user" }, rsa.privateKey));
-  assert.equal(verifySignatureWithJwk(parsed, rsaJwk as never), true);
-});
-
-test("verifySignatureWithJwk verifies a genuine ES256 signature", () => {
-  const parsed = parseJwt(mintEs256({ sub: "ec-user" }, ec.privateKey));
-  assert.equal(verifySignatureWithJwk(parsed, ecJwk as never), true);
-});
-
-test("verifySignatureWithJwk returns false for a tampered token", () => {
-  const token = mintRs256({ sub: "rsa-user" }, rsa.privateKey);
-  // Flip a payload byte so the signature no longer matches.
-  const parts = token.split(".");
-  const tampered = parseJwt(`${parts[0]}.${b64url({ sub: "attacker" })}.${parts[2]}`);
-  assert.equal(verifySignatureWithJwk(tampered, rsaJwk as never), false);
-});
-
-test("verifySignatureWithJwk rejects a disallowed alg", () => {
-  const bad = { header: { alg: "HS256" }, claims: {}, signingInput: "x", signature: Buffer.alloc(0) };
-  assert.throws(() => verifySignatureWithJwk(bad as never, rsaJwk as never), /Unsupported JWT alg/);
-});
-
 test("validateClaims passes for matching iss/aud and unexpired token", () => {
   const now = 1_000_000;
   const reason = validateClaims(
@@ -121,7 +98,7 @@ test("validateClaims accepts an audience array containing the expected value", (
   assert.equal(reason, null);
 });
 
-test("fetchJwks fetches, caches, and selects keys by kid", async () => {
+test("fetchJwks fetches, caches, and returns the keys", async () => {
   let hits = 0;
   const uniqueUri = `https://idp.test/jwks-${crypto.randomUUID()}`;
   const fakeFetch = (async () => {
@@ -148,7 +125,7 @@ test("fetchJwks throws on a non-ok response", async () => {
   );
 });
 
-test("verifyIdToken end-to-end verifies signature + claims via injected fetch", async () => {
+test("verifyIdToken end-to-end verifies an RS256 signature + claims via injected fetch", async () => {
   const now = Math.floor(Date.now() / 1000);
   const token = mintRs256(
     { sub: "u1", iss: "https://idp", aud: "client-1", exp: now + 3600 },
@@ -167,27 +144,51 @@ test("verifyIdToken end-to-end verifies signature + claims via injected fetch", 
   assert.equal(claims.sub, "u1");
 });
 
+test("verifyIdToken end-to-end verifies an ES256 signature", async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const token = mintEs256({ sub: "ec-user", iss: "https://idp", aud: "client-1", exp: now + 3600 }, ec.privateKey);
+  const uri = `https://idp.test/jwks-${crypto.randomUUID()}`;
+  const fakeFetch = (async () =>
+    new Response(JSON.stringify({ keys: [ecJwk] }), { status: 200 })) as typeof fetch;
+  const claims = await verifyIdToken(token, { jwksUri: uri, issuer: "https://idp", audience: "client-1", fetchImpl: fakeFetch });
+  assert.equal(claims.sub, "ec-user");
+});
+
 test("verifyIdToken throws when no JWKS key matches", async () => {
   const token = mintRs256({ sub: "u1", iss: "https://idp", aud: "client-1" }, rsa.privateKey, "missing-kid");
   const uri = `https://idp.test/jwks-${crypto.randomUUID()}`;
-  // Return a key with a different kid AND use:"enc" so selectKeys yields nothing.
-  const otherKey = { ...ecJwk, kid: "other", use: "enc" };
+  const otherKey = { ...ecJwk, kid: "other" };
   const fakeFetch = (async () =>
     new Response(JSON.stringify({ keys: [otherKey] }), { status: 200 })) as typeof fetch;
 
   await assert.rejects(
     () => verifyIdToken(token, { jwksUri: uri, issuer: "https://idp", audience: "client-1", fetchImpl: fakeFetch }),
-    /No matching JWKS key/,
+    /verification failed|key/i,
   );
 });
 
 test("verifyIdToken throws on claim mismatch even with a valid signature", async () => {
-  const token = mintRs256({ sub: "u1", iss: "https://other", aud: "client-1" }, rsa.privateKey);
+  const token = mintRs256({ sub: "u1", iss: "https://other", aud: "client-1", exp: Math.floor(Date.now() / 1000) + 600 }, rsa.privateKey);
   const uri = `https://idp.test/jwks-${crypto.randomUUID()}`;
   const fakeFetch = (async () =>
     new Response(JSON.stringify({ keys: [rsaJwk] }), { status: 200 })) as typeof fetch;
   await assert.rejects(
     () => verifyIdToken(token, { jwksUri: uri, issuer: "https://idp", audience: "client-1", fetchImpl: fakeFetch }),
-    /claim validation failed/,
+    /verification failed|iss|claim/i,
+  );
+});
+
+test("verifyIdToken rejects an HS256 alg-confusion token (asymmetric-only allowlist)", async () => {
+  // Forge an HS256 token using the RSA public key as the HMAC secret.
+  const pubPem = rsa.publicKey.export({ format: "pem", type: "spki" }) as string;
+  const header = b64url({ alg: "HS256", typ: "JWT", kid: "k1" });
+  const body = b64url({ sub: "attacker", iss: "https://idp", aud: "client-1" });
+  const sig = crypto.createHmac("sha256", pubPem).update(`${header}.${body}`).digest("base64url");
+  const forged = `${header}.${body}.${sig}`;
+  const uri = `https://idp.test/jwks-${crypto.randomUUID()}`;
+  const fakeFetch = (async () =>
+    new Response(JSON.stringify({ keys: [rsaJwk] }), { status: 200 })) as typeof fetch;
+  await assert.rejects(
+    () => verifyIdToken(forged, { jwksUri: uri, issuer: "https://idp", audience: "client-1", fetchImpl: fakeFetch }),
   );
 });

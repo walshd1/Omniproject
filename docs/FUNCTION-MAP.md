@@ -677,7 +677,8 @@ Small shared key/hash primitives, so the same derivations aren't hand-rolled in 
 
 | Function | What it does |
 | --- | --- |
-| `deriveKeyCached` | Derive a 32-byte AES key from a high-entropy secret via SHA-256, cached by secret. |
+| `deriveKey` | Derive a 32-byte AES key from a high-entropy secret via HKDF-SHA256, with a domain-separation `info` label so the same secret yields independent keys per use. |
+| `deriveKeyCached` | LEGACY derivation: sha256(secret) → 32-byte key, cached by secret. |
 | `decodeKey32` | Parse a base64 key that must be exactly 32 bytes (an AES-256 key), or null if it isn't. |
 | `fingerprint` | A short hex fingerprint of a value (SHA-256, truncated). |
 
@@ -954,15 +955,14 @@ App-layer IP allowlisting — defence in depth even behind an ingress/LB.
 
 ### `artifacts/api-server/src/lib/jwks.ts`
 
-Dependency-free JWKS / JWT signature verification.
+JWKS / ID-token verification.
 
 | Function | What it does |
 | --- | --- |
-| `parseJwt` | Split + decode a compact JWS. |
-| `verifySignatureWithJwk` | Verify a parsed JWT's signature against a single JWK. |
-| `validateClaims` | Validate the standard claims. |
+| `parseJwt` | Decode a compact JWS into its header + claims without verifying. |
+| `validateClaims` | Validate the standard claims (pure comparison, no crypto). |
 | `fetchJwks` | Fetch the issuer's JWKS signing keys, cached for 10 minutes. |
-| `verifyIdToken` | Full verification: fetch JWKS, verify signature against the matching key, and validate iss/aud/exp/nbf. |
+| `verifyIdToken` | Full verification: fetch the JWKS (SSRF-guarded), then have jose verify the signature against the matching key and validate iss/aud/exp/nbf under the asymmetric-only algorithm allowlist. |
 
 ### `artifacts/api-server/src/lib/key-registry.ts`
 
