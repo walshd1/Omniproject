@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { wrapWithCache, readCacheEnabled, invalidateReadCache, resetReadCacheStats } from "./cache";
+import { resetAdaptive } from "./adaptive-ttl";
 import type { ActorContext, Broker } from "./types";
 
 /**
@@ -78,6 +79,41 @@ test("a write is write-through: it clears the cache so the change is visible", a
     await cached.createProject(ctx("u1"), {});  // clears
     await cached.listProjects(ctx("u1"));        // must refetch
     assert.equal(calls.listProjects, 2);
+  });
+});
+
+/** A broker whose read advances a shared clock by `latencyMs`, so the cache measures that latency. */
+function slowBroker(clock: { t: number }, latencyMs: number) {
+  const calls = { listProjects: 0 };
+  const b = {
+    kind: "demo", live: false,
+    async listProjects(_ctx: ActorContext) { calls.listProjects++; clock.t += latencyMs; return [{ id: `p${calls.listProjects}` }]; },
+  } as unknown as Broker;
+  return { b, calls };
+}
+
+test("adaptive: a slow method is cached with a latency-scaled TTL", async () => {
+  await withEnv({ READ_CACHE_TTL_MS: "1000", READ_CACHE_ADAPTIVE: "true", READ_CACHE_ADAPTIVE_FACTOR: "6", READ_CACHE_MAX_TTL_MS: "60000", READ_CACHE_ADAPTIVE_THRESHOLD_MS: "150" }, async () => {
+    resetAdaptive();
+    const clock = { t: 0 };
+    const { b, calls } = slowBroker(clock, 800); // 800ms upstream ⇒ TTL ≈ 4800ms
+    const cached = wrapWithCache(b, { now: () => clock.t });
+    await cached.listProjects(ctx("u1"));        // miss: records ~800ms latency, caches with ~4800ms TTL
+    clock.t += 3000;                              // 3s later — still inside the scaled TTL
+    await cached.listProjects(ctx("u1"));
+    assert.equal(calls.listProjects, 1, "still fresh under the latency-scaled TTL");
+  });
+});
+
+test("adaptive: a fast method below the threshold is not cached", async () => {
+  await withEnv({ READ_CACHE_TTL_MS: "60000", READ_CACHE_ADAPTIVE: "true", READ_CACHE_ADAPTIVE_THRESHOLD_MS: "150" }, async () => {
+    resetAdaptive();
+    const clock = { t: 0 };
+    const { b, calls } = slowBroker(clock, 20); // 20ms ⇒ below the 150ms threshold ⇒ not cached
+    const cached = wrapWithCache(b, { now: () => clock.t });
+    await cached.listProjects(ctx("u1"));
+    await cached.listProjects(ctx("u1"));
+    assert.equal(calls.listProjects, 2, "a fast method is refetched, not cached");
   });
 });
 

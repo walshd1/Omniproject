@@ -23,6 +23,23 @@ Express application assembly — wires the middleware chain (security headers, b
 | --- | --- |
 | `bootstrap` | Async boot side-effects that must run BEFORE the server serves AND before any sealed config/state is read. |
 
+### `artifacts/api-server/src/broker/adaptive-ttl.ts`
+
+Latency-aware adaptive TTL for the opt-in read cache.
+
+| Function | What it does |
+| --- | --- |
+| `adaptiveEnabled` | Is latency-aware TTL switched on? |
+| `thresholdMs` | Latency at/under which a method is "already fast" and isn't cached (ms). |
+| `adaptiveFactor` | TTL ≈ factor × measured latency, before clamping. |
+| `minTtlMs` | Lower clamp on an adaptive TTL (ms). |
+| `maxTtlMs` | Upper clamp on an adaptive TTL — the staleness ceiling you accept (ms). |
+| `recordLatency` | Fold a measured upstream latency (ms) for a method into its EWMA. |
+| `methodLatency` | The current smoothed latency for a method, or undefined before the first sample. |
+| `adaptiveTtl` | The effective TTL (ms) for a method given the configured baseline. |
+| `adaptiveStats` | Diagnostics for dev mode: config + per-method measured latency and the TTL it currently chooses. |
+| `resetAdaptive` | Test-only: forget all measured latencies. |
+
 ### `artifacts/api-server/src/broker/cache.ts`
 
 OPT-IN server-side read cache — a short-TTL, in-memory cache of broker reads.
@@ -31,7 +48,7 @@ OPT-IN server-side read cache — a short-TTL, in-memory cache of broker reads.
 | --- | --- |
 | `readCacheTtlMs` | The configured TTL in ms (0 ⇒ disabled). |
 | `readCacheEnabled` | Is the opt-in read cache active? |
-| `readCacheStats` | Cache hit/miss counters (for diagnostics). |
+| `readCacheStats` | Cache hit/miss counters + the (possibly latency-adaptive) TTL config, for diagnostics. |
 | `invalidateReadCache` | Clear the active read cache, if any (called by write/command paths + resetBroker). |
 | `actorKey` | A per-actor key prefix so one user's read is never shared with another (reads run "as" the user). |
 | `wrapWithCache` | Wrap a broker so its reads are cached for the configured TTL (writes clear it). |
