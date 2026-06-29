@@ -37,6 +37,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     function; the handler is now parse → commit → audit → respond.
   - **`callBrokerCapability()`** — the "501 if the broker doesn't support it / 502 on error"
     template repeated across the connection routes is now one broker helper.
+  - **SPA:** `useInvalidateIssueQueries` collapses the issue-mutation invalidation list
+    hand-rolled in `IssueDialog`, `NewTaskDialog` and `AgileBoard`; `parseNumberOrNull`
+    (`lib/validation`) replaces `IssueDialog`'s inline coercion; and `PremiumAdmin` split into
+    three self-contained panels under `components/premium/` over a shared primitives module.
 
 ### Security
 

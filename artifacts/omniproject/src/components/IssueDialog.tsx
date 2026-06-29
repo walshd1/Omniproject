@@ -1,17 +1,14 @@
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { TaskItemsPanel } from "./TaskItemsPanel";
 import { canSurfaceField, canStoreField, canSurfaceEntity } from "../lib/capabilities-fields";
 import { effortProgress } from "../lib/effort";
+import { parseNumberOrNull } from "../lib/validation";
+import { useInvalidateIssueQueries } from "../hooks/use-invalidate-issue-queries";
 import {
   useCreateIssue,
   useUpdateIssue,
   useDeleteIssue,
   useGetCapabilities,
-  getGetProjectIssuesQueryKey,
-  getGetProjectSummaryQueryKey,
-  getListProjectsQueryKey,
-  getListActivityQueryKey,
   type Issue,
   type IssueInput,
   type IssueUpdate,
@@ -88,7 +85,7 @@ const EMPTY_FORM = {
 
 export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatus }: IssueDialogProps) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const invalidateIssueQueries = useInvalidateIssueQueries();
   const createIssue = useCreateIssue();
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
@@ -138,17 +135,9 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
     }
   }, [open, issue, defaultStatus]);
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: getGetProjectIssuesQueryKey(projectId) });
-    queryClient.invalidateQueries({ queryKey: getGetProjectSummaryQueryKey(projectId) });
-    queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getListActivityQueryKey() });
-  };
+  const invalidate = () => invalidateIssueQueries(projectId);
 
-  const numOrNull = (v: string): number | null => {
-    const n = Number(v);
-    return v.trim() !== "" && Number.isFinite(n) ? n : null;
-  };
+  const numOrNull = parseNumberOrNull;
 
   const buildPayload = (): IssueInput => ({
     title: form.title.trim(),
