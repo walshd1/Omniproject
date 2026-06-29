@@ -703,6 +703,19 @@ Multi-currency support.
 | `supportedCurrencies` | List the currencies the rate table can convert between. |
 | `getFxRates` | Read FX rates through the active broker (demo serves indicative rates). |
 
+### `artifacts/api-server/src/lib/data-residency.ts`
+
+Data-residency / region routing — a fail-closed guard at the broker seam.
+
+| Function | What it does |
+| --- | --- |
+| `dataResidencyEnabled` | Is region enforcement configured? (DATA_RESIDENCY_ALLOWED present.) |
+| `allowedRegions` | The allowed region codes (lower-cased), as a set. |
+| `regionForUrl` | The declared region for an endpoint URL (longest-prefix match), or null if undeclared. |
+| `checkResidency` | Verify every candidate endpoint sits in an allowed region. |
+| `assertResidency` | Enforce residency on the resolved endpoint pool: on a violation, audit the block and throw a 451 DataResidencyError BEFORE any request egresses. |
+| `residencyStatus` | Admin status view: the policy + every configured broker endpoint's region + allow verdict. |
+
 ### `artifacts/api-server/src/lib/data.ts`
 
 Data accessor facade.

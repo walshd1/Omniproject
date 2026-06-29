@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Data residency / region routing (opt-in, fail-closed).** A regulated deployment can now pin
+  work to a region: every configured broker endpoint is tagged with a region
+  (`DATA_RESIDENCY_MAP="urlPrefix=region,…"`), the deployment declares the allowed region(s)
+  (`DATA_RESIDENCY_ALLOWED`), and a call that would route to an out-of-region — or
+  region-undeclared — endpoint is **refused with `451` and audited** (`data_residency.block`)
+  *before any bytes egress*. Enforced at `webhookPool()`, the single resolver every outbound
+  broker call passes through. **Off by default** (no `DATA_RESIDENCY_ALLOWED` ⇒ no checks);
+  fail-closed when enabled. Admin status at `GET /api/security/data-residency` (endpoints shown as
+  origins, secret webhook paths redacted). See `docs/DATA-RESIDENCY.md`.
+
 - **SAML 2.0 SSO (optional, alongside OIDC).** The gateway now also runs as a SAML Service
   Provider for IdPs/procurement that mandate SAML. SP-initiated flow `GET /api/auth/saml/login`
   → IdP → signed assertion POSTed to the ACS `POST /api/auth/saml/callback` → the same signed
