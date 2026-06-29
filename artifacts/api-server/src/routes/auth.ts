@@ -7,11 +7,12 @@
 import { randomBytes } from "node:crypto";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import {
-  oidcConfig,
   isOidcConfigured,
+  getOidcProvider,
+  oidcProviderList,
   discover,
   randomToken,
-  pkceChallenge,
+  authorizeUrl,
   exchangeCode,
   decodeIdTokenClaims,
   idTokenNonce,
@@ -201,9 +202,10 @@ export function safeLocalPath(value: unknown): string {
 // A strict per-IP ceiling (loginLimiter) is applied at the router mount in routes/index.ts.
 router.get("/auth/login", async (req, res) => {
   const returnTo = safeLocalPath(req.query["returnTo"]);
+  const provider = getOidcProvider(typeof req.query["provider"] === "string" ? req.query["provider"] : null);
 
   // Demo mode: no IdP configured — establish a local demo session.
-  if (!oidcConfig) {
+  if (!provider) {
     setSession(res, { sub: "demo-user", name: "Demo User", email: "demo@omniproject.local", accessToken: "demo-token" });
     setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
     res.redirect(returnTo);
@@ -211,7 +213,7 @@ router.get("/auth/login", async (req, res) => {
   }
 
   try {
-    const discovery = await discover(oidcConfig);
+    const discovery = await discover(provider);
     const state = randomToken();
     const verifier = randomToken(48);
     // OIDC nonce: bound into the auth request and echoed back in the ID token, so a
@@ -219,22 +221,13 @@ router.get("/auth/login", async (req, res) => {
     const nonce = randomToken();
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
 
-    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo }), {
+    // The flow cookie carries the provider id so the callback verifies against the SAME provider.
+    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, provider: provider.id }), {
       ...cookieBase(),
       maxAge: 1000 * 60 * 10, // 10 min
     });
 
-    const authUrl = new URL(discovery.authorization_endpoint);
-    authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("client_id", oidcConfig.clientId);
-    authUrl.searchParams.set("redirect_uri", redirectUri);
-    authUrl.searchParams.set("scope", oidcConfig.scope);
-    authUrl.searchParams.set("state", state);
-    authUrl.searchParams.set("nonce", nonce);
-    authUrl.searchParams.set("code_challenge", pkceChallenge(verifier));
-    authUrl.searchParams.set("code_challenge_method", "S256");
-
-    res.redirect(authUrl.toString());
+    res.redirect(authorizeUrl({ provider, discovery, redirectUri, state, nonce, verifier }));
   } catch (err) {
     req.log.error({ err }, "OIDC login initiation failed");
     res.status(502).send("SSO is temporarily unavailable. Check OIDC configuration.");
@@ -243,7 +236,7 @@ router.get("/auth/login", async (req, res) => {
 
 // ── GET /api/auth/callback ────────────────────────────────────────────────────
 router.get("/auth/callback", async (req, res) => {
-  if (!oidcConfig) {
+  if (!isOidcConfigured) {
     res.redirect("/");
     return;
   }
@@ -256,13 +249,21 @@ router.get("/auth/callback", async (req, res) => {
     return;
   }
 
-  const { state, verifier, nonce, returnTo, stepup } = JSON.parse(flowRaw) as {
+  const { state, verifier, nonce, returnTo, stepup, provider: providerId } = JSON.parse(flowRaw) as {
     state: string;
     verifier: string;
     nonce?: string;
     returnTo: string;
     stepup?: boolean;
+    provider?: string;
   };
+
+  // Resolve the SAME provider the flow began with (the flow cookie is signed/sealed).
+  const provider = getOidcProvider(providerId);
+  if (!provider) {
+    res.status(400).send("Login session expired. Please try again.");
+    return;
+  }
 
   if (req.query["error"]) {
     req.log.warn({ error: req.query["error"] }, "OIDC provider returned an error");
@@ -276,9 +277,9 @@ router.get("/auth/callback", async (req, res) => {
   }
 
   try {
-    const discovery = await discover(oidcConfig);
+    const discovery = await discover(provider);
     const tokens = await exchangeCode({
-      config: oidcConfig,
+      config: provider,
       discovery,
       code: req.query["code"],
       redirectUri: `${baseUrl(req)}/api/auth/callback`,
@@ -292,7 +293,7 @@ router.get("/auth/callback", async (req, res) => {
 
     // Cryptographically verify the ID token (signature + iss/aud/exp) before
     // trusting any of its claims.
-    await verifyIdToken(tokens.id_token, oidcConfig, discovery);
+    await verifyIdToken(tokens.id_token, provider, discovery);
 
     // Nonce binding: the ID token MUST echo the nonce we minted for THIS login flow.
     // Rejects a token replayed/injected from a different (or attacker-initiated) flow.
@@ -479,7 +480,7 @@ router.post("/auth/logout", (req, res) => {
 router.post("/auth/step-up", (req, res) => {
   const session = readSession(req);
   if (!session) { res.status(401).json({ error: "authentication required" }); return; }
-  if (oidcConfig) {
+  if (isOidcConfigured) {
     // A real re-auth must go through the IdP — tell the SPA where to send the user.
     const returnTo = safeLocalPath((req.body as { returnTo?: unknown })?.returnTo);
     res.status(409).json({ error: "re-authentication required", code: "step_up_redirect", url: `/api/auth/step-up?returnTo=${encodeURIComponent(returnTo)}` });
@@ -489,6 +490,12 @@ router.post("/auth/step-up", (req, res) => {
   res.json({ ok: true, stepUpAt: Date.now() });
 });
 
+// Public, secret-free list of configured OIDC providers so the login screen can render a
+// branded "Sign in with <label>" button per provider.
+router.get("/auth/providers", (_req, res) => {
+  res.json({ providers: oidcProviderList() });
+});
+
 // GET initiator: demo stamps + returns; OIDC bounces through the IdP (prompt=login),
 // and the callback stamps stepUpAt when it sees the `stepup` flow.
 router.get("/auth/step-up", async (req, res) => {
@@ -496,30 +503,20 @@ router.get("/auth/step-up", async (req, res) => {
   const session = readSession(req);
   if (!session) { res.redirect(`/api/auth/login?returnTo=${encodeURIComponent(returnTo)}`); return; }
 
-  if (!oidcConfig) {
+  const provider = getOidcProvider(typeof req.query["provider"] === "string" ? req.query["provider"] : null);
+  if (!provider) {
     setSession(res, { ...session, stepUpAt: Date.now() });
     res.redirect(returnTo);
     return;
   }
   try {
-    const discovery = await discover(oidcConfig);
+    const discovery = await discover(provider);
     const state = randomToken();
     const verifier = randomToken(48);
     const nonce = randomToken();
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
-    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, stepup: true }), { ...cookieBase(), maxAge: 1000 * 60 * 10 });
-    const authUrl = new URL(discovery.authorization_endpoint);
-    authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("client_id", oidcConfig.clientId);
-    authUrl.searchParams.set("redirect_uri", redirectUri);
-    authUrl.searchParams.set("scope", oidcConfig.scope);
-    authUrl.searchParams.set("state", state);
-    authUrl.searchParams.set("nonce", nonce);
-    authUrl.searchParams.set("code_challenge", pkceChallenge(verifier));
-    authUrl.searchParams.set("code_challenge_method", "S256");
-    authUrl.searchParams.set("prompt", "login"); // force a fresh credential prompt
-    authUrl.searchParams.set("max_age", "0");
-    res.redirect(authUrl.toString());
+    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, stepup: true, provider: provider.id }), { ...cookieBase(), maxAge: 1000 * 60 * 10 });
+    res.redirect(authorizeUrl({ provider, discovery, redirectUri, state, nonce, verifier, prompt: "login" }));
   } catch (err) {
     req.log.error({ err }, "step-up initiation failed");
     res.status(502).send("Re-authentication is temporarily unavailable.");

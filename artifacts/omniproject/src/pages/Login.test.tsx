@@ -4,9 +4,10 @@ import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "../test/utils";
 import { Login } from "./Login";
 
-function clientWithAuth(auth: unknown): QueryClient {
+function clientWithAuth(auth: unknown, providers: unknown[] = []): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["auth", "me"], auth);
+  qc.setQueryData(["auth", "providers"], providers);
   return qc;
 }
 
@@ -28,6 +29,19 @@ describe("Login", () => {
     });
     expect(screen.getByRole("button", { name: /enter \(demo mode\)/i })).toBeInTheDocument();
     expect(screen.getByText(/no oidc provider configured/i)).toBeInTheDocument();
+  });
+
+  it("renders one branded button per configured OIDC provider", () => {
+    renderWithProviders(<Login />, {
+      client: clientWithAuth(
+        { authenticated: false, mode: "oidc", user: null, role: "viewer" },
+        [{ id: "google", label: "Google", kind: "oidc" }, { id: "microsoft", label: "Microsoft 365", kind: "oidc" }],
+      ),
+    });
+    expect(screen.getByRole("button", { name: /sign in with google/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /sign in with microsoft 365/i })).toBeInTheDocument();
+    // The generic single SSO button is replaced by the per-provider buttons.
+    expect(screen.queryByRole("button", { name: /sign in with sso/i })).not.toBeInTheDocument();
   });
 
   it("shows the short-name brand mark fallback (no logo)", () => {

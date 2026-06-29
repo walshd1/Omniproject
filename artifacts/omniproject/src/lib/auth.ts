@@ -59,9 +59,33 @@ export function useAuth() {
   });
 }
 
-/** Redirect the browser into the gateway-driven login flow. */
-export function login(returnTo: string = window.location.pathname): void {
-  const url = `/api/auth/login?returnTo=${encodeURIComponent(returnTo || "/")}`;
+/** A configured OIDC provider for the login screen (secret-free). */
+export interface OidcProviderInfo {
+  id: string;
+  label: string;
+  kind: "oidc";
+}
+
+/** The configured OIDC providers, so the login screen can render a branded button per provider.
+ *  Empty in demo mode. */
+export function useAuthProviders() {
+  return useQuery({
+    queryKey: ["auth", "providers"],
+    queryFn: async (): Promise<OidcProviderInfo[]> => {
+      const res = await fetch("/api/auth/providers", { credentials: "same-origin" });
+      if (!res.ok) return [];
+      const body = (await res.json()) as { providers?: OidcProviderInfo[] };
+      return body.providers ?? [];
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/** Redirect the browser into the gateway-driven login flow, optionally for a specific provider. */
+export function login(returnTo: string = window.location.pathname, provider?: string): void {
+  let url = `/api/auth/login?returnTo=${encodeURIComponent(returnTo || "/")}`;
+  if (provider) url += `&provider=${encodeURIComponent(provider)}`;
   window.location.href = url;
 }
 

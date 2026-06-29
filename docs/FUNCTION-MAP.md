@@ -1144,9 +1144,12 @@ Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
 
 | Function | What it does |
 | --- | --- |
-| `discover` | Fetch (and cache) the issuer's OIDC discovery document. |
+| `getOidcProvider` | Resolve a provider by id, falling back to the default (first) when id is absent/unknown. |
+| `oidcProviderList` | The public, secret-free provider list for the login screen (id + label + kind). |
+| `discover` | Fetch (and cache, per issuer) the issuer's OIDC discovery document. |
 | `randomToken` | A URL-safe random token (state/nonce/PKCE verifier), `bytes` of entropy. |
 | `pkceChallenge` | The S256 PKCE code_challenge for a verifier (base64url SHA-256). |
+| `authorizeUrl` | Build a provider's authorization-endpoint URL (Authorization Code + S256 PKCE + nonce). |
 | `exchangeCode` | Exchange an authorization code (with the PKCE verifier) for the token set at the IdP's token endpoint. |
 | `verifyIdToken` | Cryptographically verify the ID token against the issuer's JWKS and validate iss/aud/exp/nbf. |
 | `decodeIdTokenClaims` | Decode the JWT id_token to extract user claims. |

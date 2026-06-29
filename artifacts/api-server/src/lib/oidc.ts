@@ -73,33 +73,92 @@ export interface Session extends SessionUser {
   salt?: string;
 }
 
-const issuerUrl = process.env["OIDC_ISSUER_URL"]?.trim();
-const clientId = process.env["OIDC_CLIENT_ID"]?.trim();
-const clientSecret = process.env["OIDC_CLIENT_SECRET"]?.trim();
+/** A configured OIDC provider: a relying-party config plus an id + display label so the
+ *  login screen can render a branded "Sign in with <label>" button per provider. */
+export interface OidcProvider extends OidcConfig {
+  id: string;
+  label: string;
+}
 
-export const oidcConfig: OidcConfig | null =
-  issuerUrl && clientId && clientSecret
-    ? {
-        issuerUrl: issuerUrl.replace(/\/+$/, ""),
-        clientId,
-        clientSecret,
-        scope: process.env["OIDC_SCOPE"]?.trim() || "openid profile email",
-        audience: process.env["OIDC_AUDIENCE"]?.trim() || clientId,
-        // Verify by default; OIDC_SKIP_TOKEN_VERIFY=true is an escape hatch only.
-        verifyToken: process.env["OIDC_SKIP_TOKEN_VERIFY"]?.trim().toLowerCase() !== "true",
-      }
-    : null;
+// Verify by default; OIDC_SKIP_TOKEN_VERIFY=true is a global escape hatch only.
+const verifyToken = process.env["OIDC_SKIP_TOKEN_VERIFY"]?.trim().toLowerCase() !== "true";
 
-export const isOidcConfigured = oidcConfig !== null;
+/** Read one provider's config from a set of env keys, or null if the required three are absent. */
+function providerFromEnv(id: string, label: string, keyPrefix: string): OidcProvider | null {
+  const issuer = process.env[`${keyPrefix}_ISSUER_URL`]?.trim();
+  const clientId = process.env[`${keyPrefix}_CLIENT_ID`]?.trim();
+  const clientSecret = process.env[`${keyPrefix}_CLIENT_SECRET`]?.trim();
+  if (!issuer || !clientId || !clientSecret) return null;
+  return {
+    id,
+    label: process.env[`${keyPrefix}_LABEL`]?.trim() || label,
+    issuerUrl: issuer.replace(/\/+$/, ""),
+    clientId,
+    clientSecret,
+    scope: process.env[`${keyPrefix}_SCOPE`]?.trim() || "openid profile email",
+    audience: process.env[`${keyPrefix}_AUDIENCE`]?.trim() || clientId,
+    verifyToken,
+  };
+}
+
+/** An env-safe uppercase token for a provider id (so `google` → OIDC_GOOGLE_ISSUER_URL). */
+function envToken(id: string): string {
+  return id.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+}
+
+/**
+ * The configured OIDC providers. Two ways to configure, combined:
+ *   - **Legacy single provider** — `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET`
+ *     (+ optional `OIDC_SCOPE` / `OIDC_AUDIENCE` / `OIDC_LABEL`). Becomes the provider `default`.
+ *   - **Named providers** — `OIDC_PROVIDERS=google,microsoft` and, per id, `OIDC_<ID>_ISSUER_URL`
+ *     etc. (e.g. `OIDC_GOOGLE_ISSUER_URL`). Each renders its own branded button.
+ * The default (legacy) provider, if any, is listed first so it stays the implicit default.
+ */
+export const oidcProviders: OidcProvider[] = (() => {
+  const out: OidcProvider[] = [];
+  const legacy = providerFromEnv("default", process.env["OIDC_LABEL"]?.trim() || "SSO", "OIDC");
+  if (legacy) out.push(legacy);
+  const ids = (process.env["OIDC_PROVIDERS"]?.trim() || "")
+    .split(/[\s,]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  for (const id of ids) {
+    if (id === "default" || out.some((p) => p.id === id)) continue; // legacy already covers "default"
+    const p = providerFromEnv(id, id.charAt(0).toUpperCase() + id.slice(1), `OIDC_${envToken(id)}`);
+    if (p) out.push(p);
+  }
+  return out;
+})();
+
+/** The default (first) provider, or null. Retained for callers that assume a single OIDC config. */
+export const oidcConfig: OidcProvider | null = oidcProviders[0] ?? null;
+
+export const isOidcConfigured = oidcProviders.length > 0;
+
+/** Resolve a provider by id, falling back to the default (first) when id is absent/unknown. */
+export function getOidcProvider(id?: string | null): OidcProvider | null {
+  if (id) {
+    const match = oidcProviders.find((p) => p.id === id);
+    if (match) return match;
+  }
+  return oidcConfig;
+}
+
+/** The public, secret-free provider list for the login screen (id + label + kind). */
+export function oidcProviderList(): { id: string; label: string; kind: "oidc" }[] {
+  return oidcProviders.map((p) => ({ id: p.id, label: p.label, kind: "oidc" }));
+}
 
 // ── Discovery (cached) ────────────────────────────────────────────────────────
 
-let discoveryCache: { doc: OidcDiscovery; at: number } | null = null;
+// Cached per issuer, so multiple providers don't clobber one another's discovery docs.
+const discoveryCache = new Map<string, { doc: OidcDiscovery; at: number }>();
 const DISCOVERY_TTL_MS = 10 * 60 * 1000;
 
-/** Fetch (and cache) the issuer's OIDC discovery document. */
+/** Fetch (and cache, per issuer) the issuer's OIDC discovery document. */
 export async function discover(config: OidcConfig): Promise<OidcDiscovery> {
-  if (discoveryCache && Date.now() - discoveryCache.at < DISCOVERY_TTL_MS) return discoveryCache.doc;
+  const cached = discoveryCache.get(config.issuerUrl);
+  if (cached && Date.now() - cached.at < DISCOVERY_TTL_MS) return cached.doc;
   const url = `${config.issuerUrl}/.well-known/openid-configuration`;
   assertSafeOutboundUrl(url, "OIDC issuer");
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
@@ -110,7 +169,7 @@ export async function discover(config: OidcConfig): Promise<OidcDiscovery> {
   if (!doc.authorization_endpoint || !doc.token_endpoint) {
     throw new Error("OIDC discovery document missing required endpoints");
   }
-  discoveryCache = { doc, at: Date.now() };
+  discoveryCache.set(config.issuerUrl, { doc, at: Date.now() });
   return doc;
 }
 
@@ -128,6 +187,33 @@ export function randomToken(bytes = 32): string {
 /** The S256 PKCE code_challenge for a verifier (base64url SHA-256). */
 export function pkceChallenge(verifier: string): string {
   return base64url(crypto.createHash("sha256").update(verifier).digest());
+}
+
+/** Build a provider's authorization-endpoint URL (Authorization Code + S256 PKCE + nonce).
+ *  Shared by the login and step-up flows so the query is constructed in exactly one place. */
+export function authorizeUrl(params: {
+  provider: OidcConfig;
+  discovery: OidcDiscovery;
+  redirectUri: string;
+  state: string;
+  nonce: string;
+  verifier: string;
+  prompt?: "login";
+}): string {
+  const url = new URL(params.discovery.authorization_endpoint);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("client_id", params.provider.clientId);
+  url.searchParams.set("redirect_uri", params.redirectUri);
+  url.searchParams.set("scope", params.provider.scope);
+  url.searchParams.set("state", params.state);
+  url.searchParams.set("nonce", params.nonce);
+  url.searchParams.set("code_challenge", pkceChallenge(params.verifier));
+  url.searchParams.set("code_challenge_method", "S256");
+  if (params.prompt === "login") {
+    url.searchParams.set("prompt", "login"); // force a fresh credential prompt (step-up)
+    url.searchParams.set("max_age", "0");
+  }
+  return url.toString();
 }
 
 // ── Token exchange ────────────────────────────────────────────────────────────
