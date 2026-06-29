@@ -23,6 +23,16 @@ export function urlFormatError(value: string): string | null {
   return null;
 }
 
+/**
+ * Parse a form text value into a finite number, or null when it's blank or not numeric. The
+ * canonical "optional numeric field" coercion used by the issue/scenario forms (a blank field
+ * clears the value rather than sending 0).
+ */
+export function parseNumberOrNull(value: string): number | null {
+  const n = Number(value);
+  return value.trim() !== "" && Number.isFinite(n) ? n : null;
+}
+
 /** Allowed environment name: letters, digits, dash and underscore; no spaces. */
 const ENV_NAME_RE = /^[a-z0-9_-]+$/i;
 

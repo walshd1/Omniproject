@@ -4,10 +4,9 @@ import {
   useGetProjectIssues,
   useUpdateIssue,
   getGetProjectIssuesQueryKey,
-  getGetProjectSummaryQueryKey,
-  getListActivityQueryKey,
   type Issue,
 } from "@workspace/api-client-react";
+import { useInvalidateIssueQueries } from "../../hooks/use-invalidate-issue-queries";
 import { Plus } from "lucide-react";
 import {
   STATUS_ORDER,
@@ -77,6 +76,7 @@ export function AgileBoard({ projectId }: { projectId: string }) {
   const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
   const updateIssue = useUpdateIssue();
   const queryClient = useQueryClient();
+  const invalidateIssueQueries = useInvalidateIssueQueries();
   const { toast } = useToast();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -84,11 +84,7 @@ export function AgileBoard({ projectId }: { projectId: string }) {
   const [createStatus, setCreateStatus] = useState<string>("backlog");
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: getGetProjectIssuesQueryKey(projectId) });
-    queryClient.invalidateQueries({ queryKey: getGetProjectSummaryQueryKey(projectId) });
-    queryClient.invalidateQueries({ queryKey: getListActivityQueryKey() });
-  };
+  const invalidate = () => invalidateIssueQueries(projectId);
 
   const moveIssue = (issue: Issue, status: string, isUndo = false) => {
     if (issue.status === status) return;
