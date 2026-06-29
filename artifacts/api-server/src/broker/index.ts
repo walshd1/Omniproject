@@ -13,6 +13,7 @@ import { DataResidencyError } from "../lib/data-residency";
 import { devBrokerFromEnv } from "./dev-broker";
 import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
 import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
+import { wrapWithSingleFlight } from "./single-flight";
 import { getSettings } from "../lib/settings";
 
 /**
@@ -47,6 +48,11 @@ export function getBroker(): Broker {
     // connected (prod) or the dev broker is active, so only real vendors show in prod.
     const demoVendor = demoVendorFor({ devActive: !!dev, realBackend: N8N_ENV_CONFIGURED, source: getSettings().backendSource });
     if (demoVendor) base = applyVendorProfile(base, demoVendor);
+    // ALWAYS ON: coalesce concurrent identical reads into one upstream call (single-flight).
+    // Introduces no staleness — coalesced callers all get the one live result — so it's safe to
+    // keep on unconditionally, and it shields the backend's rate limits from a thundering herd.
+    // Inner to the cache so a cache hit never reaches it.
+    base = wrapWithSingleFlight(base);
     // OPT-IN performance mode: a short-TTL in-memory read cache (READ_CACHE_TTL_MS).
     // Trades "never stale" for latency; off by default and announced loudly at boot.
     if (readCacheEnabled()) base = wrapWithCache(base);

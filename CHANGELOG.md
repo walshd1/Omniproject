@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Single-flight broker reads + a scaling guide.** Concurrent identical reads (same actor, method
+  and args) now share **one** upstream call (`broker/single-flight.ts`) — so N users opening the same
+  dashboard make 1 backend call, not N. It's **always on** and introduces no staleness (every
+  coalesced caller gets the one live result), shields the backend's API rate limits from a thundering
+  herd, and sits below the opt-in TTL cache (a cache hit never reaches it). The dev-mode debug bundle
+  now reports `brokerReads` (single-flight `calls` vs `coalesced`, plus cache hits/misses). A new
+  [`docs/SCALING.md`](docs/SCALING.md) captures the broader plan — invalidation-driven read cache,
+  upstream-aware backpressure, N+1 reduction — and the frontend responsiveness backlog.
+
 - **Consolidated security audit (`docs/SECURITY-AUDIT.md`).** A single, reviewer-facing map of the
   full security posture — authentication & sessions (sliding idle + absolute cap, step-up re-auth),
   RBAC + SCIM lifecycle, CSRF, the pluggable vault + config-at-rest crypto, the per-session broker

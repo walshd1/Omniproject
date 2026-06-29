@@ -10,6 +10,8 @@ import { capturePath } from "../broker/capture";
 import { devModeStatus } from "./dev-mode";
 import { featureStatus } from "./feature-modules";
 import { presenceStats } from "./presence-hub";
+import { singleFlightStats } from "../broker/single-flight";
+import { readCacheStats } from "../broker/cache";
 import { aiStatus } from "./ai";
 import { aiGovernanceStatus } from "./ai-governance";
 import { auditStatus } from "./audit";
@@ -120,6 +122,9 @@ export function buildDebugBundleEntries(now: string): { manifest: DebugBundleMan
     // Live, ephemeral collaboration footprint (rooms/connections currently held) — a repro shows
     // whether real-time presence was active, not just the static config.
     presence: presenceStats(),
+    // Broker read-path efficiency: single-flight coalescing (always on) + the opt-in TTL cache, so a
+    // repro shows how much upstream load was being saved.
+    brokerReads: { singleFlight: singleFlightStats(), cache: readCacheStats() },
   };
 
   const entries: ZipEntry[] = [

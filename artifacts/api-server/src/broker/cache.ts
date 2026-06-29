@@ -18,7 +18,8 @@ import type { ActorContext, Broker } from "./types";
  *  - BOUNDED + EPHEMERAL: a capped Map, per-replica, gone on restart — never disk.
  */
 
-const READ_METHODS = new Set([
+/** The broker methods that are pure reads — safe to cache and to coalesce (single-flight). */
+export const READ_METHODS = new Set([
   "listProjects", "listIssues", "getIssue", "projectMembers", "listTaskItems",
   "listActivity", "projectSummary", "projectHistory", "baseline", "listRaid",
   "notifications", "portfolioHealth", "resourceCapacity", "projectFinancials",
@@ -57,7 +58,8 @@ export function invalidateReadCache(): void {
 
 interface Entry { at: number; value: unknown }
 
-const actorKey = (a: unknown): string => {
+/** A per-actor key prefix so one user's read is never shared with another (reads run "as" the user). */
+export const actorKey = (a: unknown): string => {
   const ctx = a as ActorContext | undefined;
   return ctx?.sub ?? ctx?.email ?? "anon";
 };
