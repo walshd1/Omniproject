@@ -8,6 +8,7 @@ import { exportConfig } from "../lib/config-store";
 import { persistSecurityState } from "../lib/security-state";
 import { listKeys, revokeKey, revokeUserSessions, KEY_NAMES, type KeyName } from "../lib/key-registry";
 import { auditAnchor, verifyAuditChain, type SealedAuditEvent } from "../lib/audit-chain";
+import { signingInfo } from "../lib/signing";
 import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "../lib/maintenance";
 import { requiresDualControl, propose, approve, reject, listProposals, registerExecutor, type Actor } from "../lib/dual-control";
 import type { Request, Response } from "express";
@@ -127,9 +128,18 @@ router.put("/admin/maintenance", requireRole("admin"), requireStepUp, (req, res)
   res.json({ engaged: maintenanceEngaged(), reason: maintenanceReason() });
 });
 
+// ── Non-repudiation signing key (Ed25519) ─────────────────────────────────────────
+// The gateway's PUBLIC verification key + status. An auditor uses this to check the
+// Ed25519 signature on the audit / provenance anchors (proving the GATEWAY produced the
+// chain tip, not merely that it's internally consistent). No secret is exposed.
+router.get("/security/signing", requireRole("admin"), (_req, res) => {
+  res.json(signingInfo());
+});
+
 // ── Tamper-evident audit chain ──────────────────────────────────────────────────
-// GET the current chain anchor (seq + tip hash + key version) so an external verifier can
-// confirm the SIEM copy ends where the gateway says it does. Admin; no secrets exposed.
+// GET the current chain anchor (seq + tip hash + key version, plus an Ed25519 signature
+// when signing is configured) so an external verifier can confirm the SIEM copy ends where
+// the gateway says it does — and that the gateway attests to it. Admin; no secrets exposed.
 router.get("/security/audit/anchor", requireRole("admin"), (_req, res) => {
   res.json(auditAnchor());
 });

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "../lib/rbac";
-import { recentProvenance, verifyChain, verifyContent } from "../lib/provenance";
+import { recentProvenance, verifyChain, verifyContent, provenanceAnchor } from "../lib/provenance";
 
 /**
  * Provenance verification (admin) — read + verify the broker-call chain. The chain holds
@@ -14,6 +14,12 @@ const router = Router();
 router.get("/provenance", requireRole("admin"), (_req, res) => {
   const entries = recentProvenance();
   res.json({ entries, chain: verifyChain(entries) });
+});
+
+// The chain anchor (tip seq + MAC + key version, plus an Ed25519 signature when signing is
+// configured) — the gateway non-repudiably attesting to the provenance tip. Admin; no secrets.
+router.get("/provenance/anchor", requireRole("admin"), (_req, res) => {
+  res.json(provenanceAnchor());
 });
 
 // One call's hops (invoke / result / error), with the running chain still verified.

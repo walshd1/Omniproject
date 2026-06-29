@@ -60,9 +60,10 @@ existing rate-limit/broker-log pattern.
 
 These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not "discovered".
 
-- **[caveat] Shared-secret MACs, not signatures.** Provenance + the audit chain authenticate to
-  a holder of the master (tamper-**evident**), not non-repudiation against the gateway itself.
-  Asymmetric signing would be needed for that.
+- **[caveat] Shared-secret MACs by default.** Provenance + the audit chain authenticate to a
+  holder of the master (tamper-**evident**). Non-repudiation against the gateway is now available
+  as an opt-in: set `SIGNING_PRIVATE_KEY` to Ed25519-sign the chain anchors (`lib/signing.ts`),
+  verifiable with the published public key (`GET /api/security/signing`).
 - **[caveat] Internal-consistency provenance.** Order + non-alteration are verified internally
   (monotonic counter + hash links) with no external time anchor; a holder of *both* the
   provenance and broker keys could forge a self-consistent history.
@@ -70,9 +71,6 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
 - **[caveat] Prompt injection is mitigated, not eliminated** (closed vocab, schema-bound args,
   default-deny writes, human confirm); containment ensures the worst case is a refused/clarifying
   response, not a silent action.
-
-**Roadmap [idea]:** optional asymmetric signing (Ed25519) for the audit chain + provenance, to
-move from tamper-evident to non-repudiation for customers who need it.
 
 ---
 
@@ -117,8 +115,6 @@ move from tamper-evident to non-repudiation for customers who need it.
 3. **Multi-tenancy Phase 1 (§4)** — only if the GTM needs pooled tenancy; start with
    tenant-context plumbing behind a `currentTenant()` shim (no behaviour change).
 4. **Governance UX + personas (§4)** — wizard governance walkthrough + the MD RAG personas.
-5. **Non-repudiation option (§3)** — asymmetric signing for audit/provenance, for regulated
-   customers.
 
 ---
 
