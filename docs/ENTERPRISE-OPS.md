@@ -50,6 +50,16 @@ or **right-to-erasure** is satisfied at the systems of record, not here:
 **Operator action for a DSAR:** (1) erase at the backend(s); (2) delete the SCIM user; (3) apply
 your SIEM's erasure process to audit lines for that actor; (4) the session ages out / revoke it.
 
+**One-click evidence report:** `GET /api/security/dsar?sub=…&email=…` (admin; the request is itself
+audited) assembles, from live gateway state only, an auditor-ready picture for a subject — JSON +
+a human-readable summary (`lib/dsar`). It reports: what is **not retained** (project data, session
+claims, role derivation, AI content); what the gateway **does** hold referencing the subject (the
+SCIM directory record if SCIM is on, a session-revocation mark, and the content-free provenance
+ring entries that name them); where the data **actually lives** (the connected backends — origins
+only, never a copy); and the **audit-chain anchor** so the subject's slice in your SIEM can be
+verified. It copies no backend/personal data into the gateway — it reports references and
+locations, consistent with zero-at-rest.
+
 ---
 
 ## 3. Retention

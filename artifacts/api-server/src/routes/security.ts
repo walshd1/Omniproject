@@ -10,6 +10,7 @@ import { listKeys, revokeKey, revokeUserSessions, KEY_NAMES, type KeyName } from
 import { auditAnchor, verifyAuditChain, type SealedAuditEvent } from "../lib/audit-chain";
 import { signingInfo } from "../lib/signing";
 import { residencyStatus } from "../lib/data-residency";
+import { buildDsarReport, dsarSummaryText } from "../lib/dsar";
 import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "../lib/maintenance";
 import { requiresDualControl, propose, approve, reject, listProposals, registerExecutor, type Actor } from "../lib/dual-control";
 import type { Request, Response } from "express";
@@ -135,6 +136,19 @@ router.put("/admin/maintenance", requireRole("admin"), requireStepUp, async (req
 // chain tip, not merely that it's internally consistent). No secret is exposed.
 router.get("/security/signing", requireRole("admin"), (_req, res) => {
   res.json(signingInfo());
+});
+
+// ── DSAR evidence report ───────────────────────────────────────────────────────────
+// One-click "what do we hold/process for subject X" — assembled from live gateway state only
+// (zero-at-rest: mostly pointers to the systems of record). Admin; the request is itself audited.
+router.get("/security/dsar", requireRole("admin"), (req, res) => {
+  const sub = typeof req.query["sub"] === "string" ? req.query["sub"].trim() : undefined;
+  const email = typeof req.query["email"] === "string" ? req.query["email"].trim() : undefined;
+  if (!sub && !email) { res.status(400).json({ error: "Provide ?sub= and/or ?email= for the data subject." }); return; }
+  const report = buildDsarReport({ sub, email }, Date.now());
+  const session = getSession(req);
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "dsar.report", actor: session ? { sub: session.sub, email: session.email } : null, write: false, result: "success", meta: { subjectSub: sub ?? null, subjectEmail: email ?? null } });
+  res.json({ report, summary: dsarSummaryText(report) });
 });
 
 // ── Data residency / region routing ───────────────────────────────────────────────

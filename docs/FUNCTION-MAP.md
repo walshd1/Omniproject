@@ -812,6 +812,15 @@ Stateful developer mode (opt-in).
 | `saveState` | Dev-only: persist the in-memory demo state to disk (off in prod). |
 | `loadState` | Dev-only: load a previously persisted demo state, or null if none. |
 
+### `artifacts/api-server/src/lib/dsar.ts`
+
+DSAR (data-subject access request) evidence report — the automated, honest answer to "what do you hold / process for subject X".
+
+| Function | What it does |
+| --- | --- |
+| `buildDsarReport` | Build the DSAR evidence report for a subject from live gateway state only. |
+| `dsarSummaryText` | A human-readable summary of the report (for the operator handling the request). |
+
 ### `artifacts/api-server/src/lib/dual-control.ts`
 
 Maker-checker (four-eyes) dual control for sensitive admin actions.
