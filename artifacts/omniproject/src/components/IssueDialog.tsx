@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
 import { TaskItemsPanel } from "./TaskItemsPanel";
-import { canSurfaceField, canStoreField, canSurfaceEntity } from "../lib/capabilities-fields";
-import { effortProgress } from "../lib/effort";
-import { parseNumberOrNull } from "../lib/validation";
+import { canSurfaceEntity } from "../lib/capabilities-fields";
+import { useIssueForm } from "./issue-dialog/use-issue-form";
+import { FinancialsPanel } from "./issue-dialog/FinancialsPanel";
+import { EffortPanel } from "./issue-dialog/EffortPanel";
+import { RiskQualityPanel } from "./issue-dialog/RiskQualityPanel";
 import { useInvalidateIssueQueries } from "../hooks/use-invalidate-issue-queries";
 import {
   useCreateIssue,
@@ -55,34 +56,6 @@ interface IssueDialogProps {
   defaultStatus?: string;
 }
 
-const EMPTY_FORM = {
-  title: "",
-  description: "",
-  status: "backlog",
-  priority: "none",
-  assignee: "",
-  labels: "",
-  startDate: "",
-  dueDate: "",
-  budget: "",
-  actualCost: "",
-  costCenter: "",
-  currency: "",
-  billable: false,
-  estimateHours: "",
-  loggedHours: "",
-  remainingHours: "",
-  storyPoints: "",
-  healthStatus: "",
-  riskLevel: "",
-  impact: "",
-  urgency: "",
-  blocked: false,
-  blockedReason: "",
-  mitigation: "",
-  defectCount: "",
-};
-
 export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatus }: IssueDialogProps) {
   const { toast } = useToast();
   const invalidateIssueQueries = useInvalidateIssueQueries();
@@ -93,85 +66,14 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
   const { data: caps } = useGetCapabilities();
   // Field gating: hide a field the backend can't surface; make it read-only when
   // it can surface but not store (a read-only source field).
-  const showF = (k: string) => canSurfaceField(caps, k);
-  const editF = (k: string) => canStoreField(caps, k);
-
-  const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [titleError, setTitleError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    setTitleError(null);
-    if (issue) {
-      setForm({
-        title: issue.title,
-        description: issue.description ?? "",
-        status: issue.status,
-        priority: issue.priority,
-        assignee: issue.assignee ?? "",
-        labels: issue.labels.join(", "),
-        startDate: issue.startDate ?? "",
-        dueDate: issue.dueDate ?? "",
-        budget: issue.budget != null ? String(issue.budget) : "",
-        actualCost: issue.actualCost != null ? String(issue.actualCost) : "",
-        costCenter: issue.costCenter ?? "",
-        currency: issue.currency ?? "",
-        billable: !!issue.billable,
-        estimateHours: issue.estimateHours != null ? String(issue.estimateHours) : "",
-        loggedHours: issue.loggedHours != null ? String(issue.loggedHours) : "",
-        remainingHours: issue.remainingHours != null ? String(issue.remainingHours) : "",
-        storyPoints: issue.storyPoints != null ? String(issue.storyPoints) : "",
-        healthStatus: issue.healthStatus ?? "",
-        riskLevel: issue.riskLevel ?? "",
-        impact: issue.impact ?? "",
-        urgency: issue.urgency ?? "",
-        blocked: !!issue.blocked,
-        blockedReason: issue.blockedReason ?? "",
-        mitigation: issue.mitigation ?? "",
-        defectCount: issue.defectCount != null ? String(issue.defectCount) : "",
-      });
-    } else {
-      setForm({ ...EMPTY_FORM, status: defaultStatus ?? "backlog" });
-    }
-  }, [open, issue, defaultStatus]);
+  const { form, setForm, buildPayload, titleError, setTitleError, showF, editF } = useIssueForm(
+    issue,
+    defaultStatus,
+    open,
+    caps,
+  );
 
   const invalidate = () => invalidateIssueQueries(projectId);
-
-  const numOrNull = parseNumberOrNull;
-
-  const buildPayload = (): IssueInput => ({
-    title: form.title.trim(),
-    ...(form.description.trim() ? { description: form.description.trim() } : {}),
-    status: form.status as NonNullable<IssueInput["status"]>,
-    priority: form.priority as NonNullable<IssueInput["priority"]>,
-    assignee: form.assignee.trim() || null,
-    labels: form.labels
-      .split(",")
-      .map((l) => l.trim())
-      .filter(Boolean),
-    startDate: form.startDate || null,
-    dueDate: form.dueDate || null,
-    // Per-task financials — only sent for fields the backend can store.
-    ...(editF("budget") ? { budget: numOrNull(form.budget) } : {}),
-    ...(editF("actualCost") ? { actualCost: numOrNull(form.actualCost) } : {}),
-    ...(editF("billable") ? { billable: form.billable } : {}),
-    ...(editF("costCenter") ? { costCenter: form.costCenter.trim() || null } : {}),
-    ...(editF("currency") ? { currency: form.currency.trim() || null } : {}),
-    // Per-task effort / time-tracking — only sent for storable fields.
-    ...(editF("estimateHours") ? { estimateHours: numOrNull(form.estimateHours) } : {}),
-    ...(editF("loggedHours") ? { loggedHours: numOrNull(form.loggedHours) } : {}),
-    ...(editF("remainingHours") ? { remainingHours: numOrNull(form.remainingHours) } : {}),
-    ...(editF("storyPoints") ? { storyPoints: numOrNull(form.storyPoints) } : {}),
-    // Per-task risk & quality — only sent for storable fields.
-    ...(editF("healthStatus") ? { healthStatus: form.healthStatus.trim() || null } : {}),
-    ...(editF("riskLevel") ? { riskLevel: form.riskLevel.trim() || null } : {}),
-    ...(editF("impact") ? { impact: form.impact.trim() || null } : {}),
-    ...(editF("urgency") ? { urgency: form.urgency.trim() || null } : {}),
-    ...(editF("blocked") ? { blocked: form.blocked } : {}),
-    ...(editF("blockedReason") ? { blockedReason: form.blockedReason.trim() || null } : {}),
-    ...(editF("mitigation") ? { mitigation: form.mitigation.trim() || null } : {}),
-    ...(editF("defectCount") ? { defectCount: numOrNull(form.defectCount) } : {}),
-  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -445,185 +347,11 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
             )}
           </div>
 
-          {(showF("budget") || showF("actualCost") || showF("billable") || showF("costCenter") || showF("currency")) && (
-            <div className="border-t border-border pt-4 space-y-3">
-              <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Financials</h3>
-              <div className="grid grid-cols-2 gap-4">
-                {showF("budget") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-budget" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Budget</label>
-                    <Input id="issue-budget" type="number" inputMode="decimal" value={form.budget} disabled={!editF("budget")}
-                      onChange={(e) => setForm((p) => ({ ...p, budget: e.target.value }))}
-                      placeholder="0" className="rounded-none border-border font-mono disabled:opacity-60" />
-                  </div>
-                )}
-                {showF("actualCost") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-actual-cost" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Actual cost</label>
-                    <Input id="issue-actual-cost" type="number" inputMode="decimal" value={form.actualCost} disabled={!editF("actualCost")}
-                      onChange={(e) => setForm((p) => ({ ...p, actualCost: e.target.value }))}
-                      placeholder="0" className="rounded-none border-border font-mono disabled:opacity-60" />
-                  </div>
-                )}
-                {showF("currency") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-currency" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Currency</label>
-                    <Input id="issue-currency" value={form.currency} disabled={!editF("currency")}
-                      onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value.toUpperCase() }))}
-                      placeholder="GBP" maxLength={3} className="rounded-none border-border font-mono uppercase disabled:opacity-60" />
-                  </div>
-                )}
-                {showF("costCenter") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-cost-center" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cost centre</label>
-                    <Input id="issue-cost-center" value={form.costCenter} disabled={!editF("costCenter")}
-                      onChange={(e) => setForm((p) => ({ ...p, costCenter: e.target.value }))}
-                      placeholder="ENG-PLAT" className="rounded-none border-border font-mono disabled:opacity-60" />
-                  </div>
-                )}
-              </div>
-              {showF("billable") && (
-                <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  <input type="checkbox" aria-label="Billable" checked={form.billable} disabled={!editF("billable")}
-                    onChange={(e) => setForm((p) => ({ ...p, billable: e.target.checked }))}
-                    className="h-4 w-4 accent-primary disabled:opacity-60" />
-                  Billable
-                </label>
-              )}
-            </div>
-          )}
+          <FinancialsPanel form={form} setForm={setForm} showF={showF} editF={editF} />
 
-          {(showF("estimateHours") || showF("loggedHours") || showF("remainingHours") || showF("storyPoints")) && (
-            <div className="border-t border-border pt-4 space-y-3">
-              <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Effort</h3>
-              <div className="grid grid-cols-3 gap-4">
-                {showF("estimateHours") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-estimate-hours" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Estimate (h)</label>
-                    <Input id="issue-estimate-hours" type="number" inputMode="decimal" value={form.estimateHours} disabled={!editF("estimateHours")}
-                      onChange={(e) => setForm((p) => ({ ...p, estimateHours: e.target.value }))}
-                      placeholder="0" className="rounded-none border-border font-mono disabled:opacity-60" />
-                  </div>
-                )}
-                {showF("loggedHours") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-logged-hours" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Logged (h)</label>
-                    <Input id="issue-logged-hours" type="number" inputMode="decimal" value={form.loggedHours} disabled={!editF("loggedHours")}
-                      onChange={(e) => setForm((p) => ({ ...p, loggedHours: e.target.value }))}
-                      placeholder="0" className="rounded-none border-border font-mono disabled:opacity-60" />
-                  </div>
-                )}
-                {showF("remainingHours") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-remaining-hours" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Remaining (h)</label>
-                    <Input id="issue-remaining-hours" type="number" inputMode="decimal" value={form.remainingHours} disabled={!editF("remainingHours")}
-                      onChange={(e) => setForm((p) => ({ ...p, remainingHours: e.target.value }))}
-                      placeholder="0" className="rounded-none border-border font-mono disabled:opacity-60" />
-                  </div>
-                )}
-                {showF("storyPoints") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-story-points" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Story points</label>
-                    <Input id="issue-story-points" type="number" inputMode="decimal" value={form.storyPoints} disabled={!editF("storyPoints")}
-                      onChange={(e) => setForm((p) => ({ ...p, storyPoints: e.target.value }))}
-                      placeholder="0" className="rounded-none border-border font-mono disabled:opacity-60" />
-                  </div>
-                )}
-              </div>
-              {/* Derived estimate-vs-logged progress — shown only when both are surfaced and present. */}
-              {showF("estimateHours") && showF("loggedHours") && (() => {
-                const prog = effortProgress(Number(form.estimateHours), Number(form.loggedHours));
-                if (prog.band === "unknown") return null;
-                const tone = prog.band === "over" ? "bg-red-500" : prog.band === "near" ? "bg-amber-500" : "bg-primary";
-                return (
-                  <div className="space-y-1" data-testid="effort-progress">
-                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      <span>Logged vs estimate</span>
-                      <span className={prog.band === "over" ? "text-red-500" : ""}>
-                        {prog.pct}%{prog.variance != null && prog.variance < 0 ? ` · ${-prog.variance}h over` : ""}
-                      </span>
-                    </div>
-                    <div className="h-2 w-full bg-background border border-border">
-                      <div className={`h-full ${tone}`} style={{ width: `${prog.barPct}%` }} />
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
+          <EffortPanel form={form} setForm={setForm} showF={showF} editF={editF} />
 
-          {(showF("healthStatus") || showF("riskLevel") || showF("impact") || showF("urgency") || showF("blocked") || showF("blockedReason") || showF("mitigation") || showF("defectCount")) && (
-            <div className="border-t border-border pt-4 space-y-3">
-              <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Risk &amp; quality</h3>
-              <div className="grid grid-cols-2 gap-4">
-                {showF("healthStatus") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-health" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Health (RAG)</label>
-                    <Input id="issue-health" value={form.healthStatus} disabled={!editF("healthStatus")}
-                      onChange={(e) => setForm((p) => ({ ...p, healthStatus: e.target.value }))}
-                      placeholder="green / amber / red" className="rounded-none border-border font-mono disabled:opacity-60" />
-                  </div>
-                )}
-                {showF("riskLevel") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-risk-level" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Risk level</label>
-                    <Input id="issue-risk-level" value={form.riskLevel} disabled={!editF("riskLevel")}
-                      onChange={(e) => setForm((p) => ({ ...p, riskLevel: e.target.value }))}
-                      placeholder="low / medium / high" className="rounded-none border-border font-mono disabled:opacity-60" />
-                  </div>
-                )}
-                {showF("impact") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-impact" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Impact</label>
-                    <Input id="issue-impact" value={form.impact} disabled={!editF("impact")}
-                      onChange={(e) => setForm((p) => ({ ...p, impact: e.target.value }))}
-                      placeholder="low / medium / high" className="rounded-none border-border font-mono disabled:opacity-60" />
-                  </div>
-                )}
-                {showF("urgency") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-urgency" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Urgency</label>
-                    <Input id="issue-urgency" value={form.urgency} disabled={!editF("urgency")}
-                      onChange={(e) => setForm((p) => ({ ...p, urgency: e.target.value }))}
-                      placeholder="low / medium / high" className="rounded-none border-border font-mono disabled:opacity-60" />
-                  </div>
-                )}
-                {showF("defectCount") && (
-                  <div className="space-y-1">
-                    <label htmlFor="issue-defect-count" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Defect count</label>
-                    <Input id="issue-defect-count" type="number" inputMode="numeric" value={form.defectCount} disabled={!editF("defectCount")}
-                      onChange={(e) => setForm((p) => ({ ...p, defectCount: e.target.value }))}
-                      placeholder="0" className="rounded-none border-border font-mono disabled:opacity-60" />
-                  </div>
-                )}
-              </div>
-              {showF("blocked") && (
-                <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  <input type="checkbox" aria-label="Blocked" checked={form.blocked} disabled={!editF("blocked")}
-                    onChange={(e) => setForm((p) => ({ ...p, blocked: e.target.checked }))}
-                    className="h-4 w-4 accent-red-500 disabled:opacity-60" />
-                  Blocked
-                </label>
-              )}
-              {showF("blockedReason") && (
-                <div className="space-y-1">
-                  <label htmlFor="issue-blocked-reason" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Blocked reason</label>
-                  <Input id="issue-blocked-reason" value={form.blockedReason} disabled={!editF("blockedReason")}
-                    onChange={(e) => setForm((p) => ({ ...p, blockedReason: e.target.value }))}
-                    placeholder="What's blocking it?" className="rounded-none border-border font-mono disabled:opacity-60" />
-                </div>
-              )}
-              {showF("mitigation") && (
-                <div className="space-y-1">
-                  <label htmlFor="issue-mitigation" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mitigation</label>
-                  <textarea id="issue-mitigation" value={form.mitigation} disabled={!editF("mitigation")}
-                    onChange={(e) => setForm((p) => ({ ...p, mitigation: e.target.value }))}
-                    placeholder="Plan to reduce the risk…" rows={2}
-                    className="w-full bg-background border border-border px-3 py-2 text-sm font-mono outline-none focus:border-primary resize-none disabled:opacity-60" />
-                </div>
-              )}
-            </div>
-          )}
+          <RiskQualityPanel form={form} setForm={setForm} showF={showF} editF={editF} />
 
           {/* Custom fields — the describe→reconcile path: any non-canonical field
               the backend exposed, carried through as gated read-only passthrough. */}

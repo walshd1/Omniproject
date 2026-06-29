@@ -8,6 +8,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Modularity: large components decomposed (no behaviour change).** Pure extraction, identical
+  rendered output / network calls / query keys:
+  - **`IssueDialog`** (708 → 436 LOC) — form state + hydrate-on-open + `buildPayload` moved into a
+    `useIssueForm` hook, and the financials / effort / risk-&-quality field groups into
+    `FinancialsPanel` / `EffortPanel` / `RiskQualityPanel` under `components/issue-dialog/`. The
+    dialog keeps its public props and all mutation handlers.
+  - **`useFormDialog`** — the hand-rolled "reset on close" pattern is now one hook, adopted by
+    `NewProjectDialog`, `NewTaskDialog` and the `RaidView` add-form.
+  - **`ScheduleSandbox`** — the pointer→day-shift geometry is a pure, tested `lib/drag-schedule`
+    helper; the drag state and resource-contention computation moved into `useScheduleShifts` and
+    `useResourceContention` hooks.
+
 - **Stricter TypeScript: `exactOptionalPropertyTypes` on (completes the strict-TS opt-ins).**
   An optional property `x?: T` can no longer be silently assigned `undefined` — the code must
   either omit it or declare `x?: T | undefined`. The ~127 resulting sites were fixed by either a

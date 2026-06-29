@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useCreateProject,
@@ -18,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useFormDialog } from "../hooks/use-form-dialog";
 
 /**
  * Create a project through the broker (RFC-001 §2). Only rendered when the
@@ -30,12 +30,11 @@ export function NewProjectDialog({ open, onOpenChange }: { open: boolean; onOpen
   const { toast } = useToast();
   const create = useCreateProject();
   const { data: programmes } = useListProgrammes();
-  const [form, setForm] = useState({ name: "", identifier: "", description: "", programmeId: "" });
+  const { form, setForm, reset, close: resetOnClose } = useFormDialog({ name: "", identifier: "", description: "", programmeId: "" });
 
   const nameError = form.name.trim() ? "" : "Name is required";
-  const reset = () => setForm({ name: "", identifier: "", description: "", programmeId: "" });
   const close = (o: boolean) => {
-    if (!o) reset();
+    resetOnClose(o);
     onOpenChange(o);
   };
 

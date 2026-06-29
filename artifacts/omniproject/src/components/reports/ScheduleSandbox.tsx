@@ -1,17 +1,15 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useListProjects, useGetProjectIssues, useGetCapabilities } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   buildScheduleItems,
   computeSchedule,
-  type DepEdge,
   type ScheduleInput,
 } from "../../lib/schedule-scenario";
-import { loadDeltas, type LoadInput } from "../../lib/resource-load";
-import { loadEdges } from "../../lib/dependencies";
 import { triggerBlobDownload } from "../../lib/setup";
-import { markExplorationDirty } from "../../lib/exploration";
+import { useScheduleShifts } from "./use-schedule-shifts";
+import { useResourceContention } from "./use-resource-contention";
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 const fmtDay = (day: number) =>
@@ -29,110 +27,42 @@ export function ScheduleSandbox() {
   const activeProject = projectId || projects?.[0]?.id || "";
   const { data: issues } = useGetProjectIssues(activeProject);
 
-  // Volatile scenario state.
-  const [shifts, setShifts] = useState<Record<string, number>>({});
-  const [edges, setEdges] = useState<DepEdge[]>([]);
-  const [pred, setPred] = useState("");
-  const [succ, setSucc] = useState("");
-  const dragRef = useRef<{ id: string; startX: number; origShift: number; pxPerDay: number } | null>(null);
-
   const items = useMemo(
     () => buildScheduleItems((issues ?? []) as ScheduleInput[]),
     [issues],
   );
+
+  // Volatile scenario state — shifts/edges plus the drag gesture. `getSpan` is a
+  // getter so the drag reads the latest span (itself derived from these shifts).
+  const {
+    shifts,
+    edges,
+    setEdges,
+    pred,
+    setPred,
+    succ,
+    setSucc,
+    touch,
+    reset,
+    addEdge,
+    importLinked,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    nudge,
+  } = useScheduleShifts({ items, getSpan: () => span });
+
   const result = useMemo(() => computeSchedule(items, edges, shifts), [items, edges, shifts]);
 
   const span = Math.max(result.rangeEndDay - result.rangeStartDay + 1, 1);
   const pct = (day: number) => ((day - result.rangeStartDay) / span) * 100;
 
-  // ── Resource capacity what-if ────────────────────────────────────────────────
-  // Join each scheduled item with its assignee, then compare per-person task
-  // overlap before vs after the shifts: who has the scenario newly piled up?
-  // Concurrency-based, so it works wherever the backend surfaces an assignee;
-  // gated on the resources capability.
-  const resourcesOn = caps?.resources !== false;
-  const assigneeOf = useMemo(() => {
-    const m: Record<string, string | null> = {};
-    for (const i of issues ?? []) m[i.id] = i.assignee ?? null;
-    return m;
-  }, [issues]);
-  const hasAssignees = Object.values(assigneeOf).some(Boolean);
-  const contention = useMemo(() => {
-    const active = (status: string) => status !== "done" && status !== "cancelled";
-    const toLoad = (resolved: boolean): LoadInput[] =>
-      result.items.map((it) => ({
-        id: it.id,
-        title: it.title,
-        assignee: assigneeOf[it.id] ?? null,
-        startDay: resolved ? it.resolvedStartDay : it.baseStartDay,
-        endDay: resolved ? it.resolvedEndDay : it.baseEndDay,
-        active: active(it.status),
-      }));
-    return loadDeltas(toLoad(false), toLoad(true));
-  }, [result, assigneeOf]);
-  const showCapacity = resourcesOn && hasAssignees && items.length > 0;
-
-  const touch = () => markExplorationDirty();
-  const reset = () => {
-    setShifts({});
-    setEdges([]);
-  };
-
-  const addEdge = () => {
-    if (!pred || !succ || pred === succ) return;
-    if (edges.some((e) => e.predecessorId === pred && e.successorId === succ)) return;
-    setEdges((e) => [...e, { predecessorId: pred, successorId: succ }]);
-    setPred("");
-    setSucc("");
-    touch();
-  };
-
-  // Best-effort reuse of dependency links you already asserted in /explore:
-  // import any depends_on / blocks edge whose endpoints resolve to issues here.
-  const importLinked = () => {
-    const ids = new Set(items.map((i) => i.id));
-    const imported: DepEdge[] = [];
-    for (const e of loadEdges()) {
-      if (e.type === "relates_to") continue;
-      // "blocks": from → to (from precedes to). "depends_on": to → from.
-      const [p, s] = e.type === "blocks" ? [e.from.itemRef, e.to.itemRef] : [e.to.itemRef, e.from.itemRef];
-      if (ids.has(p) && ids.has(s) && p !== s) imported.push({ predecessorId: p, successorId: s });
-    }
-    if (imported.length) {
-      setEdges((cur) => {
-        const seen = new Set(cur.map((x) => `${x.predecessorId}>${x.successorId}`));
-        return [...cur, ...imported.filter((x) => !seen.has(`${x.predecessorId}>${x.successorId}`))];
-      });
-      touch();
-    }
-  };
-
-  const onPointerDown = (e: React.PointerEvent, id: string) => {
-    const track = e.currentTarget.parentElement;
-    if (!track) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    dragRef.current = {
-      id,
-      startX: e.clientX,
-      origShift: shifts[id] ?? 0,
-      pxPerDay: track.getBoundingClientRect().width / span,
-    };
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    const d = dragRef.current;
-    if (!d || d.pxPerDay <= 0) return;
-    const deltaDays = Math.round((e.clientX - d.startX) / d.pxPerDay);
-    setShifts((prev) => ({ ...prev, [d.id]: d.origShift + deltaDays }));
-    touch();
-  };
-  const onPointerUp = (e: React.PointerEvent) => {
-    if (dragRef.current) e.currentTarget.releasePointerCapture(e.pointerId);
-    dragRef.current = null;
-  };
-  const nudge = (id: string, days: number) => {
-    setShifts((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + days }));
-    touch();
-  };
+  const { contention, showCapacity } = useResourceContention({
+    issues,
+    result,
+    caps,
+    itemsLength: items.length,
+  });
 
   const exportScenario = () => {
     const payload = {
