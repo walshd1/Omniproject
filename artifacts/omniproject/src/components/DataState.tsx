@@ -12,7 +12,8 @@ import { LoadingState } from "./LoadingState";
  *  - settled  → renders children (empty-state handling stays per-call-site).
  *
  * Behaviour-preserving: when neither isLoading nor isError, it is a transparent
- * pass-through of children.
+ * pass-through of children. Pass `skeleton` to show a content-shaped placeholder
+ * (Skeletons.*) while loading instead of the plain "LOADING…" text.
  */
 export function DataState({
   isLoading,
@@ -21,6 +22,7 @@ export function DataState({
   error,
   loadingClassName,
   className = "h-full w-full",
+  skeleton,
   children,
 }: {
   isLoading?: boolean;
@@ -31,9 +33,11 @@ export function DataState({
   loadingClassName?: string;
   /** Layout wrapper for the error block. */
   className?: string;
+  /** Optional content-shaped loader shown while loading (e.g. <SkeletonRows />). */
+  skeleton?: ReactNode;
   children: ReactNode;
 }) {
-  if (isLoading) return <LoadingState className={loadingClassName} />;
+  if (isLoading) return skeleton !== undefined ? <>{skeleton}</> : <LoadingState className={loadingClassName} />;
 
   if (isError) {
     const message =

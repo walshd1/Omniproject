@@ -11,6 +11,7 @@ import { useFeatures, featureEnabled } from "../../lib/features";
 import { useSidePanel } from "../../lib/side-panel";
 import { STATUS_ORDER, PRIORITY_ORDER, statusLabel, priorityLabel } from "../../lib/constants";
 import { DataState } from "../DataState";
+import { SkeletonRows } from "../Skeletons";
 import { SavedViewsBar } from "./SavedViewsBar";
 
 /**
@@ -141,7 +142,7 @@ export function IssueGrid({ projectId }: { projectId: string }) {
     });
 
   return (
-    <DataState isLoading={isLoading} isError={isError} error={error} onRetry={refetch}>
+    <DataState isLoading={isLoading} isError={isError} error={error} onRetry={refetch} skeleton={<SkeletonRows rows={6} className="p-2" />}>
     <div data-testid="issue-grid">
       {savedViewsOn && (
         <SavedViewsBar

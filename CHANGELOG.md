@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Consistent skeleton loaders + reduced-motion awareness (Phase 2 UX polish).** Shared,
+  content-shaped skeleton primitives (`SkeletonText` / `SkeletonRows` / `SkeletonCards`) replace
+  ad-hoc "LOADING…" text on data surfaces: `DataState` now takes an optional **`skeleton`** node
+  (behaviour-preserving — falls back to the text loader), and the editable grid adopts it. A new
+  **`useReducedMotion`** hook (the union of the per-user `reduceMotion` preference and the OS
+  `prefers-reduced-motion` setting) makes the skeletons render **static** under reduced motion —
+  belt-and-braces with the CSS that already collapses animation/transition durations under both
+  signals. Covered by hook + skeleton + DataState component tests.
+
 - **Keyboard-first: one shortcuts registry + discoverable help (Phase 2 UX polish).** All keyboard
   shortcuts now live in a single source of truth (`lib/shortcuts`) that the **help overlay** renders
   from, so the cheatsheet can't drift from the real bindings. The overlay opens with **`?`** and via
