@@ -22,6 +22,17 @@ describe("DataState", () => {
     expect(screen.queryByText("real content")).not.toBeInTheDocument();
   });
 
+  it("renders a content-shaped skeleton (not the text placeholder) while loading when given one", () => {
+    render(
+      <DataState isLoading skeleton={<div data-testid="my-skeleton">loading rows…</div>}>
+        <div>real content</div>
+      </DataState>,
+    );
+    expect(screen.getByTestId("my-skeleton")).toBeInTheDocument();
+    expect(screen.queryByText("real content")).not.toBeInTheDocument();
+    expect(screen.queryByText("LOADING…")).not.toBeInTheDocument(); // skeleton replaces the text loader
+  });
+
   it("shows an alert with the error message and a Retry button on error", () => {
     render(
       <DataState isError error={new Error("boom from backend")} onRetry={() => {}}>
