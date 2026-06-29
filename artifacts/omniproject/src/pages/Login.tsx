@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useAuth, login } from "../lib/auth";
+import { useAuth, login, samlLogin } from "../lib/auth";
 import { useBranding } from "../lib/branding";
 
 export function Login() {
@@ -42,6 +42,17 @@ export function Login() {
         >
           {isLoading ? "CHECKING…" : isDemo ? "ENTER (DEMO MODE)" : "SIGN IN WITH SSO"}
         </Button>
+
+        {auth?.samlConfigured && (
+          <Button
+            onClick={() => samlLogin("/")}
+            disabled={isLoading}
+            className="w-full mt-3 rounded-none border-2 border-foreground hover:bg-foreground hover:text-background transition-colors font-bold uppercase tracking-wider h-12"
+            variant="outline"
+          >
+            SIGN IN WITH SAML
+          </Button>
+        )}
 
         {isDemo && (
           <p className="mt-4 text-[11px] text-center text-muted-foreground font-mono leading-relaxed">

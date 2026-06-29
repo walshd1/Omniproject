@@ -6,6 +6,27 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **SAML 2.0 SSO (optional, alongside OIDC).** The gateway now also runs as a SAML Service
+  Provider for IdPs/procurement that mandate SAML. SP-initiated flow `GET /api/auth/saml/login`
+  → IdP → signed assertion POSTed to the ACS `POST /api/auth/saml/callback` → the same signed
+  httpOnly session cookie. The assertion's group attributes feed the **same role-map** as OIDC
+  claims, so group→role assignment is identical across both protocols. SP metadata at
+  `GET /api/auth/saml/metadata`; `/api/auth/me` reports `samlConfigured` and the login screen
+  offers a "Sign in with SAML" button when enabled.
+  - **Install-on-demand dependency.** `@node-saml/node-saml` is *not* a declared dependency —
+    a default `pnpm install` and the CI `--frozen-lockfile --ignore-scripts` install never pull
+    it, so OIDC/demo/charity deployments stay lean (mirrors the optional Redis rate-limit store).
+    It's dynamically imported only when `SAML_*` env is set; configured-but-not-installed logs a
+    one-time warning with the install command and leaves SAML unavailable (OIDC/demo unaffected,
+    never a boot crash). Enable: `pnpm --filter @workspace/api-server add @node-saml/node-saml`.
+  - Config: `SAML_IDP_ENTRY_POINT`, `SAML_IDP_CERT` (PEM or base64-of-PEM), `SAML_CALLBACK_URL`
+    (or derived from `PUBLIC_URL`), plus optional `SAML_SP_ENTITY_ID` / `SAML_AUDIENCE` /
+    `SAML_EMAIL_ATTR` / `SAML_NAME_ATTR` / `SAML_GROUPS_ATTR` / `SAML_WANT_RESPONSE_SIGNED`.
+    Assertions are always required signed. Honest scope: SAML asserts identity for RBAC but does
+    not mint a per-user backend bearer (use OIDC where per-user backend tokens are needed).
+
 ### Security
 
 - **Non-repudiation: optional Ed25519 signing of the audit + provenance anchors (`lib/signing.ts`).**
