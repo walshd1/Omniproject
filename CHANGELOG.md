@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Whole-app route-coverage acceptance smoke + drift guard.** A single Playwright spec now visits
+  **every client route** (manifest in `e2e/routes.ts`) and proves each renders in a real browser
+  against the demo backend — document `< 400`, the page paints its `<h1>` (not the error boundary or
+  a blank chunk), and **no uncaught exception or unexpected 5xx**. It signs in once and reuses the
+  session (fast + no rate-limit flakiness). A new **`guard-e2e-routes`** CI check parses `App.tsx`'s
+  `path="…"` declarations and **fails if any route lacks an e2e entry** (or a manifest entry is
+  stale) — so a new page can't ship without an acceptance smoke, the same way the other drift guards
+  bind generated artifacts to their source. The acceptance webserver also disables the rate limiter
+  (`RATE_LIMIT_DISABLED`, test-only) for deterministic runs.
+
 - **Consistent skeleton loaders + reduced-motion awareness (Phase 2 UX polish).** Shared,
   content-shaped skeleton primitives (`SkeletonText` / `SkeletonRows` / `SkeletonCards`) replace
   ad-hoc "LOADING…" text on data surfaces: `DataState` now takes an optional **`skeleton`** node

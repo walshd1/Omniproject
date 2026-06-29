@@ -173,6 +173,9 @@ jobs:
       - name: Verify every clickable affordance is keyboard-operable (parity guard)
         run: pnpm --filter @workspace/scripts run guard-interactive
 
+      - name: Verify every App.tsx route has an e2e smoke (route-coverage guard)
+        run: pnpm --filter @workspace/scripts run guard-e2e-routes
+
       - name: Build gateway
         run: pnpm --filter @workspace/api-server run build
 

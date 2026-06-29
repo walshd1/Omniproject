@@ -30,7 +30,8 @@
     "load": "tsx ./src/load-harness.ts",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "guard-interactive": "tsx ./src/guard-interactive.ts"
+    "guard-interactive": "tsx ./src/guard-interactive.ts",
+    "guard-e2e-routes": "tsx ./src/guard-e2e-routes.ts"
   },
   "dependencies": {
     "@workspace/backend-catalogue": "workspace:*"

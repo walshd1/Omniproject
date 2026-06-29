@@ -40,6 +40,9 @@ export default defineConfig({
     command:
       `STATIC_DIR=artifacts/omniproject/dist/public PORT=${PORT} ` +
       `SESSION_SECRET=e2e-acceptance-deterministic-secret ` +
+      // Demo/test server: disable the per-IP rate limiter so the full suite's repeated logins
+      // don't trip it (deterministic runs; never set this in production).
+      `RATE_LIMIT_DISABLED=true ` +
       `node --enable-source-maps artifacts/api-server/dist/index.mjs`,
     // Readiness on the SPA shell ("/" → 200). The deeper /healthz probe can report 500 in demo
     // (no broker wired), which Playwright would treat as never-ready.
