@@ -110,7 +110,9 @@ export function NotificationsBell() {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          {/* Click-outside dismiss scrim — a mouse convenience; keyboard users close with Escape
+              (wired on the panel below), so it needs no keyboard handler. */}
+          <div className="fixed inset-0 z-40" data-a11y-mouse-ok onClick={() => setOpen(false)} />
           <div ref={panelRef} tabIndex={-1} aria-label="Notifications" className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-card border border-border shadow-lg z-50 outline-none">
             <div className="p-3 border-b border-border font-black uppercase tracking-widest text-xs flex items-center justify-between">
               <span>Notifications</span>

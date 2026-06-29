@@ -2164,6 +2164,10 @@ View catalogue generator.
 
 Broker-isolation guard.
 
+### `scripts/src/guard-interactive.ts`
+
+Interactive-parity guard — enforces the product rule that every UI affordance is operable by BOTH mouse and keyboard.
+
 ### `scripts/src/guard-superset.ts`
 
 Superset guard — enforces the invariant that every backend's field set is a strict SUBSET of the canonical superset.

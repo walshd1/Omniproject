@@ -29,7 +29,8 @@
     "license": "tsx ./src/mint-license.ts",
     "load": "tsx ./src/load-harness.ts",
     "test": "tsx --test \"src/**/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "guard-interactive": "tsx ./src/guard-interactive.ts"
   },
   "dependencies": {
     "@workspace/backend-catalogue": "workspace:*"
