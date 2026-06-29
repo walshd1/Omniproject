@@ -2164,6 +2164,10 @@ View catalogue generator.
 
 Broker-isolation guard.
 
+### `scripts/src/guard-e2e-routes.ts`
+
+Route-coverage guard — every client route declared in the SPA's `App.tsx` (`path="…"`) must have a matching entry in the e2e route manifest (`artifacts/omniproject/e2e/routes.ts`), and vice versa.
+
 ### `scripts/src/guard-interactive.ts`
 
 Interactive-parity guard — enforces the product rule that every UI affordance is operable by BOTH mouse and keyboard.
