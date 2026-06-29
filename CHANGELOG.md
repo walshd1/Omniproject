@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Broker-code isolation — one home per concrete broker, guard-enforced (no behaviour change).**
+  All n8n adapter code now lives in a single folder, `broker/n8n/` (`index.ts` the adapter,
+  `expr.ts` the expression helper that previously sat in generic `lib/`), and the deprecated
+  `N8N_WEBHOOK_URL` env alias is resolved in one neutral place (`lib/broker-url`) instead of being
+  read in three. A new CI guard (`guard-broker-isolation`) fails the build if any module outside
+  the seam factory imports a concrete adapter — so a vendor adapter can only ever be reached
+  through the generic `Broker` interface. (Vendor *naming* still present in some user-facing copy,
+  route labels and deploy templates is a separate "broker-agnostic language" item.)
+
 - **Modularity pass — shared helpers for repeated jobs (no behaviour change).** A clean-code
   audit found a few "same job, implemented more than once" patterns; each now has a single home:
   - **`lib/sealed-file`** — the "durable state file, sealed at rest" pattern (resolve path →

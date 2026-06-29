@@ -10,6 +10,7 @@
  * fatal.
  */
 import { demoAuthSeverity } from "./deployment-profile";
+import { configuredBrokerUrl } from "./broker-url";
 import { checkRequiredEnv } from "./env-config";
 
 export type Severity = "critical" | "warn" | "info";
@@ -48,7 +49,7 @@ export function securityFindings(env: Env): SecurityFinding[] {
   }
   // Broker traffic not encrypted: a plain http:// broker URL to a non-loopback
   // host means gateway↔broker data crosses the wire in clear.
-  const brokerUrl = (env["BROKER_URL"] || env["BROKER_URLS"]?.split(",")[0] || env["N8N_WEBHOOK_URL"] || "").trim();
+  const brokerUrl = configuredBrokerUrl(env) ?? "";
   if (brokerUrl && /^http:\/\//i.test(brokerUrl)) {
     let host = "";
     try { host = new URL(brokerUrl).hostname.toLowerCase(); } catch { /* ignore */ }

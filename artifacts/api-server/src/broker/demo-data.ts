@@ -1,5 +1,6 @@
 import { DEV_PERSIST_FILE, saveState, loadState } from "../lib/dev-persist";
 import { INDICATIVE_FX_RATES } from "../lib/fx-fallback";
+import { configuredBrokerUrl } from "../lib/broker-url";
 import { CANONICAL_STATUS, CANONICAL_PRIORITY, isDone } from "./vocabulary";
 import type { Row, FxRates } from "./types";
 
@@ -10,11 +11,10 @@ import type { Row, FxRates } from "./types";
  * relies on.
  */
 
-// Whether a real backend is wired, read locally (no import of the n8n adapter,
-// to avoid a cycle and its module side-effects). Used only to gate dev-mode
-// persistence, which is meaningless when a real backend is the source of record.
-// `N8N_WEBHOOK_URL` is the deprecated pre-0.2.0 alias for `BROKER_URL`.
-const BACKEND_CONFIGURED = !!(process.env["BROKER_URL"] ?? process.env["N8N_WEBHOOK_URL"])?.trim();
+// Whether a real backend is wired. Used only to gate dev-mode persistence, which is
+// meaningless when a real backend is the source of record. The broker-URL resolution (incl.
+// the legacy alias) lives in lib/broker-url, so no vendor-named env key appears here.
+const BACKEND_CONFIGURED = !!configuredBrokerUrl();
 
 // Demo project rows carry denormalised financial fields (budget/actualCost/…) so
 // the programme roll-up and per-project financials have something to surface. A

@@ -125,7 +125,16 @@ Keyed-access guard for the live broker.
 | `assertKeyedAccess` | Keyed-access guard for the live broker. |
 | `wrapWithKeyGuard` | Wrap a (live) broker so every call is hard-rejected unless a valid key is present. |
 
-### `artifacts/api-server/src/broker/n8n.ts`
+### `artifacts/api-server/src/broker/n8n/expr.ts`
+
+Minimal resolver for the n8n expressions used in backend manifest URLs, so we can *certify* a mapping offline: resolve a manifest's templates against a sample env + payload and assert the concrete request matches the backend's real API (method / URL).
+
+| Function | What it does |
+| --- | --- |
+| `resolveTemplate` | Resolve a manifest URL/header template. |
+| `isFullyResolved` | True when no `{{…}}` placeholders remain (the template fully resolved). |
+
+### `artifacts/api-server/src/broker/n8n/index.ts`
 
 n8n broker — THE one place that knows the broker is n8n.
 
@@ -482,6 +491,14 @@ Opt-in pre-shared-key (PSK) encryption for the broker hop — a *fallback below 
 | `pskEnabled` | True when an operator has opted into app-layer broker encryption. |
 | `sealPayload` | Encrypt + authenticate a string. |
 | `openPayload` | Decrypt + verify. |
+
+### `artifacts/api-server/src/lib/broker-url.ts`
+
+The single home for resolving the configured broker URL — including the deprecated pre-0.2.0 `N8N_WEBHOOK_URL` alias.
+
+| Function | What it does |
+| --- | --- |
+| `configuredBrokerUrl` | The single home for resolving the configured broker URL — including the deprecated pre-0.2.0 `N8N_WEBHOOK_URL` alias. |
 
 ### `artifacts/api-server/src/lib/capabilities.ts`
 
@@ -982,15 +999,6 @@ Prometheus exposition (text format 0.0.4) — so Grafana (via Prometheus) can sc
 | Function | What it does |
 | --- | --- |
 | `formatPrometheus` | Render the metric set in Prometheus text exposition format. |
-
-### `artifacts/api-server/src/lib/n8n-expr.ts`
-
-Minimal resolver for the n8n expressions used in backend manifest URLs, so we can *certify* a mapping offline: resolve a manifest's templates against a sample env + payload and assert the concrete request matches the backend's real API (method / URL).
-
-| Function | What it does |
-| --- | --- |
-| `resolveTemplate` | Resolve a manifest URL/header template. |
-| `isFullyResolved` | True when no `{{…}}` placeholders remain (the template fully resolved). |
 
 ### `artifacts/api-server/src/lib/nl-action.ts`
 
@@ -1983,6 +1991,10 @@ Vendor catalogue generator.
 ### `scripts/src/gen-views.ts`
 
 View catalogue generator.
+
+### `scripts/src/guard-broker-isolation.ts`
+
+Broker-isolation guard.
 
 ### `scripts/src/hello.ts`
 
