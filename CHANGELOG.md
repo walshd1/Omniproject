@@ -8,6 +8,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Scheduled executive digest (PM-domain).** A periodic, read-only portfolio roll-up dispatched
+  over the existing notification seam, so execs who never open the app still get the summary on
+  their channel. Stateless-safe: the run mints a short-lived, keyed, viewer-roled **autonomous
+  principal** (`exec-digest`, the health-watch mechanism) — no human session, no stored token —
+  and the summary carries only aggregates (RAG counts, worst schedule/budget variance, blockers),
+  never project detail. Trigger with `POST /api/admin/digest/run` (admin; for a fleet, fire it
+  from an external scheduler / the broker so it sends once), or set `EXEC_DIGEST_INTERVAL_HOURS>0`
+  for an in-process timer on a single instance. Off by default.
+- **Stage-gates / governance approval workflows — design doc** (`docs/STAGE-GATES-DESIGN.md`).
+  Records why this is design-first: maker-checker can't replay a *brokered* write under
+  zero-data-at-rest (the user's backend token is never stored), so gating brokered plan/baseline
+  changes needs an approve-then-reissue flow; gating *gateway-side* governance changes
+  (ruleset/methodology) slots into `dual-control` cleanly. Implementation deferred to its own PR.
+
 - **AI governance + prompt DLP (opt-in, lean by default).** Layered on the single model-egress
   chokepoint (`lib/ai` `aiChat`), all OFF unless configured (`lib/ai-governance`):
   - **Prompt DLP redaction** (`AI_DLP_REDACT=true`) — masks emails, card numbers, API keys /

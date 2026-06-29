@@ -866,6 +866,17 @@ Central error-capture seam — the one place an unhandled route error lands.
 | `fingerprint` | Central error-capture seam — the one place an unhandled route error lands. |
 | `errorHandler` | eslint-disable-next-line @typescript-eslint/no-unused-vars -- Express needs the 4-arg arity to treat this as an error handler. |
 
+### `artifacts/api-server/src/lib/exec-digest.ts`
+
+Scheduled executive digest — a periodic, read-only portfolio roll-up delivered over the existing notification dispatch seam, so execs who never open the app still get the Monday summary on their channel (email/Slack/Teams via the broker workflow's delivery).
+
+| Function | What it does |
+| --- | --- |
+| `buildExecDigest` | Build the digest from portfolio rows (pure). |
+| `runExecDigest` | Read the portfolio under a keyed autonomous principal, build the digest, and dispatch it. |
+| `startExecDigestScheduler` | Start the in-process digest timer when EXEC_DIGEST_INTERVAL_HOURS > 0 (single-instance). |
+| `__stopExecDigestScheduler` | Test-only: stop the timer. |
+
 ### `artifacts/api-server/src/lib/field-registry.ts`
 
 Field registry (gateway view) — the reconcile / validate behaviour over the canonical field vocabulary.
@@ -1634,7 +1645,7 @@ Data-export endpoints — GET /api/export.{csv,xlsx,json,md,pdf} render the proj
 
 ### `artifacts/api-server/src/routes/health-watch.ts`
 
-Health / anomaly watch.
+Health / anomaly watch + executive digest — the scheduled, read-only autonomous jobs.
 
 ### `artifacts/api-server/src/routes/health.ts`
 
