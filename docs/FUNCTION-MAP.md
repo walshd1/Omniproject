@@ -494,11 +494,12 @@ Opt-in pre-shared-key (PSK) encryption for the broker hop — a *fallback below 
 
 ### `artifacts/api-server/src/lib/broker-url.ts`
 
-The single home for resolving the configured broker URL — including the deprecated pre-0.2.0 `N8N_WEBHOOK_URL` alias.
+The single home for resolving configured broker endpoints — including the deprecated pre-0.2.0 `N8N_WEBHOOK_URL` alias.
 
 | Function | What it does |
 | --- | --- |
-| `configuredBrokerUrl` | The single home for resolving the configured broker URL — including the deprecated pre-0.2.0 `N8N_WEBHOOK_URL` alias. |
+| `configuredBrokerUrls` | The single home for resolving configured broker endpoints — including the deprecated pre-0.2.0 `N8N_WEBHOOK_URL` alias. |
+| `configuredBrokerUrl` | The primary configured broker base URL (the first of {@link configuredBrokerUrls}), or undefined when none is set. |
 
 ### `artifacts/api-server/src/lib/capabilities.ts`
 

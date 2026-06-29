@@ -10,7 +10,7 @@
  * fatal.
  */
 import { demoAuthSeverity } from "./deployment-profile";
-import { configuredBrokerUrl } from "./broker-url";
+import { configuredBrokerUrls } from "./broker-url";
 import { checkRequiredEnv } from "./env-config";
 
 export type Severity = "critical" | "warn" | "info";
@@ -47,21 +47,23 @@ export function securityFindings(env: Env): SecurityFinding[] {
           : "Accepted for this deployment profile — use the bundled IdP if you need real per-user accounts."),
     });
   }
-  // Broker traffic not encrypted: a plain http:// broker URL to a non-loopback
-  // host means gateway↔broker data crosses the wire in clear.
-  const brokerUrl = configuredBrokerUrl(env) ?? "";
-  if (brokerUrl && /^http:\/\//i.test(brokerUrl)) {
+  // Broker traffic not encrypted: a plain http:// endpoint to a non-loopback host means
+  // gateway↔broker data crosses the wire in clear. Checked for EVERY loaded broker (the default
+  // endpoint, any pool, and per-kind BROKER_ENDPOINTS) — not just the primary — so a secondary
+  // broker on plaintext is caught too.
+  for (const brokerUrl of configuredBrokerUrls(env)) {
+    if (!/^http:\/\//i.test(brokerUrl)) continue;
     let host = "";
-    try { host = new URL(brokerUrl).hostname.toLowerCase(); } catch { /* ignore */ }
+    try { host = new URL(brokerUrl).hostname.toLowerCase(); } catch { continue; }
     const loopback = host === "localhost" || host === "127.0.0.1" || host === "::1";
     if (host && !loopback) {
       out.push({
         id: "broker-plaintext",
         severity: "warn",
         message:
-          "Broker traffic uses plain http:// to a remote host — gateway↔broker data crosses the wire unencrypted. " +
-          "Use https:// for BROKER_URL (with NODE_EXTRA_CA_CERTS for a private CA), or front the broker with a TLS " +
-          "sidecar / service-mesh mTLS.",
+          `Broker endpoint ${brokerUrl} uses plain http:// to a remote host — gateway↔broker data crosses the wire ` +
+          "unencrypted. Use https:// for the broker endpoint (with NODE_EXTRA_CA_CERTS for a private CA), or front the " +
+          "broker with a TLS sidecar / service-mesh mTLS.",
       });
     }
   }

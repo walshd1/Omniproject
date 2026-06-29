@@ -16,6 +16,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   the seam factory imports a concrete adapter — so a vendor adapter can only ever be reached
   through the generic `Broker` interface. (Vendor *naming* still present in some user-facing copy,
   route labels and deploy templates is a separate "broker-agnostic language" item.)
+- **Security self-check now inspects EVERY loaded broker, not just the primary.** The plaintext-
+  http broker warning previously looked at a single endpoint and missed per-kind brokers entirely.
+  A new `configuredBrokerUrls` helper enumerates all loaded endpoints (`BROKER_URL`, the
+  `BROKER_URLS` pool, every per-kind URL in `BROKER_ENDPOINTS`, and the legacy alias), and the
+  self-check flags each remote plaintext endpoint — so a secondary broker on `http://` is caught.
 
 - **Modularity pass — shared helpers for repeated jobs (no behaviour change).** A clean-code
   audit found a few "same job, implemented more than once" patterns; each now has a single home:
