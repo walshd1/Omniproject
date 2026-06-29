@@ -59,6 +59,19 @@ workflow populates the optional labels below.
 
 ✅ built-in · ◐ partial / via labels · ☐ roadmap
 
+### Sector starter packs (charity / SME)
+
+Beyond the delivery methodologies above, three ready-made "ways of working" ship as methodology
+packs for charities/SMEs (selectable in the same picker):
+
+| Pack | Shape | States |
+| ---- | ----- | ------ |
+| **Grant tracking** | Funder-grant lifecycle (phases + baselines + funder reporting) | prospect → drafting → submitted → under-review → awarded/declined → delivering → reporting → closed |
+| **Volunteer roster** | WIP-limited shift board | available → assigned → scheduled → checked-in → completed / no-show |
+| **Fundraising pipeline** | Donor pipeline (CRM-style stages) + pipeline-value reporting | lead → qualified → cultivating → ask-made → pledged → received → stewarding / lapsed |
+
+These are data-only packs (`lib/backend-catalogue/assets/methodologies/`) — no new runtime code.
+
 ## Adding a new view (for a new methodology)
 
 > **Is there a built-in, no-code view designer?** **No — and that's deliberate.**

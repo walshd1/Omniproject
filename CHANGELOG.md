@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Starter template packs for charities/SMEs.** Three ready-made "ways of working" shipped as
+  methodology JSON bundles (the existing pack format/importer): **Grant tracking** (funder-grant
+  lifecycle prospect→close with phases, baselines and funder reporting), **Volunteer roster** (a
+  WIP-limited shift board), and **Fundraising pipeline** (donor pipeline with pipeline-value
+  reporting). Each validates against the methodology schema and appears in the methodology picker;
+  no new runtime code. `lib/backend-catalogue/assets/methodologies/`.
+
 - **Magic-link / email-OTP sign-in (passwordless; charity/SME with no IdP).** A one-time email
   link mints the same signed session cookie as every other auth path. **Off by default**, and only
   available when neither OIDC nor SAML is configured (real SSO always wins): enable with

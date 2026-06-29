@@ -1,0 +1,35 @@
+{
+  "id": "fundraising-pipeline",
+  "label": "Fundraising pipeline",
+  "docsUrl": "https://www.institute-of-fundraising.org.uk/",
+  "kind": "agile",
+  "capabilities": {
+    "iterations": false,
+    "board": true,
+    "wipLimits": false,
+    "phases": false,
+    "baseline": false,
+    "estimation": "none"
+  },
+  "tools": {
+    "states": [
+      "lead",
+      "qualified",
+      "cultivating",
+      "ask-made",
+      "pledged",
+      "received",
+      "stewarding",
+      "lapsed"
+    ],
+    "ceremonies": [
+      "pipeline-review"
+    ]
+  },
+  "alsoProvides": [
+    { "plane": "screens", "note": "donor pipeline board" },
+    { "plane": "reports", "note": "pipeline value / conversion / forecast" }
+  ],
+  "notes": "Charity/SME starter template: a donor/fundraising pipeline (CRM-style stages) from lead to received and stewarding, with pipeline-value reporting.",
+  "order": 72
+}
