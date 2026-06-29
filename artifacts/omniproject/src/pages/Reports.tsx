@@ -5,6 +5,7 @@ import { PortfolioKpi } from "../components/reports/PortfolioKpi";
 import { PortfolioRoadmap } from "../components/reports/PortfolioRoadmap";
 import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
 import { FinancialEvmChart } from "../components/reports/FinancialEvmChart";
+import { MonteCarloRisk } from "../components/reports/MonteCarloRisk";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { ProvenanceBadge } from "../components/ProvenanceBadge";
 import { DataProvenance } from "../components/DataProvenance";
@@ -117,6 +118,15 @@ export function Reports() {
             </Gated>
           )}
         </div>
+
+        {projectId && (
+          <Gated caps={caps} domain="scheduling" title="Schedule Risk (Monte Carlo)" requires="effort estimates on work items">
+            <section>
+              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Schedule Risk (Monte Carlo)</h2>
+              <MonteCarloRisk projectId={projectId} />
+            </section>
+          </Gated>
+        )}
 
         {projectId && (
           <Gated caps={caps} domain="history" title="Progress Trend" requires="backend history (journals / changelog via get_project_history)">

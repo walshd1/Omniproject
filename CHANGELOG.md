@@ -16,6 +16,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   footnote rather than silently dropped. Capability-gated on `scheduling`; pure derivation covered by
   unit tests + a component test.
 
+- **Quantitative risk — Monte Carlo schedule/effort simulation (stateless).** A new enterprise-grade
+  risk report (`lib/monte-carlo` + `components/reports/MonteCarloRisk`) that closes the
+  "quantitative risk" EPM gap **without storing anything**: it derives a task list from the project's
+  existing estimates and simulates thousands of runs on the fly, turning each single-point estimate
+  into a right-skewed triangular (optimistic `e·(1−u)` … pessimistic `e·(1+2u)`). It surfaces the
+  **confidence S-curve**, the **P50/P80/P90** vs the naive plan (showing the plan is usually only a
+  ~P30–P40), the **plan-confidence %**, and a **tornado** of the tasks driving the variance. Controls
+  for uncertainty and iteration count; a fixed seed keeps a view reproducible. Capability-gated on
+  `scheduling`. Pure, deterministic-with-seed simulator covered by unit tests + a component test.
+
 - **CycloneDX component SBOM + supply-chain docs.** CI now emits a full **CycloneDX** component SBOM
   (versions for CVE correlation, via Syft) alongside the existing licence inventory and the
   block-on-critical `pnpm audit`. New **`docs/SUPPLY-CHAIN.md`** documents what's in place and what's
