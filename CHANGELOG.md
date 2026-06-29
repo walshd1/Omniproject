@@ -254,6 +254,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Self-host DB design revised to superset-native (docs only).** `docs/SELF-HOST-DB.md` now
+  specifies a **superset-native** schema *generated* from the contract + `FIELD_REGISTRY` — every
+  canonical field a first-class column (tables = entities via the `entity` tag; FKs = `reference`/
+  `user` fields; an `issue_links` edge table; additive migrations as the superset grows) — with the
+  **OpenProject-compatible schema demoted to an export view** (OpenProject's fields are a subset of
+  the superset by definition, so nothing is lost). The DB reports its real shape back through the
+  broker's `describeSchema` manifest so only populated fields surface. README now points at the doc.
+  **Design + README only** — the DDL generator and broker workflow remain deferred until the §7
+  sign-offs; the pieces it depends on (the `entity` tag, the CI-enforced superset, `describeSchema` +
+  the availability resolver) are already shipped.
+
 - **Config-consistency cleanups (roadmap §5 smaller debt).** No behaviour change:
   - **`deploymentProfile` is now in the OpenAPI `Settings` + `SettingsUpdate` schemas** (enum
     `enterprise | business | nonprofit | self-hosted | demo`) and the regenerated client — it was a
