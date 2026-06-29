@@ -9,6 +9,11 @@ import { getDemoState } from "./data";
 import { capturePath } from "../broker/capture";
 import { devModeStatus } from "./dev-mode";
 import { featureStatus } from "./feature-modules";
+import { aiStatus } from "./ai";
+import { aiGovernanceStatus } from "./ai-governance";
+import { auditStatus } from "./audit";
+import { sttStatus } from "./stt";
+import { licenseSummary } from "./license";
 
 /**
  * Debug bundle — a single reproducible dump that lets you replicate an issue on
@@ -21,6 +26,9 @@ import { featureStatus } from "./feature-modules";
  *  - `feature-modules.json` — the optional feature-module status (which modules are
  *                          enabled / loaded / need a restart), so a repro shows the
  *                          exact module set that was active.
+ *  - `runtime-posture.json` — non-secret governance posture (AI provider + guardrails,
+ *                          audit level, STT, licence, per-capability surface/store), so
+ *                          the policy context that shaped behaviour is visible.
  *  - `demo-state.json`   — the in-memory dataset (projects/issues/RAID).
  *  - `capture-tape.jsonl`— the broker/notify/export traffic captured this period
  *                          (when BROKER_CAPTURE is armed), for replay.
@@ -77,6 +85,7 @@ const README = (now: string): string =>
   "- `config-dir/*.json` — the loaded JSON config files (OMNI_CONFIG_DIR), if any.\n" +
   "- `vendors.json` — the loaded backend + broker catalogues (the running definitions).\n" +
   "- `feature-modules.json` — optional feature-module status (enabled / loaded / needs restart).\n" +
+  "- `runtime-posture.json` — non-secret governance posture (AI/guardrails/audit/STT/licence/capabilities).\n" +
   "- `demo-state.json` — the in-memory demo dataset (projects/issues/RAID).\n" +
   "- `capture-tape.jsonl` — captured broker/notify/export traffic (if BROKER_CAPTURE was armed).\n" +
   "- `manifest.json` — machine-readable index of this bundle.\n\n" +
@@ -96,11 +105,24 @@ export function buildDebugBundleEntries(now: string): { manifest: DebugBundleMan
   const tapeEntries = captureEntry();
 
   const features = featureStatus();
+  // A non-secret snapshot of the runtime governance posture — AI provider + guardrails, audit
+  // level, STT, licence and the per-capability surface/store states — so a repro shows the policy
+  // context, not just the data. Every field here is a flag/level/limit; no keys or tokens.
+  const posture = {
+    devMode: devModeStatus(),
+    ai: aiStatus(),
+    aiGovernance: aiGovernanceStatus(),
+    audit: auditStatus(),
+    stt: sttStatus(),
+    license: licenseSummary(),
+    capabilityStates: getSettings().capabilityStates,
+  };
 
   const entries: ZipEntry[] = [
     { name: "config.json", data: Buffer.from(JSON.stringify(config, null, 2), "utf8") },
     { name: "vendors.json", data: Buffer.from(JSON.stringify(vendors, null, 2), "utf8") },
     { name: "feature-modules.json", data: Buffer.from(JSON.stringify(features, null, 2), "utf8") },
+    { name: "runtime-posture.json", data: Buffer.from(JSON.stringify(posture, null, 2), "utf8") },
     { name: "demo-state.json", data: Buffer.from(JSON.stringify(state, null, 2), "utf8") },
     ...dirEntries,
     ...tapeEntries,
