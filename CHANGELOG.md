@@ -6,6 +6,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Modularity pass — shared helpers for repeated jobs (no behaviour change).** A clean-code
+  audit found a few "same job, implemented more than once" patterns; each now has a single home:
+  - **`lib/sealed-file`** — the "durable state file, sealed at rest" pattern (resolve path →
+    lazy read+decrypt once → seal+write back) was hand-rolled in five modules. `SealedFile` +
+    `resolveConfigFile` own it now; `ai-providers`, `scim`, `audit-chain`, `security-state` and
+    `config-store` delegate to it (each keeps its own parse/merge). Wire format unchanged.
+  - **`lib/redis-bus`** — `notify-bus` and `broker-log-bus` duplicated the same optional-Redis
+    Pub/Sub bootstrap (dynamic `ioredis` import, subscribe, mode flag, in-process fallback). A
+    shared `RedisBus` base owns the bootstrap; each bus supplies only its channel, log lines,
+    message handler and publish semantics.
+  - **`lib/import` `commitImport()`** — the per-row write loop (ruleset-per-row → broker write
+    → outcome) was extracted out of the `POST /import/commit` handler into a pure, testable
+    function; the handler is now parse → commit → audit → respond.
+  - **`callBrokerCapability()`** — the "501 if the broker doesn't support it / 502 on error"
+    template repeated across the connection routes is now one broker helper.
+
 ### Security
 
 - **Zero-trust boundary validation + strict TypeScript.** Untrusted request inputs are now

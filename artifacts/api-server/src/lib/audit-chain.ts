@@ -1,9 +1,8 @@
 import { createHmac } from "node:crypto";
-import fs from "node:fs";
 import { derivedKey, currentVersion } from "./key-registry";
 import { canonical } from "./provenance";
-import { sealConfig, readMaybeSealed } from "./config-crypto";
 import { logger } from "./logger";
+import { SealedFile, resolveConfigFile } from "./sealed-file";
 import type { AuditEvent } from "./audit";
 
 /**
@@ -48,31 +47,18 @@ function linkHash(seq: number, prevHash: string, ev: AuditEvent, version: number
 // ── Chain head (in-memory; optionally persisted sealed) ─────────────────────────
 interface Head { seq: number; lastHash: string }
 let head: Head = { seq: 0, lastHash: GENESIS };
-let loaded = false;
-
-function file(): string | null {
-  return process.env["AUDIT_CHAIN_FILE"]?.trim() || null;
-}
+const store = new SealedFile(() => resolveConfigFile("AUDIT_CHAIN_FILE"), "audit chain");
 
 function ensureLoaded(): void {
-  if (loaded) return;
-  loaded = true;
-  const f = file();
-  if (!f || !fs.existsSync(f)) return;
-  try {
-    const parsed = JSON.parse(readMaybeSealed(fs.readFileSync(f, "utf8"))) as Head;
+  store.loadOnce((raw) => {
+    const parsed = JSON.parse(raw) as Head;
     if (typeof parsed.seq === "number" && typeof parsed.lastHash === "string") head = parsed;
     logger.info({ seq: head.seq }, "audit chain: head restored");
-  } catch (err) {
-    logger.warn({ err }, "audit chain: failed to restore head — starting fresh");
-  }
+  });
 }
 
 function persistHead(): void {
-  const f = file();
-  if (!f) return;
-  try { fs.writeFileSync(f, sealConfig(JSON.stringify(head))); }
-  catch (err) { logger.warn({ err }, "audit chain: failed to persist head"); }
+  store.write(JSON.stringify(head));
 }
 
 /** Seal an event into the chain: advances the head and returns the event with its seal. */
@@ -120,5 +106,5 @@ export function verifyAuditChain(events: SealedAuditEvent[], expectedFirstPrev: 
 /** Test-only: reset the in-memory head. */
 export function __resetAuditChain(): void {
   head = { seq: 0, lastHash: GENESIS };
-  loaded = false;
+  store.reset();
 }

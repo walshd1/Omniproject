@@ -148,6 +148,30 @@ export function contextFromReq(req: Request): ActorContext {
   return { sub: session.sub, email: session.email, name: session.name, role: roleForReq(req), token: session.accessToken, authHeader, sessionBind, actorKind: "human" };
 }
 
+/**
+ * Run a broker capability that may be UNSUPPORTED by the active broker, mapping the two failure
+ * shapes the connection routes all repeated: a null promise ⇒ 501 (the broker doesn't offer
+ * this capability), a thrown error ⇒ 502. On success returns the resolved value; on either
+ * failure it sends the response and returns null (the caller returns). `unsupported`/`failed`
+ * carry the route-specific bodies.
+ */
+export async function callBrokerCapability<T>(
+  capability: Promise<T> | null,
+  res: Response,
+  bodies: { unsupported: Record<string, unknown>; failed: (message: string) => Record<string, unknown> },
+): Promise<T | null> {
+  if (!capability) {
+    res.status(501).json(bodies.unsupported);
+    return null;
+  }
+  try {
+    return await capability;
+  } catch (err) {
+    res.status(502).json(bodies.failed(err instanceof Error ? err.message : "request failed"));
+    return null;
+  }
+}
+
 /** Map a thrown broker error onto an HTTP response (status from the taxonomy). */
 export function respondBrokerError(res: Response, err: unknown): void {
   if (err instanceof BrokerError) {
