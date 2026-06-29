@@ -97,6 +97,15 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     description: "See who else is on a work item and which field they're editing (advisory, real-time).",
     load: () => import("../routes/presence"),
   },
+  {
+    // UI-only: makes the per-user PREDICTIVE (speculative) prefetch toggle AVAILABLE (off by default
+    // per user). Deterministic prefetch-on-intent (hover/focus) is always on and ungated; this only
+    // governs the heavier "warm data you haven't asked for" tier, which multiplies broker calls — so
+    // an operator can remove the toggle org-wide by disabling this module. Nothing to mount.
+    id: "predictivePrefetch",
+    label: "Predictive loading (preview)",
+    description: "Offer a per-user toggle for speculative read-ahead beyond hover/focus (extra broker load).",
+  },
 ];
 
 // Which modules actually got loaded+mounted this process (set by the mount step). Lets the

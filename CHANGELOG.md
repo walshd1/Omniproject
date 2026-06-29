@@ -8,6 +8,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Read-ahead prefetch (two tiers).** A new `lib/prefetch` warms the project read-model into the
+  React Query cache ahead of need. **Deterministic prefetch-on-intent is on for everyone**: hovering
+  (after a short dwell, so a mouse-sweep doesn't fire) or keyboard-focusing a project card warms
+  *that* project's issues, so opening it is instant — safe to default-on because it only fetches the
+  one thing you're about to open, with React Query dedupe + `staleTime`. A second, **predictive
+  (speculative)** tier — warming data you haven't asked for, e.g. every project listed on a page — is
+  **opt-in, off by default**, behind a prominent **health warning** (it multiplies real broker calls
+  to the customer's backend, so it can consume the rate limit and add backend load/cost) and the new
+  `predictivePrefetch` feature module, so an operator can remove the toggle org-wide. Both tiers only
+  ever warm read-model GETs the user can already see — never AI, a write, or a gated action. Covered
+  by hook tests (deterministic focus/hover-dwell/cancel; predictive gating) and a settings-card test.
+
 - **Docker Compose correctness guard + audit.** A new parseable guard
   (`scripts/src/guard-compose.ts`, `pnpm --filter @workspace/scripts run guard-compose`, run in CI's
   `verify` job) checks the deployment-safety invariants `docker compose config` can't see: every

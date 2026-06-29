@@ -1,6 +1,7 @@
 import { useListProjects, useGetCapabilities, type Project } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { useState } from "react";
+import { useProjectPrefetch } from "../lib/prefetch";
+import { useEffect, useState } from "react";
 import { PlugZap, Plus } from "lucide-react";
 import { ExportMenu } from "../components/ExportMenu";
 import { DataProvenance } from "../components/DataProvenance";
@@ -47,7 +48,13 @@ function ProjectSummaryCard({ project }: { project: Project }) {
 export function Projects() {
   const { data: projects, isLoading, isError, error, refetch, dataUpdatedAt } = useListProjects();
   const { data: caps } = useGetCapabilities();
+  const { onIntentEnter, onIntentLeave, onIntentFocus, predictiveActive, runPredictive } = useProjectPrefetch();
   const [newOpen, setNewOpen] = useState(false);
+
+  // Predictive (opt-in) tier: speculatively warm EVERY listed project, not just a hovered one.
+  useEffect(() => {
+    if (predictiveActive && projects) runPredictive(projects.map((p) => p.id));
+  }, [predictiveActive, projects, runPredictive]);
   const canCreate = canStoreEntity(caps, "project");
 
   return (
@@ -106,7 +113,13 @@ export function Projects() {
           ) : (
           <div className="flex flex-col gap-6">
             {projects?.map(project => (
-              <div key={project.id} className="bg-card border-2 border-border p-6 hover:border-primary transition-colors group relative">
+              <div
+                key={project.id}
+                className="bg-card border-2 border-border p-6 hover:border-primary transition-colors group relative"
+                onMouseEnter={() => onIntentEnter(project.id)}
+                onMouseLeave={onIntentLeave}
+                onFocus={() => onIntentFocus(project.id)}
+              >
                 <Link href={`/projects/${project.id}`} className="absolute inset-0 z-10" />
                 
                 <div className="flex items-start justify-between mb-2 relative z-20 pointer-events-none">
