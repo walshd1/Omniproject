@@ -21,6 +21,15 @@ import {
 } from "../lib/oidc";
 import { roleForReq } from "../lib/rbac";
 import { isSamlConfigured, samlLoginUrl, validateSamlResponse, samlMetadata } from "../lib/saml";
+import {
+  isOAuth2Configured,
+  oauth2Config,
+  buildAuthUrl,
+  exchangeCodeOAuth2,
+  fetchUserInfo,
+  mapUserInfo,
+  newOAuth2Flow,
+} from "../lib/oauth2";
 import { magicLinkEnabled, isValidEmail, mintMagicToken, verifyMagicToken, consumeMagicToken, sendMagicLink } from "../lib/magic-link";
 import { isDevMode } from "../lib/dev-mode";
 import { effectiveSession } from "../lib/impersonation";
@@ -35,6 +44,7 @@ const router = Router();
 
 const SESSION_COOKIE = "omni_session";
 const FLOW_COOKIE = "omni_oidc_flow";
+const OAUTH2_FLOW_COOKIE = "omni_oauth2_flow";
 // Re-seal an active session at most this often (don't re-sign on every request).
 const SLIDE_THROTTLE_MS = 60_000;
 
@@ -170,10 +180,11 @@ router.get("/auth/me", (req, res) => {
       // Lets the SPA warn before, and redirect on, an idle/absolute timeout.
       sessionTimeout: timeoutPolicy(),
       samlConfigured: isSamlConfigured(),
+      oauth2Configured: isOAuth2Configured,
     });
     return;
   }
-  res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null, role: "viewer", samlConfigured: isSamlConfigured(), magicLinkEnabled: magicLinkEnabled() });
+  res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null, role: "viewer", samlConfigured: isSamlConfigured(), oauth2Configured: isOAuth2Configured, magicLinkEnabled: magicLinkEnabled() });
 });
 
 /** Sanitise a post-auth `returnTo` to a SAME-ORIGIN path — prevents open redirects (CWE-601).
@@ -361,6 +372,69 @@ router.get("/auth/saml/metadata", async (_req, res) => {
   const xml = await samlMetadata();
   if (!xml) { res.status(503).send("SAML SSO is unavailable (provider library not installed)."); return; }
   res.type("application/xml").send(xml);
+});
+
+// ── Generic OAuth 2.0 (Authorization Code + PKCE) for NON-OIDC providers (e.g. GitHub) ───
+// Off unless the OAUTH2_* env is configured. A strict per-IP loginLimiter is applied at the
+// router mount in routes/index.ts.
+router.get("/auth/oauth2/login", (req, res) => {
+  if (!oauth2Config) { res.status(404).send("OAuth2 sign-in is not configured."); return; }
+  const returnTo = safeLocalPath(req.query["returnTo"]);
+  const { state, verifier } = newOAuth2Flow();
+  res.cookie(OAUTH2_FLOW_COOKIE, JSON.stringify({ state, verifier, returnTo }), {
+    ...cookieBase(),
+    maxAge: 1000 * 60 * 10, // 10 min
+  });
+  const redirectUri = `${baseUrl(req)}/api/auth/oauth2/callback`;
+  res.redirect(buildAuthUrl({ config: oauth2Config, redirectUri, state, codeVerifier: verifier }));
+});
+
+// Callback: validate state, exchange the code (with the PKCE verifier) for an access token,
+// fetch the provider's userinfo, map it to a session user, and mint the SAME session cookie as
+// every other auth path. The userinfo's role/group field flows into the SAME role-map as OIDC.
+router.get("/auth/oauth2/callback", async (req, res) => {
+  if (!oauth2Config) { res.redirect("/"); return; }
+
+  const flowRaw = req.signedCookies?.[OAUTH2_FLOW_COOKIE];
+  res.clearCookie(OAUTH2_FLOW_COOKIE, cookieBase());
+  if (!flowRaw) { res.status(400).send("Login session expired. Please try again."); return; }
+
+  const { state, verifier, returnTo } = JSON.parse(flowRaw) as { state: string; verifier: string; returnTo: string };
+
+  if (req.query["error"]) {
+    req.log.warn({ error: req.query["error"] }, "OAuth2 provider returned an error");
+    res.status(401).send(`OAuth2 error: ${String(req.query["error"])}`);
+    return;
+  }
+  if (typeof req.query["code"] !== "string" || req.query["state"] !== state) {
+    res.status(400).send("Invalid OAuth2 callback (state mismatch).");
+    return;
+  }
+
+  try {
+    const tokens = await exchangeCodeOAuth2({
+      config: oauth2Config,
+      code: req.query["code"],
+      redirectUri: `${baseUrl(req)}/api/auth/oauth2/callback`,
+      codeVerifier: verifier,
+    });
+    const info = await fetchUserInfo(oauth2Config, tokens.access_token);
+    const user = mapUserInfo(oauth2Config, info);
+    if (!user) { res.status(502).send("OAuth2 provider returned no usable identity."); return; }
+    setSession(res, {
+      sub: user.sub,
+      ...(user.name !== undefined ? { name: user.name } : {}),
+      ...(user.email !== undefined ? { email: user.email } : {}),
+      ...(user.roles && user.roles.length ? { roles: user.roles } : {}),
+      // The provider's access token is opaque (not a backend bearer); identity only.
+      accessToken: "oauth2",
+    });
+    setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
+    res.redirect(safeLocalPath(returnTo));
+  } catch (err) {
+    req.log.error({ err }, "OAuth2 login failed");
+    res.status(502).send("OAuth2 sign-in failed. Please try again.");
+  }
 });
 
 // ── Magic-link / email-OTP (optional; only when no OIDC/SAML) ────────────────────
