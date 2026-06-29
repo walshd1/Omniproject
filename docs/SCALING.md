@@ -27,6 +27,14 @@ Two different "rate limits" matter, and only one is a genuine ceiling:
 - **Opt-in TTL read cache.** `READ_CACHE_TTL_MS` serves repeat reads from memory for a few seconds —
   per-actor keyed, write-through invalidated, bounded + ephemeral. Trades "never stale" for latency;
   off by default. See `broker/cache.ts`.
+- **Latency-aware adaptive TTL.** With `READ_CACHE_ADAPTIVE=true`, the cache tunes each method's TTL
+  from its **measured** upstream latency (an EWMA recorded on every real miss). The model is combined:
+  below a `READ_CACHE_ADAPTIVE_THRESHOLD_MS` the method is "already fast" and isn't cached at all;
+  above it, `TTL = clamp(READ_CACHE_MIN_TTL_MS, READ_CACHE_MAX_TTL_MS, factor × latency)` — so a slow
+  rollup caches longer (where caching pays off) and a cheap list isn't made stale for little gain. The
+  `MAX` clamp is the explicit staleness ceiling. Cold start falls back to the baseline TTL. Each
+  entry stamps the TTL chosen at fetch time, so a later tuning never retroactively extends it. See
+  `broker/adaptive-ttl.ts`; surfaced in the dev-mode `brokerReads.cache.adaptive` posture.
 - **Edge + transport:** gzip/brotli compression, immutable static-asset caching, route code-splitting.
 - **Perceived latency:** optimistic edits + Undo, skeleton loaders, and read-ahead **prefetch**
   (deterministic on hover/focus for everyone; opt-in predictive tier). See `lib/prefetch.ts`.

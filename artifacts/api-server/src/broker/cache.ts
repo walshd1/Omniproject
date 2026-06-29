@@ -1,4 +1,5 @@
 import type { ActorContext, Broker } from "./types";
+import { adaptiveTtl, recordLatency, adaptiveStats } from "./adaptive-ttl";
 
 /**
  * OPT-IN server-side read cache — a short-TTL, in-memory cache of broker reads.
@@ -43,9 +44,9 @@ export function readCacheEnabled(): boolean {
 }
 
 const stats = { hits: 0, misses: 0 };
-/** Cache hit/miss counters (for diagnostics). */
-export function readCacheStats(): { hits: number; misses: number; enabled: boolean; ttlMs: number } {
-  return { ...stats, enabled: readCacheEnabled(), ttlMs: readCacheTtlMs() };
+/** Cache hit/miss counters + the (possibly latency-adaptive) TTL config, for diagnostics. */
+export function readCacheStats() {
+  return { ...stats, enabled: readCacheEnabled(), ttlMs: readCacheTtlMs(), adaptive: adaptiveStats(readCacheTtlMs()) };
 }
 
 // The active cache's clear hook, so the generic command / raw-write paths (which
@@ -56,7 +57,7 @@ export function invalidateReadCache(): void {
   activeClear?.();
 }
 
-interface Entry { at: number; value: unknown }
+interface Entry { at: number; value: unknown; ttl: number }
 
 /** A per-actor key prefix so one user's read is never shared with another (reads run "as" the user). */
 export const actorKey = (a: unknown): string => {
@@ -64,9 +65,11 @@ export const actorKey = (a: unknown): string => {
   return ctx?.sub ?? ctx?.email ?? "anon";
 };
 
-/** Wrap a broker so its reads are cached for the configured TTL (writes clear it). */
+/** Wrap a broker so its reads are cached for the configured TTL (writes clear it). The TTL is fixed
+ *  (`READ_CACHE_TTL_MS`) unless adaptive mode is on, in which case it's tuned per method from measured
+ *  latency (lib/broker/adaptive-ttl) and stamped on each entry at fetch time. */
 export function wrapWithCache(base: Broker, opts: { now?: () => number } = {}): Broker {
-  const ttl = readCacheTtlMs();
+  const baseTtl = readCacheTtlMs();
   const now = opts.now ?? (() => Date.now());
   const store = new Map<string, Entry>();
   const clear = () => store.clear();
@@ -89,16 +92,23 @@ export function wrapWithCache(base: Broker, opts: { now?: () => number } = {}): 
       return function (this: unknown, ...args: unknown[]) {
         const key = `${actorKey(args[0])}:${method}:${JSON.stringify(args.slice(1))}`;
         const hit = store.get(key);
-        if (hit && now() - hit.at < ttl) {
+        // Each entry carries the TTL chosen when it was fetched, so an adaptive TTL change later
+        // doesn't retroactively extend an old entry's freshness window.
+        if (hit && now() - hit.at < hit.ttl) {
           stats.hits++;
           return Promise.resolve(hit.value);
         }
         stats.misses++;
+        const startedAt = now();
         const result = (orig as (...a: unknown[]) => Promise<unknown>).apply(target, args);
         void Promise.resolve(result)
           .then((value) => {
+            // Feed the measured upstream latency back into the per-method TTL model.
+            recordLatency(method, now() - startedAt);
+            const ttl = adaptiveTtl(method, baseTtl);
+            if (ttl <= 0) return; // adaptive mode may decide this (fast) method isn't worth caching
             if (store.size >= MAX_ENTRIES) store.delete(store.keys().next().value as string);
-            store.set(key, { at: now(), value });
+            store.set(key, { at: now(), value, ttl });
           })
           .catch(() => { /* don't cache failures */ });
         return result;

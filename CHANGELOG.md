@@ -8,6 +8,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Latency-aware adaptive read-cache TTL.** With `READ_CACHE_ADAPTIVE=true`, the opt-in read cache
+  tunes each broker method's TTL from its **measured** upstream latency (an EWMA recorded on every
+  real miss, `broker/adaptive-ttl.ts`). Combined model: below `READ_CACHE_ADAPTIVE_THRESHOLD_MS` a
+  method is "already fast" and isn't cached at all; above it,
+  `TTL = clamp(READ_CACHE_MIN_TTL_MS, READ_CACHE_MAX_TTL_MS, factor × latency)` — so a slow rollup
+  caches longer (where caching pays off) while a cheap list isn't made stale for little gain. `MAX`
+  is the explicit staleness ceiling; cold start falls back to the baseline `READ_CACHE_TTL_MS`; each
+  entry stamps the TTL chosen at fetch time so a later tuning never retroactively extends it.
+  Surfaced in the dev-mode `brokerReads.cache.adaptive` posture (per-method latency + chosen TTL).
+  Covered by unit tests (cold-start fallback, threshold gating, latency-scaling, MIN/MAX clamps, EWMA
+  smoothing) and cache integration tests (slow method cached longer, fast method skipped).
+
 - **Single-flight broker reads + a scaling guide.** Concurrent identical reads (same actor, method
   and args) now share **one** upstream call (`broker/single-flight.ts`) — so N users opening the same
   dashboard make 1 backend call, not N. It's **always on** and introduces no staleness (every
