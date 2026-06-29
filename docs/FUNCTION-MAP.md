@@ -305,6 +305,23 @@ AI exposure → containment level.
 | `__resetContainmentRelax` | Test-only: restore the default-full posture. |
 | `aiContainmentLevel` | The ENFORCED containment level: the strictest of the admin relax floor (default full) and the AI source level. |
 
+### `artifacts/api-server/src/lib/ai-governance.ts`
+
+AI governance — opt-in cost control + data-loss prevention layered on the single model-egress chokepoint (lib/ai `aiChat`).
+
+| Function | What it does |
+| --- | --- |
+| `dlpEnabled` | AI governance — opt-in cost control + data-loss prevention layered on the single model-egress chokepoint (lib/ai `aiChat`). |
+| `redactText` | Mask PII/secrets in a string; returns the masked text and how many spans were redacted. |
+| `redactForEgress` | Redact every message's content before egress; returns the new messages + total redactions. |
+| `modelAllowed` | May this role use this model? True when no allowlist is configured, or the role has no entry (unlisted roles are unrestricted — restrict explicitly). |
+| `tokenBudget` | ── Token budget / quota (shared-state backed) ───────────────────────────────────── |
+| `estimateTokens` | Rough token estimate (chars/4) over a set of messages. |
+| `checkBudget` | Check (without reserving) whether `estTokens` more would exceed the scope's budget. |
+| `recordUsage` | Add `tokens` to the scope's running total for the current window (soft, best-effort). |
+| `aiGovernanceStatus` | Admin status of the AI-governance policy (no secrets). |
+| `aiUsageReport` | Per-scope token usage in the current window (for the chargeback/usage report). |
+
 ### `artifacts/api-server/src/lib/ai-kill.ts`
 
 Global AI kill switch.
