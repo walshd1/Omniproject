@@ -8,6 +8,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Magic-link / email-OTP sign-in (passwordless; charity/SME with no IdP).** A one-time email
+  link mints the same signed session cookie as every other auth path. **Off by default**, and only
+  available when neither OIDC nor SAML is configured (real SSO always wins): enable with
+  `MAGIC_LINK_ENABLED=true`. The token is a **sealed (AES-256-GCM, tamper-evident) `{email, exp,
+  jti}`** (no server-side secret); **single-use** is enforced via a `jti` marker in the
+  shared-state seam (fleet-wide on Redis). Endpoints `POST /api/auth/magic/request` (rate-limited
+  by `loginLimiter`; never leaks whether an address exists) and `GET /api/auth/magic/verify`. Email
+  **delivery is pluggable and the operator's responsibility** — the default sender logs the link
+  (dev mode returns it for testing); wire an SMTP relay / the notification egress for real sending.
+  The login screen shows an "Email me a sign-in link" form when enabled. `lib/magic-link`.
+
 - **Workspace-login wizard — "Sign in with Google / Microsoft" presets (charity/SME).** Guided
   presets over the existing OIDC relying party (no new protocol): a catalogue (Google Workspace,
   Microsoft Entra/M365, bundled Authentik, generic OIDC) giving the operator the issuer URL

@@ -1023,6 +1023,19 @@ Licensing / entitlements — the paywall for premium overlay features.
 
 The shared pino logger — one configured instance for the whole gateway (level from LOG_LEVEL, pretty in dev, JSON in prod).
 
+### `artifacts/api-server/src/lib/magic-link.ts`
+
+Magic-link / email-OTP — passwordless sign-in for orgs with NO IdP (the charity/SME / homelab who haven't wired OIDC or SAML and don't want a directory).
+
+| Function | What it does |
+| --- | --- |
+| `magicLinkEnabled` | Magic-link / email-OTP — passwordless sign-in for orgs with NO IdP (the charity/SME / homelab who haven't wired OIDC or SAML and don't want a directory). |
+| `isValidEmail` | — |
+| `mintMagicToken` | Mint a sealed, single-use, time-boxed magic token for an email. |
+| `verifyMagicToken` | Open + validate a magic token (tamper + expiry). |
+| `consumeMagicToken` | Enforce single-use: returns true the FIRST time a jti is seen, false on replay. |
+| `sendMagicLink` | The pluggable sender. |
+
 ### `artifacts/api-server/src/lib/maintenance.ts`
 
 Maintenance lockdown (break-glass read-only mode).
