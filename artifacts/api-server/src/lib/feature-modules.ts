@@ -26,8 +26,10 @@ export interface FeatureModule {
   description: string;
   /** Advisory: a backend capability this module is most useful with (surfaced, not enforced). */
   requiresCapability?: string;
-  /** Dynamic import of the route module — run only when the module is enabled. */
-  load: () => Promise<{ default: IRouter }>;
+  /** Dynamic import of the backend route module — run only when enabled. OMITTED for a UI-only
+   *  module (one whose feature is purely in the SPA, e.g. the editable grid): it has no backend
+   *  route to mount, but is still listed + toggleable so the SPA can gate it via `useFeatures`. */
+  load?: () => Promise<{ default: IRouter }>;
 }
 
 export const FEATURE_MODULES: readonly FeatureModule[] = [
@@ -42,6 +44,13 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     label: "Integration helpers",
     description: "Outbound integration helper endpoints for connecting external tools.",
     load: () => import("../routes/integrations"),
+  },
+  {
+    // UI-only (no backend route): the editable data grid with bulk inline-edit. The SPA gates it
+    // via useFeatures; writes go through the existing issue endpoints, so there's nothing to mount.
+    id: "grid",
+    label: "Editable data grid",
+    description: "Spreadsheet-style grid with bulk inline editing of work items (write-through).",
   },
 ];
 
@@ -80,14 +89,17 @@ export function featureStatus(): FeatureStatus[] {
   const disabled = disabledFeatureIds();
   return FEATURE_MODULES.map((m) => {
     const enabled = !disabled.has(m.id);
+    const backend = !!m.load; // UI-only modules have no backend route to load
     const isLoaded = loaded.has(m.id);
     return {
       id: m.id,
       label: m.label,
       description: m.description,
       enabled,
-      loaded: isLoaded,
-      needsRestart: enabled && !isLoaded,
+      // UI-only modules are "live" purely client-side when enabled; only a backend module can be
+      // enabled-but-not-loaded (→ needs a restart to load its route chunk).
+      loaded: backend ? isLoaded : enabled,
+      needsRestart: backend && enabled && !isLoaded,
     };
   });
 }

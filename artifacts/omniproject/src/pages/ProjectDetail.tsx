@@ -1,6 +1,9 @@
 import { useListProjects, useGetProjectIssues, useGetCapabilities, getGetProjectIssuesQueryKey } from "@workspace/api-client-react";
 import { Link } from "wouter";
+import { useState } from "react";
 import { AgileBoard } from "../components/board/AgileBoard";
+import { IssueGrid } from "../components/grid/IssueGrid";
+import { useFeatures, featureEnabled } from "../lib/features";
 import { ExportMenu } from "../components/ExportMenu";
 import { DataProvenance } from "../components/DataProvenance";
 import { ProjectFinancialsStrip } from "../components/ProjectFinancialsStrip";
@@ -29,6 +32,10 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
   const project = projects?.find((p) => p.id === projectId);
   const { data: caps } = useGetCapabilities();
   const { data: issues, dataUpdatedAt } = useGetProjectIssues(projectId, { query: { queryKey: getGetProjectIssuesQueryKey(projectId) } });
+  const { data: features } = useFeatures();
+  const gridEnabled = featureEnabled(features, "grid");
+  const [view, setView] = useState<"board" | "grid">("board");
+  const activeView = gridEnabled ? view : "board";
 
   return (
     <div className="h-full flex flex-col">
@@ -72,7 +79,22 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
       <div className="flex-1 p-8 overflow-auto">
         <ProjectFinancialsStrip projectId={projectId} />
-        <AgileBoard projectId={projectId} />
+        {gridEnabled && (
+          <div className="mb-4 inline-flex border-2 border-foreground" role="tablist" aria-label="View">
+            {(["board", "grid"] as const).map((v) => (
+              <button
+                key={v}
+                role="tab"
+                aria-selected={activeView === v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1 text-xs font-bold uppercase tracking-wider ${activeView === v ? "bg-foreground text-background" : ""}`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        )}
+        {activeView === "grid" ? <IssueGrid projectId={projectId} /> : <AgileBoard projectId={projectId} />}
       </div>
     </div>
   );

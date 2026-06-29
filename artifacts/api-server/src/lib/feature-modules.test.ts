@@ -21,6 +21,15 @@ test("disabling a module via settings flips isFeatureEnabled", () => {
   for (const m of FEATURE_MODULES.slice(1)) assert.equal(isFeatureEnabled(m.id), true);
 });
 
+test("a UI-only module (no backend route) is enabled by default and never needsRestart", () => {
+  updateSettings({ disabledFeatures: [] });
+  const grid = featureStatus().find((s) => s.id === "grid");
+  assert.ok(grid, "the grid UI-only module is registered");
+  assert.equal(grid!.enabled, true);
+  assert.equal(grid!.loaded, true); // UI-only modules are 'live' client-side when enabled
+  assert.equal(grid!.needsRestart, false); // no backend chunk to load → never needs a restart
+});
+
 test("featureStatus reflects the enabled flag per module", () => {
   const id = FEATURE_MODULES[0]!.id;
   updateSettings({ disabledFeatures: [id] });
