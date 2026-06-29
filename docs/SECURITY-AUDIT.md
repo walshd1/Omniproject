@@ -8,6 +8,10 @@ deeper-dive companions:
 - [`EGRESS-INVENTORY.md`](./EGRESS-INVENTORY.md) — every outbound destination the gateway can reach.
 - [`COMPOSE-AUDIT.md`](./COMPOSE-AUDIT.md) — deployment-topology hardening.
 - [`ROLES.md`](./ROLES.md) — the RBAC model in product terms.
+- [`COMPLIANCE.md`](./COMPLIANCE.md) — control mapping to SOC 2 / ISO 27001 / NIST CSF.
+- [`THREAT-MODEL.md`](./THREAT-MODEL.md) — STRIDE threat model + trust boundaries.
+- [`PRIVACY.md`](./PRIVACY.md) — controller/processor position, ROPA template, sub-processors.
+- [`ACCESSIBILITY-CONFORMANCE.md`](./ACCESSIBILITY-CONFORMANCE.md) — WCAG 2.1 AA ACR (VPAT-style).
 
 ## Design context (what shapes the threat model)
 
