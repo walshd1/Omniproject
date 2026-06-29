@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { sharedKv } from "./shared-state";
 
 /**
  * Maker-checker (four-eyes) dual control for sensitive admin actions.
@@ -11,9 +12,13 @@ import crypto from "node:crypto";
  * carries only the parameters — there's no arbitrary code in the queue. Feature is off (no-op)
  * when DUAL_CONTROL_ACTIONS is empty, so a single-admin deployment is unaffected.
  *
- * HONEST SCOPE: the proposal queue is per-replica RAM (proposals are short-lived); a shared
- * store would make it global. The executor runs with the gateway's own authority on approval.
+ * The proposal QUEUE lives in the shared-state seam (lib/shared-state): in-process by default,
+ * and Redis-backed fleet-wide when REDIS_URL is set — so a proposal raised on one replica is
+ * approvable on another. The EXECUTORS stay per-replica (they're code, registered identically
+ * at boot on every replica); the executor runs with the gateway's own authority on approval.
  */
+const PROP_PREFIX = "dc:prop:";
+const PROP_TTL_MS = 24 * 60 * 60 * 1000; // proposals are short-lived; expire stale ones
 export interface Actor { sub: string; email?: string | undefined }
 export interface Proposal {
   id: string;
@@ -29,7 +34,13 @@ export interface Proposal {
 
 type Executor = (params: unknown) => void | Promise<void>;
 const executors = new Map<string, Executor>();
-const proposals = new Map<string, Proposal>();
+
+const keyOf = (id: string): string => `${PROP_PREFIX}${id}`;
+const saveProposal = (p: Proposal): Promise<void> => sharedKv.set(keyOf(p.id), JSON.stringify(p), { ttlMs: PROP_TTL_MS });
+async function loadProposal(id: string): Promise<Proposal | undefined> {
+  const raw = await sharedKv.get(keyOf(id));
+  return raw ? (JSON.parse(raw) as Proposal) : undefined;
+}
 
 /** Register how an action is applied once approved (one per action id). */
 export function registerExecutor(action: string, fn: Executor): void { executors.set(action, fn); }
@@ -45,7 +56,7 @@ export function requiresDualControl(action: string): boolean {
 }
 
 /** Create a pending proposal for an action (the maker step). */
-export function propose(action: string, params: unknown, actor: Actor, now: string): Proposal {
+export async function propose(action: string, params: unknown, actor: Actor, now: string): Promise<Proposal> {
   const p: Proposal = {
     id: crypto.randomUUID(),
     action,
@@ -55,17 +66,18 @@ export function propose(action: string, params: unknown, actor: Actor, now: stri
     proposedAt: now,
     status: "pending",
   };
-  proposals.set(p.id, p);
+  await saveProposal(p);
   return p;
 }
 
 /** Pending proposals (for the admin queue). */
-export function listProposals(): Proposal[] {
-  return [...proposals.values()].filter((p) => p.status === "pending");
+export async function listProposals(): Promise<Proposal[]> {
+  const entries = await sharedKv.list(PROP_PREFIX);
+  return entries.map((e) => JSON.parse(e.value) as Proposal).filter((p) => p.status === "pending");
 }
 
 /** A single proposal by id. */
-export function getProposal(id: string): Proposal | undefined { return proposals.get(id); }
+export function getProposal(id: string): Promise<Proposal | undefined> { return loadProposal(id); }
 
 export interface DecisionResult { ok: boolean; error?: string; proposal?: Proposal }
 
@@ -74,7 +86,7 @@ export interface DecisionResult { ok: boolean; error?: string; proposal?: Propos
  * different person from the proposer. Runs the registered executor with the proposal's params.
  */
 export async function approve(id: string, actor: Actor, now: string): Promise<DecisionResult> {
-  const p = proposals.get(id);
+  const p = await loadProposal(id);
   if (!p || p.status !== "pending") return { ok: false, error: "No such pending proposal." };
   if (p.proposedBy === actor.sub) return { ok: false, error: "Four-eyes: a different admin must approve this." };
   const exec = executors.get(p.action);
@@ -83,18 +95,20 @@ export async function approve(id: string, actor: Actor, now: string): Promise<De
   p.status = "approved";
   p.decidedBy = actor.sub;
   p.decidedAt = now;
+  await saveProposal(p);
   return { ok: true, proposal: p };
 }
 
 /** Reject a pending proposal (any admin, including the proposer). */
-export function reject(id: string, actor: Actor, now: string): DecisionResult {
-  const p = proposals.get(id);
+export async function reject(id: string, actor: Actor, now: string): Promise<DecisionResult> {
+  const p = await loadProposal(id);
   if (!p || p.status !== "pending") return { ok: false, error: "No such pending proposal." };
   p.status = "rejected";
   p.decidedBy = actor.sub;
   p.decidedAt = now;
+  await saveProposal(p);
   return { ok: true, proposal: p };
 }
 
 /** Test-only: clear the proposal queue (executors persist). */
-export function __resetDualControl(): void { proposals.clear(); }
+export async function __resetDualControl(): Promise<void> { await sharedKv.clear(PROP_PREFIX); }

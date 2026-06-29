@@ -31,6 +31,7 @@ import { configDirSummary } from "../lib/config-dir";
 import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus } from "../lib/setup-status";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
+import { sharedStateMode } from "../lib/shared-state";
 import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
 import {
   storeView,
@@ -80,6 +81,8 @@ router.get("/setup/profile", requireRole("admin"), (_req, res) => {
       makerChecker: !!process.env["DUAL_CONTROL_ACTIONS"]?.trim(),
       securityStrict: isOn(process.env["SECURITY_STRICT"]),
       rateLimit: !isOn(process.env["RATE_LIMIT_DISABLED"]),
+      // Whether per-replica registries (e.g. the maker-checker queue) are shared fleet-wide.
+      sharedState: sharedStateMode(),
     },
     profiles: DEPLOYMENT_PROFILES,
     // The picker catalogue: every customer type's posture + preset (audience, what it relaxes,

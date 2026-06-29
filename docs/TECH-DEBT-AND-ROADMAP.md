@@ -37,22 +37,25 @@ These are the items most likely to bite in production, because they're verified 
 ## 2. State that is RAM-only / per-replica
 
 The gateway is stateless by design, but several runtime registries are in-process memory.
-Single-instance deployments are fine; behind N replicas these don't share state. A shared store
-(Redis is already wired for rate-limit + the broker-log bus) would make them global.
+Single-instance deployments are fine; behind N replicas these don't share state.
 
-- **[caveat] Concurrent-session cap** (`lib/session-registry`) is per-replica RAM — a user
-  could hold up to `cap × replicas` sessions.
-- **[caveat] Maker-checker proposal queue** (`lib/dual-control`) is per-replica — a proposal
-  raised on replica A isn't approvable on replica B.
+The **`SHARED_STATE` seam** now exists (`lib/shared-state`): an opt-in async KV that's in-process
+by default and Redis-backed fleet-wide when `REDIS_URL` is set — mirroring the rate-limit /
+broker-log pattern (optional `ioredis`, lean by default). `sharedStateMode()` reports the active
+mode. Registries adopt it incrementally:
+
+- **[done] Maker-checker proposal queue** (`lib/dual-control`) now uses the seam — a proposal
+  raised on one replica is approvable on another when Redis is configured.
+- **[caveat] Concurrent-session cap** (`lib/session-registry`) is still per-replica RAM — its
+  accessor is on the synchronous per-request session-read hot path, so it needs an async refactor
+  before it can adopt the (async) seam. A user could still hold up to `cap × replicas` sessions.
 - **[caveat] Audit-chain head** (`lib/audit-chain`) is in-memory unless `AUDIT_CHAIN_FILE` is
   set; across replicas each has its own chain (the SIEM copy is still self-verifying per event).
+  Adoptable via the seam (its writes can be async) as a follow-up.
 - **[debt] The settings store** (`lib/settings`) is in-memory, seeded from env/config-dir.
   Runtime changes (incl. the deployment profile) are per-replica until a config-dir reload.
-  **Action:** an optional shared backing (Redis/Postgres) behind the same accessors; or document
-  that runtime settings changes need the config-dir + a rolling restart for fleet consistency.
-
-**Roadmap:** a single `SHARED_STATE` seam (Redis) that these registries opt into, mirroring the
-existing rate-limit/broker-log pattern.
+  **Action:** broadcast a change over the existing bus (reload), or back it with the seam, so a
+  rolling restart isn't needed for fleet consistency.
 
 ---
 

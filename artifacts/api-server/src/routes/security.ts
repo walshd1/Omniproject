@@ -36,9 +36,9 @@ function actorOf(req: Request): Actor { const s = getSession(req); return { sub:
  * return true so the caller stops. The registered executor applies it once a second admin
  * approves. Returns false (proceed normally) when dual control is off for this action.
  */
-function heldForDualControl(action: string, params: unknown, req: Request, res: Response): boolean {
+async function heldForDualControl(action: string, params: unknown, req: Request, res: Response): Promise<boolean> {
   if (!requiresDualControl(action)) return false;
-  const p = propose(action, params, actorOf(req), new Date().toISOString());
+  const p = await propose(action, params, actorOf(req), new Date().toISOString());
   recordAudit({ ts: new Date().toISOString(), category: "admin", action: `${action}.proposed`, actor: actorOf(req), write: true, result: "success", meta: { proposalId: p.id } });
   res.status(202).json({ pending: true, proposalId: p.id, message: "A second admin must approve this change before it takes effect." });
   return true;
@@ -60,7 +60,7 @@ router.get("/security/keys", requireRole("admin"), (_req, res) => {
   res.json({ keys: listKeys() });
 });
 
-router.post("/security/keys/:name/revoke", requireRole("admin"), requireStepUp, (req, res) => {
+router.post("/security/keys/:name/revoke", requireRole("admin"), requireStepUp, async (req, res) => {
   const name = String(req.params["name"]);
   if (!isKeyName(name)) { res.status(404).json({ error: "unknown key" }); return; }
   const session = getSession(req);
@@ -68,7 +68,7 @@ router.post("/security/keys/:name/revoke", requireRole("admin"), requireStepUp, 
   if (!body) return;
   const reason = body.reason;
   // Four-eyes: when key.revoke is dual-controlled, queue it for a second admin instead.
-  if (heldForDualControl("key.revoke", { name, by: session?.sub ?? null, reason }, req, res)) return;
+  if (await heldForDualControl("key.revoke", { name, by: session?.sub ?? null, reason }, req, res)) return;
   const status = revokeKey(name, { by: session?.sub ?? null, reason });
   persistSecurityState(); // a revocation must survive a restart
   recordAudit({ ts: new Date().toISOString(), category: "admin", action: "key.revoke", actor: session ? { sub: session.sub, email: session.email } : null, write: true, meta: { key: name, newVersion: status.version, reason: reason ?? null } });
@@ -115,13 +115,13 @@ router.get("/admin/maintenance", requireRole("admin"), (_req, res) => {
 // Engage / release read-only lockdown (admin + step-up). While engaged, every write is
 // refused with 503 except auth, this toggle, and health. Persisted so a restart can't silently
 // un-freeze a deployment mid-incident. Audited.
-router.put("/admin/maintenance", requireRole("admin"), requireStepUp, (req, res) => {
+router.put("/admin/maintenance", requireRole("admin"), requireStepUp, async (req, res) => {
   const body = (req.body ?? {}) as { engaged?: unknown; reason?: unknown };
   const engage = body.engaged === true;
   const reason = typeof body.reason === "string" ? body.reason.slice(0, 280) : "";
   // Engaging a freeze is the impactful direction — gate it with four-eyes when configured;
   // releasing (recovery) stays unilateral so an incident can always be cleared.
-  if (engage && heldForDualControl("maintenance.engage", { reason }, req, res)) return;
+  if (engage && await heldForDualControl("maintenance.engage", { reason }, req, res)) return;
   if (engage) engageMaintenance(reason); else releaseMaintenance();
   persistSecurityState();
   const session = getSession(req);
@@ -163,8 +163,8 @@ router.post("/security/audit/verify", requireRole("admin"), (req, res) => {
 
 // ── Dual-control approval queue (maker-checker) ──────────────────────────────────
 // The pending proposals awaiting a second approver (any admin can view the queue).
-router.get("/admin/approvals", requireRole("admin"), (_req, res) => {
-  res.json({ proposals: listProposals() });
+router.get("/admin/approvals", requireRole("admin"), async (_req, res) => {
+  res.json({ proposals: await listProposals() });
 });
 
 // Approve + EXECUTE a proposal (admin + step-up). Enforces four-eyes: the approver must differ
@@ -178,9 +178,9 @@ router.post("/admin/approvals/:id/approve", requireRole("admin"), requireStepUp,
 });
 
 // Reject a proposal (admin + step-up; any admin, incl. the proposer).
-router.post("/admin/approvals/:id/reject", requireRole("admin"), requireStepUp, (req, res) => {
+router.post("/admin/approvals/:id/reject", requireRole("admin"), requireStepUp, async (req, res) => {
   const id = String(req.params["id"]);
-  const result = reject(id, actorOf(req), new Date().toISOString());
+  const result = await reject(id, actorOf(req), new Date().toISOString());
   if (!result.ok) { res.status(404).json({ error: result.error }); return; }
   recordAudit({ ts: new Date().toISOString(), category: "admin", action: "approval.reject", actor: actorOf(req), write: true, result: "success", meta: { proposalId: id } });
   res.json({ ok: true, proposal: result.proposal });
