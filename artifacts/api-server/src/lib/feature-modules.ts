@@ -89,6 +89,14 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     label: "Global search",
     description: "Fast cross-entity quick-find over projects, issues and programmes.",
   },
+  {
+    // Live collaboration: per-surface presence + advisory, soft-TTL field "locks" over SSE. Has a
+    // backend route (the SSE stream + heartbeat) so it loads lazily; the SPA gates it via useFeatures.
+    id: "presence",
+    label: "Live collaboration presence",
+    description: "See who else is on a work item and which field they're editing (advisory, real-time).",
+    load: () => import("../routes/presence"),
+  },
 ];
 
 // Which modules actually got loaded+mounted this process (set by the mount step). Lets the

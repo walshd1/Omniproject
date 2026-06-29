@@ -8,6 +8,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Live collaboration presence (Phase 2 UX polish — real-time).** A new opt-out **`presence`**
+  feature module shows who else is on a work item and, advisorily, which field they're editing —
+  over Server-Sent Events, so it's push-based with no polling. The work-item side-panel now carries
+  presence **avatars** (coloured initials, name to screen readers) and a soft **"X editing…"** hint
+  beside a field a collaborator has focused. Everything is **ephemeral and advisory**: presence is
+  in-memory connection state (nothing at rest — a closed tab disappears), and a field "lock" is a
+  soft, TTL'd hint to reduce accidental clobbering, **not** a gate. The **hard** guarantee stays the
+  optimistic-concurrency token (`expectedVersion` / Issue.version): two concurrent saves still
+  resolve by a 409 → refresh, never a silent overwrite — **no CRDT, no server merge**. Backend:
+  `lib/presence-hub` (rooms → ephemeral peers, soft-TTL editing claims, broadcast) + `routes/presence`
+  (an SSE stream + a heartbeat endpoint), drained on graceful shutdown and surfaced in the dev-mode
+  debug bundle (`runtime-posture.json` → live rooms/connections). Frontend: `lib/presence`
+  (`usePresence` room hook + pure `freshPeers`/`peerInitials` helpers) and a `PresenceAvatars`
+  component. Covered by hub + route (real-app SSE) tests, presence hook/helper + avatars unit tests,
+  and a side-panel integration test (a streamed peer surfaces an avatar + lock).
+
 - **Swipe-to-dismiss the work-item panel (Phase 2 UX polish — mobile gestures).** A small,
   dependency-free swipe helper (`lib/use-swipe`) turns touch drags into cardinal-direction gestures
   (a pure, unit-tested `classifySwipe` with a threshold + off-axis restraint so a scroll or a lazy

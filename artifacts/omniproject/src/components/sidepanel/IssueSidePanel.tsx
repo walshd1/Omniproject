@@ -10,6 +10,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { useSidePanel } from "../../lib/side-panel";
 import { useRecentItems } from "../../lib/recent-items";
 import { useSwipe } from "../../lib/use-swipe";
+import { usePresence } from "../../lib/presence";
+import { PresenceAvatars } from "../presence/PresenceAvatars";
 import { useFeatures, featureEnabled } from "../../lib/features";
 import { useAvailability, fieldVisible } from "../../lib/availability";
 import { useIssueFieldWrite } from "../../lib/use-issue-field-write";
@@ -27,25 +29,40 @@ import { STATUS_ORDER, PRIORITY_ORDER, statusLabel, priorityLabel } from "../../
 export { buildFieldUpdate } from "../../lib/use-issue-field-write";
 
 function EditableRow({
-  label, value, type, options, onCommit,
+  label, value, type, options, onCommit, lockedBy, onFocus, onBlur,
 }: {
   label: string;
   value: string;
   type: "text" | "date" | "select";
   options?: { value: string; label: string }[];
   onCommit: (v: string) => void;
+  /** Name of another collaborator currently editing this field (advisory hint), if any. */
+  lockedBy?: string | undefined;
+  /** Focus enters/leaves this field — used to advertise our editing claim to other collaborators. */
+  onFocus?: () => void;
+  onBlur?: () => void;
 }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   const commit = () => { if (draft !== value) onCommit(draft); };
+  const release = () => { onBlur?.(); };
   return (
     <div className="flex items-center justify-between gap-3 py-2 border-b border-border/50">
-      <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">{label}</span>
+      <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+        {label}
+        {lockedBy && (
+          <span className="ml-2 normal-case font-normal text-[10px] text-amber-600 dark:text-amber-500" data-testid={`lock-${label}`}>
+            {lockedBy} editing…
+          </span>
+        )}
+      </span>
       {type === "select" ? (
         <select
           aria-label={label}
           value={draft}
           onChange={(e) => { setDraft(e.target.value); onCommit(e.target.value); }}
+          onFocus={onFocus}
+          onBlur={release}
           className="border border-foreground bg-background px-1 py-0.5 text-sm"
         >
           {options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -56,7 +73,8 @@ function EditableRow({
           type={type === "date" ? "date" : "text"}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
+          onFocus={onFocus}
+          onBlur={() => { commit(); release(); }}
           onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
           className="border border-foreground bg-background px-1 py-0.5 text-sm"
         />
@@ -79,6 +97,15 @@ export function IssueSidePanel() {
   });
   const { data: activity } = useListActivity({ query: { enabled: enabled && open, queryKey: getListActivityQueryKey() } });
   const { write } = useIssueFieldWrite();
+
+  // Live collaboration: join a presence room scoped to this work item so collaborators see each
+  // other and (advisorily) which field is being edited. Gated by the "presence" feature module.
+  const presenceOn = featureEnabled(features, "presence");
+  const room = open && projectId && issueId ? `issue:${projectId}:${issueId}` : null;
+  const { peers, setEditing } = usePresence(room, presenceOn && open);
+  // Map a field → the first collaborator advertising they're editing it (advisory hint only).
+  const editorOf = (field: string): string | undefined =>
+    peers.find((p) => p.editing === field)?.label;
 
   // Remember an opened work item for the "Recent" quick-find list (findability).
   const recordRecent = useRecentItems((s) => s.record);
@@ -114,26 +141,33 @@ export function IssueSidePanel() {
             <SheetHeader>
               <SheetTitle className="text-left">{issue.title}</SheetTitle>
               <SheetDescription className="text-left font-mono text-xs">{issue.id}</SheetDescription>
+              {presenceOn && peers.length > 0 && (
+                <div className="pt-2"><PresenceAvatars peers={peers} /></div>
+              )}
             </SheetHeader>
 
             <div className="mt-4" data-testid="side-panel-fields">
               {show("status") && (
                 <EditableRow label="Status" type="select" value={issue.status}
                   options={STATUS_ORDER.map((s) => ({ value: s, label: statusLabel(s) }))}
-                  onCommit={(v) => commit("status", v)} />
+                  onCommit={(v) => commit("status", v)}
+                  lockedBy={editorOf("status")} onFocus={() => setEditing("status")} onBlur={() => setEditing(null)} />
               )}
               {show("priority") && (
                 <EditableRow label="Priority" type="select" value={issue.priority}
                   options={PRIORITY_ORDER.map((p) => ({ value: p, label: priorityLabel(p) }))}
-                  onCommit={(v) => commit("priority", v)} />
+                  onCommit={(v) => commit("priority", v)}
+                  lockedBy={editorOf("priority")} onFocus={() => setEditing("priority")} onBlur={() => setEditing(null)} />
               )}
               {show("assignee") && (
                 <EditableRow label="Assignee" type="text" value={issue.assignee ?? ""}
-                  onCommit={(v) => commit("assignee", v, (s) => (s.trim() === "" ? null : s.trim()))} />
+                  onCommit={(v) => commit("assignee", v, (s) => (s.trim() === "" ? null : s.trim()))}
+                  lockedBy={editorOf("assignee")} onFocus={() => setEditing("assignee")} onBlur={() => setEditing(null)} />
               )}
               {show("dueDate") && (
                 <EditableRow label="Due" type="date" value={(issue.dueDate ?? "").slice(0, 10)}
-                  onCommit={(v) => commit("dueDate", v, (s) => (s.trim() === "" ? null : s.trim()))} />
+                  onCommit={(v) => commit("dueDate", v, (s) => (s.trim() === "" ? null : s.trim()))}
+                  lockedBy={editorOf("dueDate")} onFocus={() => setEditing("dueDate")} onBlur={() => setEditing(null)} />
               )}
             </div>
 
