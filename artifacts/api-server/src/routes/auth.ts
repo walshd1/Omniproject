@@ -20,6 +20,7 @@ import {
   type Impersonation,
 } from "../lib/oidc";
 import { roleForReq } from "../lib/rbac";
+import { isSamlConfigured, samlLoginUrl, validateSamlResponse, samlMetadata } from "../lib/saml";
 import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
 import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
@@ -166,10 +167,11 @@ router.get("/auth/me", (req, res) => {
       role: roleForReq(req),
       // Lets the SPA warn before, and redirect on, an idle/absolute timeout.
       sessionTimeout: timeoutPolicy(),
+      samlConfigured: isSamlConfigured(),
     });
     return;
   }
-  res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null, role: "viewer" });
+  res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null, role: "viewer", samlConfigured: isSamlConfigured() });
 });
 
 /** Sanitise a post-auth `returnTo` to a SAME-ORIGIN path — prevents open redirects (CWE-601).
@@ -305,6 +307,58 @@ router.get("/auth/callback", async (req, res) => {
     req.log.error({ err }, "OIDC token exchange failed");
     res.status(502).send("SSO token exchange failed. Please try again.");
   }
+});
+
+// ── SAML 2.0 SSO (optional; alongside OIDC) ──────────────────────────────────────
+// SP-initiated login: redirect to the IdP. RelayState round-trips the (sanitised) returnTo.
+// A strict per-IP loginLimiter is applied at the router mount in routes/index.ts.
+router.get("/auth/saml/login", async (req, res) => {
+  if (!isSamlConfigured()) { res.status(404).send("SAML SSO is not configured."); return; }
+  const returnTo = safeLocalPath(req.query["returnTo"]);
+  try {
+    const url = await samlLoginUrl(returnTo);
+    if (!url) { res.status(503).send("SAML SSO is unavailable (provider library not installed)."); return; }
+    res.redirect(url);
+  } catch (err) {
+    req.log.error({ err }, "SAML login initiation failed");
+    res.status(502).send("SAML SSO is temporarily unavailable.");
+  }
+});
+
+// Assertion Consumer Service (ACS): the IdP POSTs the signed SAMLResponse here (HTTP-POST
+// binding). node-saml validates signature + audience + conditions; a valid assertion
+// establishes the session. No CSRF token: this is a cross-origin top-level POST from the IdP
+// and its trust rests entirely on the signed assertion (the csrf guard exempts the no-session
+// first login). The assertion's group attributes flow into the SAME role-map as OIDC claims.
+router.post("/auth/saml/callback", async (req, res) => {
+  if (!isSamlConfigured()) { res.redirect("/"); return; }
+  const body = (req.body ?? {}) as { SAMLResponse?: unknown; RelayState?: unknown };
+  if (typeof body.SAMLResponse !== "string") { res.status(400).send("Missing SAMLResponse."); return; }
+  try {
+    const claims = await validateSamlResponse(body.SAMLResponse);
+    if (!claims) { res.status(503).send("SAML SSO is unavailable (provider library not installed)."); return; }
+    setSession(res, {
+      sub: claims.sub,
+      ...(claims.name !== undefined ? { name: claims.name } : {}),
+      ...(claims.email !== undefined ? { email: claims.email } : {}),
+      ...(claims.roles.length ? { roles: claims.roles } : {}),
+      // SAML asserts identity, not a backend bearer (see lib/saml HONEST SCOPE).
+      accessToken: "saml",
+    });
+    setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
+    res.redirect(safeLocalPath(typeof body.RelayState === "string" ? body.RelayState : "/"));
+  } catch (err) {
+    req.log.warn({ err }, "SAML assertion validation failed");
+    res.status(401).send("SAML authentication failed (invalid assertion).");
+  }
+});
+
+// SP metadata XML, so an IdP admin can configure the integration. Public (no secrets).
+router.get("/auth/saml/metadata", async (_req, res) => {
+  if (!isSamlConfigured()) { res.status(404).send("SAML SSO is not configured."); return; }
+  const xml = await samlMetadata();
+  if (!xml) { res.status(503).send("SAML SSO is unavailable (provider library not installed)."); return; }
+  res.type("application/xml").send(xml);
 });
 
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────

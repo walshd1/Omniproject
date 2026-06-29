@@ -121,6 +121,32 @@ cookie** wrapping the issued tokens.
 - Protected API routes return `401` without a session; the SPA guard redirects
   to `/login`.
 
+#### SAML 2.0 (optional, alongside OIDC)
+
+For IdPs/procurement that mandate SAML, the gateway also runs as a SAML **Service
+Provider**. SP-initiated flow: `GET /api/auth/saml/login` → IdP → the IdP POSTs a
+signed assertion to the ACS `POST /api/auth/saml/callback` → the same signed,
+httpOnly session cookie is issued. The assertion's group attributes feed the **same
+role-map** as OIDC claims (lib/rbac + the role-map editor), so group→role assignment
+is identical across both protocols.
+
+- **Optional, install-on-demand dependency.** The SAML library `@node-saml/node-saml`
+  is *not* a declared dependency — a default install and the CI install never pull it,
+  so OIDC/demo/charity deployments carry zero extra weight (mirrors the optional Redis
+  rate-limit store). Enable with:
+  `pnpm --filter @workspace/api-server add @node-saml/node-saml`. If SAML is configured
+  but the package is absent, the gateway logs a one-time warning and SAML stays
+  unavailable — OIDC/demo keep working and it never crashes.
+- **Configured when** `SAML_IDP_ENTRY_POINT` + `SAML_IDP_CERT` (PEM or base64-of-PEM)
+  + an ACS callback URL (`SAML_CALLBACK_URL`, or derived from `PUBLIC_URL`) are set.
+  Optional: `SAML_SP_ENTITY_ID`, `SAML_AUDIENCE`, `SAML_EMAIL_ATTR`/`SAML_NAME_ATTR`/
+  `SAML_GROUPS_ATTR` (default `email`/`displayName`/`groups`; set to your IdP's URNs),
+  `SAML_WANT_RESPONSE_SIGNED`. SP metadata for the IdP is at
+  `GET /api/auth/saml/metadata`. Assertions are always required signed.
+- **Honest scope:** SAML asserts identity and drives RBAC but does not mint a per-user
+  backend bearer; brokered writes then use the broker's own credentials (like demo).
+  Use OIDC where per-user backend tokens are required.
+
 ### Tenant isolation / anti-spoofing
 
 Downstream calls run **as the active user**. The gateway:

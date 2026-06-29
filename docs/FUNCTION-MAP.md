@@ -1221,6 +1221,18 @@ Runtime RED metrics (Rate, Errors, Duration) — the always-available observabil
 | `runtimeMetrics` | Snapshot the RED metrics as Prometheus metric descriptors. |
 | `resetRuntimeMetrics` | Test-only reset of all counters. |
 
+### `artifacts/api-server/src/lib/saml.ts`
+
+SAML 2.0 SSO — an OPTIONAL identity path that sits alongside OIDC behind the same auth seam.
+
+| Function | What it does |
+| --- | --- |
+| `isSamlConfigured` | Is SAML SSO configured? (entry point + IdP cert + an ACS callback URL are all present.) |
+| `profileToClaims` | Map a validated SAML assertion profile onto canonical claims. |
+| `samlLoginUrl` | The IdP redirect URL to begin SP-initiated login; `relayState` round-trips the returnTo. |
+| `validateSamlResponse` | Validate a base64 SAMLResponse from the ACS POST and return canonical claims, or null (unconfigured / library absent). |
+| `samlMetadata` | The SP metadata XML (so an IdP admin can configure the integration), or null. |
+
 ### `artifacts/api-server/src/lib/scim.ts`
 
 SCIM 2.0 directory (RFC 7643/7644).

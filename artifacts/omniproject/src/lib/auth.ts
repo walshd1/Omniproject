@@ -19,6 +19,8 @@ export interface AuthState {
   role: Role;
   /** Server session-timeout policy (ms); 0 = disabled. Drives the idle warning. */
   sessionTimeout?: { idleMs: number; absoluteMs: number };
+  /** Whether SAML SSO is configured (offered alongside OIDC on the login screen). */
+  samlConfigured?: boolean;
 }
 
 /** The linear base ladder. The authorities (pmo/admin) sit above it and confer manager base. */
@@ -57,6 +59,11 @@ export function useAuth() {
 export function login(returnTo: string = window.location.pathname): void {
   const url = `/api/auth/login?returnTo=${encodeURIComponent(returnTo || "/")}`;
   window.location.href = url;
+}
+
+/** Redirect into the SAML (SP-initiated) login flow. */
+export function samlLogin(returnTo: string = window.location.pathname): void {
+  window.location.href = `/api/auth/saml/login?returnTo=${encodeURIComponent(returnTo || "/")}`;
 }
 
 /** Clear the session and return to the login screen. */

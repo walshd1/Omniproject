@@ -1,0 +1,65 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+// Configure SAML BEFORE importing the module (it reads env once at load). The optional
+// provider library is NOT installed, so this also exercises the configured-but-absent path.
+process.env["SAML_IDP_ENTRY_POINT"] = "https://idp.example.com/sso";
+process.env["SAML_IDP_CERT"] = "-----BEGIN CERTIFICATE-----\nMIIBfake\n-----END CERTIFICATE-----";
+process.env["SAML_CALLBACK_URL"] = "https://omni.example.com/api/auth/saml/callback";
+
+const { isSamlConfigured, samlLoginUrl, validateSamlResponse, samlMetadata, profileToClaims } = await import("./saml");
+
+const cfg = {
+  entryPoint: "", idpCert: "", issuer: "", callbackUrl: "", audience: "",
+  emailAttr: "email", nameAttr: "displayName", groupsAttr: "groups", wantResponseSigned: false,
+};
+
+test("SAML reports configured when entry point + cert + callback are present", () => {
+  assert.equal(isSamlConfigured(), true);
+});
+
+test("configured-but-not-installed degrades gracefully (never throws, never a session)", async () => {
+  // The optional '@node-saml/node-saml' package isn't installed, so the provider is null and
+  // every entry point returns null instead of crashing — OIDC/demo stay usable.
+  assert.equal(await samlLoginUrl("/"), null);
+  assert.equal(await validateSamlResponse("anything"), null);
+  assert.equal(await samlMetadata(), null);
+});
+
+// ── profileToClaims: the role-mapping logic, in isolation (no library needed) ─────
+test("maps nameID + attributes-object claims, groups as an array", () => {
+  const claims = profileToClaims(
+    { nameID: "u1", attributes: { email: "a@b.c", displayName: "Alice", groups: ["pmo", "delivery"] } },
+    cfg,
+  );
+  assert.deepEqual(claims, { sub: "u1", email: "a@b.c", name: "Alice", roles: ["pmo", "delivery"] });
+});
+
+test("reads top-level profile keys and splits a comma/space group string", () => {
+  const claims = profileToClaims({ nameID: "u2", email: "x@y.z", groups: "admins, delivery leads" }, cfg);
+  assert.equal(claims.sub, "u2");
+  assert.equal(claims.email, "x@y.z");
+  assert.deepEqual(claims.roles, ["admins", "delivery", "leads"]);
+});
+
+test("sub falls back to email, then to 'unknown'; roles default to empty", () => {
+  assert.equal(profileToClaims({ email: "e@f.g" }, cfg).sub, "e@f.g");
+  const empty = profileToClaims({}, cfg);
+  assert.equal(empty.sub, "unknown");
+  assert.deepEqual(empty.roles, []);
+});
+
+test("honours configured attribute names (e.g. an IdP URN for groups)", () => {
+  const urn = "http://schemas.xmlsoap.org/claims/Group";
+  const claims = profileToClaims(
+    { nameID: "u3", attributes: { [urn]: ["g1", "g2"] } },
+    { ...cfg, groupsAttr: urn },
+  );
+  assert.deepEqual(claims.roles, ["g1", "g2"]);
+});
+
+test("a SAML group lands in the same role-map as an OIDC claim (single-value attribute)", () => {
+  // node-saml exposes a single-valued attribute as a bare string; it must still map to a role.
+  const claims = profileToClaims({ nameID: "u4", attributes: { groups: "omni-admins" } }, cfg);
+  assert.deepEqual(claims.roles, ["omni-admins"]);
+});
