@@ -18,6 +18,7 @@ import { LoggingSyncSettings } from "../components/settings/LoggingSyncSettings"
 import { TranslationLayer } from "../components/settings/TranslationLayer";
 import { BrokerLog } from "../components/settings/BrokerLog";
 import { A11yControls } from "../components/settings/A11yControls";
+import { PerformanceSettings } from "../components/settings/PerformanceSettings";
 import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
 import { ActionCatalogue } from "../components/settings/ActionCatalogue";
 import { AiProvidersAdmin } from "../components/settings/AiProvidersAdmin";
@@ -341,6 +342,10 @@ export function Settings() {
       </div>
 
       <A11yControls />
+
+      <div className="mt-10">
+        <PerformanceSettings />
+      </div>
     </div>
   );
 }
