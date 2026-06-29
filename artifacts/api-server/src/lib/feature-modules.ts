@@ -74,6 +74,14 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     label: "Custom dashboards",
     description: "Build named dashboards from a catalogue of widgets (health, trends, activity, counts).",
   },
+  {
+    // UI-only: a slide-over work-item detail panel — quick-view fields, inline edit through the
+    // existing issue-update endpoint (with optimistic-concurrency), and recent activity. The SPA
+    // gates it via useFeatures; no backend route to mount.
+    id: "sidePanel",
+    label: "Rich side-panel",
+    description: "A slide-over work-item detail panel with inline edit and recent activity.",
+  },
 ];
 
 // Which modules actually got loaded+mounted this process (set by the mount step). Lets the

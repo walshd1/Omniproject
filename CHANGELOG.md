@@ -6,6 +6,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Rich side-panel (UX-parity module).** A **slide-over work-item detail panel**: a quick read-out
+  of the item's fields (**availability-gated** — only what the backend surfaces and the admin/PMO
+  kept), **inline edit** of the common fields (status, priority, assignee, due date) **through the
+  existing issue-update endpoint with the optimistic-concurrency token** (`expectedVersion` =
+  `Issue.version` / OpenProject `lock_version`; a concurrent change returns **409** and the panel
+  refreshes instead of clobbering, optimistic-with-revert), and the item's **recent activity** when
+  the backend surfaces it. Opened from anywhere via a small side-panel store (the editable grid
+  gains a per-row "open details" affordance when enabled); rendered once at the app shell. Shipped
+  as the optional UI-only **`sidePanel`** feature module (gated by `useFeatures`).
+  `components/sidepanel/IssueSidePanel`, `lib/side-panel`.
+
 ### Changed
 
 - **Whole-repo test coverage + dev-mode breadth (iteration 1).** Two packages' tests were never
