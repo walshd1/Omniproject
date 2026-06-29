@@ -8,6 +8,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Broker-neutral product surface — concrete vendor purged from code, copy, routes and the API.**
+  Following the broker-isolation work, the reference broker's NAME no longer leaks into the
+  product. The `POST /api/setup/test-n8n` route is now `/api/setup/test-broker`; the SPA type
+  `N8nTestResult`/`testN8nConnection` are `BrokerTestResult`/`testBrokerConnection`; the entire
+  setup wizard, settings, report and i18n copy (4 languages) now say "broker" rather than naming a
+  vendor; the deploy-template (`.env`/compose) examples and the OpenAPI descriptions are
+  broker-neutral; and the contract-test script alias is `verify-broker`. The isolation guard was
+  extended with a NAMING check (comments excluded) over the gateway and SPA, so the vendor token
+  can only appear in the adapter folder, the seam factory that constructs it, the neutral
+  broker-url resolver, and `vendors/brokers/<vendor>.json` — enforced in CI. (The generated n8n
+  workflow blueprints remain n8n-by-nature, like the vendor data.) The contract-test script is
+  also renamed by its function — `scripts/src/verify-n8n-bidirectional.ts` →
+  `verify-broker-contract.ts` (alias `verify-broker`), and the generated workflow's normalize node
+  is `BrokerActionResult`.
+
 - **Broker-code isolation — one home per concrete broker, guard-enforced (no behaviour change).**
   All n8n adapter code now lives in a single folder, `broker/n8n/` (`index.ts` the adapter,
   `expr.ts` the expression helper that previously sat in generic `lib/`), and the deprecated

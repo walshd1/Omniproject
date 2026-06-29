@@ -15,7 +15,7 @@ export interface SetupStatus {
   capabilities: Capabilities | null;
 }
 
-export interface N8nTestResult {
+export interface BrokerTestResult {
   reachable: boolean;
   ok?: boolean;
   status?: number;
@@ -49,15 +49,15 @@ export function useSetupStatus() {
   return useQuery({ queryKey: ["setup", "status"], queryFn: fetchSetupStatus, retry: false, staleTime: 10_000 });
 }
 
-/** Non-destructive reachability + capability probe of a candidate webhook URL. */
-export async function testN8nConnection(webhookUrl: string): Promise<N8nTestResult> {
-  const res = await fetch("/api/setup/test-n8n", {
+/** Non-destructive reachability + capability probe of a candidate broker webhook URL. */
+export async function testBrokerConnection(webhookUrl: string): Promise<BrokerTestResult> {
+  const res = await fetch("/api/setup/test-broker", {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ webhookUrl }),
   });
-  return (await res.json().catch(() => ({ reachable: false, error: `request failed (${res.status})` }))) as N8nTestResult;
+  return (await res.json().catch(() => ({ reachable: false, error: `request failed (${res.status})` }))) as BrokerTestResult;
 }
 
 /** Fetch durable config (the operator persists this in their environment). */

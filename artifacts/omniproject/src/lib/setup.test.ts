@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  testN8nConnection,
+  testBrokerConnection,
   fetchConfigExport,
   fetchBackends,
   downloadWorkflow,
@@ -39,17 +39,17 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("testN8nConnection", () => {
+describe("testBrokerConnection", () => {
   it("POSTs the candidate url and returns the parsed result", async () => {
     const result = { reachable: true, ok: true, status: 200, implementsCapabilities: true };
     const fetchMock = vi.fn().mockResolvedValue(res(result));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    await expect(testN8nConnection("https://n8n.example/webhook")).resolves.toEqual(result);
+    await expect(testBrokerConnection("https://broker.example/webhook")).resolves.toEqual(result);
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("/api/setup/test-n8n");
+    expect(url).toBe("/api/setup/test-broker");
     expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body)).toEqual({ webhookUrl: "https://n8n.example/webhook" });
+    expect(JSON.parse(init.body)).toEqual({ webhookUrl: "https://broker.example/webhook" });
   });
 
   it("returns a graceful fallback when json parsing fails on a bad status", async () => {
@@ -60,7 +60,7 @@ describe("testN8nConnection", () => {
         throw new Error("no body");
       },
     }) as unknown as typeof fetch;
-    await expect(testN8nConnection("x")).resolves.toEqual({
+    await expect(testBrokerConnection("x")).resolves.toEqual({
       reachable: false,
       error: "request failed (502)",
     });

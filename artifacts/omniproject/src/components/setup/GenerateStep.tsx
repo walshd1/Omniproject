@@ -32,7 +32,7 @@ export function GenerateStep({
     setGenerating(true);
     try {
       await downloadWorkflow(backendId, url.trim() ? new URL(url.trim()).pathname.split("/").pop() : undefined);
-      toast({ title: "WORKFLOW DOWNLOADED", description: `Import omniproject-${backendId}.json into n8n.` });
+      toast({ title: "WORKFLOW DOWNLOADED", description: `Import omniproject-${backendId}.json into your broker.` });
     } catch (e) {
       toast({ title: "ERROR", description: e instanceof Error ? e.message : "Could not generate (admin only).", variant: "destructive" });
     } finally {
@@ -42,10 +42,10 @@ export function GenerateStep({
 
   return (
     /* Step 4 — generate workflow */
-    <Step n={4} title="Generate an n8n workflow">
+    <Step n={4} title="Generate a broker workflow">
       <p className="text-xs text-muted-foreground">
-        Pick your backend and download a ready-to-import n8n workflow that implements the OmniProject contract.
-        Backend wiring lives in the workflow (in your n8n) — OmniProject stays decoupled.
+        Pick your backend and download a ready-to-import broker workflow that implements the OmniProject contract.
+        Backend wiring lives in the workflow (in your broker) — OmniProject stays decoupled.
       </p>
       {enterpriseLocked && (
         <div className="flex items-center gap-2 text-xs font-mono text-amber-600 dark:text-amber-400 border border-amber-500/40 bg-amber-500/10 px-3 py-2">
@@ -91,9 +91,9 @@ export function GenerateStep({
             )}
           </div>
           <div>
-            <span className="text-muted-foreground uppercase tracking-widest">Required env in n8n: </span>
+            <span className="text-muted-foreground uppercase tracking-widest">Required env in the broker: </span>
             {selectedBackend.requiredEnv.length === 0
-              ? <span className="text-muted-foreground">none (auth via n8n credential)</span>
+              ? <span className="text-muted-foreground">none (auth via a broker credential)</span>
               : selectedBackend.requiredEnv.map((e) => <span key={e} className="font-mono mr-2 border border-border px-1">{e}</span>)}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1">

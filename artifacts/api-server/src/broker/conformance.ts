@@ -6,7 +6,7 @@
  * the same suite can run two ways:
  *
  *   - DemoBroker  → the REFERENCE pass (in unit tests; see broker-conformance.test.ts).
- *   - n8n (live)  → the REAL-WORLD pass (the verify-n8n CI step drives the live
+ *   - n8n (live)  → the REAL-WORLD pass (the verify-broker CI step drives the live
  *                   gateway; this runner is safe to point at a live broker because
  *                   it never mutates).
  *

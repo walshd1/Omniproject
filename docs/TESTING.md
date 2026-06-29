@@ -14,7 +14,7 @@ pnpm test                                   # gateway + SPA unit tests (all pack
 pnpm test:coverage                          # same, with the c8 / v8 coverage gates
 pnpm --filter @workspace/api-server run test:coverage   # gateway only, with c8 gate
 pnpm --filter @workspace/omniproject run test:coverage  # SPA only, with v8 gate
-pnpm --filter @workspace/scripts run verify-n8n     # contract verification (mock n8n)
+pnpm --filter @workspace/scripts run verify-broker     # contract verification (mock n8n)
 pnpm --filter @workspace/scripts run e2e-smoke      # SPA shell + read journey
 pnpm --filter @workspace/scripts run a11y           # accessibility (see below)
 pnpm --filter @workspace/scripts run stress         # load test (run separately)

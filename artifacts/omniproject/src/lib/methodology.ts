@@ -3,7 +3,7 @@ import type { Issue } from "@workspace/api-client-react";
 /**
  * Methodology helpers. OmniProject's data model (status, priority, labels,
  * dates) is methodology-neutral; each view derives its concepts (sprints, story
- * points, stages, WIP, RAG) from that data. n8n can populate richer fields
+ * points, stages, WIP, RAG) from that data. the broker can populate richer fields
  * later (e.g. real sprint/stage labels) and these helpers will pick them up.
  */
 

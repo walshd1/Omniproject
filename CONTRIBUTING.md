@@ -35,7 +35,7 @@ PORT=3000 BASE_PATH=/ pnpm --filter omniproject run build               # SPA bu
 
 # Live n8n contract verification (starts a mock n8n; needs the gateway running)
 PORT=5000 node artifacts/api-server/dist/index.mjs &
-OMNI_API_BASE=http://localhost:5000 pnpm --filter @workspace/scripts run verify-n8n
+OMNI_API_BASE=http://localhost:5000 pnpm --filter @workspace/scripts run verify-broker
 ```
 
 Copy [`.env.example`](.env.example) to `.env` to configure — with nothing set the
@@ -58,7 +58,7 @@ CI fails on codegen drift, so commit the regenerated output.
 1. Branch off `main` (e.g. `feature/…`, `fix/…`).
 2. Keep changes focused; match the surrounding code style (the codebase favours
    small, well-commented, dependency-light modules).
-3. Make sure **typecheck, unit tests, builds and `verify-n8n` all pass** — that's
+3. Make sure **typecheck, unit tests, builds and `verify-broker` all pass** — that's
    exactly what CI (`.github/workflows/ci.yml`) runs.
 4. Add tests for new logic and update docs (`docs/TECHNICAL.md`, READMEs) when
    behaviour changes.

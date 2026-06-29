@@ -180,7 +180,7 @@ export function exportSnapshots(snapshots: PortfolioSnapshot[]): void {
 // A schedule captures on an interval until an end date/time. It runs ONLY while
 // the tab is open (it's a browser timer, not a server cron) and the config is
 // held in sessionStorage so a refresh resumes it within the same session. For
-// durable overnight cadence you'd use the n8n snapshot-historian (Tier B).
+// durable overnight cadence you'd use the broker snapshot-historian (Tier B).
 
 const SCHEDULE_KEY = "omniproject-snapshot-schedule";
 

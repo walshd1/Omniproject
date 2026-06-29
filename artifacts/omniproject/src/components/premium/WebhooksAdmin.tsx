@@ -82,7 +82,7 @@ export function WebhooksAdmin({ entitled }: { entitled: boolean }) {
   return (
     <Section title="Outbound webhooks">
       {!entitled && <LockNotice feature="webhooks" />}
-      <p className="text-xs text-muted-foreground">Push events (notifications, audit, config changes) to a customer endpoint, SIEM, Slack or an n8n webhook node. Each delivery is HMAC-signed with the subscription secret (header <code>X-OmniProject-Signature</code>).</p>
+      <p className="text-xs text-muted-foreground">Push events (notifications, audit, config changes) to a customer endpoint, SIEM, Slack or a workflow/automation webhook. Each delivery is HMAC-signed with the subscription secret (header <code>X-OmniProject-Signature</code>).</p>
 
       {hooks.length > 0 && (
         <div className="space-y-2">

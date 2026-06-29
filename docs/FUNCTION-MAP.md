@@ -2038,9 +2038,9 @@ Licence minting / key generation helper (vendor-side).
 
 Load / stress test — simulate a large portfolio under concurrent users.
 
-### `scripts/src/verify-n8n-bidirectional.ts`
+### `scripts/src/verify-broker-contract.ts`
 
-verify-n8n-bidirectional.ts
+verify-broker-contract.ts
 
 ### `scripts/src/verify-plane.ts`
 

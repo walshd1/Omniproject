@@ -16,7 +16,7 @@ free-form routing hint (default `all`).
 - `pnpm --filter @workspace/omniproject run dev` — run the SPA (Vite); proxies `/api` → `API_PROXY_TARGET` (default `http://localhost:8080`)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/scripts run verify-n8n` — bidirectional n8n contract test (needs the API server running; set `OMNI_API_BASE`)
+- `pnpm --filter @workspace/scripts run verify-broker` — bidirectional n8n contract test (needs the API server running; set `OMNI_API_BASE`)
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks + Zod schemas from the OpenAPI spec
 - Required env (API server): `PORT`. Optional: `BROKER_URL`, `SESSION_SECRET`, `OIDC_ISSUER_URL`/`OIDC_CLIENT_ID`/`OIDC_CLIENT_SECRET`, `PUBLIC_URL`, `STATIC_DIR`.
 

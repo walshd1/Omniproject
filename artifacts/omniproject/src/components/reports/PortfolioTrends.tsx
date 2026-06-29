@@ -299,7 +299,7 @@ export function PortfolioTrends() {
         <p className="text-[11px] text-muted-foreground">
           Snapshots (manual or auto) are held in this browser session only and auto-capture runs only while this tab is open
           — OmniProject stores nothing on the server. Use <strong>Export</strong> to keep them across sessions; for unattended
-          overnight cadence, use the n8n snapshot-historian.
+          overnight cadence, use the broker snapshot-historian.
         </p>
       </div>
     </section>

@@ -67,7 +67,7 @@ export function ResourceHeatmap({ projectId }: { projectId: string }) {
             ) : (
               <div className="p-6 text-sm text-muted-foreground text-center">
                 No capacity data — requires a resource-management source (assignments, roles, availability) via the
-                <span className="font-mono"> get_resource_capacity </span> n8n workflow.
+                <span className="font-mono"> get_resource_capacity </span> broker workflow.
               </div>
             )}
           </DataState>

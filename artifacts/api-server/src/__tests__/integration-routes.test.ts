@@ -546,8 +546,8 @@ test("GET /api/setup/snapshot returns a downloadable JSON snapshot", async () =>
   assert.ok(json && typeof json === "object");
 });
 
-test("POST /api/setup/test-n8n rejects a non-http URL with 400", async () => {
-  const res = await get("/api/setup/test-n8n", {
+test("POST /api/setup/test-broker rejects a non-http URL with 400", async () => {
+  const res = await get("/api/setup/test-broker", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ webhookUrl: "ftp://nope" }),

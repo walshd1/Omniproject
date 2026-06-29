@@ -125,9 +125,9 @@ router.post("/setup/profile", requireRole("admin"), (req, res) => {
   res.json({ profile: deploymentProfile(), posture: profilePosture(), tls: { servedOverTls: requireTls() } });
 });
 
-// POST /api/setup/test-n8n — non-destructive reachability + capability probe of
-// a candidate webhook URL (does NOT change settings). Admin only.
-router.post("/setup/test-n8n", requireRole("admin"), async (req, res) => {
+// POST /api/setup/test-broker — non-destructive reachability + capability probe of
+// a candidate broker webhook URL (does NOT change settings). Admin only.
+router.post("/setup/test-broker", requireRole("admin"), async (req, res) => {
   const url = typeof req.body?.webhookUrl === "string" ? req.body.webhookUrl.trim() : "";
   if (!url || !/^https?:\/\//i.test(url)) {
     res.status(400).json({ reachable: false, error: "Provide an absolute http(s) webhook URL" });
@@ -404,14 +404,14 @@ router.post("/setup/generate-workflow", requireRole("admin"), (req, res) => {
     .send(JSON.stringify(workflow, null, 2));
 });
 
-// POST /api/setup/verify-workflow — probe the configured n8n with verify:true
+// POST /api/setup/verify-workflow — probe the configured broker with verify:true
 // for each non-mutating action and report per-action conformance. Admin only.
 // The { verify: true } flag lets a generated workflow short-circuit so nothing
 // touches the backend; only read/declarative actions are probed regardless.
 router.post("/setup/verify-workflow", requireRole("admin"), async (req, res) => {
   const url = (typeof req.body?.webhookUrl === "string" && req.body.webhookUrl.trim()) || getSettings().brokerUrl;
   if (!url || !/^https?:\/\//i.test(url)) {
-    res.status(400).json({ error: "No n8n webhook configured. Connect n8n first or pass webhookUrl." });
+    res.status(400).json({ error: "No broker webhook configured. Connect the broker first or pass webhookUrl." });
     return;
   }
   const sampleProjectId = typeof req.body?.projectId === "string" ? req.body.projectId : "sample";

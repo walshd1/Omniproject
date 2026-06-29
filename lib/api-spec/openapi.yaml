@@ -6,8 +6,7 @@ info:
   description: >-
     OmniProject API — the stable, broker-agnostic consumer (northbound) API. It
     surfaces projects, issues, programmes, reports and admin operations above the
-    swappable broker seam, so it stays the same regardless of which broker (n8n by
-    default) reaches your backends. The southbound broker contract a broker must
+    swappable broker seam, so it stays the same regardless of which broker reaches your backends. The southbound broker contract a broker must
     implement is published separately at GET /api/contract.
 servers:
   - url: /api
@@ -138,7 +137,7 @@ paths:
       operationId: listProjects
       tags: [projects]
       summary: List all projects
-      description: Fetches normalized project list via n8n
+      description: Fetches normalized project list via the broker
       responses:
         "200":
           description: List of projects
@@ -488,7 +487,7 @@ paths:
       operationId: getProjectCapacity
       tags: [projects]
       summary: Resource capacity & workload allocation for a project
-      description: "Routed to n8n with X-OmniProject-Action: get_resource_capacity, X-OmniProject-Source: capacity_engine"
+      description: "Routed to the broker with X-OmniProject-Action: get_resource_capacity, X-OmniProject-Source: capacity_engine"
       parameters:
         - name: projectId
           in: path
@@ -510,7 +509,7 @@ paths:
       operationId: getProjectFinancials
       tags: [projects]
       summary: Earned Value Management (EVM) financials for a project
-      description: "Routed to n8n with X-OmniProject-Action: get_project_financials, X-OmniProject-Source: financial_ledger"
+      description: "Routed to the broker with X-OmniProject-Action: get_project_financials, X-OmniProject-Source: financial_ledger"
       parameters:
         - name: projectId
           in: path
@@ -532,7 +531,7 @@ paths:
       summary: Time-phased progress history for a project
       description: >-
         Trend of completion / scope over time. Sourced from the underlying system
-        of record (e.g. OpenProject journals/activity) via n8n
+        of record (e.g. OpenProject journals/activity) via the broker
         (X-OmniProject-Action: get_project_history, X-OmniProject-Source:
         history_provider). OmniProject stores nothing itself — it is a stateless
         overlay, so the backend remains authoritative for history.
@@ -559,7 +558,7 @@ paths:
       summary: Approved schedule/scope baseline for a project
       description: >-
         The approved baseline held in the system of record (e.g. an OpenProject
-        baseline), surfaced via n8n (X-OmniProject-Action: get_baseline,
+        baseline), surfaced via the broker (X-OmniProject-Action: get_baseline,
         X-OmniProject-Source: baseline_store). Returns null when the backend has
         no baseline captured. OmniProject never writes its own baseline store.
       parameters:
@@ -583,7 +582,7 @@ paths:
       operationId: getProjectRaid
       tags: [projects]
       summary: RAID log (Risks, Assumptions, Issues, Dependencies) for a project
-      description: "Routed to n8n with X-OmniProject-Action: get_raid, X-OmniProject-Source: raid_register"
+      description: "Routed to the broker with X-OmniProject-Action: get_raid, X-OmniProject-Source: raid_register"
       parameters:
         - name: projectId
           in: path
@@ -602,8 +601,8 @@ paths:
     post:
       operationId: createRaidEntry
       tags: [projects]
-      summary: Add a RAID entry (written to the system of record via n8n)
-      description: "Routed to n8n with X-OmniProject-Action: create_raid_entry, X-OmniProject-Source: raid_register. Requires a contributor role or higher."
+      summary: Add a RAID entry (written to the system of record via the broker)
+      description: "Routed to the broker with X-OmniProject-Action: create_raid_entry, X-OmniProject-Source: raid_register. Requires a contributor role or higher."
       parameters:
         - name: projectId
           in: path
@@ -629,7 +628,7 @@ paths:
       operationId: listNotifications
       tags: [projects]
       summary: Notifications for the current user
-      description: "Routed to n8n with X-OmniProject-Action: get_notifications, X-OmniProject-Source: notification_center"
+      description: "Routed to the broker with X-OmniProject-Action: get_notifications, X-OmniProject-Source: notification_center"
       responses:
         "200":
           description: Notification entries (newest first)
@@ -645,7 +644,7 @@ paths:
       operationId: getPortfolioHealth
       tags: [projects]
       summary: Portfolio-wide multi-project health aggregation
-      description: "Routed to n8n with X-OmniProject-Action: get_portfolio_health, X-OmniProject-Source: portfolio_master"
+      description: "Routed to the broker with X-OmniProject-Action: get_portfolio_health, X-OmniProject-Source: portfolio_master"
       responses:
         "200":
           description: Portfolio health summary rows
@@ -677,7 +676,7 @@ paths:
       tags: [proxy]
       summary: Which data domains the wired backend(s) can populate
       description: >-
-        Sourced from n8n (action get_capabilities, source capability_probe) so the
+        Sourced from the broker (action get_capabilities, source capability_probe) so the
         UI can pre-emptively label which reports/views are available. Falls back to
         the CAPABILITIES env override, or demo defaults.
       responses:
@@ -1110,7 +1109,7 @@ components:
           type: ["string", "null"]
           description: >-
             Origin system/principal that last mutated this issue (e.g.
-            "omniproject", "plane", "openproject"). n8n compares this against the
+            "omniproject", "plane", "openproject"). the broker compares this against the
             change origin to drop circular sync loops (webhook storms).
         createdAt:
           type: string
@@ -1398,7 +1397,7 @@ components:
           type: string
           description: >-
             System initiating this update (defaults to "omniproject" at the
-            gateway). Carried downstream so n8n can drop overlapping loop
+            gateway). Carried downstream so the broker can drop overlapping loop
             mutations where origin === the target's lastUpdatedBy.
         expectedVersion:
           type: integer
@@ -1550,7 +1549,7 @@ components:
       properties:
         mode:
           type: string
-          description: How capabilities were resolved (n8n | env | demo).
+          description: How capabilities were resolved (broker | env | demo).
         issues:
           type: boolean
         scheduling:
@@ -1770,7 +1769,7 @@ components:
       properties:
         brokerUrl:
           type: ["string", "null"]
-          description: The active broker's webhook/endpoint URL (n8n by default).
+          description: The active broker's webhook/endpoint URL.
         aiProvider:
           type: string
           enum: [none, openai, ollama, anthropic, openrouter]
@@ -1863,7 +1862,7 @@ components:
       type: string
       description: >-
         Where a figure came from, so the UI never presents a synthesised number
-        as fact. "sourced" = read from the backend system of record via n8n;
+        as fact. "sourced" = read from the backend system of record via the broker;
         "derived" = computed by the gateway from real issue data; "sample" =
         demo/placeholder data (no backend wired).
       enum: [sourced, derived, sample]

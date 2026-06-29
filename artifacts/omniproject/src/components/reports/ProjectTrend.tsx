@@ -7,7 +7,7 @@ import { ProvenanceBadge } from "../ProvenanceBadge";
 import { DataState } from "../DataState";
 
 /**
- * Progress trend, sourced from the system of record via n8n (get_project_history).
+ * Progress trend, sourced from the system of record via the broker (get_project_history).
  * OmniProject keeps no history of its own — in demo mode the points are derived
  * from current issue state and clearly badged so nothing reads as recorded fact.
  */

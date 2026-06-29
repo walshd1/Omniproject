@@ -163,7 +163,7 @@ export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPat
     id: next(), name: "Route Action", type: "n8n-nodes-base.switch", typeVersion: 3, position: [120, 320],
   };
 
-  const normalize = codeNode(next(), "Normalize → N8nActionResult", `// Normalize the backend response to { success, data, message }.\nconst action = $('Webhook').first().json.body.action;\nconst rows = items.map((i) => i.json);\nconst data = rows.length === 1 ? rows[0] : rows;\nreturn [{ json: { success: true, data, message: action + ' ok' } }];`, [620, 320]);
+  const normalize = codeNode(next(), "Normalize → BrokerActionResult", `// Normalize the backend response to { success, data, message }.\nconst action = $('Webhook').first().json.body.action;\nconst rows = items.map((i) => i.json);\nconst data = rows.length === 1 ? rows[0] : rows;\nreturn [{ json: { success: true, data, message: action + ' ok' } }];`, [620, 320]);
   const unsupported = codeNode(next(), "Unsupported Action", `const action = $('Webhook').first().json.body.action;\nreturn [{ json: { success: false, data: {}, message: 'Unsupported action: ' + action } }];`, [620, 560]);
   const respond: N8nNode = {
     parameters: { respondWith: "firstIncomingItem", options: {} },
@@ -180,7 +180,7 @@ export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPat
   connect("Drop loop?", "Route Action", 0); // true → proceed
   connect("Drop loop?", "Drop (loop)", 1); // false → drop
   connect("Drop (loop)", "Respond");
-  connect("Normalize → N8nActionResult", "Respond");
+  connect("Normalize → BrokerActionResult", "Respond");
   connect("Unsupported Action", "Respond");
 
   // Per-action nodes + wiring (Switch output order matches `actions`).
@@ -199,7 +199,7 @@ export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPat
         : httpNode(next(), titleFor(action), mapping, manifest, [380, y]);
       nodes.push(node);
       connect("Route Action", node.name, i);
-      connect(node.name, "Normalize → N8nActionResult");
+      connect(node.name, "Normalize → BrokerActionResult");
     }
     y += 180;
   });

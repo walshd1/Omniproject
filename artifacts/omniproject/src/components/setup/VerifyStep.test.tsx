@@ -26,7 +26,7 @@ describe("VerifyStep", () => {
     const status: SetupStatus = { ...configured, broker: { configured: false, urlSet: false } };
     const { getByRole, getByText } = renderWithProviders(<VerifyStep isAdmin status={status} />);
     expect(getByRole("button", { name: /Run verification/ })).toBeDisabled();
-    expect(getByText(/Connect n8n first/)).toBeInTheDocument();
+    expect(getByText(/Connect the broker first/)).toBeInTheDocument();
   });
 
   it("disables the button for non-admins", () => {
@@ -40,7 +40,7 @@ describe("VerifyStep", () => {
       ok: true,
       json: () =>
         Promise.resolve({
-          webhookUrl: "https://n8n/op",
+          webhookUrl: "https://broker/op",
           summary: { passed: 1, total: 2, verifyAware: true },
           results: [
             { action: "list_issues", ok: true, status: 200, ms: 12, verifyAware: true, message: null },

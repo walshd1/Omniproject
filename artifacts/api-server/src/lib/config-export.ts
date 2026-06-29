@@ -33,9 +33,9 @@ export function configEntries(input: ConfigExportInput): Entry[] {
   entries.push({ key: "PORT", value: "3000", comment: "Port the single-container omni-shell listens on" });
 
   if (input.brokerUrl?.trim()) {
-    entries.push({ key: "BROKER_URL", value: input.brokerUrl.trim(), comment: "The broker endpoint every data action is brokered through (n8n by default)" });
+    entries.push({ key: "BROKER_URL", value: input.brokerUrl.trim(), comment: "The broker endpoint every data action is brokered through" });
   } else {
-    entries.push({ key: "BROKER_URL", value: "https://n8n.example.com/webhook/omniproject", placeholder: true, comment: "Unset = demo mode (sample data). n8n is the default broker." });
+    entries.push({ key: "BROKER_URL", value: "https://broker.example.com/webhook/omniproject", placeholder: true, comment: "Unset = demo mode (sample data); set to your broker's webhook to go live." });
   }
 
   if (input.backendSource?.trim() && input.backendSource.trim() !== "all") {
@@ -56,7 +56,7 @@ export function configEntries(input: ConfigExportInput): Entry[] {
   }
 
   entries.push({ key: "SESSION_SECRET", value: "", placeholder: true, comment: "Required in production: a long random string for cookie signing" });
-  entries.push({ key: "NOTIFY_INGEST_SECRET", value: "", placeholder: true, comment: "Optional: enables real-time notifications — n8n/tools POST /api/notifications/ingest with this bearer" });
+  entries.push({ key: "NOTIFY_INGEST_SECRET", value: "", placeholder: true, comment: "Optional: enables real-time notifications — the broker/tools POST /api/notifications/ingest with this bearer" });
   entries.push({ key: "REDIS_URL", value: "", placeholder: true, comment: "Optional (multi-replica HA): Redis Pub/Sub fan-out for real-time notifications. Also install ioredis." });
   entries.push({ key: "AUDIT_LEVEL", value: input.auditLevel || "writes", comment: "Action audit scope: off | writes | all" });
   entries.push({ key: "AUDIT_HTTP_URL", value: "", placeholder: true, comment: "Optional: ship audit events (NDJSON) to a logging server — Loki / Splunk HEC / Elastic / syslog-over-HTTP (+ AUDIT_HTTP_TOKEN)" });

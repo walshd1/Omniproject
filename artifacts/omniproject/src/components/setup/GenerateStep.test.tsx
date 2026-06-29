@@ -51,9 +51,9 @@ describe("GenerateStep", () => {
   it("renders the heading and the loaded backend details", async () => {
     mockBackends([jira]);
     const { getByRole, findByText, getByText } = renderWithProviders(
-      <GenerateStep url="https://n8n.example.com/webhook/op" isAdmin status={status} />,
+      <GenerateStep url="https://broker.example.com/webhook/op" isAdmin status={status} />,
     );
-    expect(getByRole("heading", { name: "Generate an n8n workflow" })).toBeInTheDocument();
+    expect(getByRole("heading", { name: "Generate a broker workflow" })).toBeInTheDocument();
     // backend detail panel populated from fetched backends
     expect(await findByText("Jira note.")).toBeInTheDocument();
     expect(getByText("REST")).toBeInTheDocument();
@@ -96,6 +96,6 @@ describe("GenerateStep", () => {
   it("renders gracefully when backends fail to load", async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("nope")) as unknown as typeof fetch;
     const { getByRole } = renderWithProviders(<GenerateStep url="" isAdmin status={status} />);
-    expect(getByRole("heading", { name: "Generate an n8n workflow" })).toBeInTheDocument();
+    expect(getByRole("heading", { name: "Generate a broker workflow" })).toBeInTheDocument();
   });
 });

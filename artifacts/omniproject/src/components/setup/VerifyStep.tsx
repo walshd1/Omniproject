@@ -32,7 +32,7 @@ export function VerifyStep({
     /* Step 5 — verify workflow */
     <Step n={5} title="Verify your workflow">
       <p className="text-xs text-muted-foreground">
-        Probe your connected n8n for each read action. Sends <span className="font-mono">{`{ verify: true }`}</span> so a
+        Probe your connected broker for each read action. Sends <span className="font-mono">{`{ verify: true }`}</span> so a
         generated workflow short-circuits and nothing touches your backend. Write actions are never probed.
       </p>
       <button
@@ -44,7 +44,7 @@ export function VerifyStep({
         Run verification
       </button>
       {!status?.broker.configured && (
-        <p className="text-xs text-amber-500">Connect n8n first (step 2) to verify.</p>
+        <p className="text-xs text-amber-500">Connect the broker first (step 2) to verify.</p>
       )}
       {verifyResult && (
         <div className="border border-border bg-background">
@@ -67,7 +67,7 @@ export function VerifyStep({
         </div>
       )}
       <p className="text-xs text-muted-foreground">
-        For a full CLI contract test: <span className="font-mono">OMNI_API_BASE=https://your-omni pnpm --filter @workspace/scripts run verify-n8n</span>
+        For a full CLI contract test: <span className="font-mono">OMNI_API_BASE=https://your-omni pnpm --filter @workspace/scripts run verify-broker</span>
       </p>
     </Step>
   );
