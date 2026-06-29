@@ -17,61 +17,86 @@ nothing; the data lives in the customer's Postgres, on the customer's infrastruc
 
 ```
 SPA ──▶ Gateway (stateless) ──▶ broker seam ──▶ broker workflow ──▶ Postgres (customer-owned)
-        zero-at-rest             HTTP contract     SQL backend         OpenProject-compatible schema
+        zero-at-rest             HTTP contract     SQL backend         superset-native schema
+                                                                       (+ OpenProject export view)
 ```
 
 This means **no new gateway code paths** and no change to the stateless guarantee: it reuses the
 existing **admin-gated SQL backend** descriptor (`lib/backend-catalogue/vendors/backends/sql.json`)
 and the broker's uniform HTTP contract. The broker workflow (n8n or the reference sidecar) executes
 parameterised SQL against Postgres and returns the canonical envelopes the gateway already speaks.
+The database also reports its real shape back to the gateway via the broker's **`describeSchema`**
+manifest (see `lib/availability`), so OmniProject surfaces only the tables/fields that actually
+exist and are **populated** — superset ∩ manifest.
 
-## 2. OpenProject-compatible schema — portability, not lock-in
+## 2. Superset-native schema (generated) — with an OpenProject-compatible export view
 
-The schema mirrors **OpenProject's core tables**, so a customer is never trapped: a `pg_dump` from
-this database can be loaded into a real OpenProject instance, and conversely OmniProject can later be
-pointed at a real OpenProject. The schema is **derived from the canonical contract / `FIELD_REGISTRY`**
-mapped onto OpenProject's tables:
+The schema is **superset-native**: it is **generated from the canonical contract + `FIELD_REGISTRY`**,
+so **every canonical field is a first-class column** on its owning entity's table — nothing is
+shoe-horned into a generic key/value `custom_values` table. Because the registry is the *union* of
+every backend's fields (CI-enforced; see [FIELD-CATALOGUE.md](FIELD-CATALOGUE.md)), this schema can
+hold anything OmniProject understands, and it **grows additively** as the superset grows (a new
+field → a new column via an additive `ALTER TABLE … ADD COLUMN`).
 
-| Canonical (broker contract) | OpenProject table.column | Notes |
-| --- | --- | --- |
-| `Project.id` / `Project.name` | `projects.id` / `projects.name` (+ `identifier` slug) | |
-| `Issue.id` | `work_packages.id` | the work item |
-| `Issue.projectId` | `work_packages.project_id` | |
-| `Issue.title` | `work_packages.subject` | |
-| `Issue.description` | `work_packages.description` | |
-| `Issue.status` | `statuses.name` via `work_packages.status_id` | seed a default status set |
-| `Issue.version` (concurrency token) | `work_packages.lock_version` | **direct match** — OpenProject uses optimistic locking too |
-| `Issue.priority` | `enumerations` (type `IssuePriority`) via `priority_id` | |
-| `Issue.assignee` | `users` via `assigned_to_id` (`login`/`mail`) | |
-| `Issue.startDate` / `dueDate` | `work_packages.start_date` / `due_date` | |
-| `Issue.estimateHours` | `work_packages.estimated_hours` | |
-| `Issue.loggedHours` | `Σ time_entries.hours` | derived |
-| `Issue.type` | `types` via `type_id` | Task / Milestone / Bug / Feature seed |
-| `Issue.labels` | `custom_values` (a "Labels" custom field) | OpenProject core has no tag column |
-| Story points, RAID, risk/quality, EVM, billing-rate, etc. | `custom_fields` + `custom_values` | the capability-gated field groups land as custom fields |
-| `ProjectMember` | `members` + `member_roles` + `roles` | |
-| History / journals | `journals` (+ `*_journals`) | optional v2 |
+**Generation rules** (the DDL generator, deferred — see §3):
 
-**Core v1 scope:** projects, work_packages (subject/description/status/type/priority/assignee/dates/
-estimate/lock_version), statuses, types, priorities (enumerations), users, members/roles, and the
-capability-gated extras as custom fields. **Out of scope for v1:** attachments, full journals/history
-fidelity, relations/dependencies, OpenProject's permission model, the OpenProject web UI itself.
+- **Tables = canonical entities.** Each entity (`project`, the work item `issue`, `programme`,
+  `member`, and the CRM/service entities `account`/`contact`/`pipeline`/`service` when in scope)
+  becomes a table. A field's owning table comes from its **`entity`** tag (default `issue`).
+- **Columns = fields, by type.** Each `FieldDescriptor` becomes a column whose SQL type follows the
+  canonical `type`: `string`→`text`, `text`→`text`, `number`→`numeric`, `date`→`date`,
+  `boolean`→`boolean`, `currency`→`numeric`, `percent`→`numeric`, `duration`→`interval`,
+  `enum`→`text` (+ a seeded lookup), `labels`→`text[]`.
+- **Foreign keys = `reference`/`user` fields.** A `reference`-typed field becomes an FK to the table
+  named by its `references` entity; a `user`-typed field becomes an FK to `users`.
+- **Edge tables = the self-referential link fields.** `parentTask` is a self-FK on `issue`;
+  `dependsOn`/`blocks`/`relatesTo`/`duplicateOf` become a single `issue_links(from_id, to_id, kind)`
+  junction table (many-to-many).
+- **Concurrency.** The work item carries a `lock_version integer` column — the hard
+  optimistic-concurrency token the broker write checks (the canonical `Issue.version`).
 
-## 3. What ships (implementation plan — for the follow-up PRs)
+**OpenProject portability is a projection, not the schema.** OpenProject's fields are, by
+definition, a **subset** of the superset, so an **OpenProject-compatible export view** (or a
+`pg_dump` transform) maps the superset-native tables onto OpenProject's
+`projects` / `work_packages` (`subject`, `description`, `status_id`, `type_id`, `priority_id`,
+`assigned_to_id`, `start_date`/`due_date`, `estimated_hours`, **`lock_version`** — a direct match) /
+`statuses` / `types` / `enumerations` / `users` / `members`. Fields OpenProject lacks natively (story
+points, RAID, EVM, billing rate, …) project into its `custom_fields`/`custom_values`. So a customer
+is never trapped — they can move to a real OpenProject — but our own store keeps every field
+first-class rather than as opaque custom values.
 
-1. **Schema DDL** (`infra/self-host-db/schema.sql`) — the OpenProject-compatible tables above, with
-   seed rows (default statuses/types/priorities). Pinned to a documented OpenProject major version.
-2. **Broker workflow / sidecar** — reuse the SQL backend (`vendors/backends/sql.json`): an n8n
+**Core v1 scope:** `project`, `issue` (the canonical core + scheduling/effort/agile columns +
+`lock_version`), `programme`, `users`, `members`, the `issue_links` edge table, and seeded
+status/type/priority lookups. The capability-gated extras (financial, quality, CRM, service, strategy
+groups) are **first-class columns gated on at provision time** per the v1 field scope (a §7 decision).
+**Out of scope for v1:** attachments, full history/journal fidelity, OpenProject's permission model,
+the OpenProject web UI itself.
+
+## 3. What ships (implementation plan — for the follow-up PRs, after sign-off)
+
+1. **Schema-DDL generator** (`scripts/src/gen-self-host-db.ts`, **deferred**) — emits
+   `infra/self-host-db/schema.sql` **from `fields.json` + the contract** using the §2 generation
+   rules (tables=entities, columns=fields-by-type, FKs=reference/user, the `issue_links` edge table),
+   with seed rows (default statuses/types/priorities). Re-running it after the superset grows emits an
+   **additive migration** (`ALTER TABLE … ADD COLUMN`). Pinned to a documented OpenProject major
+   version for the export view. *(Not built yet — see the note below.)*
+2. **OpenProject export view** — a SQL view (or `pg_dump` transform) projecting the superset-native
+   tables onto OpenProject's `projects`/`work_packages`/… for portability (§2).
+3. **Broker workflow / sidecar** — reuse the SQL backend (`vendors/backends/sql.json`): an n8n
    workflow (or the existing reference sidecar extended) that maps each canonical action
    (`listProjects`, `listIssues`, `createIssue`, `updateIssue` with `lock_version` check, `baseline`,
-   `portfolioHealth`, …) to parameterised SQL. **No raw SQL from user input** — the gateway's egress
-   guards already strip control/URL-structural chars; the workflow uses bound parameters only.
-3. **`docker-compose.self-host-db.yml`** — `postgres` + the broker workflow + `omni-shell`, wired so
+   `portfolioHealth`, **`describeSchema`** → the availability manifest, …) to parameterised SQL.
+   **No raw SQL from user input** — the gateway's egress guards already strip control/URL-structural
+   chars; the workflow uses bound parameters only.
+4. **`docker-compose.self-host-db.yml`** — `postgres` + the broker workflow + `omni-shell`, wired so
    `BROKER_URL`/`BROKER_ENDPOINTS` point at the workflow and the workflow at Postgres. Profile-gated:
    intended with `DEPLOYMENT_PROFILE=self-hosted`.
-4. **Migration / portability notes** — `pg_dump` → load into a real OpenProject (version-matched);
-   and the reverse (point OmniProject's broker at an existing OpenProject via its API — the preferred
-   path once they have one).
+
+> **Build status:** this is a **design + README** document. The DDL generator and the broker workflow
+> are **deferred until the §7 decisions are signed off** — provisioning a customer database is the
+> gated step. The pieces this design depends on already exist and are shipped: the **`entity`** tag on
+> fields, the CI-enforced **field superset**, and the broker **`describeSchema`** manifest +
+> availability resolver.
 
 ## 4. docker-compose shape (sketch)
 
@@ -107,11 +132,13 @@ egress: a deliberate, documented step outside the stateless default, at the oper
 - **Non-preferred by design.** Running our DB dilutes the overlay value (no migration, your tools as
   source of truth). Keep it secondary; the wizard should steer first-time users to connect an
   existing tool.
-- **Schema drift.** OpenProject's schema changes across releases; we target a **pinned major version**
-  and state it. Full bidirectional fidelity (journals, attachments, relations, permissions) is **not**
-  guaranteed — core work-items + projects + the canonical fields are.
-- **Not an ERP.** This is a PM/work-item store, not accounting; financial *fields* are captured as
-  custom values, not a general ledger.
+- **Schema drift is contained to the export view.** Our own schema is superset-native and ours, so it
+  never "drifts" — it only grows additively with the superset. Drift risk lives only in the
+  **OpenProject export view**, which targets a **pinned major version**. Full bidirectional fidelity
+  of OpenProject's extras (journals, attachments, relations, permissions) is **not** guaranteed — the
+  canonical entities, fields and links are.
+- **Not an ERP.** This is a PM/work-item store, not accounting; financial *fields* are first-class
+  columns (gated on at provision), but it is not a general ledger.
 - **Statelessness preserved.** The gateway still holds nothing; turning this on does not change the
   gateway's zero-at-rest guarantee — it only gives the broker a database to talk to.
 

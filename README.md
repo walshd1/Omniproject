@@ -128,6 +128,10 @@ fixed connector list to wait on (and a different broker can widen it further):
   and stays stateless. See [docs/ops/DATABASE-BACKENDS.md](docs/ops/DATABASE-BACKENDS.md).
 - **One-shot from a spreadsheet** — an **Excel/CSV import** source with a column/
   field mapper, for legacy systems that can only export a sheet.
+- **No existing tool at all?** An **optional, customer-owned stateful database** (a
+  superset-native, OpenProject-compatible Postgres schema *below* the broker seam) for greenfield
+  teams with nothing to connect. The **non-preferred** path — the gateway stays stateless and the
+  data is the customer's to govern. Design + schema: [docs/SELF-HOST-DB.md](docs/SELF-HOST-DB.md).
 - **Inbound, via webhook** — any tool can `POST` events straight into
   `/api/notifications/ingest` (secret-authenticated) to drive real-time updates.
 - **Outbound, via webhook** — push OmniProject events to *any* endpoint — a SIEM,
