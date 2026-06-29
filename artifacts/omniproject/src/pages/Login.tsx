@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useAuth, login, samlLogin, oauth2Login, requestMagicLink } from "../lib/auth";
+import { useAuth, useAuthProviders, login, samlLogin, oauth2Login, requestMagicLink } from "../lib/auth";
 import { useBranding } from "../lib/branding";
 
 export function Login() {
   const { data: auth, isLoading } = useAuth();
+  const { data: providers } = useAuthProviders();
   const brand = useBranding();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
@@ -36,14 +37,33 @@ export function Login() {
           <p className="text-sm font-mono text-muted-foreground uppercase tracking-widest">{brand.loginHeading}</p>
         </div>
 
-        <Button
-          onClick={() => login("/")}
-          disabled={isLoading}
-          className="w-full rounded-none border-2 border-foreground hover:bg-foreground hover:text-background transition-colors font-bold uppercase tracking-wider h-12"
-          variant="outline"
-        >
-          {isLoading ? "CHECKING…" : isDemo ? "ENTER (DEMO MODE)" : "SIGN IN WITH SSO"}
-        </Button>
+        {/* Multi-provider: one branded button per configured OIDC provider. In demo mode (no
+            providers) a single button enters the local demo session. A single legacy provider
+            still renders as one "Sign in with <label>" button. */}
+        {providers && providers.length > 0 ? (
+          <div className="space-y-3">
+            {providers.map((p) => (
+              <Button
+                key={p.id}
+                onClick={() => login("/", p.id)}
+                disabled={isLoading}
+                className="w-full rounded-none border-2 border-foreground hover:bg-foreground hover:text-background transition-colors font-bold uppercase tracking-wider h-12"
+                variant="outline"
+              >
+                {`SIGN IN WITH ${p.label}`}
+              </Button>
+            ))}
+          </div>
+        ) : (
+          <Button
+            onClick={() => login("/")}
+            disabled={isLoading}
+            className="w-full rounded-none border-2 border-foreground hover:bg-foreground hover:text-background transition-colors font-bold uppercase tracking-wider h-12"
+            variant="outline"
+          >
+            {isLoading ? "CHECKING…" : isDemo ? "ENTER (DEMO MODE)" : "SIGN IN WITH SSO"}
+          </Button>
+        )}
 
         {auth?.samlConfigured && (
           <Button

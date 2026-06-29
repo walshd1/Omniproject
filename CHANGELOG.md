@@ -8,6 +8,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Multi-provider OIDC sign-in — a branded button per provider (Google, Microsoft, …).** The OIDC
+  relying party moves from a single issuer to a **provider registry** (`lib/oidc`). Two ways to
+  configure, combined: the **legacy single** `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` /
+  `OIDC_CLIENT_SECRET` still works unchanged (it becomes the provider `default`); and **named
+  providers** via `OIDC_PROVIDERS=google,microsoft` with per-id env (`OIDC_GOOGLE_ISSUER_URL`,
+  `OIDC_GOOGLE_CLIENT_ID`, … plus optional `_SCOPE` / `_AUDIENCE` / `_LABEL`). Each configured
+  provider renders its own **"Sign in with &lt;label&gt;"** button on the login screen. `GET
+  /api/auth/login?provider=<id>` selects the provider (default = the first/legacy one); the signed
+  flow cookie carries the provider id so the callback verifies the ID token against the **same**
+  provider (per-provider issuer/audience/JWKS, through the `jose` `verifyIdToken` seam). A public,
+  secret-free `GET /api/auth/providers` lists `{id, label, kind}` for the SPA. `state` + S256 PKCE
+  + nonce binding, the per-IP `loginLimiter`, and the SSRF guards are all preserved; the discovery
+  cache is now keyed per issuer so providers don't clobber one another. Backward-compatible: an
+  existing single-OIDC deployment is unaffected (one provider, one button). Tests run without
+  network (mocked discovery/JWKS).
+
 - **Generic OAuth 2.0 (Authorization Code + PKCE) sign-in for non-OIDC providers (e.g. GitHub).**
   GitHub and similar issue opaque access tokens and expose identity via a userinfo endpoint rather
   than a signed ID token, so they can't use the OIDC relying party. This adds the sibling path
