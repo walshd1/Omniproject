@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **DSAR evidence report (admin, one-click).** `GET /api/security/dsar?sub=&email=` assembles —
+  from live gateway state only — an auditor-ready "what do we hold/process for subject X" report
+  (JSON + human-readable summary, `lib/dsar`). Consistent with zero-at-rest it reports references
+  and locations, never copies: what is **not retained** (project data, session claims, role
+  derivation, AI content); what the gateway **does** hold for the subject (SCIM record if SCIM is
+  on, a session-revocation mark, content-free provenance-ring references); where the data
+  **actually lives** (connected backends, origins only); and the **audit-chain anchor** to verify
+  the subject's SIEM slice. The request is itself audited. See `docs/ENTERPRISE-OPS.md` §2.
+
 - **Scheduled executive digest (PM-domain).** A periodic, read-only portfolio roll-up dispatched
   over the existing notification seam, so execs who never open the app still get the summary on
   their channel. Stateless-safe: the run mints a short-lived, keyed, viewer-roled **autonomous
