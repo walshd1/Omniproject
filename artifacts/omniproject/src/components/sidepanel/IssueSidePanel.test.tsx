@@ -5,6 +5,7 @@ import { getGetProjectIssuesQueryKey, getListActivityQueryKey, type Issue, type 
 import { renderWithProviders } from "../../test/utils";
 import { IssueSidePanel, buildFieldUpdate } from "./IssueSidePanel";
 import { useSidePanel } from "../../lib/side-panel";
+import { useRecentItems } from "../../lib/recent-items";
 import { featuresQueryKey, type FeatureStatus } from "../../lib/features";
 import { availabilityQueryKey, type Availability } from "../../lib/availability";
 
@@ -35,6 +36,7 @@ const mutatingCalls = () =>
 
 beforeEach(() => {
   useSidePanel.setState({ open: false, projectId: null, issueId: null });
+  useRecentItems.setState({ items: [] });
   vi.stubGlobal("fetch", vi.fn(async (_u: string, o?: RequestInit) =>
     new Response((o?.method ?? "GET") === "GET" ? "[]" : "{}", { status: 200, headers: { "Content-Type": "application/json" } })));
 });
@@ -71,6 +73,13 @@ describe("IssueSidePanel", () => {
     const body = String((mutatingCalls().at(-1)![1] as RequestInit).body);
     expect(body).toContain("\"status\":\"done\"");
     expect(body).toContain("expectedVersion");
+  });
+
+  it("records the opened work item in the recents quick-find list (findability)", async () => {
+    renderWithProviders(<IssueSidePanel />, { client: seed() });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    await screen.findByText("Wire the broker");
+    await waitFor(() => expect(useRecentItems.getState().items[0]).toMatchObject({ type: "issue", id: "i1", label: "Wire the broker", projectId: "p1" }));
   });
 
   it("lists only this item's activity", async () => {

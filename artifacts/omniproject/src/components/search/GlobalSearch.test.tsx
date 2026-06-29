@@ -5,6 +5,7 @@ import { getListProjectsQueryKey, getListProgrammesQueryKey, type Project, type 
 import { renderWithProviders } from "../../test/utils";
 import { GlobalSearch } from "./GlobalSearch";
 import { useGlobalSearch } from "../../lib/global-search";
+import { useRecentItems } from "../../lib/recent-items";
 import { useSidePanel } from "../../lib/side-panel";
 import { featuresQueryKey, type FeatureStatus } from "../../lib/features";
 
@@ -29,6 +30,7 @@ function seed(opts: { enabled?: boolean; sidePanel?: boolean } = {}): QueryClien
 beforeEach(() => {
   useGlobalSearch.setState({ open: false });
   useSidePanel.setState({ open: false, projectId: null, issueId: null });
+  useRecentItems.setState({ items: [] });
   vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })));
 });
 afterEach(() => vi.restoreAllMocks());
@@ -62,6 +64,36 @@ describe("GlobalSearch", () => {
     const input = await screen.findByLabelText(/search projects/i);
     fireEvent.change(input, { target: { value: "apollo" } });
     await screen.findByText("Apollo");
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(useGlobalSearch.getState().open).toBe(false));
+  });
+
+  it("shows the prompt to type when there is no query and no recents", async () => {
+    renderWithProviders(<GlobalSearch />, { client: seed() });
+    act(() => useGlobalSearch.getState().setOpen(true));
+    expect(await screen.findByText(/type to search/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("global-search-recent-heading")).toBeNull();
+  });
+
+  it("offers recently-visited items as a quick way back when the query is empty", async () => {
+    useRecentItems.setState({ items: [{ type: "programme", id: "pr1", label: "Gemini Programme" }] });
+    renderWithProviders(<GlobalSearch />, { client: seed() });
+    act(() => useGlobalSearch.getState().setOpen(true));
+    expect(await screen.findByTestId("global-search-recent-heading")).toBeInTheDocument();
+    expect(screen.getByText("Gemini Programme")).toBeInTheDocument();
+    // Typing replaces recents with live hits.
+    const input = screen.getByLabelText(/search projects/i);
+    fireEvent.change(input, { target: { value: "apollo" } });
+    await screen.findByText("Apollo");
+    expect(screen.queryByTestId("global-search-recent-heading")).toBeNull();
+  });
+
+  it("Enter on a recent item routes and closes the overlay (keyboard)", async () => {
+    useRecentItems.setState({ items: [{ type: "project", id: "p1", label: "Apollo" }] });
+    renderWithProviders(<GlobalSearch />, { client: seed() });
+    act(() => useGlobalSearch.getState().setOpen(true));
+    const input = await screen.findByLabelText(/search projects/i);
+    await screen.findByTestId("global-search-recent-heading");
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(useGlobalSearch.getState().open).toBe(false));
   });

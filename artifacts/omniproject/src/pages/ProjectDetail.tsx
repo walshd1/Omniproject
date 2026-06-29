@@ -1,9 +1,10 @@
 import { useListProjects, useGetProjectIssues, useGetCapabilities, getGetProjectIssuesQueryKey } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AgileBoard } from "../components/board/AgileBoard";
 import { IssueGrid } from "../components/grid/IssueGrid";
 import { useFeatures, featureEnabled } from "../lib/features";
+import { useRecentItems } from "../lib/recent-items";
 import { ExportMenu } from "../components/ExportMenu";
 import { DataProvenance } from "../components/DataProvenance";
 import { ProjectFinancialsStrip } from "../components/ProjectFinancialsStrip";
@@ -36,6 +37,12 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
   const gridEnabled = featureEnabled(features, "grid");
   const [view, setView] = useState<"board" | "grid">("board");
   const activeView = gridEnabled ? view : "board";
+
+  // Remember this visit for the "Recent" quick-find list (findability).
+  const recordRecent = useRecentItems((s) => s.record);
+  useEffect(() => {
+    if (project) recordRecent({ type: "project", id: project.id, label: project.name });
+  }, [project, recordRecent]);
 
   return (
     <div className="h-full flex flex-col">
