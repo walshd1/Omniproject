@@ -8,7 +8,7 @@ describe("ProvenanceBadge", () => {
     renderWithProviders(<ProvenanceBadge provenance="sourced" />);
     const badge = screen.getByText("LIVE · BACKEND");
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveAttribute("title", "Read from the backend system of record via n8n.");
+    expect(badge).toHaveAttribute("title", "Read from the backend system of record via the broker.");
   });
 
   it("renders the explicit 'derived' provenance", () => {

@@ -12,7 +12,7 @@ import { Settings } from "./Settings";
 
 function settings(over: Partial<SettingsType> = {}): SettingsType {
   return {
-    brokerUrl: "https://n8n.example.com/webhook/abc",
+    brokerUrl: "https://broker.example.com/webhook/abc",
     aiProvider: "none",
     aiModel: "",
     backendSource: "all",
@@ -53,7 +53,7 @@ describe("Settings", () => {
     expect(screen.getByText(/ai model/i)).toBeInTheDocument();
     expect(screen.getByText(/identity/i)).toBeInTheDocument();
     // broker URL input pre-filled from seeded settings
-    expect(screen.getByDisplayValue("https://n8n.example.com/webhook/abc")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("https://broker.example.com/webhook/abc")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /commit changes/i })).toBeInTheDocument();
   });
 

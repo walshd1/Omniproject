@@ -1,18 +1,17 @@
 /**
  * Broker-isolation guard.
  *
- * Hard rule: a concrete broker's CODE lives in exactly one home — its adapter folder
- * `artifacts/api-server/src/broker/<vendor>/` — and its DATA in
- * `lib/backend-catalogue/vendors/brokers/<vendor>.json`. Above the broker seam, code talks to a
- * broker only through the generic `Broker` interface, never a concrete adapter.
+ * Hard rule: a concrete broker is named in exactly two homes — its adapter folder
+ * `artifacts/api-server/src/broker/<vendor>/` (code) and `lib/backend-catalogue/vendors/brokers/
+ * <vendor>.json` (data). Everywhere else the product is broker-NEUTRAL: above the seam, code talks
+ * to a broker only through the generic `Broker` interface, and no user-facing copy, route, type or
+ * deploy template names a concrete vendor.
  *
- * This guard enforces the architecturally load-bearing half of that rule with zero false
- * positives: NOTHING may IMPORT a concrete broker adapter except the broker factory that wires
- * the seam (`broker/index.ts`) and the adapter's own folder. So a route, a lib helper, or the SPA
- * can never reach `broker/<vendor>` directly — swap the adapter and nothing above the seam moves.
- *
- * (Vendor NAMING in user-facing copy, route labels and deploy templates is a separate
- * "broker-agnostic language" concern, tracked independently — this guard is about code reach.)
+ * Two checks, both fail CI:
+ *   1. IMPORT REACH — nothing may import a concrete adapter except the seam factory
+ *      (`broker/index.ts`) and the adapter's own folder.
+ *   2. NAMING — the vendor token may not appear in CODE (comments excluded — they legitimately
+ *      document the reference broker) anywhere in the gateway or SPA, except the allowlisted homes.
  *
  * Run: `pnpm --filter @workspace/scripts run guard-broker-isolation`
  */
@@ -25,60 +24,101 @@ const GATEWAY_SRC = "artifacts/api-server/src";
 
 /** Concrete adapter folders (relative to GATEWAY_SRC) that may only be imported via the seam. */
 const ADAPTER_DIRS = ["broker/n8n"];
-
-/** Files allowed to import a concrete adapter (relative to GATEWAY_SRC): the seam factory. The
- *  adapter's own folder is always allowed (intra-adapter imports). */
+/** Files allowed to import a concrete adapter (relative to GATEWAY_SRC): the seam factory. */
 const SEAM_FACTORY = ["broker/index.ts"];
 
-/** If `line` imports a concrete adapter folder, return that folder; else null. Matches a
- *  specifier whose last path segment is the adapter leaf (e.g. `./n8n`, `../broker/n8n`,
- *  `../broker/n8n/index`, `../../broker/n8n/expr`). */
+/** The vendor token(s) that may only appear in their sanctioned homes. */
+const VENDOR_TOKEN = /n8n/i;
+/** Source trees scanned for vendor NAMING in code (relative to ROOT). */
+const NAMING_DIRS = [GATEWAY_SRC, "artifacts/omniproject/src"];
+/** Paths (relative to ROOT) where the vendor token may appear as code: the adapter home, the seam
+ *  factory that constructs it, and the neutral resolver that owns the legacy env alias. */
+const NAMING_ALLOW = [
+  `${GATEWAY_SRC}/broker/n8n`,
+  `${GATEWAY_SRC}/broker/index.ts`,
+  `${GATEWAY_SRC}/lib/broker-url.ts`,
+];
+
 function importsAdapter(line: string): string | null {
   const m = line.match(/(?:from|import|require\()\s*["']([^"']+)["']/);
   if (!m) return null;
   const spec = m[1]!;
   for (const dir of ADAPTER_DIRS) {
-    const leaf = dir.split("/").pop()!; // e.g. "n8n"
-    // The adapter leaf appears as a path segment that is either the final segment, or followed
-    // by a deeper path into the adapter folder (…/n8n or …/n8n/expr).
+    const leaf = dir.split("/").pop()!;
     if (new RegExp(`(^|/)${leaf}(/|$)`).test(spec)) return dir;
   }
   return null;
 }
 
-function listTsFiles(absDir: string, relBase: string): string[] {
+function listTsFiles(relDir: string): string[] {
+  const absDir = path.join(ROOT, relDir);
   if (!fs.existsSync(absDir)) return [];
   const out: string[] = [];
   for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
-    const abs = path.join(absDir, entry.name);
-    const rel = relBase ? `${relBase}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) out.push(...listTsFiles(abs, rel));
+    const rel = `${relDir}/${entry.name}`;
+    if (entry.isDirectory()) out.push(...listTsFiles(rel));
     else if (/\.tsx?$/.test(entry.name) && !/\.(test|spec)\.tsx?$/.test(entry.name)) out.push(rel);
   }
   return out;
 }
 
-const allowed = (rel: string): boolean =>
-  SEAM_FACTORY.includes(rel) || ADAPTER_DIRS.some((d) => rel === d || rel.startsWith(d + "/"));
+/** Per-line CODE (line + block comments stripped), tracking block-comment state. */
+function codeLines(src: string): { line: number; text: string }[] {
+  const result: { line: number; text: string }[] = [];
+  let inBlock = false;
+  src.split("\n").forEach((raw, i) => {
+    let text = raw;
+    if (inBlock) {
+      const end = text.indexOf("*/");
+      if (end === -1) { result.push({ line: i + 1, text: "" }); return; }
+      text = text.slice(end + 2);
+      inBlock = false;
+    }
+    text = text.replace(/\/\*.*?\*\//g, "");
+    const open = text.indexOf("/*");
+    if (open !== -1) { inBlock = true; text = text.slice(0, open); }
+    const sl = text.indexOf("//");
+    if (sl !== -1) text = text.slice(0, sl);
+    result.push({ line: i + 1, text });
+  });
+  return result;
+}
 
 const violations: string[] = [];
-for (const rel of listTsFiles(path.join(ROOT, GATEWAY_SRC), "")) {
-  if (allowed(rel)) continue;
-  const src = fs.readFileSync(path.join(ROOT, GATEWAY_SRC, rel), "utf8");
-  src.split("\n").forEach((line, i) => {
+
+// 1. Import-reach: no adapter import outside the seam factory / the adapter folder.
+const importAllowed = (rel: string): boolean =>
+  SEAM_FACTORY.includes(rel) || ADAPTER_DIRS.some((d) => rel === d || rel.startsWith(d + "/"));
+for (const rel of listTsFiles(GATEWAY_SRC).map((r) => r.slice(GATEWAY_SRC.length + 1))) {
+  if (importAllowed(rel)) continue;
+  fs.readFileSync(path.join(ROOT, GATEWAY_SRC, rel), "utf8").split("\n").forEach((line, i) => {
     const dir = importsAdapter(line);
-    if (dir) violations.push(`${GATEWAY_SRC}/${rel}:${i + 1}  imports adapter '${dir}' — ${line.trim().slice(0, 90)}`);
+    if (dir) violations.push(`${GATEWAY_SRC}/${rel}:${i + 1}  [import] reaches adapter '${dir}' — ${line.trim().slice(0, 80)}`);
   });
 }
 
+// 2. Naming: the vendor token may not appear in code outside its sanctioned homes.
+const namingAllowed = (rel: string): boolean => NAMING_ALLOW.some((a) => rel === a || rel.startsWith(a + "/"));
+for (const dir of NAMING_DIRS) {
+  for (const rel of listTsFiles(dir)) {
+    if (namingAllowed(rel)) continue;
+    const src = fs.readFileSync(path.join(ROOT, rel), "utf8");
+    if (!VENDOR_TOKEN.test(src)) continue;
+    for (const { line, text } of codeLines(src)) {
+      if (VENDOR_TOKEN.test(text)) violations.push(`${rel}:${line}  [naming] ${text.trim().slice(0, 90)}`);
+    }
+  }
+}
+
 if (violations.length) {
-  console.error("::error::Broker-isolation guard failed — a concrete adapter is imported outside the seam:");
+  console.error("::error::Broker-isolation guard failed — a concrete broker leaks outside its home:");
   for (const v of violations) console.error("  " + v);
   console.error(
-    "\nOnly the broker factory (" + SEAM_FACTORY.join(", ") + ") may import a concrete adapter. " +
-      "Everywhere else, depend on the generic `Broker` interface via getBroker().",
+    "\nA concrete broker may be named only in its adapter folder (code), the seam factory that " +
+      "constructs it, the neutral broker-url resolver, and vendors/brokers/<vendor>.json (data). " +
+      "Everywhere else use the generic Broker interface and broker-neutral wording. Comments are exempt.",
   );
   process.exit(1);
 }
 
-console.log(`broker-isolation guard: OK — adapters [${ADAPTER_DIRS.join(", ")}] are imported only via the seam.`);
+console.log("broker-isolation guard: OK — no adapter import or vendor naming outside the sanctioned homes.");

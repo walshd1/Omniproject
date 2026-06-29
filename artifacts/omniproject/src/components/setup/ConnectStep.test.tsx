@@ -28,8 +28,8 @@ describe("ConnectStep", () => {
 
   it("renders the step heading and url field", () => {
     const { getByRole, getByLabelText } = renderWithProviders(<Harness />);
-    expect(getByRole("heading", { name: "Connect n8n" })).toBeInTheDocument();
-    expect(getByLabelText(/n8n webhook URL/)).toBeInTheDocument();
+    expect(getByRole("heading", { name: "Connect the broker" })).toBeInTheDocument();
+    expect(getByLabelText(/Broker webhook URL/)).toBeInTheDocument();
   });
 
   it("shows the admin-only warning when not admin and disables Test", () => {
@@ -41,7 +41,7 @@ describe("ConnectStep", () => {
   it("flags an invalid URL with an inline error", async () => {
     const user = userEvent.setup();
     const { getByLabelText, getByRole } = renderWithProviders(<Harness />);
-    const input = getByLabelText(/n8n webhook URL/);
+    const input = getByLabelText(/Broker webhook URL/);
     await user.type(input, "not-a-url");
     expect(getByRole("alert")).toHaveTextContent(/valid URL/);
     expect(input).toHaveAttribute("aria-invalid", "true");
@@ -53,7 +53,7 @@ describe("ConnectStep", () => {
     const { getByLabelText, getByRole, findByText } = renderWithProviders(
       <Harness isAdmin={true} />,
     );
-    await user.type(getByLabelText(/n8n webhook URL/), "https://n8n.example.com/webhook/op");
+    await user.type(getByLabelText(/Broker webhook URL/), "https://broker.example.com/webhook/op");
     await user.click(getByRole("button", { name: /Test/ }));
     expect(await findByText(/Reachable — webhook responded/)).toBeInTheDocument();
     expect(await findByText(/implements get_capabilities/)).toBeInTheDocument();
@@ -64,7 +64,7 @@ describe("ConnectStep", () => {
     const user = userEvent.setup();
     mockFetch({ reachable: false, error: "boom" });
     const { getByLabelText, getByRole, findByText } = renderWithProviders(<Harness />);
-    await user.type(getByLabelText(/n8n webhook URL/), "https://n8n.example.com/webhook/op");
+    await user.type(getByLabelText(/Broker webhook URL/), "https://broker.example.com/webhook/op");
     await user.click(getByRole("button", { name: /Test/ }));
     expect(await findByText(/Unreachable — boom/)).toBeInTheDocument();
   });
@@ -73,7 +73,7 @@ describe("ConnectStep", () => {
     const user = userEvent.setup();
     mockFetch({ reachable: true, ok: false, status: 502, implementsCapabilities: false });
     const { getByLabelText, getByRole, findByText } = renderWithProviders(<Harness />);
-    await user.type(getByLabelText(/n8n webhook URL/), "https://n8n.example.com/webhook/op");
+    await user.type(getByLabelText(/Broker webhook URL/), "https://broker.example.com/webhook/op");
     await user.click(getByRole("button", { name: /Test/ }));
     expect(await findByText(/responded 502/)).toBeInTheDocument();
     expect(await findByText(/add a get_capabilities branch/)).toBeInTheDocument();
@@ -83,7 +83,7 @@ describe("ConnectStep", () => {
     const user = userEvent.setup();
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("net")) as unknown as typeof fetch;
     const { getByLabelText, getByRole, findByText } = renderWithProviders(<Harness />);
-    await user.type(getByLabelText(/n8n webhook URL/), "https://n8n.example.com/webhook/op");
+    await user.type(getByLabelText(/Broker webhook URL/), "https://broker.example.com/webhook/op");
     await user.click(getByRole("button", { name: /Test/ }));
     await waitFor(() => expect(getByRole("button", { name: /Test/ })).not.toBeDisabled());
     expect(await findByText(/Test request failed/)).toBeInTheDocument();

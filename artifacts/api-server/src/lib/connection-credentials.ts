@@ -70,10 +70,10 @@ export function renderCredentialTemplate(creds: RequiredCredential[], format: Cr
   const secrets = creds.filter((c) => c.secret);
   const plain = creds.filter((c) => !c.secret);
   const out: string[] = [
-    "# docker-compose excerpt for your BROKER service (e.g. n8n).",
+    "# docker-compose excerpt for your BROKER service.",
     "# OmniProject never stores these; secrets are mounted as Docker secrets.",
     "services:",
-    "  n8n:                       # <- your broker service",
+    "  broker:                    # <- your broker service",
     "    environment:",
     ...plain.map((c) => `      ${c.name}: \${${c.name}}        # used by: ${c.backends.join(", ")}`),
     ...secrets.map((c) => `      ${c.name}_FILE: /run/secrets/${c.name.toLowerCase()}   # used by: ${c.backends.join(", ")}`),

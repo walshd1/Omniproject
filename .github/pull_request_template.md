@@ -10,7 +10,7 @@
 
 ## Checklist
 
-- [ ] `typecheck`, unit tests, builds and `verify-n8n` pass locally
+- [ ] `typecheck`, unit tests, builds and `verify-broker` pass locally
 - [ ] Tests added/updated for the change
 - [ ] Docs updated (`docs/`, READMEs) if behaviour changed
 - [ ] If the API contract changed, `openapi.yaml` was edited and codegen re-run (no hand-edited generated files)

@@ -9,7 +9,7 @@ export function StatusStep({ status }: { status: SetupStatus | undefined }) {
     <Step n={1} title="Status">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="border border-border p-3">
-          <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">n8n broker</div>
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">broker</div>
           <div className="flex items-center gap-2 font-bold text-sm">
             <Dot on={status?.broker.configured} />
             {status?.broker.configured ? "Connected" : "Demo (sample data)"}
@@ -39,7 +39,7 @@ export function StatusStep({ status }: { status: SetupStatus | undefined }) {
           ))}
         </div>
         <p className="text-xs text-muted-foreground mt-2">
-          Greyed = unknown (not probed yet). These come from your n8n workflow's <span className="font-mono">get_capabilities</span>.
+          Greyed = unknown (not probed yet). These come from your broker workflow's <span className="font-mono">get_capabilities</span>.
         </p>
       </div>
 

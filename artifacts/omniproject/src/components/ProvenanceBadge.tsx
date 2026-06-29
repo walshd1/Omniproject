@@ -4,7 +4,7 @@ const META: Record<Provenance, { label: string; cls: string; title: string }> = 
   sourced: {
     label: "LIVE · BACKEND",
     cls: "border-green-500/40 text-green-600 dark:text-green-400 bg-green-500/10",
-    title: "Read from the backend system of record via n8n.",
+    title: "Read from the backend system of record via the broker.",
   },
   derived: {
     label: "DERIVED",

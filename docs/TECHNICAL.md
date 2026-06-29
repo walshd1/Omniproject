@@ -324,7 +324,7 @@ Canonical definitions are in `openapi.yaml`. Summary:
   `STATIC_DIR` set, serving SPA + API on port 3000.
 - **Contract test:** `scripts/src/verify-n8n-bidirectional.ts` mocks n8n and
   asserts the full contract (auth gate, idempotency/origin/userContext headers,
-  data shapes, AI status, exports). Run via `verify-n8n` (see README).
+  data shapes, AI status, exports). Run via `verify-broker` (see README).
 
 ---
 
@@ -527,7 +527,7 @@ n8n contract verification → **E2E smoke + stress** → env-gated integration c
 | Harness | Command | What it does |
 | ------- | ------- | ------------ |
 | Unit | `pnpm --filter @workspace/api-server test` | 86 `node:test` cases — pure gateway logic (JWKS, RBAC, concurrency, currency, snapshot, licensing, branding/labels, webhooks, mapping certification…). |
-| Contract | `pnpm --filter @workspace/scripts run verify-n8n` | 137+ assertions over the live gateway + a mock n8n (the premium suite adapts to the licensed/unlicensed state). |
+| Contract | `pnpm --filter @workspace/scripts run verify-broker` | 137+ assertions over the live gateway + a mock n8n (the premium suite adapts to the licensed/unlicensed state). |
 | **E2E smoke** | `pnpm --filter @workspace/scripts run e2e-smoke` | Single-container check: SPA shell is served + the critical journey (login → projects → issues → summary → capabilities → reports) responds. |
 | **Stress** | `pnpm --filter @workspace/scripts run stress` | Load test — `STRESS_USERS` (2000) × `STRESS_REQS` (3) at `STRESS_CONCURRENCY` (100); reports throughput + p50/p95/p99, fails over `STRESS_MAX_ERROR_RATE`. |
 | **Live cert** | `pnpm --filter @workspace/scripts run integration:openproject` | Certifies the OpenProject mapping against a real instance when `OPENPROJECT_LIVE_URL` + `OPENPROJECT_TOKEN` are set; SKIPS otherwise. |

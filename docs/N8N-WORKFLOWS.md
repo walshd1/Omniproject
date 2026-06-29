@@ -139,7 +139,7 @@ integrations* are licensed:
 - **Safety:** write actions (`create/update/delete`) are **never** probed. The
   `verify: true` flag lets a generated workflow short-circuit so even reads don't
   touch the backend (the workflow returns `data.verified = true`).
-- **CLI (full contract):** `OMNI_API_BASE=https://your-omni pnpm --filter @workspace/scripts run verify-n8n`.
+- **CLI (full contract):** `OMNI_API_BASE=https://your-omni pnpm --filter @workspace/scripts run verify-broker`.
 
 ## Real-time notifications — wire in tools like ntfy / Slack
 

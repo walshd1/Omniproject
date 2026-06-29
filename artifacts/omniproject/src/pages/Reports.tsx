@@ -37,7 +37,7 @@ function Gated({
       <section>
         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">{title}</h2>
         <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          Not available for this backend — requires {requires} wired through n8n.
+          Not available for this backend — requires {requires} wired through the broker.
         </div>
       </section>
     );

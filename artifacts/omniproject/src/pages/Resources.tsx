@@ -59,7 +59,7 @@ export function Resources() {
         {!supported ? (
           <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
             Resource data isn't available for this backend — requires a source that surfaces members,
-            skills and capacity (wired through n8n).
+            skills and capacity (wired through the broker).
           </div>
         ) : (
           <>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useUpdateSettings } from "@workspace/api-client-react";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { testN8nConnection, type N8nTestResult } from "../../lib/setup";
+import { testBrokerConnection, type BrokerTestResult } from "../../lib/setup";
 import { urlFormatError } from "../../lib/validation";
 import { Dot, Step, useRefreshAndSettings } from "./shared";
 
@@ -20,14 +20,14 @@ export function ConnectStep({
   const { toast } = useToast();
 
   const [testing, setTesting] = useState(false);
-  const [result, setResult] = useState<N8nTestResult | null>(null);
+  const [result, setResult] = useState<BrokerTestResult | null>(null);
   const urlError = urlFormatError(url);
 
   const runTest = async () => {
     setTesting(true);
     setResult(null);
     try {
-      setResult(await testN8nConnection(url.trim()));
+      setResult(await testBrokerConnection(url.trim()));
     } catch {
       setResult({ reachable: false, error: "Test request failed" });
     } finally {
@@ -49,24 +49,24 @@ export function ConnectStep({
   };
 
   return (
-    /* Step 2 — connect n8n */
-    <Step n={2} title="Connect n8n">
+    /* Step 2 — connect the broker */
+    <Step n={2} title="Connect the broker">
       {!isAdmin && (
         <div className="text-xs text-amber-500 border border-amber-500/40 bg-amber-500/10 p-3">
           Testing and applying require the <span className="font-mono">admin</span> role.
         </div>
       )}
-      <label htmlFor="n8n-webhook-url" className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-        n8n webhook URL <span className="text-red-500" aria-hidden="true">*</span>
+      <label htmlFor="broker-webhook-url" className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+        Broker webhook URL <span className="text-red-500" aria-hidden="true">*</span>
       </label>
       <div className="flex gap-2">
         <input
-          id="n8n-webhook-url"
+          id="broker-webhook-url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://n8n.example.com/webhook/omniproject"
+          placeholder="https://broker.example.com/webhook/omniproject"
           aria-invalid={urlError ? true : undefined}
-          aria-describedby={urlError ? "n8n-webhook-url-error" : undefined}
+          aria-describedby={urlError ? "broker-webhook-url-error" : undefined}
           className={`flex-1 bg-background border px-3 py-2 text-sm font-mono outline-none focus:border-primary ${urlError ? "border-red-500" : "border-border"}`}
         />
         <button
@@ -79,7 +79,7 @@ export function ConnectStep({
         </button>
       </div>
       {urlError && (
-        <p id="n8n-webhook-url-error" role="alert" className="text-xs font-bold text-red-500">{urlError}</p>
+        <p id="broker-webhook-url-error" role="alert" className="text-xs font-bold text-red-500">{urlError}</p>
       )}
 
       {result && (

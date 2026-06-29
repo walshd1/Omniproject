@@ -133,12 +133,12 @@ export function Settings() {
         <div className="space-y-6 p-6 border border-border bg-card">
           <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Orchestration</h2>
           <div className="space-y-2">
-            <label htmlFor="broker-url" className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">BROKER URL (n8n)</label>
+            <label htmlFor="broker-url" className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">BROKER URL</label>
             <Input
               id="broker-url"
               value={formData.brokerUrl}
               onChange={(e) => setFormData((p) => ({ ...p, brokerUrl: e.target.value }))}
-              placeholder="https://n8n.example.com/webhook/..."
+              placeholder="https://broker.example.com/webhook/..."
               aria-invalid={brokerUrlError ? true : undefined}
               aria-describedby={brokerUrlError ? "broker-url-error" : undefined}
               className="rounded-none border-border font-mono h-12 aria-[invalid=true]:border-red-500"
@@ -146,7 +146,7 @@ export function Settings() {
             {brokerUrlError ? (
               <p id="broker-url-error" role="alert" className="text-xs font-bold text-red-500">{brokerUrlError}</p>
             ) : (
-              <p className="text-xs text-muted-foreground">All project data is brokered through this URL (n8n by default).</p>
+              <p className="text-xs text-muted-foreground">All project data is brokered through this URL.</p>
             )}
           </div>
 
@@ -164,7 +164,7 @@ export function Settings() {
               {(backends ?? []).map((b) => <option key={b.id} value={b.id} />)}
             </datalist>
             <p className="text-xs text-muted-foreground">
-              Optional routing hint sent to n8n. Use <span className="font-mono">all</span> for any backend n8n is wired
+              Optional routing hint sent to the broker. Use <span className="font-mono">all</span> for any backend the broker is wired
               to, or pick a specific backend id from the suggestions. No specific backend is required.
             </p>
           </div>

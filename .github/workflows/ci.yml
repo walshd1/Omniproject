@@ -181,7 +181,7 @@ jobs:
             if curl -fsS http://localhost:5000/api/healthz >/dev/null 2>&1; then break; fi
             sleep 1
           done
-          OMNI_API_BASE=http://localhost:5000 pnpm --filter @workspace/scripts run verify-n8n
+          OMNI_API_BASE=http://localhost:5000 pnpm --filter @workspace/scripts run verify-broker
           STATUS=$?
           kill $SERVER_PID 2>/dev/null || true
           exit $STATUS

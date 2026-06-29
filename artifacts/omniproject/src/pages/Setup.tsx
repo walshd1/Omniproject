@@ -34,7 +34,7 @@ export function Setup() {
         <div className="pb-4 border-b border-border">
           <h1 className="text-3xl font-black uppercase tracking-tighter">{t("nav.setup")}</h1>
           <p className="text-sm text-muted-foreground mt-2">
-            Wire OmniProject to your n8n + backend. OmniProject stays stateless — this wizard applies settings for the
+            Wire OmniProject to your broker + backend. OmniProject stays stateless — this wizard applies settings for the
             current session and emits durable config for you to keep in your environment.
           </p>
         </div>
