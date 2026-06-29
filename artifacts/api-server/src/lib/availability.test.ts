@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import type { Request } from "express";
 import {
   availabilityFromManifest,
+  applyCuration,
   resolveAvailability,
   __resetAvailabilityCacheForTest,
 } from "./availability";
 
 test("availabilityFromManifest: intersects with the superset and honours `populated`", () => {
-  const a = availabilityFromManifest({
+  const b = availabilityFromManifest({
     tables: ["project", "issue", "not-an-entity"],
     fields: ["title", "status", "dueDate", "notAField"],
     relationships: [
@@ -17,24 +18,34 @@ test("availabilityFromManifest: intersects with the superset and honours `popula
     ],
     populated: ["title", "status"], // dueDate is defined but empty → not surfaced
   });
-  assert.equal(a.source, "manifest");
-  assert.deepEqual(a.fields, ["title", "status"]); // populated ∩ superset; dueDate + notAField dropped
-  assert.deepEqual(a.tables, ["project", "issue"]); // unknown entity dropped
-  // only relationships whose field is in the superset survive
-  assert.deepEqual(a.relationships, [{ from: "issue", field: "programmeId", to: "programme" }]);
+  assert.equal(b.source, "manifest");
+  assert.deepEqual(b.available, ["title", "status"]); // populated ∩ superset; dueDate + notAField dropped
+  assert.deepEqual(b.tables, ["project", "issue"]); // unknown entity dropped
+  assert.deepEqual(b.relationships, [{ from: "issue", field: "programmeId", to: "programme" }]);
 });
 
-test("availabilityFromManifest: with no `populated`, surfaces all manifest fields (∩ superset)", () => {
-  const a = availabilityFromManifest({ tables: ["issue"], fields: ["title", "dueDate"], relationships: [] });
-  assert.deepEqual(a.fields, ["title", "dueDate"]);
+test("applyCuration: hides only available fields, leaving the rest; reports the effective hidden set", () => {
+  const backend = {
+    source: "manifest" as const,
+    available: ["title", "status", "dueDate"],
+    tables: ["issue"],
+    relationships: [{ from: "issue", field: "dueDate", to: "x" }],
+  };
+  // Hide dueDate (available) + a field that isn't available — the latter is ignored.
+  const a = applyCuration(backend, ["dueDate", "notAvailable"]);
+  assert.deepEqual(a.fields, ["title", "status"]); // dueDate curated out
+  assert.deepEqual(a.available, ["title", "status", "dueDate"]); // full set preserved for the panel
+  assert.deepEqual(a.hidden, ["dueDate"]); // only the actually-available hidden field
+  assert.deepEqual(a.relationships, []); // a relationship on a hidden field is dropped too
 });
 
-test("resolveAvailability: a backend WITHOUT describeSchema falls back cleanly to capability flags", async () => {
+test("resolveAvailability: a backend WITHOUT describeSchema falls back to capability flags", async () => {
   delete process.env["CAPABILITIES"]; // else the env short-circuit pre-empts the broker
   __resetAvailabilityCacheForTest();
   // The default demo broker implements no describeSchema → the resolver must fall back.
   const a = await resolveAvailability({} as Request);
   assert.equal(a.source, "capabilities");
   assert.ok(a.fields.includes("title"), "core fields surface under the capability fallback");
+  assert.ok(a.available.includes("title"), "the available set is reported alongside the net set");
   assert.ok(a.tables.length > 0, "entities surface under the capability fallback");
 });

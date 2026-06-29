@@ -138,6 +138,13 @@ export interface SettingsState {
    * the chosen module set travels in the bundle — never project data. See lib/feature-modules.
    */
   disabledFeatures: string[];
+  /**
+   * Admin/PMO view-curation: canonical field keys HIDDEN from view on top of what the backend makes
+   * available. The availability resolver subtracts these from the surfaced set, so a deployment can
+   * trim available-but-unwanted fields. Customer-level config — rides the snapshot/export so the
+   * curated view travels in the bundle — never project data. See lib/availability.
+   */
+  hiddenFields: string[];
 }
 
 /** One user's persisted UI/accessibility preferences. */
@@ -282,6 +289,7 @@ const store: SettingsState = {
   userPrefs: {},
   capabilityStates: {},
   disabledFeatures: disabledFeaturesFromEnv(),
+  hiddenFields: [],
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
@@ -306,6 +314,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "userPrefs",
   "capabilityStates",
   "disabledFeatures",
+  "hiddenFields",
 ];
 
 /** A snapshot copy of the current in-memory settings (never the live reference). */
@@ -392,6 +401,12 @@ function validatePatch(patch: Record<string, unknown>): void {
     const v = patch["disabledFeatures"];
     if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
       throw new SettingsValidationError("disabledFeatures must be an array of strings");
+    }
+  }
+  if ("hiddenFields" in patch) {
+    const v = patch["hiddenFields"];
+    if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
+      throw new SettingsValidationError("hiddenFields must be an array of strings");
     }
   }
   if ("fieldOverrides" in patch) validateFieldOverrides(patch["fieldOverrides"]);

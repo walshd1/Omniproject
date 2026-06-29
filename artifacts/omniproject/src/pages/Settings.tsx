@@ -24,6 +24,7 @@ import { AiProvidersAdmin } from "../components/settings/AiProvidersAdmin";
 import { GovernanceDashboard } from "../components/settings/GovernanceDashboard";
 import { DeploymentProfile } from "../components/settings/DeploymentProfile";
 import { FeatureModulesAdmin } from "../components/settings/FeatureModulesAdmin";
+import { FieldVisibilityAdmin } from "../components/settings/FieldVisibilityAdmin";
 import { SecurityKeys } from "../components/settings/SecurityKeys";
 import { ProvenanceDashboard } from "../components/settings/ProvenanceDashboard";
 import { NlCommand } from "../components/settings/NlCommand";
@@ -317,6 +318,10 @@ export function Settings() {
 
       <div className="mt-10">
         <FeatureModulesAdmin />
+      </div>
+
+      <div className="mt-10">
+        <FieldVisibilityAdmin />
       </div>
 
       <div className="mt-10">
