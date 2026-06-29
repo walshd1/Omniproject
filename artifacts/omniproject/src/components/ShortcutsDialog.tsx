@@ -6,45 +6,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
-
-/** A single shortcut row: one or more key chips and a human description. */
-interface Shortcut {
-  /** Each entry is rendered as a Kbd; multiple entries form a KbdGroup chord. */
-  keys: string[];
-  label: string;
-}
-
-interface ShortcutGroup {
-  heading: string;
-  items: Shortcut[];
-}
-
-const SHORTCUT_GROUPS: ShortcutGroup[] = [
-  {
-    heading: "General",
-    items: [
-      { keys: ["⌘/Ctrl", "K"], label: "Open command palette" },
-      { keys: ["?"], label: "Show this help" },
-      { keys: ["Esc"], label: "Close dialogs / palette" },
-    ],
-  },
-  {
-    heading: "Navigation",
-    items: [
-      { keys: ["G", "D"], label: "Go to Dashboard" },
-      { keys: ["G", "P"], label: "Go to Projects" },
-      { keys: ["G", "R"], label: "Go to Reports" },
-      { keys: ["G", "S"], label: "Go to Settings" },
-    ],
-  },
-  {
-    heading: "Cards & lists",
-    items: [
-      { keys: ["Enter"], label: "Open the focused card / issue" },
-      { keys: ["Space"], label: "Activate the focused card / issue" },
-    ],
-  },
-];
+import { SHORTCUT_GROUPS } from "../lib/shortcuts";
 
 export function ShortcutsDialog({
   open,
