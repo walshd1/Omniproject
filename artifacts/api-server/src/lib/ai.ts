@@ -7,6 +7,10 @@ import {
   type AiProviderConfig,
   type AiProviderKind,
 } from "./ai-providers";
+import {
+  dlpEnabled, redactForEgress, modelAllowed, checkBudget, recordUsage, estimateTokens,
+  type AiGovContext,
+} from "./ai-governance";
 
 /**
  * AI provider client. Providers are first-class entities (lib/ai-providers) and their API
@@ -156,8 +160,12 @@ export function aiStatus(): AiStatus {
 }
 
 /** Send a chat-completion to the resolved provider and return the reply. Throws AiError when
- *  no ready provider is configured or the upstream call fails. */
-export async function aiChat(messages: ChatMessage[]): Promise<ChatResult> {
+ *  no ready provider is configured or the upstream call fails.
+ *
+ *  `ctx` carries the optional governance scope (the caller's role + a budget scope, e.g. the
+ *  user sub). All governance is opt-in: DLP redaction applies whenever AI_DLP_REDACT is on; the
+ *  per-role model allowlist and token budget apply only when configured AND a `ctx` is supplied. */
+export async function aiChat(messages: ChatMessage[], ctx?: AiGovContext): Promise<ChatResult> {
   // Break-glass: the global kill switch hard-stops every model call.
   if (aiKillEngaged()) throw new AiError("AI is disabled by the kill switch.", 403);
 
@@ -172,6 +180,21 @@ export async function aiChat(messages: ChatMessage[]): Promise<ChatResult> {
   const endpoint = provider.endpoint?.trim() || def.endpoint;
   const key = provider.kind === "ollama" ? undefined : resolveProviderKey(provider.id) ?? undefined;
   const model = resolvedModel(provider);
-  const content = await def.chat(endpoint, key, model, messages);
+
+  // Governance (opt-in): per-role model allowlist, then a soft per-scope token budget.
+  if (ctx?.role && !modelAllowed(ctx.role, model)) {
+    throw new AiError(`Model "${model}" is not permitted for your role.`, 403);
+  }
+  if (ctx?.scope) {
+    const verdict = await checkBudget(ctx.scope, estimateTokens(messages));
+    if (!verdict.ok) throw new AiError(`AI token budget exceeded (${verdict.used}/${verdict.limit} this window).`, 429);
+  }
+
+  // DLP: redact PII/secrets in the prompt BEFORE it egresses (when AI_DLP_REDACT is on).
+  const outbound = dlpEnabled() ? redactForEgress(messages).messages : messages;
+  const content = await def.chat(endpoint, key, model, outbound);
+
+  // Record approximate usage against the scope's budget (soft, best-effort).
+  if (ctx?.scope) await recordUsage(ctx.scope, estimateTokens(messages) + estimateTokens([{ content }]));
   return { content, provider: provider.kind, model };
 }

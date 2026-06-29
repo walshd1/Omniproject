@@ -71,7 +71,23 @@ anonymous system call:
   instructions; no action surface exposed to the model). `lib/copilot.ts`.
 - **Dictation is local-first** — the device's own speech engine; audio never leaves the
   machine. `components/DictateButton.tsx`.
+- **Prompt DLP redaction (opt-in)** — with `AI_DLP_REDACT=true`, prompt content is masked for
+  emails, card numbers, API keys / bearer tokens and long phone numbers **before** it egresses to
+  any provider, at the single model-egress chokepoint (`lib/ai-governance` → `lib/ai` `aiChat`).
 - Vendor API keys/secrets are **never stored** by OmniProject (scaffolding only).
+
+## 3a. AI cost governance (opt-in)
+
+Layered on the same `aiChat` chokepoint, all OFF by default (`lib/ai-governance`):
+
+- **Per-role model allowlist** (`AI_MODEL_ALLOWLIST="role=modelA|modelB,role2=*"`) — a role may
+  only use the models it's permitted; an out-of-allowlist model is refused (403).
+- **Per-scope token budget** (`AI_TOKEN_BUDGET` over `AI_BUDGET_WINDOW_HOURS`, default 24) — a
+  soft cap per scope (the user `sub`, or a team), with the running counters in the **shared-state
+  seam** so the budget is fleet-wide when Redis is configured. Over budget ⇒ 429.
+- **Usage / chargeback** — `GET /api/ai/usage` (admin) reports per-scope token totals this window;
+  `GET /api/ai/governance` reports the active policy. Token counts are APPROXIMATE (chars/4) — a
+  cost signal + chargeback aid, not a hard biller; use the provider's own quota for hard limits.
 
 ## 4. Provenance & keys
 

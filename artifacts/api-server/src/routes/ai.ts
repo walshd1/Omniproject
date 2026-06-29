@@ -13,7 +13,8 @@ import { MCP_TOOLS } from "../lib/mcp";
 import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../lib/approved-actions";
 import { answerCopilot } from "../lib/copilot";
 import { getBroker, contextFromReq } from "../broker";
-import { hasRole } from "../lib/rbac";
+import { hasRole, roleForReq, requireRole } from "../lib/rbac";
+import { aiGovernanceStatus, aiUsageReport, type AiGovContext } from "../lib/ai-governance";
 import { aiContainmentLevel, aiSourceLevel } from "../lib/ai-containment";
 import { transcribe, sttStatus, sttCapabilityId, SttError } from "../lib/stt";
 import { v, parseOr400 } from "../lib/validate";
@@ -52,6 +53,12 @@ function surfaceFromBody(req: Request): string | undefined {
   return screenIdForRoute(typeof s === "string" ? s : undefined);
 }
 
+/** The AI-governance scope for this request: budget keyed by the user `sub`, allowlist by role.
+ *  Both are no-ops unless AI_TOKEN_BUDGET / AI_MODEL_ALLOWLIST are configured. */
+function govCtx(req: Request): AiGovContext {
+  return { scope: getSession(req)?.sub, role: roleForReq(req) };
+}
+
 /** Enforce an AI capability for a route. On a governance block, send 403 with the given
  *  `label` prefix and return false (the caller returns); re-throw anything else. Collapses
  *  the identical try/catch the AI routes all repeated. */
@@ -70,6 +77,17 @@ router.get("/ai/status", (_req, res) => {
   res.json(aiStatus());
 });
 
+// ── GET /api/ai/governance — the active AI-governance policy (admin; no secrets) ──
+// DLP on/off, the per-role model allowlist, and the token-budget window.
+router.get("/ai/governance", requireRole("admin"), (_req, res) => {
+  res.json(aiGovernanceStatus());
+});
+
+// ── GET /api/ai/usage — per-scope token usage this window, for chargeback (admin) ──
+router.get("/ai/usage", requireRole("admin"), async (_req, res) => {
+  res.json({ window: aiGovernanceStatus().budget, usage: await aiUsageReport() });
+});
+
 // ── POST /api/ai/chat — route a chat completion to the selected provider ──────
 router.post("/ai/chat", async (req, res) => {
   const parsed = parseOr400(req, res, CHAT_BODY);
@@ -85,7 +103,7 @@ router.post("/ai/chat", async (req, res) => {
   if (!enforceOr403(req, res, `provider:${provider}`, { surface, label: "AI is unavailable here" })) return;
 
   try {
-    const result = await aiChat(messages);
+    const result = await aiChat(messages, govCtx(req));
     res.json(result);
   } catch (err) {
     const status = err instanceof AiError ? err.status : 502;
@@ -120,7 +138,7 @@ router.post("/ai/nl-action", async (req, res) => {
     // Hard limit: the planner may only choose from the customer's APPROVED actions, evaluated
     // for THIS request's surface, role and active backend (the full per-scope matrix).
     const tools = MCP_TOOLS.filter((t) => isActionApproved(t.action, approvalContextFromReq(req, surface)));
-    const plan = await planAction({ text, tools, allowWrites, complete: async (prompt) => (await aiChat([{ role: "user", content: prompt }])).content });
+    const plan = await planAction({ text, tools, allowWrites, complete: async (prompt) => (await aiChat([{ role: "user", content: prompt }], govCtx(req))).content });
     res.json({ plan });
   } catch (err) {
     const status = err instanceof AiError ? err.status : 502;
@@ -153,7 +171,7 @@ router.post("/ai/copilot", async (req, res) => {
       vocab: listApprovedVocab(), // ask the model to use the customer's approved terminology
       mode,
       ...(methodology ? { methodology } : {}),
-      complete: async (messages) => (await aiChat(messages)).content,
+      complete: async (messages) => (await aiChat(messages, govCtx(req))).content,
     });
     res.json(result);
   } catch (err) {

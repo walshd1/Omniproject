@@ -8,6 +8,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **AI governance + prompt DLP (opt-in, lean by default).** Layered on the single model-egress
+  chokepoint (`lib/ai` `aiChat`), all OFF unless configured (`lib/ai-governance`):
+  - **Prompt DLP redaction** (`AI_DLP_REDACT=true`) — masks emails, card numbers, API keys /
+    bearer tokens and long phone numbers in prompt content **before** it leaves the gateway.
+  - **Per-role model allowlist** (`AI_MODEL_ALLOWLIST="role=modelA|modelB,role2=*"`) — an
+    out-of-allowlist model is refused (403); unlisted roles stay unrestricted.
+  - **Per-scope token budget** (`AI_TOKEN_BUDGET` over `AI_BUDGET_WINDOW_HOURS`, default 24) — a
+    soft cap per scope (the user `sub`/team), counters in the shared-state seam (fleet-wide on
+    Redis); over budget ⇒ 429. Token counts are approximate (chars/4) — a cost signal, not a biller.
+  - Admin surfaces: `GET /api/ai/governance` (policy) and `GET /api/ai/usage` (per-scope
+    chargeback this window). The AI routes pass a per-request scope (`sub`) + role.
+
 - **Shared-state seam (opt-in, Redis-backed) — the per-replica registries can now share fleet-wide
   (roadmap §2).** `lib/shared-state` is an opt-in async KV that's in-process by default and
   Redis-backed when `REDIS_URL` is set, mirroring the rate-limit / broker-log pattern: `ioredis`
