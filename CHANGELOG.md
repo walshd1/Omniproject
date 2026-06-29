@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Saved views (UX-parity module).** Save a **named view** — visible columns + sort (+ filters /
+  grouping captured in the model) — and switch between them. Scoped to a surface (the editable
+  grid first): pick a view to apply its column set + sort, **Save view** to name the current state,
+  or delete one. Views are **shared, customer-level** presentation config persisted via
+  `GET/PUT /api/views` to **`settings.savedViews`**, which **rides the config-bundle export** — so a
+  team's views travel with the deployment (any authenticated user can save/switch, like shared
+  filters; never project data). Shipped as the optional UI-only **`savedViews`** feature module
+  (gated by `useFeatures`). The grid gains sortable column headers and applies the active view's
+  column subset/order. `lib/saved-views`, `components/grid/SavedViewsBar`.
+
 - **ADR 0002 — language choice** (`docs/adr/0002-language-choice.md`). Records the decision to keep
   **TypeScript across the whole first-party codebase** (the end-to-end shared contract types and the
   I/O-bound, zero-at-rest workload make it the right fit) and to treat the **broker seam as the

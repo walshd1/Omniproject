@@ -145,6 +145,25 @@ export interface SettingsState {
    * curated view travels in the bundle — never project data. See lib/availability.
    */
   hiddenFields: string[];
+  /**
+   * Named saved views (filters + sort + visible columns + grouping) a user can switch between.
+   * Customer-level presentation config — rides the snapshot/export so saved views travel in the
+   * bundle — never project data. See routes/views + the SPA savedViews feature module.
+   */
+  savedViews: SavedView[];
+}
+
+/** A named saved view: which columns, sort, filters and grouping to apply (all optional, so a view
+ *  can capture just a column set or just a sort). `scope` ties it to a surface (e.g. "grid"). */
+export interface SavedView {
+  id: string;
+  name: string;
+  scope?: string;
+  /** Visible canonical field keys, in display order. */
+  columns?: string[];
+  sort?: { field: string; dir: "asc" | "desc" };
+  filters?: { field: string; value: string }[];
+  groupBy?: string;
 }
 
 /** One user's persisted UI/accessibility preferences. */
@@ -290,6 +309,7 @@ const store: SettingsState = {
   capabilityStates: {},
   disabledFeatures: disabledFeaturesFromEnv(),
   hiddenFields: [],
+  savedViews: [],
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
@@ -315,6 +335,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "capabilityStates",
   "disabledFeatures",
   "hiddenFields",
+  "savedViews",
 ];
 
 /** A snapshot copy of the current in-memory settings (never the live reference). */
@@ -407,6 +428,16 @@ function validatePatch(patch: Record<string, unknown>): void {
     const v = patch["hiddenFields"];
     if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
       throw new SettingsValidationError("hiddenFields must be an array of strings");
+    }
+  }
+  if ("savedViews" in patch) {
+    const v = patch["savedViews"];
+    if (!Array.isArray(v)) throw new SettingsValidationError("savedViews must be an array");
+    for (const view of v) {
+      if (!view || typeof view !== "object") throw new SettingsValidationError("each saved view must be an object");
+      const { id, name } = view as Record<string, unknown>;
+      if (typeof id !== "string" || !id) throw new SettingsValidationError("each saved view needs a string id");
+      if (typeof name !== "string" || !name) throw new SettingsValidationError("each saved view needs a name");
     }
   }
   if ("fieldOverrides" in patch) validateFieldOverrides(patch["fieldOverrides"]);

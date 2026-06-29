@@ -10,8 +10,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useInvalidateIssueQueries } from "../../hooks/use-invalidate-issue-queries";
 import { useAvailability, fieldVisible, type Availability } from "../../lib/availability";
+import { useFeatures, featureEnabled } from "../../lib/features";
 import { STATUS_ORDER, PRIORITY_ORDER, statusLabel, priorityLabel } from "../../lib/constants";
 import { DataState } from "../DataState";
+import { SavedViewsBar } from "./SavedViewsBar";
 
 /**
  * Editable data grid (the "grid" feature module) — a spreadsheet-style view of a project's work
@@ -77,13 +79,42 @@ export function IssueGrid({ projectId }: { projectId: string }) {
   const invalidate = useInvalidateIssueQueries();
   const { toast } = useToast();
 
-  const columns = useMemo(() => visibleGridColumns(availability), [availability]);
+  const { data: features } = useFeatures();
+  const savedViewsOn = featureEnabled(features, "savedViews");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<{ id: string; field: string } | null>(null);
-  const [bulkField, setBulkField] = useState<string>(columns[0]?.field ?? "status");
   const [bulkValue, setBulkValue] = useState("");
+  // A saved view can restrict/order columns and set a sort; null = backend default.
+  const [viewColumns, setViewColumns] = useState<string[] | null>(null);
+  const [sort, setSort] = useState<{ field: string; dir: "asc" | "desc" } | null>(null);
 
-  const rows = issues ?? [];
+  // Available editable columns, optionally narrowed + ordered by the active saved view.
+  const columns = useMemo(() => {
+    const available = visibleGridColumns(availability);
+    if (!viewColumns) return available;
+    const byField = new Map(available.map((c) => [c.field, c]));
+    return viewColumns.map((f) => byField.get(f as GridColumn["field"])).filter((c): c is GridColumn => !!c);
+  }, [availability, viewColumns]);
+
+  const [bulkField, setBulkField] = useState<string>("status");
+
+  const rows = useMemo(() => {
+    const list = [...(issues ?? [])];
+    if (sort) {
+      const { field, dir } = sort;
+      list.sort((a, b) => {
+        const av = (a as unknown as Record<string, unknown>)[field];
+        const bv = (b as unknown as Record<string, unknown>)[field];
+        const an = av == null ? "" : String(av);
+        const bn = bv == null ? "" : String(bv);
+        return (an < bn ? -1 : an > bn ? 1 : 0) * (dir === "asc" ? 1 : -1);
+      });
+    }
+    return list;
+  }, [issues, sort]);
+
+  const toggleSort = (field: string) =>
+    setSort((s) => (s?.field === field ? { field, dir: s.dir === "asc" ? "desc" : "asc" } : { field, dir: "asc" }));
 
   /** Write one field on one issue, optimistic with revert + 409 conflict handling. */
   function commit(issue: Issue, col: GridColumn, raw: string) {
@@ -136,6 +167,16 @@ export function IssueGrid({ projectId }: { projectId: string }) {
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={refetch}>
     <div data-testid="issue-grid">
+      {savedViewsOn && (
+        <SavedViewsBar
+          scope="grid"
+          current={{ columns: columns.map((c) => c.field), sort }}
+          onApply={(view) => {
+            setViewColumns(view.columns ?? null);
+            setSort(view.sort ?? null);
+          }}
+        />
+      )}
       {selected.size > 0 && (
         <div className="mb-3 flex items-center gap-2 border-2 border-foreground p-2 text-sm" data-testid="bulk-bar">
           <span className="font-bold">{selected.size} selected</span>
@@ -150,7 +191,18 @@ export function IssueGrid({ projectId }: { projectId: string }) {
         <thead>
           <tr className="border-b-2 border-foreground text-xs uppercase tracking-wider">
             <th className="w-8 py-1" />
-            {columns.map((c) => <th key={c.field} className="py-1 pr-4">{c.label}</th>)}
+            {columns.map((c) => (
+              <th key={c.field} className="py-1 pr-4">
+                <button
+                  type="button"
+                  onClick={() => toggleSort(c.field)}
+                  aria-sort={sort?.field === c.field ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+                  className="font-bold uppercase tracking-wider hover:underline"
+                >
+                  {c.label}{sort?.field === c.field ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+                </button>
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
