@@ -25,6 +25,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 // → map to a default for React.lazy).
 const Home = lazy(() => import("./pages/Home").then((m) => ({ default: m.Home })));
 const MyWork = lazy(() => import("./pages/MyWork").then((m) => ({ default: m.MyWork })));
+const Dashboards = lazy(() => import("./pages/Dashboards").then((m) => ({ default: m.Dashboards })));
 const Programmes = lazy(() => import("./pages/Programmes").then((m) => ({ default: m.Programmes })));
 const ProgrammeDetail = lazy(() => import("./pages/ProgrammeDetail").then((m) => ({ default: m.ProgrammeDetail })));
 const Projects = lazy(() => import("./pages/Projects").then((m) => ({ default: m.Projects })));
@@ -72,6 +73,9 @@ function Router() {
       </Route>
       <Route path="/my-work">
         <AppLayout><MyWork /></AppLayout>
+      </Route>
+      <Route path="/dashboards">
+        <AppLayout><Dashboards /></AppLayout>
       </Route>
       <Route path="/programmes">
         <AppLayout><Programmes /></AppLayout>

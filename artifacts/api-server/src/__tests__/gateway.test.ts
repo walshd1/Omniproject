@@ -824,6 +824,7 @@ const SAMPLE_SETTINGS = {
   disabledFeatures: [],
   hiddenFields: [],
   savedViews: [],
+  dashboards: [],
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {
@@ -849,6 +850,24 @@ test("applySnapshot: round-trips a built snapshot into a settings patch", () => 
   const { patch, warnings } = applySnapshot(snap);
   assert.equal(patch["brokerUrl"], "https://n8n/x");
   assert.equal(patch["aiProvider"], "ollama");
+  assert.equal(warnings.length, 0);
+});
+
+test("buildSnapshot: carries the portable presentation config (curation, views, dashboards, opt-out)", () => {
+  const snap = buildSnapshot({
+    ...SAMPLE_SETTINGS,
+    disabledFeatures: ["odata"],
+    hiddenFields: ["dueDate"],
+    savedViews: [{ id: "v1", name: "Triage", scope: "grid", columns: ["title"] }],
+    dashboards: [{ id: "d1", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] }],
+  });
+  assert.deepEqual(snap.settings.disabledFeatures, ["odata"]);
+  assert.deepEqual(snap.settings.hiddenFields, ["dueDate"]);
+  assert.equal(snap.settings.savedViews[0]!.name, "Triage");
+  assert.equal(snap.settings.dashboards[0]!.widgets[0]!.type, "portfolioHealth");
+  // …and they round-trip back into a settings patch with no warnings.
+  const { patch, warnings } = applySnapshot(snap);
+  assert.deepEqual(patch["dashboards"], snap.settings.dashboards);
   assert.equal(warnings.length, 0);
 });
 

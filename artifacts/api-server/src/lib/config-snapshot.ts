@@ -16,10 +16,16 @@ import type { SettingsState } from "./settings";
 export const SNAPSHOT_SCHEMA = "omniproject/config-snapshot";
 export const SNAPSHOT_VERSION = 1;
 
-// Branding + label overrides are portable presentation config (no secrets) so
-// they ride along in snapshots. Webhook subscriptions are deliberately excluded
-// — they carry signing secrets and are environment-specific (see WEBHOOKS env).
-const SNAPSHOT_KEYS = ["brokerUrl", "aiProvider", "aiModel", "backendSource", "oidcIssuerUrl", "branding", "labelOverrides", "screenLayouts", "userPrefs"] as const;
+// Branding, label overrides, screen layouts, the optional-module opt-out, the
+// admin/PMO field-visibility curation, saved views and custom dashboards are all
+// portable presentation config (no secrets), so they ride along in snapshots —
+// "save custom screens to the bundle". Webhook subscriptions are deliberately
+// excluded — they carry signing secrets and are environment-specific (WEBHOOKS env).
+const SNAPSHOT_KEYS = [
+  "brokerUrl", "aiProvider", "aiModel", "backendSource", "oidcIssuerUrl",
+  "branding", "labelOverrides", "screenLayouts", "userPrefs",
+  "disabledFeatures", "hiddenFields", "savedViews", "dashboards",
+] as const;
 type SnapshotKey = (typeof SNAPSHOT_KEYS)[number];
 
 export interface ConfigSnapshot {
@@ -45,6 +51,10 @@ export function buildSnapshot(settings: SettingsState): ConfigSnapshot {
       labelOverrides: settings.labelOverrides,
       screenLayouts: settings.screenLayouts,
       userPrefs: settings.userPrefs,
+      disabledFeatures: settings.disabledFeatures,
+      hiddenFields: settings.hiddenFields,
+      savedViews: settings.savedViews,
+      dashboards: settings.dashboards,
     },
   };
 }

@@ -66,6 +66,14 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     label: "My Work / Inbox",
     description: "A personal cross-project view of items assigned to you, plus a notification inbox.",
   },
+  {
+    // UI-only: a configurable dashboard builder — compose named dashboards from a widget catalogue
+    // (portfolio health, trends, recent activity, counts). Persisted via /api/dashboards to the
+    // config bundle; the SPA gates it via useFeatures. Reads through existing endpoints.
+    id: "dashboards",
+    label: "Custom dashboards",
+    description: "Build named dashboards from a catalogue of widgets (health, trends, activity, counts).",
+  },
 ];
 
 // Which modules actually got loaded+mounted this process (set by the mount step). Lets the

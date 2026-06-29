@@ -22,6 +22,24 @@ test("bundle always carries config, vendors, demo state, manifest + README", () 
   }
 });
 
+test("feature-modules.json carries the optional-module status", () => {
+  const { entries } = buildDebugBundleEntries("2026-01-01T00:00:00.000Z");
+  const fm = entries.find((e) => e.name === "feature-modules.json")!;
+  assert.ok(fm, "bundle should include feature-modules.json");
+  const parsed = JSON.parse(fm.data.toString("utf8"));
+  assert.ok(Array.isArray(parsed) && parsed.length > 0, "expected feature-module status entries");
+  for (const m of parsed) {
+    assert.equal(typeof m.id, "string");
+    assert.equal(typeof m.enabled, "boolean");
+    assert.equal(typeof m.loaded, "boolean");
+  }
+  // The UX-parity modules should be represented.
+  const ids = parsed.map((m: { id: string }) => m.id);
+  for (const id of ["grid", "savedViews", "myWork", "dashboards"]) {
+    assert.ok(ids.includes(id), `feature-modules.json omits ${id}`);
+  }
+});
+
 test("vendors.json holds the loaded backend + broker catalogues", () => {
   const { entries } = buildDebugBundleEntries("2026-01-01T00:00:00.000Z");
   const vendors = entries.find((e) => e.name === "vendors.json")!;

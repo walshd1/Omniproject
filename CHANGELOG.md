@@ -6,7 +6,32 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Config snapshot / export now carries the new presentation config.** The snapshot (Setup →
+  Backup/Restore, and the `config.json` inside the **debug bundle**) was a curated subset that had
+  not kept pace with the recent modules — it omitted **`disabledFeatures`** (feature-module opt-out),
+  **`hiddenFields`** (admin/PMO field-visibility curation), **`savedViews`** and **`dashboards`**.
+  These are portable, secret-free presentation config, so they now ride the snapshot/export and
+  round-trip on restore — making "save custom screens to the bundle" actually travel with a
+  deployment. The **debug bundle** also now includes **`feature-modules.json`** (the optional-module
+  enabled/loaded/needs-restart status), so a repro shows the exact module set that was active.
+
 ### Added
+
+- **Custom dashboards (UX-parity module).** A **dashboard builder**: compose **named dashboards**
+  from a **widget catalogue** — portfolio health, portfolio trends, recent activity, project/programme
+  counts and a status breakdown — then add / remove / **reorder** widgets and set each one's
+  **column span** (1–3 on a responsive grid). Every widget reads through the **existing read-model**
+  (portfolio, projects, programmes, activity); the surface adds **no new write paths** to project
+  data. Entity-gated widgets (e.g. programme count) are only offered when the backend can surface
+  the entity. Dashboards are **shared, customer-level** presentation config persisted via
+  `GET/PUT /api/dashboards` to **`settings.dashboards`**, which **rides the config-bundle export** —
+  so a team's dashboards travel with the deployment (any authenticated user can build/switch; never
+  project data). Shipped as the optional UI-only **`dashboards`** feature module; the primary nav
+  gains a feature-gated **Dashboards** item. Unknown widget types (e.g. one removed in a later
+  version) degrade to a placeholder rather than breaking a saved dashboard. `pages/Dashboards`,
+  `lib/dashboards`, `components/dashboard/widgets`, route `/dashboards`.
 
 - **My Work / Inbox (UX-parity module).** A personal landing surface with two tabs: **Assigned to
   me** — every work item assigned to the current user **across all projects**, grouped by status
