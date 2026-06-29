@@ -16,6 +16,9 @@ const base: IdpStatus = {
     { role: "viewer", groups: [] },
   ],
   suggestedGroups: { admin: "omni-admins", pmo: "omni-pmo", manager: "omni-managers", contributor: "omni-contributors", viewer: "omni-viewers" },
+  presets: [
+    { id: "google", label: "Google Workspace", audience: "Charities/SMEs on Google.", issuerTemplate: "https://accounts.google.com", scope: "openid email profile", groupsClaimNote: "Map by domain.", envKeys: ["OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"], consoleUrl: "https://console.cloud.google.com", notes: [] },
+  ],
   profile: "nonprofit",
 };
 
@@ -32,7 +35,10 @@ describe("IdpStep", () => {
     expect(screen.getByText(/bundled identity/i)).toBeInTheDocument();
     // falls back to the suggested group names when nothing is configured yet
     expect(screen.getByTestId("idp-rolemap")).toHaveTextContent("omni-admins");
-    expect(screen.getByText(/api\/auth\/callback/)).toBeInTheDocument();
+    // The redirect URI appears in the bundled-IdP guidance and the preset cards.
+    expect(screen.getAllByText(/api\/auth\/callback/).length).toBeGreaterThan(0);
+    // The Workspace-login presets are surfaced.
+    expect(screen.getByTestId("idp-presets")).toHaveTextContent("Google Workspace");
   });
 
   it("oidc mode: tells you to create users in the IdP + shows the live mapping", () => {

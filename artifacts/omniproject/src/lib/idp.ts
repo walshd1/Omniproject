@@ -6,6 +6,18 @@ import { getJson } from "./api";
  * wizard's "give your staff real accounts" step — especially the BUNDLED IdP (Authentik) path
  * for charities/self-hosters with no corporate SSO.
  */
+export interface IdpPreset {
+  id: string;
+  label: string;
+  audience: string;
+  issuerTemplate: string;
+  scope: string;
+  groupsClaimNote: string;
+  envKeys: string[];
+  consoleUrl: string;
+  notes: string[];
+}
+
 export interface IdpStatus {
   mode: "demo" | "oidc";
   issuer: string;
@@ -18,6 +30,8 @@ export interface IdpStatus {
   roleGroups: { role: string; groups: string[] }[];
   /** Default group names the bundled blueprint creates, per role. */
   suggestedGroups: Record<string, string>;
+  /** Guided "Sign in with Google/Microsoft/…" presets over the OIDC flow. */
+  presets: IdpPreset[];
   profile: string;
 }
 

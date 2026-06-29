@@ -32,6 +32,7 @@ import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus } from "../lib/setup-status";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
 import { sharedStateMode } from "../lib/shared-state";
+import { IDP_PRESETS } from "../lib/idp-presets";
 import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
 import {
   storeView,
@@ -112,7 +113,7 @@ router.get("/setup/idp", requireRole("admin"), (req, res) => {
   const suggestedGroups: Record<string, string> = {
     admin: "omni-admins", pmo: "omni-pmo", manager: "omni-managers", contributor: "omni-contributors", viewer: "omni-viewers",
   };
-  res.json({ mode, issuer, issuerOrigin, bundled, callbackUrl, roleGroups, suggestedGroups, profile: deploymentProfile() });
+  res.json({ mode, issuer, issuerOrigin, bundled, callbackUrl, roleGroups, suggestedGroups, presets: IDP_PRESETS, profile: deploymentProfile() });
 });
 
 // POST /api/setup/profile — pick the deployment profile from the wizard (admin). Persists it

@@ -1,4 +1,4 @@
-import { useIdp, type IdpStatus } from "../../lib/idp";
+import { useIdp, type IdpStatus, type IdpPreset } from "../../lib/idp";
 
 /**
  * Setup-wizard "staff accounts" step. OmniProject doesn't store users — your IdP does — so
@@ -28,6 +28,32 @@ function RoleTable({ idp }: { idp: IdpStatus }) {
   );
 }
 
+/** Guided "Sign in with Google / Microsoft / …" presets over the existing OIDC flow. */
+function PresetCards({ presets, callbackUrl }: { presets: IdpPreset[]; callbackUrl: string }) {
+  if (!presets?.length) return null;
+  return (
+    <div className="mt-4 space-y-2" data-testid="idp-presets">
+      <h3 className="text-sm font-bold">Use an SSO you already have</h3>
+      <p className="text-xs text-muted-foreground">
+        Most teams already have Google Workspace or Microsoft 365 — no need to deploy an IdP. Create an
+        OAuth app there, add the redirect URI <span className="font-mono">{callbackUrl}</span>, then set the env below.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {presets.map((p) => (
+          <details key={p.id} className="rounded border border-border p-3 text-sm">
+            <summary className="cursor-pointer font-medium">{p.label}</summary>
+            <p className="mt-1 text-xs text-muted-foreground">{p.audience}</p>
+            <p className="mt-2 text-xs"><span className="font-semibold">Issuer:</span> <span className="font-mono">{p.issuerTemplate}</span></p>
+            <p className="text-xs"><span className="font-semibold">Env:</span> <span className="font-mono">{p.envKeys.join(", ")}</span></p>
+            <p className="mt-1 text-xs text-muted-foreground">{p.groupsClaimNote}</p>
+            {p.consoleUrl && <a className="text-xs text-primary underline" href={p.consoleUrl} target="_blank" rel="noreferrer">Open provider console →</a>}
+          </details>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function IdpStep() {
   const { data: idp } = useIdp();
   if (!idp) return null;
@@ -50,6 +76,7 @@ export function IdpStep() {
             <li>They sign in at this app — their role follows from their group, no per-user setup here.</li>
           </ol>
           <div className="rounded border border-border p-3" data-testid="idp-rolemap"><RoleTable idp={idp} /></div>
+          <PresetCards presets={idp.presets} callbackUrl={idp.callbackUrl} />
         </div>
       ) : (
         <div className="mt-2 space-y-3 text-sm">
@@ -67,6 +94,7 @@ export function IdpStep() {
           <p className="text-xs text-muted-foreground">
             The IdP must allow this redirect URI: <span className="font-mono">{idp.callbackUrl}</span> (the blueprint sets it for the bundled IdP). Full steps in <span className="font-mono">docs/DEPLOY-LOCAL.md</span> / <span className="font-mono">docs/SMALL-ORG-GUIDE.md</span>.
           </p>
+          <PresetCards presets={idp.presets} callbackUrl={idp.callbackUrl} />
         </div>
       )}
     </section>
