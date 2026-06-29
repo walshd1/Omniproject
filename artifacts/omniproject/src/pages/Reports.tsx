@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useListProjects, useGetCapabilities, type Capabilities } from "@workspace/api-client-react";
 import { useStore } from "../store/useStore";
 import { PortfolioKpi } from "../components/reports/PortfolioKpi";
+import { PortfolioRoadmap } from "../components/reports/PortfolioRoadmap";
 import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
 import { FinancialEvmChart } from "../components/reports/FinancialEvmChart";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
@@ -95,6 +96,13 @@ export function Reports() {
 
         <Gated caps={caps} domain="portfolio" title="Portfolio Health" requires="a portfolio rollup (get_portfolio_health)">
           <PortfolioKpi />
+        </Gated>
+
+        <Gated caps={caps} domain="scheduling" title="Portfolio Roadmap" requires="start / due dates on work items">
+          <section>
+            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Roadmap</h2>
+            <PortfolioRoadmap />
+          </section>
         </Gated>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
