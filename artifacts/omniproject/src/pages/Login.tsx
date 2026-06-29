@@ -1,13 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useAuth, login, samlLogin } from "../lib/auth";
+import { useAuth, login, samlLogin, requestMagicLink } from "../lib/auth";
 import { useBranding } from "../lib/branding";
 
 export function Login() {
   const { data: auth, isLoading } = useAuth();
   const brand = useBranding();
   const [, setLocation] = useLocation();
+  const [email, setEmail] = useState("");
+  const [magicSent, setMagicSent] = useState(false);
 
   // Already authenticated → bounce to the dashboard.
   useEffect(() => {
@@ -52,6 +54,31 @@ export function Login() {
           >
             SIGN IN WITH SAML
           </Button>
+        )}
+
+        {auth?.magicLinkEnabled && (
+          <form
+            className="mt-4 space-y-2"
+            onSubmit={async (e) => { e.preventDefault(); await requestMagicLink(email, "/"); setMagicSent(true); }}
+          >
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.org"
+              aria-label="Email for a sign-in link"
+              className="w-full border-2 border-foreground bg-background px-3 py-2 text-sm font-mono outline-none focus:border-primary"
+            />
+            <Button type="submit" disabled={isLoading || !email} variant="outline" className="w-full rounded-none border-2 border-foreground font-bold uppercase tracking-wider h-10">
+              Email me a sign-in link
+            </Button>
+            {magicSent && (
+              <p className="text-[11px] text-center text-muted-foreground font-mono">
+                If that address can sign in, a link is on its way. Check your inbox.
+              </p>
+            )}
+          </form>
         )}
 
         {isDemo && (

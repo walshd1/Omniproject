@@ -21,6 +21,8 @@ export interface AuthState {
   sessionTimeout?: { idleMs: number; absoluteMs: number };
   /** Whether SAML SSO is configured (offered alongside OIDC on the login screen). */
   samlConfigured?: boolean;
+  /** Whether passwordless magic-link sign-in is enabled (no IdP). */
+  magicLinkEnabled?: boolean;
 }
 
 /** The linear base ladder. The authorities (pmo/admin) sit above it and confer manager base. */
@@ -64,6 +66,17 @@ export function login(returnTo: string = window.location.pathname): void {
 /** Redirect into the SAML (SP-initiated) login flow. */
 export function samlLogin(returnTo: string = window.location.pathname): void {
   window.location.href = `/api/auth/saml/login?returnTo=${encodeURIComponent(returnTo || "/")}`;
+}
+
+/** Request a passwordless magic-link to an email. Resolves to a dev link when dev mode returns one. */
+export async function requestMagicLink(email: string, returnTo = "/"): Promise<{ ok: boolean; devLink?: string }> {
+  const res = await fetch("/api/auth/magic/request", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, returnTo }),
+  });
+  return (await res.json().catch(() => ({ ok: false }))) as { ok: boolean; devLink?: string };
 }
 
 /** Clear the session and return to the login screen. */

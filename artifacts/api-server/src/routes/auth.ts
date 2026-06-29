@@ -21,6 +21,8 @@ import {
 } from "../lib/oidc";
 import { roleForReq } from "../lib/rbac";
 import { isSamlConfigured, samlLoginUrl, validateSamlResponse, samlMetadata } from "../lib/saml";
+import { magicLinkEnabled, isValidEmail, mintMagicToken, verifyMagicToken, consumeMagicToken, sendMagicLink } from "../lib/magic-link";
+import { isDevMode } from "../lib/dev-mode";
 import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
 import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
@@ -171,7 +173,7 @@ router.get("/auth/me", (req, res) => {
     });
     return;
   }
-  res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null, role: "viewer", samlConfigured: isSamlConfigured() });
+  res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null, role: "viewer", samlConfigured: isSamlConfigured(), magicLinkEnabled: magicLinkEnabled() });
 });
 
 /** Sanitise a post-auth `returnTo` to a SAME-ORIGIN path — prevents open redirects (CWE-601).
@@ -359,6 +361,33 @@ router.get("/auth/saml/metadata", async (_req, res) => {
   const xml = await samlMetadata();
   if (!xml) { res.status(503).send("SAML SSO is unavailable (provider library not installed)."); return; }
   res.type("application/xml").send(xml);
+});
+
+// ── Magic-link / email-OTP (optional; only when no OIDC/SAML) ────────────────────
+// Request a one-time sign-in link for an email. Always answers ok (never leaks whether the
+// email exists); rate-limited at the router mount. In dev mode the link is returned for testing.
+router.post("/auth/magic/request", async (req, res) => {
+  if (!magicLinkEnabled()) { res.status(404).json({ error: "Magic-link sign-in is not enabled." }); return; }
+  const email = typeof (req.body as { email?: unknown })?.email === "string" ? (req.body as { email: string }).email.trim() : "";
+  if (!isValidEmail(email)) { res.status(400).json({ error: "Enter a valid email address." }); return; }
+  const returnTo = safeLocalPath((req.body as { returnTo?: unknown })?.returnTo);
+  const token = mintMagicToken(email, Date.now());
+  const link = `${baseUrl(req)}/api/auth/magic/verify?token=${encodeURIComponent(token)}&returnTo=${encodeURIComponent(returnTo)}`;
+  try { await sendMagicLink(email, link); } catch (err) { req.log.warn({ err }, "magic-link send failed"); }
+  // Don't disclose account existence; in dev, hand back the link so it's testable without a relay.
+  res.json({ ok: true, ...(isDevMode() ? { devLink: link } : {}) });
+});
+
+// Verify a magic token and establish the session (single-use). GET so it works from an email link.
+router.get("/auth/magic/verify", async (req, res) => {
+  if (!magicLinkEnabled()) { res.status(404).send("Magic-link sign-in is not enabled."); return; }
+  const token = typeof req.query["token"] === "string" ? req.query["token"] : "";
+  const verdict = verifyMagicToken(token, Date.now());
+  if (!verdict) { res.status(400).send("This sign-in link is invalid or has expired."); return; }
+  if (!(await consumeMagicToken(verdict.jti))) { res.status(400).send("This sign-in link has already been used."); return; }
+  setSession(res, { sub: verdict.email, name: verdict.email, email: verdict.email, accessToken: "magic" });
+  setCsrfCookie(res, newCsrfToken());
+  res.redirect(safeLocalPath(req.query["returnTo"]));
 });
 
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────
