@@ -33,6 +33,7 @@ OPT-IN server-side read cache — a short-TTL, in-memory cache of broker reads.
 | `readCacheEnabled` | Is the opt-in read cache active? |
 | `readCacheStats` | Cache hit/miss counters (for diagnostics). |
 | `invalidateReadCache` | Clear the active read cache, if any (called by write/command paths + resetBroker). |
+| `actorKey` | A per-actor key prefix so one user's read is never shared with another (reads run "as" the user). |
 | `wrapWithCache` | Wrap a broker so its reads are cached for the configured TTL (writes clear it). |
 | `resetReadCacheStats` | Test-only: reset the hit/miss counters. |
 
@@ -222,6 +223,16 @@ Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into a
 ### `artifacts/api-server/src/broker/send-cli.ts`
 
 Single-instruction broker CLI — fire ONE broker method through the seam and inspect the exchange, with tracing forced on.
+
+### `artifacts/api-server/src/broker/single-flight.ts`
+
+Single-flight (request coalescing) for broker READS — ALWAYS ON.
+
+| Function | What it does |
+| --- | --- |
+| `singleFlightStats` | Single-flight diagnostics: upstream `calls` issued vs `coalesced` (calls saved). |
+| `resetSingleFlightStats` | Test-only: reset the counters. |
+| `wrapWithSingleFlight` | Wrap a broker so concurrent identical reads share a single in-flight upstream call. |
 
 ### `artifacts/api-server/src/broker/templates/pipedream-component.ts`
 
