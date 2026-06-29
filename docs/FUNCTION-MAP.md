@@ -449,13 +449,14 @@ Autonomous principals.
 
 ### `artifacts/api-server/src/lib/availability.ts`
 
-Availability resolver — what the connected backend ACTUALLY surfaces, computed as `superset ∩ (manifest if the backend provides one, else the static capability flags)`.
+Availability resolver — what the connected backend ACTUALLY surfaces, then trimmed by admin/PMO view-curation:
 
 | Function | What it does |
 | --- | --- |
 | `__resetAvailabilityCacheForTest` | Test seam: clear the short-TTL cache. |
 | `availabilityFromManifest` | Intersect a backend schema manifest with the superset; honour `populated` when present. |
-| `resolveAvailability` | Resolve availability for the active backend. |
+| `applyCuration` | Apply admin/PMO curation (settings.hiddenFields) to a backend-available set. |
+| `resolveAvailability` | Resolve availability for the active backend, trimmed by admin/PMO curation. |
 
 ### `artifacts/api-server/src/lib/aws-sigv4.ts`
 

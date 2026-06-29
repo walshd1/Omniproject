@@ -8,6 +8,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Admin/PMO field-visibility curation (Phase 1 UX).** On top of backend availability (superset ∩
+  manifest-or-capabilities), an **admin OR PMO** can now HIDE available-but-unwanted fields from
+  view. The availability resolver returns the full picture — `{ source, available (full backend
+  set), hidden (curation in effect), fields (net = available − hidden), tables, relationships }` —
+  and subtracts the curation **fresh on every call** (the backend layer is cached per backend kind,
+  but a curation toggle takes effect at once). Curation can only **hide** what's available, never
+  reveal what the backend lacks. It persists to **`settings.hiddenFields`**, which **rides the
+  config-bundle snapshot/export**, so the curated view travels with the deployment (joining
+  `screenLayouts`, which already persists drag-customised screens to the bundle). Endpoints:
+  `GET/PATCH /api/availability/curation` (gated to admin or pmo). SPA: a **Field visibility** panel
+  in Settings, a `useAvailability` hook and a `fieldVisible(...)` helper for renderers to gate UI.
+  `lib/availability`. *(Deep per-column gating in the data grid lands with the table module.)*
+
 - **Backend schema manifest + availability resolver (`describeSchema` / `GET /api/availability`).**
   A new **optional** broker method `describeSchema` returns a manifest — `{ tables, fields,
   relationships, populated }` — and a gateway **availability resolver** computes what a backend
