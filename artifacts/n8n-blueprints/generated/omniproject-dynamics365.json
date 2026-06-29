@@ -266,7 +266,7 @@
         "jsCode": "// Normalize the backend response to { success, data, message }.\nconst action = $('Webhook').first().json.body.action;\nconst rows = items.map((i) => i.json);\nconst data = rows.length === 1 ? rows[0] : rows;\nreturn [{ json: { success: true, data, message: action + ' ok' } }];"
       },
       "id": "aaaaaaaa-0000-4000-8000-000000000006",
-      "name": "Normalize → N8nActionResult",
+      "name": "Normalize → BrokerActionResult",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -541,7 +541,7 @@
         ]
       ]
     },
-    "Normalize → N8nActionResult": {
+    "Normalize → BrokerActionResult": {
       "main": [
         [
           {
@@ -620,7 +620,7 @@
       "main": [
         [
           {
-            "node": "Normalize → N8nActionResult",
+            "node": "Normalize → BrokerActionResult",
             "type": "main",
             "index": 0
           }
@@ -631,7 +631,7 @@
       "main": [
         [
           {
-            "node": "Normalize → N8nActionResult",
+            "node": "Normalize → BrokerActionResult",
             "type": "main",
             "index": 0
           }
@@ -642,7 +642,7 @@
       "main": [
         [
           {
-            "node": "Normalize → N8nActionResult",
+            "node": "Normalize → BrokerActionResult",
             "type": "main",
             "index": 0
           }
@@ -653,7 +653,7 @@
       "main": [
         [
           {
-            "node": "Normalize → N8nActionResult",
+            "node": "Normalize → BrokerActionResult",
             "type": "main",
             "index": 0
           }
@@ -664,7 +664,7 @@
       "main": [
         [
           {
-            "node": "Normalize → N8nActionResult",
+            "node": "Normalize → BrokerActionResult",
             "type": "main",
             "index": 0
           }

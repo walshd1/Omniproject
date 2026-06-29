@@ -98,7 +98,7 @@ lib/
   api-zod/            # generated Zod schemas        ← do not hand-edit
   api-client-react/   # generated React Query hooks  ← do not hand-edit
   db/                 # Drizzle scaffold (unused)
-scripts/              # verify-n8n-bidirectional.ts (contract test harness)
+scripts/              # verify-broker-contract.ts (contract test harness)
 Dockerfile, docker-compose.*.yml, k8s-enterprise-manifest.yaml
 ```
 
@@ -322,7 +322,7 @@ Canonical definitions are in `openapi.yaml`. Summary:
   sidecar files — ship the whole `dist/`).
 - **Image:** the multi-stage `Dockerfile` builds both and runs the gateway with
   `STATIC_DIR` set, serving SPA + API on port 3000.
-- **Contract test:** `scripts/src/verify-n8n-bidirectional.ts` mocks n8n and
+- **Contract test:** `scripts/src/verify-broker-contract.ts` mocks n8n and
   asserts the full contract (auth gate, idempotency/origin/userContext headers,
   data shapes, AI status, exports). Run via `verify-broker` (see README).
 

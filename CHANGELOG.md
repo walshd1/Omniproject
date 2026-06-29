@@ -18,7 +18,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   extended with a NAMING check (comments excluded) over the gateway and SPA, so the vendor token
   can only appear in the adapter folder, the seam factory that constructs it, the neutral
   broker-url resolver, and `vendors/brokers/<vendor>.json` — enforced in CI. (The generated n8n
-  workflow blueprints remain n8n-by-nature, like the vendor data.)
+  workflow blueprints remain n8n-by-nature, like the vendor data.) The contract-test script is
+  also renamed by its function — `scripts/src/verify-n8n-bidirectional.ts` →
+  `verify-broker-contract.ts` (alias `verify-broker`), and the generated workflow's normalize node
+  is `BrokerActionResult`.
 
 - **Broker-code isolation — one home per concrete broker, guard-enforced (no behaviour change).**
   All n8n adapter code now lives in a single folder, `broker/n8n/` (`index.ts` the adapter,

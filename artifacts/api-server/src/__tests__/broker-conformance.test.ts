@@ -10,7 +10,7 @@ import type { Broker, ActorContext } from "../broker/types";
  * an implementation. The read-only + structural checks live in the broker-agnostic
  * suite (broker/conformance.ts) so the SAME assertions run against:
  *   - DemoBroker        → the reference pass (here),
- *   - N8nBroker (live)  → the real-world pass (the verify-n8n CI step).
+ *   - N8nBroker (live)  → the real-world pass (the verify-broker CI step).
  * The mutation tests below stay DemoBroker-only so the suite can never write to a
  * real backend.
  */

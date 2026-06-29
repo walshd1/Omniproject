@@ -676,7 +676,7 @@ test("generateWorkflow: produces a valid, connected workflow", () => {
   const wf = generateWorkflow(getBackend("openproject")!);
   const names = new Set(wf.nodes.map((n) => n.name));
   // Scaffold present.
-  for (const required of ["Webhook", "Verify probe?", "Route Action", "Normalize → N8nActionResult", "Respond", "Capabilities"]) {
+  for (const required of ["Webhook", "Verify probe?", "Route Action", "Normalize → BrokerActionResult", "Respond", "Capabilities"]) {
     assert.ok(names.has(required), `missing node ${required}`);
   }
   // Every connection targets an existing node.

@@ -1,11 +1,11 @@
 /**
- * verify-n8n-bidirectional.ts
+ * verify-broker-contract.ts
  *
- * Tests the bidirectional n8n data contract:
- *   Outbound: Next.js/Express proxy → n8n webhook (mocked)
- *   Inbound:  n8n normalized state payload → parsed by proxy
+ * Tests the bidirectional BROKER data contract end-to-end against a mock broker:
+ *   Outbound: gateway → broker webhook (mocked)
+ *   Inbound:  broker normalized state payload → parsed by the gateway
  *
- * Run: pnpm --filter @workspace/scripts run verify-n8n
+ * Run: pnpm --filter @workspace/scripts run verify-broker
  */
 
 import http from "http";
