@@ -82,12 +82,10 @@ move from tamper-evident to non-repudiation for customers who need it.
   via AsyncLocalStorage, per-tenant config/vault/keys, fail-closed broker scoping, isolation test
   matrix) but **not implemented**. Single-tenant today. Needs the 5 open decisions in that doc
   answered before Phase 1 (tenant-context plumbing).
-- **[gap] Per-surface / per-role approved-actions.** The AI approved-actions allowlist is global;
-  a per-surface/per-role refinement was flagged optional.
-- **[gap] Setup-wizard governance walkthrough.** The wizard now covers profile + IdP + connect;
-  a guided pass over AI governance (containment, approved actions, grants) is not yet a step.
 - **[idea] MD RAG persona files.** Experienced PM/PgM methodological personas as retrieval files
-  for the copilot — recommended, not built (awaiting go-ahead).
+  for the copilot — recommended, not built (awaiting go-ahead). *(Partially shipped: the copilot
+  now lenses answers through methodology personas authored as catalogue JSON; standalone
+  retrieval `.md` files are the remaining idea.)*
 - **[idea] DSAR tooling beyond docs.** `docs/ENTERPRISE-OPS.md` documents the (stateless) DSAR
   story; a one-click "what we hold for subject X" report could automate the evidence.
 
@@ -106,6 +104,16 @@ move from tamper-evident to non-repudiation for customers who need it.
   it's not surprising.
 - **[debt] Large branch / changelog churn.** The last integration was 85 commits; keep future
   work in smaller, single-concern PRs to ease review and reduce changelog conflicts.
+- **[debt] Two strict-TS opt-ins still off.** `strict: true` is on, but `noUncheckedIndexedAccess`
+  (~74 sites) and `exactOptionalPropertyTypes` (~83 sites) are deferred. Each is a self-contained,
+  mechanical PR that makes indexed access and optional-property handling provably sound.
+- **[debt] A few large multi-concern components.** `IssueDialog.tsx` (~720 LOC) mixes form state +
+  payload marshalling + mutations + rendering; the dialog reset/close pattern is hand-rolled in
+  ~16 dialogs; `ScheduleSandbox` interleaves drag geometry + resource contention + rendering.
+  Extract a form hook + field panels, a `useFormDialog` hook, and `ScheduleSandbox` hooks.
+- **[gap] Auth/abuse hardening from the pentest pass (deferred).** Login-rate-limit on the demo
+  session endpoint, an OIDC `nonce` check, an SSE deprovision re-check on long-lived streams, and
+  a CSP `nonce` (replace `unsafe-inline`). Each independent and self-contained.
 
 ---
 
