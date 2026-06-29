@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import {
   useCreateIssue,
   useListProjects,
@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useStore } from "../store/useStore";
+import { useFormDialog } from "../hooks/use-form-dialog";
 import { STATUS_ORDER, STATUS_LABELS, PRIORITY_ORDER, PRIORITY_LABELS } from "../lib/constants";
 
 /**
@@ -33,7 +34,7 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const { data: projects } = useListProjects();
   const { activeProjectId } = useStore();
 
-  const [form, setForm] = useState({ projectId: "", title: "", status: "todo", priority: "none", assignee: "" });
+  const { form, setForm, reset, close: resetOnClose } = useFormDialog({ projectId: "", title: "", status: "todo", priority: "none", assignee: "" });
 
   // Default the project to the active one (or the first) whenever the dialog opens.
   useEffect(() => {
@@ -48,9 +49,8 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
 
   const titleError = form.title.trim() ? "" : "Title is required";
   const projectError = form.projectId ? "" : "A task must belong to a project";
-  const reset = () => setForm({ projectId: "", title: "", status: "todo", priority: "none", assignee: "" });
   const close = (o: boolean) => {
-    if (!o) reset();
+    resetOnClose(o);
     onOpenChange(o);
   };
 

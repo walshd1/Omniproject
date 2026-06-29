@@ -8,6 +8,7 @@ import {
   type RaidEntryInput,
 } from "@workspace/api-client-react";
 import { DataState } from "../DataState";
+import { useFormDialog } from "../../hooks/use-form-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { ProvenanceBadge } from "../ProvenanceBadge";
@@ -60,7 +61,7 @@ export function RaidView({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const create = useCreateRaidEntry();
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState<RaidEntryInput>({ type: "risk", title: "", severity: "medium", status: "open" });
+  const { form, setForm, reset } = useFormDialog<RaidEntryInput>({ type: "risk", title: "", severity: "medium", status: "open" });
 
   const grouped = useMemo(() => {
     const all = entries ?? [];
@@ -81,7 +82,7 @@ export function RaidView({ projectId }: { projectId: string }) {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetProjectRaidQueryKey(projectId) });
           toast({ title: "RAID ENTRY ADDED", description: form.title });
-          setForm({ type: "risk", title: "", severity: "medium", status: "open" });
+          reset();
           setAdding(false);
         },
         onError: () => toast({ title: "ERROR", description: "Could not add entry.", variant: "destructive" }),
