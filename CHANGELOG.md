@@ -8,6 +8,25 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Acceptance (end-to-end) test harness + keyboard/mouse parity gate.** A **Playwright** harness
+  drives the **real built SPA in Chromium** against the gateway in **demo mode** (stateless, sample
+  data, demo auth — no broker/backend), proving the product *behaves as intended* from the user's
+  seat, not just that functions return the right value. Uses the environment's pre-installed
+  Chromium (no download); `pnpm e2e` builds the SPA + gateway and boots one server serving both.
+  Specs (`artifacts/omniproject/e2e/*.spec.ts`) cover sign-in, sidebar nav, **global search** and
+  the **command palette** — **each journey written twice, a mouse path and a keyboard-only path**,
+  because every affordance must be operable both ways. A new static **interactive-parity guard**
+  (`guard-interactive`) fails CI when a non-interactive element carries an `onClick` without a
+  keyboard path, and a **header Search button** gives global search a pointer trigger alongside `/`.
+  Runs as a **separate CI job** so it never slows the fast `verify` lane.
+
+### Fixed
+
+- **SPA history-fallback 500 on deep links.** With a *relative* `STATIC_DIR`, the single-container
+  server's `res.sendFile` rejected the relative path and returned **500 for every client-side route**
+  (e.g. `/login`); only `/` worked. The index path is now resolved to absolute, so deep links and
+  refreshes work regardless of how `STATIC_DIR` is given. (Caught by the new acceptance harness.)
+
 - **Global search (UX-parity module).** A command-palette-style **cross-entity quick-find** over
   **projects, issues and programmes** from the existing read-model. **Keyboard-first** (open with
   `/` outside inputs, `↑`/`↓` to move, `Enter` to jump, `Esc` to close); selecting an issue routes

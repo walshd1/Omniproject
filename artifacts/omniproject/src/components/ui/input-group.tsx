@@ -65,6 +65,9 @@ function InputGroupAddon({
       role="group"
       data-slot="input-group-addon"
       data-align={align}
+      // Clicking the addon focuses the sibling input — a mouse convenience; keyboard users Tab
+      // straight to the input, so no unique action is lost (interactive-parity opt-out).
+      data-a11y-mouse-ok
       className={cn(inputGroupAddonVariants({ align }), className)}
       onClick={(e) => {
         if ((e.target as HTMLElement).closest("button")) {

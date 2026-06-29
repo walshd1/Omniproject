@@ -61,3 +61,7 @@ Thumbs.db
 coverage/
 *.lcov
 sbom-licences.json
+
+# Playwright acceptance harness
+test-results/
+playwright-report/

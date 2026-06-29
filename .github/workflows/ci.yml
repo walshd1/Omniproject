@@ -170,6 +170,9 @@ jobs:
       - name: Verify a concrete broker adapter is imported only via the seam
         run: pnpm --filter @workspace/scripts run guard-broker-isolation
 
+      - name: Verify every clickable affordance is keyboard-operable (parity guard)
+        run: pnpm --filter @workspace/scripts run guard-interactive
+
       - name: Build gateway
         run: pnpm --filter @workspace/api-server run build
 
@@ -360,3 +363,32 @@ jobs:
         with:
           name: sbom
           path: sbom-licences.json
+
+  # Acceptance (end-to-end) — drives the real built SPA in Chromium against the gateway in demo
+  # mode. Separate from `verify` so its browser download + build never slows the fast lane.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.8.0
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Build + run acceptance specs (mouse + keyboard journeys)
+        run: pnpm run e2e
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

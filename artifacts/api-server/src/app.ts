@@ -237,7 +237,10 @@ app.use(wellKnownRouter);
 // proxies /api here, so STATIC_DIR is left unset.
 const staticDir = process.env["STATIC_DIR"];
 if (staticDir && fs.existsSync(staticDir)) {
-  const indexHtml = path.join(staticDir, "index.html");
+  // Absolute, so the SPA history-fallback `res.sendFile` works regardless of whether STATIC_DIR
+  // was given as a relative or absolute path (Express requires an absolute path / a `root` option;
+  // a relative one 500s every client-side route like /login).
+  const indexHtml = path.resolve(staticDir, "index.html");
   // Vite emits content-hashed, immutable asset filenames, so they can be cached
   // forever — a big repeat-visit win. The shell entrypoints (index.html, the
   // service worker) must always revalidate so a new deploy is picked up at once.
