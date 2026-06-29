@@ -176,6 +176,9 @@ jobs:
       - name: Verify every App.tsx route has an e2e smoke (route-coverage guard)
         run: pnpm --filter @workspace/scripts run guard-e2e-routes
 
+      - name: Verify compose deployment-safety invariants (compose guard)
+        run: pnpm --filter @workspace/scripts run guard-compose
+
       - name: Build gateway
         run: pnpm --filter @workspace/api-server run build
 
@@ -250,6 +253,9 @@ jobs:
         run: |
           docker compose -f docker-compose.standalone.yml config -q
           docker compose -f docker-compose.enterprise.yml config -q
+          docker compose -f docker-compose.loadtest.yml config -q
+          # The dev override must compose cleanly ON TOP of the standalone base.
+          docker compose -f docker-compose.standalone.yml -f docker-compose.dev.yml config -q
 
       - name: Lint k8s manifest (kubeconform)
         run: |

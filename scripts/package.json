@@ -31,10 +31,12 @@
     "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "guard-interactive": "tsx ./src/guard-interactive.ts",
-    "guard-e2e-routes": "tsx ./src/guard-e2e-routes.ts"
+    "guard-e2e-routes": "tsx ./src/guard-e2e-routes.ts",
+    "guard-compose": "tsx ./src/guard-compose.ts"
   },
   "dependencies": {
-    "@workspace/backend-catalogue": "workspace:*"
+    "@workspace/backend-catalogue": "workspace:*",
+    "yaml": "2.8.4"
   },
   "devDependencies": {
     "@types/node": "catalog:",

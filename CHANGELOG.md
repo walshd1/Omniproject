@@ -8,6 +8,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Docker Compose correctness guard + audit.** A new parseable guard
+  (`scripts/src/guard-compose.ts`, `pnpm --filter @workspace/scripts run guard-compose`, run in CI's
+  `verify` job) checks the deployment-safety invariants `docker compose config` can't see: every
+  `depends_on … service_healthy` target actually defines a **healthcheck**, every pulled image is
+  **pinned** (no implicit `latest`), the production gateway runs **hardened** (no-new-privileges /
+  `cap_drop: ALL` / `read_only`), and Traefik never exposes an **insecure dashboard**. The
+  `deploy-lint` job now also validates the **load-test** compose and the **dev override layered on
+  the standalone base** (previously only standalone + enterprise were parsed), and the load-test
+  gateway gained a liveness healthcheck so the rig supports `--wait`. The full audit — topologies,
+  what was verified, and the stateless/read-only rationale — is documented in `docs/COMPOSE-AUDIT.md`.
+  No correctness defects were found in the existing compose files; this locks that in against drift.
+
 - **Live collaboration presence (Phase 2 UX polish — real-time).** A new opt-out **`presence`**
   feature module shows who else is on a work item and, advisorily, which field they're editing —
   over Server-Sent Events, so it's push-based with no polling. The work-item side-panel now carries
