@@ -59,6 +59,13 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     label: "Saved views",
     description: "Save named views (filters, sort, columns, grouping) and switch between them.",
   },
+  {
+    // UI-only: a personal "My Work" page (items assigned to me, cross-project) + an optional Inbox
+    // fed by the existing notification stream. Reads through existing endpoints; nothing to mount.
+    id: "myWork",
+    label: "My Work / Inbox",
+    description: "A personal cross-project view of items assigned to you, plus a notification inbox.",
+  },
 ];
 
 // Which modules actually got loaded+mounted this process (set by the mount step). Lets the

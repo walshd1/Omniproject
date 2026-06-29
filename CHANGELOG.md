@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **My Work / Inbox (UX-parity module).** A personal landing surface with two tabs: **Assigned to
+  me** — every work item assigned to the current user **across all projects**, grouped by status
+  (matched on session `sub` / `email` / `name`, read through the existing per-project issue
+  endpoints, no new write surface) — and an optional **Inbox** wired to the existing **notification
+  SSE stream** (`/api/notifications/stream` via `lib/live-events`): new events accumulate live,
+  newest-first, with client-side dismiss, and degrade gracefully to empty when nothing is wired.
+  Shipped as the optional UI-only **`myWork`** feature module; the primary nav gains a **My Work**
+  item that hides when the module is disabled (`NavItem.requiresFeature` + `useVisibleNavItems`
+  feature-gating, alongside the existing entity gating). `pages/MyWork`, route `/my-work`.
+
 - **Saved views (UX-parity module).** Save a **named view** — visible columns + sort (+ filters /
   grouping captured in the model) — and switch between them. Scoped to a surface (the editable
   grid first): pick a view to apply its column set + sort, **Save view** to name the current state,

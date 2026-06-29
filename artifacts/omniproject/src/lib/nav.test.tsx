@@ -3,6 +3,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { getGetCapabilitiesQueryKey, type Capabilities } from "@workspace/api-client-react";
 import { renderWithProviders } from "../test/utils";
 import { NAV_ITEMS, useVisibleNavItems } from "./nav";
+import { featuresQueryKey, type FeatureStatus } from "./features";
 
 function Probe() {
   const items = useVisibleNavItems();
@@ -24,10 +25,19 @@ function withProgramme(surface: boolean): QueryClient {
   return qc;
 }
 
+function withMyWorkEnabled(enabled: boolean): QueryClient {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  qc.setQueryData(featuresQueryKey, [
+    { id: "myWork", label: "My Work / Inbox", description: "", enabled, loaded: enabled, needsRestart: false },
+  ] satisfies FeatureStatus[]);
+  return qc;
+}
+
 describe("NAV_ITEMS", () => {
   it("exposes the expected hrefs in order", () => {
     expect(NAV_ITEMS.map((n) => n.href)).toEqual([
       "/",
+      "/my-work",
       "/programmes",
       "/projects",
       "/reports",
@@ -89,5 +99,23 @@ describe("useVisibleNavItems — entity gating", () => {
   it("shows Programmes when the backend can surface it", () => {
     const { queryByText } = renderWithProviders(<Probe />, { client: withProgramme(true) });
     expect(queryByText("Programmes")).not.toBeNull();
+  });
+});
+
+describe("useVisibleNavItems — feature gating", () => {
+  it("hides My Work when the myWork feature module is disabled", () => {
+    const { queryByText } = renderWithProviders(<Probe />, { client: withMyWorkEnabled(false) });
+    expect(queryByText("My Work")).toBeNull();
+    expect(queryByText("Projects")).not.toBeNull(); // ungated items stay
+  });
+
+  it("shows My Work when the myWork feature module is enabled", () => {
+    const { queryByText } = renderWithProviders(<Probe />, { client: withMyWorkEnabled(true) });
+    expect(queryByText("My Work")).not.toBeNull();
+  });
+
+  it("shows My Work by default while features are still loading", () => {
+    const { queryByText } = renderWithProviders(<Probe />, { client: withProgramme(true) });
+    expect(queryByText("My Work")).not.toBeNull();
   });
 });

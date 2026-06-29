@@ -24,6 +24,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 // initial load no longer pays for Reports' charts, the Gantt, etc. (named exports
 // → map to a default for React.lazy).
 const Home = lazy(() => import("./pages/Home").then((m) => ({ default: m.Home })));
+const MyWork = lazy(() => import("./pages/MyWork").then((m) => ({ default: m.MyWork })));
 const Programmes = lazy(() => import("./pages/Programmes").then((m) => ({ default: m.Programmes })));
 const ProgrammeDetail = lazy(() => import("./pages/ProgrammeDetail").then((m) => ({ default: m.ProgrammeDetail })));
 const Projects = lazy(() => import("./pages/Projects").then((m) => ({ default: m.Projects })));
@@ -68,6 +69,9 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/">
         <AppLayout><Home /></AppLayout>
+      </Route>
+      <Route path="/my-work">
+        <AppLayout><MyWork /></AppLayout>
       </Route>
       <Route path="/programmes">
         <AppLayout><Programmes /></AppLayout>
