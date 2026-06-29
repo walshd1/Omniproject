@@ -82,6 +82,31 @@ describe("IssueSidePanel", () => {
     await waitFor(() => expect(useRecentItems.getState().items[0]).toMatchObject({ type: "issue", id: "i1", label: "Wire the broker", projectId: "p1" }));
   });
 
+  // Both arrays are populated on each event: our hook reads `touches` on start / `changedTouches` on
+  // end, while Radix's scroll-lock listener also probes them — leaving either undefined makes it throw.
+  const startTouch = (panel: HTMLElement, x: number, y: number) =>
+    fireEvent.touchStart(panel, { touches: [{ clientX: x, clientY: y }], changedTouches: [{ clientX: x, clientY: y }] });
+  const endTouch = (panel: HTMLElement, x: number, y: number) =>
+    fireEvent.touchEnd(panel, { touches: [{ clientX: x, clientY: y }], changedTouches: [{ clientX: x, clientY: y }] });
+
+  it("dismisses on a right-swipe (touch affordance), the same close the button/Esc trigger", async () => {
+    renderWithProviders(<IssueSidePanel />, { client: seed() });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    const panel = await screen.findByTestId("issue-side-panel");
+    startTouch(panel, 20, 40);
+    endTouch(panel, 140, 45);
+    await waitFor(() => expect(useSidePanel.getState().open).toBe(false));
+  });
+
+  it("ignores a vertical scroll gesture (does not dismiss)", async () => {
+    renderWithProviders(<IssueSidePanel />, { client: seed() });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    const panel = await screen.findByTestId("issue-side-panel");
+    startTouch(panel, 40, 20);
+    endTouch(panel, 45, 160);
+    expect(useSidePanel.getState().open).toBe(true);
+  });
+
   it("lists only this item's activity", async () => {
     const activity: ActivityEntry[] = [
       { id: "a1", action: "status_changed", actor: "ada", projectId: "p1", issueId: "i1", timestamp: new Date(0).toISOString() } as ActivityEntry,
