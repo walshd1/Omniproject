@@ -8,6 +8,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Feature modules — optional backend modules with true lazy loading (Phase 0 of the modular
+  UX epic).** Optional, self-contained backend modules can now be switched off so a customer never
+  loads (or pays the resources for) code they don't use. A registry (`lib/feature-modules`) reaches
+  each module only through a dynamic `import()`; the mount step runs that import **only for enabled
+  modules**, so a disabled module's route chunk is never loaded at startup (esbuild **code-splitting**
+  is enabled, putting each behind its own chunk). It's an **opt-out** model — everything is on by
+  default; disable by id via `DISABLED_FEATURES=odata,integrations` (env) or `settings.disabledFeatures`
+  (admin, persisted to the config bundle so the chosen module set travels with the deployment). A
+  `requireFeature(id)` gate also **404s a module the moment it's disabled at runtime** (enabling one
+  that was off at startup needs a restart — surfaced honestly as `needsRestart`). `GET /api/features`
+  lists every module's `{enabled, loaded, needsRestart}`; the SPA gets a `useFeatures` hook (for
+  lazily gating optional UI) and an **admin "Feature modules" panel** in Settings to toggle them. As
+  proof, the **OData/BI** and **integration-helper** routes are migrated to lazy feature modules;
+  more migrate in follow-ups. This is the foundation the UX-parity modules (table bulk-edit, saved
+  views, My Work, dashboards, side-panel, search) build on.
+
 - **Multi-provider OIDC sign-in — a branded button per provider (Google, Microsoft, …).** The OIDC
   relying party moves from a single issuer to a **provider registry** (`lib/oidc`). Two ways to
   configure, combined: the **legacy single** `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` /

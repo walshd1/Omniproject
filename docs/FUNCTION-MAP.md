@@ -887,6 +887,18 @@ Scheduled executive digest — a periodic, read-only portfolio roll-up delivered
 | `startExecDigestScheduler` | Start the in-process digest timer when EXEC_DIGEST_INTERVAL_HOURS > 0 (single-instance). |
 | `__stopExecDigestScheduler` | Test-only: stop the timer. |
 
+### `artifacts/api-server/src/lib/feature-modules.ts`
+
+Feature-module registry — the optional backend modules a deployment can switch off so a customer never loads (or pays the resources for) code they don't use.
+
+| Function | What it does |
+| --- | --- |
+| `markFeatureLoaded` | — |
+| `disabledFeatureIds` | The full set of disabled ids: env (`DISABLED_FEATURES`) ∪ settings (`disabledFeatures`). |
+| `isFeatureEnabled` | True when a module id is currently enabled (not in the disabled set). |
+| `featureStatus` | The status of every registered feature module (for `GET /api/features` + the admin panel). |
+| `requireFeature` | Middleware: 404 when the feature is disabled at request time (immediate runtime toggle-off). |
+
 ### `artifacts/api-server/src/lib/field-registry.ts`
 
 Field registry (gateway view) — the reconcile / validate behaviour over the canonical field vocabulary.
@@ -1687,6 +1699,10 @@ Dev-mode routes.
 ### `artifacts/api-server/src/routes/export.ts`
 
 Data-export endpoints — GET /api/export.{csv,xlsx,json,md,pdf} render the projects/issues/activity datasets in each format for download.
+
+### `artifacts/api-server/src/routes/features.ts`
+
+Feature-module status, so the SPA can lazily gate optional UI and the admin panel can show what's on/off (and what needs a restart to load).
 
 ### `artifacts/api-server/src/routes/health-watch.ts`
 
