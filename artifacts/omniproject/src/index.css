@@ -181,6 +181,14 @@ html {
   scroll-behavior: auto !important;
 }
 
+/* Per-user UI density (lib/a11y-prefs). Tailwind v4 derives every spacing utility
+   (p-*, m-*, gap-*, space-*) from the `--spacing` token, so tightening it here makes
+   "compact" mode shrink padding/margins/gaps APP-WIDE from one design token — no
+   per-component changes. Default Tailwind --spacing is 0.25rem. */
+[data-density="compact"] {
+  --spacing: 0.2rem;
+}
+
 /* ── Mobile mode (lib/platform-context) ──────────────────────────────────────────
    data-mobile / data-touch / data-standalone are set on <html> from the resolved
    platform. Touch layouts get WCAG-sized (≥44px) hit targets; installed/standalone
