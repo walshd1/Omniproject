@@ -1030,7 +1030,7 @@ Magic-link / email-OTP — passwordless sign-in for orgs with NO IdP (the charit
 | Function | What it does |
 | --- | --- |
 | `magicLinkEnabled` | Magic-link / email-OTP — passwordless sign-in for orgs with NO IdP (the charity/SME / homelab who haven't wired OIDC or SAML and don't want a directory). |
-| `isValidEmail` | — |
+| `isValidEmail` | A lightweight, dependency-free email shape check (not RFC-exhaustive) bounded to 254 chars. |
 | `mintMagicToken` | Mint a sealed, single-use, time-boxed magic token for an email. |
 | `verifyMagicToken` | Open + validate a magic token (tamper + expiry). |
 | `consumeMagicToken` | Enforce single-use: returns true the FIRST time a jti is seen, false on replay. |
