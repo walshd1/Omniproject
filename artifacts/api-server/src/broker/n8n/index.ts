@@ -1,9 +1,10 @@
 import crypto from "node:crypto";
-import { getSettings } from "../lib/settings";
-import { currentEndpointOverride } from "./endpoint-context";
-import { recordAudit } from "../lib/audit";
-import { INDICATIVE_FX_RATES } from "../lib/fx-fallback";
-import { VERIFIABLE_ACTIONS } from "./verifiable-actions";
+import { getSettings } from "../../lib/settings";
+import { configuredBrokerUrl } from "../../lib/broker-url";
+import { currentEndpointOverride } from "../endpoint-context";
+import { recordAudit } from "../../lib/audit";
+import { INDICATIVE_FX_RATES } from "../../lib/fx-fallback";
+import { VERIFIABLE_ACTIONS } from "../verifiable-actions";
 import {
   BrokerError,
   type Broker,
@@ -24,14 +25,14 @@ import {
   type CapabilityFlags,
   type VerifyReport,
   type Row,
-} from "./types";
-import { GATEWAY_ORIGIN, REQUEST_HEADERS, type BrokerEnvelope } from "./contract";
-import { addUpstreamMs } from "../lib/request-timing";
-import { assertEgressAllowed } from "../lib/egress";
-import { pskEnabled, sealPayload, openPayload, PSK_HEADER, PSK_PREFIX } from "../lib/broker-psk";
-import { signBrokerRequest } from "../lib/broker-hmac";
-import { assertSafeBrokerPayload, assertSafeAuthHeader } from "../lib/payload-guard";
-import { currentTraceparent } from "../lib/tracing";
+} from "../types";
+import { GATEWAY_ORIGIN, REQUEST_HEADERS, type BrokerEnvelope } from "../contract";
+import { addUpstreamMs } from "../../lib/request-timing";
+import { assertEgressAllowed } from "../../lib/egress";
+import { pskEnabled, sealPayload, openPayload, PSK_HEADER, PSK_PREFIX } from "../../lib/broker-psk";
+import { signBrokerRequest } from "../../lib/broker-hmac";
+import { assertSafeBrokerPayload, assertSafeAuthHeader } from "../../lib/payload-guard";
+import { currentTraceparent } from "../../lib/tracing";
 
 /**
  * n8n broker — THE one place that knows the broker is n8n.
@@ -47,14 +48,12 @@ import { currentTraceparent } from "../lib/tracing";
  */
 
 /**
- * The single broker webhook URL from the environment. `BROKER_URL` is the
- * current, broker-neutral name (since 0.2.0); `N8N_WEBHOOK_URL` is accepted as a
- * deprecated backwards-compatible alias for pre-0.2.0 deployments — deploy files
- * use `BROKER_URL` (enforced by the deploy guard), the alias is a code-only
- * safety net.
+ * The single broker webhook URL from the environment, via the neutral resolver (which owns the
+ * deprecated `N8N_WEBHOOK_URL` alias). `BROKER_URL` is the current, broker-neutral name; the
+ * alias is a code-only safety net for pre-0.2.0 deployments.
  */
 function brokerUrlFromEnv(): string | undefined {
-  return (process.env["BROKER_URL"] ?? process.env["N8N_WEBHOOK_URL"])?.trim() || undefined;
+  return configuredBrokerUrl();
 }
 
 /** True when a broker is wired via the environment (selection signal at boot). */

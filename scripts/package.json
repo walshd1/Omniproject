@@ -7,6 +7,7 @@
     "hello": "tsx ./src/hello.ts",
     "wizard": "tsx ./src/wizard/wizard.ts",
     "verify-plane": "tsx ./src/verify-plane.ts",
+    "guard-broker-isolation": "tsx ./src/guard-broker-isolation.ts",
     "gen-contract": "tsx ./src/gen-contract.ts",
     "gen-openapi": "tsx ./src/gen-openapi-bundle.ts",
     "gen-function-map": "tsx ./src/gen-function-map.ts",

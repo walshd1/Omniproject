@@ -41,6 +41,19 @@ test("flags a plain-http broker URL to a remote host (encrypt the broker hop)", 
   assert.ok(!local.some((x) => x.id === "broker-plaintext"));
 });
 
+test("checks EVERY loaded broker, not just the primary (per-kind BROKER_ENDPOINTS)", () => {
+  // Primary is TLS, but a per-kind secondary broker is plain http to a remote host → still flagged.
+  const findings = securityFindings({
+    NODE_ENV: "production",
+    OIDC_ISSUER_URL: "https://idp/realm",
+    BROKER_URL: "https://primary.internal/webhook",
+    BROKER_ENDPOINTS: "node-red=http://node-red.internal:1880/omni,extra=https://ok.internal/x",
+  });
+  const plaintext = findings.filter((x) => x.id === "broker-plaintext");
+  assert.equal(plaintext.length, 1); // only the node-red endpoint, not the TLS ones
+  assert.match(plaintext[0]!.message, /node-red\.internal/);
+});
+
 test("flags disabled rate limiting and surfaces egress/logging notes", () => {
   const f = securityFindings({
     NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm",

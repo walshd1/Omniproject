@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { webhookPool, orderedTargets } from "./n8n";
+import { webhookPool, orderedTargets } from ".";
 
 afterEach(() => {
   delete process.env["BROKER_URLS"];
