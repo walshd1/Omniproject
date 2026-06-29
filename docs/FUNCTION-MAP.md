@@ -2145,6 +2145,10 @@ View catalogue generator.
 
 Broker-isolation guard.
 
+### `scripts/src/guard-superset.ts`
+
+Superset guard — enforces the invariant that every backend's field set is a strict SUBSET of the canonical superset.
+
 ### `scripts/src/hello.ts`
 
 Trivial workspace smoke script — prints a hello line to prove tsx + the workspace wiring run.
@@ -2173,6 +2177,15 @@ Load-harness core — pure, so the stats, error classification, concurrency pool
 | `summarise` | Summarise a load-run's latencies/throughput/errors into a report row. |
 | `verdict` | Pass/fail a report against thresholds, with human-readable reasons on failure. |
 | `runPool` | Run an array of async thunks at most `concurrency` in flight — the standard worker-pool. |
+
+### `scripts/src/lib/superset.ts`
+
+The canonical field superset = the base vocabulary (assets/fields.json) UNION every field a backend descriptor CONTRIBUTES (its optional `fields[]`).
+
+| Function | What it does |
+| --- | --- |
+| `loadSuperset` | The merged superset: base fields first, then each backend's contributed `fields[]`. |
+| `backendFieldRefs` | The canonical field keys each backend REFERENCES (its `fieldKeys[]`), per file. |
 
 ### `scripts/src/load-harness.ts`
 

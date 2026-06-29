@@ -112,6 +112,9 @@ jobs:
             exit 1
           fi
 
+      - name: Enforce every backend's field set is a subset of the superset
+        run: pnpm --filter @workspace/scripts run guard-superset
+
       - name: Verify the report + screen catalogues are in sync with their JSON
         run: |
           pnpm --filter @workspace/scripts run gen-reports

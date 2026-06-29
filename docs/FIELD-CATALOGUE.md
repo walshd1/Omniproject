@@ -224,3 +224,20 @@ domains + `GROUP_DOMAIN` mappings. When a real backend is wired, `reconcileField
 diffs its enumerated API against this superset: matches wire up automatically,
 genuinely-new fields are reported for a deliberate registry edit, and anything
 still unknown rides the `customFields` passthrough.
+
+## The superset is enforced and vendor-extensible
+
+The registry is the **union of every backend's fields** — and that's now guaranteed by the build,
+not just by convention:
+
+- **A vendor can grow it.** A backend descriptor (`vendors/backends/<id>.json`) may declare an
+  optional `fields[]` array; `gen-fields` merges those into the superset (dedup by key; a
+  conflicting type/group redefinition is an error). Add a vendor whose API exposes a new field and
+  the superset grows with it.
+- **Every backend ⊆ superset.** A backend may only *reference* canonical fields it actually
+  supports via `fieldKeys[]`, and the `guard-superset` CI check fails the build if any of those
+  isn't in the superset. So OpenProject — like every other backend — is a strict subset by
+  construction; the superset can only ever be a superset.
+- **`entity` tag.** Each field may declare the canonical `entity` (table) it belongs to (default
+  `issue`) — the grouping key the superset-native self-host-DB schema generator uses to place a
+  field as a column on the right table.

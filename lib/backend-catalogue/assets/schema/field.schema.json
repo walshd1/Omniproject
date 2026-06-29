@@ -58,6 +58,10 @@
     "references": {
       "type": "string",
       "description": "For type: reference — the entity key this field points at (e.g. programme)."
+    },
+    "entity": {
+      "type": "string",
+      "description": "The canonical entity (table) this field belongs to. Defaults to 'issue' when omitted. Drives which table a field becomes a column on in the superset-native self-host DB schema generator."
     }
   }
 }

@@ -103,6 +103,20 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
           "type": "string"
         }
       },
+      "fields": {
+        "type": "array",
+        "description": "Canonical fields this backend CONTRIBUTES to the superset (each validated against assets/schema/field.schema.json by gen-fields and merged in, dedup by key). Use when a backend exposes a field not yet in the registry.",
+        "items": {
+          "type": "object"
+        }
+      },
+      "fieldKeys": {
+        "type": "array",
+        "description": "Canonical field keys this backend exposes/maps. MUST be a strict subset of the superset — enforced by the guard-superset CI check (a backend can only reference fields that exist).",
+        "items": {
+          "type": "string"
+        }
+      },
       "statusVocabulary": {
         "type": "object",
         "additionalProperties": false,
