@@ -33,9 +33,9 @@ export function ProvenanceBadge({
   mode,
   className = "",
 }: {
-  provenance?: Provenance;
-  mode?: string;
-  className?: string;
+  provenance?: Provenance | undefined;
+  mode?: string | undefined;
+  className?: string | undefined;
 }) {
   const resolved: Provenance = provenance ?? (mode === "demo" || !mode ? "sample" : "sourced");
   // Defensive: the logging server can emit provenance values outside this badge's

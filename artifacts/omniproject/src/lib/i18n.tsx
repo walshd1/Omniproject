@@ -191,7 +191,7 @@ interface I18nContextValue {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-export function I18nProvider({ children, labelOverrides }: { children: ReactNode; labelOverrides?: Record<string, string> }) {
+export function I18nProvider({ children, labelOverrides }: { children: ReactNode; labelOverrides?: Record<string, string> | undefined }) {
   const [locale, setLocaleState] = useState<Locale>(detectLocale);
   // Stable reference so the memoised `t` below doesn't rebuild on every render.
   const overrides = useMemo(() => labelOverrides ?? {}, [labelOverrides]);

@@ -11,7 +11,7 @@ export function ListPanel({ panel }: { panel: Panel }) {
   const raw = Array.isArray(panel.config?.["items"]) ? (panel.config!["items"] as unknown[]) : [];
   const items: ListItem[] = raw
     .filter((i): i is Record<string, unknown> => !!i && typeof i === "object")
-    .map((i) => ({ title: String(i["title"] ?? ""), subtitle: typeof i["subtitle"] === "string" ? i["subtitle"] : undefined }));
+    .map((i) => ({ title: String(i["title"] ?? ""), ...(typeof i["subtitle"] === "string" ? { subtitle: i["subtitle"] } : {}) }));
   return (
     <Card>
       {panel.title && (

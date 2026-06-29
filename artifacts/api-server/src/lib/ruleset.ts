@@ -22,7 +22,7 @@ export interface RuleContext {
   write: boolean;
   role: string; // already RBAC-passed (hard gate ran first)
   projectId?: string | null;
-  payload?: Record<string, unknown>;
+  payload?: Record<string, unknown> | undefined;
 }
 
 export interface BusinessRule {

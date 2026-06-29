@@ -60,7 +60,7 @@ async function timed(method: string, path: string, body?: unknown): Promise<Time
     const r = await fetch(`${base}${path}`, {
       method,
       headers: { ...authHeaders, ...(body ? { "content-type": "application/json" } : {}) },
-      body: body ? JSON.stringify(body) : undefined,
+      ...(body ? { body: JSON.stringify(body) } : {}),
     });
     const ms = Date.now() - t0;
     await r.arrayBuffer(); // drain so sockets free up

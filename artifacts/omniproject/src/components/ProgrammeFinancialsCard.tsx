@@ -6,7 +6,7 @@ import { ReportingBadge } from "./ReportingBadge";
 
 const HEALTH: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
 
-function Stat({ label, value, accent, badge }: { label: string; value: string; accent?: string; badge?: ReactNode }) {
+function Stat({ label, value, accent, badge }: { label: string; value: string; accent?: string | undefined; badge?: ReactNode }) {
   return (
     <div className="border border-border bg-background p-3">
       <div className="flex items-center justify-between gap-2 mb-1">

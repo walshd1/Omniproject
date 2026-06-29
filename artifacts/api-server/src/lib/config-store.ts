@@ -84,7 +84,7 @@ function ensure(): StoreState {
 
 function record(env: string, snapshot: ConfigSnapshot, label?: string): ConfigVersion {
   const s = ensure();
-  const version: ConfigVersion = { id: nextId(), env, at: new Date().toISOString(), snapshot: structuredClone(snapshot), label, knownGood: false };
+  const version: ConfigVersion = { id: nextId(), env, at: new Date().toISOString(), snapshot: structuredClone(snapshot), ...(label !== undefined ? { label } : {}), knownGood: false };
   s.versions.push(version);
   if (s.versions.length > MAX_VERSIONS) s.versions.splice(0, s.versions.length - MAX_VERSIONS);
   return version;

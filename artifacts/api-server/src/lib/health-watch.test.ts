@@ -42,7 +42,7 @@ test("setHealthThresholds tunes the active thresholds (merge over defaults, vali
 });
 
 test("runHealthWatch reads via the broker as the keyed actor, notifies, and records findings", async () => {
-  const seen: { ctxSub?: string } = {};
+  const seen: { ctxSub?: string | undefined } = {};
   const broker = {
     portfolioHealth: async (ctx: { sub?: string }) => { seen.ctxSub = ctx.sub; return [row({ ragStatus: "red" }), row({ projectId: "P2", projectName: "Zeus", activeBlockersCount: 2 })]; },
   } as unknown as Broker;

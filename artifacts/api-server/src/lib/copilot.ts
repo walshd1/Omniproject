@@ -79,7 +79,7 @@ export async function answerCopilot(opts: { question: string; broker: Broker; ct
   // Mode: "rag" (default) retrieves a methodology persona to lens the answer; "freeform"
   // skips retrieval and answers plainly. The COPILOT_PERSONAS=off kill-switch wins either way.
   const usePersona = opts.mode !== "freeform" && personasEnabled();
-  const persona = usePersona ? selectPersonas(q, { methodology: opts.methodology })[0] : undefined;
+  const persona = usePersona ? selectPersonas(q, { ...(opts.methodology !== undefined ? { methodology: opts.methodology } : {}) })[0] : undefined;
   const answer = await opts.complete(copilotMessages(q, context, opts.vocab ?? [], persona));
   return { answer, projects: context.length, ...(persona ? { persona: { id: persona.id, title: persona.title } } : {}) };
 }

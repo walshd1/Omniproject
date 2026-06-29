@@ -115,7 +115,7 @@ export function AiProvidersAdmin() {
             data-testid="add-provider"
             disabled={!add.id.trim() || !add.label.trim()}
             onClick={() => void guarded(async () => {
-              await upsertProvider({ id: add.id.trim(), kind: add.kind, label: add.label.trim(), endpoint: add.endpoint.trim() || undefined, model: add.model.trim() || undefined });
+              await upsertProvider({ id: add.id.trim(), kind: add.kind, label: add.label.trim(), ...(add.endpoint.trim() ? { endpoint: add.endpoint.trim() } : {}), ...(add.model.trim() ? { model: add.model.trim() } : {}) });
               setAdd({ id: "", kind: "openai", label: "", endpoint: "", model: "" });
             })}
             className="h-8 rounded bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-50"

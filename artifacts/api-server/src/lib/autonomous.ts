@@ -28,9 +28,9 @@ export interface AutonomousSpec {
   role: Role;
   /** When acting FOR a human (an agent), their sub — recorded in the principal id so
    *  the action is traceable to the person who delegated it. */
-  onBehalfOf?: string;
+  onBehalfOf?: string | undefined;
   /** Why it is acting (carried into the principal label for audit/provenance). */
-  reason?: string;
+  reason?: string | undefined;
 }
 
 /**

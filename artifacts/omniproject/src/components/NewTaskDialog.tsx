@@ -59,8 +59,8 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     if (titleError || projectError) return;
     const data: IssueInput = {
       title: form.title.trim(),
-      status: form.status as IssueInput["status"],
-      priority: form.priority as IssueInput["priority"],
+      status: form.status as NonNullable<IssueInput["status"]>,
+      priority: form.priority as NonNullable<IssueInput["priority"]>,
       assignee: form.assignee || null,
     };
     create.mutate(

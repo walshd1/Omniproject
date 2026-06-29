@@ -29,15 +29,15 @@ export interface AutonomousWriteGrant {
   /** Allowed write actions (e.g. ["update_issue"]). Empty ⇒ no writes. */
   actions: string[];
   /** Allowed project ids, or ["*"] for any. Omitted ⇒ none allowed (must be explicit). */
-  projects?: string[];
+  projects?: string[] | undefined;
   /** Allowed surfaces/screens, or ["*"]. Omitted ⇒ unrestricted by surface. */
-  surfaces?: string[];
+  surfaces?: string[] | undefined;
   /** Allowed fields to write, or ["*"]. Omitted ⇒ unrestricted by field. */
-  fields?: string[];
+  fields?: string[] | undefined;
   /** Grant expiry (epoch ms). Omitted ⇒ no extra time bound beyond the session TTL. */
-  notAfter?: number;
+  notAfter?: number | undefined;
   /** Per-process cap on writes under this grant (a runaway/looping guard). */
-  maxWrites?: number;
+  maxWrites?: number | undefined;
   /** Explicit opt-in to a BROAD (wildcard/unspecified) scope. Honoured only when AI is
    *  local — remote/public AI hard-reject broad grants regardless. Forces an admin to
    *  state intent; the default posture everywhere is many narrow grants, not one broad one. */

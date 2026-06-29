@@ -104,7 +104,13 @@ router.get("/scim/v2/Users", (req, res) => {
 router.post("/scim/v2/Users", (req, res) => {
   const b = (req.body ?? {}) as Partial<ScimUser>;
   if (!b.userName) { scimError(res, 400, "userName is required."); return; }
-  const u = createUser({ userName: b.userName, externalId: b.externalId, active: b.active, displayName: b.displayName, emails: b.emails });
+  const u = createUser({
+    userName: b.userName,
+    ...(b.externalId !== undefined ? { externalId: b.externalId } : {}),
+    ...(b.active !== undefined ? { active: b.active } : {}),
+    ...(b.displayName !== undefined ? { displayName: b.displayName } : {}),
+    ...(b.emails !== undefined ? { emails: b.emails } : {}),
+  });
   audit("scim.user.create", { id: u.id, userName: u.userName });
   res.status(201).type("application/scim+json").json(userResource(u));
 });
@@ -141,7 +147,11 @@ router.get("/scim/v2/Groups", (req, res) => {
 router.post("/scim/v2/Groups", (req, res) => {
   const b = (req.body ?? {}) as Partial<ScimGroup>;
   if (!b.displayName) { scimError(res, 400, "displayName is required."); return; }
-  const g = createGroup({ displayName: b.displayName, externalId: b.externalId, members: b.members });
+  const g = createGroup({
+    displayName: b.displayName,
+    ...(b.externalId !== undefined ? { externalId: b.externalId } : {}),
+    ...(b.members !== undefined ? { members: b.members } : {}),
+  });
   audit("scim.group.create", { id: g.id, displayName: g.displayName });
   res.status(201).type("application/scim+json").json(groupResource(g));
 });

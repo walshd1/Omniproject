@@ -247,10 +247,10 @@ function ItemPicker({
   testid,
 }: {
   label: string;
-  projects?: { id: string; name: string }[];
+  projects?: { id: string; name: string }[] | undefined;
   projectId: string;
   setProjectId: (v: string) => void;
-  issues?: Issue[];
+  issues?: Issue[] | undefined;
   issueId: string;
   setIssueId: (v: string) => void;
   testid: string;

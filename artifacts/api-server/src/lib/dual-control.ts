@@ -14,13 +14,13 @@ import crypto from "node:crypto";
  * HONEST SCOPE: the proposal queue is per-replica RAM (proposals are short-lived); a shared
  * store would make it global. The executor runs with the gateway's own authority on approval.
  */
-export interface Actor { sub: string; email?: string }
+export interface Actor { sub: string; email?: string | undefined }
 export interface Proposal {
   id: string;
   action: string;
   params: unknown;
   proposedBy: string;
-  proposedByEmail?: string;
+  proposedByEmail?: string | undefined;
   proposedAt: string;
   status: "pending" | "approved" | "rejected";
   decidedBy?: string;

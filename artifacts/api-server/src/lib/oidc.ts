@@ -33,10 +33,10 @@ export interface OidcDiscovery {
 
 export interface SessionUser {
   sub: string;
-  name?: string;
-  email?: string;
+  name?: string | undefined;
+  email?: string | undefined;
   /** Raw role/group claims from the IdP, used by the RBAC layer. */
-  roles?: string[];
+  roles?: string[] | undefined;
 }
 
 /**

@@ -39,13 +39,13 @@ export function DataProvenance({
 }: {
   rows: ReadonlyArray<Record<string, unknown>>;
   fields: ReadonlyArray<FieldSpec>;
-  mode?: string;
+  mode?: string | undefined;
   filename: string;
   /** Columns for the CSV export; defaults to the measured fields + lineage. */
   exportColumns?: ReadonlyArray<FieldSpec>;
   sourceAccessor?: (r: Record<string, unknown>) => unknown;
   /** Per-field lineage from capabilities: canonical key → backend system + field. */
-  fieldSources?: Record<string, { system?: string; field?: string }>;
+  fieldSources?: Record<string, { system?: string; field?: string }> | undefined;
   /** When the SPA last fetched this screen's data (React Query dataUpdatedAt, ms). */
   polledAt?: number;
   label?: string;
