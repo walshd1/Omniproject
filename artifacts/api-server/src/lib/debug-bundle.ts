@@ -8,6 +8,7 @@ import { configDirSummary } from "./config-dir";
 import { getDemoState } from "./data";
 import { capturePath } from "../broker/capture";
 import { devModeStatus } from "./dev-mode";
+import { featureStatus } from "./feature-modules";
 
 /**
  * Debug bundle — a single reproducible dump that lets you replicate an issue on
@@ -17,6 +18,9 @@ import { devModeStatus } from "./dev-mode";
  *  - `config-dir/*.json` — the loaded JSON config files (OMNI_CONFIG_DIR), if any.
  *  - `vendors.json`      — the loaded backend + broker catalogues (the definitions
  *                          the engines are running, so a mismatch is visible).
+ *  - `feature-modules.json` — the optional feature-module status (which modules are
+ *                          enabled / loaded / need a restart), so a repro shows the
+ *                          exact module set that was active.
  *  - `demo-state.json`   — the in-memory dataset (projects/issues/RAID).
  *  - `capture-tape.jsonl`— the broker/notify/export traffic captured this period
  *                          (when BROKER_CAPTURE is armed), for replay.
@@ -72,6 +76,7 @@ const README = (now: string): string =>
   "- `config.json` — gateway configuration snapshot (no secrets; those live in env).\n" +
   "- `config-dir/*.json` — the loaded JSON config files (OMNI_CONFIG_DIR), if any.\n" +
   "- `vendors.json` — the loaded backend + broker catalogues (the running definitions).\n" +
+  "- `feature-modules.json` — optional feature-module status (enabled / loaded / needs restart).\n" +
   "- `demo-state.json` — the in-memory demo dataset (projects/issues/RAID).\n" +
   "- `capture-tape.jsonl` — captured broker/notify/export traffic (if BROKER_CAPTURE was armed).\n" +
   "- `manifest.json` — machine-readable index of this bundle.\n\n" +
@@ -90,9 +95,12 @@ export function buildDebugBundleEntries(now: string): { manifest: DebugBundleMan
   const dirEntries = configDirEntries();
   const tapeEntries = captureEntry();
 
+  const features = featureStatus();
+
   const entries: ZipEntry[] = [
     { name: "config.json", data: Buffer.from(JSON.stringify(config, null, 2), "utf8") },
     { name: "vendors.json", data: Buffer.from(JSON.stringify(vendors, null, 2), "utf8") },
+    { name: "feature-modules.json", data: Buffer.from(JSON.stringify(features, null, 2), "utf8") },
     { name: "demo-state.json", data: Buffer.from(JSON.stringify(state, null, 2), "utf8") },
     ...dirEntries,
     ...tapeEntries,

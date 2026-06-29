@@ -853,6 +853,24 @@ test("applySnapshot: round-trips a built snapshot into a settings patch", () => 
   assert.equal(warnings.length, 0);
 });
 
+test("buildSnapshot: carries the portable presentation config (curation, views, dashboards, opt-out)", () => {
+  const snap = buildSnapshot({
+    ...SAMPLE_SETTINGS,
+    disabledFeatures: ["odata"],
+    hiddenFields: ["dueDate"],
+    savedViews: [{ id: "v1", name: "Triage", scope: "grid", columns: ["title"] }],
+    dashboards: [{ id: "d1", name: "Exec", widgets: [{ id: "w1", type: "portfolioHealth" }] }],
+  });
+  assert.deepEqual(snap.settings.disabledFeatures, ["odata"]);
+  assert.deepEqual(snap.settings.hiddenFields, ["dueDate"]);
+  assert.equal(snap.settings.savedViews[0]!.name, "Triage");
+  assert.equal(snap.settings.dashboards[0]!.widgets[0]!.type, "portfolioHealth");
+  // …and they round-trip back into a settings patch with no warnings.
+  const { patch, warnings } = applySnapshot(snap);
+  assert.deepEqual(patch["dashboards"], snap.settings.dashboards);
+  assert.equal(warnings.length, 0);
+});
+
 test("applySnapshot: rejects a foreign schema", () => {
   assert.throws(() => applySnapshot({ schema: "something/else", settings: {} }), /schema/);
 });

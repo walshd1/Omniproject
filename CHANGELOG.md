@@ -6,6 +6,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Config snapshot / export now carries the new presentation config.** The snapshot (Setup →
+  Backup/Restore, and the `config.json` inside the **debug bundle**) was a curated subset that had
+  not kept pace with the recent modules — it omitted **`disabledFeatures`** (feature-module opt-out),
+  **`hiddenFields`** (admin/PMO field-visibility curation), **`savedViews`** and **`dashboards`**.
+  These are portable, secret-free presentation config, so they now ride the snapshot/export and
+  round-trip on restore — making "save custom screens to the bundle" actually travel with a
+  deployment. The **debug bundle** also now includes **`feature-modules.json`** (the optional-module
+  enabled/loaded/needs-restart status), so a repro shows the exact module set that was active.
+
 ### Added
 
 - **Custom dashboards (UX-parity module).** A **dashboard builder**: compose **named dashboards**
