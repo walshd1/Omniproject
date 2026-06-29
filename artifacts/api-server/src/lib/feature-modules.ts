@@ -52,6 +52,13 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     label: "Editable data grid",
     description: "Spreadsheet-style grid with bulk inline editing of work items (write-through).",
   },
+  {
+    // UI-only: named saved views (filters/sort/columns/grouping). Persisted via /api/views to the
+    // config bundle; the SPA gates it via useFeatures. No backend route to mount here.
+    id: "savedViews",
+    label: "Saved views",
+    description: "Save named views (filters, sort, columns, grouping) and switch between them.",
+  },
 ];
 
 // Which modules actually got loaded+mounted this process (set by the mount step). Lets the

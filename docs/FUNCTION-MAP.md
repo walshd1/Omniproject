@@ -1819,6 +1819,10 @@ Setup-wizard + operations endpoints — backend/plane catalogues, workflow gener
 
 Capability governance plane — the admin-set deployment state (off / user-defined / public, and per-surface for AI tools) of every AI tool, the MCP, AI providers and vendors (see lib/tools).
 
+### `artifacts/api-server/src/routes/views.ts`
+
+Saved views — named filter/sort/column/grouping presets a user can switch between.
+
 ### `artifacts/api-server/src/routes/webhooks.ts`
 
 SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
