@@ -40,6 +40,20 @@ test("feature-modules.json carries the optional-module status", () => {
   }
 });
 
+test("runtime-posture.json carries the non-secret governance posture", () => {
+  const { entries } = buildDebugBundleEntries("2026-01-01T00:00:00.000Z");
+  const posture = entries.find((e) => e.name === "runtime-posture.json")!;
+  assert.ok(posture, "bundle should include runtime-posture.json");
+  const raw = posture.data.toString("utf8");
+  const parsed = JSON.parse(raw);
+  // The expected posture surfaces are present…
+  for (const key of ["devMode", "ai", "aiGovernance", "audit", "stt", "license", "capabilityStates"]) {
+    assert.ok(key in parsed, `posture omits ${key}`);
+  }
+  // …and no secret-shaped field leaks into the bundle.
+  assert.doesNotMatch(raw, /secret|password|"token"|privateKey|apiKey/i);
+});
+
 test("vendors.json holds the loaded backend + broker catalogues", () => {
   const { entries } = buildDebugBundleEntries("2026-01-01T00:00:00.000Z");
   const vendors = entries.find((e) => e.name === "vendors.json")!;

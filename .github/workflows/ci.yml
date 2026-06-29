@@ -49,6 +49,12 @@ jobs:
       - name: Unit tests (tooling — setup wizard, deploy generators)
         run: pnpm --filter @workspace/scripts run test
 
+      - name: Unit tests (backend catalogue — field/view/vendor registries)
+        run: pnpm --filter @workspace/backend-catalogue run test
+
+      - name: Unit tests (api client — hand-written fetch wrapper)
+        run: pnpm --filter @workspace/api-client-react run test
+
       - name: Verify codegen is in sync with the OpenAPI contract
         run: |
           pnpm --filter @workspace/api-spec run codegen

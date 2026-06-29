@@ -6,6 +6,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Whole-repo test coverage + dev-mode breadth (iteration 1).** Two packages' tests were never
+  executed in CI — **`@workspace/backend-catalogue`** (field/view/vendor registries) and
+  **`@workspace/api-client-react`** — so the verify job now runs both. The hand-written
+  **`custom-fetch`** wrapper (the one non-generated piece of the API client: base-URL, bearer-token
+  and snapshot-interceptor seams plus all response parsing / error shaping) gains a full test
+  suite, and the shared **registry generator engine** (`gen-registry` `loadGroup`/`emitRegistry`)
+  is now covered. The **debug bundle** also gains **`runtime-posture.json`** — a non-secret snapshot
+  of the governance posture (AI provider + guardrails, audit level, STT, licence and per-capability
+  surface/store) so a repro carries the policy context, not just the data (verified secret-free).
+  Coverage is being raised **iteratively** — this lands the missing test execution + the
+  highest-value gaps first.
+
 ### Fixed
 
 - **Config snapshot / export now carries the new presentation config.** The snapshot (Setup →
