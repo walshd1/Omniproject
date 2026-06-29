@@ -1529,6 +1529,15 @@ Optional asymmetric (Ed25519) signing — the non-repudiation layer over the aud
 | `verifySignature` | Verify a base64 Ed25519 signature over `message` against an SPKI/PEM public key. |
 | `signingInfo` | Public signing status for the admin/security surface (no secrets — public key only). |
 
+### `artifacts/api-server/src/lib/sse.ts`
+
+Server-Sent Events framing — ONE place that gets the SSE wire format right, shared by every SSE endpoint (notifications, presence, the admin broker log).
+
+| Function | What it does |
+| --- | --- |
+| `openSse` | Begin an SSE response: write the stream headers + a `ready` frame, and return safe writers (every write is guarded, so a write after the client vanished is a no-op, not a throw). |
+| `keepAlive` | Keep the stream alive with a comment ping every `ms`, and run `onClose` (e.g. unsubscribe) when the request ends. |
+
 ### `artifacts/api-server/src/lib/step-up.ts`
 
 Step-up (re-authentication) for the highest-risk actions (security item D).

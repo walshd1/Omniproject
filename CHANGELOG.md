@@ -184,6 +184,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **One SSE framing helper (clean-code, no behaviour change).** The notification, presence and
+  admin-broker-log streams each hand-wrote the same Server-Sent-Events boilerplate — identical
+  headers, the `ready` frame, the `event:/data:` writer, the keepalive ping and the close cleanup.
+  That triplication is now a single `lib/sse` (`openSse` + `keepAlive`): each route shrinks to its
+  actual job, and the wire-format details (e.g. `no-transform`, guarded writes after the socket
+  closes) live in one tested place. Covered by `lib/sse.test.ts`; the existing stream tests are
+  unchanged.
+
 - **Whole-repo test coverage + dev-mode breadth (iteration 1).** Two packages' tests were never
   executed in CI — **`@workspace/backend-catalogue`** (field/view/vendor registries) and
   **`@workspace/api-client-react`** — so the verify job now runs both. The hand-written

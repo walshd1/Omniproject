@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getSession } from "./auth";
 import { joinRoom, setEditing, roomSnapshot, type PresencePeer } from "../lib/presence-hub";
+import { openSse, keepAlive } from "../lib/sse";
 
 /**
  * Live-collaboration presence routes (the "presence" feature module).
@@ -33,23 +34,10 @@ router.get("/presence/rooms/:roomId/stream", (req: Request, res: Response) => {
   const sub = session?.sub ?? "anonymous";
   const label = session?.name || session?.email || sub;
 
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache, no-transform",
-    Connection: "keep-alive",
-    "X-Accel-Buffering": "no",
-  });
-  res.write(`event: ready\ndata: ${JSON.stringify({ ok: true })}\n\n`);
-
-  const send = (event: string, data: unknown) => {
-    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch { /* gone; cleanup on close */ }
-  };
-  const leave = joinRoom({ roomId, cid, sub, label, send, close: () => { try { res.end(); } catch { /* already closed */ } } }, Date.now());
-
+  const stream = openSse(res, { ok: true });
+  const leave = joinRoom({ roomId, cid, sub, label, send: stream.send, close: stream.close }, Date.now());
   // Keepalive under the usual proxy idle timeout so a quiet room's stream isn't dropped.
-  const ping = setInterval(() => { try { res.write(": ping\n\n"); } catch { /* gone */ } }, 25_000);
-
-  req.on("close", () => { clearInterval(ping); leave(); });
+  keepAlive(stream, req, leave);
 });
 
 // POST /api/presence/rooms/:roomId — set/refresh the field this tab is editing (advisory lock).

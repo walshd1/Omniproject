@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { getSession } from "./auth";
 import { roleForReq, isDeprovisioned } from "../lib/rbac";
 import { addClient, clientCount, type NotifyTarget } from "../lib/notify-hub";
+import { openSse } from "../lib/sse";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
 import { emitWebhookEvent } from "../lib/webhooks";
 import { routeNotification, getNotificationChannel, notificationSeverity } from "@workspace/backend-catalogue";
@@ -27,28 +28,15 @@ export const ingestRouter: Router = Router();
 streamRouter.get("/notifications/stream", (req: Request, res: Response) => {
   const session = getSession(req);
 
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache, no-transform",
-    Connection: "keep-alive",
-    "X-Accel-Buffering": "no",
-  });
-  res.write(`event: ready\ndata: ${JSON.stringify({ ok: true })}\n\n`);
-
+  const stream = openSse(res, { ok: true });
   const remove = addClient({
     id: crypto.randomUUID(),
     sub: session?.sub,
     email: session?.email,
     roles: [roleForReq(req)],
-    send: (event, data) => {
-      try {
-        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-      } catch {
-        /* connection gone; cleanup runs on close */
-      }
-    },
+    send: stream.send,
     // Graceful shutdown ends the stream; req "close" then runs the cleanup below.
-    close: () => { try { res.end(); } catch { /* already closed */ } },
+    close: stream.close,
   });
 
   // SSE keepalive + live revocation: every 25s (under the common 30–60s proxy idle
