@@ -19,6 +19,9 @@ async function buildAll() {
     platform: "node",
     bundle: true,
     format: "esm",
+    // Code-splitting so each optional feature module (reached via dynamic import() in
+    // lib/feature-modules) lands in its own chunk — a disabled module's chunk is never loaded.
+    splitting: true,
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
     logLevel: "info",

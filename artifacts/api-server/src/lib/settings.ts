@@ -131,6 +131,13 @@ export interface SettingsState {
    * level config — rides the snapshot/export — never project data.
    */
   capabilityStates: Record<string, CapabilitySetting>;
+  /**
+   * Opt-OUT list of feature-module ids the operator has switched off (everything is on by
+   * default). A module disabled at startup is never loaded (its route chunk is skipped); a
+   * runtime disable makes it 404 at once. Customer-level config — rides the snapshot/export so
+   * the chosen module set travels in the bundle — never project data. See lib/feature-modules.
+   */
+  disabledFeatures: string[];
 }
 
 /** One user's persisted UI/accessibility preferences. */
@@ -251,6 +258,11 @@ function loggingSyncFromEnv(): LoggingSyncConfig {
   };
 }
 
+/** Feature-module ids disabled via env (`DISABLED_FEATURES=odata,integrations`). */
+function disabledFeaturesFromEnv(): string[] {
+  return (process.env["DISABLED_FEATURES"]?.trim() || "").split(/[\s,]+/).filter(Boolean);
+}
+
 const initialProfile = coerceProfile(process.env["DEPLOYMENT_PROFILE"]);
 const store: SettingsState = {
   brokerUrl: process.env["BROKER_URL"]?.trim() || null,
@@ -269,6 +281,7 @@ const store: SettingsState = {
   screenLayouts: {},
   userPrefs: {},
   capabilityStates: {},
+  disabledFeatures: disabledFeaturesFromEnv(),
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
@@ -292,6 +305,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "screenLayouts",
   "userPrefs",
   "capabilityStates",
+  "disabledFeatures",
 ];
 
 /** A snapshot copy of the current in-memory settings (never the live reference). */
@@ -373,6 +387,12 @@ function validatePatch(patch: Record<string, unknown>): void {
   }
   if ("labelOverrides" in patch && (typeof patch["labelOverrides"] !== "object" || patch["labelOverrides"] == null)) {
     throw new SettingsValidationError("labelOverrides must be an object");
+  }
+  if ("disabledFeatures" in patch) {
+    const v = patch["disabledFeatures"];
+    if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
+      throw new SettingsValidationError("disabledFeatures must be an array of strings");
+    }
   }
   if ("fieldOverrides" in patch) validateFieldOverrides(patch["fieldOverrides"]);
   if ("loggingSync" in patch) {

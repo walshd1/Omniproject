@@ -21,8 +21,7 @@ import { streamRouter, ingestRouter } from "./notifications-stream";
 import aiRouter from "./ai";
 import aiProvidersRouter from "./ai-providers";
 import exportRouter from "./export";
-import integrationsRouter from "./integrations";
-import odataRouter from "./odata";
+import featuresRouter from "./features";
 import historyRouter from "./history";
 import licenseRouter from "./license";
 import brandingRouter from "./branding";
@@ -44,6 +43,8 @@ import { isDeprovisioned } from "../lib/rbac";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter, loginLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
+import { FEATURE_MODULES, isFeatureEnabled, markFeatureLoaded, requireFeature } from "../lib/feature-modules";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -130,8 +131,7 @@ router.use(requireAuth, streamRouter);
 router.use(requireAuth, aiRouter);
 router.use(requireAuth, aiProvidersRouter);
 router.use(requireAuth, exportRouter);
-router.use(requireAuth, integrationsRouter);
-router.use(requireAuth, odataRouter);
+router.use(requireAuth, featuresRouter);
 router.use(requireAuth, historyRouter);
 router.use(requireAuth, brokerLogRouter);
 router.use(requireAuth, rulesetRouter);
@@ -142,5 +142,30 @@ router.use(requireAuth, toolsRouter);
 router.use(requireAuth, provenanceRouter);
 router.use(requireAuth, securityRouter);
 router.use(requireAuth, healthWatchRouter);
+
+/**
+ * Mount the optional feature modules. Each enabled module is reached through a dynamic
+ * `import()`, so a DISABLED module's route code is never loaded at startup (esbuild puts it in
+ * its own chunk). A `requireFeature` gate also 404s an enabled-then-disabled module at runtime.
+ * Run via top-level await so the modules are mounted by the time the app graph finishes loading
+ * (the server boots after this, and the route tests import the fully-assembled app).
+ */
+async function mountFeatureModules(): Promise<void> {
+  for (const m of FEATURE_MODULES) {
+    if (!isFeatureEnabled(m.id)) {
+      logger.info({ feature: m.id }, "feature module disabled — backend code not loaded");
+      continue;
+    }
+    try {
+      const mod = await m.load();
+      router.use(requireAuth, requireFeature(m.id), mod.default);
+      markFeatureLoaded(m.id);
+    } catch (err) {
+      logger.error({ err, feature: m.id }, "failed to load feature module");
+    }
+  }
+}
+
+await mountFeatureModules();
 
 export default router;
