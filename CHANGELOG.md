@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Optional self-host database backend — design doc** (`docs/SELF-HOST-DB.md`). The **non-preferred**
+  stateful path for those with no existing PM tool: a **customer-owned Postgres backend BELOW the
+  broker seam** (the gateway stays stateless/zero-at-rest — the DB is just another backend the broker
+  routes to), with an **OpenProject-compatible schema** derived from the canonical contract /
+  `FIELD_REGISTRY` (so data is portable to/from real OpenProject — `Issue.version` maps directly onto
+  OpenProject's `lock_version`). Documents the field/entity mapping, the docker-compose shape, the
+  migration/portability path, and a hard responsibility boundary (the customer owns
+  governance/backup/security/HA/updates). Implementation deferred to follow-up PRs pending sign-off.
+
 - **Starter template packs for charities/SMEs.** Three ready-made "ways of working" shipped as
   methodology JSON bundles (the existing pack format/importer): **Grant tracking** (funder-grant
   lifecycle prospect→close with phases, baselines and funder reporting), **Volunteer roster** (a
