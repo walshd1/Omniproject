@@ -31,7 +31,7 @@ function assert(label: string, condition: boolean, detail?: string) {
   }
 }
 
-// ── Mock n8n server ───────────────────────────────────────────────────────────
+// ── Mock broker server ───────────────────────────────────────────────────────────
 interface MockRequest {
   method: string;
   url: string;
@@ -41,9 +41,9 @@ interface MockRequest {
 
 const capturedRequests: MockRequest[] = [];
 
-const MOCK_N8N_PORT = 19_678;
+const MOCK_BROKER_PORT = 19_678;
 
-const N8N_INBOUND_RESPONSE = {
+const BROKER_INBOUND_RESPONSE = {
   success: true,
   data: {
     normalized: true,
@@ -58,8 +58,8 @@ const N8N_INBOUND_RESPONSE = {
 };
 
 // Action-aware responses: the gateway now brokers every data action through
-// n8n, so the mock returns normalized payloads per action (mirroring what a
-// real n8n workflow over Plane/OpenProject would return).
+// broker, so the mock returns normalized payloads per action (mirroring what a
+// real broker workflow over Plane/OpenProject would return).
 function mockResponseFor(action: string): Record<string, unknown> {
   switch (action) {
     case "list_projects":
@@ -101,11 +101,11 @@ function mockResponseFor(action: string): Record<string, unknown> {
       return { success: true, data: [{ id: "n1", kind: "assignment", title: "Assigned to you", read: false, timestamp: new Date().toISOString() }] };
     default:
       // sync_state / create_ticket and anything else → the normalized payload.
-      return N8N_INBOUND_RESPONSE;
+      return BROKER_INBOUND_RESPONSE;
   }
 }
 
-function startMockN8n(): Promise<http.Server> {
+function startMockBroker(): Promise<http.Server> {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
       let body = "";
@@ -133,7 +133,7 @@ function startMockN8n(): Promise<http.Server> {
       });
     });
 
-    server.listen(MOCK_N8N_PORT, "127.0.0.1", () => resolve(server));
+    server.listen(MOCK_BROKER_PORT, "127.0.0.1", () => resolve(server));
     server.on("error", reject);
   });
 }
@@ -325,7 +325,7 @@ const del = (url: string) => method("DELETE", url);
 
 // ── Test suites ───────────────────────────────────────────────────────────────
 async function testOutbound(apiBase: string) {
-  console.log(bold("\n[1] Outbound: UI → n8n (via /api/broker/command)"));
+  console.log(bold("\n[1] Outbound: UI → broker (via /api/broker/command)"));
 
   const payload = {
     action: "create_ticket",
@@ -356,49 +356,49 @@ async function testOutbound(apiBase: string) {
   assert("Response has data payload", typeof data?.data === "object");
 
   const captured = capturedRequests.at(-1);
-  assert("n8n received the request", !!captured);
+  assert("broker received the request", !!captured);
 
   if (captured) {
     assert(
-      "n8n received Authorization header",
+      "broker received Authorization header",
       captured.headers["authorization"] === "Bearer mock-oidc-token-abc123",
       String(captured.headers["authorization"]),
     );
     assert(
-      "n8n received X-OmniProject-Action header",
+      "broker received X-OmniProject-Action header",
       captured.headers["x-omniproject-action"] === "create_ticket",
     );
     assert(
-      "n8n received X-OmniProject-Source header",
+      "broker received X-OmniProject-Source header",
       captured.headers["x-omniproject-source"] === "plane",
     );
 
     const idemKey = captured.headers["x-omniproject-idempotency-key"];
     assert(
-      "n8n received X-OmniProject-Idempotency-Key (sha256)",
+      "broker received X-OmniProject-Idempotency-Key (sha256)",
       typeof idemKey === "string" && /^[0-9a-f]{64}$/.test(idemKey),
       String(idemKey),
     );
     assert(
-      "n8n received X-OmniProject-Origin header",
+      "broker received X-OmniProject-Origin header",
       captured.headers["x-omniproject-origin"] === "omniproject",
     );
 
     const capturedBody = captured.body as Record<string, unknown>;
-    assert("n8n received action field", capturedBody?.action === "create_ticket");
-    assert("n8n received payload.title", (capturedBody?.payload as Record<string, unknown>)?.title === "Test Issue from OmniProject");
-    assert("n8n received body.origin = omniproject", capturedBody?.origin === "omniproject");
-    assert("n8n received body.idempotencyKey", typeof capturedBody?.idempotencyKey === "string");
+    assert("broker received action field", capturedBody?.action === "create_ticket");
+    assert("broker received payload.title", (capturedBody?.payload as Record<string, unknown>)?.title === "Test Issue from OmniProject");
+    assert("broker received body.origin = omniproject", capturedBody?.origin === "omniproject");
+    assert("broker received body.idempotencyKey", typeof capturedBody?.idempotencyKey === "string");
 
     const userContext = (capturedBody?.payload as Record<string, unknown>)?.userContext as
       | Record<string, unknown>
       | undefined;
-    assert("n8n received payload.userContext (impersonation)", !!userContext && typeof userContext.email === "string");
+    assert("broker received payload.userContext (impersonation)", !!userContext && typeof userContext.email === "string");
   }
 }
 
 async function testInbound(apiBase: string) {
-  console.log(bold("\n[2] Inbound: n8n response → parsed by proxy"));
+  console.log(bold("\n[2] Inbound: broker response → parsed by proxy"));
 
   const payload = {
     action: "sync_state",
@@ -765,7 +765,7 @@ async function testGovernance(apiBase: string) {
 
 async function testSetup(apiBase: string) {
   console.log(bold("\n[7] Setup / Connection Center"));
-  const mockUrl = `http://127.0.0.1:${MOCK_N8N_PORT}/webhook/omniproject`;
+  const mockUrl = `http://127.0.0.1:${MOCK_BROKER_PORT}/webhook/omniproject`;
 
   // Status overview.
   try {
@@ -777,20 +777,20 @@ async function testSetup(apiBase: string) {
     assert("GET /setup/status reachable", false);
   }
 
-  // Non-destructive n8n probe against the mock webhook.
+  // Non-destructive broker probe against the mock webhook.
   try {
-    const r = await post(`${apiBase}/api/setup/test-n8n`, { webhookUrl: mockUrl });
-    assert("POST /setup/test-n8n returns 200", r.status === 200, `got ${r.status}`);
+    const r = await post(`${apiBase}/api/setup/test-broker`, { webhookUrl: mockUrl });
+    assert("POST /setup/test-broker returns 200", r.status === 200, `got ${r.status}`);
     const d = r.data as Record<string, unknown>;
     assert("Probe reports the mock is reachable", d.reachable === true);
     assert("Probe detects get_capabilities support", d.implementsCapabilities === true);
   } catch {
-    assert("POST /setup/test-n8n reachable", false);
+    assert("POST /setup/test-broker reachable", false);
   }
 
   // Bad URL is rejected.
   try {
-    const r = await post(`${apiBase}/api/setup/test-n8n`, { webhookUrl: "not-a-url" });
+    const r = await post(`${apiBase}/api/setup/test-broker`, { webhookUrl: "not-a-url" });
     assert("Invalid webhook URL returns 400", r.status === 400, `got ${r.status}`);
   } catch {
     assert("Invalid URL test reachable", false);
@@ -1035,23 +1035,23 @@ async function testPremium(apiBase: string) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log(bold("OmniProject — n8n Bidirectional Verification Script"));
+  console.log(bold("OmniProject — broker Bidirectional Verification Script"));
   console.log(dim("═".repeat(55)));
 
   // Determine API base: use BROKER_URL env to infer API host, or default
   const apiBase = process.env["OMNI_API_BASE"] ?? "http://localhost:5000";
-  const mockN8nUrl = `http://127.0.0.1:${MOCK_N8N_PORT}/webhook/omniproject`;
+  const mockBrokerUrl = `http://127.0.0.1:${MOCK_BROKER_PORT}/webhook/omniproject`;
 
   console.log(dim(`API base:       ${apiBase}`));
-  console.log(dim(`Mock n8n URL:   ${mockN8nUrl}`));
+  console.log(dim(`Mock broker URL:   ${mockBrokerUrl}`));
 
-  // Start mock n8n server
-  const mockServer = await startMockN8n();
-  console.log(dim(`Mock n8n started on port ${MOCK_N8N_PORT}`));
+  // Start mock broker server
+  const mockServer = await startMockBroker();
+  console.log(dim(`Mock broker started on port ${MOCK_BROKER_PORT}`));
 
-  // Point the API server at our mock n8n for this test run
+  // Point the API server at our mock broker for this test run
   // (In production the server reads BROKER_URL from env)
-  process.env["BROKER_URL"] = mockN8nUrl;
+  process.env["BROKER_URL"] = mockBrokerUrl;
 
   try {
     await testAuth(apiBase);
@@ -1060,12 +1060,12 @@ async function main() {
     await login(apiBase);
     console.log(dim(sessionCookie ? "Authenticated (demo session)" : "No session cookie issued"));
 
-    // Point the gateway's n8n broker at our mock (PATCH /settings; the demo
+    // Point the gateway's broker broker at our mock (PATCH /settings; the demo
     // session is admin so the role gate passes). The gateway still runs in demo
     // mode for typed routes, so we exercise both the real sample-data logic and
     // the proxy brokering against the mock.
     await patch(`${apiBase}/api/settings`, {
-      brokerUrl: mockN8nUrl,
+      brokerUrl: mockBrokerUrl,
     }).catch(() => null);
 
     await testOutbound(apiBase);
@@ -1085,7 +1085,7 @@ async function main() {
   const total = passed + failed;
   if (failed === 0) {
     console.log(
-      bold(green(`\n✓ All ${total} assertions passed. n8n contract verified.\n`)),
+      bold(green(`\n✓ All ${total} assertions passed. broker contract verified.\n`)),
     );
     process.exit(0);
   } else {
