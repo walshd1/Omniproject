@@ -19,7 +19,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   `predictivePrefetch` feature module, so an operator can remove the toggle org-wide. Both tiers only
   ever warm read-model GETs the user can already see — never AI, a write, or a gated action. Covered
   by hook tests (deterministic focus/hover-dwell/cancel; predictive gating) and a settings-card test.
-=======
+
 - **Consolidated security audit (`docs/SECURITY-AUDIT.md`).** A single, reviewer-facing map of the
   full security posture — authentication & sessions (sliding idle + absolute cap, step-up re-auth),
   RBAC + SCIM lifecycle, CSRF, the pluggable vault + config-at-rest crypto, the per-session broker
