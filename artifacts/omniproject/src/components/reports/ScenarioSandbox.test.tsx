@@ -89,8 +89,8 @@ describe("ScenarioSandbox", () => {
 
     const snaps = loadSnapshots();
     expect(snaps).toHaveLength(1);
-    expect(snaps[0].label).toMatch(/^What-if:/);
+    expect(snaps[0]!.label).toMatch(/^What-if:/); // length asserted === 1 above
     // Adjusted completedCount captured for p1 (5 -> 8).
-    expect(snaps[0].projects.find((p) => p.id === "p1")?.completedCount).toBe(8);
+    expect(snaps[0]!.projects.find((p) => p.id === "p1")?.completedCount).toBe(8);
   });
 });

@@ -75,7 +75,8 @@ function ensure(): StoreState {
   };
   // Seed an initial version for the active env if history is empty.
   if (state.versions.length === 0) {
-    state.versions.push({ id: nextId(), env: state.activeEnv, at: new Date().toISOString(), snapshot: structuredClone(state.environments[state.activeEnv]), label: "initial", knownGood: true });
+    // activeEnv always names an existing environment (invariant maintained by the store API)
+    state.versions.push({ id: nextId(), env: state.activeEnv, at: new Date().toISOString(), snapshot: structuredClone(state.environments[state.activeEnv]!), label: "initial", knownGood: true });
     persist();
   }
   return state;
@@ -145,8 +146,9 @@ export function createEnvironment(name: string): StoreView {
   if (!name || !/^[a-z0-9][a-z0-9_-]*$/i.test(name)) throw new Error("Invalid environment name");
   if (s.environments[name]) throw new Error(`Environment "${name}" already exists`);
   // Clone the active env's current config as the new environment's starting point.
-  s.environments[name] = structuredClone(s.environments[s.activeEnv]);
-  record(name, s.environments[name], `created from ${s.activeEnv}`);
+  // activeEnv always names an existing environment (invariant maintained by the store API).
+  s.environments[name] = structuredClone(s.environments[s.activeEnv]!);
+  record(name, s.environments[name]!, `created from ${s.activeEnv}`); // just assigned above
   persist();
   return storeView();
 }
@@ -177,7 +179,8 @@ export function markKnownGood(id: string): StoreView {
 export function lastKnownGood(env: string): ConfigVersion | null {
   const s = ensure();
   for (let i = s.versions.length - 1; i >= 0; i--) {
-    if (s.versions[i].env === env && s.versions[i].knownGood) return s.versions[i];
+    const v = s.versions[i]!; // i is a valid index into s.versions
+    if (v.env === env && v.knownGood) return v;
   }
   return null;
 }

@@ -28,7 +28,7 @@ let cookie = "";
 async function login(): Promise<void> {
   const r = await fetch(`${base}/api/auth/login`, { redirect: "manual" });
   const sc = r.headers.get("set-cookie");
-  if (sc) cookie = sc.split(";")[0];
+  if (sc) cookie = sc.split(";")[0]!; // sc truthy ⇒ split yields ≥1 element
 }
 function authed(): RequestInit {
   return { headers: cookie ? { Cookie: cookie } : {} };

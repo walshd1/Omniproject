@@ -64,7 +64,7 @@ function IssueCard({
             className="w-5 h-5 rounded-full bg-foreground text-background flex items-center justify-center text-[10px] font-bold shrink-0"
             title={issue.assignee}
           >
-            {issue.assignee[0].toUpperCase()}
+            {issue.assignee[0]!.toUpperCase()}
           </div>
         )}
       </div>

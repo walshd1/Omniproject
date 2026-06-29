@@ -54,7 +54,7 @@ export function Reports() {
 
   useEffect(() => {
     if (!projectId && projects && projects.length > 0) {
-      setProjectId(activeProjectId || projects[0].id);
+      setProjectId(activeProjectId || projects[0]!.id); // length > 0 checked above
     }
   }, [projects, projectId, activeProjectId]);
 

@@ -500,8 +500,8 @@ async function testApiRoutes(apiBase: string) {
     assert("Programmes is an array", Array.isArray(r.data));
     assert("Every programme has >= 1 project (invariant)", progs.every((p) => Number(p.projectCount) >= 1));
     if (progs.length) {
-      aProgrammeId = String(progs[0].id);
-      assert("Programme has roll-up stats", typeof progs[0].issueCount === "number" && typeof progs[0].ragStatus === "string");
+      aProgrammeId = String(progs[0]!.id); // progs.length checked
+      assert("Programme has roll-up stats", typeof progs[0]!.issueCount === "number" && typeof progs[0]!.ragStatus === "string"); // progs.length checked
     }
   } catch {
     assert("GET /api/programmes reachable", false);

@@ -79,13 +79,16 @@ function coerce(raw: string): string | number | boolean {
 function matchesFilter(row: Row, filter: string): boolean {
   const eq = filter.match(/^\s*(\w+)\s+eq\s+(.+?)\s*$/i);
   if (eq) {
-    const [, field, valRaw] = eq;
-    const val = coerce(valRaw.trim());
+    // both capture groups are present whenever the match succeeds
+    const field = eq[1]!;
+    const val = coerce(eq[2]!.trim());
     return String(row[field] ?? "") === String(val);
   }
   const contains = filter.match(/^\s*contains\(\s*(\w+)\s*,\s*'(.*)'\s*\)\s*$/i);
   if (contains) {
-    const [, field, sub] = contains;
+    // both capture groups are present whenever the match succeeds
+    const field = contains[1]!;
+    const sub = contains[2]!;
     return String(row[field] ?? "").toLowerCase().includes(sub.toLowerCase());
   }
   // Unsupported filter → don't drop rows (be permissive).
@@ -135,7 +138,7 @@ export function applyODataQuery(rows: Row[], q: ODataQuery): { rows: Row[]; coun
   const total = out.length;
 
   if (q.$orderby) {
-    const [field, dir] = q.$orderby.trim().split(/\s+/);
+    const [field = "", dir] = q.$orderby.trim().split(/\s+/);
     const sign = (dir ?? "asc").toLowerCase() === "desc" ? -1 : 1;
     out = [...out].sort((a, b) => {
       const av = a[field];

@@ -55,11 +55,11 @@ export function isViewId(value: string): value is ViewId {
 
 export function nextView(id: ViewId): ViewId {
   const i = ORDER.indexOf(id);
-  return ORDER[(i + 1) % ORDER.length];
+  return ORDER[(i + 1) % ORDER.length]!; // modulo keeps the index in range (VIEWS is non-empty)
 }
 
 export function viewMeta(id: ViewId): ViewMeta {
-  return VIEWS.find((v) => v.id === id) ?? VIEWS[0];
+  return VIEWS.find((v) => v.id === id) ?? VIEWS[0]!; // VIEWS is non-empty
 }
 
 /** Views that apply to a methodology — those tagged with it, plus the neutral ("*") ones. */

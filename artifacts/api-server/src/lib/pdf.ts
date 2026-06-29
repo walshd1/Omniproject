@@ -36,13 +36,23 @@ function toLines(table: PdfTable): string[] {
   const cols = table.headers.length;
   const widths = table.headers.map((h) => h.length);
   for (const row of table.rows) {
-    for (let i = 0; i < cols; i++) widths[i] = Math.max(widths[i], cell(row[i]).length);
+    // i < cols === widths.length, so widths[i] is always present
+    for (let i = 0; i < cols; i++) widths[i] = Math.max(widths[i]!, cell(row[i]).length);
   }
   // Cap column width so wide tables stay on the page.
   const cap = Math.max(8, Math.floor(MAX_CHARS / cols) - 1);
   const w = widths.map((x) => Math.min(x, cap));
   const fmt = (vals: unknown[]) =>
-    vals.map((v, i) => cell(v).slice(0, w[i]).padEnd(w[i])).join(" ").slice(0, MAX_CHARS);
+    vals
+      .map((v, i) => {
+        const s = cell(v);
+        // Cells beyond the header count have no sized column → width is the cell's
+        // own length, making slice/padEnd no-ops (matches the prior undefined behaviour).
+        const width = w[i] ?? s.length;
+        return s.slice(0, width).padEnd(width);
+      })
+      .join(" ")
+      .slice(0, MAX_CHARS);
 
   const lines = [fmt(table.headers), w.map((x) => "-".repeat(x)).join(" ").slice(0, MAX_CHARS)];
   for (const row of table.rows) lines.push(fmt(row));

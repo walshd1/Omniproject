@@ -22,34 +22,34 @@ test("deriveFieldMap: full domains surface every field; rolled-up values are rea
   assert.deepEqual(map.fields.dueDate, { surface: true, store: true });
   // completionPct is derived/rolled up → surface but not store
   assert.deepEqual(map.fields.completionPct, { surface: true, store: false });
-  assert.equal(map.entities.programme.surface, true);
+  assert.equal(map.entities.programme!.surface, true);
 });
 
 test("deriveFieldMap: no scheduling ⇒ dates not surfaced", () => {
   const map = deriveFieldMap({ ...ALL, scheduling: false });
-  assert.equal(map.fields.startDate.surface, false);
-  assert.equal(map.fields.dueDate.surface, false);
+  assert.equal(map.fields.startDate!.surface, false);
+  assert.equal(map.fields.dueDate!.surface, false);
   // unrelated fields unaffected
-  assert.equal(map.fields.title.surface, true);
+  assert.equal(map.fields.title!.surface, true);
 });
 
 test("deriveFieldMap: no portfolio ⇒ programme entity unsupported", () => {
   const map = deriveFieldMap({ ...ALL, portfolio: false });
-  assert.equal(map.entities.programme.surface, false);
-  assert.equal(map.fields.programmeId.surface, false);
+  assert.equal(map.entities.programme!.surface, false);
+  assert.equal(map.fields.programmeId!.surface, false);
 });
 
 test("deriveFieldMap: strategy fields (KPIs/goals) are portfolio-tier (project + programme)", () => {
   // With portfolio on, the strategic-alignment fields surface so a project or
   // programme can show which goals/KPIs it relates to.
   const on = deriveFieldMap(ALL);
-  assert.equal(on.fields.strategicGoals.surface, true);
-  assert.equal(on.fields.kpis.surface, true);
-  assert.equal(on.fields.objectives.surface, true);
+  assert.equal(on.fields.strategicGoals!.surface, true);
+  assert.equal(on.fields.kpis!.surface, true);
+  assert.equal(on.fields.objectives!.surface, true);
   // …and they go dark when the backend has no portfolio capability.
   const off = deriveFieldMap({ ...ALL, portfolio: false });
-  assert.equal(off.fields.strategicGoals.surface, false);
-  assert.equal(off.fields.kpis.surface, false);
+  assert.equal(off.fields.strategicGoals!.surface, false);
+  assert.equal(off.fields.kpis!.surface, false);
 });
 
 test("deriveFieldMap: project is read-through by default (surface, no store)", () => {
@@ -59,10 +59,10 @@ test("deriveFieldMap: project is read-through by default (surface, no store)", (
 
 test("DemoBroker.fieldMap: everything supported except read-only completionPct", async () => {
   const map = await new DemoBroker().fieldMap();
-  assert.equal(map.fields.storyPoints.store, true);
-  assert.equal(map.fields.completionPct.surface, true);
-  assert.equal(map.fields.completionPct.store, false);
-  assert.equal(map.entities.programme.store, true);
+  assert.equal(map.fields.storyPoints!.store, true);
+  assert.equal(map.fields.completionPct!.surface, true);
+  assert.equal(map.fields.completionPct!.store, false);
+  assert.equal(map.entities.programme!.store, true);
 });
 
 test("resolveCapabilities: the describe→reconcile path auto-surfaces custom fields", async () => {

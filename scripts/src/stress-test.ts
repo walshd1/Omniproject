@@ -29,13 +29,13 @@ let cookie = "";
 async function login(): Promise<void> {
   const r = await fetch(`${base}/api/auth/login`, { redirect: "manual" });
   const sc = r.headers.get("set-cookie");
-  if (sc) cookie = sc.split(";")[0];
+  if (sc) cookie = sc.split(";")[0]!; // sc truthy ⇒ split yields ≥1 element
 }
 
 function pct(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
   const idx = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length));
-  return sorted[idx];
+  return sorted[idx]!; // idx is clamped to a valid index and length > 0 checked above
 }
 
 async function main() {
@@ -60,7 +60,7 @@ async function main() {
   for (let u = 0; u < USERS; u++) {
     const pid = ids[u % ids.length];
     const picks = [`/api/projects/${pid}/issues`, `/api/projects/${pid}/summary`, `/api/projects`];
-    for (let r = 0; r < REQS; r++) plan.push(picks[r % picks.length]);
+    for (let r = 0; r < REQS; r++) plan.push(picks[r % picks.length]!); // modulo of a non-empty literal array
   }
 
   const latencies: number[] = [];

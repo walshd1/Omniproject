@@ -44,7 +44,7 @@ async function main() {
     const body = (await r.json()) as { _embedded?: { elements?: Array<{ id: number }> } };
     const elements = body?._embedded?.elements;
     assert("Projects collection is HAL-shaped (_embedded.elements)", Array.isArray(elements));
-    if (elements && elements.length) firstProjectId = String(elements[0].id);
+    if (elements && elements.length) firstProjectId = String(elements[0]!.id); // length checked
   } catch (err) {
     assert("OpenProject reachable", false, String(err));
   }
@@ -57,7 +57,7 @@ async function main() {
       const wps = body?._embedded?.elements;
       assert("Work packages are HAL-shaped", Array.isArray(wps));
       if (wps && wps.length) {
-        assert("Work packages expose lockVersion (optimistic concurrency)", typeof wps[0].lockVersion === "number");
+        assert("Work packages expose lockVersion (optimistic concurrency)", typeof wps[0]!.lockVersion === "number"); // length checked
       }
     } catch (err) {
       assert("Work packages reachable", false, String(err));

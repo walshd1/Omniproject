@@ -87,6 +87,6 @@ describe("NotificationsBell", () => {
   it("opens an EventSource for the live stream", () => {
     renderWithProviders(<NotificationsBell />, { client: seed(items) });
     expect(EventSourceStub.instances.length).toBeGreaterThan(0);
-    expect(EventSourceStub.instances[0].url).toContain("/api/notifications/stream");
+    expect(EventSourceStub.instances[0]!.url).toContain("/api/notifications/stream"); // length asserted > 0 above
   });
 });

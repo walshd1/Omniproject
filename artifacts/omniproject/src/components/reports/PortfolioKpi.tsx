@@ -9,7 +9,7 @@ const RAG: Record<string, { dot: string; text: string; border: string }> = {
 };
 
 function KpiCard({ p }: { p: PortfolioHealthSummary }) {
-  const rag = RAG[p.ragStatus] ?? RAG.AMBER;
+  const rag = RAG[p.ragStatus] ?? RAG.AMBER!; // AMBER is a literal key of RAG, always present
   return (
     <Link
       href={`/projects/${p.projectId}`}

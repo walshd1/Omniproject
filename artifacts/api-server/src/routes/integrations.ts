@@ -47,7 +47,7 @@ router.get("/metrics", async (req, res) => {
     const rag: Record<string, number> = ragBuckets();
     try {
       for (const r of await getPortfolioHealth(req)) {
-        if (r.ragStatus in rag) rag[r.ragStatus] += 1;
+        if (r.ragStatus in rag) rag[r.ragStatus] = (rag[r.ragStatus] ?? 0) + 1;
       }
     } catch {
       /* portfolio not available — omit RAG */

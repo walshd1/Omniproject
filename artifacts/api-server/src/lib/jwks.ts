@@ -51,14 +51,16 @@ const ALLOWED_ALGS = new Set([
 export function parseJwt(token: string): ParsedJwt {
   const parts = token.split(".");
   if (parts.length !== 3) throw new Error("Malformed JWT (expected 3 segments)");
-  const header = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
-  const claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+  // length === 3 guarantees all three segments are present
+  const [seg0, seg1, seg2] = parts as [string, string, string];
+  const header = JSON.parse(Buffer.from(seg0, "base64url").toString("utf8"));
+  const claims = JSON.parse(Buffer.from(seg1, "base64url").toString("utf8"));
   if (!header.alg || typeof header.alg !== "string") throw new Error("JWT header missing alg");
   return {
     header,
     claims,
-    signingInput: `${parts[0]}.${parts[1]}`,
-    signature: Buffer.from(parts[2], "base64url"),
+    signingInput: `${seg0}.${seg1}`,
+    signature: Buffer.from(seg2, "base64url"),
   };
 }
 

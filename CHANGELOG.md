@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Stricter TypeScript: `noUncheckedIndexedAccess` on.** Every indexed access (`arr[i]`,
+  `obj[key]`) is now typed `T | undefined`, so the compiler forces an explicit decision at each
+  site. The ~35 resulting sites across the gateway, SPA, shared libs and tooling were fixed with
+  real narrowing (guards, defaults, destructuring) where the undefined case is reachable, and a
+  non-null assertion backed by a local invariant (just-checked `length`, regex capture after a
+  successful match, loop index into the same array) elsewhere — each non-obvious one commented.
+  No runtime behaviour change; no `as any` / `@ts-ignore`.
+
 - **Broker-neutral product surface — concrete vendor purged from code, copy, routes and the API.**
   Following the broker-isolation work, the reference broker's NAME no longer leaks into the
   product. The `POST /api/setup/test-n8n` route is now `/api/setup/test-broker`; the SPA type
