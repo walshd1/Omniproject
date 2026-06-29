@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { contentSecurityPolicy, cspHeaderName } from "./csp";
+import { contentSecurityPolicy, cspHeaderName, cspNonce } from "./csp";
 
 const KEYS = ["CONTENT_SECURITY_POLICY", "CSP_IMG_SRC", "CSP_CONNECT_SRC", "CSP_REPORT_ONLY", "CSP_REPORT_URI"];
 afterEach(() => { for (const k of KEYS) delete process.env[k]; });
@@ -27,6 +27,27 @@ test("extra sources append to a directive", () => {
 test("a report-uri is added when configured", () => {
   process.env["CSP_REPORT_URI"] = "/csp-report";
   assert.match(contentSecurityPolicy(), /report-uri \/csp-report/);
+});
+
+test("a per-request nonce is added to script-src (defence-in-depth) but never to style-src", () => {
+  const nonce = cspNonce();
+  const csp = contentSecurityPolicy(nonce);
+  assert.match(csp, new RegExp(`script-src 'self' 'nonce-${nonce.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}'`));
+  // style-src keeps 'unsafe-inline' and gets no nonce (a nonce there would disable it,
+  // breaking React/Tailwind inline style attributes).
+  assert.match(csp, /style-src 'self' 'unsafe-inline'/);
+  assert.doesNotMatch(csp.match(/style-src[^;]*/)?.[0] ?? "", /nonce-/);
+});
+
+test("cspNonce is fresh and base64 each call", () => {
+  const a = cspNonce();
+  const b = cspNonce();
+  assert.notEqual(a, b);
+  assert.match(a, /^[A-Za-z0-9+/]+=*$/);
+});
+
+test("no nonce is added when none is supplied", () => {
+  assert.doesNotMatch(contentSecurityPolicy(), /nonce-/);
 });
 
 test("report-only mode switches the header name", () => {

@@ -104,9 +104,6 @@ move from tamper-evident to non-repudiation for customers who need it.
   it's not surprising.
 - **[debt] Large branch / changelog churn.** The last integration was 85 commits; keep future
   work in smaller, single-concern PRs to ease review and reduce changelog conflicts.
-- **[gap] Auth/abuse hardening from the pentest pass (deferred).** Login-rate-limit on the demo
-  session endpoint, an OIDC `nonce` check, an SSE deprovision re-check on long-lived streams, and
-  a CSP `nonce` (replace `unsafe-inline`). Each independent and self-contained.
 
 ---
 

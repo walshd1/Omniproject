@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import crypto from "node:crypto";
 import { getSession } from "./auth";
-import { roleForReq } from "../lib/rbac";
+import { roleForReq, isDeprovisioned } from "../lib/rbac";
 import { addClient, clientCount, type NotifyTarget } from "../lib/notify-hub";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
 import { emitWebhookEvent } from "../lib/webhooks";
@@ -51,15 +51,35 @@ streamRouter.get("/notifications/stream", (req: Request, res: Response) => {
     close: () => { try { res.end(); } catch { /* already closed */ } },
   });
 
-  // SSE keepalive: a comment frame every 25s (under the common 30–60s proxy idle
-  // timeout) so reverse proxies don't drop an otherwise-quiet event stream.
-  const ping = setInterval(() => res.write(`: ping\n\n`), 25_000);
+  // SSE keepalive + live revocation: every 25s (under the common 30–60s proxy idle
+  // timeout) emit a comment frame so reverse proxies don't drop an otherwise-quiet
+  // stream — but first re-check the principal hasn't been deprovisioned mid-stream,
+  // and tear the connection down at once if so (a long-lived SSE would otherwise
+  // outlive a SCIM `active=false` until the client reconnects).
+  const ping = setInterval(() => {
+    if (sseKeepaliveTick(req, res)) clearInterval(ping);
+  }, 25_000);
 
   req.on("close", () => {
     clearInterval(ping);
     remove();
   });
 });
+
+/**
+ * One SSE keepalive tick. If the streaming principal is now deprovisioned, notify the
+ * client and end the response (its `close` handler then runs the per-connection
+ * cleanup); otherwise write a comment ping. Returns true when the stream was closed.
+ */
+export function sseKeepaliveTick(req: Request, res: Response): boolean {
+  if (isDeprovisioned(req)) {
+    try { res.write(`event: revoked\ndata: ${JSON.stringify({ reason: "deprovisioned" })}\n\n`); } catch { /* gone */ }
+    try { res.end(); } catch { /* already closed */ }
+    return true;
+  }
+  try { res.write(`: ping\n\n`); } catch { /* gone */ }
+  return false;
+}
 
 const INGEST_SECRET = process.env["NOTIFY_INGEST_SECRET"]?.trim();
 
