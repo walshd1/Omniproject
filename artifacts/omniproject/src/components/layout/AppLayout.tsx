@@ -73,6 +73,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           if (ev.key === "d") setLocation("/");
           if (ev.key === "p") setLocation("/projects");
           if (ev.key === "r") setLocation("/reports");
+          if (ev.key === "e") setLocation("/explore");
           if (ev.key === "s") setLocation("/settings");
           document.removeEventListener("keydown", nextKey);
         };
@@ -216,6 +217,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <span className="text-xs font-bold tracking-widest">{connected ? t("header.connected") : t("header.offline")}</span>
             </div>
             <GlobalSearchTrigger />
+            <button
+              type="button"
+              onClick={() => setShortcutsOpen(true)}
+              aria-label="Keyboard shortcuts"
+              title="Keyboard shortcuts (?)"
+              className="flex h-7 w-7 items-center justify-center border border-border bg-card text-xs font-black text-muted-foreground hover:text-foreground"
+            >
+              ?
+            </button>
             <LanguageSwitcher />
             <NotificationsBell />
             {auth?.role && (

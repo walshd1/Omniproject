@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Keyboard-first: one shortcuts registry + discoverable help (Phase 2 UX polish).** All keyboard
+  shortcuts now live in a single source of truth (`lib/shortcuts`) that the **help overlay** renders
+  from, so the cheatsheet can't drift from the real bindings. The overlay opens with **`?`** and via
+  a new **visible header `?` button** (mouse parity), documents `⌘/Ctrl+K`, the new **`/`** search,
+  `Esc`, the **G-chord** navigation and list keys, and closes with `Esc`. Fixed an inconsistency: the
+  sidebar advertised a **`G+E`** (Explore) chord that was never wired — it now navigates. Covered by
+  a registry unit test, the dialog test, and paired mouse + keyboard acceptance specs.
+
 - **Optimistic edit + one-click Undo (Phase 2 UX polish).** Inline field edits in the **grid** and
   the **side-panel** now flow through a single shared writer (`useIssueFieldWrite`) and offer a
   **"Saved · Undo"** toast that reverts the change within the toast window. Undo is itself
