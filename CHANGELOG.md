@@ -8,6 +8,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **User-selectable UI density via design tokens (Phase 2 UX polish).** A new per-user **Density**
+  preference (Comfortable / Compact) joins the accessibility overlay (`lib/a11y-prefs`). It applies
+  app-wide from a single design token: the document root carries `data-density`, and under
+  `[data-density="compact"]` the Tailwind v4 **`--spacing`** token tightens to `0.2rem`, so every
+  spacing utility (`p-*`, `m-*`, `gap-*`, `space-*`) shrinks at once — no per-component changes. Like
+  the other personal prefs it is cached in `localStorage` for a flash-free first paint **and**
+  persisted server-side per user (`sanitizeUserPrefs` validates the value, defaulting unknowns to
+  `comfortable`), so an information-dense layout follows a person across devices on top of the
+  company theme. The control is a paired Comfortable/Compact toggle (mouse + keyboard, `aria-pressed`)
+  in the Accessibility settings card. Covered by store/`applyA11yPrefs` unit tests, an `A11yControls`
+  component test, a backend sanitiser test, and a mouse-and-keyboard `density` e2e spec asserting
+  `html[data-density]` flips against the demo backend.
+
 - **Whole-app route-coverage acceptance smoke + drift guard.** A single Playwright spec now visits
   **every client route** (manifest in `e2e/routes.ts`) and proves each renders in a real browser
   against the demo backend — document `< 400`, the page paints its `<h1>` (not the error boundary or

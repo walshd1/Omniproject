@@ -204,6 +204,8 @@ export interface UserPrefs {
   speechInput: boolean;
   /** Touch-optimised mobile layout: follow the device (auto) or force on/off. */
   mobileMode: "auto" | "on" | "off";
+  /** UI spacing density: comfortable (default) or compact. */
+  density: "comfortable" | "compact";
 }
 
 /**

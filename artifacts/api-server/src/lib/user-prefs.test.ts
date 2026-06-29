@@ -34,6 +34,13 @@ test("sanitize validates switch-scan mode, clamps the scan rate, coerces a11y to
   assert.equal(sanitizeUserPrefs({}).mobileMode, "auto");
 });
 
+test("sanitize validates UI density, defaulting unknown values to comfortable", () => {
+  assert.equal(sanitizeUserPrefs({ density: "compact" }).density, "compact");
+  assert.equal(sanitizeUserPrefs({ density: "comfortable" }).density, "comfortable");
+  assert.equal(sanitizeUserPrefs({ density: "bogus" }).density, "comfortable");
+  assert.equal(sanitizeUserPrefs({}).density, "comfortable");
+});
+
 test("get/set/has round-trip per user; unknown user ⇒ defaults", () => {
   const sub = `u-${Math.round(performance.now())}`; // unique-ish key (no Date.now in tests)
   assert.equal(hasUserPrefs(sub), false);

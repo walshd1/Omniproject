@@ -14,6 +14,8 @@ import { setAnnounceVerbose } from "./announce";
 
 export type SwitchScanMode = "off" | "single" | "two";
 export type MobileMode = "auto" | "on" | "off";
+/** UI spacing density: roomy default vs a tighter, information-dense layout. */
+export type Density = "comfortable" | "compact";
 
 export interface A11yPrefs {
   /** UI text scale, 0.85–1.5 (1 = company default). Per-user font SIZE. */
@@ -34,11 +36,14 @@ export interface A11yPrefs {
   speechInput: boolean;
   /** Touch-optimised mobile layout: follow the device (auto) or force on/off. */
   mobileMode: MobileMode;
+  /** UI spacing density (comfortable = company default, compact = tighter). */
+  density: Density;
 }
 
 export const DEFAULT_A11Y: A11yPrefs = {
   fontScale: 1, backgroundColor: null, highContrast: false, reduceMotion: false,
   switchScan: "off", scanRateMs: 1500, screenReader: false, speechInput: false, mobileMode: "auto",
+  density: "comfortable",
 };
 
 const KEY = "omni:a11y";
@@ -49,12 +54,14 @@ const MAX_SCAN = 5000;
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const SCAN_MODES: SwitchScanMode[] = ["off", "single", "two"];
 const MOBILE_MODES: MobileMode[] = ["auto", "on", "off"];
+const DENSITIES: Density[] = ["comfortable", "compact"];
 
 const clampScale = (n: number): number => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(n * 100) / 100));
 const clampScan = (n: number): number => Math.min(MAX_SCAN, Math.max(MIN_SCAN, Math.round(n)));
 const cleanColor = (v: unknown): string | null => (typeof v === "string" && HEX.test(v) ? v : null);
 const cleanScanMode = (v: unknown): SwitchScanMode => (SCAN_MODES.includes(v as SwitchScanMode) ? (v as SwitchScanMode) : "off");
 const cleanMobileMode = (v: unknown): MobileMode => (MOBILE_MODES.includes(v as MobileMode) ? (v as MobileMode) : "auto");
+const cleanDensity = (v: unknown): Density => (DENSITIES.includes(v as Density) ? (v as Density) : "comfortable");
 
 /** Read prefs from localStorage, falling back to defaults on anything unexpected. */
 export function loadA11yPrefs(): A11yPrefs {
@@ -73,6 +80,7 @@ export function loadA11yPrefs(): A11yPrefs {
       screenReader: !!p.screenReader,
       speechInput: !!p.speechInput,
       mobileMode: cleanMobileMode(p.mobileMode),
+      density: cleanDensity(p.density),
     };
   } catch {
     return DEFAULT_A11Y; // corrupt value ⇒ company defaults, no impact
@@ -93,6 +101,7 @@ export function applyA11yPrefs(p: A11yPrefs): void {
   else root.style.removeProperty("--user-bg");
   root.setAttribute("data-contrast", p.highContrast ? "high" : "normal");
   root.setAttribute("data-reduce-motion", p.reduceMotion ? "true" : "false");
+  root.setAttribute("data-density", p.density);
   setAnnounceVerbose(p.screenReader);
 }
 
@@ -107,6 +116,7 @@ interface A11yContextValue {
   toggleScreenReader: () => void;
   toggleSpeechInput: () => void;
   setMobileMode: (mode: MobileMode) => void;
+  setDensity: (d: Density) => void;
   reset: () => void;
 }
 
@@ -165,6 +175,7 @@ export function A11yProvider({ children }: { children: ReactNode }) {
     toggleScreenReader: () => change({ ...prefs, screenReader: !prefs.screenReader }),
     toggleSpeechInput: () => change({ ...prefs, speechInput: !prefs.speechInput }),
     setMobileMode: (mode) => change({ ...prefs, mobileMode: cleanMobileMode(mode) }),
+    setDensity: (d) => change({ ...prefs, density: cleanDensity(d) }),
     reset: () => change(DEFAULT_A11Y),
   };
   return <A11yContext.Provider value={value}>{children}</A11yContext.Provider>;

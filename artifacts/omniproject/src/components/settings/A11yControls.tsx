@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useA11yPrefs, A11Y_SCALE_BOUNDS, type SwitchScanMode, type MobileMode } from "../../lib/a11y-prefs";
+import { useA11yPrefs, A11Y_SCALE_BOUNDS, type SwitchScanMode, type MobileMode, type Density } from "../../lib/a11y-prefs";
 import { isSpeechSupported } from "../../lib/speech";
 import { usePlatform } from "../../lib/platform-context";
 
@@ -18,6 +18,11 @@ const MOBILE_OPTIONS: { value: MobileMode; label: string }[] = [
   { value: "off", label: "Always off" },
 ];
 
+const DENSITY_OPTIONS: { value: Density; label: string }[] = [
+  { value: "comfortable", label: "Comfortable" },
+  { value: "compact", label: "Compact" },
+];
+
 /**
  * Accessibility controls — a per-user overlay (text SIZE, background COLOUR, high
  * contrast, reduced motion, switch-access scanning, screen-reader narration and
@@ -27,7 +32,7 @@ const MOBILE_OPTIONS: { value: MobileMode; label: string }[] = [
 export function A11yControls() {
   const {
     prefs, setFontScale, setBackgroundColor, toggleHighContrast, toggleReduceMotion,
-    setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput, setMobileMode, reset,
+    setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput, setMobileMode, setDensity, reset,
   } = useA11yPrefs();
   const pct = Math.round(prefs.fontScale * 100);
   const speechSupported = isSpeechSupported();
@@ -69,6 +74,22 @@ export function A11yControls() {
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="a11y-motion">Reduce motion</Label>
           <Switch id="a11y-motion" checked={prefs.reduceMotion} onCheckedChange={toggleReduceMotion} />
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <Label id="a11y-density-label">Density</Label>
+          <div className="inline-flex border border-border" role="group" aria-labelledby="a11y-density-label">
+            {DENSITY_OPTIONS.map((o) => (
+              <Button
+                key={o.value}
+                variant={prefs.density === o.value ? "default" : "outline"}
+                size="sm"
+                aria-pressed={prefs.density === o.value}
+                onClick={() => setDensity(o.value)}
+              >
+                {o.label}
+              </Button>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-3 border-t border-border pt-4">

@@ -18,6 +18,7 @@ beforeEach(() => {
   localStorage.clear();
   document.documentElement.removeAttribute("data-contrast");
   document.documentElement.removeAttribute("data-reduce-motion");
+  document.documentElement.removeAttribute("data-density");
   document.documentElement.style.removeProperty("--user-font-scale");
 });
 
@@ -46,6 +47,24 @@ describe("a11y-prefs store", () => {
     expect(root.getAttribute("data-contrast")).toBe("high");
     expect(root.getAttribute("data-reduce-motion")).toBe("true");
   });
+
+  it("defaults density to comfortable and round-trips a stored compact value", () => {
+    expect(loadA11yPrefs().density).toBe("comfortable");
+    localStorage.setItem("omni:a11y", JSON.stringify({ density: "compact" }));
+    expect(loadA11yPrefs().density).toBe("compact");
+  });
+
+  it("falls back to comfortable on an unknown density value", () => {
+    localStorage.setItem("omni:a11y", JSON.stringify({ density: "nonsense" }));
+    expect(loadA11yPrefs().density).toBe("comfortable");
+  });
+
+  it("applyA11yPrefs reflects density on the data-density attribute the stylesheet keys off", () => {
+    applyA11yPrefs({ ...DEFAULT_A11Y, density: "compact" });
+    expect(document.documentElement.getAttribute("data-density")).toBe("compact");
+    applyA11yPrefs({ ...DEFAULT_A11Y, density: "comfortable" });
+    expect(document.documentElement.getAttribute("data-density")).toBe("comfortable");
+  });
 });
 
 describe("A11yControls", () => {
@@ -68,5 +87,15 @@ describe("A11yControls", () => {
     fireEvent.click(screen.getByLabelText("Increase text size"));
     fireEvent.click(screen.getByText("Reset to company default"));
     expect(screen.getByText("100%")).toBeInTheDocument();
+  });
+
+  it("switches UI density to compact and persists it client-side", () => {
+    render(<Providers><A11yControls /></Providers>);
+    const compact = screen.getByRole("button", { name: "Compact" });
+    expect(compact).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(compact);
+    expect(compact).toHaveAttribute("aria-pressed", "true");
+    expect(document.documentElement.getAttribute("data-density")).toBe("compact");
+    expect(JSON.parse(localStorage.getItem("omni:a11y")!).density).toBe("compact");
   });
 });
