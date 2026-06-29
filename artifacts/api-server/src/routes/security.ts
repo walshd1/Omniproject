@@ -9,6 +9,7 @@ import { persistSecurityState } from "../lib/security-state";
 import { listKeys, revokeKey, revokeUserSessions, KEY_NAMES, type KeyName } from "../lib/key-registry";
 import { auditAnchor, verifyAuditChain, type SealedAuditEvent } from "../lib/audit-chain";
 import { signingInfo } from "../lib/signing";
+import { residencyStatus } from "../lib/data-residency";
 import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "../lib/maintenance";
 import { requiresDualControl, propose, approve, reject, listProposals, registerExecutor, type Actor } from "../lib/dual-control";
 import type { Request, Response } from "express";
@@ -134,6 +135,13 @@ router.put("/admin/maintenance", requireRole("admin"), requireStepUp, (req, res)
 // chain tip, not merely that it's internally consistent). No secret is exposed.
 router.get("/security/signing", requireRole("admin"), (_req, res) => {
   res.json(signingInfo());
+});
+
+// ── Data residency / region routing ───────────────────────────────────────────────
+// The active residency policy + every configured broker endpoint's region and allow verdict
+// (endpoints reduced to their ORIGIN, so a secret webhook path is never surfaced). Admin.
+router.get("/security/data-residency", requireRole("admin"), (_req, res) => {
+  res.json(residencyStatus());
 });
 
 // ── Tamper-evident audit chain ──────────────────────────────────────────────────

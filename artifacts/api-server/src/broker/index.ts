@@ -9,6 +9,7 @@ import { instrumented, wrapWithTrace } from "./trace";
 import { provenanceEnabled, wrapWithProvenance } from "./provenance";
 import { wrapWithKeyGuard } from "./key-guard";
 import { isDevMode } from "../lib/dev-mode";
+import { DataResidencyError } from "../lib/data-residency";
 import { devBrokerFromEnv } from "./dev-broker";
 import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
 import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
@@ -174,6 +175,11 @@ export async function callBrokerCapability<T>(
 
 /** Map a thrown broker error onto an HTTP response (status from the taxonomy). */
 export function respondBrokerError(res: Response, err: unknown): void {
+  if (err instanceof DataResidencyError) {
+    // A residency refusal is a policy block, not a backend failure — 451 (legal reasons).
+    res.status(451).json({ error: err.message, code: "data_residency" });
+    return;
+  }
   if (err instanceof BrokerError) {
     const body: Record<string, unknown> = { error: err.message };
     if (err.code === "conflict" && err.details) body["current"] = err.details;

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { getSettings } from "../../lib/settings";
 import { configuredBrokerUrl } from "../../lib/broker-url";
+import { assertResidency } from "../../lib/data-residency";
 import { currentEndpointOverride } from "../endpoint-context";
 import { recordAudit } from "../../lib/audit";
 import { INDICATIVE_FX_RATES } from "../../lib/fx-fallback";
@@ -73,6 +74,14 @@ const DEFAULT_WEBHOOK = "http://localhost:5678/webhook/omniproject";
  * restart. This is entirely below the seam — nothing above N8nBroker knows.
  */
 export function webhookPool(): string[] {
+  const pool = resolvePool();
+  // Data-residency guard (opt-in, fail-closed): refuse — before any egress — a pool that
+  // would route to an endpoint outside the deployment's allowed region(s). No-op when unset.
+  assertResidency(pool);
+  return pool;
+}
+
+function resolvePool(): string[] {
   // A per-kind routing scope (the broker router) overrides the pool for this call —
   // so a command routed to a specific connected broker kind hits that kind's URL.
   const routed = currentEndpointOverride();
