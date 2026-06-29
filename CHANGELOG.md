@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **CycloneDX component SBOM + supply-chain docs.** CI now emits a full **CycloneDX** component SBOM
+  (versions for CVE correlation, via Syft) alongside the existing licence inventory and the
+  block-on-critical `pnpm audit`. New **`docs/SUPPLY-CHAIN.md`** documents what's in place and what's
+  parked (cosign/SLSA image signing, a gitleaks gate — both needing an infra/policy decision), and
+  **`docs/PARKED-DECISIONS.md`** consolidates every item from the enterprise/cybersec/SME-charity gap
+  review that awaits a maintainer call (first-party backend, hosted deploy, mTLS/FIPS, licensing,
+  i18n breadth, self-hosted font) so they can be reviewed together.
+
 - **Latency-aware adaptive read-cache TTL.** With `READ_CACHE_ADAPTIVE=true`, the opt-in read cache
   tunes each broker method's TTL from its **measured** upstream latency (an EWMA recorded on every
   real miss, `broker/adaptive-ttl.ts`). Combined model: below `READ_CACHE_ADAPTIVE_THRESHOLD_MS` a

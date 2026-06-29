@@ -366,11 +366,22 @@ jobs:
         if: always()
         run: pnpm licenses list --json > sbom-licences.json
 
-      - name: Upload SBOM
+      # A full CycloneDX component SBOM (versions + hashes) for vulnerability correlation and the
+      # supply-chain evidence enterprises increasingly require (US EO 14028). Syft reads the
+      # pnpm lockfile directly; the action uploads it as a build artefact.
+      - name: Generate CycloneDX component SBOM (Syft)
+        if: always()
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          artifact-name: sbom-cyclonedx.json
+
+      - name: Upload licence SBOM
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sbom
+          name: sbom-licences
           path: sbom-licences.json
 
   # Acceptance (end-to-end) — drives the real built SPA in Chromium against the gateway in demo
