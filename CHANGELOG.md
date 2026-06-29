@@ -6,6 +6,26 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Security
+
+- **Auth/abuse hardening from the pentest pass (the four deferred items, now shipped).** Each is
+  independent and self-contained:
+  - **Login rate-limit.** A strict, per-IP `loginLimiter` (default 30 / 15 min, tunable via
+    `AUTH_RATE_LIMIT_MAX`, honours `RATE_LIMIT_DISABLED` and the shared-Redis store) is applied to
+    `GET /api/auth/login` and `GET /api/auth/step-up` at the router mount — throttling brute-force /
+    flow-cookie spam ahead of the general `apiLimiter`.
+  - **OIDC `nonce`.** Login/step-up now mint a `nonce`, bind it into the authorization request and
+    the flow cookie, and the callback rejects (401) any ID token whose `nonce` claim doesn't match —
+    so a token replayed/injected from a different flow can't establish a session.
+  - **SSE deprovision re-check.** The notifications stream's 25 s keepalive now re-checks
+    `isDeprovisioned(req)` each tick and tears the connection down (emitting a `revoked` event) the
+    moment a SCIM `active=false` lands — a long-lived stream no longer outlives its revocation.
+  - **CSP `nonce` (defence-in-depth).** Each response mints a per-request nonce added to
+    `script-src` (exposed on `res.locals.cspNonce`). `style-src` deliberately keeps `'unsafe-inline'`
+    and gets no nonce — CSP nonces cover `<style>` elements but never inline `style="…"` attributes,
+    which React/Tailwind emit throughout, and adding a nonce there would make the browser ignore
+    `'unsafe-inline'` and break the SPA's styling.
+
 ### Changed
 
 - **Modularity: large components decomposed (no behaviour change).** Pure extraction, identical

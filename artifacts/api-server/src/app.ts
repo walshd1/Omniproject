@@ -26,7 +26,7 @@ import { csrfGuard } from "./lib/csrf";
 import { loadSecurityState } from "./lib/security-state";
 import { hydrateVault } from "./lib/vault";
 import { initKms } from "./lib/kms";
-import { contentSecurityPolicy, cspHeaderName } from "./lib/csp";
+import { contentSecurityPolicy, cspHeaderName, cspNonce } from "./lib/csp";
 import { tracingMiddleware } from "./lib/tracing";
 import { ipAllowGuard } from "./lib/ip-allow";
 import { maintenanceGuard } from "./lib/maintenance";
@@ -137,8 +137,12 @@ app.use((req, res, next) => {
   // microphone=(self): the on-device / Whisper dictation needs same-origin mic access.
   res.setHeader("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
   // Content-Security-Policy: strict-by-default, fully overridable per deployment, and
-  // settable to report-only while a deployment tunes it for its asset origins.
-  res.setHeader(cspHeaderName(), contentSecurityPolicy());
+  // settable to report-only while a deployment tunes it for its asset origins. A
+  // per-request nonce is minted and added to script-src (defence-in-depth); it's
+  // exposed on res.locals so a server-rendered <script> could carry it.
+  const nonce = cspNonce();
+  res.locals["cspNonce"] = nonce;
+  res.setHeader(cspHeaderName(), contentSecurityPolicy(nonce));
   // HSTS only when the deployment is actually served over TLS (per the profile/PUBLIC_TLS) —
   // meaningless/counterproductive on a plain-HTTP LAN deployment.
   if (requireTls()) {

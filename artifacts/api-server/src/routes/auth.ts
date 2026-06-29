@@ -14,6 +14,7 @@ import {
   pkceChallenge,
   exchangeCode,
   decodeIdTokenClaims,
+  idTokenNonce,
   verifyIdToken,
   type Session,
   type Impersonation,
@@ -178,6 +179,7 @@ export function safeLocalPath(value: unknown): string {
 }
 
 // ── GET /api/auth/login ───────────────────────────────────────────────────────
+// A strict per-IP ceiling (loginLimiter) is applied at the router mount in routes/index.ts.
 router.get("/auth/login", async (req, res) => {
   const returnTo = safeLocalPath(req.query["returnTo"]);
 
@@ -193,9 +195,12 @@ router.get("/auth/login", async (req, res) => {
     const discovery = await discover(oidcConfig);
     const state = randomToken();
     const verifier = randomToken(48);
+    // OIDC nonce: bound into the auth request and echoed back in the ID token, so a
+    // replayed/injected token minted for a different login is rejected at the callback.
+    const nonce = randomToken();
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
 
-    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, returnTo }), {
+    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo }), {
       ...cookieBase,
       maxAge: 1000 * 60 * 10, // 10 min
     });
@@ -206,6 +211,7 @@ router.get("/auth/login", async (req, res) => {
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("scope", oidcConfig.scope);
     authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("nonce", nonce);
     authUrl.searchParams.set("code_challenge", pkceChallenge(verifier));
     authUrl.searchParams.set("code_challenge_method", "S256");
 
@@ -231,9 +237,10 @@ router.get("/auth/callback", async (req, res) => {
     return;
   }
 
-  const { state, verifier, returnTo, stepup } = JSON.parse(flowRaw) as {
+  const { state, verifier, nonce, returnTo, stepup } = JSON.parse(flowRaw) as {
     state: string;
     verifier: string;
+    nonce?: string;
     returnTo: string;
     stepup?: boolean;
   };
@@ -267,6 +274,13 @@ router.get("/auth/callback", async (req, res) => {
     // Cryptographically verify the ID token (signature + iss/aud/exp) before
     // trusting any of its claims.
     await verifyIdToken(tokens.id_token, oidcConfig, discovery);
+
+    // Nonce binding: the ID token MUST echo the nonce we minted for THIS login flow.
+    // Rejects a token replayed/injected from a different (or attacker-initiated) flow.
+    if (nonce && idTokenNonce(tokens.id_token) !== nonce) {
+      res.status(401).send("Invalid SSO callback (nonce mismatch).");
+      return;
+    }
 
     const claims = decodeIdTokenClaims(tokens.id_token);
 
@@ -330,14 +344,16 @@ router.get("/auth/step-up", async (req, res) => {
     const discovery = await discover(oidcConfig);
     const state = randomToken();
     const verifier = randomToken(48);
+    const nonce = randomToken();
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
-    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, returnTo, stepup: true }), { ...cookieBase, maxAge: 1000 * 60 * 10 });
+    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, stepup: true }), { ...cookieBase, maxAge: 1000 * 60 * 10 });
     const authUrl = new URL(discovery.authorization_endpoint);
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("client_id", oidcConfig.clientId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("scope", oidcConfig.scope);
     authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("nonce", nonce);
     authUrl.searchParams.set("code_challenge", pkceChallenge(verifier));
     authUrl.searchParams.set("code_challenge_method", "S256");
     authUrl.searchParams.set("prompt", "login"); // force a fresh credential prompt

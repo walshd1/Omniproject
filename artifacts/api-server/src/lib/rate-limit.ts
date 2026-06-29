@@ -27,6 +27,11 @@ function keyFor(req: Request): string {
   return getSession(req)?.sub ?? req.ip ?? "anon";
 }
 
+/** Login is pre-session, so the strict login limiter keys strictly by client IP. */
+function ipKey(req: Request): string {
+  return req.ip ?? "anon";
+}
+
 const tooMany = {
   error: "Too many requests",
   message: "Rate limit exceeded. Please retry later.",
@@ -41,13 +46,13 @@ function envLimit(name: string, fallback: number): number {
   return Number.isFinite(raw) && raw > 0 ? raw : fallback;
 }
 
-function buildLimiter(limit: number, store?: Store): RequestHandler {
+function buildLimiter(limit: number, store?: Store, keyGenerator: (req: Request) => string = keyFor): RequestHandler {
   return rateLimit({
     windowMs: WINDOW_MS,
     limit,
     standardHeaders: "draft-7",
     legacyHeaders: false,
-    keyGenerator: keyFor,
+    keyGenerator,
     validate: { keyGeneratorIpFallback: false },
     handler: (_req, res) => res.status(429).json(tooMany),
     ...(store ? { store } : {}),
@@ -64,14 +69,22 @@ function delegating(initial: RequestHandler): { mw: RequestHandler; set: (h: Req
 
 const API_MAX = envLimit("API_RATE_LIMIT_MAX", 300);
 const ANALYTICS_MAX = envLimit("ANALYTICS_RATE_LIMIT_MAX", 30);
+// Strict, IP-keyed ceiling for the SSO/login initiation endpoints (brute-force /
+// flow-cookie-spam guard). Tunable via AUTH_RATE_LIMIT_MAX — raise it for a large
+// deployment behind a shared NAT/corporate egress IP (or rely on the IdP's own
+// throttling), since many users can then share one source address.
+const AUTH_MAX = envLimit("AUTH_RATE_LIMIT_MAX", 30);
 
 const apiDel = delegating(DISABLED ? passThrough : buildLimiter(API_MAX));
 const analyticsDel = delegating(DISABLED ? passThrough : buildLimiter(ANALYTICS_MAX));
+const authDel = delegating(DISABLED ? passThrough : buildLimiter(AUTH_MAX, undefined, ipKey));
 
 // Generous ceiling for all /api/* traffic.
 export const apiLimiter: RequestHandler = apiDel.mw;
 // Strict ceiling for expensive analytics endpoints.
 export const analyticsLimiter: RequestHandler = analyticsDel.mw;
+// Strict, per-IP ceiling for login / step-up initiation.
+export const loginLimiter: RequestHandler = authDel.mw;
 
 let mode: "in-process" | "redis" = "in-process";
 /** Whether rate-limit counters are per-replica ("in-process") or shared ("redis"). */
@@ -102,6 +115,7 @@ async function initRedisStore(url: string): Promise<void> {
       new Ctor({ prefix, sendCommand: (...args: string[]) => client.call(...args) });
     apiDel.set(buildLimiter(API_MAX, mkStore("rl:api:")));
     analyticsDel.set(buildLimiter(ANALYTICS_MAX, mkStore("rl:analytics:")));
+    authDel.set(buildLimiter(AUTH_MAX, mkStore("rl:auth:"), ipKey));
     mode = "redis";
     logger.info("rate limit: shared Redis store enabled (global ceiling across replicas)");
   } catch (err) {

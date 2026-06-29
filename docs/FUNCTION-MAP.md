@@ -668,6 +668,7 @@ Content-Security-Policy for the served SPA.
 
 | Function | What it does |
 | --- | --- |
+| `cspNonce` | Content-Security-Policy for the served SPA. |
 | `contentSecurityPolicy` | Build the CSP policy string (env override wins; else the strict default + any extras). |
 | `cspHeaderName` | The header name to use — report-only when CSP_REPORT_ONLY is set (observe without blocking). |
 
@@ -1064,6 +1065,7 @@ Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
 | `exchangeCode` | Exchange an authorization code (with the PKCE verifier) for the token set at the IdP's token endpoint. |
 | `verifyIdToken` | Cryptographically verify the ID token against the issuer's JWKS and validate iss/aud/exp/nbf. |
 | `decodeIdTokenClaims` | Decode the JWT id_token to extract user claims. |
+| `idTokenNonce` | Read the `nonce` claim from an ID token's payload (or null if absent/malformed). |
 
 ### `artifacts/api-server/src/lib/payload-guard.ts`
 
@@ -1603,6 +1605,10 @@ The signed-in user's own preferences.
 ### `artifacts/api-server/src/routes/notifications-stream.ts`
 
 The notify-plane dispatch decision, traced/capturable like the broker seam.
+
+| Function | What it does |
+| --- | --- |
+| `sseKeepaliveTick` | One SSE keepalive tick. |
 
 ### `artifacts/api-server/src/routes/odata.ts`
 

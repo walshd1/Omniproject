@@ -42,7 +42,7 @@ import healthWatchRouter from "./health-watch";
 import scimRouter from "./scim";
 import { isDeprovisioned } from "../lib/rbac";
 import { hasValidApiToken } from "../lib/api-token";
-import { apiLimiter } from "../lib/rate-limit";
+import { apiLimiter, loginLimiter } from "../lib/rate-limit";
 import { auditMiddleware } from "./audit-middleware";
 
 const router: IRouter = Router();
@@ -101,6 +101,9 @@ router.use(mcpRouter);
 // it's mounted outside requireAuth. Rate-limited + audited like the rest of /api.
 router.use(scimRouter);
 
+// Strict, per-IP throttle on login / step-up initiation (brute-force / flow-cookie
+// spam) — tighter than the general apiLimiter and applied just to these endpoints.
+router.use(["/auth/login", "/auth/step-up"], loginLimiter);
 router.use(authRouter);
 
 // Public presentation config: branding + label overrides are needed pre-login

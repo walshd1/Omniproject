@@ -216,6 +216,22 @@ export function decodeIdTokenClaims(idToken: string): SessionUser | null {
 }
 
 /**
+ * Read the `nonce` claim from an ID token's payload (or null if absent/malformed).
+ * Used to assert the token was minted for THIS login flow. The signature MUST have
+ * been verified first (see verifyIdToken); this only reads the payload.
+ */
+export function idTokenNonce(idToken: string): string | null {
+  const parts = idToken.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8")) as { nonce?: unknown };
+    return typeof payload.nonce === "string" ? payload.nonce : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Collect role/group claims from the common places IdPs put them: a flat
  * `roles`/`groups` array, Keycloak's `realm_access.roles`, or a space-delimited
  * string. The RBAC layer maps these onto OmniProject roles via env config.
