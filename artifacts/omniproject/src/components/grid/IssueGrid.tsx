@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useInvalidateIssueQueries } from "../../hooks/use-invalidate-issue-queries";
 import { useAvailability, fieldVisible, type Availability } from "../../lib/availability";
 import { useFeatures, featureEnabled } from "../../lib/features";
+import { useSidePanel } from "../../lib/side-panel";
 import { STATUS_ORDER, PRIORITY_ORDER, statusLabel, priorityLabel } from "../../lib/constants";
 import { DataState } from "../DataState";
 import { SavedViewsBar } from "./SavedViewsBar";
@@ -81,6 +82,8 @@ export function IssueGrid({ projectId }: { projectId: string }) {
 
   const { data: features } = useFeatures();
   const savedViewsOn = featureEnabled(features, "savedViews");
+  const sidePanelOn = featureEnabled(features, "sidePanel");
+  const openIssue = useSidePanel((s) => s.openIssue);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<{ id: string; field: string } | null>(null);
   const [bulkValue, setBulkValue] = useState("");
@@ -209,12 +212,22 @@ export function IssueGrid({ projectId }: { projectId: string }) {
           {rows.map((issue) => (
             <tr key={issue.id} className="border-b border-border/50">
               <td className="py-1">
-                <input
-                  type="checkbox"
-                  checked={selected.has(issue.id)}
-                  onChange={() => toggleRow(issue.id)}
-                  aria-label={`Select ${issue.title}`}
-                />
+                <div className="flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(issue.id)}
+                    onChange={() => toggleRow(issue.id)}
+                    aria-label={`Select ${issue.title}`}
+                  />
+                  {sidePanelOn && (
+                    <button
+                      type="button"
+                      onClick={() => openIssue(projectId, issue.id)}
+                      aria-label={`Open details for ${issue.title}`}
+                      className="text-muted-foreground hover:text-foreground"
+                    >⤢</button>
+                  )}
+                </div>
               </td>
               {columns.map((col) => {
                 const isEditing = editing?.id === issue.id && editing.field === col.field;

@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { CommandPalette } from "../CommandPalette";
 import { NewTaskDialog } from "../NewTaskDialog";
 import { ShortcutsDialog } from "../ShortcutsDialog";
+import { IssueSidePanel } from "../sidepanel/IssueSidePanel";
 import { NotificationsBell } from "../NotificationsBell";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
@@ -259,6 +260,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {/* Global "new task" — requires an explicit project (a task always belongs
           to one); the board's in-context IssueDialog stays project-fixed. */}
       <NewTaskDialog open={isNewIssueOpen} onOpenChange={setNewIssueOpen} />
+      {/* Slide-over work-item detail (the optional "sidePanel" module; self-gates via useFeatures). */}
+      <IssueSidePanel />
     </div>
   );
 }
