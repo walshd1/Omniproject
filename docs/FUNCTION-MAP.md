@@ -915,6 +915,14 @@ Health / anomaly watch.
 | `__resetHealthWatch` | Test-only: clear the findings ring + restore default thresholds. |
 | `runHealthWatch` | Run the watch: mint the keyed actor, read the portfolio THROUGH the broker as that actor, evaluate the rules, notify per finding, and record the run. |
 
+### `artifacts/api-server/src/lib/idp-presets.ts`
+
+Identity-provider presets for the setup wizard — "Sign in with Google / Microsoft" without standing up an IdP.
+
+| Function | What it does |
+| --- | --- |
+| `idpPreset` | A preset by id, or undefined. |
+
 ### `artifacts/api-server/src/lib/impersonation.ts`
 
 Ephemeral dev-mode impersonation — let a developer act AS another user to reproduce a role-specific issue, with hard guardrails:

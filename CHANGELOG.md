@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Workspace-login wizard — "Sign in with Google / Microsoft" presets (charity/SME).** Guided
+  presets over the existing OIDC relying party (no new protocol): a catalogue (Google Workspace,
+  Microsoft Entra/M365, bundled Authentik, generic OIDC) giving the operator the issuer URL
+  template, the exact env to set (`OIDC_ISSUER_URL`/`CLIENT_ID`/`CLIENT_SECRET`), the redirect URI,
+  and how each provider exposes group claims for role mapping. Surfaced on `GET /api/setup/idp`
+  (`presets`) and in the setup wizard's IdP step. Removes the "stand up an IdP" barrier — most
+  charities/SMEs already have Google Workspace or M365. No secrets stored (the operator creates
+  the OAuth client in their console). `lib/idp-presets`.
+
 - **DSAR evidence report (admin, one-click).** `GET /api/security/dsar?sub=&email=` assembles —
   from live gateway state only — an auditor-ready "what do we hold/process for subject X" report
   (JSON + human-readable summary, `lib/dsar`). Consistent with zero-at-rest it reports references
