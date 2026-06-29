@@ -42,6 +42,18 @@ demand-driven (only if a gov deal needs it).
 
 ## B. Supply chain / release (infra + policy)
 
+### B0. Distroless runtime image + seccomp profile
+**What:** swap the runtime base from `node:22-bookworm-slim` to a **distroless** (or Chainguard) image
+and add a seccomp/AppArmor profile — the last-mile reduction of attack surface on top of the existing
+read-only-fs / cap-drop / non-root posture.
+**Why parked:** distroless has **no shell and only the `node` binary**, so the compose
+`["CMD","node","-e",…]` healthchecks depend on `node` being on the image's `PATH`. CI's image-smoke
+boots the container but does **not** exercise the *compose healthcheck*, so a wrong assumption could
+break `docker compose up` (dependents never start) without CI catching it. Needs a real `compose up`
+to confirm (and possibly absolute-path the healthchecks).
+**Recommendation:** do it together with one `compose up` to validate the healthcheck path; low effort,
+real hardening once confirmed.
+
 ### B1. Container image signing + SLSA provenance (cosign)
 **Why parked:** requires deciding to **publish the image to a registry** (e.g. GHCR) and granting CI
 `packages: write` + `id-token: write`. See [`SUPPLY-CHAIN.md`](./SUPPLY-CHAIN.md) §Parked.
@@ -97,4 +109,4 @@ bundle, then wire `sendMagicLink`. Worth doing — just wants a watched first bu
 - **Magic-link account enumeration** — already mitigated (always answers `ok`).
 - **Data map / DSAR / retention / backup / DR** — already in `ENTERPRISE-OPS.md`.
 - **Component SBOM + compliance / threat-model / privacy / VPAT docs** — **built** this round
-  (see the CHANGELOG). Distroless image hardening is a follow-up code PR.
+  (see the CHANGELOG).
