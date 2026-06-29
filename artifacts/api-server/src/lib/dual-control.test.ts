@@ -2,7 +2,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { requiresDualControl, propose, approve, reject, listProposals, registerExecutor, __resetDualControl } from "./dual-control";
 
-afterEach(() => { delete process.env["DUAL_CONTROL_ACTIONS"]; __resetDualControl(); });
+afterEach(async () => { delete process.env["DUAL_CONTROL_ACTIONS"]; await __resetDualControl(); });
 
 const NOW = "2026-06-28T00:00:00Z";
 
@@ -16,8 +16,8 @@ test("off by default; on when listed", () => {
 test("four-eyes: a different admin must approve; the proposer can't", async () => {
   let applied: unknown = null;
   registerExecutor("test.action", (params) => { applied = params; });
-  const p = propose("test.action", { x: 1 }, { sub: "alice", email: "a@co" }, NOW);
-  assert.equal(listProposals().length, 1);
+  const p = await propose("test.action", { x: 1 }, { sub: "alice", email: "a@co" }, NOW);
+  assert.equal((await listProposals()).length, 1);
 
   // Proposer approving themselves is refused; nothing executes.
   const self = await approve(p.id, { sub: "alice" }, NOW);
@@ -29,11 +29,11 @@ test("four-eyes: a different admin must approve; the proposer can't", async () =
   const other = await approve(p.id, { sub: "bob" }, NOW);
   assert.equal(other.ok, true);
   assert.deepEqual(applied, { x: 1 });
-  assert.equal(listProposals().length, 0); // no longer pending
+  assert.equal((await listProposals()).length, 0); // no longer pending
 });
 
 test("a missing executor is reported, not silently dropped", async () => {
-  const p = propose("no.executor", {}, { sub: "alice" }, NOW);
+  const p = await propose("no.executor", {}, { sub: "alice" }, NOW);
   const r = await approve(p.id, { sub: "bob" }, NOW);
   assert.equal(r.ok, false);
   assert.match(r.error!, /executor/i);
@@ -42,11 +42,11 @@ test("a missing executor is reported, not silently dropped", async () => {
 test("reject removes a proposal from the queue without executing", async () => {
   let ran = false;
   registerExecutor("rej.action", () => { ran = true; });
-  const p = propose("rej.action", {}, { sub: "alice" }, NOW);
-  const r = reject(p.id, { sub: "bob" }, NOW);
+  const p = await propose("rej.action", {}, { sub: "alice" }, NOW);
+  const r = await reject(p.id, { sub: "bob" }, NOW);
   assert.equal(r.ok, true);
   assert.equal(ran, false);
-  assert.equal(listProposals().length, 0);
+  assert.equal((await listProposals()).length, 0);
   // A second decision on the same proposal is a no-op.
   assert.equal((await approve(p.id, { sub: "carol" }, NOW)).ok, false);
 });

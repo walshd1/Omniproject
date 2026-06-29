@@ -1,0 +1,156 @@
+import { logger } from "./logger";
+
+/**
+ * Shared-state seam (roadmap §2) — an OPT-IN key/value store the per-replica registries can
+ * adopt so their state is consistent fleet-wide instead of per-process.
+ *
+ * Several runtime registries are in-process RAM by design (fast, zero-dependency). Behind N
+ * replicas that means each has its own copy. This seam gives them ONE shared backing — when
+ * `REDIS_URL` is set (and `ioredis` is installed) the store is Redis; otherwise it's an
+ * in-process map with identical semantics, so a single-instance deployment is unchanged and
+ * carries no dependency.
+ *
+ * Mirrors the rate-limit / broker-log Redis pattern exactly:
+ *  - `ioredis` is a RUNTIME-OPTIONAL dependency loaded via a variable-specifier dynamic import,
+ *    so it's never a committed dependency and a default/CI install stays lean;
+ *  - REDIS_URL-set-but-not-installed logs ONCE and falls back to in-process (never crashes);
+ *  - a stable facade (`sharedKv`) delegates to the active backend, swapped in after async init,
+ *    so adopters import a fixed handle and never see the swap.
+ *
+ * The store is async (I/O), so only registries whose accessors are already async should adopt
+ * it directly; a sync hot-path registry (e.g. the per-request session cap) would need an async
+ * refactor first and stays per-replica until then.
+ */
+
+export type SharedStateMode = "in-process" | "redis";
+
+/** A minimal async KV the registries use; both backends implement it identically. */
+export interface SharedKv {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string, opts?: { ttlMs?: number }): Promise<void>;
+  del(key: string): Promise<void>;
+  /** Every {key,value} whose key starts with `prefix` (for small queue-like sets). */
+  list(prefix: string): Promise<{ key: string; value: string }[]>;
+  /** Test/admin: drop everything under `prefix` (or all when omitted). */
+  clear(prefix?: string): Promise<void>;
+}
+
+const NS = "omni:ss:";
+
+// ── In-process backend (default) ──────────────────────────────────────────────────
+class InProcessKv implements SharedKv {
+  private readonly map = new Map<string, { value: string; expiresAt: number | null }>();
+
+  private live(key: string): string | null {
+    const e = this.map.get(key);
+    if (!e) return null;
+    if (e.expiresAt !== null && e.expiresAt <= Date.now()) { this.map.delete(key); return null; }
+    return e.value;
+  }
+  async get(key: string): Promise<string | null> { return this.live(key); }
+  async set(key: string, value: string, opts?: { ttlMs?: number }): Promise<void> {
+    this.map.set(key, { value, expiresAt: opts?.ttlMs ? Date.now() + opts.ttlMs : null });
+  }
+  async del(key: string): Promise<void> { this.map.delete(key); }
+  async list(prefix: string): Promise<{ key: string; value: string }[]> {
+    const out: { key: string; value: string }[] = [];
+    for (const key of [...this.map.keys()]) {
+      if (!key.startsWith(prefix)) continue;
+      const value = this.live(key);
+      if (value !== null) out.push({ key, value });
+    }
+    return out;
+  }
+  async clear(prefix?: string): Promise<void> {
+    if (!prefix) { this.map.clear(); return; }
+    for (const key of [...this.map.keys()]) if (key.startsWith(prefix)) this.map.delete(key);
+  }
+}
+
+// ── Redis backend (when REDIS_URL + ioredis present) ───────────────────────────────
+interface KvRedis {
+  get(k: string): Promise<string | null>;
+  set(k: string, v: string, mode?: string, ttl?: number): Promise<unknown>;
+  del(k: string): Promise<unknown>;
+  scan(cursor: string, ...args: (string | number)[]): Promise<[string, string[]]>;
+  mget(...keys: string[]): Promise<(string | null)[]>;
+}
+
+class RedisKv implements SharedKv {
+  constructor(private readonly client: KvRedis) {}
+  async get(key: string): Promise<string | null> { return this.client.get(NS + key); }
+  async set(key: string, value: string, opts?: { ttlMs?: number }): Promise<void> {
+    if (opts?.ttlMs) await this.client.set(NS + key, value, "PX", opts.ttlMs);
+    else await this.client.set(NS + key, value);
+  }
+  async del(key: string): Promise<void> { await this.client.del(NS + key); }
+  async list(prefix: string): Promise<{ key: string; value: string }[]> {
+    const match = `${NS}${prefix}*`;
+    const keys: string[] = [];
+    let cursor = "0";
+    do {
+      const [next, batch] = await this.client.scan(cursor, "MATCH", match, "COUNT", 200);
+      keys.push(...batch);
+      cursor = next;
+    } while (cursor !== "0");
+    if (!keys.length) return [];
+    const values = await this.client.mget(...keys);
+    const out: { key: string; value: string }[] = [];
+    keys.forEach((k, i) => { const v = values[i]; if (v !== null && v !== undefined) out.push({ key: k.slice(NS.length), value: v }); });
+    return out;
+  }
+  async clear(prefix?: string): Promise<void> {
+    const match = `${NS}${prefix ?? ""}*`;
+    let cursor = "0";
+    do {
+      const [next, batch] = await this.client.scan(cursor, "MATCH", match, "COUNT", 200);
+      for (const k of batch) await this.client.del(k);
+      cursor = next;
+    } while (cursor !== "0");
+  }
+}
+
+// ── Facade: stable handle, backend swapped in after async init ──────────────────────
+let mode: SharedStateMode = "in-process";
+let active: SharedKv = new InProcessKv();
+let ready: Promise<void> | null = null;
+
+/** Whether shared state is per-replica ("in-process") or fleet-wide ("redis"). */
+export function sharedStateMode(): SharedStateMode { return mode; }
+
+async function initRedis(url: string): Promise<void> {
+  const moduleName = "ioredis"; // variable specifier so it isn't statically resolved
+  const mod = (await import(moduleName).catch(() => null)) as { default?: new (u: string) => KvRedis } | null;
+  const Redis = mod?.default;
+  if (!Redis) {
+    logger.warn("shared state: REDIS_URL set but 'ioredis' is not installed — registries stay PER-REPLICA. Run: pnpm --filter @workspace/api-server add ioredis");
+    return;
+  }
+  try {
+    active = new RedisKv(new Redis(url));
+    mode = "redis";
+    logger.info("shared state: Redis backing enabled (registries shared fleet-wide)");
+  } catch (err) {
+    logger.warn({ err }, "shared state: Redis init failed — registries remain per-replica");
+  }
+}
+
+const redisUrl = process.env["REDIS_URL"]?.trim();
+if (redisUrl) ready = initRedis(redisUrl);
+
+/** The shared KV. Adopters import this fixed handle; each call awaits readiness then routes to
+ *  the active backend (in-process until Redis finishes connecting, if configured). */
+export const sharedKv: SharedKv = {
+  async get(key) { if (ready) await ready; return active.get(key); },
+  async set(key, value, opts) { if (ready) await ready; return active.set(key, value, opts); },
+  async del(key) { if (ready) await ready; return active.del(key); },
+  async list(prefix) { if (ready) await ready; return active.list(prefix); },
+  async clear(prefix) { if (ready) await ready; return active.clear(prefix); },
+};
+
+/** Test-only: reset to a fresh in-process backend (drops any Redis binding + data). */
+export function __resetSharedStateForTest(): void {
+  mode = "in-process";
+  active = new InProcessKv();
+  ready = null;
+}

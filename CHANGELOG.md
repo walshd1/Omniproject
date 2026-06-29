@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Shared-state seam (opt-in, Redis-backed) — the per-replica registries can now share fleet-wide
+  (roadmap §2).** `lib/shared-state` is an opt-in async KV that's in-process by default and
+  Redis-backed when `REDIS_URL` is set, mirroring the rate-limit / broker-log pattern: `ioredis`
+  is a runtime-optional dynamic import (lean by default — undeclared dep, one-time warning + safe
+  in-process fallback if absent). First adopter: the **maker-checker proposal queue**
+  (`lib/dual-control`) now lives in the seam, so a proposal raised on one replica is approvable on
+  another. `sharedStateMode()` (`in-process | redis`) is reported on the admin profile status. The
+  concurrent-session cap (sync hot path) and audit-chain head remain per-replica for now — see
+  `docs/TECH-DEBT-AND-ROADMAP.md` §2 for the opt-in path.
+
 - **Data residency / region routing (opt-in, fail-closed).** A regulated deployment can now pin
   work to a region: every configured broker endpoint is tagged with a region
   (`DATA_RESIDENCY_MAP="urlPrefix=region,…"`), the deployment declares the allowed region(s)

@@ -1357,6 +1357,15 @@ Setup-status report — a registry of SECTIONS, each contributing a slice of the
 | --- | --- |
 | `buildSetupStatus` | Assemble the setup/status report from the registered sections. |
 
+### `artifacts/api-server/src/lib/shared-state.ts`
+
+Shared-state seam (roadmap §2) — an OPT-IN key/value store the per-replica registries can adopt so their state is consistent fleet-wide instead of per-process.
+
+| Function | What it does |
+| --- | --- |
+| `sharedStateMode` | Whether shared state is per-replica ("in-process") or fleet-wide ("redis"). |
+| `__resetSharedStateForTest` | Test-only: reset to a fresh in-process backend (drops any Redis binding + data). |
+
 ### `artifacts/api-server/src/lib/shutdown.ts`
 
 Graceful shutdown — on SIGTERM/SIGINT (e.g. `docker stop`, a rolling deploy), stop accepting new connections, drain the live SSE streams, let in-flight requests finish, then exit.
