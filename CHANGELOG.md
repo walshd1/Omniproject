@@ -8,6 +8,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Superset enforcement + growth — the field registry is now a vendor-extensible, CI-enforced
+  superset.** Two halves:
+  - **Growth.** A backend descriptor may declare an optional **`fields[]`** array (each validated
+    against `field.schema.json`); `gen-fields` merges them into the canonical superset
+    (`fields.generated.ts`), deduping by key — first definition wins, and a redefinition with a
+    *conflicting* type/group is a hard error. So adding a vendor whose API exposes a new field
+    grows the superset by construction.
+  - **Enforcement.** A new **`guard-superset`** CI step fails the build if any backend's
+    **`fieldKeys[]`** (the canonical fields it references) is not in the superset — i.e. every
+    backend's field set, OpenProject included, must be a strict **subset** of the superset. The
+    superset can only ever be ⊇ every backend; an orphan reference or typo fails CI.
+  - Both halves share one `loadSuperset` helper (base ∪ vendor contributions) so the generator and
+    the guard can never disagree.
+- **Field `entity` tag** — `field.schema.json` / `FieldDescriptor` gain an optional **`entity`**
+  property (default `issue`) naming the canonical entity (table) a field belongs to. No change to
+  existing fields; this is the grouping key the forthcoming superset-native self-host-DB schema
+  generator uses to place each field as a column on the right table.
+
 - **Feature modules — optional backend modules with true lazy loading (Phase 0 of the modular
   UX epic).** Optional, self-contained backend modules can now be switched off so a customer never
   loads (or pays the resources for) code they don't use. A registry (`lib/feature-modules`) reaches

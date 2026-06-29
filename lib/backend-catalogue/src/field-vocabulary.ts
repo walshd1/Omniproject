@@ -57,6 +57,9 @@ export interface FieldDescriptor {
   required?: boolean;
   /** For `type: "reference"`: the entity key this field points at (e.g. "programme"). */
   references?: string;
+  /** The canonical entity (table) this field belongs to; defaults to "issue" when omitted.
+   *  Drives which table a field becomes a column on in the superset-native DB schema generator. */
+  entity?: string;
 }
 
 /**
