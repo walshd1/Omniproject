@@ -38,6 +38,7 @@ describe("NAV_ITEMS", () => {
     expect(NAV_ITEMS.map((n) => n.href)).toEqual([
       "/",
       "/my-work",
+      "/dashboards",
       "/programmes",
       "/projects",
       "/reports",

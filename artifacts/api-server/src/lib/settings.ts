@@ -151,6 +151,12 @@ export interface SettingsState {
    * bundle — never project data. See routes/views + the SPA savedViews feature module.
    */
   savedViews: SavedView[];
+  /**
+   * Named custom dashboards: an ordered list of widget instances chosen from the widget catalogue.
+   * Customer-level presentation config — rides the snapshot/export so dashboards travel in the
+   * bundle — never project data. See routes/dashboards + the SPA dashboards feature module.
+   */
+  dashboards: Dashboard[];
 }
 
 /** A named saved view: which columns, sort, filters and grouping to apply (all optional, so a view
@@ -164,6 +170,22 @@ export interface SavedView {
   sort?: { field: string; dir: "asc" | "desc" };
   filters?: { field: string; value: string }[];
   groupBy?: string;
+}
+
+/** One placed widget on a custom dashboard. `type` keys into the SPA widget catalogue; `span` is
+ *  the column width (1–3) on the responsive grid; `title` optionally overrides the widget label. */
+export interface DashboardWidget {
+  id: string;
+  type: string;
+  span?: 1 | 2 | 3;
+  title?: string;
+}
+
+/** A named custom dashboard: an ordered list of widget instances. */
+export interface Dashboard {
+  id: string;
+  name: string;
+  widgets: DashboardWidget[];
 }
 
 /** One user's persisted UI/accessibility preferences. */
@@ -310,6 +332,7 @@ const store: SettingsState = {
   disabledFeatures: disabledFeaturesFromEnv(),
   hiddenFields: [],
   savedViews: [],
+  dashboards: [],
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
@@ -336,6 +359,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "disabledFeatures",
   "hiddenFields",
   "savedViews",
+  "dashboards",
 ];
 
 /** A snapshot copy of the current in-memory settings (never the live reference). */
@@ -438,6 +462,23 @@ function validatePatch(patch: Record<string, unknown>): void {
       const { id, name } = view as Record<string, unknown>;
       if (typeof id !== "string" || !id) throw new SettingsValidationError("each saved view needs a string id");
       if (typeof name !== "string" || !name) throw new SettingsValidationError("each saved view needs a name");
+    }
+  }
+  if ("dashboards" in patch) {
+    const v = patch["dashboards"];
+    if (!Array.isArray(v)) throw new SettingsValidationError("dashboards must be an array");
+    for (const dash of v) {
+      if (!dash || typeof dash !== "object") throw new SettingsValidationError("each dashboard must be an object");
+      const { id, name, widgets } = dash as Record<string, unknown>;
+      if (typeof id !== "string" || !id) throw new SettingsValidationError("each dashboard needs a string id");
+      if (typeof name !== "string" || !name) throw new SettingsValidationError("each dashboard needs a name");
+      if (!Array.isArray(widgets)) throw new SettingsValidationError("each dashboard needs a widgets array");
+      for (const w of widgets) {
+        if (!w || typeof w !== "object") throw new SettingsValidationError("each dashboard widget must be an object");
+        const { id: wid, type } = w as Record<string, unknown>;
+        if (typeof wid !== "string" || !wid) throw new SettingsValidationError("each dashboard widget needs a string id");
+        if (typeof type !== "string" || !type) throw new SettingsValidationError("each dashboard widget needs a type");
+      }
     }
   }
   if ("fieldOverrides" in patch) validateFieldOverrides(patch["fieldOverrides"]);
