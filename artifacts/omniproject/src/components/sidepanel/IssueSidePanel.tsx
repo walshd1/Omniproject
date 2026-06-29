@@ -9,6 +9,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useSidePanel } from "../../lib/side-panel";
 import { useRecentItems } from "../../lib/recent-items";
+import { useSwipe } from "../../lib/use-swipe";
 import { useFeatures, featureEnabled } from "../../lib/features";
 import { useAvailability, fieldVisible } from "../../lib/availability";
 import { useIssueFieldWrite } from "../../lib/use-issue-field-write";
@@ -68,6 +69,10 @@ export function IssueSidePanel() {
   const { data: features } = useFeatures();
   const enabled = featureEnabled(features, "sidePanel");
   const { open, projectId, issueId, close } = useSidePanel();
+  // Touch affordance: swipe the panel towards its edge (right) to dismiss. Additive only — the close
+  // button (mouse) and Escape (keyboard) still close it, and touch events never fire on a non-touch
+  // device, so binding unconditionally is inert there and the both-ways rule still holds.
+  const swipe = useSwipe({ right: close });
   const { data: availability } = useAvailability();
   const { data: issues } = useGetProjectIssues(projectId ?? "", {
     query: { enabled: enabled && open && !!projectId, queryKey: getGetProjectIssuesQueryKey(projectId ?? "") },
@@ -99,7 +104,7 @@ export function IssueSidePanel() {
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) close(); }}>
-      <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto" data-testid="issue-side-panel">
+      <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto" data-testid="issue-side-panel" {...swipe}>
         {!issue ? (
           <div className="p-2 text-sm text-muted-foreground" data-testid="side-panel-empty">
             {open ? "Loading work item…" : ""}

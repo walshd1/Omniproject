@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Swipe-to-dismiss the work-item panel (Phase 2 UX polish — mobile gestures).** A small,
+  dependency-free swipe helper (`lib/use-swipe`) turns touch drags into cardinal-direction gestures
+  (a pure, unit-tested `classifySwipe` with a threshold + off-axis restraint so a scroll or a lazy
+  diagonal doesn't misfire, plus a `useSwipe` hook that ignores multi-touch). The rich side-panel now
+  honours a **right-swipe to close** on touch. It is purely additive — the close button (mouse) and
+  Escape (keyboard) still dismiss it, and touch events never fire on a non-touch device — so the
+  both-ways rule holds and there's no desktop regression. Covered by `classifySwipe`/`useSwipe` unit
+  tests and side-panel component tests (a right-swipe closes; a vertical scroll does not).
+
 - **Recently-visited items in global search (Phase 2 UX polish — findability).** Opening a project,
   programme or work item now quietly records it, and the global-search overlay's idle state (no query
   yet) offers those **Recent** items as a one-keystroke way back — instead of a bare "Type to search."
