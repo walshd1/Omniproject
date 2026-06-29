@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { currentVersion, derivedKey, isActive } from "./key-registry";
+import { signMessage, publicKeyId, verifySignature } from "./signing";
 import type { SessionBind } from "./session-key";
 
 /**
@@ -186,6 +187,42 @@ export function verifySession(entry: ProvenanceEntry, bind: SessionBind | null |
   const expected = sessionMac(bind, entry.kver);
   if (expected === null || entry.sessionMac === null) return expected === entry.sessionMac;
   return safeEq(expected, entry.sessionMac);
+}
+
+export interface ProvenanceAnchor {
+  /** seq of the chain tip (the last recorded entry), or -1 when empty. */
+  seq: number;
+  /** The tip entry's MAC (the chain link), or null when empty. */
+  lastMac: string | null;
+  algorithm: string;
+  keyVersion: number;
+  /** Non-repudiation layer (present only when Ed25519 signing is configured). */
+  signatureAlgorithm?: "Ed25519";
+  publicKeyId?: string;
+  /** Base64 Ed25519 signature over `provenanceAnchorMessage(this)`. */
+  signature?: string;
+}
+
+/** The deterministic message signed for a provenance anchor — the chain TIP bound to the
+ *  provenance-key version. An offline verifier rebuilds it from the anchor's base fields. */
+export function provenanceAnchorMessage(a: { seq: number; lastMac: string | null; algorithm: string; keyVersion: number }): string {
+  return canonical({ seq: a.seq, lastMac: a.lastMac, algorithm: a.algorithm, keyVersion: a.keyVersion });
+}
+
+/** The current provenance-chain anchor; signed with Ed25519 (the gateway non-repudiably
+ *  attesting to the tip) when asymmetric signing is configured, else unsigned. */
+export function provenanceAnchor(): ProvenanceAnchor {
+  const base = { seq: seqCounter - 1, lastMac, algorithm: "HMAC-SHA256/chain", keyVersion: currentVersion("provenance") };
+  const signature = signMessage(provenanceAnchorMessage(base));
+  if (!signature) return base;
+  const kid = publicKeyId();
+  return { ...base, signatureAlgorithm: "Ed25519", signature, ...(kid ? { publicKeyId: kid } : {}) };
+}
+
+/** Verify a provenance anchor's Ed25519 signature against a published public key (PEM).
+ *  False when the anchor is unsigned or the signature doesn't match — pure. */
+export function verifyProvenanceAnchor(anchor: ProvenanceAnchor, publicKeyPemStr: string): boolean {
+  return anchor.signature ? verifySignature(provenanceAnchorMessage(anchor), anchor.signature, publicKeyPemStr) : false;
 }
 
 /** Test-only: reset the in-memory chain. */

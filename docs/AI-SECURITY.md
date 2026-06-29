@@ -85,8 +85,16 @@ anonymous system call:
   sealed fields ride into stdout/the SIEM, so the external copy is self-verifying — removing,
   reordering or altering any event breaks the chain and is detectable without the key being
   forgeable. `GET /api/security/audit/anchor` exposes the tip; `POST /api/security/audit/verify`
-  (and the offline `tools/verify-audit-chain.mjs`) recompute it. Tamper-EVIDENT, not
-  non-repudiation against the gateway itself.
+  (and the offline `tools/verify-audit-chain.mjs`) recompute it. Tamper-EVIDENT by default.
+- **Non-repudiation (optional, Ed25519)** (`lib/signing.ts`): set `SIGNING_PRIVATE_KEY` (an
+  Ed25519 private key as PEM, base64 PKCS#8 DER, or a base64 32-byte seed) and the audit and
+  provenance **anchors** are signed with a key only the gateway holds. Because the chains are
+  hash-linked, a verifier who confirms the signed tip — using the published public key from
+  `GET /api/security/signing` — and recomputes the chain to it has the gateway's
+  non-repudiable attestation over the whole history, not merely internal consistency. Off by
+  default (no key ⇒ unsigned anchors, today's tamper-evident behaviour). Verify offline with
+  `verifyAuditAnchor` / `verifyProvenanceAnchor` (`GET /api/security/audit/anchor`,
+  `GET /api/provenance/anchor`).
 - Sensitive actions require **step-up re-auth** (recent re-authentication on top of the
   admin role): key revocation, governance/egress changes, the raw escape hatch, config
   export, the kill switch, containment relax, action approval. `lib/step-up.ts`.
@@ -176,10 +184,11 @@ enterprise IdP (Okta / Entra) drives:
 
 These are deliberate, documented limits — not defects:
 
-- **Shared-secret MACs, not third-party signatures.** Broker/provenance integrity
-  authenticates to a holder of the master (the broker), proving origin + session binding;
-  it is not non-repudiation against the gateway itself. Asymmetric signing would be needed
-  for that.
+- **Shared-secret MACs, not third-party signatures (by default).** Broker/provenance integrity
+  authenticates to a holder of the master (the broker), proving origin + session binding; the
+  MAC layer alone is not non-repudiation against the gateway itself. For that, enable the
+  optional Ed25519 anchor signing (`SIGNING_PRIVATE_KEY`, §3) — the audit/provenance tips are
+  then signed by a key only the gateway holds, verifiable with the published public key.
 - **Internal-consistency provenance.** Ordering and non-alteration are verified internally
   (monotonic counter + hash links), with no external timestamp anchor. A holder of *both*
   the provenance and broker keys could forge a self-consistent history.

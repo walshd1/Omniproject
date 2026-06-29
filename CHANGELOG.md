@@ -8,6 +8,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Security
 
+- **Non-repudiation: optional Ed25519 signing of the audit + provenance anchors (`lib/signing.ts`).**
+  The keyed-MAC chains are tamper-*evident* (a key-holder can detect alteration); signing the
+  hash-linked chain TIP with a private key only the gateway holds makes the record
+  *non-repudiable* — anyone with the published public key can confirm the gateway attests to that
+  tip, and the hash links extend the attestation over the whole history. Opt-in via
+  `SIGNING_PRIVATE_KEY` (Ed25519 as PEM, base64 PKCS#8 DER, or a base64 32-byte seed); **off by
+  default** (no key ⇒ unsigned anchors, exactly today's behaviour). The public key + status are at
+  `GET /api/security/signing`; signed anchors at `GET /api/security/audit/anchor` and
+  `GET /api/provenance/anchor`; offline verification via `verifyAuditAnchor` /
+  `verifyProvenanceAnchor`.
+
 - **Auth/abuse hardening from the pentest pass (the four deferred items, now shipped).** Each is
   independent and self-contained:
   - **Login rate-limit.** A strict, per-IP `loginLimiter` (default 30 / 15 min, tunable via

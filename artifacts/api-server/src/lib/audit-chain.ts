@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { derivedKey, currentVersion } from "./key-registry";
 import { canonical } from "./provenance";
+import { signMessage, publicKeyId, verifySignature } from "./signing";
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import type { AuditEvent } from "./audit";
@@ -73,10 +74,40 @@ export function sealAuditEvent(ev: AuditEvent): SealedAuditEvent {
   return { ...ev, seal: { seq, prevHash, hash, kv: version } };
 }
 
-/** The current chain anchor — what an external verifier checks the tip against. */
-export function auditAnchor(): { seq: number; lastHash: string; algorithm: string; keyVersion: number } {
+export interface AuditAnchor {
+  seq: number;
+  lastHash: string;
+  algorithm: string;
+  keyVersion: number;
+  /** Non-repudiation layer (present only when Ed25519 signing is configured). */
+  signatureAlgorithm?: "Ed25519";
+  publicKeyId?: string;
+  /** Base64 Ed25519 signature over `auditAnchorMessage(this)`. */
+  signature?: string;
+}
+
+/** The exact, deterministic message that is signed for an anchor — the chain TIP bound to
+ *  the key version. An offline verifier rebuilds this from the anchor's base fields. */
+export function auditAnchorMessage(a: { seq: number; lastHash: string; algorithm: string; keyVersion: number }): string {
+  return canonical({ seq: a.seq, lastHash: a.lastHash, algorithm: a.algorithm, keyVersion: a.keyVersion });
+}
+
+/** The current chain anchor — what an external verifier checks the tip against. When
+ *  asymmetric signing is configured it also carries an Ed25519 signature over the tip,
+ *  so the gateway non-repudiably attests to this position in the chain. */
+export function auditAnchor(): AuditAnchor {
   ensureLoaded();
-  return { seq: head.seq, lastHash: head.lastHash, algorithm: "HMAC-SHA256/chain", keyVersion: currentVersion("audit") };
+  const base = { seq: head.seq, lastHash: head.lastHash, algorithm: "HMAC-SHA256/chain", keyVersion: currentVersion("audit") };
+  const signature = signMessage(auditAnchorMessage(base));
+  if (!signature) return base;
+  const kid = publicKeyId();
+  return { ...base, signatureAlgorithm: "Ed25519", signature, ...(kid ? { publicKeyId: kid } : {}) };
+}
+
+/** Verify an anchor's Ed25519 signature against a published public key (PEM). False when the
+ *  anchor is unsigned or the signature doesn't match — pure, for an offline auditor. */
+export function verifyAuditAnchor(anchor: AuditAnchor, publicKeyPemStr: string): boolean {
+  return anchor.signature ? verifySignature(auditAnchorMessage(anchor), anchor.signature, publicKeyPemStr) : false;
 }
 
 export interface ChainVerdict { ok: boolean; count: number; brokenAt: number | null; reason?: string }

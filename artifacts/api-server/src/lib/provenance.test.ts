@@ -1,6 +1,6 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { canonical, contentMac, sessionMac, record, recentProvenance, verifyChain, verifyContent, verifySession, __resetProvenance } from "./provenance";
+import { canonical, contentMac, sessionMac, record, recentProvenance, verifyChain, verifyContent, verifySession, provenanceAnchor, verifyProvenanceAnchor, __resetProvenance } from "./provenance";
 import { wrapWithProvenance } from "../broker/provenance";
 import type { Broker } from "../broker/types";
 
@@ -21,6 +21,17 @@ test("records a chained invoke→result and verifies intact", () => {
   assert.equal(entries.length, 2);
   assert.equal(verifyChain(entries).ok, true);
   assert.equal(recentProvenance("c1").length, 2);
+});
+
+test("the anchor tracks the tip and is unsigned without Ed25519 signing configured", () => {
+  assert.deepEqual({ seq: provenanceAnchor().seq, lastMac: provenanceAnchor().lastMac }, { seq: -1, lastMac: null });
+  record({ callId: "c1", hop: "invoke", action: "a", actor: "u1", content: [1] });
+  const anchor = provenanceAnchor();
+  assert.equal(anchor.seq, 0);
+  assert.equal(anchor.lastMac, recentProvenance()[0]!.mac);
+  assert.equal(anchor.signature, undefined);
+  // Unsigned ⇒ not attributable to the gateway ⇒ verify refuses.
+  assert.equal(verifyProvenanceAnchor(anchor, "-----BEGIN PUBLIC KEY-----\nx\n-----END PUBLIC KEY-----"), false);
 });
 
 test("tampering with any field breaks the chain MAC", () => {

@@ -380,7 +380,9 @@ Tamper-evident audit trail.
 | Function | What it does |
 | --- | --- |
 | `sealAuditEvent` | Seal an event into the chain: advances the head and returns the event with its seal. |
+| `auditAnchorMessage` | The exact, deterministic message that is signed for an anchor — the chain TIP bound to the key version. |
 | `auditAnchor` | The current chain anchor — what an external verifier checks the tip against. |
+| `verifyAuditAnchor` | Verify an anchor's Ed25519 signature against a published public key (PEM). |
 | `verifyAuditChain` | Verify an ordered list of sealed audit events. |
 | `__resetAuditChain` | Test-only: reset the in-memory head. |
 
@@ -1129,6 +1131,9 @@ Provenance chain — a keyed-MAC, hash-chained record of every broker call, hold
 | `verifyChain` | Verify a CONTIGUOUS slice of the chain: each entry's own MAC recomputes (so no field was altered), the links join (prevMac === previous mac), and order is monotonic. |
 | `verifyContent` | Prove "nothing changed": re-present content and confirm it matches the fingerprint. |
 | `verifySession` | Prove "this exact session initiated it": re-present the session binding and confirm it matches the entry's session fingerprint. |
+| `provenanceAnchorMessage` | The deterministic message signed for a provenance anchor — the chain TIP bound to the provenance-key version. |
+| `provenanceAnchor` | The current provenance-chain anchor; signed with Ed25519 (the gateway non-repudiably attesting to the tip) when asymmetric signing is configured, else unsigned. |
+| `verifyProvenanceAnchor` | Verify a provenance anchor's Ed25519 signature against a published public key (PEM). |
 | `__resetProvenance` | Test-only: reset the in-memory chain. |
 
 ### `artifacts/api-server/src/lib/rate-limit.ts`
@@ -1335,6 +1340,20 @@ Graceful shutdown — on SIGTERM/SIGINT (e.g. `docker stop`, a rolling deploy), 
 | --- | --- |
 | `gracefulShutdown` | Run one graceful shutdown. |
 | `installShutdownHandlers` | Install SIGTERM/SIGINT handlers that run a single graceful shutdown. |
+
+### `artifacts/api-server/src/lib/signing.ts`
+
+Optional asymmetric (Ed25519) signing — the non-repudiation layer over the audit chain and the provenance chain.
+
+| Function | What it does |
+| --- | --- |
+| `parsePrivateKey` | Parse an Ed25519 private key from PEM, base64 PKCS#8 DER, or a base64 32-byte seed. |
+| `signingEnabled` | Whether non-repudiation signing is configured (a private key was loaded). |
+| `publicKeyPem` | The gateway's published verification key (SPKI PEM), or null when signing is off. |
+| `publicKeyId` | A short, stable id for the public key (first 16 hex of SHA-256 over its SPKI DER) so a signature can name the key it was made with. |
+| `signMessage` | Sign a message with the gateway private key (base64), or null when signing is off. |
+| `verifySignature` | Verify a base64 Ed25519 signature over `message` against an SPKI/PEM public key. |
+| `signingInfo` | Public signing status for the admin/security surface (no secrets — public key only). |
 
 ### `artifacts/api-server/src/lib/step-up.ts`
 

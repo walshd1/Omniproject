@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { sealAuditEvent, verifyAuditChain, auditAnchor, __resetAuditChain, type SealedAuditEvent } from "./audit-chain";
+import { sealAuditEvent, verifyAuditChain, auditAnchor, verifyAuditAnchor, __resetAuditChain, type SealedAuditEvent } from "./audit-chain";
 import type { AuditEvent } from "./audit";
 
 /**
@@ -27,6 +27,15 @@ test("the anchor tracks the tip", () => {
   const anchor = auditAnchor();
   assert.equal(anchor.seq, 2);
   assert.equal(anchor.lastHash, b.seal.hash);
+});
+
+test("without Ed25519 signing configured the anchor is unsigned and verify is false", () => {
+  sealAuditEvent(ev("a"));
+  const anchor = auditAnchor();
+  assert.equal(anchor.signature, undefined);
+  assert.equal(anchor.signatureAlgorithm, undefined);
+  // An unsigned anchor can't be attributed to the gateway — verify must refuse it.
+  assert.equal(verifyAuditAnchor(anchor, "-----BEGIN PUBLIC KEY-----\nx\n-----END PUBLIC KEY-----"), false);
 });
 
 test("altering an event's content is detected (hash mismatch)", () => {
