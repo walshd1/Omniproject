@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Optimistic edit + one-click Undo (Phase 2 UX polish).** Inline field edits in the **grid** and
+  the **side-panel** now flow through a single shared writer (`useIssueFieldWrite`) and offer a
+  **"Saved · Undo"** toast that reverts the change within the toast window. Undo is itself
+  concurrency-safe — it re-issues the inverse write against the **latest** version, so it never
+  clobbers a newer change (409 → refresh, never overwrite). The shared writer replaces the two
+  near-identical bespoke commit paths (optimistic cache update + `expectedVersion` + error/409
+  handling now live **once**); bulk grid edits intentionally skip the per-row Undo toast. Covered by
+  hook + component tests and the editable-grid acceptance specs (mouse + keyboard).
+
 - **Acceptance (end-to-end) test harness + keyboard/mouse parity gate.** A **Playwright** harness
   drives the **real built SPA in Chromium** against the gateway in **demo mode** (stateless, sample
   data, demo auth — no broker/backend), proving the product *behaves as intended* from the user's

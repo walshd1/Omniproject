@@ -1,14 +1,11 @@
 import { useMemo, useState } from "react";
 import {
   useGetProjectIssues,
-  useUpdateIssue,
-  getGetProjectIssuesQueryKey,
   type Issue,
   type IssueUpdate,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { useInvalidateIssueQueries } from "../../hooks/use-invalidate-issue-queries";
+import { useIssueFieldWrite } from "../../lib/use-issue-field-write";
 import { useAvailability, fieldVisible, type Availability } from "../../lib/availability";
 import { useFeatures, featureEnabled } from "../../lib/features";
 import { useSidePanel } from "../../lib/side-panel";
@@ -75,9 +72,7 @@ function cellText(issue: Issue, col: GridColumn): string {
 export function IssueGrid({ projectId }: { projectId: string }) {
   const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
   const { data: availability } = useAvailability();
-  const updateIssue = useUpdateIssue();
-  const queryClient = useQueryClient();
-  const invalidate = useInvalidateIssueQueries();
+  const { write } = useIssueFieldWrite();
   const { toast } = useToast();
 
   const { data: features } = useFeatures();
@@ -119,35 +114,13 @@ export function IssueGrid({ projectId }: { projectId: string }) {
   const toggleSort = (field: string) =>
     setSort((s) => (s?.field === field ? { field, dir: s.dir === "asc" ? "desc" : "asc" } : { field, dir: "asc" }));
 
-  /** Write one field on one issue, optimistic with revert + 409 conflict handling. */
-  function commit(issue: Issue, col: GridColumn, raw: string) {
+  /** Write one field on one issue via the shared writer (optimistic + expectedVersion + 409-safe).
+   *  `undoable` (single inline edits) adds a one-click Undo toast; bulk edits pass it off. */
+  function commit(issue: Issue, col: GridColumn, raw: string, undoable = false) {
     setEditing(null);
     const value = coerceCellValue(col.type, raw);
     if (value === ((issue as unknown as Record<string, unknown>)[col.field] ?? (col.type === "number" ? null : ""))) return;
-    const data = buildIssueUpdate(col.field, value, issue.version);
-    const key = getGetProjectIssuesQueryKey(projectId);
-    const prev = queryClient.getQueryData<Issue[]>(key);
-    queryClient.setQueryData<Issue[]>(key, (old) =>
-      (old ?? []).map((i) => (i.id === issue.id ? { ...i, [col.field]: value } : i)),
-    );
-    updateIssue.mutate(
-      { projectId, issueId: issue.id, data },
-      {
-        onSuccess: () => invalidate(projectId),
-        onError: (err) => {
-          if (prev) queryClient.setQueryData(key, prev);
-          const conflict = (err as { status?: number }).status === 409;
-          invalidate(projectId);
-          toast({
-            title: conflict ? "EDIT CONFLICT" : "ERROR",
-            description: conflict
-              ? "This item was changed by someone else — the grid has been refreshed."
-              : "Couldn't save. The grid has been refreshed.",
-            variant: "destructive",
-          });
-        },
-      },
-    );
+    write(projectId, issue, col.field, value, undoable ? { undoable: true, label: `${col.label} updated` } : {});
   }
 
   /** Apply one field value to every selected row (each with its own expectedVersion). */
@@ -239,7 +212,7 @@ export function IssueGrid({ projectId }: { projectId: string }) {
                         value={cellText(issue, col)}
                         autoFocus
                         ariaLabel={`${col.label} for ${issue.title}`}
-                        onCommit={(raw) => commit(issue, col, raw)}
+                        onCommit={(raw) => commit(issue, col, raw, true)}
                         onCancel={() => setEditing(null)}
                       />
                     ) : (

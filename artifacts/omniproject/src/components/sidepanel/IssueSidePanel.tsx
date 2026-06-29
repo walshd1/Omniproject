@@ -1,34 +1,28 @@
 import { useState, useEffect } from "react";
 import {
   useGetProjectIssues,
-  useUpdateIssue,
   useListActivity,
   getGetProjectIssuesQueryKey,
   getListActivityQueryKey,
-  type Issue,
   type IssueUpdate,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { useToast } from "@/hooks/use-toast";
 import { useSidePanel } from "../../lib/side-panel";
 import { useFeatures, featureEnabled } from "../../lib/features";
 import { useAvailability, fieldVisible } from "../../lib/availability";
-import { useInvalidateIssueQueries } from "../../hooks/use-invalidate-issue-queries";
+import { useIssueFieldWrite } from "../../lib/use-issue-field-write";
 import { STATUS_ORDER, PRIORITY_ORDER, statusLabel, priorityLabel } from "../../lib/constants";
 
 /**
  * Rich side-panel (the "sidePanel" feature module). A slide-over detail view for a single work item:
- * a quick read-out of its fields (availability-gated), inline edit of the common fields through the
- * existing issue-update endpoint with the optimistic-concurrency token (a concurrent change → 409 →
+ * a quick read-out of its fields (availability-gated), inline edit of the common fields via the
+ * shared issue-field writer (optimistic + `expectedVersion` + undo; a concurrent change → 409 →
  * refresh, never clobber), and the item's recent activity when the backend surfaces it. Opened from
  * anywhere via the side-panel store; rendered once at the app shell and gated by `useFeatures`.
  */
 
-/** Build the single-field update payload, binding the optimistic-concurrency token when known. */
-export function buildFieldUpdate(field: keyof IssueUpdate & string, value: unknown, version: number | null | undefined): IssueUpdate {
-  return { [field]: value, ...(version != null ? { expectedVersion: version } : {}) } as IssueUpdate;
-}
+// buildFieldUpdate now lives with the shared writer; re-exported for back-compat with callers/tests.
+export { buildFieldUpdate } from "../../lib/use-issue-field-write";
 
 function EditableRow({
   label, value, type, options, onCommit,
@@ -78,41 +72,17 @@ export function IssueSidePanel() {
     query: { enabled: enabled && open && !!projectId, queryKey: getGetProjectIssuesQueryKey(projectId ?? "") },
   });
   const { data: activity } = useListActivity({ query: { enabled: enabled && open, queryKey: getListActivityQueryKey() } });
-  const updateIssue = useUpdateIssue();
-  const queryClient = useQueryClient();
-  const invalidate = useInvalidateIssueQueries();
-  const { toast } = useToast();
+  const { write } = useIssueFieldWrite();
 
   if (!enabled) return null;
 
   const issue = (issues ?? []).find((i) => i.id === issueId) ?? null;
   const show = (key: string) => fieldVisible(availability, key);
 
+  // Edit one field, optimistic + concurrency-safe, with a one-click Undo (shared writer).
   function commit(field: keyof IssueUpdate & string, raw: string, coerce: (v: string) => unknown = (v) => v) {
     if (!issue || !projectId) return;
-    const pid: string = projectId; // narrowed; keep a string-typed local for the deferred callbacks
-    const iss = issue;
-    const value = coerce(raw);
-    const data = buildFieldUpdate(field, value, iss.version);
-    const key = getGetProjectIssuesQueryKey(pid);
-    const prev = queryClient.getQueryData<Issue[]>(key);
-    queryClient.setQueryData<Issue[]>(key, (old) => (old ?? []).map((i) => (i.id === iss.id ? { ...i, [field]: value } : i)));
-    updateIssue.mutate(
-      { projectId: pid, issueId: iss.id, data },
-      {
-        onSuccess: () => invalidate(pid),
-        onError: (err) => {
-          if (prev) queryClient.setQueryData(key, prev);
-          const conflict = (err as { status?: number }).status === 409;
-          invalidate(pid);
-          toast({
-            title: conflict ? "EDIT CONFLICT" : "ERROR",
-            description: conflict ? "This item changed elsewhere — the panel has been refreshed." : "Couldn't save the change.",
-            variant: "destructive",
-          });
-        },
-      },
-    );
+    write(projectId, issue, field, coerce(raw), { undoable: true, label: `Updated ${field}` });
   }
 
   const issueActivity = (activity ?? []).filter((a) => a.issueId === issueId).slice(0, 8);
