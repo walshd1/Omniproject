@@ -3,11 +3,12 @@ import { requireRole } from "../lib/rbac";
 import { getBroker } from "../broker";
 import { deliverLocal } from "../lib/notify-hub";
 import { runHealthWatch, recentFindings, type HealthFinding } from "../lib/health-watch";
+import { runExecDigest } from "../lib/exec-digest";
 
 /**
- * Health / anomaly watch. An admin can trigger a scan; a manager+ can read recent
- * findings. The scan runs as the keyed `automation:health-watch` actor and raises a
- * notification per finding (read-only — it observes and alerts, it never writes here).
+ * Health / anomaly watch + executive digest — the scheduled, read-only autonomous jobs. An admin
+ * can trigger either; a manager+ can read recent health findings. Each runs as a keyed,
+ * short-lived autonomous actor and dispatches over the notification seam (never writes here).
  */
 const router = Router();
 
@@ -33,6 +34,17 @@ router.post("/health-watch/run", requireRole("admin"), async (_req, res) => {
 
 router.get("/health-watch", requireRole("manager"), (_req, res) => {
   res.json({ findings: recentFindings() });
+});
+
+// Trigger the executive digest now (admin). An external scheduler / the broker cron calls this
+// so the digest fires once for the fleet; the optional in-process timer is for single instances.
+router.post("/admin/digest/run", requireRole("admin"), async (_req, res) => {
+  try {
+    const digest = await runExecDigest({ now: Date.now(), broker: getBroker() });
+    res.json({ digest });
+  } catch (err) {
+    res.status(502).json({ error: err instanceof Error ? err.message : "digest run failed" });
+  }
 });
 
 export default router;

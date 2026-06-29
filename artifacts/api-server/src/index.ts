@@ -5,11 +5,12 @@
  */
 import app, { bootstrap } from "./app";
 import { logger } from "./lib/logger";
-import { brokerKind } from "./broker";
+import { brokerKind, getBroker } from "./broker";
 import { isOidcConfigured } from "./lib/oidc";
 import { getSettings } from "./lib/settings";
 import { installShutdownHandlers } from "./lib/shutdown";
 import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
+import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
 import { loadConfigDir } from "./lib/config-dir";
 import { readCacheEnabled, readCacheTtlMs } from "./broker/cache";
 
@@ -50,6 +51,10 @@ async function start(): Promise<void> {
   // Start the broker-log fan-out so this replica begins RECEIVING the fleet's live entries
   // immediately. In-process unless REDIS_URL is set — see lib/broker-log-bus.ts.
   initBrokerLogBus();
+
+  // Optional single-instance scheduled executive digest (off unless EXEC_DIGEST_INTERVAL_HOURS>0;
+  // for a fleet, use the trigger endpoint + an external scheduler so it fires once).
+  startExecDigestScheduler(() => runExecDigest({ now: Date.now(), broker: getBroker() }));
 
   const server = app.listen(port, (err) => {
     if (err) {
