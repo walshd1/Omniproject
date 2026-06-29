@@ -113,6 +113,7 @@ Broker selection + the request→domain context adapter.
 | `brokerReadiness` | Probe (and briefly cache) whether this replica can reach its backend. |
 | `resetReadinessCache` | Test-only: drop the readiness cache. |
 | `contextFromReq` | Build the domain ActorContext (forwarded identity + transport auth) from a request. |
+| `callBrokerCapability` | Run a broker capability that may be UNSUPPORTED by the active broker, mapping the two failure shapes the connection routes all repeated: a null promise ⇒ 501 (the broker doesn't offer this capability), a thrown error ⇒ 502. |
 | `respondBrokerError` | Map a thrown broker error onto an HTTP response (status from the taxonomy). |
 
 ### `artifacts/api-server/src/broker/key-guard.ts`
@@ -852,6 +853,14 @@ Ephemeral dev-mode impersonation — let a developer act AS another user to repr
 | `activeImpersonation` | The active impersonation on a session (dev mode + not expired), else null. |
 | `effectiveSession` | The effective session: the impersonated identity overlaid when an impersonation is active, otherwise the session with any inert/expired impersonation stripped (so it never leaks downstream). |
 
+### `artifacts/api-server/src/lib/import.ts`
+
+Tabular import — the write JOB, separated from the HTTP shell (routes/import.ts).
+
+| Function | What it does |
+| --- | --- |
+| `commitImport` | Write each mapped payload as an issue, skipping (never forcing) rows blocked by a missing title, the ruleset, or a broker error. |
+
 ### `artifacts/api-server/src/lib/ip-allow.ts`
 
 App-layer IP allowlisting — defence in depth even behind an ingress/LB.
@@ -1146,6 +1155,10 @@ Short-TTL read cache — scaffolding for the optional scale relaxation (RFC-002 
 | --- | --- |
 | `getReadCache` | The process-wide read cache, configured from `READ_CACHE_TTL_MS` (default 0 = disabled). |
 
+### `artifacts/api-server/src/lib/redis-bus.ts`
+
+Shared Redis Pub/Sub fan-out base.
+
 ### `artifacts/api-server/src/lib/request-timing.ts`
 
 Per-request timing accumulator.
@@ -1215,6 +1228,14 @@ SCIM 2.0 directory (RFC 7643/7644).
 | `directoryDecision` | ── Login overlay (consumed by rbac + the auth gate) ──────────────────────────── |
 | `scimStats` | Directory counts for diagnostics. |
 | `__resetScim` | Test-only: wipe the directory. |
+
+### `artifacts/api-server/src/lib/sealed-file.ts`
+
+One home for the "durable state file, sealed at rest" pattern.
+
+| Function | What it does |
+| --- | --- |
+| `resolveConfigFile` | One home for the "durable state file, sealed at rest" pattern. |
 
 ### `artifacts/api-server/src/lib/security-check.ts`
 

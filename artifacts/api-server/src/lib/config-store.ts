@@ -1,8 +1,8 @@
-import fs from "node:fs";
-import { sealConfig, readMaybeSealed, exportConfigBundle, type ExportedBundle } from "./config-crypto";
+import { exportConfigBundle, type ExportedBundle } from "./config-crypto";
 import { getSettings, updateSettings } from "./settings";
 import { buildSnapshot, applySnapshot, type ConfigSnapshot } from "./config-snapshot";
 import { logger } from "./logger";
+import { SealedFile, resolveConfigFile } from "./sealed-file";
 
 /**
  * Configuration environments + versioned rollback.
@@ -36,7 +36,8 @@ interface StoreState {
 
 const MAX_VERSIONS = 100;
 const DEFAULT_ENV = "production";
-const FILE = process.env["CONFIG_STORE_FILE"]?.trim();
+// Encrypted at rest (AES-256-GCM) so a copy of the raw file is opaque off-box.
+const store = new SealedFile(() => resolveConfigFile("CONFIG_STORE_FILE"), "config store");
 
 let state: StoreState | null = null;
 let counter = 0;
@@ -47,21 +48,16 @@ function nextId(): string {
 }
 
 function persist(): void {
-  if (!FILE || !state) return;
-  try {
-    // Encrypted at rest (AES-256-GCM) so a copy of the raw file is opaque off-box.
-    fs.writeFileSync(FILE, sealConfig(JSON.stringify({ ...state, counter }, null, 2)));
-  } catch (err) {
-    logger.warn({ err }, "config store: failed to persist");
-  }
+  if (!state) return;
+  store.write(JSON.stringify({ ...state, counter }, null, 2));
 }
 
 function load(): StoreState | null {
-  if (!FILE) return null;
+  const raw = store.read();
+  if (raw === null) return null;
   try {
-    if (!fs.existsSync(FILE)) return null;
-    // Open the sealed file; tolerate a legacy plaintext file so existing stores migrate.
-    const parsed = JSON.parse(readMaybeSealed(fs.readFileSync(FILE, "utf8"))) as StoreState & { counter?: number };
+    // Tolerate a legacy plaintext file so existing stores migrate.
+    const parsed = JSON.parse(raw) as StoreState & { counter?: number };
     if (typeof parsed.counter === "number") counter = parsed.counter;
     return { activeEnv: parsed.activeEnv, environments: parsed.environments, versions: parsed.versions ?? [] };
   } catch (err) {
@@ -129,7 +125,7 @@ export function storeView(): StoreView {
     environments: Object.keys(s.environments),
     versions: [...s.versions].reverse(), // newest first
     lastKnownGoodId: lastKnownGood(s.activeEnv)?.id ?? null,
-    persisted: !!FILE,
+    persisted: store.enabled,
   };
 }
 

@@ -1,9 +1,7 @@
-import fs from "node:fs";
-import path from "node:path";
-import { sealConfig, readMaybeSealed } from "./config-crypto";
 import { setSecret, getSecret, hasSecret, deleteSecret, secretFingerprint } from "./vault";
 import { getSettings } from "./settings";
 import { logger } from "./logger";
+import { SealedFile, resolveConfigFile } from "./sealed-file";
 
 /**
  * AI provider registry + capability→provider mapping.
@@ -68,39 +66,21 @@ interface ProvidersState {
 }
 
 let state: ProvidersState = { providers: seedProviders(), mapping: {}, keyRotatedAt: {} };
-let loaded = false;
 
-function file(): string | null {
-  const explicit = process.env["AI_PROVIDERS_FILE"]?.trim();
-  if (explicit) return explicit;
-  const dir = process.env["OMNI_CONFIG_DIR"]?.trim();
-  return dir ? path.join(dir, "ai-providers.json") : null;
-}
+const store = new SealedFile(() => resolveConfigFile("AI_PROVIDERS_FILE", "ai-providers.json"), "ai-providers");
 
 function ensureLoaded(): void {
-  if (loaded) return;
-  loaded = true;
-  const f = file();
-  if (!f || !fs.existsSync(f)) return;
-  try {
-    const parsed = JSON.parse(readMaybeSealed(fs.readFileSync(f, "utf8"))) as Partial<ProvidersState>;
+  store.loadOnce((raw) => {
+    const parsed = JSON.parse(raw) as Partial<ProvidersState>;
     if (Array.isArray(parsed.providers) && parsed.providers.length) state.providers = parsed.providers;
     if (parsed.mapping && typeof parsed.mapping === "object") state.mapping = parsed.mapping;
     if (parsed.keyRotatedAt && typeof parsed.keyRotatedAt === "object") state.keyRotatedAt = parsed.keyRotatedAt;
     logger.info({ providers: state.providers.length }, "ai-providers: restored from disk");
-  } catch (err) {
-    logger.warn({ err }, "ai-providers: failed to restore — using defaults");
-  }
+  });
 }
 
 function persist(): void {
-  const f = file();
-  if (!f) return;
-  try {
-    fs.writeFileSync(f, sealConfig(JSON.stringify(state)));
-  } catch (err) {
-    logger.warn({ err }, "ai-providers: failed to persist");
-  }
+  store.write(JSON.stringify(state));
 }
 
 // ── Provider entities ──────────────────────────────────────────────────────────
@@ -229,5 +209,5 @@ export function providersSnapshot(): { providers: Array<AiProviderConfig & { has
 /** Test-only: reset to seed defaults and force reload. */
 export function __resetProviders(): void {
   state = { providers: seedProviders(), mapping: {}, keyRotatedAt: {} };
-  loaded = false;
+  store.reset();
 }

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { getBroker, contextFromReq, respondBrokerError } from "../broker";
-import { evaluateRuleset } from "../lib/ruleset";
+import { commitImport } from "../lib/import";
 import { recordAudit } from "../lib/audit";
 import {
   suggestColumnMapping,
@@ -93,35 +93,14 @@ router.post("/import/commit", requireRole("contributor"), async (req, res) => {
 
   const payloads = applyColumnMapping(rows, mapping);
   const role = roleForReq(req);
-  const created: { row: number; id: string }[] = [];
-  const skipped: { row: number; reason: string; rule?: string }[] = [];
-  const broker = getBroker();
-  const ctx = contextFromReq(req);
-
-  for (let i = 0; i < payloads.length; i++) {
-    const payload = payloads[i]!;
-    if (typeof payload["title"] !== "string" || !payload["title"]) {
-      skipped.push({ row: i, reason: "missing title" });
-      continue;
-    }
-    // Business ruleset (restrict-only) runs per row, exactly as a single create would.
-    const verdict = evaluateRuleset({ action: "create_issue", write: true, role, projectId, payload });
-    if (!verdict.allow) {
-      skipped.push({ row: i, reason: verdict.blocked!.message, rule: verdict.blocked!.id });
-      continue;
-    }
-    try {
-      const issue = await broker.writeIssue(ctx, "create", { projectId, ...payload });
-      if (!issue?.id) {
-        skipped.push({ row: i, reason: "broker returned no issue" });
-        continue;
-      }
-      created.push({ row: i, id: issue.id });
-    } catch (err) {
-      req.log.error({ err, row: i }, "import_commit row failed");
-      skipped.push({ row: i, reason: err instanceof Error ? err.message : "broker error" });
-    }
-  }
+  const { created, skipped } = await commitImport({
+    broker: getBroker(),
+    ctx: contextFromReq(req),
+    role,
+    projectId,
+    payloads,
+    onRowError: (row, err) => req.log.error({ err, row }, "import_commit row failed"),
+  });
 
   recordAudit({
     ts: new Date().toISOString(),

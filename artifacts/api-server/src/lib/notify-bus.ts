@@ -1,5 +1,5 @@
 import { deliverLocal, clientCount, type NotifyTarget } from "./notify-hub";
-import { logger } from "./logger";
+import { RedisBus } from "./redis-bus";
 
 /**
  * Notification bus — decouples "an event arrived" from "fan it out to the SSE
@@ -25,50 +25,22 @@ export interface NotifyEnvelope {
 
 const CHANNEL = "omniproject:notifications";
 
-interface MinimalRedis {
-  publish(channel: string, message: string): Promise<number>;
-  subscribe(channel: string): Promise<unknown>;
-  on(event: "message", cb: (channel: string, message: string) => void): void;
-  duplicate(): MinimalRedis;
-  quit(): Promise<unknown>;
-}
-
-class NotifyBus {
-  mode: "in-process" | "redis" = "in-process";
-  private pub: MinimalRedis | null = null;
-  private ready: Promise<void> | null = null;
-
+class NotifyBus extends RedisBus {
   constructor() {
-    const url = process.env["REDIS_URL"]?.trim();
-    if (url) this.ready = this.initRedis(url).catch((err) => {
-      logger.warn({ err }, "notify bus: Redis unavailable — falling back to in-process fan-out");
-      this.mode = "in-process";
-      this.pub = null;
+    super(CHANNEL, {
+      missingDep: "notify bus: REDIS_URL set but 'ioredis' is not installed — staying in-process. Run: pnpm --filter @workspace/api-server add ioredis",
+      fallback: "notify bus: Redis unavailable — falling back to in-process fan-out",
+      enabled: "notify bus: Redis Pub/Sub fan-out enabled",
     });
   }
 
-  private async initRedis(url: string): Promise<void> {
-    // Avoid a static module resolution so ioredis isn't a required dependency.
-    const moduleName = "ioredis";
-    const mod = (await import(moduleName).catch(() => null)) as { default?: new (u: string) => MinimalRedis } | null;
-    const Redis = mod?.default;
-    if (!Redis) {
-      logger.warn("notify bus: REDIS_URL set but 'ioredis' is not installed — staying in-process. Run: pnpm --filter @workspace/api-server add ioredis");
-      return;
+  protected handleMessage(message: string): void {
+    try {
+      const env = JSON.parse(message) as NotifyEnvelope;
+      deliverLocal(env.notification, env.target);
+    } catch {
+      /* ignore malformed bus message */
     }
-    this.pub = new Redis(url);
-    const sub = this.pub.duplicate();
-    await sub.subscribe(CHANNEL);
-    sub.on("message", (_channel, message) => {
-      try {
-        const env = JSON.parse(message) as NotifyEnvelope;
-        deliverLocal(env.notification, env.target);
-      } catch {
-        /* ignore malformed bus message */
-      }
-    });
-    this.mode = "redis";
-    logger.info("notify bus: Redis Pub/Sub fan-out enabled");
   }
 
   /**
@@ -76,13 +48,9 @@ class NotifyBus {
    * mode), or null when delivery is asynchronous across replicas (Redis mode).
    */
   async publish(env: NotifyEnvelope): Promise<number | null> {
-    if (this.ready) await this.ready;
-    if (this.mode === "redis" && this.pub) {
-      // Every replica (including this one) delivers via its subscription, so we
-      // don't also deliver locally here — that would double-send.
-      await this.pub.publish(CHANNEL, JSON.stringify(env));
-      return null;
-    }
+    // In Redis mode every replica (including this one) delivers via its subscription,
+    // so we don't also deliver locally — that would double-send.
+    if (await this.broadcast(JSON.stringify(env))) return null;
     return deliverLocal(env.notification, env.target);
   }
 }

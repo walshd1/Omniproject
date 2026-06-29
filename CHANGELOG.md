@@ -8,15 +8,25 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
-- **SPA modularity pass — shared hook + helpers, panel split (no behaviour change).**
-  - **`useInvalidateIssueQueries`** — the "after an issue mutation, refresh issues + summary +
-    projects + activity" invalidation list was hand-rolled in `IssueDialog`, `NewTaskDialog` and
-    `AgileBoard`; it now lives in one hook so the key set can't drift.
-  - **`parseNumberOrNull`** (`lib/validation`) — the optional-numeric-field coercion duplicated
-    inside `IssueDialog` is now a shared, tested helper.
-  - **`PremiumAdmin` split** — the three independent panels (white-label branding, company
-    nomenclature, outbound webhooks) moved into their own files under `components/premium/`
-    over a shared primitives module; `PremiumAdmin` is now a thin licence-gated container.
+- **Modularity pass — shared helpers for repeated jobs (no behaviour change).** A clean-code
+  audit found a few "same job, implemented more than once" patterns; each now has a single home:
+  - **`lib/sealed-file`** — the "durable state file, sealed at rest" pattern (resolve path →
+    lazy read+decrypt once → seal+write back) was hand-rolled in five modules. `SealedFile` +
+    `resolveConfigFile` own it now; `ai-providers`, `scim`, `audit-chain`, `security-state` and
+    `config-store` delegate to it (each keeps its own parse/merge). Wire format unchanged.
+  - **`lib/redis-bus`** — `notify-bus` and `broker-log-bus` duplicated the same optional-Redis
+    Pub/Sub bootstrap (dynamic `ioredis` import, subscribe, mode flag, in-process fallback). A
+    shared `RedisBus` base owns the bootstrap; each bus supplies only its channel, log lines,
+    message handler and publish semantics.
+  - **`lib/import` `commitImport()`** — the per-row write loop (ruleset-per-row → broker write
+    → outcome) was extracted out of the `POST /import/commit` handler into a pure, testable
+    function; the handler is now parse → commit → audit → respond.
+  - **`callBrokerCapability()`** — the "501 if the broker doesn't support it / 502 on error"
+    template repeated across the connection routes is now one broker helper.
+  - **SPA:** `useInvalidateIssueQueries` collapses the issue-mutation invalidation list
+    hand-rolled in `IssueDialog`, `NewTaskDialog` and `AgileBoard`; `parseNumberOrNull`
+    (`lib/validation`) replaces `IssueDialog`'s inline coercion; and `PremiumAdmin` split into
+    three self-contained panels under `components/premium/` over a shared primitives module.
 
 ### Security
 
