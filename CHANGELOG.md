@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **ADR 0002 — language choice** (`docs/adr/0002-language-choice.md`). Records the decision to keep
+  **TypeScript across the whole first-party codebase** (the end-to-end shared contract types and the
+  I/O-bound, zero-at-rest workload make it the right fit) and to treat the **broker seam as the
+  sanctioned polyglot boundary** — brokers/sidecars below it may be written in any language that
+  speaks the HTTP/JSON contract, and a CPU-bound need (none today) would be met by a sidecar/WASM
+  behind the seam rather than by fragmenting the gateway's type system.
+
 - **Editable data grid with bulk inline edit (first UX-parity module).** A spreadsheet-style grid
   of a project's work items: **click-to-edit** cells (text / select / date / number by field type),
   **Enter** to commit / **Escape** to cancel, **multi-row select + bulk-apply** one field value to
