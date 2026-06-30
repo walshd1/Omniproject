@@ -57,6 +57,29 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ]
   },
   {
+    "id": "capacity-rollup",
+    "label": "Capacity Roll-up",
+    "docsUrl": "",
+    "kind": "resource",
+    "capabilities": {
+      "requiresCapability": "resources",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "assignedHours",
+      "availableHours",
+      "utilisation",
+      "overAllocation"
+    ],
+    "notes": "Programme and portfolio resource utilisation, aggregated across each project's capacity. For programme managers (their programmes) and the PMO (the whole portfolio).",
+    "order": 35
+  },
+  {
     "id": "cumulative-flow",
     "label": "Cumulative flow",
     "docsUrl": "",
