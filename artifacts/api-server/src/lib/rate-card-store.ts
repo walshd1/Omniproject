@@ -3,6 +3,7 @@ import path from "node:path";
 import { sealConfig, readMaybeSealed } from "./config-crypto";
 import { logger } from "./logger";
 import { emptyRateCard, emptyIdentityMap, emptyUplift, hashIdentity, DEFAULT_VALUE_MODEL, type RateCard, type IdentityMap, type RoleRates, type Uplift, type RateScope, type ValueColumn } from "./rate-card";
+import type { CostRule } from "./cost-rules";
 
 /**
  * Sealed at-rest store for the rate card, the hashed identity→role map, and the PMO's project-type
@@ -33,6 +34,8 @@ interface RateCardState {
   /** projectId → projectType id (chosen at project setup). */
   projectTypeOf: Record<string, string>;
   uplift: UpliftConfig;
+  /** PMO-authored general cost rules (predicate → uplift override). */
+  costRules: CostRule[];
 }
 
 const empty = (): RateCardState => ({
@@ -41,6 +44,7 @@ const empty = (): RateCardState => ({
   projectTypes: [],
   projectTypeOf: {},
   uplift: { central: emptyUplift(), programme: {}, project: {} },
+  costRules: [],
 });
 
 let cache: RateCardState | null = null;
@@ -72,6 +76,7 @@ function load(): RateCardState {
         programme: parsed.uplift?.programme ?? {},
         project: parsed.uplift?.project ?? {},
       },
+      costRules: Array.isArray(parsed.costRules) ? parsed.costRules : [],
     };
   } catch (err) {
     logger.warn({ err }, "rate-card: failed to read sealed file — treating as empty");
@@ -151,6 +156,16 @@ export function setScopeUplift(level: "programme" | "project", scopeId: string, 
 /** Replace the PMO's project-type list. */
 export function setProjectTypes(types: ProjectType[]): void {
   persist({ ...load(), projectTypes: types });
+}
+
+/** The PMO-authored general cost rules (predicate → uplift override). */
+export function getCostRules(): CostRule[] {
+  return load().costRules;
+}
+
+/** Replace the cost-rule set. */
+export function setCostRules(rules: CostRule[]): void {
+  persist({ ...load(), costRules: rules });
 }
 
 /** Assign a project to a project type (chosen at setup). `""`/unknown clears it. */
