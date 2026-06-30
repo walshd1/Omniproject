@@ -1,6 +1,7 @@
 import { getBroker } from "./index";
 import { getBrokerDef, brokerSupport, BROKER_CAPABILITY_KEYS } from "@workspace/backend-catalogue";
 import type { TransportMethod } from "@workspace/backend-catalogue";
+import { logger } from "../lib/logger";
 
 /**
  * The broker router / registry — which broker KINDS are connected to this
@@ -39,10 +40,19 @@ function declaredKinds(): string[] {
     .filter((k) => k && !!getBrokerDef(k));
 }
 
+/** A broker kind's purpose = the number of capabilities it maps. The rule: a broker maps to at least 1,
+ *  or it has no purpose in the deployment and isn't loaded. (The demo simulates the full reference broker,
+ *  so it always has purpose.) */
+export function brokerPurposeCount(kind: string): number {
+  return Object.values(brokerSupport(kind)).filter(Boolean).length;
+}
+
 /**
- * The brokers connected to this deployment. The active broker is PRIMARY (the live
- * data/command hop); each distinct declared extra kind is an additional connected
- * broker. De-duplicated by kind, primary first.
+ * The brokers connected to this deployment. The active broker is PRIMARY (the live data/command hop);
+ * each distinct declared extra kind is an additional connected broker. De-duplicated by kind, primary
+ * first. RULE: a declared extra broker that maps no capability has no purpose here and is NOT loaded —
+ * it's dropped with a warning rather than padding the connected set (and the capability union) with a
+ * broker that contributes nothing. The primary is always loaded (it IS the data hop).
  */
 export function connectedBrokers(): ConnectedBroker[] {
   const active = getBroker();
@@ -51,6 +61,10 @@ export function connectedBrokers(): ConnectedBroker[] {
   for (const kind of declaredKinds()) {
     if (seen.has(kind)) continue;
     seen.add(kind);
+    if (brokerPurposeCount(kind) === 0) {
+      logger.warn({ kind }, "broker declared in BROKER_KINDS maps no capability — no purpose in this deployment, not loaded");
+      continue;
+    }
     out.push({ kind, live: true, primary: false });
   }
   return out;
