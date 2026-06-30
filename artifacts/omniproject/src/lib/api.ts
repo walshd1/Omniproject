@@ -8,6 +8,20 @@ export async function getJson<T>(url: string): Promise<T> {
   return res.json();
 }
 
+/** Send a JSON body to an endpoint (PUT by default) and parse the JSON reply. The write-side
+ *  companion to `getJson`: same error handling, and CSRF is attached by the global fetch patch
+ *  (lib/csrf). The one place the SPA's write helper lives, so mutations don't re-declare it. */
+export async function sendJson<T>(url: string, body: unknown, method: "PUT" | "PATCH" | "POST" = "PUT"): Promise<T> {
+  const res = await fetch(url, {
+    method,
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw responseError(res, await safeJson(res));
+  return res.json();
+}
+
 /** Best-effort parse of a (possibly empty/non-JSON) response body — never throws, so it's
  *  safe on an error response. The one place the `res.json().catch(() => ({}))` idiom lives. */
 export async function safeJson<T = Record<string, never>>(res: Response): Promise<T> {

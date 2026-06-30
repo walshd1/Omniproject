@@ -1,5 +1,73 @@
-import { useQuery } from "@tanstack/react-query";
-import { getJson } from "./api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getJson, sendJson } from "./api";
+
+/** Client-facing vs internal time — rates and charge differ by facing. */
+export type Facing = "client" | "internal";
+
+/** A PMO-defined value column on a project type (any number; default is true-cost + cost-to-customer). */
+export interface ValueColumn {
+  id: string;
+  label: string;
+  kind: "cost" | "charge";
+  /** A charge column's own margin/overhead; absent fields fall back to the scope-resolved uplift. */
+  uplift?: { margin?: number; overhead?: number };
+}
+
+/** A PMO-defined project type. Rates and the value model are keyed by type. */
+export interface ProjectType {
+  id: string;
+  label: string;
+  values?: ValueColumn[];
+}
+
+/** Margin + overhead as non-negative fractions (e.g. 0.2 = 20%). */
+export interface Uplift {
+  margin: number;
+  overhead: number;
+}
+
+/** The full rate-card config as the PMO authoring screen reads/writes it. Rates are keyed by
+ *  hashed job-title → project type → facing; a plaintext rate only ever lives here, behind the PMO gate. */
+export interface RateCardConfig {
+  /** hashed job-title → display label. */
+  titles: Record<string, string>;
+  /** hashed job-title → project type → facing → rate. */
+  rates: Record<string, Record<string, Partial<Record<Facing, number>>>>;
+  projectTypes: ProjectType[];
+  uplift: { central: Uplift; programme: Record<string, Partial<Uplift>>; project: Record<string, Partial<Uplift>> };
+}
+
+export const rateCardQueryKey = ["rate-card"] as const;
+
+/** The PMO rate-card config (titles, rates, project types + value columns, uplift). PMO-gated. */
+export function useRateCard() {
+  return useQuery({
+    queryKey: rateCardQueryKey,
+    queryFn: () => getJson<RateCardConfig>("/api/rate-card"),
+    staleTime: 30_000,
+  });
+}
+
+/** The body the rate-card PUT accepts (central margin/overhead rides along as `uplift`). */
+export interface RateCardSave {
+  titles: Record<string, string>;
+  rates: RateCardConfig["rates"];
+  projectTypes: ProjectType[];
+  uplift?: Partial<Uplift>;
+}
+
+/** Persist the rate card + project types + central uplift (PMO). Replaces the stored card, so the
+ *  caller passes the full config back (edit-in-place screens round-trip the untouched parts). */
+export function useSaveRateCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RateCardSave) => sendJson<RateCardConfig>("/api/rate-card", body),
+    onSuccess: (data) => {
+      qc.setQueryData(rateCardQueryKey, data);
+      qc.invalidateQueries({ queryKey: ["staff-cost"] });
+    },
+  });
+}
 
 /**
  * Rate-card client (read side). The server resolves rates in memory and returns only the aggregated
