@@ -28,6 +28,7 @@ const REPORT_IMPL: Record<string, Impl> = {
   "capacity-rollup": "CapacityRollup",
   evm: "FinancialEvmChart",
   "financial-summary": "FinancialSummary",
+  "portfolio-financials": "PortfolioFinancials",
   "staff-cost": "StaffTimeCost",
   burndown: "Burndown",
   burnup: "Burnup",

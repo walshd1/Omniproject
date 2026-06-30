@@ -12,6 +12,7 @@ import { CapexOpex } from "../components/reports/CapexOpex";
 import { FinancialSummary } from "../components/reports/FinancialSummary";
 import { StaffTimeCost } from "../components/reports/StaffTimeCost";
 import { CapacityRollup } from "../components/reports/CapacityRollup";
+import { PortfolioFinancials } from "../components/reports/PortfolioFinancials";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { Burndown } from "../components/reports/Burndown";
 import { Burnup } from "../components/reports/Burnup";
@@ -123,6 +124,13 @@ export function Reports() {
           <section>
             <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Capacity Roll-up (programme &amp; portfolio)</h2>
             <CapacityRollup />
+          </section>
+        </Gated>
+
+        <Gated caps={caps} domain="financials" title="Portfolio Financials" requires="a cost / ERP source">
+          <section>
+            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Financials (consolidated)</h2>
+            <PortfolioFinancials />
           </section>
         </Gated>
 
