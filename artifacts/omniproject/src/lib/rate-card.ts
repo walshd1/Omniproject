@@ -79,6 +79,46 @@ export function useSaveRateCard() {
   });
 }
 
+/** The hashed identity→role map: assignee-hash → title-hash, by scope. Names are irreversibly hashed —
+ *  only the per-scope assignment *count* is meaningful client-side. */
+export interface IdentityMap {
+  central: Record<string, string>;
+  programme: Record<string, Record<string, string>>;
+  project: Record<string, Record<string, string>>;
+}
+
+export const identitiesQueryKey = ["rate-card", "identities"] as const;
+
+/** The hashed identity→role map (hashes only; no plaintext assignee ever leaves the store). PMO-gated. */
+export function useIdentities() {
+  return useQuery({
+    queryKey: identitiesQueryKey,
+    queryFn: () => getJson<IdentityMap>("/api/rate-card/identities"),
+    staleTime: 30_000,
+  });
+}
+
+/** One assignment to write: a plaintext assignee (hashed server-side) → a role's title hash
+ *  (empty `titleHash` clears the assignment). */
+export interface IdentityAssignment {
+  assignee: string;
+  titleHash: string;
+}
+
+/** Write identity→role assignments for a scope (PMO). The assignee is hashed server-side, so the
+ *  plaintext name is never persisted; re-sending the same name updates or (with empty title) clears it. */
+export function useSaveIdentities() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { level: "central" | "programme" | "project"; scopeId?: string; assignments: IdentityAssignment[] }) =>
+      sendJson<{ ok: boolean }>("/api/rate-card/identities", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: identitiesQueryKey });
+      qc.invalidateQueries({ queryKey: ["staff-cost"] });
+    },
+  });
+}
+
 /**
  * Rate-card client (read side). The server resolves rates in memory and returns only the aggregated
  * roll-up — a rate or a plaintext identity never reaches the browser. This drives the Staff Time &
