@@ -56,10 +56,25 @@ colours) can mis-bucket niche backends; (5) silent mode-switches/fallbacks need 
 | presence | backend | beta | full | **SSE streams, in-memory rooms, no connection cap; per-replica only** | **OFF-by-default** — *cost* |
 | predictivePrefetch | UI-only | prototype | partial | **multiplies broker calls by N projects; no metrics** | **OFF-by-default** — *cost* |
 
-**Gating-mechanism debt (directly relevant to the hierarchy):** the current model is a single **flat**
-`disabledFeatures` array (env ∪ settings) with **no scope** (org vs programme vs project), **no authz
-scoping** (any admin toggles anything), and **no size quotas** on the config bundle. Extending to the
-3-level hierarchy needs a scope-aware override store + a resolver — see the gating PR.
+**Gating mechanism — now shipped + hardened (PRs #284–#287 + the hardening pass).** The flat
+`disabledFeatures` array has been replaced by the **org→programme→project** model: a pure
+`feature-resolution` resolver (monotonic narrowing, hard `require`/`forbid` locks) over a unified
+**governance catalogue** (feature modules ∪ `report:*` ∪ `methodology:*`), per-scope config, scoped
+`GET/PUT /api/features`, scope-aware `requireFeature`, and the 3-level admin UI. The security + maturity
+pass on the new boundary then closed: the parent **ceiling now excludes ancestor `forbid` locks** (not
+just soft disables); **catalogue-id validation**, **require∩forbid conflict rejection** and a
+**`__proto__`/`constructor`/`prototype` key guard** on the write endpoints; **semantic audit** of every
+governance mutation; and **server-side enforcement of the report/methodology planes** (a `forbid
+report:x` / `forbid methodology:x` is withheld from `/api/setup/reports` + `/api/setup/methodologies`,
+not just hidden in the admin table).
+
+**Residual gating debt (tracked):** (1) `pmo`/`manager` are **global role classes** — no per-scope
+ownership, because the stateless overlay has no user→scope directory (defence-in-depth holds; documented
+in `SECURITY-AUDIT.md §2`; a fix needs the optional stateful directory). (2) **No size quotas** on the
+per-scope config maps (shared with the broader config-bundle quota debt). (3) The per-scope override
+store is **per-replica RAM** like the rest of settings — fleet changes don't auto-propagate. (4) A
+project whose `programmeId` points at a deleted programme silently resolves under **org-only** policy
+(stale-hierarchy edge); the project PUT trusts a client-supplied `programmeId` for its ceiling.
 
 ---
 

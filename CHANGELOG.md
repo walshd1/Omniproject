@@ -6,6 +6,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Security
+
+- **Hardened the feature-gating / governance authorization boundary** after a focused security + maturity
+  pass on the newly-merged hierarchy (#284–#287). The pure resolver was already sound (monotonic
+  narrowing, ancestor locks win); the fixes are at the write/enforcement layer: the parent **ceiling now
+  excludes ancestor `forbid` locks** (a project can't `require` what its programme forbade); the
+  governance PUTs **validate catalogue ids** (unknown ids rejected), **reject require∩forbid conflicts**,
+  and **guard reserved keys** (`__proto__`/`constructor`/`prototype`) on scope ids; every governance
+  mutation is now **semantically audited** (`governance.{org,programme,project}.update`); and the
+  **report/methodology planes are enforced server-side** — a `forbid report:x` / `forbid methodology:x`
+  is withheld from `/api/setup/reports` + `/api/setup/methodologies`, not just the admin table.
+  `getJson` now surfaces the server error on a non-OK response instead of an opaque parse failure. The
+  one residual (documented in `SECURITY-AUDIT.md §2`): `pmo`/`manager` are global role classes — a
+  per-scope ownership model would require the optional stateful directory.
+
 ### Added
 
 - **Governance catalogue spans reports + methodologies + the 3-level UI.** The gated catalogue is now the

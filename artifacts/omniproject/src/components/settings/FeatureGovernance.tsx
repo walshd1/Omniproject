@@ -115,9 +115,14 @@ export function FeatureGovernance() {
       setEdits({});
       setMsg("Saved.");
     } catch (e) {
+      // Drop the optimistic edits so the table snaps back to the server's authoritative
+      // resolution (the rejected choice never took effect); show why.
+      setEdits({});
       setMsg(e instanceof Error ? e.message : "Save failed.");
     }
   }
+
+  const saving = setOrg.isPending || setProg.isPending || setProj.isPending;
 
   if (levels.length === 0) {
     return <p className="text-sm text-muted-foreground">You don't have a role that can manage feature governance.</p>;
@@ -203,9 +208,9 @@ export function FeatureGovernance() {
             })}
           </table>
           <div className="flex items-center gap-3">
-            <button type="button" onClick={save} data-testid="governance-save"
-              className="border border-primary bg-primary text-primary-foreground px-3 py-1.5 text-xs font-black uppercase tracking-widest hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring">
-              Save {level} policy
+            <button type="button" onClick={save} data-testid="governance-save" disabled={saving}
+              className="border border-primary bg-primary text-primary-foreground px-3 py-1.5 text-xs font-black uppercase tracking-widest hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50">
+              {saving ? "Saving…" : `Save ${level} policy`}
             </button>
             {msg && <span className="text-xs text-muted-foreground" data-testid="governance-msg">{msg}</span>}
           </div>

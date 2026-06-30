@@ -44,10 +44,17 @@ import {
   rollbackToLastKnownGood,
   promote,
 } from "../lib/config-store";
+import { isFeatureEnabled } from "../lib/feature-modules";
 
 const router = Router();
 
 const isOn = (v: string | undefined): boolean => v?.trim().toLowerCase() === "true" || v?.trim().toLowerCase() === "on";
+
+/** Governance gate for the report/methodology planes: a PMO `forbid report:x` / `forbid methodology:x`
+ *  (or a `require` elsewhere) actually withholds the item from what's offered, not just the admin table.
+ *  Resolved at org scope — the surface here is the global catalogue, so org-level mandates apply. */
+const reportAllowed = (id: string): boolean => isFeatureEnabled(`report:${id}`);
+const methodologyAllowed = (id: string): boolean => isFeatureEnabled(`methodology:${id}`);
 
 /**
  * Setup / Connection Center endpoints. These are gateway control-plane (like
@@ -239,7 +246,7 @@ router.get("/setup/notification-kinds", (_req, res) => {
   res.json(notificationKindCatalogue());
 });
 router.get("/setup/methodologies", (_req, res) => {
-  res.json(methodologyCatalogue());
+  res.json(methodologyCatalogue().filter((m) => methodologyAllowed(m.id)));
 });
 // A methodology PACK — the methodology's definition + every asset carrying its tag
 // (views, notification routes, ruleset), as one importable JSON bundle. Admin only:
@@ -261,16 +268,19 @@ router.get("/setup/views", (req, res) => {
 // planes (views, reports, screens), so a "click kanban" preset surfaces them all.
 router.get("/setup/methodology-preset/:id", (req, res) => {
   const id = String(req.params["id"]);
-  res.json({ methodology: id, views: viewsForMethodology(id), reports: reportsForMethodology(id), screens: screensForMethodology(id) });
+  res.json({ methodology: id, views: viewsForMethodology(id), reports: reportsForMethodology(id).filter((r) => reportAllowed(r.id)), screens: screensForMethodology(id) });
 });
 // Full catalogue (what OmniProject CAN do), or — with ?available=1 — only the
 // entries the CONNECTED backend(s) can actually feed. The hard rule: if none of
 // the connected backends support a report/screen, ?available=1 omits it. (`caps`
 // is the resolved set — already the union across every connected backend.)
 router.get("/setup/reports", async (req, res) => {
-  if (req.query["available"] !== "1") { res.json(reportCatalogue()); return; }
+  // Governance gate first (a forbidden report is withheld regardless of backend support), then the
+  // backend-capability filter when ?available=1.
+  if (req.query["available"] !== "1") { res.json(reportCatalogue().filter((r) => reportAllowed(r.id))); return; }
   const support = await resolveSupport(req).catch(() => null);
-  res.json(support ? availableReports(support) : reportCatalogue());
+  const base = support ? availableReports(support) : reportCatalogue();
+  res.json(base.filter((r) => reportAllowed(r.id)));
 });
 router.get("/setup/screens", async (req, res) => {
   if (req.query["available"] !== "1") { res.json(screenCatalogue()); return; }

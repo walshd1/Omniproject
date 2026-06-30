@@ -61,6 +61,24 @@ are therefore **defence-in-depth and UX**, layered on top of — not a replaceme
 - **SCIM 2.0 lifecycle** (`lib/scim`): an IdP can `active=false` a user — denied at the gate even
   with a still-valid OIDC token — and drive group→role membership. State is held in memory and
   persisted **sealed**. Enabled only when `SCIM_TOKEN` is set.
+- **Feature-gating / governance boundary** (`lib/feature-resolution`, `routes/features.ts`): the
+  org→programme→project resolver enforces **monotonic narrowing** — every level can only *remove*, and
+  hard `require`/`forbid` mandates from an ancestor **lock** descendants (the resolver evaluates org →
+  programme → project, first-rule-wins, so a lower level can never out-vote an ancestor lock). The write
+  endpoints additionally enforce: a **parent-ceiling check** on `required` *and* on the manageable set
+  (which now excludes ancestor `forbid` locks, not just soft disables); **catalogue-id validation**
+  (unknown ids rejected, no silent dead config); **require∩forbid conflict rejection**; and a
+  **reserved-key guard** (`__proto__`/`constructor`/`prototype`) on scope ids. Every mutation is
+  **semantically audited** (`governance.{org,programme,project}.update` with the added/removed sets), and
+  the report/methodology planes are enforced server-side — a `forbid report:x` / `forbid methodology:x`
+  actually withholds the item from `/api/setup/reports` and `/api/setup/methodologies`, not just the
+  admin table.
+  - **Residual (by design):** `pmo`/`manager` are **global role classes** — OmniProject is a stateless
+    overlay with no user→scope directory, so the gate authorizes by *role*, not by *which* programme/
+    project a principal owns. A `pmo` can therefore edit any programme's policy. This is acceptable for
+    the single-PMO / small-estate target and is **defence-in-depth** (the resolver still can't grant a
+    capability the org withheld, and the backend system of record authorizes every brokered write); a
+    per-scope ownership model would require the optional stateful directory (`PARKED-DECISIONS §0`).
 
 ### 3. Web-layer hardening
 - **CSRF** (`lib/csrf`): `SameSite=Lax` baseline + (1) an **Origin/Referer** check rejecting any

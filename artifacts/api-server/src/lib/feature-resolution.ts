@@ -147,12 +147,23 @@ export function effectiveEnabledIds(gates: readonly FeatureGate[], overrides: Sc
 export function manageableAtProgramme(gates: readonly FeatureGate[], overrides: ScopeOverrides): Set<string> {
   const orgDisabled = new Set(overrides.orgDisabled ?? []);
   const orgEnabled = new Set(overrides.orgEnabled ?? []);
-  return new Set(gates.filter((g) => orgAllows(g, orgDisabled, orgEnabled)).map((g) => g.id));
+  // An org `forbid` is a hard lock: it's never manageable below the org, so a programme can't
+  // re-`require` it (the resolver would block it anyway, but the ceiling must not claim otherwise).
+  const orgForbidden = new Set(overrides.orgForbidden ?? []);
+  return new Set(
+    gates.filter((g) => !orgForbidden.has(g.id) && orgAllows(g, orgDisabled, orgEnabled)).map((g) => g.id),
+  );
 }
 
 /** The features a PM may manage for a project: the org-approved set minus whatever the programme removed. */
 export function manageableAtProject(gates: readonly FeatureGate[], overrides: ScopeOverrides): Set<string> {
-  // The project ceiling is the org-approved set minus whatever the programme already removed.
+  // The project ceiling is the org-approved set minus whatever the programme already removed —
+  // both its soft `disabled` narrowing and its hard `forbid` locks.
   const programmeDisabled = new Set(overrides.programmeDisabled ?? []);
-  return new Set([...manageableAtProgramme(gates, overrides)].filter((id) => !programmeDisabled.has(id)));
+  const programmeForbidden = new Set(overrides.programmeForbidden ?? []);
+  return new Set(
+    [...manageableAtProgramme(gates, overrides)].filter(
+      (id) => !programmeDisabled.has(id) && !programmeForbidden.has(id),
+    ),
+  );
 }
