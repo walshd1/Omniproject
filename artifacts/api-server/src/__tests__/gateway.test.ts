@@ -813,6 +813,7 @@ const SAMPLE_SETTINGS = {
   aiModel: "llama3.2",
   backendSource: "sap",
   reportingCurrency: null,
+  customReports: [],
   oidcIssuerUrl: "https://idp",
   branding: null,
   labelOverrides: {},

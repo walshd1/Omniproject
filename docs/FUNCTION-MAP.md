@@ -1856,6 +1856,10 @@ Capability + field-manifest endpoints.
 
 GET /api/contract — serve the published, versioned SOUTHBOUND broker contract (the interface a broker must implement) + its JSON Schema.
 
+### `artifacts/api-server/src/routes/custom-reports.ts`
+
+Bespoke report definitions (the report generator).
+
 ### `artifacts/api-server/src/routes/dashboards.ts`
 
 Custom dashboards — named, ordered collections of widget instances a user composes from the widget catalogue.
