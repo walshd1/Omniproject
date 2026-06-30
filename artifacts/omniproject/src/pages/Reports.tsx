@@ -16,6 +16,7 @@ import { CapacityRollup } from "../components/reports/CapacityRollup";
 import { PortfolioFinancials } from "../components/reports/PortfolioFinancials";
 import { PortfolioIncome } from "../components/reports/PortfolioIncome";
 import { PortfolioBenefits } from "../components/reports/PortfolioBenefits";
+import { CustomReportsProject, CustomReportsPortfolio } from "../components/reports/CustomReportsPanel";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { Burndown } from "../components/reports/Burndown";
 import { Burnup } from "../components/reports/Burnup";
@@ -151,6 +152,9 @@ export function Reports() {
           </section>
         </Gated>
 
+        {/* Customer-built portfolio reports (the report generator). Render nothing unless any are defined. */}
+        <CustomReportsPortfolio />
+
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
           {projectId && (
             <Gated caps={caps} domain="resources" title="Resource Allocation" requires="a resource-management source">
@@ -259,6 +263,9 @@ export function Reports() {
             </section>
           </Gated>
         )}
+
+        {/* Customer-built project reports (the report generator). Render nothing unless any are defined. */}
+        {projectId && <CustomReportsProject projectId={projectId} />}
       </div>
     </div>
   );

@@ -197,6 +197,13 @@ export interface SettingsState {
    * bundle — never project data. See routes/dashboards + the SPA dashboards feature module.
    */
   dashboards: Dashboard[];
+  /**
+   * Customer-authored bespoke reports (the report generator): each is a data-driven definition —
+   * source scope, a predicate filter, a group-by field and aggregated metrics + a viz — rendered
+   * through a generic renderer with no code. Presentation config; rides the snapshot/export, never
+   * project data. See routes/custom-reports + the SPA customReports feature module.
+   */
+  customReports: CustomReportDef[];
 }
 
 /** A named saved view: which columns, sort, filters and grouping to apply (all optional, so a view
@@ -226,6 +233,34 @@ export interface Dashboard {
   id: string;
   name: string;
   widgets: DashboardWidget[];
+}
+
+/** The aggregations a custom-report metric may apply over a field. */
+export type CustomReportAgg = "sum" | "avg" | "count" | "min" | "max";
+
+/** One aggregated column in a bespoke report (e.g. sum of `budget`). */
+export interface CustomReportMetric {
+  id: string;
+  field: string;
+  agg: CustomReportAgg;
+  label?: string;
+}
+
+/**
+ * A customer-authored report definition (the report generator). Rendered through a generic renderer:
+ * filter the work items, group by a field, aggregate the chosen metrics, draw a table or bar chart.
+ * `filter` is a predicate condition set (the same engine the rules use); kept loosely typed here and
+ * validated at the route. Never holds project data — only field keys + how to summarise them.
+ */
+export interface CustomReportDef {
+  id: string;
+  label: string;
+  /** "project" renders per selected project; "portfolio" rolls up across all projects. */
+  scope: "project" | "portfolio";
+  groupBy?: string;
+  metrics: CustomReportMetric[];
+  filter?: { all?: unknown[]; any?: unknown[] };
+  viz: "table" | "bar";
 }
 
 /** One user's persisted UI/accessibility preferences. */
@@ -385,6 +420,7 @@ const store: SettingsState = {
   governanceRules: [],
   hiddenFields: [],
   savedViews: [],
+  customReports: [],
   dashboards: [],
 };
 
@@ -418,6 +454,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "governanceRules",
   "hiddenFields",
   "savedViews",
+  "customReports",
   "dashboards",
 ];
 
@@ -504,6 +541,28 @@ function validateGovernanceRules(value: unknown, label: string): void {
   }
 }
 
+const CUSTOM_REPORT_AGGS = new Set(["sum", "avg", "count", "min", "max"]);
+
+/** Shape-validate the bespoke report list: id/label/scope/viz + metric shape (field + known agg). */
+function validateCustomReports(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("customReports must be an array");
+  for (const r of value) {
+    const o = r as Record<string, unknown>;
+    if (!o || typeof o !== "object" || typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each custom report needs a string id");
+    if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" needs a label`);
+    if (o["scope"] !== "project" && o["scope"] !== "portfolio") throw new SettingsValidationError(`custom report "${String(o["id"])}" scope must be project | portfolio`);
+    if (o["viz"] !== "table" && o["viz"] !== "bar") throw new SettingsValidationError(`custom report "${String(o["id"])}" viz must be table | bar`);
+    if (o["groupBy"] != null && typeof o["groupBy"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy must be a string`);
+    if (!Array.isArray(o["metrics"]) || o["metrics"].length === 0) throw new SettingsValidationError(`custom report "${String(o["id"])}" needs at least one metric`);
+    for (const m of o["metrics"] as unknown[]) {
+      const mm = m as Record<string, unknown>;
+      if (typeof mm?.["id"] !== "string" || !mm["id"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" metric needs a string id`);
+      if (typeof mm["field"] !== "string" || !mm["field"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" metric needs a field`);
+      if (typeof mm["agg"] !== "string" || !CUSTOM_REPORT_AGGS.has(mm["agg"])) throw new SettingsValidationError(`custom report "${String(o["id"])}" metric agg must be one of ${[...CUSTOM_REPORT_AGGS].join(", ")}`);
+    }
+  }
+}
+
 function validatePatch(patch: Record<string, unknown>): void {
   if ("aiProvider" in patch && !(AI_PROVIDERS as readonly string[]).includes(patch["aiProvider"] as string)) {
     throw new SettingsValidationError(`aiProvider must be one of: ${AI_PROVIDERS.join(", ")}`);
@@ -583,6 +642,7 @@ function validatePatch(patch: Record<string, unknown>): void {
       if (typeof name !== "string" || !name) throw new SettingsValidationError("each saved view needs a name");
     }
   }
+  if ("customReports" in patch) validateCustomReports(patch["customReports"]);
   if ("dashboards" in patch) {
     const v = patch["dashboards"];
     if (!Array.isArray(v)) throw new SettingsValidationError("dashboards must be an array");
