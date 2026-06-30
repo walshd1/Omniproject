@@ -68,13 +68,17 @@ governance mutation; and **server-side enforcement of the report/methodology pla
 report:x` / `forbid methodology:x` is withheld from `/api/setup/reports` + `/api/setup/methodologies`,
 not just hidden in the admin table).
 
-**Residual gating debt (tracked):** (1) `pmo`/`manager` are **global role classes** — no per-scope
-ownership, because the stateless overlay has no user→scope directory (defence-in-depth holds; documented
-in `SECURITY-AUDIT.md §2`; a fix needs the optional stateful directory). (2) **No size quotas** on the
-per-scope config maps (shared with the broader config-bundle quota debt). (3) The per-scope override
-store is **per-replica RAM** like the rest of settings — fleet changes don't auto-propagate. (4) A
-project whose `programmeId` points at a deleted programme silently resolves under **org-only** policy
-(stale-hierarchy edge); the project PUT trusts a client-supplied `programmeId` for its ceiling.
+**Scope-ownership is now enforced statelessly** — a governance write checks that the caller manages the
+named programme/project by pulling their **visible project graph live from the backend** (their forwarded
+token; the backend's access control is the oracle), so there's no IDOR and no user→scope directory to
+hold (`SECURITY-AUDIT.md §2`). The project ceiling now also uses the project's **real** server-resolved
+programme, closing the old client-supplied-`programmeId` widening.
+
+**Residual gating debt (tracked):** (1) **No size quotas** on the per-scope config maps (shared with the
+broader config-bundle quota debt). (2) The per-scope override store is **per-replica RAM** like the rest
+of settings — fleet changes don't auto-propagate. (3) A project whose `programmeId` points at a deleted
+programme resolves under **org-only** policy (stale-hierarchy edge) — benign now that the ceiling is
+server-resolved, but worth a "programme not found" surfacing.
 
 ---
 

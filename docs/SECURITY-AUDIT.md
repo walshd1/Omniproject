@@ -73,12 +73,17 @@ are therefore **defence-in-depth and UX**, layered on top of — not a replaceme
   the report/methodology planes are enforced server-side — a `forbid report:x` / `forbid methodology:x`
   actually withholds the item from `/api/setup/reports` and `/api/setup/methodologies`, not just the
   admin table.
-  - **Residual (by design):** `pmo`/`manager` are **global role classes** — OmniProject is a stateless
-    overlay with no user→scope directory, so the gate authorizes by *role*, not by *which* programme/
-    project a principal owns. A `pmo` can therefore edit any programme's policy. This is acceptable for
-    the single-PMO / small-estate target and is **defence-in-depth** (the resolver still can't grant a
-    capability the org withheld, and the backend system of record authorizes every brokered write); a
-    per-scope ownership model would require the optional stateful directory (`PARKED-DECISIONS §0`).
+- **Scope-ownership on governance writes (stateless, no IDOR).** The programme/project PUTs are not
+  authorized by role *class* alone — they verify the caller actually **manages the named scope**. The
+  ownership data isn't OmniProject state: the caller's accessible projects are pulled **live from the
+  backend through the broker with their own forwarded token**, so the **backend's access control is the
+  ownership oracle**. A project is governable iff it's in that set; a programme iff the caller has ≥1
+  visible project in it; a "PMO-root" who can see everything governs everything (it falls out of the
+  backend grant — nothing special-cased). The project ceiling uses the project's **real** programme
+  (resolved server-side from that same set), so a caller can't widen it by passing a permissive
+  `programmeId`. The check **fails closed** (403) if the backend can't be reached — a governance write
+  never silently downgrades to role-only. This holds statelessly because the customer's tools remain the
+  single source of truth for who is assigned to what; OmniProject stores nothing.
 
 ### 3. Web-layer hardening
 - **CSRF** (`lib/csrf`): `SameSite=Lax` baseline + (1) an **Origin/Referer** check rejecting any

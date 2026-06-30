@@ -154,7 +154,10 @@ function summarise(id: string, projects: Row[]): ProgrammeRollup {
   };
 }
 
-function programmeIdOf(p: Row): string | null {
+/** A project's programme link (the backend-owned `programmeId`), or null when it's standalone
+ *  (directly under the PMO root). Single-sourced here so governance scope-ownership and the
+ *  programme rollups read it the same way. */
+export function programmeIdOf(p: Row): string | null {
   const v = p["programmeId"];
   return typeof v === "string" && v ? v : null;
 }
