@@ -932,11 +932,24 @@ Feature-module registry — the optional backend modules a deployment can switch
 
 | Function | What it does |
 | --- | --- |
+| `featureGates` | The registry as pure feature-gates (id + default posture) for the hierarchical resolver. |
 | `markFeatureLoaded` | — |
 | `disabledFeatureIds` | The full set of disabled ids: env (`DISABLED_FEATURES`) ∪ settings (`disabledFeatures`). |
 | `isFeatureEnabled` | True when a module id is currently enabled (not in the disabled set). |
 | `featureStatus` | The status of every registered feature module (for `GET /api/features` + the admin panel). |
 | `requireFeature` | Middleware: 404 when the feature is disabled at request time (immediate runtime toggle-off). |
+
+### `artifacts/api-server/src/lib/feature-resolution.ts`
+
+Hierarchical feature resolution — the pure core of the org → programme → project gating model.
+
+| Function | What it does |
+| --- | --- |
+| `orgAllows` | Does the org permit this feature at all? This is the superset the lower levels narrow within. |
+| `resolveFeatures` | Resolve every gate against the scope overrides. |
+| `effectiveEnabledIds` | The set of enabled feature ids for a scope — the convenience accessor the gateway/SPA gate on. |
+| `manageableAtProgramme` | The features a given level is *allowed to manage* — i.e. the set its parent already permits, so a UI can show a programme manager only what the org allows (and a PM only what the programme allows). |
+| `manageableAtProject` | The features a PM may manage for a project: the org-approved set minus whatever the programme removed. |
 
 ### `artifacts/api-server/src/lib/field-registry.ts`
 

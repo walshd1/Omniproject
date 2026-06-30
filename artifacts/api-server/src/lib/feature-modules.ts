@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction, RequestHandler, IRouter } from "express";
 import { getSettings } from "./settings";
+import type { FeatureGate, GateReason } from "./feature-resolution";
 
 /**
  * Feature-module registry — the optional backend modules a deployment can switch off so a
@@ -30,6 +31,11 @@ export interface FeatureModule {
    *  module (one whose feature is purely in the SPA, e.g. the editable grid): it has no backend
    *  route to mount, but is still listed + toggleable so the SPA can gate it via `useFeatures`. */
   load?: () => Promise<{ default: IRouter }>;
+  /** OFF for everyone until the org opts in — a deliberate safety/cost/storage call (see `reason`).
+   *  Everything else is ON by default. Drives the hierarchical gating model (feature-resolution). */
+  defaultOff?: boolean;
+  /** Why this module is default-off, surfaced to the admin so the opt-in is informed. */
+  reason?: GateReason;
 }
 
 export const FEATURE_MODULES: readonly FeatureModule[] = [
@@ -38,12 +44,16 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     label: "OData / BI feed",
     description: "Read-only OData + BI feeds for Power BI, Excel and analytics tools.",
     load: () => import("../routes/odata"),
+    defaultOff: true,
+    reason: "cost", // BI tools can pull large/repeated queries through the broker
   },
   {
     id: "integrations",
     label: "Integration helpers",
     description: "Outbound integration helper endpoints for connecting external tools.",
     load: () => import("../routes/integrations"),
+    defaultOff: true,
+    reason: "cost", // outbound egress to external tools
   },
   {
     // UI-only (no backend route): the editable data grid with bulk inline-edit. The SPA gates it
@@ -96,6 +106,8 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     label: "Live collaboration presence",
     description: "See who else is on a work item and which field they're editing (advisory, real-time).",
     load: () => import("../routes/presence"),
+    defaultOff: true,
+    reason: "cost", // holds an SSE stream per viewer; per-replica in-memory rooms
   },
   {
     // UI-only: makes the per-user PREDICTIVE (speculative) prefetch toggle AVAILABLE (off by default
@@ -105,8 +117,19 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     id: "predictivePrefetch",
     label: "Predictive loading (preview)",
     description: "Offer a per-user toggle for speculative read-ahead beyond hover/focus (extra broker load).",
+    defaultOff: true,
+    reason: "cost", // speculative read-ahead multiplies broker calls
   },
 ];
+
+/** The registry as pure feature-gates (id + default posture) for the hierarchical resolver. */
+export function featureGates(): FeatureGate[] {
+  return FEATURE_MODULES.map((m) => ({
+    id: m.id,
+    ...(m.defaultOff ? { defaultOff: true } : {}),
+    ...(m.reason ? { reason: m.reason } : {}),
+  }));
+}
 
 // Which modules actually got loaded+mounted this process (set by the mount step). Lets the
 // status distinguish "enabled and live" from "enabled but was off at startup → needs restart".
@@ -136,6 +159,10 @@ export interface FeatureStatus {
   loaded: boolean;
   /** Enabled now but not loaded — was off at startup, so a restart is needed to load it. */
   needsRestart: boolean;
+  /** OFF for everyone until the org opts in (a safety/cost/storage call) — metadata for the admin UI. */
+  defaultOff: boolean;
+  /** Why it's default-off. */
+  reason?: GateReason;
 }
 
 /** The status of every registered feature module (for `GET /api/features` + the admin panel). */
@@ -154,6 +181,8 @@ export function featureStatus(): FeatureStatus[] {
       // enabled-but-not-loaded (→ needs a restart to load its route chunk).
       loaded: backend ? isLoaded : enabled,
       needsRestart: backend && enabled && !isLoaded,
+      defaultOff: !!m.defaultOff,
+      ...(m.reason ? { reason: m.reason } : {}),
     };
   });
 }
