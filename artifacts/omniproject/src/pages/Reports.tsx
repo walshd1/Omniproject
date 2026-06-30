@@ -10,12 +10,14 @@ import { CriticalPath } from "../components/reports/CriticalPath";
 import { BenefitsRealisation } from "../components/reports/BenefitsRealisation";
 import { CapexOpex } from "../components/reports/CapexOpex";
 import { FinancialSummary } from "../components/reports/FinancialSummary";
+import { StaffTimeCost } from "../components/reports/StaffTimeCost";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { Burndown } from "../components/reports/Burndown";
 import { Burnup } from "../components/reports/Burnup";
 import { CumulativeFlow } from "../components/reports/CumulativeFlow";
 import { Velocity } from "../components/reports/Velocity";
 import { RaidRegister } from "../components/reports/RaidRegister";
+import { useAuth, roleAtLeast } from "../lib/auth";
 import { ProvenanceBadge } from "../components/ProvenanceBadge";
 import { DataProvenance } from "../components/DataProvenance";
 import { useT } from "../lib/i18n";
@@ -60,6 +62,7 @@ export function Reports() {
   const { t } = useT();
   const { data: projects, dataUpdatedAt } = useListProjects();
   const { data: caps } = useGetCapabilities();
+  const { data: auth } = useAuth();
   const { activeProjectId, setActiveProjectId } = useStore();
   const [projectId, setProjectId] = useState(activeProjectId || "");
 
@@ -193,6 +196,15 @@ export function Reports() {
             <section>
               <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Financial Summary</h2>
               <FinancialSummary projectId={projectId} />
+            </section>
+          </Gated>
+        )}
+
+        {projectId && roleAtLeast(auth?.role, "pmo") && (
+          <Gated caps={caps} domain="financials" title="Staff Time & Cost" requires="a cost / ERP source + a PMO rate card">
+            <section>
+              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Staff Time &amp; Cost</h2>
+              <StaffTimeCost projectId={projectId} />
             </section>
           </Gated>
         )}
