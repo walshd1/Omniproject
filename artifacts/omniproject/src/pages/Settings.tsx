@@ -28,6 +28,7 @@ import { FeatureModulesAdmin } from "../components/settings/FeatureModulesAdmin"
 import { RateCardAdmin } from "../components/settings/RateCardAdmin";
 import { RateGridAdmin } from "../components/settings/RateGridAdmin";
 import { IdentityMapAdmin } from "../components/settings/IdentityMapAdmin";
+import { CostRulesAdmin } from "../components/settings/CostRulesAdmin";
 import { FeatureGovernance } from "../components/settings/FeatureGovernance";
 import { FieldVisibilityAdmin } from "../components/settings/FieldVisibilityAdmin";
 import { SecurityKeys } from "../components/settings/SecurityKeys";
@@ -340,6 +341,10 @@ export function Settings() {
 
       <div className="mt-10">
         <IdentityMapAdmin />
+      </div>
+
+      <div className="mt-10">
+        <CostRulesAdmin />
       </div>
 
       <div className="mt-10">

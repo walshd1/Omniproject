@@ -79,6 +79,61 @@ export function useSaveRateCard() {
   });
 }
 
+// ── Conditional rules (the PMO "when → effect" plane) ────────────────────────────
+
+/** Predicate comparison operators (mirrors the server's predicate engine). */
+export type Op = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "in" | "nin" | "truthy" | "falsy" | "negative" | "nonNegative";
+
+/** Unary operators ignore `value`. */
+export const UNARY_OPS: Op[] = ["truthy", "falsy", "negative", "nonNegative"];
+/** Array operators take a list `value`. */
+export const ARRAY_OPS: Op[] = ["in", "nin"];
+export const ALL_OPS: Op[] = ["eq", "ne", "gt", "gte", "lt", "lte", "in", "nin", "truthy", "falsy", "negative", "nonNegative"];
+
+/** One condition: a context field compared to a value (value omitted for unary ops). */
+export interface Predicate {
+  field: string;
+  op: Op;
+  value?: unknown;
+}
+
+/** A rule's `when`: all-of `all` AND any-of `any` (empty ⇒ always matches). The editor uses `all`. */
+export interface ConditionSet {
+  all?: Predicate[];
+  any?: Predicate[];
+}
+
+/** A general cost rule: when its predicate matches, override the margin / overhead. */
+export interface CostRule {
+  id: string;
+  label?: string;
+  when?: ConditionSet;
+  effect: { margin?: number; overhead?: number };
+}
+
+export const costRulesQueryKey = ["rate-card", "cost-rules"] as const;
+
+/** The PMO's general cost rules (predicate → margin/overhead override). PMO-gated. */
+export function useCostRules() {
+  return useQuery({
+    queryKey: costRulesQueryKey,
+    queryFn: () => getJson<{ costRules: CostRule[] }>("/api/rate-card/cost-rules").then((r) => r.costRules),
+    staleTime: 30_000,
+  });
+}
+
+/** Persist the cost-rule set (PMO). Invalidates the rules + staff-cost (rules change resolved uplift). */
+export function useSaveCostRules() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (costRules: CostRule[]) => sendJson<{ costRules: CostRule[] }>("/api/rate-card/cost-rules", { costRules }),
+    onSuccess: (data) => {
+      qc.setQueryData(costRulesQueryKey, data.costRules);
+      qc.invalidateQueries({ queryKey: ["staff-cost"] });
+    },
+  });
+}
+
 /** The hashed identity→role map: assignee-hash → title-hash, by scope. Names are irreversibly hashed —
  *  only the per-scope assignment *count* is meaningful client-side. */
 export interface IdentityMap {
