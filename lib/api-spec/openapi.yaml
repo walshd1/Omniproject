@@ -1172,6 +1172,15 @@ components:
         depreciationMonths:
           type: ["number", "null"]
           description: Useful-life in months for capex amortisation (financial field group).
+        revenue:
+          type: ["number", "null"]
+          description: Projected / recognised income for this item (financial field group).
+        invoicedAmount:
+          type: ["number", "null"]
+          description: Amount actually invoiced to the customer to date (financial field group).
+        purchaseOrder:
+          type: ["string", "null"]
+          description: Customer purchase-order / order reference for billing (financial field group).
         benefitType:
           type: ["string", "null"]
           description: Benefit classification (benefits field group). Free-form (e.g. cashable/non_cashable/social).

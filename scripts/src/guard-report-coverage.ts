@@ -29,6 +29,7 @@ const REPORT_IMPL: Record<string, Impl> = {
   evm: "FinancialEvmChart",
   "financial-summary": "FinancialSummary",
   "portfolio-financials": "PortfolioFinancials",
+  "income-invoicing": "IncomeInvoicing",
   "staff-cost": "StaffTimeCost",
   burndown: "Burndown",
   burnup: "Burnup",

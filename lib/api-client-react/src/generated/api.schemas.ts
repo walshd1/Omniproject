@@ -357,6 +357,21 @@ export interface Issue {
      */
   depreciationMonths?: number | null;
   /**
+     * Projected / recognised income for this item (financial field group).
+     * @nullable
+     */
+  revenue?: number | null;
+  /**
+     * Amount actually invoiced to the customer to date (financial field group).
+     * @nullable
+     */
+  invoicedAmount?: number | null;
+  /**
+     * Customer purchase-order / order reference for billing (financial field group).
+     * @nullable
+     */
+  purchaseOrder?: string | null;
+  /**
      * Benefit classification (benefits field group). Free-form (e.g. cashable/non_cashable/social).
      * @nullable
      */

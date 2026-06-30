@@ -11,6 +11,7 @@ import { BenefitsRealisation } from "../components/reports/BenefitsRealisation";
 import { CapexOpex } from "../components/reports/CapexOpex";
 import { FinancialSummary } from "../components/reports/FinancialSummary";
 import { StaffTimeCost } from "../components/reports/StaffTimeCost";
+import { IncomeInvoicing } from "../components/reports/IncomeInvoicing";
 import { CapacityRollup } from "../components/reports/CapacityRollup";
 import { PortfolioFinancials } from "../components/reports/PortfolioFinancials";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
@@ -170,6 +171,15 @@ export function Reports() {
             <section>
               <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Benefits Realisation</h2>
               <BenefitsRealisation projectId={projectId} />
+            </section>
+          </Gated>
+        )}
+
+        {projectId && (
+          <Gated caps={caps} domain="financials" title="Income & Invoicing" requires="revenue / invoiced amounts on work items">
+            <section>
+              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Income &amp; Invoicing</h2>
+              <IncomeInvoicing projectId={projectId} />
             </section>
           </Gated>
         )}

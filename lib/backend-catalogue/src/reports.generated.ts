@@ -189,6 +189,29 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ]
   },
   {
+    "id": "income-invoicing",
+    "label": "Income & Invoicing",
+    "docsUrl": "",
+    "kind": "financial",
+    "capabilities": {
+      "requiresCapability": "financials",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "revenue",
+      "invoicedAmount",
+      "purchaseOrder",
+      "unbilled"
+    ],
+    "notes": "Projected income (revenue) vs actually invoiced (invoicedAmount) per work item, with the unbilled gap and purchase-order references. Stateless, derived from the financial field group.",
+    "order": 74
+  },
+  {
     "id": "portfolio-financials",
     "label": "Portfolio Financials (consolidated)",
     "docsUrl": "",
