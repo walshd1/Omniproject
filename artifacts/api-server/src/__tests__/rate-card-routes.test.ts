@@ -76,11 +76,32 @@ test("staff-cost rolls up client vs internal from logged hours × resolved rate,
   await put("/rate-card/identities", { level: "central", assignments: [{ assignee: "alice", titleHash: senior }] });
   // demo proj-001: alice's iss-001 = 26 logged hours, billable → client time.
   const cost = (await get("/projects/proj-001/staff-cost").then((x) => x.json())) as {
-    client: number; internal: number; total: number; unratedHours: number; byTitle: { titleLabel: string }[];
+    clientCost: number; internalCost: number; totalCost: number; charge: number; margin: number; unratedHours: number; byTitle: { titleLabel: string }[];
   };
-  assert.equal(cost.client, 2600); // 26h × 100
+  assert.equal(cost.clientCost, 2600); // 26h × 100
+  assert.equal(cost.charge, 2600); // no uplift set → charge == client cost
+  assert.equal(cost.margin, 0);
   assert.equal(cost.byTitle[0]!.titleLabel, "Senior Engineer");
   assert.ok(cost.unratedHours > 0); // bob/others aren't mapped → not silently zero-costed
+});
+
+test("margin + overhead uplift the charge (cost-to-customer); a project override beats the central default", async () => {
+  const senior = hashIdentity("Senior Engineer");
+  await put("/rate-card", {
+    titles: { [senior]: "Senior Engineer" },
+    rates: { [senior]: { "*": { client: 100, internal: 60 } } },
+    projectTypes: [],
+    uplift: { margin: 0.2, overhead: 0.1 }, // central: +30%
+  });
+  await put("/rate-card/identities", { level: "central", assignments: [{ assignee: "alice", titleHash: senior }] });
+  const central = (await get("/projects/proj-001/staff-cost").then((x) => x.json())) as { clientCost: number; charge: number; margin: number };
+  assert.equal(central.clientCost, 2600);
+  assert.equal(central.charge, 3380); // 2600 × 1.3
+  assert.equal(central.margin, 780);
+  // Override this project to a richer margin → its charge rises; the central default is untouched.
+  await put("/rate-card/uplift/project/proj-001", { margin: 0.5, overhead: 0.1 }); // +60%
+  const overridden = (await get("/projects/proj-001/staff-cost").then((x) => x.json())) as { charge: number };
+  assert.equal(overridden.charge, 4160); // 2600 × 1.6
 });
 
 test("the staff-cost endpoint never leaks raw rates — only aggregated cost", async () => {

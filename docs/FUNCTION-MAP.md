@@ -1318,6 +1318,10 @@ Sealed at-rest store for the rate card, the hashed identity→role map, and the 
 | `getProjectTypes` | The PMO-defined project-type list. |
 | `projectTypeFor` | A project's chosen type id, or `"*"` (the default/any) when none is set. |
 | `setRateCard` | Replace the rate card (titles + rates), keyed by job-title hash. |
+| `getUpliftConfig` | The full margin/overhead config (central defaults + per-scope overrides) — for the PMO editor. |
+| `resolveUplift` | The effective margin + overhead for a scope: project override → programme override → central, each field resolved independently so a project can tweak margin while inheriting central overhead. |
+| `setCentralUplift` | Set the central uplift defaults (margin + overhead). |
+| `setScopeUplift` | Override (or clear, with an empty object) the uplift for one programme/project scope. |
 | `setProjectTypes` | Replace the PMO's project-type list. |
 | `setProjectType` | Assign a project to a project type (chosen at setup). |
 | `setIdentityAssignments` | Set the identity→role assignments for a scope from RAW (assignee, jobTitleHash) pairs — the assignee is hashed here so the caller's plaintext name is never persisted. |
@@ -1334,7 +1338,9 @@ Rate-card domain — the pure core of staff time-and-cost.
 | `emptyIdentityMap` | — |
 | `resolveTitleHash` | The job-title hash assigned to a person at a scope. |
 | `resolveRate` | The hourly rate for a role on a project type and facing. |
-| `staffCost` | Roll up staff cost = Σ (loggedHours × resolved rate), split into client-facing vs internal and broken down by role. |
+| `emptyUplift` | — |
+| `chargeRate` | The charge-out rate for a cost rate under an uplift — the second value per project type. |
+| `staffCost` | Roll up the two values of staff time: **true cost** (Σ loggedHours × cost rate, split client-facing vs internal) and **cost to customer** (client-facing time uplifted by overhead + margin — internal time is never billed). |
 
 ### `artifacts/api-server/src/lib/rate-limit.ts`
 

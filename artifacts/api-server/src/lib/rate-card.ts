@@ -97,36 +97,69 @@ export interface TimedItem {
   billable?: boolean | null;
 }
 
+/**
+ * The customer-facing uplift on true cost: `overhead` (non-billable burden — facilities, admin) and
+ * `margin` (profit), both as fractions (0.2 = 20%). Cost to customer = cost × (1 + overhead + margin).
+ * These are set centrally and overridable at programme/project level (resolved by the store).
+ */
+export interface Uplift {
+  margin: number;
+  overhead: number;
+}
+
+export const emptyUplift = (): Uplift => ({ margin: 0, overhead: 0 });
+
+/** The charge-out rate for a cost rate under an uplift — the second value per project type. */
+export function chargeRate(cost: number, uplift: Uplift): number {
+  return cost * (1 + Math.max(0, uplift.overhead) + Math.max(0, uplift.margin));
+}
+
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
 export interface StaffCostRow {
   titleHash: string;
   titleLabel: string;
   hours: number;
+  /** True cost of this role's time. */
   cost: number;
+  /** Billed to the customer (client-facing time only; 0 for internal-only roles). */
+  charge: number;
 }
 
 export interface StaffCost {
-  internal: number;
-  client: number;
-  total: number;
+  /** True cost of internal (non-billable) time. */
+  internalCost: number;
+  /** True cost of client-facing (billable) time. */
+  clientCost: number;
+  /** internalCost + clientCost — what the work actually costs us. */
+  totalCost: number;
+  /** Billed to the customer = client-facing cost uplifted by overhead + margin. Internal time isn't billed. */
+  charge: number;
+  /** charge − clientCost — the gross margin on client-facing time. */
+  margin: number;
   /** Hours that couldn't be costed — no title mapping or no rate for the role/type/facing. */
   unratedHours: number;
   byTitle: StaffCostRow[];
 }
 
 /**
- * Roll up staff cost = Σ (loggedHours × resolved rate), split into client-facing vs internal and broken
- * down by role. Items with no assignee/hours contribute nothing; items whose role or rate can't be
- * resolved add their hours to `unratedHours` (visible, never silently zero-costed).
+ * Roll up the two values of staff time: **true cost** (Σ loggedHours × cost rate, split client-facing vs
+ * internal) and **cost to customer** (client-facing time uplifted by overhead + margin — internal time
+ * is never billed). Returns both, plus the gross margin and a per-role breakdown. Items with no
+ * assignee/hours contribute nothing; items whose role or rate can't be resolved add their hours to
+ * `unratedHours` (visible, never silently zero-costed).
  */
 export function staffCost(
   items: readonly TimedItem[],
   card: RateCard,
   map: IdentityMap,
   projectType: string,
+  uplift: Uplift = emptyUplift(),
   scope: RateScope = {},
 ): StaffCost {
-  let internal = 0;
-  let client = 0;
+  let internalCost = 0;
+  let clientCost = 0;
+  let charge = 0;
   let unratedHours = 0;
   const byTitle = new Map<string, StaffCostRow>();
 
@@ -141,19 +174,28 @@ export function staffCost(
       continue;
     }
     const cost = hours * rate;
-    if (facing === "client") client += cost;
-    else internal += cost;
-    const row = byTitle.get(titleHash) ?? { titleHash, titleLabel: card.titles[titleHash] ?? "—", hours: 0, cost: 0 };
+    let rowCharge = 0;
+    if (facing === "client") {
+      clientCost += cost;
+      rowCharge = hours * chargeRate(rate, uplift);
+      charge += rowCharge;
+    } else {
+      internalCost += cost;
+    }
+    const row = byTitle.get(titleHash) ?? { titleHash, titleLabel: card.titles[titleHash] ?? "—", hours: 0, cost: 0, charge: 0 };
     row.hours += hours;
     row.cost += cost;
+    row.charge += rowCharge;
     byTitle.set(titleHash, row);
   }
 
   return {
-    internal,
-    client,
-    total: internal + client,
+    internalCost,
+    clientCost,
+    totalCost: internalCost + clientCost,
+    charge: round2(charge),
+    margin: round2(charge - clientCost),
     unratedHours,
-    byTitle: [...byTitle.values()].sort((a, b) => b.cost - a.cost),
+    byTitle: [...byTitle.values()].map((r) => ({ ...r, charge: round2(r.charge) })).sort((a, b) => b.cost - a.cost),
   };
 }

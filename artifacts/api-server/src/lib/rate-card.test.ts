@@ -50,7 +50,7 @@ test("rate resolution: exact project-type+facing, then default project type, nev
   assert.equal(resolveRate(emptyRateCard(), SENIOR, "delivery", "client"), null);
 });
 
-test("staffCost splits client vs internal, breaks down by role, and flags unrated hours", () => {
+test("staffCost splits client vs internal cost, breaks down by role, and flags unrated hours", () => {
   const items = [
     { assignee: "alice", loggedHours: 10, billable: true }, // senior client @150 = 1500
     { assignee: "alice", loggedHours: 4, billable: false }, // senior internal @90 = 360
@@ -58,22 +58,39 @@ test("staffCost splits client vs internal, breaks down by role, and flags unrate
     { assignee: "ghost", loggedHours: 5, billable: true }, // unmapped → unrated
     { assignee: "alice", loggedHours: 0, billable: true }, // zero hours → ignored
   ];
-  const c = staffCost(items, CARD, MAP, "delivery");
-  assert.equal(c.client, 1500 + 640);
-  assert.equal(c.internal, 360);
-  assert.equal(c.total, 1500 + 640 + 360);
+  const c = staffCost(items, CARD, MAP, "delivery"); // no uplift → charge == client cost, margin 0
+  assert.equal(c.clientCost, 1500 + 640);
+  assert.equal(c.internalCost, 360);
+  assert.equal(c.totalCost, 1500 + 640 + 360);
+  assert.equal(c.charge, 1500 + 640);
+  assert.equal(c.margin, 0);
   assert.equal(c.unratedHours, 5);
   assert.equal(c.byTitle[0]!.titleLabel, "Senior Engineer"); // highest cost first
   assert.equal(c.byTitle[0]!.cost, 1860);
 });
 
+test("staffCost applies overhead + margin to client-facing time only (the second value)", () => {
+  // 10h senior client @150 = 1500 cost; uplift 20% overhead + 30% margin → ×1.5 → charge 2250.
+  // 4h senior internal @90 = 360 cost — never billed, so it doesn't add to charge.
+  const items = [
+    { assignee: "alice", loggedHours: 10, billable: true },
+    { assignee: "alice", loggedHours: 4, billable: false },
+  ];
+  const c = staffCost(items, CARD, MAP, "delivery", { overhead: 0.2, margin: 0.3 });
+  assert.equal(c.clientCost, 1500);
+  assert.equal(c.internalCost, 360);
+  assert.equal(c.charge, 2250); // 1500 × (1 + 0.2 + 0.3); internal time isn't billed
+  assert.equal(c.margin, 2250 - 1500);
+  assert.equal(c.byTitle[0]!.charge, 2250);
+});
+
 test("staffCost honours scope overrides when costing", () => {
   // On proj-9 alice is graded JUNIOR → her client time costs at the junior rate.
-  const c = staffCost([{ assignee: "alice", loggedHours: 10, billable: true }], CARD, MAP, "delivery", { projectId: "proj-9" });
-  assert.equal(c.client, 800); // 10 × junior "*" client 80
+  const c = staffCost([{ assignee: "alice", loggedHours: 10, billable: true }], CARD, MAP, "delivery", { overhead: 0, margin: 0 }, { projectId: "proj-9" });
+  assert.equal(c.clientCost, 800); // 10 × junior "*" client 80
 });
 
 test("empty inputs cost nothing", () => {
   const c = staffCost([], emptyRateCard(), emptyIdentityMap(), "*");
-  assert.deepEqual([c.total, c.unratedHours, c.byTitle.length], [0, 0, 0]);
+  assert.deepEqual([c.totalCost, c.charge, c.margin, c.unratedHours, c.byTitle.length], [0, 0, 0, 0, 0]);
 });
