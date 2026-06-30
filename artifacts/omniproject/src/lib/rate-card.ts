@@ -79,6 +79,20 @@ export function useSaveRateCard() {
   });
 }
 
+/** Override (or clear) the margin/overhead for one programme/project scope (PMO). An empty body clears
+ *  the override; a single field overrides just that field and inherits central for the other. */
+export function useSetScopeUplift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ level, scopeId, uplift }: { level: "programme" | "project"; scopeId: string; uplift: Partial<Uplift> }) =>
+      sendJson<{ ok: boolean }>(`/api/rate-card/uplift/${level}/${encodeURIComponent(scopeId)}`, uplift),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: rateCardQueryKey });
+      qc.invalidateQueries({ queryKey: ["staff-cost"] });
+    },
+  });
+}
+
 // ── Conditional rules (the PMO "when → effect" plane) ────────────────────────────
 
 /** Predicate comparison operators (mirrors the server's predicate engine). */
