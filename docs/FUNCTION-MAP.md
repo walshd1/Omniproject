@@ -1629,6 +1629,18 @@ Optional asymmetric (Ed25519) signing — the non-repudiation layer over the aud
 | `verifySignature` | Verify a base64 Ed25519 signature over `message` against an SPKI/PEM public key. |
 | `signingInfo` | Public signing status for the admin/security surface (no secrets — public key only). |
 
+### `artifacts/api-server/src/lib/snapshot.ts`
+
+Provably-immutable snapshots.
+
+| Function | What it does |
+| --- | --- |
+| `canonicalJson` | Deterministic JSON with sorted object keys, so the hash is stable regardless of property order. |
+| `contentHash` | SHA-256 hex of the canonicalised value — the content address. |
+| `manifestAnchor` | The exact, deterministic message that is signed for a manifest — binds the content hash to its identity + time + scope, so altering any of them invalidates the signature. |
+| `buildSnapshot` | Build a signed snapshot bundle over `data`. |
+| `verifySnapshot` | Verify a bundle: recompute the content hash and (if present) check the Ed25519 signature against the supplied public key (defaults to this deployment's). |
+
 ### `artifacts/api-server/src/lib/sse.ts`
 
 Server-Sent Events framing — ONE place that gets the SSE wire format right, shared by every SSE endpoint (notifications, presence, the admin broker log).
@@ -1983,6 +1995,10 @@ Gateway-local settings (the broker URL, AI provider, …).
 ### `artifacts/api-server/src/routes/setup.ts`
 
 Setup-wizard + operations endpoints — backend/plane catalogues, workflow generation + verification, config export/snapshot/restore, the sandbox→promote→ rollback environment controls, and the debug bundle.
+
+### `artifacts/api-server/src/routes/snapshots.ts`
+
+Provably-immutable snapshots.
 
 ### `artifacts/api-server/src/routes/tools.ts`
 

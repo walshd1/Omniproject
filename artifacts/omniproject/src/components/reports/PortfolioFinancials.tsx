@@ -6,6 +6,7 @@ import { consolidateFinancials, type ProjectFin, type FinanceRollup } from "../.
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { SnapshotButton } from "./SnapshotControls";
 
 /**
  * Portfolio Financials (consolidated) — budget vs actual vs forecast across the whole portfolio, with
@@ -75,15 +76,22 @@ export function PortfolioFinancials() {
               <StatCard label="Forecast (EAC)" value={money(consolidated.portfolio.forecast)} />
               <StatCard label="Variance" value={money(consolidated.portfolio.variance)} hint={consolidated.portfolio.variance < 0 ? "projected overspend" : "within budget"} />
             </div>
-            {options.length > 0 && (
-              <label className="text-xs flex items-center gap-1">
-                <span className="text-muted-foreground">Reporting currency</span>
-                <select aria-label="Reporting currency" className="rounded-none border-2 border-foreground bg-background px-2 py-1 text-xs font-mono"
-                  value={target} onChange={(e) => setReporting(e.target.value)}>
-                  {options.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </label>
-            )}
+            <div className="flex items-center gap-3">
+              {options.length > 0 && (
+                <label className="text-xs flex items-center gap-1">
+                  <span className="text-muted-foreground">Reporting currency</span>
+                  <select aria-label="Reporting currency" className="rounded-none border-2 border-foreground bg-background px-2 py-1 text-xs font-mono"
+                    value={target} onChange={(e) => setReporting(e.target.value)}>
+                    {options.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+              )}
+              <SnapshotButton
+                scope="portfolio-financials"
+                label={`Portfolio financials (${target})`}
+                data={{ reportingCurrency: target, asOf: fx?.asOf ?? null, fxProvenance: fx?.provenance ?? null, portfolio: consolidated.portfolio, programmes: consolidated.programmes }}
+              />
+            </div>
           </div>
 
           <div className="overflow-x-auto">
