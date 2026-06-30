@@ -1157,6 +1157,56 @@ components:
           type: ["string", "null"]
         defectCount:
           type: ["number", "null"]
+        expenditureType:
+          type: ["string", "null"]
+          description: CapEx/OpEx classification (financial field group). Free-form (capex/opex/mixed).
+        capexAmount:
+          type: ["number", "null"]
+          description: Capitalised (capital) portion of cost (financial field group).
+        opexAmount:
+          type: ["number", "null"]
+          description: Operating-expense portion of cost (financial field group).
+        costCategory:
+          type: ["string", "null"]
+          description: GL / cost category for roll-up grouping (financial field group).
+        depreciationMonths:
+          type: ["number", "null"]
+          description: Useful-life in months for capex amortisation (financial field group).
+        benefitType:
+          type: ["string", "null"]
+          description: Benefit classification (benefits field group). Free-form (e.g. cashable/non_cashable/social).
+        benefitOwner:
+          type: ["string", "null"]
+          description: Accountable owner for the benefit (benefits field group).
+        plannedBenefitValue:
+          type: ["number", "null"]
+          description: Target benefit value (benefits field group).
+        actualBenefitValue:
+          type: ["number", "null"]
+          description: Benefit value realised to date (benefits field group).
+        benefitMeasure:
+          type: ["string", "null"]
+          description: The KPI / unit the benefit moves (benefits field group).
+        benefitBaseline:
+          type: ["number", "null"]
+          description: Starting metric value before the benefit (benefits field group).
+        benefitTarget:
+          type: ["number", "null"]
+          description: Target metric value for the benefit (benefits field group).
+        benefitStartDate:
+          type: ["string", "null"]
+          format: date
+          description: When benefit realisation starts (benefits field group).
+        benefitDueDate:
+          type: ["string", "null"]
+          format: date
+          description: Realise-by date (benefits field group).
+        benefitStatus:
+          type: ["string", "null"]
+          description: Realisation health (benefits field group). Free-form (e.g. on_track/at_risk/realised/missed).
+        benefitConfidence:
+          type: ["number", "null"]
+          description: Confidence the benefit will be realised, 0–100 (benefits field group).
         customFields:
           type: object
           additionalProperties: true

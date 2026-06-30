@@ -7,6 +7,8 @@ import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
 import { FinancialEvmChart } from "../components/reports/FinancialEvmChart";
 import { MonteCarloRisk } from "../components/reports/MonteCarloRisk";
 import { CriticalPath } from "../components/reports/CriticalPath";
+import { BenefitsRealisation } from "../components/reports/BenefitsRealisation";
+import { CapexOpex } from "../components/reports/CapexOpex";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { ProvenanceBadge } from "../components/ProvenanceBadge";
 import { DataProvenance } from "../components/DataProvenance";
@@ -134,6 +136,24 @@ export function Reports() {
             <section>
               <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Critical Path (CPM)</h2>
               <CriticalPath projectId={projectId} />
+            </section>
+          </Gated>
+        )}
+
+        {projectId && (
+          <Gated caps={caps} domain="benefits" title="Benefits Realisation" requires="benefit value/status fields on work items">
+            <section>
+              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Benefits Realisation</h2>
+              <BenefitsRealisation projectId={projectId} />
+            </section>
+          </Gated>
+        )}
+
+        {projectId && (
+          <Gated caps={caps} domain="financials" title="CapEx / OpEx" requires="capex/opex classification on work items">
+            <section>
+              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">CapEx / OpEx</h2>
+              <CapexOpex projectId={projectId} />
             </section>
           </Gated>
         )}

@@ -331,6 +331,86 @@ export interface Issue {
   mitigation?: string | null;
   /** @nullable */
   defectCount?: number | null;
+  /**
+     * CapEx/OpEx classification (financial field group). Free-form (capex/opex/mixed).
+     * @nullable
+     */
+  expenditureType?: string | null;
+  /**
+     * Capitalised (capital) portion of cost (financial field group).
+     * @nullable
+     */
+  capexAmount?: number | null;
+  /**
+     * Operating-expense portion of cost (financial field group).
+     * @nullable
+     */
+  opexAmount?: number | null;
+  /**
+     * GL / cost category for roll-up grouping (financial field group).
+     * @nullable
+     */
+  costCategory?: string | null;
+  /**
+     * Useful-life in months for capex amortisation (financial field group).
+     * @nullable
+     */
+  depreciationMonths?: number | null;
+  /**
+     * Benefit classification (benefits field group). Free-form (e.g. cashable/non_cashable/social).
+     * @nullable
+     */
+  benefitType?: string | null;
+  /**
+     * Accountable owner for the benefit (benefits field group).
+     * @nullable
+     */
+  benefitOwner?: string | null;
+  /**
+     * Target benefit value (benefits field group).
+     * @nullable
+     */
+  plannedBenefitValue?: number | null;
+  /**
+     * Benefit value realised to date (benefits field group).
+     * @nullable
+     */
+  actualBenefitValue?: number | null;
+  /**
+     * The KPI / unit the benefit moves (benefits field group).
+     * @nullable
+     */
+  benefitMeasure?: string | null;
+  /**
+     * Starting metric value before the benefit (benefits field group).
+     * @nullable
+     */
+  benefitBaseline?: number | null;
+  /**
+     * Target metric value for the benefit (benefits field group).
+     * @nullable
+     */
+  benefitTarget?: number | null;
+  /**
+     * When benefit realisation starts (benefits field group).
+     * @nullable
+     */
+  benefitStartDate?: string | null;
+  /**
+     * Realise-by date (benefits field group).
+     * @nullable
+     */
+  benefitDueDate?: string | null;
+  /**
+     * Realisation health (benefits field group). Free-form (e.g. on_track/at_risk/realised/missed).
+     * @nullable
+     */
+  benefitStatus?: string | null;
+  /**
+     * Confidence the benefit will be realised, 0–100 (benefits field group).
+     * @nullable
+     */
+  benefitConfidence?: number | null;
   /** Backend-specific fields that aren't (yet) canonical — carried through verbatim so ANY data the backend captures can be mapped and surfaced, gated by capabilities.entities.customField. Promote to a first-class field via the registry when it earns it. */
   customFields?: IssueCustomFields;
 }
