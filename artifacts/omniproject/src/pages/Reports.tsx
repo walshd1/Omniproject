@@ -11,6 +11,7 @@ import { BenefitsRealisation } from "../components/reports/BenefitsRealisation";
 import { CapexOpex } from "../components/reports/CapexOpex";
 import { FinancialSummary } from "../components/reports/FinancialSummary";
 import { StaffTimeCost } from "../components/reports/StaffTimeCost";
+import { CapacityRollup } from "../components/reports/CapacityRollup";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { Burndown } from "../components/reports/Burndown";
 import { Burnup } from "../components/reports/Burnup";
@@ -115,6 +116,13 @@ export function Reports() {
           <section>
             <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Roadmap</h2>
             <PortfolioRoadmap />
+          </section>
+        </Gated>
+
+        <Gated caps={caps} domain="resources" title="Capacity Roll-up" requires="a resource-management source">
+          <section>
+            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Capacity Roll-up (programme &amp; portfolio)</h2>
+            <CapacityRollup />
           </section>
         </Gated>
 

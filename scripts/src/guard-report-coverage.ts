@@ -25,6 +25,7 @@ const ROOT = path.resolve(HERE, "../..");
 const REPORT_IMPL: Record<string, Impl> = {
   "portfolio-rag": "PortfolioKpi",
   "resource-histogram": "ResourceHeatmap",
+  "capacity-rollup": "CapacityRollup",
   evm: "FinancialEvmChart",
   "financial-summary": "FinancialSummary",
   "staff-cost": "StaffTimeCost",
