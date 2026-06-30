@@ -1,7 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { convertAmount, currencyList } from "./currency";
+import { convertAmount, currencyList, firstCurrency } from "./currency";
 
 const rates = { GBP: 1, USD: 0.79, EUR: 0.85 };
+
+describe("firstCurrency", () => {
+  it("returns the first item's currency, skipping blanks", () => {
+    expect(firstCurrency([{ currency: null }, { currency: "EUR" }])).toBe("EUR");
+  });
+  it("falls back to the default when none is set", () => {
+    expect(firstCurrency([{ currency: null }])).toBe("GBP");
+    expect(firstCurrency(undefined, "USD")).toBe("USD");
+  });
+});
 
 describe("convertAmount", () => {
   it("returns the amount unchanged when from === to", () => {

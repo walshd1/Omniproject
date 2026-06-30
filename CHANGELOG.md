@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Benefits Realisation + CapEx/OpEx reports (stateless).** Two new reports that consume the E1/E2
+  fields, each derive-only with nothing stored. **Benefits Realisation** (`lib/benefits` +
+  `BenefitsRealisation`, gated on the `benefits` domain) rolls up planned-vs-actual benefit value,
+  the realisation %, a risk-adjusted forecast (planned × confidence), and the RAG spread by status.
+  **CapEx/OpEx** (`lib/capex` + `CapexOpex`, gated on `financials`) splits spend into capital vs
+  operating (falling back to `expenditureType` + cost when no explicit split), rolls up by cost
+  category, and derives the annual capital charge from each item's depreciation period. The 16 E1/E2
+  fields are now **typed on `Issue`** (so reports read them with full types) and carried in the demo
+  dataset. Pure roll-ups covered by unit tests + component tests.
+
 - **Canonical field registry extended: benefits realisation + CapEx/OpEx (E1/E2).** Sixteen new
   fields in the canonical vocabulary (`assets/fields.json`, drift-guarded; 114 → 130). A first-class
   **`benefits`** group + a dedicated **`benefits` capability domain** (planned/actual benefit value,

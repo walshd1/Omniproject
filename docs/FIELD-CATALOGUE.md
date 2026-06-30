@@ -124,6 +124,8 @@ completionPct`
 ## financial — CapEx / OpEx split  (E2 — gated by `financials`)
 The explicit capitalisation split + cost-rate roll-up dimensions for finance-grade
 reporting (complements the existing `capitalised` boolean and `costRate`/`billRate`).
+These fields are typed on `Issue` and surfaced by the **CapEx / OpEx** report
+(`lib/capex` — capital vs operating split, category roll-up, annual depreciation charge).
 | key | type | products | ★ |
 | --- | --- | --- | --- |
 | `expenditureType` | enum | SAP PS, NetSuite, D365 (capex/opex/mixed) | ★ |
@@ -136,7 +138,9 @@ reporting (complements the existing `capitalised` boolean and `costRate`/`billRa
 Quantified, trackable benefits so a programme can show planned-vs-actual value
 realisation. A dedicated `benefits` capability domain gates the group (a backend
 can carry benefits without a full portfolio rollup). Complements the lighter
-`expectedBenefit`/`benefitRealised` already under `strategy`.
+`expectedBenefit`/`benefitRealised` already under `strategy`. These fields are typed
+on `Issue` and surfaced by the **Benefits Realisation** report (`lib/benefits` —
+planned-vs-actual, realisation %, risk-adjusted forecast, RAG by status).
 | key | type | products | ★ |
 | --- | --- | --- | --- |
 | `benefitType` | enum | MSP/PRINCE2 tooling, Planview (cashable/non-cashable/…) | ★ |
