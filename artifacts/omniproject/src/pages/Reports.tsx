@@ -9,7 +9,13 @@ import { MonteCarloRisk } from "../components/reports/MonteCarloRisk";
 import { CriticalPath } from "../components/reports/CriticalPath";
 import { BenefitsRealisation } from "../components/reports/BenefitsRealisation";
 import { CapexOpex } from "../components/reports/CapexOpex";
+import { FinancialSummary } from "../components/reports/FinancialSummary";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
+import { Burndown } from "../components/reports/Burndown";
+import { Burnup } from "../components/reports/Burnup";
+import { CumulativeFlow } from "../components/reports/CumulativeFlow";
+import { Velocity } from "../components/reports/Velocity";
+import { RaidRegister } from "../components/reports/RaidRegister";
 import { ProvenanceBadge } from "../components/ProvenanceBadge";
 import { DataProvenance } from "../components/DataProvenance";
 import { useT } from "../lib/i18n";
@@ -161,6 +167,42 @@ export function Reports() {
         {projectId && (
           <Gated caps={caps} domain="history" title="Progress Trend" requires="backend history (journals / changelog via get_project_history)">
             <ProjectTrend projectId={projectId} />
+          </Gated>
+        )}
+
+        {projectId && (
+          <Gated caps={caps} domain="history" title="Sprint Burndown" requires="backend history (get_project_history)">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+              <Burndown projectId={projectId} />
+              <Burnup projectId={projectId} />
+            </div>
+          </Gated>
+        )}
+
+        {projectId && (
+          <Gated caps={caps} domain="history" title="Flow & Velocity" requires="backend history (get_project_history)">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+              <CumulativeFlow projectId={projectId} />
+              <Velocity projectId={projectId} />
+            </div>
+          </Gated>
+        )}
+
+        {projectId && (
+          <Gated caps={caps} domain="financials" title="Financial Summary" requires="a cost / ERP source">
+            <section>
+              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Financial Summary</h2>
+              <FinancialSummary projectId={projectId} />
+            </section>
+          </Gated>
+        )}
+
+        {projectId && (
+          <Gated caps={caps} domain="raid" title="RAID Register" requires="a RAID log (get_project_raid)">
+            <section>
+              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">RAID Register</h2>
+              <RaidRegister projectId={projectId} />
+            </section>
           </Gated>
         )}
       </div>
