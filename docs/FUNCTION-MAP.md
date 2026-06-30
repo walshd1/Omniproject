@@ -1251,6 +1251,17 @@ Methodology RAG — persona SELECTION for the portfolio copilot.
 | `personaById` | A persona by id, or undefined. |
 | `selectPersonas` | Retrieve the most relevant persona(s) for a question. |
 
+### `artifacts/api-server/src/lib/predicate.ts`
+
+Conditional predicate engine — the pure "when" of the PMO rule plane.
+
+| Function | What it does |
+| --- | --- |
+| `evaluatePredicate` | Evaluate one predicate against the context. |
+| `matches` | Does this condition set match the context? (all-of `all` AND any-of `any`; empty ⇒ matches all.) |
+| `selectMatching` | From a list of conditioned items, the ones whose condition matches the context, **in declared order**. |
+| `validatePredicate` | Validate a predicate's shape (used at the rule-authoring boundary). |
+
 ### `artifacts/api-server/src/lib/presence-hub.ts`
 
 Live collaboration presence hub (Server-Sent Events).
