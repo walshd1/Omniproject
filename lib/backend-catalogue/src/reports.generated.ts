@@ -234,6 +234,31 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "order": 80
   },
   {
+    "id": "staff-cost",
+    "label": "Staff Time & Cost",
+    "docsUrl": "",
+    "kind": "financial",
+    "capabilities": {
+      "requiresCapability": "financials",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "loggedHours",
+      "rateCard",
+      "trueCost",
+      "chargeToCustomer",
+      "margin",
+      "overhead"
+    ],
+    "notes": "Server-side staff time-and-cost roll-up (PMO-gated). Rates resolve in-memory from the hashed rate card and never reach the client; returns aggregated true cost, cost-to-customer and gross margin.",
+    "order": 75
+  },
+  {
     "id": "velocity",
     "label": "Velocity",
     "docsUrl": "",

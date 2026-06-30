@@ -27,6 +27,7 @@ const REPORT_IMPL: Record<string, Impl> = {
   "resource-histogram": "ResourceHeatmap",
   evm: "FinancialEvmChart",
   "financial-summary": "FinancialSummary",
+  "staff-cost": "StaffTimeCost",
   burndown: "Burndown",
   burnup: "Burnup",
   "cumulative-flow": "CumulativeFlow",
