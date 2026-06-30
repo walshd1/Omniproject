@@ -115,6 +115,16 @@ Per-call broker endpoint override.
 | `currentEndpointOverride` | The endpoints in scope for the current async call, if a kind was routed to. |
 | `withEndpoints` | Run `fn` with the broker adapter bound to `endpoints` (the routed kind's URL[s]). |
 
+### `artifacts/api-server/src/broker/identity.ts`
+
+Cross-backend identity.
+
+| Function | What it does |
+| --- | --- |
+| `qualifyId` | Cross-backend identity. |
+| `qualifiedId` | Read the qualified key off a row (its own `source`, or a fallback when the backend omitted it). |
+| `stampSource` | Stamp `source` onto every row that lacks one, using the broker kind it was read through. |
+
 ### `artifacts/api-server/src/broker/index.ts`
 
 Broker selection + the request→domain context adapter.
@@ -208,6 +218,7 @@ The broker router / registry — which broker KINDS are connected to this deploy
 
 | Function | What it does |
 | --- | --- |
+| `brokerPurposeCount` | A broker kind's purpose = the number of capabilities it maps. |
 | `connectedBrokers` | The brokers connected to this deployment. |
 | `connectedBrokerKinds` | The DISTINCT connected broker kinds — the list the capability resolver unions over. |
 | `brokersSupporting` | The routing primitive: which connected broker kinds can serve a given capability (e.g. "who can deliver `eventsOutbound`?"). |
@@ -790,7 +801,7 @@ Data accessor facade.
 | --- | --- |
 | `brokerChangeToken` | A cheap change token for a resource (for conditional/delta reads), or null when the active broker can't supply one (the caller falls back to a payload hash). |
 | `getProjects` | List all projects the actor can see, via the active broker. |
-| `getIssues` | List the issues of one project, via the active broker. |
+| `getIssues` | List the issues of one project, via the active broker (source-stamped, as for projects). |
 | `getActivity` | The cross-project activity feed, via the active broker. |
 | `getSummary` | One project's roll-up summary (health/variance), via the active broker. |
 | `getHistory` | One project's historical points (for trends), via the active broker. |
