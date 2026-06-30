@@ -4,7 +4,7 @@ import { getSession } from "./auth";
 import { recordAudit } from "../lib/audit";
 import { getIssues, getProjects } from "../lib/data";
 import { programmeIdOf } from "../lib/programmes";
-import { staffCost, type RateCard, type Facing, type TimedItem } from "../lib/rate-card";
+import { staffCost, type RateCard, type Facing, type TimedItem, type Uplift } from "../lib/rate-card";
 import {
   getRateCard,
   setRateCard,
@@ -14,6 +14,10 @@ import {
   setIdentityAssignments,
   projectTypeFor,
   setProjectType,
+  getUpliftConfig,
+  resolveUplift,
+  setCentralUplift,
+  setScopeUplift,
   type ProjectType,
 } from "../lib/rate-card-store";
 
@@ -67,16 +71,38 @@ function readRateCard(body: unknown): { card: RateCard; projectTypes: ProjectTyp
   return { card: { titles, rates }, projectTypes };
 }
 
+/** Read a clamped uplift ({margin, overhead} as non-negative fractions) from a body object. */
+function readUplift(o: Record<string, unknown> | undefined): Partial<Uplift> {
+  const out: Partial<Uplift> = {};
+  if (isNum(o?.["margin"]) && (o!["margin"] as number) >= 0) out.margin = o!["margin"] as number;
+  if (isNum(o?.["overhead"]) && (o!["overhead"] as number) >= 0) out.overhead = o!["overhead"] as number;
+  return out;
+}
+
 router.get("/rate-card", requireRole("pmo"), (_req, res) => {
-  res.json({ ...getRateCard(), projectTypes: getProjectTypes() });
+  res.json({ ...getRateCard(), projectTypes: getProjectTypes(), uplift: getUpliftConfig() });
 });
 
 router.put("/rate-card", requireRole("pmo"), (req, res) => {
   const { card, projectTypes } = readRateCard(req.body);
   setRateCard(card);
   setProjectTypes(projectTypes);
+  // Central margin/overhead may ride along on the same PUT.
+  const u = readUplift((req.body as Record<string, unknown>)?.["uplift"] as Record<string, unknown> | undefined);
+  if (u.margin !== undefined || u.overhead !== undefined) setCentralUplift({ margin: u.margin ?? 0, overhead: u.overhead ?? 0 });
   audit(req, "rate_card.update", { titles: Object.keys(card.titles).length, projectTypes: projectTypes.length });
-  res.json({ ...getRateCard(), projectTypes: getProjectTypes() });
+  res.json({ ...getRateCard(), projectTypes: getProjectTypes(), uplift: getUpliftConfig() });
+});
+
+/** Override the margin/overhead for one programme/project scope (an empty body clears the override). */
+router.put("/rate-card/uplift/:level/:scopeId", requireRole("pmo"), (req, res) => {
+  const level = req.params["level"];
+  if (level !== "programme" && level !== "project") { res.status(400).json({ error: "level must be programme | project" }); return; }
+  const scopeId = String(req.params["scopeId"] ?? "");
+  if (!scopeId) { res.status(400).json({ error: "scopeId is required" }); return; }
+  setScopeUplift(level, scopeId, readUplift(req.body as Record<string, unknown>));
+  audit(req, "rate_card.uplift.update", { level, scopeId });
+  res.json({ ok: true, level, scopeId, uplift: getUpliftConfig() });
 });
 
 /** The hashed identity→role map (hashes only — no plaintext identities ever leave the store). */
@@ -123,7 +149,8 @@ router.get("/projects/:projectId/staff-cost", requireRole("pmo"), async (req, re
     const projectId = String(req.params["projectId"] ?? "");
     const [issues, projects] = await Promise.all([getIssues(req, projectId), getProjects(req)]);
     const programmeId = programmeIdOf((projects.find((p) => String(p["id"]) === projectId) ?? {}) as Record<string, unknown>);
-    const cost = staffCost(issues as unknown as TimedItem[], getRateCard(), getIdentityMap(), projectTypeFor(projectId), { programmeId, projectId });
+    const scope = { programmeId, projectId };
+    const cost = staffCost(issues as unknown as TimedItem[], getRateCard(), getIdentityMap(), projectTypeFor(projectId), resolveUplift(scope), scope);
     res.json(cost);
   } catch (err) {
     req.log.error({ err }, "staff_cost failed");

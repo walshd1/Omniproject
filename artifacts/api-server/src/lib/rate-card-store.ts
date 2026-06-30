@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { sealConfig, readMaybeSealed } from "./config-crypto";
 import { logger } from "./logger";
-import { emptyRateCard, emptyIdentityMap, hashIdentity, type RateCard, type IdentityMap, type RoleRates } from "./rate-card";
+import { emptyRateCard, emptyIdentityMap, emptyUplift, hashIdentity, type RateCard, type IdentityMap, type RoleRates, type Uplift, type RateScope } from "./rate-card";
 
 /**
  * Sealed at-rest store for the rate card, the hashed identity→role map, and the PMO's project-type
@@ -17,12 +17,20 @@ export interface ProjectType {
   label: string;
 }
 
+/** Margin/overhead set centrally and overridden per scope (each field independently). */
+interface UpliftConfig {
+  central: Uplift;
+  programme: Record<string, Partial<Uplift>>;
+  project: Record<string, Partial<Uplift>>;
+}
+
 interface RateCardState {
   card: RateCard;
   identities: IdentityMap;
   projectTypes: ProjectType[];
   /** projectId → projectType id (chosen at project setup). */
   projectTypeOf: Record<string, string>;
+  uplift: UpliftConfig;
 }
 
 const empty = (): RateCardState => ({
@@ -30,6 +38,7 @@ const empty = (): RateCardState => ({
   identities: emptyIdentityMap(),
   projectTypes: [],
   projectTypeOf: {},
+  uplift: { central: emptyUplift(), programme: {}, project: {} },
 });
 
 let cache: RateCardState | null = null;
@@ -56,6 +65,11 @@ function load(): RateCardState {
       },
       projectTypes: Array.isArray(parsed.projectTypes) ? parsed.projectTypes : [],
       projectTypeOf: parsed.projectTypeOf ?? {},
+      uplift: {
+        central: { margin: parsed.uplift?.central?.margin ?? 0, overhead: parsed.uplift?.central?.overhead ?? 0 },
+        programme: parsed.uplift?.programme ?? {},
+        project: parsed.uplift?.project ?? {},
+      },
     };
   } catch (err) {
     logger.warn({ err }, "rate-card: failed to read sealed file — treating as empty");
@@ -91,6 +105,38 @@ export function projectTypeFor(projectId: string): string {
 /** Replace the rate card (titles + rates), keyed by job-title hash. */
 export function setRateCard(card: RateCard): void {
   persist({ ...load(), card: { titles: card.titles ?? {}, rates: card.rates ?? {} } });
+}
+
+/** The full margin/overhead config (central defaults + per-scope overrides) — for the PMO editor. */
+export function getUpliftConfig(): { central: Uplift; programme: Record<string, Partial<Uplift>>; project: Record<string, Partial<Uplift>> } {
+  return load().uplift;
+}
+
+/** The effective margin + overhead for a scope: project override → programme override → central, each
+ *  field resolved independently so a project can tweak margin while inheriting central overhead. */
+export function resolveUplift(scope: RateScope = {}): Uplift {
+  const u = load().uplift;
+  const proj = scope.projectId ? u.project[scope.projectId] : undefined;
+  const prog = scope.programmeId ? u.programme[scope.programmeId] : undefined;
+  return {
+    margin: proj?.margin ?? prog?.margin ?? u.central.margin,
+    overhead: proj?.overhead ?? prog?.overhead ?? u.central.overhead,
+  };
+}
+
+/** Set the central uplift defaults (margin + overhead). */
+export function setCentralUplift(uplift: Uplift): void {
+  const state = load();
+  persist({ ...state, uplift: { ...state.uplift, central: { margin: uplift.margin, overhead: uplift.overhead } } });
+}
+
+/** Override (or clear, with an empty object) the uplift for one programme/project scope. */
+export function setScopeUplift(level: "programme" | "project", scopeId: string, override: Partial<Uplift>): void {
+  const state = load();
+  const map = { ...state.uplift[level] };
+  if (override.margin === undefined && override.overhead === undefined) delete map[scopeId];
+  else map[scopeId] = override;
+  persist({ ...state, uplift: { ...state.uplift, [level]: map } });
 }
 
 /** Replace the PMO's project-type list. */
