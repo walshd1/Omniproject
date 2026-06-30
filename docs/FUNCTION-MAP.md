@@ -1318,6 +1318,20 @@ Provenance chain — a keyed-MAC, hash-chained record of every broker call, hold
 | `verifyProvenanceAnchor` | Verify a provenance anchor's Ed25519 signature against a published public key (PEM). |
 | `__resetProvenance` | Test-only: reset the in-memory chain. |
 
+### `artifacts/api-server/src/lib/rate-card-source.ts`
+
+Rate-card SOURCING — keep the system of record as the single source of truth.
+
+| Function | What it does |
+| --- | --- |
+| `localSources` | — |
+| `usesBackend` | True if any component is sourced from a backend (so we need to call the broker). |
+| `referencedBackends` | The distinct backend sources referenced (for capability checks / diagnostics). |
+| `normaliseTitles` | Backend title rows → `titleHash → label`. |
+| `normaliseRates` | Backend rate rows → the rate card's `rates` map. |
+| `normaliseIdentities` | Backend identity rows → the central `hash(assignee) → hash(title)` map (no plaintext persisted). |
+| `resolveRateCard` | Compose the effective rate card by resolving each component from its source: a `local` component reads the sealed store; a `backend` component is pulled through the broker and normalised. |
+
 ### `artifacts/api-server/src/lib/rate-card-store.ts`
 
 Sealed at-rest store for the rate card, the hashed identity→role map, and the PMO's project-type list.
