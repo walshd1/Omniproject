@@ -928,16 +928,18 @@ Scheduled executive digest — a periodic, read-only portfolio roll-up delivered
 
 ### `artifacts/api-server/src/lib/feature-modules.ts`
 
-Feature-module registry — the optional backend modules a deployment can switch off so a customer never loads (or pays the resources for) code they don't use.
+A resolution scope: a project (and/or its programme).
 
 | Function | What it does |
 | --- | --- |
 | `featureGates` | The registry as pure feature-gates (id + default posture) for the hierarchical resolver. |
 | `markFeatureLoaded` | — |
 | `disabledFeatureIds` | The full set of disabled ids: env (`DISABLED_FEATURES`) ∪ settings (`disabledFeatures`). |
-| `isFeatureEnabled` | True when a module id is currently enabled (not in the disabled set). |
-| `featureStatus` | The status of every registered feature module (for `GET /api/features` + the admin panel). |
-| `requireFeature` | Middleware: 404 when the feature is disabled at request time (immediate runtime toggle-off). |
+| `scopeOverrides` | Build the resolver's scope overrides from settings + the requested programme/project. |
+| `resolveScopedFeatures` | Resolve every feature module for a scope (org by default), with enabled/blockedAt/lock detail. |
+| `isFeatureEnabled` | True when a module id is enabled for the given scope (org by default). |
+| `featureStatus` | The status of every registered feature module for a scope (org by default) — `GET /api/features`. |
+| `requireFeature` | Middleware: 404 when the feature is disabled for the request's scope. |
 
 ### `artifacts/api-server/src/lib/feature-resolution.ts`
 
@@ -1783,7 +1785,7 @@ Data-export endpoints — GET /api/export.{csv,xlsx,json,md,pdf} render the proj
 
 ### `artifacts/api-server/src/routes/features.ts`
 
-Feature-module status, so the SPA can lazily gate optional UI and the admin panel can show what's on/off (and what needs a restart to load).
+Feature gating + PMO governance, resolved per scope (org → programme → project).
 
 ### `artifacts/api-server/src/routes/health-watch.ts`
 
