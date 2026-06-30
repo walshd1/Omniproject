@@ -48,10 +48,20 @@ export function useRateCard() {
   });
 }
 
-/** The body the rate-card PUT accepts (central margin/overhead rides along as `uplift`). */
+/** A role authored in plaintext: the server hashes the title (keyed HMAC) to key the card. */
+export interface Role {
+  title: string;
+  /** projectType id → facing → rate. */
+  rates: Record<string, Partial<Record<Facing, number>>>;
+}
+
+/** The body the rate-card PUT accepts. Roles may be authored in plaintext (`roles`, server hashes) or
+ *  round-tripped as hashed `titles` + `rates`; `roles` wins when both are present. Central margin/
+ *  overhead rides along as `uplift`. */
 export interface RateCardSave {
-  titles: Record<string, string>;
-  rates: RateCardConfig["rates"];
+  titles?: Record<string, string>;
+  rates?: RateCardConfig["rates"];
+  roles?: Role[];
   projectTypes: ProjectType[];
   uplift?: Partial<Uplift>;
 }

@@ -26,6 +26,7 @@ import { GovernanceDashboard } from "../components/settings/GovernanceDashboard"
 import { DeploymentProfile } from "../components/settings/DeploymentProfile";
 import { FeatureModulesAdmin } from "../components/settings/FeatureModulesAdmin";
 import { RateCardAdmin } from "../components/settings/RateCardAdmin";
+import { RateGridAdmin } from "../components/settings/RateGridAdmin";
 import { FeatureGovernance } from "../components/settings/FeatureGovernance";
 import { FieldVisibilityAdmin } from "../components/settings/FieldVisibilityAdmin";
 import { SecurityKeys } from "../components/settings/SecurityKeys";
@@ -330,6 +331,10 @@ export function Settings() {
 
       <div className="mt-10">
         <RateCardAdmin />
+      </div>
+
+      <div className="mt-10">
+        <RateGridAdmin />
       </div>
 
       <div className="mt-10">
