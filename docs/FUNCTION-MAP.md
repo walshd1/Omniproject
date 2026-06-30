@@ -980,6 +980,15 @@ Field registry (gateway view) — the reconcile / validate behaviour over the ca
 
 Indicative, GBP-based FX table used as a sample/fallback only — NOT live market data (note the epoch `asOf` and `provenance: "sample"`).
 
+### `artifacts/api-server/src/lib/governance-rules.ts`
+
+Conditional governance rules — a PMO mandate that applies only WHEN its predicate matches.
+
+| Function | What it does |
+| --- | --- |
+| `governanceOverridesFor` | Collect the effects of every rule whose condition matches the context (deduped, declared order). |
+| `firedGovernanceRuleIds` | The ids of the governance rules that fired for a context — for explainability + audit. |
+
 ### `artifacts/api-server/src/lib/health-watch.ts`
 
 Health / anomaly watch.
