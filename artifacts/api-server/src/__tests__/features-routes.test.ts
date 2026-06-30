@@ -35,7 +35,7 @@ after(() => server?.close());
 
 afterEach(async () => {
   const { updateSettings } = await import("../lib/settings");
-  updateSettings({ programmeFeatures: {}, projectFeatures: {}, featureGovernance: { required: [], forbidden: [] }, enabledFeatures: [], disabledFeatures: [] });
+  updateSettings({ programmeFeatures: {}, projectFeatures: {}, featureGovernance: { required: [], forbidden: [] }, enabledFeatures: [], disabledFeatures: [], governanceRules: [] });
 });
 
 const getFeatures = (q = "") =>
@@ -100,6 +100,22 @@ test("a project cannot require a feature the programme forbade (project ceiling 
   assert.equal((await put("/features/programme/prog-platform", { forbidden: ["grid"] })).status, 200);
   const r = await put("/features/project/proj-001", { required: ["grid"] });
   assert.equal(r.status, 400);
+});
+
+test("governance rules round-trip and restrict predicates to the sync-safe fields", async () => {
+  // a valid rule (scoped by projectType) is accepted and read back
+  const ok = await put("/features/governance-rules", {
+    governanceRules: [{ id: "r1", when: { all: [{ field: "projectType", op: "eq", value: "internal" }] }, forbid: ["report:evm"] }],
+  });
+  assert.equal(ok.status, 200);
+  const got = await fetch(`${base}/api/features/governance-rules`, { headers: { cookie: ADMIN } }).then((r) => r.json()) as { governanceRules: { id: string }[] };
+  assert.deepEqual(got.governanceRules.map((r) => r.id), ["r1"]);
+  // a predicate on a non-sync-safe field (budget) is rejected — it couldn't be enforced consistently
+  const bad = await put("/features/governance-rules", { governanceRules: [{ id: "r2", when: { all: [{ field: "budget", op: "gt", value: 1000 }] }, forbid: ["report:evm"] }] });
+  assert.equal(bad.status, 400);
+  // an unknown catalogue id is rejected
+  const badId = await put("/features/governance-rules", { governanceRules: [{ id: "r3", forbid: ["not-a-report"] }] });
+  assert.equal(badId.status, 400);
 });
 
 test("an org `forbid report:x` actually withholds the report from /setup/reports (not just the admin table)", async () => {

@@ -826,6 +826,7 @@ const SAMPLE_SETTINGS = {
   featureGovernance: { required: [], forbidden: [] },
   programmeFeatures: {},
   projectFeatures: {},
+  governanceRules: [],
   hiddenFields: [],
   savedViews: [],
   dashboards: [],

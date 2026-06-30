@@ -8,6 +8,8 @@ import {
   type ResolvedFeature,
   type ScopeOverrides,
 } from "./feature-resolution";
+import { governanceOverridesFor } from "./governance-rules";
+import { projectTypeFor } from "./rate-card-store";
 
 /** A resolution scope: a project (and/or its programme). Omit both for org-level resolution. */
 export interface FeatureScope {
@@ -199,16 +201,31 @@ export function disabledFeatureIds(): Set<string> {
   return out;
 }
 
-/** Build the resolver's scope overrides from settings + the requested programme/project. */
+/**
+ * The context conditional governance rules evaluate against. Restricted to the facts available
+ * **synchronously in every resolution path** (read AND enforce) — programme, project, and the project's
+ * type — so a rule resolves identically when the SPA reads status and when `requireFeature` enforces at
+ * action time. (Richer facts like budget need an async project read; those rules are rejected at
+ * authoring time so a rule can never be hidden in the UI yet allowed by the API.)
+ */
+function governanceContext(scope: FeatureScope): Record<string, unknown> {
+  const projectId = scope.projectId ?? null;
+  return { programmeId: scope.programmeId ?? null, projectId, projectType: projectId ? projectTypeFor(projectId) : null };
+}
+
+/** Build the resolver's scope overrides from settings + the requested programme/project. Conditional
+ *  governance rules that match the scope's context are folded into the ORG level (they can only add
+ *  require/forbid/disable for matching contexts — never grant beyond org, so monotonicity holds). */
 export function scopeOverrides(scope: FeatureScope = {}): ScopeOverrides {
   const s = getSettings();
   const prog = scope.programmeId ? s.programmeFeatures?.[scope.programmeId] : undefined;
   const proj = scope.projectId ? s.projectFeatures?.[scope.projectId] : undefined;
+  const ruleOv = governanceOverridesFor(s.governanceRules ?? [], governanceContext(scope));
   return {
-    orgDisabled: s.disabledFeatures ?? [],
+    orgDisabled: [...(s.disabledFeatures ?? []), ...ruleOv.disabled],
     orgEnabled: s.enabledFeatures ?? [],
-    orgRequired: s.featureGovernance?.required ?? [],
-    orgForbidden: s.featureGovernance?.forbidden ?? [],
+    orgRequired: [...(s.featureGovernance?.required ?? []), ...ruleOv.required],
+    orgForbidden: [...(s.featureGovernance?.forbidden ?? []), ...ruleOv.forbidden],
     programmeDisabled: prog?.disabled ?? [],
     programmeRequired: prog?.required ?? [],
     programmeForbidden: prog?.forbidden ?? [],

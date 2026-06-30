@@ -11,7 +11,13 @@ import { getSession } from "./auth";
 import { recordAudit } from "../lib/audit";
 import { getProjects } from "../lib/data";
 import { programmeIdOf } from "../lib/programmes";
+import { validatePredicate, type ConditionSet } from "../lib/predicate";
+import type { GovernanceRule } from "../lib/governance-rules";
 import type { Request, Response } from "express";
+
+/** The only context fields a governance rule may reference — the facts evaluable synchronously at BOTH
+ *  read and enforce time, so a rule can never be shown-but-not-enforced (or vice-versa). */
+const GOVERNANCE_RULE_FIELDS = new Set(["programmeId", "projectId", "projectType"]);
 
 /**
  * Feature gating + PMO governance, resolved per scope (org → programme → project).
@@ -108,6 +114,57 @@ router.get("/features", (req, res) => {
   const programmeId = asStr(req.query["programmeId"]);
   const projectId = asStr(req.query["projectId"]);
   res.json({ features: featureStatus({ programmeId, projectId }) });
+});
+
+/** The PMO's conditional governance rules (predicate → require/forbid/disable). */
+router.get("/features/governance-rules", requireRole("pmo"), (_req, res) => {
+  res.json({ governanceRules: getSettings().governanceRules ?? [] });
+});
+
+/** Validate + read the governance-rule list: ids known, predicates restricted to the sync-safe fields. */
+function readGovernanceRules(raw: unknown): GovernanceRule[] {
+  const valid = new Set(governanceGates().map((g) => g.id));
+  const out: GovernanceRule[] = [];
+  for (const r of (Array.isArray(raw) ? raw : []) as unknown[]) {
+    const o = r as Record<string, unknown>;
+    if (!asStr(o?.["id"])) throw new SettingsValidationError("each governance rule needs an id");
+    const rule: GovernanceRule = { id: o["id"] as string };
+    if (asStr(o["label"])) rule.label = o["label"] as string;
+    for (const k of ["require", "forbid", "disable"] as const) {
+      const arr = o[k];
+      if (arr == null) continue;
+      if (!Array.isArray(arr) || arr.some((x) => typeof x !== "string")) throw new SettingsValidationError(`${k} must be an array of strings`);
+      const unknown = (arr as string[]).find((id) => !valid.has(id));
+      if (unknown) throw new SettingsValidationError(`"${unknown}" is not a known catalogue item`);
+      rule[k] = arr as string[];
+    }
+    const when = o["when"] as ConditionSet | undefined;
+    if (when && typeof when === "object") {
+      const preds = [...(when.all ?? []), ...(when.any ?? [])];
+      for (const p of preds) {
+        const err = validatePredicate(p);
+        if (err) throw new SettingsValidationError(`rule "${rule.id}": ${err}`);
+        if (!GOVERNANCE_RULE_FIELDS.has((p as { field: string }).field)) {
+          throw new SettingsValidationError(`rule "${rule.id}": governance predicates may only use ${[...GOVERNANCE_RULE_FIELDS].join(", ")} (so read and enforce stay consistent)`);
+        }
+      }
+      rule.when = { ...(when.all ? { all: when.all } : {}), ...(when.any ? { any: when.any } : {}) };
+    }
+    out.push(rule);
+  }
+  return out;
+}
+
+router.put("/features/governance-rules", requireRole("pmo"), (req, res) => {
+  try {
+    const governanceRules = readGovernanceRules((req.body as Record<string, unknown>)?.["governanceRules"]);
+    updateSettings({ governanceRules });
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: "governance.rules.update", actor: getSession(req) ? { sub: getSession(req)!.sub, role: roleForReq(req) } : null, result: "success", status: 200, meta: { count: governanceRules.length } });
+    res.json({ governanceRules: getSettings().governanceRules });
+  } catch (err) {
+    if (err instanceof SettingsValidationError) { res.status(400).json({ error: err.message }); return; }
+    throw err;
+  }
 });
 
 /** Resolve the caller's governable scope, failing CLOSED (403) if the backend can't be reached —
