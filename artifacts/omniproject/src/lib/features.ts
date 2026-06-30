@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getJson, safeJson, responseError } from "./api";
+import type { ConditionSet } from "./rate-card";
 
 /**
  * Feature-module client. The gateway resolves the org → programme → project gating model and PMO
@@ -120,5 +121,45 @@ export function useSetProjectFeatures() {
     mutationFn: ({ projectId, programmeId, config }: { projectId: string; programmeId?: string | null; config: ScopeFeatureConfig }) =>
       patchJson(`/api/features/project/${encodeURIComponent(projectId)}${programmeId ? `?programmeId=${encodeURIComponent(programmeId)}` : ""}`, config, "Failed to update project features"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["features"] }),
+  });
+}
+
+/**
+ * A conditional governance rule (PMO): when its predicate matches a scope, mandate/forbid/disable
+ * catalogue items. Predicate fields are restricted server-side to the synchronously-evaluable facts
+ * (programmeId/projectId/projectType) so a rule resolves the same when read and when enforced.
+ */
+export interface GovernanceRule {
+  id: string;
+  label?: string;
+  when?: ConditionSet;
+  require?: string[];
+  forbid?: string[];
+  disable?: string[];
+}
+
+/** The fields a governance predicate may reference (mirrors the server's GOVERNANCE_RULE_FIELDS). */
+export const GOVERNANCE_RULE_FIELDS = ["programmeId", "projectId", "projectType"];
+
+export const governanceRulesQueryKey = ["governance-rules"] as const;
+
+/** The PMO's conditional governance rules (predicate → require/forbid/disable). PMO-gated. */
+export function useGovernanceRules() {
+  return useQuery({
+    queryKey: governanceRulesQueryKey,
+    queryFn: () => getJson<{ governanceRules: GovernanceRule[] }>("/api/features/governance-rules").then((r) => r.governanceRules),
+    staleTime: 30_000,
+  });
+}
+
+/** Persist the governance-rule set (pmo). Invalidates the rules + the resolved feature status. */
+export function useSaveGovernanceRules() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (governanceRules: GovernanceRule[]) => patchJson("/api/features/governance-rules", { governanceRules }, "Failed to update governance rules"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: governanceRulesQueryKey });
+      qc.invalidateQueries({ queryKey: ["features"] });
+    },
   });
 }
