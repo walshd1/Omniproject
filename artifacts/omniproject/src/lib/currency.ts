@@ -24,3 +24,8 @@ export function convertAmount(amount: number, from: string, to: string, rates?: 
 export function currencyList(rates?: Record<string, number>): string[] {
   return rates ? Object.keys(rates).sort() : [];
 }
+
+/** The first currency seen across a set of items, falling back to a default (e.g. for a report's display). */
+export function firstCurrency(items: readonly { currency?: string | null }[] | undefined, fallback = "GBP"): string {
+  return (items ?? []).find((i) => i.currency)?.currency || fallback;
+}

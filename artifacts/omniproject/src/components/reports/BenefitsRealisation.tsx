@@ -1,11 +1,14 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { summariseBenefits, type BenefitBucket } from "../../lib/benefits";
+import { firstCurrency } from "../../lib/currency";
+import { truncateLabel } from "../../lib/utils";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
+import { StatCard } from "./StatCard";
 
 /**
  * Benefits Realisation report. STATELESS: it rolls up the canonical `benefit*` fields already on
@@ -22,31 +25,20 @@ const BUCKET_META: Record<BenefitBucket, { label: string; colour: string }> = {
 };
 const BUCKET_ORDER: BenefitBucket[] = ["realised", "on_track", "at_risk", "missed", "not_started"];
 
-function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="border border-border bg-background p-3 text-center">
-      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
-      <div className="text-2xl font-black font-mono tabular-nums">{value}</div>
-      {hint && <div className="text-[10px] text-muted-foreground">{hint}</div>}
-    </div>
-  );
-}
-
 export function BenefitsRealisation({ projectId }: { projectId: string }) {
   const { formatCurrency } = useT();
   const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId, {
     query: { queryKey: getGetProjectIssuesQueryKey(projectId) },
   });
 
-  const ccy = useMemo(() => (issues ?? []).find((i) => i.currency)?.currency || "GBP", [issues]);
+  const ccy = useMemo(() => firstCurrency(issues), [issues]);
   const summary = useMemo(() => summariseBenefits((issues ?? []) as Issue[]), [issues]);
-  const money = (n: number) => formatCurrency(n, ccy);
+  const money = useCallback((n: number) => formatCurrency(n, ccy), [formatCurrency, ccy]);
 
-  const chartData = summary.rows.slice(0, 8).map((r) => ({
-    name: r.title.length > 22 ? `${r.title.slice(0, 21)}…` : r.title,
-    planned: r.planned,
-    actual: r.actual,
-  }));
+  const chartData = useMemo(
+    () => summary.rows.slice(0, 8).map((r) => ({ name: truncateLabel(r.title), planned: r.planned, actual: r.actual })),
+    [summary],
+  );
 
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
@@ -57,10 +49,10 @@ export function BenefitsRealisation({ projectId }: { projectId: string }) {
       ) : (
         <div className="space-y-4" data-testid="benefits">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Kpi label="Planned benefit" value={money(summary.totalPlanned)} />
-            <Kpi label="Realised to date" value={money(summary.totalActual)} hint={`${Math.round(summary.realisation * 100)}% of plan`} />
-            <Kpi label="Realisation" value={`${Math.round(summary.realisation * 100)}%`} />
-            <Kpi label="Risk-adjusted forecast" value={money(summary.expectedValue)} hint="planned × confidence" />
+            <StatCard label="Planned benefit" value={money(summary.totalPlanned)} />
+            <StatCard label="Realised to date" value={money(summary.totalActual)} hint={`${Math.round(summary.realisation * 100)}% of plan`} />
+            <StatCard label="Realisation" value={`${Math.round(summary.realisation * 100)}%`} />
+            <StatCard label="Risk-adjusted forecast" value={money(summary.expectedValue)} hint="planned × confidence" />
           </div>
 
           {/* RAG status spread */}

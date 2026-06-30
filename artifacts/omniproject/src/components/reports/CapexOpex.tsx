@@ -1,11 +1,14 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { summariseCapex } from "../../lib/capex";
+import { firstCurrency } from "../../lib/currency";
+import { truncateLabel } from "../../lib/utils";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
+import { StatCard } from "./StatCard";
 
 /**
  * CapEx / OpEx report. STATELESS: it splits the project's spend into capital vs operating from the
@@ -14,31 +17,20 @@ import { DataState } from "../DataState";
  * depreciation period. Nothing is stored.
  */
 
-function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="border border-border bg-background p-3 text-center">
-      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
-      <div className="text-2xl font-black font-mono tabular-nums">{value}</div>
-      {hint && <div className="text-[10px] text-muted-foreground">{hint}</div>}
-    </div>
-  );
-}
-
 export function CapexOpex({ projectId }: { projectId: string }) {
   const { formatCurrency } = useT();
   const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId, {
     query: { queryKey: getGetProjectIssuesQueryKey(projectId) },
   });
 
-  const ccy = useMemo(() => (issues ?? []).find((i) => i.currency)?.currency || "GBP", [issues]);
+  const ccy = useMemo(() => firstCurrency(issues), [issues]);
   const summary = useMemo(() => summariseCapex((issues ?? []) as Issue[]), [issues]);
-  const money = (n: number) => formatCurrency(n, ccy);
+  const money = useCallback((n: number) => formatCurrency(n, ccy), [formatCurrency, ccy]);
 
-  const catData = summary.byCategory.slice(0, 8).map((c) => ({
-    name: c.category.length > 22 ? `${c.category.slice(0, 21)}…` : c.category,
-    capex: c.capex,
-    opex: c.opex,
-  }));
+  const catData = useMemo(
+    () => summary.byCategory.slice(0, 8).map((c) => ({ name: truncateLabel(c.category), capex: c.capex, opex: c.opex })),
+    [summary],
+  );
 
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
@@ -49,10 +41,10 @@ export function CapexOpex({ projectId }: { projectId: string }) {
       ) : (
         <div className="space-y-4" data-testid="capex-opex">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Kpi label="Capital (CapEx)" value={money(summary.totalCapex)} hint={`${Math.round(summary.capexPct * 100)}% of spend`} />
-            <Kpi label="Operating (OpEx)" value={money(summary.totalOpex)} />
-            <Kpi label="Total classified" value={money(summary.total)} />
-            <Kpi label="Annual capital charge" value={money(summary.annualisedCapex)} hint="capex ÷ useful life" />
+            <StatCard label="Capital (CapEx)" value={money(summary.totalCapex)} hint={`${Math.round(summary.capexPct * 100)}% of spend`} />
+            <StatCard label="Operating (OpEx)" value={money(summary.totalOpex)} />
+            <StatCard label="Total classified" value={money(summary.total)} />
+            <StatCard label="Annual capital charge" value={money(summary.annualisedCapex)} hint="capex ÷ useful life" />
           </div>
 
           <div>

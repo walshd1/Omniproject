@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { cn } from "./utils";
+import { cn, truncateLabel } from "./utils";
+
+describe("truncateLabel", () => {
+  it("leaves short labels untouched", () => {
+    expect(truncateLabel("Short")).toBe("Short");
+  });
+  it("truncates with an ellipsis past the max", () => {
+    expect(truncateLabel("x".repeat(30))).toBe(`${"x".repeat(21)}…`);
+    expect(truncateLabel("abcdef", 4)).toBe("abc…");
+  });
+});
 
 describe("cn", () => {
   it("joins class names", () => {
