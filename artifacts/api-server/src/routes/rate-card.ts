@@ -5,6 +5,8 @@ import { recordAudit } from "../lib/audit";
 import { getIssues, getProjects } from "../lib/data";
 import { programmeIdOf } from "../lib/programmes";
 import { staffCost, valueColumns, type RateCard, type Facing, type TimedItem, type Uplift, type ValueColumn } from "../lib/rate-card";
+import { applyCostRules, firedCostRuleIds, type CostRule } from "../lib/cost-rules";
+import { validatePredicate, type ConditionSet } from "../lib/predicate";
 import {
   getRateCard,
   setRateCard,
@@ -19,6 +21,8 @@ import {
   resolveUplift,
   setCentralUplift,
   setScopeUplift,
+  getCostRules,
+  setCostRules,
   type ProjectType,
 } from "../lib/rate-card-store";
 
@@ -125,6 +129,47 @@ router.put("/rate-card/uplift/:level/:scopeId", requireRole("pmo"), (req, res) =
   res.json({ ok: true, level, scopeId, uplift: getUpliftConfig() });
 });
 
+/** The PMO's general cost rules (predicate → uplift override). */
+router.get("/rate-card/cost-rules", requireRole("pmo"), (_req, res) => {
+  res.json({ costRules: getCostRules() });
+});
+
+/** Validate + read the cost-rule list (any number of {id, when?, effect}). */
+function readCostRules(raw: unknown): CostRule[] {
+  const out: CostRule[] = [];
+  for (const r of (Array.isArray(raw) ? raw : []) as unknown[]) {
+    const o = r as Record<string, unknown>;
+    if (!isStr(o?.["id"])) throw new Error("each cost rule needs an id");
+    const effectIn = (o["effect"] ?? {}) as Record<string, unknown>;
+    const effect: CostRule["effect"] = {};
+    if (isNum(effectIn["margin"]) && (effectIn["margin"] as number) >= 0) effect.margin = effectIn["margin"] as number;
+    if (isNum(effectIn["overhead"]) && (effectIn["overhead"] as number) >= 0) effect.overhead = effectIn["overhead"] as number;
+    const rule: CostRule = { id: o["id"] as string, effect };
+    if (isStr(o["label"])) rule.label = o["label"] as string;
+    const when = o["when"] as ConditionSet | undefined;
+    if (when && typeof when === "object") {
+      for (const p of [...(when.all ?? []), ...(when.any ?? [])]) {
+        const err = validatePredicate(p);
+        if (err) throw new Error(`cost rule "${rule.id}": ${err}`);
+      }
+      rule.when = { ...(when.all ? { all: when.all } : {}), ...(when.any ? { any: when.any } : {}) };
+    }
+    out.push(rule);
+  }
+  return out;
+}
+
+router.put("/rate-card/cost-rules", requireRole("pmo"), (req, res) => {
+  try {
+    const rules = readCostRules((req.body as Record<string, unknown>)?.["costRules"]);
+    setCostRules(rules);
+    audit(req, "rate_card.cost_rules.update", { count: rules.length });
+    res.json({ costRules: getCostRules() });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "invalid cost rules" });
+  }
+});
+
 /** The hashed identity→role map (hashes only — no plaintext identities ever leave the store). */
 router.get("/rate-card/identities", requireRole("pmo"), (_req, res) => {
   res.json(getIdentityMap());
@@ -168,13 +213,24 @@ router.get("/projects/:projectId/staff-cost", requireRole("pmo"), async (req, re
   try {
     const projectId = String(req.params["projectId"] ?? "");
     const [issues, projects] = await Promise.all([getIssues(req, projectId), getProjects(req)]);
-    const programmeId = programmeIdOf((projects.find((p) => String(p["id"]) === projectId) ?? {}) as Record<string, unknown>);
+    const project = (projects.find((p) => String(p["id"]) === projectId) ?? {}) as Record<string, unknown>;
+    const programmeId = programmeIdOf(project);
     const scope = { programmeId, projectId };
-    const uplift = resolveUplift(scope);
-    const cost = staffCost(issues as unknown as TimedItem[], getRateCard(), getIdentityMap(), projectTypeFor(projectId), uplift, scope);
-    // The PMO's value model for this project (any number of columns) computed from the one roll-up.
+    const projectType = projectTypeFor(projectId);
+
+    // The cost-rule context: scope + projectType + a computed budget + every scalar project attribute the
+    // backend exposes (so a rule can match on region, intraCompany, a custom flag, … — fully general).
+    const budget = (issues as TimedItem[]).reduce((s, it) => s + (typeof (it as { budget?: number }).budget === "number" ? (it as { budget?: number }).budget! : 0), 0);
+    const ctx: Record<string, unknown> = { programmeId, projectId, projectType, budget };
+    for (const [k, v] of Object.entries(project)) if (v == null || typeof v !== "object") ctx[k] = v;
+
+    // Base uplift (central → programme → project), then the general PMO cost rules override it for matches.
+    const rules = getCostRules();
+    const uplift = applyCostRules(resolveUplift(scope), rules, ctx);
+
+    const cost = staffCost(issues as unknown as TimedItem[], getRateCard(), getIdentityMap(), projectType, uplift, scope);
     const columns = valueColumns(cost, valueModelFor(projectId), uplift);
-    res.json({ ...cost, projectType: projectTypeFor(projectId), columns });
+    res.json({ ...cost, projectType, columns, appliedCostRules: firedCostRuleIds(rules, ctx) });
   } catch (err) {
     req.log.error({ err }, "staff_cost failed");
     res.status(502).json({ error: "Could not compute staff cost" });

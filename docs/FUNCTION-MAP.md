@@ -701,6 +701,15 @@ Portfolio copilot — read-only NL Q&A over the portfolio read model.
 | `copilotMessages` | Build the copilot messages: a hardening system prompt + the delimited data + question. |
 | `answerCopilot` | Answer a question over the scoped read model. |
 
+### `artifacts/api-server/src/lib/cost-rules.ts`
+
+General, PMO-authored cost rules.
+
+| Function | What it does |
+| --- | --- |
+| `applyCostRules` | The effective uplift for a context: the scope-resolved base, then every matching rule applied in declared order (last write wins per field), so a later, more specific rule overrides an earlier general one. |
+| `firedCostRuleIds` | The ids of the rules that fired for a context — for explainability ("why is this charge this?"). |
+
 ### `artifacts/api-server/src/lib/crypto-aes-gcm.ts`
 
 The one AES-256-GCM seal/open primitive.
@@ -1349,6 +1358,8 @@ Sealed at-rest store for the rate card, the hashed identity→role map, and the 
 | `setCentralUplift` | Set the central uplift defaults (margin + overhead). |
 | `setScopeUplift` | Override (or clear, with an empty object) the uplift for one programme/project scope. |
 | `setProjectTypes` | Replace the PMO's project-type list. |
+| `getCostRules` | The PMO-authored general cost rules (predicate → uplift override). |
+| `setCostRules` | Replace the cost-rule set. |
 | `setProjectType` | Assign a project to a project type (chosen at setup). |
 | `setIdentityAssignments` | Set the identity→role assignments for a scope from RAW (assignee, jobTitleHash) pairs — the assignee is hashed here so the caller's plaintext name is never persisted. |
 | `__resetRateCardCache` | Test-only: drop the in-memory cache (and reset to empty when RAM-only). |

@@ -129,6 +129,37 @@ test("a project type can declare any number of value columns, computed server-si
   assert.deepEqual(body.columns.map((c) => [c.id, c.total]), [["cost", 2600], ["charge", 3380], ["intra", 2600]]);
 });
 
+test("a general cost rule overrides the uplift for matching projects (intra-company is just one example)", async () => {
+  const senior = hashIdentity("Senior Engineer");
+  await put("/rate-card", {
+    titles: { [senior]: "Senior Engineer" },
+    rates: { [senior]: { "*": { client: 100, internal: 60 } } },
+    uplift: { margin: 0.2, overhead: 0.1 }, // central +30%
+    projectTypes: [{ id: "delivery", label: "Delivery" }],
+  });
+  await put("/rate-card/identities", { level: "central", assignments: [{ assignee: "alice", titleHash: senior }] });
+  await put("/projects/proj-001/type", { projectType: "delivery" });
+
+  // No rules yet → central uplift: charge 2600 × 1.3 = 3380.
+  assert.equal(((await get("/projects/proj-001/staff-cost").then((x) => x.json())) as { charge: number }).charge, 3380);
+
+  // A general rule: any delivery-type project gets a richer 0.5 margin (0.1 overhead kept) → ×1.6.
+  const r = await put("/rate-card/cost-rules", {
+    costRules: [{ id: "delivery-premium", when: { all: [{ field: "projectType", op: "eq", value: "delivery" }] }, effect: { margin: 0.5 } }],
+  });
+  assert.equal(r.status, 200);
+  const body = (await get("/projects/proj-001/staff-cost").then((x) => x.json())) as { charge: number; appliedCostRules: string[] };
+  assert.equal(body.charge, 4160); // 2600 × (1 + 0.1 + 0.5)
+  assert.deepEqual(body.appliedCostRules, ["delivery-premium"]);
+});
+
+test("cost-rules PUT validates predicates and round-trips", async () => {
+  assert.equal((await put("/rate-card/cost-rules", { costRules: [{ id: "ok", effect: { margin: 0 } }] })).status, 200);
+  assert.deepEqual(((await get("/rate-card/cost-rules").then((x) => x.json())) as { costRules: { id: string }[] }).costRules.map((c) => c.id), ["ok"]);
+  const bad = await put("/rate-card/cost-rules", { costRules: [{ id: "bad", when: { all: [{ field: "x", op: "between" }] }, effect: {} }] });
+  assert.equal(bad.status, 400); // a malformed predicate is rejected
+});
+
 test("the staff-cost endpoint never leaks raw rates — only aggregated cost", async () => {
   const senior = hashIdentity("Senior Engineer");
   await put("/rate-card", { titles: { [senior]: "Senior Engineer" }, rates: { [senior]: { "*": { client: 100, internal: 60 } } }, projectTypes: [] });
