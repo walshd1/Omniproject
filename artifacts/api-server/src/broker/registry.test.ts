@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { connectedBrokers, connectedBrokerKinds, brokersSupporting, brokerForCommand } from "./registry";
+import { connectedBrokers, connectedBrokerKinds, brokersSupporting, brokerForCommand, brokerPurposeCount } from "./registry";
 import { getBroker } from "./index";
 import { getBrokerDef } from "@workspace/backend-catalogue";
 
@@ -17,6 +17,16 @@ test("connectedBrokers: the active broker is the sole, primary connection by def
   const connected = connectedBrokers();
   assert.deepEqual(connected, [{ kind: ACTIVE, live: getBroker().live, primary: true }]);
   assert.deepEqual(connectedBrokerKinds(), [ACTIVE]);
+});
+
+test("a broker maps ≥1 capability or it isn't loaded (no purpose → not connected)", () => {
+  // Real catalogue kinds map at least one capability — so they have purpose and load.
+  assert.ok(brokerPurposeCount("n8n") >= 1);
+  process.env["BROKER_KINDS"] = "n8n";
+  // Every connected broker has a purpose (>=1 mapped capability); none is padding.
+  for (const b of connectedBrokers()) assert.ok(brokerPurposeCount(b.kind) >= 1 || b.primary, `${b.kind} has no purpose`);
+  // A name that maps nothing contributes 0 and would be dropped by the load rule.
+  assert.equal(brokerPurposeCount("totally-not-a-broker"), 0);
 });
 
 test("BROKER_KINDS declares extra connected kinds; unknown ids are dropped, active not duplicated", () => {

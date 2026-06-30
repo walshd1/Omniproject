@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
+import { stampSource } from "../broker/identity";
 
 /**
  * Data accessor facade. Historically this branched on backend-vs-demo inline; that
@@ -18,10 +19,17 @@ export const brokerChangeToken = (req: Request, resource: string): Promise<strin
   return typeof b.changeToken === "function" ? b.changeToken(contextFromReq(req), resource) : Promise.resolve(null);
 };
 
-/** List all projects the actor can see, via the active broker. */
-export const getProjects = (req: Request) => getBroker().listProjects(contextFromReq(req));
-/** List the issues of one project, via the active broker. */
-export const getIssues = (req: Request, projectId: string) => getBroker().listIssues(contextFromReq(req), projectId);
+/** List all projects the actor can see, via the active broker. Each row is stamped with the broker's
+ *  `source` if the backend omitted one, so the qualified identity (`source:id`) is always available. */
+export const getProjects = (req: Request) => {
+  const b = getBroker();
+  return b.listProjects(contextFromReq(req)).then((rows) => stampSource(rows, b.kind));
+};
+/** List the issues of one project, via the active broker (source-stamped, as for projects). */
+export const getIssues = (req: Request, projectId: string) => {
+  const b = getBroker();
+  return b.listIssues(contextFromReq(req), projectId).then((rows) => stampSource(rows, b.kind));
+};
 /** The cross-project activity feed, via the active broker. */
 export const getActivity = (req: Request) => getBroker().listActivity(contextFromReq(req));
 /** One project's roll-up summary (health/variance), via the active broker. */
