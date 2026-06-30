@@ -9,6 +9,31 @@ Each item: what it is, why it's parked, and the recommended call.
 
 ---
 
+## 0. Stateful-data policy (the rule that governs every item below)
+
+The default is unchanged: **stateless, zero-at-rest overlay**. Where a feature seems to *need* state,
+apply this ladder **in order** and stop at the first rung that works:
+
+1. **Can it be code or a JSON import?** Do that. No persistence. *(All four enterprise reports shipped
+   so far — Monte Carlo, Portfolio Roadmap, Critical Path, plus the dependency overlay — live here:
+   they derive over the read model or a user-supplied JSON bundle and store nothing.)*
+2. **Is it just transient state memory?** Hold it **ephemerally** — write only when there is a specific
+   need, and **delete the moment the state changes**. Browser-session/volatile, never the server.
+3. **Must it truly persist?** Then: **encrypted by default** (config-crypto AES-256-GCM), kept for the
+   **shortest necessary lifetime**, and the end-goal is always **write-back to the customer's own
+   backend via the broker**. OmniProject is the courier, never the system of record. No new database.
+4. **If customer *data* values must be held at all**, never store them legibly. Each value is abstracted
+   as **`{ hash(field), hash(vendor), hash(column), value }`** and then **encrypted** — so a leaked
+   file reveals neither the schema it came from nor which system/column it maps to. The customer owns
+   the data and the key; OmniProject makes **no warranty** and stores nothing it isn't told to.
+
+**Consequence for stage-gates (E3 below):** the gate *model* is rung 1 (code/JSON); advancing a gate
+**writes the status straight back to the backend field via the broker** (rung 3's end-state — no local
+store at all); only if a customer enables that screen with *no* backing field do we fall to a rung-2/4
+encrypted, short-lived, hash-abstracted local record. Default off, customer-owned, disclaimed.
+
+---
+
 ## A. Architecture / positioning
 
 ### A1. First-party lightweight backend ("built-in projects")  ⚑ biggest market lever
@@ -99,6 +124,48 @@ the self-contained runtime needs verifying (dynamic requires / optional deps), a
 end-to-end tested in the build sandbox. Credentials would come from env (`SMTP_URL`), never stored.
 **Recommendation:** add nodemailer + a small `lib/email` (env-config, disabled when unset), verify the
 bundle, then wire `sendMagicLink`. Worth doing — just wants a watched first build.
+
+---
+
+## E. Enterprise analytics — the "implement whatever you can statelessly" round
+
+**Shipped (stateless, rung 1 — derive-only, nothing stored):**
+- **Monte Carlo schedule/effort risk** — `lib/monte-carlo` + `MonteCarloRisk` (PR #277).
+- **Portfolio Roadmap** — cross-programme timeline, `lib/roadmap` + `PortfolioRoadmap` (PR #278).
+- **Critical Path (CPM)** — forward/backward-pass solver, `lib/critical-path` + `CriticalPath` (PR #279).
+
+The rest of the enterprise-EPM gap needs **fields the canonical model doesn't carry**, or a stateful
+decision — so they're parked here rather than guessed:
+
+### E1. Benefits realisation tracking
+**What:** planned-vs-actual benefit curves, benefit owners, realisation dates — the "did the programme
+deliver value" view boards ask for.
+**Why parked:** there is **no canonical benefit field** (the registry has cost/effort/schedule, not
+benefits). It can't be derived from what backends expose today.
+**Recommendation:** either (a) **extend the field registry** with a `benefits` group (planned/actual
+value, realise-by date, owner) gated on a backend that can carry them — the clean, stateless route; or
+(b) accept benefits as a **JSON import** (rung 1) the user maintains and we visualise. (a) is the right
+long-term call; needs your yes on adding the field group.
+
+### E2. Capitalisation (CapEx/OpEx) split + cost-rate roll-up
+**What:** classify effort/cost as capital vs operating expense and roll up a blended cost using per-role
+rates — finance-grade reporting large orgs need for the balance sheet.
+**Why parked:** needs a **capex/opex classification field** and **role cost-rates**, neither canonical.
+Deriving capex from a label convention would be guesswork.
+**Recommendation:** add a small `finance` field-group extension (`capexOpex` enum, `costRate`) gated on
+a costed backend; or take **rates as a JSON config import** (rung 1) and classification from a customer
+field mapping. Wants your call on the field-group vs JSON-config route.
+
+### E3. Stage-gate governance (PRINCE2 / phase-gate)
+**What:** define gates (e.g. SOBC → OBC → FBC, or Discovery → Alpha → Beta → Live) and advance/hold a
+project through them with an auditable decision.
+**Why parked (the one feature that wants state):** the gate *model* is fine as code/JSON, but recording
+*"this project is at gate 3, approved on date X by Y"* is state. Per **§0**, the answer is **write the
+gate status back to a backend field via the broker** (e.g. a status/customField) — no OmniProject
+store. Only the no-backend-field fallback needs the encrypted, short-lived, hash-abstracted local record.
+**Recommendation:** build the gate model (JSON, like methodology packs) + a write-back action to a mapped
+backend field; ship the local-store fallback **off by default**, encrypted, disclaimed, customer-owned.
+Larger than a report and touches the write path — worth doing deliberately, not blind. Wants your go.
 
 ---
 
