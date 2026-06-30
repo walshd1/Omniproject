@@ -933,12 +933,14 @@ A resolution scope: a project (and/or its programme).
 | Function | What it does |
 | --- | --- |
 | `featureGates` | The registry as pure feature-gates (id + default posture) for the hierarchical resolver. |
+| `governanceCatalogue` | The full governance catalogue: the feature modules PLUS every shipped report and methodology, so a PMO can mandate ("must use") or forbid ("must not use") any of them through the same resolver. |
+| `governanceGates` | The governance catalogue as resolver gates (id + default posture). |
 | `markFeatureLoaded` | — |
 | `disabledFeatureIds` | The full set of disabled ids: env (`DISABLED_FEATURES`) ∪ settings (`disabledFeatures`). |
 | `scopeOverrides` | Build the resolver's scope overrides from settings + the requested programme/project. |
-| `resolveScopedFeatures` | Resolve every feature module for a scope (org by default), with enabled/blockedAt/lock detail. |
+| `resolveScopedFeatures` | Resolve every governable item (modules + reports + methodologies) for a scope, with lock detail. |
 | `isFeatureEnabled` | True when a module id is enabled for the given scope (org by default). |
-| `featureStatus` | The status of every registered feature module for a scope (org by default) — `GET /api/features`. |
+| `featureStatus` | The status of every governable item (modules + reports + methodologies) for a scope. |
 | `requireFeature` | Middleware: 404 when the feature is disabled for the request's scope. |
 
 ### `artifacts/api-server/src/lib/feature-resolution.ts`

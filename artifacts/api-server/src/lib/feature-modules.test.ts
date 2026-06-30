@@ -37,13 +37,23 @@ test("a UI-only module (grid) is enabled by default and never needsRestart", () 
   assert.equal(grid!.needsRestart, false); // no backend chunk to load → never needs a restart
 });
 
-test("featureStatus surfaces defaultOff/reason and the enabled flag", () => {
+test("featureStatus surfaces defaultOff/reason + spans modules, reports and methodologies", () => {
   const status = featureStatus();
-  assert.equal(status.length, FEATURE_MODULES.length);
+  assert.equal(status.filter((s) => s.kind === "module").length, FEATURE_MODULES.length);
+  assert.ok(status.some((s) => s.kind === "report" && s.id.startsWith("report:")));
+  assert.ok(status.some((s) => s.kind === "methodology" && s.id.startsWith("methodology:")));
   const off = status.find((s) => s.id === OFF_ID)!;
   assert.equal(off.defaultOff, true);
   assert.ok(off.reason); // a safety/cost/storage reason is recorded
   assert.equal(off.enabled, false);
+});
+
+test("a PMO can forbid a report through the same governance resolver", () => {
+  updateSettings({ featureGovernance: { required: [], forbidden: ["report:evm"] } });
+  const evm = featureStatus({ projectId: "p1" }).find((s) => s.id === "report:evm")!;
+  assert.equal(evm.enabled, false);
+  assert.equal(evm.lockedBy, "org");
+  assert.equal(evm.policy, "forbid");
 });
 
 test("scoped resolution: a programme `forbid` disables a feature and reports the lock", () => {

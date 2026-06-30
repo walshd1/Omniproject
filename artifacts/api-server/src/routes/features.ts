@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
   featureStatus,
-  featureGates,
+  governanceGates,
   scopeOverrides,
 } from "../lib/feature-modules";
 import { manageableAtProgramme, manageableAtProject } from "../lib/feature-resolution";
@@ -49,7 +49,7 @@ router.put("/features/programme/:programmeId", requireRole("pmo"), (req, res) =>
     if (!programmeId) { res.status(400).json({ error: "programmeId is required" }); return; }
     const cfg = readScopeConfig(req.body);
     // Ceiling: a programme can only mandate/keep a feature the org already allows.
-    const ceiling = manageableAtProgramme(featureGates(), scopeOverrides());
+    const ceiling = manageableAtProgramme(governanceGates(), scopeOverrides());
     const escapee = cfg.required.find((id) => !ceiling.has(id));
     if (escapee) {
       res.status(400).json({ error: `"${escapee}" is not in the org-approved set, so a programme cannot require it.` });
@@ -70,7 +70,7 @@ router.put("/features/project/:projectId", requireRole("manager"), (req, res) =>
     const programmeId = asStr(req.query["programmeId"]) || asStr((req.body as Record<string, unknown>)?.["programmeId"]);
     const cfg = readScopeConfig(req.body);
     // Ceiling: the project can only mandate within what the programme (or org, if standalone) allows.
-    const ceiling = manageableAtProject(featureGates(), scopeOverrides({ programmeId }));
+    const ceiling = manageableAtProject(governanceGates(), scopeOverrides({ programmeId }));
     const escapee = cfg.required.find((id) => !ceiling.has(id));
     if (escapee) {
       res.status(400).json({ error: `"${escapee}" is not available to this project's programme, so it cannot require it.` });
