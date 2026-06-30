@@ -1307,6 +1307,35 @@ Provenance chain — a keyed-MAC, hash-chained record of every broker call, hold
 | `verifyProvenanceAnchor` | Verify a provenance anchor's Ed25519 signature against a published public key (PEM). |
 | `__resetProvenance` | Test-only: reset the in-memory chain. |
 
+### `artifacts/api-server/src/lib/rate-card-store.ts`
+
+Sealed at-rest store for the rate card, the hashed identity→role map, and the PMO's project-type list.
+
+| Function | What it does |
+| --- | --- |
+| `getRateCard` | The current rate card (job-title hashes → label + rates), decrypted into memory. |
+| `getIdentityMap` | The hashed identity→role map (central + per-scope overrides). |
+| `getProjectTypes` | The PMO-defined project-type list. |
+| `projectTypeFor` | A project's chosen type id, or `"*"` (the default/any) when none is set. |
+| `setRateCard` | Replace the rate card (titles + rates), keyed by job-title hash. |
+| `setProjectTypes` | Replace the PMO's project-type list. |
+| `setProjectType` | Assign a project to a project type (chosen at setup). |
+| `setIdentityAssignments` | Set the identity→role assignments for a scope from RAW (assignee, jobTitleHash) pairs — the assignee is hashed here so the caller's plaintext name is never persisted. |
+| `__resetRateCardCache` | Test-only: drop the in-memory cache (and reset to empty when RAM-only). |
+
+### `artifacts/api-server/src/lib/rate-card.ts`
+
+Rate-card domain — the pure core of staff time-and-cost.
+
+| Function | What it does |
+| --- | --- |
+| `hashIdentity` | A stable, non-reversible keyed hash of a raw identity/title value. |
+| `emptyRateCard` | — |
+| `emptyIdentityMap` | — |
+| `resolveTitleHash` | The job-title hash assigned to a person at a scope. |
+| `resolveRate` | The hourly rate for a role on a project type and facing. |
+| `staffCost` | Roll up staff cost = Σ (loggedHours × resolved rate), split into client-facing vs internal and broken down by role. |
+
 ### `artifacts/api-server/src/lib/rate-limit.ts`
 
 Rate limiting to protect n8n / OpenRouter from spam and scripting loops.
@@ -1865,6 +1894,10 @@ Project, programme-membership, issue + task-item endpoints — the core read/wri
 ### `artifacts/api-server/src/routes/provenance.ts`
 
 Provenance verification (admin) — read + verify the broker-call chain.
+
+### `artifacts/api-server/src/routes/rate-card.ts`
+
+Rate card + hashed identity→role map + project types, and the server-side staff time-and-cost roll-up.
 
 ### `artifacts/api-server/src/routes/raw-api.ts`
 
