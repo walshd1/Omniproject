@@ -8,6 +8,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Critical Path (CPM) report (stateless).** A new `lib/critical-path` solver runs the standard
+  forward/backward pass over activity durations + precedence to surface the project's **critical
+  chain**, each activity's **earliest/latest start-finish** and **total float**, and the overall
+  project duration — detecting dependency cycles rather than hanging on them. The `CriticalPath`
+  report derives durations from the live issues (start→due span, else estimate ÷ 8h) and reads
+  precedence from the existing **blocks / depends-on** dependency overlay (volatile/exportable,
+  never server-stored). Pure derivation: same issues + links ⇒ same schedule, nothing persisted.
+  Capability-gated on `scheduling`; solver + mapping covered by unit tests + a component test.
+
 - **Quantitative risk — Monte Carlo schedule/effort simulation (stateless).** A new enterprise-grade
   risk report (`lib/monte-carlo` + `components/reports/MonteCarloRisk`) that closes the
   "quantitative risk" EPM gap **without storing anything**: it derives a task list from the project's

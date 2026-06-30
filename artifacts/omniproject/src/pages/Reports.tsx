@@ -5,6 +5,7 @@ import { PortfolioKpi } from "../components/reports/PortfolioKpi";
 import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
 import { FinancialEvmChart } from "../components/reports/FinancialEvmChart";
 import { MonteCarloRisk } from "../components/reports/MonteCarloRisk";
+import { CriticalPath } from "../components/reports/CriticalPath";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { ProvenanceBadge } from "../components/ProvenanceBadge";
 import { DataProvenance } from "../components/DataProvenance";
@@ -116,6 +117,15 @@ export function Reports() {
             <section>
               <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Schedule Risk (Monte Carlo)</h2>
               <MonteCarloRisk projectId={projectId} />
+            </section>
+          </Gated>
+        )}
+
+        {projectId && (
+          <Gated caps={caps} domain="scheduling" title="Critical Path (CPM)" requires="durations + blocks/depends-on dependencies">
+            <section>
+              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Critical Path (CPM)</h2>
+              <CriticalPath projectId={projectId} />
             </section>
           </Gated>
         )}
