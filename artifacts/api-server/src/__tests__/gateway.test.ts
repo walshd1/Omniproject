@@ -812,6 +812,7 @@ const SAMPLE_SETTINGS = {
   sttProvider: "none" as const,
   aiModel: "llama3.2",
   backendSource: "sap",
+  reportingCurrency: null,
   oidcIssuerUrl: "https://idp",
   branding: null,
   labelOverrides: {},

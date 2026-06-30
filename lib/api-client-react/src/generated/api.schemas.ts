@@ -942,6 +942,11 @@ export interface Settings {
   aiModel?: string | null;
   /** Free-form backend routing hint passed to the broker (e.g. "all", "jira", "azure-devops", "servicenow", "plane", "openproject"). "all" means no filter — whatever the broker is wired to. */
   backendSource: string;
+  /**
+     * ISO 4217 code the consolidated financial reports default to (e.g. "GBP"). Empty/absent ⇒ the FX table's base currency is used. Display-only — amounts are converted at view time via the broker FX rates; nothing is re-stored.
+     * @nullable
+     */
+  reportingCurrency?: string | null;
   /** @nullable */
   oidcIssuerUrl?: string | null;
   /** Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs/REVERSE-PROXY.md). */
@@ -997,6 +1002,11 @@ export interface SettingsUpdate {
   aiModel?: string | null;
   /** Free-form backend routing hint passed to the broker (see Settings.backendSource). */
   backendSource?: string;
+  /**
+     * Default ISO 4217 reporting currency for consolidated financial reports (see Settings.reportingCurrency). Empty/null clears it (falls back to the FX base).
+     * @nullable
+     */
+  reportingCurrency?: string | null;
   /** @nullable */
   oidcIssuerUrl?: string | null;
   /** Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs/REVERSE-PROXY.md). */

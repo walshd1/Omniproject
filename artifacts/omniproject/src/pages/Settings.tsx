@@ -65,6 +65,7 @@ export function Settings() {
     sttProvider: "none",
     aiModel: "",
     backendSource: "all",
+    reportingCurrency: "",
     oidcIssuerUrl: "",
   });
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
@@ -78,6 +79,7 @@ export function Settings() {
         sttProvider: settings.sttProvider || "none",
         aiModel: settings.aiModel || "",
         backendSource: settings.backendSource || "all",
+        reportingCurrency: settings.reportingCurrency || "",
         oidcIssuerUrl: settings.oidcIssuerUrl || "",
       });
     }
@@ -97,6 +99,7 @@ export function Settings() {
       sttProvider: formData.sttProvider as NonNullable<SettingsUpdate["sttProvider"]>,
       aiModel: formData.aiModel.trim() || null,
       backendSource: formData.backendSource as NonNullable<SettingsUpdate["backendSource"]>,
+      reportingCurrency: formData.reportingCurrency.trim().toUpperCase() || null,
       oidcIssuerUrl: formData.oidcIssuerUrl.trim() || null,
     };
     updateSettings.mutate(
@@ -176,6 +179,22 @@ export function Settings() {
             <p className="text-xs text-muted-foreground">
               Optional routing hint sent to the broker. Use <span className="font-mono">all</span> for any backend the broker is wired
               to, or pick a specific backend id from the suggestions. No specific backend is required.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="reporting-currency" className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">REPORTING CURRENCY</label>
+            <Input
+              id="reporting-currency"
+              value={formData.reportingCurrency}
+              onChange={(e) => setFormData((p) => ({ ...p, reportingCurrency: e.target.value.toUpperCase().slice(0, 3) }))}
+              placeholder="(FX base)"
+              maxLength={3}
+              className="rounded-none border-border font-mono h-12 w-32 uppercase"
+            />
+            <p className="text-xs text-muted-foreground">
+              ISO 4217 code the consolidated financial reports default to (e.g. <span className="font-mono">GBP</span>). Leave blank to use the
+              FX table's base currency. Display-only — amounts are converted at view time; nothing is re-stored.
             </p>
           </div>
         </div>

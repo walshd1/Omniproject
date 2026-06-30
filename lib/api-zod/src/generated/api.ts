@@ -805,6 +805,7 @@ export const GetSettingsResponse = zod.object({
   "sttProvider": zod.enum(['none', 'browser', 'whisper']).optional().describe('Speech-to-text engine. \"browser\" runs on-device (no audio egress); \"whisper\" is an AI-assisted, off-device transcription provider (governance-gated). \"none\" disables dictation server-side.'),
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
+  "reportingCurrency": zod.string().nullish().describe('ISO 4217 code the consolidated financial reports default to (e.g. \"GBP\"). Empty\/absent ⇒ the FX table\'s base currency is used. Display-only — amounts are converted at view time via the broker FX rates; nothing is re-stored.'),
   "oidcIssuerUrl": zod.string().nullish(),
   "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity\/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs\/REVERSE-PROXY.md).'),
   "loggingSync": zod.object({
@@ -834,6 +835,7 @@ export const UpdateSettingsBody = zod.object({
   "sttProvider": zod.enum(['none', 'browser', 'whisper']).optional().describe('Speech-to-text engine (\"none\" | \"browser\" on-device | \"whisper\" AI-assisted).'),
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().optional().describe('Free-form backend routing hint passed to the broker (see Settings.backendSource).'),
+  "reportingCurrency": zod.string().nullish().describe('Default ISO 4217 reporting currency for consolidated financial reports (see Settings.reportingCurrency). Empty\/null clears it (falls back to the FX base).'),
   "oidcIssuerUrl": zod.string().nullish(),
   "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs\/REVERSE-PROXY.md).'),
   "loggingSync": zod.object({
@@ -859,6 +861,7 @@ export const UpdateSettingsResponse = zod.object({
   "sttProvider": zod.enum(['none', 'browser', 'whisper']).optional().describe('Speech-to-text engine. \"browser\" runs on-device (no audio egress); \"whisper\" is an AI-assisted, off-device transcription provider (governance-gated). \"none\" disables dictation server-side.'),
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
+  "reportingCurrency": zod.string().nullish().describe('ISO 4217 code the consolidated financial reports default to (e.g. \"GBP\"). Empty\/absent ⇒ the FX table\'s base currency is used. Display-only — amounts are converted at view time via the broker FX rates; nothing is re-stored.'),
   "oidcIssuerUrl": zod.string().nullish(),
   "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity\/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs\/REVERSE-PROXY.md).'),
   "loggingSync": zod.object({
