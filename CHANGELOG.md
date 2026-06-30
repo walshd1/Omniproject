@@ -8,6 +8,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Hierarchical feature-gating model — foundation (`lib/feature-resolution`).** The pure core of the
+  org → programme → project gating model: **monotonic narrowing** where each level can only *remove*
+  features (`core ⊇ org-approved ⊇ programme ⊇ project`). The org (admin) sets the approved superset —
+  everything ON by default except features flagged `defaultOff` for a **safety/cost/storage** reason
+  (now: `presence`, `predictivePrefetch`, `odata`, `integrations` — all *cost*), which need an explicit
+  org opt-in; programmes (pmo) and projects (manager) hold disable-only lists, so they can never grant
+  beyond their parent. `featureStatus()` now surfaces `defaultOff`/`reason` for the admin panel. Pure,
+  fully unit-tested (8 cases); live wiring (scoped resolution + per-scope endpoints) and the admin UI
+  follow.
+
 - **Benefits Realisation + CapEx/OpEx reports (stateless).** Two new reports that consume the E1/E2
   fields, each derive-only with nothing stored. **Benefits Realisation** (`lib/benefits` +
   `BenefitsRealisation`, gated on the `benefits` domain) rolls up planned-vs-actual benefit value,
