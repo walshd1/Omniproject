@@ -189,6 +189,31 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ]
   },
   {
+    "id": "portfolio-financials",
+    "label": "Portfolio Financials (consolidated)",
+    "docsUrl": "",
+    "kind": "financial",
+    "capabilities": {
+      "requiresCapability": "financials",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "budget",
+      "actualCost",
+      "forecastCostAtCompletion",
+      "variance",
+      "cpi",
+      "fxRates"
+    ],
+    "notes": "Budget vs actual vs forecast across the whole portfolio, every project's local currency consolidated into one reporting currency via the broker FX table, rolled up by programme. For the PMO / head of projects at multi-country scale.",
+    "order": 72
+  },
+  {
     "id": "portfolio-rag",
     "label": "Portfolio RAG",
     "docsUrl": "",
