@@ -14,6 +14,8 @@ import { StaffTimeCost } from "../components/reports/StaffTimeCost";
 import { IncomeInvoicing } from "../components/reports/IncomeInvoicing";
 import { CapacityRollup } from "../components/reports/CapacityRollup";
 import { PortfolioFinancials } from "../components/reports/PortfolioFinancials";
+import { PortfolioIncome } from "../components/reports/PortfolioIncome";
+import { PortfolioBenefits } from "../components/reports/PortfolioBenefits";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { Burndown } from "../components/reports/Burndown";
 import { Burnup } from "../components/reports/Burnup";
@@ -132,6 +134,20 @@ export function Reports() {
           <section>
             <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Financials (consolidated)</h2>
             <PortfolioFinancials />
+          </section>
+        </Gated>
+
+        <Gated caps={caps} domain="financials" title="Portfolio Income" requires="revenue / invoiced amounts on work items">
+          <section>
+            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Income (consolidated)</h2>
+            <PortfolioIncome />
+          </section>
+        </Gated>
+
+        <Gated caps={caps} domain="benefits" title="Portfolio Benefits" requires="benefit value/status fields on work items">
+          <section>
+            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Benefits (consolidated)</h2>
+            <PortfolioBenefits />
           </section>
         </Gated>
 

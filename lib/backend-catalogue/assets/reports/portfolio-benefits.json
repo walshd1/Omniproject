@@ -1,0 +1,10 @@
+{
+  "id": "portfolio-benefits",
+  "label": "Portfolio Benefits",
+  "docsUrl": "",
+  "kind": "financial",
+  "capabilities": { "requiresCapability": "benefits", "timeSeries": false, "exports": ["csv", "pdf", "png"] },
+  "tools": ["plannedBenefitValue", "actualBenefitValue", "benefitConfidence", "fxRates"],
+  "notes": "Planned vs realised benefit value across every project, consolidated into one reporting currency and grouped by programme (worst realisation first). Portfolio benefits roll-up.",
+  "order": 36
+}

@@ -212,6 +212,29 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "order": 74
   },
   {
+    "id": "portfolio-benefits",
+    "label": "Portfolio Benefits",
+    "docsUrl": "",
+    "kind": "financial",
+    "capabilities": {
+      "requiresCapability": "benefits",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "plannedBenefitValue",
+      "actualBenefitValue",
+      "benefitConfidence",
+      "fxRates"
+    ],
+    "notes": "Planned vs realised benefit value across every project, consolidated into one reporting currency and grouped by programme (worst realisation first). Portfolio benefits roll-up.",
+    "order": 36
+  },
+  {
     "id": "portfolio-financials",
     "label": "Portfolio Financials (consolidated)",
     "docsUrl": "",
@@ -235,6 +258,29 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ],
     "notes": "Budget vs actual vs forecast across the whole portfolio, every project's local currency consolidated into one reporting currency via the broker FX table, rolled up by programme. For the PMO / head of projects at multi-country scale.",
     "order": 72
+  },
+  {
+    "id": "portfolio-income",
+    "label": "Portfolio Income",
+    "docsUrl": "",
+    "kind": "financial",
+    "capabilities": {
+      "requiresCapability": "financials",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "revenue",
+      "invoicedAmount",
+      "unbilled",
+      "fxRates"
+    ],
+    "notes": "Projected income vs invoiced across every project, consolidated into one reporting currency and grouped by programme. Portfolio billing view for the PMO / head of projects.",
+    "order": 73
   },
   {
     "id": "portfolio-rag",

@@ -1,0 +1,10 @@
+{
+  "id": "portfolio-income",
+  "label": "Portfolio Income",
+  "docsUrl": "",
+  "kind": "financial",
+  "capabilities": { "requiresCapability": "financials", "timeSeries": false, "exports": ["csv", "pdf", "png"] },
+  "tools": ["revenue", "invoicedAmount", "unbilled", "fxRates"],
+  "notes": "Projected income vs invoiced across every project, consolidated into one reporting currency and grouped by programme. Portfolio billing view for the PMO / head of projects.",
+  "order": 73
+}
