@@ -4,7 +4,7 @@ import { getSession } from "./auth";
 import { recordAudit } from "../lib/audit";
 import { getIssues, getProjects } from "../lib/data";
 import { programmeIdOf } from "../lib/programmes";
-import { staffCost, type RateCard, type Facing, type TimedItem, type Uplift } from "../lib/rate-card";
+import { staffCost, valueColumns, type RateCard, type Facing, type TimedItem, type Uplift, type ValueColumn } from "../lib/rate-card";
 import {
   getRateCard,
   setRateCard,
@@ -14,6 +14,7 @@ import {
   setIdentityAssignments,
   projectTypeFor,
   setProjectType,
+  valueModelFor,
   getUpliftConfig,
   resolveUplift,
   setCentralUplift,
@@ -66,9 +67,28 @@ function readRateCard(body: unknown): { card: RateCard; projectTypes: ProjectTyp
   const projectTypes: ProjectType[] = [];
   for (const t of (b["projectTypes"] ?? []) as unknown[]) {
     const o = t as Record<string, unknown>;
-    if (isStr(o?.["id"]) && isStr(o?.["label"])) projectTypes.push({ id: o["id"] as string, label: o["label"] as string });
+    if (!isStr(o?.["id"]) || !isStr(o?.["label"])) continue;
+    const values = readValueColumns(o["values"]);
+    projectTypes.push({ id: o["id"] as string, label: o["label"] as string, ...(values.length ? { values } : {}) });
   }
   return { card: { titles, rates }, projectTypes };
+}
+
+/** Validate a project type's value columns — any number of {id, label, kind:cost|charge, uplift?}. */
+function readValueColumns(raw: unknown): ValueColumn[] {
+  const out: ValueColumn[] = [];
+  for (const v of (Array.isArray(raw) ? raw : []) as unknown[]) {
+    const o = v as Record<string, unknown>;
+    if (!isStr(o?.["id"]) || !isStr(o?.["label"]) || (o["kind"] !== "cost" && o["kind"] !== "charge")) continue;
+    const col: ValueColumn = { id: o["id"] as string, label: o["label"] as string, kind: o["kind"] as "cost" | "charge" };
+    const u = o["uplift"] as Record<string, unknown> | undefined;
+    const upliftPart: Partial<Uplift> = {};
+    if (isNum(u?.["margin"]) && (u!["margin"] as number) >= 0) upliftPart.margin = u!["margin"] as number;
+    if (isNum(u?.["overhead"]) && (u!["overhead"] as number) >= 0) upliftPart.overhead = u!["overhead"] as number;
+    if (col.kind === "charge" && (upliftPart.margin !== undefined || upliftPart.overhead !== undefined)) col.uplift = upliftPart;
+    out.push(col);
+  }
+  return out;
 }
 
 /** Read a clamped uplift ({margin, overhead} as non-negative fractions) from a body object. */
@@ -150,8 +170,11 @@ router.get("/projects/:projectId/staff-cost", requireRole("pmo"), async (req, re
     const [issues, projects] = await Promise.all([getIssues(req, projectId), getProjects(req)]);
     const programmeId = programmeIdOf((projects.find((p) => String(p["id"]) === projectId) ?? {}) as Record<string, unknown>);
     const scope = { programmeId, projectId };
-    const cost = staffCost(issues as unknown as TimedItem[], getRateCard(), getIdentityMap(), projectTypeFor(projectId), resolveUplift(scope), scope);
-    res.json(cost);
+    const uplift = resolveUplift(scope);
+    const cost = staffCost(issues as unknown as TimedItem[], getRateCard(), getIdentityMap(), projectTypeFor(projectId), uplift, scope);
+    // The PMO's value model for this project (any number of columns) computed from the one roll-up.
+    const columns = valueColumns(cost, valueModelFor(projectId), uplift);
+    res.json({ ...cost, projectType: projectTypeFor(projectId), columns });
   } catch (err) {
     req.log.error({ err }, "staff_cost failed");
     res.status(502).json({ error: "Could not compute staff cost" });

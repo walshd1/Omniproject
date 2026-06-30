@@ -104,6 +104,31 @@ test("margin + overhead uplift the charge (cost-to-customer); a project override
   assert.equal(overridden.charge, 4160); // 2600 × 1.6
 });
 
+test("a project type can declare any number of value columns, computed server-side per project", async () => {
+  const senior = hashIdentity("Senior Engineer");
+  await put("/rate-card", {
+    titles: { [senior]: "Senior Engineer" },
+    rates: { [senior]: { "*": { client: 100, internal: 60 } } },
+    uplift: { margin: 0.2, overhead: 0.1 }, // central +30%
+    projectTypes: [
+      {
+        id: "delivery",
+        label: "Delivery",
+        values: [
+          { id: "cost", label: "Cost", kind: "cost" },
+          { id: "charge", label: "Standard charge", kind: "charge" },
+          { id: "intra", label: "Intra-company", kind: "charge", uplift: { margin: 0, overhead: 0 } },
+        ],
+      },
+    ],
+  });
+  await put("/rate-card/identities", { level: "central", assignments: [{ assignee: "alice", titleHash: senior }] });
+  await put("/projects/proj-001/type", { projectType: "delivery" });
+  // alice iss-001 = 26h client @100 → clientCost 2600, totalCost 2600.
+  const body = (await get("/projects/proj-001/staff-cost").then((x) => x.json())) as { columns: { id: string; total: number }[] };
+  assert.deepEqual(body.columns.map((c) => [c.id, c.total]), [["cost", 2600], ["charge", 3380], ["intra", 2600]]);
+});
+
 test("the staff-cost endpoint never leaks raw rates — only aggregated cost", async () => {
   const senior = hashIdentity("Senior Engineer");
   await put("/rate-card", { titles: { [senior]: "Senior Engineer" }, rates: { [senior]: { "*": { client: 100, internal: 60 } } }, projectTypes: [] });
