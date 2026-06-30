@@ -191,6 +191,9 @@ jobs:
       - name: n8n contract verification (bidirectional)
         env:
           NOTIFY_INGEST_SECRET: omni-verify-secret
+          # Opt in the default-off (cost) feature modules so the contract check exercises the full
+          # API surface (odata / BI feeds / metrics / presence) rather than skipping them as gated-off.
+          ENABLED_FEATURES: odata,integrations,presence
         run: |
           PORT=5000 node artifacts/api-server/dist/index.mjs &
           SERVER_PID=$!
