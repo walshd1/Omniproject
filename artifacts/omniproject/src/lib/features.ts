@@ -8,8 +8,13 @@ import { getJson, safeJson, responseError } from "./api";
  */
 export type GateLevel = "org" | "programme" | "project";
 
+/** The catalogue item kind: a toggleable module, a report surface, or a methodology. */
+export type GovernanceKind = "module" | "report" | "methodology";
+
 export interface FeatureStatus {
   id: string;
+  /** Which catalogue plane this item lives in (modules vs reports vs methodologies). */
+  kind: GovernanceKind;
   label: string;
   description: string;
   enabled: boolean;

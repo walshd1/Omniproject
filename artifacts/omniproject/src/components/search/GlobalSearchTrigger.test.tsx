@@ -9,7 +9,7 @@ import { featuresQueryKey, type FeatureStatus } from "../../lib/features";
 function seed(enabled: boolean): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(featuresQueryKey(), [
-    { id: "globalSearch", label: "Global search", description: "", enabled, loaded: true, needsRestart: false },
+    { id: "globalSearch", kind: "module", label: "Global search", description: "", enabled, loaded: true, needsRestart: false },
   ] satisfies FeatureStatus[]);
   return qc;
 }

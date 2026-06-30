@@ -8,6 +8,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Governance catalogue spans reports + methodologies + the 3-level UI.** The gated catalogue is now the
+  union of feature modules, **reports** (`report:<id>`) and **methodologies** (`methodology:<id>`), each
+  carrying a `kind`, so a PMO can mandate ("must use PRINCE2") or forbid ("must not use the EVM report")
+  any of them through the same resolver. The SPA `FeatureGovernance` panel groups the org → programme →
+  project policy editor by catalogue plane; `FeatureModulesAdmin` now covers the module toggles only.
 - **Hierarchical feature-gating + governance — foundation (`lib/feature-resolution`).** The pure core of
   the org → programme → project model. Two strengths of policy:
   - **Soft narrowing** — each level may further *disable* (`core ⊇ org-approved ⊇ programme ⊇ project`).

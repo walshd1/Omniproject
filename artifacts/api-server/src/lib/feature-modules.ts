@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction, RequestHandler, IRouter } from "express";
+import { REPORTS, METHODOLOGIES } from "@workspace/backend-catalogue";
 import { getSettings } from "./settings";
 import {
   resolveFeatures,
@@ -143,6 +144,47 @@ export function featureGates(): FeatureGate[] {
   }));
 }
 
+/** A kind of governable item: an optional module, a report, or a methodology. */
+export type GovernanceKind = "module" | "report" | "methodology";
+
+export interface GovernanceItem {
+  id: string;
+  kind: GovernanceKind;
+  label: string;
+  description: string;
+  defaultOff?: boolean;
+  reason?: GateReason;
+}
+
+/**
+ * The full governance catalogue: the feature modules PLUS every shipped report and methodology, so a
+ * PMO can mandate ("must use") or forbid ("must not use") any of them through the same resolver.
+ * Reports/methodologies are namespaced (`report:<id>` / `methodology:<id>`) so their ids never clash
+ * with a module id; they're default-ON (no safety/cost/storage concern of their own).
+ */
+export function governanceCatalogue(): GovernanceItem[] {
+  const modules: GovernanceItem[] = FEATURE_MODULES.map((m) => ({
+    id: m.id, kind: "module", label: m.label, description: m.description,
+    ...(m.defaultOff ? { defaultOff: true } : {}), ...(m.reason ? { reason: m.reason } : {}),
+  }));
+  const reports: GovernanceItem[] = REPORTS.map((r) => ({
+    id: `report:${r.id}`, kind: "report", label: r.label, description: `${r.kind} report`,
+  }));
+  const methodologies: GovernanceItem[] = METHODOLOGIES.map((m) => ({
+    id: `methodology:${m.id}`, kind: "methodology", label: m.label, description: `${m.kind} methodology`,
+  }));
+  return [...modules, ...reports, ...methodologies];
+}
+
+/** The governance catalogue as resolver gates (id + default posture). */
+export function governanceGates(): FeatureGate[] {
+  return governanceCatalogue().map((g) => ({
+    id: g.id,
+    ...(g.defaultOff ? { defaultOff: true } : {}),
+    ...(g.reason ? { reason: g.reason } : {}),
+  }));
+}
+
 // Which modules actually got loaded+mounted this process (set by the mount step). Lets the
 // status distinguish "enabled and live" from "enabled but was off at startup → needs restart".
 const loaded = new Set<string>();
@@ -176,9 +218,9 @@ export function scopeOverrides(scope: FeatureScope = {}): ScopeOverrides {
   };
 }
 
-/** Resolve every feature module for a scope (org by default), with enabled/blockedAt/lock detail. */
+/** Resolve every governable item (modules + reports + methodologies) for a scope, with lock detail. */
 export function resolveScopedFeatures(scope: FeatureScope = {}): ResolvedFeature[] {
-  return resolveFeatures(featureGates(), scopeOverrides(scope));
+  return resolveFeatures(governanceGates(), scopeOverrides(scope));
 }
 
 /**
@@ -210,27 +252,30 @@ export interface FeatureStatus {
   policy?: "require" | "forbid";
   /** When disabled, the level that turned it off. */
   blockedAt?: "org" | "programme" | "project";
+  /** Whether this is an optional module, a report, or a methodology. */
+  kind: GovernanceKind;
 }
 
-/** The status of every registered feature module for a scope (org by default) — `GET /api/features`. */
+/** The status of every governable item (modules + reports + methodologies) for a scope. */
 export function featureStatus(scope: FeatureScope = {}): FeatureStatus[] {
   const resolved = new Map(resolveScopedFeatures(scope).map((r) => [r.id, r]));
-  return FEATURE_MODULES.map((m) => {
-    const r = resolved.get(m.id);
+  return governanceCatalogue().map((g) => {
+    const r = resolved.get(g.id);
     const enabled = r ? r.enabled : true;
-    const backend = !!m.load; // UI-only modules have no backend route to load
-    const isLoaded = loaded.has(m.id);
+    // Only optional modules have a route chunk that can be loaded/needs-restart; reports/methodologies
+    // are presentation/config and are "live" client-side whenever enabled.
+    const backend = g.kind === "module" && !!FEATURE_MODULES.find((m) => m.id === g.id)?.load;
+    const isLoaded = loaded.has(g.id);
     return {
-      id: m.id,
-      label: m.label,
-      description: m.description,
+      id: g.id,
+      kind: g.kind,
+      label: g.label,
+      description: g.description,
       enabled,
-      // UI-only modules are "live" purely client-side when enabled; only a backend module can be
-      // enabled-but-not-loaded (→ needs a restart to load its route chunk).
       loaded: backend ? isLoaded : enabled,
       needsRestart: backend && enabled && !isLoaded,
-      defaultOff: !!m.defaultOff,
-      ...(m.reason ? { reason: m.reason } : {}),
+      defaultOff: !!g.defaultOff,
+      ...(g.reason ? { reason: g.reason } : {}),
       ...(r?.locked ? { locked: true, lockedBy: r.lockedBy, policy: r.policy } : {}),
       ...(r && !r.enabled && r.blockedAt ? { blockedAt: r.blockedAt } : {}),
     };

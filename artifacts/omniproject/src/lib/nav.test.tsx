@@ -28,7 +28,7 @@ function withProgramme(surface: boolean): QueryClient {
 function withMyWorkEnabled(enabled: boolean): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(featuresQueryKey(), [
-    { id: "myWork", label: "My Work / Inbox", description: "", enabled, loaded: enabled, needsRestart: false },
+    { id: "myWork", kind: "module", label: "My Work / Inbox", description: "", enabled, loaded: enabled, needsRestart: false },
   ] satisfies FeatureStatus[]);
   return qc;
 }

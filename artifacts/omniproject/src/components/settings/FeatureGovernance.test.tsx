@@ -10,7 +10,7 @@ import { featuresQueryKey, type FeatureScope, type FeatureStatus } from "../../l
 import { FeatureGovernance } from "./FeatureGovernance";
 
 function feat(over: Partial<FeatureStatus> = {}): FeatureStatus {
-  return { id: "grid", label: "Grid", description: "Editable grid", enabled: true, loaded: true, needsRestart: false, ...over };
+  return { id: "grid", kind: "module", label: "Grid", description: "Editable grid", enabled: true, loaded: true, needsRestart: false, ...over };
 }
 
 function seed(role: string, features: FeatureStatus[], scopes: FeatureScope[] = [{}]): QueryClient {
@@ -35,6 +35,20 @@ describe("FeatureGovernance", () => {
     expect(screen.getByRole("tab", { name: "project" })).toBeInTheDocument();
     expect(screen.getByTestId("gov-row-grid")).toBeInTheDocument();
     expect(screen.getByTestId("gov-row-presence")).toHaveTextContent(/default-off \(cost\)/i);
+  });
+
+  it("groups reports and methodologies into their own sections", () => {
+    renderWithProviders(<FeatureGovernance />, {
+      client: seed("admin", [
+        feat(),
+        feat({ id: "report:evm", kind: "report", label: "Earned Value" }),
+        feat({ id: "methodology:prince2", kind: "methodology", label: "PRINCE2" }),
+      ]),
+    });
+    expect(screen.getByText("Reports")).toBeInTheDocument();
+    expect(screen.getByText("Methodologies")).toBeInTheDocument();
+    expect(screen.getByTestId("gov-row-report:evm")).toBeInTheDocument();
+    expect(screen.getByTestId("gov-row-methodology:prince2")).toBeInTheDocument();
   });
 
   it("renders an inherited mandate as locked (not editable at a lower level)", () => {

@@ -8,6 +8,7 @@ import {
   useSetProjectFeatures,
   type FeatureStatus,
   type GateLevel,
+  type GovernanceKind,
 } from "../../lib/features";
 
 /**
@@ -38,6 +39,13 @@ interface OrgConfig { disabled: string[]; enabled: string[]; governance: { requi
 interface ScopeCfg { disabled: string[]; required: string[]; forbidden: string[] }
 
 const REASON_LABEL: Record<string, string> = { cost: "cost", safety: "safety", storage: "storage" };
+
+/** Section headings for the catalogue planes, in display order. */
+const KIND_GROUPS: { kind: GovernanceKind; label: string }[] = [
+  { kind: "module", label: "Feature modules" },
+  { kind: "report", label: "Reports" },
+  { kind: "methodology", label: "Methodologies" },
+];
 
 export function FeatureGovernance() {
   const { data: auth } = useAuth();
@@ -150,40 +158,49 @@ export function FeatureGovernance() {
                 <th className="py-1.5 px-2 font-bold">State</th>
               </tr>
             </thead>
-            <tbody>
-              {(features ?? []).map((f) => {
-                // A hard mandate from a HIGHER level locks this row (can't edit below it).
-                const lockedAbove = !!f.locked && f.lockedBy !== level;
-                return (
-                  <tr key={f.id} className="border-b border-border/50" data-testid={`gov-row-${f.id}`}>
-                    <td className="py-1.5 pr-3">
-                      <div className="font-bold">{f.label}</div>
-                      <div className="text-muted-foreground">{f.description}{f.defaultOff && f.reason ? ` · default-off (${REASON_LABEL[f.reason]})` : ""}</div>
-                    </td>
-                    <td className="py-1.5 px-2">
-                      {lockedAbove ? (
-                        <span className="text-muted-foreground italic">
-                          {f.policy === "require" ? "Required" : "Forbidden"} at {f.lockedBy} (locked)
-                        </span>
-                      ) : (
-                        <div className="flex gap-1" role="radiogroup" aria-label={`${f.label} policy`}>
-                          {choices.map((c) => (
-                            <button key={c.value} type="button" role="radio" aria-checked={choice(f) === c.value}
-                              onClick={() => setEdits((e) => ({ ...e, [f.id]: c.value }))}
-                              className={`px-2 py-1 border text-[11px] font-bold ${choice(f) === c.value ? "border-primary bg-primary/10" : "border-border"}`}>
-                              {c.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-1.5 px-2">
-                      <span className={f.enabled ? "text-green-600" : "text-muted-foreground"}>{f.enabled ? "On" : `Off${f.blockedAt ? ` (${f.blockedAt})` : ""}`}</span>
-                    </td>
+            {KIND_GROUPS.map(({ kind, label }) => {
+              const rows = (features ?? []).filter((f) => f.kind === kind);
+              if (rows.length === 0) return null;
+              return (
+                <tbody key={kind}>
+                  <tr className="bg-muted/40">
+                    <td colSpan={3} className="py-1 px-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">{label}</td>
                   </tr>
-                );
-              })}
-            </tbody>
+                  {rows.map((f) => {
+                    // A hard mandate from a HIGHER level locks this row (can't edit below it).
+                    const lockedAbove = !!f.locked && f.lockedBy !== level;
+                    return (
+                      <tr key={f.id} className="border-b border-border/50" data-testid={`gov-row-${f.id}`}>
+                        <td className="py-1.5 pr-3">
+                          <div className="font-bold">{f.label}</div>
+                          <div className="text-muted-foreground">{f.description}{f.defaultOff && f.reason ? ` · default-off (${REASON_LABEL[f.reason]})` : ""}</div>
+                        </td>
+                        <td className="py-1.5 px-2">
+                          {lockedAbove ? (
+                            <span className="text-muted-foreground italic">
+                              {f.policy === "require" ? "Required" : "Forbidden"} at {f.lockedBy} (locked)
+                            </span>
+                          ) : (
+                            <div className="flex gap-1" role="radiogroup" aria-label={`${f.label} policy`}>
+                              {choices.map((c) => (
+                                <button key={c.value} type="button" role="radio" aria-checked={choice(f) === c.value}
+                                  onClick={() => setEdits((e) => ({ ...e, [f.id]: c.value }))}
+                                  className={`px-2 py-1 border text-[11px] font-bold ${choice(f) === c.value ? "border-primary bg-primary/10" : "border-border"}`}>
+                                  {c.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <span className={f.enabled ? "text-green-600" : "text-muted-foreground"}>{f.enabled ? "On" : `Off${f.blockedAt ? ` (${f.blockedAt})` : ""}`}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              );
+            })}
           </table>
           <div className="flex items-center gap-3">
             <button type="button" onClick={save} data-testid="governance-save"

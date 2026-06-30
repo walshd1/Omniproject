@@ -23,7 +23,7 @@ function issue(over: Partial<Issue> = {}): Issue {
 function seed(opts: { enabled?: boolean; issues?: Issue[]; activity?: ActivityEntry[] } = {}): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   qc.setQueryData(featuresQueryKey(), [
-    { id: "sidePanel", label: "Rich side-panel", description: "", enabled: opts.enabled ?? true, loaded: true, needsRestart: false },
+    { id: "sidePanel", kind: "module", label: "Rich side-panel", description: "", enabled: opts.enabled ?? true, loaded: true, needsRestart: false },
   ] satisfies FeatureStatus[]);
   qc.setQueryData(availabilityQueryKey, AVAIL);
   qc.setQueryData(getGetProjectIssuesQueryKey("p1"), opts.issues ?? [issue()]);

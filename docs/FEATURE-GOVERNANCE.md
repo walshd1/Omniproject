@@ -65,7 +65,9 @@ privilege or loosen a hard gate (RBAC + capability gates still run first).
 ## Status
 
 - **Shipped:** the pure resolver (`feature-resolution.ts`) with soft narrowing + hard require/forbid
-  locking, the `defaultOff`/`reason` registry metadata, and 13 unit tests.
-- **Next:** the per-scope config schema + scoped `GET /api/features?programmeId=&projectId=`, the
-  ruleset-engine governance rules over the features ∪ methodologies ∪ reports catalogue, scope-aware
-  `requireFeature`, and the 3-level admin UI (admin/pmo/manager each see only what their parent allows).
+  locking and the `defaultOff`/`reason` registry metadata; the per-scope config schema + scoped
+  `GET /api/features?programmeId=&projectId=` with `PUT /api/features/programme|project/:id`
+  (ceiling-checked server-side); scope-aware `requireFeature`; the unified **governance catalogue**
+  spanning features ∪ reports (`report:<id>`) ∪ methodologies (`methodology:<id>`), each carrying its
+  `kind`; and the **3-level admin UI** (`FeatureGovernance`) where admin/pmo/manager each see only what
+  their parent allows, grouped by catalogue plane. `FeatureModulesAdmin` covers the module toggles only.

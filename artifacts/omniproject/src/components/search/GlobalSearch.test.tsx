@@ -19,8 +19,8 @@ function programme(over: Partial<Programme> = {}): Programme {
 function seed(opts: { enabled?: boolean; sidePanel?: boolean } = {}): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   qc.setQueryData(featuresQueryKey(), [
-    { id: "globalSearch", label: "Global search", description: "", enabled: opts.enabled ?? true, loaded: true, needsRestart: false },
-    { id: "sidePanel", label: "Rich side-panel", description: "", enabled: opts.sidePanel ?? false, loaded: true, needsRestart: false },
+    { id: "globalSearch", kind: "module", label: "Global search", description: "", enabled: opts.enabled ?? true, loaded: true, needsRestart: false },
+    { id: "sidePanel", kind: "module", label: "Rich side-panel", description: "", enabled: opts.sidePanel ?? false, loaded: true, needsRestart: false },
   ] satisfies FeatureStatus[]);
   qc.setQueryData(getListProjectsQueryKey(), [project()]);
   qc.setQueryData(getListProgrammesQueryKey(), [programme()]);
