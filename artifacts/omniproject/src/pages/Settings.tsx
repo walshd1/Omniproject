@@ -30,6 +30,7 @@ import { RateGridAdmin } from "../components/settings/RateGridAdmin";
 import { IdentityMapAdmin } from "../components/settings/IdentityMapAdmin";
 import { CostRulesAdmin } from "../components/settings/CostRulesAdmin";
 import { GovernanceRulesAdmin } from "../components/settings/GovernanceRulesAdmin";
+import { ScopeUpliftAdmin } from "../components/settings/ScopeUpliftAdmin";
 import { FeatureGovernance } from "../components/settings/FeatureGovernance";
 import { FieldVisibilityAdmin } from "../components/settings/FieldVisibilityAdmin";
 import { SecurityKeys } from "../components/settings/SecurityKeys";
@@ -334,6 +335,10 @@ export function Settings() {
 
       <div className="mt-10">
         <RateCardAdmin />
+      </div>
+
+      <div className="mt-10">
+        <ScopeUpliftAdmin />
       </div>
 
       <div className="mt-10">
