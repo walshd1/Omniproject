@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useRateCard, useSaveRateCard, type RateCardConfig, type ProjectType, type ValueColumn } from "../../lib/rate-card";
+import { PercentInput } from "./PercentInput";
 
 /**
  * PMO rate-card authoring — project types + their value model, and the central cost-model defaults
@@ -10,28 +11,6 @@ import { useRateCard, useSaveRateCard, type RateCardConfig, type ProjectType, ty
  * off. Edits are staged in a local draft and persisted on Save (the PUT replaces the stored card, so the
  * untouched titles + rates are round-tripped verbatim). PMO-gated, mirroring the server.
  */
-
-/** A percentage <input> bound to a 0–1 fraction (so 20 ↔ 0.2). Empty ⇒ undefined for optional fields. */
-function PercentInput({ value, onChange, label, ariaLabel }: { value: number | undefined; onChange: (v: number | undefined) => void; label?: string; ariaLabel: string }) {
-  return (
-    <label className="flex items-center gap-1 text-xs">
-      {label && <span className="text-muted-foreground">{label}</span>}
-      <Input
-        type="number" min={0} step={1} inputMode="decimal"
-        aria-label={ariaLabel}
-        className="w-20 rounded-none border-2 border-foreground tabular-nums"
-        value={value === undefined ? "" : Math.round(value * 1000) / 10}
-        onChange={(e) => {
-          const t = e.target.value.trim();
-          if (t === "") { onChange(undefined); return; }
-          const n = Number(t);
-          if (isFinite(n) && n >= 0) onChange(n / 100);
-        }}
-      />
-      <span className="text-muted-foreground">%</span>
-    </label>
-  );
-}
 
 export function RateCardAdmin() {
   const { data: auth } = useAuth();
