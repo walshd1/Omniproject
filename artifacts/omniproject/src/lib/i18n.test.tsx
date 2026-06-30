@@ -70,6 +70,9 @@ describe("useT hook", () => {
     expect(result.current.formatNumber(1234.5)).toContain("1");
     const cur = result.current.formatCurrency(1000, "USD");
     expect(cur).toMatch(/1,000|1000/);
+    // A malformed currency code must not throw — fall back to a plain number + code.
+    const bad = result.current.formatCurrency(1000, "NOTACODE");
+    expect(bad).toMatch(/1,000|1000/);
     const d = result.current.formatDate("2020-01-15T00:00:00Z", { timeZone: "UTC", year: "numeric" });
     expect(d).toContain("2020");
   });

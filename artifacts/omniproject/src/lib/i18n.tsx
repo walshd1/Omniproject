@@ -223,7 +223,15 @@ export function I18nProvider({ children, labelOverrides }: { children: ReactNode
     t: useCallback((key, vars) => translate(locale, key, vars, overrides), [locale, overrides]),
     formatNumber: useCallback((n, opts) => new Intl.NumberFormat(locale, opts).format(n), [locale]),
     formatCurrency: useCallback(
-      (n, currency, opts) => new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 0, ...opts }).format(n),
+      (n, currency, opts) => {
+        // A backend can supply a malformed currency code; Intl throws RangeError on it.
+        // Fall back to a plain number so one bad value never blanks the whole report.
+        try {
+          return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 0, ...opts }).format(n);
+        } catch {
+          return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(n)} ${currency ?? ""}`.trim();
+        }
+      },
       [locale],
     ),
     formatDate: useCallback((d, opts) => new Intl.DateTimeFormat(locale, opts).format(typeof d === "string" ? new Date(d) : d), [locale]),
