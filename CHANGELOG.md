@@ -17,6 +17,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   never server-stored). Pure derivation: same issues + links ⇒ same schedule, nothing persisted.
   Capability-gated on `scheduling`; solver + mapping covered by unit tests + a component test.
 
+- **Portfolio Roadmap report (stateless).** A cross-programme timeline derived entirely from the data
+  already in the backend: each project becomes a bar spanning the earliest start … latest due of its
+  work items, grouped into programme swimlanes (standalone projects sink to the bottom), with a month/
+  quarter axis and a "today" marker. Nothing is stored — `lib/roadmap` infers each span on the fly and
+  the same read model always yields the same roadmap. Projects with no dated work are reported in the
+  footnote rather than silently dropped. Capability-gated on `scheduling`; pure derivation covered by
+  unit tests + a component test.
+
 - **Quantitative risk — Monte Carlo schedule/effort simulation (stateless).** A new enterprise-grade
   risk report (`lib/monte-carlo` + `components/reports/MonteCarloRisk`) that closes the
   "quantitative risk" EPM gap **without storing anything**: it derives a task list from the project's
