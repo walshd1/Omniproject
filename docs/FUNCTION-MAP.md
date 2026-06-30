@@ -1870,7 +1870,7 @@ Data-export endpoints — GET /api/export.{csv,xlsx,json,md,pdf} render the proj
 
 ### `artifacts/api-server/src/routes/features.ts`
 
-Feature gating + PMO governance, resolved per scope (org → programme → project).
+The only context fields a governance rule may reference — the facts evaluable synchronously at BOTH read and enforce time, so a rule can never be shown-but-not-enforced (or vice-versa).
 
 ### `artifacts/api-server/src/routes/health-watch.ts`
 

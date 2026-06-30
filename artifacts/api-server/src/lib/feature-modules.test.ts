@@ -2,6 +2,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { FEATURE_MODULES, isFeatureEnabled, featureStatus, requireFeature, resolveScopedFeatures } from "./feature-modules";
 import { updateSettings } from "./settings";
+import { setProjectType, __resetRateCardCache } from "./rate-card-store";
 
 /** A stable default-ON module (e.g. grid) and a default-OFF one (e.g. presence) for the assertions. */
 const ON_ID = FEATURE_MODULES.find((m) => !m.defaultOff)!.id;
@@ -9,7 +10,34 @@ const OFF_ID = FEATURE_MODULES.find((m) => m.defaultOff)!.id;
 
 afterEach(() => {
   // Reset the shared in-memory store between tests.
-  updateSettings({ disabledFeatures: [], enabledFeatures: [], featureGovernance: { required: [], forbidden: [] }, programmeFeatures: {}, projectFeatures: {} });
+  updateSettings({ disabledFeatures: [], enabledFeatures: [], featureGovernance: { required: [], forbidden: [] }, programmeFeatures: {}, projectFeatures: {}, governanceRules: [] });
+  __resetRateCardCache();
+});
+
+test("a conditional governance rule forbids an item only for matching project types", () => {
+  setProjectType("p-int", "internal");
+  setProjectType("p-del", "delivery");
+  // "Forbid the EVM report on internal projects" — a rule scoped by projectType.
+  updateSettings({ governanceRules: [{ id: "no-evm-internal", when: { all: [{ field: "projectType", op: "eq", value: "internal" }] }, forbid: ["report:evm"] }] });
+
+  assert.equal(isFeatureEnabled("report:evm", { projectId: "p-int" }), false); // internal → forbidden
+  assert.equal(isFeatureEnabled("report:evm", { projectId: "p-del" }), true); // delivery → unaffected
+  assert.equal(isFeatureEnabled("report:evm"), true); // org scope → rule doesn't apply
+  // the lock is reported as an org-level forbid (the rule is the org authoring a conditional restriction)
+  const row = resolveScopedFeatures({ projectId: "p-int" }).find((r) => r.id === "report:evm")!;
+  assert.equal(row.enabled, false);
+  assert.equal(row.lockedBy, "org");
+  assert.equal(row.policy, "forbid");
+});
+
+test("a governance rule cannot escalate beyond the org grant (org forbid still wins over a rule require)", () => {
+  setProjectType("p1", "delivery");
+  // The org forbids the report; a rule tries to REQUIRE it for delivery → forbid must still win.
+  updateSettings({
+    featureGovernance: { required: [], forbidden: ["report:evm"] },
+    governanceRules: [{ id: "force-evm", when: { all: [{ field: "projectType", op: "eq", value: "delivery" }] }, require: ["report:evm"] }],
+  });
+  assert.equal(isFeatureEnabled("report:evm", { projectId: "p1" }), false); // org forbid wins — no escalation
 });
 
 test("default-ON modules are enabled by default; default-OFF (cost/safety) ones are not", () => {

@@ -10,6 +10,7 @@
 import { assertSafeOutboundUrl, isSafeOutboundUrl, UnsafeUrlError } from "./url-safety";
 import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "./deployment-profile";
 import type { BackendFieldMap } from "../broker/types";
+import type { GovernanceRule } from "./governance-rules";
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
@@ -169,6 +170,12 @@ export interface SettingsState {
   programmeFeatures: Record<string, ScopeFeatureConfig>;
   /** Per-project feature policy (disable/require/forbid), keyed by projectId. ⊆ the programme/org set. */
   projectFeatures: Record<string, ScopeFeatureConfig>;
+  /**
+   * Conditional governance rules (PMO): a mandate that applies only WHEN its predicate matches (e.g.
+   * `projectType != small-internal`). Folded into the org-level overrides at resolution time, so they
+   * can only restrict (require/forbid/disable) for the contexts they match — never grant beyond org.
+   */
+  governanceRules: GovernanceRule[];
   /**
    * Admin/PMO view-curation: canonical field keys HIDDEN from view on top of what the backend makes
    * available. The availability resolver subtracts these from the surfaced set, so a deployment can
@@ -372,6 +379,7 @@ const store: SettingsState = {
   featureGovernance: { required: [], forbidden: [] },
   programmeFeatures: {},
   projectFeatures: {},
+  governanceRules: [],
   hiddenFields: [],
   savedViews: [],
   dashboards: [],
@@ -403,6 +411,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "featureGovernance",
   "programmeFeatures",
   "projectFeatures",
+  "governanceRules",
   "hiddenFields",
   "savedViews",
   "dashboards",
@@ -477,6 +486,20 @@ function validateScopeFeatureMap(value: unknown, label: string): void {
   }
 }
 
+/** Shape-validate the governance-rule list (deeper predicate-field checks live at the PMO route). */
+function validateGovernanceRules(value: unknown, label: string): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError(`${label} must be an array`);
+  for (const r of value) {
+    const o = r as Record<string, unknown>;
+    if (typeof o !== "object" || o == null || typeof o["id"] !== "string" || !o["id"]) {
+      throw new SettingsValidationError(`${label} entries need a string id`);
+    }
+    for (const k of ["require", "forbid", "disable"]) if (k in o && !isStringArray(o[k])) {
+      throw new SettingsValidationError(`${label} "${String(o["id"])}".${k} must be an array of strings`);
+    }
+  }
+}
+
 function validatePatch(patch: Record<string, unknown>): void {
   if ("aiProvider" in patch && !(AI_PROVIDERS as readonly string[]).includes(patch["aiProvider"] as string)) {
     throw new SettingsValidationError(`aiProvider must be one of: ${AI_PROVIDERS.join(", ")}`);
@@ -532,6 +555,7 @@ function validatePatch(patch: Record<string, unknown>): void {
   if ("featureGovernance" in patch) validateGovernance(patch["featureGovernance"], "featureGovernance");
   if ("programmeFeatures" in patch) validateScopeFeatureMap(patch["programmeFeatures"], "programmeFeatures");
   if ("projectFeatures" in patch) validateScopeFeatureMap(patch["projectFeatures"], "projectFeatures");
+  if ("governanceRules" in patch) validateGovernanceRules(patch["governanceRules"], "governanceRules");
   if ("hiddenFields" in patch) {
     const v = patch["hiddenFields"];
     if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
