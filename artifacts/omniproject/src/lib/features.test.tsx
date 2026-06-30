@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { featureEnabled, useFeatures, useSetDisabledFeatures, featuresQueryKey, type FeatureStatus } from "./features";
+import { featureEnabled, useFeatures, useSetDisabledFeatures, type FeatureStatus } from "./features";
 
 const FEATURES: FeatureStatus[] = [
   { id: "grid", label: "Grid", description: "", enabled: true, loaded: true, needsRestart: false },
@@ -50,7 +50,7 @@ describe("useSetDisabledFeatures", () => {
     expect(url).toBe("/api/settings");
     expect((opts as RequestInit).method).toBe("PATCH");
     expect(String((opts as RequestInit).body)).toContain("disabledFeatures");
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: featuresQueryKey });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["features"] });
   });
 
   it("throws when the server rejects the patch", async () => {
