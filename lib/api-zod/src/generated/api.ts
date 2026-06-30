@@ -675,6 +675,7 @@ export const GetCapabilitiesResponse = zod.object({
   "quality": zod.boolean().describe('Risk & quality fields (health\/RAG, impact, urgency, blocked).'),
   "crm": zod.boolean().describe('CRM\/sales fields (deal value, probability, forecast).'),
   "service": zod.boolean().describe('ITSM\/service fields (SLA, CSAT, change management).'),
+  "benefits": zod.boolean().describe('Benefits-realisation fields (planned vs actual benefit value, measure, owner, status) — true only when a backend can carry them.'),
   "timeTravel": zod.boolean().describe('Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default).'),
   "fields": zod.record(zod.string(), zod.object({
   "surface": zod.boolean(),

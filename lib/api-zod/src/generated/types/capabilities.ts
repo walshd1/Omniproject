@@ -31,6 +31,8 @@ export interface Capabilities {
   crm: boolean;
   /** ITSM/service fields (SLA, CSAT, change management). */
   service: boolean;
+  /** Benefits-realisation fields (planned vs actual benefit value, measure, owner, status) — true only when a backend can carry them. */
+  benefits: boolean;
   /** Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default). */
   timeTravel: boolean;
   /** Per-field support: which work-item fields the backend can surface (read/display) and store (write back). Absent ⇒ derive from domains. */

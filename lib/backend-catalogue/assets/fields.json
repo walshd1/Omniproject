@@ -696,5 +696,101 @@
     "label": "Expected revenue",
     "type": "currency",
     "group": "derived"
+  },
+  {
+    "key": "benefitType",
+    "label": "Benefit type",
+    "type": "enum",
+    "group": "benefits"
+  },
+  {
+    "key": "benefitOwner",
+    "label": "Benefit owner",
+    "type": "user",
+    "group": "benefits"
+  },
+  {
+    "key": "plannedBenefitValue",
+    "label": "Planned benefit value",
+    "type": "currency",
+    "group": "benefits"
+  },
+  {
+    "key": "actualBenefitValue",
+    "label": "Actual benefit value",
+    "type": "currency",
+    "group": "benefits"
+  },
+  {
+    "key": "benefitMeasure",
+    "label": "Benefit measure",
+    "type": "string",
+    "group": "benefits"
+  },
+  {
+    "key": "benefitBaseline",
+    "label": "Benefit baseline",
+    "type": "number",
+    "group": "benefits"
+  },
+  {
+    "key": "benefitTarget",
+    "label": "Benefit target",
+    "type": "number",
+    "group": "benefits"
+  },
+  {
+    "key": "benefitStartDate",
+    "label": "Benefit start date",
+    "type": "date",
+    "group": "benefits"
+  },
+  {
+    "key": "benefitDueDate",
+    "label": "Benefit due date",
+    "type": "date",
+    "group": "benefits"
+  },
+  {
+    "key": "benefitStatus",
+    "label": "Benefit status",
+    "type": "enum",
+    "group": "benefits"
+  },
+  {
+    "key": "benefitConfidence",
+    "label": "Benefit confidence",
+    "type": "percent",
+    "group": "benefits"
+  },
+  {
+    "key": "expenditureType",
+    "label": "Expenditure type (CapEx/OpEx)",
+    "type": "enum",
+    "group": "financial"
+  },
+  {
+    "key": "capexAmount",
+    "label": "Capital expenditure",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "opexAmount",
+    "label": "Operating expenditure",
+    "type": "currency",
+    "group": "financial"
+  },
+  {
+    "key": "costCategory",
+    "label": "Cost category",
+    "type": "string",
+    "group": "financial"
+  },
+  {
+    "key": "depreciationMonths",
+    "label": "Depreciation period (months)",
+    "type": "number",
+    "group": "financial"
   }
 ]

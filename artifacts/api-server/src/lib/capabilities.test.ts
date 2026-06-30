@@ -52,6 +52,30 @@ test("deriveFieldMap: strategy fields (KPIs/goals) are portfolio-tier (project +
   assert.equal(off.fields.kpis!.surface, false);
 });
 
+test("deriveFieldMap: benefits fields gate on the dedicated benefits domain", () => {
+  // The benefits-realisation group surfaces only when the backend declares it can
+  // carry benefits — independent of the portfolio rollup.
+  const on = deriveFieldMap({ ...ALL, benefits: true });
+  assert.equal(on.fields.plannedBenefitValue!.surface, true);
+  assert.equal(on.fields.actualBenefitValue!.surface, true);
+  assert.equal(on.fields.benefitStatus!.store, true);
+  // …and go dark without the benefits domain.
+  const off = deriveFieldMap({ ...ALL, benefits: false });
+  assert.equal(off.fields.plannedBenefitValue!.surface, false);
+  assert.equal(off.fields.benefitOwner!.surface, false);
+});
+
+test("deriveFieldMap: CapEx/OpEx split + cost category ride the financials domain", () => {
+  const on = deriveFieldMap({ ...ALL, financials: true });
+  assert.equal(on.fields.expenditureType!.surface, true);
+  assert.equal(on.fields.capexAmount!.surface, true);
+  assert.equal(on.fields.opexAmount!.surface, true);
+  assert.equal(on.fields.costCategory!.store, true);
+  const off = deriveFieldMap({ ...ALL, financials: false });
+  assert.equal(off.fields.capexAmount!.surface, false);
+  assert.equal(off.fields.expenditureType!.surface, false);
+});
+
 test("deriveFieldMap: project is read-through by default (surface, no store)", () => {
   const map = deriveFieldMap(ALL);
   assert.deepEqual(map.entities.project, { surface: true, store: false });

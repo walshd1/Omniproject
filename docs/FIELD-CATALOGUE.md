@@ -121,6 +121,36 @@ completionPct`
 | `forecastCost` | currency | SAP PS, D365 PO | |
 | `wbsCode` | string | SAP PS, Primavera P6 (WBS) | |
 
+## financial — CapEx / OpEx split  (E2 — gated by `financials`)
+The explicit capitalisation split + cost-rate roll-up dimensions for finance-grade
+reporting (complements the existing `capitalised` boolean and `costRate`/`billRate`).
+| key | type | products | ★ |
+| --- | --- | --- | --- |
+| `expenditureType` | enum | SAP PS, NetSuite, D365 (capex/opex/mixed) | ★ |
+| `capexAmount` | currency | SAP PS, NetSuite (capitalised portion) | ★ |
+| `opexAmount` | currency | SAP PS, NetSuite (operating portion) | ★ |
+| `costCategory` | string | SAP PS, NetSuite (GL/cost category for roll-up) | |
+| `depreciationMonths` | number | SAP PS, NetSuite (useful-life for capex amortisation) | |
+
+## benefits realisation  (E1 — new group + `benefits` domain)  ★
+Quantified, trackable benefits so a programme can show planned-vs-actual value
+realisation. A dedicated `benefits` capability domain gates the group (a backend
+can carry benefits without a full portfolio rollup). Complements the lighter
+`expectedBenefit`/`benefitRealised` already under `strategy`.
+| key | type | products | ★ |
+| --- | --- | --- | --- |
+| `benefitType` | enum | MSP/PRINCE2 tooling, Planview (cashable/non-cashable/…) | ★ |
+| `benefitOwner` | user | MSP tooling, Planview | |
+| `plannedBenefitValue` | currency | MSP tooling, Planview (target) | ★ |
+| `actualBenefitValue` | currency | MSP tooling, Planview (realised to date) | ★ |
+| `benefitMeasure` | string | MSP tooling (the KPI/unit being moved) | |
+| `benefitBaseline` | number | MSP tooling (starting metric value) | |
+| `benefitTarget` | number | MSP tooling (target metric value) | |
+| `benefitStartDate` | date | MSP tooling (realisation start) | |
+| `benefitDueDate` | date | MSP tooling (realise-by) | |
+| `benefitStatus` | enum | MSP/Planview (on_track/at_risk/realised/missed) | ★ |
+| `benefitConfidence` | percent | Planview (realisation confidence) | |
+
 ## risk & quality  (new group)
 | key | type | products | ★ |
 | --- | --- | --- | --- |
