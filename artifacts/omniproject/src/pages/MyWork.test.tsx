@@ -25,7 +25,7 @@ function issue(over: Partial<Issue> = {}): Issue {
 function seed(opts: { enabled?: boolean; projects?: Project[]; issuesByProject?: Record<string, Issue[]> } = {}): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(featuresQueryKey(), [
-    { id: "myWork", label: "My Work / Inbox", description: "", enabled: opts.enabled ?? true, loaded: true, needsRestart: false },
+    { id: "myWork", kind: "module", label: "My Work / Inbox", description: "", enabled: opts.enabled ?? true, loaded: true, needsRestart: false },
   ] satisfies FeatureStatus[]);
   qc.setQueryData(["auth", "me"], { authenticated: true, mode: "oidc", user: { sub: "u1", email: "ada@example.com", name: "Ada" }, role: "manager" });
   qc.setQueryData(getListProjectsQueryKey(), opts.projects ?? []);

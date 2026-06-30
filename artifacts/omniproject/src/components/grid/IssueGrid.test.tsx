@@ -65,7 +65,7 @@ function seed(issues: Issue[], opts: { savedViews?: boolean } = {}): QueryClient
   qc.setQueryData(getGetProjectIssuesQueryKey("p1"), issues);
   qc.setQueryData(availabilityQueryKey, AVAIL);
   qc.setQueryData(featuresQueryKey(), [
-    { id: "savedViews", label: "Saved views", description: "", enabled: opts.savedViews ?? false, loaded: true, needsRestart: false },
+    { id: "savedViews", kind: "module", label: "Saved views", description: "", enabled: opts.savedViews ?? false, loaded: true, needsRestart: false },
   ] satisfies FeatureStatus[]);
   qc.setQueryData(savedViewsQueryKey, []);
   return qc;

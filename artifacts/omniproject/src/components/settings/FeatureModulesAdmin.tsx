@@ -13,8 +13,11 @@ export function FeatureModulesAdmin() {
 
   if (isLoading || !features) return null;
 
+  // This panel governs the toggleable modules only; reports + methodologies live in FeatureGovernance.
+  const modules = features.filter((x) => x.kind === "module");
+
   function toggle(f: FeatureStatus) {
-    const disabled = new Set(features!.filter((x) => !x.enabled).map((x) => x.id));
+    const disabled = new Set(modules.filter((x) => !x.enabled).map((x) => x.id));
     if (f.enabled) disabled.add(f.id);
     else disabled.delete(f.id);
     setDisabled.mutate([...disabled]);
@@ -28,7 +31,7 @@ export function FeatureModulesAdmin() {
         and its code isn't loaded at the next restart, so you only run what you need.
       </p>
       <ul className="divide-y divide-border border-2 border-foreground">
-        {features.map((f) => (
+        {modules.map((f) => (
           <li key={f.id} className="flex items-start justify-between gap-4 p-3">
             <div>
               <p className="font-bold">{f.label}</p>

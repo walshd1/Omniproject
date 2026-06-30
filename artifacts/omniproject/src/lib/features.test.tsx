@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
 import { featureEnabled, useFeatures, useSetDisabledFeatures, type FeatureStatus } from "./features";
 
 const FEATURES: FeatureStatus[] = [
-  { id: "grid", label: "Grid", description: "", enabled: true, loaded: true, needsRestart: false },
-  { id: "odata", label: "OData", description: "", enabled: false, loaded: false, needsRestart: false },
+  { id: "grid", kind: "module", label: "Grid", description: "", enabled: true, loaded: true, needsRestart: false },
+  { id: "odata", kind: "module", label: "OData", description: "", enabled: false, loaded: false, needsRestart: false },
 ];
 
 function wrapper(client: QueryClient) {
