@@ -20,6 +20,8 @@ const SECRET = "test-session-secret-integration-routes";
 process.env["SESSION_SECRET"] = SECRET;
 process.env["NODE_ENV"] = "test";
 process.env["RATE_LIMIT_DISABLED"] = "true";
+// odata + integrations are default-off (cost) in the gating model — opt them in for these route tests.
+process.env["ENABLED_FEATURES"] = "odata,integrations";
 delete process.env["OIDC_ISSUER_URL"]; // demo mode → sessions are admin
 
 function signedSessionCookie(session: object): string {

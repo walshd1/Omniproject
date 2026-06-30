@@ -86,6 +86,21 @@ export interface LoggingSyncConfig {
 
 const DEFAULT_LOGGING_SYNC: LoggingSyncConfig = { enabled: false, url: null, acknowledgedWarranty: false };
 
+/**
+ * A programme's or project's feature policy in the org→programme→project gating model. Disable-only
+ * for the everyday narrowing, plus `required`/`forbidden` for PMO governance mandates ("must use" /
+ * "must not use") — all resolved by lib/feature-resolution. Lists of catalogue ids (features ∪
+ * methodologies ∪ reports).
+ */
+export interface ScopeFeatureConfig {
+  /** Soft: turned off for this scope + descendants (within the parent's allowed set). */
+  disabled: string[];
+  /** Hard mandate: forced on + locked for this scope + descendants. */
+  required: string[];
+  /** Hard mandate: forced off + locked for this scope + descendants. */
+  forbidden: string[];
+}
+
 export interface SettingsState {
   /** The active broker's webhook/endpoint URL (n8n by default). */
   brokerUrl: string | null;
@@ -138,6 +153,22 @@ export interface SettingsState {
    * the chosen module set travels in the bundle — never project data. See lib/feature-modules.
    */
   disabledFeatures: string[];
+  /**
+   * Org opt-IN list for `defaultOff` feature ids (presence, predictivePrefetch, …). A default-off
+   * feature stays off for everyone until its id is here — the safety/cost/storage opt-in. Customer-level
+   * config; rides the snapshot/export. See lib/feature-resolution.
+   */
+  enabledFeatures: string[];
+  /**
+   * Org-level PMO governance: catalogue ids every programme/project MUST use (`required`) or MUST NOT
+   * use (`forbidden`) — hard mandates that lock all descendants. Customer-level config. See
+   * lib/feature-resolution.
+   */
+  featureGovernance: { required: string[]; forbidden: string[] };
+  /** Per-programme feature policy (disable/require/forbid), keyed by programmeId. ⊆ the org-approved set. */
+  programmeFeatures: Record<string, ScopeFeatureConfig>;
+  /** Per-project feature policy (disable/require/forbid), keyed by projectId. ⊆ the programme/org set. */
+  projectFeatures: Record<string, ScopeFeatureConfig>;
   /**
    * Admin/PMO view-curation: canonical field keys HIDDEN from view on top of what the backend makes
    * available. The availability resolver subtracts these from the surfaced set, so a deployment can
@@ -313,6 +344,11 @@ function disabledFeaturesFromEnv(): string[] {
   return (process.env["DISABLED_FEATURES"]?.trim() || "").split(/[\s,]+/).filter(Boolean);
 }
 
+/** Org opt-IN for default-off features (env seed; admin extends via settings). */
+function enabledFeaturesFromEnv(): string[] {
+  return (process.env["ENABLED_FEATURES"]?.trim() || "").split(/[\s,]+/).filter(Boolean);
+}
+
 const initialProfile = coerceProfile(process.env["DEPLOYMENT_PROFILE"]);
 const store: SettingsState = {
   brokerUrl: process.env["BROKER_URL"]?.trim() || null,
@@ -332,6 +368,10 @@ const store: SettingsState = {
   userPrefs: {},
   capabilityStates: {},
   disabledFeatures: disabledFeaturesFromEnv(),
+  enabledFeatures: enabledFeaturesFromEnv(),
+  featureGovernance: { required: [], forbidden: [] },
+  programmeFeatures: {},
+  projectFeatures: {},
   hiddenFields: [],
   savedViews: [],
   dashboards: [],
@@ -359,6 +399,10 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "userPrefs",
   "capabilityStates",
   "disabledFeatures",
+  "enabledFeatures",
+  "featureGovernance",
+  "programmeFeatures",
+  "projectFeatures",
   "hiddenFields",
   "savedViews",
   "dashboards",
@@ -402,6 +446,35 @@ function validateFieldOverrides(value: unknown): void {
   const o = value as Record<string, unknown>;
   if ("fields" in o) validateSupportMap(o["fields"], "fields");
   if ("entities" in o) validateSupportMap(o["entities"], "entities");
+}
+
+function isStringArray(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((x) => typeof x === "string");
+}
+
+/** Validate an org-governance object: { required: string[], forbidden: string[] }. */
+function validateGovernance(value: unknown, label: string): void {
+  if (typeof value !== "object" || value == null) throw new SettingsValidationError(`${label} must be an object`);
+  const o = value as Record<string, unknown>;
+  for (const k of ["required", "forbidden"]) {
+    if (k in o && !isStringArray(o[k])) throw new SettingsValidationError(`${label}.${k} must be an array of strings`);
+  }
+}
+
+/** Validate a per-scope feature map: Record<id, { disabled?, required?, forbidden? }> (each string[]). */
+function validateScopeFeatureMap(value: unknown, label: string): void {
+  if (typeof value !== "object" || value == null || Array.isArray(value)) {
+    throw new SettingsValidationError(`${label} must be an object keyed by id`);
+  }
+  for (const [scopeId, cfg] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof cfg !== "object" || cfg == null) throw new SettingsValidationError(`${label}["${scopeId}"] must be an object`);
+    for (const k of ["disabled", "required", "forbidden"]) {
+      const arr = (cfg as Record<string, unknown>)[k];
+      if (k in (cfg as object) && !isStringArray(arr)) {
+        throw new SettingsValidationError(`${label}["${scopeId}"].${k} must be an array of strings`);
+      }
+    }
+  }
 }
 
 function validatePatch(patch: Record<string, unknown>): void {
@@ -450,6 +523,15 @@ function validatePatch(patch: Record<string, unknown>): void {
       throw new SettingsValidationError("disabledFeatures must be an array of strings");
     }
   }
+  if ("enabledFeatures" in patch) {
+    const v = patch["enabledFeatures"];
+    if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
+      throw new SettingsValidationError("enabledFeatures must be an array of strings");
+    }
+  }
+  if ("featureGovernance" in patch) validateGovernance(patch["featureGovernance"], "featureGovernance");
+  if ("programmeFeatures" in patch) validateScopeFeatureMap(patch["programmeFeatures"], "programmeFeatures");
+  if ("projectFeatures" in patch) validateScopeFeatureMap(patch["projectFeatures"], "projectFeatures");
   if ("hiddenFields" in patch) {
     const v = patch["hiddenFields"];
     if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {

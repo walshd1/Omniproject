@@ -1,6 +1,18 @@
 import type { Request, Response, NextFunction, RequestHandler, IRouter } from "express";
 import { getSettings } from "./settings";
-import type { FeatureGate, GateReason } from "./feature-resolution";
+import {
+  resolveFeatures,
+  type FeatureGate,
+  type GateReason,
+  type ResolvedFeature,
+  type ScopeOverrides,
+} from "./feature-resolution";
+
+/** A resolution scope: a project (and/or its programme). Omit both for org-level resolution. */
+export interface FeatureScope {
+  programmeId?: string | null;
+  projectId?: string | null;
+}
 
 /**
  * Feature-module registry — the optional backend modules a deployment can switch off so a
@@ -145,9 +157,38 @@ export function disabledFeatureIds(): Set<string> {
   return out;
 }
 
-/** True when a module id is currently enabled (not in the disabled set). */
-export function isFeatureEnabled(id: string): boolean {
-  return !disabledFeatureIds().has(id);
+/** Build the resolver's scope overrides from settings + the requested programme/project. */
+export function scopeOverrides(scope: FeatureScope = {}): ScopeOverrides {
+  const s = getSettings();
+  const prog = scope.programmeId ? s.programmeFeatures?.[scope.programmeId] : undefined;
+  const proj = scope.projectId ? s.projectFeatures?.[scope.projectId] : undefined;
+  return {
+    orgDisabled: s.disabledFeatures ?? [],
+    orgEnabled: s.enabledFeatures ?? [],
+    orgRequired: s.featureGovernance?.required ?? [],
+    orgForbidden: s.featureGovernance?.forbidden ?? [],
+    programmeDisabled: prog?.disabled ?? [],
+    programmeRequired: prog?.required ?? [],
+    programmeForbidden: prog?.forbidden ?? [],
+    projectDisabled: proj?.disabled ?? [],
+    projectRequired: proj?.required ?? [],
+    projectForbidden: proj?.forbidden ?? [],
+  };
+}
+
+/** Resolve every feature module for a scope (org by default), with enabled/blockedAt/lock detail. */
+export function resolveScopedFeatures(scope: FeatureScope = {}): ResolvedFeature[] {
+  return resolveFeatures(featureGates(), scopeOverrides(scope));
+}
+
+/**
+ * True when a module id is enabled for the given scope (org by default). Honours `defaultOff`
+ * opt-in and the org→programme→project hierarchy + PMO mandates (see lib/feature-resolution).
+ */
+export function isFeatureEnabled(id: string, scope: FeatureScope = {}): boolean {
+  const r = resolveScopedFeatures(scope).find((f) => f.id === id);
+  // Unknown ids (not in the registry) are treated as enabled — gating only governs known modules.
+  return r ? r.enabled : true;
 }
 
 export interface FeatureStatus {
@@ -163,13 +204,20 @@ export interface FeatureStatus {
   defaultOff: boolean;
   /** Why it's default-off. */
   reason?: GateReason;
+  /** A hard governance mandate locked this state — descendants can't change it. */
+  locked?: boolean;
+  lockedBy?: "org" | "programme" | "project";
+  policy?: "require" | "forbid";
+  /** When disabled, the level that turned it off. */
+  blockedAt?: "org" | "programme" | "project";
 }
 
-/** The status of every registered feature module (for `GET /api/features` + the admin panel). */
-export function featureStatus(): FeatureStatus[] {
-  const disabled = disabledFeatureIds();
+/** The status of every registered feature module for a scope (org by default) — `GET /api/features`. */
+export function featureStatus(scope: FeatureScope = {}): FeatureStatus[] {
+  const resolved = new Map(resolveScopedFeatures(scope).map((r) => [r.id, r]));
   return FEATURE_MODULES.map((m) => {
-    const enabled = !disabled.has(m.id);
+    const r = resolved.get(m.id);
+    const enabled = r ? r.enabled : true;
     const backend = !!m.load; // UI-only modules have no backend route to load
     const isLoaded = loaded.has(m.id);
     return {
@@ -183,14 +231,22 @@ export function featureStatus(): FeatureStatus[] {
       needsRestart: backend && enabled && !isLoaded,
       defaultOff: !!m.defaultOff,
       ...(m.reason ? { reason: m.reason } : {}),
+      ...(r?.locked ? { locked: true, lockedBy: r.lockedBy, policy: r.policy } : {}),
+      ...(r && !r.enabled && r.blockedAt ? { blockedAt: r.blockedAt } : {}),
     };
   });
 }
 
-/** Middleware: 404 when the feature is disabled at request time (immediate runtime toggle-off). */
+/**
+ * Middleware: 404 when the feature is disabled for the request's scope. Reads a `projectId` route
+ * param (and resolves its programme if the request carries one) so a project-scoped disable/forbid
+ * actually blocks the endpoint — not just the UI. Falls back to org scope when there's no project.
+ */
 export function requireFeature(id: string): RequestHandler {
-  return (_req: Request, res: Response, next: NextFunction) => {
-    if (isFeatureEnabled(id)) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const projectId = (req.params?.["projectId"] as string | undefined) || null;
+    const programmeId = (req.params?.["programmeId"] as string | undefined) || null;
+    if (isFeatureEnabled(id, { projectId, programmeId })) {
       next();
       return;
     }

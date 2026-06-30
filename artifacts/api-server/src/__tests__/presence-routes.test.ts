@@ -12,6 +12,8 @@ const SECRET = "test-session-secret-do-not-use-in-prod";
 process.env["SESSION_SECRET"] = SECRET;
 process.env["NODE_ENV"] = "production";
 process.env["RATE_LIMIT_DISABLED"] = "true";
+// presence is default-off (cost: SSE streams) in the gating model — opt it in for these route tests.
+process.env["ENABLED_FEATURES"] = "presence";
 
 let server: Server;
 let base: string;
