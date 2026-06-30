@@ -56,6 +56,20 @@ test("a PMO sets the rate card + project types and reads them back", async () =>
   assert.deepEqual(body.projectTypes.map((t) => t.id), ["delivery"]);
 });
 
+test("a PMO authors roles in plaintext; the server hashes the title and never stores the clear name as a key", async () => {
+  const r = await put("/rate-card", {
+    roles: [{ title: "Senior Engineer", rates: { delivery: { client: 120, internal: 90 } } }],
+    projectTypes: [{ id: "delivery", label: "Delivery" }],
+  });
+  assert.equal(r.status, 200);
+  const body = (await get("/rate-card").then((x) => x.json())) as { titles: Record<string, string>; rates: Record<string, unknown> };
+  const h = hashIdentity("Senior Engineer");
+  assert.equal(body.titles[h], "Senior Engineer"); // hash is the key, plaintext is only the label
+  assert.deepEqual(body.rates[h], { delivery: { client: 120, internal: 90 } });
+  // the raw title is never used as a rates KEY (only hashes key the card)
+  assert.equal(body.rates["Senior Engineer"], undefined);
+});
+
 test("identities are stored hashed — the raw assignee never appears in the stored map", async () => {
   const senior = hashIdentity("Senior Engineer");
   await put("/rate-card/identities", { level: "central", assignments: [{ assignee: "alice", titleHash: senior }] });

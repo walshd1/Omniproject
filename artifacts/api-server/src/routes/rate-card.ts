@@ -4,7 +4,7 @@ import { getSession } from "./auth";
 import { recordAudit } from "../lib/audit";
 import { getIssues, getProjects } from "../lib/data";
 import { programmeIdOf } from "../lib/programmes";
-import { staffCost, valueColumns, type RateCard, type Facing, type TimedItem, type Uplift, type ValueColumn } from "../lib/rate-card";
+import { staffCost, valueColumns, hashIdentity, type RateCard, type Facing, type TimedItem, type Uplift, type ValueColumn } from "../lib/rate-card";
 import { applyCostRules, firedCostRuleIds, type CostRule } from "../lib/cost-rules";
 import { validatePredicate, type ConditionSet } from "../lib/predicate";
 import {
@@ -50,23 +50,43 @@ function audit(req: Parameters<typeof getSession>[0], action: string, meta: Reco
   });
 }
 
-/** Validate the rate-card PUT body into a clean RateCard (titles + rates) and project types. */
+/** Parse one role's `{ [projectType]: { client?, internal? } }` rate map, dropping empty/negative cells. */
+function readRoleRates(roleRates: unknown): RateCard["rates"][string] {
+  const out: RateCard["rates"][string] = {};
+  for (const [pt, byFacing] of Object.entries((roleRates ?? {}) as Record<string, unknown>)) {
+    const cell: Partial<Record<Facing, number>> = {};
+    for (const f of FACINGS) {
+      const r = (byFacing as Record<string, unknown>)?.[f];
+      if (isNum(r) && r >= 0) cell[f] = r;
+    }
+    if (Object.keys(cell).length) out[pt] = cell;
+  }
+  return out;
+}
+
+/** Validate the rate-card PUT body into a clean RateCard (titles + rates) and project types.
+ *  Two authoring shapes are accepted for roles:
+ *   - `roles: [{ title (plaintext), rates }]` — the PMO authors job titles in clear; the server hashes
+ *     each title (keyed HMAC) to key the card, so no plaintext role ever persists. Takes precedence.
+ *   - `titles`/`rates` keyed by title-hash — the round-trip form (a screen that already holds the hashes). */
 function readRateCard(body: unknown): { card: RateCard; projectTypes: ProjectType[] } {
   const b = (body ?? {}) as Record<string, unknown>;
   const titles: Record<string, string> = {};
-  for (const [k, v] of Object.entries((b["titles"] ?? {}) as Record<string, unknown>)) if (isStr(v)) titles[k] = v;
   const rates: RateCard["rates"] = {};
-  for (const [titleHash, roleRates] of Object.entries((b["rates"] ?? {}) as Record<string, unknown>)) {
-    const out: RateCard["rates"][string] = {};
-    for (const [pt, byFacing] of Object.entries((roleRates ?? {}) as Record<string, unknown>)) {
-      const cell: Partial<Record<Facing, number>> = {};
-      for (const f of FACINGS) {
-        const r = (byFacing as Record<string, unknown>)?.[f];
-        if (isNum(r) && r >= 0) cell[f] = r;
-      }
-      if (Object.keys(cell).length) out[pt] = cell;
+  if (Array.isArray(b["roles"])) {
+    for (const r of b["roles"] as unknown[]) {
+      const o = r as Record<string, unknown>;
+      const title = isStr(o?.["title"]) ? (o["title"] as string).trim() : "";
+      if (!title) continue;
+      const h = hashIdentity(title);
+      titles[h] = title;
+      rates[h] = readRoleRates(o["rates"]);
     }
-    rates[titleHash] = out;
+  } else {
+    for (const [k, v] of Object.entries((b["titles"] ?? {}) as Record<string, unknown>)) if (isStr(v)) titles[k] = v;
+    for (const [titleHash, roleRates] of Object.entries((b["rates"] ?? {}) as Record<string, unknown>)) {
+      rates[titleHash] = readRoleRates(roleRates);
+    }
   }
   const projectTypes: ProjectType[] = [];
   for (const t of (b["projectTypes"] ?? []) as unknown[]) {
