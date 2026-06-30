@@ -8,15 +8,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
-- **Hierarchical feature-gating model — foundation (`lib/feature-resolution`).** The pure core of the
-  org → programme → project gating model: **monotonic narrowing** where each level can only *remove*
-  features (`core ⊇ org-approved ⊇ programme ⊇ project`). The org (admin) sets the approved superset —
-  everything ON by default except features flagged `defaultOff` for a **safety/cost/storage** reason
-  (now: `presence`, `predictivePrefetch`, `odata`, `integrations` — all *cost*), which need an explicit
-  org opt-in; programmes (pmo) and projects (manager) hold disable-only lists, so they can never grant
-  beyond their parent. `featureStatus()` now surfaces `defaultOff`/`reason` for the admin panel. Pure,
-  fully unit-tested (8 cases); live wiring (scoped resolution + per-scope endpoints) and the admin UI
-  follow.
+- **Hierarchical feature-gating + governance — foundation (`lib/feature-resolution`).** The pure core of
+  the org → programme → project model. Two strengths of policy:
+  - **Soft narrowing** — each level may further *disable* (`core ⊇ org-approved ⊇ programme ⊇ project`).
+    The org (admin) sets the approved superset: everything ON by default except features flagged
+    `defaultOff` for a **safety/cost/storage** reason (now: `presence`, `predictivePrefetch`, `odata`,
+    `integrations` — all *cost*), which need an explicit org opt-in.
+  - **Hard governance** — `require` ("must use") and `forbid` ("must not use") mandates, authored through
+    the business-ruleset engine's `hard` mode, which **lock** descendants: a higher scope wins, so a
+    programme/PMO can mandate or ban a feature/methodology/report for every project beneath it and a PM
+    cannot override it. Monotonicity holds — a lower level can never grant beyond its parent.
+  `featureStatus()` surfaces `defaultOff`/`reason`; the resolver reports `blockedAt` + `locked`/`lockedBy`/
+  `policy`. Pure, fully unit-tested (13 cases). Live wiring (scoped resolution + per-scope endpoints over
+  the features ∪ methodologies ∪ reports catalogue) and the admin UI follow.
 
 - **Benefits Realisation + CapEx/OpEx reports (stateless).** Two new reports that consume the E1/E2
   fields, each derive-only with nothing stored. **Benefits Realisation** (`lib/benefits` +

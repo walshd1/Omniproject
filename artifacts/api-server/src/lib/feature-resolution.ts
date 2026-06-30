@@ -28,16 +28,35 @@ export interface FeatureGate {
   reason?: GateReason;
 }
 
-/** The disable/enable lists captured at each scope. Programme/project are disable-only by design. */
+/**
+ * The policy captured at each scope. Two strengths:
+ *   - **soft** `disabled`/`enabled` lists — the everyday narrowing (a lower level may further disable).
+ *   - **hard** `required`/`forbidden` lists — governance mandates ("must use" / "must not use") authored
+ *     through the business-ruleset engine. A hard rule from an ancestor **locks** the item so descendants
+ *     can't override it. Higher scope wins; a lower level can never mandate something its parent forbade
+ *     or never allowed (monotonicity holds).
+ */
 export interface ScopeOverrides {
-  /** Org admin: features turned OFF org-wide. */
+  /** Org admin: features turned OFF org-wide (soft). */
   orgDisabled?: Iterable<string>;
   /** Org admin: `defaultOff` features the org has opted INTO. */
   orgEnabled?: Iterable<string>;
-  /** Programme (pmo): features turned off for a programme (⊆ the org-approved set). */
+  /** Org (PMO mandate): items every programme/project MUST use — forced on, locked. */
+  orgRequired?: Iterable<string>;
+  /** Org (PMO mandate): items that MUST NOT be used anywhere — forced off, locked. */
+  orgForbidden?: Iterable<string>;
+  /** Programme (pmo): features turned off for a programme (soft, ⊆ org-approved). */
   programmeDisabled?: Iterable<string>;
-  /** Project (manager): features turned off for a project (⊆ the programme/org set). */
+  /** Programme (pmo mandate): forced on for the programme + its projects (within org-approved). */
+  programmeRequired?: Iterable<string>;
+  /** Programme (pmo mandate): forced off for the programme + its projects. */
+  programmeForbidden?: Iterable<string>;
+  /** Project (manager): features turned off for a project (soft). */
   projectDisabled?: Iterable<string>;
+  /** Project (manager mandate): forced on for this project (within the programme/org grant). */
+  projectRequired?: Iterable<string>;
+  /** Project (manager mandate): forced off for this project. */
+  projectForbidden?: Iterable<string>;
 }
 
 export type BlockLevel = "org" | "programme" | "project";
@@ -47,6 +66,11 @@ export interface ResolvedFeature {
   enabled: boolean;
   /** The highest level that turned it off (null when enabled) — so the UI can say "off at programme level". */
   blockedAt: BlockLevel | null;
+  /** A hard governance mandate locked this state — descendants can't change it. */
+  locked: boolean;
+  /** The scope + verb of the lock, when locked. */
+  lockedBy?: BlockLevel;
+  policy?: "require" | "forbid";
   defaultOff: boolean;
   reason?: GateReason;
 }
@@ -61,19 +85,52 @@ export function orgAllows(gate: FeatureGate, orgDisabled: ReadonlySet<string>, o
   return true;
 }
 
-/** Resolve every gate against the scope overrides, reporting where each was blocked. */
+/**
+ * Resolve every gate against the scope overrides.
+ *
+ * Order (org is the ceiling, then each level narrows within its parent's grant):
+ *   1. org `forbid`  → off, locked@org.
+ *   2. org not-allowed (default-off & not opted in, or org-disabled, and not org-required) → off@org.
+ *   3. org `require` → on, locked@org (a mandate; overrides default-off).
+ *   4. programme `forbid` → off locked@programme · `require` → on locked@programme · `disabled` → off@programme.
+ *   5. project `forbid` → off locked@project · `require` → on locked@project · `disabled` → off@project.
+ *   6. otherwise on.
+ * Because each step is bounded by the previous, a lower level can never mandate something its parent
+ * forbade or never allowed.
+ */
 export function resolveFeatures(gates: readonly FeatureGate[], overrides: ScopeOverrides = {}): ResolvedFeature[] {
   const orgDisabled = new Set(overrides.orgDisabled ?? []);
   const orgEnabled = new Set(overrides.orgEnabled ?? []);
+  const orgRequired = new Set(overrides.orgRequired ?? []);
+  const orgForbidden = new Set(overrides.orgForbidden ?? []);
   const programmeDisabled = new Set(overrides.programmeDisabled ?? []);
+  const programmeRequired = new Set(overrides.programmeRequired ?? []);
+  const programmeForbidden = new Set(overrides.programmeForbidden ?? []);
   const projectDisabled = new Set(overrides.projectDisabled ?? []);
+  const projectRequired = new Set(overrides.projectRequired ?? []);
+  const projectForbidden = new Set(overrides.projectForbidden ?? []);
 
   return gates.map((g) => {
-    let blockedAt: BlockLevel | null = null;
-    if (!orgAllows(g, orgDisabled, orgEnabled)) blockedAt = "org";
-    else if (programmeDisabled.has(g.id)) blockedAt = "programme";
-    else if (projectDisabled.has(g.id)) blockedAt = "project";
-    return { id: g.id, enabled: blockedAt === null, blockedAt, defaultOff: !!g.defaultOff, ...(g.reason ? { reason: g.reason } : {}) };
+    const base = { id: g.id, defaultOff: !!g.defaultOff, ...(g.reason ? { reason: g.reason } : {}) };
+    const off = (blockedAt: BlockLevel, lock?: BlockLevel): ResolvedFeature =>
+      ({ ...base, enabled: false, blockedAt, locked: !!lock, ...(lock ? { lockedBy: lock, policy: "forbid" as const } : {}) });
+    const on = (lock?: BlockLevel): ResolvedFeature =>
+      ({ ...base, enabled: true, blockedAt: null, locked: !!lock, ...(lock ? { lockedBy: lock, policy: "require" as const } : {}) });
+
+    // 1-3: org is the ceiling.
+    if (orgForbidden.has(g.id)) return off("org", "org");
+    if (!orgRequired.has(g.id) && !orgAllows(g, orgDisabled, orgEnabled)) return off("org");
+    if (orgRequired.has(g.id)) return on("org");
+    // 4: programme, within the org grant.
+    if (programmeForbidden.has(g.id)) return off("programme", "programme");
+    if (programmeRequired.has(g.id)) return on("programme");
+    if (programmeDisabled.has(g.id)) return off("programme");
+    // 5: project, within the programme grant.
+    if (projectForbidden.has(g.id)) return off("project", "project");
+    if (projectRequired.has(g.id)) return on("project");
+    if (projectDisabled.has(g.id)) return off("project");
+    // 6.
+    return on();
   });
 }
 

@@ -76,6 +76,48 @@ test("full chain: org opts into presence, programme keeps it, project drops it",
   assert.equal(effectiveEnabledIds(GATES, { orgEnabled: ["presence"] }).has("presence"), true);
 });
 
+test("org `require` mandates a feature (forces on + locks, overrides default-off)", () => {
+  const r = resolveFeatures(GATES, { orgRequired: ["presence"] });
+  const p = r.find((x) => x.id === "presence")!;
+  assert.equal(p.enabled, true); // forced on despite defaultOff and no opt-in
+  assert.equal(p.locked, true);
+  assert.equal(p.lockedBy, "org");
+  assert.equal(p.policy, "require");
+});
+
+test("org `forbid` bans a feature everywhere — a lower require cannot override it", () => {
+  const r = resolveFeatures(GATES, { orgForbidden: ["grid"], programmeRequired: ["grid"], projectRequired: ["grid"] });
+  const g = r.find((x) => x.id === "grid")!;
+  assert.equal(g.enabled, false);
+  assert.equal(g.locked, true);
+  assert.equal(g.lockedBy, "org");
+  assert.equal(g.policy, "forbid");
+});
+
+test("a programme `require` locks descendants — a project cannot forbid a programme mandate", () => {
+  const r = resolveFeatures(GATES, { programmeRequired: ["grid"], projectForbidden: ["grid"] });
+  const g = r.find((x) => x.id === "grid")!;
+  assert.equal(g.enabled, true);
+  assert.equal(g.lockedBy, "programme");
+  assert.equal(g.policy, "require");
+});
+
+test("a programme cannot mandate a feature the org never allowed (monotonic ceiling)", () => {
+  // presence is default-off and the org didn't opt in → a programme require can't grant it.
+  const r = resolveFeatures(GATES, { programmeRequired: ["presence"] });
+  const p = r.find((x) => x.id === "presence")!;
+  assert.equal(p.enabled, false);
+  assert.equal(p.blockedAt, "org");
+});
+
+test("programme `forbid` bans for the programme; a project require cannot override it", () => {
+  const r = resolveFeatures(GATES, { programmeForbidden: ["globalSearch"], projectRequired: ["globalSearch"] });
+  const g = r.find((x) => x.id === "globalSearch")!;
+  assert.equal(g.enabled, false);
+  assert.equal(g.lockedBy, "programme");
+  assert.equal(g.policy, "forbid");
+});
+
 test("manageable sets enforce the parent ceiling", () => {
   // org allows grid + globalSearch + (opted-in) presence; predictivePrefetch stays out.
   const ov = { orgEnabled: ["presence"] };
