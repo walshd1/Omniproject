@@ -25,6 +25,7 @@ import { AiProvidersAdmin } from "../components/settings/AiProvidersAdmin";
 import { GovernanceDashboard } from "../components/settings/GovernanceDashboard";
 import { DeploymentProfile } from "../components/settings/DeploymentProfile";
 import { FeatureModulesAdmin } from "../components/settings/FeatureModulesAdmin";
+import { FeatureGovernance } from "../components/settings/FeatureGovernance";
 import { FieldVisibilityAdmin } from "../components/settings/FieldVisibilityAdmin";
 import { SecurityKeys } from "../components/settings/SecurityKeys";
 import { ProvenanceDashboard } from "../components/settings/ProvenanceDashboard";
@@ -319,6 +320,11 @@ export function Settings() {
 
       <div className="mt-10">
         <FeatureModulesAdmin />
+      </div>
+
+      <div className="mt-10">
+        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Feature governance (org · programme · project)</h2>
+        <FeatureGovernance />
       </div>
 
       <div className="mt-10">

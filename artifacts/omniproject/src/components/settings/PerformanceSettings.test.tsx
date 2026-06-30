@@ -8,7 +8,7 @@ import { featuresQueryKey, type FeatureStatus } from "../../lib/features";
 
 function seed(moduleEnabled: boolean): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  qc.setQueryData(featuresQueryKey, [
+  qc.setQueryData(featuresQueryKey(), [
     { id: "predictivePrefetch", label: "Predictive loading", description: "", enabled: moduleEnabled, loaded: true, needsRestart: false },
   ] satisfies FeatureStatus[]);
   return qc;

@@ -17,7 +17,7 @@ function project(over: Partial<Project> = {}): Project {
 
 function seed(opts: { enabled?: boolean; dashboards?: Dashboard[]; projects?: Project[]; surfaceProgramme?: boolean } = {}): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
-  qc.setQueryData(featuresQueryKey, [
+  qc.setQueryData(featuresQueryKey(), [
     { id: "dashboards", label: "Custom dashboards", description: "", enabled: opts.enabled ?? true, loaded: true, needsRestart: false },
   ] satisfies FeatureStatus[]);
   qc.setQueryData(getGetCapabilitiesQueryKey(), {
