@@ -17,6 +17,7 @@ import { PortfolioFinancials } from "../components/reports/PortfolioFinancials";
 import { PortfolioIncome } from "../components/reports/PortfolioIncome";
 import { PortfolioBenefits } from "../components/reports/PortfolioBenefits";
 import { CustomReportsProject, CustomReportsPortfolio } from "../components/reports/CustomReportsPanel";
+import { SnapshotVerifyPanel } from "../components/reports/SnapshotControls";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { Burndown } from "../components/reports/Burndown";
 import { Burnup } from "../components/reports/Burnup";
@@ -266,6 +267,17 @@ export function Reports() {
 
         {/* Customer-built project reports (the report generator). Render nothing unless any are defined. */}
         {projectId && <CustomReportsProject projectId={projectId} />}
+
+        {/* Provably-immutable snapshots — verify a previously captured & downloaded bundle. Stateless;
+            nothing is stored. Capture lives on the reports that produce a board pack (e.g. Portfolio Financials). */}
+        <section>
+          <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-2">Snapshot verification</h2>
+          <p className="text-[11px] text-muted-foreground mb-4 max-w-2xl">
+            Re-check a snapshot you previously captured &amp; downloaded — it recomputes the content hash and
+            checks the signature, proving the figures are authentic and unaltered. Nothing is uploaded or stored.
+          </p>
+          <SnapshotVerifyPanel />
+        </section>
       </div>
     </div>
   );
