@@ -41,6 +41,9 @@ export const CAPABILITY_DOMAINS = [
   "quality",
   "crm",
   "service",
+  // Benefits realisation — gates the benefits field group (planned vs actual value,
+  // owner, measure, status). Off unless a backend declares it.
+  "benefits",
 ] as const;
 
 export type CapabilityDomain = (typeof CAPABILITY_DOMAINS)[number];
@@ -114,6 +117,9 @@ const GROUP_DOMAIN: Record<FieldGroup, CapabilityDomain> = {
   // Strategic alignment (goals/KPIs/OKRs) is portfolio-tier — it lights up at the
   // project + programme level when the backend supports the portfolio domain.
   strategy: "portfolio",
+  // Benefits realisation has its own domain — a backend can track benefits without
+  // a full portfolio rollup.
+  benefits: "benefits",
 };
 
 /** Build the per-domain field manifest a backend exposes from its enabled capability domains. */

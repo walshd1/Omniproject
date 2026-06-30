@@ -43,6 +43,7 @@ export type FieldGroup =
   | "crm" // CRM/sales (deal value, probability, forecast)
   | "service" // ITSM/service (SLA, CSAT, change)
   | "strategy" // strategic alignment (goals, KPIs, OKRs) — project + programme level
+  | "benefits" // benefits realisation (planned vs actual value, measure, owner, status)
   | "relationship"
   | "derived";
 

@@ -1577,6 +1577,11 @@ components:
         service:
           type: boolean
           description: ITSM/service fields (SLA, CSAT, change management).
+        benefits:
+          type: boolean
+          description: >-
+            Benefits-realisation fields (planned vs actual benefit value, measure,
+            owner, status) — true only when a backend can carry them.
         timeTravel:
           type: boolean
           description: >-
@@ -1627,6 +1632,7 @@ components:
         - quality
         - crm
         - service
+        - benefits
         - timeTravel
 
     FieldSupport:

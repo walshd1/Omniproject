@@ -8,6 +8,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Canonical field registry extended: benefits realisation + CapEx/OpEx (E1/E2).** Sixteen new
+  fields in the canonical vocabulary (`assets/fields.json`, drift-guarded; 114 → 130). A first-class
+  **`benefits`** group + a dedicated **`benefits` capability domain** (planned/actual benefit value,
+  measure, owner, baseline/target, start/due, status, confidence) so a backend can carry benefits
+  realisation without a full portfolio rollup; and the explicit **CapEx/OpEx split** under the
+  existing `financials` domain (`expenditureType`, `capexAmount`, `opexAmount`, `costCategory`,
+  `depreciationMonths` — complementing the existing `capitalised`/`costRate`/`billRate`). Wired
+  through the registry → capabilities → field-manifest pipeline and the OpenAPI `Capabilities` type;
+  a backend that exposes these fields now has them recognised as canonical (gated, reconciled) rather
+  than dumped to custom-field passthrough. Docs in `FIELD-CATALOGUE.md`; capability-derivation tests
+  added. (Typed `Issue` surfacing + the realisation/cost reports are the follow-up.)
+
 - **Critical Path (CPM) report (stateless).** A new `lib/critical-path` solver runs the standard
   forward/backward pass over activity durations + precedence to surface the project's **critical
   chain**, each activity's **earliest/latest start-finish** and **total float**, and the overall
