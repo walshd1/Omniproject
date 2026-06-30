@@ -128,3 +128,14 @@ test("manageable sets enforce the parent ceiling", () => {
   const proj = manageableAtProject(GATES, { ...ov, programmeDisabled: ["grid"] });
   assert.deepEqual([...proj].sort(), ["globalSearch", "presence"]);
 });
+
+test("manageable ceilings exclude ancestor hard `forbid` locks (not just soft disables)", () => {
+  // org forbids globalSearch → no descendant may re-`require` it: it's out of the programme ceiling.
+  const progCeiling = manageableAtProgramme(GATES, { orgForbidden: ["globalSearch"] });
+  assert.ok(!progCeiling.has("globalSearch"));
+  assert.ok(progCeiling.has("grid"));
+  // a programme `forbid` likewise removes the item from the project ceiling.
+  const projCeiling = manageableAtProject(GATES, { programmeForbidden: ["grid"] });
+  assert.ok(!projCeiling.has("grid"));
+  assert.ok(projCeiling.has("globalSearch"));
+});

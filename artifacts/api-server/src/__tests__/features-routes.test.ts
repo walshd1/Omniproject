@@ -33,7 +33,7 @@ after(() => server?.close());
 
 afterEach(async () => {
   const { updateSettings } = await import("../lib/settings");
-  updateSettings({ programmeFeatures: {}, projectFeatures: {}, featureGovernance: { required: [], forbidden: [] } });
+  updateSettings({ programmeFeatures: {}, projectFeatures: {}, featureGovernance: { required: [], forbidden: [] }, enabledFeatures: [], disabledFeatures: [] });
 });
 
 const getFeatures = (q = "") =>
@@ -62,4 +62,34 @@ test("a programme cannot require a feature outside the org-approved set (ceiling
   // presence is default-off and not org-enabled → a programme can't mandate it.
   const r = await put("/features/programme/prog-1", { required: ["presence"] });
   assert.equal(r.status, 400);
+});
+
+test("a self-contradictory config (same id required AND forbidden) is rejected", async () => {
+  const r = await put("/features/programme/prog-1", { required: ["grid"], forbidden: ["grid"] });
+  assert.equal(r.status, 400);
+});
+
+test("an unknown catalogue id is rejected (no silent dead config)", async () => {
+  const r = await put("/features/programme/prog-1", { forbidden: ["definitely-not-a-feature"] });
+  assert.equal(r.status, 400);
+});
+
+test("a reserved prototype key as the scope id is rejected", async () => {
+  const r = await put("/features/programme/__proto__", { forbidden: ["grid"] });
+  assert.equal(r.status, 400);
+});
+
+test("a project cannot require a feature the programme forbade (project ceiling honours programme forbid)", async () => {
+  // programme forbids grid; a project under it then tries to mandate grid → ceiling 400.
+  assert.equal((await put("/features/programme/prog-1", { forbidden: ["grid"] })).status, 200);
+  const r = await put("/features/project/proj-1?programmeId=prog-1", { required: ["grid"] });
+  assert.equal(r.status, 400);
+});
+
+test("an org `forbid report:x` actually withholds the report from /setup/reports (not just the admin table)", async () => {
+  const reportsOf = () => fetch(`${base}/api/setup/reports`, { headers: { cookie: ADMIN } }).then(async (r) => (await r.json() as { id: string }[]).map((x) => x.id));
+  assert.ok((await reportsOf()).includes("evm")); // present by default
+  const { updateSettings } = await import("../lib/settings");
+  updateSettings({ featureGovernance: { required: [], forbidden: ["report:evm"] } });
+  assert.ok(!(await reportsOf()).includes("evm")); // forbidden → gone from what's served
 });
