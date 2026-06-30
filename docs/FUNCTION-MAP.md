@@ -2296,6 +2296,10 @@ Route-coverage guard — every client route declared in the SPA's `App.tsx` (`pa
 
 Interactive-parity guard — enforces the product rule that every UI affordance is operable by BOTH mouse and keyboard.
 
+### `scripts/src/guard-report-coverage.ts`
+
+Coverage guard — "every declared report is built".
+
 ### `scripts/src/guard-superset.ts`
 
 Superset guard — enforces the invariant that every backend's field set is a strict SUBSET of the canonical superset.
@@ -2307,6 +2311,16 @@ Trivial workspace smoke script — prints a hello line to prove tsx + the worksp
 ### `scripts/src/integration-openproject.ts`
 
 Live OpenProject integration check — "certify" the mapping against a real instance.
+
+### `scripts/src/lib/coverage.ts`
+
+"Every declared item is built" — the pure core of the coverage guard.
+
+| Function | What it does |
+| --- | --- |
+| `checkCoverage` | Check one plane: every declared id must map to an implementation that exists, is wired into the page, and is tested — and the map must not carry stale entries for ids the catalogue no longer declares. |
+| `fsProbes` | ── fs-backed probe factory (used by the real guard; tests inject their own) ───── |
+| `idsFromAssets` | List declared ids from a catalogue assets dir (one `<id>.json` per item). |
 
 ### `scripts/src/lib/gen-registry.ts`
 
