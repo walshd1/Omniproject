@@ -1274,6 +1274,7 @@ Programmes are a grouping of related projects, **derived** from each project's o
 | Function | What it does |
 | --- | --- |
 | `aggregateFinancials` | Sum member projects' denormalised financial fields. |
+| `programmeIdOf` | A project's programme link (the backend-owned `programmeId`), or null when it's standalone (directly under the PMO root). |
 | `groupProgrammes` | Group projects into programmes (standalone projects are excluded). |
 | `programmeDetail` | A programme's roll-up + its member projects, or null if it has none. |
 | `standaloneCount` | Count of projects not in any programme (for the UI's "standalone" section). |

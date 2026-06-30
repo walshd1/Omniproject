@@ -9,6 +9,9 @@ import { getSettings, updateSettings, SettingsValidationError, type ScopeFeature
 import { requireRole, roleForReq } from "../lib/rbac";
 import { getSession } from "./auth";
 import { recordAudit } from "../lib/audit";
+import { getProjects } from "../lib/data";
+import { programmeIdOf } from "../lib/programmes";
+import type { Request, Response } from "express";
 
 /**
  * Feature gating + PMO governance, resolved per scope (org → programme → project).
@@ -16,12 +19,43 @@ import { recordAudit } from "../lib/audit";
  *  - GET  /features[?programmeId&projectId]  — the effective status for a scope (any authed session).
  *  - PUT  /features/programme/:programmeId    — a programme's policy (pmo); required/enable is bounded
  *                                               by the org-approved set (can only narrow, never grant).
- *  - PUT  /features/project/:projectId        — a project's policy (manager); bounded by the programme
- *                                               (pass ?programmeId) or the org for a standalone project.
+ *  - PUT  /features/project/:projectId        — a project's policy (manager); bounded by the project's
+ *                                               own programme (resolved server-side) or the org if standalone.
  *  Org-level gating + governance is set through PATCH /api/settings (admin):
  *  { disabledFeatures, enabledFeatures, featureGovernance }.
+ *
+ * Scope ownership is enforced **statelessly** against the backend (no OmniProject-held directory): the
+ * caller's accessible projects are pulled live through the broker with their own forwarded token, so the
+ * backend's access control IS the ownership oracle. A project is governable iff it's in that set; a
+ * programme iff the caller has ≥1 project in it. A "PMO-root" who can see everything governs everything —
+ * that falls out of the backend grant, nothing special-cased. Standalone projects (no programmeId) sit
+ * directly under the org/PMO root.
  */
 const router = Router();
+
+/** The scopes a caller may govern, derived live from the backend (their visible project graph). */
+interface GovernableScope {
+  projectIds: Set<string>;
+  programmeIds: Set<string>;
+  /** project id → its programme link (null for standalone), so the project ceiling uses the REAL parent. */
+  projectProgramme: Map<string, string | null>;
+}
+
+async function governableScope(req: Request): Promise<GovernableScope> {
+  const projects = await getProjects(req);
+  const projectIds = new Set<string>();
+  const programmeIds = new Set<string>();
+  const projectProgramme = new Map<string, string | null>();
+  for (const p of projects) {
+    const id = typeof p["id"] === "string" ? (p["id"] as string) : null;
+    if (!id) continue;
+    const prog = programmeIdOf(p);
+    projectIds.add(id);
+    projectProgramme.set(id, prog);
+    if (prog) programmeIds.add(prog);
+  }
+  return { projectIds, programmeIds, projectProgramme };
+}
 
 const asStr = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 
@@ -76,11 +110,32 @@ router.get("/features", (req, res) => {
   res.json({ features: featureStatus({ programmeId, projectId }) });
 });
 
-router.put("/features/programme/:programmeId", requireRole("pmo"), (req, res) => {
+/** Resolve the caller's governable scope, failing CLOSED (403) if the backend can't be reached —
+ *  a governance write must never fall back to "trust the role class". Returns null after responding. */
+async function resolveScopeOrDeny(req: Request, res: import("express").Response, action: string): Promise<GovernableScope | null> {
+  try {
+    return await governableScope(req);
+  } catch {
+    auditGovernance(req, action, 403, { reason: "scope_unresolved" });
+    res.status(403).json({ error: "Could not confirm which scopes you manage; governance change refused." });
+    return null;
+  }
+}
+
+router.put("/features/programme/:programmeId", requireRole("pmo"), async (req, res) => {
   try {
     const programmeId = String(req.params["programmeId"] ?? "");
     if (!safeScopeKey(programmeId)) { res.status(400).json({ error: "a valid programmeId is required" }); return; }
     const cfg = readScopeConfig(req.body);
+    // Ownership: the caller must manage this programme — i.e. have ≥1 visible project in it. The backend
+    // (queried with the caller's own token) is the authority on what they can see.
+    const scope = await resolveScopeOrDeny(req, res, "governance.programme.update");
+    if (!scope) return;
+    if (!scope.programmeIds.has(programmeId)) {
+      auditGovernance(req, "governance.programme.update", 403, { programmeId, reason: "not_owned" });
+      res.status(403).json({ error: "You don't manage this programme." });
+      return;
+    }
     // Ceiling: a programme can only mandate/keep a feature the org already allows.
     const ceiling = manageableAtProgramme(governanceGates(), scopeOverrides());
     const escapee = cfg.required.find((id) => !ceiling.has(id));
@@ -98,13 +153,22 @@ router.put("/features/programme/:programmeId", requireRole("pmo"), (req, res) =>
   }
 });
 
-router.put("/features/project/:projectId", requireRole("manager"), (req, res) => {
+router.put("/features/project/:projectId", requireRole("manager"), async (req, res) => {
   try {
     const projectId = String(req.params["projectId"] ?? "");
     if (!safeScopeKey(projectId)) { res.status(400).json({ error: "a valid projectId is required" }); return; }
-    const programmeId = asStr(req.query["programmeId"]) || asStr((req.body as Record<string, unknown>)?.["programmeId"]);
     const cfg = readScopeConfig(req.body);
-    // Ceiling: the project can only mandate within what the programme (or org, if standalone) allows.
+    // Ownership: the project must be one the caller can see (the backend access control is the oracle).
+    const scope = await resolveScopeOrDeny(req, res, "governance.project.update");
+    if (!scope) return;
+    if (!scope.projectIds.has(projectId)) {
+      auditGovernance(req, "governance.project.update", 403, { projectId, reason: "not_owned" });
+      res.status(403).json({ error: "You don't manage this project." });
+      return;
+    }
+    // The ceiling uses the project's REAL programme (resolved server-side), never a client-supplied one —
+    // so a caller can't widen their ceiling by claiming a more permissive programme.
+    const programmeId = scope.projectProgramme.get(projectId) ?? null;
     const ceiling = manageableAtProject(governanceGates(), scopeOverrides({ programmeId }));
     const escapee = cfg.required.find((id) => !ceiling.has(id));
     if (escapee) {

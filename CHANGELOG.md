@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Security
 
+- **Stateless scope-ownership on governance writes (closes the IDOR).** The programme/project governance
+  PUTs no longer authorize by role *class* alone — they verify the caller actually **manages the named
+  scope** by pulling their accessible project graph **live from the backend** (their own forwarded token,
+  through the broker), so the backend's access control is the ownership oracle. A project is governable
+  iff the caller can see it; a programme iff they have ≥1 visible project in it; a PMO-root who sees
+  everything governs everything — all without OmniProject holding any user→scope state. The project
+  ceiling now uses the project's **real** server-resolved programme (no client-supplied widening), and
+  the check **fails closed** (403) if the backend is unreachable.
 - **Hardened the feature-gating / governance authorization boundary** after a focused security + maturity
   pass on the newly-merged hierarchy (#284–#287). The pure resolver was already sound (monotonic
   narrowing, ancestor locks win); the fixes are at the write/enforcement layer: the parent **ceiling now
@@ -17,9 +25,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   mutation is now **semantically audited** (`governance.{org,programme,project}.update`); and the
   **report/methodology planes are enforced server-side** — a `forbid report:x` / `forbid methodology:x`
   is withheld from `/api/setup/reports` + `/api/setup/methodologies`, not just the admin table.
-  `getJson` now surfaces the server error on a non-OK response instead of an opaque parse failure. The
-  one residual (documented in `SECURITY-AUDIT.md §2`): `pmo`/`manager` are global role classes — a
-  per-scope ownership model would require the optional stateful directory.
+  `getJson` now surfaces the server error on a non-OK response instead of an opaque parse failure.
 
 ### Added
 
