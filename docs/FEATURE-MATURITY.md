@@ -139,6 +139,14 @@ announcements; (5) personas remain prototype.
 5. **Silent truncation / volatile-store data-loss** in several reports — add pagination and quota
    warnings so insight isn't quietly dropped.
 
+**Assurance — "declared == built" is now enforced.** The catalogue↔implementation drift that hid six
+unrendered reports is closed by the **report-coverage guard** (`guard-report-coverage`, in the CI verify
+job): every report in the catalogue must map to a real, page-wired, tested component (or be classified as
+surfaced via another plane), and the map can't carry stale entries — so a new report fails CI until it's
+built and tested. The guard core (`scripts/src/lib/coverage.ts`) is generic; adding another hand-wired
+plane is one more `checkCoverage(...)` call. Data-driven planes (screens/views/methodologies) stay
+declared==built by construction through their generic renderers.
+
 ---
 
 ## 6. Default-gating summary (input to the org→programme→project model)

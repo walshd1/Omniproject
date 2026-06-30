@@ -176,6 +176,9 @@ jobs:
       - name: Verify every App.tsx route has an e2e smoke (route-coverage guard)
         run: pnpm --filter @workspace/scripts run guard-e2e-routes
 
+      - name: Verify every declared report is built, wired and tested (report-coverage guard)
+        run: pnpm --filter @workspace/scripts run guard-report-coverage
+
       - name: Verify compose deployment-safety invariants (compose guard)
         run: pnpm --filter @workspace/scripts run guard-compose
 

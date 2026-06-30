@@ -32,6 +32,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "guard-interactive": "tsx ./src/guard-interactive.ts",
     "guard-e2e-routes": "tsx ./src/guard-e2e-routes.ts",
+    "guard-report-coverage": "tsx ./src/guard-report-coverage.ts",
     "guard-compose": "tsx ./src/guard-compose.ts"
   },
   "dependencies": {
