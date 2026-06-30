@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { sealConfig, readMaybeSealed } from "./config-crypto";
 import { logger } from "./logger";
-import { emptyRateCard, emptyIdentityMap, emptyUplift, hashIdentity, type RateCard, type IdentityMap, type RoleRates, type Uplift, type RateScope } from "./rate-card";
+import { emptyRateCard, emptyIdentityMap, emptyUplift, hashIdentity, DEFAULT_VALUE_MODEL, type RateCard, type IdentityMap, type RoleRates, type Uplift, type RateScope, type ValueColumn } from "./rate-card";
 
 /**
  * Sealed at-rest store for the rate card, the hashed identity→role map, and the PMO's project-type
@@ -15,6 +15,8 @@ import { emptyRateCard, emptyIdentityMap, emptyUplift, hashIdentity, type RateCa
 export interface ProjectType {
   id: string;
   label: string;
+  /** The PMO-defined value model — any number of value columns. Absent ⇒ the default cost + charge. */
+  values?: ValueColumn[];
 }
 
 /** Margin/overhead set centrally and overridden per scope (each field independently). */
@@ -100,6 +102,13 @@ export function getProjectTypes(): ProjectType[] {
 /** A project's chosen type id, or `"*"` (the default/any) when none is set. */
 export function projectTypeFor(projectId: string): string {
   return load().projectTypeOf[projectId] ?? "*";
+}
+
+/** The value model for a project — its type's declared columns, or the default cost + charge. */
+export function valueModelFor(projectId: string): ValueColumn[] {
+  const typeId = projectTypeFor(projectId);
+  const type = load().projectTypes.find((t) => t.id === typeId);
+  return type?.values && type.values.length > 0 ? type.values : DEFAULT_VALUE_MODEL;
 }
 
 /** Replace the rate card (titles + rates), keyed by job-title hash. */

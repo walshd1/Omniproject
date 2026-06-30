@@ -5,6 +5,7 @@ import {
   resolveTitleHash,
   resolveRate,
   staffCost,
+  valueColumns,
   emptyRateCard,
   emptyIdentityMap,
   type RateCard,
@@ -93,4 +94,15 @@ test("staffCost honours scope overrides when costing", () => {
 test("empty inputs cost nothing", () => {
   const c = staffCost([], emptyRateCard(), emptyIdentityMap(), "*");
   assert.deepEqual([c.totalCost, c.charge, c.margin, c.unratedHours, c.byTitle.length], [0, 0, 0, 0, 0]);
+});
+
+test("valueColumns computes any number of PMO-defined columns from one roll-up", () => {
+  // 10h alice client @150 → clientCost 1500, totalCost 1500; scope uplift 10% overhead + 20% margin.
+  const staff = staffCost([{ assignee: "alice", loggedHours: 10, billable: true }], CARD, MAP, "delivery", { overhead: 0.1, margin: 0.2 });
+  const cols = valueColumns(staff, [
+    { id: "cost", label: "Cost", kind: "cost" },
+    { id: "charge", label: "Standard charge", kind: "charge" }, // uses scope uplift → ×1.3 = 1950
+    { id: "intra", label: "Intra-company", kind: "charge", uplift: { margin: 0, overhead: 0 } }, // own uplift → ×1 = 1500
+  ], { overhead: 0.1, margin: 0.2 });
+  assert.deepEqual(cols.map((c) => [c.id, c.total]), [["cost", 1500], ["charge", 1950], ["intra", 1500]]);
 });

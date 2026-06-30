@@ -199,3 +199,44 @@ export function staffCost(
     byTitle: [...byTitle.values()].map((r) => ({ ...r, charge: round2(r.charge) })).sort((a, b) => b.cost - a.cost),
   };
 }
+
+/**
+ * A PMO-defined value column on a project type — there can be **any number** of them, so a type carries
+ * one value (small internal: just cost), two (cost + charge), or more (e.g. cost / standard charge /
+ * intra-company charge). A `cost` column reports true cost; a `charge` column reports client-facing cost
+ * uplifted by its own margin/overhead (or, per field, the scope-resolved uplift).
+ */
+export interface ValueColumn {
+  id: string;
+  label: string;
+  kind: "cost" | "charge";
+  /** A charge column's own uplift; when a field is absent it falls back to the scope-resolved uplift. */
+  uplift?: Partial<Uplift>;
+}
+
+/** The value model a project type uses when it declares none — the two-value cost + charge. */
+export const DEFAULT_VALUE_MODEL: ValueColumn[] = [
+  { id: "cost", label: "Cost", kind: "cost" },
+  { id: "charge", label: "Charge", kind: "charge" },
+];
+
+export interface ColumnTotal {
+  id: string;
+  label: string;
+  kind: "cost" | "charge";
+  total: number;
+}
+
+/**
+ * Compute each declared value column's total from a staff-cost roll-up. A `cost` column is the true
+ * total cost; a `charge` column is client-facing cost uplifted by its own margin/overhead (falling back
+ * per field to the scope uplift), so a type can expose several charge tiers from the one roll-up.
+ */
+export function valueColumns(staff: StaffCost, columns: readonly ValueColumn[], scopeUplift: Uplift = emptyUplift()): ColumnTotal[] {
+  return columns.map((c) => {
+    if (c.kind === "cost") return { id: c.id, label: c.label, kind: c.kind, total: round2(staff.totalCost) };
+    const overhead = c.uplift?.overhead ?? scopeUplift.overhead;
+    const margin = c.uplift?.margin ?? scopeUplift.margin;
+    return { id: c.id, label: c.label, kind: c.kind, total: round2(staff.clientCost * (1 + Math.max(0, overhead) + Math.max(0, margin))) };
+  });
+}
