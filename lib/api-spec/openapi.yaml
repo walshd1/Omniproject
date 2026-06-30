@@ -1853,6 +1853,12 @@ components:
             Free-form backend routing hint passed to the broker (e.g. "all",
             "jira", "azure-devops", "servicenow", "plane", "openproject"). "all"
             means no filter — whatever the broker is wired to.
+        reportingCurrency:
+          type: ["string", "null"]
+          description: >-
+            ISO 4217 code the consolidated financial reports default to (e.g. "GBP").
+            Empty/absent ⇒ the FX table's base currency is used. Display-only — amounts
+            are converted at view time via the broker FX rates; nothing is re-stored.
         oidcIssuerUrl:
           type: ["string", "null"]
         deploymentProfile:
@@ -1924,6 +1930,11 @@ components:
           type: string
           description: >-
             Free-form backend routing hint passed to the broker (see Settings.backendSource).
+        reportingCurrency:
+          type: ["string", "null"]
+          description: >-
+            Default ISO 4217 reporting currency for consolidated financial reports
+            (see Settings.reportingCurrency). Empty/null clears it (falls back to the FX base).
         oidcIssuerUrl:
           type: ["string", "null"]
         deploymentProfile:

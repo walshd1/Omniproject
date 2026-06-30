@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import { updateSettings, getSettings, SettingsValidationError } from "./settings";
 
 afterEach(() => {
-  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [] }); // reset shared store
+  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null }); // reset shared store
+});
+
+test("reportingCurrency: accepts a 3-letter ISO code (upper-cased), null to clear, rejects junk", () => {
+  assert.equal(updateSettings({ reportingCurrency: "eur" }).reportingCurrency, "EUR"); // normalised to upper
+  assert.equal(updateSettings({ reportingCurrency: null }).reportingCurrency, null); // cleared
+  assert.throws(() => updateSettings({ reportingCurrency: "EUROS" }), SettingsValidationError); // not 3 letters
+  assert.throws(() => updateSettings({ reportingCurrency: "12" as string }), SettingsValidationError);
 });
 
 test("savedViews: accepts well-formed views and persists them", () => {

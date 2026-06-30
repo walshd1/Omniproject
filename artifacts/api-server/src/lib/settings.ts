@@ -111,6 +111,8 @@ export interface SettingsState {
   deploymentProfile?: DeploymentProfile;
   aiModel: string | null;
   backendSource: BackendSource;
+  /** Default ISO 4217 reporting currency for consolidated financial reports (null ⇒ use the FX base). */
+  reportingCurrency: string | null;
   oidcIssuerUrl: string | null;
   /** White-label branding overrides (null/empty → product defaults). */
   branding: BrandingConfig | null;
@@ -365,6 +367,7 @@ const store: SettingsState = {
   ...(initialProfile !== undefined ? { deploymentProfile: initialProfile } : {}),
   aiModel: process.env["AI_MODEL"] ?? null,
   backendSource: process.env["BACKEND_SOURCE"]?.trim() || "all",
+  reportingCurrency: process.env["REPORTING_CURRENCY"]?.trim().toUpperCase() || null,
   oidcIssuerUrl: process.env["OIDC_ISSUER_URL"] ?? null,
   branding: brandingFromEnv(),
   labelOverrides: labelsFromEnv(),
@@ -397,6 +400,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "deploymentProfile",
   "aiModel",
   "backendSource",
+  "reportingCurrency",
   "oidcIssuerUrl",
   "branding",
   "labelOverrides",
@@ -509,6 +513,13 @@ function validatePatch(patch: Record<string, unknown>): void {
   }
   if ("deploymentProfile" in patch && patch["deploymentProfile"] != null && !(DEPLOYMENT_PROFILES as readonly string[]).includes(patch["deploymentProfile"] as string)) {
     throw new SettingsValidationError(`deploymentProfile must be one of: ${DEPLOYMENT_PROFILES.join(", ")}`);
+  }
+  if ("reportingCurrency" in patch && patch["reportingCurrency"] != null) {
+    const v = patch["reportingCurrency"];
+    if (typeof v !== "string" || (v !== "" && !/^[A-Za-z]{3}$/.test(v))) {
+      throw new SettingsValidationError("reportingCurrency must be a 3-letter ISO 4217 code (or null to clear)");
+    }
+    patch["reportingCurrency"] = v.toUpperCase() || null;
   }
   for (const key of ["brokerUrl", "oidcIssuerUrl"] as const) {
     if (key in patch && patch[key] != null) {

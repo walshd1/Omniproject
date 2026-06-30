@@ -21,6 +21,11 @@ export interface SettingsUpdate {
   aiModel?: string | null;
   /** Free-form backend routing hint passed to the broker (see Settings.backendSource). */
   backendSource?: string;
+  /**
+     * Default ISO 4217 reporting currency for consolidated financial reports (see Settings.reportingCurrency). Empty/null clears it (falls back to the FX base).
+     * @nullable
+     */
+  reportingCurrency?: string | null;
   /** @nullable */
   oidcIssuerUrl?: string | null;
   /** Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs/REVERSE-PROXY.md). */
