@@ -153,6 +153,15 @@ Keyed-access guard for the live broker.
 | `assertKeyedAccess` | Keyed-access guard for the live broker. |
 | `wrapWithKeyGuard` | Wrap a (live) broker so every call is hard-rejected unless a valid key is present. |
 
+### `artifacts/api-server/src/broker/messy-broker.ts`
+
+Messy-data broker decorator — DEV MODE ONLY.
+
+| Function | What it does |
+| --- | --- |
+| `messyDataArmed` | Is the messy-data transform armed? Only ever true in dev mode. |
+| `wrapWithMessy` | Wrap a broker so its entity reads are messified (dev only). |
+
 ### `artifacts/api-server/src/broker/n8n/expr.ts`
 
 Minimal resolver for the n8n expressions used in backend manifest URLs, so we can *certify* a mapping offline: resolve a manifest's templates against a sample env + payload and assert the concrete request matches the backend's real API (method / URL).
@@ -1163,6 +1172,18 @@ Dependency-free Markdown table writer (GitHub-flavoured), matching the conservat
 | Function | What it does |
 | --- | --- |
 | `toMarkdown` | Render a titled GitHub-flavoured Markdown table from headers + rows. |
+
+### `artifacts/api-server/src/lib/messy-data.ts`
+
+Messy-data generator — synthetic real-world imperfection for DEV MODE.
+
+| Function | What it does |
+| --- | --- |
+| `messyDataConfigFromEnv` | Parse the messy-data config from the environment (the boot default). |
+| `getMessyConfig` | The current messy-data config. |
+| `setMessyConfig` | Update the messy-data config (the caller resets the broker to apply). |
+| `messifyRow` | Messify a single row deterministically. |
+| `messifyRows` | Messify a list of rows deterministically (per-row mess + optional id collisions). |
 
 ### `artifacts/api-server/src/lib/metrics.ts`
 
@@ -2401,6 +2422,10 @@ Compose correctness guard — parses every docker-compose file in the repo and a
 ### `scripts/src/guard-e2e-routes.ts`
 
 Route-coverage guard — every client route declared in the SPA's `App.tsx` (`path="…"`) must have a matching entry in the e2e route manifest (`artifacts/omniproject/e2e/routes.ts`), and vice versa.
+
+### `scripts/src/guard-i18n-coverage.ts`
+
+Localisation coverage audit — "every base-locale string is translated in every operating language".
 
 ### `scripts/src/guard-interactive.ts`
 

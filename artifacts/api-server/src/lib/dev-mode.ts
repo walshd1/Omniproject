@@ -1,4 +1,5 @@
 import { DEV_PERSIST_ENABLED } from "./dev-persist";
+import { getMessyConfig } from "./messy-data";
 
 /**
  * Dev mode — the single source of truth for "is this a developer/debug instance?".
@@ -42,6 +43,8 @@ export interface DevModeStatus {
     persist: boolean;
     trace: boolean;
     capture: boolean;
+    /** Synthetic messy-data injection into the read model (dev only). */
+    messy: boolean;
   };
 }
 
@@ -55,6 +58,7 @@ export function devModeStatus(): DevModeStatus {
       persist: !prod && DEV_PERSIST_ENABLED,
       trace: !prod && traceArmed(),
       capture: !prod && captureArmed(),
+      messy: !prod && getMessyConfig().on,
     },
   };
 }
