@@ -65,3 +65,32 @@ describe("summariseBenefits", () => {
     expect(s.expectedValue).toBe(0);
   });
 });
+
+// ── Dirty-data resilience (messy-data generator regression) ──────────────────
+describe("summariseBenefits — dirty read model", () => {
+  it("does not leak unmodelled dirty fields (e.g. a NaN opexAmount) into report rows", () => {
+    const dirty = [
+      { id: "x", title: "X", plannedBenefitValue: 100, actualBenefitValue: 40, benefitStatus: "on_track", opexAmount: NaN, capexAmount: "1,234", currency: "£" } as unknown as BenefitInput,
+    ];
+    const s = summariseBenefits(dirty);
+    expect(s.rows).toHaveLength(1);
+    // The row is exactly the modelled BenefitInput fields plus computed ones — no opexAmount/currency.
+    expect(Object.keys(s.rows[0]!)).not.toContain("opexAmount");
+    expect(Object.keys(s.rows[0]!)).not.toContain("currency");
+    expect(Number.isFinite(s.rows[0]!.planned)).toBe(true);
+    expect(Number.isFinite(s.rows[0]!.actual)).toBe(true);
+    expect(Number.isFinite(s.rows[0]!.realisation)).toBe(true);
+  });
+
+  it("keeps all computed totals finite when values arrive as string/NaN", () => {
+    const dirty = [
+      { id: "a", title: "A", plannedBenefitValue: "100" as never, actualBenefitValue: NaN as never, benefitStatus: "on_track", benefitConfidence: "abc" as never },
+      { id: "b", title: "B", plannedBenefitValue: 200, actualBenefitValue: 50, benefitStatus: "realised", benefitConfidence: 200 },
+    ] as unknown as BenefitInput[];
+    const s = summariseBenefits(dirty);
+    expect(Number.isFinite(s.totalPlanned)).toBe(true);
+    expect(Number.isFinite(s.totalActual)).toBe(true);
+    expect(Number.isFinite(s.realisation)).toBe(true);
+    expect(Number.isFinite(s.expectedValue)).toBe(true);
+  });
+});

@@ -41,13 +41,21 @@ export interface CurrencyMix {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Coerce a possibly-dirty financial amount (string, null, NaN, Infinity) to a finite number, else 0. */
+function num(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function blank(key: string, label: string): FinanceRollup {
   return { key, label, projects: 0, budget: 0, actual: 0, forecast: 0, earnedValue: 0, variance: 0, cpi: null };
 }
 
 /** Fold one project's financials (converted to the reporting currency) into a roll-up row. */
 function fold(acc: FinanceRollup, p: ProjectFin, target: string, rates?: Record<string, number>): void {
-  const conv = (n: number) => convertAmount(n, p.fin.currency, target, rates);
+  // Amounts come from the untrusted read model — coerce BEFORE converting so a string/null/NaN
+  // budget can't propagate a NaN through the whole consolidated total.
+  const conv = (n: unknown) => convertAmount(num(n), String(p.fin.currency ?? ""), target, rates);
   acc.projects += 1;
   acc.budget += conv(p.fin.budgetAllocated);
   acc.actual += conv(p.fin.actualBurn);
