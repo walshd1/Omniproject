@@ -8,6 +8,7 @@ import { useCustomReports, useSaveCustomReports } from "../../lib/custom-reports
 import type { CustomReportDef, CustomReportMetric, CustomReportAgg } from "../../lib/custom-report";
 import { downloadReportDef, downloadJson, readReportDefFile, uniqueReportId } from "../../lib/custom-report-file";
 import { resolveReportRenderer } from "../reports/report-renderers";
+import { useReportOverrides, useSaveReportOverrides, type ReportOverride } from "../../lib/report-overrides";
 import type { Predicate, ConditionSet } from "../../lib/rate-card";
 import { PredicateEditor } from "./PredicateEditor";
 
@@ -19,27 +20,62 @@ function rendererLabel(def: ReportDefinition): string {
   return resolveReportRenderer(def) ? `built-in · ${r.component}` : `built-in · ${r.component} (unregistered!)`;
 }
 
-/** Read-only listing of the shipped (built-in) report files, each exportable as a JSON definition. Their
- *  rendering is code (a registered renderer), so only the definition is shown here; the no-code reports
- *  below are fully editable. */
+/** Editable listing of the shipped (built-in) report files. Rendering is code (a registered renderer),
+ *  so the renderer is shown read-only; the editable METADATA (label, order, visibility) is saved as a
+ *  per-id override merged over the catalogue — a customer can rename/reorder/hide a built-in without a
+ *  rebuild. Each file is also exportable as a JSON definition. */
 function BuiltInReportFiles() {
   const reports = reportCatalogue();
+  const { data: server } = useReportOverrides();
+  const save = useSaveReportOverrides();
+  const [draft, setDraft] = useState<Record<string, ReportOverride>>({});
+
+  useEffect(() => { if (server) setDraft(Object.fromEntries(server.map((o) => [o.id, o]))); }, [server]);
+
+  const patch = (id: string, o: Partial<ReportOverride>) =>
+    setDraft((d) => ({ ...d, [id]: { ...d[id], id, ...o } }));
+
+  // Only send overrides that actually change something (a non-empty label/order/hidden).
+  const effective = Object.values(draft).filter((o) => (o.label && o.label.trim()) || o.order != null || o.hidden);
+  const dirty = JSON.stringify(effective.sort((a, b) => a.id.localeCompare(b.id))) !== JSON.stringify([...(server ?? [])].sort((a, b) => a.id.localeCompare(b.id)));
+
   return (
     <details className="border border-border" data-testid="builtin-report-files">
       <summary className="cursor-pointer select-none px-3 py-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
         Built-in report files ({reports.length})
       </summary>
       <div className="divide-y divide-border/60">
-        {reports.map((r) => (
-          <div key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs" data-testid={`builtin-report-${r.id}`}>
-            <span className="font-bold flex-1 min-w-40">{r.label}</span>
-            <span className="text-muted-foreground uppercase tracking-widest text-[10px]">{r.kind}</span>
-            <span className="text-muted-foreground font-mono">{rendererLabel(r)}</span>
-            <span className="text-muted-foreground">{r.capabilities.requiresCapability ? `needs ${r.capabilities.requiresCapability}` : "always on"}</span>
-            <Button variant="ghost" className="rounded-none text-[11px] px-2" aria-label={`Export ${r.label} definition`}
-              onClick={() => downloadJson(r, `report-${r.id}.json`)}>Export</Button>
-          </div>
-        ))}
+        {reports.map((r) => {
+          const o = draft[r.id] ?? { id: r.id };
+          const hidden = o.hidden ?? false;
+          return (
+            <div key={r.id} className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs ${hidden ? "opacity-50" : ""}`} data-testid={`builtin-report-${r.id}`}>
+              <Input aria-label={`${r.id} label`} className="flex-1 min-w-40 h-7 rounded-none border border-border text-xs"
+                placeholder={r.label} value={o.label ?? ""} onChange={(e) => patch(r.id, { label: e.target.value })} />
+              <span className="text-muted-foreground uppercase tracking-widest text-[10px]">{r.kind}</span>
+              <span className="text-muted-foreground font-mono">{rendererLabel(r)}</span>
+              <label className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+                order
+                <Input aria-label={`${r.id} order`} type="number" className="w-16 h-7 rounded-none border border-border text-xs"
+                  value={o.order ?? r.order} onChange={(e) => patch(r.id, { order: Number(e.target.value) })} />
+              </label>
+              <label className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+                <input type="checkbox" aria-label={`Hide ${r.id}`} checked={hidden} onChange={(e) => patch(r.id, { hidden: e.target.checked })} />
+                hide
+              </label>
+              <Button variant="ghost" className="rounded-none text-[11px] px-2" aria-label={`Export ${r.label} definition`}
+                onClick={() => downloadJson(r, `report-${r.id}.json`)}>Export</Button>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-3 px-3 py-2 border-t border-border">
+        <Button className="rounded-none border-2 border-foreground font-bold uppercase tracking-wider text-xs"
+          onClick={() => save.mutate(effective)} disabled={!dirty || save.isPending}>
+          {save.isPending ? "Saving…" : "Save overrides"}
+        </Button>
+        <span className="text-[11px] text-muted-foreground">Rename, reorder or hide a built-in report — merged over the catalogue, no rebuild.</span>
+        {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
       </div>
     </details>
   );

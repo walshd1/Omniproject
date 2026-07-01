@@ -3,7 +3,15 @@ import assert from "node:assert/strict";
 import { updateSettings, getSettings, SettingsValidationError } from "./settings";
 
 afterEach(() => {
-  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, customReports: [] }); // reset shared store
+  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, customReports: [], reportOverrides: [] }); // reset shared store
+});
+
+test("reportOverrides: accepts partial metadata overrides and rejects bad shape", () => {
+  const ok = updateSettings({ reportOverrides: [{ id: "evm", label: "Earned value", order: 5, hidden: true }, { id: "burndown" }] });
+  assert.equal(ok.reportOverrides.length, 2);
+  assert.throws(() => updateSettings({ reportOverrides: [{ label: "no id" }] as unknown as [] }), SettingsValidationError); // missing id
+  assert.throws(() => updateSettings({ reportOverrides: [{ id: "x", order: "nope" }] as unknown as [] }), SettingsValidationError); // bad order
+  assert.throws(() => updateSettings({ reportOverrides: [{ id: "x", hidden: "yes" }] as unknown as [] }), SettingsValidationError); // bad hidden
 });
 
 test("customReports: accepts a well-formed bespoke report and rejects bad shape", () => {
