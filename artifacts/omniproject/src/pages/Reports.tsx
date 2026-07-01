@@ -16,6 +16,7 @@ import { CapacityRollup } from "../components/reports/CapacityRollup";
 import { PortfolioFinancials } from "../components/reports/PortfolioFinancials";
 import { PortfolioIncome } from "../components/reports/PortfolioIncome";
 import { PortfolioBenefits } from "../components/reports/PortfolioBenefits";
+import { BenefitsRealisationRollup } from "../components/reports/BenefitsRealisationRollup";
 import { CustomReportsProject, CustomReportsPortfolio } from "../components/reports/CustomReportsPanel";
 import { SnapshotVerifyPanel } from "../components/reports/SnapshotControls";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
@@ -150,6 +151,13 @@ export function Reports() {
           <section>
             <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Benefits (consolidated)</h2>
             <PortfolioBenefits />
+          </section>
+        </Gated>
+
+        <Gated caps={caps} domain="benefits" title="Benefits Realisation" requires="benefit value/status/due-date fields on work items">
+          <section>
+            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Benefits Realisation (pipeline &amp; trajectory)</h2>
+            <BenefitsRealisationRollup />
           </section>
         </Gated>
 
