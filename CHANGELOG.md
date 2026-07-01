@@ -29,6 +29,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Capacity actuals vs plan (#102).** A new `capacityActuals` dashboard widget compares each resource's
+  logged-time **actuals** (`issue.loggedHours`, summed per assignee) against their **plan/allocation** from
+  the resource-capacity read (`assignedHours` / `availableHours` / `allocationPercentage`), surfacing
+  over- and under-delivery per resource plus a portfolio roll-up (delivery %, variance hours). The
+  derivation lives in a pure, derive-only lib (`lib/capacity-actuals`, banded `OVER_DELIVERED` /
+  `ON_TRACK` / `UNDER_DELIVERED` / `NO_PLAN`) over the existing read model — no new write paths, nothing
+  stored. The widget is entity-gated on `member`, so it's only offered when the backend surfaces resources.
 - **Governance catalogue spans reports + methodologies + the 3-level UI.** The gated catalogue is now the
   union of feature modules, **reports** (`report:<id>`) and **methodologies** (`methodology:<id>`), each
   carrying a `kind`, so a PMO can mandate ("must use PRINCE2") or forbid ("must not use the EVM report")
