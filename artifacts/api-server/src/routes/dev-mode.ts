@@ -9,6 +9,7 @@ import { activeImpersonation, IMPERSONATION_TTL_MS } from "../lib/impersonation"
 import { recordAudit } from "../lib/audit";
 import { LICENSE_FEATURES, licenseSummary, type LicenseFeature } from "../lib/license";
 import { getDevEntitlementOverrides, setDevEntitlementOverride, clearDevEntitlementOverrides } from "../lib/dev-entitlements";
+import { getMessyConfig, setMessyConfig, MESSY_GREMLINS } from "../lib/messy-data";
 
 /**
  * Dev-mode routes.
@@ -74,6 +75,65 @@ router.post("/dev-mode/broker", requireDevMode, requireRole("admin"), (req, res)
   }
   resetBroker(); // next getBroker() rebuilds with the new combo
   res.json({ switched: true, config });
+});
+
+// ── Synthetic messy-data injection ────────────────────────────────────────────
+// Inject real-world imperfections (nulls, mixed enum vocab, junk numbers/dates,
+// missing provenance, id collisions…) into the read model so we can watch how
+// resilient reports/derivations are to dirty data. Dev-only; admin; resets the
+// broker so the next read reflects the new config. Inert in production.
+
+/** GET — the current messy-data config + the gremlin catalogue. */
+router.get("/dev-mode/messy", requireDevMode, requireRole("admin"), (_req, res) => {
+  res.json({ config: getMessyConfig(), gremlins: MESSY_GREMLINS });
+});
+
+/** POST — set { on?, seed?, intensity?, gremlins? } on the fly. */
+router.post("/dev-mode/messy", requireDevMode, requireRole("admin"), (req, res) => {
+  const body = (req.body ?? {}) as { on?: unknown; seed?: unknown; intensity?: unknown; gremlins?: unknown };
+  const patch: Partial<ReturnType<typeof getMessyConfig>> = {};
+
+  if (body.on !== undefined) patch.on = !!body.on;
+  if (body.seed !== undefined) {
+    if (typeof body.seed !== "string" || !body.seed.trim()) {
+      res.status(400).json({ error: "seed must be a non-empty string" });
+      return;
+    }
+    patch.seed = body.seed.trim();
+  }
+  if (body.intensity !== undefined) {
+    if (typeof body.intensity !== "number" || !Number.isFinite(body.intensity) || body.intensity < 0 || body.intensity > 1) {
+      res.status(400).json({ error: "intensity must be a number between 0 and 1" });
+      return;
+    }
+    patch.intensity = body.intensity;
+  }
+  if (body.gremlins !== undefined) {
+    if (!Array.isArray(body.gremlins) || body.gremlins.some((g) => typeof g !== "string")) {
+      res.status(400).json({ error: "gremlins must be an array of gremlin ids" });
+      return;
+    }
+    const known = new Set(MESSY_GREMLINS.map((g) => g.id));
+    const unknown = (body.gremlins as string[]).filter((g) => !known.has(g));
+    if (unknown.length) {
+      res.status(400).json({ error: `unknown gremlin(s): ${unknown.join(", ")}` });
+      return;
+    }
+    patch.gremlins = body.gremlins as string[];
+  }
+
+  const config = setMessyConfig(patch);
+  recordAudit({
+    ts: new Date().toISOString(),
+    category: "admin",
+    action: "dev_messy_data_config",
+    actor: { sub: getRealSession(req)?.sub ?? "unknown", role: "admin" },
+    status: 200,
+    write: true,
+    meta: { devMode: true, on: config.on, intensity: config.intensity, gremlins: config.gremlins },
+  });
+  resetBroker(); // next getBroker() rebuilds with (or without) the messy wrap
+  res.json({ config });
 });
 
 // ── Ephemeral dev-mode impersonation ──────────────────────────────────────────

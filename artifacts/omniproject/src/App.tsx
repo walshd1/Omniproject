@@ -14,6 +14,7 @@ import { DevPerfOverlay } from "./components/DevPerfOverlay";
 import { SessionTimeoutWatcher } from "./components/SessionTimeoutWatcher";
 import { DevImpersonationControl } from "./components/DevImpersonationControl";
 import { DevEntitlementsControl } from "./components/DevEntitlementsControl";
+import { MessyDataControl } from "./components/MessyDataControl";
 import { SwitchScanner } from "./components/SwitchScanner";
 import { VoiceInput } from "./components/VoiceInput";
 
@@ -140,6 +141,7 @@ function App() {
           <DevModeWatermark />
           <DevImpersonationControl />
           <DevEntitlementsControl />
+          <MessyDataControl />
         </TooltipProvider>
         </PlatformProvider>
         </A11yProvider>
