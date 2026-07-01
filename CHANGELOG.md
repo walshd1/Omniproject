@@ -29,6 +29,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **SME & charity copilot lenses + a discoverable small-org story.** Two new copilot personas —
+  **Charity Programme Lead** (tuned to the shipped `grant-tracking` / `fundraising-pipeline` /
+  `volunteer-roster` methodologies and grant/funder/donor/volunteer/impact keywords) and **SME
+  Delivery Lead** (a lean small-team budget/capacity lens) — so a small org's questions no longer
+  fall back to the enterprise PMO-analyst lens. Added a "Small teams, charities & self-hosters"
+  section to the README linking `docs/SMALL-ORG-GUIDE.md`, and a new `docs/SME-CHARITY-FIT.md`
+  audit confirming core value (connect a backend, projects/issues, reports, dashboards) stays
+  free and that only prebuilt enterprise convenience is gated. Additive only — no enterprise
+  feature was changed.
 - **Cross-programme dependency & critical-path map (stateless report).** A new portfolio report derives,
   live from the read model, the cross-programme dependency graph — every `depends-on` link between work
   items, with the edges that cross a programme boundary flagged — and the **critical path across the whole
