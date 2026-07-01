@@ -3,6 +3,10 @@
   "label": "Velocity",
   "docsUrl": "",
   "kind": "progress",
+  "renderer": {
+    "engine": "builtin",
+    "component": "Velocity"
+  },
   "capabilities": {
     "requiresCapability": "history",
     "timeSeries": true,

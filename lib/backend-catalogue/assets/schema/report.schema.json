@@ -5,12 +5,25 @@
   "description": "A report / visualisation type. One file per report under assets/reports/<id>.json.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "label", "docsUrl", "kind", "capabilities", "tools", "order"],
+  "required": ["id", "label", "docsUrl", "kind", "capabilities", "tools", "order", "renderer"],
   "properties": {
     "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
     "label": { "type": "string" },
     "docsUrl": { "type": "string" },
     "kind": { "enum": ["schedule", "progress", "financial", "resource", "quality", "portfolio"] },
+    "renderer": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How the report is realised. Every report is a JSON definition bound to a registered renderer; the only report logic left in code is the reusable renderer components + the no-code engine/editor.",
+      "required": ["engine"],
+      "properties": {
+        "engine": { "enum": ["builtin", "custom"], "description": "builtin = a registered bespoke React component; custom = the generic no-code report engine (fully editable pipeline)." },
+        "component": { "type": "string", "description": "For engine=builtin: the registered renderer component name (must exist in the SPA report-renderers registry)." },
+        "surfacedVia": { "type": "string", "description": "The report is reached through another plane (e.g. a board view), not a Reports-page card." },
+        "reason": { "type": "string", "description": "Why it is surfaced elsewhere (accompanies surfacedVia)." },
+        "definition": { "type": "object", "description": "For engine=custom: the declarative pipeline (scope, groupBy, metrics, filter, viz)." }
+      }
+    },
     "capabilities": {
       "type": "object",
       "additionalProperties": false,

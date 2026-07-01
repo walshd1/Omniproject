@@ -3,6 +3,10 @@
   "label": "Financial summary",
   "docsUrl": "",
   "kind": "financial",
+  "renderer": {
+    "engine": "builtin",
+    "component": "FinancialSummary"
+  },
   "capabilities": {
     "requiresCapability": "financials",
     "timeSeries": false,

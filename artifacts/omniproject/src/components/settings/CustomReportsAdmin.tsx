@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useAvailability } from "../../lib/availability";
 import { useCustomReports, useSaveCustomReports } from "../../lib/custom-reports-api";
 import type { CustomReportDef, CustomReportMetric, CustomReportAgg } from "../../lib/custom-report";
+import { downloadReportDef, readReportDefFile, uniqueReportId } from "../../lib/custom-report-file";
 import type { Predicate, ConditionSet } from "../../lib/rate-card";
 import { PredicateEditor } from "./PredicateEditor";
 
@@ -22,6 +23,8 @@ export function CustomReportsAdmin() {
   const { data: availability } = useAvailability();
   const save = useSaveCustomReports();
   const [draft, setDraft] = useState<CustomReportDef[] | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (server) setDraft(structuredClone(server)); }, [server]);
 
@@ -38,6 +41,19 @@ export function CustomReportsAdmin() {
   function patchMetric(ri: number, mi: number, m: Partial<CustomReportMetric>) {
     const r = draft![ri]!;
     patch(ri, { ...r, metrics: r.metrics.map((x, j) => (j === mi ? { ...x, ...m } : x)) });
+  }
+  /** Import report definition file(s) — validate each and append with a collision-safe id. */
+  async function importFile(file: File | undefined) {
+    setImportError(null);
+    if (!file) return;
+    try {
+      const incoming = await readReportDefFile(file);
+      const next = [...draft!];
+      for (const def of incoming) next.push({ ...def, id: uniqueReportId(def, next.map((d) => d.id)) });
+      setDraft(next);
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : "Could not import that file.");
+    }
   }
 
   return (
@@ -75,6 +91,8 @@ export function CustomReportsAdmin() {
                 <option value="bar">Bar</option>
               </select>
             </label>
+            <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" aria-label={`Export report ${i + 1}`}
+              onClick={() => downloadReportDef({ ...r, id: r.id || uniqueReportId(r, []) })}>Export</Button>
             <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" onClick={() => setDraft(draft.filter((_, j) => j !== i))}>Remove</Button>
           </div>
 
@@ -119,12 +137,19 @@ export function CustomReportsAdmin() {
         </div>
       ))}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" onClick={addReport}>+ report</Button>
+        <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" onClick={() => fileRef.current?.click()}>Import file…</Button>
+        <input ref={fileRef} type="file" accept="application/json,.json" className="sr-only" aria-label="Import report definition"
+          onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = ""; }} />
+        {draft.length > 0 && (
+          <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" onClick={() => downloadReportDef(draft)}>Export all</Button>
+        )}
         <Button className="rounded-none border-2 border-foreground font-bold uppercase tracking-wider" onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}>
           {save.isPending ? "Saving…" : "Save reports"}
         </Button>
         {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={() => server && setDraft(structuredClone(server))}>Reset</Button>}
+        {importError && <span role="alert" className="text-xs font-bold text-red-500">{importError}</span>}
         {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
       </div>
     </section>

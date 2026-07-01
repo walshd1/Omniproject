@@ -10,6 +10,7 @@
  *
  * Run: pnpm --filter @workspace/scripts run guard-report-coverage
  */
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkCoverage, fsProbes, idsFromAssets, type Impl } from "./lib/coverage";
@@ -17,31 +18,32 @@ import { checkCoverage, fsProbes, idsFromAssets, type Impl } from "./lib/coverag
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
 
-/**
- * How each report id is realised. A component name → a bespoke `components/reports/<name>.tsx` wired
- * into the Reports page; `surfacedVia` → the report is reached through another plane (e.g. a board
- * view), a deliberate, documented exception rather than a Reports-page card.
- */
-const REPORT_IMPL: Record<string, Impl> = {
-  "portfolio-rag": "PortfolioKpi",
-  "resource-histogram": "ResourceHeatmap",
-  "capacity-rollup": "CapacityRollup",
-  evm: "FinancialEvmChart",
-  "financial-summary": "FinancialSummary",
-  "portfolio-financials": "PortfolioFinancials",
-  "portfolio-income": "PortfolioIncome",
-  "portfolio-benefits": "PortfolioBenefits",
-  "income-invoicing": "IncomeInvoicing",
-  "staff-cost": "StaffTimeCost",
-  burndown: "Burndown",
-  burnup: "Burnup",
-  "cumulative-flow": "CumulativeFlow",
-  velocity: "Velocity",
-  "raid-register": "RaidRegister",
-  gantt: { surfacedVia: "view", reason: "rendered as the Gantt board view, not a Reports-page card" },
-};
+const REPORTS_DIR = path.join(ROOT, "lib/backend-catalogue/assets/reports");
 
-const reportIds = idsFromAssets(path.join(ROOT, "lib/backend-catalogue/assets/reports"));
+/**
+ * How each report id is realised is now part of its JSON definition (`renderer`), not a hand-kept map
+ * here — moving the binding into the same file as the rest of the report def. Each report resolves to:
+ *  - `renderer.engine: "builtin"` + `component` → a bespoke `components/reports/<component>.tsx` wired
+ *    into the Reports page (the registered renderer), or
+ *  - `renderer.surfacedVia` → the report is reached through another plane (e.g. a board view), a
+ *    documented exception rather than a Reports-page card, or
+ *  - `renderer.engine: "custom"` → the generic no-code engine renders it (declared == built).
+ */
+type Renderer = { engine?: string; component?: string; surfacedVia?: string; reason?: string };
+
+function implFromRenderer(id: string): Impl {
+  const j = JSON.parse(fs.readFileSync(path.join(REPORTS_DIR, `${id}.json`), "utf8")) as { renderer?: Renderer };
+  const r = j.renderer;
+  if (!r) throw new Error(`report "${id}" has no renderer in its JSON definition`);
+  if (r.surfacedVia) return { surfacedVia: r.surfacedVia, reason: r.reason ?? `surfaced via ${r.surfacedVia}` };
+  // engine "custom" renders through the generic engine — declared == built, no bespoke component needed.
+  if (r.engine === "custom") return { surfacedVia: "custom-engine", reason: "rendered by the no-code report engine (CustomReport)" };
+  if (!r.component) throw new Error(`report "${id}" renderer.engine=builtin but has no component`);
+  return r.component;
+}
+
+const reportIds = idsFromAssets(REPORTS_DIR);
+const REPORT_IMPL: Record<string, Impl> = Object.fromEntries(reportIds.map((id) => [id, implFromRenderer(id)]));
 const probes = fsProbes(
   path.join(ROOT, "artifacts/omniproject/src/components/reports"),
   path.join(ROOT, "artifacts/omniproject/src/pages/Reports.tsx"),
@@ -52,7 +54,7 @@ const result = checkCoverage("reports", reportIds, REPORT_IMPL, probes);
 if (!result.ok) {
   console.error("report-coverage guard: a declared report is not built/wired/tested.\n");
   for (const e of result.errors) console.error(`  - ${e}`);
-  console.error("\n  Implement the report on the report primitives, wire it into Reports.tsx, add a test, and map it in REPORT_IMPL.");
+  console.error("\n  Implement the report on the report primitives, wire it into Reports.tsx, add a test, and set its `renderer` in the report JSON.");
   process.exit(1);
 }
-console.log(`report-coverage guard: OK — all ${reportIds.length} declared reports are built, wired and tested.`);
+console.log(`report-coverage guard: OK — all ${reportIds.length} declared reports are built, wired and tested (bindings from each report's JSON renderer).`);

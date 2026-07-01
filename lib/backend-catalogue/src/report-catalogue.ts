@@ -22,6 +22,24 @@ export interface ReportCapabilities {
   exports: string[];
 }
 
+/**
+ * How a report is realised. Every report is a JSON definition bound to a registered renderer, so the
+ * only report logic left in code is the reusable renderer components + the no-code engine/editor:
+ *  - engine "builtin" → a registered bespoke React component (named by `component`), OR a `surfacedVia`
+ *    exception when the report is reached through another plane (e.g. a board view).
+ *  - engine "custom"  → the generic no-code engine, driven entirely by `definition` (fully editable).
+ */
+export interface ReportRenderer {
+  engine: "builtin" | "custom";
+  /** For engine=builtin: the registered renderer component name. */
+  component?: string;
+  /** The report is surfaced through another plane, not a Reports-page card. */
+  surfacedVia?: string;
+  reason?: string;
+  /** For engine=custom: the declarative pipeline (scope, groupBy, metrics, filter, viz). */
+  definition?: Record<string, unknown>;
+}
+
 export interface ReportManifest {
   id: string;
   label: string;
@@ -38,6 +56,8 @@ export interface ReportDefinition extends ReportManifest {
   methodologies?: string[];
   /** Display order in the report picker. */
   order: number;
+  /** How the report is realised (registered renderer or surfaced-via exception). */
+  renderer: ReportRenderer;
 }
 
 /** Every shipped report, in display order. Authored as JSON under

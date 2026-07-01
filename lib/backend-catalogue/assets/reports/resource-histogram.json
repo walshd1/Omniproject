@@ -3,6 +3,10 @@
   "label": "Resource histogram",
   "docsUrl": "",
   "kind": "resource",
+  "renderer": {
+    "engine": "builtin",
+    "component": "ResourceHeatmap"
+  },
   "capabilities": {
     "requiresCapability": "resources",
     "timeSeries": true,

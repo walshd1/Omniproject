@@ -9,6 +9,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Sprint burndown",
     "docsUrl": "",
     "kind": "progress",
+    "renderer": {
+      "engine": "builtin",
+      "component": "Burndown"
+    },
     "capabilities": {
       "requiresCapability": "history",
       "timeSeries": true,
@@ -36,6 +40,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Burnup",
     "docsUrl": "",
     "kind": "progress",
+    "renderer": {
+      "engine": "builtin",
+      "component": "Burnup"
+    },
     "capabilities": {
       "requiresCapability": "history",
       "timeSeries": true,
@@ -61,6 +69,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Capacity Roll-up",
     "docsUrl": "",
     "kind": "resource",
+    "renderer": {
+      "engine": "builtin",
+      "component": "CapacityRollup"
+    },
     "capabilities": {
       "requiresCapability": "resources",
       "timeSeries": false,
@@ -84,6 +96,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Cumulative flow",
     "docsUrl": "",
     "kind": "progress",
+    "renderer": {
+      "engine": "builtin",
+      "component": "CumulativeFlow"
+    },
     "capabilities": {
       "requiresCapability": "history",
       "timeSeries": true,
@@ -110,6 +126,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Earned Value (EVM)",
     "docsUrl": "",
     "kind": "financial",
+    "renderer": {
+      "engine": "builtin",
+      "component": "FinancialEvmChart"
+    },
     "capabilities": {
       "requiresCapability": "financials",
       "timeSeries": true,
@@ -141,6 +161,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Financial summary",
     "docsUrl": "",
     "kind": "financial",
+    "renderer": {
+      "engine": "builtin",
+      "component": "FinancialSummary"
+    },
     "capabilities": {
       "requiresCapability": "financials",
       "timeSeries": false,
@@ -165,6 +189,11 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Gantt chart",
     "docsUrl": "",
     "kind": "schedule",
+    "renderer": {
+      "engine": "builtin",
+      "surfacedVia": "view",
+      "reason": "rendered as the Gantt board view, not a Reports-page card"
+    },
     "capabilities": {
       "requiresCapability": "scheduling",
       "timeSeries": false,
@@ -193,6 +222,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Income & Invoicing",
     "docsUrl": "",
     "kind": "financial",
+    "renderer": {
+      "engine": "builtin",
+      "component": "IncomeInvoicing"
+    },
     "capabilities": {
       "requiresCapability": "financials",
       "timeSeries": false,
@@ -216,6 +249,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Portfolio Benefits",
     "docsUrl": "",
     "kind": "financial",
+    "renderer": {
+      "engine": "builtin",
+      "component": "PortfolioBenefits"
+    },
     "capabilities": {
       "requiresCapability": "benefits",
       "timeSeries": false,
@@ -239,6 +276,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Portfolio Financials (consolidated)",
     "docsUrl": "",
     "kind": "financial",
+    "renderer": {
+      "engine": "builtin",
+      "component": "PortfolioFinancials"
+    },
     "capabilities": {
       "requiresCapability": "financials",
       "timeSeries": false,
@@ -264,6 +305,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Portfolio Income",
     "docsUrl": "",
     "kind": "financial",
+    "renderer": {
+      "engine": "builtin",
+      "component": "PortfolioIncome"
+    },
     "capabilities": {
       "requiresCapability": "financials",
       "timeSeries": false,
@@ -287,6 +332,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Portfolio RAG",
     "docsUrl": "",
     "kind": "portfolio",
+    "renderer": {
+      "engine": "builtin",
+      "component": "PortfolioKpi"
+    },
     "capabilities": {
       "requiresCapability": "portfolio",
       "timeSeries": false,
@@ -310,6 +359,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "RAID register",
     "docsUrl": "",
     "kind": "quality",
+    "renderer": {
+      "engine": "builtin",
+      "component": "RaidRegister"
+    },
     "capabilities": {
       "requiresCapability": "raid",
       "timeSeries": false,
@@ -333,6 +386,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Resource histogram",
     "docsUrl": "",
     "kind": "resource",
+    "renderer": {
+      "engine": "builtin",
+      "component": "ResourceHeatmap"
+    },
     "capabilities": {
       "requiresCapability": "resources",
       "timeSeries": true,
@@ -355,6 +412,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Staff Time & Cost",
     "docsUrl": "",
     "kind": "financial",
+    "renderer": {
+      "engine": "builtin",
+      "component": "StaffTimeCost"
+    },
     "capabilities": {
       "requiresCapability": "financials",
       "timeSeries": false,
@@ -380,6 +441,10 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "label": "Velocity",
     "docsUrl": "",
     "kind": "progress",
+    "renderer": {
+      "engine": "builtin",
+      "component": "Velocity"
+    },
     "capabilities": {
       "requiresCapability": "history",
       "timeSeries": true,

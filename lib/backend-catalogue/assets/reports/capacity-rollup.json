@@ -3,6 +3,10 @@
   "label": "Capacity Roll-up",
   "docsUrl": "",
   "kind": "resource",
+  "renderer": {
+    "engine": "builtin",
+    "component": "CapacityRollup"
+  },
   "capabilities": {
     "requiresCapability": "resources",
     "timeSeries": false,
