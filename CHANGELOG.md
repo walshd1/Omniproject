@@ -29,6 +29,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Localisation coverage audit (`guard-i18n-coverage`).** A developer/CI tool that loads the base locale
+  (English) plus every other operating language from the SPA i18n dictionary and reports coverage gaps:
+  keys present in the base but **missing** or **empty** in a locale, and **orphan** keys a locale carries
+  that the base no longer declares. It prints a per-locale coverage report with percentages and a summary.
+  Deterministic, non-breaking exit behaviour: fully-covered locales make it a hard guard (a future
+  untranslated key then fails CI); pre-existing gaps make it **warn-only** (reported, CI stays green,
+  since English fallback keeps the app correct); orphan keys are always a hard failure. Wired as a CI step
+  and documented in `docs/I18N-COVERAGE.md`. Snapshot at introduction: fr/de/es each 30/31 (96.8%), one
+  untranslated key (`nav.explore`) apiece — warn-only.
 - **Messy-data generator (DEV MODE ONLY) — resilience stress-testing against imperfect data.** A dev-only
   broker read-decorator (`broker/messy-broker`) that passes the read model through a pure, deterministic
   imperfection transform (`lib/messy-data`) before the app sees it, so we can watch how resilient our
