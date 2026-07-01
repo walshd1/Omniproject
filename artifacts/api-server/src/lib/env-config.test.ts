@@ -33,3 +33,14 @@ test("checkRequiredEnv: clean in dev, flags weak prod config", () => {
   // A well-configured prod deployment is clean.
   assert.deepEqual(checkRequiredEnv({ NODE_ENV: "production", SESSION_SECRET: "a-strong-secret-value-1234" }), []);
 });
+
+test("checkRequiredEnv: a partially-configured SAML rollout is flagged in prod, complete is clean", () => {
+  const partial = checkRequiredEnv({ NODE_ENV: "production", SAML_IDP_ENTRY_POINT: "https://idp/sso" });
+  assert.match(partial.join(" "), /SAML SSO is partially configured/);
+  assert.match(partial.join(" "), /SAML_IDP_CERT/);
+  // Fully configured SAML raises no issue.
+  assert.deepEqual(
+    checkRequiredEnv({ NODE_ENV: "production", SAML_IDP_ENTRY_POINT: "https://idp/sso", SAML_IDP_CERT: "cert", PUBLIC_URL: "https://omni.example.com" }),
+    [],
+  );
+});

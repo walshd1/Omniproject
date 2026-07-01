@@ -21,7 +21,7 @@ import {
   type Impersonation,
 } from "../lib/oidc";
 import { roleForReq } from "../lib/rbac";
-import { isSamlConfigured, samlLoginUrl, validateSamlResponse, samlMetadata } from "../lib/saml";
+import { isSamlConfigured, samlConfigStatus, samlLoginUrl, validateSamlResponse, samlMetadata } from "../lib/saml";
 import {
   isOAuth2Configured,
   oauth2Config,
@@ -181,11 +181,13 @@ router.get("/auth/me", (req, res) => {
       // Lets the SPA warn before, and redirect on, an idle/absolute timeout.
       sessionTimeout: timeoutPolicy(),
       samlConfigured: isSamlConfigured(),
+      // Surfaces a PARTIALLY-configured SAML rollout (what's still missing) so IT can self-diagnose.
+      samlStatus: samlConfigStatus(),
       oauth2Configured: isOAuth2Configured,
     });
     return;
   }
-  res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null, role: "viewer", samlConfigured: isSamlConfigured(), oauth2Configured: isOAuth2Configured, magicLinkEnabled: magicLinkEnabled() });
+  res.json({ authenticated: false, mode: isOidcConfigured ? "oidc" : "demo", user: null, role: "viewer", samlConfigured: isSamlConfigured(), samlStatus: samlConfigStatus(), oauth2Configured: isOAuth2Configured, magicLinkEnabled: magicLinkEnabled() });
 });
 
 /** Sanitise a post-auth `returnTo` to a SAME-ORIGIN path — prevents open redirects (CWE-601).

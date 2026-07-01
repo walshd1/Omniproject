@@ -1513,6 +1513,8 @@ SAML 2.0 SSO — an OPTIONAL identity path that sits alongside OIDC behind the s
 | Function | What it does |
 | --- | --- |
 | `isSamlConfigured` | Is SAML SSO configured? (entry point + IdP cert + an ACS callback URL are all present.) |
+| `samlConfigStatusFrom` | Compute the SAML config status from an arbitrary env (pure — the testable core). |
+| `samlConfigStatus` | The SAML config status for the running process (diagnostics + the /auth/me surface). |
 | `profileToClaims` | Map a validated SAML assertion profile onto canonical claims. |
 | `samlLoginUrl` | The IdP redirect URL to begin SP-initiated login; `relayState` round-trips the returnTo. |
 | `validateSamlResponse` | Validate a base64 SAMLResponse from the ACS POST and return canonical claims, or null (unconfigured / library absent). |

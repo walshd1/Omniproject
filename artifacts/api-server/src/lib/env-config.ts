@@ -1,4 +1,5 @@
 import { isSafeOutboundUrl } from "./url-safety";
+import { samlConfigStatusFrom } from "./saml";
 
 /**
  * Validated, typed environment access — the zero-trust stance applied to configuration:
@@ -55,6 +56,11 @@ export function checkRequiredEnv(env: NodeJS.ProcessEnv = process.env): string[]
 
   // Disabling rate limiting in production removes a key DoS/brute-force control.
   if (/^(1|true|on|yes)$/i.test(env["RATE_LIMIT_DISABLED"]?.trim() ?? "")) issues.push("RATE_LIMIT_DISABLED must not be set in production");
+
+  // A HALF-configured SAML rollout silently stays disabled — surface it as a boot issue so the
+  // operator finishes the SSO setup instead of shipping with an unexpectedly-off login path.
+  const saml = samlConfigStatusFrom(env);
+  if (saml.partial) issues.push(`SAML SSO is partially configured and will stay disabled; missing ${saml.missing.join(", ")}`);
 
   return issues;
 }

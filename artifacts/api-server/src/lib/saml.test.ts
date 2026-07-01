@@ -7,7 +7,7 @@ process.env["SAML_IDP_ENTRY_POINT"] = "https://idp.example.com/sso";
 process.env["SAML_IDP_CERT"] = "-----BEGIN CERTIFICATE-----\nMIIBfake\n-----END CERTIFICATE-----";
 process.env["SAML_CALLBACK_URL"] = "https://omni.example.com/api/auth/saml/callback";
 
-const { isSamlConfigured, samlLoginUrl, validateSamlResponse, samlMetadata, profileToClaims } = await import("./saml");
+const { isSamlConfigured, samlLoginUrl, validateSamlResponse, samlMetadata, profileToClaims, samlConfigStatus, samlConfigStatusFrom } = await import("./saml");
 
 const cfg = {
   entryPoint: "", idpCert: "", issuer: "", callbackUrl: "", audience: "",
@@ -16,6 +16,35 @@ const cfg = {
 
 test("SAML reports configured when entry point + cert + callback are present", () => {
   assert.equal(isSamlConfigured(), true);
+});
+
+// ── Config status: the first-class, actionable diagnostics (pure over an arbitrary env) ─────
+test("samlConfigStatus reflects the fully-configured process env", () => {
+  const s = samlConfigStatus();
+  assert.equal(s.configured, true);
+  assert.equal(s.partial, false);
+  assert.deepEqual(s.missing, []);
+  assert.deepEqual(s.present, { entryPoint: true, idpCert: true, callbackUrl: true });
+});
+
+test("a fully-unset env is neither configured nor partial (no false alarm)", () => {
+  const s = samlConfigStatusFrom({});
+  assert.equal(s.configured, false);
+  assert.equal(s.partial, false);
+  assert.deepEqual(s.missing, ["SAML_IDP_ENTRY_POINT", "SAML_IDP_CERT", "SAML_CALLBACK_URL (or PUBLIC_URL)"]);
+});
+
+test("a HALF-configured env is flagged partial with the exact missing vars", () => {
+  const s = samlConfigStatusFrom({ SAML_IDP_ENTRY_POINT: "https://idp/sso" });
+  assert.equal(s.configured, false);
+  assert.equal(s.partial, true);
+  assert.deepEqual(s.missing, ["SAML_IDP_CERT", "SAML_CALLBACK_URL (or PUBLIC_URL)"]);
+});
+
+test("PUBLIC_URL alone satisfies the callback requirement; SAML_ENTRY_POINT is an accepted alias", () => {
+  const s = samlConfigStatusFrom({ SAML_ENTRY_POINT: "https://idp/sso", SAML_IDP_CERT: "x", PUBLIC_URL: "https://omni.example.com" });
+  assert.equal(s.configured, true);
+  assert.equal(s.partial, false);
 });
 
 test("configured-but-not-installed degrades gracefully (never throws, never a session)", async () => {
