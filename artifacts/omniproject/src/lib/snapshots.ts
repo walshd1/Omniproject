@@ -1,6 +1,7 @@
 import type { Project, PortfolioHealthSummary } from "@workspace/api-client-react";
 import { triggerBlobDownload } from "./setup";
 import { markExplorationDirty, markExplorationClean } from "./exploration";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Portfolio snapshots — point-in-time captures of the live read-model, taken in
@@ -119,7 +120,7 @@ export function validateSnapshot(obj: unknown): PortfolioSnapshot | null {
 export function parseSnapshotFile(text: string): PortfolioSnapshot[] {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    parsed = safeParseJson(text);
   } catch {
     return [];
   }

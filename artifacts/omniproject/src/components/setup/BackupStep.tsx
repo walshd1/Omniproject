@@ -3,6 +3,7 @@ import { Download, Save, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { downloadSnapshot, restoreSnapshot, type SetupStatus } from "../../lib/setup";
 import { Step, download, useRefreshAndSettings } from "./shared";
+import { safeParseJson } from "../../lib/safe-json";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -55,7 +56,7 @@ export function BackupStep({
     if (!file) return;
     let parsed: unknown;
     try {
-      parsed = JSON.parse(await file.text());
+      parsed = safeParseJson(await file.text());
     } catch {
       toast({ title: "RESTORE FAILED", description: "File is not valid JSON.", variant: "destructive" });
       return;

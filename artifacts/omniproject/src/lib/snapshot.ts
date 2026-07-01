@@ -1,4 +1,5 @@
 import { sendJson } from "./api";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Provably-immutable snapshots (client). Capture freezes a report's data: the server content-hashes it,
@@ -60,7 +61,7 @@ export function downloadSnapshot(bundle: SnapshotBundle): void {
 export async function readBundleFile(file: File): Promise<SnapshotBundle> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(await file.text());
+    parsed = safeParseJson(await file.text());
   } catch {
     throw new Error("That file isn't valid JSON.");
   }
