@@ -237,16 +237,17 @@ app.use(wellKnownRouter);
 // proxies /api here, so STATIC_DIR is left unset.
 const staticDir = process.env["STATIC_DIR"];
 if (staticDir && fs.existsSync(staticDir)) {
-  // Absolute, so the SPA history-fallback `res.sendFile` works regardless of whether STATIC_DIR
-  // was given as a relative or absolute path (Express requires an absolute path / a `root` option;
-  // a relative one 500s every client-side route like /login).
-  const indexHtml = path.resolve(staticDir, "index.html");
+  // Resolve STATIC_DIR to absolute so the SPA history-fallback below serves the shell regardless of
+  // whether STATIC_DIR was given as a relative or absolute path. In Express 5, `res.sendFile(absPath)`
+  // rejects with a "Not Found" error (404) for every client-side route (e.g. /login) — the reliable
+  // form is `res.sendFile(relative, { root: absDir })`, which we use below.
+  const staticRoot = path.resolve(staticDir);
   // Vite emits content-hashed, immutable asset filenames, so they can be cached
   // forever — a big repeat-visit win. The shell entrypoints (index.html, the
   // service worker) must always revalidate so a new deploy is picked up at once.
   const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
   app.use(
-    express.static(staticDir, {
+    express.static(staticRoot, {
       maxAge: ONE_YEAR_MS,
       immutable: true,
       setHeaders(res, filePath) {
@@ -265,7 +266,7 @@ if (staticDir && fs.existsSync(staticDir)) {
       return;
     }
     res.setHeader("Cache-Control", "no-cache");
-    res.sendFile(indexHtml);
+    res.sendFile("index.html", { root: staticRoot });
   });
 
   logger.info({ staticDir }, "Serving static SPA");

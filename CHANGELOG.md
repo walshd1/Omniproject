@@ -292,6 +292,25 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Fixed
 
+- **SPA history-fallback 404 on every deep link (Express 5 `sendFile`).** With Express 5, the
+  single-container server's `res.sendFile(absolutePath)` rejected with a "Not Found" (404) for **every**
+  client-side route (`/login`, `/projects/:id`, `/programmes/:id`, …) when `STATIC_DIR` was given
+  relative (as the e2e harness and the compose/k8s artifacts do), so only `/` worked — the whole
+  acceptance harness was red behind it. The fallback now uses the reliable `res.sendFile("index.html",
+  { root })` form. A new regression test (`spa-fallback-relative.test.ts`) exercises a **relative**
+  `STATIC_DIR` — the pre-existing static-cache test masked this by using an already-absolute temp dir.
+
+- **Report/derivation resilience to dirty data (messy-data stress pass).** Ran the dev-only messy-data
+  generator at max intensity across six seeds over every pure derivation/report builder and hardened the
+  worst gaps so a single dirty read-model row can no longer poison an aggregate: `buildExecHealth`
+  (exec-pack) coerces the numeric health fields and normalises mixed-casing RAG; `completionRate`
+  (roadmap) coerces `issueCount`/`completedCount` so a stringy/`NaN` count can't produce a `NaN` progress
+  bar; `consolidateFinancials` (portfolio-finance) coerces every amount **before** currency conversion;
+  `rollupByProgramme` (capacity-rollup) coerces resource hours/percentages; and `summariseBenefits`
+  (benefits) now carries only the modelled fields into each report row so unmodelled dirty fields can't
+  leak. A committed probe (`scripts/messy-resilience-probe.ts`) and per-lib regression tests lock this in;
+  full findings in `docs/RESILIENCE-FINDINGS.md`.
+
 - **SPA history-fallback 500 on deep links.** With a *relative* `STATIC_DIR`, the single-container
   server's `res.sendFile` rejected the relative path and returned **500 for every client-side route**
   (e.g. `/login`); only `/` worked. The index path is now resolved to absolute, so deep links and
