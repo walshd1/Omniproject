@@ -3,11 +3,47 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useAvailability } from "../../lib/availability";
+import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
 import { useCustomReports, useSaveCustomReports } from "../../lib/custom-reports-api";
 import type { CustomReportDef, CustomReportMetric, CustomReportAgg } from "../../lib/custom-report";
-import { downloadReportDef, readReportDefFile, uniqueReportId } from "../../lib/custom-report-file";
+import { downloadReportDef, downloadJson, readReportDefFile, uniqueReportId } from "../../lib/custom-report-file";
+import { resolveReportRenderer } from "../reports/report-renderers";
 import type { Predicate, ConditionSet } from "../../lib/rate-card";
 import { PredicateEditor } from "./PredicateEditor";
+
+/** A one-line description of how a report is realised, from its `renderer`. */
+function rendererLabel(def: ReportDefinition): string {
+  const r = def.renderer;
+  if (r.surfacedVia) return `surfaced via ${r.surfacedVia}`;
+  if (r.engine === "custom") return "no-code engine";
+  return resolveReportRenderer(def) ? `built-in · ${r.component}` : `built-in · ${r.component} (unregistered!)`;
+}
+
+/** Read-only listing of the shipped (built-in) report files, each exportable as a JSON definition. Their
+ *  rendering is code (a registered renderer), so only the definition is shown here; the no-code reports
+ *  below are fully editable. */
+function BuiltInReportFiles() {
+  const reports = reportCatalogue();
+  return (
+    <details className="border border-border" data-testid="builtin-report-files">
+      <summary className="cursor-pointer select-none px-3 py-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
+        Built-in report files ({reports.length})
+      </summary>
+      <div className="divide-y divide-border/60">
+        {reports.map((r) => (
+          <div key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs" data-testid={`builtin-report-${r.id}`}>
+            <span className="font-bold flex-1 min-w-40">{r.label}</span>
+            <span className="text-muted-foreground uppercase tracking-widest text-[10px]">{r.kind}</span>
+            <span className="text-muted-foreground font-mono">{rendererLabel(r)}</span>
+            <span className="text-muted-foreground">{r.capabilities.requiresCapability ? `needs ${r.capabilities.requiresCapability}` : "always on"}</span>
+            <Button variant="ghost" className="rounded-none text-[11px] px-2" aria-label={`Export ${r.label} definition`}
+              onClick={() => downloadJson(r, `report-${r.id}.json`)}>Export</Button>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
 
 /**
  * Report generator — the PMO builds bespoke reports without code: pick a scope, an optional filter
@@ -65,6 +101,8 @@ export function CustomReportsAdmin() {
           page (project or portfolio). No code; the definition travels in your config bundle.
         </p>
       </div>
+
+      <BuiltInReportFiles />
 
       {draft.length === 0 && (
         <p className="text-xs text-muted-foreground border border-dashed border-border p-4" data-testid="custom-reports-empty">No bespoke reports yet — add one.</p>

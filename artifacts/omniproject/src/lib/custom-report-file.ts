@@ -61,18 +61,22 @@ export function reportDefToJson(def: CustomReportDef): string {
   return JSON.stringify(def, null, 2);
 }
 
-/** Trigger a browser download of a report definition (or a list) as a JSON file. */
-export function downloadReportDef(def: CustomReportDef | CustomReportDef[], filename?: string): void {
-  const name = filename ?? (Array.isArray(def) ? "custom-reports.json" : `report-${def.id || "definition"}.json`);
-  const blob = new Blob([JSON.stringify(def, null, 2)], { type: "application/json" });
+/** Trigger a browser download of any value as pretty JSON. The one place the download idiom lives. */
+export function downloadJson(value: unknown, filename: string): void {
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = name;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Trigger a browser download of a report definition (or a list) as a JSON file. */
+export function downloadReportDef(def: CustomReportDef | CustomReportDef[], filename?: string): void {
+  downloadJson(def, filename ?? (Array.isArray(def) ? "custom-reports.json" : `report-${def.id || "definition"}.json`));
 }
 
 /** Parse an uploaded file as one report def or an array of them. */
