@@ -29,6 +29,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Bundled-backends stress harness — every catalogue backend/broker/vendor-profile proven under stress.**
+  A committed harness (`artifacts/api-server/src/broker/bundled-backends-stress.test.ts`) that ENUMERATES
+  every bundled backend + broker from the catalogue (never a hardcoded list) and asserts, per definition:
+  schema-validity via the catalogue accessor; capability↔transport consistency (no capability a transport
+  can't serve, no zero-capability "no-purpose" entry, key format never resolves keyless for a live/database
+  backend, broker set matches `brokersForTransport`, `statusVocabulary` maps only onto canonical statuses);
+  that the demo-AS-vendor spoof (`applyVendorProfile`/`demoVendorFor`) gates the surface to each vendor's
+  declared capabilities and never appears over real data or the dev broker; that `describeFields`
+  reconciliation against the canonical `FIELD_REGISTRY` (including adversarial dupe/empty/garbage input)
+  never crashes and flags unknown fields as gated passthrough; and that driving each vendor's demo read
+  model through the messy-data transform (max intensity, several seeds) preserves row counts and never
+  severs a row from its project. Findings are documented in `docs/BUNDLED-BACKENDS-STRESS.md`. The pass
+  found the bundled defs internally consistent (38 backends, 7 brokers) — no broken defs; two low-severity
+  follow-ups are recorded.
 - **Messy-data generator (DEV MODE ONLY) — resilience stress-testing against imperfect data.** A dev-only
   broker read-decorator (`broker/messy-broker`) that passes the read model through a pure, deterministic
   imperfection transform (`lib/messy-data`) before the app sees it, so we can watch how resilient our
