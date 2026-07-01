@@ -4,6 +4,7 @@ import { useStore } from "../store/useStore";
 import { ExecBoardPack } from "../components/reports/ExecBoardPack";
 import { PortfolioKpi } from "../components/reports/PortfolioKpi";
 import { PortfolioRoadmap } from "../components/reports/PortfolioRoadmap";
+import { CrossProgrammeDependencies } from "../components/reports/CrossProgrammeDependencies";
 import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
 import { FinancialEvmChart } from "../components/reports/FinancialEvmChart";
 import { ForecastWindows } from "../components/reports/ForecastWindows";
@@ -132,6 +133,13 @@ export function Reports() {
           <section>
             <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Roadmap</h2>
             <PortfolioRoadmap />
+          </section>
+        </Gated>
+
+        <Gated caps={caps} domain="scheduling" title="Cross-programme Dependencies" requires="depends-on links + start / due dates on work items">
+          <section>
+            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Cross-programme Dependency &amp; Critical-Path Map</h2>
+            <CrossProgrammeDependencies />
           </section>
         </Gated>
 

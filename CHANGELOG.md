@@ -29,6 +29,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Cross-programme dependency & critical-path map (stateless report).** A new portfolio report derives,
+  live from the read model, the cross-programme dependency graph — every `depends-on` link between work
+  items, with the edges that cross a programme boundary flagged — and the **critical path across the whole
+  graph**, reusing the shared CPM solver (`critical-path.ts`) rather than re-implementing the
+  forward/backward pass. Durations come from start→due spans (dateless items floor to a day so chains
+  still schedule); dangling references are dropped and cycles are surfaced rather than hung on. Rendered as
+  a circular node-link diagram (dashed edges = cross-programme, red = critical) plus dependency and
+  schedule tables. Pure derive-only over live rows — no new write paths, nothing stored. New pure lib
+  `cross-programme-dependencies.ts` (+ Vitest), the `CrossProgrammeDependencies` renderer wired into the
+  Reports page and renderer registry, and the `cross-programme-dependencies` report definition.
 - **Governance catalogue spans reports + methodologies + the 3-level UI.** The gated catalogue is now the
   union of feature modules, **reports** (`report:<id>`) and **methodologies** (`methodology:<id>`), each
   carrying a `kind`, so a PMO can mandate ("must use PRINCE2") or forbid ("must not use the EVM report")
