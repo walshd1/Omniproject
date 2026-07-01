@@ -324,6 +324,18 @@ Open **http://localhost:5173**. With no `OIDC_*` set, the login screen shows
 **ENTER (DEMO MODE)** and issues a local session — the whole app is usable with
 sample data until you wire up n8n and SSO.
 
+### Small teams, charities & self-hosters
+
+OmniProject is **free to run and opt-in-hardened** — SSO, KMS, IP allowlists and
+the rest are all off by default, and the whole product works without them. Point a
+free/open backend (**OpenProject**, **Plane**, or **Excel / Sheets**) at it and you
+get projects, boards, reports and dashboards for **no per-seat cost**. Pick your
+context in the setup wizard (**Business/SME · Non-profit/charity · Self-hosted**) so
+plain HTTP-on-a-LAN and the bundled IdP just work, and lean on the charity/SME
+starter templates (**grant tracking**, **fundraising pipeline**, **volunteer
+roster**) plus the copilot's charity/SME lenses. Full walkthrough of what you need
+and what you can safely skip: **[docs/SMALL-ORG-GUIDE.md](docs/SMALL-ORG-GUIDE.md)**.
+
 ---
 
 ## Using OmniProject
