@@ -324,6 +324,18 @@ Open **http://localhost:5173**. With no `OIDC_*` set, the login screen shows
 **ENTER (DEMO MODE)** and issues a local session — the whole app is usable with
 sample data until you wire up n8n and SSO.
 
+### Small teams, charities & self-hosters
+
+OmniProject is **free to run and opt-in-hardened** — SSO, KMS, IP allowlists and
+the rest are all off by default, and the whole product works without them. Point a
+free/open backend (**OpenProject**, **Plane**, or **Excel / Sheets**) at it and you
+get projects, boards, reports and dashboards for **no per-seat cost**. Pick your
+context in the setup wizard (**Business/SME · Non-profit/charity · Self-hosted**) so
+plain HTTP-on-a-LAN and the bundled IdP just work, and lean on the charity/SME
+starter templates (**grant tracking**, **fundraising pipeline**, **volunteer
+roster**) plus the copilot's charity/SME lenses. Full walkthrough of what you need
+and what you can safely skip: **[docs/SMALL-ORG-GUIDE.md](docs/SMALL-ORG-GUIDE.md)**.
+
 ---
 
 ## Using OmniProject
@@ -471,6 +483,10 @@ diagram and claim is cross-checked against the source and cites the file it live
 
 ### Reference
 
+- **For enterprise buyers → [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md)**
+  — a buyer-panel gap analysis (CEO, Finance, Compliance, CISO, IT, Projects): what
+  OmniProject already delivers per seat, the gaps to close, and a prioritised
+  enterprise-readiness roadmap.
 - **[docs/TECHNICAL.md](docs/TECHNICAL.md)** — architecture, n8n contract,
   security model, API surface, data schemas, extending the system.
 - **[docs/FUNCTION-MAP.md](docs/FUNCTION-MAP.md)** — generated per-function index of
