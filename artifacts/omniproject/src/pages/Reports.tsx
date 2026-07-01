@@ -6,6 +6,7 @@ import { PortfolioKpi } from "../components/reports/PortfolioKpi";
 import { PortfolioRoadmap } from "../components/reports/PortfolioRoadmap";
 import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
 import { FinancialEvmChart } from "../components/reports/FinancialEvmChart";
+import { ForecastWindows } from "../components/reports/ForecastWindows";
 import { MonteCarloRisk } from "../components/reports/MonteCarloRisk";
 import { CriticalPath } from "../components/reports/CriticalPath";
 import { BenefitsRealisation } from "../components/reports/BenefitsRealisation";
@@ -184,6 +185,15 @@ export function Reports() {
             </Gated>
           )}
         </div>
+
+        {projectId && (
+          <Gated caps={caps} domain="financials" title="Forecasting Windows" requires="a cost / ERP source + work-item dates">
+            <section>
+              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Forecasting Windows (time-phased S-curve)</h2>
+              <ForecastWindows projectId={projectId} />
+            </section>
+          </Gated>
+        )}
 
         {projectId && (
           <Gated caps={caps} domain="scheduling" title="Schedule Risk (Monte Carlo)" requires="effort estimates on work items">
