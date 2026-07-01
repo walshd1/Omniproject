@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "../../test/utils";
 import { customReportsQueryKey } from "../../lib/custom-reports-api";
 import { availabilityQueryKey, type Availability } from "../../lib/availability";
@@ -65,6 +65,19 @@ describe("CustomReportsAdmin", () => {
     await waitFor(() => expect(screen.getByLabelText("Report 2 label")).toHaveValue("Imported spend"));
     // original id kept, imported one de-duped to spend-2
     expect(screen.getByTestId("custom-report-edit-1")).toBeInTheDocument();
+  });
+
+  it("lists the built-in report files and exports one as a JSON definition", () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:x", revokeObjectURL: () => {} });
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+
+    expect(screen.getByTestId("builtin-report-files")).toBeInTheDocument();
+    // A known catalogue report renders with its renderer and is exportable.
+    const evmRow = screen.getByTestId("builtin-report-evm");
+    expect(evmRow).toHaveTextContent("FinancialEvmChart");
+    fireEvent.click(within(evmRow).getByRole("button", { name: /Export/ }));
+    expect(click).toHaveBeenCalled();
   });
 
   it("rejects a non-report JSON file with a friendly error", async () => {
