@@ -1,10 +1,12 @@
 import type { Dashboard, DashboardWidget } from "./dashboards";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Round-trip a dashboard DEFINITION in and out of a JSON file — the same principle as the report
  * generator's import/export, so a dashboard built in one deployment can be exported, shared and
- * re-imported. Pure. The parser reconstructs the object field-by-field from validated values, which
- * also neutralises prototype-pollution keys (no raw merge of the uploaded object into config).
+ * re-imported. Pure. The upload is parsed with safeParseJson (which strips __proto__ / constructor /
+ * prototype keys at every depth), and the parser then reconstructs the object field-by-field from
+ * validated values — belt-and-braces, so no prototype-pollution key can survive into config.
  */
 
 function isStr(v: unknown): v is string {
@@ -59,7 +61,7 @@ export function downloadDashboard(dash: Dashboard): void {
 export async function readDashboardFile(file: File): Promise<Dashboard> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(await file.text());
+    parsed = safeParseJson(await file.text());
   } catch {
     throw new Error("That file isn't valid JSON.");
   }
