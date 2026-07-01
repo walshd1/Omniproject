@@ -191,6 +191,9 @@ jobs:
       - name: Verify every declared dashboard widget has a registered renderer (widget-coverage guard)
         run: pnpm --filter @workspace/scripts run guard-widget-coverage
 
+      - name: Audit i18n translation-key coverage across operating languages (warn-only until complete)
+        run: pnpm --filter @workspace/scripts run guard-i18n-coverage
+
       - name: Verify compose deployment-safety invariants (compose guard)
         run: pnpm --filter @workspace/scripts run guard-compose
 
