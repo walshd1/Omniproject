@@ -5,7 +5,7 @@ import {
   getGetProjectIssuesQueryOptions,
   type Issue,
 } from "@workspace/api-client-react";
-import { buildRoadmap, pct, type RoadmapProject, type RoadmapBar } from "../../lib/roadmap";
+import { buildRoadmap, pct, roadmapKey, type RoadmapProject, type RoadmapBar } from "../../lib/roadmap";
 import { DataState } from "../DataState";
 
 /**
@@ -75,15 +75,17 @@ export function PortfolioRoadmap() {
   const roadmap = useMemo(() => {
     const list: RoadmapProject[] = (projects ?? []).map((p) => ({
       id: p.id,
+      source: p.source,
       name: p.name,
       programmeId: p.programmeId,
       programmeName: p.programmeName,
       issueCount: p.issueCount,
       completedCount: p.completedCount,
     }));
+    // Key issues by the composite source:id so two projects sharing a bare id never collide.
     const byProject: Record<string, Issue[]> = {};
     (projects ?? []).forEach((p, i) => {
-      byProject[p.id] = (issueQueries[i]?.data as Issue[] | undefined) ?? [];
+      byProject[roadmapKey(p)] = (issueQueries[i]?.data as Issue[] | undefined) ?? [];
     });
     return buildRoadmap(list, byProject);
   }, [projects, issueQueries]);

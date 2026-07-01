@@ -276,6 +276,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Fixed
 
+- **Logic & collision audit — valid data producing wrong results.** A per-definition audit for bugs
+  where rows are individually **valid** but a consumer keys / dedupes / groups / sorts on a
+  **non-unique** field. Two classes fixed surgically in the shared derivations:
+  - **Roadmap issue-lookup keyed by bare `id` (identity collision).** `buildRoadmap` and its caller
+    looked up each project's issues by bare `id`, so two projects sharing an `id` across different
+    sources (`jira:p1` / `ado:p1`) read each other's issue spans and mis-dated a bar. Now keyed on the
+    composite **`source:id`** via a new `roadmapKey` helper (falls back to bare `id` when no source is
+    present, so single-source data is unchanged).
+  - **Nondeterministic order for equal sort keys (unstable sort).** Added a unique final tiebreaker
+    (the composite `projectId`, or the per-group `key` / `id`) to the exec pack severity sort, the
+    roadmap lane/bar sorts, and the capacity / finance / income / benefits programme roll-ups plus
+    `groupProgrammes`, so equal-metric rows sort **deterministically** regardless of input order.
+  Programme grouping by `programmeId` is by-design and unchanged. A committed **collision stress harness**
+  (`collision-stress.test.ts`, both SPA + api-server) auto-enumerates all **36** catalogue definitions
+  and drives the derivations through empty / single / messy / **collide** datasets. Remaining items
+  (assignee name-collision in the resource-load sandbox; a catalogue-`order` tiebreaker in the generated
+  catalogues) are documented as follow-ups in `docs/LOGIC-FINDINGS.md`.
+
 - **SPA history-fallback 500 on deep links.** With a *relative* `STATIC_DIR`, the single-container
   server's `res.sendFile` rejected the relative path and returned **500 for every client-side route**
   (e.g. `/login`); only `/` worked. The index path is now resolved to absolute, so deep links and
