@@ -3,6 +3,10 @@
   "label": "Earned Value (EVM)",
   "docsUrl": "",
   "kind": "financial",
+  "renderer": {
+    "engine": "builtin",
+    "component": "FinancialEvmChart"
+  },
   "capabilities": {
     "requiresCapability": "financials",
     "timeSeries": true,

@@ -3,6 +3,10 @@
   "label": "Sprint burndown",
   "docsUrl": "",
   "kind": "progress",
+  "renderer": {
+    "engine": "builtin",
+    "component": "Burndown"
+  },
   "capabilities": {
     "requiresCapability": "history",
     "timeSeries": true,

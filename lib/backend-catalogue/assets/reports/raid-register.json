@@ -3,6 +3,10 @@
   "label": "RAID register",
   "docsUrl": "",
   "kind": "quality",
+  "renderer": {
+    "engine": "builtin",
+    "component": "RaidRegister"
+  },
   "capabilities": {
     "requiresCapability": "raid",
     "timeSeries": false,

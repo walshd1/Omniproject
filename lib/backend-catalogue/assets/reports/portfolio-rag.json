@@ -3,6 +3,10 @@
   "label": "Portfolio RAG",
   "docsUrl": "",
   "kind": "portfolio",
+  "renderer": {
+    "engine": "builtin",
+    "component": "PortfolioKpi"
+  },
   "capabilities": {
     "requiresCapability": "portfolio",
     "timeSeries": false,

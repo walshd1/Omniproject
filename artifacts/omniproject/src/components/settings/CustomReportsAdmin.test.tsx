@@ -42,4 +42,36 @@ describe("CustomReportsAdmin", () => {
     expect(body.customReports[0]).toMatchObject({ label: "Spend by status", scope: "project", groupBy: "status", viz: "table" });
     expect(body.customReports[0].metrics[0]).toMatchObject({ agg: "count" });
   });
+
+  it("exports a report definition as a JSON download", () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:x", revokeObjectURL: () => {} });
+    renderWithProviders(<CustomReportsAdmin />, {
+      client: seed("pmo", [{ id: "spend", label: "Spend", scope: "portfolio", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "bar" }]),
+    });
+    fireEvent.click(screen.getByLabelText("Export report 1"));
+    expect(click).toHaveBeenCalled();
+  });
+
+  it("imports a report definition file, appending it with a collision-safe id", async () => {
+    renderWithProviders(<CustomReportsAdmin />, {
+      client: seed("pmo", [{ id: "spend", label: "Spend", scope: "portfolio", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "bar" }]),
+    });
+    const incoming = { id: "spend", label: "Imported spend", scope: "project", viz: "table", metrics: [{ field: "budget", agg: "avg" }] };
+    const file = new File([JSON.stringify(incoming)], "spend.json", { type: "application/json" });
+    Object.defineProperty(file, "text", { value: () => Promise.resolve(JSON.stringify(incoming)) });
+
+    fireEvent.change(screen.getByLabelText("Import report definition"), { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByLabelText("Report 2 label")).toHaveValue("Imported spend"));
+    // original id kept, imported one de-duped to spend-2
+    expect(screen.getByTestId("custom-report-edit-1")).toBeInTheDocument();
+  });
+
+  it("rejects a non-report JSON file with a friendly error", async () => {
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+    const file = new File(['{"hello":"world"}'], "nope.json", { type: "application/json" });
+    Object.defineProperty(file, "text", { value: () => Promise.resolve('{"hello":"world"}') });
+    fireEvent.change(screen.getByLabelText("Import report definition"), { target: { files: [file] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/label/);
+  });
 });

@@ -3,6 +3,10 @@
   "label": "Burnup",
   "docsUrl": "",
   "kind": "progress",
+  "renderer": {
+    "engine": "builtin",
+    "component": "Burnup"
+  },
   "capabilities": {
     "requiresCapability": "history",
     "timeSeries": true,

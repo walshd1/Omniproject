@@ -3,6 +3,10 @@
   "label": "Portfolio Financials (consolidated)",
   "docsUrl": "",
   "kind": "financial",
+  "renderer": {
+    "engine": "builtin",
+    "component": "PortfolioFinancials"
+  },
   "capabilities": {
     "requiresCapability": "financials",
     "timeSeries": false,

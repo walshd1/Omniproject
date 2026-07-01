@@ -3,6 +3,11 @@
   "label": "Gantt chart",
   "docsUrl": "",
   "kind": "schedule",
+  "renderer": {
+    "engine": "builtin",
+    "surfacedVia": "view",
+    "reason": "rendered as the Gantt board view, not a Reports-page card"
+  },
   "capabilities": {
     "requiresCapability": "scheduling",
     "timeSeries": false,

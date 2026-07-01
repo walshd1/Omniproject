@@ -3,6 +3,10 @@
   "label": "Cumulative flow",
   "docsUrl": "",
   "kind": "progress",
+  "renderer": {
+    "engine": "builtin",
+    "component": "CumulativeFlow"
+  },
   "capabilities": {
     "requiresCapability": "history",
     "timeSeries": true,
