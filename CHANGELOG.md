@@ -29,6 +29,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Capacity actuals vs plan (#102).** A new `capacityActuals` dashboard widget compares each resource's
+  logged-time **actuals** (`issue.loggedHours`, summed per assignee) against their **plan/allocation** from
+  the resource-capacity read (`assignedHours` / `availableHours` / `allocationPercentage`), surfacing
+  over- and under-delivery per resource plus a portfolio roll-up (delivery %, variance hours). The
+  derivation lives in a pure, derive-only lib (`lib/capacity-actuals`, banded `OVER_DELIVERED` /
+  `ON_TRACK` / `UNDER_DELIVERED` / `NO_PLAN`) over the existing read model — no new write paths, nothing
+  stored. The widget is entity-gated on `member`, so it's only offered when the backend surfaces resources.
 - **Localisation coverage audit (`guard-i18n-coverage`).** A developer/CI tool that loads the base locale
   (English) plus every other operating language from the SPA i18n dictionary and reports coverage gaps:
   keys present in the base but **missing** or **empty** in a locale, and **orphan** keys a locale carries
