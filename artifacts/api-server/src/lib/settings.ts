@@ -235,11 +235,14 @@ export interface DashboardWidget {
   title?: string;
 }
 
-/** A named custom dashboard: an ordered list of widget instances. */
+/** A named custom dashboard: an ordered list of widget instances. `refreshMs`, when set, makes the
+ *  dashboard auto-refresh its read-model data on that interval (a dashboard is a report that refreshes
+ *  in real time) — a client-side poll, never a new write surface. */
 export interface Dashboard {
   id: string;
   name: string;
   widgets: DashboardWidget[];
+  refreshMs?: number;
 }
 
 /** The aggregations a custom-report metric may apply over a field. */
@@ -687,6 +690,8 @@ function validatePatch(patch: Record<string, unknown>): void {
       const { id, name, widgets } = dash as Record<string, unknown>;
       if (typeof id !== "string" || !id) throw new SettingsValidationError("each dashboard needs a string id");
       if (typeof name !== "string" || !name) throw new SettingsValidationError("each dashboard needs a name");
+      const { refreshMs } = dash as Record<string, unknown>;
+      if (refreshMs != null && (typeof refreshMs !== "number" || refreshMs < 0)) throw new SettingsValidationError("each dashboard refreshMs must be a non-negative number");
       if (!Array.isArray(widgets)) throw new SettingsValidationError("each dashboard needs a widgets array");
       for (const w of widgets) {
         if (!w || typeof w !== "object") throw new SettingsValidationError("each dashboard widget must be an object");

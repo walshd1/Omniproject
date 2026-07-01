@@ -14,6 +14,12 @@ test("reportOverrides: accepts partial metadata overrides and rejects bad shape"
   assert.throws(() => updateSettings({ reportOverrides: [{ id: "x", hidden: "yes" }] as unknown as [] }), SettingsValidationError); // bad hidden
 });
 
+test("dashboards: accept an optional refreshMs and reject a negative one", () => {
+  const ok = updateSettings({ dashboards: [{ id: "d1", name: "Ops", widgets: [], refreshMs: 30000 }] });
+  assert.equal(ok.dashboards[0]!.refreshMs, 30000);
+  assert.throws(() => updateSettings({ dashboards: [{ id: "d2", name: "Bad", widgets: [], refreshMs: -5 }] as unknown as [] }), SettingsValidationError);
+});
+
 test("customReports: accepts a well-formed bespoke report and rejects bad shape", () => {
   const ok = updateSettings({ customReports: [{ id: "r1", label: "Spend by status", scope: "project", groupBy: "status", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "bar" }] });
   assert.equal(ok.customReports.length, 1);

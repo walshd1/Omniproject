@@ -26,6 +26,11 @@ describe("parseDashboard", () => {
     expect(d.widgets[0]!.span).toBeUndefined();
   });
 
+  it("carries a valid refreshMs and drops a negative one", () => {
+    expect(parseDashboard({ name: "D", widgets: [], refreshMs: 60000 }).refreshMs).toBe(60000);
+    expect(parseDashboard({ name: "D", widgets: [], refreshMs: -1 }).refreshMs).toBeUndefined();
+  });
+
   it("rejects a non-object, a missing name, or non-array widgets", () => {
     expect(() => parseDashboard(7)).toThrow(/dashboard/);
     expect(() => parseDashboard({ widgets: [] })).toThrow(/name/);

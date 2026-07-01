@@ -95,4 +95,17 @@ describe("Dashboards", () => {
     expect(options).toContain("projectCount");
     expect(options).not.toContain("programmeCount");
   });
+
+  it("shows the Live badge when viewing a dashboard with a refresh interval", () => {
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [{ id: "d1", name: "Ops", widgets: [], refreshMs: 30000 }] }) });
+    const badge = screen.getByTestId("dashboard-live");
+    expect(badge).toHaveTextContent(/Live/);
+    expect(badge).toHaveTextContent("30s");
+  });
+
+  it("offers an auto-refresh interval selector in edit mode", () => {
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [] }) });
+    fireEvent.click(screen.getByRole("button", { name: /new/i }));
+    expect(screen.getByLabelText("Auto-refresh interval")).toBeInTheDocument();
+  });
 });
