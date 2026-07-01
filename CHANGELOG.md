@@ -38,6 +38,32 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   audit confirming core value (connect a backend, projects/issues, reports, dashboards) stays
   free and that only prebuilt enterprise convenience is gated. Additive only — no enterprise
   feature was changed.
+- **Cross-programme dependency & critical-path map (stateless report).** A new portfolio report derives,
+  live from the read model, the cross-programme dependency graph — every `depends-on` link between work
+  items, with the edges that cross a programme boundary flagged — and the **critical path across the whole
+  graph**, reusing the shared CPM solver (`critical-path.ts`) rather than re-implementing the
+  forward/backward pass. Durations come from start→due spans (dateless items floor to a day so chains
+  still schedule); dangling references are dropped and cycles are surfaced rather than hung on. Rendered as
+  a circular node-link diagram (dashed edges = cross-programme, red = critical) plus dependency and
+  schedule tables. Pure derive-only over live rows — no new write paths, nothing stored. New pure lib
+  `cross-programme-dependencies.ts` (+ Vitest), the `CrossProgrammeDependencies` renderer wired into the
+  Reports page and renderer registry, and the `cross-programme-dependencies` report definition.
+- **Capacity actuals vs plan (#102).** A new `capacityActuals` dashboard widget compares each resource's
+  logged-time **actuals** (`issue.loggedHours`, summed per assignee) against their **plan/allocation** from
+  the resource-capacity read (`assignedHours` / `availableHours` / `allocationPercentage`), surfacing
+  over- and under-delivery per resource plus a portfolio roll-up (delivery %, variance hours). The
+  derivation lives in a pure, derive-only lib (`lib/capacity-actuals`, banded `OVER_DELIVERED` /
+  `ON_TRACK` / `UNDER_DELIVERED` / `NO_PLAN`) over the existing read model — no new write paths, nothing
+  stored. The widget is entity-gated on `member`, so it's only offered when the backend surfaces resources.
+- **Localisation coverage audit (`guard-i18n-coverage`).** A developer/CI tool that loads the base locale
+  (English) plus every other operating language from the SPA i18n dictionary and reports coverage gaps:
+  keys present in the base but **missing** or **empty** in a locale, and **orphan** keys a locale carries
+  that the base no longer declares. It prints a per-locale coverage report with percentages and a summary.
+  Deterministic, non-breaking exit behaviour: fully-covered locales make it a hard guard (a future
+  untranslated key then fails CI); pre-existing gaps make it **warn-only** (reported, CI stays green,
+  since English fallback keeps the app correct); orphan keys are always a hard failure. Wired as a CI step
+  and documented in `docs/I18N-COVERAGE.md`. Snapshot at introduction: fr/de/es each 30/31 (96.8%), one
+  untranslated key (`nav.explore`) apiece — warn-only.
 - **Messy-data generator (DEV MODE ONLY) — resilience stress-testing against imperfect data.** A dev-only
   broker read-decorator (`broker/messy-broker`) that passes the read model through a pure, deterministic
   imperfection transform (`lib/messy-data`) before the app sees it, so we can watch how resilient our
