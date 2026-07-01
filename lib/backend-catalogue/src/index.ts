@@ -27,6 +27,7 @@ export * from "./persona-catalogue";
 export * from "./methodology-rulesets";
 export * from "./report-catalogue";
 export * from "./widget-catalogue";
+export * from "./component-library";
 export * from "./screen-catalogue";
 export * from "./plane-verifier";
 export * from "./vendor-schema";

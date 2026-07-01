@@ -2076,6 +2076,16 @@ Compatibility predicate — the single rule deciding whether a surfaceable asset
 | `isCapabilityMet` | Compatibility predicate — the single rule deciding whether a surfaceable asset (report, screen, view, panel, …) should appear, given the resolved SUPPORT set. |
 | `unionSupport` | OR-union several support maps into one: a key is supported if ANY map marks it `true`. |
 
+### `lib/backend-catalogue/src/component-library.ts`
+
+The unified COMPONENT LIBRARY — one registry over the report + widget catalogues, so a customer can browse every reusable building block and place it into their own content.
+
+| Function | What it does |
+| --- | --- |
+| `componentLibrary` | The whole library — every report + widget as one list. |
+| `componentsFor` | The components a user may place into a given surface, in display order. |
+| `getComponent` | One library component by its namespaced id, or undefined. |
+
 ### `lib/backend-catalogue/src/entity-resolution.ts`
 
 ENTITY RESOLUTION — stateless helpers for reconciling the SAME real-world entity appearing in more than one backend (the person who is a Jira assignee AND a Salesforce contact; the project that spans a PM tool AND an ERP).
