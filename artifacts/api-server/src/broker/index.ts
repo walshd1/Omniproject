@@ -14,6 +14,7 @@ import { devBrokerFromEnv } from "./dev-broker";
 import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
 import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
 import { wrapWithSingleFlight } from "./single-flight";
+import { messyDataArmed, wrapWithMessy } from "./messy-broker";
 import { getSettings } from "../lib/settings";
 
 /**
@@ -60,6 +61,11 @@ export function getBroker(): Broker {
     // in transit; only MACs persist). Outside the cache so logical calls are recorded
     // even on a cache hit. Additive — never alters results.
     if (provenanceEnabled()) base = wrapWithProvenance(base);
+    // DEV-ONLY chaos: inject real-world imperfections into the read model so we can see
+    // how resilient our reports/derivations are to dirty data. Outermost data transform
+    // (sees the final rows), but inside the trace so a trace shows the messified payload.
+    // `messyDataArmed()` is false in production, so this wrap is never applied there.
+    if (messyDataArmed()) base = wrapWithMessy(base);
     singleton = instrumented() ? wrapWithTrace(base) : base;
   }
   return singleton;

@@ -35,6 +35,7 @@
     "guard-e2e-routes": "tsx ./src/guard-e2e-routes.ts",
     "guard-report-coverage": "tsx ./src/guard-report-coverage.ts",
     "guard-widget-coverage": "tsx ./src/guard-widget-coverage.ts",
+    "guard-i18n-coverage": "tsx ./src/guard-i18n-coverage.ts",
     "guard-compose": "tsx ./src/guard-compose.ts"
   },
   "dependencies": {
