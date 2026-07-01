@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "../lib/capabilities-fields";
 import { useFeatures, featureEnabled } from "../lib/features";
@@ -11,6 +11,7 @@ import {
   type Dashboard,
   type DashboardWidget,
 } from "../lib/dashboards";
+import { downloadDashboard, readDashboardFile } from "../lib/dashboard-file";
 import { WidgetView } from "../components/dashboard/widgets";
 import { DataState } from "../components/DataState";
 
@@ -38,6 +39,8 @@ export function Dashboards() {
   const [editing, setEditing] = useState(false);
   // The working copy while editing (committed to the server on Save).
   const [draft, setDraft] = useState<Dashboard | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const catalogue = useMemo(
     () => availableWidgets((entity) => canSurfaceEntity(caps, entity)),
@@ -90,6 +93,20 @@ export function Dashboards() {
     cancelEdit();
   }
 
+  /** Import a dashboard file — validate, mint a fresh id, persist, and select it. */
+  async function importFile(file: File | undefined) {
+    setImportError(null);
+    if (!file) return;
+    try {
+      const parsed = await readDashboardFile(file);
+      const dash: Dashboard = { ...parsed, id: crypto.randomUUID() };
+      persist([...(dashboards ?? []), dash]);
+      setActiveId(dash.id);
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : "Could not import that file.");
+    }
+  }
+
   // --- draft mutators (edit mode only) ---
   function addWidget(type: string) {
     if (!draft) return;
@@ -139,6 +156,11 @@ export function Dashboards() {
             </select>
             {active && <button onClick={startEdit} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Edit</button>}
             <button onClick={startNew} className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-foreground text-background">New</button>
+            {active && <button onClick={() => downloadDashboard(active)} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Export</button>}
+            <button onClick={() => fileRef.current?.click()} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Import</button>
+            <input ref={fileRef} type="file" accept="application/json,.json" className="sr-only" aria-label="Import dashboard file"
+              onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = ""; }} />
+            {importError && <span role="alert" className="text-xs font-bold text-red-500">{importError}</span>}
           </div>
         )}
 

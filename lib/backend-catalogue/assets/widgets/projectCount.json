@@ -1,0 +1,7 @@
+{
+  "type": "projectCount",
+  "label": "Project count",
+  "description": "Total number of projects.",
+  "defaultSpan": 1,
+  "order": 40
+}

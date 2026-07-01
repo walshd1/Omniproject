@@ -1,0 +1,8 @@
+{
+  "type": "programmeCount",
+  "label": "Programme count",
+  "description": "Total number of programmes.",
+  "defaultSpan": 1,
+  "requiresEntity": "programme",
+  "order": 50
+}

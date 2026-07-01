@@ -1,0 +1,7 @@
+{
+  "type": "statusBreakdown",
+  "label": "Status breakdown",
+  "description": "Projects grouped by status.",
+  "defaultSpan": 1,
+  "order": 60
+}

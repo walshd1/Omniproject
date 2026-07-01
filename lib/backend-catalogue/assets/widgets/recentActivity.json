@@ -1,0 +1,7 @@
+{
+  "type": "recentActivity",
+  "label": "Recent activity",
+  "description": "The latest activity across projects.",
+  "defaultSpan": 1,
+  "order": 30
+}
