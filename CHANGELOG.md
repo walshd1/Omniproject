@@ -29,6 +29,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Enterprise-readiness buyer-panel gap analysis (`docs/ENTERPRISE-READINESS.md`).** A new,
+  evidence-grounded document aimed at a large multinational evaluating OmniProject as an overlay on
+  Jira. It answers, per evaluation seat (CEO, Finance, Compliance, CISO, IT, Projects): what the seat
+  cares about, what OmniProject **already delivers today** (every claim cited to a real file — e.g.
+  the empty `lib/db` schema for zero-at-rest, `exec-pack`/`exec-digest` for the board pack, `programmes`
+  EVM, `currency`/`fx-fallback` for multi-currency, `dual-control` for segregation of duties,
+  `audit-chain`/`snapshot`/`signing` for tamper-evidence, `saml`/`scim` for SSO/lifecycle,
+  `tracing` for OTLP export, `data-residency` for fail-closed region routing), and the concrete gaps to
+  close. Includes the "keep Jira, sit on top" positioning, a TCO/ROI sketch vs enterprise PPM, a
+  prioritised roadmap table (gap → owning seat → S/M/L effort → whether already in backlog), and a
+  "what to build first" recommendation. Docs-only; no source or behaviour changed. Linked from the
+  README documentation index as the "For enterprise buyers" entry point.
 - **Capacity actuals vs plan (#102).** A new `capacityActuals` dashboard widget compares each resource's
   logged-time **actuals** (`issue.loggedHours`, summed per assignee) against their **plan/allocation** from
   the resource-capacity read (`assignedHours` / `availableHours` / `allocationPercentage`), surfacing

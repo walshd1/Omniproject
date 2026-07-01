@@ -451,6 +451,10 @@ full security and integration reference.
 
 ## Documentation
 
+- **For enterprise buyers → [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md)**
+  — a buyer-panel gap analysis (CEO, Finance, Compliance, CISO, IT, Projects): what
+  OmniProject already delivers per seat, the gaps to close, and a prioritised
+  enterprise-readiness roadmap.
 - **[docs/TECHNICAL.md](docs/TECHNICAL.md)** — architecture, n8n contract,
   security model, API surface, data schemas, extending the system.
 - **[docs/BROKER.md](docs/BROKER.md)** — the `Broker` seam and its invariants.
