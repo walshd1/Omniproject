@@ -25,7 +25,7 @@ test("CI guard: dev mode is always off in production, regardless of flags", () =
     assert.equal(isDevMode(), false);
     const s = devModeStatus();
     assert.equal(s.devMode, false);
-    assert.deepEqual(s.surfaces, { persist: false, trace: false, capture: false });
+    assert.deepEqual(s.surfaces, { persist: false, trace: false, capture: false, messy: false });
   });
 });
 

@@ -38,6 +38,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   since English fallback keeps the app correct); orphan keys are always a hard failure. Wired as a CI step
   and documented in `docs/I18N-COVERAGE.md`. Snapshot at introduction: fr/de/es each 30/31 (96.8%), one
   untranslated key (`nav.explore`) apiece — warn-only.
+- **Messy-data generator (DEV MODE ONLY) — resilience stress-testing against imperfect data.** A dev-only
+  broker read-decorator (`broker/messy-broker`) that passes the read model through a pure, deterministic
+  imperfection transform (`lib/messy-data`) before the app sees it, so we can watch how resilient our
+  reports/derivations/screens are to real-world dirt: nulls & missing fields, inconsistent enum vocab
+  (`done` → `Done`/`COMPLETE`/`finished`), blank/whitespace strings, odd numbers (negative/zero/huge/
+  number-as-string), currency chaos (`gbp`/`£`/`XYZ`), broken dates (invalid, reformatted, due-before-
+  start), wrong types, long/unicode text, missing provenance, and duplicate ids across the set. Seeded
+  (same seed ⇒ same mess), READS ONLY (never writes back; the mess lands on a copy), and **hard-gated to
+  dev mode** (`messyDataArmed()` is false in production, where dev mode is itself off). Toggle it live —
+  on/off, intensity, seed, per-gremlin — from the in-app **Messy data** dev control or the admin-gated,
+  audited `POST /api/dev-mode/messy`; seed the boot default via `OMNI_MESSY_DATA` / `OMNI_MESSY_INTENSITY`
+  / `OMNI_MESSY_SEED` / `OMNI_MESSY_GREMLINS`. The DEV MODE watermark shows a `messy` surface when armed.
 - **Governance catalogue spans reports + methodologies + the 3-level UI.** The gated catalogue is now the
   union of feature modules, **reports** (`report:<id>`) and **methodologies** (`methodology:<id>`), each
   carrying a `kind`, so a PMO can mandate ("must use PRINCE2") or forbid ("must not use the EVM report")
