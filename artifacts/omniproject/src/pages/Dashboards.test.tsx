@@ -108,4 +108,36 @@ describe("Dashboards", () => {
     fireEvent.click(screen.getByRole("button", { name: /new/i }));
     expect(screen.getByLabelText("Auto-refresh interval")).toBeInTheDocument();
   });
+
+  it("suggests role-tailored presets in the empty state and applies one", async () => {
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [] }) });
+    // The empty state surfaces one suggestion per role.
+    const suggestions = screen.getByTestId("preset-suggestions");
+    expect(suggestions).toBeInTheDocument();
+    const applyBtn = screen.getByRole("button", { name: /Head of Projects/i });
+    fireEvent.click(applyBtn);
+    // Applying a preset persists a fresh dashboard via the existing save path.
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith("/api/dashboards", expect.objectContaining({ method: "PUT" })),
+    );
+  });
+
+  it("offers an Apply-a-preset picker and applies the chosen preset", async () => {
+    const dash: Dashboard = { id: "d1", name: "Ops", widgets: [{ id: "w1", type: "projectCount" }] };
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [dash] }) });
+    const picker = screen.getByLabelText("Apply a preset") as HTMLSelectElement;
+    const values = [...picker.options].map((o) => o.value);
+    expect(values).toContain("project-manager-today");
+    fireEvent.change(picker, { target: { value: "project-manager-today" } });
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith("/api/dashboards", expect.objectContaining({ method: "PUT" })),
+    );
+  });
+
+  it("hides presets that need an entity the backend can't surface", () => {
+    renderWithProviders(<Dashboards />, { client: seed({ dashboards: [], surfaceProgramme: false }) });
+    // Programme-manager preset uses programmeCount (requiresEntity: programme) → dropped.
+    expect(screen.queryByRole("button", { name: /Programme Manager/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Project Manager/i })).toBeInTheDocument();
+  });
 });
