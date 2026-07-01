@@ -8,6 +8,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Security
 
+- **Re-audit (2026-07) of the newest surfaces — messy-data, dev-mode routes, report overrides,
+  dashboards persistence/import, snapshots, safe-json seams** (see `docs/SECURITY-AUDIT-2026-07.md`).
+  One Medium fixed: the dashboard-file import seam (`lib/dashboard-file.readDashboardFile`, added after
+  the #320 prototype-pollution hardening pass) parsed uploaded JSON with the **raw** `JSON.parse` instead
+  of `safeParseJson`, leaving the untrusted-upload reviver un-applied at a new seam and contradicting the
+  file's own docstring. Switched it to `safeParseJson` so `__proto__`/`constructor`/`prototype` keys are
+  stripped at every depth before the object is reconstructed — restoring the "reviver at every untrusted
+  seam" invariant. Regression tests cover the upload path (valid parse, invalid-JSON error, and a crafted
+  pollution payload leaving `Object.prototype` clean). The messy-data feature, the dev-mode
+  impersonation/entitlements/broker/messy routes, the report-overrides route, the snapshot Ed25519
+  sign/verify + canonicalisation, and the remaining safe-json seams were reviewed and found sound
+  (dev-only + real-admin gating + audit + prod-inertness; clamped/validated config; reads-only; no key
+  leakage; no injection/IDOR/XSS). Lower-severity observations documented as accepted/follow-up.
 - **Stateless scope-ownership on governance writes (closes the IDOR).** The programme/project governance
   PUTs no longer authorize by role *class* alone — they verify the caller actually **manages the named
   scope** by pulling their accessible project graph **live from the backend** (their own forwarded token,
