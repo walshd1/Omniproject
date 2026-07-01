@@ -2423,6 +2423,10 @@ Compose correctness guard — parses every docker-compose file in the repo and a
 
 Route-coverage guard — every client route declared in the SPA's `App.tsx` (`path="…"`) must have a matching entry in the e2e route manifest (`artifacts/omniproject/e2e/routes.ts`), and vice versa.
 
+### `scripts/src/guard-i18n-coverage.ts`
+
+Localisation coverage audit — "every base-locale string is translated in every operating language".
+
 ### `scripts/src/guard-interactive.ts`
 
 Interactive-parity guard — enforces the product rule that every UI affordance is operable by BOTH mouse and keyboard.
