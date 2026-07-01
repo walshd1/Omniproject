@@ -131,6 +131,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the widget catalogue is in sync with its JSON
+        run: |
+          pnpm --filter @workspace/scripts run gen-widgets
+          if ! git diff --quiet -- lib/backend-catalogue/src/widgets.generated.ts; then
+            echo "::error::Widget catalogue is out of date. Run 'pnpm --filter @workspace/scripts run gen-widgets' and commit the result."
+            git --no-pager diff --stat -- lib/backend-catalogue/src/widgets.generated.ts
+            exit 1
+          fi
+
       - name: Verify the methodology catalogue is in sync with its JSON
         run: |
           pnpm --filter @workspace/scripts run gen-methodologies
@@ -178,6 +187,9 @@ jobs:
 
       - name: Verify every declared report is built, wired and tested (report-coverage guard)
         run: pnpm --filter @workspace/scripts run guard-report-coverage
+
+      - name: Verify every declared dashboard widget has a registered renderer (widget-coverage guard)
+        run: pnpm --filter @workspace/scripts run guard-widget-coverage
 
       - name: Verify compose deployment-safety invariants (compose guard)
         run: pnpm --filter @workspace/scripts run guard-compose

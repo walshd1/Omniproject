@@ -1,11 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getJson, safeJson, responseError } from "./api";
+import { WIDGETS, widgetDef, availableWidgets, type WidgetDefinition } from "@workspace/backend-catalogue";
 
 /**
  * Custom-dashboards client. A dashboard is a named, ordered list of widget instances chosen from
  * the widget catalogue (WIDGET_CATALOGUE). Dashboards are SHARED, customer-level presentation config
  * persisted to the config bundle via /api/dashboards — any authenticated user can build/switch, like
  * a team's shared views. Benign presentation config, never project data.
+ *
+ * The widget catalogue is now DATA: authored as JSON under lib/backend-catalogue/assets/widgets/ and
+ * embedded by gen-widgets (drift-guarded), the same principle as reports/views. Each widget `type` binds
+ * to the SPA renderer registry (components/dashboard/widgets), enforced by the widget-coverage guard.
  */
 
 /** A placed widget on a dashboard. `type` keys into WIDGET_CATALOGUE; `span` is the column width. */
@@ -22,39 +27,14 @@ export interface Dashboard {
   widgets: DashboardWidget[];
 }
 
-/** A widget the user can add to a dashboard. Pure metadata — the component map lives in the SPA
- *  widget registry (components/dashboard/widgets) so this stays import-light and unit-testable. */
-export interface WidgetDef {
-  type: string;
-  label: string;
-  description: string;
-  /** Default column span when first added (1–3). */
-  defaultSpan: 1 | 2 | 3;
-  /** If set, the widget is only offered when the backend can surface that entity. */
-  requiresEntity?: string;
-}
+/** A widget the user can add to a dashboard (re-exported from the catalogue; the component map lives in
+ *  the SPA widget renderer registry, so this stays import-light and unit-testable). */
+export type WidgetDef = WidgetDefinition;
 
-/** The catalogue of widgets a dashboard can be built from. All read through the existing read-model
- *  (portfolio, projects, programmes, activity) — no new write surface. */
-export const WIDGET_CATALOGUE: readonly WidgetDef[] = [
-  { type: "portfolioHealth", label: "Portfolio health", description: "RAG health cards across the portfolio.", defaultSpan: 3 },
-  { type: "portfolioTrends", label: "Portfolio trends", description: "Aggregate progress and budget trend over time.", defaultSpan: 2 },
-  { type: "recentActivity", label: "Recent activity", description: "The latest activity across projects.", defaultSpan: 1 },
-  { type: "projectCount", label: "Project count", description: "Total number of projects.", defaultSpan: 1 },
-  { type: "programmeCount", label: "Programme count", description: "Total number of programmes.", defaultSpan: 1, requiresEntity: "programme" },
-  { type: "statusBreakdown", label: "Status breakdown", description: "Projects grouped by status.", defaultSpan: 1 },
-] as const;
+/** The catalogue of widgets a dashboard can be built from — authored as JSON in the backend catalogue. */
+export const WIDGET_CATALOGUE: readonly WidgetDef[] = WIDGETS;
 
-/** Look up a widget definition by type (undefined for an unknown/removed type). */
-export function widgetDef(type: string): WidgetDef | undefined {
-  return WIDGET_CATALOGUE.find((w) => w.type === type);
-}
-
-/** The widgets offered for the active backend — drops entity-gated widgets the backend can't
- *  surface. `canSurface` mirrors capabilities-fields.canSurfaceEntity (permissive by default). */
-export function availableWidgets(canSurface: (entity: string) => boolean): WidgetDef[] {
-  return WIDGET_CATALOGUE.filter((w) => !w.requiresEntity || canSurface(w.requiresEntity));
-}
+export { widgetDef, availableWidgets };
 
 /** Clamp/normalise a span to the 1–3 grid. */
 export function clampSpan(span: number | undefined): 1 | 2 | 3 {

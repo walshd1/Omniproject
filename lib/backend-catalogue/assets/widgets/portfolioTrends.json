@@ -1,0 +1,7 @@
+{
+  "type": "portfolioTrends",
+  "label": "Portfolio trends",
+  "description": "Aggregate progress and budget trend over time.",
+  "defaultSpan": 2,
+  "order": 20
+}

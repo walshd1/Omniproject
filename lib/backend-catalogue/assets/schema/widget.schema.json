@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/widget.schema.json",
+  "title": "OmniProject dashboard widget",
+  "description": "A dashboard widget type. One file per widget under assets/widgets/<type>.json. `type` binds to the SPA widget renderer registry (components/dashboard/widgets WIDGET_COMPONENTS).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "label", "description", "defaultSpan"],
+  "properties": {
+    "type": { "type": "string", "pattern": "^[a-zA-Z0-9]+$", "description": "Unique widget type; the key into the SPA widget renderer registry." },
+    "label": { "type": "string" },
+    "description": { "type": "string" },
+    "defaultSpan": { "enum": [1, 2, 3], "description": "Default column width (1–3) when first added to a dashboard." },
+    "requiresEntity": { "type": "string", "description": "If set, the widget is only offered when the backend can surface this entity." },
+    "order": { "type": "integer", "description": "Display order in the widget picker." }
+  }
+}

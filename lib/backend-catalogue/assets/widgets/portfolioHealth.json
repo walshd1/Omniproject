@@ -1,0 +1,7 @@
+{
+  "type": "portfolioHealth",
+  "label": "Portfolio health",
+  "description": "RAG health cards across the portfolio.",
+  "defaultSpan": 3,
+  "order": 10
+}

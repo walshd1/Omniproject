@@ -17,6 +17,7 @@
     "gen-notification-routes": "tsx ./src/gen-notification-routes.ts",
     "gen-fields": "tsx ./src/gen-fields.ts",
     "gen-reports": "tsx ./src/gen-reports.ts",
+    "gen-widgets": "tsx ./src/gen-widgets.ts",
     "gen-screens": "tsx ./src/gen-screens.ts",
     "gen-methodologies": "tsx ./src/gen-methodologies.ts",
     "gen-personas": "tsx ./src/gen-personas.ts",
@@ -33,6 +34,7 @@
     "guard-interactive": "tsx ./src/guard-interactive.ts",
     "guard-e2e-routes": "tsx ./src/guard-e2e-routes.ts",
     "guard-report-coverage": "tsx ./src/guard-report-coverage.ts",
+    "guard-widget-coverage": "tsx ./src/guard-widget-coverage.ts",
     "guard-compose": "tsx ./src/guard-compose.ts"
   },
   "dependencies": {

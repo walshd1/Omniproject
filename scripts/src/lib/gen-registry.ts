@@ -24,23 +24,28 @@ export interface AssetGroup {
   /** The element type + the module it is imported from. */
   typeName: string;
   typeModule: string;
+  /** The property that identifies each asset and must equal its filename. Defaults to "id"; widgets
+   *  key on "type". */
+  idField?: string;
 }
 
 /** Read, validate (schema + filename===id + unique) and id-sort one group. Throws on any violation. */
 export function loadGroup(group: AssetGroup): Array<{ id: string }> {
+  const idField = group.idField ?? "id";
   const files = fs.readdirSync(group.dir).filter((f) => f.endsWith(".json")).sort();
   const rows: Array<{ id: string }> = [];
   const seen = new Set<string>();
   for (const file of files) {
-    const data = JSON.parse(fs.readFileSync(path.join(group.dir, file), "utf8")) as { id?: string };
+    const data = JSON.parse(fs.readFileSync(path.join(group.dir, file), "utf8")) as Record<string, unknown>;
     const errs = validate(group.schema, data);
     if (errs.length) throw new Error(`${group.label}/${file} fails its schema:\n  - ${errs.join("\n  - ")}`);
-    if (data.id !== file.replace(/\.json$/, "")) throw new Error(`${group.label}/${file}: filename must equal id "${data.id}"`);
-    if (seen.has(data.id)) throw new Error(`${group.label}: duplicate id "${data.id}"`);
-    seen.add(data.id);
-    rows.push(data as { id: string });
+    const idVal = data[idField];
+    if (idVal !== file.replace(/\.json$/, "")) throw new Error(`${group.label}/${file}: filename must equal ${idField} "${String(idVal)}"`);
+    if (seen.has(idVal as string)) throw new Error(`${group.label}: duplicate ${idField} "${String(idVal)}"`);
+    seen.add(idVal as string);
+    rows.push(data as unknown as { id: string });
   }
-  return rows.sort((a, b) => a.id.localeCompare(b.id));
+  return rows.sort((a, b) => String((a as unknown as Record<string, unknown>)[idField]).localeCompare(String((b as unknown as Record<string, unknown>)[idField])));
 }
 
 /** Emit a generated module: the header comment, the type imports, then one const per group. */
