@@ -791,15 +791,17 @@ Multi-currency support.
 
 ### `artifacts/api-server/src/lib/data-residency.ts`
 
-Data-residency / region routing — a fail-closed guard at the broker seam.
+Data-residency / region routing — a fail-closed guard at the broker seam AND the egress hop.
 
 | Function | What it does |
 | --- | --- |
-| `dataResidencyEnabled` | Is region enforcement configured? (DATA_RESIDENCY_ALLOWED present.) |
+| `dataResidencyEnabled` | Is region enforcement configured? (A JSON policy — even an invalid one — or DATA_RESIDENCY_ALLOWED.) |
 | `allowedRegions` | The allowed region codes (lower-cased), as a set. |
 | `regionForUrl` | The declared region for an endpoint URL (longest-prefix match), or null if undeclared. |
 | `checkResidency` | Verify every candidate endpoint sits in an allowed region. |
 | `assertResidency` | Enforce residency on the resolved endpoint pool: on a violation, audit the block and throw a 451 DataResidencyError BEFORE any request egresses. |
+| `checkEgressResidency` | Check an outbound host against the per-country egress allowlist. |
+| `assertEgressResidency` | Enforce the per-country egress policy on an outbound URL's host: audit + throw a 451 DataResidencyError BEFORE the request egresses when a policy is active and the host is not in any allowed region's egress allowlist. |
 | `residencyStatus` | Admin status view: the policy + every configured broker endpoint's region + allow verdict. |
 
 ### `artifacts/api-server/src/lib/data.ts`
@@ -1469,6 +1471,18 @@ Per-request timing accumulator.
 | `runWithTiming` | Run `fn` (and everything it awaits) inside a fresh timing context. |
 | `addUpstreamMs` | Add upstream wait time to the current request (no-op outside a context). |
 | `getUpstreamMs` | Total upstream wait accumulated so far for the current request (0 if none). |
+
+### `artifacts/api-server/src/lib/residency-policy.ts`
+
+Per-country / per-region data-residency POLICY — the declarative form of the residency guard.
+
+| Function | What it does |
+| --- | --- |
+| `validateResidencyPolicy` | Validate an untrusted value as a residency policy. |
+| `residencyPolicyState` | Load + validate the policy from `DATA_RESIDENCY_POLICY` (a JSON string), memoised by raw text so the hot broker/egress paths don't re-parse. |
+| `policyRegionForUrl` | The declared region for a backend URL under a policy (longest matching `backends` prefix wins). |
+| `policyAllowedRegions` | The allowed region codes as a set (the deployment's `allowed` list). |
+| `policyEgressAllowed` | Is egress to `host` permitted under the policy? Allowed iff the host matches an egress pattern of an ALLOWED region, OR is the host of one of that region's own declared backends (a region may always reach the broker it is pinned to, so operators needn't restate it). |
 
 ### `artifacts/api-server/src/lib/resource-pool.ts`
 
