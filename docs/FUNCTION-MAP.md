@@ -1273,6 +1273,21 @@ Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
 | `decodeIdTokenClaims` | Decode the JWT id_token to extract user claims. |
 | `idTokenNonce` | Read the `nonce` claim from an ID token's payload (or null if absent/malformed). |
 
+### `artifacts/api-server/src/lib/otlp-metrics.ts`
+
+OTLP/HTTP metrics export — the metrics counterpart to lib/tracing's span export.
+
+| Function | What it does |
+| --- | --- |
+| `cacheMetrics` | OTLP/HTTP metrics export — the metrics counterpart to lib/tracing's span export. |
+| `coreMetrics` | The full in-process metric set (RED + broker latency + cache) — shared by the scrape route and the OTLP push. |
+| `otlpMetricsEndpoint` | The OTLP metrics endpoint (…/v1/metrics), or null when export is not configured. |
+| `toOtlpMetricsPayload` | Build the OTLP/HTTP `resourceMetrics` payload for a metric set. |
+| `exportMetricsOnce` | Push the current core metric set to the OTLP collector once. |
+| `metricExportIntervalMs` | The export interval (ms) from OTEL_METRIC_EXPORT_INTERVAL, clamped to a sane floor; default 60s. |
+| `startMetricExport` | Start the periodic OTLP metrics push. |
+| `stopMetricExport` | Stop the periodic OTLP metrics push (idempotent). |
+
 ### `artifacts/api-server/src/lib/payload-guard.ts`
 
 Egress injection guard for the broker seam (security item: injection hardening).

@@ -13,6 +13,7 @@ import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
 import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
 import { loadConfigDir } from "./lib/config-dir";
 import { readCacheEnabled, readCacheTtlMs } from "./broker/cache";
+import { startMetricExport } from "./lib/otlp-metrics";
 
 const rawPort = process.env["PORT"];
 
@@ -55,6 +56,11 @@ async function start(): Promise<void> {
   // Optional single-instance scheduled executive digest (off unless EXEC_DIGEST_INTERVAL_HOURS>0;
   // for a fleet, use the trigger endpoint + an external scheduler so it fires once).
   startExecDigestScheduler(() => runExecDigest({ now: Date.now(), broker: getBroker() }));
+
+  // Optional OTLP metrics push (off unless OTEL_EXPORTER_OTLP_ENDPOINT is set) — additive to the
+  // always-on /api/metrics Prometheus scrape and the W3C-trace/OTLP span export. Interval-driven,
+  // unref'd, best-effort.
+  startMetricExport();
 
   const server = app.listen(port, (err) => {
     if (err) {

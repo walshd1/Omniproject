@@ -29,6 +29,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **OTLP telemetry export, a Helm chart, and operations (HA/DR) docs — observability + ops for IT
+  buyers.** Observability was trace-context/scrape-leaning; this makes it a real
+  metrics-and-spans-over-OTLP story, all **additive and off by default**. (1) A new OTLP/HTTP **metrics
+  exporter** (`lib/otlp-metrics.ts`) pushes the always-available in-process signals — RED
+  (rate/errors/duration), broker-call latency, and **read-cache hit/miss** (now also surfaced on the
+  Prometheus scrape) — to a collector on an interval, gated on the same `OTEL_EXPORTER_OTLP_ENDPOINT`
+  as the existing span export (unset ⇒ nothing runs). Cumulative temporality, best-effort, never
+  blocking a request. New `OTEL_METRIC_EXPORT_INTERVAL` (default 60 s, floor 1 s). (2) A **Kubernetes
+  Helm chart** at `deploy/helm/omniproject` (Deployment/Service/Ingress/HPA/PDB/ConfigMap/Secret/
+  ServiceAccount/optional PVC) for the stateless shell — hardened pod (non-root, read-only rootfs, drop
+  ALL, no SA token), `/api/healthz` liveness + `/api/readyz` readiness probes, OTLP wiring off by
+  default, and an HPA disabled until `REDIS_URL` is set (the single-replica SSE-fan-out caveat). (3)
+  `docs/OPERATIONS.md`: horizontal scaling, HA (topology spread + PDB + probe semantics + graceful
+  shutdown), DR/backup (config-only, zero-project-data-at-rest, RTO/RPO), and enabling telemetry.
+  Guarded by a new `helm-guard` test (chart wires `BROKER_URL`, real probe paths, OTLP-off-by-default,
+  empty `SESSION_SECRET`, hardened pod) and OTLP-conversion unit tests. No new write paths; nothing
+  stored.
 - **Capacity actuals vs plan (#102).** A new `capacityActuals` dashboard widget compares each resource's
   logged-time **actuals** (`issue.loggedHours`, summed per assignee) against their **plan/allocation** from
   the resource-capacity read (`assignedHours` / `availableHours` / `allocationPercentage`), surfacing

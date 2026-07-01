@@ -2,7 +2,7 @@ import { Router } from "express";
 import { getProjects, type Row } from "../lib/data";
 import { getPortfolioHealth } from "./portfolio";
 import { formatPrometheus, type AnyMetric } from "../lib/metrics";
-import { runtimeMetrics } from "../lib/runtime-metrics";
+import { coreMetrics } from "../lib/otlp-metrics";
 import { ragBuckets } from "../broker/vocabulary";
 
 /**
@@ -22,9 +22,10 @@ function num(v: unknown): number {
 }
 
 router.get("/metrics", async (req, res) => {
-  // RED metrics (rate/errors/duration) are pure in-process counters — emit them
-  // FIRST and unconditionally so observability survives a backend outage.
-  const runtime = runtimeMetrics();
+  // RED metrics (rate/errors/duration) + broker latency + cache hit/miss are pure
+  // in-process counters — emit them FIRST and unconditionally so observability
+  // survives a backend outage.
+  const runtime = coreMetrics();
   try {
     const projects = await getProjects(req);
     let issues = 0;

@@ -1,0 +1,30 @@
+OmniProject shell deployed as {{ include "omniproject.fullname" . }} (release {{ .Release.Name }}).
+
+1. Replicas: {{ if .Values.autoscaling.enabled }}autoscaled {{ .Values.autoscaling.minReplicas }}–{{ .Values.autoscaling.maxReplicas }} (HPA){{ else }}{{ .Values.replicaCount }} (fixed){{ end }}
+   {{- if and (not .Values.config.REDIS_URL) (or .Values.autoscaling.enabled (gt (int .Values.replicaCount) 1)) }}
+   WARNING: running >1 replica WITHOUT config.REDIS_URL — the in-process SSE fan-out will drop
+   ~half of real-time notifications. Set config.REDIS_URL to a shared bus before scaling out.
+   {{- end }}
+
+2. Reach the app:
+{{- if .Values.ingress.enabled }}
+   Ingress:
+   {{- range .Values.ingress.hosts }}
+     http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+   {{- end }}
+{{- else }}
+   No Ingress (ingress.enabled=false). Port-forward to try it:
+     kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "omniproject.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+   then open http://localhost:{{ .Values.service.port }}
+{{- end }}
+
+3. Health + metrics:
+     /api/healthz  (liveness — dependency-free)
+     /api/readyz   (readiness — 503 when the broker is unreachable)
+     /api/metrics  (Prometheus scrape: RED + broker latency + cache hit/miss)
+
+4. Telemetry (OTLP) is {{ if and .Values.otel.enabled .Values.otel.endpoint }}ON → {{ .Values.otel.endpoint }}{{ else }}OFF (set otel.enabled=true and otel.endpoint=<collector>:4318 to export spans + push metrics){{ end }}.
+
+5. SECURITY: SESSION_SECRET must be set to a strong, non-default value or the gateway refuses to
+   boot in production. Prefer External Secrets Operator / Sealed Secrets, or secret.existingSecret.
+   See docs/OPERATIONS.md for scaling, HA/DR, backup, and enabling telemetry.
