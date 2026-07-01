@@ -814,6 +814,7 @@ const SAMPLE_SETTINGS = {
   backendSource: "sap",
   reportingCurrency: null,
   customReports: [],
+  reportOverrides: [],
   oidcIssuerUrl: "https://idp",
   branding: null,
   labelOverrides: {},

@@ -1983,6 +1983,10 @@ Rate card + hashed identity→role map + project types, and the server-side staf
 
 ⚠️⚠️⚠️ RAW BROKER PASSTHROUGH — THE ESCAPE HATCH OF LAST RESORT ⚠️⚠️⚠️
 
+### `artifacts/api-server/src/routes/report-overrides.ts`
+
+Metadata overrides for the built-in (catalogue) reports.
+
 ### `artifacts/api-server/src/routes/role-map.ts`
 
 Role-mapping editor — ADMIN-only, audited.

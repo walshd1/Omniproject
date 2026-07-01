@@ -3,6 +3,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "../../test/utils";
 import { customReportsQueryKey } from "../../lib/custom-reports-api";
+import { reportOverridesQueryKey } from "../../lib/report-overrides";
 import { availabilityQueryKey, type Availability } from "../../lib/availability";
 import type { CustomReportDef } from "../../lib/custom-report";
 import { CustomReportsAdmin } from "./CustomReportsAdmin";
@@ -13,6 +14,7 @@ function seed(role: string | undefined, reports: CustomReportDef[]): QueryClient
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity }, mutations: { retry: false } } });
   if (role) qc.setQueryData(["auth", "me"], { sub: "u1", role });
   qc.setQueryData(customReportsQueryKey, reports);
+  qc.setQueryData(reportOverridesQueryKey, []);
   qc.setQueryData(availabilityQueryKey, AVAIL);
   return qc;
 }
@@ -78,6 +80,21 @@ describe("CustomReportsAdmin", () => {
     expect(evmRow).toHaveTextContent("FinancialEvmChart");
     fireEvent.click(within(evmRow).getByRole("button", { name: /Export/ }));
     expect(click).toHaveBeenCalled();
+  });
+
+  it("edits a built-in report's metadata and saves it as an override", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ reportOverrides: [] }) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+
+    fireEvent.change(within(screen.getByTestId("builtin-report-evm")).getByLabelText("evm label"), { target: { value: "Earned value (renamed)" } });
+    fireEvent.click(screen.getByText("Save overrides"));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/overrides")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/overrides")!;
+    expect((init as RequestInit).method).toBe("PUT");
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.reportOverrides).toContainEqual(expect.objectContaining({ id: "evm", label: "Earned value (renamed)" }));
   });
 
   it("rejects a non-report JSON file with a friendly error", async () => {

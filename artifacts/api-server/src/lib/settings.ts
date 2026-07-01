@@ -204,6 +204,13 @@ export interface SettingsState {
    * project data. See routes/custom-reports + the SPA customReports feature module.
    */
   customReports: CustomReportDef[];
+  /**
+   * Metadata overrides for the BUILT-IN reports (the catalogue). Presentation-only: a per-report-id
+   * override of label / order / visibility, merged over the shipped catalogue so a customer can rename,
+   * reorder or hide a built-in report without a rebuild. Never changes a report's rendering (that's code)
+   * and never holds project data. Rides the snapshot/export. See routes/report-overrides.
+   */
+  reportOverrides: ReportOverride[];
 }
 
 /** A named saved view: which columns, sort, filters and grouping to apply (all optional, so a view
@@ -261,6 +268,20 @@ export interface CustomReportDef {
   metrics: CustomReportMetric[];
   filter?: { all?: unknown[]; any?: unknown[] };
   viz: "table" | "bar";
+}
+
+/**
+ * A metadata override for one built-in (catalogue) report, keyed by its report id. All fields optional:
+ * an override may set just a new label, just an order, or just hide the report. Merged over the catalogue
+ * on the client; presentation-only, never touches rendering or data.
+ */
+export interface ReportOverride {
+  id: string;
+  label?: string;
+  /** Display order in the report picker (overrides the catalogue order). */
+  order?: number;
+  /** Hide the built-in report from the picker/page without removing it from the catalogue. */
+  hidden?: boolean;
 }
 
 /** One user's persisted UI/accessibility preferences. */
@@ -421,6 +442,7 @@ const store: SettingsState = {
   hiddenFields: [],
   savedViews: [],
   customReports: [],
+  reportOverrides: [],
   dashboards: [],
 };
 
@@ -455,6 +477,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "hiddenFields",
   "savedViews",
   "customReports",
+  "reportOverrides",
   "dashboards",
 ];
 
@@ -563,6 +586,18 @@ function validateCustomReports(value: unknown): void {
   }
 }
 
+/** Shape-validate the built-in report overrides: id required; label/order/hidden optional + typed. */
+function validateReportOverrides(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("reportOverrides must be an array");
+  for (const r of value) {
+    const o = r as Record<string, unknown>;
+    if (!o || typeof o !== "object" || typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each report override needs a string id");
+    if (o["label"] != null && typeof o["label"] !== "string") throw new SettingsValidationError(`report override "${String(o["id"])}" label must be a string`);
+    if (o["order"] != null && typeof o["order"] !== "number") throw new SettingsValidationError(`report override "${String(o["id"])}" order must be a number`);
+    if (o["hidden"] != null && typeof o["hidden"] !== "boolean") throw new SettingsValidationError(`report override "${String(o["id"])}" hidden must be a boolean`);
+  }
+}
+
 function validatePatch(patch: Record<string, unknown>): void {
   if ("aiProvider" in patch && !(AI_PROVIDERS as readonly string[]).includes(patch["aiProvider"] as string)) {
     throw new SettingsValidationError(`aiProvider must be one of: ${AI_PROVIDERS.join(", ")}`);
@@ -643,6 +678,7 @@ function validatePatch(patch: Record<string, unknown>): void {
     }
   }
   if ("customReports" in patch) validateCustomReports(patch["customReports"]);
+  if ("reportOverrides" in patch) validateReportOverrides(patch["reportOverrides"]);
   if ("dashboards" in patch) {
     const v = patch["dashboards"];
     if (!Array.isArray(v)) throw new SettingsValidationError("dashboards must be an array");
