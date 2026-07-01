@@ -27,6 +27,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   is withheld from `/api/setup/reports` + `/api/setup/methodologies`, not just the admin table.
   `getJson` now surfaces the server error on a non-OK response instead of an opaque parse failure.
 
+### Documentation
+
+- **Human-auditability documentation pass.** Three new docs let a technical auditor or
+  new engineer understand the whole system in one sitting — architecture, the broker
+  seam, the data flows, and the key sequences — without reverse-engineering the code,
+  with Mermaid diagrams and file citations cross-checked against the source:
+  `docs/ARCHITECTURE.md` (stateless/zero-at-rest model, the layer cake, the broker
+  seam, where config lives, the security spine, dev-mode gating — component + seam
+  diagrams); `docs/SEQUENCES.md` (seven traced Mermaid sequence walkthroughs: auth/
+  session establishment, a broker read through the single-flight→cache→provenance→
+  messy(dev)→trace decorator chain, an optimistic-concurrency write-through, capability/
+  field resolution as superset ∩ manifest, snapshot Ed25519 sign + offline verify,
+  notification dispatch above the seam, and prod-inert dev-mode/messy-data gating); and
+  `docs/READING-GUIDE.md` (a subsystem → entry-point-file map plus a glossary of the
+  domain vocabulary). Linked from the README ("For engineers / auditors") and
+  `docs/TECHNICAL.md`. Docs-only — no source changed.
+
 ### Added
 
 - **Enterprise-readiness buyer-panel gap analysis (`docs/ENTERPRISE-READINESS.md`).** A new,

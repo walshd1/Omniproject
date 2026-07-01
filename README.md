@@ -463,12 +463,34 @@ full security and integration reference.
 
 ## Documentation
 
+### For engineers / auditors
+
+New to the codebase, or auditing it? Start with these three — they are designed to
+be read in one sitting and let you *see* how the system works (architecture, the
+seam, the data flows, the key sequences) without reverse-engineering the code. Every
+diagram and claim is cross-checked against the source and cites the file it lives in.
+
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — the system overview: the
+  stateless / zero-at-rest model, the layer cake, the broker seam, where config
+  lives, the security spine, and dev-mode gating (Mermaid component + seam diagrams).
+- **[docs/SEQUENCES.md](docs/SEQUENCES.md)** — seven traced walkthroughs (Mermaid
+  sequence diagrams + prose) for auth/session, a broker read through the decorator
+  chain, an optimistic-concurrency write, capability resolution, snapshot
+  sign/verify, notification dispatch, and dev-mode gating.
+- **[docs/READING-GUIDE.md](docs/READING-GUIDE.md)** — "where do I look to
+  understand X": a subsystem → entry-point-file map (pointing at the per-function
+  index below) plus a glossary of the domain vocabulary.
+
+### Reference
+
 - **For enterprise buyers → [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md)**
   — a buyer-panel gap analysis (CEO, Finance, Compliance, CISO, IT, Projects): what
   OmniProject already delivers per seat, the gaps to close, and a prioritised
   enterprise-readiness roadmap.
 - **[docs/TECHNICAL.md](docs/TECHNICAL.md)** — architecture, n8n contract,
   security model, API surface, data schemas, extending the system.
+- **[docs/FUNCTION-MAP.md](docs/FUNCTION-MAP.md)** — generated per-function index of
+  every source file (CI-drift-guarded).
 - **[docs/BROKER.md](docs/BROKER.md)** — the `Broker` seam and its invariants.
 - **[docs/INTEGRATION-PLANES.md](docs/INTEGRATION-PLANES.md)** — the seven
   integration planes and the shared catalogue, with a per-plane dev guide under
