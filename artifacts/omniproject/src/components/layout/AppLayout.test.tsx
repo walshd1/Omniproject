@@ -25,14 +25,16 @@ function project(over: Partial<Project> = {}): Project {
   };
 }
 
-function seed(opts: { authed?: boolean; connected?: boolean; brokerConfigured?: boolean } = {}): QueryClient {
-  const { authed = true, connected = true, brokerConfigured = true } = opts;
+function seed(
+  opts: { authed?: boolean; connected?: boolean; brokerConfigured?: boolean; role?: string } = {},
+): QueryClient {
+  const { authed = true, connected = true, brokerConfigured = true, role = "admin" } = opts;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["auth", "me"], {
     authenticated: authed,
     mode: "demo",
     user: { sub: "u1", name: "Ada Lovelace", email: "ada@example.com" },
-    role: "admin",
+    role,
   });
   qc.setQueryData(getHealthCheckQueryKey(), { status: connected ? "ok" : "down" });
   qc.setQueryData(getListProjectsQueryKey(), [project()]);
@@ -100,6 +102,35 @@ describe("AppLayout", () => {
     );
     expect(screen.getByText(/demo mode/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /open setup/i })).toBeInTheDocument();
+  });
+
+  it("collapses the Advanced (governance/config) surfaces for a plain PM but keeps the toggle reachable", () => {
+    renderWithProviders(
+      <AppLayout>
+        <div>BODY</div>
+      </AppLayout>,
+      { client: seed({ role: "contributor", brokerConfigured: true }) },
+    );
+    // Everyday surfaces stay flat and visible.
+    expect(screen.getAllByText(/projects/i).length).toBeGreaterThan(0);
+    // The Advanced group header (a real button) is present and collapsed…
+    const advanced = screen.getAllByRole("button", { name: /advanced/i });
+    expect(advanced.length).toBeGreaterThan(0);
+    expect(advanced[0]).toHaveAttribute("aria-expanded", "false");
+    // …so the Settings link is not rendered in the collapsed content.
+    expect(screen.queryByRole("link", { name: /settings/i })).toBeNull();
+  });
+
+  it("shows the Advanced surfaces open by default for admin/PMO", () => {
+    renderWithProviders(
+      <AppLayout>
+        <div>BODY</div>
+      </AppLayout>,
+      { client: seed({ role: "pmo", brokerConfigured: true }) },
+    );
+    const advanced = screen.getAllByRole("button", { name: /advanced/i });
+    expect(advanced[0]).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByRole("link", { name: /settings/i }).length).toBeGreaterThan(0);
   });
 
   it("shows the authenticating placeholder while auth is loading", () => {
