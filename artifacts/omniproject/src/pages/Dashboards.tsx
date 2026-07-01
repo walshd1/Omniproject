@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "../lib/capabilities-fields";
 import { useFeatures, featureEnabled } from "../lib/features";
@@ -28,6 +29,18 @@ const SPAN_CLASS: Record<1 | 2 | 3, string> = {
   3: "lg:col-span-3",
 };
 
+/** Auto-refresh interval choices (ms). "Off" = 0. */
+const REFRESH_OPTIONS: { ms: number; label: string }[] = [
+  { ms: 0, label: "Off" },
+  { ms: 30_000, label: "30s" },
+  { ms: 60_000, label: "1m" },
+  { ms: 300_000, label: "5m" },
+];
+
+function refreshLabel(ms: number | undefined): string {
+  return REFRESH_OPTIONS.find((o) => o.ms === (ms ?? 0))?.label ?? `${Math.round((ms ?? 0) / 1000)}s`;
+}
+
 export function Dashboards() {
   const { data: features } = useFeatures();
   const enabled = featureEnabled(features, "dashboards");
@@ -53,6 +66,16 @@ export function Dashboards() {
     if (list.length === 0) return null;
     return list.find((d) => d.id === activeId) ?? list[0]!;
   }, [dashboards, activeId, editing, draft]);
+
+  // Real-time: when viewing (not editing) a dashboard with a refresh interval, re-read the mounted
+  // widgets' data on that cadence. A client-side poll of the existing read model — no new write path.
+  const qc = useQueryClient();
+  const liveMs = !editing && active?.refreshMs ? active.refreshMs : 0;
+  useEffect(() => {
+    if (liveMs <= 0) return;
+    const t = setInterval(() => { void qc.invalidateQueries({ refetchType: "active" }); }, liveMs);
+    return () => clearInterval(t);
+  }, [liveMs, qc]);
 
   function persist(next: Dashboard[]) {
     save.mutate(next);
@@ -161,6 +184,11 @@ export function Dashboards() {
             <input ref={fileRef} type="file" accept="application/json,.json" className="sr-only" aria-label="Import dashboard file"
               onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = ""; }} />
             {importError && <span role="alert" className="text-xs font-bold text-red-500">{importError}</span>}
+            {liveMs > 0 && (
+              <span data-testid="dashboard-live" className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-green-600">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Live · {refreshLabel(liveMs)}
+              </span>
+            )}
           </div>
         )}
 
@@ -183,6 +211,14 @@ export function Dashboards() {
                 <option key={w.type} value={w.type}>{w.label}</option>
               ))}
             </select>
+            <label className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+              Auto-refresh
+              <select aria-label="Auto-refresh interval" className="border-2 border-foreground bg-background px-2 py-1 text-xs"
+                value={draft.refreshMs ?? 0}
+                onChange={(e) => { const ms = Number(e.target.value); setDraft(ms > 0 ? { ...draft, refreshMs: ms } : (({ refreshMs: _drop, ...rest }) => rest)(draft)); }}>
+                {REFRESH_OPTIONS.map((o) => <option key={o.ms} value={o.ms}>{o.label}</option>)}
+              </select>
+            </label>
             <button onClick={saveEdit} disabled={save.isPending} className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-foreground text-background disabled:opacity-50">Save</button>
             <button onClick={cancelEdit} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Cancel</button>
             <button onClick={deleteActive} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-red-500 text-red-500">Delete</button>

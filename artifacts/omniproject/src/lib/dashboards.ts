@@ -25,6 +25,9 @@ export interface Dashboard {
   id: string;
   name: string;
   widgets: DashboardWidget[];
+  /** Auto-refresh interval (ms). When set, the dashboard re-reads its data on this cadence — a
+   *  dashboard is a report that refreshes in real time. A client-side poll; no new write surface. */
+  refreshMs?: number;
 }
 
 /** A widget the user can add to a dashboard (re-exported from the catalogue; the component map lives in

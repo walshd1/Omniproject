@@ -32,11 +32,13 @@ export function parseDashboard(value: unknown): Dashboard {
   const o = value as Record<string, unknown>;
   if (!isStr(o["name"])) throw new Error('dashboard needs a "name".');
   if (!Array.isArray(o["widgets"])) throw new Error('dashboard needs a "widgets" array.');
-  return {
+  const dash: Dashboard = {
     id: isStr(o["id"]) ? o["id"] : "",
     name: o["name"],
     widgets: (o["widgets"] as unknown[]).map(parseWidget),
   };
+  if (typeof o["refreshMs"] === "number" && o["refreshMs"] >= 0) dash.refreshMs = o["refreshMs"];
+  return dash;
 }
 
 /** Trigger a browser download of a dashboard as pretty JSON. */
