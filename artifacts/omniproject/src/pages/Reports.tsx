@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useListProjects, useGetCapabilities, type Capabilities } from "@workspace/api-client-react";
 import { useStore } from "../store/useStore";
+import { ExecBoardPack } from "../components/reports/ExecBoardPack";
 import { PortfolioKpi } from "../components/reports/PortfolioKpi";
 import { PortfolioRoadmap } from "../components/reports/PortfolioRoadmap";
 import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
@@ -114,6 +115,13 @@ export function Reports() {
             </div>
           )}
         </div>
+
+        <Gated caps={caps} domain="portfolio" title="Executive Board Pack" requires="a portfolio rollup (get_portfolio_health)">
+          <section>
+            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Executive Board Pack</h2>
+            <ExecBoardPack />
+          </section>
+        </Gated>
 
         <Gated caps={caps} domain="portfolio" title="Portfolio Health" requires="a portfolio rollup (get_portfolio_health)">
           <PortfolioKpi />
