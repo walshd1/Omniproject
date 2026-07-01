@@ -16,6 +16,7 @@ import { markExplorationDirty } from "../../lib/exploration";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Camera, Upload, Download, LogOut } from "lucide-react";
+import { safeParseJson } from "../../lib/safe-json";
 
 function replicaProjects(r: ExploreReplica): Project[] {
   return (r.responses[getListProjectsUrl()] as Project[] | undefined) ?? [];
@@ -85,7 +86,7 @@ export function ReplicaWorkbench() {
   const importFile = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const r = JSON.parse(await readText(file)) as ExploreReplica;
+      const r = safeParseJson(await readText(file)) as ExploreReplica;
       if (r?.schema !== REPLICA_SCHEMA || !r.responses) throw new Error("bad replica");
       enter(r);
     } catch {

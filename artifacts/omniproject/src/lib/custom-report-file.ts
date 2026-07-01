@@ -1,5 +1,6 @@
 import type { CustomReportDef, CustomReportAgg, CustomReportMetric } from "./custom-report";
 import type { ConditionSet } from "./rate-card";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Round-trip a bespoke report DEFINITION in and out of a JSON file — so a report built in the generator
@@ -79,7 +80,7 @@ export function downloadReportDef(def: CustomReportDef | CustomReportDef[], file
 export async function readReportDefFile(file: File): Promise<CustomReportDef[]> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(await file.text());
+    parsed = safeParseJson(await file.text());
   } catch {
     throw new Error("That file isn't valid JSON.");
   }
