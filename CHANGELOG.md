@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Documentation
+
+- **Speed / responsiveness / design-patterns review (`docs/PERF-PATTERNS-REVIEW.md`).** A staff-engineering
+  pass (155 files, 60 findings) for the 60-programme/200-project scale target. Verdict: no correctness bugs, but
+  ~10 recurring patterns that turn O(1) into O(portfolio) — unbounded portfolio fan-out (200-way query storms),
+  pure static derivations rebuilt per call, and React memos that never hit (fresh `useQueries` array refs). Most
+  fixes are small/local; report only, remediation sequenced. Prioritized Top-15 by ROI included.
+
 ### Security
 
 - **Stateless scope-ownership on governance writes (closes the IDOR).** The programme/project governance
