@@ -15,7 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 interface DevModeStatus {
   devMode: boolean;
   env: string;
-  surfaces: { persist: boolean; trace: boolean; capture: boolean };
+  surfaces: { persist: boolean; trace: boolean; capture: boolean; messy: boolean };
 }
 
 export function DevModeWatermark() {
