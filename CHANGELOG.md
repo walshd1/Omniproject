@@ -29,6 +29,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Stakeholder register, risk register + RACI matrix (#93).** Phase 3 of the PM/PgM overlay extends the
+  canonical field vocabulary with three governance concerns (145 fields, drift-guarded), each gated per
+  backend and surfaced as a JSON screen. **Stakeholder register** — a new `stakeholder` field group +
+  entity and `stakeholders` capability domain (stakeholderName, stakeholderRole, influence, interest,
+  engagementLevel, commsCadence, engagementStrategy). **RACI matrix** — a new `raci` group + entity and
+  `raci` domain (deliverable → Responsible/Accountable/Consulted/Informed, one Accountable per
+  deliverable). **Risk register** — a new `risk` group that **extends RAID rather than duplicating it**:
+  probability, riskExposure (P×I score) and responseStrategy ride the existing `raid` domain on the raid
+  entity, flowing through the current `/raid` route. Three capability-gated screens (`stakeholders`,
+  `risk-register`, `raci-matrix`) join the screen catalogue; demo data, capability-derivation tests and a
+  governance demo-data guard bind the sample rows to the registry. OpenAPI `Capabilities` gains required
+  `stakeholders` + `raci` booleans; regenerated fields/screens/openapi bundles + api-client/zod clients.
 - **Capacity actuals vs plan (#102).** A new `capacityActuals` dashboard widget compares each resource's
   logged-time **actuals** (`issue.loggedHours`, summed per assignee) against their **plan/allocation** from
   the resource-capacity read (`assignedHours` / `availableHours` / `allocationPercentage`), surfacing

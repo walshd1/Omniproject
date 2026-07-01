@@ -1,0 +1,19 @@
+{
+  "id": "stakeholders",
+  "label": "Stakeholder register",
+  "route": "/projects/:id/stakeholders",
+  "kind": "detail",
+  "capabilities": {
+    "requiresRole": "viewer",
+    "requiresCapability": "stakeholders",
+    "dataLineage": true,
+    "exportable": true
+  },
+  "tools": [
+    "stakeholder-table",
+    "influence-interest-grid",
+    "engagement-summary"
+  ],
+  "notes": "Stakeholder engagement matrix — role, influence/interest, engagement level and comms cadence. Gated by the stakeholders capability.",
+  "order": 90
+}

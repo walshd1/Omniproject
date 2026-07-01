@@ -797,5 +797,112 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "label": "Depreciation period (months)",
     "type": "number",
     "group": "financial"
+  },
+  {
+    "key": "stakeholderName",
+    "label": "Stakeholder",
+    "type": "string",
+    "group": "stakeholder",
+    "entity": "stakeholder",
+    "required": true
+  },
+  {
+    "key": "stakeholderRole",
+    "label": "Role",
+    "type": "string",
+    "group": "stakeholder",
+    "entity": "stakeholder"
+  },
+  {
+    "key": "influence",
+    "label": "Influence",
+    "type": "enum",
+    "group": "stakeholder",
+    "entity": "stakeholder"
+  },
+  {
+    "key": "interest",
+    "label": "Interest",
+    "type": "enum",
+    "group": "stakeholder",
+    "entity": "stakeholder"
+  },
+  {
+    "key": "engagementLevel",
+    "label": "Engagement",
+    "type": "enum",
+    "group": "stakeholder",
+    "entity": "stakeholder"
+  },
+  {
+    "key": "commsCadence",
+    "label": "Comms cadence",
+    "type": "enum",
+    "group": "stakeholder",
+    "entity": "stakeholder"
+  },
+  {
+    "key": "engagementStrategy",
+    "label": "Engagement strategy",
+    "type": "text",
+    "group": "stakeholder",
+    "entity": "stakeholder"
+  },
+  {
+    "key": "deliverable",
+    "label": "Deliverable",
+    "type": "string",
+    "group": "raci",
+    "entity": "raci",
+    "required": true
+  },
+  {
+    "key": "raciResponsible",
+    "label": "Responsible (R)",
+    "type": "labels",
+    "group": "raci",
+    "entity": "raci"
+  },
+  {
+    "key": "raciAccountable",
+    "label": "Accountable (A)",
+    "type": "user",
+    "group": "raci",
+    "entity": "raci"
+  },
+  {
+    "key": "raciConsulted",
+    "label": "Consulted (C)",
+    "type": "labels",
+    "group": "raci",
+    "entity": "raci"
+  },
+  {
+    "key": "raciInformed",
+    "label": "Informed (I)",
+    "type": "labels",
+    "group": "raci",
+    "entity": "raci"
+  },
+  {
+    "key": "probability",
+    "label": "Probability",
+    "type": "enum",
+    "group": "risk",
+    "entity": "raid"
+  },
+  {
+    "key": "riskExposure",
+    "label": "Risk exposure (P×I)",
+    "type": "number",
+    "group": "risk",
+    "entity": "raid"
+  },
+  {
+    "key": "responseStrategy",
+    "label": "Response strategy",
+    "type": "enum",
+    "group": "risk",
+    "entity": "raid"
   }
 ];

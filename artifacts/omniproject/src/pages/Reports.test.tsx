@@ -42,6 +42,8 @@ function caps(over: Partial<Capabilities> = {}): Capabilities {
     crm: false,
     service: false,
     benefits: false,
+    stakeholders: false,
+    raci: false,
     timeTravel: false,
     ...over,
   };

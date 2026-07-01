@@ -1,0 +1,19 @@
+{
+  "id": "risk-register",
+  "label": "Risk register",
+  "route": "/projects/:id/risks",
+  "kind": "detail",
+  "capabilities": {
+    "requiresRole": "viewer",
+    "requiresCapability": "raid",
+    "dataLineage": true,
+    "exportable": true
+  },
+  "tools": [
+    "risk-table",
+    "probability-impact-matrix",
+    "response-summary"
+  ],
+  "notes": "Risk register built on RAID — probability, impact, exposure score, response strategy, owner and status. Gated by the raid capability.",
+  "order": 91
+}
