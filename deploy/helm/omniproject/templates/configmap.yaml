@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "omniproject.fullname" . }}-config
+  labels:
+    {{- include "omniproject.labels" . | nindent 4 }}
+data:
+  {{- range $k, $v := .Values.config }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}
+  {{- if and .Values.otel.enabled .Values.otel.endpoint }}
+  # OTLP telemetry — export spans + push metrics to the collector (additive to /api/metrics).
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.otel.endpoint | quote }}
+  OTEL_SERVICE_NAME: {{ .Values.otel.serviceName | quote }}
+  {{- with .Values.otel.headers }}
+  OTEL_EXPORTER_OTLP_HEADERS: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.otel.metricExportIntervalMs }}
+  OTEL_METRIC_EXPORT_INTERVAL: {{ . | quote }}
+  {{- end }}
+  {{- end }}
+  {{- if .Values.persistence.enabled }}
+  OMNI_CONFIG_DIR: {{ .Values.persistence.mountPath | quote }}
+  {{- end }}

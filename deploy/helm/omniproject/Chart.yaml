@@ -1,0 +1,22 @@
+apiVersion: v2
+name: omniproject
+description: |
+  OmniProject — the stateless PM/PgM overlay gateway (the "omni-shell"). A horizontally
+  scalable Express app that serves the SPA + API and brokers to your backend (n8n/BROKER_URL).
+  Holds no project data at rest; scale it out behind a Service/Ingress with an HPA. Ships
+  liveness/readiness probes, a hardened pod securityContext, and optional OTLP telemetry.
+type: application
+# Chart version — bump on chart changes. appVersion tracks the shipped OmniProject image.
+version: 0.1.0
+appVersion: "0.6.0"
+keywords:
+  - project-management
+  - portfolio-management
+  - stateless
+  - observability
+  - otlp
+home: https://github.com/walshd1/omniproject
+sources:
+  - https://github.com/walshd1/omniproject
+maintainers:
+  - name: OmniProject
