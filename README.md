@@ -324,6 +324,18 @@ Open **http://localhost:5173**. With no `OIDC_*` set, the login screen shows
 **ENTER (DEMO MODE)** and issues a local session — the whole app is usable with
 sample data until you wire up n8n and SSO.
 
+### Small teams, charities & self-hosters
+
+OmniProject is **free to run and opt-in-hardened** — SSO, KMS, IP allowlists and
+the rest are all off by default, and the whole product works without them. Point a
+free/open backend (**OpenProject**, **Plane**, or **Excel / Sheets**) at it and you
+get projects, boards, reports and dashboards for **no per-seat cost**. Pick your
+context in the setup wizard (**Business/SME · Non-profit/charity · Self-hosted**) so
+plain HTTP-on-a-LAN and the bundled IdP just work, and lean on the charity/SME
+starter templates (**grant tracking**, **fundraising pipeline**, **volunteer
+roster**) plus the copilot's charity/SME lenses. Full walkthrough of what you need
+and what you can safely skip: **[docs/SMALL-ORG-GUIDE.md](docs/SMALL-ORG-GUIDE.md)**.
+
 ---
 
 ## Using OmniProject
@@ -451,8 +463,34 @@ full security and integration reference.
 
 ## Documentation
 
+### For engineers / auditors
+
+New to the codebase, or auditing it? Start with these three — they are designed to
+be read in one sitting and let you *see* how the system works (architecture, the
+seam, the data flows, the key sequences) without reverse-engineering the code. Every
+diagram and claim is cross-checked against the source and cites the file it lives in.
+
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — the system overview: the
+  stateless / zero-at-rest model, the layer cake, the broker seam, where config
+  lives, the security spine, and dev-mode gating (Mermaid component + seam diagrams).
+- **[docs/SEQUENCES.md](docs/SEQUENCES.md)** — seven traced walkthroughs (Mermaid
+  sequence diagrams + prose) for auth/session, a broker read through the decorator
+  chain, an optimistic-concurrency write, capability resolution, snapshot
+  sign/verify, notification dispatch, and dev-mode gating.
+- **[docs/READING-GUIDE.md](docs/READING-GUIDE.md)** — "where do I look to
+  understand X": a subsystem → entry-point-file map (pointing at the per-function
+  index below) plus a glossary of the domain vocabulary.
+
+### Reference
+
+- **For enterprise buyers → [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md)**
+  — a buyer-panel gap analysis (CEO, Finance, Compliance, CISO, IT, Projects): what
+  OmniProject already delivers per seat, the gaps to close, and a prioritised
+  enterprise-readiness roadmap.
 - **[docs/TECHNICAL.md](docs/TECHNICAL.md)** — architecture, n8n contract,
   security model, API surface, data schemas, extending the system.
+- **[docs/FUNCTION-MAP.md](docs/FUNCTION-MAP.md)** — generated per-function index of
+  every source file (CI-drift-guarded).
 - **[docs/BROKER.md](docs/BROKER.md)** — the `Broker` seam and its invariants.
 - **[docs/INTEGRATION-PLANES.md](docs/INTEGRATION-PLANES.md)** — the seven
   integration planes and the shared catalogue, with a per-plane dev guide under

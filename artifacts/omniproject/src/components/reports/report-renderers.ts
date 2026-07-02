@@ -15,6 +15,7 @@ import { Burnup } from "./Burnup";
 import { CumulativeFlow } from "./CumulativeFlow";
 import { Velocity } from "./Velocity";
 import { RaidRegister } from "./RaidRegister";
+import { CrossProgrammeDependencies } from "./CrossProgrammeDependencies";
 
 /**
  * The report RENDERER REGISTRY — the one place a report definition's `renderer.component` is resolved to
@@ -45,6 +46,7 @@ export const REPORT_RENDERERS: Record<string, ReportRendererComponent> = {
   CumulativeFlow,
   Velocity,
   RaidRegister,
+  CrossProgrammeDependencies,
 };
 
 /** Is this component name a registered renderer? */
