@@ -133,8 +133,9 @@ export function CustomReportsAdmin() {
       <div>
         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Report generator</h2>
         <p className="text-xs text-muted-foreground">
-          Build your own reports — filter, group by a field, and aggregate metrics. They render on the Reports
-          page (project or portfolio). No code; the definition travels in your config bundle.
+          Build your own reports — filter, group by a field (optionally a second level for a pivot), and
+          aggregate metrics, or trend a metric by month. They render on the Reports page (project or
+          portfolio). No code; the definition travels in your config bundle.
         </p>
       </div>
 
@@ -163,6 +164,7 @@ export function CustomReportsAdmin() {
                 value={r.viz} onChange={(e) => patch(i, { ...r, viz: e.target.value as CustomReportDef["viz"] })}>
                 <option value="table">Table</option>
                 <option value="bar">Bar</option>
+                <option value="line">Line (trend)</option>
               </select>
             </label>
             <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" aria-label={`Export report ${i + 1}`}
@@ -170,14 +172,37 @@ export function CustomReportsAdmin() {
             <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" onClick={() => setDraft(draft.filter((_, j) => j !== i))}>Remove</Button>
           </div>
 
-          <label className="text-xs flex items-center gap-2">
-            <span className="text-muted-foreground uppercase tracking-widest text-[10px]">Group by</span>
-            <select aria-label={`Report ${i + 1} group by`} className="rounded-none border border-border bg-background px-2 py-1 text-xs"
-              value={r.groupBy ?? ""} onChange={(e) => { const { groupBy: _d, ...rest } = r; patch(i, e.target.value ? { ...rest, groupBy: e.target.value } : rest); }}>
-              <option value="">(no grouping — single total)</option>
-              {fields.map((f) => <option key={f} value={f}>{f}</option>)}
-            </select>
-          </label>
+          {r.viz === "line" ? (
+            <label className="text-xs flex items-center gap-2">
+              <span className="text-muted-foreground uppercase tracking-widest text-[10px]">Date field (bucketed by month)</span>
+              <select aria-label={`Report ${i + 1} date field`} className="rounded-none border border-border bg-background px-2 py-1 text-xs"
+                value={r.dateField ?? ""} onChange={(e) => { const { dateField: _d, ...rest } = r; patch(i, e.target.value ? { ...rest, dateField: e.target.value } : rest); }}>
+                <option value="">(choose a date field)</option>
+                {fields.map((f) => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </label>
+          ) : (
+            <>
+              <label className="text-xs flex items-center gap-2">
+                <span className="text-muted-foreground uppercase tracking-widest text-[10px]">Group by</span>
+                <select aria-label={`Report ${i + 1} group by`} className="rounded-none border border-border bg-background px-2 py-1 text-xs"
+                  value={r.groupBy ?? ""} onChange={(e) => { const { groupBy: _d, groupBy2: _d2, ...rest } = r; patch(i, e.target.value ? { ...rest, groupBy: e.target.value } : rest); }}>
+                  <option value="">(no grouping — single total)</option>
+                  {fields.map((f) => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </label>
+              {r.groupBy && (
+                <label className="text-xs flex items-center gap-2">
+                  <span className="text-muted-foreground uppercase tracking-widest text-[10px]">Then by (pivot columns) — optional</span>
+                  <select aria-label={`Report ${i + 1} group by 2`} className="rounded-none border border-border bg-background px-2 py-1 text-xs"
+                    value={r.groupBy2 ?? ""} onChange={(e) => { const { groupBy2: _d, ...rest } = r; patch(i, e.target.value ? { ...rest, groupBy2: e.target.value } : rest); }}>
+                    <option value="">(single level)</option>
+                    {fields.filter((f) => f !== r.groupBy).map((f) => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </label>
+              )}
+            </>
+          )}
 
           <div className="pl-2 border-l-2 border-border space-y-1.5">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Metrics</p>

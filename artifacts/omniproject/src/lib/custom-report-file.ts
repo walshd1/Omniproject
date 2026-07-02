@@ -9,7 +9,7 @@ import { safeParseJson } from "./safe-json";
  */
 
 const AGGS: readonly CustomReportAgg[] = ["sum", "avg", "count", "min", "max"];
-const VIZ = ["table", "bar"] as const;
+const VIZ = ["table", "bar", "line"] as const;
 const SCOPES = ["project", "portfolio"] as const;
 
 function isStr(v: unknown): v is string {
@@ -32,7 +32,7 @@ export function parseReportDef(value: unknown): CustomReportDef {
   const o = value as Record<string, unknown>;
   if (!isStr(o["label"])) throw new Error('report definition needs a "label".');
   if (!SCOPES.includes(o["scope"] as (typeof SCOPES)[number])) throw new Error('report "scope" must be "project" or "portfolio".');
-  if (!VIZ.includes(o["viz"] as (typeof VIZ)[number])) throw new Error('report "viz" must be "table" or "bar".');
+  if (!VIZ.includes(o["viz"] as (typeof VIZ)[number])) throw new Error('report "viz" must be "table", "bar" or "line".');
   if (!Array.isArray(o["metrics"]) || o["metrics"].length === 0) throw new Error("report needs at least one metric.");
 
   const def: CustomReportDef = {
@@ -43,6 +43,8 @@ export function parseReportDef(value: unknown): CustomReportDef {
     metrics: (o["metrics"] as unknown[]).map(parseMetric),
   };
   if (isStr(o["groupBy"])) def.groupBy = o["groupBy"];
+  if (isStr(o["groupBy2"])) def.groupBy2 = o["groupBy2"];
+  if (isStr(o["dateField"])) def.dateField = o["dateField"];
   const filter = o["filter"];
   if (filter && typeof filter === "object") def.filter = filter as ConditionSet;
   return def;
