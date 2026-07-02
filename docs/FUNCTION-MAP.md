@@ -254,7 +254,7 @@ Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into a
 
 | Function | What it does |
 | --- | --- |
-| `endpointsForKind` | Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into an actual per-kind DISPATCH. |
+| `endpointsForKind` | The endpoint URL(s) declared for a broker kind, or undefined if none. |
 | `routeBrokerCall` | Route a broker call to the kind that should serve it. |
 
 ### `artifacts/api-server/src/broker/send-cli.ts`
@@ -620,6 +620,15 @@ Dependency-free response compression (gzip/brotli) for the gateway.
 | `negotiateEncoding` | Best encoding the client accepts — brotli preferred, then gzip, else none. |
 | `isCompressible` | Is a response with these headers safe — and worth — compressing? |
 | `compression` | Express middleware: negotiate + buffer-then-compress, with safe pass-throughs. |
+
+### `artifacts/api-server/src/lib/concurrency-pool.ts`
+
+Tiny bounded-concurrency pool — the `p-limit` pattern without adding a dependency.
+
+| Function | What it does |
+| --- | --- |
+| `createConcurrencyLimiter` | Tiny bounded-concurrency pool — the `p-limit` pattern without adding a dependency. |
+| `poolMap` | Map `items` through the async `fn`, keeping at most `limit` calls in flight at once. |
 
 ### `artifacts/api-server/src/lib/concurrency.ts`
 
@@ -1327,6 +1336,14 @@ Methodology RAG — persona SELECTION for the portfolio copilot.
 | `personasEnabled` | Is methodology-persona RAG enabled? (On by default; COPILOT_PERSONAS=off disables it.) |
 | `personaById` | A persona by id, or undefined. |
 | `selectPersonas` | Retrieve the most relevant persona(s) for a question. |
+
+### `artifacts/api-server/src/lib/portfolio-reads.ts`
+
+Shared portfolio-wide issue fan-out — was duplicated verbatim (and unbounded) in both routes/export.ts and routes/odata.ts: every xlsx/csv/json/md/pdf export and every OData `/Issues` feed poll fired one `getIssues` call PER PROJECT via a bare `Promise.all`, which is a 200-way concurrent hit on the backend at the 60/200-project target (Power BI/SAP feed polls make this recur on every poll interval, not just on demand).
+
+| Function | What it does |
+| --- | --- |
+| `allIssues` | Every issue across every project the actor can see. |
 
 ### `artifacts/api-server/src/lib/predicate.ts`
 

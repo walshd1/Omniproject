@@ -86,19 +86,25 @@ function fromWidget(w: WidgetDefinition): LibraryComponent {
   };
 }
 
+/** The whole library — every report + widget as one list. Derived from the JSON catalogues, which
+ *  are themselves static, so this is built ONCE at module load instead of re-derived on every call
+ *  (every dashboard/report render used to pay this). See docs/PERF-PATTERNS-REVIEW.md, Theme B. */
+const LIBRARY: LibraryComponent[] = [...reportCatalogue().map(fromReport), ...widgetCatalogue().map(fromWidget)];
+
+/** id → component, built once alongside LIBRARY — O(1) lookups instead of a linear `.find`. */
+const BY_ID: Map<string, LibraryComponent> = new Map(LIBRARY.map((c) => [c.id, c]));
+
 /** The whole library — every report + widget as one list. Derived from the JSON catalogues. */
 export function componentLibrary(): LibraryComponent[] {
-  return [...reportCatalogue().map(fromReport), ...widgetCatalogue().map(fromWidget)];
+  return LIBRARY;
 }
 
 /** The components a user may place into a given surface, in display order. */
 export function componentsFor(surface: ComponentSurface): LibraryComponent[] {
-  return componentLibrary()
-    .filter((c) => c.placeableIn.includes(surface))
-    .sort((a, b) => a.order - b.order);
+  return LIBRARY.filter((c) => c.placeableIn.includes(surface)).sort((a, b) => a.order - b.order);
 }
 
 /** One library component by its namespaced id, or undefined. */
 export function getComponent(id: string): LibraryComponent | undefined {
-  return componentLibrary().find((c) => c.id === id);
+  return BY_ID.get(id);
 }

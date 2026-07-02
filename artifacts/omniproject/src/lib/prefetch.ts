@@ -4,6 +4,7 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { getJson } from "./api";
 import { useFeatures, featureEnabled } from "./features";
+import { poolMap } from "./concurrency-pool";
 
 /**
  * Read-ahead prefetch for the project read-model. Two clearly-separated tiers:
@@ -27,10 +28,13 @@ import { useFeatures, featureEnabled } from "./features";
 /** Dwell (ms) a pointer must rest on a project before the deterministic prefetch fires. */
 const HOVER_DWELL_MS = 120;
 const PREDICTIVE_KEY = "omni:predictive-prefetch";
+/** Concurrency bound for runPredictive's speculative fan-out — was firing every project's warm-up
+ *  synchronously (up to 200-wide at the target scale). See docs/PERF-PATTERNS-REVIEW.md, Theme A. */
+const PREDICTIVE_FANOUT_LIMIT = 6;
 
-function warmProjectIssues(qc: QueryClient, projectId: string): void {
-  if (!projectId) return;
-  void qc.prefetchQuery({
+function warmProjectIssues(qc: QueryClient, projectId: string): Promise<void> {
+  if (!projectId) return Promise.resolve();
+  return qc.prefetchQuery({
     queryKey: getGetProjectIssuesQueryKey(projectId),
     queryFn: () => getJson<Issue[]>(`/api/projects/${projectId}/issues`),
     staleTime: 30_000,
@@ -75,19 +79,20 @@ export function useProjectPrefetch(): ProjectPrefetch {
 
   const onIntentEnter = useCallback((projectId: string) => {
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => warmProjectIssues(qc, projectId), HOVER_DWELL_MS);
+    timer.current = setTimeout(() => void warmProjectIssues(qc, projectId), HOVER_DWELL_MS);
   }, [qc]);
   const onIntentLeave = useCallback(() => clearTimeout(timer.current), []);
-  const onIntentFocus = useCallback((projectId: string) => warmProjectIssues(qc, projectId), [qc]);
+  const onIntentFocus = useCallback((projectId: string) => void warmProjectIssues(qc, projectId), [qc]);
 
   const { data: features } = useFeatures();
   const moduleOn = featureEnabled(features, "predictivePrefetch");
   const userOn = usePredictivePrefetchSetting((s) => s.enabled);
   const predictiveActive = moduleOn && userOn;
 
+  // Bounded fan-out (Theme A): every id still gets warmed, just not all 200 at once.
   const runPredictive = useCallback((projectIds: string[]) => {
     if (!predictiveActive) return;
-    for (const id of projectIds) warmProjectIssues(qc, id);
+    void poolMap(projectIds, PREDICTIVE_FANOUT_LIMIT, (id) => warmProjectIssues(qc, id));
   }, [predictiveActive, qc]);
 
   return { onIntentEnter, onIntentLeave, onIntentFocus, predictiveActive, runPredictive };

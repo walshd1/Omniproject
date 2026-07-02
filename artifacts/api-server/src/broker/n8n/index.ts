@@ -6,6 +6,7 @@ import { currentEndpointOverride } from "../endpoint-context";
 import { recordAudit } from "../../lib/audit";
 import { INDICATIVE_FX_RATES } from "../../lib/fx-fallback";
 import { VERIFIABLE_ACTIONS } from "../verifiable-actions";
+import { poolMap } from "../../lib/concurrency-pool";
 import {
   BrokerError,
   type Broker,
@@ -65,6 +66,9 @@ export const N8N_ENV_CONFIGURED = !!ENV_WEBHOOK;
 type N8nResult<T = unknown> = BrokerEnvelope<T>;
 
 const DEFAULT_WEBHOOK = "http://localhost:5678/webhook/omniproject";
+
+/** Concurrency bound for the `verify()` probe fan-out over VERIFIABLE_ACTIONS. */
+const VERIFY_PROBE_FANOUT_LIMIT = 5;
 
 /**
  * The pool of n8n webhook endpoints. For horizontal scale, set `BROKER_URLS` to a
@@ -475,35 +479,35 @@ export class N8nBroker implements Broker {
   async verify(ctx: ActorContext, opts: { projectId?: string } = {}): Promise<VerifyReport> {
     const projectId = opts.projectId ?? "sample";
     const url = webhookUrl();
-    const actions = await Promise.all(
-      VERIFIABLE_ACTIONS.map(async (action) => {
-        const started = Date.now();
-        try {
-          assertEgressAllowed(url); // SSRF guard on the verify probe too
-          const probe = { action, payload: { projectId }, source: "verify", origin: GATEWAY_ORIGIN, verify: true };
-          const psk = pskEnabled();
-          const res = await fetch(url, {
-            method: "POST",
-            headers: psk
-              ? { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") }
-              : { "Content-Type": "application/json", "X-OmniProject-Action": action, "X-OmniProject-Origin": GATEWAY_ORIGIN },
-            body: psk
-              ? JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify(probe)) })
-              : JSON.stringify(probe),
-            signal: AbortSignal.timeout(8_000),
-          });
-          let json = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string; enc?: string };
-          if (psk && typeof json.enc === "string") {
-            const opened = openPayload(json.enc);
-            json = opened ? (JSON.parse(opened) as typeof json) : {};
-          }
-          return { name: action, ok: res.ok && json?.success !== false, status: res.status, ms: Date.now() - started, note: json?.message ?? null };
-        } catch (err) {
-          const isTimeout = err instanceof Error && err.name === "TimeoutError";
-          return { name: action, ok: false, status: 0, ms: Date.now() - started, note: isTimeout ? "timed out" : "unreachable" };
+    // Bounded so the verify probe (a diagnostic path) can't itself become the herd the
+    // single-flight layer exists to prevent — see docs/PERF-PATTERNS-REVIEW.md, Theme A.
+    const actions = await poolMap(VERIFIABLE_ACTIONS, VERIFY_PROBE_FANOUT_LIMIT, async (action) => {
+      const started = Date.now();
+      try {
+        assertEgressAllowed(url); // SSRF guard on the verify probe too
+        const probe = { action, payload: { projectId }, source: "verify", origin: GATEWAY_ORIGIN, verify: true };
+        const psk = pskEnabled();
+        const res = await fetch(url, {
+          method: "POST",
+          headers: psk
+            ? { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") }
+            : { "Content-Type": "application/json", "X-OmniProject-Action": action, "X-OmniProject-Origin": GATEWAY_ORIGIN },
+          body: psk
+            ? JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify(probe)) })
+            : JSON.stringify(probe),
+          signal: AbortSignal.timeout(8_000),
+        });
+        let json = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string; enc?: string };
+        if (psk && typeof json.enc === "string") {
+          const opened = openPayload(json.enc);
+          json = opened ? (JSON.parse(opened) as typeof json) : {};
         }
-      }),
-    );
+        return { name: action, ok: res.ok && json?.success !== false, status: res.status, ms: Date.now() - started, note: json?.message ?? null };
+      } catch (err) {
+        const isTimeout = err instanceof Error && err.name === "TimeoutError";
+        return { name: action, ok: false, status: 0, ms: Date.now() - started, note: isTimeout ? "timed out" : "unreachable" };
+      }
+    });
     return { ok: actions.every((a) => a.ok), actions };
   }
 }

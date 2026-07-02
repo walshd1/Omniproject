@@ -6,6 +6,47 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Performance
+
+- **Bounded portfolio fan-out (Theme A of `docs/PERF-PATTERNS-REVIEW.md`) — the biggest scale risk
+  at the 60/200 target.** A tiny hand-rolled concurrency pool (`poolMap`/`createConcurrencyLimiter`;
+  no new dependency) now caps every "one call per project" fan-out instead of firing all ~200
+  concurrently:
+  - `routes/export.ts` + `routes/odata.ts` — the duplicated, unbounded `allIssues()` is now one
+    shared, bounded (10-wide) helper (`lib/portfolio-reads.ts`), used by both the exporters and the
+    OData feed; the xlsx exporter also no longer fetches the project list twice.
+  - `routes/projects.ts` `GET /resources` — the member-roster fan-out is bounded to 10-wide.
+  - `broker/n8n/index.ts` `verify()` — the probe fan-out is bounded to 5-wide, so the diagnostic
+    path can't itself become the herd single-flight exists to prevent.
+  - `pages/MyWork.tsx` and `components/search/GlobalSearch.tsx` — the per-project `useQueries`
+    issue fetches are bounded (8-wide) via a client-side limiter wrapping each `queryFn`.
+  - `lib/explore-replica.ts` `captureReplica` — the 7 per-project sub-resource reads now run in
+    parallel (`Promise.all`) and the outer per-project loop is bounded to 8-wide: was 200×7=1,400
+    fully-serialized round-trips (~3 min), now seconds.
+  - `lib/prefetch.ts` `runPredictive` — speculative prefetches are now bounded to 6 in flight.
+- **Static derivations memoized at module scope (Theme B) — O(catalogue)/O(n²) → O(1)/O(n) on hot
+  paths.**
+  - `lib/feature-modules.ts` — `governanceCatalogue()`/`governanceGates()` (feature modules + every
+    report + every methodology) are now built once and cached, instead of rebuilt + reallocated on
+    every gated request.
+  - `lib/backend-catalogue/src/component-library.ts` — the component `LIBRARY` is built once at
+    module load; `getComponent` is backed by a `Map` (O(1) instead of a linear rebuild-then-`.find`
+    on every dashboard/report render).
+  - `broker/registry.ts` — `brokerForCommand` no longer re-runs `connectedBrokers()` once per
+    candidate inside its filter (was O(n²) on the broker write-routing path); the supporting-kind
+    set is now resolved once per call.
+  - `broker/router.ts` — `endpointsForKind` now memoizes the parsed `BROKER_ENDPOINTS` map, keyed
+    on the raw env value (still re-parses on a hot-reloaded change), instead of re-parsing the
+    string on every routed call.
+- **Stabilized `useQueries` derivations (Theme C) — the dominant user-perceptible jank source.**
+  `use-portfolio-items.ts`, `MyWork.tsx`, `GlobalSearch.tsx`, `ExecBoardPack.tsx`,
+  `CapacityRollup.tsx`, `PortfolioRoadmap.tsx`, and `widgets.tsx` (`CapacityActualsWidget`) now use
+  React Query's `combine` option so the per-project result array is referentially stable across
+  renders that don't change the underlying data. Previously a bare `useQueries()` array got a new
+  reference every render, forcing the downstream `useMemo` to re-run its full O(200-project)
+  aggregation on every unrelated re-render (tab switch, sibling widget settling, every keystroke).
+
+  See `docs/PERF-PATTERNS-REVIEW.md` for the full findings this scoped pass addresses.
 ### Security
 
 - **Fixed a silent-failure bug on two SPA admin mutation clients (from the clean-code audit's Theme

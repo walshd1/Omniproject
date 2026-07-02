@@ -16,19 +16,34 @@ import type { Broker } from "./types";
  * deployments are unchanged.
  */
 
-/** The endpoint URL(s) declared for a broker kind, or undefined if none. */
-export function endpointsForKind(kind: string): string[] | undefined {
-  const raw = process.env["BROKER_ENDPOINTS"]?.trim();
-  if (!raw) return undefined;
+/** Parse the `BROKER_ENDPOINTS` env string into a `kind → urls` map. First occurrence of a kind
+ *  wins (mirrors the original scan-and-early-return behaviour, including the edge case where a
+ *  first match with no urls after filtering resolves to `undefined` even if a later duplicate
+ *  would have parsed to something non-empty). */
+function parseEndpoints(raw: string): Map<string, string[] | undefined> {
+  const map = new Map<string, string[] | undefined>();
   for (const pair of raw.split(",")) {
     const eq = pair.indexOf("=");
     if (eq < 0) continue;
     const k = pair.slice(0, eq).trim().toLowerCase();
-    if (k !== kind.toLowerCase()) continue;
+    if (map.has(k)) continue; // first match wins
     const urls = pair.slice(eq + 1).split("|").map((u) => u.trim()).filter(Boolean);
-    return urls.length ? urls : undefined;
+    map.set(k, urls.length ? urls : undefined);
   }
-  return undefined;
+  return map;
+}
+
+/** Memoized on the raw env value, so a hot-reloaded/changed BROKER_ENDPOINTS still re-parses (just
+ *  not on every routed call — was re-parsing the whole string per call; see
+ *  docs/PERF-PATTERNS-REVIEW.md, Theme B). */
+let endpointsCache: { raw: string; map: Map<string, string[] | undefined> } | undefined;
+
+/** The endpoint URL(s) declared for a broker kind, or undefined if none. */
+export function endpointsForKind(kind: string): string[] | undefined {
+  const raw = process.env["BROKER_ENDPOINTS"]?.trim();
+  if (!raw) return undefined;
+  if (!endpointsCache || endpointsCache.raw !== raw) endpointsCache = { raw, map: parseEndpoints(raw) };
+  return endpointsCache.map.get(kind.toLowerCase());
 }
 
 /**

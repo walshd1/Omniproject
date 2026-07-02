@@ -75,6 +75,18 @@ export function connectedBrokerKinds(): string[] {
   return connectedBrokers().map((b) => b.kind);
 }
 
+/** Which of an already-resolved `connected` list can serve `capabilityKey` — the shared filter
+ *  behind `brokersSupporting`, factored out so a caller that already has the connected list (e.g.
+ *  `brokerForCommand`) doesn't re-run `connectedBrokers()` per candidate. */
+function supportingKinds(connected: ConnectedBroker[], capabilityKey: string): string[] {
+  return connected
+    .filter((b) => {
+      if (!b.live) return BROKER_CAPABILITY_KEYS.includes(capabilityKey as (typeof BROKER_CAPABILITY_KEYS)[number]);
+      return brokerSupport(b.kind)[capabilityKey] === true;
+    })
+    .map((b) => b.kind);
+}
+
 /**
  * The routing primitive: which connected broker kinds can serve a given capability
  * (e.g. "who can deliver `eventsOutbound`?"). A non-live (demo) broker simulates
@@ -82,12 +94,7 @@ export function connectedBrokerKinds(): string[] {
  * is listed first, so a caller that wants a single target can take `[0]`.
  */
 export function brokersSupporting(capabilityKey: string): string[] {
-  return connectedBrokers()
-    .filter((b) => {
-      if (!b.live) return BROKER_CAPABILITY_KEYS.includes(capabilityKey as (typeof BROKER_CAPABILITY_KEYS)[number]);
-      return brokerSupport(b.kind)[capabilityKey] === true;
-    })
-    .map((b) => b.kind);
+  return supportingKinds(connectedBrokers(), capabilityKey);
 }
 
 /** What a command needs of the broker that serves it. */
@@ -123,8 +130,13 @@ function servesTransport(b: ConnectedBroker, transport: TransportMethod): boolea
 export function brokerForCommand(intent: CommandIntent = {}): string {
   const connected = connectedBrokers();
   const primary = connected.find((b) => b.primary)!;
+  // Resolve the capability's supporting set ONCE (a Set, for O(1) membership) instead of
+  // re-running brokersSupporting() — which itself re-ran connectedBrokers() — per candidate inside
+  // the filter below. Was O(n²) on this write-path routing decision; see docs/PERF-PATTERNS-REVIEW.md,
+  // Theme B.
+  const supporting = intent.capability ? new Set(supportingKinds(connected, intent.capability)) : null;
   const eligible = connected.filter((b) => {
-    if (intent.capability && !brokersSupporting(intent.capability).includes(b.kind)) return false;
+    if (supporting && !supporting.has(b.kind)) return false;
     if (intent.transport && !servesTransport(b, intent.transport)) return false;
     return true;
   });

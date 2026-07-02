@@ -22,6 +22,7 @@ import {
   type InterceptResult,
 } from "@workspace/api-client-react";
 import { triggerBlobDownload } from "./setup";
+import { poolMap } from "./concurrency-pool";
 
 /**
  * Explore replica — a captured, deep snapshot of the LIVE read-model that the
@@ -161,10 +162,18 @@ async function safe<T>(fn: () => Promise<T>): Promise<T | undefined> {
   }
 }
 
+/** Concurrency bound for the outer per-project loop in captureReplica (each project itself fans
+ *  its 7 sub-resource reads out in parallel — see below). See docs/PERF-PATTERNS-REVIEW.md, Theme A. */
+const CAPTURE_PROJECT_FANOUT_LIMIT = 8;
+
 /**
  * Capture a deep replica by reading every endpoint live. Per-project analytical
  * sub-resources are best-effort (a backend may not supply them). Runs in LIVE
  * mode (no interceptor installed), so these calls hit the real gateway.
+ *
+ * The 7 per-project sub-resources are independent reads, so they run via `Promise.all`; the outer
+ * loop over all projects is bounded to CAPTURE_PROJECT_FANOUT_LIMIT — was fully serialized
+ * (200 × 7 = 1,400 round-trips, ~3 minutes wall-clock), now a bounded parallel fan-out (seconds).
  */
 export async function captureReplica(label: string): Promise<ExploreReplica> {
   const responses: Record<string, unknown> = {};
@@ -179,17 +188,26 @@ export async function captureReplica(label: string): Promise<ExploreReplica> {
   record(getListActivityUrl(), await safe(() => listActivity()));
   record(getGetCapabilitiesUrl(), await safe(() => getCapabilities()));
 
-  for (const p of projects) {
+  await poolMap(projects, CAPTURE_PROJECT_FANOUT_LIMIT, async (p) => {
     const issuesUrl = getGetProjectIssuesUrl(p.id);
     const base = issuesUrl.replace(/\/issues$/, "");
-    record(issuesUrl, await safe(() => getProjectIssues(p.id)));
-    record(`${base}/summary`, await safe(() => getProjectSummary(p.id)));
-    record(`${base}/capacity`, await safe(() => getProjectCapacity(p.id)));
-    record(`${base}/financials`, await safe(() => getProjectFinancials(p.id)));
-    record(`${base}/history`, await safe(() => getProjectHistory(p.id)));
-    record(`${base}/baseline`, await safe(() => getProjectBaseline(p.id)));
-    record(`${base}/raid`, await safe(() => getProjectRaid(p.id)));
-  }
+    const [issues, summary, capacity, financials, history, baseline, raid] = await Promise.all([
+      safe(() => getProjectIssues(p.id)),
+      safe(() => getProjectSummary(p.id)),
+      safe(() => getProjectCapacity(p.id)),
+      safe(() => getProjectFinancials(p.id)),
+      safe(() => getProjectHistory(p.id)),
+      safe(() => getProjectBaseline(p.id)),
+      safe(() => getProjectRaid(p.id)),
+    ]);
+    record(issuesUrl, issues);
+    record(`${base}/summary`, summary);
+    record(`${base}/capacity`, capacity);
+    record(`${base}/financials`, financials);
+    record(`${base}/history`, history);
+    record(`${base}/baseline`, baseline);
+    record(`${base}/raid`, raid);
+  });
 
   return { schema: REPLICA_SCHEMA, label, capturedAt: new Date().toISOString(), responses };
 }

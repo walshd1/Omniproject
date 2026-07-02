@@ -103,17 +103,24 @@ function CapacityActualsWidget() {
   const { data: projects } = useListProjects();
   const ids = useMemo(() => (projects ?? []).map((p) => p.id), [projects]);
 
-  const capacityQueries = useQueries({ queries: ids.map((id) => getGetProjectCapacityQueryOptions(id)) });
-  const issueQueries = useQueries({ queries: ids.map((id) => getGetProjectIssuesQueryOptions(id)) });
+  // `combine` keeps each result referentially stable across renders that don't change the
+  // underlying query data, so `summary` doesn't re-run its O(projects) aggregation every time a
+  // sibling dashboard widget settles. See docs/PERF-PATTERNS-REVIEW.md, Theme C.
+  const capacityPlan = useQueries({
+    queries: ids.map((id) => getGetProjectCapacityQueryOptions(id)),
+    combine: (results) => results.flatMap((r) => (r.data as ResourceCapacity[] | undefined) ?? []),
+  });
+  const issuesFlat = useQueries({
+    queries: ids.map((id) => getGetProjectIssuesQueryOptions(id)),
+    combine: (results) => results.flatMap((r) => (r.data as Issue[] | undefined) ?? []),
+  });
 
   const summary = useMemo(() => {
-    const plan = capacityQueries.flatMap((q) => (q.data as ResourceCapacity[] | undefined) ?? []);
-    const actuals: ResourceActual[] = issueQueries
-      .flatMap((q) => (q.data as Issue[] | undefined) ?? [])
+    const actuals: ResourceActual[] = issuesFlat
       .filter((i) => typeof i.loggedHours === "number" && i.loggedHours > 0 && i.assignee)
       .map((i) => ({ resourceId: i.assignee, resourceName: i.assignee, loggedHours: i.loggedHours ?? 0 }));
-    return deriveCapacityActuals(plan, actuals);
-  }, [capacityQueries, issueQueries]);
+    return deriveCapacityActuals(capacityPlan, actuals);
+  }, [capacityPlan, issuesFlat]);
 
   const rows = summary.rows.slice(0, 6);
   return (

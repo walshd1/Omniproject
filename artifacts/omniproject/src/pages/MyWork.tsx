@@ -7,6 +7,7 @@ import { useAuth } from "../lib/auth";
 import { useFeatures, featureEnabled } from "../lib/features";
 import { useLiveEvents, type LiveEvent } from "../lib/live-events";
 import { STATUS_ORDER, statusLabel } from "../lib/constants";
+import { createConcurrencyLimiter } from "../lib/concurrency-pool";
 import { DataState } from "../components/DataState";
 
 /**
@@ -16,6 +17,11 @@ import { DataState } from "../components/DataState";
  *  - **Inbox** — the user's live notifications from the existing SSE stream (lib/live-events).
  *    Mark-as-read is client-side/ephemeral for v1; gracefully empty when nothing's wired.
  */
+
+// Bounds actual in-flight "my work" issue fetches (there's one useQueries entry per project, up to
+// 200-wide at the target scale, which would otherwise saturate the browser's per-origin connection
+// limit on every tab open). See docs/PERF-PATTERNS-REVIEW.md, Theme A.
+const issuesFetchPool = createConcurrencyLimiter(8);
 
 /** Is this issue assigned to me? Matches the assignee against the session sub / email / name. */
 export function isAssignedToMe(assignee: string | null | undefined, me: { sub?: string | undefined; email?: string | undefined; name?: string | undefined }): boolean {
@@ -31,13 +37,18 @@ export function MyWork() {
   const { data: projects, isLoading, isError, error, refetch } = useListProjects();
   const [tab, setTab] = useState<"work" | "inbox">("work");
 
-  // One issues query per project; cross-project assigned items are filtered client-side.
-  const issueQueries = useQueries({
+  // One issues query per project; cross-project assigned items are filtered client-side. Actual
+  // fetch starts are bounded by issuesFetchPool (Theme A); `combine` folds the per-project results
+  // into one array whose REFERENCE only changes when the underlying data actually changes — so the
+  // `mine` useMemo below doesn't re-run its O(projects) scan on every unrelated re-render (tab
+  // switch, sibling state, live event) the way a fresh useQueries() array would force (Theme C).
+  const issuesByProject = useQueries({
     queries: (projects ?? []).map((p) => ({
       queryKey: ["my-work-issues", p.id] as const,
-      queryFn: () => getJson<Issue[]>(`/api/projects/${p.id}/issues`),
+      queryFn: () => issuesFetchPool(() => getJson<Issue[]>(`/api/projects/${p.id}/issues`)),
       staleTime: 30_000,
     })),
+    combine: (results) => results.map((r) => r.data as Issue[] | undefined),
   });
 
   const sub = auth?.user?.sub;
@@ -47,12 +58,12 @@ export function MyWork() {
     const me = { sub, email, name };
     const out: { project: Project; issue: Issue }[] = [];
     (projects ?? []).forEach((p, i) => {
-      for (const issue of issueQueries[i]?.data ?? []) {
+      for (const issue of issuesByProject[i] ?? []) {
         if (isAssignedToMe(issue.assignee, me)) out.push({ project: p, issue });
       }
     });
     return out;
-  }, [projects, issueQueries, sub, email, name]);
+  }, [projects, issuesByProject, sub, email, name]);
 
   const grouped = useMemo(() => {
     const order = (s: string) => { const i = STATUS_ORDER.indexOf(s as (typeof STATUS_ORDER)[number]); return i < 0 ? 999 : i; };
