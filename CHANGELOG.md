@@ -8,6 +8,34 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Bulk feature-gating import/export (backlog #136).** The hierarchical feature-gating model
+  (backlog #88 — org→programme→project `programmeFeatures`/`projectFeatures` scope config) was only
+  editable one programme or project at a time; at real scale (e.g. 200 projects) that's hundreds of
+  form edits. Additive bulk tooling in Settings → Feature governance:
+  - **Export**: `lib/feature-gating-csv.ts`'s `buildFeatureGatingExportRows` + `featureGatingRowsToCsv`
+    emit one CSV row per known programme/project (even ones with no override yet, so a PMO edits a
+    populated spreadsheet rather than hand-typing every id), one pipe-separated column per gating
+    dimension (`disabled`/`required`/`forbidden`) — RFC-4180 escaped (including the CSV-injection
+    formula-trigger guard already used server-side), UTF-8 BOM prefixed for Excel.
+  - **Import**: a hand-rolled RFC-4180 parser (`parseCsvText`) + `parseFeatureGatingCsv` validates every
+    row — an unrecognised feature id or a same-row required+forbidden clash REJECTS that row with a
+    clear message (others still parse); an unrecognised programme/project id is a WARNING, not a fatal
+    abort (the per-scope PUT route is the actual ownership authority). `diffGatingRow` computes a
+    per-row new/changed/unchanged diff (with per-dimension added/removed ids) against the CURRENT
+    config, shown as a preview before any write. Confirming applies through the EXACT SAME
+    `PUT /features/programme/:id` / `PUT /features/project/:id` routes the one-at-a-time
+    `FeatureGovernance` admin panel already uses — looped sequentially (never in parallel, since each
+    PUT does a read-modify-write over the shared settings map) so ownership/ceiling validation and
+    audit logging are identical to a hand-edited single save, never bypassed for the bulk path. Only
+    rows that actually change are sent; a per-row failure (e.g. "not owned") is reported without
+    aborting the rest of the batch.
+  - New `FeatureGatingBulkAdmin.tsx` component, mounted alongside (not replacing) `FeatureGovernance`;
+    new `useScopeFeatureMaps` hook reads the raw override maps via the existing `GET /api/settings`.
+    No new backend routes, no new persistence — reads/writes the exact same
+    `settings.programmeFeatures`/`projectFeatures` the single-scope UI already uses. Bulk-editing
+    `governanceRules` (the conditional PMO mandates) is deliberately left for a follow-on — it already
+    has its own dedicated admin UI (`GovernanceRulesAdmin`) and a CSV shape for predicate-bearing rules
+    is a different (bigger) problem than this flat per-scope table.
 - **ERP connector hardening: Oracle NetSuite read-through capability-honesty
   pass (backlog #140).** The NetSuite backend manifest
   (`lib/backend-catalogue/vendors/backends/netsuite.json`, seeded in #158)
