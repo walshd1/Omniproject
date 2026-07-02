@@ -177,3 +177,50 @@ Larger than a report and touches the write path — worth doing deliberately, no
 - **Data map / DSAR / retention / backup / DR** — already in `ENTERPRISE-OPS.md`.
 - **Component SBOM + compliance / threat-model / privacy / VPAT docs** — **built** this round
   (see the CHANGELOG).
+- **Gateway-side multi-instance data-broker fan-out (backlog #108)** — investigated and closed,
+  not built. The ask: have the gateway itself hold *several distinct adapter instances of
+  potentially the same kind* (e.g. two separate Jira-kind endpoints) and fan a single read across
+  them in one request, merging by `qualifiedId`. What's already built and covers the real need:
+  - **Cross-kind capability routing already exists and is intentionally single-target.**
+    `connectedBrokers()`/`brokerForCommand()` (`artifacts/api-server/src/broker/registry.ts`)
+    pick ONE connected broker *kind* per command/read (primary first, else the first kind that
+    supports the required capability/transport) — e.g. n8n for the data hop, Make for outbound
+    events. `connectedBrokers()` explicitly **dedupes by kind**: the registry has no concept of
+    two simultaneous connections of the *same* kind, by design, not oversight.
+  - **The existing same-kind pool (`BROKER_URLS`, and the `kind=url1|url2` form in
+    `BROKER_ENDPOINTS`, see `artifacts/api-server/src/broker/router.ts` /
+    `artifacts/api-server/src/broker/n8n/index.ts`) is a *horizontal-scale replica pool*, not a
+    fan-out source list.** `webhookPool()`/`orderedTargets()` round-robin and fail over across the
+    URLs on the assumption every entry is an identical instance of the *same* logical backend
+    (redundancy/throughput), and pick exactly one per call. Repurposing it to mean "N distinct
+    data sources, read all of them and merge" would silently break that existing horizontal-scaling
+    contract (every listed URL would take live traffic on every read) for a case it wasn't built
+    for.
+  - **Merging genuinely distinct same-kind backends (e.g. two Jira orgs) is already the broker's
+    job, one level below the seam, by architecture.** Per `docs/BROKER.md` and
+    `docs/ARCHITECTURE.md`, the reference broker (n8n) runs "one workflow per backend" and is
+    exactly the layer built to fan a request out to N backends, tag rows by `source`, and return
+    ONE merged read model through the same uniform HTTP contract the gateway already consumes via
+    a single adapter. The gateway is deliberately kept structurally incapable of knowing how many
+    backends of a kind exist — that's the point of the seam (`getBroker()` / the `Broker`
+    interface) — and the identity/merge machinery for that boundary already exists and is reused
+    correctly there (`qualifyId`/`stampSource` in `artifacts/api-server/src/broker/identity.ts`).
+    Duplicating that fan-out/merge logic gateway-side for same-kind instances would re-implement,
+    above the seam, the exact job the broker/workflow layer already does below it — working against
+    the "structurally incapable of knowing" boundary the architecture guard enforces
+    (`broker-guard.test.ts`), for zero net new capability.
+  - **Even the simpler, already-built piece is unvalidated by real use.** `routeBrokerCall()`
+    (`artifacts/api-server/src/broker/router.ts`) — route ONE command to ONE specific connected
+    kind's endpoint — has full test coverage (`router.test.ts`) but as of this investigation has
+    **no production caller**; no route handler invokes it yet. Building the strictly harder
+    same-kind multi-instance fan-out-and-merge on top of a single-dispatch mechanism that no real
+    request path uses yet would be speculative abstraction stacked on unvalidated abstraction —
+    against this codebase's explicit bias against building ahead of a demonstrated need.
+
+  **Conclusion:** no genuine unmet need found. Cross-kind capability split (n8n for data + Make
+  for events) is real and already built; same-kind multi-instance fan-out is not — it would
+  duplicate the broker/workflow layer's job, collide with the existing replica-pool semantics, and
+  has no concrete customer scenario behind it in the repo (no RFC, issue, or test asks for it).
+  Closed without code; revisit only if a specific deployment surfaces a case the broker/workflow
+  layer genuinely cannot handle (e.g. it cannot itself reach two same-kind backends for a hard
+  network-segmentation reason) — which none of the current backends/docs describe.

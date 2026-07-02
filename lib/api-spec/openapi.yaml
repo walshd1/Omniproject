@@ -1521,6 +1521,22 @@ components:
         utilizationState:
           type: string
           enum: [OVER_ALLOCATED, OPTIMAL, UNDER_ALLOCATED]
+        country:
+          type: string
+          nullable: true
+          description: >-
+            The resource's declared home country/region code (e.g. "eu", "us"), for
+            cross-border resource levelling. Uses the same region vocabulary as the
+            data-residency policy. Null/absent when the backend doesn't declare it —
+            residency gating then fails closed only where enforcement is on.
+        skills:
+          type: array
+          items:
+            type: string
+          description: >-
+            Simple skill/competency tags the backend declares for this resource
+            (e.g. "backend", "data-science"). Powers skills supply-vs-demand
+            levelling. Absent/empty when the backend doesn't declare skills.
       required:
         - resourceId
         - resourceName
@@ -1667,6 +1683,17 @@ components:
           description: >-
             Whether historical time-travel is available — true only when the
             operator has opted in to the logging-server egress (off by default).
+        residency:
+          description: >-
+            The active data-residency posture (see /api/security/data-residency),
+            reduced to the non-sensitive bit a report needs to gate cross-border
+            actions: whether enforcement is on, and the allowed region CODES (never
+            URLs/secrets). Open to any authenticated user, unlike the admin status
+            endpoint. Reused by the cross-programme resource-levelling view so a
+            modelled cross-border move goes through the SAME gate as the broker/egress
+            hop rather than a new one.
+          allOf:
+            - $ref: '#/components/schemas/ResidencyCapability'
         fields:
           type: object
           description: >-
@@ -1716,6 +1743,25 @@ components:
         - stakeholders
         - raci
         - timeTravel
+
+    ResidencyCapability:
+      type: object
+      description: >-
+        The non-sensitive slice of the data-residency posture, safe for any
+        authenticated user (no endpoint URLs/secrets — see the admin-only
+        /api/security/data-residency for the full status).
+      properties:
+        enabled:
+          type: boolean
+          description: Is region enforcement configured (a policy or DATA_RESIDENCY_ALLOWED)?
+        allowedRegions:
+          type: array
+          items:
+            type: string
+          description: The allowed region CODES this deployment permits (e.g. ["eu"]).
+      required:
+        - enabled
+        - allowedRegions
 
     FieldSupport:
       type: object

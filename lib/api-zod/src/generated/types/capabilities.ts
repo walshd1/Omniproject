@@ -9,6 +9,7 @@ import type { CapabilitiesEntities } from './capabilitiesEntities';
 import type { CapabilitiesFields } from './capabilitiesFields';
 import type { CapabilitiesFieldSources } from './capabilitiesFieldSources';
 import type { DiscoveredField } from './discoveredField';
+import type { ResidencyCapability } from './residencyCapability';
 
 /**
  * Data domains the wired backend(s) can populate.
@@ -39,6 +40,8 @@ export interface Capabilities {
   raci: boolean;
   /** Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default). */
   timeTravel: boolean;
+  /** The active data-residency posture (see /api/security/data-residency), reduced to the non-sensitive bit a report needs to gate cross-border actions: whether enforcement is on, and the allowed region CODES (never URLs/secrets). Open to any authenticated user, unlike the admin status endpoint. Reused by the cross-programme resource-levelling view so a modelled cross-border move goes through the SAME gate as the broker/egress hop rather than a new one. */
+  residency?: ResidencyCapability;
   /** Per-field support: which work-item fields the backend can surface (read/display) and store (write back). Absent ⇒ derive from domains. */
   fields?: CapabilitiesFields;
   /** Per-entity support (e.g. programme, project): whether the entity can be surfaced and/or stored. A programme only exists when the backend can carry programme grouping. */
