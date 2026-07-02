@@ -55,6 +55,26 @@ export async function setDeploymentProfile(profile: string): Promise<void> {
   }
 }
 
+/** The result of applying the "We're a charity" one-click preset — what changed, so the
+ *  wizard can show a plain-English confirmation instead of a silent success. */
+export interface CharityOnboardingResult {
+  profile: string;
+  posture: ProfilePosture;
+  dashboardsAdded: { id: string; name: string }[];
+  nomenclature: { applied: boolean; backendId: string | null; reason: string };
+}
+
+/** Apply the "We're a charity" one-click onboarding preset (admin): selects the nonprofit
+ *  deployment profile, mints the trustee-report + funder-report dashboards, and best-effort
+ *  adopts the active backend's nomenclature preset. Idempotent — safe to click again. */
+export async function applyCharityOnboarding(): Promise<CharityOnboardingResult> {
+  const res = await fetch("/api/setup/charity-onboarding", { method: "POST", credentials: "same-origin" });
+  if (!res.ok) {
+    throw responseError(res, await safeJson(res));
+  }
+  return res.json();
+}
+
 /** Display order for the picker (strict → relaxed). */
 export const PROFILE_ORDER = ["enterprise", "business", "nonprofit", "self-hosted", "demo"];
 

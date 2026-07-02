@@ -8,7 +8,7 @@
   "required": ["id", "role", "name", "summary", "widgets"],
   "properties": {
     "id": { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "Unique preset id; equals the filename." },
-    "role": { "enum": ["head-of-projects", "programme-manager", "project-manager"], "description": "The role persona this preset is tailored to (drives the suggested default)." },
+    "role": { "enum": ["head-of-projects", "programme-manager", "project-manager", "trustee", "funder"], "description": "The role persona this preset is tailored to (drives the suggested default). `trustee`/`funder` are audience-tailored report lenses (e.g. the charity onboarding preset) rather than an org-chart level." },
     "name": { "type": "string", "description": "The dashboard name minted when the preset is applied." },
     "summary": { "type": "string", "description": "One line describing the \"what needs me today\" lens, shown in the preset picker." },
     "order": { "type": "integer", "description": "Display order in the preset picker." },

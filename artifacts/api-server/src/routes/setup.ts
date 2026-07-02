@@ -31,6 +31,7 @@ import { configDirSummary } from "../lib/config-dir";
 import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus } from "../lib/setup-status";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
+import { applyCharityOnboarding } from "../lib/charity-onboarding";
 import { sharedStateMode } from "../lib/shared-state";
 import { IDP_PRESETS } from "../lib/idp-presets";
 import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
@@ -134,6 +135,14 @@ router.post("/setup/profile", requireRole("admin"), (req, res) => {
   }
   updateSettings({ deploymentProfile: profile });
   res.json({ profile: deploymentProfile(), posture: profilePosture(), tls: { servedOverTls: requireTls() } });
+});
+
+// POST /api/setup/charity-onboarding — the "We're a charity" one-click preset (admin). Selects
+// the nonprofit deployment profile, mints the trustee-report + funder-report dashboard presets
+// (existing widgets only), and best-effort adopts the active backend's nomenclature preset if
+// one exists and the deployment is entitled to it. Idempotent — see lib/charity-onboarding.ts.
+router.post("/setup/charity-onboarding", requireRole("admin"), (_req, res) => {
+  res.json(applyCharityOnboarding());
 });
 
 // POST /api/setup/test-broker — non-destructive reachability + capability probe of
