@@ -1,11 +1,9 @@
-import { useState } from "react";
 import { useGetProjectFinancials, type ProjectFinancials } from "@workspace/api-client-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useT } from "../../lib/i18n";
-import { useFxRates, convertAmount, currencyList } from "../../lib/currency";
+import { useDisplayCurrency } from "../../lib/currency";
+import { RAG_TEXT as HEALTH } from "../../lib/methodology";
 import { DataState } from "../DataState";
-
-const HEALTH: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
 
 // The financials endpoint returns point-in-time EVM scalars. Derive an
 // indicative cumulative trend (linear) so Actual Cost can be plotted against
@@ -35,16 +33,11 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 export function FinancialEvmChart({ projectId }: { projectId: string }) {
   const { data: f, isLoading, isError, error, refetch } = useGetProjectFinancials(projectId);
   const { t, formatCurrency } = useT();
-  const { data: fx } = useFxRates();
-  const [display, setDisplay] = useState("");
-
   const native = f?.currency || "USD";
-  const displayCcy = display || native;
+  const { displayCcy, setDisplay, convert, currencyOptions } = useDisplayCurrency(native);
   // Format in the active locale, converting the backend's native currency to the
   // chosen display currency (multi-currency portfolio comparison).
-  const money = (n: number) => formatCurrency(convertAmount(n, native, displayCcy, fx?.rates), displayCcy);
-
-  const currencyOptions = Array.from(new Set([native, ...currencyList(fx?.rates)]));
+  const money = (n: number) => formatCurrency(convert(n), displayCcy);
 
   // Financials require a cost/ERP source wired through the broker. Without
   // budgetAllocated there is nothing to chart — surface the dependency rather

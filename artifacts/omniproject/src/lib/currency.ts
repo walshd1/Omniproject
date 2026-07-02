@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useGetFxRates, getGetFxRatesQueryKey, type FxRates } from "@workspace/api-client-react";
 
 export type { FxRates };
@@ -28,4 +29,19 @@ export function currencyList(rates?: Record<string, number>): string[] {
 /** The first currency seen across a set of items, falling back to a default (e.g. for a report's display). */
 export function firstCurrency(items: readonly { currency?: string | null }[] | undefined, fallback = "GBP"): string {
   return (items ?? []).find((i) => i.currency)?.currency || fallback;
+}
+
+/** Display-currency picker state for a financial panel: the operator's chosen display
+ *  currency (component-local, defaults to the item's own `native` currency), a `convert`
+ *  from native → the chosen display currency, and the sorted currency options (native +
+ *  whatever the live FX table lists). Wraps the `useFxRates` + `convertAmount` +
+ *  `currencyList` block every financials panel (project strip, programme card, EVM chart)
+ *  used to repeat. Call unconditionally, same as any hook. */
+export function useDisplayCurrency(native: string) {
+  const { data: fx } = useFxRates();
+  const [display, setDisplay] = useState("");
+  const displayCcy = display || native;
+  const convert = (n: number) => convertAmount(n, native, displayCcy, fx?.rates);
+  const currencyOptions = Array.from(new Set([native, ...currencyList(fx?.rates)]));
+  return { displayCcy, setDisplay, convert, currencyOptions };
 }

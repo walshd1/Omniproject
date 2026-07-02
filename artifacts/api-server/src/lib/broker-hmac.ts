@@ -1,6 +1,7 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { currentVersion, derivedKey } from "./key-registry";
 import { deriveSessionBrokerKey, type SessionBind } from "./session-key";
+import { constantTimeEqual } from "./crypto-keys";
 
 /**
  * Gateway↔broker request signing (security item C, folded into provenance): a detached
@@ -71,9 +72,7 @@ export function verifyBrokerRequest(
   // session signed it), else the static broker key. A binding for a different user /
   // session / broker-key version yields a different key, so the signature won't match.
   const expected = sign(input.ts, input.nonce, input.body, input.bind);
-  const a = Buffer.from(expected);
-  const b = Buffer.from(input.sig);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return "bad-signature";
+  if (!constantTimeEqual(expected, input.sig)) return "bad-signature";
 
   if (Math.abs(now - input.ts) > maxAgeMs) return "expired";
 

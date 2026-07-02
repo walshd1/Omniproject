@@ -62,3 +62,17 @@ export function decodeKey32(b64: string): Buffer | null {
 export function fingerprint(value: crypto.BinaryLike, len = 12): string {
   return crypto.createHash("sha256").update(value).digest("hex").slice(0, len);
 }
+
+/**
+ * Constant-time string equality: length-checked first (a length mismatch is not
+ * secret-dependent, so short-circuiting on it leaks nothing), then `crypto.timingSafeEqual`
+ * over equal-length buffers so a MATCHING prefix can't be timed out of a comparison against a
+ * secret (tokens, HMACs, CSRF doubles-submit values, SCIM bearer). The one shared home for
+ * this comparison — every caller (api-token, csrf, broker-hmac, scim, provenance) used to
+ * hand-roll the same three lines.
+ */
+export function constantTimeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
+}

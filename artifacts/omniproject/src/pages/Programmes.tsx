@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { useListProgrammes, useListProjects, useGetCapabilities, type Programme, type Project } from "@workspace/api-client-react";
 import { Layers, FolderOpen } from "lucide-react";
 import { useT } from "../lib/i18n";
+import { RAG_DOT, RAG_TEXT } from "../lib/methodology";
 import { LoadingState } from "../components/LoadingState";
 import { DataProvenance } from "../components/DataProvenance";
 
@@ -11,9 +12,6 @@ const PROGRAMME_FIELDS = [
   { key: "issueCount", label: "Issues" },
   { key: "completionRate", label: "Completion" },
 ];
-
-const RAG_DOT: Record<string, string> = { GREEN: "bg-green-500", AMBER: "bg-amber-500", RED: "bg-red-500" };
-const RAG_TEXT: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
 
 function ProgrammeCard({ p }: { p: Programme }) {
   return (

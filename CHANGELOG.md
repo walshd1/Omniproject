@@ -6,6 +6,45 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Security
+
+- **Fixed a silent-failure bug on two SPA admin mutation clients (from the clean-code audit's Theme
+  B/#1–#2).** `lib/security.ts`'s `revokeKey` / `revokeUserSessions` and `lib/tools.ts`'s
+  `saveCapability` / `testCapabilityEndpoint` were the only mutation clients in the SPA that skipped
+  the `res.ok` check every sibling (`exportConfigBundle`, `setMaintenance`, `containment.ts`,
+  `feature.ts`, `actions.ts`) already applies — a **failed** key revoke, session revoke, capability
+  save, or endpoint probe resolved as success with no error surfaced to the admin. All four now
+  `throw responseError(res, await safeJson(res))` on a non-OK response, matching every other client.
+  Regression tests cover the previously-silent failure path for each function.
+- **Deduplicated constant-time string equality (clean-code audit Theme A/#3).** Five files
+  (`api-token.ts`, `csrf.ts`, `broker-hmac.ts`, `scim.ts`, `provenance.ts`) each hand-rolled the same
+  length-check-then-`crypto.timingSafeEqual` comparison for tokens/HMACs/CSRF double-submit/SCIM
+  bearer checks. Added one `constantTimeEqual(a, b)` to `crypto-keys.ts` (the existing home for shared
+  crypto primitives) and routed all five call sites through it — same timing-safety guarantee, same
+  return semantics, one implementation to keep correct.
+
+### Changed
+
+- **Landed a scoped subset of the clean-code audit's Top-20 duplication fixes** (`docs/CLEAN-CODE-AUDIT.md`),
+  chosen for being low-risk and behaviour-preserving:
+  - A shared `num()` finite-coercion helper (`lib/num.ts`) replaces five copy-pasted copies in
+    `capex.ts`, `benefits.ts`, `income.ts`, `financial-summary.ts`, `capacity-actuals.ts`.
+  - `RAG_DOT` / `RAG_TEXT` are now imported from `lib/methodology.ts` instead of being re-declared
+    inline in `Programmes.tsx`, `ProgrammeDetail.tsx`, `ProgrammeFinancialsCard.tsx`,
+    `ProjectFinancialsStrip.tsx`, and `FinancialEvmChart.tsx`.
+  - A new `useDisplayCurrency(native)` hook (`lib/currency.ts`) replaces the copy-pasted
+    display-currency-picker block in the same three financials components.
+  - `config-snapshot.ts`'s `buildSnapshot` now derives its captured field set from `SNAPSHOT_KEYS`
+    instead of hand-listing the same fields a second time, so the two can't silently drift.
+  - A new `actorForAudit(req)` helper (`lib/audit.ts`) calls `getSession(req)` once instead of the
+    twice every audit call site (`rate-card.ts`, `ruleset.ts` ×3, `role-map.ts`, `snapshots.ts`) used
+    to call it to build the same `{ sub, role }` actor shape.
+  - Removed the dead, uncalled `N8nBroker.command()` (all real traffic goes through
+    `commandWithSource`; `command` isn't part of the `Broker` interface).
+  - Fixed a pre-existing `tsc --noEmit` type error in `lib/backend-catalogue/src/view-catalogue.test.ts`
+    (an unchecked array index under `noUncheckedIndexedAccess`) found while running the full typecheck
+    for this pass.
+
 ### Documentation
 
 - **Speed / responsiveness / design-patterns review (`docs/PERF-PATTERNS-REVIEW.md`).** A staff-engineering

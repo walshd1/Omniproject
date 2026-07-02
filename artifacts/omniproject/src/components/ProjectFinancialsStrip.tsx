@@ -1,9 +1,7 @@
-import { useState } from "react";
 import { useGetProjectFinancials, useGetCapabilities, getGetProjectFinancialsQueryKey } from "@workspace/api-client-react";
 import { useT } from "../lib/i18n";
-import { useFxRates, convertAmount, currencyList } from "../lib/currency";
-
-const HEALTH: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
+import { useDisplayCurrency } from "../lib/currency";
+import { RAG_TEXT as HEALTH } from "../lib/methodology";
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: string | undefined }) {
   return (
@@ -27,16 +25,13 @@ export function ProjectFinancialsStrip({ projectId }: { projectId: string }) {
     query: { enabled, retry: false, queryKey: getGetProjectFinancialsQueryKey(projectId) },
   });
   const { formatCurrency } = useT();
-  const { data: fx } = useFxRates();
-  const [display, setDisplay] = useState("");
+  const native = f?.currency || "GBP";
+  const { displayCcy, setDisplay, convert, currencyOptions } = useDisplayCurrency(native);
 
   if (caps?.financials === false) return null;
   if (!f || f.budgetAllocated == null) return null; // no finance source → hide
 
-  const native = f.currency || "GBP";
-  const displayCcy = display || native;
-  const money = (n: number) => formatCurrency(convertAmount(n, native, displayCcy, fx?.rates), displayCcy);
-  const currencyOptions = Array.from(new Set([native, ...currencyList(fx?.rates)]));
+  const money = (n: number) => formatCurrency(convert(n), displayCcy);
 
   return (
     <div data-testid="project-financials" className="mb-6 border border-border bg-card">

@@ -1,7 +1,8 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import { envFlag } from "./env";
 import { requireTls } from "./deployment-profile";
+import { constantTimeEqual } from "./crypto-keys";
 
 /**
  * CSRF hardening for cookie-authenticated mutations (security item B).
@@ -63,12 +64,6 @@ function announcedOrigin(req: Request): string | null {
   return null;
 }
 
-function safeEqual(a: string, b: string): boolean {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
-}
-
 /** Mint a fresh CSRF token (hex). */
 export function newCsrfToken(): string {
   return randomBytes(24).toString("hex");
@@ -110,7 +105,7 @@ export function csrfGuard(req: Request, res: Response, next: NextFunction): void
   if (browserDriven) {
     const cookieTok = req.cookies?.[CSRF_COOKIE];
     const headerTok = req.get("x-csrf-token");
-    if (!cookieTok || !headerTok || !safeEqual(String(cookieTok), String(headerTok))) {
+    if (!cookieTok || !headerTok || !constantTimeEqual(String(cookieTok), String(headerTok))) {
       res.status(403).json({ error: "CSRF: missing or invalid token" });
       return;
     }
