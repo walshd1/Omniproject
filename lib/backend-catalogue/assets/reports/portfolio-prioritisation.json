@@ -1,0 +1,31 @@
+{
+  "id": "portfolio-prioritisation",
+  "label": "Portfolio Prioritisation & Funding Funnel",
+  "docsUrl": "",
+  "kind": "portfolio",
+  "renderer": {
+    "engine": "builtin",
+    "component": "PortfolioPrioritisation"
+  },
+  "capabilities": {
+    "requiresCapability": "portfolio",
+    "timeSeries": false,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "riceScore",
+    "wsjf",
+    "moscow",
+    "strategicContribution",
+    "plannedBenefitValue",
+    "benefitConfidence",
+    "budgetAllocated",
+    "assignedHours"
+  ],
+  "notes": "Ranks every project on a weighted composite of RICE, WSJF, MoSCoW, strategic-goal contribution and risk-adjusted benefit value, shown against cost + capacity, with a fund/defer/cut what-if scenario (budget/capacity/benefit impact). Weights are PMO-configurable; the score is always computed live, never stored.",
+  "order": 73
+}

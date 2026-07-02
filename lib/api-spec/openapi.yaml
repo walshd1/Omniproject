@@ -1181,6 +1181,25 @@ components:
         purchaseOrder:
           type: ["string", "null"]
           description: Customer purchase-order / order reference for billing (financial field group).
+        riceScore:
+          type: ["number", "null"]
+          description: >-
+            Reach × Impact × Confidence ÷ Effort prioritisation score (agile field group),
+            surfaced for the portfolio prioritisation ranking. Many backends precompute this.
+        wsjf:
+          type: ["number", "null"]
+          description: Weighted Shortest Job First score (agile field group; SAFe), surfaced for the portfolio prioritisation ranking.
+        moscow:
+          type: ["string", "null"]
+          description: MoSCoW prioritisation bucket (agile field group). Free-form (e.g. must/should/could/wont).
+        strategicContribution:
+          type: ["number", "null"]
+          description: How much this item contributes to its linked strategic goal(s), 0–100 (strategy field group).
+        strategicGoals:
+          type: array
+          items:
+            type: string
+          description: The strategic goal(s) this item supports (strategy field group).
         benefitType:
           type: ["string", "null"]
           description: Benefit classification (benefits field group). Free-form (e.g. cashable/non_cashable/social).
