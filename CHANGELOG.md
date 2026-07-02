@@ -8,6 +8,33 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **ERP connector hardening: Oracle NetSuite read-through capability-honesty
+  pass (backlog #140).** The NetSuite backend manifest
+  (`lib/backend-catalogue/vendors/backends/netsuite.json`, seeded in #158)
+  already passes every structural catalogue check; this change strengthens its
+  documentation and verification rather than re-implementing it:
+  - `notes` now cites the real SuiteTalk REST record types behind each
+    capability (`job` → project, `projectTask` → issue/scheduling,
+    `resourceAllocation` → resources, `job` job-costing +
+    `expenseReport`/`timeBill` roll-ups → financials), calls out NetSuite's
+    **SuiteQL** endpoint as the realistic path for aggregated budget-vs-actual
+    reads, and documents OAuth 1.0a TBA vs OAuth 2.0 M2M as NetSuite's two real
+    auth options (TBA remains the modelled default).
+  - New `docs/vendors/NETSUITE.md` makes explicit that this connector is
+    **catalogued, not live-verified** — authored from NetSuite's public
+    SuiteTalk REST documentation with no live tenant available in this
+    environment — and states exactly what would need to happen before calling
+    it "supported."
+  - Verified `generateWorkflow()` actually produces a sensible, importable
+    workflow for NetSuite: added
+    `artifacts/n8n-blueprints/generated/omniproject-netsuite.json` (webhook →
+    verify/loop guards → switch router → 5 SuiteTalk REST HTTP nodes with
+    `oAuth1Api` credential placeholders → normalize → respond) via
+    `pnpm --filter @workspace/scripts run gen-n8n-blueprints`.
+  - Re-ran the bundled-backends stress harness (163/163 pass, including
+    NetSuite's schema/capability/spoof-gating/messy-data assertions) and the
+    `lib/backend-catalogue` unit suite (100/100) after regenerating the vendor
+    catalogue (`gen-vendors`) — zero drift, zero regressions.
 - **Portfolio copilot: conversational action-invocation (backlog #134).** The copilot chat
   (backlog #61, Q&A-only) can now invoke the same canonical actions as the NL→action command
   palette (backlog #59) — a PM can type "mark issue 42 done" straight into the copilot instead
