@@ -461,6 +461,7 @@ Action audit logging.
 | `shouldAudit` | Pure decision: should an event at this level be recorded? |
 | `createHttpSink` | Build a batching HTTP audit sink (buffers events + flushes to a SIEM URL). |
 | `recordAudit` | Record one audit event: stdout (pino) + the external sink, gated by level. |
+| `actorForAudit` | The audit `actor` field for a request — the session's sub + a display role, or `null` when unauthenticated. |
 | `auditStatus` | Status for the setup/diagnostics view. |
 
 ### `artifacts/api-server/src/lib/autonomous-grant.ts`
@@ -589,6 +590,14 @@ Capability signal — which data domains the wired backend(s) can populate, so t
 | `resolveCapabilities` | Resolve which data domains the active backend can populate. |
 | `resolveSupport` | The unified SUPPORT set the compatibility predicate gates on: the backend capability domains (already unioned across connected backends by `resolveCapabilities`) PLUS the connected broker(s)' capability keys — one flat map spanning BOTH planes. |
 | `resolveFieldManifest` | Resolve the field manifest: reconcile the backend's enumerated fields against the canonical registry (known vs new/custom). |
+
+### `artifacts/api-server/src/lib/charity-onboarding.ts`
+
+"We're a charity" one-click onboarding preset — the small-org counterpart to picking a deployment profile by hand.
+
+| Function | What it does |
+| --- | --- |
+| `applyCharityOnboarding` | Apply the full "We're a charity" preset in one step. |
 
 ### `artifacts/api-server/src/lib/column-mapper.ts`
 
@@ -758,6 +767,7 @@ Small shared key/hash primitives, so the same derivations aren't hand-rolled in 
 | `deriveKeyCached` | LEGACY derivation: sha256(secret) → 32-byte key, cached by secret. |
 | `decodeKey32` | Parse a base64 key that must be exactly 32 bytes (an AES-256 key), or null if it isn't. |
 | `fingerprint` | A short hex fingerprint of a value (SHA-256, truncated). |
+| `constantTimeEqual` | Constant-time string equality: length-checked first (a length mismatch is not secret-dependent, so short-circuiting on it leaks nothing), then `crypto.timingSafeEqual` over equal-length buffers so a MATCHING prefix can't be timed out of a comparison against a secret (tokens, HMACs, CSRF doubles-submit values, SCIM bearer). |
 
 ### `artifacts/api-server/src/lib/csp.ts`
 
@@ -2454,6 +2464,10 @@ Methodology catalogue generator.
 ### `scripts/src/gen-methodology-rulesets.ts`
 
 Methodology reference-ruleset catalogue generator.
+
+### `scripts/src/gen-n8n-blueprints.ts`
+
+n8n example-blueprint generator + drift guard.
 
 ### `scripts/src/gen-notification-routes.ts`
 

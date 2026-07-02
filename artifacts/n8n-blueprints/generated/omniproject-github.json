@@ -61,7 +61,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = {\"issues\":true,\"scheduling\":false,\"portfolio\":false,\"resources\":false,\"financials\":false,\"baseline\":false,\"blockers\":false,\"history\":false,\"raid\":false};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: \"github\", capabilities: caps }, message: 'verify ok' } }];"
+        "jsCode": "// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = {\"baseline\":false,\"blockers\":false,\"financials\":false,\"history\":false,\"issues\":true,\"portfolio\":false,\"raid\":false,\"resources\":false,\"scheduling\":false};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: \"github\", capabilities: caps }, message: 'verify ok' } }];"
       },
       "id": "aaaaaaaa-0000-4000-8000-000000000002",
       "name": "Verify ACK",
@@ -130,7 +130,7 @@
                 "conditions": [
                   {
                     "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "list_projects",
+                    "rightValue": "create_issue",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -139,7 +139,28 @@
                 ]
               },
               "renameOutput": true,
-              "outputKey": "list_projects"
+              "outputKey": "create_issue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "delete_issue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "delete_issue"
             },
             {
               "conditions": {
@@ -172,7 +193,7 @@
                 "conditions": [
                   {
                     "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "create_issue",
+                    "rightValue": "list_projects",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -181,7 +202,7 @@
                 ]
               },
               "renameOutput": true,
-              "outputKey": "create_issue"
+              "outputKey": "list_projects"
             },
             {
               "conditions": {
@@ -203,27 +224,6 @@
               },
               "renameOutput": true,
               "outputKey": "update_issue"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "typeValidation": "loose"
-                },
-                "combinator": "and",
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "delete_issue",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ]
-              },
-              "renameOutput": true,
-              "outputKey": "delete_issue"
             },
             {
               "conditions": {
@@ -303,55 +303,6 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "=https://api.github.com/orgs/{{ $env.GITHUB_OWNER }}/repos",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $json.body.payload.userContext.token }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "aaaaaaaa-0000-4000-8000-000000000009",
-      "name": "List Projects",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        380,
-        80
-      ],
-      "notes": "GitHub has no 'projects' primitive in the issues API — repos are mapped to projects here."
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "=https://api.github.com/repos/{{ $env.GITHUB_OWNER }}/{{ $json.body.payload.projectId }}/issues?state=all",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $json.body.payload.userContext.token }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "aaaaaaaa-0000-4000-8000-00000000000a",
-      "name": "List Issues",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        380,
-        260
-      ]
-    },
-    {
-      "parameters": {
         "method": "POST",
         "url": "=https://api.github.com/repos/{{ $env.GITHUB_OWNER }}/{{ $json.body.payload.projectId }}/issues",
         "sendHeaders": true,
@@ -372,44 +323,13 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ title: $json.body.payload.title, body: $json.body.payload.description, labels: $json.body.payload.labels }) }}"
       },
-      "id": "aaaaaaaa-0000-4000-8000-00000000000b",
+      "id": "aaaaaaaa-0000-4000-8000-000000000009",
       "name": "Create Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         380,
-        440
-      ]
-    },
-    {
-      "parameters": {
-        "method": "PATCH",
-        "url": "=https://api.github.com/repos/{{ $env.GITHUB_OWNER }}/{{ $json.body.payload.projectId }}/issues/{{ $json.body.payload.issueId }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $json.body.payload.userContext.token }}"
-            },
-            {
-              "name": "X-OmniProject-Idempotency-Key",
-              "value": "={{ $json.body.idempotencyKey }}"
-            }
-          ]
-        },
-        "options": {},
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ title: $json.body.payload.title, state: $json.body.payload.status === 'done' ? 'closed' : 'open' }) }}"
-      },
-      "id": "aaaaaaaa-0000-4000-8000-00000000000c",
-      "name": "Update Issue",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        380,
-        620
+        80
       ]
     },
     {
@@ -434,19 +354,99 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ state: 'closed' }) }}"
       },
-      "id": "aaaaaaaa-0000-4000-8000-00000000000d",
+      "id": "aaaaaaaa-0000-4000-8000-00000000000a",
       "name": "Delete Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         380,
-        800
+        260
       ],
       "notes": "GitHub issues can't be deleted via REST — closing is the closest mapping."
     },
     {
       "parameters": {
-        "jsCode": "// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: {\"issues\":true,\"scheduling\":false,\"portfolio\":false,\"resources\":false,\"financials\":false,\"baseline\":false,\"blockers\":false,\"history\":false,\"raid\":false} } }];"
+        "method": "GET",
+        "url": "=https://api.github.com/repos/{{ $env.GITHUB_OWNER }}/{{ $json.body.payload.projectId }}/issues?state=all",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.body.payload.userContext.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000b",
+      "name": "List Issues",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.github.com/orgs/{{ $env.GITHUB_OWNER }}/repos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.body.payload.userContext.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000c",
+      "name": "List Projects",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        620
+      ],
+      "notes": "GitHub has no 'projects' primitive in the issues API — repos are mapped to projects here."
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.github.com/repos/{{ $env.GITHUB_OWNER }}/{{ $json.body.payload.projectId }}/issues/{{ $json.body.payload.issueId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.body.payload.userContext.token }}"
+            },
+            {
+              "name": "X-OmniProject-Idempotency-Key",
+              "value": "={{ $json.body.idempotencyKey }}"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ title: $json.body.payload.title, state: $json.body.payload.status === 'done' ? 'closed' : 'open' }) }}"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000d",
+      "name": "Update Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: {\"baseline\":false,\"blockers\":false,\"financials\":false,\"history\":false,\"issues\":true,\"portfolio\":false,\"raid\":false,\"resources\":false,\"scheduling\":false} } }];"
       },
       "id": "aaaaaaaa-0000-4000-8000-00000000000e",
       "name": "Capabilities",
@@ -554,7 +554,14 @@
       "main": [
         [
           {
-            "node": "List Projects",
+            "node": "Create Issue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete Issue",
             "type": "main",
             "index": 0
           }
@@ -568,7 +575,7 @@
         ],
         [
           {
-            "node": "Create Issue",
+            "node": "List Projects",
             "type": "main",
             "index": 0
           }
@@ -576,13 +583,6 @@
         [
           {
             "node": "Update Issue",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Delete Issue",
             "type": "main",
             "index": 0
           }
@@ -603,7 +603,18 @@
         ]
       ]
     },
-    "List Projects": {
+    "Create Issue": {
+      "main": [
+        [
+          {
+            "node": "Normalize → BrokerActionResult",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Issue": {
       "main": [
         [
           {
@@ -625,7 +636,7 @@
         ]
       ]
     },
-    "Create Issue": {
+    "List Projects": {
       "main": [
         [
           {
@@ -637,17 +648,6 @@
       ]
     },
     "Update Issue": {
-      "main": [
-        [
-          {
-            "node": "Normalize → BrokerActionResult",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Delete Issue": {
       "main": [
         [
           {

@@ -1,0 +1,13 @@
+{
+  "id": "trustee-report",
+  "role": "trustee",
+  "name": "Trustee report",
+  "summary": "Board-pack lens for charity trustees: portfolio-wide RAG health, the trend over time, and where things stand today — no finance detail, just governance oversight.",
+  "order": 80,
+  "widgets": [
+    { "type": "portfolioHealth", "span": 3 },
+    { "type": "portfolioTrends", "span": 2 },
+    { "type": "statusBreakdown", "span": 1 },
+    { "type": "recentActivity", "span": 1 }
+  ]
+}

@@ -467,10 +467,6 @@ export class N8nBroker implements Broker {
     return (r.data ?? []).map((p) => ({ ...p, provenance: p.provenance ?? "replayed" }));
   }
 
-  async command(ctx: ActorContext, name: string, payload: Record<string, unknown>): Promise<unknown> {
-    return this.commandWithSource(ctx, name, payload, "command");
-  }
-
   /**
    * Source-preserving passthrough for the frozen broker-command edge (which carries
    * the caller's `source` label as part of the shipped contract). Not on the

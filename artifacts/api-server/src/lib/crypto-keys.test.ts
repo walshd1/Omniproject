@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { deriveKey, deriveKeyCached, decodeKey32, fingerprint } from "./crypto-keys";
+import { deriveKey, deriveKeyCached, decodeKey32, fingerprint, constantTimeEqual } from "./crypto-keys";
 
 test("deriveKey is HKDF-SHA256, 32 bytes, stable per (secret, info), domain-separated", () => {
   const k = deriveKey("a-secret", "domain-a");
@@ -38,4 +38,12 @@ test("fingerprint is a truncated sha256 hex, default 12 chars", () => {
   assert.equal(fingerprint("x").length, 12);
   assert.equal(fingerprint("x", 8).length, 8);
   assert.notEqual(fingerprint("a"), fingerprint("b"));
+});
+
+test("constantTimeEqual matches equal strings, rejects mismatches and length differences", () => {
+  assert.equal(constantTimeEqual("same-value", "same-value"), true);
+  assert.equal(constantTimeEqual("", ""), true);
+  assert.equal(constantTimeEqual("same-value", "different"), false);
+  assert.equal(constantTimeEqual("short", "much-longer-value"), false);
+  assert.equal(constantTimeEqual("abc", "abd"), false);
 });

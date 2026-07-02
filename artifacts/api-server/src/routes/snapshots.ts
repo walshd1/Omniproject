@@ -2,9 +2,7 @@ import { Router } from "express";
 import crypto from "node:crypto";
 import { buildSnapshot, verifySnapshot, type SnapshotBundle } from "../lib/snapshot";
 import { publicKeyPem, publicKeyId, signingEnabled } from "../lib/signing";
-import { getSession } from "./auth";
-import { roleForReq } from "../lib/rbac";
-import { recordAudit } from "../lib/audit";
+import { recordAudit, actorForAudit } from "../lib/audit";
 
 /**
  * Provably-immutable snapshots. Capture freezes a supplied content set (a report's data / a board pack):
@@ -30,7 +28,7 @@ router.post("/snapshots/capture", (req, res) => {
   });
   recordAudit({
     ts: new Date().toISOString(), category: "admin", action: "snapshot.capture",
-    actor: getSession(req) ? { sub: getSession(req)!.sub, role: roleForReq(req) } : null,
+    actor: actorForAudit(req),
     result: "success", status: 200,
     // Only the manifest (hashes/scope/counts) is audited — never the snapshotted content.
     meta: { id: bundle.manifest.id, scope: bundle.manifest.scope, contentHash: bundle.manifest.contentHash, signed: !!bundle.manifest.signature },

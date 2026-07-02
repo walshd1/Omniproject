@@ -27,22 +27,24 @@ export function useSecurityKeys() {
 
 /** Revoke + rotate a signing key (admin). */
 export async function revokeKey(name: string, reason: string): Promise<void> {
-  await fetch(`/api/security/keys/${encodeURIComponent(name)}/revoke`, {
+  const res = await fetch(`/api/security/keys/${encodeURIComponent(name)}/revoke`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify({ reason }),
   });
+  if (!res.ok) throw responseError(res, await safeJson(res));
 }
 
 /** Revoke all of one user's sessions (admin). */
 export async function revokeUserSessions(sub: string): Promise<void> {
-  await fetch("/api/security/sessions/revoke-user", {
+  const res = await fetch("/api/security/sessions/revoke-user", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify({ sub }),
   });
+  if (!res.ok) throw responseError(res, await safeJson(res));
 }
 
 /** The non-secret config-key fingerprint (admin) — confirm two deployments share a key. */

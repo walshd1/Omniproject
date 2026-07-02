@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { STATE_INFO, KIND_LABEL, saveCapability } from "./tools";
+import { STATE_INFO, KIND_LABEL, saveCapability, testCapabilityEndpoint } from "./tools";
 
 /**
  * Client governance helpers: state copy completeness + the admin save call.
@@ -30,5 +30,22 @@ describe("saveCapability", () => {
     const body = JSON.parse((fetchMock.mock.calls[0]![1] as { body: string }).body);
     expect(body.state).toBe("public");
     expect(body.surfaces.finance).toBe("off");
+  });
+
+  it("throws instead of silently resolving on a failed response", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 403, json: () => Promise.resolve({ error: "forbidden" }) });
+    await expect(saveCapability("tts", { state: "public" })).rejects.toThrow("forbidden");
+  });
+});
+
+describe("testCapabilityEndpoint", () => {
+  it("returns the reachability result on a 2xx response", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ reachable: true, status: 200 }) });
+    await expect(testCapabilityEndpoint("tts", "https://example.com")).resolves.toEqual({ reachable: true, status: 200 });
+  });
+
+  it("throws instead of silently resolving on a failed response", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({}) });
+    await expect(testCapabilityEndpoint("tts", "https://example.com")).rejects.toThrow("Failed (500)");
   });
 });

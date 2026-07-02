@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
+import { constantTimeEqual } from "./crypto-keys";
 
 /**
  * SCIM 2.0 directory (RFC 7643/7644). OmniProject is stateless — identity is authenticated by
@@ -46,9 +47,7 @@ export function scimEnabled(): boolean {
 export function scimTokenValid(presented: string | undefined): boolean {
   const expected = process.env["SCIM_TOKEN"]?.trim();
   if (!expected || !presented) return false;
-  const a = Buffer.from(presented);
-  const b = Buffer.from(expected);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  return constantTimeEqual(presented, expected);
 }
 
 function ensureLoaded(): void {

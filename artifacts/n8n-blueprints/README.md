@@ -10,10 +10,25 @@ the app (or `POST /api/setup/generate-workflow`) and pick your backend — it em
 a complete, importable workflow tailored to that system. Then **Setup → Verify**
 probes your live n8n per action and shows a green/red checklist.
 
-- The backend library lives in `artifacts/api-server/src/lib/n8n-backends.ts`
-  (OpenProject, Plane, Jira, GitHub, GitLab, Azure DevOps — add your own).
-- The generator is `artifacts/api-server/src/lib/n8n-generator.ts` (pure JSON).
-- Pre-generated examples are in [`generated/`](./generated/).
+- The backend catalogue lives in `lib/backend-catalogue/src/backend-catalogue.ts`
+  (`BACKENDS`, `getBackend`, …). Each entry is a `BackendDefinition` — a
+  broker-neutral `BackendManifest` flattened together with its n8n-specific
+  `N8nBinding` (auth header / credential type / per-action node or HTTP
+  mapping). Vendor DATA isn't a literal in that file — every backend (Jira,
+  OpenProject, GitHub, Asana, Dynamics 365, …) is authored as its own JSON file
+  under `lib/backend-catalogue/vendors/backends/<id>.json`, validated against
+  `lib/backend-catalogue/vendors/schema/backend.schema.json`, and embedded by
+  `pnpm --filter @workspace/scripts run gen-vendors`. Add your own by dropping
+  in a JSON file.
+- The generator is the pure `generateWorkflow(manifest, opts)` function in
+  `lib/backend-catalogue/src/n8n-generator.ts` — it builds workflow JSON only,
+  touches no network, and is invoked live from
+  `POST /api/setup/generate-workflow` (`artifacts/api-server/src/routes/setup.ts`).
+- Pre-generated examples are in [`generated/`](./generated/) — one per backend
+  listed there, regenerated from the live generator + current vendor JSON by
+  `pnpm --filter @workspace/scripts run gen-n8n-blueprints`. CI fails if they
+  drift from what the generator currently produces (see that script's header
+  for the guard).
 
 Generated workflows include a **verify short-circuit**: when the verifier sends
 `{ "verify": true }`, the workflow returns a no-op acknowledgement so probing

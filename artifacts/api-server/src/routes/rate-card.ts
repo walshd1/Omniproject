@@ -1,7 +1,6 @@
 import { Router } from "express";
-import { requireRole, roleForReq } from "../lib/rbac";
-import { getSession } from "./auth";
-import { recordAudit } from "../lib/audit";
+import { requireRole } from "../lib/rbac";
+import { recordAudit, actorForAudit } from "../lib/audit";
 import { getIssues, getProjects } from "../lib/data";
 import { programmeIdOf } from "../lib/programmes";
 import { staffCost, valueColumns, hashIdentity, type RateCard, type Facing, type TimedItem, type Uplift, type ValueColumn } from "../lib/rate-card";
@@ -38,12 +37,12 @@ const FACINGS: Facing[] = ["client", "internal"];
 const isStr = (v: unknown): v is string => typeof v === "string";
 const isNum = (v: unknown): v is number => typeof v === "number" && isFinite(v);
 
-function audit(req: Parameters<typeof getSession>[0], action: string, meta: Record<string, unknown>): void {
+function audit(req: Parameters<typeof actorForAudit>[0], action: string, meta: Record<string, unknown>): void {
   recordAudit({
     ts: new Date().toISOString(),
     category: "admin",
     action,
-    actor: getSession(req) ? { sub: getSession(req)!.sub, role: roleForReq(req) } : null,
+    actor: actorForAudit(req),
     result: "success",
     status: 200,
     meta,

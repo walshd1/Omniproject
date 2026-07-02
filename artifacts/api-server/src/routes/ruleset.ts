@@ -1,9 +1,8 @@
 import { Router } from "express";
-import { requireRole, roleForReq } from "../lib/rbac";
-import { getSession } from "./auth";
+import { requireRole } from "../lib/rbac";
 import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules, applyRuleset } from "../lib/ruleset";
 import { referenceRulesetCatalogue, getReferenceRuleset } from "@workspace/backend-catalogue";
-import { recordAudit } from "../lib/audit";
+import { recordAudit, actorForAudit } from "../lib/audit";
 import { v, parseOr400 } from "../lib/validate";
 
 // `methodology` is an untrusted id used to look up a curated bundle — type + bound it.
@@ -32,7 +31,7 @@ router.put("/admin/ruleset", requireRole("pmo"), (req, res) => {
     ts: new Date().toISOString(),
     category: "admin",
     action: "ruleset_update",
-    actor: getSession(req) ? { sub: getSession(req)!.sub, role: roleForReq(req) } : null,
+    actor: actorForAudit(req),
     result: "success",
     status: 200,
     meta: { modes },
@@ -51,7 +50,7 @@ router.put("/admin/ruleset/fields", requireRole("pmo"), (req, res) => {
     ts: new Date().toISOString(),
     category: "admin",
     action: "ruleset_fields_update",
-    actor: getSession(req) ? { sub: getSession(req)!.sub, role: roleForReq(req) } : null,
+    actor: actorForAudit(req),
     result: "success",
     status: 200,
     meta: { count: rules.length },
@@ -81,7 +80,7 @@ router.post("/admin/ruleset/apply-reference", requireRole("pmo"), (req, res) => 
     ts: new Date().toISOString(),
     category: "admin",
     action: "ruleset_apply_reference",
-    actor: getSession(req) ? { sub: getSession(req)!.sub, role: roleForReq(req) } : null,
+    actor: actorForAudit(req),
     result: "success",
     status: 200,
     meta: { methodology, modes: applied.modes, fieldRuleCount: applied.fieldRules.length },

@@ -237,6 +237,29 @@ test("GET /api/setup/idp guides identity setup (mode, callback URL, role→group
   assert.equal(json.suggestedGroups.admin, "omni-admins"); // bundled-IdP default group names
 });
 
+test("POST /api/setup/charity-onboarding applies the one-click charity preset", async () => {
+  try {
+    const res = await get("/api/setup/charity-onboarding", { method: "POST" });
+    assert.equal(res.status, 200);
+    const json = await readJson(res);
+    assert.equal(json.profile, "nonprofit");
+    const names = json.dashboardsAdded.map((d: { name: string }) => d.name);
+    assert.ok(names.includes("Trustee report"));
+    assert.ok(names.includes("Funder report"));
+
+    const dashboards = await readJson(await get("/api/dashboards"));
+    const dashNames = dashboards.dashboards.map((d: { name: string }) => d.name);
+    assert.ok(dashNames.includes("Trustee report"));
+    assert.ok(dashNames.includes("Funder report"));
+
+    const profile = await readJson(await get("/api/setup/profile"));
+    assert.equal(profile.profile, "nonprofit");
+  } finally {
+    await get("/api/setup/profile", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: "business" }) });
+    await get("/api/dashboards", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ dashboards: [] }) });
+  }
+});
+
 test("responses carry W3C traceparent + x-request-id, continuing an incoming trace", async () => {
   const incoming = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
   const res = await get("/api/healthz", { headers: { traceparent: incoming } });

@@ -1,7 +1,8 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { currentVersion, derivedKey, isActive } from "./key-registry";
 import { signMessage, publicKeyId, verifySignature } from "./signing";
 import type { SessionBind } from "./session-key";
+import { constantTimeEqual } from "./crypto-keys";
 
 /**
  * Provenance chain — a keyed-MAC, hash-chained record of every broker call, holding
@@ -148,12 +149,6 @@ export interface ChainVerdict {
   revokedKeyVersions?: number[];
 }
 
-const safeEq = (a: string, b: string): boolean => {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
-};
-
 /**
  * Verify a CONTIGUOUS slice of the chain: each entry's own MAC recomputes (so no field
  * was altered), the links join (prevMac === previous mac), and order is monotonic.
@@ -163,7 +158,7 @@ export function verifyChain(entries: ProvenanceEntry[]): ChainVerdict {
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i]!;
     if (!isActive("provenance", e.kver)) revoked.add(e.kver);
-    if (!safeEq(entryMac(e), e.mac)) return { ok: false, length: entries.length, brokenAt: e.seq, reason: "entry MAC mismatch (a field was altered)" };
+    if (!constantTimeEqual(entryMac(e), e.mac)) return { ok: false, length: entries.length, brokenAt: e.seq, reason: "entry MAC mismatch (a field was altered)" };
     if (i > 0) {
       const prev = entries[i - 1]!;
       if (e.prevMac !== prev.mac) return { ok: false, length: entries.length, brokenAt: e.seq, reason: "chain link broken" };
@@ -178,7 +173,7 @@ export function verifyChain(entries: ProvenanceEntry[]): ChainVerdict {
 
 /** Prove "nothing changed": re-present content and confirm it matches the fingerprint. */
 export function verifyContent(entry: ProvenanceEntry, content: unknown): boolean {
-  return safeEq(contentMac(content, entry.actor, entry.seq, entry.kver), entry.contentMac);
+  return constantTimeEqual(contentMac(content, entry.actor, entry.seq, entry.kver), entry.contentMac);
 }
 
 /** Prove "this exact session initiated it": re-present the session binding and confirm it
@@ -186,7 +181,7 @@ export function verifyContent(entry: ProvenanceEntry, content: unknown): boolean
 export function verifySession(entry: ProvenanceEntry, bind: SessionBind | null | undefined): boolean {
   const expected = sessionMac(bind, entry.kver);
   if (expected === null || entry.sessionMac === null) return expected === entry.sessionMac;
-  return safeEq(expected, entry.sessionMac);
+  return constantTimeEqual(expected, entry.sessionMac);
 }
 
 export interface ProvenanceAnchor {

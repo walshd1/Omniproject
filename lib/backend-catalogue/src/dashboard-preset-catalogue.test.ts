@@ -10,14 +10,16 @@ import {
 import { widgetDef } from "./widget-catalogue";
 
 test("the preset catalogue is populated and ordered", () => {
-  assert.ok(DASHBOARD_PRESETS.length >= 3);
+  assert.ok(DASHBOARD_PRESETS.length >= 5);
   const orders = DASHBOARD_PRESETS.map((p) => p.order ?? 0);
   assert.deepEqual(orders, [...orders].sort((a, b) => a - b));
 });
 
 test("there is exactly one preset per role persona", () => {
   const roles = DASHBOARD_PRESETS.map((p) => p.role).sort();
-  assert.deepEqual(roles, ["head-of-projects", "programme-manager", "project-manager"]);
+  // The three org-chart-level personas, plus the two charity report audiences
+  // (trustee/funder) the "We're a charity" onboarding preset applies.
+  assert.deepEqual(roles, ["funder", "head-of-projects", "programme-manager", "project-manager", "trustee"]);
 });
 
 test("every preset references only real widget types and places at least one", () => {

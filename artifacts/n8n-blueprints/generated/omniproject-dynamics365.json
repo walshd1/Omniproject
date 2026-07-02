@@ -61,7 +61,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = {\"issues\":true,\"scheduling\":true,\"portfolio\":true,\"resources\":true,\"financials\":true,\"baseline\":true,\"blockers\":false,\"history\":false,\"raid\":false};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: \"dynamics365\", capabilities: caps }, message: 'verify ok' } }];"
+        "jsCode": "// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = {\"baseline\":true,\"blockers\":false,\"financials\":true,\"history\":false,\"issues\":true,\"portfolio\":true,\"raid\":false,\"resources\":true,\"scheduling\":true};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: \"dynamics365\", capabilities: caps }, message: 'verify ok' } }];"
       },
       "id": "aaaaaaaa-0000-4000-8000-000000000002",
       "name": "Verify ACK",
@@ -130,7 +130,7 @@
                 "conditions": [
                   {
                     "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "list_projects",
+                    "rightValue": "create_issue",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -139,7 +139,28 @@
                 ]
               },
               "renameOutput": true,
-              "outputKey": "list_projects"
+              "outputKey": "create_issue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "delete_issue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "delete_issue"
             },
             {
               "conditions": {
@@ -172,7 +193,7 @@
                 "conditions": [
                   {
                     "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "create_issue",
+                    "rightValue": "list_projects",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -181,7 +202,7 @@
                 ]
               },
               "renameOutput": true,
-              "outputKey": "create_issue"
+              "outputKey": "list_projects"
             },
             {
               "conditions": {
@@ -203,27 +224,6 @@
               },
               "renameOutput": true,
               "outputKey": "update_issue"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "typeValidation": "loose"
-                },
-                "combinator": "and",
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "delete_issue",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ]
-              },
-              "renameOutput": true,
-              "outputKey": "delete_issue"
             },
             {
               "conditions": {
@@ -303,23 +303,63 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projects",
-        "sendHeaders": false,
+        "method": "POST",
+        "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks",
+        "sendHeaders": true,
         "headerParameters": {
-          "parameters": []
+          "parameters": [
+            {
+              "name": "X-OmniProject-Idempotency-Key",
+              "value": "={{ $json.body.idempotencyKey }}"
+            }
+          ]
         },
         "options": {},
         "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "microsoftDynamicsOAuth2Api"
+        "nodeCredentialType": "microsoftDynamicsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title }) }}"
       },
       "id": "aaaaaaaa-0000-4000-8000-000000000009",
-      "name": "List Projects",
+      "name": "Create Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         380,
         80
+      ],
+      "credentials": {
+        "microsoftDynamicsOAuth2Api": {
+          "id": "",
+          "name": "Microsoft Dynamics 365 (Project Operations) account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks({{ $json.body.payload.issueId }})",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-OmniProject-Idempotency-Key",
+              "value": "={{ $json.body.idempotencyKey }}"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftDynamicsOAuth2Api"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "name": "Delete Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        260
       ],
       "credentials": {
         "microsoftDynamicsOAuth2Api": {
@@ -340,13 +380,13 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "microsoftDynamicsOAuth2Api"
       },
-      "id": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "id": "aaaaaaaa-0000-4000-8000-00000000000b",
       "name": "List Issues",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         380,
-        260
+        440
       ],
       "credentials": {
         "microsoftDynamicsOAuth2Api": {
@@ -357,31 +397,23 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks",
-        "sendHeaders": true,
+        "method": "GET",
+        "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projects",
+        "sendHeaders": false,
         "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-OmniProject-Idempotency-Key",
-              "value": "={{ $json.body.idempotencyKey }}"
-            }
-          ]
+          "parameters": []
         },
         "options": {},
         "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "microsoftDynamicsOAuth2Api",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title }) }}"
+        "nodeCredentialType": "microsoftDynamicsOAuth2Api"
       },
-      "id": "aaaaaaaa-0000-4000-8000-00000000000b",
-      "name": "Create Issue",
+      "id": "aaaaaaaa-0000-4000-8000-00000000000c",
+      "name": "List Projects",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         380,
-        440
+        620
       ],
       "credentials": {
         "microsoftDynamicsOAuth2Api": {
@@ -410,40 +442,8 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ msdyn_subject: $json.body.payload.title }) }}"
       },
-      "id": "aaaaaaaa-0000-4000-8000-00000000000c",
-      "name": "Update Issue",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        380,
-        620
-      ],
-      "credentials": {
-        "microsoftDynamicsOAuth2Api": {
-          "id": "",
-          "name": "Microsoft Dynamics 365 (Project Operations) account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "method": "DELETE",
-        "url": "={{ $env.DATAVERSE_URL }}/api/data/v9.2/msdyn_projecttasks({{ $json.body.payload.issueId }})",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-OmniProject-Idempotency-Key",
-              "value": "={{ $json.body.idempotencyKey }}"
-            }
-          ]
-        },
-        "options": {},
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "microsoftDynamicsOAuth2Api"
-      },
       "id": "aaaaaaaa-0000-4000-8000-00000000000d",
-      "name": "Delete Issue",
+      "name": "Update Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -459,7 +459,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: {\"issues\":true,\"scheduling\":true,\"portfolio\":true,\"resources\":true,\"financials\":true,\"baseline\":true,\"blockers\":false,\"history\":false,\"raid\":false} } }];"
+        "jsCode": "// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: {\"baseline\":true,\"blockers\":false,\"financials\":true,\"history\":false,\"issues\":true,\"portfolio\":true,\"raid\":false,\"resources\":true,\"scheduling\":true} } }];"
       },
       "id": "aaaaaaaa-0000-4000-8000-00000000000e",
       "name": "Capabilities",
@@ -567,7 +567,14 @@
       "main": [
         [
           {
-            "node": "List Projects",
+            "node": "Create Issue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete Issue",
             "type": "main",
             "index": 0
           }
@@ -581,7 +588,7 @@
         ],
         [
           {
-            "node": "Create Issue",
+            "node": "List Projects",
             "type": "main",
             "index": 0
           }
@@ -589,13 +596,6 @@
         [
           {
             "node": "Update Issue",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Delete Issue",
             "type": "main",
             "index": 0
           }
@@ -616,7 +616,18 @@
         ]
       ]
     },
-    "List Projects": {
+    "Create Issue": {
+      "main": [
+        [
+          {
+            "node": "Normalize → BrokerActionResult",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Issue": {
       "main": [
         [
           {
@@ -638,7 +649,7 @@
         ]
       ]
     },
-    "Create Issue": {
+    "List Projects": {
       "main": [
         [
           {
@@ -650,17 +661,6 @@
       ]
     },
     "Update Issue": {
-      "main": [
-        [
-          {
-            "node": "Normalize → BrokerActionResult",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Delete Issue": {
       "main": [
         [
           {
