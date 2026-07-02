@@ -1584,6 +1584,65 @@ export const BACKENDS_DATA: BackendDefinition[] = [
   {
     "actions": {
       "create_issue": {
+        "body": "={{ JSON.stringify({ TaskName: $json.body.payload.title }) }}",
+        "method": "POST",
+        "note": "Creates a WBS task under the project's plan — NOT a financial write. Confirm the plan is in a status that accepts ad hoc task creation for your tenant (some work-plan templates require tasks to originate from the template).",
+        "url": "={{ $env.ORACLE_FUSION_BASE_URL }}/fscmRestApi/resources/11.13.18.05/projectPlans/{{ $json.body.payload.projectId }}/child/tasks"
+      },
+      "delete_issue": {
+        "method": "DELETE",
+        "url": "={{ $env.ORACLE_FUSION_BASE_URL }}/fscmRestApi/resources/11.13.18.05/projectPlans/{{ $json.body.payload.projectId }}/child/tasks/{{ $json.body.payload.issueId }}"
+      },
+      "list_issues": {
+        "method": "GET",
+        "note": "Project Plan Tasks (WBS) — the closest genuine analogue to 'issues' this module exposes. Not a defect/ticket tracker.",
+        "url": "={{ $env.ORACLE_FUSION_BASE_URL }}/fscmRestApi/resources/11.13.18.05/projectPlans/{{ $json.body.payload.projectId }}/child/tasks"
+      },
+      "list_projects": {
+        "method": "GET",
+        "url": "={{ $env.ORACLE_FUSION_BASE_URL }}/fscmRestApi/resources/11.13.18.05/projects?limit=500"
+      },
+      "update_issue": {
+        "body": "={{ JSON.stringify({ TaskName: $json.body.payload.title }) }}",
+        "method": "PATCH",
+        "url": "={{ $env.ORACLE_FUSION_BASE_URL }}/fscmRestApi/resources/11.13.18.05/projectPlans/{{ $json.body.payload.projectId }}/child/tasks/{{ $json.body.payload.issueId }}"
+      }
+    },
+    "authHeader": "",
+    "capabilities": {
+      "baseline": false,
+      "blockers": false,
+      "financials": true,
+      "history": false,
+      "issues": true,
+      "portfolio": false,
+      "raid": false,
+      "resources": false,
+      "scheduling": false
+    },
+    "credentialType": "httpBasicAuth",
+    "docsUrl": "https://docs.oracle.com/en/cloud/saas/project-management/24c/fapap/index.html",
+    "fieldKeys": [
+      "budget",
+      "plannedCost",
+      "actualCost",
+      "currency",
+      "costCenter",
+      "committedCost",
+      "purchaseOrder",
+      "wbsCode"
+    ],
+    "id": "oracle-fusion-erp",
+    "label": "Oracle Fusion Cloud ERP (Project Financial Management)",
+    "notes": "CATALOGUED, NOT YET LIVE-VERIFIED — see docs/vendors/ORACLE-FUSION-ERP.md. Scoped narrowly to Project Financial Management's real fscmRestApi 11.13.18.05 resources: projects (GET — list_projects); projectPlans/{projectId}/child/tasks (GET/POST/PATCH/DELETE — WBS/schedule tasks, mapped as the 'issues' proxy, same pattern as SAP's A_EnterpriseProjectElement / NetSuite's projectTask / Primavera's activity — none of those write financial ledger data either); projectCosts (GET — rawCost/burdenedCost/quantity per expenditure item, → actualCost/currency); projectBudgets + projectBudgetSummary (GET — budget version amounts, → budget/plannedCost); projectCommitments (GET — PO/requisition/supplier-invoice committed cost, → committedCost/purchaseOrder). Financials are READ ONLY: the OmniProject broker contract has no write action for cost/budget/commitment data on any backend, this one included. costCenter is a reference mapping to the expenditure organisation / GL cost-centre segment on projectCosts — confirm the exact flexfield/segment your ledger uses. Auth defaults to HTTP Basic (Oracle Fusion's OWSM-secured REST APIs accept Basic auth over TLS out of the box); tenants with MFA or an IAM/OCI identity domain enforced should instead point the n8n credential at OAuth2 client-credentials against Oracle IAM — see docsUrl's authentication section. Confirm every path/field against your pod's API version (11.13.18.05 here; Oracle revs this quarterly) before treating this as more than a starting point.",
+    "requiredEnv": [
+      "ORACLE_FUSION_BASE_URL"
+    ],
+    "via": "HTTP + n8n Basic credential (Fusion REST, OWSM-secured; OAuth2/IAM client-credentials also supported)"
+  },
+  {
+    "actions": {
+      "create_issue": {
         "kind": "n8nNode",
         "node": "n8n-nodes-base.pipedrive",
         "parameters": {

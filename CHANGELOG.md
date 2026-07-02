@@ -23,6 +23,34 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **ERP connector: Oracle Fusion Cloud ERP read-only broker adapter (backlog #139).**
+  A new catalogued, capability-declared backend —
+  `lib/backend-catalogue/vendors/backends/oracle-fusion-erp.json` — for Oracle
+  Fusion Cloud ERP's Project Financial Management module, following the same
+  reference-mapping pattern as SAP/NetSuite/Primavera/Dynamics 365 (backlog #23).
+  - Declares only the capabilities the real, published `fscmRestApi` REST API
+    genuinely backs: `financials` (`projectCosts`, `projectBudgets` +
+    `projectBudgetSummary`, `projectCommitments`) and `issues` (`projectPlans`
+    WBS tasks, the generic work-item proxy every catalogued backend maps to).
+    Financial data is read-only structurally — the broker contract has no write
+    action for cost/budget/commitment data on any backend, this one included.
+  - Reuses eight existing canonical fields (`budget`, `plannedCost`, `actualCost`,
+    `currency`, `costCenter`, `committedCost`, `purchaseOrder`, `wbsCode`) via a
+    new `fieldKeys[]` vendor-JSON property (`BackendManifest.fieldKeys`,
+    `lib/backend-catalogue/src/backend-manifest.ts`) instead of duplicating field
+    definitions — validated as a subset of the field superset by the existing
+    `guard-superset` CI check.
+  - Auth defaults to HTTP Basic (Oracle Fusion's OWSM-secured REST APIs accept it
+    out of the box), with OAuth2/IAM client-credentials documented as the
+    alternative for MFA-enforced tenants.
+  - Added to `ENTERPRISE_BACKENDS` (premium n8n workflow generation, matching the
+    other large corporate ERPs). Generated-workflow output was verified to
+    produce a sensible 15-node scaffold via `generateWorkflow()`.
+  - **Catalogued, not live-verified**: this connector has not been exercised
+    against a real Oracle Fusion tenant (none was available to test against).
+    See [docs/vendors/ORACLE-FUSION-ERP.md](docs/vendors/ORACLE-FUSION-ERP.md)
+    for exactly what's mapped, the cited REST resource paths, and what a
+    maintainer must confirm against a live pod before calling it "supported."
 - **Report builder: multi-level group-by + trend/line chart (backlog #133).** Extends the bespoke
   report generator (backlog #105) past a single group-by and two viz types, without redesigning it:
   - **Second group-by level (`groupBy2`)** turns a report into a genuine cross-tab: `groupBy` gives

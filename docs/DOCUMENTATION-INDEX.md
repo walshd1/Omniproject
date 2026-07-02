@@ -23,6 +23,7 @@ How the system is put together, the broker seam, and the extensibility model.
 - **[BROKER-HTTP-BINDING.md](BROKER-HTTP-BINDING.md)** — the reference HTTP wire protocol a contract-speaking broker implements (what n8n implements today, and what a sidecar broker would implement to plug in with zero core changes).
 - **[CONTRACT.md](CONTRACT.md)** — the published, versioned `Broker` contract (request/response shapes, control semantics), generated from source.
 - **[INTEGRATION-PLANES.md](INTEGRATION-PLANES.md)** — the seven integration planes (backends, brokers, outputs, notifications, methodologies, reports, screens) and the shared catalogue.
+- **[vendors/ORACLE-FUSION-ERP.md](vendors/ORACLE-FUSION-ERP.md)** — the Oracle Fusion Cloud ERP (Project Financial Management) connector: what's genuinely mapped, and why it's catalogued but not yet live-tenant-verified.
 - **[METHODOLOGIES.md](METHODOLOGIES.md)** — the methodology views (Kanban, Scrum, Gantt, PRINCE2, RAID, list) and how to add your own.
 - **[FEATURE-MODULES.md](FEATURE-MODULES.md)** — optional, lazily-loaded backend modules an operator can switch off.
 - **[FEATURE-GOVERNANCE.md](FEATURE-GOVERNANCE.md)** — how features/methodologies/reports are gated across org → programme → project.

@@ -115,14 +115,14 @@ weighted composite rank score, PMO-configurable weights, no persistence).
 | --- | --- | --- | --- |
 | `billRate` | currency | D365 Project Ops, NetSuite, Odoo | ★ |
 | `costRate` | currency | D365 Project Ops, NetSuite (per-resource) | ★ |
-| `committedCost` | currency | SAP PS, D365 PO (PO/commitment) | ★ |
-| `purchaseOrder` | string | SAP PS, NetSuite, Dolibarr | |
+| `committedCost` | currency | SAP PS, D365 PO (PO/commitment), Oracle Fusion PFM (`projectCommitments`) | ★ |
+| `purchaseOrder` | string | SAP PS, NetSuite, Dolibarr, Oracle Fusion PFM (`projectCommitments` document number) | |
 | `revenue` | currency | D365 PO, NetSuite, Odoo | |
 | `invoicedAmount` | currency | NetSuite, Odoo, Dolibarr | |
 | `margin` | percent | D365 PO, NetSuite, Odoo | ★ |
 | `capitalised` | boolean | SAP PS, NetSuite (capex vs opex) | ★ |
 | `forecastCost` | currency | SAP PS, D365 PO | |
-| `wbsCode` | string | SAP PS, Primavera P6 (WBS) | |
+| `wbsCode` | string | SAP PS, Primavera P6 (WBS), Oracle Fusion PFM (`projectPlans` task number) | |
 
 ## financial — CapEx / OpEx split  (E2 — gated by `financials`)
 The explicit capitalisation split + cost-rate roll-up dimensions for finance-grade

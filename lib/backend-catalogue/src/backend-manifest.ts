@@ -92,6 +92,21 @@ export interface BackendManifest {
   keyFormat?: KeyFormat;
   notes?: string;
   /**
+   * Canonical field-registry keys this backend maps/exposes — MUST be a strict
+   * subset of the field superset (`assets/fields.json` + every backend's
+   * contributed `fields[]`), enforced by the `guard-superset` CI check. Lets a
+   * vendor JSON declare which canonical fields (budget, wbsCode, …) its real API
+   * genuinely populates, reusing the registry instead of duplicating field
+   * definitions per backend.
+   */
+  fieldKeys?: string[];
+  /**
+   * Canonical fields this backend CONTRIBUTES to the superset (when its API
+   * exposes something not yet in the registry) — merged in by `gen-fields`,
+   * validated against `assets/schema/field.schema.json`, deduped by key.
+   */
+  fields?: Array<Record<string, unknown>>;
+  /**
    * Optional VOCAB MAPS — how this vendor names things, so a customer used to its
    * nomenclature can adopt it as a shortcut instead of re-typing labels by hand.
    *
@@ -108,21 +123,4 @@ export interface BackendManifest {
     toCanonical: Record<string, string>;
     fromCanonical?: Record<string, string>;
   };
-  /**
-   * Canonical fields this backend CONTRIBUTES to the superset (validated against
-   * assets/schema/field.schema.json by gen-fields and merged in, dedup by key). Use
-   * when a backend exposes a field not yet in the registry.
-   */
-  fields?: Array<Record<string, unknown>>;
-  /**
-   * Canonical field keys this backend exposes/maps (e.g. `["budget", "costCenter",
-   * "wbsCode"]`) — how its native fields line up with the canonical registry
-   * (`assets/fields.json` / `docs/FIELD-CATALOGUE.md`), so a future integrator
-   * knows which shared fields it can already rely on instead of re-deriving the
-   * mapping. MUST be a strict subset of the field-registry superset — enforced by
-   * `guard-superset` (scripts/src/guard-superset.ts) and
-   * `scripts/src/lib/superset.test.ts`. Use `fields` above only when a backend
-   * contributes a field the registry doesn't have yet.
-   */
-  fieldKeys?: string[];
 }
