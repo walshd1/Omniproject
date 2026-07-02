@@ -5,9 +5,9 @@ how it's configured, and an honest statement of scope and residual risk. It comp
 deeper-dive companions:
 
 - [`AI-SECURITY.md`](./AI-SECURITY.md) — the end-to-end AI control model (keys, governance, kill-switch).
-- [`EGRESS-INVENTORY.md`](./EGRESS-INVENTORY.md) — every outbound destination the gateway can reach.
+- [`ops/EGRESS-INVENTORY.md`](./ops/EGRESS-INVENTORY.md) — every outbound destination the gateway can reach.
 - [`COMPOSE-AUDIT.md`](./COMPOSE-AUDIT.md) — deployment-topology hardening.
-- [`ROLES.md`](./ROLES.md) — the RBAC model in product terms.
+- [`ops/ROLES.md`](./ops/ROLES.md) — the RBAC model in product terms.
 - [`COMPLIANCE.md`](./COMPLIANCE.md) — control mapping to SOC 2 / ISO 27001 / NIST CSF.
 - [`THREAT-MODEL.md`](./THREAT-MODEL.md) — STRIDE threat model + trust boundaries.
 - [`PRIVACY.md`](./PRIVACY.md) — controller/processor position, ROPA template, sub-processors.

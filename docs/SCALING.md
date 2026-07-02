@@ -1,7 +1,7 @@
 # Scaling & responsiveness
 
 How OmniProject stays fast for users and gentle on the customer's backends as usage grows. Companion
-to [`MULTI-REPLICA.md`](./MULTI-REPLICA.md) (horizontal scale + shared state).
+to [`ops/MULTI-REPLICA.md`](./ops/MULTI-REPLICA.md) (horizontal scale + shared state).
 
 ## The shape of the problem
 
@@ -39,7 +39,7 @@ Two different "rate limits" matter, and only one is a genuine ceiling:
 - **Perceived latency:** optimistic edits + Undo, skeleton loaders, and read-ahead **prefetch**
   (deterministic on hover/focus for everyone; opt-in predictive tier). See `lib/prefetch.ts`.
 - **Fleet scale:** the rate limiter and presence move to a shared **Redis** store when `REDIS_URL` is
-  set, so ceilings hold across replicas (`MULTI-REPLICA.md`).
+  set, so ceilings hold across replicas (`ops/MULTI-REPLICA.md`).
 
 ## The plan (in priority order)
 

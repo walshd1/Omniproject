@@ -16,7 +16,9 @@ into OmniProject, so there's nothing new to back up, secure or worry about leaki
 It's **free to self-host, with no per-seat fees**, has a bundled login system so you
 don't need corporate IT, and a one-click **"We're a charity"** setup gives you a
 trustee report and a funder report ready to go. Full walkthrough, written for
-non-technical readers: **[docs/SMALL-ORG-GUIDE.md](docs/SMALL-ORG-GUIDE.md)**.
+non-technical readers: **[docs/SMALL-ORG-GUIDE.md](docs/SMALL-ORG-GUIDE.md)**. If
+you're wondering whether the enterprise-grade work has priced small orgs out: it
+hasn't — see the audit: **[docs/SME-CHARITY-FIT.md](docs/SME-CHARITY-FIT.md)**.
 
 ## 🏢 For enterprises
 
@@ -27,6 +29,10 @@ every read and write goes live to the system that already owns the data, and the
 no copy of your data sitting in a new place to secure, audit or lose. The buyer-panel
 gap analysis (CEO, Finance, Compliance, CISO, IT, Projects — what's delivered today,
 what's not, cited to source): **[docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md)**.
+For the IAM/CISO team: the **[docs/SSO-SCIM.md](docs/SSO-SCIM.md)** runbook covers SAML
+SSO + SCIM provisioning/deprovisioning end to end, and
+**[docs/DATA-RESIDENCY.md](docs/DATA-RESIDENCY.md)** covers the fail-closed control
+that keeps a region's traffic from ever leaving it.
 
 ## 🛠️ For engineers
 
@@ -36,7 +42,9 @@ generated contract), with n8n as the reference broker — swap it for anything t
 implements the same contract and nothing above the seam moves. Start with
 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** (the one-sitting system overview),
 then **[docs/READING-GUIDE.md](docs/READING-GUIDE.md)** (subsystem → entry-point map).
-The rest of this README goes deep on the same material below.
+The rest of this README goes deep on the same material below. Looking for a
+specific audit, runbook or design doc instead? **[docs/DOCUMENTATION-INDEX.md](docs/DOCUMENTATION-INDEX.md)**
+maps everything under `docs/` by purpose.
 
 ---
 
@@ -516,6 +524,9 @@ diagram and claim is cross-checked against the source and cites the file it live
   understand X": a subsystem → entry-point-file map (pointing at the per-function
   index below) plus a glossary of the domain vocabulary.
 
+Everything else under `docs/` — audits, runbooks, design proposals — is mapped by
+purpose in **[docs/DOCUMENTATION-INDEX.md](docs/DOCUMENTATION-INDEX.md)**.
+
 ### Reference
 
 - **For enterprise buyers → [docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md)**
@@ -549,6 +560,20 @@ diagram and claim is cross-checked against the source and cites the file it live
   snapshots → trends, What-If sandbox, and cross-system dependency links by hash.
 - **[docs/TIME-TRAVEL.md](docs/TIME-TRAVEL.md)** — *(Experimental)* opt-in,
   out-of-warranty historical replay against a logging server you own.
+- **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — scaling, high availability,
+  disaster recovery/backup, and enabling OTLP telemetry.
+- **Quality & stress-test audits** — point-in-time findings run against this
+  codebase: **[docs/CLEAN-CODE-AUDIT.md](docs/CLEAN-CODE-AUDIT.md)** (duplication /
+  consistency), **[docs/PERF-PATTERNS-REVIEW.md](docs/PERF-PATTERNS-REVIEW.md)**
+  (speed/responsiveness at scale), **[docs/RESILIENCE-FINDINGS.md](docs/RESILIENCE-FINDINGS.md)**
+  (messy-data stress pass), **[docs/LOGIC-FINDINGS.md](docs/LOGIC-FINDINGS.md)**
+  (identity-collision / unstable-sort audit),
+  **[docs/BUNDLED-BACKENDS-STRESS.md](docs/BUNDLED-BACKENDS-STRESS.md)** (every
+  bundled backend/broker definition stress-tested), and
+  **[docs/SECURITY-AUDIT-2026-07.md](docs/SECURITY-AUDIT-2026-07.md)** (re-audit of
+  the newest surfaces).
+- **[docs/I18N-COVERAGE.md](docs/I18N-COVERAGE.md)** — the localisation coverage
+  audit for the i18n dictionary (en/fr/de/es).
 - **[artifacts/n8n-blueprints/](artifacts/n8n-blueprints/)** — the importable
   reference workflows (core sync + time-travel template).
 - **[LICENSING.md](LICENSING.md)** — the open-core model (Apache core + premium).

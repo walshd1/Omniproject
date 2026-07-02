@@ -18,7 +18,7 @@ in one new class and nothing above the seam changes.
 
 - Interface + domain types: [`artifacts/api-server/src/broker/types.ts`](../artifacts/api-server/src/broker/types.ts)
 - Selection + request→domain context: [`src/broker/index.ts`](../artifacts/api-server/src/broker/index.ts)
-- n8n implementation (the reference broker — the **only** n8n-aware code): [`src/broker/n8n.ts`](../artifacts/api-server/src/broker/n8n.ts)
+- n8n implementation (the reference broker — the **only** n8n-aware code): [`src/broker/n8n/index.ts`](../artifacts/api-server/src/broker/n8n/index.ts)
 - Demo implementation: [`src/broker/demo.ts`](../artifacts/api-server/src/broker/demo.ts) (+ `demo-data.ts`)
 
 ## The contract
@@ -87,7 +87,7 @@ asserts it stays that way.
 
 The only remaining *intentional* n8n names are under/at the seam:
 
-- **`src/broker/`** — the adapter itself (`n8n.ts`) and the barrel that exposes the
+- **`src/broker/`** — the adapter itself (`n8n/index.ts`) and the barrel that exposes the
   neutral `brokerCommand()` helper;
 - the **workflow generator**
   (`lib/backend-catalogue/src/backend-catalogue.ts`,
@@ -117,7 +117,7 @@ runs against it (see the `DemoBroker` unit test and the guard).
 ## "n8n is superseded" — the swap story
 
 If a better broker arrives (or n8n is retired), the entire migration is: write
-`FooBroker implements Broker`, point the selector at it, and delete `n8n.ts` (and
+`FooBroker implements Broker`, point the selector at it, and delete `n8n/` (and
 re-point `brokerCommand()` in the barrel). The data path, the API surface, the SPA,
 and every test above the seam are untouched — because none of them ever knew the
 broker was n8n. That is the property this boundary exists to guarantee.

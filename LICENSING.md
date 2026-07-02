@@ -57,7 +57,7 @@ build and simply stay locked without a key. Operators enable them by setting
 
 ## Issuing licences
 
-Licence keys are minted with [`scripts/mint-license.ts`](scripts/mint-license.ts)
+Licence keys are minted with [`scripts/src/mint-license.ts`](scripts/src/mint-license.ts)
 from the vendor's Ed25519 issuing key (`LICENSE_PRIVATE_KEY`) — a signed,
 self-expiring token, no order database, the gateway stays stateless.
 
