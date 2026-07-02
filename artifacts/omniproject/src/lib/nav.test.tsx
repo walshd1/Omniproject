@@ -47,6 +47,7 @@ describe("NAV_ITEMS", () => {
       "/",
       "/my-work",
       "/dashboards",
+      "/content",
       "/programmes",
       "/projects",
       "/reports",
@@ -131,7 +132,7 @@ describe("useVisibleNavItems — feature gating", () => {
 
 describe("nav grouping — progressive disclosure", () => {
   const ADMIN_HREFS = ["/explore", "/settings", "/setup"];
-  const PRIMARY_HREFS = ["/", "/my-work", "/dashboards", "/programmes", "/projects", "/reports", "/resources"];
+  const PRIMARY_HREFS = ["/", "/my-work", "/dashboards", "/content", "/programmes", "/projects", "/reports", "/resources"];
 
   it("classifies the everyday surfaces as primary and the governance/config surfaces as admin", () => {
     for (const item of NAV_ITEMS) {

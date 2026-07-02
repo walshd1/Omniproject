@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { screen } from "@testing-library/react";
+import { screen, fireEvent, within } from "@testing-library/react";
 import {
   getListProjectsQueryKey, getGetPortfolioHealthQueryKey, getGetFxRatesQueryKey, getGetProjectFinancialsQueryKey,
   type Project, type PortfolioHealthSummary, type ProjectFinancials, type FxRates,
@@ -86,5 +86,20 @@ describe("ExecBoardPack", () => {
   it("shows an empty state with no portfolio data", () => {
     renderWithProviders(<ExecBoardPack />, { client: seed({ projects: [], health: [] }) });
     expect(screen.getByTestId("exec-pack-empty")).toBeInTheDocument();
+  });
+
+  it("lets the user add an arbitrary library component to the board pack, and remove it again", () => {
+    const client = seed({ projects: [proj({ id: "a" })], health: [health({ projectId: "a", ragStatus: "GREEN" })] });
+    renderWithProviders(<ExecBoardPack />, { client });
+
+    expect(screen.queryByTestId("exec-pack-extra-widget:projectCount")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Add component to board pack"), { target: { value: "widget:projectCount" } });
+    const extra = screen.getByTestId("exec-pack-extra-widget:projectCount");
+    expect(extra).toBeInTheDocument();
+    // The added widget renders inline (it reads the same seeded project list).
+    expect(within(extra).getByText("Projects")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText(/Remove Project count from board pack/i));
+    expect(screen.queryByTestId("exec-pack-extra-widget:projectCount")).not.toBeInTheDocument();
   });
 });

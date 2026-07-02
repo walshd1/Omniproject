@@ -57,3 +57,18 @@ test("getComponent resolves a namespaced id and carries the renderer registry", 
   assert.equal(health?.renderer.component, "portfolioHealth");
   assert.equal(getComponent("nope:nope"), undefined);
 });
+
+test("refresh: threads a JSON-authored refresh interval through for both sources, omitted when unset", () => {
+  // burndown.json declares refresh: 120; evm.json declares no refresh at all.
+  const burndown = getComponent("report:burndown");
+  assert.equal(burndown?.refresh, 120);
+  const evm = getComponent("report:evm");
+  assert.equal(evm?.refresh, undefined);
+  assert.ok(!("refresh" in evm!), "refresh should be omitted (not present) when the definition sets none");
+
+  // portfolioHealth.json declares refresh: 60; another widget declares none.
+  const health = getComponent("widget:portfolioHealth");
+  assert.equal(health?.refresh, 60);
+  const trends = getComponent("widget:portfolioTrends");
+  assert.equal(trends?.refresh, undefined);
+});

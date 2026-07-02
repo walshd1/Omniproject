@@ -28,6 +28,20 @@ test("customReports: accepts a well-formed bespoke report and rejects bad shape"
   assert.throws(() => updateSettings({ customReports: [{ id: "r4", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "median" }], viz: "table" }] }), SettingsValidationError); // bad agg
 });
 
+test("contentPages: accepts a well-formed page and persists the component-id order", () => {
+  const ok = updateSettings({ contentPages: [{ id: "p1", name: "Exec view", componentIds: ["report:evm", "widget:portfolioHealth"] }] });
+  assert.equal(ok.contentPages.length, 1);
+  assert.deepEqual(getSettings().contentPages[0]!.componentIds, ["report:evm", "widget:portfolioHealth"]);
+});
+
+test("contentPages: rejects a non-array, a page missing id/name, and non-string componentIds", () => {
+  assert.throws(() => updateSettings({ contentPages: "nope" as unknown as [] }), SettingsValidationError);
+  assert.throws(() => updateSettings({ contentPages: [{ name: "no id", componentIds: [] }] as never }), SettingsValidationError);
+  assert.throws(() => updateSettings({ contentPages: [{ id: "p", componentIds: [] }] as never }), SettingsValidationError); // no name
+  assert.throws(() => updateSettings({ contentPages: [{ id: "p", name: "x", componentIds: [1, 2] }] as never }), SettingsValidationError); // non-string ids
+  assert.throws(() => updateSettings({ contentPages: [{ id: "p", name: "x" }] as never }), SettingsValidationError); // missing componentIds
+});
+
 test("priorityWeights: accepts a well-formed weight set and rejects bad shape", () => {
   const ok = updateSettings({ priorityWeights: { rice: 30, wsjf: 30, moscow: 10, strategic: 10, benefit: 20 } });
   assert.equal(ok.priorityWeights.rice, 30);
