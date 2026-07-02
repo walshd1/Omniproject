@@ -29,6 +29,27 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     (`artifacts/api-server/src/lib/settings.ts` `validateCustomReports`), and the PMO-gated
     `PUT /api/reports/custom` route — unchanged besides the wider `viz` union and two new optional
     string fields.
+- **Portfolio copilot: conversational action-invocation (backlog #134).** The copilot chat
+  (backlog #61, Q&A-only) can now invoke the same canonical actions as the NL→action command
+  palette (backlog #59) — a PM can type "mark issue 42 done" straight into the copilot instead
+  of switching to the palette.
+  - Every copilot message is first offered to the SAME planner the command palette calls
+    (`planNlAction` → `POST /api/ai/nl-action`), against the SAME governed, approved-actions-
+    filtered tool catalogue. A recognised action (or a clarify) shows the identical
+    confirm-before-execute plan card and executes through the identical `POST /api/mcp`
+    `tools/call` write path on confirm — same RBAC, governance, write-scope and audit
+    re-enforcement as the palette. A "none" verdict falls straight through to the unchanged
+    read-only Q&A answer; no new NLU/matching logic was written, and no existing
+    confirm/consent/step-up gate was touched or weakened.
+  - Extracted the plan-review card shared by both surfaces into
+    `artifacts/omniproject/src/components/ActionPlanCard.tsx` (namespaced `data-testid`s via
+    `testIdPrefix` so the command palette and the copilot can both render on the Settings
+    page without colliding) — one renderer instead of a fork per surface.
+    `artifacts/omniproject/src/components/settings/NlCommand.tsx` now consumes it too, with no
+    behaviour change (existing tests pass unmodified).
+  - Known trade-off (documented in `docs/FEATURE-MATURITY.md`): a plain Q&A message now costs
+    an extra planner round-trip before the Q&A call, since detection reuses the existing
+    LLM-backed planner rather than adding a separate fast heuristic classifier.
 - **`drillTo` — one-click red-number → blocked tickets (backlog #122).** Declarative drill-down for
   reports and dashboard widgets, closing the gap the component-library follow-on slice above
   deliberately left open: a red "N blocked" figure is now a real link straight to the filtered
