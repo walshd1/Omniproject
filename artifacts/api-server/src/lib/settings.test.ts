@@ -1,9 +1,9 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { updateSettings, getSettings, SettingsValidationError } from "./settings";
+import { updateSettings, getSettings, SettingsValidationError, DEFAULT_PRIORITY_WEIGHTS } from "./settings";
 
 afterEach(() => {
-  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, customReports: [], reportOverrides: [] }); // reset shared store
+  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, customReports: [], reportOverrides: [], priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS } }); // reset shared store
 });
 
 test("reportOverrides: accepts partial metadata overrides and rejects bad shape", () => {
@@ -26,6 +26,15 @@ test("customReports: accepts a well-formed bespoke report and rejects bad shape"
   assert.throws(() => updateSettings({ customReports: [{ id: "r2", label: "x", scope: "nope", metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "table" }] }), SettingsValidationError); // bad scope
   assert.throws(() => updateSettings({ customReports: [{ id: "r3", label: "x", scope: "project", metrics: [], viz: "table" }] }), SettingsValidationError); // no metrics
   assert.throws(() => updateSettings({ customReports: [{ id: "r4", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "median" }], viz: "table" }] }), SettingsValidationError); // bad agg
+});
+
+test("priorityWeights: accepts a well-formed weight set and rejects bad shape", () => {
+  const ok = updateSettings({ priorityWeights: { rice: 30, wsjf: 30, moscow: 10, strategic: 10, benefit: 20 } });
+  assert.equal(ok.priorityWeights.rice, 30);
+  assert.throws(() => updateSettings({ priorityWeights: { rice: 30, wsjf: 30, moscow: 10, strategic: 10 } }), SettingsValidationError); // missing benefit
+  assert.throws(() => updateSettings({ priorityWeights: { rice: -1, wsjf: 30, moscow: 10, strategic: 10, benefit: 20 } }), SettingsValidationError); // negative
+  assert.throws(() => updateSettings({ priorityWeights: { rice: "high", wsjf: 30, moscow: 10, strategic: 10, benefit: 20 } }), SettingsValidationError); // not a number
+  assert.throws(() => updateSettings({ priorityWeights: null }), SettingsValidationError); // not an object
 });
 
 test("reportingCurrency: accepts a 3-letter ISO code (upper-cased), null to clear, rejects junk", () => {
