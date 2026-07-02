@@ -31,6 +31,33 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     server's filesystem from the SPA has no place in a stateless/zero-at-rest gateway. True
     zero-restart activation (no operator step at all) is parked — see `docs/PARKED-DECISIONS.md`
     §F1 — pending a deliberate hot-reload design for the backend catalogue.
+- **Cross-instance portfolio federation, residency-respecting (backlog #135).** Per-country data
+  residency (backlog #97) naturally pushes a multinational toward one OmniProject instance per
+  region/subsidiary — this closes the resulting gap: no consolidated global portfolio view. A minimal,
+  stateless fan-out that respects the SAME posture as the rest of the residency story — only a
+  pre-aggregated summary ever crosses an instance boundary, never a raw project/issue record.
+  - **`PortfolioSummary`** (`artifacts/api-server/src/lib/portfolio-summary.ts`): a new portfolio-wide
+    aggregate (`summarizeHealth`/`foldFinance`/`foldCapacity`) reducing the existing per-project
+    `portfolioHealth`/`projectFinancials`/`resourceCapacity` broker reads to portfolio-total counts and
+    sums — no project id/name, programme id/name, or person's name ever survives the fold. Served at
+    `GET /portfolio/summary`, the ONE endpoint a peer instance calls.
+  - **`settings.federatedPeers: PeerInstance[]`** — the peer registry (base URL + bearer token +
+    region label per peer), admin-gated and masked on read exactly like an outbound webhook secret.
+    The token must be one of the PEER's own `API_TOKENS` (`lib/api-token.ts`) — no new cross-instance
+    auth scheme, just this instance acting as a read-only API-token client of the peer. New
+    `GET`/`PUT /api/federated-peers` routes; a masked resubmit preserves the real token.
+  - **`GET /api/federated-portfolio`** (`lib/federation.ts`) fans out live to every active peer's
+    `/portfolio/summary` and merges the result with this instance's own into one `FederatedPortfolio`:
+    `local` + a `peers` array, each entry clearly labeled by id/label/region and a `status` (`ok` /
+    `unreachable` / `unauthorized` / `error`) — never silently blended into one number. An
+    unreachable/misconfigured peer degrades to a labeled "unavailable" contribution instead of failing
+    the whole view (mirrors the outbound-webhook delivery fan-out and an FX-rate fallback).
+  - A new **Federated Portfolio** report (`FederatedPortfolio.tsx`, wired into `Reports.tsx` +
+    the report-renderer registry) surfaces the combined rollup; a **Federated peers** admin panel
+    (`FederatedPeersAdmin.tsx`, Settings page) manages the peer registry.
+  - Stateless throughout: nothing is cached beyond the peer config itself: every view re-fans-out
+    live. See `docs/DATA-RESIDENCY.md` → "Cross-instance federation" for exactly what does/doesn't
+    cross an instance boundary.
 - **Bulk feature-gating import/export (backlog #136).** The hierarchical feature-gating model
   (backlog #88 — org→programme→project `programmeFeatures`/`projectFeatures` scope config) was only
   editable one programme or project at a time; at real scale (e.g. 200 projects) that's hundreds of
