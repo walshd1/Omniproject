@@ -12,6 +12,7 @@
     "description": { "type": "string" },
     "defaultSpan": { "enum": [1, 2, 3], "description": "Default column width (1–3) when first added to a dashboard." },
     "requiresEntity": { "type": "string", "description": "If set, the widget is only offered when the backend can surface this entity." },
-    "order": { "type": "integer", "description": "Display order in the widget picker." }
+    "order": { "type": "integer", "description": "Display order in the widget picker." },
+    "refresh": { "type": "integer", "minimum": 1, "description": "Auto-refresh interval in seconds when rendered as a library component. Omitted = no auto-refresh." }
   }
 }

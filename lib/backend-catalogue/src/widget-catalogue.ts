@@ -20,6 +20,9 @@ export interface WidgetDefinition {
   requiresEntity?: string;
   /** Display order in the widget picker. */
   order?: number;
+  /** Auto-refresh interval in seconds when rendered as a library component — declarative polling
+   *  instead of each widget hardcoding its own. Omitted = no auto-refresh. */
+  refresh?: number;
 }
 
 /** Every shipped widget, in display order. Authored as JSON under assets/widgets/<type>.json and

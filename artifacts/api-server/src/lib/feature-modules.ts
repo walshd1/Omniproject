@@ -100,6 +100,15 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     description: "Build named dashboards from a catalogue of widgets (health, trends, activity, counts).",
   },
   {
+    // UI-only: named content pages — compose free-form content from the unified component library
+    // (reports + widgets, componentsFor("content")) as a flat ordered list. Persisted via
+    // /api/content-pages to the config bundle; the SPA gates it via useFeatures. Reads through the
+    // existing report/widget renderers only; nothing new to mount.
+    id: "contentPages",
+    label: "Content pages",
+    description: "Compose named pages from the unified report + widget component library.",
+  },
+  {
     // UI-only: a slide-over work-item detail panel — quick-view fields, inline edit through the
     // existing issue-update endpoint (with optimistic-concurrency), and recent activity. The SPA
     // gates it via useFeatures; no backend route to mount.

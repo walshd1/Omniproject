@@ -29,6 +29,7 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ],
     "notes": "Remaining work vs the ideal line over a sprint.",
     "order": 20,
+    "refresh": 120,
     "methodologies": [
       "scrum",
       "scrumban",

@@ -1969,6 +1969,10 @@ Admin-only live broker log.
 
 Capability + field-manifest endpoints.
 
+### `artifacts/api-server/src/routes/content-pages.ts`
+
+Content pages — named, ordered lists of unified-library component ids (reports + widgets, see @workspace/backend-catalogue componentsFor("content")) a customer composes into free-form content, rendered through the generic content-page renderer.
+
 ### `artifacts/api-server/src/routes/contract.ts`
 
 GET /api/contract — serve the published, versioned SOUTHBOUND broker contract (the interface a broker must implement) + its JSON Schema.

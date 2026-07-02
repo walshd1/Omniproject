@@ -58,6 +58,9 @@ export interface ReportDefinition extends ReportManifest {
   order: number;
   /** How the report is realised (registered renderer or surfaced-via exception). */
   renderer: ReportRenderer;
+  /** Auto-refresh interval in seconds when rendered as a library component (dashboard/content/export
+   *  surfaces) — declarative polling instead of each renderer hardcoding its own. Omitted = no auto-refresh. */
+  refresh?: number;
 }
 
 /** Every shipped report, in display order. Authored as JSON under

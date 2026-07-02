@@ -46,6 +46,10 @@ export interface LibraryComponent {
   defaultSpan?: 1 | 2 | 3;
   /** Display order within its source catalogue. */
   order: number;
+  /** Auto-refresh interval in seconds — declarative polling for whatever surface renders this
+   *  component, instead of each renderer hardcoding its own. Sourced from the report/widget JSON
+   *  definition. Omitted = no auto-refresh. */
+  refresh?: number;
 }
 
 function fromReport(r: ReportDefinition): LibraryComponent {
@@ -66,11 +70,12 @@ function fromReport(r: ReportDefinition): LibraryComponent {
     order: r.order,
   };
   if (r.notes) c.description = r.notes;
+  if (r.refresh) c.refresh = r.refresh;
   return c;
 }
 
 function fromWidget(w: WidgetDefinition): LibraryComponent {
-  return {
+  const c: LibraryComponent = {
     id: `widget:${w.type}`,
     sourceId: w.type,
     source: "widget",
@@ -84,6 +89,8 @@ function fromWidget(w: WidgetDefinition): LibraryComponent {
     defaultSpan: w.defaultSpan,
     order: w.order ?? 0,
   };
+  if (w.refresh) c.refresh = w.refresh;
+  return c;
 }
 
 /** The whole library — every report + widget as one list. Derived from the JSON catalogues, which

@@ -12,7 +12,7 @@
  * in via the explicit "show advanced" toggle. Nothing is REMOVED: deep-links
  * still resolve for authorised users; we only gate VISIBILITY in the chrome.
  */
-import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, LayoutDashboard, type LucideIcon } from "lucide-react";
+import { Layers, Briefcase, BarChart3, FlaskConical, Settings as SettingsIcon, PlugZap, Boxes, Users, Inbox, LayoutDashboard, FileText, type LucideIcon } from "lucide-react";
 import { useGetCapabilities } from "@workspace/api-client-react";
 import { canSurfaceEntity } from "./capabilities-fields";
 import { useFeatures, featureEnabled } from "./features";
@@ -44,6 +44,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/", i18nKey: "nav.dashboard", label: "Dashboard", icon: Layers, chord: "G+D", match: (l) => l === "/", group: "primary" },
   { href: "/my-work", i18nKey: "nav.myWork", label: "My Work", icon: Inbox, match: (l) => l.startsWith("/my-work"), requiresFeature: "myWork", group: "primary" },
   { href: "/dashboards", i18nKey: "nav.dashboards", label: "Dashboards", icon: LayoutDashboard, match: (l) => l.startsWith("/dashboards"), requiresFeature: "dashboards", group: "primary" },
+  { href: "/content", i18nKey: "nav.content", label: "Content", icon: FileText, match: (l) => l.startsWith("/content"), requiresFeature: "contentPages", group: "primary" },
   { href: "/programmes", i18nKey: "nav.programmes", label: "Programmes", icon: Boxes, match: (l) => l.startsWith("/programmes"), requiresEntity: "programme", group: "primary" },
   { href: "/projects", i18nKey: "nav.projects", label: "Projects", icon: Briefcase, chord: "G+P", match: (l) => l.startsWith("/projects"), group: "primary" },
   { href: "/reports", i18nKey: "nav.reports", label: "Reports", icon: BarChart3, chord: "G+R", match: (l) => l.startsWith("/reports"), group: "primary" },
