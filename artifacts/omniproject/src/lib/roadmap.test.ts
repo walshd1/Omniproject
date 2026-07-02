@@ -114,3 +114,28 @@ describe("parseDate", () => {
     expect(parseDate("nope")).toBeNull();
   });
 });
+
+// ── Dirty-data resilience (messy-data generator regression) ──────────────────
+describe("buildRoadmap — dirty counts", () => {
+  const issues = { p: [{ startDate: "2026-01-01", dueDate: "2026-03-01" }] };
+
+  it("does not throw and never produces a NaN completionRate", () => {
+    const projects = [
+      { id: "p", name: "P", programmeId: null, programmeName: null, issueCount: "24" as never, completedCount: null as never },
+      { id: "q", name: "Q", programmeId: null, programmeName: null, issueCount: NaN as never, completedCount: 3 },
+      { id: "r", name: "R", programmeId: null, programmeName: null, issueCount: 10, completedCount: "abc" as never },
+    ] as unknown as RoadmapProject[];
+    const rm = buildRoadmap(projects, { p: issues.p, q: issues.p, r: issues.p } as never);
+    for (const lane of rm.lanes) for (const bar of lane.bars) {
+      expect(Number.isFinite(bar.completionRate)).toBe(true);
+      expect(bar.completionRate).toBeGreaterThanOrEqual(0);
+      expect(bar.completionRate).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("coerces a stringy issueCount ('24') rather than yielding NaN", () => {
+    const projects = [{ id: "p", name: "P", programmeId: null, programmeName: null, issueCount: "24" as never, completedCount: 6 }] as unknown as RoadmapProject[];
+    const rm = buildRoadmap(projects, { p: issues.p } as never);
+    expect(rm.lanes[0]!.bars[0]!.completionRate).toBeCloseTo(0.25, 5);
+  });
+});
