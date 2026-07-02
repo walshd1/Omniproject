@@ -100,8 +100,13 @@ export function deriveSpan(issues: readonly RoadmapIssue[]): Span | null {
 
 /** completed / total, clamped to [0,1]; 0 when there are no issues. */
 function completionRate(p: RoadmapProject): number {
-  if (p.issueCount <= 0) return 0;
-  return Math.min(1, Math.max(0, p.completedCount / p.issueCount));
+  // Counts come from the untrusted read model — coerce so a string/null/NaN issueCount can't
+  // produce a NaN completion bar (which would break the rendered fill width).
+  const total = typeof p.issueCount === "number" && Number.isFinite(p.issueCount) ? p.issueCount : Number(p.issueCount);
+  const done = typeof p.completedCount === "number" && Number.isFinite(p.completedCount) ? p.completedCount : Number(p.completedCount);
+  if (!Number.isFinite(total) || total <= 0) return 0;
+  const d = Number.isFinite(done) ? done : 0;
+  return Math.min(1, Math.max(0, d / total));
 }
 
 /**

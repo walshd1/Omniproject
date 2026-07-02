@@ -2533,6 +2533,10 @@ The canonical field superset = the base vocabulary (assets/fields.json) UNION ev
 
 n8n load harness — measure the REAL gateway → broker → backend path under concurrency, and report latency percentiles + throughput + error breakdown.
 
+### `scripts/src/messy-resilience-probe.ts`
+
+Messy-data RESILIENCE PROBE — a throwaway-but-committed harness.
+
 ### `scripts/src/mint-license.ts`
 
 Licence minting / key generation helper (vendor-side).
