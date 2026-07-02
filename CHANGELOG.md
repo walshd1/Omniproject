@@ -36,6 +36,88 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     See [docs/vendors/ORACLE-FUSION-ERP.md](docs/vendors/ORACLE-FUSION-ERP.md)
     for exactly what's mapped, the cited REST resource paths, and what a
     maintainer must confirm against a live pod before calling it "supported."
+- **Cross-instance portfolio federation, residency-respecting (backlog #135).** Per-country data
+  residency (backlog #97) naturally pushes a multinational toward one OmniProject instance per
+  region/subsidiary — this closes the resulting gap: no consolidated global portfolio view. A minimal,
+  stateless fan-out that respects the SAME posture as the rest of the residency story — only a
+  pre-aggregated summary ever crosses an instance boundary, never a raw project/issue record.
+  - **`PortfolioSummary`** (`artifacts/api-server/src/lib/portfolio-summary.ts`): a new portfolio-wide
+    aggregate (`summarizeHealth`/`foldFinance`/`foldCapacity`) reducing the existing per-project
+    `portfolioHealth`/`projectFinancials`/`resourceCapacity` broker reads to portfolio-total counts and
+    sums — no project id/name, programme id/name, or person's name ever survives the fold. Served at
+    `GET /portfolio/summary`, the ONE endpoint a peer instance calls.
+  - **`settings.federatedPeers: PeerInstance[]`** — the peer registry (base URL + bearer token +
+    region label per peer), admin-gated and masked on read exactly like an outbound webhook secret.
+    The token must be one of the PEER's own `API_TOKENS` (`lib/api-token.ts`) — no new cross-instance
+    auth scheme, just this instance acting as a read-only API-token client of the peer. New
+    `GET`/`PUT /api/federated-peers` routes; a masked resubmit preserves the real token.
+  - **`GET /api/federated-portfolio`** (`lib/federation.ts`) fans out live to every active peer's
+    `/portfolio/summary` and merges the result with this instance's own into one `FederatedPortfolio`:
+    `local` + a `peers` array, each entry clearly labeled by id/label/region and a `status` (`ok` /
+    `unreachable` / `unauthorized` / `error`) — never silently blended into one number. An
+    unreachable/misconfigured peer degrades to a labeled "unavailable" contribution instead of failing
+    the whole view (mirrors the outbound-webhook delivery fan-out and an FX-rate fallback).
+  - A new **Federated Portfolio** report (`FederatedPortfolio.tsx`, wired into `Reports.tsx` +
+    the report-renderer registry) surfaces the combined rollup; a **Federated peers** admin panel
+    (`FederatedPeersAdmin.tsx`, Settings page) manages the peer registry.
+  - Stateless throughout: nothing is cached beyond the peer config itself: every view re-fans-out
+    live. See `docs/DATA-RESIDENCY.md` → "Cross-instance federation" for exactly what does/doesn't
+    cross an instance boundary.
+- **Bulk feature-gating import/export (backlog #136).** The hierarchical feature-gating model
+  (backlog #88 — org→programme→project `programmeFeatures`/`projectFeatures` scope config) was only
+  editable one programme or project at a time; at real scale (e.g. 200 projects) that's hundreds of
+  form edits. Additive bulk tooling in Settings → Feature governance:
+  - **Export**: `lib/feature-gating-csv.ts`'s `buildFeatureGatingExportRows` + `featureGatingRowsToCsv`
+    emit one CSV row per known programme/project (even ones with no override yet, so a PMO edits a
+    populated spreadsheet rather than hand-typing every id), one pipe-separated column per gating
+    dimension (`disabled`/`required`/`forbidden`) — RFC-4180 escaped (including the CSV-injection
+    formula-trigger guard already used server-side), UTF-8 BOM prefixed for Excel.
+  - **Import**: a hand-rolled RFC-4180 parser (`parseCsvText`) + `parseFeatureGatingCsv` validates every
+    row — an unrecognised feature id or a same-row required+forbidden clash REJECTS that row with a
+    clear message (others still parse); an unrecognised programme/project id is a WARNING, not a fatal
+    abort (the per-scope PUT route is the actual ownership authority). `diffGatingRow` computes a
+    per-row new/changed/unchanged diff (with per-dimension added/removed ids) against the CURRENT
+    config, shown as a preview before any write. Confirming applies through the EXACT SAME
+    `PUT /features/programme/:id` / `PUT /features/project/:id` routes the one-at-a-time
+    `FeatureGovernance` admin panel already uses — looped sequentially (never in parallel, since each
+    PUT does a read-modify-write over the shared settings map) so ownership/ceiling validation and
+    audit logging are identical to a hand-edited single save, never bypassed for the bulk path. Only
+    rows that actually change are sent; a per-row failure (e.g. "not owned") is reported without
+    aborting the rest of the batch.
+  - New `FeatureGatingBulkAdmin.tsx` component, mounted alongside (not replacing) `FeatureGovernance`;
+    new `useScopeFeatureMaps` hook reads the raw override maps via the existing `GET /api/settings`.
+    No new backend routes, no new persistence — reads/writes the exact same
+    `settings.programmeFeatures`/`projectFeatures` the single-scope UI already uses. Bulk-editing
+    `governanceRules` (the conditional PMO mandates) is deliberately left for a follow-on — it already
+    has its own dedicated admin UI (`GovernanceRulesAdmin`) and a CSV shape for predicate-bearing rules
+    is a different (bigger) problem than this flat per-scope table.
+- **ERP connector hardening: Oracle NetSuite read-through capability-honesty
+  pass (backlog #140).** The NetSuite backend manifest
+  (`lib/backend-catalogue/vendors/backends/netsuite.json`, seeded in #158)
+  already passes every structural catalogue check; this change strengthens its
+  documentation and verification rather than re-implementing it:
+  - `notes` now cites the real SuiteTalk REST record types behind each
+    capability (`job` → project, `projectTask` → issue/scheduling,
+    `resourceAllocation` → resources, `job` job-costing +
+    `expenseReport`/`timeBill` roll-ups → financials), calls out NetSuite's
+    **SuiteQL** endpoint as the realistic path for aggregated budget-vs-actual
+    reads, and documents OAuth 1.0a TBA vs OAuth 2.0 M2M as NetSuite's two real
+    auth options (TBA remains the modelled default).
+  - New `docs/vendors/NETSUITE.md` makes explicit that this connector is
+    **catalogued, not live-verified** — authored from NetSuite's public
+    SuiteTalk REST documentation with no live tenant available in this
+    environment — and states exactly what would need to happen before calling
+    it "supported."
+  - Verified `generateWorkflow()` actually produces a sensible, importable
+    workflow for NetSuite: added
+    `artifacts/n8n-blueprints/generated/omniproject-netsuite.json` (webhook →
+    verify/loop guards → switch router → 5 SuiteTalk REST HTTP nodes with
+    `oAuth1Api` credential placeholders → normalize → respond) via
+    `pnpm --filter @workspace/scripts run gen-n8n-blueprints`.
+  - Re-ran the bundled-backends stress harness (163/163 pass, including
+    NetSuite's schema/capability/spoof-gating/messy-data assertions) and the
+    `lib/backend-catalogue` unit suite (100/100) after regenerating the vendor
+    catalogue (`gen-vendors`) — zero drift, zero regressions.
 - **Portfolio copilot: conversational action-invocation (backlog #134).** The copilot chat
   (backlog #61, Q&A-only) can now invoke the same canonical actions as the NL→action command
   palette (backlog #59) — a PM can type "mark issue 42 done" straight into the copilot instead

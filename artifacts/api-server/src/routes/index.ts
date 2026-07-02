@@ -35,6 +35,8 @@ import licenseRouter from "./license";
 import brandingRouter from "./branding";
 import labelsRouter from "./labels";
 import webhooksRouter from "./webhooks";
+import federatedPeersRouter from "./federated-peers";
+import federatedPortfolioRouter from "./federated-portfolio";
 import mcpRouter from "./mcp";
 import rulesetRouter from "./ruleset";
 import importRouter from "./import";
@@ -128,6 +130,8 @@ router.use(meRouter);
 // Protected routes: require an authenticated session (or read-only API token).
 router.use(requireAuth, licenseRouter);
 router.use(requireAuth, webhooksRouter);
+router.use(requireAuth, federatedPeersRouter);
+router.use(requireAuth, federatedPortfolioRouter);
 router.use(requireAuth, brokerCommandRouter);
 router.use(requireAuth, projectsRouter);
 router.use(requireAuth, settingsRouter);
