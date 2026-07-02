@@ -15,4 +15,8 @@ export interface ResourceCapacity {
   assignedHours: number;
   availableHours: number;
   utilizationState: ResourceCapacityUtilizationState;
+  /** The resource's declared home country/region code (e.g. "eu", "us"), for cross-border resource levelling. Uses the same region vocabulary as the data-residency policy. Null/absent when the backend doesn't declare it — residency gating then fails closed only where enforcement is on. */
+  country?: string | null;
+  /** Simple skill/competency tags the backend declares for this resource (e.g. "backend", "data-science"). Powers skills supply-vs-demand levelling. Absent/empty when the backend doesn't declare skills. */
+  skills?: string[];
 }

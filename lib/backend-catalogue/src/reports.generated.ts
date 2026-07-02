@@ -441,6 +441,35 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "order": 80
   },
   {
+    "id": "resource-levelling",
+    "label": "Cross-programme Resource Levelling",
+    "docsUrl": "",
+    "kind": "resource",
+    "renderer": {
+      "engine": "builtin",
+      "component": "ResourceLevelling"
+    },
+    "capabilities": {
+      "requiresCapability": "resources",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "totalAllocationPercentage",
+      "crossProgramme",
+      "crossCountry",
+      "skillsSupplyDemand",
+      "simulateMove",
+      "residencyGate"
+    ],
+    "notes": "Portfolio-level resource levelling on top of the capacity roll-up: over/under-allocated people across programme AND country boundaries, skills supply-vs-demand, and a what-if move action with before/after over/under-allocation deltas. Cross-border moves are gated by the same data-residency policy the broker/egress hop enforces.",
+    "order": 37
+  },
+  {
     "id": "staff-cost",
     "label": "Staff Time & Cost",
     "docsUrl": "",

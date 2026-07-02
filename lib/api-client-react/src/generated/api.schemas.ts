@@ -668,6 +668,10 @@ export interface ResourceCapacity {
   assignedHours: number;
   availableHours: number;
   utilizationState: ResourceCapacityUtilizationState;
+  /** The resource's declared home country/region code (e.g. "eu", "us"), for cross-border resource levelling. Uses the same region vocabulary as the data-residency policy. Null/absent when the backend doesn't declare it — residency gating then fails closed only where enforcement is on. */
+  country?: string | null;
+  /** Simple skill/competency tags the backend declares for this resource (e.g. "backend", "data-science"). Powers skills supply-vs-demand levelling. Absent/empty when the backend doesn't declare skills. */
+  skills?: string[];
 }
 
 export type ProjectFinancialsFinancialHealth = typeof ProjectFinancialsFinancialHealth[keyof typeof ProjectFinancialsFinancialHealth];
@@ -767,6 +771,16 @@ export interface FieldSource {
 export type CapabilitiesFieldSources = {[key: string]: FieldSource};
 
 /**
+ * The non-sensitive slice of the data-residency posture, safe for any authenticated user (no endpoint URLs/secrets — see the admin-only /api/security/data-residency for the full status).
+ */
+export interface ResidencyCapability {
+  /** Is region enforcement configured (a policy or DATA_RESIDENCY_ALLOWED)? */
+  enabled: boolean;
+  /** The allowed region CODES this deployment permits (e.g. ["eu"]). */
+  allowedRegions: string[];
+}
+
+/**
  * A field a backend's describe reported, with its metadata preserved.
  */
 export interface DiscoveredField {
@@ -811,6 +825,8 @@ export interface Capabilities {
   raci: boolean;
   /** Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default). */
   timeTravel: boolean;
+  /** The active data-residency posture (see /api/security/data-residency), reduced to the non-sensitive bit a report needs to gate cross-border actions: whether enforcement is on, and the allowed region CODES (never URLs/secrets). Open to any authenticated user, unlike the admin status endpoint. Reused by the cross-programme resource-levelling view so a modelled cross-border move goes through the SAME gate as the broker/egress hop rather than a new one. */
+  residency?: ResidencyCapability;
   /** Per-field support: which work-item fields the backend can surface (read/display) and store (write back). Absent ⇒ derive from domains. */
   fields?: CapabilitiesFields;
   /** Per-entity support (e.g. programme, project): whether the entity can be surfaced and/or stored. A programme only exists when the backend can carry programme grouping. */

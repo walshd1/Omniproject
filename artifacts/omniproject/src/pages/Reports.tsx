@@ -16,6 +16,7 @@ import { FinancialSummary } from "../components/reports/FinancialSummary";
 import { StaffTimeCost } from "../components/reports/StaffTimeCost";
 import { IncomeInvoicing } from "../components/reports/IncomeInvoicing";
 import { CapacityRollup } from "../components/reports/CapacityRollup";
+import { ResourceLevelling } from "../components/reports/ResourceLevelling";
 import { PortfolioFinancials } from "../components/reports/PortfolioFinancials";
 import { PortfolioIncome } from "../components/reports/PortfolioIncome";
 import { PortfolioBenefits } from "../components/reports/PortfolioBenefits";
@@ -147,6 +148,13 @@ export function Reports() {
           <section>
             <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Capacity Roll-up (programme &amp; portfolio)</h2>
             <CapacityRollup />
+          </section>
+        </Gated>
+
+        <Gated caps={caps} domain="resources" title="Cross-programme Resource Levelling" requires="a resource-management source">
+          <section>
+            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Cross-programme Resource Levelling</h2>
+            <ResourceLevelling />
           </section>
         </Gated>
 

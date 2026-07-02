@@ -79,6 +79,7 @@ export * from './raidEntrySeverity';
 export * from './raidEntryStatus';
 export * from './raidEntryType';
 export * from './replayHistoryParams';
+export * from './residencyCapability';
 export * from './resourceCapacity';
 export * from './resourceCapacityUtilizationState';
 export * from './resourceMember';
