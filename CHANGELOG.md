@@ -72,6 +72,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Enterprise SSO made first-class: SAML 2.0 + SCIM provisioning runbook.** SAML now fails *loud, not
+  silent*. A **partially-configured** SAML rollout (some `SAML_*` set but a requirement missing) previously
+  looked simply "off"; it is now surfaced three ways — a one-time boot `warn` naming the exact missing env,
+  a `samlStatus` object on `GET /api/auth/me` (`configured` / `partial` / `missing`), and, in production, a
+  fatal boot issue via `checkRequiredEnv`. New pure, testable `samlConfigStatusFrom(env)` / `samlConfigStatus()`
+  are the single source of that truth (the three hard requirements are `SAML_IDP_ENTRY_POINT`, `SAML_IDP_CERT`,
+  and an ACS URL from `SAML_CALLBACK_URL` **or** `PUBLIC_URL`). A new regression test
+  (`sso-role-parity.test.ts`) pins the contract that an IdP group resolves to **identical** OmniProject grants
+  whether it arrives via an OIDC claim, a SAML assertion, or a SCIM group — all three funnel through the one
+  `grantsFromClaims` resolver against the one role map. Added a full **`docs/SSO-SCIM.md`** provisioning **and
+  deprovisioning** runbook (Okta / Entra / Google recipes, SP metadata, SCIM lifecycle, verification +
+  troubleshooting) and a documented `SAML_*` section in `.env.example`. Additive throughout — OIDC, demo, and
+  magic-link auth are untouched, and the SAML provider library stays a runtime-optional dependency.
 - **Stakeholder register, risk register + RACI matrix (#93).** Phase 3 of the PM/PgM overlay extends the
   canonical field vocabulary with three governance concerns (145 fields, drift-guarded), each gated per
   backend and surfaced as a JSON screen. **Stakeholder register** — a new `stakeholder` field group +

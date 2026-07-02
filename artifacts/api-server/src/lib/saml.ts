@@ -87,6 +87,60 @@ export function isSamlConfigured(): boolean {
   return samlConfig !== null;
 }
 
+/**
+ * A first-class, actionable view of the SAML configuration — what's present, what's still
+ * missing, and whether it is PARTIALLY configured (a footgun: some `SAML_*` env is set but
+ * SAML stays disabled). Pure over the passed env so it is unit-testable and reusable by the
+ * boot-time env check. The three fields below are the ONLY hard requirements; every other
+ * `SAML_*` var has a sensible default.
+ */
+export interface SamlConfigStatus {
+  /** All hard requirements present ⇒ SAML SSO is active. */
+  configured: boolean;
+  /** Some `SAML_*` env is set but a requirement is missing ⇒ SAML is (silently) off. */
+  partial: boolean;
+  /** Which of the three hard requirements are satisfied. */
+  present: { entryPoint: boolean; idpCert: boolean; callbackUrl: boolean };
+  /** Human-friendly names of the env still needed to enable SAML (empty when configured). */
+  missing: string[];
+}
+
+/** Compute the SAML config status from an arbitrary env (pure — the testable core). */
+export function samlConfigStatusFrom(env: NodeJS.ProcessEnv): SamlConfigStatus {
+  const entryPoint = !!(env["SAML_IDP_ENTRY_POINT"]?.trim() || env["SAML_ENTRY_POINT"]?.trim());
+  const idpCert = !!env["SAML_IDP_CERT"]?.trim();
+  // The ACS URL is explicit (SAML_CALLBACK_URL) or derived from PUBLIC_URL — either satisfies it.
+  const callbackUrl = !!(env["SAML_CALLBACK_URL"]?.trim() || env["PUBLIC_URL"]?.trim());
+  const present = { entryPoint, idpCert, callbackUrl };
+  const missing: string[] = [];
+  if (!entryPoint) missing.push("SAML_IDP_ENTRY_POINT");
+  if (!idpCert) missing.push("SAML_IDP_CERT");
+  if (!callbackUrl) missing.push("SAML_CALLBACK_URL (or PUBLIC_URL)");
+  const configured = entryPoint && idpCert && callbackUrl;
+  // "partial" must key off a SAML-SPECIFIC signal (some `SAML_*` env), NOT the shared PUBLIC_URL
+  // — every deployment sets PUBLIC_URL for unrelated reasons, so it can't imply intent to run SAML.
+  const samlIntent = Object.keys(env).some((k) => k.startsWith("SAML_") && env[k]?.trim());
+  return { configured, partial: samlIntent && !configured, present, missing };
+}
+
+/** The SAML config status for the running process (diagnostics + the /auth/me surface). */
+export function samlConfigStatus(): SamlConfigStatus {
+  return samlConfigStatusFrom(process.env);
+}
+
+// Boot-time footgun guard: if SAML is only HALF configured it will silently stay disabled and
+// operators get a confusing 404 at /auth/saml/login. Say so loudly, once, at load — with the
+// exact missing env — so a CISO/IT rollout self-diagnoses. (Fully unset = intentional; no noise.)
+{
+  const status = samlConfigStatusFrom(process.env);
+  if (status.partial) {
+    logger.warn(
+      { missing: status.missing },
+      `SAML SSO is PARTIALLY configured and will stay DISABLED until all requirements are set — missing: ${status.missing.join(", ")}`,
+    );
+  }
+}
+
 export interface SamlClaims {
   sub: string;
   name?: string;
