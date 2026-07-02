@@ -1,0 +1,13 @@
+{
+  "id": "head-of-projects-today",
+  "role": "head-of-projects",
+  "name": "What needs me today — Head of Projects",
+  "summary": "Portfolio-wide triage: RAG health, where projects are stuck, and the trend that decides where to spend your attention.",
+  "order": 10,
+  "widgets": [
+    { "type": "portfolioHealth", "span": 3 },
+    { "type": "statusBreakdown", "span": 1 },
+    { "type": "portfolioTrends", "span": 2 },
+    { "type": "recentActivity", "span": 1 }
+  ]
+}

@@ -172,7 +172,8 @@ export function groupProgrammes(projects: Row[]): ProgrammeRollup[] {
     list.push(p);
     groups.set(id, list);
   }
-  return [...groups.entries()].map(([id, ps]) => summarise(id, ps)).sort((a, b) => a.name.localeCompare(b.name));
+  // id (the programmeId) is unique per group ⇒ deterministic order when two programmes share a name.
+  return [...groups.entries()].map(([id, ps]) => summarise(id, ps)).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
 /** A programme's roll-up + its member projects, or null if it has none. */
