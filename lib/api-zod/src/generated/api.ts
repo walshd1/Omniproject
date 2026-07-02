@@ -537,7 +537,9 @@ export const GetProjectCapacityResponseItem = zod.object({
   "allocationPercentage": zod.number(),
   "assignedHours": zod.number(),
   "availableHours": zod.number(),
-  "utilizationState": zod.enum(['OVER_ALLOCATED', 'OPTIMAL', 'UNDER_ALLOCATED'])
+  "utilizationState": zod.enum(['OVER_ALLOCATED', 'OPTIMAL', 'UNDER_ALLOCATED']),
+  "country": zod.string().nullish().describe('The resource\'s declared home country\/region code (e.g. \"eu\", \"us\"), for cross-border resource levelling. Uses the same region vocabulary as the data-residency policy. Null\/absent when the backend doesn\'t declare it — residency gating then fails closed only where enforcement is on.'),
+  "skills": zod.array(zod.string()).optional().describe('Simple skill\/competency tags the backend declares for this resource (e.g. \"backend\", \"data-science\"). Powers skills supply-vs-demand levelling. Absent\/empty when the backend doesn\'t declare skills.')
 })
 export const GetProjectCapacityResponse = zod.array(GetProjectCapacityResponseItem)
 
@@ -727,6 +729,10 @@ export const GetCapabilitiesResponse = zod.object({
   "stakeholders": zod.boolean().describe('Stakeholder-engagement fields + entity (role, influence\/interest, engagement, comms cadence) — true only when a backend can carry them.'),
   "raci": zod.boolean().describe('RACI-assignment fields + entity (deliverable → Responsible\/Accountable\/ Consulted\/Informed) — true only when a backend can carry them.'),
   "timeTravel": zod.boolean().describe('Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default).'),
+  "residency": zod.object({
+  "enabled": zod.boolean().describe('Is region enforcement configured (a policy or DATA_RESIDENCY_ALLOWED)?'),
+  "allowedRegions": zod.array(zod.string()).describe('The allowed region CODES this deployment permits (e.g. [\"eu\"]).')
+}).describe('The non-sensitive slice of the data-residency posture, safe for any authenticated user (no endpoint URLs\/secrets — see the admin-only \/api\/security\/data-residency for the full status).').optional().describe('The active data-residency posture (see \/api\/security\/data-residency), reduced to the non-sensitive bit a report needs to gate cross-border actions: whether enforcement is on, and the allowed region CODES (never URLs\/secrets). Open to any authenticated user, unlike the admin status endpoint. Reused by the cross-programme resource-levelling view so a modelled cross-border move goes through the SAME gate as the broker\/egress hop rather than a new one.'),
   "fields": zod.record(zod.string(), zod.object({
   "surface": zod.boolean(),
   "store": zod.boolean()

@@ -103,6 +103,15 @@ verdict — so an operator can confirm the posture before relying on it. The res
 `mode` (`policy` | `env` | `off`); in `policy` mode it also lists each declared region's backends,
 egress patterns, and allow verdict, and surfaces a `policyError` when the policy is failing closed.
 
+`GET /api/capabilities` (any authenticated user) also carries a reduced, non-sensitive `residency`
+field (`{ enabled, allowedRegions }` — region **codes** only, never URLs/secrets), so a report that
+needs to gate a cross-border action doesn't need admin access to know the posture. The
+cross-programme resource-levelling report (`docs/FUNCTION-MAP.md` →
+`artifacts/omniproject/src/lib/resource-levelling.ts`) is the first consumer: it reuses this SAME
+allowed-region set to refuse modelling a move for a resource whose declared `country` (a new
+optional `ResourceCapacity` field a broker may set) is outside it, or undeclared while enforcement
+is on — fail-closed, exactly like an endpoint with no declared region.
+
 ## Scope (honest)
 
 - The **flat env** form enforces only the **broker hop**. The **JSON policy** form additionally

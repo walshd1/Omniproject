@@ -3,6 +3,7 @@ import type { ReportDefinition } from "@workspace/backend-catalogue";
 import { PortfolioKpi } from "./PortfolioKpi";
 import { ResourceHeatmap } from "./ResourceHeatmap";
 import { CapacityRollup } from "./CapacityRollup";
+import { ResourceLevelling } from "./ResourceLevelling";
 import { FinancialEvmChart } from "./FinancialEvmChart";
 import { FinancialSummary } from "./FinancialSummary";
 import { PortfolioFinancials } from "./PortfolioFinancials";
@@ -35,6 +36,7 @@ export const REPORT_RENDERERS: Record<string, ReportRendererComponent> = {
   PortfolioKpi,
   ResourceHeatmap,
   CapacityRollup,
+  ResourceLevelling,
   FinancialEvmChart,
   FinancialSummary,
   PortfolioFinancials,
