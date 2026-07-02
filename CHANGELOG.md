@@ -8,6 +8,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Documentation
 
+- **Closed backlog #108 (multi-broker read fan-out) with a documented decision instead of
+  speculative code** (`docs/PARKED-DECISIONS.md`, section D). Investigated whether the gateway
+  should hold multiple distinct data-broker adapter instances of the same kind (e.g. two
+  separate Jira-kind endpoints) and fan a single read across them, merged by `qualifiedId`.
+  Found no genuine unmet need: `connectedBrokers()`/`brokerForCommand()` already do cross-kind
+  capability routing (one adapter instance per kind; n8n for data + Make for events) and
+  intentionally dedupe by kind; the existing same-kind `BROKER_URLS`/`BROKER_ENDPOINTS` pool is a
+  horizontal-scale replica pool (round-robin/failover), not a fan-out source list; and merging
+  genuinely distinct same-kind backends is already the broker/workflow layer's job one level below
+  the seam (`docs/BROKER.md`'s "one workflow per backend"). Recorded the evidence and closed the
+  item without adding code.
 - **Documentation-linking and cross-reference pass.** Every doc under `docs/` is now
   reachable from `README.md`: 27 docs that existed but weren't linked from anywhere
   reachable from the README (architecture/quality/security audits, the SSO/SCIM and
