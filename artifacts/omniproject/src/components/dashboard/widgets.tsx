@@ -1,9 +1,19 @@
-import type { ComponentType } from "react";
+import { useMemo, type ComponentType } from "react";
 import { Link } from "wouter";
 import { format } from "date-fns";
-import { useListProjects, useListProgrammes, useListActivity } from "@workspace/api-client-react";
+import { useQueries } from "@tanstack/react-query";
+import {
+  useListProjects,
+  useListProgrammes,
+  useListActivity,
+  getGetProjectCapacityQueryOptions,
+  getGetProjectIssuesQueryOptions,
+  type ResourceCapacity,
+  type Issue,
+} from "@workspace/api-client-react";
 import { PortfolioKpi } from "../reports/PortfolioKpi";
 import { PortfolioTrends } from "../reports/PortfolioTrends";
+import { deriveCapacityActuals, type ResourceActual } from "../../lib/capacity-actuals";
 import { statusLabel } from "../../lib/constants";
 
 /**
@@ -82,6 +92,64 @@ function RecentActivityWidget() {
   );
 }
 
+/** Colour the delivery figure by band: over (red), under (amber), on-track/no-plan (muted). */
+function deliveryColor(state: string): string {
+  if (state === "OVER_DELIVERED") return "text-red-500";
+  if (state === "UNDER_DELIVERED") return "text-amber-500";
+  return "text-muted-foreground";
+}
+
+function CapacityActualsWidget() {
+  const { data: projects } = useListProjects();
+  const ids = useMemo(() => (projects ?? []).map((p) => p.id), [projects]);
+
+  const capacityQueries = useQueries({ queries: ids.map((id) => getGetProjectCapacityQueryOptions(id)) });
+  const issueQueries = useQueries({ queries: ids.map((id) => getGetProjectIssuesQueryOptions(id)) });
+
+  const summary = useMemo(() => {
+    const plan = capacityQueries.flatMap((q) => (q.data as ResourceCapacity[] | undefined) ?? []);
+    const actuals: ResourceActual[] = issueQueries
+      .flatMap((q) => (q.data as Issue[] | undefined) ?? [])
+      .filter((i) => typeof i.loggedHours === "number" && i.loggedHours > 0 && i.assignee)
+      .map((i) => ({ resourceId: i.assignee, resourceName: i.assignee, loggedHours: i.loggedHours ?? 0 }));
+    return deriveCapacityActuals(plan, actuals);
+  }, [capacityQueries, issueQueries]);
+
+  const rows = summary.rows.slice(0, 6);
+  return (
+    <div className="bg-card border-2 border-foreground p-4 h-full">
+      <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-3">Capacity actuals vs plan</div>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No capacity or logged-time data to compare.</p>
+      ) : (
+        <>
+          <div className="flex items-baseline gap-2 mb-3">
+            <span className="text-3xl font-black tabular-nums">
+              {summary.overallDeliveryPercentage === null ? "—" : `${summary.overallDeliveryPercentage}%`}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {summary.totalLoggedHours.toLocaleString()}h logged / {summary.totalPlannedHours.toLocaleString()}h planned
+            </span>
+          </div>
+          <ul className="space-y-1.5 text-sm">
+            {rows.map((r) => (
+              <li key={r.resourceId} className="flex items-center justify-between gap-2" data-testid={`capacity-actuals-row-${r.resourceId}`}>
+                <span className="truncate">{r.resourceName || r.resourceId}</span>
+                <span className="flex items-center gap-2 font-mono tabular-nums shrink-0">
+                  <span className="text-muted-foreground">{r.loggedHours}h/{r.plannedHours}h</span>
+                  <span className={`font-black ${deliveryColor(r.state)}`}>
+                    {r.varianceHours > 0 ? "+" : ""}{r.varianceHours}h
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 function UnknownWidget({ type }: { type: string }) {
   return (
     <div className="bg-card border-2 border-dashed border-muted-foreground/40 p-4 h-full text-sm text-muted-foreground">
@@ -98,6 +166,7 @@ export const WIDGET_COMPONENTS: Record<string, ComponentType> = {
   projectCount: ProjectCountWidget,
   programmeCount: ProgrammeCountWidget,
   statusBreakdown: StatusBreakdownWidget,
+  capacityActuals: CapacityActualsWidget,
 };
 
 /** Render a widget by type, falling back to a placeholder for an unknown type. */

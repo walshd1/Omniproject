@@ -43,7 +43,10 @@ function bySeverity(a: ExecException, b: ExecException): number {
     RANK[a.rag] - RANK[b.rag] ||
     b.activeBlockersCount - a.activeBlockersCount ||
     a.scheduleVarianceDays - b.scheduleVarianceDays ||
-    b.budgetVariancePercentage - a.budgetVariancePercentage
+    b.budgetVariancePercentage - a.budgetVariancePercentage ||
+    // Stable final tiebreaker: projectId is the composite source:id upstream, so two
+    // equally-severe exceptions always sort deterministically (never order-of-arrival).
+    a.projectId.localeCompare(b.projectId)
   );
 }
 

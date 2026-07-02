@@ -11,6 +11,7 @@ import { getSettings } from "./lib/settings";
 import { installShutdownHandlers } from "./lib/shutdown";
 import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
 import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
+import { startProactiveDigestScheduler, runProactiveDigest } from "./lib/proactive-digest";
 import { loadConfigDir } from "./lib/config-dir";
 import { readCacheEnabled, readCacheTtlMs } from "./broker/cache";
 
@@ -55,6 +56,12 @@ async function start(): Promise<void> {
   // Optional single-instance scheduled executive digest (off unless EXEC_DIGEST_INTERVAL_HOURS>0;
   // for a fleet, use the trigger endpoint + an external scheduler so it fires once).
   startExecDigestScheduler(() => runExecDigest({ now: Date.now(), broker: getBroker() }));
+
+  // Proactive "what needs me" digest — ON by a safe weekly default (opt-out): set
+  // PROACTIVE_DIGEST_INTERVAL_HOURS=0 to disable, or to a custom cadence. Single-instance timer;
+  // for a fleet, set it to 0 and drive POST /api/admin/proactive-digest/run from external cron so
+  // it fires once. A healthy portfolio yields an empty digest that is skipped, so "on" ≠ "noisy".
+  startProactiveDigestScheduler(() => runProactiveDigest({ now: Date.now(), broker: getBroker() }));
 
   const server = app.listen(port, (err) => {
     if (err) {

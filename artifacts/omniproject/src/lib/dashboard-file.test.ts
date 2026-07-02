@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { parseDashboard } from "./dashboard-file";
+import { parseDashboard, readDashboardFile } from "./dashboard-file";
 import type { Dashboard } from "./dashboards";
+
+/** A minimal File-like stub whose text() resolves to `content` (no jsdom File needed). */
+function fileOf(content: string): File {
+  return { text: () => Promise.resolve(content) } as unknown as File;
+}
 
 const valid: Dashboard = {
   id: "ops", name: "Ops board",
@@ -42,5 +47,26 @@ describe("parseDashboard", () => {
     const d = parseDashboard({ name: "D", widgets: [], __proto__: { polluted: true } } as Record<string, unknown>);
     expect((d as Record<string, unknown>)["polluted"]).toBeUndefined();
     expect(({} as Record<string, unknown>)["polluted"]).toBeUndefined();
+  });
+});
+
+describe("readDashboardFile", () => {
+  it("parses a valid dashboard from an uploaded file", async () => {
+    const d = await readDashboardFile(fileOf(JSON.stringify(valid)));
+    expect(d).toEqual(valid);
+  });
+
+  it("rejects a non-JSON upload with a friendly error", async () => {
+    await expect(readDashboardFile(fileOf("not json {"))).rejects.toThrow(/valid JSON/);
+  });
+
+  it("strips prototype-pollution keys at the upload seam (safeParseJson), leaving the global prototype clean", async () => {
+    // A crafted upload that would pollute Object.prototype if merged after a raw JSON.parse.
+    const payload = '{"name":"D","widgets":[],"constructor":{"prototype":{"polluted":"yes"}},"__proto__":{"polluted":"yes"}}';
+    const d = await readDashboardFile(fileOf(payload));
+    expect(d.name).toBe("D");
+    // The dangerous keys never reach the parsed object, so nothing pollutes the prototype.
+    expect(({} as Record<string, unknown>)["polluted"]).toBeUndefined();
+    expect((Object.prototype as Record<string, unknown>)["polluted"]).toBeUndefined();
   });
 });

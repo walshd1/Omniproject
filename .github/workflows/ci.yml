@@ -140,6 +140,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the dashboard-preset catalogue is in sync with its JSON
+        run: |
+          pnpm --filter @workspace/scripts run gen-dashboard-presets
+          if ! git diff --quiet -- lib/backend-catalogue/src/dashboard-presets.generated.ts; then
+            echo "::error::Dashboard-preset catalogue is out of date. Run 'pnpm --filter @workspace/scripts run gen-dashboard-presets' and commit the result."
+            git --no-pager diff --stat -- lib/backend-catalogue/src/dashboard-presets.generated.ts
+            exit 1
+          fi
+
       - name: Verify the methodology catalogue is in sync with its JSON
         run: |
           pnpm --filter @workspace/scripts run gen-methodologies
@@ -190,6 +199,12 @@ jobs:
 
       - name: Verify every declared dashboard widget has a registered renderer (widget-coverage guard)
         run: pnpm --filter @workspace/scripts run guard-widget-coverage
+
+      - name: Verify every dashboard preset references only real widgets (preset-coverage guard)
+        run: pnpm --filter @workspace/scripts run guard-dashboard-preset-coverage
+
+      - name: Audit i18n translation-key coverage across operating languages (warn-only until complete)
+        run: pnpm --filter @workspace/scripts run guard-i18n-coverage
 
       - name: Verify compose deployment-safety invariants (compose guard)
         run: pnpm --filter @workspace/scripts run guard-compose

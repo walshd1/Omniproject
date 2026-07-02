@@ -97,7 +97,8 @@ export function consolidateFinancials(
     fold(portfolio, p, reportingCurrency, rates);
     mix.set(p.fin.currency, (mix.get(p.fin.currency) ?? 0) + 1);
   }
-  const programmes = [...groups.values()].map(finalise).sort((a, b) => a.variance - b.variance);
+  // key (the programmeId) is unique per group ⇒ deterministic order for equal variance.
+  const programmes = [...groups.values()].map(finalise).sort((a, b) => a.variance - b.variance || a.key.localeCompare(b.key));
   const currencyMix = [...mix.entries()].map(([currency, n]) => ({ currency, projects: n })).sort((a, b) => b.projects - a.projects);
   return { programmes, portfolio: finalise(portfolio), currencyMix };
 }

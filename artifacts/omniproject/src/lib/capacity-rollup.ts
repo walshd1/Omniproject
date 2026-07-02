@@ -74,6 +74,7 @@ export function rollupByProgramme(projects: ProjectCapacity[]): { programmes: Ca
     fold(portfolio, p);
   }
   const programmes = [...groups.values()].map(withUtilisation)
-    .sort((a, b) => (b.utilisation ?? -1) - (a.utilisation ?? -1));
+    // key (the programmeId) is unique per group ⇒ deterministic order for equal utilisation.
+    .sort((a, b) => (b.utilisation ?? -1) - (a.utilisation ?? -1) || a.key.localeCompare(b.key));
   return { programmes, portfolio: withUtilisation(portfolio) };
 }

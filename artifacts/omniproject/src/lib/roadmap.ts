@@ -15,11 +15,25 @@ export interface RoadmapIssue {
 
 export interface RoadmapProject {
   id: string;
+  /** The backend the project was read through. Used to qualify the identity key so two
+   *  projects that share a bare `id` across different sources never collide. */
+  source?: string | null | undefined;
   name: string;
   programmeId?: string | null | undefined;
   programmeName?: string | null | undefined;
   issueCount: number;
   completedCount: number;
+}
+
+/**
+ * The key under which a project's issues are looked up — the composite `source:id`, so two
+ * projects that happen to share a bare `id` across different backends never read each other's
+ * issues. Callers MUST build `issuesByProject` with this same helper. Falls back to the bare
+ * `id` when no source is present (single-source data stays unchanged).
+ */
+export function roadmapKey(project: Pick<RoadmapProject, "id" | "source">): string {
+  const s = typeof project.source === "string" ? project.source.trim() : "";
+  return s ? `${s}:${project.id}` : project.id;
 }
 
 export interface Span {
@@ -110,7 +124,8 @@ export function buildRoadmap(
   let datedProjects = 0;
 
   for (const project of projects) {
-    const span = deriveSpan(issuesByProject[project.id] ?? []);
+    // Look up by the composite key so same-id/different-source projects never share issues.
+    const span = deriveSpan(issuesByProject[roadmapKey(project)] ?? []);
     if (!span) continue;
     datedProjects += 1;
     if (span.start < min) min = span.start;
@@ -137,12 +152,14 @@ export function buildRoadmap(
   }
 
   const lanes = [...laneMap.values()];
-  for (const lane of lanes) lane.bars.sort((a, b) => a.start - b.start || a.end - b.end);
+  // Stable final tiebreaker on projectId so bars with identical spans have a deterministic order.
+  for (const lane of lanes) lane.bars.sort((a, b) => a.start - b.start || a.end - b.end || a.projectId.localeCompare(b.projectId));
   lanes.sort((a, b) => {
     // Standalone always sinks to the bottom; otherwise earliest-starting lane first.
     if (a.key === STANDALONE_KEY) return 1;
     if (b.key === STANDALONE_KEY) return -1;
-    return a.start - b.start || a.name.localeCompare(b.name);
+    // key (the programmeId) is unique per lane, so it breaks name/start ties deterministically.
+    return a.start - b.start || a.name.localeCompare(b.name) || a.key.localeCompare(b.key);
   });
 
   return {

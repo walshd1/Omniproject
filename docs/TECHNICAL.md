@@ -571,6 +571,19 @@ Reference run (single demo replica, GitHub-hosted runner): **6000 requests,
 
 ## See also
 
+**Human-auditability set** (read these to understand the whole system in one sitting):
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) — the system overview: stateless/zero-at-rest
+  model, the layer cake, the broker seam, the security spine, dev-mode gating
+  (Mermaid diagrams).
+- [SEQUENCES.md](SEQUENCES.md) — seven traced sequence walkthroughs (auth, broker
+  read, optimistic-concurrency write, capability resolution, snapshot sign/verify,
+  notification dispatch, dev-mode gating).
+- [READING-GUIDE.md](READING-GUIDE.md) — subsystem → entry-point-file map + glossary.
+- [FUNCTION-MAP.md](FUNCTION-MAP.md) — the generated per-function index.
+
+**Other references:**
+
 - [README](../README.md) — install, deploy, and use.
 - [AGENTS.md](../AGENTS.md) — contributor/agent notes and gotchas.
 - [n8n blueprint README](../artifacts/n8n-blueprints/README.md) — import & wiring.
