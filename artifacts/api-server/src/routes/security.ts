@@ -10,6 +10,8 @@ import { listKeys, revokeKey, revokeUserSessions, KEY_NAMES, type KeyName } from
 import { auditAnchor, verifyAuditChain, type SealedAuditEvent } from "../lib/audit-chain";
 import { signingInfo } from "../lib/signing";
 import { residencyStatus } from "../lib/data-residency";
+import { validateResidencyPolicy } from "../lib/residency-policy";
+import { ValidationError } from "../lib/validate";
 import { buildDsarReport, dsarSummaryText } from "../lib/dsar";
 import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "../lib/maintenance";
 import { requiresDualControl, propose, approve, reject, listProposals, registerExecutor, type Actor } from "../lib/dual-control";
@@ -156,6 +158,23 @@ router.get("/security/dsar", requireRole("admin"), (req, res) => {
 // (endpoints reduced to their ORIGIN, so a secret webhook path is never surfaced). Admin.
 router.get("/security/data-residency", requireRole("admin"), (_req, res) => {
   res.json(residencyStatus());
+});
+
+// Validate a candidate per-country residency policy WITHOUT applying it (the policy is configured
+// via the `DATA_RESIDENCY_POLICY` env, honouring the stateless model). An admin dry-runs the JSON
+// here — same validator the seam uses — before deploying it, so a fail-closed typo is caught early.
+// Admin + step-up; audited. Returns { ok, regions?, allowed? } or 400 { ok:false, issues }.
+router.post("/security/data-residency/validate", requireRole("admin"), requireStepUp, (req, res) => {
+  const session = getSession(req);
+  try {
+    const policy = validateResidencyPolicy((req.body ?? {}) as unknown);
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: "data_residency.policy.validate", actor: session ? { sub: session.sub, email: session.email } : null, write: false, result: "success", meta: { regions: Object.keys(policy.regions), allowed: policy.allowed } });
+    res.json({ ok: true, regions: Object.keys(policy.regions), allowed: policy.allowed });
+  } catch (e) {
+    if (!(e instanceof ValidationError)) throw e;
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: "data_residency.policy.validate", actor: session ? { sub: session.sub, email: session.email } : null, write: false, result: "error", meta: { issues: e.issues } });
+    res.status(400).json({ ok: false, issues: e.issues });
+  }
 });
 
 // ── Tamper-evident audit chain ──────────────────────────────────────────────────

@@ -67,6 +67,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Per-country data residency & egress policy (#97).** The single-region, fail-closed residency guard
+  now accepts a richer, validated **JSON policy** (`DATA_RESIDENCY_POLICY`) mapping each
+  `region → { backends, egress }`, so a multinational (Compliance + CISO) can pin several jurisdictions in
+  one deployment — each to its own broker backends **and** its own egress hosts. It adds a **second
+  enforcement seam**: when a policy is active, *every* outbound hop (`assertEgressAllowed` — broker, IdP,
+  FX, AI, logging) must target a host in an **allowed** region's egress allowlist, else it is refused with
+  the existing `451 DataResidencyError` and a `data_residency.egress_block` audit event. Fail-closed
+  throughout: an undeclared region, an unknown egress host, or an **invalid/unparseable policy** refuses
+  everything (a policy the gateway can't read can't prove residency). Admins can dry-run a candidate policy
+  against the exact validator via `POST /api/security/data-residency/validate` (admin + step-up, audited),
+  and `GET /api/security/data-residency` now reports the active `mode` (`policy`/`env`/`off`) plus each
+  region's backends/egress/allow verdict. The flat env pair (`DATA_RESIDENCY_ALLOWED`/`_MAP`) is unchanged,
+  and with no policy set the whole layer is inert — the default single-region behaviour is preserved. See
+  `docs/DATA-RESIDENCY.md`.
 - **Proactive "what needs me" digest (opt-out).** The overworked PM/PgM lives in email/Slack/Teams, not
   in a dashboard tab — so the product now PUSHES a concise, role-aware roll-up of what actually needs them
   (at-risk amber/red projects, active blockers, overdue/slipping schedules, budget breaches), prioritised
