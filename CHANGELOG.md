@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Documentation
+
+- **Whole-codebase clean-code audit (`docs/CLEAN-CODE-AUDIT.md`).** A 1-for-1 review across all 519 source
+  files (9 groups) — verdict **GOOD (B+)**: zero correctness/security defects, 15 medium + 52 low cleanliness
+  findings, dominated by under-adoption of helpers that already exist. Flags two systemic risks to remediate
+  (hand-rolled constant-time equality in 5 files; a few SPA mutation clients skipping the `res.ok` check) and
+  a prioritized Top-20 fix list. Report only; fixes sequenced as follow-ups.
+
 ### Security
 
 - **Re-audit (2026-07) of the newest surfaces — messy-data, dev-mode routes, report overrides,
