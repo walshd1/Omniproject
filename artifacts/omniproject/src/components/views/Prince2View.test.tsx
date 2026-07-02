@@ -91,6 +91,25 @@ describe("Prince2View", () => {
     expect(screen.queryByText(/^Stage · /)).not.toBeInTheDocument();
   });
 
+  it("makes the Exceptions (overdue) count a drill-through to the grid, pre-filtered to overdue items (backlog #132)", () => {
+    const qc = makeClient();
+    qc.setQueryData(getGetProjectIssuesQueryKey(PROJECT), ISSUES);
+    renderWithProviders(<Prince2View projectId={PROJECT} />, { client: qc });
+
+    // "Late deliverable" (dueDate 2000-01-01, in_progress) is the one overdue exception.
+    const drill = screen.getByTestId("prince2-exceptions-drill");
+    expect(drill).toHaveTextContent("1");
+    expect(drill).toHaveAttribute("href", expect.stringContaining(`/projects/${PROJECT}?filter=`));
+  });
+
+  it("does not offer a drill-through when there are no overdue exceptions", () => {
+    const qc = makeClient();
+    qc.setQueryData(getGetProjectIssuesQueryKey(PROJECT), [issue({ id: "a", title: "On track", status: "todo" })]);
+    renderWithProviders(<Prince2View projectId={PROJECT} />, { client: qc });
+
+    expect(screen.queryByTestId("prince2-exceptions-drill")).toBeNull();
+  });
+
   it("renders an error alert with retry when issues fail to load", async () => {
     const qc = makeClient();
     renderWithProviders(<Prince2View projectId={PROJECT} />, { client: qc });

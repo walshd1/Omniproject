@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -9,7 +10,7 @@ import { componentsFor, getComponent } from "@workspace/backend-catalogue";
 import { useFxRates, resolveFxAsOf, currencyList } from "../../lib/currency";
 import { consolidateFinancials, type ProjectFin } from "../../lib/portfolio-finance";
 import { buildExecHealth, execHeadline, type ExecException, type Rag } from "../../lib/exec-pack";
-import { resolveDrillTo } from "../../lib/drill-to";
+import { resolveDrillTo, overdueDrillTo, costOverrunDrillTo, type ResolvedDrillTo } from "../../lib/drill-to";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
@@ -51,10 +52,45 @@ function RagBar({ rag, total }: { rag: Record<Rag, number>; total: number }) {
   );
 }
 
+/** An exceptions-table cell that's also a drill-through when `canDrill` — same round trip as
+ *  PortfolioKpi's DrillFigure, just a `<td>`'s worth instead of a card figure (backlog #122/#132). */
+function DrillCell({
+  drill, canDrill, ariaLabel, testId, valueClassName, children,
+}: {
+  drill: ResolvedDrillTo | null;
+  canDrill: boolean;
+  ariaLabel: string;
+  testId: string;
+  valueClassName: string;
+  children: ReactNode;
+}) {
+  return (
+    <td className={`py-2 px-2 text-right tabular-nums ${valueClassName}`}>
+      {canDrill && drill ? (
+        <Link
+          href={drill.href}
+          className="underline decoration-dotted underline-offset-2 hover:no-underline"
+          aria-label={ariaLabel}
+          data-testid={testId}
+        >
+          {children}
+        </Link>
+      ) : (
+        children
+      )}
+    </td>
+  );
+}
+
 function ExceptionRow({ e }: { e: ExceptionView }) {
   const style = RAG_STYLE[e.rag];
-  const drill = BLOCKERS_DRILL_TO ? resolveDrillTo(BLOCKERS_DRILL_TO, e as unknown as Record<string, unknown>) : null;
-  const canDrill = !!drill && e.activeBlockersCount > 0;
+  const row = e as unknown as Record<string, unknown>;
+  const blockersDrill = BLOCKERS_DRILL_TO ? resolveDrillTo(BLOCKERS_DRILL_TO, row) : null;
+  const scheduleDrill = resolveDrillTo(overdueDrillTo(), row);
+  const budgetDrill = resolveDrillTo(costOverrunDrillTo(), row);
+  const canDrillBlockers = !!blockersDrill && e.activeBlockersCount > 0;
+  const canDrillSchedule = !!scheduleDrill && e.scheduleVarianceDays < 0;
+  const canDrillBudget = !!budgetDrill && e.budgetVariancePercentage > 0;
   return (
     <tr className="border-b border-border/50" data-testid={`exec-exception-${e.projectId}`}>
       <td className="py-2 pr-3">
@@ -63,26 +99,33 @@ function ExceptionRow({ e }: { e: ExceptionView }) {
         </span>
       </td>
       <td className="py-2 pr-3 font-bold">{e.projectName}</td>
-      <td className={`py-2 px-2 text-right tabular-nums ${e.scheduleVarianceDays < 0 ? "text-red-500" : ""}`}>
+      <DrillCell
+        drill={scheduleDrill}
+        canDrill={canDrillSchedule}
+        ariaLabel={`${scheduleDrill?.label ?? "Overdue items"} for ${e.projectName}`}
+        testId={`exec-schedule-drill-${e.projectId}`}
+        valueClassName={e.scheduleVarianceDays < 0 ? "text-red-500" : ""}
+      >
         {e.scheduleVarianceDays > 0 ? "+" : ""}{e.scheduleVarianceDays}d
-      </td>
-      <td className={`py-2 px-2 text-right tabular-nums ${e.budgetVariancePercentage > 0 ? "text-red-500" : "text-green-600"}`}>
+      </DrillCell>
+      <DrillCell
+        drill={budgetDrill}
+        canDrill={canDrillBudget}
+        ariaLabel={`${budgetDrill?.label ?? "Cost-incurring items"} for ${e.projectName}`}
+        testId={`exec-budget-drill-${e.projectId}`}
+        valueClassName={e.budgetVariancePercentage > 0 ? "text-red-500" : "text-green-600"}
+      >
         {e.budgetVariancePercentage > 0 ? "+" : ""}{e.budgetVariancePercentage}%
-      </td>
-      <td className={`py-2 px-2 text-right tabular-nums ${e.activeBlockersCount > 0 ? "text-amber-500" : "text-muted-foreground"}`}>
-        {canDrill ? (
-          <Link
-            href={drill!.href}
-            className="underline decoration-dotted underline-offset-2 hover:no-underline"
-            aria-label={`${drill!.label} for ${e.projectName}`}
-            data-testid={`exec-blockers-drill-${e.projectId}`}
-          >
-            {e.activeBlockersCount}
-          </Link>
-        ) : (
-          e.activeBlockersCount
-        )}
-      </td>
+      </DrillCell>
+      <DrillCell
+        drill={blockersDrill}
+        canDrill={canDrillBlockers}
+        ariaLabel={`${blockersDrill?.label ?? "Blocked items"} for ${e.projectName}`}
+        testId={`exec-blockers-drill-${e.projectId}`}
+        valueClassName={e.activeBlockersCount > 0 ? "text-amber-500" : "text-muted-foreground"}
+      >
+        {e.activeBlockersCount}
+      </DrillCell>
     </tr>
   );
 }
