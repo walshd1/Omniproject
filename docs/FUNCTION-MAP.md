@@ -2049,6 +2049,10 @@ The notify-plane dispatch decision, traced/capturable like the broker seam.
 
 OData v4 read service — so SAP / Dynamics / Oracle / Power BI can pull OmniProject data in their native feed format (read-only API token works).
 
+### `artifacts/api-server/src/routes/portfolio-priority-weights.ts`
+
+Portfolio prioritisation scoring weights (backlog #98) — the ONLY configurable part of the fund/rank/defer view.
+
 ### `artifacts/api-server/src/routes/portfolio.ts`
 
 Portfolio analytics endpoints — portfolio-wide RAG/health and resource-capacity roll-ups read through the broker (rate-limited as analytics).

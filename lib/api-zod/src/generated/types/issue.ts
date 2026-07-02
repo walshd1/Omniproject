@@ -130,6 +130,28 @@ export interface Issue {
      */
   purchaseOrder?: string | null;
   /**
+     * Reach × Impact × Confidence ÷ Effort prioritisation score (agile field group), surfaced for the portfolio prioritisation ranking. Many backends precompute this.
+     * @nullable
+     */
+  riceScore?: number | null;
+  /**
+     * Weighted Shortest Job First score (agile field group; SAFe), surfaced for the portfolio prioritisation ranking.
+     * @nullable
+     */
+  wsjf?: number | null;
+  /**
+     * MoSCoW prioritisation bucket (agile field group). Free-form (e.g. must/should/could/wont).
+     * @nullable
+     */
+  moscow?: string | null;
+  /**
+     * How much this item contributes to its linked strategic goal(s), 0–100 (strategy field group).
+     * @nullable
+     */
+  strategicContribution?: number | null;
+  /** The strategic goal(s) this item supports (strategy field group). */
+  strategicGoals?: string[];
+  /**
      * Benefit classification (benefits field group). Free-form (e.g. cashable/non_cashable/social).
      * @nullable
      */

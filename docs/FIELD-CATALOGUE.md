@@ -81,6 +81,9 @@ completionPct`
 | `capacity` | number | Azure DevOps, Jira (team capacity) | |
 
 ## agile
+`riceScore`/`wsjf`/`moscow` are typed on `Issue` (backlog #98) and, together with `strategicContribution`
+below, drive the **Portfolio Prioritisation & Funding Funnel** report (`lib/portfolio-priority.ts` —
+weighted composite rank score, PMO-configurable weights, no persistence).
 | key | type | products | ★ |
 | --- | --- | --- | --- |
 | `acceptanceCriteria` | text | Azure DevOps, Jira | |
@@ -220,6 +223,8 @@ planned-vs-actual, realisation %, risk-adjusted forecast, RAG by status).
 ## strategy  (new group — portfolio-tier, project + programme)
 Strategic alignment: what each project/programme contributes to. Gated by the
 `portfolio` domain, so it surfaces at the project **and** programme level.
+`strategicGoals` and `strategicContribution` are typed on `Issue` (backlog #98) and feed the Portfolio
+Prioritisation & Funding Funnel report alongside the `agile` group's RICE/WSJF/MoSCoW above.
 
 | key | type | meaning | products |
 | --- | --- | --- | --- |

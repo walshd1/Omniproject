@@ -834,6 +834,7 @@ const SAMPLE_SETTINGS = {
   savedViews: [],
   dashboards: [],
   contentPages: [],
+  priorityWeights: { rice: 25, wsjf: 25, moscow: 15, strategic: 15, benefit: 20 },
 };
 
 test("redactSettingsForRead: masks webhook signing secrets (never leaked over GET)", async () => {

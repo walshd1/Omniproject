@@ -171,6 +171,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   it never duplicates a dashboard) and purely additive (never removes an existing
   dashboard or setting). The dashboard-preset `role` enum gained two audience-tailored
   values, `trustee` and `funder`, alongside the existing org-chart-level personas.
+- **Portfolio Prioritisation & Funding Funnel** — ranks every project on a weighted composite of its
+  RICE / WSJF / MoSCoW (agile field group), strategic-goal contribution (strategy field group) and
+  risk-adjusted benefits realisation (benefits field group), shown against its cost + capacity
+  footprint, so the PMO can rank ~200 competing projects and run a fund/defer/cut what-if with a live
+  budget/capacity/benefit impact. STATELESS: the score and the scenario are both computed live over
+  the read model on every request (`lib/portfolio-priority.ts`, `lib/funding-scenario.ts`, unit
+  tested) — only the dimension WEIGHTS are config (PMO-gated `GET/PUT /api/portfolio/priority-weights`,
+  a Settings admin panel). `riceScore`, `wsjf`, `moscow`, `strategicContribution` and `strategicGoals`
+  — previously registry-only (`lib/backend-catalogue/assets/fields.json`) — are now wire-typed on
+  `Issue`, mirroring how the benefits/CapEx groups were promoted. New report:
+  **Portfolio Prioritisation & Funding Funnel** (`components/reports/PortfolioPrioritisation.tsx`),
+  wired into the Reports page.
 ### Fixed
 
 - **n8n blueprint docs pointed at deleted files; the pre-generated examples had no drift guard.**

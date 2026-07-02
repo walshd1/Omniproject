@@ -1,9 +1,9 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { updateSettings, getSettings, SettingsValidationError } from "./settings";
+import { updateSettings, getSettings, SettingsValidationError, DEFAULT_PRIORITY_WEIGHTS } from "./settings";
 
 afterEach(() => {
-  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, customReports: [], reportOverrides: [], contentPages: [] }); // reset shared store
+  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, customReports: [], reportOverrides: [], contentPages: [], priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS } }); // reset shared store
 });
 
 test("reportOverrides: accepts partial metadata overrides and rejects bad shape", () => {
@@ -40,6 +40,15 @@ test("contentPages: rejects a non-array, a page missing id/name, and non-string 
   assert.throws(() => updateSettings({ contentPages: [{ id: "p", componentIds: [] }] as never }), SettingsValidationError); // no name
   assert.throws(() => updateSettings({ contentPages: [{ id: "p", name: "x", componentIds: [1, 2] }] as never }), SettingsValidationError); // non-string ids
   assert.throws(() => updateSettings({ contentPages: [{ id: "p", name: "x" }] as never }), SettingsValidationError); // missing componentIds
+});
+
+test("priorityWeights: accepts a well-formed weight set and rejects bad shape", () => {
+  const ok = updateSettings({ priorityWeights: { rice: 30, wsjf: 30, moscow: 10, strategic: 10, benefit: 20 } });
+  assert.equal(ok.priorityWeights.rice, 30);
+  assert.throws(() => updateSettings({ priorityWeights: { rice: 30, wsjf: 30, moscow: 10, strategic: 10 } }), SettingsValidationError); // missing benefit
+  assert.throws(() => updateSettings({ priorityWeights: { rice: -1, wsjf: 30, moscow: 10, strategic: 10, benefit: 20 } }), SettingsValidationError); // negative
+  assert.throws(() => updateSettings({ priorityWeights: { rice: "high", wsjf: 30, moscow: 10, strategic: 10, benefit: 20 } }), SettingsValidationError); // not a number
+  assert.throws(() => updateSettings({ priorityWeights: null }), SettingsValidationError); // not an object
 });
 
 test("reportingCurrency: accepts a 3-letter ISO code (upper-cased), null to clear, rejects junk", () => {
