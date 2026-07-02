@@ -72,3 +72,21 @@ test("refresh: threads a JSON-authored refresh interval through for both sources
   const trends = getComponent("widget:portfolioTrends");
   assert.equal(trends?.refresh, undefined);
 });
+
+test("drillTo: threads a JSON-authored drill-down descriptor through for both sources, omitted when unset", () => {
+  // portfolioHealth.json declares a drillTo (blocked-count → grid); another widget declares none.
+  const health = getComponent("widget:portfolioHealth");
+  assert.deepEqual(health?.drillTo, {
+    target: "grid",
+    projectIdField: "projectId",
+    predicate: { all: [{ field: "blocked", op: "truthy" }] },
+    label: "Blocked items",
+  });
+  const trends = getComponent("widget:portfolioTrends");
+  assert.equal(trends?.drillTo, undefined);
+  assert.ok(!("drillTo" in trends!), "drillTo should be omitted (not present) when the definition sets none");
+
+  // No report currently declares a drillTo — the field is generic/reusable but not yet retrofitted.
+  const evm = getComponent("report:evm");
+  assert.equal(evm?.drillTo, undefined);
+});

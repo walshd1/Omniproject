@@ -25,6 +25,7 @@ export * from "./planes";
 export * from "./methodology-catalogue";
 export * from "./persona-catalogue";
 export * from "./methodology-rulesets";
+export * from "./drill-to";
 export * from "./report-catalogue";
 export * from "./widget-catalogue";
 export * from "./component-library";

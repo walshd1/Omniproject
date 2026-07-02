@@ -63,6 +63,31 @@ describe("PortfolioKpi", () => {
     expect(link).toHaveAttribute("href", "/projects/alpha");
   });
 
+  it("makes a positive BLOCKERS count its own drill-through to the grid, pre-filtered to blocked items (backlog #122)", () => {
+    const qc = makeClient();
+    qc.setQueryData(getGetPortfolioHealthQueryKey(), ROWS);
+    renderWithProviders(<PortfolioKpi />, { client: qc });
+
+    // Bravo has 4 blockers — its BLOCKERS figure is a drill-through, declared by the portfolioHealth
+    // widget's own JSON (drillTo: blocked truthy), not hardcoded in this component.
+    const drill = screen.getByTestId("kpi-blockers-drill-bravo");
+    expect(drill).toHaveTextContent("4");
+    expect(drill).toHaveAttribute("data-href", expect.stringContaining("/projects/bravo?filter="));
+    expect(drill.getAttribute("data-href")).toContain(encodeURIComponent(JSON.stringify({ all: [{ field: "blocked", op: "truthy" }] })));
+
+    // The card's own project link is still intact (the drill-through is additive, not a replacement).
+    expect(screen.getByTestId("kpi-bravo")).toHaveAttribute("href", "/projects/bravo");
+  });
+
+  it("does not offer a drill-through for a project with zero blockers", () => {
+    const qc = makeClient();
+    qc.setQueryData(getGetPortfolioHealthQueryKey(), ROWS);
+    renderWithProviders(<PortfolioKpi />, { client: qc });
+
+    // Alpha has 0 blockers — nothing to drill into.
+    expect(screen.queryByTestId("kpi-blockers-drill-alpha")).toBeNull();
+  });
+
   it("shows the empty-state message when there is no portfolio data", () => {
     const qc = makeClient();
     qc.setQueryData(getGetPortfolioHealthQueryKey(), []);

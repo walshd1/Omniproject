@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "wouter";
 import {
   useGetProjectIssues,
   type Issue,
@@ -10,6 +11,8 @@ import { useAvailability, fieldVisible, type Availability } from "../../lib/avai
 import { useFeatures, featureEnabled } from "../../lib/features";
 import { useSidePanel } from "../../lib/side-panel";
 import { STATUS_ORDER, PRIORITY_ORDER, statusLabel, priorityLabel } from "../../lib/constants";
+import { matchRow } from "../../lib/custom-report";
+import { readDrillFilter, DRILL_FILTER_PARAMS } from "../../lib/drill-to";
 import { DataState } from "../DataState";
 import { SkeletonRows } from "../Skeletons";
 import { SavedViewsBar } from "./SavedViewsBar";
@@ -22,6 +25,11 @@ import { SavedViewsBar } from "./SavedViewsBar";
  * Every write goes through the broker's issue-update path with the optimistic-concurrency token
  * (`expectedVersion`); a concurrent change comes back 409 and the grid refreshes instead of
  * clobbering. Gated behind `useFeatures("grid")` by the caller.
+ *
+ * DRILL-THROUGH (backlog #122): a `filter`/`filterLabel` query param — written by lib/drill-to.ts's
+ * `resolveDrillTo` when a user clicks a red "N blocked" figure elsewhere in the app — pre-filters the
+ * rows to exactly that predicate, using the SAME `matchRow` engine the custom report builder runs
+ * saved filters through. Purely client-side URL state: nothing persisted, nothing broker-side.
  */
 
 type ColType = "text" | "status" | "priority" | "date" | "number";
@@ -75,6 +83,8 @@ export function IssueGrid({ projectId }: { projectId: string }) {
   const { data: availability } = useAvailability();
   const { write } = useIssueFieldWrite();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const drillFilter = useMemo(() => readDrillFilter(searchParams), [searchParams]);
 
   const { data: features } = useFeatures();
   const savedViewsOn = featureEnabled(features, "savedViews");
@@ -97,8 +107,22 @@ export function IssueGrid({ projectId }: { projectId: string }) {
 
   const [bulkField, setBulkField] = useState<string>("status");
 
+  const allRows = useMemo(() => issues ?? [], [issues]);
+  const filteredRows = useMemo(
+    () => (drillFilter ? allRows.filter((i) => matchRow(drillFilter.predicate, i as unknown as Record<string, unknown>)) : allRows),
+    [allRows, drillFilter],
+  );
+
+  const clearDrillFilter = () => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const p of DRILL_FILTER_PARAMS) next.delete(p);
+      return next;
+    });
+  };
+
   const rows = useMemo(() => {
-    const list = [...(issues ?? [])];
+    const list = [...filteredRows];
     if (sort) {
       const { field, dir } = sort;
       list.sort((a, b) => {
@@ -110,7 +134,7 @@ export function IssueGrid({ projectId }: { projectId: string }) {
       });
     }
     return list;
-  }, [issues, sort]);
+  }, [filteredRows, sort]);
 
   const toggleSort = (field: string) =>
     setSort((s) => (s?.field === field ? { field, dir: s.dir === "asc" ? "desc" : "asc" } : { field, dir: "asc" }));
@@ -144,6 +168,25 @@ export function IssueGrid({ projectId }: { projectId: string }) {
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={refetch} skeleton={<SkeletonRows rows={6} className="p-2" />}>
     <div data-testid="issue-grid">
+      {drillFilter && (
+        <div
+          className="mb-3 flex items-center justify-between gap-2 border-2 border-amber-500 bg-amber-500/10 px-3 py-2 text-xs"
+          data-testid="grid-drill-filter-banner"
+        >
+          <span className="font-bold uppercase tracking-widest">
+            Filtered — {drillFilter.label}{" "}
+            <span className="font-mono normal-case text-muted-foreground">({filteredRows.length} of {allRows.length})</span>
+          </span>
+          <button
+            type="button"
+            className="font-black uppercase tracking-widest underline hover:no-underline"
+            onClick={clearDrillFilter}
+            data-testid="grid-drill-filter-clear"
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
       {savedViewsOn && (
         <SavedViewsBar
           scope="grid"

@@ -1,5 +1,6 @@
 import { reportCatalogue, type ReportDefinition } from "./report-catalogue";
 import { widgetCatalogue, type WidgetDefinition } from "./widget-catalogue";
+import type { DrillTo } from "./drill-to";
 
 /**
  * The unified COMPONENT LIBRARY — one registry over the report + widget catalogues, so a customer can
@@ -50,6 +51,12 @@ export interface LibraryComponent {
    *  component, instead of each renderer hardcoding its own. Sourced from the report/widget JSON
    *  definition. Omitted = no auto-refresh. */
   refresh?: number;
+  /** Declarative drill-down (backlog #122): turns a clicked figure derived from this component (a
+   *  blocked-count, a RAG segment, …) into a navigation + predicate against the work-item grid — see
+   *  @workspace/backend-catalogue's drill-to.ts for the descriptor shape and the SPA's
+   *  lib/drill-to.ts for the resolver that turns it + the clicked data point into a concrete href.
+   *  Sourced from the report/widget JSON definition. Omitted = the component has no drill-through. */
+  drillTo?: DrillTo;
 }
 
 function fromReport(r: ReportDefinition): LibraryComponent {
@@ -71,6 +78,7 @@ function fromReport(r: ReportDefinition): LibraryComponent {
   };
   if (r.notes) c.description = r.notes;
   if (r.refresh) c.refresh = r.refresh;
+  if (r.drillTo) c.drillTo = r.drillTo;
   return c;
 }
 
@@ -90,6 +98,7 @@ function fromWidget(w: WidgetDefinition): LibraryComponent {
     order: w.order ?? 0,
   };
   if (w.refresh) c.refresh = w.refresh;
+  if (w.drillTo) c.drillTo = w.drillTo;
   return c;
 }
 

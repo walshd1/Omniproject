@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
+import { Link } from "wouter";
 import {
   useListProjects, useGetSettings, useGetPortfolioHealth,
   getGetProjectFinancialsQueryOptions, type ProjectFinancials,
 } from "@workspace/api-client-react";
-import { componentsFor } from "@workspace/backend-catalogue";
+import { componentsFor, getComponent } from "@workspace/backend-catalogue";
 import { useFxRates, currencyList } from "../../lib/currency";
 import { consolidateFinancials, type ProjectFin } from "../../lib/portfolio-finance";
 import { buildExecHealth, execHeadline, type ExecException, type Rag } from "../../lib/exec-pack";
+import { resolveDrillTo } from "../../lib/drill-to";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
@@ -33,6 +35,11 @@ const RAG_STYLE: Record<Rag, { dot: string; text: string }> = {
   RED: { dot: "bg-red-500", text: "text-red-500" },
 };
 
+// Reuse the SAME declarative drillTo the portfolioHealth widget declares (backlog #122) — one
+// descriptor, two surfaces (the dashboard KPI cards AND this board pack's exceptions table), proving
+// the mechanism composes instead of every "N blocked" figure hand-rolling its own filter-building.
+const BLOCKERS_DRILL_TO = getComponent("widget:portfolioHealth")?.drillTo;
+
 function RagBar({ rag, total }: { rag: Record<Rag, number>; total: number }) {
   const seg = (n: number) => (total ? `${(n / total) * 100}%` : "0%");
   return (
@@ -46,6 +53,8 @@ function RagBar({ rag, total }: { rag: Record<Rag, number>; total: number }) {
 
 function ExceptionRow({ e }: { e: ExceptionView }) {
   const style = RAG_STYLE[e.rag];
+  const drill = BLOCKERS_DRILL_TO ? resolveDrillTo(BLOCKERS_DRILL_TO, e as unknown as Record<string, unknown>) : null;
+  const canDrill = !!drill && e.activeBlockersCount > 0;
   return (
     <tr className="border-b border-border/50" data-testid={`exec-exception-${e.projectId}`}>
       <td className="py-2 pr-3">
@@ -60,7 +69,20 @@ function ExceptionRow({ e }: { e: ExceptionView }) {
       <td className={`py-2 px-2 text-right tabular-nums ${e.budgetVariancePercentage > 0 ? "text-red-500" : "text-green-600"}`}>
         {e.budgetVariancePercentage > 0 ? "+" : ""}{e.budgetVariancePercentage}%
       </td>
-      <td className={`py-2 px-2 text-right tabular-nums ${e.activeBlockersCount > 0 ? "text-amber-500" : "text-muted-foreground"}`}>{e.activeBlockersCount}</td>
+      <td className={`py-2 px-2 text-right tabular-nums ${e.activeBlockersCount > 0 ? "text-amber-500" : "text-muted-foreground"}`}>
+        {canDrill ? (
+          <Link
+            href={drill!.href}
+            className="underline decoration-dotted underline-offset-2 hover:no-underline"
+            aria-label={`${drill!.label} for ${e.projectName}`}
+            data-testid={`exec-blockers-drill-${e.projectId}`}
+          >
+            {e.activeBlockersCount}
+          </Link>
+        ) : (
+          e.activeBlockersCount
+        )}
+      </td>
     </tr>
   );
 }

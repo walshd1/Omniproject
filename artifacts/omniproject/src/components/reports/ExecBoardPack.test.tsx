@@ -46,8 +46,28 @@ describe("ExecBoardPack", () => {
     expect(screen.getByTestId("exec-board-pack")).toBeInTheDocument();
     expect(screen.getByTestId("exec-headline")).toHaveTextContent("1/3 on track");
     // exceptions: RED (Cad) before AMBER (Bravo); green Alpha excluded.
-    const rows = screen.getAllByTestId(/exec-exception-/);
+    const rows = screen.getAllByTestId(/^exec-exception-/);
     expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual(["exec-exception-c", "exec-exception-b"]);
+  });
+
+  it("makes each exception row's positive blocker count a drill-through to that project's grid, pre-filtered to blocked items (backlog #122)", () => {
+    const client = seed({
+      projects: [proj({ id: "b", name: "Bravo" }), proj({ id: "c", name: "Cad" })],
+      health: [
+        health({ projectId: "b", projectName: "Bravo", ragStatus: "AMBER", activeBlockersCount: 0 }),
+        health({ projectId: "c", projectName: "Cad", ragStatus: "RED", activeBlockersCount: 4 }),
+      ],
+    });
+    renderWithProviders(<ExecBoardPack />, { client });
+
+    // Cad has blockers — its figure is a real drill-through link into /projects/c, pre-filtered.
+    const drill = screen.getByTestId("exec-blockers-drill-c");
+    expect(drill).toHaveTextContent("4");
+    expect(drill).toHaveAttribute("href", expect.stringContaining("/projects/c?filter="));
+    expect(drill.getAttribute("href")).toContain(encodeURIComponent(JSON.stringify({ all: [{ field: "blocked", op: "truthy" }] })));
+
+    // Bravo has zero blockers — nothing to drill into, so no drill link renders for it.
+    expect(screen.queryByTestId("exec-blockers-drill-b")).toBeNull();
   });
 
   it("shows consolidated financials when projects report them", () => {

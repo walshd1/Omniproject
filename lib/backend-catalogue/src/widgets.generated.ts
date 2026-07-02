@@ -18,7 +18,20 @@ export const WIDGETS_DATA: WidgetDefinition[] = [
     "description": "RAG health cards across the portfolio.",
     "defaultSpan": 3,
     "order": 10,
-    "refresh": 60
+    "refresh": 60,
+    "drillTo": {
+      "target": "grid",
+      "projectIdField": "projectId",
+      "predicate": {
+        "all": [
+          {
+            "field": "blocked",
+            "op": "truthy"
+          }
+        ]
+      },
+      "label": "Blocked items"
+    }
   },
   {
     "type": "portfolioTrends",

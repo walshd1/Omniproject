@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
@@ -159,5 +159,64 @@ describe("IssueGrid component", () => {
   it("shows the saved-views bar when the savedViews module is enabled", () => {
     renderWithProviders(<IssueGrid projectId="p1" />, { client: seed([issue()], { savedViews: true }) });
     expect(screen.getByTestId("saved-views-bar")).toBeInTheDocument();
+  });
+});
+
+describe("IssueGrid drill-through filter (backlog #122)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      const body = method === "GET" ? JSON.stringify(SEEDED) : "{}";
+      return new Response(body, { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+  });
+  afterEach(() => {
+    // Drill-through state lives on the real URL (wouter's default browser location hook) — reset it
+    // so a seeded `filter` param never leaks into an unrelated test.
+    window.history.pushState({}, "", "/");
+  });
+
+  function pushDrillUrl(predicate: object, label: string) {
+    const params = new URLSearchParams({ filter: JSON.stringify(predicate), filterLabel: label });
+    window.history.pushState({}, "", `/projects/p1?${params.toString()}`);
+  }
+
+  it("pre-filters rows to the drill-through predicate carried on the URL and shows the active-filter banner", async () => {
+    pushDrillUrl({ all: [{ field: "blocked", op: "truthy" }] }, "Blocked items");
+    renderWithProviders(<IssueGrid projectId="p1" />, {
+      client: seed([
+        issue({ id: "i1", title: "Alpha task", blocked: true }),
+        issue({ id: "i2", title: "Beta task", blocked: false }),
+      ]),
+    });
+
+    const banner = await screen.findByTestId("grid-drill-filter-banner");
+    expect(banner).toHaveTextContent("Blocked items");
+    expect(banner).toHaveTextContent("(1 of 2)");
+    expect(screen.getByText("Alpha task")).toBeInTheDocument();
+    expect(screen.queryByText("Beta task")).toBeNull();
+  });
+
+  it("clears the filter (and shows every row again) when Clear filter is clicked", async () => {
+    pushDrillUrl({ all: [{ field: "blocked", op: "truthy" }] }, "Blocked items");
+    renderWithProviders(<IssueGrid projectId="p1" />, {
+      client: seed([
+        issue({ id: "i1", title: "Alpha task", blocked: true }),
+        issue({ id: "i2", title: "Beta task", blocked: false }),
+      ]),
+    });
+
+    fireEvent.click(await screen.findByTestId("grid-drill-filter-clear"));
+    await waitFor(() => expect(screen.queryByTestId("grid-drill-filter-banner")).toBeNull());
+    expect(screen.getByText("Alpha task")).toBeInTheDocument();
+    expect(screen.getByText("Beta task")).toBeInTheDocument();
+  });
+
+  it("shows no filter banner and every row when there is no filter query param", () => {
+    renderWithProviders(<IssueGrid projectId="p1" />, {
+      client: seed([issue({ id: "i1", blocked: true }), issue({ id: "i2", blocked: false })]),
+    });
+    expect(screen.queryByTestId("grid-drill-filter-banner")).toBeNull();
+    expect(screen.getAllByRole("row")).toHaveLength(3); // header + 2 issue rows
   });
 });
