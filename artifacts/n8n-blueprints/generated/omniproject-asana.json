@@ -61,7 +61,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = {\"issues\":true,\"scheduling\":true,\"portfolio\":false,\"resources\":false,\"financials\":false,\"baseline\":false,\"blockers\":false,\"history\":false,\"raid\":false};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: \"asana\", capabilities: caps }, message: 'verify ok' } }];"
+        "jsCode": "// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = {\"baseline\":false,\"blockers\":false,\"financials\":false,\"history\":false,\"issues\":true,\"portfolio\":false,\"raid\":false,\"resources\":false,\"scheduling\":true};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: \"asana\", capabilities: caps }, message: 'verify ok' } }];"
       },
       "id": "aaaaaaaa-0000-4000-8000-000000000002",
       "name": "Verify ACK",
@@ -130,7 +130,7 @@
                 "conditions": [
                   {
                     "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "list_projects",
+                    "rightValue": "create_issue",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -139,7 +139,28 @@
                 ]
               },
               "renameOutput": true,
-              "outputKey": "list_projects"
+              "outputKey": "create_issue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "delete_issue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "delete_issue"
             },
             {
               "conditions": {
@@ -172,7 +193,7 @@
                 "conditions": [
                   {
                     "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "create_issue",
+                    "rightValue": "list_projects",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -181,7 +202,7 @@
                 ]
               },
               "renameOutput": true,
-              "outputKey": "create_issue"
+              "outputKey": "list_projects"
             },
             {
               "conditions": {
@@ -203,27 +224,6 @@
               },
               "renameOutput": true,
               "outputKey": "update_issue"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "typeValidation": "loose"
-                },
-                "combinator": "and",
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "delete_issue",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ]
-              },
-              "renameOutput": true,
-              "outputKey": "delete_issue"
             },
             {
               "conditions": {
@@ -303,13 +303,16 @@
     },
     {
       "parameters": {
-        "resource": "project",
-        "operation": "getAll",
-        "returnAll": true,
-        "workspace": "={{ $env.ASANA_WORKSPACE_ID }}"
+        "name": "={{ $json.body.payload.title }}",
+        "operation": "create",
+        "otherProperties": {
+          "notes": "={{ $json.body.payload.description }}",
+          "projects": "={{ [$json.body.payload.projectId] }}"
+        },
+        "resource": "task"
       },
       "id": "aaaaaaaa-0000-4000-8000-000000000009",
-      "name": "List Projects",
+      "name": "Create Issue",
       "type": "n8n-nodes-base.asana",
       "typeVersion": 1,
       "position": [
@@ -325,15 +328,12 @@
     },
     {
       "parameters": {
-        "resource": "task",
-        "operation": "getAll",
-        "returnAll": true,
-        "filters": {
-          "project": "={{ $json.body.payload.projectId }}"
-        }
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "delete",
+        "resource": "task"
       },
       "id": "aaaaaaaa-0000-4000-8000-00000000000a",
-      "name": "List Issues",
+      "name": "Delete Issue",
       "type": "n8n-nodes-base.asana",
       "typeVersion": 1,
       "position": [
@@ -349,16 +349,15 @@
     },
     {
       "parameters": {
+        "filters": {
+          "project": "={{ $json.body.payload.projectId }}"
+        },
+        "operation": "getAll",
         "resource": "task",
-        "operation": "create",
-        "name": "={{ $json.body.payload.title }}",
-        "otherProperties": {
-          "projects": "={{ [$json.body.payload.projectId] }}",
-          "notes": "={{ $json.body.payload.description }}"
-        }
+        "returnAll": true
       },
       "id": "aaaaaaaa-0000-4000-8000-00000000000b",
-      "name": "Create Issue",
+      "name": "List Issues",
       "type": "n8n-nodes-base.asana",
       "typeVersion": 1,
       "position": [
@@ -374,15 +373,13 @@
     },
     {
       "parameters": {
-        "resource": "task",
-        "operation": "update",
-        "id": "={{ $json.body.payload.issueId }}",
-        "otherProperties": {
-          "name": "={{ $json.body.payload.title }}"
-        }
+        "operation": "getAll",
+        "resource": "project",
+        "returnAll": true,
+        "workspace": "={{ $env.ASANA_WORKSPACE_ID }}"
       },
       "id": "aaaaaaaa-0000-4000-8000-00000000000c",
-      "name": "Update Issue",
+      "name": "List Projects",
       "type": "n8n-nodes-base.asana",
       "typeVersion": 1,
       "position": [
@@ -398,12 +395,15 @@
     },
     {
       "parameters": {
-        "resource": "task",
-        "operation": "delete",
-        "id": "={{ $json.body.payload.issueId }}"
+        "id": "={{ $json.body.payload.issueId }}",
+        "operation": "update",
+        "otherProperties": {
+          "name": "={{ $json.body.payload.title }}"
+        },
+        "resource": "task"
       },
       "id": "aaaaaaaa-0000-4000-8000-00000000000d",
-      "name": "Delete Issue",
+      "name": "Update Issue",
       "type": "n8n-nodes-base.asana",
       "typeVersion": 1,
       "position": [
@@ -419,7 +419,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: {\"issues\":true,\"scheduling\":true,\"portfolio\":false,\"resources\":false,\"financials\":false,\"baseline\":false,\"blockers\":false,\"history\":false,\"raid\":false} } }];"
+        "jsCode": "// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: {\"baseline\":false,\"blockers\":false,\"financials\":false,\"history\":false,\"issues\":true,\"portfolio\":false,\"raid\":false,\"resources\":false,\"scheduling\":true} } }];"
       },
       "id": "aaaaaaaa-0000-4000-8000-00000000000e",
       "name": "Capabilities",
@@ -527,7 +527,14 @@
       "main": [
         [
           {
-            "node": "List Projects",
+            "node": "Create Issue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete Issue",
             "type": "main",
             "index": 0
           }
@@ -541,7 +548,7 @@
         ],
         [
           {
-            "node": "Create Issue",
+            "node": "List Projects",
             "type": "main",
             "index": 0
           }
@@ -549,13 +556,6 @@
         [
           {
             "node": "Update Issue",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Delete Issue",
             "type": "main",
             "index": 0
           }
@@ -576,7 +576,18 @@
         ]
       ]
     },
-    "List Projects": {
+    "Create Issue": {
+      "main": [
+        [
+          {
+            "node": "Normalize → BrokerActionResult",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Issue": {
       "main": [
         [
           {
@@ -598,7 +609,7 @@
         ]
       ]
     },
-    "Create Issue": {
+    "List Projects": {
       "main": [
         [
           {
@@ -610,17 +621,6 @@
       ]
     },
     "Update Issue": {
-      "main": [
-        [
-          {
-            "node": "Normalize → BrokerActionResult",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Delete Issue": {
       "main": [
         [
           {

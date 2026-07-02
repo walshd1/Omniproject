@@ -44,8 +44,52 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   - Fixed a pre-existing `tsc --noEmit` type error in `lib/backend-catalogue/src/view-catalogue.test.ts`
     (an unchecked array index under `noUncheckedIndexedAccess`) found while running the full typecheck
     for this pass.
+### Added
+
+- **"We're a charity" one-click onboarding preset.** A single admin action
+  (`POST /api/setup/charity-onboarding`, surfaced as a button in the setup wizard's
+  deployment-type step) now does in one click what previously took three separate
+  steps: selects the `nonprofit` deployment profile, mints two new dashboard presets —
+  **trustee report** and **funder report**, assembled entirely from existing widgets
+  (`lib/backend-catalogue/assets/dashboard-presets/{trustee-report,funder-report}.json`)
+  — as saved dashboards, and best-effort adopts the active backend's nomenclature
+  preset if one exists and the deployment is entitled to it. Idempotent (re-running
+  it never duplicates a dashboard) and purely additive (never removes an existing
+  dashboard or setting). The dashboard-preset `role` enum gained two audience-tailored
+  values, `trustee` and `funder`, alongside the existing org-chart-level personas.
+### Fixed
+
+- **n8n blueprint docs pointed at deleted files; the pre-generated examples had no drift guard.**
+  `artifacts/n8n-blueprints/README.md` (plus `docs/N8N-WORKFLOWS.md`, `docs/dev/PLANE-BACKENDS.md`,
+  `docs/BROKER.md`, `CONTRIBUTING.md`, `LICENSING.md`) still described a "backend library" and
+  "generator" at `artifacts/api-server/src/lib/n8n-backends.ts` / `n8n-generator.ts` — both removed
+  when the backend catalogue moved to `lib/backend-catalogue/src/backend-catalogue.ts` +
+  `n8n-generator.ts` with per-vendor JSON under `lib/backend-catalogue/vendors/backends/`. Repointed
+  every stale reference at the live files/route (`POST /api/setup/generate-workflow`) and the current
+  "author a JSON file, run `gen-vendors`" workflow. Separately, the five hand-committed example
+  workflows under `artifacts/n8n-blueprints/generated/` (asana, dynamics365, github, jira,
+  openproject) had no script or CI check keeping them in sync with `generateWorkflow()` + the current
+  vendor JSON, so they could silently rot. Added `scripts/src/gen-n8n-blueprints.ts`
+  (`pnpm --filter @workspace/scripts run gen-n8n-blueprints`), which regenerates each example from the
+  live (pure, deterministic) generator, wired into a new CI drift-check step mirroring the existing
+  gen-vendors/gen-function-map pattern. Regenerated and committed the five examples, whose action/
+  capability key order had drifted from alphabetical vendor-JSON ordering (same node graph — a
+  formatting-only diff).
 
 ### Documentation
+
+- **README rewritten to be audience-branched and plain-English-first.** The README
+  used to open with "broker seam" / "n8n" / "Kubernetes" / "SAP" — engineer-first
+  framing that reads as "not for me" to a non-technical charity ops director or SME
+  owner. It now opens with one plain-English sentence of value, then three clearly
+  labelled doors — **for small teams & charities**, **for enterprises**, **for
+  engineers** — each a short paragraph in that audience's own language, linking to
+  the right deep doc (`docs/SMALL-ORG-GUIDE.md`, `docs/ENTERPRISE-READINESS.md`,
+  `docs/ARCHITECTURE.md` + `docs/READING-GUIDE.md`). All the existing technical depth
+  (architecture, broker-agnostic design, self-host details) is kept, moved below the
+  fold under "How OmniProject works" — nothing was deleted, only reordered and
+  re-framed. The small-org quick-start section now also mentions the "We're a
+  charity" one-click preset.
 
 - **Speed / responsiveness / design-patterns review (`docs/PERF-PATTERNS-REVIEW.md`).** A staff-engineering
   pass (155 files, 60 findings) for the 60-programme/200-project scale target. Verdict: no correctness bugs, but

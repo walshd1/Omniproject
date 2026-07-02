@@ -1,14 +1,46 @@
 # OmniProject
 
-> **A read-through overlay for programme & project management — with finance,
-> time and resource tracking — and no database of its own.**
-> Your existing tools stay the single source of truth; OmniProject is just a
-> different view onto them. It **fits the stack you already have** — from the whole
-> thing on a single Docker host, to Kubernetes, in front of anything from a team's
-> Jira to an enterprise's SAP — and reaches them through one **swappable broker
-> seam** defined by a [published contract](docs/CONTRACT.md). OmniProject is
-> **broker-agnostic by design, with n8n as the reference broker**; **if you run
-> something else, you implement the contract and it copes.**
+**OmniProject gives you one dashboard across all your project tools, without copying any of your data out of them.**
+
+It's free to self-host (Apache-2.0), and it works alongside what you already use — a
+spreadsheet, Trello, Jira, OpenProject, SAP, whatever — instead of asking you to move
+into something new. Pick the door that's you:
+
+## 🧑‍🤝‍🧑 For small teams & charities
+
+You're already using something to track your work — a spreadsheet, Trello, Jira,
+OpenProject. Keep it. OmniProject sits on top and gives you a dashboard, a board view
+and simple reports, without you changing how your team works or moving your data
+anywhere. It doesn't keep its own copy of anything — nothing of yours gets copied
+into OmniProject, so there's nothing new to back up, secure or worry about leaking.
+It's **free to self-host, with no per-seat fees**, has a bundled login system so you
+don't need corporate IT, and a one-click **"We're a charity"** setup gives you a
+trustee report and a funder report ready to go. Full walkthrough, written for
+non-technical readers: **[docs/SMALL-ORG-GUIDE.md](docs/SMALL-ORG-GUIDE.md)**.
+
+## 🏢 For enterprises
+
+Any serious evaluation starts with two objections: *"we're not ripping out Jira/SAP/
+ServiceNow"* and *"this can't become a new place our data can leak from."* OmniProject
+is built to answer both by design, not by policy — it keeps no database of its own, so
+every read and write goes live to the system that already owns the data, and there's
+no copy of your data sitting in a new place to secure, audit or lose. The buyer-panel
+gap analysis (CEO, Finance, Compliance, CISO, IT, Projects — what's delivered today,
+what's not, cited to source): **[docs/ENTERPRISE-READINESS.md](docs/ENTERPRISE-READINESS.md)**.
+
+## 🛠️ For engineers
+
+OmniProject is a **stateless, zero-at-rest, broker-agnostic overlay**: every read and
+write is brokered *live* to your real backend through one swappable seam (a published,
+generated contract), with n8n as the reference broker — swap it for anything that
+implements the same contract and nothing above the seam moves. Start with
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** (the one-sitting system overview),
+then **[docs/READING-GUIDE.md](docs/READING-GUIDE.md)** (subsystem → entry-point map).
+The rest of this README goes deep on the same material below.
+
+---
+
+## How OmniProject works
 
 Most "single pane of glass" tools quietly become a *second* place your data
 lives: they copy issues into their own store, and then you spend your life
@@ -333,8 +365,11 @@ get projects, boards, reports and dashboards for **no per-seat cost**. Pick your
 context in the setup wizard (**Business/SME · Non-profit/charity · Self-hosted**) so
 plain HTTP-on-a-LAN and the bundled IdP just work, and lean on the charity/SME
 starter templates (**grant tracking**, **fundraising pipeline**, **volunteer
-roster**) plus the copilot's charity/SME lenses. Full walkthrough of what you need
-and what you can safely skip: **[docs/SMALL-ORG-GUIDE.md](docs/SMALL-ORG-GUIDE.md)**.
+roster**) plus the copilot's charity/SME lenses. A charity can go further in one
+click: the setup wizard's **"We're a charity"** button switches to the non-profit
+profile *and* adds a **trustee report** and a **funder report** to your dashboards
+in a single step — no separate widget-picking required. Full walkthrough of what you
+need and what you can safely skip: **[docs/SMALL-ORG-GUIDE.md](docs/SMALL-ORG-GUIDE.md)**.
 
 ---
 

@@ -97,12 +97,13 @@ Workflow building draws the boundary in exactly the same place — and it's wort
 being precise, because workflows touch *all three* categories:
 
 - **The tools to build workflows are open** (Apache-2.0, ungated). The workflow
-  generator (`lib/n8n-generator.ts`), the per-backend manifest library
-  (`lib/n8n-backends.ts`), the n8n contract, the `verify-workflow` probe, and the
+  generator (`lib/backend-catalogue/src/n8n-generator.ts`), the per-backend
+  manifest library (`lib/backend-catalogue/src/backend-catalogue.ts` + the
+  vendor JSON), the n8n contract, the `verify-workflow` probe, and the
   ability to hand-write or generate a workflow for any **standard** backend
   (Jira, GitHub, GitLab, Azure DevOps, OpenProject, Plane, ServiceNow, Asana,
   Monday, Trello, Wrike, ClickUp) are free. So is **adding your own backend** —
-  drop a `BackendManifest` in and the generator/wizard/verifier pick it up. See
+  drop a backend JSON file in and the generator/wizard/verifier pick it up. See
   [docs/N8N-WORKFLOWS.md](docs/N8N-WORKFLOWS.md) and [docs/BROKER.md](docs/BROKER.md).
 - **Only the prebuilt *enterprise* workflows are a licensed feature.** Generating
   the ready-to-import workflows for the heavyweight backbones (SAP S/4HANA, Oracle

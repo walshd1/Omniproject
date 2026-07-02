@@ -66,9 +66,10 @@ CI fails on codegen drift, so commit the regenerated output.
 
 ## Adding a backend
 
-Backends are declarative. Add a manifest to
-[`artifacts/api-server/src/lib/n8n-backends.ts`](artifacts/api-server/src/lib/n8n-backends.ts)
-and the generator emits an importable n8n workflow — see
+Backends are declarative. Add a JSON manifest under
+[`lib/backend-catalogue/vendors/backends/`](lib/backend-catalogue/vendors/backends/)
+(run `pnpm --filter @workspace/scripts run gen-vendors` to embed it) and the
+generator emits an importable n8n workflow — see
 [docs/N8N-WORKFLOWS.md](docs/N8N-WORKFLOWS.md). Standard backends are free; the
 large ERPs (SAP, Primavera, …) are gated as enterprise — match the existing
 pattern.

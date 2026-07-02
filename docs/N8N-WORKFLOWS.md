@@ -27,8 +27,13 @@ The workflow must reply with `{ success, data, message }` (the `N8nActionResult`
 
 ## Backend library
 
-`artifacts/api-server/src/lib/n8n-backends.ts` holds a **manifest** per backend.
-Each action is implemented by one of two transports:
+`lib/backend-catalogue/src/backend-catalogue.ts` holds the `BACKENDS` array — a
+**manifest** per backend (`BackendDefinition`, the broker-neutral
+`BackendManifest` flattened with its n8n `N8nBinding`). Each backend's DATA is
+authored as its own JSON file under `lib/backend-catalogue/vendors/backends/<id>.json`
+(validated against `lib/backend-catalogue/vendors/schema/backend.schema.json`
+and embedded by `pnpm --filter @workspace/scripts run gen-vendors`). Each
+action is implemented by one of two transports:
 
 - **Native n8n node** — where n8n ships a maintained node for the tool, the
   generated workflow uses *that node* with an n8n credential. This deliberately
@@ -108,9 +113,11 @@ Route(action) → per-action HTTP node → Normalize → Respond`, plus a
 The **tools to build workflows are open** — only the *prebuilt enterprise
 integrations* are licensed:
 
-- **Free, Apache-2.0, ungated:** the generator (`lib/n8n-generator.ts`), the
-  manifest library (`lib/n8n-backends.ts`), the contract above, the verifier, and
-  generating a workflow for any **standard** backend (Jira, GitHub, GitLab, Azure
+- **Free, Apache-2.0, ungated:** the generator
+  (`lib/backend-catalogue/src/n8n-generator.ts`), the manifest library
+  (`lib/backend-catalogue/src/backend-catalogue.ts` + the vendor JSON), the
+  contract above, the verifier, and generating a workflow for any **standard**
+  backend (Jira, GitHub, GitLab, Azure
   DevOps, OpenProject, Plane, ServiceNow, Asana, Monday, Trello, Wrike, ClickUp).
   [Adding your own backend](#adding-a-backend) is free too — nothing about *how*
   to build a workflow is black-boxed.
@@ -187,9 +194,12 @@ fan-out, which stays Redis.
 
 ## Adding a backend
 
-Add a `BackendManifest` to `n8n-backends.ts` (URLs are n8n expressions using
-`$env.*` and `$json.body.payload.*`). The generator, wizard, verifier, and the
-unit tests pick it up automatically — no other change required.
+Drop a new `<id>.json` file under `lib/backend-catalogue/vendors/backends/`
+(URLs are n8n expressions using `$env.*` and `$json.body.payload.*`), validated
+against `lib/backend-catalogue/vendors/schema/backend.schema.json`, then run
+`pnpm --filter @workspace/scripts run gen-vendors` to embed it. The generator,
+wizard, verifier, and the unit tests pick it up automatically — no other change
+required. See `docs/dev/PLANE-BACKENDS.md` for the shape.
 
 See also: [DATA-REQUIREMENTS.md](DATA-REQUIREMENTS.md) ·
 [TECHNICAL.md](TECHNICAL.md) · [the blueprints](../artifacts/n8n-blueprints/).

@@ -5,6 +5,31 @@ import type { DashboardPreset } from "./dashboard-preset-catalogue";
 
 export const DASHBOARD_PRESETS_DATA: DashboardPreset[] = [
   {
+    "id": "funder-report",
+    "role": "funder",
+    "name": "Funder report",
+    "summary": "What a grant funder wants to see: progress and budget trend against plan, how many projects the funding covers, status at a glance, and a recent-activity evidence trail.",
+    "order": 81,
+    "widgets": [
+      {
+        "type": "portfolioTrends",
+        "span": 2
+      },
+      {
+        "type": "statusBreakdown",
+        "span": 1
+      },
+      {
+        "type": "projectCount",
+        "span": 1
+      },
+      {
+        "type": "recentActivity",
+        "span": 1
+      }
+    ]
+  },
+  {
     "id": "head-of-projects-today",
     "role": "head-of-projects",
     "name": "What needs me today — Head of Projects",
@@ -76,6 +101,31 @@ export const DASHBOARD_PRESETS_DATA: DashboardPreset[] = [
       {
         "type": "portfolioTrends",
         "span": 2
+      },
+      {
+        "type": "recentActivity",
+        "span": 1
+      }
+    ]
+  },
+  {
+    "id": "trustee-report",
+    "role": "trustee",
+    "name": "Trustee report",
+    "summary": "Board-pack lens for charity trustees: portfolio-wide RAG health, the trend over time, and where things stand today — no finance detail, just governance oversight.",
+    "order": 80,
+    "widgets": [
+      {
+        "type": "portfolioHealth",
+        "span": 3
+      },
+      {
+        "type": "portfolioTrends",
+        "span": 2
+      },
+      {
+        "type": "statusBreakdown",
+        "span": 1
       },
       {
         "type": "recentActivity",
