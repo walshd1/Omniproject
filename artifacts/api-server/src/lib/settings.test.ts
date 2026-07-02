@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { updateSettings, getSettings, SettingsValidationError } from "./settings";
 
 afterEach(() => {
-  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, customReports: [], reportOverrides: [] }); // reset shared store
+  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, customReports: [], reportOverrides: [], contentPages: [] }); // reset shared store
 });
 
 test("reportOverrides: accepts partial metadata overrides and rejects bad shape", () => {
@@ -26,6 +26,20 @@ test("customReports: accepts a well-formed bespoke report and rejects bad shape"
   assert.throws(() => updateSettings({ customReports: [{ id: "r2", label: "x", scope: "nope", metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "table" }] }), SettingsValidationError); // bad scope
   assert.throws(() => updateSettings({ customReports: [{ id: "r3", label: "x", scope: "project", metrics: [], viz: "table" }] }), SettingsValidationError); // no metrics
   assert.throws(() => updateSettings({ customReports: [{ id: "r4", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "median" }], viz: "table" }] }), SettingsValidationError); // bad agg
+});
+
+test("contentPages: accepts a well-formed page and persists the component-id order", () => {
+  const ok = updateSettings({ contentPages: [{ id: "p1", name: "Exec view", componentIds: ["report:evm", "widget:portfolioHealth"] }] });
+  assert.equal(ok.contentPages.length, 1);
+  assert.deepEqual(getSettings().contentPages[0]!.componentIds, ["report:evm", "widget:portfolioHealth"]);
+});
+
+test("contentPages: rejects a non-array, a page missing id/name, and non-string componentIds", () => {
+  assert.throws(() => updateSettings({ contentPages: "nope" as unknown as [] }), SettingsValidationError);
+  assert.throws(() => updateSettings({ contentPages: [{ name: "no id", componentIds: [] }] as never }), SettingsValidationError);
+  assert.throws(() => updateSettings({ contentPages: [{ id: "p", componentIds: [] }] as never }), SettingsValidationError); // no name
+  assert.throws(() => updateSettings({ contentPages: [{ id: "p", name: "x", componentIds: [1, 2] }] as never }), SettingsValidationError); // non-string ids
+  assert.throws(() => updateSettings({ contentPages: [{ id: "p", name: "x" }] as never }), SettingsValidationError); // missing componentIds
 });
 
 test("reportingCurrency: accepts a 3-letter ISO code (upper-cased), null to clear, rejects junk", () => {

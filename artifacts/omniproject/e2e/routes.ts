@@ -19,6 +19,7 @@ export const ROUTES: RouteCase[] = [
   { pattern: "/", path: "/" },
   { pattern: "/my-work", path: "/my-work" },
   { pattern: "/dashboards", path: "/dashboards" },
+  { pattern: "/content", path: "/content" },
   { pattern: "/programmes", path: "/programmes" },
   { pattern: "/programmes/:programmeId", path: "/programmes/prog-platform" },
   { pattern: "/projects", path: "/projects" },

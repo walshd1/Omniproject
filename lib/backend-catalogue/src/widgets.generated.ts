@@ -17,7 +17,8 @@ export const WIDGETS_DATA: WidgetDefinition[] = [
     "label": "Portfolio health",
     "description": "RAG health cards across the portfolio.",
     "defaultSpan": 3,
-    "order": 10
+    "order": 10,
+    "refresh": 60
   },
   {
     "type": "portfolioTrends",

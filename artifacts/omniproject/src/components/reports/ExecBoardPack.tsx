@@ -4,6 +4,7 @@ import {
   useListProjects, useGetSettings, useGetPortfolioHealth,
   getGetProjectFinancialsQueryOptions, type ProjectFinancials,
 } from "@workspace/api-client-react";
+import { componentsFor } from "@workspace/backend-catalogue";
 import { useFxRates, currencyList } from "../../lib/currency";
 import { consolidateFinancials, type ProjectFin } from "../../lib/portfolio-finance";
 import { buildExecHealth, execHeadline, type ExecException, type Rag } from "../../lib/exec-pack";
@@ -11,12 +12,19 @@ import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { SnapshotButton } from "./SnapshotControls";
+import { LibraryComponentView } from "../library/LibraryComponentView";
+import { resolveLibraryComponent } from "../../lib/component-library";
 
 /**
  * Executive / board reporting pack — one consolidated, board-ready view across the whole portfolio:
  * the headline narrative, the RAG spread, the consolidated financials (in one reporting currency), and
  * the exceptions that need a board decision. Composes the existing portfolio-health + financial roll-ups;
  * snapshot-able so a dated, signed board pack can be frozen. STATELESS — derived live, nothing stored.
+ *
+ * Beyond the fixed sections, the board pack can be extended with ANY component from the unified
+ * library's "export" surface (componentsFor("export") — every report + widget) — picked ad hoc per
+ * session, not a hardcoded set. The picker only offers components that resolve to a real inline
+ * renderer (skips surfaced-via reports, which have nowhere to render here).
  */
 
 const RAG_STYLE: Record<Rag, { dot: string; text: string }> = {
@@ -66,6 +74,12 @@ export function ExecBoardPack() {
   const { data: fx } = useFxRates();
   const { data: settings } = useGetSettings();
   const [reporting, setReporting] = useState("");
+  // Extra library components chosen for THIS board pack, on top of the fixed sections below —
+  // componentsFor("export") is the same unified library the Reports page + dashboards draw from.
+  // Only offer components with a real inline renderer (a surfaced-via report has nowhere to render).
+  const extraCatalogue = useMemo(() => componentsFor("export").filter((c) => resolveLibraryComponent(c)), []);
+  const [extraIds, setExtraIds] = useState<string[]>([]);
+  const extras = extraCatalogue.filter((c) => extraIds.includes(c.id));
 
   const ids = useMemo(() => (projects ?? []).map((p) => p.id), [projects]);
   // `combine` keeps the per-project financials array referentially stable across renders that
@@ -102,6 +116,9 @@ export function ExecBoardPack() {
     health: { rag: execHealth.rag, atRiskPct: execHealth.atRiskPct, totalBlockers: execHealth.totalBlockers, worstSlipDays: execHealth.worstSlipDays },
     financials: hasFinancials ? { budget: fin.budget, actual: fin.actual, forecast: fin.forecast, variance: fin.variance } : null,
     exceptions: execHealth.exceptions,
+    // Which extra library components were chosen for THIS pack (id + label only — their own figures
+    // aren't reduced to JSON here; they render live below and are captured by their own export path).
+    extraComponents: extras.map((c) => ({ id: c.id, label: c.label })),
   };
 
   return (
@@ -176,6 +193,41 @@ export function ExecBoardPack() {
               </div>
             )}
           </div>
+
+          {extraCatalogue.length > 0 && (
+            <div data-testid="exec-pack-extras">
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Additional components</h3>
+                <select
+                  aria-label="Add component to board pack"
+                  className="rounded-none border border-border bg-background px-2 py-1 text-xs"
+                  value=""
+                  onChange={(e) => { if (e.target.value) setExtraIds((ids) => [...ids, e.target.value]); e.target.value = ""; }}
+                >
+                  <option value="">+ Add component…</option>
+                  {extraCatalogue.filter((c) => !extraIds.includes(c.id)).map((c) => (
+                    <option key={c.id} value={c.id}>{c.label} ({c.source})</option>
+                  ))}
+                </select>
+              </div>
+              {extras.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Optionally add any report or widget from the component library to this pack.</p>
+              ) : (
+                <div className="space-y-4">
+                  {extras.map((c) => (
+                    <div key={c.id} data-testid={`exec-pack-extra-${c.id}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-black uppercase tracking-wider">{c.label}</span>
+                        <button type="button" aria-label={`Remove ${c.label} from board pack`} className="px-1.5 border border-red-500 text-red-500 text-[10px]"
+                          onClick={() => setExtraIds((ids) => ids.filter((id) => id !== c.id))}>✕</button>
+                      </div>
+                      <LibraryComponentView component={c} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <p className="text-[11px] text-muted-foreground">
             Consolidated live from portfolio health{hasFinancials ? ` + financials (into ${target}${fx?.provenance ? `, FX ${fx.provenance}` : ""})` : ""}.

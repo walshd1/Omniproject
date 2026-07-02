@@ -211,6 +211,14 @@ export interface SettingsState {
    * and never holds project data. Rides the snapshot/export. See routes/report-overrides.
    */
   reportOverrides: ReportOverride[];
+  /**
+   * Named content pages: an ordered, flat list of unified-library component ids (reports + widgets,
+   * see @workspace/backend-catalogue componentsFor("content")) a customer composes into free-form
+   * content, rendered through the generic content-page renderer. Same shared-config shape as
+   * customReports — customer-level presentation config, rides the snapshot/export, never project
+   * data. See routes/content-pages + the SPA contentPages feature module.
+   */
+  contentPages: ContentPageDef[];
 }
 
 /** A named saved view: which columns, sort, filters and grouping to apply (all optional, so a view
@@ -285,6 +293,19 @@ export interface ReportOverride {
   order?: number;
   /** Hide the built-in report from the picker/page without removing it from the catalogue. */
   hidden?: boolean;
+}
+
+/**
+ * A named content page: a flat, ordered list of unified-library component ids ("report:evm",
+ * "widget:portfolioHealth", …) rendered one after another. Deliberately minimal — no layout engine,
+ * no per-instance overrides — a content page is "pick components, put them in order". Each
+ * component's own `refresh` (see LibraryComponent) drives its polling; the page adds nothing on top.
+ */
+export interface ContentPageDef {
+  id: string;
+  name: string;
+  /** Library component ids, in display order (e.g. ["report:evm", "widget:portfolioHealth"]). */
+  componentIds: string[];
 }
 
 /** One user's persisted UI/accessibility preferences. */
@@ -447,6 +468,7 @@ const store: SettingsState = {
   customReports: [],
   reportOverrides: [],
   dashboards: [],
+  contentPages: [],
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
@@ -482,6 +504,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "customReports",
   "reportOverrides",
   "dashboards",
+  "contentPages",
 ];
 
 /** A snapshot copy of the current in-memory settings (never the live reference). */
@@ -601,6 +624,19 @@ function validateReportOverrides(value: unknown): void {
   }
 }
 
+/** Shape-validate the content-page list: id/name required; componentIds an array of strings (existence
+ *  against the live catalogue is NOT enforced here — same forward-compat stance as reportOverrides, so a
+ *  component removed/renamed in a later release doesn't brick a previously-saved page). */
+function validateContentPages(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("contentPages must be an array");
+  for (const p of value) {
+    const o = p as Record<string, unknown>;
+    if (!o || typeof o !== "object" || typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each content page needs a string id");
+    if (typeof o["name"] !== "string" || !o["name"]) throw new SettingsValidationError(`content page "${String(o["id"])}" needs a name`);
+    if (!isStringArray(o["componentIds"])) throw new SettingsValidationError(`content page "${String(o["id"])}" componentIds must be an array of strings`);
+  }
+}
+
 function validatePatch(patch: Record<string, unknown>): void {
   if ("aiProvider" in patch && !(AI_PROVIDERS as readonly string[]).includes(patch["aiProvider"] as string)) {
     throw new SettingsValidationError(`aiProvider must be one of: ${AI_PROVIDERS.join(", ")}`);
@@ -682,6 +718,7 @@ function validatePatch(patch: Record<string, unknown>): void {
   }
   if ("customReports" in patch) validateCustomReports(patch["customReports"]);
   if ("reportOverrides" in patch) validateReportOverrides(patch["reportOverrides"]);
+  if ("contentPages" in patch) validateContentPages(patch["contentPages"]);
   if ("dashboards" in patch) {
     const v = patch["dashboards"];
     if (!Array.isArray(v)) throw new SettingsValidationError("dashboards must be an array");

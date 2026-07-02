@@ -6,6 +6,29 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Unified component library — follow-on slices: declarative refresh, content pages, board-pack
+  extras.** Three gaps left open by the original component-library unification (`lib/backend-catalogue/src/component-library.ts`)
+  are now wired into real production code, not just tests:
+  - **Declarative auto-refresh.** `LibraryComponent` gained an optional `refresh?: number` (seconds),
+    authored per report/widget JSON (`assets/reports/*.json`, `assets/widgets/*.json`, new
+    `refresh` schema field) and threaded through `componentLibrary()`. The new SPA
+    `LibraryComponentView` (`components/library/LibraryComponentView.tsx`) polls (invalidates active
+    queries) on that cadence — so a component declares its own refresh interval instead of each
+    renderer hardcoding its own `setInterval`.
+  - **Content pages** — a new, minimal surface for the `"content"` placement (previously
+    type-only/test-only). PMOs compose named pages as a flat, ordered list of library component ids
+    under Settings → Content pages (`components/settings/ContentPagesAdmin.tsx`), persisted as
+    `settings.contentPages` via `GET/PUT /api/content-pages` (open read, PMO-gated write — same
+    shape as the report generator's `customReports`). Everyone views them at the new `/content`
+    route (`pages/ContentPages.tsx`), gated by a new `contentPages` feature module.
+  - **Board-pack extras** — the `"export"` placement (previously unused outside tests) is now wired
+    into `ExecBoardPack`: a picker lets the user add any `componentsFor("export")` component to the
+    board pack ad hoc, on top of the fixed sections, instead of only ever capturing a hardcoded set.
+  - `drillTo`/backlog #122 is intentionally NOT part of this slice — `LibraryComponent`/`renderer`
+    are left extensible for it.
+
 ### Documentation
 
 - **Documentation-linking and cross-reference pass.** Every doc under `docs/` is now

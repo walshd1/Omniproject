@@ -37,6 +37,7 @@
     "tools": { "type": "array", "items": { "type": "string" } },
     "notes": { "type": "string" },
     "methodologies": { "type": "array", "description": "Methodology TAGS this report belongs to (\"*\" or omitted = neutral / all).", "items": { "type": "string" } },
-    "order": { "type": "integer", "description": "Display order in the report picker." }
+    "order": { "type": "integer", "description": "Display order in the report picker." },
+    "refresh": { "type": "integer", "minimum": 1, "description": "Auto-refresh interval in seconds when rendered as a library component (dashboard/content/export surfaces). Omitted = no auto-refresh." }
   }
 }
