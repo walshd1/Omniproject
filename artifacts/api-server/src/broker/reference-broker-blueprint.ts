@@ -77,7 +77,7 @@ export const backend = {
   async projectFinancials(_ctx: ActorCtx, _projectId: string): Promise<Row> { throw new NotImplemented("projectFinancials"); },
   async notifications(_ctx: ActorCtx): Promise<Row[]> { throw new NotImplemented("notifications"); },
   async capabilities(_ctx: ActorCtx): Promise<Row> { throw new NotImplemented("capabilities"); },
-  async fxRates(_ctx: ActorCtx): Promise<Row> { throw new NotImplemented("fxRates"); },
+  async fxRates(_ctx: ActorCtx, _asOf?: string): Promise<Row> { throw new NotImplemented("fxRates"); },
   async replay(_ctx: ActorCtx, _from?: string, _to?: string): Promise<Row[]> { throw new NotImplemented("replay"); },
   async activity(_ctx: ActorCtx): Promise<Row[]> { throw new NotImplemented("activity"); },
   // Writes — honour optimistic concurrency on update (expectedVersion → 409).
@@ -150,7 +150,7 @@ const BINDING_ACTIONS: Record<string, (b: BindingCtx) => unknown> = {
   get_resource_capacity: ({ be, ctx, pid }) => be.resourceCapacity(ctx, pid),
   get_project_financials: ({ be, ctx, pid }) => be.projectFinancials(ctx, pid),
   get_capabilities: ({ be, ctx }) => be.capabilities(ctx),
-  get_fx_rates: ({ be, ctx }) => be.fxRates(ctx),
+  get_fx_rates: ({ be, ctx, payload }) => be.fxRates(ctx, payload["asOf"] as string | undefined),
   replay: ({ be, ctx, payload }) => be.replay(ctx, payload["from"] as string, payload["to"] as string),
   list_activity: ({ be, ctx }) => be.activity(ctx),
   create_project: ({ be, ctx, payload }) => be.createProject(ctx, payload),

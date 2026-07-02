@@ -67,4 +67,15 @@ describe("Settings", () => {
     renderWithProviders(<A11yProvider><PlatformProvider><Settings /></PlatformProvider></A11yProvider>, { client: seed(settings({ aiProvider: "none" })) });
     expect(screen.queryByRole("button", { name: /test connection/i })).not.toBeInTheDocument();
   });
+
+  it("shows the FX as-of-date input only when the policy isn't spot", () => {
+    renderWithProviders(<A11yProvider><PlatformProvider><Settings /></PlatformProvider></A11yProvider>, { client: seed(settings({ fxRatePolicy: "spot" })) });
+    expect(screen.getByText(/fx as-of-date policy/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^$/i, { selector: "#fx-rate-as-of-date" })).not.toBeInTheDocument();
+  });
+
+  it("pre-fills the FX as-of-date once the policy is period-close", () => {
+    renderWithProviders(<A11yProvider><PlatformProvider><Settings /></PlatformProvider></A11yProvider>, { client: seed(settings({ fxRatePolicy: "periodClose", fxRateAsOfDate: "2026-06-30" })) });
+    expect(screen.getByDisplayValue("2026-06-30")).toBeInTheDocument();
+  });
 });

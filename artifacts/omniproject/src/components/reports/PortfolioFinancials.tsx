@@ -1,12 +1,19 @@
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useListProjects, useGetSettings, getGetProjectFinancialsQueryOptions, type ProjectFinancials } from "@workspace/api-client-react";
-import { useFxRates, currencyList } from "../../lib/currency";
+import { useFxRates, resolveFxAsOf, currencyList } from "../../lib/currency";
 import { consolidateFinancials, type ProjectFin, type FinanceRollup } from "../../lib/portfolio-finance";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { SnapshotButton } from "./SnapshotControls";
+
+/** Human label for the org's FX as-of-date policy, for the footnote. */
+const FX_POLICY_LABEL: Record<string, string> = {
+  spot: "today's spot rate",
+  periodClose: "the period-close rate",
+  budgetRate: "the budget-set rate",
+};
 
 /**
  * Portfolio Financials (consolidated) — budget vs actual vs forecast across the whole portfolio, with
@@ -21,10 +28,20 @@ function VarianceCell({ v, money }: { v: number; money: (n: number) => string })
   return <span className={`tabular-nums font-black ${over ? "text-red-500" : "text-green-600"}`}>{over ? "" : "+"}{money(v)}</span>;
 }
 
-function Row({ r, money }: { r: FinanceRollup; money: (n: number) => string }) {
+function Row({ r, money, target, formatCurrency }: { r: FinanceRollup; money: (n: number) => string; target: string; formatCurrency: (n: number, currency: string) => string }) {
+  // A row still in its own single currency (most Standalone rows; a single-country programme) shows
+  // that local figure alongside the consolidated total — dropped once a row mixes ≥2 currencies.
+  const showLocal = !!r.localCurrency && r.localCurrency !== target && !!r.local;
   return (
     <tr className="border-b border-border/50" data-testid={`portfolio-fin-row-${r.key}`}>
-      <td className="py-2 pr-3 font-bold">{r.label}</td>
+      <td className="py-2 pr-3 font-bold">
+        {r.label}
+        {showLocal && (
+          <div className="text-[10px] font-normal text-muted-foreground" data-testid={`portfolio-fin-row-${r.key}-local`}>
+            {formatCurrency(r.local!.budget, r.localCurrency!)} local budget
+          </div>
+        )}
+      </td>
       <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{r.projects}</td>
       <td className="py-2 px-2 text-right tabular-nums">{money(r.budget)}</td>
       <td className="py-2 px-2 text-right tabular-nums">{money(r.actual)}</td>
@@ -38,8 +55,8 @@ function Row({ r, money }: { r: FinanceRollup; money: (n: number) => string }) {
 export function PortfolioFinancials() {
   const { formatCurrency } = useT();
   const { data: projects, isLoading: projLoading, isError, error, refetch } = useListProjects();
-  const { data: fx } = useFxRates();
   const { data: settings } = useGetSettings();
+  const { data: fx } = useFxRates(resolveFxAsOf(settings));
   const [reporting, setReporting] = useState<string>("");
 
   const ids = useMemo(() => (projects ?? []).map((p) => p.id), [projects]);
@@ -89,7 +106,14 @@ export function PortfolioFinancials() {
               <SnapshotButton
                 scope="portfolio-financials"
                 label={`Portfolio financials (${target})`}
-                data={{ reportingCurrency: target, asOf: fx?.asOf ?? null, fxProvenance: fx?.provenance ?? null, portfolio: consolidated.portfolio, programmes: consolidated.programmes }}
+                data={{
+                  reportingCurrency: target,
+                  fxRatePolicy: settings?.fxRatePolicy ?? "spot",
+                  asOf: fx?.asOf ?? null,
+                  fxProvenance: fx?.provenance ?? null,
+                  portfolio: consolidated.portfolio,
+                  programmes: consolidated.programmes,
+                }}
               />
             </div>
           </div>
@@ -108,7 +132,7 @@ export function PortfolioFinancials() {
                 </tr>
               </thead>
               <tbody>
-                {consolidated.programmes.map((r) => <Row key={r.key} r={r} money={money} />)}
+                {consolidated.programmes.map((r) => <Row key={r.key} r={r} money={money} target={target} formatCurrency={formatCurrency} />)}
               </tbody>
             </table>
           </div>
@@ -116,7 +140,8 @@ export function PortfolioFinancials() {
           <p className="text-[11px] text-muted-foreground">
             Consolidated from {consolidated.currencyMix.length} currenc{consolidated.currencyMix.length === 1 ? "y" : "ies"}
             {consolidated.currencyMix.length > 1 ? ` (${consolidated.currencyMix.map((c) => `${c.currency}×${c.projects}`).join(", ")})` : ""} into {target}
-            {fx?.provenance ? ` · FX ${fx.provenance}${fx.asOf ? ` as of ${new Date(fx.asOf).toLocaleDateString("en-GB", { timeZone: "UTC" })}` : ""}` : ""}.
+            {" "}at {FX_POLICY_LABEL[settings?.fxRatePolicy ?? "spot"] ?? "today's spot rate"}
+            {fx?.provenance ? ` (FX ${fx.provenance}${fx.asOf ? ` as of ${new Date(fx.asOf).toLocaleDateString("en-GB", { timeZone: "UTC" })}` : ""})` : ""}.
             Variance = budget − forecast (EAC); CPI = earned value ÷ actual. Derived live; nothing is stored.
           </p>
         </div>

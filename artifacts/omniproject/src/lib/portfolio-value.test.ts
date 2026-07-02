@@ -23,6 +23,17 @@ describe("rollupIncome", () => {
     expect(portfolio.unbilled).toBe(400);
     expect(portfolio.billedPct).toBe(60);
   });
+
+  it("shows a local figure for a single-currency row, and nulls it once mixed", () => {
+    const { programmes, portfolio } = rollupIncome([
+      proj({ projectId: "a", programmeId: "eu", programmeName: "EU", currency: "EUR", items: [{ id: "1", title: "t", revenue: 500, invoicedAmount: 200 }] }),
+      proj({ projectId: "b", programmeId: "eu", programmeName: "EU", currency: "EUR", items: [{ id: "2", title: "t", revenue: 300, invoicedAmount: 100 }] }),
+    ], "GBP", { ...RATES, EUR: 1.1 });
+    const eu = programmes.find((p) => p.key === "eu")!;
+    expect(eu.localCurrency).toBe("EUR");
+    expect(eu.local).toEqual({ projected: 800, invoiced: 300 });
+    expect(portfolio.localCurrency).toBe("EUR"); // portfolio also single-currency here
+  });
 });
 
 describe("rollupBenefits", () => {
@@ -35,5 +46,18 @@ describe("rollupBenefits", () => {
     expect(portfolio.planned).toBe(200);
     expect(portfolio.actual).toBe(100);
     expect(portfolio.realisation).toBe(50);
+    // Both programmes are GBP-only, so the portfolio's local figure is still available.
+    expect(portfolio.localCurrency).toBe("GBP");
+    expect(portfolio.local).toEqual({ planned: 200, actual: 100, expected: 200 });
+  });
+
+  it("nulls localCurrency/local once a programme mixes currencies", () => {
+    const { programmes } = rollupBenefits([
+      proj({ projectId: "a", programmeId: "mixed", currency: "GBP", items: [{ id: "1", title: "t", plannedBenefitValue: 100, actualBenefitValue: 50, benefitConfidence: 100 }] }),
+      proj({ projectId: "b", programmeId: "mixed", currency: "USD", items: [{ id: "2", title: "t", plannedBenefitValue: 100, actualBenefitValue: 50, benefitConfidence: 100 }] }),
+    ], "GBP", RATES);
+    const mixed = programmes.find((p) => p.key === "mixed")!;
+    expect(mixed.localCurrency).toBeNull();
+    expect(mixed.local).toBeNull();
   });
 });

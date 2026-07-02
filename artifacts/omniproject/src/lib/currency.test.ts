@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { convertAmount, currencyList, firstCurrency } from "./currency";
+import { convertAmount, currencyList, firstCurrency, resolveFxAsOf } from "./currency";
 
 const rates = { GBP: 1, USD: 0.79, EUR: 0.85 };
 
@@ -37,5 +37,23 @@ describe("currencyList", () => {
 
   it("returns an empty list when rates are absent", () => {
     expect(currencyList(undefined)).toEqual([]);
+  });
+});
+
+describe("resolveFxAsOf", () => {
+  it("returns undefined (spot) when unset, absent, or explicitly spot", () => {
+    expect(resolveFxAsOf(undefined)).toBeUndefined();
+    expect(resolveFxAsOf({ fxRatePolicy: undefined, fxRateAsOfDate: "2026-06-30" })).toBeUndefined();
+    expect(resolveFxAsOf({ fxRatePolicy: "spot", fxRateAsOfDate: "2026-06-30" })).toBeUndefined();
+  });
+
+  it("returns the configured date for periodClose/budgetRate", () => {
+    expect(resolveFxAsOf({ fxRatePolicy: "periodClose", fxRateAsOfDate: "2026-06-30" })).toBe("2026-06-30");
+    expect(resolveFxAsOf({ fxRatePolicy: "budgetRate", fxRateAsOfDate: "2026-01-01" })).toBe("2026-01-01");
+  });
+
+  it("falls back to spot (undefined) when the policy is non-spot but no date is configured", () => {
+    expect(resolveFxAsOf({ fxRatePolicy: "periodClose", fxRateAsOfDate: null })).toBeUndefined();
+    expect(resolveFxAsOf({ fxRatePolicy: "periodClose", fxRateAsOfDate: undefined })).toBeUndefined();
   });
 });

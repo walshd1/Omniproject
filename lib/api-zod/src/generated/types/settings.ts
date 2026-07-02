@@ -9,6 +9,7 @@ import type { FieldMapOverride } from './fieldMapOverride';
 import type { LoggingSync } from './loggingSync';
 import type { SettingsAiProvider } from './settingsAiProvider';
 import type { SettingsDeploymentProfile } from './settingsDeploymentProfile';
+import type { SettingsFxRatePolicy } from './settingsFxRatePolicy';
 import type { SettingsSttProvider } from './settingsSttProvider';
 
 export interface Settings {
@@ -29,6 +30,13 @@ export interface Settings {
      * @nullable
      */
   reportingCurrency?: string | null;
+  /** Which FX rate consolidated reports convert at: "spot" (today's live rate), "periodClose" (the rate as of fxRateAsOfDate, e.g. the period the books closed at) or "budgetRate" (the rate as of fxRateAsOfDate treated as the rate the budget was set at, so variance isn't polluted by FX drift). A broker that can't serve a historical rate degrades to its live snapshot. */
+  fxRatePolicy?: SettingsFxRatePolicy;
+  /**
+     * ISO 8601 date the "as of" rate is read for when fxRatePolicy isn't "spot". Ignored (falls back to spot) when null.
+     * @nullable
+     */
+  fxRateAsOfDate?: string | null;
   /** @nullable */
   oidcIssuerUrl?: string | null;
   /** Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs/REVERSE-PROXY.md). */

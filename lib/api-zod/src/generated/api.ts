@@ -40,6 +40,10 @@ export const BrokerCommandResponse = zod.object({
  * Read-through FX rates for multi-currency portfolio comparison, sourced from the backend/ERP via the broker. Demo mode and live-read failures serve indicative sample rates (provenance "sample").
  * @summary Multi-currency FX rates
  */
+export const GetFxRatesQueryParams = zod.object({
+  "asOf": zod.coerce.string().optional().describe('ISO 8601 date to read the rate as of, implementing the FX as-of-date policy (period-close \/ budget rate) for consolidated reports. A broker that can\'t serve a historical rate degrades to its current live snapshot; always read live, never cached.')
+})
+
 export const GetFxRatesResponse = zod.object({
   "base": zod.string().describe('ISO 4217 code the rates are anchored to (e.g. \"GBP\").'),
   "rates": zod.record(zod.string(), zod.number()).describe('Map of ISO 4217 code → rate relative to base.'),
@@ -824,6 +828,8 @@ export const GetSettingsResponse = zod.object({
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
   "reportingCurrency": zod.string().nullish().describe('ISO 4217 code the consolidated financial reports default to (e.g. \"GBP\"). Empty\/absent ⇒ the FX table\'s base currency is used. Display-only — amounts are converted at view time via the broker FX rates; nothing is re-stored.'),
+  "fxRatePolicy": zod.enum(['spot', 'periodClose', 'budgetRate']).optional().describe('Which FX rate consolidated reports convert at: \"spot\" (today\'s live rate), \"periodClose\" (the rate as of fxRateAsOfDate, e.g. the period the books closed at) or \"budgetRate\" (the rate as of fxRateAsOfDate treated as the rate the budget was set at, so variance isn\'t polluted by FX drift). A broker that can\'t serve a historical rate degrades to its live snapshot.'),
+  "fxRateAsOfDate": zod.string().nullish().describe('ISO 8601 date the \"as of\" rate is read for when fxRatePolicy isn\'t \"spot\". Ignored (falls back to spot) when null.'),
   "oidcIssuerUrl": zod.string().nullish(),
   "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity\/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs\/REVERSE-PROXY.md).'),
   "loggingSync": zod.object({
@@ -854,6 +860,8 @@ export const UpdateSettingsBody = zod.object({
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().optional().describe('Free-form backend routing hint passed to the broker (see Settings.backendSource).'),
   "reportingCurrency": zod.string().nullish().describe('Default ISO 4217 reporting currency for consolidated financial reports (see Settings.reportingCurrency). Empty\/null clears it (falls back to the FX base).'),
+  "fxRatePolicy": zod.enum(['spot', 'periodClose', 'budgetRate']).optional().describe('Set the FX as-of-date policy (see Settings.fxRatePolicy).'),
+  "fxRateAsOfDate": zod.string().nullish().describe('Set the \"as of\" date used when fxRatePolicy isn\'t \"spot\" (see Settings.fxRateAsOfDate).'),
   "oidcIssuerUrl": zod.string().nullish(),
   "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs\/REVERSE-PROXY.md).'),
   "loggingSync": zod.object({
@@ -880,6 +888,8 @@ export const UpdateSettingsResponse = zod.object({
   "aiModel": zod.string().nullish(),
   "backendSource": zod.string().describe('Free-form backend routing hint passed to the broker (e.g. \"all\", \"jira\", \"azure-devops\", \"servicenow\", \"plane\", \"openproject\"). \"all\" means no filter — whatever the broker is wired to.'),
   "reportingCurrency": zod.string().nullish().describe('ISO 4217 code the consolidated financial reports default to (e.g. \"GBP\"). Empty\/absent ⇒ the FX table\'s base currency is used. Display-only — amounts are converted at view time via the broker FX rates; nothing is re-stored.'),
+  "fxRatePolicy": zod.enum(['spot', 'periodClose', 'budgetRate']).optional().describe('Which FX rate consolidated reports convert at: \"spot\" (today\'s live rate), \"periodClose\" (the rate as of fxRateAsOfDate, e.g. the period the books closed at) or \"budgetRate\" (the rate as of fxRateAsOfDate treated as the rate the budget was set at, so variance isn\'t polluted by FX drift). A broker that can\'t serve a historical rate degrades to its live snapshot.'),
+  "fxRateAsOfDate": zod.string().nullish().describe('ISO 8601 date the \"as of\" rate is read for when fxRatePolicy isn\'t \"spot\". Ignored (falls back to spot) when null.'),
   "oidcIssuerUrl": zod.string().nullish(),
   "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity\/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs\/REVERSE-PROXY.md).'),
   "loggingSync": zod.object({

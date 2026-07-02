@@ -935,6 +935,18 @@ export const SettingsSttProvider = {
 } as const;
 
 /**
+ * Which FX rate consolidated reports convert at: "spot" (today's live rate), "periodClose" (the rate as of fxRateAsOfDate, e.g. the period the books closed at) or "budgetRate" (the rate as of fxRateAsOfDate treated as the rate the budget was set at, so variance isn't polluted by FX drift). A broker that can't serve a historical rate degrades to its live snapshot.
+ */
+export type SettingsFxRatePolicy = typeof SettingsFxRatePolicy[keyof typeof SettingsFxRatePolicy];
+
+
+export const SettingsFxRatePolicy = {
+  spot: 'spot',
+  periodClose: 'periodClose',
+  budgetRate: 'budgetRate',
+} as const;
+
+/**
  * Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs/REVERSE-PROXY.md).
  */
 export type SettingsDeploymentProfile = typeof SettingsDeploymentProfile[keyof typeof SettingsDeploymentProfile];
@@ -989,6 +1001,13 @@ export interface Settings {
      * @nullable
      */
   reportingCurrency?: string | null;
+  /** Which FX rate consolidated reports convert at: "spot" (today's live rate), "periodClose" (the rate as of fxRateAsOfDate, e.g. the period the books closed at) or "budgetRate" (the rate as of fxRateAsOfDate treated as the rate the budget was set at, so variance isn't polluted by FX drift). A broker that can't serve a historical rate degrades to its live snapshot. */
+  fxRatePolicy?: SettingsFxRatePolicy;
+  /**
+     * ISO 8601 date the "as of" rate is read for when fxRatePolicy isn't "spot". Ignored (falls back to spot) when null.
+     * @nullable
+     */
+  fxRateAsOfDate?: string | null;
   /** @nullable */
   oidcIssuerUrl?: string | null;
   /** Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs/REVERSE-PROXY.md). */
@@ -1021,6 +1040,18 @@ export const SettingsUpdateSttProvider = {
 } as const;
 
 /**
+ * Set the FX as-of-date policy (see Settings.fxRatePolicy).
+ */
+export type SettingsUpdateFxRatePolicy = typeof SettingsUpdateFxRatePolicy[keyof typeof SettingsUpdateFxRatePolicy];
+
+
+export const SettingsUpdateFxRatePolicy = {
+  spot: 'spot',
+  periodClose: 'periodClose',
+  budgetRate: 'budgetRate',
+} as const;
+
+/**
  * Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs/REVERSE-PROXY.md).
  */
 export type SettingsUpdateDeploymentProfile = typeof SettingsUpdateDeploymentProfile[keyof typeof SettingsUpdateDeploymentProfile];
@@ -1049,6 +1080,13 @@ export interface SettingsUpdate {
      * @nullable
      */
   reportingCurrency?: string | null;
+  /** Set the FX as-of-date policy (see Settings.fxRatePolicy). */
+  fxRatePolicy?: SettingsUpdateFxRatePolicy;
+  /**
+     * Set the "as of" date used when fxRatePolicy isn't "spot" (see Settings.fxRateAsOfDate).
+     * @nullable
+     */
+  fxRateAsOfDate?: string | null;
   /** @nullable */
   oidcIssuerUrl?: string | null;
   /** Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs/REVERSE-PROXY.md). */
@@ -1263,6 +1301,13 @@ export interface Notification {
   read: boolean;
   timestamp: string;
 }
+
+export type GetFxRatesParams = {
+/**
+ * ISO 8601 date to read the rate as of, implementing the FX as-of-date policy (period-close / budget rate) for consolidated reports. A broker that can't serve a historical rate degrades to its current live snapshot; always read live, never cached.
+ */
+asOf?: string;
+};
 
 export type ReplayHistoryParams = {
 /**

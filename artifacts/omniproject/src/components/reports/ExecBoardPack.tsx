@@ -6,7 +6,7 @@ import {
   getGetProjectFinancialsQueryOptions, type ProjectFinancials,
 } from "@workspace/api-client-react";
 import { componentsFor, getComponent } from "@workspace/backend-catalogue";
-import { useFxRates, currencyList } from "../../lib/currency";
+import { useFxRates, resolveFxAsOf, currencyList } from "../../lib/currency";
 import { consolidateFinancials, type ProjectFin } from "../../lib/portfolio-finance";
 import { buildExecHealth, execHeadline, type ExecException, type Rag } from "../../lib/exec-pack";
 import { resolveDrillTo } from "../../lib/drill-to";
@@ -93,8 +93,8 @@ export function ExecBoardPack() {
   const { formatCurrency } = useT();
   const { data: projects, isLoading: projLoading, isError: projErr, error: projError, refetch } = useListProjects();
   const health = useGetPortfolioHealth();
-  const { data: fx } = useFxRates();
   const { data: settings } = useGetSettings();
+  const { data: fx } = useFxRates(resolveFxAsOf(settings));
   const [reporting, setReporting] = useState("");
   // Extra library components chosen for THIS board pack, on top of the fixed sections below —
   // componentsFor("export") is the same unified library the Reports page + dashboards draw from.
@@ -134,7 +134,7 @@ export function ExecBoardPack() {
   const hasFinancials = fin.projects > 0;
 
   const snapshotData = {
-    asOf: fx?.asOf ?? null, reportingCurrency: target,
+    asOf: fx?.asOf ?? null, reportingCurrency: target, fxRatePolicy: settings?.fxRatePolicy ?? "spot",
     health: { rag: execHealth.rag, atRiskPct: execHealth.atRiskPct, totalBlockers: execHealth.totalBlockers, worstSlipDays: execHealth.worstSlipDays },
     financials: hasFinancials ? { budget: fin.budget, actual: fin.actual, forecast: fin.forecast, variance: fin.variance } : null,
     exceptions: execHealth.exceptions,

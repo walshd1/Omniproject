@@ -12,7 +12,7 @@ import { usePortfolioItems } from "./use-portfolio-items";
  */
 export function PortfolioBenefits() {
   const { formatCurrency } = useT();
-  const { projects, loading, isError, error, refetch, target, rates } = usePortfolioItems();
+  const { projects, loading, isError, error, refetch, target, rates, fx } = usePortfolioItems();
   const { programmes, portfolio } = useMemo(() => rollupBenefits(projects, target, rates), [projects, target, rates]);
   const money = (n: number) => formatCurrency(n, target);
 
@@ -43,22 +43,33 @@ export function PortfolioBenefits() {
                 </tr>
               </thead>
               <tbody>
-                {programmes.map((r) => (
-                  <tr key={r.key} className="border-b border-border/50" data-testid={`portfolio-benefits-row-${r.key}`}>
-                    <td className="py-2 pr-3 font-bold">{r.label}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{r.projects}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{money(r.planned)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{money(r.actual)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{money(r.expected)}</td>
-                    <td className={`py-2 px-2 text-right tabular-nums font-black ${r.realisation < 50 ? "text-red-500" : r.realisation >= 100 ? "text-green-600" : ""}`}>{r.realisation}%</td>
-                  </tr>
-                ))}
+                {programmes.map((r) => {
+                  const showLocal = !!r.localCurrency && r.localCurrency !== target && !!r.local;
+                  return (
+                    <tr key={r.key} className="border-b border-border/50" data-testid={`portfolio-benefits-row-${r.key}`}>
+                      <td className="py-2 pr-3 font-bold">
+                        {r.label}
+                        {showLocal && (
+                          <div className="text-[10px] font-normal text-muted-foreground" data-testid={`portfolio-benefits-row-${r.key}-local`}>
+                            {formatCurrency(r.local!.planned, r.localCurrency!)} local planned
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{r.projects}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">{money(r.planned)}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">{money(r.actual)}</td>
+                      <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{money(r.expected)}</td>
+                      <td className={`py-2 px-2 text-right tabular-nums font-black ${r.realisation < 50 ? "text-red-500" : r.realisation >= 100 ? "text-green-600" : ""}`}>{r.realisation}%</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <p className="text-[11px] text-muted-foreground">
             Planned vs realised benefit value, consolidated into {target} and grouped by programme (worst realisation first).
-            Expected is the confidence-weighted forecast. Derived live; nothing is stored.
+            {fx?.provenance ? ` FX ${fx.provenance}${fx.asOf ? ` as of ${new Date(fx.asOf).toLocaleDateString("en-GB", { timeZone: "UTC" })}` : ""}.` : ""} Expected
+            is the confidence-weighted forecast. Derived live; nothing is stored.
           </p>
         </div>
       )}
