@@ -88,7 +88,7 @@ artifacts/
     src/store/         # Zustand UI state
   api-server/         # Express gateway
     src/routes/        # health, auth, broker-command, projects, portfolio, ai, export
-    src/broker/        # the Broker seam — types.ts, index.ts, n8n.ts (only n8n-aware
+    src/broker/        # the Broker seam — types.ts, index.ts, n8n/index.ts (only n8n-aware
                        # code), demo.ts (see docs/BROKER.md)
     src/lib/           # oidc.ts, settings.ts, data.ts (broker facade), ai.ts,
                        # api-token.ts, rate-limit.ts, csv.ts, xlsx.ts, logger.ts
@@ -178,7 +178,7 @@ Generate tokens with `openssl rand -hex 32`.
 ## 3. The n8n integration contract
 
 > This is the **N8nBroker's** wire contract — the webhook envelope, headers and
-> action catalogue live *inside the adapter* (`src/broker/n8n.ts`), under the
+> action catalogue live *inside the adapter* (`src/broker/n8n/index.ts`), under the
 > `Broker` seam (§1, [BROKER.md](BROKER.md)). Nothing above the seam sees any of
 > it. It is documented here because n8n is the implementation operators wire up.
 
@@ -362,7 +362,7 @@ interface (`getBroker()`), never to n8n directly — see [BROKER.md](BROKER.md).
 1. Define the path + schema in `openapi.yaml`; run codegen.
 2. Add the operation to the `Broker` interface in `src/broker/types.ts` (domain
    vocabulary — no action strings).
-3. Implement it in **both** adapters: `N8nBroker` (`src/broker/n8n.ts`) maps it to
+3. Implement it in **both** adapters: `N8nBroker` (`src/broker/n8n/index.ts`) maps it to
    an n8n action + normalizes the response; `DemoBroker` (`src/broker/demo.ts`)
    returns canned data so it runs offline.
 4. Add an Express route in `artifacts/api-server/src/routes/` that calls
@@ -581,6 +581,9 @@ Reference run (single demo replica, GitHub-hosted runner): **6000 requests,
   notification dispatch, dev-mode gating).
 - [READING-GUIDE.md](READING-GUIDE.md) — subsystem → entry-point-file map + glossary.
 - [FUNCTION-MAP.md](FUNCTION-MAP.md) — the generated per-function index.
+- [DOCUMENTATION-INDEX.md](DOCUMENTATION-INDEX.md) — every other doc under `docs/`,
+  mapped by purpose (security & compliance, operations & scale, product & buyer,
+  audit findings).
 
 **Other references:**
 

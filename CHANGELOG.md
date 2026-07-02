@@ -6,6 +6,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Documentation
+
+- **Documentation-linking and cross-reference pass.** Every doc under `docs/` is now
+  reachable from `README.md`: 27 docs that existed but weren't linked from anywhere
+  reachable from the README (architecture/quality/security audits, the SSO/SCIM and
+  data-residency runbooks, operations, i18n coverage, and several design proposals)
+  are now linked from the README's audience doors, `docs/TECHNICAL.md`, and/or the
+  new **[docs/DOCUMENTATION-INDEX.md](docs/DOCUMENTATION-INDEX.md)** — a short map of
+  every doc by audience/purpose (architecture & internals, security & compliance,
+  operations & scale, product & buyer, audit findings).
+- Fixed stale cross-references left over from the `src/broker/n8n.ts` → `src/broker/n8n/index.ts`
+  refactor (`docs/BROKER.md`, `docs/TECHNICAL.md`), and broken relative links in
+  `docs/SCALING.md`, `docs/SECURITY-AUDIT.md` and `LICENSING.md` that pointed at
+  `docs/ops/*` files by their old top-level paths.
+
 ### Performance
 
 - **Bounded portfolio fan-out (Theme A of `docs/PERF-PATTERNS-REVIEW.md`) — the biggest scale risk
