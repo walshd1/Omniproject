@@ -696,6 +696,126 @@ export const GetPortfolioHealthResponse = zod.array(GetPortfolioHealthResponseIt
 
 
 /**
+ * Portfolio-wide totals only (RAG counts + variance/blocker averages, a consolidated finance total, a consolidated capacity total) — never per-project or per-programme detail. This is the ONE endpoint a federated peer instance calls (see FEDERATED_PEERS / settings.federatedPeers and docs/DATA-RESIDENCY.md): a bearer token that is one of this instance's own API_TOKENS grants read-only access, exactly like any other read-only API-token consumer.
+ * @summary This instance's own pre-aggregated portfolio totals (backlog
+ */
+export const GetPortfolioSummaryResponse = zod.object({
+  "projects": zod.number(),
+  "health": zod.object({
+  "projects": zod.number(),
+  "rag": zod.object({
+  "green": zod.number(),
+  "amber": zod.number(),
+  "red": zod.number(),
+  "other": zod.number().describe('A ragStatus value the broker reported that isn\'t one of green\/amber\/red.')
+}).describe('RAG (red\/amber\/green) distribution across the portfolio\'s projects.'),
+  "avgScheduleVarianceDays": zod.number().nullable(),
+  "avgBudgetVariancePercentage": zod.number().nullable(),
+  "totalActiveBlockers": zod.number()
+}).describe('Portfolio-wide totals derived from the same rows GET \/portfolio\/health serves, with every per-project identifier folded away.').nullable(),
+  "finance": zod.object({
+  "currency": zod.string().describe('The reporting currency every amount below is converted into.'),
+  "budget": zod.number(),
+  "actual": zod.number(),
+  "forecast": zod.number(),
+  "earnedValue": zod.number(),
+  "variance": zod.number(),
+  "cpi": zod.number().nullable()
+}).describe('The portfolio-total row of the finance roll-up (see artifacts\/omniproject\/src\/lib\/portfolio-finance.ts FinanceRollup) — programme\/project breakdown is deliberately dropped for federation.').nullable(),
+  "capacity": zod.object({
+  "allocations": zod.number(),
+  "overAllocated": zod.number(),
+  "assignedHours": zod.number(),
+  "availableHours": zod.number(),
+  "utilisation": zod.number().nullable()
+}).describe('The portfolio-total row of the capacity roll-up (see artifacts\/omniproject\/src\/lib\/capacity-rollup.ts CapacityRollup) — programme\/project breakdown is deliberately dropped for federation.').nullable()
+}).describe('The ONE aggregate shape allowed to cross an instance boundary for federation (backlog #135). Every field is a portfolio-level total or count — never a project\/programme id or name. A section is null when the connected backend doesn\'t declare the matching capability.')
+
+
+/**
+ * Fans out live to every ACTIVE peer in settings.federatedPeers (GET their own /portfolio/summary with the configured bearer token) and returns this instance's own summary alongside each peer's, clearly labeled by peer id/label/region — never blended into one number. An unreachable or misconfigured peer degrades to a labeled "unavailable" contribution instead of failing the whole view. Nothing is cached; every call re-fans-out.
+ * @summary This instance's portfolio summary merged with every configured peer's (backlog
+ */
+export const GetFederatedPortfolioResponse = zod.object({
+  "generatedAt": zod.string(),
+  "local": zod.object({
+  "label": zod.string(),
+  "region": zod.string().nullable(),
+  "summary": zod.object({
+  "projects": zod.number(),
+  "health": zod.object({
+  "projects": zod.number(),
+  "rag": zod.object({
+  "green": zod.number(),
+  "amber": zod.number(),
+  "red": zod.number(),
+  "other": zod.number().describe('A ragStatus value the broker reported that isn\'t one of green\/amber\/red.')
+}).describe('RAG (red\/amber\/green) distribution across the portfolio\'s projects.'),
+  "avgScheduleVarianceDays": zod.number().nullable(),
+  "avgBudgetVariancePercentage": zod.number().nullable(),
+  "totalActiveBlockers": zod.number()
+}).describe('Portfolio-wide totals derived from the same rows GET \/portfolio\/health serves, with every per-project identifier folded away.').nullable(),
+  "finance": zod.object({
+  "currency": zod.string().describe('The reporting currency every amount below is converted into.'),
+  "budget": zod.number(),
+  "actual": zod.number(),
+  "forecast": zod.number(),
+  "earnedValue": zod.number(),
+  "variance": zod.number(),
+  "cpi": zod.number().nullable()
+}).describe('The portfolio-total row of the finance roll-up (see artifacts\/omniproject\/src\/lib\/portfolio-finance.ts FinanceRollup) — programme\/project breakdown is deliberately dropped for federation.').nullable(),
+  "capacity": zod.object({
+  "allocations": zod.number(),
+  "overAllocated": zod.number(),
+  "assignedHours": zod.number(),
+  "availableHours": zod.number(),
+  "utilisation": zod.number().nullable()
+}).describe('The portfolio-total row of the capacity roll-up (see artifacts\/omniproject\/src\/lib\/capacity-rollup.ts CapacityRollup) — programme\/project breakdown is deliberately dropped for federation.').nullable()
+}).describe('The ONE aggregate shape allowed to cross an instance boundary for federation (backlog #135). Every field is a portfolio-level total or count — never a project\/programme id or name. A section is null when the connected backend doesn\'t declare the matching capability.')
+}),
+  "peers": zod.array(zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "region": zod.string().nullable(),
+  "status": zod.enum(['ok', 'unreachable', 'unauthorized', 'error']),
+  "summary": zod.object({
+  "projects": zod.number(),
+  "health": zod.object({
+  "projects": zod.number(),
+  "rag": zod.object({
+  "green": zod.number(),
+  "amber": zod.number(),
+  "red": zod.number(),
+  "other": zod.number().describe('A ragStatus value the broker reported that isn\'t one of green\/amber\/red.')
+}).describe('RAG (red\/amber\/green) distribution across the portfolio\'s projects.'),
+  "avgScheduleVarianceDays": zod.number().nullable(),
+  "avgBudgetVariancePercentage": zod.number().nullable(),
+  "totalActiveBlockers": zod.number()
+}).describe('Portfolio-wide totals derived from the same rows GET \/portfolio\/health serves, with every per-project identifier folded away.').nullable(),
+  "finance": zod.object({
+  "currency": zod.string().describe('The reporting currency every amount below is converted into.'),
+  "budget": zod.number(),
+  "actual": zod.number(),
+  "forecast": zod.number(),
+  "earnedValue": zod.number(),
+  "variance": zod.number(),
+  "cpi": zod.number().nullable()
+}).describe('The portfolio-total row of the finance roll-up (see artifacts\/omniproject\/src\/lib\/portfolio-finance.ts FinanceRollup) — programme\/project breakdown is deliberately dropped for federation.').nullable(),
+  "capacity": zod.object({
+  "allocations": zod.number(),
+  "overAllocated": zod.number(),
+  "assignedHours": zod.number(),
+  "availableHours": zod.number(),
+  "utilisation": zod.number().nullable()
+}).describe('The portfolio-total row of the capacity roll-up (see artifacts\/omniproject\/src\/lib\/capacity-rollup.ts CapacityRollup) — programme\/project breakdown is deliberately dropped for federation.').nullable()
+}).describe('The ONE aggregate shape allowed to cross an instance boundary for federation (backlog #135). Every field is a portfolio-level total or count — never a project\/programme id or name. A section is null when the connected backend doesn\'t declare the matching capability.').nullable(),
+  "error": zod.string().optional(),
+  "ms": zod.number()
+}).describe('One configured peer\'s contribution to a federated view — always separately labeled, never blended into the local total.'))
+}).describe('This instance\'s own portfolio summary plus every configured peer\'s, fanned out live and merged (backlog')
+
+
+/**
  * @summary Recent activity feed across all projects
  */
 export const ListActivityResponseItem = zod.object({
