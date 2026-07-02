@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { WIDGET_CATALOGUE, widgetDef, clampSpan, availableWidgets } from "./dashboards";
+import {
+  WIDGET_CATALOGUE,
+  widgetDef,
+  clampSpan,
+  availableWidgets,
+  availablePresets,
+  presetForRole,
+  dashboardFromPreset,
+} from "./dashboards";
 
 describe("WIDGET_CATALOGUE", () => {
   it("has unique widget types and non-empty metadata", () => {
@@ -41,5 +49,32 @@ describe("availableWidgets", () => {
   it("keeps every widget when the backend surfaces everything", () => {
     const all = availableWidgets(() => true);
     expect(all.length).toBe(WIDGET_CATALOGUE.length);
+  });
+});
+
+describe("dashboard presets", () => {
+  it("offers a preset per role, tailored to the role", () => {
+    const all = availablePresets(() => true);
+    expect(all.length).toBeGreaterThanOrEqual(3);
+    expect(presetForRole("head-of-projects")?.role).toBe("head-of-projects");
+    expect(presetForRole("nope")).toBeUndefined();
+  });
+
+  it("drops a preset needing an entity the backend can't surface", () => {
+    const without = availablePresets((entity) => entity !== "programme");
+    expect(without.some((p) => p.role === "programme-manager")).toBe(false);
+    expect(without.some((p) => p.role === "project-manager")).toBe(true);
+  });
+
+  it("materialises a preset into a fresh, persistable dashboard", () => {
+    const preset = presetForRole("project-manager")!;
+    const dash = dashboardFromPreset(preset);
+    expect(dash.id).toBe(""); // caller mints the id
+    expect(dash.name).toBe(preset.name);
+    expect(dash.widgets.length).toBe(preset.widgets.length);
+    // Every placed widget gets a fresh unique id and a resolved span.
+    const ids = dash.widgets.map((w) => w.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const w of dash.widgets) expect([1, 2, 3]).toContain(w.span);
   });
 });

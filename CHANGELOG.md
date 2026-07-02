@@ -59,6 +59,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Role-tailored persona dashboards — the "what needs me today" view (#103).** A busy PM has minutes
+  between meetings and wants ONE screen answering "what needs me today", not another blank dashboard to
+  build. Ships a catalogue of **preset dashboards**, one per role persona (head-of-projects /
+  programme-manager / project-manager), each assembling **existing** widgets (portfolio health, status
+  breakdown, trends, recent activity, counts) into a triage layout. Authored as JSON under
+  `lib/backend-catalogue/assets/dashboard-presets/` with a schema + `gen-dashboard-presets` generator +
+  generated catalogue (drift-guarded in CI) + a **preset-coverage guard** that keeps every preset's
+  widget `type`s bound to real widgets — the same discipline as widgets/personas. On the Dashboards page
+  an **"Apply a preset…"** picker mints a fresh dashboard from a preset (via the existing save path,
+  keyboard-operable), and the empty state surfaces the role presets as one-click suggestions. Pure and
+  read-only: presets read through the existing read-model widgets; no new write path to project data.
+  Presets that need an entity the backend can't surface (e.g. programmes) are dropped automatically.
 - **Progressive disclosure / role-aware navigation.** The primary sidebar (and mobile drawer) now leads
   with only the everyday overworked-PM surfaces — dashboard/what-needs-me, projects, reports, resources —
   while the heavy governance/config surfaces (Explore, Settings, Setup) move under a single collapsed

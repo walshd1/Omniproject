@@ -1,0 +1,13 @@
+{
+  "id": "project-manager-today",
+  "role": "project-manager",
+  "name": "What needs me today — Project Manager",
+  "summary": "Your delivery lens: where work is stuck, how many projects you carry, the trend, and the latest activity that needs a nudge.",
+  "order": 30,
+  "widgets": [
+    { "type": "statusBreakdown", "span": 2 },
+    { "type": "projectCount", "span": 1 },
+    { "type": "portfolioTrends", "span": 2 },
+    { "type": "recentActivity", "span": 1 }
+  ]
+}
