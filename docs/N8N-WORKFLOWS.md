@@ -60,6 +60,7 @@ action is implemented by one of two transports:
 | **Microsoft Dynamics 365** | HTTP · n8n-managed OAuth | `microsoftDynamicsOAuth2Api` credential, `DATAVERSE_URL` |
 | **Microsoft Project (for the web)** | HTTP · n8n-managed OAuth | `microsoftDynamicsOAuth2Api` credential, `DATAVERSE_URL` |
 | **SAP S/4HANA** (Enterprise Project / PS) | HTTP · n8n OAuth2 (OData) | `oAuth2Api` credential, `SAP_S4_URL` |
+| **SAP S/4HANA** (PS/PPM Financials — read-only) | HTTP · n8n OAuth2 (OData) | `oAuth2Api` credential, `SAP_S4_URL` |
 | **Oracle Primavera P6 EPPM** | HTTP · n8n Basic | `httpBasicAuth` credential, `P6_URL` |
 | **Enterprise backbone** (Capita / custom REST/OData/SOAP) | HTTP · n8n credential | `httpHeaderAuth` credential, `BACKBONE_BASE_URL` |
 

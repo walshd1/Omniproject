@@ -224,3 +224,21 @@ Larger than a report and touches the write path — worth doing deliberately, no
   Closed without code; revisit only if a specific deployment surfaces a case the broker/workflow
   layer genuinely cannot handle (e.g. it cannot itself reach two same-kind backends for a hard
   network-segmentation reason) — which none of the current backends/docs describe.
+
+## F. Vendor connectors catalogued but unverified against a live tenant
+
+### F1. SAP S/4HANA (PS/PPM) financials read-only connector
+**What:** `sap-s4hana-financials` (`lib/backend-catalogue/vendors/backends/sap-s4hana-financials.json`)
+— a read-only connector reading SAP Project System/PPM cost-object financials (budget, actuals,
+cost center) via SAP's published OData surface (`API_ENTERPRISE_PROJECT_SRV`, the CDS view
+`I_ProjectActualCosts`, noting `API_FINPLANNINGDATA_SRV` for plan/budget and `CE_COSTCENTER_0001`
+for cost-center enrichment). It passes every automated gate this repo has (schema, capability-honesty,
+field-superset, typecheck, the n8n-generator producing a genuinely read-only scaffold) — but **no
+S/4HANA tenant is available in this environment**, so none of that proves the exact OData paths,
+`$select`/`$filter` fields, or service-catalog names match a real customer's release.
+**Why parked (as "supported"):** this is not a design decision needing a maintainer call — it's a
+factual gap (no live tenant to test against) that only real-world verification against SAP itself can
+close. See `docs/vendors/SAP-S4HANA-PS-PPM.md` for the full detail and the verification checklist.
+**Recommendation:** keep labelled "catalogued", not "supported", until a maintainer (or a design
+partner with an actual S/4HANA sandbox) runs the workflow-verifier probe against a real system and
+confirms/adjusts the field and service names.

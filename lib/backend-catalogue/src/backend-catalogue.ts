@@ -92,7 +92,7 @@ export function getBackend(id: string): BackendDefinition | undefined {
  * large corporate ERPs / scheduling systems that are the paid-for integrations.
  * The standard backends (Jira, OpenProject, GitHub, …) stay free.
  */
-const ENTERPRISE_BACKENDS = new Set(["sap", "primavera", "dynamics365", "dynamics365-sales", "msproject", "netsuite", "enterprise", "planview"]);
+const ENTERPRISE_BACKENDS = new Set(["sap", "sap-s4hana-financials", "primavera", "dynamics365", "dynamics365-sales", "msproject", "netsuite", "enterprise", "planview"]);
 
 /** True when a backend is enterprise-tier (premium workflow generation). */
 export function isEnterpriseBackend(id: string): boolean {

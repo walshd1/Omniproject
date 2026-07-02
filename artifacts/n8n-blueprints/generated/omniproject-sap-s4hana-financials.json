@@ -1,0 +1,469 @@
+{
+  "name": "OmniProject — SAP S/4HANA (PS/PPM Financials — read-only)",
+  "meta": {
+    "templateId": "omniproject-sap-s4hana-financials",
+    "description": "Generated OmniProject contract workflow for SAP S/4HANA (PS/PPM Financials — read-only). Set env: SAP_S4_URL."
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "omniproject",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000000",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        320
+      ],
+      "notes": "POST body { action, payload, source, origin, idempotencyKey }."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.verify }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000001",
+      "name": "Verify probe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        320
+      ],
+      "notes": "When the gateway's workflow verifier sends { verify: true }, short-circuit with a no-op acknowledgement so verification never touches the backend."
+    },
+    {
+      "parameters": {
+        "jsCode": "// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = {\"baseline\":false,\"blockers\":false,\"financials\":true,\"history\":false,\"issues\":true,\"portfolio\":true,\"raid\":false,\"resources\":false,\"scheduling\":false};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: \"sap-s4hana-financials\", capabilities: caps }, message: 'verify ok' } }];"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000002",
+      "name": "Verify ACK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.origin }}",
+              "rightValue": "={{ $json.body.payload && $json.body.payload.lastUpdatedBy }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000003",
+      "name": "Drop loop?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        460
+      ],
+      "notes": "Loop guard: drop echoes where origin === payload.lastUpdatedBy (best-effort; the gateway idempotency key is the primary dedupe)."
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, data: { dropped: true }, message: 'Loop mutation dropped' } }];"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000004",
+      "name": "Drop (loop)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "list_issues",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "list_issues"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "list_projects",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "list_projects"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "get_capabilities",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "get_capabilities"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000005",
+      "name": "Route Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        120,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize the backend response to { success, data, message }.\nconst action = $('Webhook').first().json.body.action;\nconst rows = items.map((i) => i.json);\nconst data = rows.length === 1 ? rows[0] : rows;\nreturn [{ json: { success: true, data, message: action + ' ok' } }];"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000006",
+      "name": "Normalize → BrokerActionResult",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $('Webhook').first().json.body.action;\nreturn [{ json: { success: false, data: {}, message: 'Unsupported action: ' + action } }];"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000007",
+      "name": "Unsupported Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000008",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        880,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_PROJECTACTUALCOSTS_CDS/I_ProjectActualCosts?$filter=WBSElementInternalID eq '{{ $json.body.payload.projectId }}'&$format=json",
+        "sendHeaders": false,
+        "headerParameters": {
+          "parameters": []
+        },
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "oAuth2Api"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000009",
+      "name": "List Issues",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        80
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "",
+          "name": "SAP S/4HANA (PS/PPM Financials — read-only) account"
+        }
+      },
+      "notes": "Actual-cost line items for a WBS element, from the released CDS view I_ProjectActualCosts (backed by the universal journal, table ACDOCA) — filtered to the WBS/cost object scoped by projectId. Budget/plan figures are NOT on this view: they live on the separate financial-planning service API_FINPLANNINGDATA_SRV (backed by ACDOCP), which is intentionally not auto-wired here (different filter keys/cadence) — add it as a second HTTP node in the generated workflow if you need plan-vs-actual in one pass. CONFIRM the exact OData path your tenant has published I_ProjectActualCosts under (Gateway service catalog, transaction /IWFND/MAINT_SERVICE) before importing: CDS-view analytical services are frequently republished under a generated 'srvd_a2x' service id that varies by SAP release/component version — the path below is the documented v2-style wrapper convention, not a guarantee for your system."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProjectElement?$select=ProjectUUID,WBSElementInternalID,WBSElement,WBSElementDescription,ControllingArea,CompanyCode,ResponsibleCostCenter&$format=json",
+        "sendHeaders": false,
+        "headerParameters": {
+          "parameters": []
+        },
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "oAuth2Api"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "name": "List Projects",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        260
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "",
+          "name": "SAP S/4HANA (PS/PPM Financials — read-only) account"
+        }
+      },
+      "notes": "Enterprise Project + WBS element master data (structure and org assignment) via the same API_ENTERPRISE_PROJECT_SRV service the 'sap' (WBS read/write) backend uses, but read-only and narrowed with $select to only the financial dimensions this connector cares about: the controlling area, company code and responsible cost center that scope the cost data in list_issues. No cost AMOUNTS live on this entity — see list_issues / notes for where actuals and budget actually come from."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: {\"baseline\":false,\"blockers\":false,\"financials\":true,\"history\":false,\"issues\":true,\"portfolio\":true,\"raid\":false,\"resources\":false,\"scheduling\":false} } }];"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000b",
+      "name": "Capabilities",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        380,
+        440
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify probe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify probe?": {
+      "main": [
+        [
+          {
+            "node": "Verify ACK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Drop loop?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify ACK": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drop loop?": {
+      "main": [
+        [
+          {
+            "node": "Route Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Drop (loop)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drop (loop)": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize → BrokerActionResult": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unsupported Action": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Action": {
+      "main": [
+        [
+          {
+            "node": "List Issues",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "List Projects",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Capabilities",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unsupported Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Issues": {
+      "main": [
+        [
+          {
+            "node": "Normalize → BrokerActionResult",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Projects": {
+      "main": [
+        [
+          {
+            "node": "Normalize → BrokerActionResult",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capabilities": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

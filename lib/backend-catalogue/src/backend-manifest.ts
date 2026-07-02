@@ -107,4 +107,15 @@ export interface BackendManifest {
     toCanonical: Record<string, string>;
     fromCanonical?: Record<string, string>;
   };
+  /**
+   * Canonical field keys this backend exposes/maps (e.g. `["budget", "costCenter",
+   * "wbsCode"]`) — how its native fields line up with the canonical registry
+   * (`assets/fields.json` / `docs/FIELD-CATALOGUE.md`), so a future integrator
+   * knows which shared fields it can already rely on instead of re-deriving the
+   * mapping. MUST be a strict subset of the field-registry superset — enforced by
+   * `guard-superset` (scripts/src/guard-superset.ts) and
+   * `scripts/src/lib/superset.test.ts`. Use `fields` (see the vendor JSON schema)
+   * only when a backend contributes a field the registry doesn't have yet.
+   */
+  fieldKeys?: string[];
 }
