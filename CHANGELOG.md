@@ -8,6 +8,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Documentation
 
+- **Speed / responsiveness / design-patterns review (`docs/PERF-PATTERNS-REVIEW.md`).** A staff-engineering
+  pass (155 files, 60 findings) for the 60-programme/200-project scale target. Verdict: no correctness bugs, but
+  ~10 recurring patterns that turn O(1) into O(portfolio) — unbounded portfolio fan-out (200-way query storms),
+  pure static derivations rebuilt per call, and React memos that never hit (fresh `useQueries` array refs). Most
+  fixes are small/local; report only, remediation sequenced. Prioritized Top-15 by ROI included.
 - **Whole-codebase clean-code audit (`docs/CLEAN-CODE-AUDIT.md`).** A 1-for-1 review across all 519 source
   files (9 groups) — verdict **GOOD (B+)**: zero correctness/security defects, 15 medium + 52 low cleanliness
   findings, dominated by under-adoption of helpers that already exist. Flags two systemic risks to remediate
