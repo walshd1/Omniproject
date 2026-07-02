@@ -590,6 +590,14 @@ Capability signal — which data domains the wired backend(s) can populate, so t
 | `resolveSupport` | The unified SUPPORT set the compatibility predicate gates on: the backend capability domains (already unioned across connected backends by `resolveCapabilities`) PLUS the connected broker(s)' capability keys — one flat map spanning BOTH planes. |
 | `resolveFieldManifest` | Resolve the field manifest: reconcile the backend's enumerated fields against the canonical registry (known vs new/custom). |
 
+### `artifacts/api-server/src/lib/charity-onboarding.ts`
+
+"We're a charity" one-click onboarding preset — the small-org counterpart to picking a deployment profile by hand.
+
+| Function | What it does |
+| --- | --- |
+| `applyCharityOnboarding` | Apply the full "We're a charity" preset in one step. |
+
 ### `artifacts/api-server/src/lib/column-mapper.ts`
 
 Column → canonical-field mapper.

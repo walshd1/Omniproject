@@ -1,0 +1,13 @@
+{
+  "id": "funder-report",
+  "role": "funder",
+  "name": "Funder report",
+  "summary": "What a grant funder wants to see: progress and budget trend against plan, how many projects the funding covers, status at a glance, and a recent-activity evidence trail.",
+  "order": 81,
+  "widgets": [
+    { "type": "portfolioTrends", "span": 2 },
+    { "type": "statusBreakdown", "span": 1 },
+    { "type": "projectCount", "span": 1 },
+    { "type": "recentActivity", "span": 1 }
+  ]
+}

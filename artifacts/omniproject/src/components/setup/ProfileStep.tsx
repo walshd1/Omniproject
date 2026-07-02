@@ -1,5 +1,14 @@
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useDeploymentProfile, setDeploymentProfile, PROFILE_ORDER, type ProfilePosture } from "../../lib/deployment-profile";
+import {
+  useDeploymentProfile,
+  setDeploymentProfile,
+  applyCharityOnboarding,
+  PROFILE_ORDER,
+  type ProfilePosture,
+  type CharityOnboardingResult,
+} from "../../lib/deployment-profile";
+import { dashboardsQueryKey } from "../../lib/dashboards";
 
 /**
  * Setup-wizard step 0: pick your deployment type up front. Each card is a PRESET for a
@@ -7,17 +16,40 @@ import { useDeploymentProfile, setDeploymentProfile, PROFILE_ORDER, type Profile
  * charity or self-hoster doesn't have to wear the enterprise weight by default. Selecting
  * persists the profile (admin); infra-level env (DEPLOYMENT_PROFILE) stays authoritative on
  * a fresh boot.
+ *
+ * Below the cards, a single "We're a charity" button applies the whole charity onboarding
+ * preset in one click (profile + trustee/funder dashboards + best-effort nomenclature) —
+ * a shortcut over choosing the nonprofit card and separately building those dashboards by hand.
  */
 export function ProfileStep({ isAdmin }: { isAdmin: boolean }) {
   const qc = useQueryClient();
   const { data } = useDeploymentProfile();
-  if (!data?.catalogue) return null;
+  const [charityState, setCharityState] = useState<
+    { status: "idle" } | { status: "pending" } | { status: "done"; result: CharityOnboardingResult } | { status: "error"; message: string }
+  >({ status: "idle" });
 
   const choose = async (profile: string): Promise<void> => {
-    if (!isAdmin || profile === data.profile) return;
+    if (!isAdmin || profile === data?.profile) return;
     try { await setDeploymentProfile(profile); await qc.invalidateQueries({ queryKey: ["deployment-profile"] }); }
     catch { /* surfaced by the unchanged selection */ }
   };
+
+  const applyCharity = async (): Promise<void> => {
+    if (!isAdmin) return;
+    setCharityState({ status: "pending" });
+    try {
+      const result = await applyCharityOnboarding();
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["deployment-profile"] }),
+        qc.invalidateQueries({ queryKey: dashboardsQueryKey }),
+      ]);
+      setCharityState({ status: "done", result });
+    } catch (err) {
+      setCharityState({ status: "error", message: err instanceof Error ? err.message : "Could not apply the charity preset." });
+    }
+  };
+
+  if (!data?.catalogue) return null;
 
   const order = PROFILE_ORDER.filter((p) => data.catalogue![p]);
 
@@ -62,6 +94,39 @@ export function ProfileStep({ isAdmin }: { isAdmin: boolean }) {
         {order.map((id) => Card(id, data.catalogue![id]!))}
       </div>
       {!isAdmin && <p className="mt-3 text-xs text-muted-foreground">Sign in as an admin to change the profile.</p>}
+
+      <div className="mt-4 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3" data-testid="charity-onboarding">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span className="font-semibold">We're a charity</span>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              One click: switches to the non-profit profile, adds a trustee report and a funder
+              report to your dashboards, and adopts your backend's wording if it has one.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={!isAdmin || charityState.status === "pending"}
+            data-testid="charity-onboarding-apply"
+            onClick={() => void applyCharity()}
+            className={`shrink-0 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded border border-primary bg-primary text-primary-foreground ${!isAdmin || charityState.status === "pending" ? "opacity-60 cursor-not-allowed" : "hover:opacity-90"}`}
+          >
+            {charityState.status === "pending" ? "Setting up…" : "We're a charity — set up in one click"}
+          </button>
+        </div>
+        {charityState.status === "done" && (
+          <p className="mt-2 text-xs text-green-700" role="status">
+            Done — profile set to {charityState.result.posture.label}
+            {charityState.result.dashboardsAdded.length > 0
+              ? `, added ${charityState.result.dashboardsAdded.map((d) => d.name).join(" + ")}`
+              : ", trustee/funder dashboards were already there"}
+            {charityState.result.nomenclature.applied ? ", adopted your backend's wording" : ""}.
+          </p>
+        )}
+        {charityState.status === "error" && (
+          <p className="mt-2 text-xs text-red-600" role="alert">{charityState.message}</p>
+        )}
+      </div>
     </section>
   );
 }

@@ -8,16 +8,18 @@ import { widgetDef } from "./widget-catalogue";
  * blank dashboard to build. A preset is a neutral manifest (authored as JSON under
  * assets/dashboard-presets/<id>.json, embedded by gen-dashboard-presets and drift-guarded in CI —
  * the same discipline as widgets/personas) that assembles EXISTING widget `type`s into a layout for
- * one role persona (head-of-projects / programme-manager / project-manager). Applying a preset mints
- * a fresh dashboard for the user.
+ * one role persona (head-of-projects / programme-manager / project-manager), or an audience-tailored
+ * report lens (trustee / funder — e.g. the "We're a charity" onboarding preset). Applying a preset
+ * mints a fresh dashboard for the user.
  *
  * PURE + read-only: every widget in a preset reads through the existing read-model only; a preset
  * grants no new write path to project data. Each preset's widget `type`s must be real widgets —
  * kept honest by the preset-coverage guard (guard-dashboard-preset-coverage).
  */
 
-/** The role personas a preset can be tailored to (drives the suggested default). */
-export type PresetRole = "head-of-projects" | "programme-manager" | "project-manager";
+/** The role personas a preset can be tailored to (drives the suggested default). `trustee` and
+ *  `funder` are charity/non-profit report audiences rather than an org-chart level. */
+export type PresetRole = "head-of-projects" | "programme-manager" | "project-manager" | "trustee" | "funder";
 
 /** A widget placed by a preset. `type` keys into the widget catalogue; `span` is the column width. */
 export interface PresetWidget {
