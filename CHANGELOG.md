@@ -8,6 +8,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Security
 
+- **Re-audit (2026-07) of the newest surfaces — messy-data, dev-mode routes, report overrides,
+  dashboards persistence/import, snapshots, safe-json seams** (see `docs/SECURITY-AUDIT-2026-07.md`).
+  One Medium fixed: the dashboard-file import seam (`lib/dashboard-file.readDashboardFile`, added after
+  the #320 prototype-pollution hardening pass) parsed uploaded JSON with the **raw** `JSON.parse` instead
+  of `safeParseJson`, leaving the untrusted-upload reviver un-applied at a new seam and contradicting the
+  file's own docstring. Switched it to `safeParseJson` so `__proto__`/`constructor`/`prototype` keys are
+  stripped at every depth before the object is reconstructed — restoring the "reviver at every untrusted
+  seam" invariant. Regression tests cover the upload path (valid parse, invalid-JSON error, and a crafted
+  pollution payload leaving `Object.prototype` clean). The messy-data feature, the dev-mode
+  impersonation/entitlements/broker/messy routes, the report-overrides route, the snapshot Ed25519
+  sign/verify + canonicalisation, and the remaining safe-json seams were reviewed and found sound
+  (dev-only + real-admin gating + audit + prod-inertness; clamped/validated config; reads-only; no key
+  leakage; no injection/IDOR/XSS). Lower-severity observations documented as accepted/follow-up.
 - **Stateless scope-ownership on governance writes (closes the IDOR).** The programme/project governance
   PUTs no longer authorize by role *class* alone — they verify the caller actually **manages the named
   scope** by pulling their accessible project graph **live from the backend** (their own forwarded token,
@@ -27,6 +40,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   is withheld from `/api/setup/reports` + `/api/setup/methodologies`, not just the admin table.
   `getJson` now surfaces the server error on a non-OK response instead of an opaque parse failure.
 
+### Documentation
+
+- **Human-auditability documentation pass.** Three new docs let a technical auditor or
+  new engineer understand the whole system in one sitting — architecture, the broker
+  seam, the data flows, and the key sequences — without reverse-engineering the code,
+  with Mermaid diagrams and file citations cross-checked against the source:
+  `docs/ARCHITECTURE.md` (stateless/zero-at-rest model, the layer cake, the broker
+  seam, where config lives, the security spine, dev-mode gating — component + seam
+  diagrams); `docs/SEQUENCES.md` (seven traced Mermaid sequence walkthroughs: auth/
+  session establishment, a broker read through the single-flight→cache→provenance→
+  messy(dev)→trace decorator chain, an optimistic-concurrency write-through, capability/
+  field resolution as superset ∩ manifest, snapshot Ed25519 sign + offline verify,
+  notification dispatch above the seam, and prod-inert dev-mode/messy-data gating); and
+  `docs/READING-GUIDE.md` (a subsystem → entry-point-file map plus a glossary of the
+  domain vocabulary). Linked from the README ("For engineers / auditors") and
+  `docs/TECHNICAL.md`. Docs-only — no source changed.
+
 ### Added
 
 - **Bundled-backends stress harness — every catalogue backend/broker/vendor-profile proven under stress.**
@@ -43,6 +73,53 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   severs a row from its project. Findings are documented in `docs/BUNDLED-BACKENDS-STRESS.md`. The pass
   found the bundled defs internally consistent (38 backends, 7 brokers) — no broken defs; two low-severity
   follow-ups are recorded.
+- **Enterprise-readiness buyer-panel gap analysis (`docs/ENTERPRISE-READINESS.md`).** A new,
+  evidence-grounded document aimed at a large multinational evaluating OmniProject as an overlay on
+  Jira. It answers, per evaluation seat (CEO, Finance, Compliance, CISO, IT, Projects): what the seat
+  cares about, what OmniProject **already delivers today** (every claim cited to a real file — e.g.
+  the empty `lib/db` schema for zero-at-rest, `exec-pack`/`exec-digest` for the board pack, `programmes`
+  EVM, `currency`/`fx-fallback` for multi-currency, `dual-control` for segregation of duties,
+  `audit-chain`/`snapshot`/`signing` for tamper-evidence, `saml`/`scim` for SSO/lifecycle,
+  `tracing` for OTLP export, `data-residency` for fail-closed region routing), and the concrete gaps to
+  close. Includes the "keep Jira, sit on top" positioning, a TCO/ROI sketch vs enterprise PPM, a
+  prioritised roadmap table (gap → owning seat → S/M/L effort → whether already in backlog), and a
+  "what to build first" recommendation. Docs-only; no source or behaviour changed. Linked from the
+  README documentation index as the "For enterprise buyers" entry point.
+- **SME & charity copilot lenses + a discoverable small-org story.** Two new copilot personas —
+  **Charity Programme Lead** (tuned to the shipped `grant-tracking` / `fundraising-pipeline` /
+  `volunteer-roster` methodologies and grant/funder/donor/volunteer/impact keywords) and **SME
+  Delivery Lead** (a lean small-team budget/capacity lens) — so a small org's questions no longer
+  fall back to the enterprise PMO-analyst lens. Added a "Small teams, charities & self-hosters"
+  section to the README linking `docs/SMALL-ORG-GUIDE.md`, and a new `docs/SME-CHARITY-FIT.md`
+  audit confirming core value (connect a backend, projects/issues, reports, dashboards) stays
+  free and that only prebuilt enterprise convenience is gated. Additive only — no enterprise
+  feature was changed.
+- **Cross-programme dependency & critical-path map (stateless report).** A new portfolio report derives,
+  live from the read model, the cross-programme dependency graph — every `depends-on` link between work
+  items, with the edges that cross a programme boundary flagged — and the **critical path across the whole
+  graph**, reusing the shared CPM solver (`critical-path.ts`) rather than re-implementing the
+  forward/backward pass. Durations come from start→due spans (dateless items floor to a day so chains
+  still schedule); dangling references are dropped and cycles are surfaced rather than hung on. Rendered as
+  a circular node-link diagram (dashed edges = cross-programme, red = critical) plus dependency and
+  schedule tables. Pure derive-only over live rows — no new write paths, nothing stored. New pure lib
+  `cross-programme-dependencies.ts` (+ Vitest), the `CrossProgrammeDependencies` renderer wired into the
+  Reports page and renderer registry, and the `cross-programme-dependencies` report definition.
+- **Capacity actuals vs plan (#102).** A new `capacityActuals` dashboard widget compares each resource's
+  logged-time **actuals** (`issue.loggedHours`, summed per assignee) against their **plan/allocation** from
+  the resource-capacity read (`assignedHours` / `availableHours` / `allocationPercentage`), surfacing
+  over- and under-delivery per resource plus a portfolio roll-up (delivery %, variance hours). The
+  derivation lives in a pure, derive-only lib (`lib/capacity-actuals`, banded `OVER_DELIVERED` /
+  `ON_TRACK` / `UNDER_DELIVERED` / `NO_PLAN`) over the existing read model — no new write paths, nothing
+  stored. The widget is entity-gated on `member`, so it's only offered when the backend surfaces resources.
+- **Localisation coverage audit (`guard-i18n-coverage`).** A developer/CI tool that loads the base locale
+  (English) plus every other operating language from the SPA i18n dictionary and reports coverage gaps:
+  keys present in the base but **missing** or **empty** in a locale, and **orphan** keys a locale carries
+  that the base no longer declares. It prints a per-locale coverage report with percentages and a summary.
+  Deterministic, non-breaking exit behaviour: fully-covered locales make it a hard guard (a future
+  untranslated key then fails CI); pre-existing gaps make it **warn-only** (reported, CI stays green,
+  since English fallback keeps the app correct); orphan keys are always a hard failure. Wired as a CI step
+  and documented in `docs/I18N-COVERAGE.md`. Snapshot at introduction: fr/de/es each 30/31 (96.8%), one
+  untranslated key (`nav.explore`) apiece — warn-only.
 - **Messy-data generator (DEV MODE ONLY) — resilience stress-testing against imperfect data.** A dev-only
   broker read-decorator (`broker/messy-broker`) that passes the read model through a pure, deterministic
   imperfection transform (`lib/messy-data`) before the app sees it, so we can watch how resilient our
@@ -289,6 +366,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   Runs as a **separate CI job** so it never slows the fast `verify` lane.
 
 ### Fixed
+
+- **Logic & collision audit — valid data producing wrong results.** A per-definition audit for bugs
+  where rows are individually **valid** but a consumer keys / dedupes / groups / sorts on a
+  **non-unique** field. Two classes fixed surgically in the shared derivations:
+  - **Roadmap issue-lookup keyed by bare `id` (identity collision).** `buildRoadmap` and its caller
+    looked up each project's issues by bare `id`, so two projects sharing an `id` across different
+    sources (`jira:p1` / `ado:p1`) read each other's issue spans and mis-dated a bar. Now keyed on the
+    composite **`source:id`** via a new `roadmapKey` helper (falls back to bare `id` when no source is
+    present, so single-source data is unchanged).
+  - **Nondeterministic order for equal sort keys (unstable sort).** Added a unique final tiebreaker
+    (the composite `projectId`, or the per-group `key` / `id`) to the exec pack severity sort, the
+    roadmap lane/bar sorts, and the capacity / finance / income / benefits programme roll-ups plus
+    `groupProgrammes`, so equal-metric rows sort **deterministically** regardless of input order.
+  Programme grouping by `programmeId` is by-design and unchanged. A committed **collision stress harness**
+  (`collision-stress.test.ts`, both SPA + api-server) auto-enumerates all **36** catalogue definitions
+  and drives the derivations through empty / single / messy / **collide** datasets. Remaining items
+  (assignee name-collision in the resource-load sandbox; a catalogue-`order` tiebreaker in the generated
+  catalogues) are documented as follow-ups in `docs/LOGIC-FINDINGS.md`.
 
 - **SPA history-fallback 500 on deep links.** With a *relative* `STATIC_DIR`, the single-container
   server's `res.sendFile` rejected the relative path and returned **500 for every client-side route**
