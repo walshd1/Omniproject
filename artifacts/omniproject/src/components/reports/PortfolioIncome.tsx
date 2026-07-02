@@ -12,7 +12,7 @@ import { usePortfolioItems } from "./use-portfolio-items";
  */
 export function PortfolioIncome() {
   const { formatCurrency } = useT();
-  const { projects, loading, isError, error, refetch, target, rates } = usePortfolioItems();
+  const { projects, loading, isError, error, refetch, target, rates, fx } = usePortfolioItems();
   const { programmes, portfolio } = useMemo(() => rollupIncome(projects, target, rates), [projects, target, rates]);
   const money = (n: number) => formatCurrency(n, target);
 
@@ -43,22 +43,33 @@ export function PortfolioIncome() {
                 </tr>
               </thead>
               <tbody>
-                {programmes.map((r) => (
-                  <tr key={r.key} className="border-b border-border/50" data-testid={`portfolio-income-row-${r.key}`}>
-                    <td className="py-2 pr-3 font-bold">{r.label}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{r.projects}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{money(r.projected)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{money(r.invoiced)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-amber-600">{r.unbilled ? money(r.unbilled) : "—"}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{r.billedPct}%</td>
-                  </tr>
-                ))}
+                {programmes.map((r) => {
+                  const showLocal = !!r.localCurrency && r.localCurrency !== target && !!r.local;
+                  return (
+                    <tr key={r.key} className="border-b border-border/50" data-testid={`portfolio-income-row-${r.key}`}>
+                      <td className="py-2 pr-3 font-bold">
+                        {r.label}
+                        {showLocal && (
+                          <div className="text-[10px] font-normal text-muted-foreground" data-testid={`portfolio-income-row-${r.key}-local`}>
+                            {formatCurrency(r.local!.projected, r.localCurrency!)} local projected
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{r.projects}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">{money(r.projected)}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">{money(r.invoiced)}</td>
+                      <td className="py-2 px-2 text-right tabular-nums text-amber-600">{r.unbilled ? money(r.unbilled) : "—"}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">{r.billedPct}%</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Projected income vs invoiced, consolidated into {target} and grouped by programme. The unbilled column is
-            revenue still to bill. Derived live; nothing is stored.
+            Projected income vs invoiced, consolidated into {target} and grouped by programme.
+            {fx?.provenance ? ` FX ${fx.provenance}${fx.asOf ? ` as of ${new Date(fx.asOf).toLocaleDateString("en-GB", { timeZone: "UTC" })}` : ""}.` : ""} The
+            unbilled column is revenue still to bill. Derived live; nothing is stored.
           </p>
         </div>
       )}

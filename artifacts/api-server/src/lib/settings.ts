@@ -25,6 +25,28 @@ function coerceAiProvider(raw: unknown): AiProvider {
   return (AI_PROVIDERS as readonly string[]).includes(raw as string) ? (raw as AiProvider) : "none";
 }
 
+/**
+ * FX as-of-date policy for multi-currency consolidation:
+ *  - "spot"        — convert at today's live rate (the broker's current snapshot). Default.
+ *  - "periodClose" — convert at the rate as of `fxRateAsOfDate` (e.g. the reporting period's close
+ *                    date), so a board pack matches the rate finance closed the books at, not
+ *                    whatever the market does today.
+ *  - "budgetRate"  — convert at the rate as of `fxRateAsOfDate` treated as the rate the budget was
+ *                    SET at (e.g. the fiscal year's opening rate), so variance isn't polluted by FX
+ *                    drift. Mechanically the same read as periodClose (both ask the broker for a
+ *                    rate "as of" a date) — the distinct id exists so the UI/label can say which
+ *                    convention a board pack used.
+ * Historical lookup is opportunistic: a broker that can't serve a rate for an arbitrary past date
+ * (the reference/demo brokers can't) degrades to its current live snapshot — never cached or
+ * stored, still read live every request.
+ */
+export const FX_RATE_POLICIES = ["spot", "periodClose", "budgetRate"] as const;
+export type FxRatePolicy = (typeof FX_RATE_POLICIES)[number];
+
+function coerceFxRatePolicy(raw: unknown): FxRatePolicy {
+  return (FX_RATE_POLICIES as readonly string[]).includes(raw as string) ? (raw as FxRatePolicy) : "spot";
+}
+
 /** AI-assisted speech-to-text engines. "browser" = the device's own recogniser (local,
  *  zero audio egress); "whisper" = an OpenAI-compatible /audio/transcriptions endpoint
  *  (self-hosted Whisper server OR a cloud one). Whisper is just one provider. */
@@ -113,6 +135,12 @@ export interface SettingsState {
   backendSource: BackendSource;
   /** Default ISO 4217 reporting currency for consolidated financial reports (null ⇒ use the FX base). */
   reportingCurrency: string | null;
+  /** Which FX rate a consolidated report converts at: today's spot rate, or a rate "as of"
+   *  `fxRateAsOfDate` (period-close or the rate the budget was set at). See `FxRatePolicy`. */
+  fxRatePolicy: FxRatePolicy;
+  /** ISO 8601 date the "as of" rate is read for when `fxRatePolicy` isn't "spot". Ignored (falls
+   *  back to spot) when null or when `fxRatePolicy` is "spot". */
+  fxRateAsOfDate: string | null;
   oidcIssuerUrl: string | null;
   /** White-label branding overrides (null/empty → product defaults). */
   branding: BrandingConfig | null;
@@ -469,6 +497,8 @@ const store: SettingsState = {
   aiModel: process.env["AI_MODEL"] ?? null,
   backendSource: process.env["BACKEND_SOURCE"]?.trim() || "all",
   reportingCurrency: process.env["REPORTING_CURRENCY"]?.trim().toUpperCase() || null,
+  fxRatePolicy: coerceFxRatePolicy(process.env["FX_RATE_POLICY"]?.trim()),
+  fxRateAsOfDate: process.env["FX_RATE_AS_OF_DATE"]?.trim() || null,
   oidcIssuerUrl: process.env["OIDC_ISSUER_URL"] ?? null,
   branding: brandingFromEnv(),
   labelOverrides: labelsFromEnv(),
@@ -506,6 +536,8 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "aiModel",
   "backendSource",
   "reportingCurrency",
+  "fxRatePolicy",
+  "fxRateAsOfDate",
   "oidcIssuerUrl",
   "branding",
   "labelOverrides",
@@ -691,6 +723,16 @@ function validatePatch(patch: Record<string, unknown>): void {
       throw new SettingsValidationError("reportingCurrency must be a 3-letter ISO 4217 code (or null to clear)");
     }
     patch["reportingCurrency"] = v.toUpperCase() || null;
+  }
+  if ("fxRatePolicy" in patch && !(FX_RATE_POLICIES as readonly string[]).includes(patch["fxRatePolicy"] as string)) {
+    throw new SettingsValidationError(`fxRatePolicy must be one of: ${FX_RATE_POLICIES.join(", ")}`);
+  }
+  if ("fxRateAsOfDate" in patch && patch["fxRateAsOfDate"] != null) {
+    const v = patch["fxRateAsOfDate"];
+    if (typeof v !== "string" || (v !== "" && Number.isNaN(Date.parse(v)))) {
+      throw new SettingsValidationError("fxRateAsOfDate must be an ISO 8601 date string (or null to clear)");
+    }
+    patch["fxRateAsOfDate"] = v || null;
   }
   for (const key of ["brokerUrl", "oidcIssuerUrl"] as const) {
     if (key in patch && patch[key] != null) {

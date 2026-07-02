@@ -434,6 +434,14 @@ test("/fx-rates returns a rate table to an authenticated session", async () => {
   assert.ok(body.rates && typeof body.rates === "object", "fx rates present");
 });
 
+test("/fx-rates?asOf= forwards the FX as-of-date policy hint through to the broker", async () => {
+  const res = await req("/api/fx-rates?asOf=2026-01-01T00:00:00.000Z", { headers: { cookie: VIEWER } });
+  assert.equal(res.status, 200);
+  const body = (await res.json()) as { asOf?: string };
+  // The demo broker stamps the requested asOf on its (otherwise unchanged) indicative table.
+  assert.equal(body.asOf, "2026-01-01T00:00:00.000Z");
+});
+
 test("logging sync: enabling without a warranty acknowledgement is rejected (400)", async () => {
   const res = await req("/api/settings", {
     method: "PATCH",

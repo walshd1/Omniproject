@@ -5,7 +5,7 @@ import { getListProjectsQueryKey, getGetProjectIssuesQueryKey, getGetFxRatesQuer
 import { renderWithProviders } from "../../test/utils";
 import { PortfolioIncome } from "./PortfolioIncome";
 
-const FX: FxRates = { base: "GBP", rates: { GBP: 1, USD: 1.25 }, provenance: "sample", asOf: "2026-01-01T00:00:00Z" } as FxRates;
+const FX: FxRates = { base: "GBP", rates: { GBP: 1, USD: 1.25, EUR: 1.1 }, provenance: "sample", asOf: "2026-01-01T00:00:00Z" } as FxRates;
 const project = (o: Partial<Project> = {}): Project => ({ id: "p1", name: "P1", source: "jira", ...o } as Project);
 const issue = (o: Partial<Issue> = {}): Issue => ({ id: "i", projectId: "p1", title: "T", status: "todo", priority: "high", labels: [], source: "jira", currency: "GBP", ...o } as Issue);
 
@@ -29,5 +29,15 @@ describe("PortfolioIncome", () => {
   it("shows the empty state when no project reports income", () => {
     renderWithProviders(<PortfolioIncome />, { client: seed([project({ id: "a" })], { a: [issue({ id: "1" })] }) });
     expect(screen.getByTestId("portfolio-income-empty")).toBeInTheDocument();
+  });
+
+  it("shows a local-currency figure for a single-currency programme", () => {
+    renderWithProviders(<PortfolioIncome />, {
+      client: seed(
+        [project({ id: "a", programmeId: "eu", programmeName: "EU" })],
+        { a: [issue({ id: "1", currency: "EUR", revenue: 500, invoicedAmount: 200 })] },
+      ),
+    });
+    expect(screen.getByTestId("portfolio-income-row-eu-local")).toHaveTextContent("local projected");
   });
 });

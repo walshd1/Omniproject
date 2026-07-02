@@ -358,8 +358,11 @@ export class DemoBroker implements Broker {
     return [...canonical, ...custom];
   }
 
-  async fxRates(): Promise<FxRates> {
-    return DEMO_FX;
+  async fxRates(_ctx: ActorContext, opts?: { asOf?: string }): Promise<FxRates> {
+    // The demo table has no real history, so it can't serve a genuinely different rate for a past
+    // date — it degrades to the same indicative table but is honest about which date it's stamped
+    // with, so the period-close / budget-rate policies still show a coherent "as of" in the UI.
+    return opts?.asOf ? { ...DEMO_FX, asOf: opts.asOf } : DEMO_FX;
   }
 
   async replay(): Promise<HistoryState[]> {

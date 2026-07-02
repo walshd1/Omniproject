@@ -376,7 +376,14 @@ export interface Broker {
    * static capability flags. See lib/availability.
    */
   describeSchema?(ctx: ActorContext): Promise<SchemaManifest | null>;
-  fxRates(ctx: ActorContext): Promise<FxRates>;
+  /**
+   * Multi-currency FX rate table, read live (never cached/stored). `opts.asOf`, when given, asks
+   * for the rate as of that ISO date — the FX rate-source + as-of-date policy for consolidation
+   * (spot / period-close / budget rate; see `FxRatePolicy` in lib/settings). OPTIONAL support: a
+   * broker that can't serve a historical rate for an arbitrary past date degrades gracefully to its
+   * current live snapshot (the reference and demo brokers do this).
+   */
+  fxRates(ctx: ActorContext, opts?: { asOf?: string }): Promise<FxRates>;
   /** Time-travel: replay recorded portfolio states from the logging server. */
   replay(ctx: ActorContext, opts: { from?: string; to?: string }): Promise<HistoryState[]>;
   /**

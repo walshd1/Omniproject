@@ -8,6 +8,26 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Multi-currency portfolio consolidation, hardened: FX as-of-date policy + per-row local-currency
+  display.** At 7+ countries every financial roll-up already converted into one reporting currency
+  (`settings.reportingCurrency`, org default + PMO/admin-settable) — this hardens the consolidation
+  itself:
+  - **FX rate-source + as-of-date policy** (`settings.fxRatePolicy`: `spot` | `periodClose` |
+    `budgetRate`, plus `settings.fxRateAsOfDate`) lets an org pin consolidated reports to today's
+    live rate, a period-close rate, or the rate the budget was set at, instead of always the FX
+    table's current spot rate — so board-pack variance isn't polluted by day-to-day FX drift.
+    `broker.fxRates(ctx, opts?)` gained an optional `{ asOf }` hint (additive, backward-compatible);
+    `GET /fx-rates` takes an optional `asOf` query param. A broker that can't serve a historical rate
+    for an arbitrary date degrades gracefully to its live snapshot (the reference/demo brokers do
+    this); still read live through the broker on every request — never cached or stored.
+  - **Per-programme/project local-currency display.** `consolidateFinancials` (`FinanceRollup`) and
+    `rollupIncome`/`rollupBenefits` (`IncomeRollup`/`BenefitsRollup`) now carry `localCurrency` +
+    `local` totals alongside the consolidated figures — the row's own un-converted currency/amount
+    when every project folded into it shares one currency (most Standalone rows; a single-country
+    programme), `null` once a row mixes ≥2 currencies. `PortfolioFinancials`, `PortfolioIncome` and
+    `PortfolioBenefits` show that local figure as a sub-line under the programme label.
+  - New Settings UI: an "FX as-of-date policy" selector + date picker alongside the existing
+    reporting-currency field.
 - **Unified component library — follow-on slices: declarative refresh, content pages, board-pack
   extras.** Three gaps left open by the original component-library unification (`lib/backend-catalogue/src/component-library.ts`)
   are now wired into real production code, not just tests:

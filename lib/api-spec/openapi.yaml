@@ -76,6 +76,17 @@ paths:
         Read-through FX rates for multi-currency portfolio comparison, sourced
         from the backend/ERP via the broker. Demo mode and live-read failures
         serve indicative sample rates (provenance "sample").
+      parameters:
+        - name: asOf
+          in: query
+          required: false
+          description: >-
+            ISO 8601 date to read the rate as of, implementing the FX
+            as-of-date policy (period-close / budget rate) for consolidated
+            reports. A broker that can't serve a historical rate degrades to
+            its current live snapshot; always read live, never cached.
+          schema:
+            type: string
       responses:
         "200":
           description: FX rate table
@@ -1936,6 +1947,20 @@ components:
             ISO 4217 code the consolidated financial reports default to (e.g. "GBP").
             Empty/absent ⇒ the FX table's base currency is used. Display-only — amounts
             are converted at view time via the broker FX rates; nothing is re-stored.
+        fxRatePolicy:
+          type: string
+          description: >-
+            Which FX rate consolidated reports convert at: "spot" (today's live rate),
+            "periodClose" (the rate as of fxRateAsOfDate, e.g. the period the books
+            closed at) or "budgetRate" (the rate as of fxRateAsOfDate treated as the
+            rate the budget was set at, so variance isn't polluted by FX drift). A
+            broker that can't serve a historical rate degrades to its live snapshot.
+          enum: [spot, periodClose, budgetRate]
+        fxRateAsOfDate:
+          type: ["string", "null"]
+          description: >-
+            ISO 8601 date the "as of" rate is read for when fxRatePolicy isn't "spot".
+            Ignored (falls back to spot) when null.
         oidcIssuerUrl:
           type: ["string", "null"]
         deploymentProfile:
@@ -2012,6 +2037,13 @@ components:
           description: >-
             Default ISO 4217 reporting currency for consolidated financial reports
             (see Settings.reportingCurrency). Empty/null clears it (falls back to the FX base).
+        fxRatePolicy:
+          type: string
+          description: Set the FX as-of-date policy (see Settings.fxRatePolicy).
+          enum: [spot, periodClose, budgetRate]
+        fxRateAsOfDate:
+          type: ["string", "null"]
+          description: Set the "as of" date used when fxRatePolicy isn't "spot" (see Settings.fxRateAsOfDate).
         oidcIssuerUrl:
           type: ["string", "null"]
         deploymentProfile:
