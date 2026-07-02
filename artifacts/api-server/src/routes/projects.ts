@@ -439,7 +439,10 @@ router.post("/projects/:projectId/raid", requireRole("contributor"), async (req,
 
 router.get("/fx-rates", async (req, res) => {
   try {
-    res.json(await getFxRates(req));
+    // Optional `asOf` (ISO date): the FX rate-source + as-of-date policy for consolidation
+    // (period-close / budget rate). A broker that can't serve history degrades to spot.
+    const asOf = typeof req.query["asOf"] === "string" ? req.query["asOf"] : undefined;
+    res.json(await getFxRates(req, asOf));
   } catch (err) {
     req.log.error({ err }, "get_fx_rates failed");
     respondBrokerError(res, err);

@@ -29,6 +29,7 @@ import type {
   ErrorResponse,
   FieldManifest,
   FxRates,
+  GetFxRatesParams,
   HealthStatus,
   HistoryState,
   Issue,
@@ -219,21 +220,28 @@ export const useBrokerCommand = <TError = ErrorType<ErrorResponse>,
       return useMutation(getBrokerCommandMutationOptions(options));
     }
 
-export const getGetFxRatesUrl = () => {
+export const getGetFxRatesUrl = (params?: GetFxRatesParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/fx-rates`
+  return stringifiedParams.length > 0 ? `/api/fx-rates?${stringifiedParams}` : `/api/fx-rates`
 }
 
 /**
  * Read-through FX rates for multi-currency portfolio comparison, sourced from the backend/ERP via the broker. Demo mode and live-read failures serve indicative sample rates (provenance "sample").
  * @summary Multi-currency FX rates
  */
-export const getFxRates = async ( options?: RequestInit): Promise<FxRates> => {
+export const getFxRates = async (params?: GetFxRatesParams, options?: RequestInit): Promise<FxRates> => {
 
-  return customFetch<FxRates>(getGetFxRatesUrl(),
+  return customFetch<FxRates>(getGetFxRatesUrl(params),
   {
     ...options,
     method: 'GET'
@@ -246,23 +254,23 @@ export const getFxRates = async ( options?: RequestInit): Promise<FxRates> => {
 
 
 
-export const getGetFxRatesQueryKey = () => {
+export const getGetFxRatesQueryKey = (params?: GetFxRatesParams,) => {
     return [
-    `/api/fx-rates`
+    `/api/fx-rates`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetFxRatesQueryOptions = <TData = Awaited<ReturnType<typeof getFxRates>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFxRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetFxRatesQueryOptions = <TData = Awaited<ReturnType<typeof getFxRates>>, TError = ErrorType<ErrorResponse>>(params?: GetFxRatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFxRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetFxRatesQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetFxRatesQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFxRates>>> = ({ signal }) => getFxRates({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFxRates>>> = ({ signal }) => getFxRates(params, { signal, ...requestOptions });
 
 
 
@@ -280,11 +288,11 @@ export type GetFxRatesQueryError = ErrorType<ErrorResponse>
  */
 
 export function useGetFxRates<TData = Awaited<ReturnType<typeof getFxRates>>, TError = ErrorType<ErrorResponse>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFxRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetFxRatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFxRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetFxRatesQueryOptions(options)
+  const queryOptions = getGetFxRatesQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -813,6 +813,8 @@ const SAMPLE_SETTINGS = {
   aiModel: "llama3.2",
   backendSource: "sap",
   reportingCurrency: null,
+  fxRatePolicy: "spot" as const,
+  fxRateAsOfDate: null,
   customReports: [],
   reportOverrides: [],
   oidcIssuerUrl: "https://idp",

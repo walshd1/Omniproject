@@ -9,6 +9,7 @@ import type { FieldMapOverride } from './fieldMapOverride';
 import type { LoggingSync } from './loggingSync';
 import type { SettingsUpdateAiProvider } from './settingsUpdateAiProvider';
 import type { SettingsUpdateDeploymentProfile } from './settingsUpdateDeploymentProfile';
+import type { SettingsUpdateFxRatePolicy } from './settingsUpdateFxRatePolicy';
 import type { SettingsUpdateSttProvider } from './settingsUpdateSttProvider';
 
 export interface SettingsUpdate {
@@ -26,6 +27,13 @@ export interface SettingsUpdate {
      * @nullable
      */
   reportingCurrency?: string | null;
+  /** Set the FX as-of-date policy (see Settings.fxRatePolicy). */
+  fxRatePolicy?: SettingsUpdateFxRatePolicy;
+  /**
+     * Set the "as of" date used when fxRatePolicy isn't "spot" (see Settings.fxRateAsOfDate).
+     * @nullable
+     */
+  fxRateAsOfDate?: string | null;
   /** @nullable */
   oidcIssuerUrl?: string | null;
   /** Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs/REVERSE-PROXY.md). */

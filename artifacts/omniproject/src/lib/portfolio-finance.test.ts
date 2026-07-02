@@ -43,6 +43,42 @@ describe("consolidateFinancials", () => {
   });
 });
 
+// ── Local-currency display alongside the consolidated total ──────────────────
+describe("consolidateFinancials — localCurrency/local", () => {
+  it("shows the un-converted local total when every project in a row shares one currency", () => {
+    const { programmes } = consolidateFinancials([
+      proj({ projectId: "a", programmeId: "jp", programmeName: "Japan", fin: fin({ currency: "JPY", budgetAllocated: 500, actualBurn: 200, forecastCostAtCompletion: 500, earnedValue: 200 }) }),
+      proj({ projectId: "b", programmeId: "jp", programmeName: "Japan", fin: fin({ currency: "JPY", budgetAllocated: 300, actualBurn: 100, forecastCostAtCompletion: 300, earnedValue: 100 }) }),
+    ], "GBP", { ...RATES, JPY: 0.005 });
+    const jp = programmes.find((p) => p.key === "jp")!;
+    expect(jp.localCurrency).toBe("JPY");
+    expect(jp.local).toEqual({ budget: 800, actual: 300, forecast: 800, earnedValue: 300 });
+    // Consolidated total is still converted into the reporting currency.
+    expect(jp.budget).toBeCloseTo(800 * 0.005);
+  });
+
+  it("nulls localCurrency/local once a row mixes ≥2 currencies (incl. the portfolio total)", () => {
+    const { programmes, portfolio } = consolidateFinancials([
+      proj({ projectId: "a", programmeId: "mixed", programmeName: "Mixed", fin: fin({ currency: "GBP", budgetAllocated: 1000 }) }),
+      proj({ projectId: "b", programmeId: "mixed", programmeName: "Mixed", fin: fin({ currency: "USD", budgetAllocated: 1000 }) }),
+    ], "GBP", RATES);
+    const mixed = programmes.find((p) => p.key === "mixed")!;
+    expect(mixed.localCurrency).toBeNull();
+    expect(mixed.local).toBeNull();
+    expect(portfolio.localCurrency).toBeNull();
+    expect(portfolio.local).toBeNull();
+  });
+
+  it("a single-project Standalone row always has a local figure", () => {
+    const { programmes } = consolidateFinancials([
+      proj({ projectId: "solo", programmeId: null, fin: fin({ currency: "EUR", budgetAllocated: 250 }) }),
+    ], "GBP", RATES);
+    const standalone = programmes.find((p) => p.label === "Standalone")!;
+    expect(standalone.localCurrency).toBe("EUR");
+    expect(standalone.local?.budget).toBe(250);
+  });
+});
+
 // ── Dirty-data resilience (messy-data generator regression) ──────────────────
 describe("consolidateFinancials — dirty amounts", () => {
   it("does not throw and keeps totals finite when amounts arrive as string/null/NaN", () => {

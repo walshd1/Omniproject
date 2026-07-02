@@ -26,7 +26,9 @@ export function supportedCurrencies(rates: Record<string, number>): string[] {
   return Object.keys(rates).sort();
 }
 
-/** Read FX rates through the active broker (demo serves indicative rates). */
-export async function getFxRates(req: Request): Promise<FxRates> {
-  return getBroker().fxRates(contextFromReq(req));
+/** Read FX rates through the active broker (demo serves indicative rates). An optional `asOf`
+ *  ISO date implements the FX rate-source + as-of-date policy (period-close / budget rate) —
+ *  forwarded to the broker, which degrades to its live spot rate if it can't serve history. */
+export async function getFxRates(req: Request, asOf?: string): Promise<FxRates> {
+  return getBroker().fxRates(contextFromReq(req), asOf ? { asOf } : undefined);
 }

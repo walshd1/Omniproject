@@ -206,7 +206,7 @@ fields (+ `origin`/`userContext`); response = the named schema type.
 | `get_resource_capacity` | resourceCapacity | yes | `capacity_engine` | `{projectId}` → `Row[]` |
 | `get_project_financials` | projectFinancials | yes | `financial_ledger` | `{projectId}` → financials `Row` |
 | `get_capabilities` | capabilities | yes | `capability_probe` | `{}` → `CapabilityFlags` |
-| `get_fx_rates` | fxRates | no | `fx_provider` | `{}` → `FxRates` |
+| `get_fx_rates` | fxRates | no | `fx_provider` | `{asOf?}` → `FxRates` |
 | `replay` | replay | no | `history_provider` | `{from?, to?}` → `HistoryState[]` |
 
 **`verify` (dry-run):** the gateway's verification probe calls only the

@@ -1,15 +1,26 @@
 import { useState } from "react";
-import { useGetFxRates, getGetFxRatesQueryKey, type FxRates } from "@workspace/api-client-react";
+import { useGetFxRates, getGetFxRatesQueryKey, type FxRates, type Settings } from "@workspace/api-client-react";
 
 export type { FxRates };
 
 /**
- * Multi-currency rates, read-through from the backend/ERP via the broker.
- * Thin wrapper over the generated `/fx-rates` client so the contract (and its
- * `FxRates` type) stays the single source of truth — no hand-rolled fetch.
+ * Multi-currency rates, read-through from the backend/ERP via the broker. `asOf` (ISO date),
+ * when given, implements the FX rate-source + as-of-date policy (period-close / budget rate,
+ * see `resolveFxAsOf`) — the broker degrades to its live spot rate if it can't serve history.
+ * Thin wrapper over the generated `/fx-rates` client so the contract (and its `FxRates` type)
+ * stays the single source of truth — no hand-rolled fetch.
  */
-export function useFxRates() {
-  return useGetFxRates({ query: { queryKey: getGetFxRatesQueryKey(), retry: false, staleTime: 5 * 60_000 } });
+export function useFxRates(asOf?: string) {
+  const params = asOf ? { asOf } : undefined;
+  return useGetFxRates(params, { query: { queryKey: getGetFxRatesQueryKey(params), retry: false, staleTime: 5 * 60_000 } });
+}
+
+/** Resolve the org's FX as-of-date policy (settings.fxRatePolicy) to the `asOf` date `useFxRates`
+ *  should request: undefined for "spot" (today's live rate); `settings.fxRateAsOfDate` for
+ *  "periodClose"/"budgetRate" (undefined — i.e. falls back to spot — if no date is configured). */
+export function resolveFxAsOf(settings: Pick<Settings, "fxRatePolicy" | "fxRateAsOfDate"> | undefined): string | undefined {
+  if (!settings || !settings.fxRatePolicy || settings.fxRatePolicy === "spot") return undefined;
+  return settings.fxRateAsOfDate || undefined;
 }
 
 /** Convert between currencies via a base-anchored rate table. Falls back to the

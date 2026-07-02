@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { updateSettings, getSettings, SettingsValidationError } from "./settings";
 
 afterEach(() => {
-  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, customReports: [], reportOverrides: [] }); // reset shared store
+  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, fxRatePolicy: "spot", fxRateAsOfDate: null, customReports: [], reportOverrides: [] }); // reset shared store
 });
 
 test("reportOverrides: accepts partial metadata overrides and rejects bad shape", () => {
@@ -33,6 +33,19 @@ test("reportingCurrency: accepts a 3-letter ISO code (upper-cased), null to clea
   assert.equal(updateSettings({ reportingCurrency: null }).reportingCurrency, null); // cleared
   assert.throws(() => updateSettings({ reportingCurrency: "EUROS" }), SettingsValidationError); // not 3 letters
   assert.throws(() => updateSettings({ reportingCurrency: "12" as string }), SettingsValidationError);
+});
+
+test("fxRatePolicy: accepts spot/periodClose/budgetRate, rejects anything else", () => {
+  assert.equal(updateSettings({ fxRatePolicy: "periodClose" }).fxRatePolicy, "periodClose");
+  assert.equal(updateSettings({ fxRatePolicy: "budgetRate" }).fxRatePolicy, "budgetRate");
+  assert.equal(updateSettings({ fxRatePolicy: "spot" }).fxRatePolicy, "spot");
+  assert.throws(() => updateSettings({ fxRatePolicy: "yesterday" }), SettingsValidationError);
+});
+
+test("fxRateAsOfDate: accepts an ISO date, null to clear, rejects an unparseable string", () => {
+  assert.equal(updateSettings({ fxRateAsOfDate: "2026-06-30" }).fxRateAsOfDate, "2026-06-30");
+  assert.equal(updateSettings({ fxRateAsOfDate: null }).fxRateAsOfDate, null);
+  assert.throws(() => updateSettings({ fxRateAsOfDate: "not-a-date" }), SettingsValidationError);
 });
 
 test("savedViews: accepts well-formed views and persists them", () => {

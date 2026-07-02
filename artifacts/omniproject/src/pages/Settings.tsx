@@ -67,6 +67,8 @@ export function Settings() {
     aiModel: "",
     backendSource: "all",
     reportingCurrency: "",
+    fxRatePolicy: "spot",
+    fxRateAsOfDate: "",
     oidcIssuerUrl: "",
   });
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
@@ -81,6 +83,8 @@ export function Settings() {
         aiModel: settings.aiModel || "",
         backendSource: settings.backendSource || "all",
         reportingCurrency: settings.reportingCurrency || "",
+        fxRatePolicy: settings.fxRatePolicy || "spot",
+        fxRateAsOfDate: settings.fxRateAsOfDate || "",
         oidcIssuerUrl: settings.oidcIssuerUrl || "",
       });
     }
@@ -101,6 +105,8 @@ export function Settings() {
       aiModel: formData.aiModel.trim() || null,
       backendSource: formData.backendSource as NonNullable<SettingsUpdate["backendSource"]>,
       reportingCurrency: formData.reportingCurrency.trim().toUpperCase() || null,
+      fxRatePolicy: formData.fxRatePolicy as NonNullable<SettingsUpdate["fxRatePolicy"]>,
+      fxRateAsOfDate: formData.fxRatePolicy === "spot" ? null : formData.fxRateAsOfDate.trim() || null,
       oidcIssuerUrl: formData.oidcIssuerUrl.trim() || null,
     };
     updateSettings.mutate(
@@ -196,6 +202,39 @@ export function Settings() {
             <p className="text-xs text-muted-foreground">
               ISO 4217 code the consolidated financial reports default to (e.g. <span className="font-mono">GBP</span>). Leave blank to use the
               FX table's base currency. Display-only — amounts are converted at view time; nothing is re-stored.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground block">FX AS-OF-DATE POLICY</label>
+            <Select
+              value={formData.fxRatePolicy}
+              onValueChange={(v) => setFormData((p) => ({ ...p, fxRatePolicy: v }))}
+            >
+              <SelectTrigger className="rounded-none border-border h-12 font-mono uppercase w-64">
+                <SelectValue placeholder="Select policy" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="spot">Spot (today's live rate)</SelectItem>
+                <SelectItem value="periodClose">Period-close rate</SelectItem>
+                <SelectItem value="budgetRate">Budget-set rate</SelectItem>
+              </SelectContent>
+            </Select>
+            {formData.fxRatePolicy !== "spot" && (
+              <Input
+                id="fx-rate-as-of-date"
+                type="date"
+                value={formData.fxRateAsOfDate}
+                onChange={(e) => setFormData((p) => ({ ...p, fxRateAsOfDate: e.target.value }))}
+                className="rounded-none border-border font-mono h-12 w-48"
+              />
+            )}
+            <p className="text-xs text-muted-foreground">
+              Which FX rate consolidated reports convert at. "Spot" uses today's live rate. "Period-close"
+              and "Budget-set" read the rate as of the date above (e.g. when the books closed, or when the
+              budget was set), so board-pack variance isn't polluted by day-to-day FX drift. Rates are still
+              read live through the broker on every request — never cached or stored — and a broker that
+              can't serve a historical rate for that date falls back to its current live snapshot.
             </p>
           </div>
         </div>

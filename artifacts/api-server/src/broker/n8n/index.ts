@@ -448,12 +448,14 @@ export class N8nBroker implements Broker {
     }
   }
 
-  async fxRates(ctx: ActorContext): Promise<FxRates> {
+  async fxRates(ctx: ActorContext, opts?: { asOf?: string }): Promise<FxRates> {
     try {
-      const r = await callN8n<Partial<FxRates>>("get_fx_rates", {}, { ctx, source: "fx_provider", withActor: false });
+      // `asOf` is a best-effort hint forwarded to the workflow; a workflow that can't resolve a
+      // historical rate is free to ignore it and answer with its current spot rate (as ours does).
+      const r = await callN8n<Partial<FxRates>>("get_fx_rates", { asOf: opts?.asOf }, { ctx, source: "fx_provider", withActor: false });
       const data = r.data;
       if (data && data.rates && typeof data.rates === "object") {
-        return { base: data.base || "GBP", rates: data.rates, provenance: "sourced", asOf: data.asOf || new Date().toISOString() };
+        return { base: data.base || "GBP", rates: data.rates, provenance: "sourced", asOf: data.asOf || opts?.asOf || new Date().toISOString() };
       }
     } catch {
       /* graceful degradation → indicative rates below */
