@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { DrillTo } from "@workspace/backend-catalogue";
-import { resolveDrillTo, readDrillFilter, DRILL_FILTER_PARAMS } from "./drill-to";
+import { resolveDrillTo, readDrillFilter, DRILL_FILTER_PARAMS, overdueDrillTo, costOverrunDrillTo } from "./drill-to";
 import { matchRow } from "./custom-report";
 
 /**
@@ -113,5 +113,50 @@ describe("readDrillFilter / resolveDrillTo round trip", () => {
     const resolved = resolveDrillTo(BLOCKED_DRILL, { projectId: "alpha" })!;
     const rows = [{ id: "1", blocked: true }, { id: "2", blocked: false }, { id: "3", blocked: true }];
     expect(rows.filter((r) => matchRow(resolved.predicate, r)).map((r) => r.id)).toEqual(["1", "3"]);
+  });
+});
+
+// backlog #132 — the schedule-variance and budget-overrun drill-throughs. Unlike the static
+// portfolioHealth blockers descriptor, these are built in code (not declared in a catalogue JSON asset)
+// because the population they filter to depends on today's date (overdue) or isn't a fixed literal
+// (cost-incurring) — but they resolve through the exact same `resolveDrillTo`.
+describe("overdueDrillTo", () => {
+  const asOf = new Date("2026-07-02T00:00:00Z");
+
+  it("filters to open items past their due date, project-scoped", () => {
+    const resolved = resolveDrillTo(overdueDrillTo(asOf), { projectId: "bravo" });
+    expect(resolved!.predicate).toEqual({
+      all: [
+        { field: "dueDate", op: "lt", value: "2026-07-02" },
+        { field: "status", op: "nin", value: ["done", "cancelled"] },
+      ],
+    });
+    expect(resolved!.href).toContain("/projects/bravo?filter=");
+    expect(resolved!.label).toBe("Overdue items");
+  });
+
+  it("actually matches an overdue, non-terminal row and excludes a done/future one", () => {
+    const resolved = resolveDrillTo(overdueDrillTo(asOf), { projectId: "bravo" })!;
+    const rows = [
+      { id: "late", dueDate: "2026-06-01", status: "in_progress" },
+      { id: "done-late", dueDate: "2026-06-01", status: "done" },
+      { id: "future", dueDate: "2026-08-01", status: "in_progress" },
+    ];
+    expect(rows.filter((r) => matchRow(resolved.predicate, r)).map((r) => r.id)).toEqual(["late"]);
+  });
+});
+
+describe("costOverrunDrillTo", () => {
+  it("filters to items with actual cost logged, project-scoped", () => {
+    const resolved = resolveDrillTo(costOverrunDrillTo(), { projectId: "cad" });
+    expect(resolved!.predicate).toEqual({ all: [{ field: "actualCost", op: "gt", value: 0 }] });
+    expect(resolved!.href).toContain("/projects/cad?filter=");
+    expect(resolved!.label).toBe("Cost-incurring items");
+  });
+
+  it("actually matches rows with real cost incurred and excludes zero/untracked ones", () => {
+    const resolved = resolveDrillTo(costOverrunDrillTo(), { projectId: "cad" })!;
+    const rows = [{ id: "spent", actualCost: 500 }, { id: "zero", actualCost: 0 }, { id: "untracked", actualCost: null }];
+    expect(rows.filter((r) => matchRow(resolved.predicate, r)).map((r) => r.id)).toEqual(["spent"]);
   });
 });
