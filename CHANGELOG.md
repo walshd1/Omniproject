@@ -23,6 +23,27 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Report builder: multi-level group-by + trend/line chart (backlog #133).** Extends the bespoke
+  report generator (backlog #105) past a single group-by and two viz types, without redesigning it:
+  - **Second group-by level (`groupBy2`)** turns a report into a genuine cross-tab: `groupBy` gives
+    the pivot's rows, `groupBy2` its columns, with a value in every (row, column) cell — not a
+    compound key collapsed back to one dimension (`runCustomReport` in
+    `artifacts/omniproject/src/lib/custom-report.ts`, `CustomReportGroup.pivot` +
+    `CustomReportResult.columns`). The first metric is what's shown in the cross-tab cell; every
+    metric still totals per row in the existing table. Rendered as a second table under the
+    single-level view (`CustomReport.tsx`), and authored via a "Then by (pivot columns)" select that
+    only appears once a first group-by is chosen (`CustomReportsAdmin.tsx`).
+  - **`viz: "line"`** trends a metric over time instead of grouping by a category: a new `dateField`
+    on the report def is bucketed by calendar month and the metrics aggregated per month
+    (`runCustomReportTrend`), rendered as a Recharts `LineChart` + a month table, computed live over
+    the read model like every other report — nothing but the definition persists in
+    `settings.customReports`. Authored via a viz dropdown option plus a date-field select that
+    replaces the group-by controls when `viz === "line"`.
+  - Both extensions thread through the whole stack the original feature already had: the export/import
+    round-trip (`custom-report-file.ts`), the server-side shape validation
+    (`artifacts/api-server/src/lib/settings.ts` `validateCustomReports`), and the PMO-gated
+    `PUT /api/reports/custom` route — unchanged besides the wider `viz` union and two new optional
+    string fields.
 - **ERP connector: SAP S/4HANA (PS/PPM) read-only financials adapter.** A new catalogued backend,
   `sap-s4hana-financials` (`lib/backend-catalogue/vendors/backends/sap-s4hana-financials.json`),
   reading SAP Project System/PPM cost-object financial context — budget, actual costs, cost center —
