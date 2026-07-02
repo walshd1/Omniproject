@@ -61,7 +61,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = {\"issues\":true,\"scheduling\":true,\"portfolio\":true,\"resources\":false,\"financials\":false,\"baseline\":true,\"blockers\":false,\"history\":true,\"raid\":false};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: \"openproject\", capabilities: caps }, message: 'verify ok' } }];"
+        "jsCode": "// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = {\"baseline\":true,\"blockers\":false,\"financials\":false,\"history\":true,\"issues\":true,\"portfolio\":true,\"raid\":false,\"resources\":false,\"scheduling\":true};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: \"openproject\", capabilities: caps }, message: 'verify ok' } }];"
       },
       "id": "aaaaaaaa-0000-4000-8000-000000000002",
       "name": "Verify ACK",
@@ -130,7 +130,7 @@
                 "conditions": [
                   {
                     "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "list_projects",
+                    "rightValue": "create_issue",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -139,7 +139,28 @@
                 ]
               },
               "renameOutput": true,
-              "outputKey": "list_projects"
+              "outputKey": "create_issue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "delete_issue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "delete_issue"
             },
             {
               "conditions": {
@@ -172,7 +193,7 @@
                 "conditions": [
                   {
                     "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "create_issue",
+                    "rightValue": "list_projects",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -181,7 +202,7 @@
                 ]
               },
               "renameOutput": true,
-              "outputKey": "create_issue"
+              "outputKey": "list_projects"
             },
             {
               "conditions": {
@@ -203,27 +224,6 @@
               },
               "renameOutput": true,
               "outputKey": "update_issue"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "typeValidation": "loose"
-                },
-                "combinator": "and",
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "delete_issue",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ]
-              },
-              "renameOutput": true,
-              "outputKey": "delete_issue"
             },
             {
               "conditions": {
@@ -303,54 +303,6 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/projects",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $json.body.payload.userContext.token }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "aaaaaaaa-0000-4000-8000-000000000009",
-      "name": "List Projects",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        380,
-        80
-      ]
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/projects/{{ $json.body.payload.projectId }}/work_packages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $json.body.payload.userContext.token }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "aaaaaaaa-0000-4000-8000-00000000000a",
-      "name": "List Issues",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        380,
-        260
-      ]
-    },
-    {
-      "parameters": {
         "method": "POST",
         "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/work_packages",
         "sendHeaders": true,
@@ -371,13 +323,89 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ subject: $json.body.payload.title, description: { raw: $json.body.payload.description }, _links: { project: { href: '/api/v3/projects/' + $json.body.payload.projectId } } }) }}"
       },
-      "id": "aaaaaaaa-0000-4000-8000-00000000000b",
+      "id": "aaaaaaaa-0000-4000-8000-000000000009",
       "name": "Create Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         380,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/work_packages/{{ $json.body.payload.issueId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.body.payload.userContext.token }}"
+            },
+            {
+              "name": "X-OmniProject-Idempotency-Key",
+              "value": "={{ $json.body.idempotencyKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "name": "Delete Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/projects/{{ $json.body.payload.projectId }}/work_packages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.body.payload.userContext.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000b",
+      "name": "List Issues",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
         440
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/projects",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.body.payload.userContext.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000c",
+      "name": "List Projects",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        620
       ]
     },
     {
@@ -402,47 +430,19 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ lockVersion: $json.body.payload.expectedVersion, subject: $json.body.payload.title }) }}"
       },
-      "id": "aaaaaaaa-0000-4000-8000-00000000000c",
+      "id": "aaaaaaaa-0000-4000-8000-00000000000d",
       "name": "Update Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         380,
-        620
+        800
       ],
       "notes": "OpenProject enforces optimistic concurrency via lockVersion — pass expectedVersion through as lockVersion."
     },
     {
       "parameters": {
-        "method": "DELETE",
-        "url": "={{ $env.OPENPROJECT_INSTANCE_URL }}/api/v3/work_packages/{{ $json.body.payload.issueId }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $json.body.payload.userContext.token }}"
-            },
-            {
-              "name": "X-OmniProject-Idempotency-Key",
-              "value": "={{ $json.body.idempotencyKey }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "aaaaaaaa-0000-4000-8000-00000000000d",
-      "name": "Delete Issue",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        380,
-        800
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: {\"issues\":true,\"scheduling\":true,\"portfolio\":true,\"resources\":false,\"financials\":false,\"baseline\":true,\"blockers\":false,\"history\":true,\"raid\":false} } }];"
+        "jsCode": "// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: {\"baseline\":true,\"blockers\":false,\"financials\":false,\"history\":true,\"issues\":true,\"portfolio\":true,\"raid\":false,\"resources\":false,\"scheduling\":true} } }];"
       },
       "id": "aaaaaaaa-0000-4000-8000-00000000000e",
       "name": "Capabilities",
@@ -550,7 +550,14 @@
       "main": [
         [
           {
-            "node": "List Projects",
+            "node": "Create Issue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete Issue",
             "type": "main",
             "index": 0
           }
@@ -564,7 +571,7 @@
         ],
         [
           {
-            "node": "Create Issue",
+            "node": "List Projects",
             "type": "main",
             "index": 0
           }
@@ -572,13 +579,6 @@
         [
           {
             "node": "Update Issue",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Delete Issue",
             "type": "main",
             "index": 0
           }
@@ -599,7 +599,18 @@
         ]
       ]
     },
-    "List Projects": {
+    "Create Issue": {
+      "main": [
+        [
+          {
+            "node": "Normalize → BrokerActionResult",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Issue": {
       "main": [
         [
           {
@@ -621,7 +632,7 @@
         ]
       ]
     },
-    "Create Issue": {
+    "List Projects": {
       "main": [
         [
           {
@@ -633,17 +644,6 @@
       ]
     },
     "Update Issue": {
-      "main": [
-        [
-          {
-            "node": "Normalize → BrokerActionResult",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Delete Issue": {
       "main": [
         [
           {

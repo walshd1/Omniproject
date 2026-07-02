@@ -2446,6 +2446,10 @@ Methodology catalogue generator.
 
 Methodology reference-ruleset catalogue generator.
 
+### `scripts/src/gen-n8n-blueprints.ts`
+
+n8n example-blueprint generator + drift guard.
+
 ### `scripts/src/gen-notification-routes.ts`
 
 Notification-route catalogue generator.
