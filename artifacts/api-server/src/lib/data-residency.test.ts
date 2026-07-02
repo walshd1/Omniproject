@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   dataResidencyEnabled, allowedRegions, regionForUrl, checkResidency, assertResidency,
-  residencyStatus, DataResidencyError,
+  residencyStatus, DataResidencyError, checkEgressResidency, assertEgressResidency,
 } from "./data-residency";
 
 const EU = "https://eu.n8n.example/webhook/omni";
@@ -71,4 +71,73 @@ test("residencyStatus reports the policy + per-endpoint origin/region/allow (pat
   assert.deepEqual({ region: us?.region, allowed: us?.allowed }, { region: "us", allowed: false });
   // The secret webhook path must not appear — only the origin.
   assert.ok(status.endpoints.every((x) => !x.origin.includes("/webhook")));
+});
+
+// ── Per-country JSON policy (the multinational form) ──────────────────────────────────
+const POLICY = {
+  regions: {
+    eu: { backends: ["https://eu.n8n.example"], egress: ["*.eu.example.com"] },
+    us: { backends: ["https://us.n8n.example"], egress: ["*.us.example.com"] },
+  },
+  allowed: ["eu"],
+};
+const polEnv = (p: unknown = POLICY): NodeJS.ProcessEnv =>
+  ({ DATA_RESIDENCY_POLICY: JSON.stringify(p) }) as NodeJS.ProcessEnv;
+
+test("policy mode: enabled, allowed regions + region-for-url come from the JSON policy", () => {
+  const e = polEnv();
+  assert.equal(dataResidencyEnabled(e), true);
+  assert.deepEqual([...allowedRegions(e)], ["eu"]);
+  assert.equal(regionForUrl(EU, e), "eu");
+  assert.equal(regionForUrl(US, e), "us");
+});
+
+test("policy mode: allows an in-region (eu) endpoint, blocks an out-of-region (us) one", () => {
+  const e = polEnv();
+  assert.equal(checkResidency([EU], e).allowed, true);
+  const blocked = checkResidency([EU, US], e);
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.region, "us");
+  assert.throws(() => assertResidency([US], e), DataResidencyError);
+  assert.doesNotThrow(() => assertResidency([EU], e));
+});
+
+test("policy mode: fail-closed on an undeclared region and on an invalid policy", () => {
+  const undeclared = checkResidency(["https://elsewhere.example/webhook"], polEnv());
+  assert.equal(undeclared.allowed, false);
+  assert.equal(undeclared.region, null);
+  // A malformed policy refuses everything — it cannot prove residency.
+  const bad = { DATA_RESIDENCY_POLICY: "{ not json" } as NodeJS.ProcessEnv;
+  const v = checkResidency([EU], bad);
+  assert.equal(v.allowed, false);
+  assert.match(v.reason!, /policy is invalid/);
+  assert.throws(() => assertResidency([EU], bad), DataResidencyError);
+});
+
+test("policy mode: per-country EGRESS allow/deny, incl. fail-closed on a foreign host", () => {
+  const e = polEnv();
+  // eu is allowed ⇒ its egress hosts + own backend host pass
+  assert.equal(checkEgressResidency("api.eu.example.com", e).allowed, true);
+  assert.equal(checkEgressResidency("eu.n8n.example", e).allowed, true);
+  assert.doesNotThrow(() => assertEgressResidency("https://api.eu.example.com/x", e));
+  // us is NOT allowed ⇒ refused; a foreign host is refused (fail-closed)
+  assert.equal(checkEgressResidency("api.us.example.com", e).allowed, false);
+  assert.throws(() => assertEgressResidency("https://api.us.example.com/x", e), DataResidencyError);
+  assert.throws(() => assertEgressResidency("https://evil.example.net/x", e), DataResidencyError);
+});
+
+test("egress residency is a NO-OP when no JSON policy is configured (default unchanged)", () => {
+  assert.equal(checkEgressResidency("anything.example", {} as NodeJS.ProcessEnv).allowed, true);
+  assert.doesNotThrow(() => assertEgressResidency("https://anything.example/x", {} as NodeJS.ProcessEnv));
+});
+
+test("residencyStatus in policy mode reports mode + per-region backends/egress + allow verdict", () => {
+  const status = residencyStatus(polEnv());
+  assert.equal(status.mode, "policy");
+  assert.equal(status.enabled, true);
+  const eu = status.regions?.find((r) => r.code === "eu");
+  const us = status.regions?.find((r) => r.code === "us");
+  assert.equal(eu?.allowed, true);
+  assert.equal(us?.allowed, false);
+  assert.deepEqual(eu?.egress, ["*.eu.example.com"]);
 });

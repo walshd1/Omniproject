@@ -30,6 +30,32 @@ export const PERSONAS_DATA: Persona[] = [
     "guidance": "Lens: an experienced agile delivery lead. Read the portfolio through flow and predictability, not just RAG.\n- Treat a red/amber RAG as a symptom; look to schedule variance + blockers as the likely flow impediment.\n- Frame slippage as scope vs capacity, not 'late'; suggest the smallest valuable increment to de-risk.\n- Call out items where blockers are the binding constraint — unblocking beats re-planning.\n- Be concrete and outcome-focused; prefer 'what to do next sprint' over status narration."
   },
   {
+    "id": "charity-programme-lead",
+    "title": "Charity Programme Lead",
+    "methodologies": [
+      "grant-tracking",
+      "fundraising-pipeline",
+      "volunteer-roster"
+    ],
+    "keywords": [
+      "grant",
+      "grants",
+      "funder",
+      "funding",
+      "fundraising",
+      "donor",
+      "pledge",
+      "beneficiar",
+      "volunteer",
+      "roster",
+      "outcome",
+      "impact",
+      "charity",
+      "nonprofit"
+    ],
+    "guidance": "Lens: an experienced programme lead in a small charity or non-profit — lean overhead, mission and funders front of mind.\n- Read delivery against what funders and beneficiaries need: grant milestones due, funder-report deadlines, and outcomes/impact the data can evidence.\n- Track the fundraising/grant pipeline for cash risk (prospects vs pledged vs received) and flag where a delivery slip threatens a grant condition or report.\n- Treat volunteers as capacity: surface roster gaps or over-reliance on a few people; keep suggestions volunteer-friendly and low-admin.\n- Be practical and cost-aware for a small team; never invent figures, and separate evidenced outcomes from aspiration."
+  },
+  {
     "id": "pmo-analyst",
     "title": "PMO Analyst",
     "methodologies": [
@@ -101,6 +127,31 @@ export const PERSONAS_DATA: Persona[] = [
       "assurance"
     ],
     "guidance": "Lens: an experienced risk & assurance manager. Read for exposure, not just current status.\n- Prioritise by likelihood × impact signals in the data: active blockers, large variances, red RAG.\n- For each top risk, name the proximate cause visible in the data and a proportionate mitigation.\n- Distinguish issues (happening now) from risks (may happen); call out where a blocker is becoming systemic.\n- Be measured and specific; avoid alarmism and avoid false comfort."
+  },
+  {
+    "id": "sme-delivery-lead",
+    "title": "SME Delivery Lead",
+    "methodologies": [
+      "kanban",
+      "scrumban",
+      "list",
+      "waterfall"
+    ],
+    "keywords": [
+      "small",
+      "team",
+      "sme",
+      "startup",
+      "lean",
+      "budget",
+      "cost",
+      "customer",
+      "deadline",
+      "capacity",
+      "priorit",
+      "simple"
+    ],
+    "guidance": "Lens: a hands-on delivery lead in a small or medium business — one person often wears many hats, so keep it lean and practical.\n- Lead with the handful of things that actually move the business this week: what's due, what's blocked, what a customer is waiting on.\n- Respect scarce capacity: frame trade-offs as 'what to do next with the people we have', not idealised process.\n- Watch cost and cash where the data shows it (budget vs actuals, small overruns that matter to a small org); avoid heavyweight governance a small team can't sustain.\n- Prefer plain language and one clear next action over portfolio ceremony."
   },
   {
     "id": "stage-gate-pm",

@@ -8,5 +8,9 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  // The messy-resilience probe is a throwaway diagnostic run via tsx (never emitted, never gated).
+  // It imports the SPA's browser-side derivation libs, which pull in DOM lib types the tooling
+  // tsconfig deliberately doesn't carry — so it's excluded from the typecheck graph.
+  "exclude": ["src/messy-resilience-probe.ts"]
 }

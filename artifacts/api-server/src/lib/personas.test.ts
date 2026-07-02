@@ -23,6 +23,19 @@ test("selects the risk manager for risk/blocker questions", () => {
   assert.equal(selectPersonas("what are our biggest risks and blockers?")[0]!.id, "risk-assurance-manager");
 });
 
+test("selects the charity lead for grant/funder/volunteer questions", () => {
+  assert.equal(selectPersonas("are our grant milestones and funder reports on track?")[0]!.id, "charity-programme-lead");
+  assert.equal(selectPersonas("do we have enough volunteers on the roster?")[0]!.id, "charity-programme-lead");
+});
+
+test("selects the SME lead for a small-team budget/capacity question", () => {
+  assert.equal(selectPersonas("our small team is over budget and short on capacity")[0]!.id, "sme-delivery-lead");
+});
+
+test("a charity methodology pins the charity lead", () => {
+  assert.equal(selectPersonas("what's the picture", { methodology: "grant-tracking" })[0]!.id, "charity-programme-lead");
+});
+
 test("a methodology tag outweighs stray keywords", () => {
   // "status" hits the PMO analyst, but the prince2 methodology pins the stage-gate PM.
   assert.equal(selectPersonas("give me a status", { methodology: "prince2" })[0]!.id, "stage-gate-pm");

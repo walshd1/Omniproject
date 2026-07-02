@@ -31,13 +31,22 @@ export interface ExecHealth {
 
 const RANK: Record<Rag, number> = { RED: 0, AMBER: 1, GREEN: 2 };
 
+/** Coerce a possibly-dirty read-model value (string, null, NaN, Infinity) to a finite number, else 0. */
+function num(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** Severity ordering: RED before AMBER, then more blockers, bigger schedule slip, then budget overrun. */
 function bySeverity(a: ExecException, b: ExecException): number {
   return (
     RANK[a.rag] - RANK[b.rag] ||
     b.activeBlockersCount - a.activeBlockersCount ||
     a.scheduleVarianceDays - b.scheduleVarianceDays ||
-    b.budgetVariancePercentage - a.budgetVariancePercentage
+    b.budgetVariancePercentage - a.budgetVariancePercentage ||
+    // Stable final tiebreaker: projectId is the composite source:id upstream, so two
+    // equally-severe exceptions always sort deterministically (never order-of-arrival).
+    a.projectId.localeCompare(b.projectId)
   );
 }
 
@@ -49,18 +58,23 @@ export function buildExecHealth(health: PortfolioHealthSummary[]): ExecHealth {
   const exceptions: ExecException[] = [];
 
   for (const h of health) {
-    const r: Rag = h.ragStatus === "RED" || h.ragStatus === "AMBER" ? h.ragStatus : "GREEN";
+    // The read model is untrusted: rag can arrive in any casing, and the numeric fields can arrive
+    // as strings/null/NaN. Normalise before rolling up so one dirty row can't poison the board totals.
+    const rawRag = String(h.ragStatus ?? "").toUpperCase();
+    const r: Rag = rawRag === "RED" || rawRag === "AMBER" ? (rawRag as Rag) : "GREEN";
+    const slip = num(h.scheduleVarianceDays);
+    const blockers = num(h.activeBlockersCount);
     rag[r] += 1;
-    totalBlockers += h.activeBlockersCount;
-    if (h.scheduleVarianceDays < worstSlipDays) worstSlipDays = h.scheduleVarianceDays;
+    totalBlockers += blockers;
+    if (slip < worstSlipDays) worstSlipDays = slip;
     if (r !== "GREEN") {
       exceptions.push({
-        projectId: h.projectId,
-        projectName: h.projectName,
+        projectId: String(h.projectId ?? ""),
+        projectName: String(h.projectName ?? ""),
         rag: r,
-        scheduleVarianceDays: h.scheduleVarianceDays,
-        budgetVariancePercentage: h.budgetVariancePercentage,
-        activeBlockersCount: h.activeBlockersCount,
+        scheduleVarianceDays: slip,
+        budgetVariancePercentage: num(h.budgetVariancePercentage),
+        activeBlockersCount: blockers,
       });
     }
   }

@@ -14,9 +14,13 @@
  *   - **Optional strict mode:** set `EGRESS_ALLOWLIST` to a comma-separated host
  *     list and ALL outbound hosts must match — for deployments that want to pin
  *     egress to exactly their broker/IdP/FX hosts.
+ *   - **Per-country residency:** when a `DATA_RESIDENCY_POLICY` is configured, the
+ *     host must also sit in an allowed region's egress allowlist, else the hop is
+ *     refused with a `DataResidencyError` (451). Inert when no policy is set.
  *
  * Use `safeFetch` everywhere the gateway makes an outbound request.
  */
+import { assertEgressResidency } from "./data-residency";
 
 export class EgressError extends Error {
   constructor(message: string) {
@@ -60,6 +64,9 @@ export function assertEgressAllowed(rawUrl: string): URL {
       throw new EgressError(`egress to ${host} is not in EGRESS_ALLOWLIST`);
     }
   }
+  // Per-country residency: when a JSON policy is active, the host must sit in an allowed region's
+  // egress allowlist. Throws a fail-closed DataResidencyError (451); a no-op when no policy is set.
+  assertEgressResidency(rawUrl);
   return u;
 }
 

@@ -64,5 +64,27 @@ export const ROUTES_DATA: NotificationRoute[] = [
       "*"
     ],
     "order": 30
+  },
+  {
+    "id": "digest",
+    "label": "Proactive \"what needs me\" digest",
+    "description": "A concise, role-aware roll-up of what needs the owner's attention (at-risk projects, blockers, overdue work, budget breaches) is pushed to email and team chat on a default cadence — so the PM/PgM who lives in their inbox gets it without opening the app. On by a safe default (opt-out).",
+    "match": {
+      "kinds": [
+        "digest"
+      ]
+    },
+    "channels": [
+      "email",
+      "slack",
+      "teams"
+    ],
+    "audience": {
+      "role": "manager"
+    },
+    "methodologies": [
+      "*"
+    ],
+    "order": 40
   }
 ];
