@@ -44,7 +44,7 @@ function ActionEditor({ action, value, onChange }: { action: string; value: Acti
                 {ACTION_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
               </select>
             </label>
-            {value.kind !== "n8nNode" && (
+            {value.kind !== ACTION_KINDS[1] && (
               <label className="text-xs flex items-center gap-1">
                 <span className="text-muted-foreground">Method</span>
                 <select aria-label={`${actionLabel(action)} method`} className="rounded-none border border-border bg-background px-2 py-1 text-xs"
@@ -55,18 +55,18 @@ function ActionEditor({ action, value, onChange }: { action: string; value: Acti
               </label>
             )}
           </div>
-          {value.kind !== "n8nNode" && (
+          {value.kind !== ACTION_KINDS[1] && (
             <>
-              <Input aria-label={`${actionLabel(action)} URL`} placeholder="n8n expression for the request URL, e.g. ={{ $env.MY_API_URL }}/issues"
+              <Input aria-label={`${actionLabel(action)} URL`} placeholder="broker expression for the request URL, e.g. ={{ $env.MY_API_URL }}/issues"
                 className="w-full rounded-none border border-border font-mono text-xs" value={value.url} onChange={(e) => patch({ url: e.target.value })} />
-              <textarea aria-label={`${actionLabel(action)} body`} placeholder="n8n expression for the JSON request body (writes only)"
+              <textarea aria-label={`${actionLabel(action)} body`} placeholder="broker expression for the JSON request body (writes only)"
                 className="w-full rounded-none border border-border bg-background p-1.5 font-mono text-xs" rows={2}
                 value={value.body} onChange={(e) => patch({ body: e.target.value })} />
             </>
           )}
-          {value.kind === "n8nNode" && (
+          {value.kind === ACTION_KINDS[1] && (
             <>
-              <Input aria-label={`${actionLabel(action)} node type`} placeholder="node type, e.g. n8n-nodes-base.asana"
+              <Input aria-label={`${actionLabel(action)} node type`} placeholder="broker node type, e.g. (base package).asana"
                 className="w-full rounded-none border border-border font-mono text-xs" value={value.node} onChange={(e) => patch({ node: e.target.value })} />
               <div className="flex flex-wrap items-center gap-2">
                 <label className="text-xs flex items-center gap-1">
@@ -80,9 +80,9 @@ function ActionEditor({ action, value, onChange }: { action: string; value: Acti
                 value={value.parameters} onChange={(e) => patch({ parameters: e.target.value })} />
             </>
           )}
-          <Input aria-label={`${actionLabel(action)} credential type`} placeholder="n8n credential type override (optional)"
+          <Input aria-label={`${actionLabel(action)} credential type`} placeholder="broker-managed credential type override (optional)"
             className="w-full rounded-none border border-border font-mono text-xs" value={value.credentialType} onChange={(e) => patch({ credentialType: e.target.value })} />
-          <Input aria-label={`${actionLabel(action)} note`} placeholder="Note for whoever imports this into n8n (optional)"
+          <Input aria-label={`${actionLabel(action)} note`} placeholder="Note for whoever imports this into the broker (optional)"
             className="w-full rounded-none border border-border text-xs" value={value.note} onChange={(e) => patch({ note: e.target.value })} />
         </div>
       )}
@@ -150,7 +150,7 @@ export function CustomBackendAdmin() {
       <div>
         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Custom backend / vendor authoring</h2>
         <p className="text-xs text-muted-foreground">
-          Build a new backend definition — the same <code>BackendManifest &amp; N8nBinding</code> shape as
+          Build a new backend definition — the same shape as
           every shipped vendor under <code>lib/backend-catalogue/vendors/backends/</code> — without writing
           JSON by hand. Validation here is the exact schema the deployment config loader enforces.
           <strong> Exporting does not activate it</strong>: download the file, save it as{" "}
@@ -245,10 +245,10 @@ export function CustomBackendAdmin() {
           </div>
 
           <div className="border border-border p-2 space-y-2">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">N8n binding — per-user auth expression</p>
-            <Input aria-label="Auth header expression" placeholder="n8n expression for the Authorization header, e.g. ={{ 'Bearer ' + $env.MY_API_TOKEN }}"
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Broker binding — per-user auth expression</p>
+            <Input aria-label="Auth header expression" placeholder="broker expression for the Authorization header, e.g. ={{ 'Bearer ' + $env.MY_API_TOKEN }}"
               className="w-full rounded-none border-2 border-foreground font-mono text-xs" value={draft.authHeader} onChange={(e) => patch({ authHeader: e.target.value })} />
-            <Input aria-label="Credential type" placeholder="n8n managed credential type override (optional)"
+            <Input aria-label="Credential type" placeholder="broker-managed credential type override (optional)"
               className="w-full rounded-none border border-border font-mono text-xs" value={draft.credentialType} onChange={(e) => patch({ credentialType: e.target.value })} />
           </div>
 

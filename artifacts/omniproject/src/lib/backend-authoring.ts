@@ -1,5 +1,5 @@
 import type { BackendManifest, ActionMapping, ContractAction, KeyFormat } from "@workspace/backend-catalogue";
-import { validateVendor, getBackend } from "@workspace/backend-catalogue";
+import { validateVendor, getBackend, ACTION_KINDS } from "@workspace/backend-catalogue";
 import { safeParseJson } from "./safe-json";
 import { downloadJson } from "./custom-report-file";
 
@@ -43,7 +43,7 @@ export const CAPABILITY_DOMAINS = [
 
 export const KEY_SCHEMES: NonNullable<KeyFormat["scheme"]>[] = ["psk", "bearer", "apiKey", "basic", "oauth2", "per-user", "none"];
 export const BACKEND_KINDS: NonNullable<BackendManifest["kind"]>[] = ["live", "import", "database"];
-export const ACTION_KINDS: NonNullable<ActionMapping["kind"]>[] = ["http", "n8nNode"];
+export { ACTION_KINDS };
 export const HTTP_METHODS: NonNullable<ActionMapping["method"]>[] = ["GET", "POST", "PATCH", "PUT", "DELETE"];
 
 /** One contract action's editable form state — a looser, string-friendly shadow of `ActionMapping`. */
@@ -254,7 +254,7 @@ export function evaluateDraft(draft: BackendDraft): DraftEvaluation {
   for (const field of REQUIRED_STRING_FIELDS) {
     if (!String(manifest[field] ?? "").trim()) errors.push(`"${field}" is required`);
   }
-  if (!draft.authHeader.trim()) errors.push('"authHeader" is required (the n8n expression for the per-user Authorization header)');
+  if (!draft.authHeader.trim()) errors.push('"authHeader" is required (the broker expression for the per-user Authorization header)');
 
   errors.push(...validateVendor("backends", manifest));
 
