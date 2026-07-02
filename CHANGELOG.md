@@ -59,6 +59,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Progressive disclosure / role-aware navigation.** The primary sidebar (and mobile drawer) now leads
+  with only the everyday overworked-PM surfaces — dashboard/what-needs-me, projects, reports, resources —
+  while the heavy governance/config surfaces (Explore, Settings, Setup) move under a single collapsed
+  **Advanced** area. That area is expanded by default only for the roles that own it (admin / PMO) and
+  stays collapsed for plain PMs, who can still reveal it with an explicit toggle. Nothing is removed:
+  every route still exists and deep-links resolve for authorised users — only the default *visibility* in
+  the chrome changes, reducing cognitive load. The decision is a small, pure, data-driven helper in
+  `lib/nav.tsx` (`navShelvesForRole` / `roleSeesAdminByDefault` / `partitionNavByGroup`, each with
+  per-role unit tests), so the sidebar and command palette can never drift. The Advanced group uses a
+  Radix `Collapsible` (a real `<button>` trigger) so it stays fully keyboard-operable and accessible.
 - **Bundled-backends stress harness — every catalogue backend/broker/vendor-profile proven under stress.**
   A committed harness (`artifacts/api-server/src/broker/bundled-backends-stress.test.ts`) that ENUMERATES
   every bundled backend + broker from the catalogue (never a hardcoded list) and asserts, per definition:
