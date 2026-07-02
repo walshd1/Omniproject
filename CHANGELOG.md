@@ -31,6 +31,82 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     server's filesystem from the SPA has no place in a stateless/zero-at-rest gateway. True
     zero-restart activation (no operator step at all) is parked — see `docs/PARKED-DECISIONS.md`
     §F1 — pending a deliberate hot-reload design for the backend catalogue.
+- **Bulk feature-gating import/export (backlog #136).** The hierarchical feature-gating model
+  (backlog #88 — org→programme→project `programmeFeatures`/`projectFeatures` scope config) was only
+  editable one programme or project at a time; at real scale (e.g. 200 projects) that's hundreds of
+  form edits. Additive bulk tooling in Settings → Feature governance:
+  - **Export**: `lib/feature-gating-csv.ts`'s `buildFeatureGatingExportRows` + `featureGatingRowsToCsv`
+    emit one CSV row per known programme/project (even ones with no override yet, so a PMO edits a
+    populated spreadsheet rather than hand-typing every id), one pipe-separated column per gating
+    dimension (`disabled`/`required`/`forbidden`) — RFC-4180 escaped (including the CSV-injection
+    formula-trigger guard already used server-side), UTF-8 BOM prefixed for Excel.
+  - **Import**: a hand-rolled RFC-4180 parser (`parseCsvText`) + `parseFeatureGatingCsv` validates every
+    row — an unrecognised feature id or a same-row required+forbidden clash REJECTS that row with a
+    clear message (others still parse); an unrecognised programme/project id is a WARNING, not a fatal
+    abort (the per-scope PUT route is the actual ownership authority). `diffGatingRow` computes a
+    per-row new/changed/unchanged diff (with per-dimension added/removed ids) against the CURRENT
+    config, shown as a preview before any write. Confirming applies through the EXACT SAME
+    `PUT /features/programme/:id` / `PUT /features/project/:id` routes the one-at-a-time
+    `FeatureGovernance` admin panel already uses — looped sequentially (never in parallel, since each
+    PUT does a read-modify-write over the shared settings map) so ownership/ceiling validation and
+    audit logging are identical to a hand-edited single save, never bypassed for the bulk path. Only
+    rows that actually change are sent; a per-row failure (e.g. "not owned") is reported without
+    aborting the rest of the batch.
+  - New `FeatureGatingBulkAdmin.tsx` component, mounted alongside (not replacing) `FeatureGovernance`;
+    new `useScopeFeatureMaps` hook reads the raw override maps via the existing `GET /api/settings`.
+    No new backend routes, no new persistence — reads/writes the exact same
+    `settings.programmeFeatures`/`projectFeatures` the single-scope UI already uses. Bulk-editing
+    `governanceRules` (the conditional PMO mandates) is deliberately left for a follow-on — it already
+    has its own dedicated admin UI (`GovernanceRulesAdmin`) and a CSV shape for predicate-bearing rules
+    is a different (bigger) problem than this flat per-scope table.
+- **ERP connector hardening: Oracle NetSuite read-through capability-honesty
+  pass (backlog #140).** The NetSuite backend manifest
+  (`lib/backend-catalogue/vendors/backends/netsuite.json`, seeded in #158)
+  already passes every structural catalogue check; this change strengthens its
+  documentation and verification rather than re-implementing it:
+  - `notes` now cites the real SuiteTalk REST record types behind each
+    capability (`job` → project, `projectTask` → issue/scheduling,
+    `resourceAllocation` → resources, `job` job-costing +
+    `expenseReport`/`timeBill` roll-ups → financials), calls out NetSuite's
+    **SuiteQL** endpoint as the realistic path for aggregated budget-vs-actual
+    reads, and documents OAuth 1.0a TBA vs OAuth 2.0 M2M as NetSuite's two real
+    auth options (TBA remains the modelled default).
+  - New `docs/vendors/NETSUITE.md` makes explicit that this connector is
+    **catalogued, not live-verified** — authored from NetSuite's public
+    SuiteTalk REST documentation with no live tenant available in this
+    environment — and states exactly what would need to happen before calling
+    it "supported."
+  - Verified `generateWorkflow()` actually produces a sensible, importable
+    workflow for NetSuite: added
+    `artifacts/n8n-blueprints/generated/omniproject-netsuite.json` (webhook →
+    verify/loop guards → switch router → 5 SuiteTalk REST HTTP nodes with
+    `oAuth1Api` credential placeholders → normalize → respond) via
+    `pnpm --filter @workspace/scripts run gen-n8n-blueprints`.
+  - Re-ran the bundled-backends stress harness (163/163 pass, including
+    NetSuite's schema/capability/spoof-gating/messy-data assertions) and the
+    `lib/backend-catalogue` unit suite (100/100) after regenerating the vendor
+    catalogue (`gen-vendors`) — zero drift, zero regressions.
+- **Portfolio copilot: conversational action-invocation (backlog #134).** The copilot chat
+  (backlog #61, Q&A-only) can now invoke the same canonical actions as the NL→action command
+  palette (backlog #59) — a PM can type "mark issue 42 done" straight into the copilot instead
+  of switching to the palette.
+  - Every copilot message is first offered to the SAME planner the command palette calls
+    (`planNlAction` → `POST /api/ai/nl-action`), against the SAME governed, approved-actions-
+    filtered tool catalogue. A recognised action (or a clarify) shows the identical
+    confirm-before-execute plan card and executes through the identical `POST /api/mcp`
+    `tools/call` write path on confirm — same RBAC, governance, write-scope and audit
+    re-enforcement as the palette. A "none" verdict falls straight through to the unchanged
+    read-only Q&A answer; no new NLU/matching logic was written, and no existing
+    confirm/consent/step-up gate was touched or weakened.
+  - Extracted the plan-review card shared by both surfaces into
+    `artifacts/omniproject/src/components/ActionPlanCard.tsx` (namespaced `data-testid`s via
+    `testIdPrefix` so the command palette and the copilot can both render on the Settings
+    page without colliding) — one renderer instead of a fork per surface.
+    `artifacts/omniproject/src/components/settings/NlCommand.tsx` now consumes it too, with no
+    behaviour change (existing tests pass unmodified).
+  - Known trade-off (documented in `docs/FEATURE-MATURITY.md`): a plain Q&A message now costs
+    an extra planner round-trip before the Q&A call, since detection reuses the existing
+    LLM-backed planner rather than adding a separate fast heuristic classifier.
 - **`drillTo` — one-click red-number → blocked tickets (backlog #122).** Declarative drill-down for
   reports and dashboard widgets, closing the gap the component-library follow-on slice above
   deliberately left open: a red "N blocked" figure is now a real link straight to the filtered
@@ -55,6 +131,26 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     exceptions-table blocker count (`ExecBoardPack`) — one declarative descriptor, two surfaces,
     proving the mechanism composes instead of every "N blocked" figure hand-rolling its own
     filter-building. Left generic for other reports/widgets to adopt the same way.
+- **`drillTo` everywhere — schedule variance, budget overrun and PRINCE2 exceptions now click through
+  too (backlog #132).** Retrofits the declarative drill-down onto the other "red number" spots a PM
+  expects to click through, beyond the portfolioHealth widget's BLOCKERS figure:
+  - Two more descriptors in `artifacts/omniproject/src/lib/drill-to.ts` — `overdueDrillTo` (a
+    project's overdue, still-open items — mirrors `isOverdue` in `methodology.ts`) and
+    `costOverrunDrillTo` (items with actual cost logged) — built in code rather than declared in a
+    catalogue JSON asset like portfolioHealth's static `blocked truthy`, since "overdue" depends on
+    today's date and "cost-incurring" isn't a fixed literal. Both resolve through the SAME
+    `resolveDrillTo` as every other drillTo.
+  - Wired into SCHED Δ and BUDGET Δ on the portfolio KPI cards (`PortfolioKpi`) and the exec board
+    pack's exceptions table (`ExecBoardPack`) — the same two figures across both surfaces the
+    BLOCKERS drill-through already covers — plus the PRINCE2 highlight report's "Exceptions (overdue)"
+    tally (`Prince2View`), a third, differently-shaped surface (single-project, not portfolio-rollup)
+    proving the descriptors compose across report types.
+  - **Predicate-engine fix (`custom-report.ts` `evalPredicate`):** `gt`/`gte`/`lt`/`lte` now fall back
+    to a date-aware comparison when a field isn't numeric (e.g. `dueDate`, an ISO date string) —
+    previously any date comparison silently evaluated to `false` (`Number("2026-07-01")` is `NaN`),
+    which would have made the overdue drill-through resolve to a filter that never matches. A genuine
+    gap in the shared predicate engine the grid's drill-through filter and the custom report builder
+    both run on; the resolver itself (`resolveDrillTo`/`readDrillFilter`) is unchanged.
 - **Multi-currency portfolio consolidation, hardened: FX as-of-date policy + per-row local-currency
   display.** At 7+ countries every financial roll-up already converted into one reporting currency
   (`settings.reportingCurrency`, org default + PMO/admin-settable) — this hardens the consolidation

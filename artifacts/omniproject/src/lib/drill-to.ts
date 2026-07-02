@@ -99,6 +99,45 @@ export function resolveDrillTo(drillTo: DrillTo, row: Record<string, unknown>): 
   return { href: `${base}?${params.toString()}`, predicate, label };
 }
 
+/**
+ * Two more "red number → grid" descriptors (backlog #132), built here in code rather than declared in
+ * a catalogue JSON asset like portfolioHealth's static `blocked truthy` (backlog #122): the population
+ * they filter to depends on today's date / doesn't reduce to a fixed literal, so they can't be
+ * authored once and reused verbatim. Both still go through the SAME `resolveDrillTo` resolver as every
+ * other drillTo — only the descriptor's origin (code vs. JSON) differs.
+ */
+
+/** Drill-through for a project's overdue, still-open work items — the schedule-variance / "exceptions"
+ *  figure across the exec board pack, portfolio KPI cards and the PRINCE2 highlight report all resolve
+ *  through this ONE descriptor. `asOf` defaults to now but is exposed so callers/tests can pin the
+ *  clock instead of asserting against a moving target. Mirrors `isOverdue` in methodology.ts (dueDate
+ *  in the past, status not done/cancelled) using the SAME predicate engine the grid filters with. */
+export function overdueDrillTo(asOf: Date = new Date()): DrillTo {
+  return {
+    target: "grid",
+    projectIdField: "projectId",
+    predicate: {
+      all: [
+        { field: "dueDate", op: "lt", value: asOf.toISOString().slice(0, 10) },
+        { field: "status", op: "nin", value: ["done", "cancelled"] },
+      ],
+    },
+    label: "Overdue items",
+  };
+}
+
+/** Drill-through for a project's cost-incurring work items — the budget-variance figure's drill-through.
+ *  Filters to items with actual cost logged against them (the population behind a budget overrun),
+ *  reusing the SAME resolver as `overdueDrillTo`/portfolioHealth's blockers descriptor. */
+export function costOverrunDrillTo(): DrillTo {
+  return {
+    target: "grid",
+    projectIdField: "projectId",
+    predicate: { all: [{ field: "actualCost", op: "gt", value: 0 }] },
+    label: "Cost-incurring items",
+  };
+}
+
 export interface ActiveDrillFilter {
   predicate: ConditionSet;
   label: string;
