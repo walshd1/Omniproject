@@ -1,0 +1,163 @@
+# Default values for the OmniProject shell (stateless gateway).
+# Everything here is safe-by-default: TLS-hardened pod, no telemetry export, single replica.
+# Override per environment with `-f my-values.yaml` or `--set`.
+
+# Number of gateway replicas. Stays at 1 by default ON PURPOSE: the SSE notification fan-out is
+# in-process, so >1 replica drops ~half of real-time notifications UNLESS a shared bus (REDIS_URL)
+# is wired. To scale out safely: set config.REDIS_URL, then raise replicaCount or enable autoscaling.
+replicaCount: 1
+
+image:
+  # REPLACE with your published image. Avoid :latest — pin a tag or digest for reproducible rollouts.
+  repository: your-registry/omniproject-shell
+  pullPolicy: IfNotPresent
+  # Defaults to the chart's appVersion when left empty.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # The gateway needs no Kubernetes API access — do not mount a token.
+  create: true
+  automount: false
+  annotations: {}
+  name: ""
+
+# Extra pod annotations. The Prometheus scrape hints are handy if you run the Prometheus
+# annotation-based discovery instead of a ServiceMonitor.
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/path: "/api/metrics"
+  prometheus.io/port: "3000"
+podLabels: {}
+
+# Pod-level security context — matches the hardened stateless posture (non-root, no privilege
+# escalation, read-only root FS; a writable emptyDir is mounted at /tmp).
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: app.your-domain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: omniproject-tls
+      hosts:
+        - app.your-domain.com
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Horizontal Pod Autoscaler. Disabled by default because scaling past 1 replica requires a shared
+# real-time bus (config.REDIS_URL) — see replicaCount above. Enable once REDIS_URL is set.
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: ""
+
+# Spread replicas across nodes/zones so a node loss can't take out the whole gateway (HA).
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Health probes — liveness is dependency-free (/api/healthz), readiness gates on backend
+# reachability (/api/readyz returns 503 when the broker is unreachable). startup covers slow
+# IdP discovery on boot without tripping liveness.
+probes:
+  startup:
+    path: /api/healthz
+    periodSeconds: 5
+    failureThreshold: 30
+  liveness:
+    path: /api/healthz
+    periodSeconds: 20
+  readiness:
+    path: /api/readyz
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+# ── Non-sensitive configuration (rendered into a ConfigMap, wired via envFrom) ────────────────
+config:
+  NODE_ENV: "production"
+  PORT: "3000"
+  BASE_PATH: "/"
+  # Your backend broker (n8n webhook base or compatible). 0.2.0+ name (was N8N_WEBHOOK_URL).
+  BROKER_URL: "http://n8n:5678/webhook/omniproject"
+  # Public origin of the shell — used to build the OIDC redirect URI. REPLACE.
+  PUBLIC_URL: "https://app.your-domain.com"
+  AI_PROVIDER: "none"
+  GENERIC_TIMEZONE: "UTC"
+  # Shared real-time bus. REQUIRED before running >1 replica (else SSE notifications drop).
+  # REDIS_URL: "redis://redis:6379"
+
+# ── Observability / OTLP telemetry — OFF by default, additive ─────────────────────────────────
+# W3C trace context + the /api/metrics Prometheus scrape are always on. Set an OTLP endpoint to
+# ALSO export spans AND push real metrics (RED, broker latency, cache hit/miss) to a collector.
+otel:
+  enabled: false
+  endpoint: ""              # e.g. http://otel-collector:4318 — enables span + metric export
+  serviceName: "omniproject-gateway"
+  headers: ""               # comma-separated k=v (e.g. api-key=...)
+  metricExportIntervalMs: "" # default 60000 when unset
+
+# ── Sensitive configuration (rendered into a Secret, wired via envFrom) ───────────────────────
+# Ship EMPTY by design: with an empty SESSION_SECRET the gateway refuses to boot in production
+# (fail-fast — no silently-insecure default). Prefer External Secrets Operator / Sealed Secrets
+# over inlining real values here; or set `secret.create: false` and reference an existing Secret.
+secret:
+  create: true
+  # Name of a pre-existing Secret to use instead of creating one (external-secrets/sealed-secrets).
+  existingSecret: ""
+  data:
+    OIDC_ISSUER_URL: ""
+    OIDC_CLIENT_ID: ""
+    OIDC_CLIENT_SECRET: ""
+    SESSION_SECRET: ""
+    API_TOKENS: ""
+    VAULT_KEY: ""
+
+# Extra env vars appended verbatim to the container (list of {name, value|valueFrom}).
+extraEnv: []
+
+# Persist the config directory (vault + settings) if you use the local vault store. Off by default
+# (the overlay is stateless / config-only; back it up rather than depend on a PVC — see OPERATIONS.md).
+persistence:
+  enabled: false
+  mountPath: /config
+  size: 1Gi
+  accessMode: ReadWriteOnce
+  storageClassName: ""

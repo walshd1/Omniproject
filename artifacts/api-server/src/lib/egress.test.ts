@@ -1,8 +1,9 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { assertEgressAllowed, EgressError } from "./egress";
+import { DataResidencyError } from "./data-residency";
 
-afterEach(() => delete process.env["EGRESS_ALLOWLIST"]);
+afterEach(() => { delete process.env["EGRESS_ALLOWLIST"]; delete process.env["DATA_RESIDENCY_POLICY"]; });
 
 test("blocks the cloud-metadata / link-local targets (the SSRF jackpot)", () => {
   for (const u of [
@@ -36,5 +37,23 @@ test("strict mode: EGRESS_ALLOWLIST pins outbound hosts", () => {
   assert.ok(assertEgressAllowed("https://idp.example.com/token"));
   assert.throws(() => assertEgressAllowed("https://evil.example.com/"), EgressError);
   // …and the metadata block still applies even inside an allowlist.
+  assert.throws(() => assertEgressAllowed("http://169.254.169.254/"), EgressError);
+});
+
+test("per-country residency policy gates egress at the seam (fail-closed on a foreign host)", () => {
+  process.env["DATA_RESIDENCY_POLICY"] = JSON.stringify({
+    regions: {
+      eu: { backends: ["https://eu.n8n.example"], egress: ["*.eu.example.com"] },
+      us: { backends: ["https://us.n8n.example"], egress: ["*.us.example.com"] },
+    },
+    allowed: ["eu"],
+  });
+  // An allowed-region egress host + the region's own backend pass.
+  assert.ok(assertEgressAllowed("https://api.eu.example.com/x"));
+  assert.ok(assertEgressAllowed("https://eu.n8n.example/webhook"));
+  // A non-allowed region and a foreign host are refused with a 451 DataResidencyError.
+  assert.throws(() => assertEgressAllowed("https://api.us.example.com/x"), DataResidencyError);
+  assert.throws(() => assertEgressAllowed("https://evil.example.net/"), DataResidencyError);
+  // The metadata/link-local block still fires first (defence in depth).
   assert.throws(() => assertEgressAllowed("http://169.254.169.254/"), EgressError);
 });

@@ -42,3 +42,24 @@ describe("consolidateFinancials", () => {
     expect(programmes.some((p) => p.label === "Standalone")).toBe(true);
   });
 });
+
+// ── Dirty-data resilience (messy-data generator regression) ──────────────────
+describe("consolidateFinancials — dirty amounts", () => {
+  it("does not throw and keeps totals finite when amounts arrive as string/null/NaN", () => {
+    const { programmes, portfolio } = consolidateFinancials([
+      proj({ projectId: "a", fin: fin({ currency: "GBP", budgetAllocated: "1000" as never, actualBurn: null as never, forecastCostAtCompletion: NaN as never, earnedValue: 400 }) }),
+      proj({ projectId: "b", fin: fin({ currency: null as never, budgetAllocated: Infinity as never, actualBurn: 100, forecastCostAtCompletion: 200, earnedValue: "abc" as never }) }),
+    ], "GBP", RATES);
+    for (const r of [...programmes, portfolio]) {
+      expect(Number.isFinite(r.budget)).toBe(true);
+      expect(Number.isFinite(r.actual)).toBe(true);
+      expect(Number.isFinite(r.forecast)).toBe(true);
+      expect(Number.isFinite(r.earnedValue)).toBe(true);
+      expect(Number.isFinite(r.variance)).toBe(true);
+      expect(r.cpi === null || Number.isFinite(r.cpi)).toBe(true);
+    }
+    // "1000" coerces; null/NaN/Infinity/"abc" collapse to 0.
+    expect(portfolio.budget).toBe(1000);
+    expect(portfolio.earnedValue).toBe(400);
+  });
+});

@@ -6,8 +6,34 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Documentation
+
+- **Speed / responsiveness / design-patterns review (`docs/PERF-PATTERNS-REVIEW.md`).** A staff-engineering
+  pass (155 files, 60 findings) for the 60-programme/200-project scale target. Verdict: no correctness bugs, but
+  ~10 recurring patterns that turn O(1) into O(portfolio) — unbounded portfolio fan-out (200-way query storms),
+  pure static derivations rebuilt per call, and React memos that never hit (fresh `useQueries` array refs). Most
+  fixes are small/local; report only, remediation sequenced. Prioritized Top-15 by ROI included.
+- **Whole-codebase clean-code audit (`docs/CLEAN-CODE-AUDIT.md`).** A 1-for-1 review across all 519 source
+  files (9 groups) — verdict **GOOD (B+)**: zero correctness/security defects, 15 medium + 52 low cleanliness
+  findings, dominated by under-adoption of helpers that already exist. Flags two systemic risks to remediate
+  (hand-rolled constant-time equality in 5 files; a few SPA mutation clients skipping the `res.ok` check) and
+  a prioritized Top-20 fix list. Report only; fixes sequenced as follow-ups.
+
 ### Security
 
+- **Re-audit (2026-07) of the newest surfaces — messy-data, dev-mode routes, report overrides,
+  dashboards persistence/import, snapshots, safe-json seams** (see `docs/SECURITY-AUDIT-2026-07.md`).
+  One Medium fixed: the dashboard-file import seam (`lib/dashboard-file.readDashboardFile`, added after
+  the #320 prototype-pollution hardening pass) parsed uploaded JSON with the **raw** `JSON.parse` instead
+  of `safeParseJson`, leaving the untrusted-upload reviver un-applied at a new seam and contradicting the
+  file's own docstring. Switched it to `safeParseJson` so `__proto__`/`constructor`/`prototype` keys are
+  stripped at every depth before the object is reconstructed — restoring the "reviver at every untrusted
+  seam" invariant. Regression tests cover the upload path (valid parse, invalid-JSON error, and a crafted
+  pollution payload leaving `Object.prototype` clean). The messy-data feature, the dev-mode
+  impersonation/entitlements/broker/messy routes, the report-overrides route, the snapshot Ed25519
+  sign/verify + canonicalisation, and the remaining safe-json seams were reviewed and found sound
+  (dev-only + real-admin gating + audit + prod-inertness; clamped/validated config; reads-only; no key
+  leakage; no injection/IDOR/XSS). Lower-severity observations documented as accepted/follow-up.
 - **Stateless scope-ownership on governance writes (closes the IDOR).** The programme/project governance
   PUTs no longer authorize by role *class* alone — they verify the caller actually **manages the named
   scope** by pulling their accessible project graph **live from the backend** (their own forwarded token,
@@ -27,6 +53,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   is withheld from `/api/setup/reports` + `/api/setup/methodologies`, not just the admin table.
   `getJson` now surfaces the server error on a non-OK response instead of an opaque parse failure.
 
+### Documentation
+
+- **Human-auditability documentation pass.** Three new docs let a technical auditor or
+  new engineer understand the whole system in one sitting — architecture, the broker
+  seam, the data flows, and the key sequences — without reverse-engineering the code,
+  with Mermaid diagrams and file citations cross-checked against the source:
+  `docs/ARCHITECTURE.md` (stateless/zero-at-rest model, the layer cake, the broker
+  seam, where config lives, the security spine, dev-mode gating — component + seam
+  diagrams); `docs/SEQUENCES.md` (seven traced Mermaid sequence walkthroughs: auth/
+  session establishment, a broker read through the single-flight→cache→provenance→
+  messy(dev)→trace decorator chain, an optimistic-concurrency write-through, capability/
+  field resolution as superset ∩ manifest, snapshot Ed25519 sign + offline verify,
+  notification dispatch above the seam, and prod-inert dev-mode/messy-data gating); and
+  `docs/READING-GUIDE.md` (a subsystem → entry-point-file map plus a glossary of the
+  domain vocabulary). Linked from the README ("For engineers / auditors") and
+  `docs/TECHNICAL.md`. Docs-only — no source changed.
+
 ### Added
 
 - **Stakeholder register, risk register + RACI matrix (#93).** Phase 3 of the PM/PgM overlay extends the
@@ -41,6 +84,118 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   `risk-register`, `raci-matrix`) join the screen catalogue; demo data, capability-derivation tests and a
   governance demo-data guard bind the sample rows to the registry. OpenAPI `Capabilities` gains required
   `stakeholders` + `raci` booleans; regenerated fields/screens/openapi bundles + api-client/zod clients.
+- **OTLP telemetry export, a Helm chart, and operations (HA/DR) docs — observability + ops for IT
+  buyers.** Observability was trace-context/scrape-leaning; this makes it a real
+  metrics-and-spans-over-OTLP story, all **additive and off by default**. (1) A new OTLP/HTTP **metrics
+  exporter** (`lib/otlp-metrics.ts`) pushes the always-available in-process signals — RED
+  (rate/errors/duration), broker-call latency, and **read-cache hit/miss** (now also surfaced on the
+  Prometheus scrape) — to a collector on an interval, gated on the same `OTEL_EXPORTER_OTLP_ENDPOINT`
+  as the existing span export (unset ⇒ nothing runs). Cumulative temporality, best-effort, never
+  blocking a request. New `OTEL_METRIC_EXPORT_INTERVAL` (default 60 s, floor 1 s). (2) A **Kubernetes
+  Helm chart** at `deploy/helm/omniproject` (Deployment/Service/Ingress/HPA/PDB/ConfigMap/Secret/
+  ServiceAccount/optional PVC) for the stateless shell — hardened pod (non-root, read-only rootfs, drop
+  ALL, no SA token), `/api/healthz` liveness + `/api/readyz` readiness probes, OTLP wiring off by
+  default, and an HPA disabled until `REDIS_URL` is set (the single-replica SSE-fan-out caveat). (3)
+  `docs/OPERATIONS.md`: horizontal scaling, HA (topology spread + PDB + probe semantics + graceful
+  shutdown), DR/backup (config-only, zero-project-data-at-rest, RTO/RPO), and enabling telemetry.
+  Guarded by a new `helm-guard` test (chart wires `BROKER_URL`, real probe paths, OTLP-off-by-default,
+  empty `SESSION_SECRET`, hardened pod) and OTLP-conversion unit tests. No new write paths; nothing
+  stored.
+- **Per-country data residency & egress policy (#97).** The single-region, fail-closed residency guard
+  now accepts a richer, validated **JSON policy** (`DATA_RESIDENCY_POLICY`) mapping each
+  `region → { backends, egress }`, so a multinational (Compliance + CISO) can pin several jurisdictions in
+  one deployment — each to its own broker backends **and** its own egress hosts. It adds a **second
+  enforcement seam**: when a policy is active, *every* outbound hop (`assertEgressAllowed` — broker, IdP,
+  FX, AI, logging) must target a host in an **allowed** region's egress allowlist, else it is refused with
+  the existing `451 DataResidencyError` and a `data_residency.egress_block` audit event. Fail-closed
+  throughout: an undeclared region, an unknown egress host, or an **invalid/unparseable policy** refuses
+  everything (a policy the gateway can't read can't prove residency). Admins can dry-run a candidate policy
+  against the exact validator via `POST /api/security/data-residency/validate` (admin + step-up, audited),
+  and `GET /api/security/data-residency` now reports the active `mode` (`policy`/`env`/`off`) plus each
+  region's backends/egress/allow verdict. The flat env pair (`DATA_RESIDENCY_ALLOWED`/`_MAP`) is unchanged,
+  and with no policy set the whole layer is inert — the default single-region behaviour is preserved. See
+  `docs/DATA-RESIDENCY.md`.
+- **Proactive "what needs me" digest (opt-out).** The overworked PM/PgM lives in email/Slack/Teams, not
+  in a dashboard tab — so the product now PUSHES a concise, role-aware roll-up of what actually needs them
+  (at-risk amber/red projects, active blockers, overdue/slipping schedules, budget breaches), prioritised
+  and bounded, to where they already are. A **pure** digest builder (`buildProactiveDigest`) derives it
+  over the portfolio read model — deterministic, testable, and aggregates-only (it names the projects the
+  recipient already governs, never task ids or detail). It dispatches through the existing notification
+  seam: a new **`digest` notification kind** (in the kind registry) plus a **default route**
+  (`assets/notification-routes/digest.json`) fan it out to email + team chat for the `manager` audience,
+  reusing the generic dispatch/routing — no new egress path, no bypassed seam. The scheduled run mints the
+  keyed, short-lived, viewer-roled `automation:proactive-digest` principal (same mechanism as health-watch
+  / the exec digest), reads the portfolio read-only, and is audited. **ON by a safe weekly default**
+  (`PROACTIVE_DIGEST_INTERVAL_HOURS=0` opts out; a fleet drives `POST /api/admin/proactive-digest/run` from
+  external cron so it fires once), with configurable thresholds. A **healthy portfolio yields an empty
+  digest that is skipped**, so "on by default" is never "noise by default."
+- **Role-tailored persona dashboards — the "what needs me today" view (#103).** A busy PM has minutes
+  between meetings and wants ONE screen answering "what needs me today", not another blank dashboard to
+  build. Ships a catalogue of **preset dashboards**, one per role persona (head-of-projects /
+  programme-manager / project-manager), each assembling **existing** widgets (portfolio health, status
+  breakdown, trends, recent activity, counts) into a triage layout. Authored as JSON under
+  `lib/backend-catalogue/assets/dashboard-presets/` with a schema + `gen-dashboard-presets` generator +
+  generated catalogue (drift-guarded in CI) + a **preset-coverage guard** that keeps every preset's
+  widget `type`s bound to real widgets — the same discipline as widgets/personas. On the Dashboards page
+  an **"Apply a preset…"** picker mints a fresh dashboard from a preset (via the existing save path,
+  keyboard-operable), and the empty state surfaces the role presets as one-click suggestions. Pure and
+  read-only: presets read through the existing read-model widgets; no new write path to project data.
+  Presets that need an entity the backend can't surface (e.g. programmes) are dropped automatically.
+- **Progressive disclosure / role-aware navigation.** The primary sidebar (and mobile drawer) now leads
+  with only the everyday overworked-PM surfaces — dashboard/what-needs-me, projects, reports, resources —
+  while the heavy governance/config surfaces (Explore, Settings, Setup) move under a single collapsed
+  **Advanced** area. That area is expanded by default only for the roles that own it (admin / PMO) and
+  stays collapsed for plain PMs, who can still reveal it with an explicit toggle. Nothing is removed:
+  every route still exists and deep-links resolve for authorised users — only the default *visibility* in
+  the chrome changes, reducing cognitive load. The decision is a small, pure, data-driven helper in
+  `lib/nav.tsx` (`navShelvesForRole` / `roleSeesAdminByDefault` / `partitionNavByGroup`, each with
+  per-role unit tests), so the sidebar and command palette can never drift. The Advanced group uses a
+  Radix `Collapsible` (a real `<button>` trigger) so it stays fully keyboard-operable and accessible.
+- **Bundled-backends stress harness — every catalogue backend/broker/vendor-profile proven under stress.**
+  A committed harness (`artifacts/api-server/src/broker/bundled-backends-stress.test.ts`) that ENUMERATES
+  every bundled backend + broker from the catalogue (never a hardcoded list) and asserts, per definition:
+  schema-validity via the catalogue accessor; capability↔transport consistency (no capability a transport
+  can't serve, no zero-capability "no-purpose" entry, key format never resolves keyless for a live/database
+  backend, broker set matches `brokersForTransport`, `statusVocabulary` maps only onto canonical statuses);
+  that the demo-AS-vendor spoof (`applyVendorProfile`/`demoVendorFor`) gates the surface to each vendor's
+  declared capabilities and never appears over real data or the dev broker; that `describeFields`
+  reconciliation against the canonical `FIELD_REGISTRY` (including adversarial dupe/empty/garbage input)
+  never crashes and flags unknown fields as gated passthrough; and that driving each vendor's demo read
+  model through the messy-data transform (max intensity, several seeds) preserves row counts and never
+  severs a row from its project. Findings are documented in `docs/BUNDLED-BACKENDS-STRESS.md`. The pass
+  found the bundled defs internally consistent (38 backends, 7 brokers) — no broken defs; two low-severity
+  follow-ups are recorded.
+- **Enterprise-readiness buyer-panel gap analysis (`docs/ENTERPRISE-READINESS.md`).** A new,
+  evidence-grounded document aimed at a large multinational evaluating OmniProject as an overlay on
+  Jira. It answers, per evaluation seat (CEO, Finance, Compliance, CISO, IT, Projects): what the seat
+  cares about, what OmniProject **already delivers today** (every claim cited to a real file — e.g.
+  the empty `lib/db` schema for zero-at-rest, `exec-pack`/`exec-digest` for the board pack, `programmes`
+  EVM, `currency`/`fx-fallback` for multi-currency, `dual-control` for segregation of duties,
+  `audit-chain`/`snapshot`/`signing` for tamper-evidence, `saml`/`scim` for SSO/lifecycle,
+  `tracing` for OTLP export, `data-residency` for fail-closed region routing), and the concrete gaps to
+  close. Includes the "keep Jira, sit on top" positioning, a TCO/ROI sketch vs enterprise PPM, a
+  prioritised roadmap table (gap → owning seat → S/M/L effort → whether already in backlog), and a
+  "what to build first" recommendation. Docs-only; no source or behaviour changed. Linked from the
+  README documentation index as the "For enterprise buyers" entry point.
+- **SME & charity copilot lenses + a discoverable small-org story.** Two new copilot personas —
+  **Charity Programme Lead** (tuned to the shipped `grant-tracking` / `fundraising-pipeline` /
+  `volunteer-roster` methodologies and grant/funder/donor/volunteer/impact keywords) and **SME
+  Delivery Lead** (a lean small-team budget/capacity lens) — so a small org's questions no longer
+  fall back to the enterprise PMO-analyst lens. Added a "Small teams, charities & self-hosters"
+  section to the README linking `docs/SMALL-ORG-GUIDE.md`, and a new `docs/SME-CHARITY-FIT.md`
+  audit confirming core value (connect a backend, projects/issues, reports, dashboards) stays
+  free and that only prebuilt enterprise convenience is gated. Additive only — no enterprise
+  feature was changed.
+- **Cross-programme dependency & critical-path map (stateless report).** A new portfolio report derives,
+  live from the read model, the cross-programme dependency graph — every `depends-on` link between work
+  items, with the edges that cross a programme boundary flagged — and the **critical path across the whole
+  graph**, reusing the shared CPM solver (`critical-path.ts`) rather than re-implementing the
+  forward/backward pass. Durations come from start→due spans (dateless items floor to a day so chains
+  still schedule); dangling references are dropped and cycles are surfaced rather than hung on. Rendered as
+  a circular node-link diagram (dashed edges = cross-programme, red = critical) plus dependency and
+  schedule tables. Pure derive-only over live rows — no new write paths, nothing stored. New pure lib
+  `cross-programme-dependencies.ts` (+ Vitest), the `CrossProgrammeDependencies` renderer wired into the
+  Reports page and renderer registry, and the `cross-programme-dependencies` report definition.
 - **Capacity actuals vs plan (#102).** A new `capacityActuals` dashboard widget compares each resource's
   logged-time **actuals** (`issue.loggedHours`, summed per assignee) against their **plan/allocation** from
   the resource-capacity read (`assignedHours` / `availableHours` / `allocationPercentage`), surfacing
@@ -303,6 +458,42 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   Runs as a **separate CI job** so it never slows the fast `verify` lane.
 
 ### Fixed
+
+- **SPA history-fallback 404 on every deep link (Express 5 `sendFile`).** With Express 5, the
+  single-container server's `res.sendFile(absolutePath)` rejected with a "Not Found" (404) for **every**
+  client-side route (`/login`, `/projects/:id`, `/programmes/:id`, …) when `STATIC_DIR` was given
+  relative (as the e2e harness and the compose/k8s artifacts do), so only `/` worked — the whole
+  acceptance harness was red behind it. The fallback now uses the reliable `res.sendFile("index.html",
+  { root })` form. A new regression test (`spa-fallback-relative.test.ts`) exercises a **relative**
+  `STATIC_DIR` — the pre-existing static-cache test masked this by using an already-absolute temp dir.
+
+- **Report/derivation resilience to dirty data (messy-data stress pass).** Ran the dev-only messy-data
+  generator at max intensity across six seeds over every pure derivation/report builder and hardened the
+  worst gaps so a single dirty read-model row can no longer poison an aggregate: `buildExecHealth`
+  (exec-pack) coerces the numeric health fields and normalises mixed-casing RAG; `completionRate`
+  (roadmap) coerces `issueCount`/`completedCount` so a stringy/`NaN` count can't produce a `NaN` progress
+  bar; `consolidateFinancials` (portfolio-finance) coerces every amount **before** currency conversion;
+  `rollupByProgramme` (capacity-rollup) coerces resource hours/percentages; and `summariseBenefits`
+  (benefits) now carries only the modelled fields into each report row so unmodelled dirty fields can't
+  leak. A committed probe (`scripts/messy-resilience-probe.ts`) and per-lib regression tests lock this in;
+  full findings in `docs/RESILIENCE-FINDINGS.md`.
+- **Logic & collision audit — valid data producing wrong results.** A per-definition audit for bugs
+  where rows are individually **valid** but a consumer keys / dedupes / groups / sorts on a
+  **non-unique** field. Two classes fixed surgically in the shared derivations:
+  - **Roadmap issue-lookup keyed by bare `id` (identity collision).** `buildRoadmap` and its caller
+    looked up each project's issues by bare `id`, so two projects sharing an `id` across different
+    sources (`jira:p1` / `ado:p1`) read each other's issue spans and mis-dated a bar. Now keyed on the
+    composite **`source:id`** via a new `roadmapKey` helper (falls back to bare `id` when no source is
+    present, so single-source data is unchanged).
+  - **Nondeterministic order for equal sort keys (unstable sort).** Added a unique final tiebreaker
+    (the composite `projectId`, or the per-group `key` / `id`) to the exec pack severity sort, the
+    roadmap lane/bar sorts, and the capacity / finance / income / benefits programme roll-ups plus
+    `groupProgrammes`, so equal-metric rows sort **deterministically** regardless of input order.
+  Programme grouping by `programmeId` is by-design and unchanged. A committed **collision stress harness**
+  (`collision-stress.test.ts`, both SPA + api-server) auto-enumerates all **36** catalogue definitions
+  and drives the derivations through empty / single / messy / **collide** datasets. Remaining items
+  (assignee name-collision in the resource-load sandbox; a catalogue-`order` tiebreaker in the generated
+  catalogues) are documented as follow-ups in `docs/LOGIC-FINDINGS.md`.
 
 - **SPA history-fallback 500 on deep links.** With a *relative* `STATIC_DIR`, the single-container
   server's `res.sendFile` rejected the relative path and returned **500 for every client-side route**

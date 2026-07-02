@@ -1,6 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getJson, safeJson, responseError } from "./api";
-import { WIDGETS, widgetDef, availableWidgets, type WidgetDefinition } from "@workspace/backend-catalogue";
+import {
+  WIDGETS,
+  widgetDef,
+  availableWidgets,
+  availablePresets,
+  presetForRole,
+  type WidgetDefinition,
+  type DashboardPreset,
+} from "@workspace/backend-catalogue";
 
 /**
  * Custom-dashboards client. A dashboard is a named, ordered list of widget instances chosen from
@@ -37,7 +45,26 @@ export type WidgetDef = WidgetDefinition;
 /** The catalogue of widgets a dashboard can be built from — authored as JSON in the backend catalogue. */
 export const WIDGET_CATALOGUE: readonly WidgetDef[] = WIDGETS;
 
-export { widgetDef, availableWidgets };
+export { widgetDef, availableWidgets, availablePresets, presetForRole };
+export type { DashboardPreset };
+
+/**
+ * Materialise a role-tailored preset into a fresh dashboard: a busy PM's "what needs me today"
+ * screen, ready to persist via the existing save path (no new write surface). Each placed widget gets
+ * a fresh id and inherits the preset's span (falling back to the widget's defaultSpan). The dashboard
+ * id is left empty for the caller to mint (mirrors the import flow).
+ */
+export function dashboardFromPreset(preset: DashboardPreset): Dashboard {
+  return {
+    id: "",
+    name: preset.name,
+    widgets: preset.widgets.map((w) => {
+      const widget: DashboardWidget = { id: crypto.randomUUID(), type: w.type, span: w.span ?? widgetDef(w.type)?.defaultSpan ?? 1 };
+      if (w.title) widget.title = w.title;
+      return widget;
+    }),
+  };
+}
 
 /** Clamp/normalise a span to the 1–3 grid. */
 export function clampSpan(span: number | undefined): 1 | 2 | 3 {

@@ -73,6 +73,7 @@ const REGISTRY = new Map<string, Role>([
   ["portfolio-copilot", "viewer"], // read-only Q&A over the read model
   ["reconciler", "viewer"], //        cross-backend entity resolution (read-only)
   ["exec-digest", "viewer"], //       scheduled read-only portfolio summary → notifications
+  ["proactive-digest", "viewer"], //  scheduled read-only "what needs me" digest → notifications
 ]);
 
 /** Register (or raise/lower) the max role an autonomous actor id may run as (admin/config). */

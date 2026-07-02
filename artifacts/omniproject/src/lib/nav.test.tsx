@@ -2,8 +2,16 @@ import { describe, it, expect } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import { getGetCapabilitiesQueryKey, type Capabilities } from "@workspace/api-client-react";
 import { renderWithProviders } from "../test/utils";
-import { NAV_ITEMS, useVisibleNavItems } from "./nav";
+import {
+  NAV_ITEMS,
+  useVisibleNavItems,
+  navGroupOf,
+  roleSeesAdminByDefault,
+  partitionNavByGroup,
+  navShelvesForRole,
+} from "./nav";
 import { featuresQueryKey, type FeatureStatus } from "./features";
+import type { Role } from "./auth";
 
 function Probe() {
   const items = useVisibleNavItems();
@@ -118,5 +126,69 @@ describe("useVisibleNavItems — feature gating", () => {
   it("shows My Work by default while features are still loading", () => {
     const { queryByText } = renderWithProviders(<Probe />, { client: withProgramme(true) });
     expect(queryByText("My Work")).not.toBeNull();
+  });
+});
+
+describe("nav grouping — progressive disclosure", () => {
+  const ADMIN_HREFS = ["/explore", "/settings", "/setup"];
+  const PRIMARY_HREFS = ["/", "/my-work", "/dashboards", "/programmes", "/projects", "/reports", "/resources"];
+
+  it("classifies the everyday surfaces as primary and the governance/config surfaces as admin", () => {
+    for (const item of NAV_ITEMS) {
+      const expected = ADMIN_HREFS.includes(item.href) ? "admin" : "primary";
+      expect(navGroupOf(item)).toBe(expected);
+    }
+  });
+
+  it("partitionNavByGroup splits into the two shelves preserving order", () => {
+    const { primary, admin } = partitionNavByGroup(NAV_ITEMS);
+    expect(primary.map((i) => i.href)).toEqual(PRIMARY_HREFS);
+    expect(admin.map((i) => i.href)).toEqual(ADMIN_HREFS);
+  });
+});
+
+describe("roleSeesAdminByDefault — per role", () => {
+  const cases: Array<[Role | undefined, boolean]> = [
+    ["admin", true],
+    ["pmo", true],
+    ["manager", false],
+    ["contributor", false],
+    ["viewer", false],
+    [undefined, false],
+  ];
+  for (const [role, expected] of cases) {
+    it(`${role ?? "unauthenticated"} → ${expected ? "sees" : "hides"} Advanced by default`, () => {
+      expect(roleSeesAdminByDefault(role)).toBe(expected);
+    });
+  }
+});
+
+describe("navShelvesForRole — visibility per role", () => {
+  it("primary shelf is always present regardless of role or toggle", () => {
+    for (const role of ["admin", "pmo", "manager", "contributor", "viewer", undefined] as Array<Role | undefined>) {
+      const { primary } = navShelvesForRole(NAV_ITEMS, role, false);
+      expect(primary.map((i) => i.href)).toContain("/projects");
+      expect(primary.map((i) => i.href)).toContain("/reports");
+      // Admin surfaces never leak into the primary shelf.
+      expect(primary.map((i) => i.href)).not.toContain("/settings");
+    }
+  });
+
+  it("admin/PMO see the Advanced shelf even when the toggle is collapsed", () => {
+    expect(navShelvesForRole(NAV_ITEMS, "admin", false).adminVisible).toBe(true);
+    expect(navShelvesForRole(NAV_ITEMS, "pmo", false).adminVisible).toBe(true);
+  });
+
+  it("plain roles keep the Advanced shelf hidden until they expand it", () => {
+    for (const role of ["manager", "contributor", "viewer", undefined] as Array<Role | undefined>) {
+      expect(navShelvesForRole(NAV_ITEMS, role, false).adminVisible).toBe(false);
+      // …but the toggle reveals it — capability is never removed, only its default visibility.
+      expect(navShelvesForRole(NAV_ITEMS, role, true).adminVisible).toBe(true);
+    }
+  });
+
+  it("the admin shelf still carries all governance/config routes (deep-links stay reachable)", () => {
+    const { admin } = navShelvesForRole(NAV_ITEMS, "viewer", false);
+    expect(admin.map((i) => i.href)).toEqual(["/explore", "/settings", "/setup"]);
   });
 });
