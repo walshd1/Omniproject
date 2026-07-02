@@ -42,6 +42,16 @@ test("screens carry their route, required role + capability, and widgets", () =>
   assert.ok(screenCatalogue().every((s) => s.tools.length > 0));
 });
 
+test("governance screens (stakeholders / risk register / RACI) gate on their capability", () => {
+  assert.equal(getScreen("stakeholders")?.capabilities.requiresCapability, "stakeholders");
+  // The risk register is built on RAID, so it rides the raid capability — not a duplicate.
+  assert.equal(getScreen("risk-register")?.capabilities.requiresCapability, "raid");
+  assert.equal(getScreen("raci-matrix")?.capabilities.requiresCapability, "raci");
+  for (const id of ["stakeholders", "risk-register", "raci-matrix"]) {
+    assert.ok((getScreen(id)?.tools.length ?? 0) > 0, `${id} declares its panels`);
+  }
+});
+
 test("cross-plane: a broker can offer things on other planes (n8n → notifications)", () => {
   const n8n = brokerCatalogue().find((b) => b.id === "n8n");
   assert.ok(n8n?.alsoProvides.some((x) => x.plane === "notifications"));

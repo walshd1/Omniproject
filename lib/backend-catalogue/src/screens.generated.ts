@@ -107,6 +107,24 @@ export const SCREENS_DATA: ScreenDefinition[] = [
     "order": 40
   },
   {
+    "id": "raci-matrix",
+    "label": "RACI matrix",
+    "route": "/projects/:id/raci",
+    "kind": "detail",
+    "capabilities": {
+      "requiresRole": "viewer",
+      "requiresCapability": "raci",
+      "dataLineage": true,
+      "exportable": true
+    },
+    "tools": [
+      "raci-grid",
+      "accountability-summary"
+    ],
+    "notes": "RACI matrix — each deliverable mapped to Responsible/Accountable/Consulted/Informed people. Gated by the raci capability.",
+    "order": 92
+  },
+  {
     "id": "reports",
     "label": "Reports",
     "route": "/reports",
@@ -146,6 +164,25 @@ export const SCREENS_DATA: ScreenDefinition[] = [
     "order": 60
   },
   {
+    "id": "risk-register",
+    "label": "Risk register",
+    "route": "/projects/:id/risks",
+    "kind": "detail",
+    "capabilities": {
+      "requiresRole": "viewer",
+      "requiresCapability": "raid",
+      "dataLineage": true,
+      "exportable": true
+    },
+    "tools": [
+      "risk-table",
+      "probability-impact-matrix",
+      "response-summary"
+    ],
+    "notes": "Risk register built on RAID — probability, impact, exposure score, response strategy, owner and status. Gated by the raid capability.",
+    "order": 91
+  },
+  {
     "id": "settings",
     "label": "Settings",
     "route": "/settings",
@@ -164,5 +201,24 @@ export const SCREENS_DATA: ScreenDefinition[] = [
     ],
     "notes": "Admin configuration.",
     "order": 80
+  },
+  {
+    "id": "stakeholders",
+    "label": "Stakeholder register",
+    "route": "/projects/:id/stakeholders",
+    "kind": "detail",
+    "capabilities": {
+      "requiresRole": "viewer",
+      "requiresCapability": "stakeholders",
+      "dataLineage": true,
+      "exportable": true
+    },
+    "tools": [
+      "stakeholder-table",
+      "influence-interest-grid",
+      "engagement-summary"
+    ],
+    "notes": "Stakeholder engagement matrix — role, influence/interest, engagement level and comms cadence. Gated by the stakeholders capability.",
+    "order": 90
   }
 ];

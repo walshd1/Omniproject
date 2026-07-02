@@ -44,6 +44,9 @@ export type FieldGroup =
   | "service" // ITSM/service (SLA, CSAT, change)
   | "strategy" // strategic alignment (goals, KPIs, OKRs) — project + programme level
   | "benefits" // benefits realisation (planned vs actual value, measure, owner, status)
+  | "stakeholder" // stakeholder engagement (role, influence/interest, engagement, comms cadence)
+  | "raci" // RACI assignment (deliverable → Responsible/Accountable/Consulted/Informed)
+  | "risk" // risk register — extends RAID (probability, exposure score, response strategy)
   | "relationship"
   | "derived";
 

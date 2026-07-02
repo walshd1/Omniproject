@@ -60,6 +60,24 @@ export function benefitBucket(status?: string | null): BenefitBucket {
 
 const num = (v: number | null | undefined): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
+/** The modelled BenefitInput keys — the ONLY input fields a report row carries. */
+const BENEFIT_INPUT_KEYS = [
+  "id", "title", "plannedBenefitValue", "actualBenefitValue", "benefitStatus", "benefitType",
+  "benefitOwner", "benefitMeasure", "benefitBaseline", "benefitTarget", "benefitDueDate", "benefitConfidence",
+] as const;
+
+/** Copy ONLY the modelled BenefitInput fields (omitting undefined, like a spread), so unmodelled
+ *  dirty fields on the raw read-model row (e.g. a NaN opexAmount) can't leak into the report row. */
+function pickBenefitInput(i: BenefitInput): BenefitInput {
+  const src = i as unknown as Record<string, unknown>;
+  const out: Record<string, unknown> = { id: i.id, title: i.title };
+  for (const k of BENEFIT_INPUT_KEYS) {
+    const v = src[k];
+    if (v !== undefined) out[k] = v;
+  }
+  return out as unknown as BenefitInput;
+}
+
 /** A work item counts as a benefit when it carries a planned/actual value or a status. */
 export function isBenefit(i: BenefitInput): boolean {
   return num(i.plannedBenefitValue) > 0 || num(i.actualBenefitValue) > 0 || !!(i.benefitStatus && i.benefitStatus.trim());
@@ -83,7 +101,15 @@ export function summariseBenefits(items: readonly BenefitInput[]): BenefitsSumma
     totalActual += actual;
     expectedValue += planned * (confidence / 100);
     byStatus[bucket] += 1;
-    rows.push({ ...i, planned, actual, realisation: planned > 0 ? actual / planned : 0, bucket });
+    // Carry ONLY the modelled BenefitInput fields (not a blind {...i} spread), so unmodelled dirty
+    // fields on the raw read-model row (e.g. a NaN opexAmount) can't leak into the report row.
+    rows.push({
+      ...pickBenefitInput(i),
+      planned,
+      actual,
+      realisation: planned > 0 ? actual / planned : 0,
+      bucket,
+    });
   }
 
   // Largest planned value first — the benefits that matter most lead the table.

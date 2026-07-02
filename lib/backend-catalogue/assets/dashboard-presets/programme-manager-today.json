@@ -1,0 +1,14 @@
+{
+  "id": "programme-manager-today",
+  "role": "programme-manager",
+  "name": "What needs me today — Programme Manager",
+  "summary": "The cross-project picture: which projects threaten a shared milestone, programme-level counts, and the movement since yesterday.",
+  "order": 20,
+  "widgets": [
+    { "type": "portfolioHealth", "span": 3 },
+    { "type": "programmeCount", "span": 1 },
+    { "type": "statusBreakdown", "span": 1 },
+    { "type": "portfolioTrends", "span": 2 },
+    { "type": "recentActivity", "span": 1 }
+  ]
+}

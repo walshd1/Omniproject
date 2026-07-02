@@ -44,6 +44,12 @@ export const CAPABILITY_DOMAINS = [
   // Benefits realisation — gates the benefits field group (planned vs actual value,
   // owner, measure, status). Off unless a backend declares it.
   "benefits",
+  // Stakeholder engagement — gates the stakeholder field group + entity (role,
+  // influence/interest, engagement, comms cadence). Off unless a backend declares it.
+  "stakeholders",
+  // RACI assignment — gates the raci field group + entity (deliverable → R/A/C/I).
+  // Off unless a backend declares it.
+  "raci",
 ] as const;
 
 export type CapabilityDomain = (typeof CAPABILITY_DOMAINS)[number];
@@ -64,6 +70,8 @@ export const ENTITY_KEYS = [
   "project", "programme", "raid", "issue", "note", "member", "customField",
   // CRM/service entities — gated by the crm/service domains.
   "account", "contact", "deal", "pipeline", "service",
+  // Governance entities — stakeholder register + RACI matrix, each gated by its domain.
+  "stakeholder", "raci",
 ] as const;
 
 export interface Capabilities extends Record<CapabilityDomain, boolean> {
@@ -120,6 +128,13 @@ const GROUP_DOMAIN: Record<FieldGroup, CapabilityDomain> = {
   // Benefits realisation has its own domain — a backend can track benefits without
   // a full portfolio rollup.
   benefits: "benefits",
+  // Stakeholder engagement + RACI each ride their own domain, so governance data
+  // lights up only when a backend actually carries it.
+  stakeholder: "stakeholders",
+  raci: "raci",
+  // Risk register extends RAID — its quantitative fields ride the existing raid domain
+  // rather than a duplicate one.
+  risk: "raid",
 };
 
 /** Build the per-domain field manifest a backend exposes from its enabled capability domains. */
@@ -129,6 +144,8 @@ export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean
   const raid = !!enabled.raid;
   const crm = !!enabled.crm;
   const service = !!enabled.service;
+  const stakeholders = !!enabled.stakeholders;
+  const raci = !!enabled.raci;
   const fields: Record<string, FieldSupport> = {};
   for (const f of FIELD_REGISTRY) {
     // programme membership is gated by the portfolio domain, not issues.
@@ -158,6 +175,10 @@ export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean
       pipeline: sup(crm, false), // pipelines are read-through (backend-owned)
       // Service entity (CMDB CI / affected service) — gated by the service domain.
       service: sup(service, false),
+      // Governance entities — the stakeholder register + RACI matrix, each gated by
+      // its own domain (a backend can carry one without the other).
+      stakeholder: sup(stakeholders),
+      raci: sup(raci),
     },
   };
 }

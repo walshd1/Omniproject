@@ -1,0 +1,18 @@
+{
+  "id": "raci-matrix",
+  "label": "RACI matrix",
+  "route": "/projects/:id/raci",
+  "kind": "detail",
+  "capabilities": {
+    "requiresRole": "viewer",
+    "requiresCapability": "raci",
+    "dataLineage": true,
+    "exportable": true
+  },
+  "tools": [
+    "raci-grid",
+    "accountability-summary"
+  ],
+  "notes": "RACI matrix — each deliverable mapped to Responsible/Accountable/Consulted/Informed people. Gated by the raci capability.",
+  "order": 92
+}

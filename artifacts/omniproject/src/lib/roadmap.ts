@@ -15,11 +15,25 @@ export interface RoadmapIssue {
 
 export interface RoadmapProject {
   id: string;
+  /** The backend the project was read through. Used to qualify the identity key so two
+   *  projects that share a bare `id` across different sources never collide. */
+  source?: string | null | undefined;
   name: string;
   programmeId?: string | null | undefined;
   programmeName?: string | null | undefined;
   issueCount: number;
   completedCount: number;
+}
+
+/**
+ * The key under which a project's issues are looked up — the composite `source:id`, so two
+ * projects that happen to share a bare `id` across different backends never read each other's
+ * issues. Callers MUST build `issuesByProject` with this same helper. Falls back to the bare
+ * `id` when no source is present (single-source data stays unchanged).
+ */
+export function roadmapKey(project: Pick<RoadmapProject, "id" | "source">): string {
+  const s = typeof project.source === "string" ? project.source.trim() : "";
+  return s ? `${s}:${project.id}` : project.id;
 }
 
 export interface Span {
@@ -86,8 +100,13 @@ export function deriveSpan(issues: readonly RoadmapIssue[]): Span | null {
 
 /** completed / total, clamped to [0,1]; 0 when there are no issues. */
 function completionRate(p: RoadmapProject): number {
-  if (p.issueCount <= 0) return 0;
-  return Math.min(1, Math.max(0, p.completedCount / p.issueCount));
+  // Counts come from the untrusted read model — coerce so a string/null/NaN issueCount can't
+  // produce a NaN completion bar (which would break the rendered fill width).
+  const total = typeof p.issueCount === "number" && Number.isFinite(p.issueCount) ? p.issueCount : Number(p.issueCount);
+  const done = typeof p.completedCount === "number" && Number.isFinite(p.completedCount) ? p.completedCount : Number(p.completedCount);
+  if (!Number.isFinite(total) || total <= 0) return 0;
+  const d = Number.isFinite(done) ? done : 0;
+  return Math.min(1, Math.max(0, d / total));
 }
 
 /**
@@ -105,7 +124,8 @@ export function buildRoadmap(
   let datedProjects = 0;
 
   for (const project of projects) {
-    const span = deriveSpan(issuesByProject[project.id] ?? []);
+    // Look up by the composite key so same-id/different-source projects never share issues.
+    const span = deriveSpan(issuesByProject[roadmapKey(project)] ?? []);
     if (!span) continue;
     datedProjects += 1;
     if (span.start < min) min = span.start;
@@ -132,12 +152,14 @@ export function buildRoadmap(
   }
 
   const lanes = [...laneMap.values()];
-  for (const lane of lanes) lane.bars.sort((a, b) => a.start - b.start || a.end - b.end);
+  // Stable final tiebreaker on projectId so bars with identical spans have a deterministic order.
+  for (const lane of lanes) lane.bars.sort((a, b) => a.start - b.start || a.end - b.end || a.projectId.localeCompare(b.projectId));
   lanes.sort((a, b) => {
     // Standalone always sinks to the bottom; otherwise earliest-starting lane first.
     if (a.key === STANDALONE_KEY) return 1;
     if (b.key === STANDALONE_KEY) return -1;
-    return a.start - b.start || a.name.localeCompare(b.name);
+    // key (the programmeId) is unique per lane, so it breaks name/start ties deterministically.
+    return a.start - b.start || a.name.localeCompare(b.name) || a.key.localeCompare(b.key);
   });
 
   return {

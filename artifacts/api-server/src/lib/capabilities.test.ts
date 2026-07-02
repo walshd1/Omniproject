@@ -65,6 +65,38 @@ test("deriveFieldMap: benefits fields gate on the dedicated benefits domain", ()
   assert.equal(off.fields.benefitOwner!.surface, false);
 });
 
+test("deriveFieldMap: stakeholder fields + entity gate on the stakeholders domain", () => {
+  const on = deriveFieldMap({ ...ALL, stakeholders: true });
+  assert.equal(on.fields.stakeholderName!.surface, true);
+  assert.equal(on.fields.influence!.surface, true);
+  assert.equal(on.fields.commsCadence!.store, true);
+  assert.equal(on.entities.stakeholder!.surface, true);
+  // …and go dark without the stakeholders domain.
+  const off = deriveFieldMap({ ...ALL, stakeholders: false });
+  assert.equal(off.fields.stakeholderName!.surface, false);
+  assert.equal(off.entities.stakeholder!.surface, false);
+});
+
+test("deriveFieldMap: RACI fields + entity gate on the raci domain", () => {
+  const on = deriveFieldMap({ ...ALL, raci: true });
+  assert.equal(on.fields.deliverable!.surface, true);
+  assert.equal(on.fields.raciAccountable!.surface, true);
+  assert.equal(on.entities.raci!.surface, true);
+  const off = deriveFieldMap({ ...ALL, raci: false });
+  assert.equal(off.fields.raciResponsible!.surface, false);
+  assert.equal(off.entities.raci!.surface, false);
+});
+
+test("deriveFieldMap: risk-register fields extend RAID (ride the raid domain, not a duplicate)", () => {
+  const on = deriveFieldMap({ ...ALL, raid: true });
+  assert.equal(on.fields.probability!.surface, true);
+  assert.equal(on.fields.riskExposure!.surface, true);
+  assert.equal(on.fields.responseStrategy!.store, true);
+  const off = deriveFieldMap({ ...ALL, raid: false });
+  assert.equal(off.fields.probability!.surface, false);
+  assert.equal(off.fields.responseStrategy!.surface, false);
+});
+
 test("deriveFieldMap: CapEx/OpEx split + cost category ride the financials domain", () => {
   const on = deriveFieldMap({ ...ALL, financials: true });
   assert.equal(on.fields.expenditureType!.surface, true);

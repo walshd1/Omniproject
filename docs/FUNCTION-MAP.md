@@ -791,15 +791,17 @@ Multi-currency support.
 
 ### `artifacts/api-server/src/lib/data-residency.ts`
 
-Data-residency / region routing — a fail-closed guard at the broker seam.
+Data-residency / region routing — a fail-closed guard at the broker seam AND the egress hop.
 
 | Function | What it does |
 | --- | --- |
-| `dataResidencyEnabled` | Is region enforcement configured? (DATA_RESIDENCY_ALLOWED present.) |
+| `dataResidencyEnabled` | Is region enforcement configured? (A JSON policy — even an invalid one — or DATA_RESIDENCY_ALLOWED.) |
 | `allowedRegions` | The allowed region codes (lower-cased), as a set. |
 | `regionForUrl` | The declared region for an endpoint URL (longest-prefix match), or null if undeclared. |
 | `checkResidency` | Verify every candidate endpoint sits in an allowed region. |
 | `assertResidency` | Enforce residency on the resolved endpoint pool: on a violation, audit the block and throw a 451 DataResidencyError BEFORE any request egresses. |
+| `checkEgressResidency` | Check an outbound host against the per-country egress allowlist. |
+| `assertEgressResidency` | Enforce the per-country egress policy on an outbound URL's host: audit + throw a 451 DataResidencyError BEFORE the request egresses when a policy is active and the host is not in any allowed region's egress allowlist. |
 | `residencyStatus` | Admin status view: the policy + every configured broker endpoint's region + allow verdict. |
 
 ### `artifacts/api-server/src/lib/data.ts`
@@ -1273,6 +1275,21 @@ Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
 | `decodeIdTokenClaims` | Decode the JWT id_token to extract user claims. |
 | `idTokenNonce` | Read the `nonce` claim from an ID token's payload (or null if absent/malformed). |
 
+### `artifacts/api-server/src/lib/otlp-metrics.ts`
+
+OTLP/HTTP metrics export — the metrics counterpart to lib/tracing's span export.
+
+| Function | What it does |
+| --- | --- |
+| `cacheMetrics` | OTLP/HTTP metrics export — the metrics counterpart to lib/tracing's span export. |
+| `coreMetrics` | The full in-process metric set (RED + broker latency + cache) — shared by the scrape route and the OTLP push. |
+| `otlpMetricsEndpoint` | The OTLP metrics endpoint (…/v1/metrics), or null when export is not configured. |
+| `toOtlpMetricsPayload` | Build the OTLP/HTTP `resourceMetrics` payload for a metric set. |
+| `exportMetricsOnce` | Push the current core metric set to the OTLP collector once. |
+| `metricExportIntervalMs` | The export interval (ms) from OTEL_METRIC_EXPORT_INTERVAL, clamped to a sane floor; default 60s. |
+| `startMetricExport` | Start the periodic OTLP metrics push. |
+| `stopMetricExport` | Stop the periodic OTLP metrics push (idempotent). |
+
 ### `artifacts/api-server/src/lib/payload-guard.ts`
 
 Egress injection guard for the broker seam (security item: injection hardening).
@@ -1327,6 +1344,21 @@ Live collaboration presence hub (Server-Sent Events).
 | `presenceStats` | Diagnostics for dev mode: how many rooms / connections are live right now. |
 | `closeAllPresence` | Close every live presence stream and forget them — used on graceful shutdown. |
 | `_resetPresenceForTest` | Test reset hook — drop all presence state without touching connections. |
+
+### `artifacts/api-server/src/lib/proactive-digest.ts`
+
+Proactive "what needs me" digest.
+
+| Function | What it does |
+| --- | --- |
+| `getDigestThresholds` | The thresholds the digest currently runs with. |
+| `setDigestThresholds` | Tune the thresholds. |
+| `__resetDigestThresholds` | Test-only: restore default thresholds. |
+| `buildProactiveDigest` | Build the "what needs me" digest from portfolio rows (PURE). |
+| `runProactiveDigest` | Read the portfolio under a keyed autonomous principal, build the "what needs me" digest, and dispatch it over the notify bus (kind "digest") targeted at the recipient role — unless it's empty (then it's skipped, so a healthy portfolio never pings). |
+| `digestIntervalHours` | The configured cadence in hours: the env override when a valid non-negative number, else the weekly default. |
+| `startProactiveDigestScheduler` | Start the in-process digest timer (single-instance / homelab). |
+| `__stopProactiveDigestScheduler` | Test-only: stop the timer. |
 
 ### `artifacts/api-server/src/lib/programmes.ts`
 
@@ -1469,6 +1501,18 @@ Per-request timing accumulator.
 | `runWithTiming` | Run `fn` (and everything it awaits) inside a fresh timing context. |
 | `addUpstreamMs` | Add upstream wait time to the current request (no-op outside a context). |
 | `getUpstreamMs` | Total upstream wait accumulated so far for the current request (0 if none). |
+
+### `artifacts/api-server/src/lib/residency-policy.ts`
+
+Per-country / per-region data-residency POLICY — the declarative form of the residency guard.
+
+| Function | What it does |
+| --- | --- |
+| `validateResidencyPolicy` | Validate an untrusted value as a residency policy. |
+| `residencyPolicyState` | Load + validate the policy from `DATA_RESIDENCY_POLICY` (a JSON string), memoised by raw text so the hot broker/egress paths don't re-parse. |
+| `policyRegionForUrl` | The declared region for a backend URL under a policy (longest matching `backends` prefix wins). |
+| `policyAllowedRegions` | The allowed region codes as a set (the deployment's `allowed` list). |
+| `policyEgressAllowed` | Is egress to `host` permitted under the policy? Allowed iff the host matches an egress pattern of an ALLOWED region, OR is the host of one of that region's own declared backends (a region may always reach the broker it is pinned to, so operators needn't restate it). |
 
 ### `artifacts/api-server/src/lib/resource-pool.ts`
 
@@ -1924,7 +1968,7 @@ The only context fields a governance rule may reference — the facts evaluable 
 
 ### `artifacts/api-server/src/routes/health-watch.ts`
 
-Health / anomaly watch + executive digest — the scheduled, read-only autonomous jobs.
+Health / anomaly watch + executive & proactive digests — the scheduled, read-only autonomous jobs.
 
 ### `artifacts/api-server/src/routes/health.ts`
 
@@ -2108,6 +2152,21 @@ The unified COMPONENT LIBRARY — one registry over the report + widget catalogu
 | `componentLibrary` | The whole library — every report + widget as one list. |
 | `componentsFor` | The components a user may place into a given surface, in display order. |
 | `getComponent` | One library component by its namespaced id, or undefined. |
+
+### `lib/backend-catalogue/src/dashboard-preset-catalogue.ts`
+
+DASHBOARD-PRESET registry — ready-made, role-tailored "what needs me today" dashboards.
+
+| Function | What it does |
+| --- | --- |
+| `dashboardPreset` | One preset by id, or undefined. |
+| `presetForRole` | The first preset tailored to a role, or undefined — the suggested default for a user of that role. |
+| `dashboardPresetCatalogue` | All presets (a defensive copy). |
+| `availablePresets` | The presets whose every widget the active backend can surface — drops any preset that needs an entity-gated widget the backend can't surface. |
+
+### `lib/backend-catalogue/src/dashboard-presets.generated.ts`
+
+GENERATED by scripts/src/gen-dashboard-presets.ts — do not edit.
 
 ### `lib/backend-catalogue/src/entity-resolution.ts`
 
@@ -2359,6 +2418,10 @@ End-to-end smoke test for the single-container "omni-shell".
 
 Broker-contract generator.
 
+### `scripts/src/gen-dashboard-presets.ts`
+
+Dashboard-preset catalogue generator.
+
 ### `scripts/src/gen-fields.ts`
 
 Canonical field-vocabulary generator.
@@ -2420,6 +2483,10 @@ Compose correctness guard — parses every docker-compose file in the repo and a
 | `isPinnedImage` | An image reference is pinned when it has an explicit tag (not `latest`) or a digest. |
 | `auditComposeDoc` | Check one parsed compose document; `prod` toggles the hardening invariants. |
 | `auditRepoCompose` | Audit every repo compose file; returns all invariant violations. |
+
+### `scripts/src/guard-dashboard-preset-coverage.ts`
+
+Dashboard-preset-coverage guard — "every preset references only real widgets".
 
 ### `scripts/src/guard-e2e-routes.ts`
 
@@ -2496,6 +2563,10 @@ The canonical field superset = the base vocabulary (assets/fields.json) UNION ev
 ### `scripts/src/load-harness.ts`
 
 n8n load harness — measure the REAL gateway → broker → backend path under concurrency, and report latency percentiles + throughput + error breakdown.
+
+### `scripts/src/messy-resilience-probe.ts`
+
+Messy-data RESILIENCE PROBE — a throwaway-but-committed harness.
 
 ### `scripts/src/mint-license.ts`
 
