@@ -35,7 +35,7 @@ export interface Capabilities {
   benefits: boolean;
   /** Stakeholder-engagement fields + entity (role, influence/interest, engagement, comms cadence) — true only when a backend can carry them. */
   stakeholders: boolean;
-  /** RACI-assignment fields + entity (deliverable → Responsible/Accountable/Consulted/Informed) — true only when a backend can carry them. */
+  /** RACI-assignment fields + entity (deliverable → Responsible/Accountable/ Consulted/Informed) — true only when a backend can carry them. */
   raci: boolean;
   /** Whether historical time-travel is available — true only when the operator has opted in to the logging-server egress (off by default). */
   timeTravel: boolean;
