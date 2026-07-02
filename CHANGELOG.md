@@ -32,6 +32,26 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     exceptions-table blocker count (`ExecBoardPack`) — one declarative descriptor, two surfaces,
     proving the mechanism composes instead of every "N blocked" figure hand-rolling its own
     filter-building. Left generic for other reports/widgets to adopt the same way.
+- **`drillTo` everywhere — schedule variance, budget overrun and PRINCE2 exceptions now click through
+  too (backlog #132).** Retrofits the declarative drill-down onto the other "red number" spots a PM
+  expects to click through, beyond the portfolioHealth widget's BLOCKERS figure:
+  - Two more descriptors in `artifacts/omniproject/src/lib/drill-to.ts` — `overdueDrillTo` (a
+    project's overdue, still-open items — mirrors `isOverdue` in `methodology.ts`) and
+    `costOverrunDrillTo` (items with actual cost logged) — built in code rather than declared in a
+    catalogue JSON asset like portfolioHealth's static `blocked truthy`, since "overdue" depends on
+    today's date and "cost-incurring" isn't a fixed literal. Both resolve through the SAME
+    `resolveDrillTo` as every other drillTo.
+  - Wired into SCHED Δ and BUDGET Δ on the portfolio KPI cards (`PortfolioKpi`) and the exec board
+    pack's exceptions table (`ExecBoardPack`) — the same two figures across both surfaces the
+    BLOCKERS drill-through already covers — plus the PRINCE2 highlight report's "Exceptions (overdue)"
+    tally (`Prince2View`), a third, differently-shaped surface (single-project, not portfolio-rollup)
+    proving the descriptors compose across report types.
+  - **Predicate-engine fix (`custom-report.ts` `evalPredicate`):** `gt`/`gte`/`lt`/`lte` now fall back
+    to a date-aware comparison when a field isn't numeric (e.g. `dueDate`, an ISO date string) —
+    previously any date comparison silently evaluated to `false` (`Number("2026-07-01")` is `NaN`),
+    which would have made the overdue drill-through resolve to a filter that never matches. A genuine
+    gap in the shared predicate engine the grid's drill-through filter and the custom report builder
+    both run on; the resolver itself (`resolveDrillTo`/`readDrillFilter`) is unchanged.
 - **Multi-currency portfolio consolidation, hardened: FX as-of-date policy + per-row local-currency
   display.** At 7+ countries every financial roll-up already converted into one reporting currency
   (`settings.reportingCurrency`, org default + PMO/admin-settable) — this hardens the consolidation
