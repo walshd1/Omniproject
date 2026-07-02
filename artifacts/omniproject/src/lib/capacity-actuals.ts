@@ -1,4 +1,5 @@
 import type { ResourceCapacity } from "@workspace/api-client-react";
+import { num } from "./num";
 
 /**
  * Capacity actuals-vs-plan — compare each resource's logged-time ACTUALS against their PLAN (allocation).
@@ -58,7 +59,6 @@ export interface CapacityActualsSummary {
 const ON_TRACK_BAND = 10;
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
-const num = (n: number | null | undefined): number => (typeof n === "number" && Number.isFinite(n) ? n : 0);
 
 /** The join key for a capacity/actual row: prefer the stable id, fall back to the display name. */
 function keyOf(row: { resourceId?: string | null | undefined; resourceName?: string | null | undefined }): string | null {

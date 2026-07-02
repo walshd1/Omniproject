@@ -3,6 +3,7 @@
  * item, with the unbilled gap and purchase-order references. Pure and derive-only: reads the canonical
  * `revenue` / `invoicedAmount` / `purchaseOrder` fields the backend surfaces; OmniProject stores nothing.
  */
+import { num } from "./num";
 
 export interface IncomeInput {
   id: string;
@@ -35,8 +36,6 @@ export interface IncomeSummary {
   count: number;
   rows: IncomeRow[];
 }
-
-const num = (v: number | null | undefined): number => (typeof v === "number" && isFinite(v) ? v : 0);
 
 /** True when an item carries any income signal (projected or invoiced). */
 export function hasIncome(i: IncomeInput): boolean {

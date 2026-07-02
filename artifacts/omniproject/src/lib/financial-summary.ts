@@ -4,6 +4,7 @@
  * reports and stores nothing. Items with no budget/actual simply contribute zero, so a partially-costed
  * backlog still summarises cleanly.
  */
+import { num } from "./num";
 
 export interface CostedItem {
   budget?: number | null;
@@ -22,8 +23,6 @@ export interface FinancialSummary {
   /** How many items carry a budget or an actual (the costed surface). */
   costedItems: number;
 }
-
-const num = (v: number | null | undefined): number => (typeof v === "number" && isFinite(v) ? v : 0);
 
 export function summariseFinancials(items: readonly CostedItem[]): FinancialSummary {
   let budget = 0;

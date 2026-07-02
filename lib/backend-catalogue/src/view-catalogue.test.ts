@@ -13,7 +13,7 @@ test("views are present, id-unique and in display order", () => {
   assert.equal(new Set(ids).size, ids.length);
   const orders = VIEWS.map((v) => v.order);
   assert.deepEqual(orders, [...orders].sort((a, b) => a - b), "VIEWS must be in display order");
-  assert.equal(VIEWS[0].id, "kanban"); // order 1
+  assert.equal(VIEWS[0]!.id, "kanban"); // order 1
 });
 
 test("getView resolves by id", () => {

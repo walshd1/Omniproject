@@ -6,6 +6,7 @@ import { LoadingState } from "../components/LoadingState";
 import { useRecentItems } from "../lib/recent-items";
 import { ProgrammeFinancialsCard } from "../components/ProgrammeFinancialsCard";
 import { DataProvenance } from "../components/DataProvenance";
+import { RAG_DOT, RAG_TEXT } from "../lib/methodology";
 
 const PROGRAMME_PROJECT_FIELDS = [
   { key: "name", label: "Name" },
@@ -21,9 +22,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-
-const RAG_DOT: Record<string, string> = { GREEN: "bg-green-500", AMBER: "bg-amber-500", RED: "bg-red-500" };
-const RAG_TEXT: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (

@@ -5,6 +5,7 @@
  * value, the realisation %, the spread by RAG status, and a risk-adjusted expected value
  * (planned × confidence). Nothing is stored: the same issues always produce the same summary.
  */
+import { num } from "./num";
 
 export interface BenefitInput {
   id: string;
@@ -57,8 +58,6 @@ export function benefitBucket(status?: string | null): BenefitBucket {
   if (/track|on.?plan|progress/.test(s)) return "on_track";
   return "not_started";
 }
-
-const num = (v: number | null | undefined): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 /** The modelled BenefitInput keys — the ONLY input fields a report row carries. */
 const BENEFIT_INPUT_KEYS = [

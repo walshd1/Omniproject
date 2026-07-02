@@ -1,8 +1,7 @@
 import { Router } from "express";
-import { requireRole, roleForReq, getRoleMap, setRoleMap, ROLES } from "../lib/rbac";
+import { requireRole, getRoleMap, setRoleMap, ROLES } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
-import { getSession } from "./auth";
-import { recordAudit } from "../lib/audit";
+import { recordAudit, actorForAudit } from "../lib/audit";
 
 /**
  * Role-mapping editor — ADMIN-only, audited. Lets an admin decide which IdP
@@ -24,7 +23,7 @@ router.put("/admin/role-map", requireRole("admin"), requireStepUp, (req, res) =>
     ts: new Date().toISOString(),
     category: "admin",
     action: "role_map_update",
-    actor: getSession(req) ? { sub: getSession(req)!.sub, role: roleForReq(req) } : null,
+    actor: actorForAudit(req),
     result: "success",
     status: 200,
     // Record the shape of the change (group counts per role), not necessarily the

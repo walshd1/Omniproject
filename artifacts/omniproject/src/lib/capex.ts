@@ -7,6 +7,7 @@
  * only `expenditureType` + a cost figure (no explicit split), the whole cost is allocated to
  * the declared side. Nothing is stored.
  */
+import { num } from "./num";
 
 export interface CapexInput {
   id: string;
@@ -50,7 +51,6 @@ export interface CapexSummary {
   rows: CapexRow[];
 }
 
-const num = (v: number | null | undefined): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const UNCATEGORISED = "Uncategorised";
 
 /**

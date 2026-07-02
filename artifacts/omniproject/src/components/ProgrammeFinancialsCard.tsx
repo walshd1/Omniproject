@@ -1,10 +1,9 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useGetCapabilities, type ProgrammeFinancials } from "@workspace/api-client-react";
 import { useT } from "../lib/i18n";
-import { useFxRates, convertAmount, currencyList } from "../lib/currency";
+import { useDisplayCurrency } from "../lib/currency";
+import { RAG_TEXT as HEALTH } from "../lib/methodology";
 import { ReportingBadge } from "./ReportingBadge";
-
-const HEALTH: Record<string, string> = { GREEN: "text-green-500", AMBER: "text-amber-500", RED: "text-red-500" };
 
 function Stat({ label, value, accent, badge }: { label: string; value: string; accent?: string | undefined; badge?: ReactNode }) {
   return (
@@ -28,16 +27,13 @@ function Stat({ label, value, accent, badge }: { label: string; value: string; a
 export function ProgrammeFinancialsCard({ financials }: { financials: ProgrammeFinancials }) {
   const { data: caps } = useGetCapabilities();
   const { formatCurrency } = useT();
-  const { data: fx } = useFxRates();
-  const [display, setDisplay] = useState("");
+  const native = financials.currency || "GBP";
+  const { displayCcy, setDisplay, convert, currencyOptions } = useDisplayCurrency(native);
 
   // Hide entirely when the backend declares no financials domain.
   if (caps?.financials === false) return null;
 
-  const native = financials.currency || "GBP";
-  const displayCcy = display || native;
-  const money = (n: number) => formatCurrency(convertAmount(n, native, displayCcy, fx?.rates), displayCcy);
-  const currencyOptions = Array.from(new Set([native, ...currencyList(fx?.rates)]));
+  const money = (n: number) => formatCurrency(convert(n), displayCcy);
 
   const overspend = financials.variance < 0;
   const rep = financials.reporting;

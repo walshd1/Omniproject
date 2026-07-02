@@ -1,5 +1,5 @@
-import crypto from "node:crypto";
 import type { Request } from "express";
+import { constantTimeEqual } from "./crypto-keys";
 
 /**
  * Read-only API tokens for non-interactive clients (e.g. Power BI's Web
@@ -18,13 +18,6 @@ const TOKENS = (process.env["API_TOKENS"] ?? "")
 
 export const apiTokensConfigured = TOKENS.length > 0;
 
-function timingSafeEqual(a: string, b: string): boolean {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ab.length !== bb.length) return false;
-  return crypto.timingSafeEqual(ab, bb);
-}
-
 function presentedToken(req: Request): string | null {
   const apiKey = req.headers["x-api-key"];
   if (typeof apiKey === "string" && apiKey.trim()) return apiKey.trim();
@@ -41,5 +34,5 @@ export function hasValidApiToken(req: Request): boolean {
   if (!apiTokensConfigured) return false;
   const token = presentedToken(req);
   if (!token) return false;
-  return TOKENS.some((valid) => timingSafeEqual(valid, token));
+  return TOKENS.some((valid) => constantTimeEqual(valid, token));
 }

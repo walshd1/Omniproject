@@ -1,7 +1,10 @@
+import type { Request } from "express";
 import { logger } from "./logger";
 import { pushBrokerEvent } from "./broker-log";
 import { recordBrokerCall } from "./runtime-metrics";
 import { sealAuditEvent } from "./audit-chain";
+import { getSession } from "../routes/auth";
+import { roleForReq } from "./rbac";
 
 /**
  * Action audit logging.
@@ -159,6 +162,14 @@ export function recordAudit(ev: AuditEvent): void {
   const sealed = sealAuditEvent(ev);
   logger.info({ audit: true, ...sealed }, "audit");
   ensureSink()?.enqueue(sealed);
+}
+
+/** The audit `actor` field for a request — the session's sub + a display role, or `null` when
+ *  unauthenticated. Calls `getSession(req)` once; route-local audit helpers used to call it
+ *  twice (an existence check, then a `.sub` read) to build this same shape. */
+export function actorForAudit(req: Request): { sub: string; role: string } | null {
+  const session = getSession(req);
+  return session ? { sub: session.sub, role: roleForReq(req) } : null;
 }
 
 /** Status for the setup/diagnostics view. */

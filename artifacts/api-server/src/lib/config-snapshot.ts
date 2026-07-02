@@ -35,27 +35,20 @@ export interface ConfigSnapshot {
   settings: Pick<SettingsState, SnapshotKey>;
 }
 
-/** Capture the current settings as a portable, versioned config snapshot. */
+/** Capture the current settings as a portable, versioned config snapshot. Iterates
+ *  `SNAPSHOT_KEYS` (rather than hand-listing the fields again) so the captured set can't
+ *  silently drift from what `applySnapshot` restores. */
 export function buildSnapshot(settings: SettingsState): ConfigSnapshot {
+  // One cast: each entry is individually typed via the map callback (key: SnapshotKey ⇒
+  // settings[key] is its matching value type), so the reassembled object legitimately
+  // matches Pick<SettingsState, SnapshotKey> — TS just can't verify a `key`-by-`key` merge
+  // of a union across heterogeneous field types.
+  const snapshotSettings = Object.fromEntries(SNAPSHOT_KEYS.map((key) => [key, settings[key]])) as Pick<SettingsState, SnapshotKey>;
   return {
     schema: SNAPSHOT_SCHEMA,
     version: SNAPSHOT_VERSION,
     createdAt: new Date().toISOString(),
-    settings: {
-      brokerUrl: settings.brokerUrl,
-      aiProvider: settings.aiProvider,
-      aiModel: settings.aiModel,
-      backendSource: settings.backendSource,
-      oidcIssuerUrl: settings.oidcIssuerUrl,
-      branding: settings.branding,
-      labelOverrides: settings.labelOverrides,
-      screenLayouts: settings.screenLayouts,
-      userPrefs: settings.userPrefs,
-      disabledFeatures: settings.disabledFeatures,
-      hiddenFields: settings.hiddenFields,
-      savedViews: settings.savedViews,
-      dashboards: settings.dashboards,
-    },
+    settings: snapshotSettings,
   };
 }
 
