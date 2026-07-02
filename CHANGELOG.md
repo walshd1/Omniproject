@@ -23,6 +23,28 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **ERP connector: Dynamics 365 Finance & Operations, read-only (backlog #141).** A new
+  catalogued backend, `dynamics365-fo` (`lib/backend-catalogue/vendors/backends/dynamics365-fo.json`),
+  for D365 Finance & Operations' Project Management and Accounting module — distinct from the
+  existing `dynamics365` entry (Project Operations on Dataverse): different OData Web API,
+  different credential (generic OAuth2, not n8n's Dataverse-specific one), finance-first rather
+  than task-first.
+  - Maps real, documented F&O entities (Microsoft Common Data Model schema): `ProjectsV2` →
+    project, `ProjectTasks` (WBS lines) → issue, `ProjProposalCost` (budget/estimate) and
+    `ProjCostTrans` (posted actual cost) back the `financials` capability. Reuses existing
+    canonical fields (`budget`, `plannedCost`, `actualCost`, `currency`, `costCenter`, …) via the
+    `fieldKeys` mechanism — the first vendor to use it — validated against the superset by
+    `guard-superset` (`BackendManifest` gained the matching `fields`/`fieldKeys` optional
+    properties, previously schema-only and untyped).
+  - Capability-honest: only `financials`/`issues`/`scheduling` are declared — `baseline`, `raid`,
+    `resources` and `portfolio` are explicitly left off pending a confirmed entity, rather than
+    guessed at. Added to the enterprise tier (`isEnterpriseBackend`) alongside SAP/NetSuite/Planview.
+  - `generateWorkflow()` verified to produce a real, importable n8n scaffold (all 5 contract
+    actions wired as HTTP-request nodes) — see `artifacts/n8n-blueprints/generated/omniproject-dynamics365-fo.json`.
+  - **Catalogued, not tenant-verified**: no live F&O tenant was available to test against; every
+    entity/field/key name is a reference mapping, same posture as SAP/NetSuite/Planview/Primavera.
+    See `docs/vendors/DYNAMICS-365-FO.md` and `docs/PARKED-DECISIONS.md` §E4 for exactly what
+    still needs confirming against a real tenant before this is "supported" rather than "catalogued."
 - **Self-service custom-backend authoring in the admin UI (backlog #137).** A customer's own team
   can now author a new backend/vendor definition through a guided form instead of hand-editing
   `lib/backend-catalogue/vendors/backends/<id>.json`. Investigated first: the runtime-load half
