@@ -11,7 +11,8 @@
  *   1. IMPORT REACH — nothing may import a concrete adapter except the seam factory
  *      (`broker/index.ts`) and the adapter's own folder.
  *   2. NAMING — the vendor token may not appear in CODE (comments excluded — they legitimately
- *      document the reference broker) anywhere in the gateway or SPA, except the allowlisted homes.
+ *      document the reference broker) anywhere in the gateway, the SPA, or the backend-catalogue
+ *      package, except the allowlisted homes and generated (`*.generated.ts`) vendor data.
  *
  * Run: `pnpm --filter @workspace/scripts run guard-broker-isolation`
  */
@@ -21,6 +22,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const GATEWAY_SRC = "artifacts/api-server/src";
+const CATALOGUE_SRC = "lib/backend-catalogue/src";
 
 /** Concrete adapter folders (relative to GATEWAY_SRC) that may only be imported via the seam. */
 const ADAPTER_DIRS = ["broker/n8n"];
@@ -29,14 +31,27 @@ const SEAM_FACTORY = ["broker/index.ts"];
 
 /** The vendor token(s) that may only appear in their sanctioned homes. */
 const VENDOR_TOKEN = /n8n/i;
-/** Source trees scanned for vendor NAMING in code (relative to ROOT). */
-const NAMING_DIRS = [GATEWAY_SRC, "artifacts/omniproject/src"];
+/** Source trees scanned for vendor NAMING in code (relative to ROOT). Backend-catalogue is
+ *  included so a shared/neutral type (e.g. a binding interface) can't quietly re-acquire a
+ *  vendor-specific name — `*.generated.ts` files are skipped everywhere below since they are
+ *  vendor JSON data embedded verbatim, the same sanctioned exception as the JSON itself. */
+const NAMING_DIRS = [GATEWAY_SRC, "artifacts/omniproject/src", CATALOGUE_SRC];
 /** Paths (relative to ROOT) where the vendor token may appear as code: the adapter home, the seam
- *  factory that constructs it, and the neutral resolver that owns the legacy env alias. */
+ *  factory that constructs it, the neutral resolver that owns the legacy env alias, the blueprint
+ *  generator that IS the n8n-specific build tool (mirrors the adapter folder), and the two neutral
+ *  catalogue enums (`BrokerKind`, `ActionMapping["kind"]`) whose job is literally to enumerate
+ *  vendor/transport identifiers — the same sanctioned shape as the JSON `id`/`kind` fields they
+ *  mirror, not vendor-specific behaviour. */
 const NAMING_ALLOW = [
   `${GATEWAY_SRC}/broker/n8n`,
   `${GATEWAY_SRC}/broker/index.ts`,
   `${GATEWAY_SRC}/lib/broker-url.ts`,
+  `${CATALOGUE_SRC}/n8n-generator.ts`,
+  `${CATALOGUE_SRC}/broker-catalogue.ts`,
+  `${CATALOGUE_SRC}/backend-catalogue.ts`,
+  `${CATALOGUE_SRC}/index.ts`, // barrel re-export of the generator above, same reasoning
+  `${CATALOGUE_SRC}/planes.ts`, // lists n8n only as one illustrative broker example, same pattern
+  // every other plane uses to name example vendors (Jira/SAP/Salesforce for backends, etc.)
 ];
 
 function importsAdapter(line: string): string | null {
@@ -98,7 +113,10 @@ for (const rel of listTsFiles(GATEWAY_SRC).map((r) => r.slice(GATEWAY_SRC.length
 }
 
 // 2. Naming: the vendor token may not appear in code outside its sanctioned homes.
-const namingAllowed = (rel: string): boolean => NAMING_ALLOW.some((a) => rel === a || rel.startsWith(a + "/"));
+// `.generated.ts` files are skipped everywhere — they are vendor JSON embedded verbatim by
+// gen-vendors/gen-fields/etc. (the same sanctioned "data, not code" exception as the JSON itself).
+const namingAllowed = (rel: string): boolean =>
+  rel.endsWith(".generated.ts") || NAMING_ALLOW.some((a) => rel === a || rel.startsWith(a + "/"));
 for (const dir of NAMING_DIRS) {
   for (const rel of listTsFiles(dir)) {
     if (namingAllowed(rel)) continue;

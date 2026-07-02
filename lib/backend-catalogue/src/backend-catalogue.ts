@@ -2,15 +2,17 @@
  * BACKEND catalogue — the systems-of-record plane (Jira, OpenProject, SAP, …).
  *
  * Holds the `BACKENDS` array + accessors (getBackend, isEnterpriseBackend,
- * transportOf, backendCatalogue) and the REFERENCE n8n binding types (how each
- * contract action maps to an n8n node / HTTP call). The binding is the n8n-specific
- * transport half; a different broker would attach its own binding to the same
- * neutral manifest (./backend-manifest.ts).
+ * transportOf, backendCatalogue) and the broker binding types (how each
+ * contract action maps to a broker-native node / HTTP call). The binding is the
+ * broker-specific transport half; a different broker would attach its own binding
+ * shape to the same neutral manifest (./backend-manifest.ts) — today's reference
+ * implementation of that shape happens to be n8n's (see `n8n-generator.ts`, the
+ * one place permitted to know n8n's concrete node/expression syntax).
  *
  * The broker-neutral half (identity, capabilities, required env) lives in
  * `./backend-manifest.ts`. This file declares the binding TYPES and exposes the
  * `BACKENDS` array. A concrete entry is `BackendDefinition = BackendManifest &
- * N8nBinding` (kept flat so a backend reads as one object); the generator
+ * BrokerBinding` (kept flat so a backend reads as one object); the generator
  * (`n8n-generator.ts`) consumes the binding.
  *
  * The backend DATA is not a literal here — each vendor is authored as a JSON file
@@ -34,26 +36,30 @@ import { BACKENDS_DATA } from "./vendors.generated";
 import { withOverlay } from "./vendor-overlay";
 
 /**
- * An action is implemented either as a raw HTTP call or — preferably, where n8n
- * ships a maintained node for the tool — as that **native n8n node**, so the
- * integration/auth burden lives in n8n rather than in our own mappings.
+ * An action is implemented either as a raw HTTP call or — preferably, where the
+ * connected broker ships a maintained node for the tool — as that **native
+ * broker node**, so the integration/auth burden lives in the broker rather than
+ * in our own mappings. The `"n8nNode"` value names n8n's own native-node
+ * transport specifically (the reference broker); a future adapter for a
+ * different broker would introduce its own sibling value here rather than
+ * reusing n8n's.
  */
 export interface ActionMapping {
-  /** "http" (default) or "n8nNode". */
+  /** "http" (default) or "n8nNode" (n8n's native-node transport). */
   kind?: "http" | "n8nNode";
 
   // ── http transport ──
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
-  /** n8n expression for the request URL. */
+  /** Broker expression for the request URL. */
   url?: string;
-  /** n8n expression producing the JSON request body (writes only). */
+  /** Broker expression producing the JSON request body (writes only). */
   body?: string;
-  /** Use an n8n-managed predefined credential (OAuth etc.) instead of the
+  /** Use a broker-managed predefined credential (OAuth etc.) instead of the
    *  per-user bearer — e.g. "microsoftDynamicsOAuth2Api". */
   credentialType?: string;
 
   // ── n8nNode transport ──
-  /** Node type, e.g. "n8n-nodes-base.asana". */
+  /** Node type, e.g. "n8n-nodes-base.asana" (n8n-specific — only meaningful for the n8nNode kind). */
   node?: string;
   typeVersion?: number;
   /** Node parameters (resource/operation/etc.). */
@@ -63,21 +69,23 @@ export interface ActionMapping {
 }
 
 /**
- * The n8n-specific transport for a backend: the per-user auth expression, an
- * optional n8n credential type, and the per-action node/HTTP mappings. This is
- * the half a *different* broker would replace with its own binding type.
+ * The broker transport for a backend: the per-user auth expression, an optional
+ * broker-managed credential type, and the per-action node/HTTP mappings. This is
+ * the half a *different* broker would replace with its own binding type — n8n is
+ * the reference implementation (the field-level doc comments below describe its
+ * expression syntax since that's the concrete broker wired up today).
  */
-export interface N8nBinding {
-  /** n8n expression for the Authorization header value (http per-user transport). */
+export interface BrokerBinding {
+  /** Broker expression for the Authorization header value (http per-user transport). */
   authHeader: string;
-  /** n8n credential type to attach to native nodes / managed-auth HTTP nodes. */
+  /** Broker-managed credential type to attach to native nodes / managed-auth HTTP nodes. */
   credentialType?: string;
   actions: Partial<Record<ContractAction, ActionMapping>>;
 }
 
-/** A catalogue entry: the broker-neutral manifest plus its n8n binding (flat, so
+/** A catalogue entry: the broker-neutral manifest plus its broker binding (flat, so
  *  a backend reads as a single object literal). */
-export type BackendDefinition = BackendManifest & N8nBinding;
+export type BackendDefinition = BackendManifest & BrokerBinding;
 
 export const BACKENDS: BackendDefinition[] = BACKENDS_DATA;
 

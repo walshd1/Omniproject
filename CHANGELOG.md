@@ -6,6 +6,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Broker-neutral naming, extended to the backend catalogue.** The `guard-broker-isolation` CI
+  check previously only scanned `artifacts/api-server/src` and `artifacts/omniproject/src`, so a
+  shared/neutral type could still quietly carry a vendor-specific name in
+  `lib/backend-catalogue/src` without CI catching it. Fixed the one instance that had (the
+  `N8nBinding` interface — renamed to `BrokerBinding`; `BackendDefinition = BackendManifest &
+  BrokerBinding`) and extended the guard to cover `lib/backend-catalogue/src` going forward, with an
+  explicit allowlist for the two sanctioned exceptions: `n8n-generator.ts` (the concrete n8n
+  blueprint generator — the equivalent of the adapter folder) and the neutral vendor-id enums
+  (`BrokerKind`, `ActionMapping["kind"]`) whose job is literally to enumerate broker/transport
+  identifiers, the same sanctioned shape as the JSON `id`/`kind` fields they mirror.
+  `*.generated.ts` files are now skipped everywhere the guard scans — they're vendor JSON embedded
+  verbatim, the same "data, not code" exception already carved out for the JSON itself.
+
 ### Added
 
 - **Cross-instance portfolio federation, residency-respecting (backlog #135).** Per-country data
