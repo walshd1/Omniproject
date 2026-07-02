@@ -28,6 +28,7 @@ How the system is put together, the broker seam, and the extensibility model.
 - **[FEATURE-GOVERNANCE.md](FEATURE-GOVERNANCE.md)** — how features/methodologies/reports are gated across org → programme → project.
 - **[DATA-REQUIREMENTS.md](DATA-REQUIREMENTS.md)** — what each view/report needs from the underlying backend, and how it degrades when the data isn't there.
 - **[FIELD-CATALOGUE.md](FIELD-CATALOGUE.md)** — the cross-product field superset used to extend the canonical field registry.
+- **[vendors/DYNAMICS-365-FO.md](vendors/DYNAMICS-365-FO.md)** — the Dynamics 365 Finance & Operations (Project Management and Accounting) connector: what's mapped, from where, and what's still unverified against a live tenant.
 - **[SELF-HOST-DB.md](SELF-HOST-DB.md)** — the optional, customer-owned stateful database for greenfield teams with nothing to connect.
 - **[N8N-WORKFLOWS.md](N8N-WORKFLOWS.md)** — generate, wire & verify n8n workflows; open vs. licensed prebuilt integrations.
 - **[MCP.md](MCP.md)** — the read-only (write opt-in) MCP server so an AI agent can read through the broker seam.

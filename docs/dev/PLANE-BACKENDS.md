@@ -1,7 +1,7 @@
 # Dev guide — the BACKENDS plane
 
 A backend is a system of record (Jira, SAP, Salesforce, …). You add one as a
-`BackendDefinition` (neutral `BackendManifest` + an `N8nBinding`, flattened
+`BackendDefinition` (neutral `BackendManifest` + a `BrokerBinding`, flattened
 into one object) by dropping a `<id>.json` file under
 `lib/backend-catalogue/vendors/backends/`, validated against
 `lib/backend-catalogue/vendors/schema/backend.schema.json` and embedded into

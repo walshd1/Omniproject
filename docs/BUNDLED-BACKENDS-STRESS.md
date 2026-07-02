@@ -80,6 +80,7 @@ All 39 backends **PASS** every assertion. `acts` = contract actions mapped;
 | celoxis | live | 5 | 5 | per-user | ✅ | ✅ | ✅ | ✅ | PASS |
 | clickup | live | 5 | 2 | apiKey | ✅ | ✅ | ✅ | ✅ | PASS |
 | dolibarr | live | 5 | 3 | apiKey | ✅ | ✅ | ✅ | ✅ | PASS |
+| dynamics365-fo | live | 5 | 3 | oauth2 | ✅ | ✅ | ✅ | ✅ | PASS |
 | dynamics365-sales | live | 5 | 4 | oauth2 | ✅ | ✅ | ✅ | ✅ | PASS |
 | dynamics365 | live | 5 | 6 | oauth2 | ✅ | ✅ | ✅ | ✅ | PASS |
 | enterprise | live | 5 | 2 | apiKey | ✅ | ✅ | ✅ | ✅ | PASS |

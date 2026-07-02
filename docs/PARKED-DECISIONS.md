@@ -167,6 +167,22 @@ store. Only the no-backend-field fallback needs the encrypted, short-lived, hash
 backend field; ship the local-store fallback **off by default**, encrypted, disclaimed, customer-owned.
 Larger than a report and touches the write path — worth doing deliberately, not blind. Wants your go.
 
+### E4. Dynamics 365 Finance & Operations connector — catalogued, not tenant-verified (backlog #141)
+**What:** `dynamics365-fo` (`lib/backend-catalogue/vendors/backends/dynamics365-fo.json`) — a
+capability-honest, catalogued read backend for D365 F&O's Project Management and Accounting module
+(distinct from the existing `dynamics365` = Project Operations/Dataverse entry). Real F&O OData entities
+(`ProjectsV2`, `ProjectTasks`, `ProjProposalCost`, `ProjCostTrans`), sourced and cross-checked against
+Microsoft's Common Data Model schema docs. Full detail: `docs/vendors/DYNAMICS-365-FO.md`.
+**Why parked (as "supported," not "catalogued"):** this environment has no live F&O tenant to test
+against — same posture as SAP/NetSuite/Planview/Primavera already in the catalogue, all of which carry
+a "confirm against your instance" caveat, just made explicit here because it's a brand-new entry rather
+than an established one. Schema-valid, typechecked, passes the full bundled-backends stress harness, and
+`generateWorkflow()` produces a real n8n scaffold — but no request has ever round-tripped a real tenant.
+**Recommendation:** treat as catalogued/available-to-select, not marketed as "certified." Before calling
+it supported: verify the entity names + `ProjectTasks` composite-key shape against a real environment's
+`/data/$metadata`, confirm the Azure AD OAuth2 app-registration scopes, and run the generated workflow
+against that tenant end-to-end.
+
 ---
 
 ## D. Already covered / not needed (recorded so we don't re-litigate)
@@ -242,3 +258,37 @@ close. See `docs/vendors/SAP-S4HANA-PS-PPM.md` for the full detail and the verif
 **Recommendation:** keep labelled "catalogued", not "supported", until a maintainer (or a design
 partner with an actual S/4HANA sandbox) runs the workflow-verifier probe against a real system and
 confirms/adjusts the field and service names.
+
+---
+
+## G. Self-service extensibility
+
+### G1. Zero-restart activation of an admin-authored backend/vendor (backlog #137 follow-on)
+**What:** backlog #137 asked for self-service custom-backend authoring in the admin UI, so a
+customer's team can add a new vendor without a core-repo code change. **Investigated first, not
+assumed:** the runtime-load half of this already existed (backlog #31) — `OMNI_CONFIG_DIR/vendors/
+backends/*.json` is read at boot by `artifacts/api-server/src/lib/config-dir.ts`, validated against
+the same embedded schema as the shipped catalogue, and merged over the defaults via the vendor
+overlay (`lib/backend-catalogue/src/vendor-overlay.ts`, `registerVendor`/`withOverlay`) — so the gap
+was genuinely just the missing authoring UI, not a missing persistence mechanism. **Shipped this
+round:** `CustomBackendAdmin` (`artifacts/omniproject/src/components/settings/CustomBackendAdmin.tsx`
++ `artifacts/omniproject/src/lib/backend-authoring.ts`) — a guided, admin-gated form that builds a
+`BackendManifest & N8nBinding` document, validates it against the *exact* schema the config-dir
+loader enforces (`validateVendor("backends", …)`, shared unchanged), shows a live JSON preview, and
+exports the file for the operator to place.
+**Why the remaining gap is parked, not built:** exporting a file still requires an operator to place
+it in the mounted config directory and **restart (or otherwise reload) the gateway process** —
+`loadConfigDir()` only runs at boot. There is no live, admin-triggered "register this backend now,
+no restart" path, and building one would mean either (a) an API endpoint that lets the SPA write
+into the server's mounted filesystem — wrong direction for a stateless/zero-at-rest gateway whose
+only persistence is the operator's own folder — or (b) a genuine **hot-reload mechanism** for the
+backend catalogue (re-run `loadConfigDir()` and safely swap the in-memory overlay while requests are
+in flight, plus decide what happens to a broker/workflow already wired against the old definition)
+that doesn't exist today and touches more than this slice's scope.
+**Recommendation:** if "no restart at all" becomes a real requirement, add a `POST /api/setup/
+config-dir/reload` (admin, step-up gated like other config-mutating actions) that re-runs
+`loadConfigDir()` in place — `registerVendor`'s overlay swap is already safe to call at runtime (it's
+how tests exercise it), so the main new work is the endpoint + a UI trigger next to the existing
+`GET /api/setup/config-dir` status read, not a new storage layer. Left undone here because it's an
+operational/reload-safety decision (do in-flight requests see old or new definitions mid-swap?)
+better made deliberately than bundled into a UI-authoring slice.
