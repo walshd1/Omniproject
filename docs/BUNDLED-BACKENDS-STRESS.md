@@ -16,7 +16,7 @@ adversarial conditions.
 
 | Plane | Count |
 | --- | ---: |
-| **Backends stressed** | **38** |
+| **Backends stressed** | **39** |
 | Brokers stressed | 7 |
 | (context) notification vendors | 11 |
 | (context) output vendors | 9 |
@@ -70,7 +70,7 @@ drives the **demo** broker (sample data), never a real backend.
 
 ## Per-backend pass/fail matrix
 
-All 38 backends **PASS** every assertion. `acts` = contract actions mapped;
+All 39 backends **PASS** every assertion. `acts` = contract actions mapped;
 `caps` = capability domains enabled; `key` = resolved key scheme.
 
 | backend | kind | acts | caps | key | schema | cap/transport | spoof gating | messy | result |
