@@ -44,6 +44,32 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     (`artifacts/api-server/src/lib/settings.ts` `validateCustomReports`), and the PMO-gated
     `PUT /api/reports/custom` route — unchanged besides the wider `viz` union and two new optional
     string fields.
+- **ERP connector: SAP S/4HANA (PS/PPM) read-only financials adapter.** A new catalogued backend,
+  `sap-s4hana-financials` (`lib/backend-catalogue/vendors/backends/sap-s4hana-financials.json`),
+  reading SAP Project System/PPM cost-object financial context — budget, actual costs, cost center —
+  through the same broker seam OmniProject already reads Jira/ADO issues through. Deliberately
+  read-only (only `list_projects`/`list_issues`; no create/update/delete) and additive alongside the
+  existing write-capable `sap` (WBS-element editor) backend, keeping "PM overlay, not an ERP" honest:
+  this connector exists to surface finance context, not to manage SAP projects.
+  - Real, cited SAP OData surface: `API_ENTERPRISE_PROJECT_SRV` (WBS/project master data, read-only
+    `$select`), the released CDS view `I_ProjectActualCosts` (actual costs, backed by the universal
+    journal), with `API_FINPLANNINGDATA_SRV` (plan/budget) and `CE_COSTCENTER_0001` (cost-center
+    master data) documented as follow-up lookups an operator wires in separately.
+  - Maps to the **existing** canonical financial fields (`wbsCode`, `costCenter`, `currency`,
+    `budget`, `plannedCost`, `actualCost`, `committedCost`, `capitalised`, `expenditureType`,
+    `capexAmount`, `opexAmount`, `costCategory`, `depreciationMonths`, `purchaseOrder`, `parentTask`)
+    via the vendor JSON's `fieldKeys[]` — the first backend to exercise that (already schema-supported,
+    previously unused) mapping mechanism, reusing rather than duplicating the registry.
+    `BackendManifest` (`lib/backend-catalogue/src/backend-manifest.ts`) gained the corresponding
+    `fieldKeys?: string[]` type field.
+  - Capability-honest (`financials`/`portfolio`/`issues` only — no `scheduling`/`resources`/`raid`/
+    `baseline`, since this connector reads none of that data) and enterprise-tier, same as `sap`.
+    Verified `generateWorkflow()` produces a genuinely read-only n8n scaffold (two HTTP-request nodes,
+    no writes) — committed as `artifacts/n8n-blueprints/generated/omniproject-sap-s4hana-financials.json`.
+  - **Honesty note:** catalogued and passes every automated gate (schema, capability-honesty,
+    field-superset, typecheck), but **not yet verified against a live S/4HANA tenant** — none is
+    available in this environment. See `docs/vendors/SAP-S4HANA-PS-PPM.md` for the full citation
+    trail and the verification checklist before calling this "supported" rather than "catalogued".
 - **ERP connector: Dynamics 365 Finance & Operations, read-only (backlog #141).** A new
   catalogued backend, `dynamics365-fo` (`lib/backend-catalogue/vendors/backends/dynamics365-fo.json`),
   for D365 Finance & Operations' Project Management and Accounting module — distinct from the
@@ -88,7 +114,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     to place at `$OMNI_CONFIG_DIR/vendors/backends/<id>.json` and reload/restart — writing to the
     server's filesystem from the SPA has no place in a stateless/zero-at-rest gateway. True
     zero-restart activation (no operator step at all) is parked — see `docs/PARKED-DECISIONS.md`
-    §F1 — pending a deliberate hot-reload design for the backend catalogue.
+    §G1 — pending a deliberate hot-reload design for the backend catalogue.
 - **Cross-instance portfolio federation, residency-respecting (backlog #135).** Per-country data
   residency (backlog #97) naturally pushes a multinational toward one OmniProject instance per
   region/subsidiary — this closes the resulting gap: no consolidated global portfolio view. A minimal,

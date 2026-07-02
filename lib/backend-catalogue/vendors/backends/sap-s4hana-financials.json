@@ -1,0 +1,53 @@
+{
+  "actions": {
+    "list_issues": {
+      "method": "GET",
+      "note": "Actual-cost line items for a WBS element, from the released CDS view I_ProjectActualCosts (backed by the universal journal, table ACDOCA) — filtered to the WBS/cost object scoped by projectId. Budget/plan figures are NOT on this view: they live on the separate financial-planning service API_FINPLANNINGDATA_SRV (backed by ACDOCP), which is intentionally not auto-wired here (different filter keys/cadence) — add it as a second HTTP node in the generated workflow if you need plan-vs-actual in one pass. CONFIRM the exact OData path your tenant has published I_ProjectActualCosts under (Gateway service catalog, transaction /IWFND/MAINT_SERVICE) before importing: CDS-view analytical services are frequently republished under a generated 'srvd_a2x' service id that varies by SAP release/component version — the path below is the documented v2-style wrapper convention, not a guarantee for your system.",
+      "url": "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_PROJECTACTUALCOSTS_CDS/I_ProjectActualCosts?$filter=WBSElementInternalID eq '{{ $json.body.payload.projectId }}'&$format=json"
+    },
+    "list_projects": {
+      "method": "GET",
+      "note": "Enterprise Project + WBS element master data (structure and org assignment) via the same API_ENTERPRISE_PROJECT_SRV service the 'sap' (WBS read/write) backend uses, but read-only and narrowed with $select to only the financial dimensions this connector cares about: the controlling area, company code and responsible cost center that scope the cost data in list_issues. No cost AMOUNTS live on this entity — see list_issues / notes for where actuals and budget actually come from.",
+      "url": "={{ $env.SAP_S4_URL }}/sap/opu/odata/sap/API_ENTERPRISE_PROJECT_SRV/A_EnterpriseProjectElement?$select=ProjectUUID,WBSElementInternalID,WBSElement,WBSElementDescription,ControllingArea,CompanyCode,ResponsibleCostCenter&$format=json"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": true,
+    "raid": false,
+    "resources": false,
+    "scheduling": false
+  },
+  "credentialType": "oAuth2Api",
+  "docsUrl": "https://api.sap.com/api/API_ENTERPRISE_PROJECT_SRV/overview",
+  "fieldKeys": [
+    "wbsCode",
+    "costCenter",
+    "currency",
+    "budget",
+    "plannedCost",
+    "actualCost",
+    "committedCost",
+    "capitalised",
+    "expenditureType",
+    "capexAmount",
+    "opexAmount",
+    "costCategory",
+    "depreciationMonths",
+    "purchaseOrder",
+    "parentTask"
+  ],
+  "id": "sap-s4hana-financials",
+  "kind": "live",
+  "label": "SAP S/4HANA (PS/PPM Financials — read-only)",
+  "notes": "READ-ONLY financial-context connector for SAP S/4HANA Project System / Portfolio and Project Management — deliberately narrower than the 'sap' backend (which is a write-capable WBS-element editor). This one exists purely so OmniProject can read cost-object budget/actuals scoped by cost center, not to manage SAP projects: no create_issue/update_issue/delete_issue actions are declared, and none should be added without a maintainer decision (OmniProject is a PM/PgM overlay, not an ERP). Real SAP OData surfaces referenced: API_ENTERPRISE_PROJECT_SRV (WBS/project master data — same service as the 'sap' backend), the released CDS view I_ProjectActualCosts (actual costs), API_FINPLANNINGDATA_SRV (plan/budget, noted but not wired), and CE_COSTCENTER_0001 (Cost Center OData V4 read API, for cost-center master-data enrichment — also not auto-wired, add as a lookup node if needed). Auth: SAP S/4HANA Cloud communication scenarios secure OData with OAuth 2.0 client-credentials issued to a technical/communication user, which is the realistic default assumed here (n8n OAuth2 credential, client-credentials grant) — on-premise Gateway commonly uses Basic Auth instead, so switch credentialType to httpBasicAuth if that's your target. CATALOGUED, NOT YET VERIFIED against a live S/4HANA tenant — see docs/vendors/SAP-S4HANA-PS-PPM.md before calling this 'supported' rather than 'catalogued'.",
+  "requiredEnv": [
+    "SAP_S4_URL"
+  ],
+  "via": "HTTP (SAP Gateway OData, read-only) + n8n OAuth2 credential (client-credentials; Basic on-prem)"
+}

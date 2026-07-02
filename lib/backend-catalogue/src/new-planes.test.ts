@@ -92,6 +92,50 @@ test("Planview (enterprise) + Celoxis + LiquidPlanner backends are catalogued, c
   assert.equal(lp?.capabilities.resources, true);
 });
 
+test("SAP S/4HANA PS/PPM financials backend is catalogued, read-only and capability-honest", async () => {
+  const cat = backendCatalogue();
+  const sapFin = cat.find((b) => b.id === "sap-s4hana-financials");
+  assert.ok(sapFin, "sap-s4hana-financials must be catalogued");
+  assert.equal(sapFin?.kind, "live");
+  assert.equal(sapFin?.tier, "enterprise", "an ERP connector is a premium (enterprise-tier) workflow");
+  // Read-only: only the two read contract actions are declared — no
+  // create/update/delete_issue, since this connector reads SAP financial
+  // context, it does not manage SAP projects (see the write-capable 'sap'
+  // backend for that).
+  assert.deepEqual([...sapFin!.actions].sort(), ["list_issues", "list_projects"]);
+  // Capability-honest: only what the real, documented read APIs back.
+  assert.equal(sapFin?.capabilities.financials, true);
+  assert.equal(sapFin?.capabilities.portfolio, true);
+  assert.equal(sapFin?.capabilities.scheduling, false, "no schedule/date fields are read by this connector");
+  assert.equal(sapFin?.capabilities.resources, false, "no resource-assignment data is read by this connector");
+  assert.equal(sapFin?.capabilities.raid, false);
+  assert.equal(sapFin?.capabilities.baseline, false);
+  // Distinct from the existing write-capable 'sap' (WBS-element CRUD) backend —
+  // this is an additive, narrower connector, not a replacement.
+  const sapWrite = cat.find((b) => b.id === "sap");
+  assert.ok(sapWrite, "the original write-capable SAP backend is untouched");
+  assert.notEqual(sapWrite?.id, sapFin?.id);
+});
+
+test("SAP S/4HANA PS/PPM financials backend maps to real, EXISTING canonical financial fields (no duplicate registry entries)", async () => {
+  const { fileURLToPath } = await import("node:url");
+  const HERE = path.dirname(fileURLToPath(import.meta.url));
+  const raw = JSON.parse(
+    fs.readFileSync(path.join(HERE, "../vendors/backends/sap-s4hana-financials.json"), "utf8"),
+  ) as { fieldKeys?: string[] };
+  const keys = raw.fieldKeys ?? [];
+  assert.ok(keys.length > 0, "the connector must declare its canonical field mapping");
+  // Every key it claims must already exist in the canonical field registry —
+  // reused, not duplicated (guard-superset enforces this globally too).
+  const { FIELDS_DATA } = await import("./fields.generated");
+  const registryKeys = new Set(FIELDS_DATA.map((f) => f.key));
+  for (const k of keys) assert.ok(registryKeys.has(k), `"${k}" must already be a canonical field`);
+  // The financial fields the backlog specifically called out are present.
+  for (const k of ["budget", "plannedCost", "actualCost", "currency", "costCenter", "parentTask"]) {
+    assert.ok(keys.includes(k), `expected "${k}" to be mapped`);
+  }
+});
+
 test("INVARIANT: a vendor is only ever a backend/broker/notification/output — never its own plane", async () => {
   const { PLANES, VENDOR_PLANES } = await import("./planes");
   // The four vendor planes, and only those.

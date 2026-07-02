@@ -115,10 +115,14 @@ export interface BackendManifest {
    */
   fields?: Array<Record<string, unknown>>;
   /**
-   * Canonical field keys this backend REFERENCES/exposes — MUST be a strict subset
-   * of the superset, enforced by the `guard-superset` CI check (scripts/src/guard-superset.ts).
-   * Documents which canonical fields a real integration against this backend would
-   * actually populate, without duplicating field definitions already in the registry.
+   * Canonical field keys this backend exposes/maps (e.g. `["budget", "costCenter",
+   * "wbsCode"]`) — how its native fields line up with the canonical registry
+   * (`assets/fields.json` / `docs/FIELD-CATALOGUE.md`), so a future integrator
+   * knows which shared fields it can already rely on instead of re-deriving the
+   * mapping. MUST be a strict subset of the field-registry superset — enforced by
+   * `guard-superset` (scripts/src/guard-superset.ts) and
+   * `scripts/src/lib/superset.test.ts`. Use `fields` above only when a backend
+   * contributes a field the registry doesn't have yet.
    */
   fieldKeys?: string[];
 }
