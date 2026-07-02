@@ -29,7 +29,8 @@ The workflow must reply with `{ success, data, message }` (the `N8nActionResult`
 
 `lib/backend-catalogue/src/backend-catalogue.ts` holds the `BACKENDS` array — a
 **manifest** per backend (`BackendDefinition`, the broker-neutral
-`BackendManifest` flattened with its n8n `N8nBinding`). Each backend's DATA is
+`BackendManifest` flattened with its `BrokerBinding`, n8n's own shape of which
+this generator consumes). Each backend's DATA is
 authored as its own JSON file under `lib/backend-catalogue/vendors/backends/<id>.json`
 (validated against `lib/backend-catalogue/vendors/schema/backend.schema.json`
 and embedded by `pnpm --filter @workspace/scripts run gen-vendors`). Each
