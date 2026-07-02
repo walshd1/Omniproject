@@ -107,6 +107,7 @@ All 39 backends **PASS** every assertion. `acts` = contract actions mapped;
 | primavera | live | 5 | 5 | basic | ✅ | ✅ | ✅ | ✅ | PASS |
 | salesforce | live | 5 | 4 | oauth2 | ✅ | ✅ | ✅ | ✅ | PASS |
 | sap | live | 5 | 6 | oauth2 | ✅ | ✅ | ✅ | ✅ | PASS |
+| sap-s4hana-financials | live | 2 | 3 | oauth2 | ✅ | ✅ | ✅ | ✅ | PASS |
 | servicenow | live | 5 | 3 | basic | ✅ | ✅ | ✅ | ✅ | PASS |
 | smartsheet | live | 5 | 2 | bearer | ✅ | ✅ | ✅ | ✅ | PASS |
 | sql | database | 5 | 3 | bearer | ✅ | ✅ | ✅ | ✅ | PASS |
