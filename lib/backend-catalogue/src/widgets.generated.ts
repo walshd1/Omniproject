@@ -5,6 +5,14 @@ import type { WidgetDefinition } from "./widget-catalogue";
 
 export const WIDGETS_DATA: WidgetDefinition[] = [
   {
+    "type": "capacityActuals",
+    "label": "Capacity actuals vs plan",
+    "description": "Logged-time actuals compared against each resource's plan, surfacing over- and under-delivery.",
+    "defaultSpan": 2,
+    "requiresEntity": "member",
+    "order": 70
+  },
+  {
     "type": "portfolioHealth",
     "label": "Portfolio health",
     "description": "RAG health cards across the portfolio.",

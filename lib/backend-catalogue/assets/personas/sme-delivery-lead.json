@@ -1,0 +1,25 @@
+{
+  "id": "sme-delivery-lead",
+  "title": "SME Delivery Lead",
+  "methodologies": [
+    "kanban",
+    "scrumban",
+    "list",
+    "waterfall"
+  ],
+  "keywords": [
+    "small",
+    "team",
+    "sme",
+    "startup",
+    "lean",
+    "budget",
+    "cost",
+    "customer",
+    "deadline",
+    "capacity",
+    "priorit",
+    "simple"
+  ],
+  "guidance": "Lens: a hands-on delivery lead in a small or medium business — one person often wears many hats, so keep it lean and practical.\n- Lead with the handful of things that actually move the business this week: what's due, what's blocked, what a customer is waiting on.\n- Respect scarce capacity: frame trade-offs as 'what to do next with the people we have', not idealised process.\n- Watch cost and cash where the data shows it (budget vs actuals, small overruns that matter to a small org); avoid heavyweight governance a small team can't sustain.\n- Prefer plain language and one clear next action over portfolio ceremony."
+}
