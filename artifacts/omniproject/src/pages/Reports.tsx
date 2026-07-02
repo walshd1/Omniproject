@@ -3,6 +3,7 @@ import { useListProjects, useGetCapabilities, type Capabilities } from "@workspa
 import { useStore } from "../store/useStore";
 import { ExecBoardPack } from "../components/reports/ExecBoardPack";
 import { PortfolioKpi } from "../components/reports/PortfolioKpi";
+import { FederatedPortfolio } from "../components/reports/FederatedPortfolio";
 import { PortfolioRoadmap } from "../components/reports/PortfolioRoadmap";
 import { CrossProgrammeDependencies } from "../components/reports/CrossProgrammeDependencies";
 import { ResourceHeatmap } from "../components/reports/ResourceHeatmap";
@@ -129,6 +130,13 @@ export function Reports() {
 
         <Gated caps={caps} domain="portfolio" title="Portfolio Health" requires="a portfolio rollup (get_portfolio_health)">
           <PortfolioKpi />
+        </Gated>
+
+        <Gated caps={caps} domain="portfolio" title="Federated Portfolio" requires="a portfolio rollup (get_portfolio_health)">
+          <section>
+            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Federated Portfolio (cross-instance)</h2>
+            <FederatedPortfolio />
+          </section>
         </Gated>
 
         <Gated caps={caps} domain="portfolio" title="Portfolio Prioritisation" requires="a portfolio rollup (get_portfolio_health)">

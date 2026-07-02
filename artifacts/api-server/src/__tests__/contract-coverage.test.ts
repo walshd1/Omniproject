@@ -49,6 +49,8 @@ const COVERED: Record<string, string> = {
   "/projects/{projectId}/raid": "verify-broker, broker-conformance",
   "/notifications": "e2e-smoke, broker-conformance",
   "/portfolio/health": "e2e-smoke, broker-conformance",
+  "/portfolio/summary": "portfolio-summary.test.ts, federated-portfolio.test.ts (HTTP)",
+  "/federated-portfolio": "federation.test.ts, federated-portfolio.test.ts (HTTP)",
   "/activity": "verify-broker, broker-conformance",
   "/capabilities": "e2e-smoke, broker-conformance",
   "/fields/manifest": "capabilities.test.ts (resolveFieldManifest + custom-field surfacing), security.test.ts (manager gate)",

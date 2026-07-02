@@ -31,10 +31,12 @@ import { IdentityMapAdmin } from "../components/settings/IdentityMapAdmin";
 import { CostRulesAdmin } from "../components/settings/CostRulesAdmin";
 import { CustomReportsAdmin } from "../components/settings/CustomReportsAdmin";
 import { ContentPagesAdmin } from "../components/settings/ContentPagesAdmin";
+import { FederatedPeersAdmin } from "../components/settings/FederatedPeersAdmin";
 import { PriorityWeightsAdmin } from "../components/settings/PriorityWeightsAdmin";
 import { GovernanceRulesAdmin } from "../components/settings/GovernanceRulesAdmin";
 import { ScopeUpliftAdmin } from "../components/settings/ScopeUpliftAdmin";
 import { FeatureGovernance } from "../components/settings/FeatureGovernance";
+import { FeatureGatingBulkAdmin } from "../components/settings/FeatureGatingBulkAdmin";
 import { FieldVisibilityAdmin } from "../components/settings/FieldVisibilityAdmin";
 import { SecurityKeys } from "../components/settings/SecurityKeys";
 import { ProvenanceDashboard } from "../components/settings/ProvenanceDashboard";
@@ -392,6 +394,9 @@ export function Settings() {
       <div className="mt-10">
         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Feature governance (org · programme · project)</h2>
         <FeatureGovernance />
+        <div className="mt-4">
+          <FeatureGatingBulkAdmin />
+        </div>
       </div>
 
       <div className="mt-10">
@@ -424,6 +429,10 @@ export function Settings() {
 
       <div className="mt-10">
         <PriorityWeightsAdmin />
+      </div>
+
+      <div className="mt-10">
+        <FederatedPeersAdmin />
       </div>
 
       <div className="mt-10">

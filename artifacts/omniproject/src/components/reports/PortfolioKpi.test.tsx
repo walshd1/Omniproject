@@ -88,6 +88,35 @@ describe("PortfolioKpi", () => {
     expect(screen.queryByTestId("kpi-blockers-drill-alpha")).toBeNull();
   });
 
+  it("makes a negative SCHED Δ its own drill-through to the grid, pre-filtered to overdue items (backlog #132)", () => {
+    const qc = makeClient();
+    qc.setQueryData(getGetPortfolioHealthQueryKey(), ROWS);
+    renderWithProviders(<PortfolioKpi />, { client: qc });
+
+    // Bravo is slipping (-3d) — its SCHED Δ figure drills to that project's overdue, still-open items.
+    const drill = screen.getByTestId("kpi-schedule-drill-bravo");
+    expect(drill).toHaveTextContent("-3d");
+    expect(drill).toHaveAttribute("data-href", expect.stringContaining("/projects/bravo?filter="));
+
+    // Alpha is ahead of schedule (+2d) — nothing to drill into.
+    expect(screen.queryByTestId("kpi-schedule-drill-alpha")).toBeNull();
+  });
+
+  it("makes a positive BUDGET Δ its own drill-through to the grid, pre-filtered to cost-incurring items (backlog #132)", () => {
+    const qc = makeClient();
+    qc.setQueryData(getGetPortfolioHealthQueryKey(), ROWS);
+    renderWithProviders(<PortfolioKpi />, { client: qc });
+
+    // Bravo is over budget (+12%) — its BUDGET Δ figure drills to that project's cost-incurring items.
+    const drill = screen.getByTestId("kpi-budget-drill-bravo");
+    expect(drill).toHaveTextContent("+12%");
+    expect(drill).toHaveAttribute("data-href", expect.stringContaining("/projects/bravo?filter="));
+    expect(drill.getAttribute("data-href")).toContain(encodeURIComponent(JSON.stringify({ all: [{ field: "actualCost", op: "gt", value: 0 }] })));
+
+    // Alpha is under budget (-5%) — nothing to drill into.
+    expect(screen.queryByTestId("kpi-budget-drill-alpha")).toBeNull();
+  });
+
   it("shows the empty-state message when there is no portfolio data", () => {
     const qc = makeClient();
     qc.setQueryData(getGetPortfolioHealthQueryKey(), []);

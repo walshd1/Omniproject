@@ -91,7 +91,7 @@ server-resolved, but worth a "programme not found" surfacing.
 | Dictation / STT | stable | yes | browser path is local; **Whisper path ships audio in plaintext over HTTPS** | **OFF-by-default** — *privacy/cost* |
 | NL → canonical action | beta | yes | closed-vocab safe; **planner accuracy unbenchmarked; no rate-limit** | **OFF-by-default** — *safety* |
 | Health / anomaly watch | stable | yes | pure rules, read-only autonomous actor; no ML thresholds | **ON / admin-choice** |
-| Portfolio copilot | stable | yes | read-only, egress-scoped, injection-hardened; **hallucination/accuracy untested; no token budget** | **OFF-by-default** — *safety/cost* |
+| Portfolio copilot | stable | yes | Q&A model call is read-only, egress-scoped, injection-hardened; the chat surface also offers action-invocation via the SAME NL→action planner + confirm gate as the command palette (backlog #134); **hallucination/accuracy untested; no token budget; every message costs a planner call before Q&A** | **OFF-by-default** — *safety/cost* |
 | Switch-scan (a11y) | stable | yes | **no live-region announcement of the highlighted control** | **ON** (accessibility) |
 | User a11y prefs | stable | partial | localStorage cache unencrypted; prefs not in audit log | **ON** (accessibility) |
 | Governance log | stable | partial | **RAM-only ring buffer (200), lost on restart** — compliance gap | core (admin) |
