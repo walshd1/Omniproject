@@ -70,6 +70,31 @@ describe("ExecBoardPack", () => {
     expect(screen.queryByTestId("exec-blockers-drill-b")).toBeNull();
   });
 
+  it("makes each exception row's schedule slip and budget overrun their own drill-throughs (backlog #132)", () => {
+    const client = seed({
+      projects: [proj({ id: "b", name: "Bravo" }), proj({ id: "c", name: "Cad" })],
+      health: [
+        // Bravo: ahead of schedule and under budget — neither figure has anything to drill into.
+        health({ projectId: "b", projectName: "Bravo", ragStatus: "AMBER", scheduleVarianceDays: 2, budgetVariancePercentage: -5 }),
+        // Cad: slipping and over budget — both figures drill through.
+        health({ projectId: "c", projectName: "Cad", ragStatus: "RED", scheduleVarianceDays: -9, budgetVariancePercentage: 15 }),
+      ],
+    });
+    renderWithProviders(<ExecBoardPack />, { client });
+
+    const scheduleDrill = screen.getByTestId("exec-schedule-drill-c");
+    expect(scheduleDrill).toHaveTextContent("-9d");
+    expect(scheduleDrill).toHaveAttribute("href", expect.stringContaining("/projects/c?filter="));
+
+    const budgetDrill = screen.getByTestId("exec-budget-drill-c");
+    expect(budgetDrill).toHaveTextContent("+15%");
+    expect(budgetDrill).toHaveAttribute("href", expect.stringContaining("/projects/c?filter="));
+    expect(budgetDrill.getAttribute("href")).toContain(encodeURIComponent(JSON.stringify({ all: [{ field: "actualCost", op: "gt", value: 0 }] })));
+
+    expect(screen.queryByTestId("exec-schedule-drill-b")).toBeNull();
+    expect(screen.queryByTestId("exec-budget-drill-b")).toBeNull();
+  });
+
   it("shows consolidated financials when projects report them", () => {
     const client = seed({
       projects: [proj({ id: "a", name: "Alpha" })],

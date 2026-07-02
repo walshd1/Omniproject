@@ -27,6 +27,7 @@ import type {
   Capabilities,
   ConflictResponse,
   ErrorResponse,
+  FederatedPortfolio,
   FieldManifest,
   FxRates,
   GetFxRatesParams,
@@ -37,6 +38,7 @@ import type {
   IssueUpdate,
   Notification,
   PortfolioHealthSummary,
+  PortfolioSummary,
   Programme,
   ProgrammeDetail,
   Project,
@@ -2061,6 +2063,162 @@ export function useGetPortfolioHealth<TData = Awaited<ReturnType<typeof getPortf
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPortfolioHealthQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetPortfolioSummaryUrl = () => {
+
+
+
+
+  return `/api/portfolio/summary`
+}
+
+/**
+ * Portfolio-wide totals only (RAG counts + variance/blocker averages, a consolidated finance total, a consolidated capacity total) — never per-project or per-programme detail. This is the ONE endpoint a federated peer instance calls (see FEDERATED_PEERS / settings.federatedPeers and docs/DATA-RESIDENCY.md): a bearer token that is one of this instance's own API_TOKENS grants read-only access, exactly like any other read-only API-token consumer.
+ * @summary This instance's own pre-aggregated portfolio totals (backlog
+ */
+export const getPortfolioSummary = async ( options?: RequestInit): Promise<PortfolioSummary> => {
+
+  return customFetch<PortfolioSummary>(getGetPortfolioSummaryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortfolioSummaryQueryKey = () => {
+    return [
+    `/api/portfolio/summary`
+    ] as const;
+    }
+
+
+export const getGetPortfolioSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getPortfolioSummary>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPortfolioSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortfolioSummaryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortfolioSummary>>> = ({ signal }) => getPortfolioSummary({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortfolioSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPortfolioSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getPortfolioSummary>>>
+export type GetPortfolioSummaryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary This instance's own pre-aggregated portfolio totals (backlog
+ */
+
+export function useGetPortfolioSummary<TData = Awaited<ReturnType<typeof getPortfolioSummary>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPortfolioSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPortfolioSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetFederatedPortfolioUrl = () => {
+
+
+
+
+  return `/api/federated-portfolio`
+}
+
+/**
+ * Fans out live to every ACTIVE peer in settings.federatedPeers (GET their own /portfolio/summary with the configured bearer token) and returns this instance's own summary alongside each peer's, clearly labeled by peer id/label/region — never blended into one number. An unreachable or misconfigured peer degrades to a labeled "unavailable" contribution instead of failing the whole view. Nothing is cached; every call re-fans-out.
+ * @summary This instance's portfolio summary merged with every configured peer's (backlog
+ */
+export const getFederatedPortfolio = async ( options?: RequestInit): Promise<FederatedPortfolio> => {
+
+  return customFetch<FederatedPortfolio>(getGetFederatedPortfolioUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFederatedPortfolioQueryKey = () => {
+    return [
+    `/api/federated-portfolio`
+    ] as const;
+    }
+
+
+export const getGetFederatedPortfolioQueryOptions = <TData = Awaited<ReturnType<typeof getFederatedPortfolio>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFederatedPortfolio>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFederatedPortfolioQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFederatedPortfolio>>> = ({ signal }) => getFederatedPortfolio({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFederatedPortfolio>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFederatedPortfolioQueryResult = NonNullable<Awaited<ReturnType<typeof getFederatedPortfolio>>>
+export type GetFederatedPortfolioQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary This instance's portfolio summary merged with every configured peer's (backlog
+ */
+
+export function useGetFederatedPortfolio<TData = Awaited<ReturnType<typeof getFederatedPortfolio>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFederatedPortfolio>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFederatedPortfolioQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

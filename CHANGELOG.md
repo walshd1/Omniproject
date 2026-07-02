@@ -6,6 +6,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Broker-neutral naming, extended to the backend catalogue.** The `guard-broker-isolation` CI
+  check previously only scanned `artifacts/api-server/src` and `artifacts/omniproject/src`, so a
+  shared/neutral type could still quietly carry a vendor-specific name in
+  `lib/backend-catalogue/src` without CI catching it. Fixed the one instance that had (the
+  `N8nBinding` interface — renamed to `BrokerBinding`; `BackendDefinition = BackendManifest &
+  BrokerBinding`) and extended the guard to cover `lib/backend-catalogue/src` going forward, with an
+  explicit allowlist for the two sanctioned exceptions: `n8n-generator.ts` (the concrete n8n
+  blueprint generator — the equivalent of the adapter folder) and the neutral vendor-id enums
+  (`BrokerKind`, `ActionMapping["kind"]`) whose job is literally to enumerate broker/transport
+  identifiers, the same sanctioned shape as the JSON `id`/`kind` fields they mirror.
+  `*.generated.ts` files are now skipped everywhere the guard scans — they're vendor JSON embedded
+  verbatim, the same "data, not code" exception already carved out for the JSON itself.
+
 ### Added
 
 - **Report builder: multi-level group-by + trend/line chart (backlog #133).** Extends the bespoke
@@ -29,6 +44,111 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     (`artifacts/api-server/src/lib/settings.ts` `validateCustomReports`), and the PMO-gated
     `PUT /api/reports/custom` route — unchanged besides the wider `viz` union and two new optional
     string fields.
+- **Self-service custom-backend authoring in the admin UI (backlog #137).** A customer's own team
+  can now author a new backend/vendor definition through a guided form instead of hand-editing
+  `lib/backend-catalogue/vendors/backends/<id>.json`. Investigated first: the runtime-load half
+  already existed (backlog #31's `OMNI_CONFIG_DIR/vendors/backends/*.json`, validated + merged over
+  the shipped catalogue at boot by `config-dir.ts`/`vendor-overlay.ts`) — the missing piece was the
+  authoring UI, not a new persistence mechanism.
+  - `CustomBackendAdmin` (`artifacts/omniproject/src/components/settings/CustomBackendAdmin.tsx`,
+    admin-gated like every other technical-config settings surface) builds a full
+    `BackendManifest & N8nBinding` document — identity, capabilities (against the known capability
+    domains), required env, key format, the n8n per-user auth header, and all six contract actions
+    (HTTP or native n8n node, with parameters as JSON) — with a live JSON preview and inline
+    validation. "Start from" clones any shipped catalogue backend as a template; "Import file…"
+    resumes an exported or hand-written definition.
+  - `evaluateDraft` (`artifacts/omniproject/src/lib/backend-authoring.ts`) validates against the
+    *exact same* embedded JSON Schema the config-dir loader enforces
+    (`validateVendor("backends", …)` from `@workspace/backend-catalogue`, unchanged) plus a few
+    authoring-time advisories (unrecognised capability id, no actions mapped, id collides with a
+    shipped backend) — "valid in the form" ⇔ "the loader will accept it".
+  - Deliberately export-first, not a live write: the SPA downloads the validated JSON for the admin
+    to place at `$OMNI_CONFIG_DIR/vendors/backends/<id>.json` and reload/restart — writing to the
+    server's filesystem from the SPA has no place in a stateless/zero-at-rest gateway. True
+    zero-restart activation (no operator step at all) is parked — see `docs/PARKED-DECISIONS.md`
+    §F1 — pending a deliberate hot-reload design for the backend catalogue.
+- **Cross-instance portfolio federation, residency-respecting (backlog #135).** Per-country data
+  residency (backlog #97) naturally pushes a multinational toward one OmniProject instance per
+  region/subsidiary — this closes the resulting gap: no consolidated global portfolio view. A minimal,
+  stateless fan-out that respects the SAME posture as the rest of the residency story — only a
+  pre-aggregated summary ever crosses an instance boundary, never a raw project/issue record.
+  - **`PortfolioSummary`** (`artifacts/api-server/src/lib/portfolio-summary.ts`): a new portfolio-wide
+    aggregate (`summarizeHealth`/`foldFinance`/`foldCapacity`) reducing the existing per-project
+    `portfolioHealth`/`projectFinancials`/`resourceCapacity` broker reads to portfolio-total counts and
+    sums — no project id/name, programme id/name, or person's name ever survives the fold. Served at
+    `GET /portfolio/summary`, the ONE endpoint a peer instance calls.
+  - **`settings.federatedPeers: PeerInstance[]`** — the peer registry (base URL + bearer token +
+    region label per peer), admin-gated and masked on read exactly like an outbound webhook secret.
+    The token must be one of the PEER's own `API_TOKENS` (`lib/api-token.ts`) — no new cross-instance
+    auth scheme, just this instance acting as a read-only API-token client of the peer. New
+    `GET`/`PUT /api/federated-peers` routes; a masked resubmit preserves the real token.
+  - **`GET /api/federated-portfolio`** (`lib/federation.ts`) fans out live to every active peer's
+    `/portfolio/summary` and merges the result with this instance's own into one `FederatedPortfolio`:
+    `local` + a `peers` array, each entry clearly labeled by id/label/region and a `status` (`ok` /
+    `unreachable` / `unauthorized` / `error`) — never silently blended into one number. An
+    unreachable/misconfigured peer degrades to a labeled "unavailable" contribution instead of failing
+    the whole view (mirrors the outbound-webhook delivery fan-out and an FX-rate fallback).
+  - A new **Federated Portfolio** report (`FederatedPortfolio.tsx`, wired into `Reports.tsx` +
+    the report-renderer registry) surfaces the combined rollup; a **Federated peers** admin panel
+    (`FederatedPeersAdmin.tsx`, Settings page) manages the peer registry.
+  - Stateless throughout: nothing is cached beyond the peer config itself: every view re-fans-out
+    live. See `docs/DATA-RESIDENCY.md` → "Cross-instance federation" for exactly what does/doesn't
+    cross an instance boundary.
+- **Bulk feature-gating import/export (backlog #136).** The hierarchical feature-gating model
+  (backlog #88 — org→programme→project `programmeFeatures`/`projectFeatures` scope config) was only
+  editable one programme or project at a time; at real scale (e.g. 200 projects) that's hundreds of
+  form edits. Additive bulk tooling in Settings → Feature governance:
+  - **Export**: `lib/feature-gating-csv.ts`'s `buildFeatureGatingExportRows` + `featureGatingRowsToCsv`
+    emit one CSV row per known programme/project (even ones with no override yet, so a PMO edits a
+    populated spreadsheet rather than hand-typing every id), one pipe-separated column per gating
+    dimension (`disabled`/`required`/`forbidden`) — RFC-4180 escaped (including the CSV-injection
+    formula-trigger guard already used server-side), UTF-8 BOM prefixed for Excel.
+  - **Import**: a hand-rolled RFC-4180 parser (`parseCsvText`) + `parseFeatureGatingCsv` validates every
+    row — an unrecognised feature id or a same-row required+forbidden clash REJECTS that row with a
+    clear message (others still parse); an unrecognised programme/project id is a WARNING, not a fatal
+    abort (the per-scope PUT route is the actual ownership authority). `diffGatingRow` computes a
+    per-row new/changed/unchanged diff (with per-dimension added/removed ids) against the CURRENT
+    config, shown as a preview before any write. Confirming applies through the EXACT SAME
+    `PUT /features/programme/:id` / `PUT /features/project/:id` routes the one-at-a-time
+    `FeatureGovernance` admin panel already uses — looped sequentially (never in parallel, since each
+    PUT does a read-modify-write over the shared settings map) so ownership/ceiling validation and
+    audit logging are identical to a hand-edited single save, never bypassed for the bulk path. Only
+    rows that actually change are sent; a per-row failure (e.g. "not owned") is reported without
+    aborting the rest of the batch.
+  - New `FeatureGatingBulkAdmin.tsx` component, mounted alongside (not replacing) `FeatureGovernance`;
+    new `useScopeFeatureMaps` hook reads the raw override maps via the existing `GET /api/settings`.
+    No new backend routes, no new persistence — reads/writes the exact same
+    `settings.programmeFeatures`/`projectFeatures` the single-scope UI already uses. Bulk-editing
+    `governanceRules` (the conditional PMO mandates) is deliberately left for a follow-on — it already
+    has its own dedicated admin UI (`GovernanceRulesAdmin`) and a CSV shape for predicate-bearing rules
+    is a different (bigger) problem than this flat per-scope table.
+- **ERP connector hardening: Oracle NetSuite read-through capability-honesty
+  pass (backlog #140).** The NetSuite backend manifest
+  (`lib/backend-catalogue/vendors/backends/netsuite.json`, seeded in #158)
+  already passes every structural catalogue check; this change strengthens its
+  documentation and verification rather than re-implementing it:
+  - `notes` now cites the real SuiteTalk REST record types behind each
+    capability (`job` → project, `projectTask` → issue/scheduling,
+    `resourceAllocation` → resources, `job` job-costing +
+    `expenseReport`/`timeBill` roll-ups → financials), calls out NetSuite's
+    **SuiteQL** endpoint as the realistic path for aggregated budget-vs-actual
+    reads, and documents OAuth 1.0a TBA vs OAuth 2.0 M2M as NetSuite's two real
+    auth options (TBA remains the modelled default).
+  - New `docs/vendors/NETSUITE.md` makes explicit that this connector is
+    **catalogued, not live-verified** — authored from NetSuite's public
+    SuiteTalk REST documentation with no live tenant available in this
+    environment — and states exactly what would need to happen before calling
+    it "supported."
+  - Verified `generateWorkflow()` actually produces a sensible, importable
+    workflow for NetSuite: added
+    `artifacts/n8n-blueprints/generated/omniproject-netsuite.json` (webhook →
+    verify/loop guards → switch router → 5 SuiteTalk REST HTTP nodes with
+    `oAuth1Api` credential placeholders → normalize → respond) via
+    `pnpm --filter @workspace/scripts run gen-n8n-blueprints`.
+  - Re-ran the bundled-backends stress harness (163/163 pass, including
+    NetSuite's schema/capability/spoof-gating/messy-data assertions) and the
+    `lib/backend-catalogue` unit suite (100/100) after regenerating the vendor
+    catalogue (`gen-vendors`) — zero drift, zero regressions.
 - **Portfolio copilot: conversational action-invocation (backlog #134).** The copilot chat
   (backlog #61, Q&A-only) can now invoke the same canonical actions as the NL→action command
   palette (backlog #59) — a PM can type "mark issue 42 done" straight into the copilot instead
@@ -74,6 +194,26 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     exceptions-table blocker count (`ExecBoardPack`) — one declarative descriptor, two surfaces,
     proving the mechanism composes instead of every "N blocked" figure hand-rolling its own
     filter-building. Left generic for other reports/widgets to adopt the same way.
+- **`drillTo` everywhere — schedule variance, budget overrun and PRINCE2 exceptions now click through
+  too (backlog #132).** Retrofits the declarative drill-down onto the other "red number" spots a PM
+  expects to click through, beyond the portfolioHealth widget's BLOCKERS figure:
+  - Two more descriptors in `artifacts/omniproject/src/lib/drill-to.ts` — `overdueDrillTo` (a
+    project's overdue, still-open items — mirrors `isOverdue` in `methodology.ts`) and
+    `costOverrunDrillTo` (items with actual cost logged) — built in code rather than declared in a
+    catalogue JSON asset like portfolioHealth's static `blocked truthy`, since "overdue" depends on
+    today's date and "cost-incurring" isn't a fixed literal. Both resolve through the SAME
+    `resolveDrillTo` as every other drillTo.
+  - Wired into SCHED Δ and BUDGET Δ on the portfolio KPI cards (`PortfolioKpi`) and the exec board
+    pack's exceptions table (`ExecBoardPack`) — the same two figures across both surfaces the
+    BLOCKERS drill-through already covers — plus the PRINCE2 highlight report's "Exceptions (overdue)"
+    tally (`Prince2View`), a third, differently-shaped surface (single-project, not portfolio-rollup)
+    proving the descriptors compose across report types.
+  - **Predicate-engine fix (`custom-report.ts` `evalPredicate`):** `gt`/`gte`/`lt`/`lte` now fall back
+    to a date-aware comparison when a field isn't numeric (e.g. `dueDate`, an ISO date string) —
+    previously any date comparison silently evaluated to `false` (`Number("2026-07-01")` is `NaN`),
+    which would have made the overdue drill-through resolve to a filter that never matches. A genuine
+    gap in the shared predicate engine the grid's drill-through filter and the custom report builder
+    both run on; the resolver itself (`resolveDrillTo`/`readDrillFilter`) is unchanged.
 - **Multi-currency portfolio consolidation, hardened: FX as-of-date policy + per-row local-currency
   display.** At 7+ countries every financial roll-up already converted into one reporting currency
   (`settings.reportingCurrency`, org default + PMO/admin-settable) — this hardens the consolidation

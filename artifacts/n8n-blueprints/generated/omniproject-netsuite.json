@@ -1,0 +1,688 @@
+{
+  "name": "OmniProject — Oracle NetSuite",
+  "meta": {
+    "templateId": "omniproject-netsuite",
+    "description": "Generated OmniProject contract workflow for Oracle NetSuite. Set env: NETSUITE_BASE_URL."
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "omniproject",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000000",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        320
+      ],
+      "notes": "POST body { action, payload, source, origin, idempotencyKey }."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.verify }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000001",
+      "name": "Verify probe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        320
+      ],
+      "notes": "When the gateway's workflow verifier sends { verify: true }, short-circuit with a no-op acknowledgement so verification never touches the backend."
+    },
+    {
+      "parameters": {
+        "jsCode": "// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = {\"baseline\":false,\"blockers\":false,\"financials\":true,\"history\":false,\"issues\":true,\"portfolio\":true,\"raid\":false,\"resources\":true,\"scheduling\":true};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: \"netsuite\", capabilities: caps }, message: 'verify ok' } }];"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000002",
+      "name": "Verify ACK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.origin }}",
+              "rightValue": "={{ $json.body.payload && $json.body.payload.lastUpdatedBy }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000003",
+      "name": "Drop loop?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        460
+      ],
+      "notes": "Loop guard: drop echoes where origin === payload.lastUpdatedBy (best-effort; the gateway idempotency key is the primary dedupe)."
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, data: { dropped: true }, message: 'Loop mutation dropped' } }];"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000004",
+      "name": "Drop (loop)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "create_issue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "create_issue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "delete_issue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "delete_issue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "list_issues",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "list_issues"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "list_projects",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "list_projects"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "update_issue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "update_issue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "get_capabilities",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "get_capabilities"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000005",
+      "name": "Route Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        120,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize the backend response to { success, data, message }.\nconst action = $('Webhook').first().json.body.action;\nconst rows = items.map((i) => i.json);\nconst data = rows.length === 1 ? rows[0] : rows;\nreturn [{ json: { success: true, data, message: action + ' ok' } }];"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000006",
+      "name": "Normalize → BrokerActionResult",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $('Webhook').first().json.body.action;\nreturn [{ json: { success: false, data: {}, message: 'Unsupported action: ' + action } }];"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000007",
+      "name": "Unsupported Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {}
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000008",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        880,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-OmniProject-Idempotency-Key",
+              "value": "={{ $json.body.idempotencyKey }}"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "oAuth1Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ title: $json.body.payload.title, company: $json.body.payload.projectId }) }}"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-000000000009",
+      "name": "Create Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        80
+      ],
+      "credentials": {
+        "oAuth1Api": {
+          "id": "",
+          "name": "Oracle NetSuite account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask/{{ $json.body.payload.issueId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-OmniProject-Idempotency-Key",
+              "value": "={{ $json.body.idempotencyKey }}"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "oAuth1Api"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000a",
+      "name": "Delete Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        260
+      ],
+      "credentials": {
+        "oAuth1Api": {
+          "id": "",
+          "name": "Oracle NetSuite account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask?q=company ANY_OF {{ $json.body.payload.projectId }}",
+        "sendHeaders": false,
+        "headerParameters": {
+          "parameters": []
+        },
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "oAuth1Api"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000b",
+      "name": "List Issues",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        440
+      ],
+      "credentials": {
+        "oAuth1Api": {
+          "id": "",
+          "name": "Oracle NetSuite account"
+        }
+      },
+      "notes": "Project tasks scoped to the job (projectId) via the SuiteQL-style q filter."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/job?limit=1000",
+        "sendHeaders": false,
+        "headerParameters": {
+          "parameters": []
+        },
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "oAuth1Api"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000c",
+      "name": "List Projects",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        620
+      ],
+      "credentials": {
+        "oAuth1Api": {
+          "id": "",
+          "name": "Oracle NetSuite account"
+        }
+      },
+      "notes": "NetSuite projects are 'job' records."
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.NETSUITE_BASE_URL }}/services/rest/record/v1/projectTask/{{ $json.body.payload.issueId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-OmniProject-Idempotency-Key",
+              "value": "={{ $json.body.idempotencyKey }}"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "oAuth1Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ title: $json.body.payload.title }) }}"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000d",
+      "name": "Update Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        380,
+        800
+      ],
+      "credentials": {
+        "oAuth1Api": {
+          "id": "",
+          "name": "Oracle NetSuite account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: {\"baseline\":false,\"blockers\":false,\"financials\":true,\"history\":false,\"issues\":true,\"portfolio\":true,\"raid\":false,\"resources\":true,\"scheduling\":true} } }];"
+      },
+      "id": "aaaaaaaa-0000-4000-8000-00000000000e",
+      "name": "Capabilities",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        380,
+        980
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify probe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify probe?": {
+      "main": [
+        [
+          {
+            "node": "Verify ACK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Drop loop?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify ACK": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drop loop?": {
+      "main": [
+        [
+          {
+            "node": "Route Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Drop (loop)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drop (loop)": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize → BrokerActionResult": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unsupported Action": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Action": {
+      "main": [
+        [
+          {
+            "node": "Create Issue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete Issue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "List Issues",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "List Projects",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Issue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Capabilities",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unsupported Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Issue": {
+      "main": [
+        [
+          {
+            "node": "Normalize → BrokerActionResult",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Issue": {
+      "main": [
+        [
+          {
+            "node": "Normalize → BrokerActionResult",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Issues": {
+      "main": [
+        [
+          {
+            "node": "Normalize → BrokerActionResult",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Projects": {
+      "main": [
+        [
+          {
+            "node": "Normalize → BrokerActionResult",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Issue": {
+      "main": [
+        [
+          {
+            "node": "Normalize → BrokerActionResult",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capabilities": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

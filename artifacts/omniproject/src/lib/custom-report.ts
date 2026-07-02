@@ -40,6 +40,17 @@ const asNum = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+/** Parse a date-like string to epoch millis, else null. Only tried once `asNum` has already failed, so
+ *  a numeric literal is never reinterpreted as a date. Backs the `gt`/`gte`/`lt`/`lte` fallback below:
+ *  drill-throughs need date comparisons (e.g. "dueDate < today" for an overdue-items filter — see
+ *  backlog #132's schedule-variance drill-through), and `Issue.dueDate`/`startDate` are ISO date
+ *  strings, not numbers, so `asNum` alone would make date comparisons always false. */
+const asDateMs = (v: unknown): number | null => {
+  if (typeof v !== "string" || v.trim() === "") return null;
+  const t = Date.parse(v);
+  return Number.isFinite(t) ? t : null;
+};
+
 /** Evaluate one predicate against a row (mirrors the server predicate engine). */
 function evalPredicate(p: Predicate, row: Row): boolean {
   const actual = row[p.field];
@@ -53,7 +64,9 @@ function evalPredicate(p: Predicate, row: Row): boolean {
     case "in": return Array.isArray(p.value) && p.value.includes(actual);
     case "nin": return Array.isArray(p.value) && !p.value.includes(actual);
     case "gt": case "gte": case "lt": case "lte": {
-      const a = asNum(actual), b = asNum(p.value);
+      // Numeric fields compare numerically; a non-numeric field (e.g. an ISO date string like
+      // dueDate) falls back to a date-aware comparison instead of always failing.
+      const a = asNum(actual) ?? asDateMs(actual), b = asNum(p.value) ?? asDateMs(p.value);
       if (a === null || b === null) return false;
       return p.op === "gt" ? a > b : p.op === "gte" ? a >= b : p.op === "lt" ? a < b : a <= b;
     }

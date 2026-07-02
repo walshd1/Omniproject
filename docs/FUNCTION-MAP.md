@@ -1005,6 +1005,15 @@ Hierarchical feature resolution — the pure core of the org → programme → p
 | `manageableAtProgramme` | The features a given level is *allowed to manage* — i.e. the set its parent already permits, so a UI can show a programme manager only what the org allows (and a PM only what the programme allows). |
 | `manageableAtProject` | The features a PM may manage for a project: the org-approved set minus whatever the programme removed. |
 
+### `artifacts/api-server/src/lib/federation.ts`
+
+Cross-instance portfolio federation (backlog #135) — a minimal, stateless fan-out that lets a multinational running one OmniProject instance per region/subsidiary (the shape per-country data residency, backlog #97, pushes them toward) see a consolidated global view WITHOUT centralising any project data.
+
+| Function | What it does |
+| --- | --- |
+| `fetchPeerSummary` | Fetch one peer's local portfolio summary. |
+| `buildFederatedPortfolio` | Build the combined federated view: this instance's own summary + every ACTIVE configured peer's, fetched live and in parallel. |
+
 ### `artifacts/api-server/src/lib/field-registry.ts`
 
 Field registry (gateway view) — the reconcile / validate behaviour over the canonical field vocabulary.
@@ -1344,6 +1353,17 @@ Shared portfolio-wide issue fan-out — was duplicated verbatim (and unbounded) 
 | Function | What it does |
 | --- | --- |
 | `allIssues` | Every issue across every project the actor can see. |
+
+### `artifacts/api-server/src/lib/portfolio-summary.ts`
+
+Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance boundary for federation (backlog #135, see docs/DATA-RESIDENCY.md).
+
+| Function | What it does |
+| --- | --- |
+| `summarizeHealth` | Summarise portfolio-health rows (the existing `GET /portfolio/health` aggregate) into portfolio-wide counts — no per-project id/name survives. |
+| `foldFinance` | Fold per-project financials (the existing `GET /projects/:id/financials` rows) into ONE portfolio total in `target` currency — the portfolio-only reduction of `consolidateFinancials`. |
+| `foldCapacity` | Fold every project's resource rows (the existing `GET /projects/:id/capacity` rows, flattened across the portfolio) into ONE portfolio total — the portfolio-only reduction of `rollupByProgramme`. |
+| `computeLocalPortfolioSummary` | Compute THIS instance's own portfolio summary — the local half of a federated view, and the exact payload `GET /portfolio/summary` serves to a peer instance. |
 
 ### `artifacts/api-server/src/lib/predicate.ts`
 
@@ -1996,6 +2016,14 @@ Data-export endpoints — GET /api/export.{csv,xlsx,json,md,pdf} render the proj
 ### `artifacts/api-server/src/routes/features.ts`
 
 The only context fields a governance rule may reference — the facts evaluable synchronously at BOTH read and enforce time, so a rule can never be shown-but-not-enforced (or vice-versa).
+
+### `artifacts/api-server/src/routes/federated-peers.ts`
+
+Federated-peer registry (backlog #135) — the other OmniProject instances (typically one per region/subsidiary under data residency, docs/DATA-RESIDENCY.md) this deployment fans out to for a consolidated portfolio view (see lib/federation.ts).
+
+### `artifacts/api-server/src/routes/federated-portfolio.ts`
+
+GET /api/federated-portfolio — this instance's own portfolio summary PLUS every configured peer's (backlog #135), fanned out live and merged into one response, each contribution clearly labeled by peer/region and never silently blended into a single number.
 
 ### `artifacts/api-server/src/routes/health-watch.ts`
 

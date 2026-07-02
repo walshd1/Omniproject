@@ -1,9 +1,9 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { updateSettings, getSettings, SettingsValidationError, DEFAULT_PRIORITY_WEIGHTS } from "./settings";
+import { updateSettings, getSettings, redactSettingsForRead, SettingsValidationError, DEFAULT_PRIORITY_WEIGHTS } from "./settings";
 
 afterEach(() => {
-  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, fxRatePolicy: "spot", fxRateAsOfDate: null, customReports: [], reportOverrides: [], contentPages: [], priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS } }); // reset shared store
+  updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, fxRatePolicy: "spot", fxRateAsOfDate: null, customReports: [], reportOverrides: [], contentPages: [], priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS }, federatedPeers: [] }); // reset shared store
 });
 
 test("reportOverrides: accepts partial metadata overrides and rejects bad shape", () => {
@@ -118,4 +118,33 @@ test("dashboards: rejects a non-array, a dashboard missing id/name/widgets, and 
   assert.throws(() => updateSettings({ dashboards: [{ id: "d", name: "no widgets" }] as never }), SettingsValidationError);
   assert.throws(() => updateSettings({ dashboards: [{ id: "d", name: "x", widgets: [{ type: "noId" }] }] as never }), SettingsValidationError);
   assert.throws(() => updateSettings({ dashboards: [{ id: "d", name: "x", widgets: [{ id: "w" }] }] as never }), SettingsValidationError);
+});
+
+// ── Federated peers (backlog #135) ────────────────────────────────────────────
+
+test("federatedPeers: accepts a well-formed peer and persists it", () => {
+  const peers = [{ id: "eu", label: "EU instance", baseUrl: "https://eu.omni.example", token: "tok-1", region: "eu", active: true }];
+  const s = updateSettings({ federatedPeers: peers });
+  assert.equal(s.federatedPeers.length, 1);
+  assert.equal(getSettings().federatedPeers[0]!.baseUrl, "https://eu.omni.example");
+});
+
+test("federatedPeers: rejects a non-array, a peer missing id/label/baseUrl/token, and an unsafe baseUrl", () => {
+  assert.throws(() => updateSettings({ federatedPeers: "nope" as unknown as [] }), SettingsValidationError);
+  assert.throws(() => updateSettings({ federatedPeers: [{ label: "no id", baseUrl: "https://x", token: "t" }] as never }), SettingsValidationError);
+  assert.throws(() => updateSettings({ federatedPeers: [{ id: "p1", baseUrl: "https://x", token: "t" }] as never }), SettingsValidationError); // no label
+  assert.throws(() => updateSettings({ federatedPeers: [{ id: "p1", label: "x", token: "t" }] as never }), SettingsValidationError); // no baseUrl
+  assert.throws(() => updateSettings({ federatedPeers: [{ id: "p1", label: "x", baseUrl: "https://x" }] as never }), SettingsValidationError); // no token
+  assert.throws(() => updateSettings({ federatedPeers: [{ id: "p1", label: "x", baseUrl: "http://169.254.169.254/", token: "t" }] as never }), SettingsValidationError); // link-local
+  assert.throws(() => updateSettings({ federatedPeers: [{ id: "p1", label: "x", baseUrl: "https://x", token: "t", region: 5 }] as never }), SettingsValidationError); // bad region type
+  assert.throws(() => updateSettings({ federatedPeers: [{ id: "p1", label: "x", baseUrl: "https://x", token: "t", active: "yes" }] as never }), SettingsValidationError); // bad active type
+});
+
+test("redactSettingsForRead: masks federated-peer tokens (never leaked over GET)", () => {
+  const redacted = redactSettingsForRead({
+    ...getSettings(),
+    federatedPeers: [{ id: "eu", label: "EU", baseUrl: "https://eu.omni.example", token: "super-secret-token", region: "eu", active: true }],
+  });
+  assert.equal(redacted.federatedPeers[0]!.token, "********");
+  assert.equal(redacted.federatedPeers[0]!.baseUrl, "https://eu.omni.example"); // non-secret fields preserved
 });

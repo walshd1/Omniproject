@@ -44,6 +44,26 @@ describe("runCustomReport", () => {
     expect(matchRow({ all: [{ field: "missing", op: "gt", value: 0 }] }, { budget: 1 })).toBe(false);
   });
 
+  // backlog #132: gt/gte/lt/lte fall back to a date-aware comparison when a field isn't numeric —
+  // needed so a drill-through predicate can express "dueDate < today" against Issue.dueDate (an ISO
+  // date string, not a number).
+  it("matchRow falls back to date comparison for non-numeric (ISO date) fields", () => {
+    expect(matchRow({ all: [{ field: "dueDate", op: "lt", value: "2026-01-01" }] }, { dueDate: "2025-06-01" })).toBe(true);
+    expect(matchRow({ all: [{ field: "dueDate", op: "lt", value: "2026-01-01" }] }, { dueDate: "2026-06-01" })).toBe(false);
+    expect(matchRow({ all: [{ field: "dueDate", op: "gte", value: "2026-01-01" }] }, { dueDate: "2026-01-01" })).toBe(true);
+  });
+
+  it("matchRow's date fallback never fires for genuinely numeric comparisons", () => {
+    // A numeric literal must not be reinterpreted as a date — it always resolves via asNum first.
+    expect(matchRow({ all: [{ field: "budget", op: "lt", value: 100 }] }, { budget: 50 })).toBe(true);
+    expect(matchRow({ all: [{ field: "budget", op: "lt", value: 100 }] }, { budget: 150 })).toBe(false);
+  });
+
+  it("matchRow's date fallback is false when either side isn't a parsable date", () => {
+    expect(matchRow({ all: [{ field: "dueDate", op: "lt", value: "2026-01-01" }] }, { dueDate: "not-a-date" })).toBe(false);
+    expect(matchRow({ all: [{ field: "dueDate", op: "lt", value: "not-a-date" }] }, { dueDate: "2025-06-01" })).toBe(false);
+  });
+
   it("metricLabel falls back to a readable default", () => {
     expect(metricLabel({ id: "m", field: "budget", agg: "sum" })).toBe("Sum of budget");
     expect(metricLabel({ id: "m", field: "x", agg: "count" })).toBe("Count");

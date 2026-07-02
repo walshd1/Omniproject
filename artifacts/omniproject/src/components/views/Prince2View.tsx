@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useGetProjectIssues, type Issue } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { ShieldAlert } from "lucide-react";
+import { Link } from "wouter";
 import {
   prince2Stage,
   PRINCE2_STAGES,
@@ -13,12 +14,17 @@ import {
   RAG_TEXT,
 } from "../../lib/methodology";
 import { STATUS_LABELS, STATUS_COLORS } from "../../lib/constants";
+import { resolveDrillTo, overdueDrillTo } from "../../lib/drill-to";
 import { DataState } from "../DataState";
 import { IssueDialog } from "../IssueDialog";
 
 export function Prince2View({ projectId }: { projectId: string }) {
   const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId);
   const [editing, setEditing] = useState<Issue | null>(null);
+  // Same "overdue" drill-through as the exec board pack / portfolio KPI cards' schedule-variance
+  // figure (backlog #132) — the PRINCE2 highlight report's own "Exceptions (overdue)" tally is just
+  // another red number a PM expects to click through to the offending products.
+  const exceptionsDrill = resolveDrillTo(overdueDrillTo(), { projectId });
 
   const model = useMemo(() => {
     const all = issues ?? [];
@@ -57,7 +63,21 @@ export function Prince2View({ projectId }: { projectId: string }) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm font-mono">
             <div><div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">Products delivered</div><div className="font-black text-lg">{model.delivered}/{model.total}</div></div>
             <div><div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">Completion</div><div className="font-black text-lg text-green-500">{model.pct}%</div></div>
-            <div><div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">Exceptions (overdue)</div><div className={`font-black text-lg ${model.exceptions > 0 ? "text-red-500" : ""}`}>{model.exceptions}</div></div>
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">Exceptions (overdue)</div>
+              {model.exceptions > 0 && exceptionsDrill ? (
+                <Link
+                  href={exceptionsDrill.href}
+                  className="font-black text-lg text-red-500 underline decoration-dotted underline-offset-2 hover:no-underline"
+                  aria-label={`${exceptionsDrill.label} for this project`}
+                  data-testid="prince2-exceptions-drill"
+                >
+                  {model.exceptions}
+                </Link>
+              ) : (
+                <div className={`font-black text-lg ${model.exceptions > 0 ? "text-red-500" : ""}`}>{model.exceptions}</div>
+              )}
+            </div>
             <div><div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">Next milestone</div><div className="font-black text-lg">{model.next ? format(new Date(model.next), "MMM dd") : "—"}</div></div>
           </div>
           {model.exceptions > 0 && (

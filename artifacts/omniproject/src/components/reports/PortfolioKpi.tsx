@@ -1,8 +1,8 @@
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { useGetPortfolioHealth, type PortfolioHealthSummary } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { getComponent } from "@workspace/backend-catalogue";
-import { resolveDrillTo } from "../../lib/drill-to";
+import { resolveDrillTo, overdueDrillTo, costOverrunDrillTo, type ResolvedDrillTo } from "../../lib/drill-to";
 import { DataState } from "../DataState";
 
 const RAG: Record<string, { dot: string; text: string; border: string }> = {
@@ -18,20 +18,55 @@ const RAG: Record<string, { dot: string; text: string; border: string }> = {
 // what clicking BLOCKERS filters to, with no code change here (backlog #122).
 const BLOCKERS_DRILL_TO = getComponent("widget:portfolioHealth")?.drillTo;
 
-function KpiCard({ p }: { p: PortfolioHealthSummary }) {
+/** A KPI figure that's also a drill-through when `canDrill` — a `role="link"` span (not a nested
+ *  wouter `Link`, which would be invalid HTML inside the card's own `<a>`) with its own click/keyboard
+ *  handling, stopping propagation so it doesn't ALSO fire the card's "go to project" nav. Renders a
+ *  plain, non-clickable figure otherwise (backlog #122/#132 — every drillable red number follows this
+ *  same shape: SCHED Δ, BUDGET Δ and BLOCKERS all resolve through the same `resolveDrillTo`). */
+function DrillFigure({
+  drill, canDrill, ariaLabel, testId, className, children,
+}: {
+  drill: ResolvedDrillTo | null;
+  canDrill: boolean;
+  ariaLabel: string;
+  testId: string;
+  className: string;
+  children: ReactNode;
+}) {
   const [, navigate] = useLocation();
-  const rag = RAG[p.ragStatus] ?? RAG.AMBER!; // AMBER is a literal key of RAG, always present
-  const drill = BLOCKERS_DRILL_TO ? resolveDrillTo(BLOCKERS_DRILL_TO, p as unknown as Record<string, unknown>) : null;
-  // "0 blocked" has nothing to drill into — only a positive count becomes a live link.
-  const canDrill = !!drill && p.activeBlockersCount > 0;
-  // A real nested <a> inside the card's own <a> is invalid HTML (React warns / would hydration-mismatch
-  // under SSR), so the drill-through target is a `role="link"` span with its own click/keyboard
-  // handling instead of a second wouter <Link> — independently navigable, stopping propagation so it
-  // doesn't ALSO fire the card's own "go to project" nav.
-  const openDrill = (e: MouseEvent | KeyboardEvent) => {
+  if (!canDrill || !drill) return <div className={className}>{children}</div>;
+  const open = (e: MouseEvent | KeyboardEvent) => {
     e.stopPropagation();
-    if (drill) navigate(drill.href);
+    navigate(drill.href);
   };
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      onClick={open}
+      onKeyDown={(e) => { if (e.key === "Enter") open(e); }}
+      className={`${className} underline decoration-dotted underline-offset-2 hover:opacity-80 cursor-pointer`}
+      aria-label={ariaLabel}
+      data-testid={testId}
+      data-href={drill.href}
+    >
+      {children}
+    </span>
+  );
+}
+
+function KpiCard({ p }: { p: PortfolioHealthSummary }) {
+  const row = p as unknown as Record<string, unknown>;
+  const rag = RAG[p.ragStatus] ?? RAG.AMBER!; // AMBER is a literal key of RAG, always present
+  const blockersDrill = BLOCKERS_DRILL_TO ? resolveDrillTo(BLOCKERS_DRILL_TO, row) : null;
+  // Built in code, not read off a catalogue JSON asset — "overdue"/"cost-incurring" aren't fixed
+  // literals the way portfolioHealth's `blocked truthy` is (backlog #132, see drill-to.ts).
+  const scheduleDrill = resolveDrillTo(overdueDrillTo(), row);
+  const budgetDrill = resolveDrillTo(costOverrunDrillTo(), row);
+  // A figure with nothing to show ("0 blocked", on-schedule, on-budget) has nothing to drill into.
+  const canDrillBlockers = !!blockersDrill && p.activeBlockersCount > 0;
+  const canDrillSchedule = !!scheduleDrill && p.scheduleVarianceDays < 0;
+  const canDrillBudget = !!budgetDrill && p.budgetVariancePercentage > 0;
   return (
     <Link
       href={`/projects/${p.projectId}`}
@@ -47,36 +82,39 @@ function KpiCard({ p }: { p: PortfolioHealthSummary }) {
       <div className="grid grid-cols-3 gap-2 text-xs font-mono">
         <div>
           <div className="text-muted-foreground mb-0.5">SCHED Δ</div>
-          <div className={`font-bold ${p.scheduleVarianceDays < 0 ? "text-red-500" : "text-foreground"}`}>
+          <DrillFigure
+            drill={scheduleDrill}
+            canDrill={canDrillSchedule}
+            ariaLabel={`${scheduleDrill?.label ?? "Overdue items"} for ${p.projectName}`}
+            testId={`kpi-schedule-drill-${p.projectId}`}
+            className={`font-bold ${p.scheduleVarianceDays < 0 ? "text-red-500" : "text-foreground"}`}
+          >
             {p.scheduleVarianceDays > 0 ? "+" : ""}{p.scheduleVarianceDays}d
-          </div>
+          </DrillFigure>
         </div>
         <div>
           <div className="text-muted-foreground mb-0.5">BUDGET Δ</div>
-          <div className={`font-bold ${p.budgetVariancePercentage > 0 ? "text-red-500" : "text-green-500"}`}>
+          <DrillFigure
+            drill={budgetDrill}
+            canDrill={canDrillBudget}
+            ariaLabel={`${budgetDrill?.label ?? "Cost-incurring items"} for ${p.projectName}`}
+            testId={`kpi-budget-drill-${p.projectId}`}
+            className={`font-bold ${p.budgetVariancePercentage > 0 ? "text-red-500" : "text-green-500"}`}
+          >
             {p.budgetVariancePercentage > 0 ? "+" : ""}{p.budgetVariancePercentage}%
-          </div>
+          </DrillFigure>
         </div>
         <div>
           <div className="text-muted-foreground mb-0.5">BLOCKERS</div>
-          {canDrill ? (
-            <span
-              role="link"
-              tabIndex={0}
-              onClick={openDrill}
-              onKeyDown={(e) => { if (e.key === "Enter") openDrill(e); }}
-              className="font-bold text-amber-500 underline decoration-dotted underline-offset-2 hover:text-amber-400 cursor-pointer"
-              aria-label={`${drill!.label} for ${p.projectName}`}
-              data-testid={`kpi-blockers-drill-${p.projectId}`}
-              data-href={drill!.href}
-            >
-              {p.activeBlockersCount}
-            </span>
-          ) : (
-            <div className={`font-bold ${p.activeBlockersCount > 0 ? "text-amber-500" : "text-foreground"}`}>
-              {p.activeBlockersCount}
-            </div>
-          )}
+          <DrillFigure
+            drill={blockersDrill}
+            canDrill={canDrillBlockers}
+            ariaLabel={`${blockersDrill?.label ?? "Blocked items"} for ${p.projectName}`}
+            testId={`kpi-blockers-drill-${p.projectId}`}
+            className={`font-bold ${p.activeBlockersCount > 0 ? "text-amber-500" : "text-foreground"}`}
+          >
+            {p.activeBlockersCount}
+          </DrillFigure>
         </div>
       </div>
     </Link>

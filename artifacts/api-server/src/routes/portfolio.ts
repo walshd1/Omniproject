@@ -6,6 +6,7 @@
 import { Router, type Request } from "express";
 import { getBroker, contextFromReq, respondBrokerError, type PortfolioRow } from "../broker";
 import { analyticsLimiter } from "../lib/rate-limit";
+import { computeLocalPortfolioSummary, type PortfolioSummary } from "../lib/portfolio-summary";
 
 const router = Router();
 
@@ -22,6 +23,21 @@ router.get("/portfolio/health", analyticsLimiter, async (req, res) => {
     res.json(await getPortfolioHealth(req));
   } catch (err) {
     req.log.error({ err }, "get_portfolio_health failed");
+    respondBrokerError(res, err);
+  }
+});
+
+// GET /api/portfolio/summary — THIS instance's own pre-aggregated portfolio totals (health/finance/
+// capacity), never per-project detail. The one endpoint a federated peer is meant to call (see
+// lib/federation.ts); served under the same requireAuth gate as the rest of /api (routes/index.ts),
+// which already accepts a read-only API token — so a peer instance can reach it with nothing more
+// than a bearer token, no new cross-instance auth scheme.
+router.get("/portfolio/summary", analyticsLimiter, async (req, res) => {
+  try {
+    const summary: PortfolioSummary = await computeLocalPortfolioSummary(req);
+    res.json(summary);
+  } catch (err) {
+    req.log.error({ err }, "get_portfolio_summary failed");
     respondBrokerError(res, err);
   }
 });

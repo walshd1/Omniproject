@@ -93,6 +93,25 @@ export interface WebhookSubscription {
 }
 
 /**
+ * A federated peer — another OmniProject instance (typically a sibling deployment for a different
+ * region/subsidiary under per-country data residency, see docs/DATA-RESIDENCY.md) this instance may
+ * query for a consolidated portfolio view. `baseUrl` is the peer's own origin; `token` is the bearer
+ * credential this instance presents, which must be one of the PEER's own `API_TOKENS` (see
+ * lib/api-token.ts) — no new cross-instance auth scheme, just this instance acting as a read-only API
+ * client of the peer, exactly like a BI tool would. `region` is a free-form label (e.g. "eu", "us") shown
+ * in the federated view so a contribution is always attributable, never silently blended. Same trust
+ * class as an outbound webhook target: config (a URL + a credential), never project data.
+ */
+export interface PeerInstance {
+  id: string;
+  label: string;
+  baseUrl: string;
+  token: string;
+  region: string | null;
+  active: boolean;
+}
+
+/**
  * Opt-in state-history egress to an operator-owned logging server. OFF by
  * default. This is the ONE deliberate relaxation of OmniProject's "nothing
  * leaves" posture — the same trust class as the OData/Prometheus/Power-BI feeds:
@@ -148,6 +167,12 @@ export interface SettingsState {
   labelOverrides: Record<string, string>;
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
+  /**
+   * Other OmniProject instances this deployment can fan out to for a federated portfolio view
+   * (backlog #135). Config only — URLs + bearer credentials, never project data. See
+   * routes/federated-peers + lib/federation.
+   */
+  federatedPeers: PeerInstance[];
   /** Opt-in state-history egress to an operator-owned logging server (off by default). */
   loggingSync: LoggingSyncConfig;
   /**
@@ -469,6 +494,29 @@ function webhooksFromEnv(): WebhookSubscription[] {
   }
 }
 
+function peersFromEnv(): PeerInstance[] {
+  const raw = process.env["FEDERATED_PEERS"]?.trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((p): p is Record<string, unknown> => !!p && typeof p === "object")
+      .map((p, i) => ({
+        id: typeof p["id"] === "string" ? (p["id"] as string) : `env-${i + 1}`,
+        label: typeof p["label"] === "string" && p["label"] ? (p["label"] as string) : `Peer ${i + 1}`,
+        baseUrl: String(p["baseUrl"] ?? ""),
+        token: typeof p["token"] === "string" ? (p["token"] as string) : "",
+        region: typeof p["region"] === "string" ? (p["region"] as string) : null,
+        active: p["active"] !== false,
+      }))
+      // Same safety check as admin writes (see webhooksFromEnv for the same rationale).
+      .filter((p) => isSafeOutboundUrl(p.baseUrl));
+  } catch {
+    return [];
+  }
+}
+
 function loggingSyncFromEnv(): LoggingSyncConfig {
   const url = process.env["LOGGING_SYNC_URL"]?.trim() || null;
   // Env-provided config is operator-trusted; still drop an unsafe URL and only
@@ -508,6 +556,7 @@ const store: SettingsState = {
   branding: brandingFromEnv(),
   labelOverrides: labelsFromEnv(),
   webhooks: webhooksFromEnv(),
+  federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
@@ -547,6 +596,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "branding",
   "labelOverrides",
   "webhooks",
+  "federatedPeers",
   "loggingSync",
   "fieldOverrides",
   "screenLayouts",
@@ -579,7 +629,11 @@ export function getSettings(): SettingsState {
  * (which the admin UI needs) is preserved.
  */
 export function redactSettingsForRead(s: SettingsState): SettingsState {
-  return { ...s, webhooks: s.webhooks.map((w) => ({ ...w, secret: w.secret ? "********" : "" })) };
+  return {
+    ...s,
+    webhooks: s.webhooks.map((w) => ({ ...w, secret: w.secret ? "********" : "" })),
+    federatedPeers: (s.federatedPeers ?? []).map((p) => ({ ...p, token: p.token ? "********" : "" })),
+  };
 }
 
 /**
@@ -763,6 +817,26 @@ function validatePatch(patch: Record<string, unknown>): void {
       } catch (err) {
         throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "webhook url is invalid");
       }
+    }
+  }
+  if ("federatedPeers" in patch) {
+    const peers = patch["federatedPeers"];
+    if (!Array.isArray(peers)) throw new SettingsValidationError("federatedPeers must be an array");
+    for (const p of peers) {
+      if (!p || typeof p !== "object") throw new SettingsValidationError("each federated peer must be an object");
+      const o = p as Record<string, unknown>;
+      if (typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each federated peer needs a string id");
+      if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a label`);
+      const baseUrl = o["baseUrl"];
+      if (typeof baseUrl !== "string" || !baseUrl) throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a baseUrl`);
+      try {
+        assertSafeOutboundUrl(baseUrl, "federated peer baseUrl");
+      } catch (err) {
+        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "federated peer baseUrl is invalid");
+      }
+      if (typeof o["token"] !== "string") throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a token string`);
+      if (o["region"] != null && typeof o["region"] !== "string") throw new SettingsValidationError(`federated peer "${String(o["id"])}" region must be a string or null`);
+      if ("active" in o && typeof o["active"] !== "boolean") throw new SettingsValidationError(`federated peer "${String(o["id"])}" active must be a boolean`);
     }
   }
   if ("branding" in patch && patch["branding"] != null && typeof patch["branding"] !== "object") {
