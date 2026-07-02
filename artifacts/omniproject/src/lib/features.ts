@@ -74,6 +74,26 @@ export function featureEnabled(features: FeatureStatus[] | undefined, id: string
   return f ? f.enabled : true;
 }
 
+export const scopeFeatureMapsQueryKey = ["scope-feature-maps"] as const;
+
+/**
+ * The RAW per-scope override maps for every programme/project (not just one scope's resolved status) —
+ * what the bulk CSV export/import round-trips. Read via `GET /api/settings` (open to any authenticated
+ * session; webhook secrets are the only thing it redacts, which don't apply here) rather than the
+ * generated `Settings` client type, which only models the subset of settings the setup wizard needs.
+ */
+export function useScopeFeatureMaps() {
+  return useQuery({
+    queryKey: scopeFeatureMapsQueryKey,
+    queryFn: () =>
+      getJson<{ programmeFeatures?: Record<string, ScopeFeatureConfig>; projectFeatures?: Record<string, ScopeFeatureConfig> }>("/api/settings").then((s) => ({
+        programmeFeatures: s.programmeFeatures ?? {},
+        projectFeatures: s.projectFeatures ?? {},
+      })),
+    staleTime: 30_000,
+  });
+}
+
 async function patchJson(url: string, body: unknown, errMsg: string): Promise<unknown> {
   const res = await fetch(url, {
     method: url.includes("/features/") ? "PUT" : "PATCH",
@@ -110,7 +130,7 @@ export function useSetProgrammeFeatures() {
   return useMutation({
     mutationFn: ({ programmeId, config }: { programmeId: string; config: ScopeFeatureConfig }) =>
       patchJson(`/api/features/programme/${encodeURIComponent(programmeId)}`, config, "Failed to update programme features"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["features"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["features"] }); qc.invalidateQueries({ queryKey: scopeFeatureMapsQueryKey }); },
   });
 }
 
@@ -120,7 +140,7 @@ export function useSetProjectFeatures() {
   return useMutation({
     mutationFn: ({ projectId, programmeId, config }: { projectId: string; programmeId?: string | null; config: ScopeFeatureConfig }) =>
       patchJson(`/api/features/project/${encodeURIComponent(projectId)}${programmeId ? `?programmeId=${encodeURIComponent(programmeId)}` : ""}`, config, "Failed to update project features"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["features"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["features"] }); qc.invalidateQueries({ queryKey: scopeFeatureMapsQueryKey }); },
   });
 }
 
