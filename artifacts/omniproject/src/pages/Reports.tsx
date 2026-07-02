@@ -20,6 +20,7 @@ import { ResourceLevelling } from "../components/reports/ResourceLevelling";
 import { PortfolioFinancials } from "../components/reports/PortfolioFinancials";
 import { PortfolioIncome } from "../components/reports/PortfolioIncome";
 import { PortfolioBenefits } from "../components/reports/PortfolioBenefits";
+import { PortfolioPrioritisation } from "../components/reports/PortfolioPrioritisation";
 import { BenefitsRealisationRollup } from "../components/reports/BenefitsRealisationRollup";
 import { CustomReportsProject, CustomReportsPortfolio } from "../components/reports/CustomReportsPanel";
 import { SnapshotVerifyPanel } from "../components/reports/SnapshotControls";
@@ -128,6 +129,13 @@ export function Reports() {
 
         <Gated caps={caps} domain="portfolio" title="Portfolio Health" requires="a portfolio rollup (get_portfolio_health)">
           <PortfolioKpi />
+        </Gated>
+
+        <Gated caps={caps} domain="portfolio" title="Portfolio Prioritisation" requires="a portfolio rollup (get_portfolio_health)">
+          <section>
+            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Prioritisation &amp; Funding Funnel</h2>
+            <PortfolioPrioritisation />
+          </section>
         </Gated>
 
         <Gated caps={caps} domain="scheduling" title="Portfolio Roadmap" requires="start / due dates on work items">

@@ -239,7 +239,28 @@ export interface SettingsState {
    * and never holds project data. Rides the snapshot/export. See routes/report-overrides.
    */
   reportOverrides: ReportOverride[];
+  /**
+   * Portfolio prioritisation scoring weights (backlog #98): how much RICE / WSJF / MoSCoW /
+   * strategic-goal contribution / benefits realisation each count toward a project's rank score.
+   * ONLY the formula weights are config — the score itself is computed live over the read model on
+   * every request, never persisted. Customer-level config; rides the snapshot/export. See
+   * routes/portfolio-priority-weights + the SPA PortfolioPrioritisation report.
+   */
+  priorityWeights: PriorityWeights;
 }
+
+/** Relative weights for the five prioritisation dimensions — not required to sum to 100 (the scorer
+ *  renormalises over whichever dimensions a project actually reports). Mirrored in the SPA's
+ *  lib/portfolio-priority.ts (no shared package between the two apps, same as CustomReportDef). */
+export interface PriorityWeights {
+  rice: number;
+  wsjf: number;
+  moscow: number;
+  strategic: number;
+  benefit: number;
+}
+
+export const DEFAULT_PRIORITY_WEIGHTS: PriorityWeights = { rice: 25, wsjf: 25, moscow: 15, strategic: 15, benefit: 20 };
 
 /** A named saved view: which columns, sort, filters and grouping to apply (all optional, so a view
  *  can capture just a column set or just a sort). `scope` ties it to a surface (e.g. "grid"). */
@@ -477,6 +498,7 @@ const store: SettingsState = {
   customReports: [],
   reportOverrides: [],
   dashboards: [],
+  priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS },
 };
 
 /** True when historical time-travel is available (operator opted into egress). */
@@ -514,6 +536,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "customReports",
   "reportOverrides",
   "dashboards",
+  "priorityWeights",
 ];
 
 /** A snapshot copy of the current in-memory settings (never the live reference). */
@@ -621,6 +644,21 @@ function validateCustomReports(value: unknown): void {
   }
 }
 
+const PRIORITY_WEIGHT_KEYS = ["rice", "wsjf", "moscow", "strategic", "benefit"] as const;
+
+/** Shape-validate the prioritisation weights: all five dimensions present, each a finite non-negative
+ *  number. Weights need not sum to 100 (the scorer renormalises over the dimensions a project reports). */
+function validatePriorityWeights(value: unknown): void {
+  if (typeof value !== "object" || value == null) throw new SettingsValidationError("priorityWeights must be an object");
+  const o = value as Record<string, unknown>;
+  for (const k of PRIORITY_WEIGHT_KEYS) {
+    const v = o[k];
+    if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+      throw new SettingsValidationError(`priorityWeights.${k} must be a non-negative number`);
+    }
+  }
+}
+
 /** Shape-validate the built-in report overrides: id required; label/order/hidden optional + typed. */
 function validateReportOverrides(value: unknown): void {
   if (!Array.isArray(value)) throw new SettingsValidationError("reportOverrides must be an array");
@@ -724,6 +762,7 @@ function validatePatch(patch: Record<string, unknown>): void {
   }
   if ("customReports" in patch) validateCustomReports(patch["customReports"]);
   if ("reportOverrides" in patch) validateReportOverrides(patch["reportOverrides"]);
+  if ("priorityWeights" in patch) validatePriorityWeights(patch["priorityWeights"]);
   if ("dashboards" in patch) {
     const v = patch["dashboards"];
     if (!Array.isArray(v)) throw new SettingsValidationError("dashboards must be an array");
