@@ -24,12 +24,22 @@ export function usePortfolioItems(): {
   const { data: settings } = useGetSettings();
 
   const ids = useMemo(() => (projectList ?? []).map((p) => p.id), [projectList]);
-  const issueQueries = useQueries({ queries: ids.map((id) => getGetProjectIssuesQueryOptions(id)) });
-  const loading = projLoading || issueQueries.some((q) => q.isLoading);
+  // `combine` keeps the result referentially stable across renders that don't change the
+  // underlying query data — a bare useQueries() array gets a fresh reference every render, which
+  // would re-run the O(projects) `projects` derivation below on every unrelated re-render (this
+  // hook feeds 4+ report surfaces). See docs/PERF-PATTERNS-REVIEW.md, Theme C.
+  const issuesByProject = useQueries({
+    queries: ids.map((id) => getGetProjectIssuesQueryOptions(id)),
+    combine: (results) => ({
+      data: results.map((r) => r.data as Issue[] | undefined),
+      isLoading: results.some((r) => r.isLoading),
+    }),
+  });
+  const loading = projLoading || issuesByProject.isLoading;
 
   const projects = useMemo<ProjectItems[]>(() => {
     return (projectList ?? []).map((p, i) => {
-      const items = (issueQueries[i]?.data as Issue[] | undefined) ?? [];
+      const items = issuesByProject.data[i] ?? [];
       return {
         projectId: p.id,
         projectName: p.name,
@@ -39,7 +49,7 @@ export function usePortfolioItems(): {
         items,
       };
     });
-  }, [projectList, issueQueries]);
+  }, [projectList, issuesByProject]);
 
   return { projects, loading, isError, error, refetch, target: settings?.reportingCurrency || fx?.base || "GBP", rates: fx?.rates };
 }

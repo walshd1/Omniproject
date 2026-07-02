@@ -25,6 +25,7 @@ import { getBroker, contextFromReq, respondBrokerError } from "../broker";
 import { resolveCapabilities } from "../lib/capabilities";
 import { validateEntityInput, type FieldDescriptor } from "../lib/field-registry";
 import { aggregateResourcePool } from "../lib/resource-pool";
+import { poolMap } from "../lib/concurrency-pool";
 import {
   getProjects,
   getIssues,
@@ -46,6 +47,10 @@ import { CreateRaidEntryBody } from "@workspace/api-zod";
 import type { Request, Response } from "express";
 
 const router = Router();
+
+/** Concurrency bound for the /resources roster fan-out over every project (Theme A in
+ *  docs/PERF-PATTERNS-REVIEW.md — was an unbounded `Promise.all` over all 200 projects). */
+const RESOURCE_ROSTER_FANOUT_LIMIT = 10;
 
 /**
  * Apply the EXTRA business ruleset AFTER the hard gate (requireRole already ran).
@@ -192,9 +197,10 @@ router.get("/resources", async (req, res) => {
     const broker = getBroker();
     const ctx = contextFromReq(req);
     const projects = await broker.listProjects(ctx);
-    const rosters = await Promise.all(
-      projects.map(async (p) => ({ projectId: p.id, members: await broker.projectMembers(ctx, p.id).catch(() => []) })),
-    );
+    const rosters = await poolMap(projects, RESOURCE_ROSTER_FANOUT_LIMIT, async (p) => ({
+      projectId: p.id,
+      members: await broker.projectMembers(ctx, p.id).catch(() => []),
+    }));
     res.json(aggregateResourcePool(rosters));
   } catch (err) {
     req.log.error({ err }, "list_resource_pool failed");

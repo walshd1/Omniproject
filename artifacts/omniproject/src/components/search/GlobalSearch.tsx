@@ -8,6 +8,7 @@ import { useFeatures, featureEnabled } from "../../lib/features";
 import { useGlobalSearch, searchEntities, type SearchHit } from "../../lib/global-search";
 import { useRecentItems } from "../../lib/recent-items";
 import { useSidePanel } from "../../lib/side-panel";
+import { createConcurrencyLimiter } from "../../lib/concurrency-pool";
 
 /**
  * Global search (the "globalSearch" feature module). A command-palette-style overlay that
@@ -19,6 +20,10 @@ import { useSidePanel } from "../../lib/side-panel";
  */
 
 const TYPE_LABEL: Record<SearchHit["type"], string> = { project: "Project", issue: "Issue", programme: "Programme" };
+
+// Bounds actual in-flight issue fetches when the overlay opens (one useQueries entry per project,
+// up to 200-wide at the target scale). See docs/PERF-PATTERNS-REVIEW.md, Theme A.
+const issuesFetchPool = createConcurrencyLimiter(8);
 
 export function GlobalSearch() {
   const { data: features } = useFeatures();
@@ -48,18 +53,18 @@ export function GlobalSearch() {
   const { data: projects } = useListProjects();
   const { data: programmes } = useListProgrammes();
   // Issues are fetched per project only while the overlay is open (cross-project quick-find).
-  const issueQueries = useQueries({
+  // Actual fetch starts are bounded by issuesFetchPool (Theme A); `combine` keeps the flattened
+  // result referentially stable across renders that don't change the underlying query data — e.g.
+  // every keystroke — instead of re-materializing the whole cross-project array each time (Theme C).
+  const issues = useQueries({
     queries: (open ? projects ?? [] : []).map((p) => ({
       queryKey: ["global-search-issues", p.id] as const,
-      queryFn: () => getJson<Issue[]>(`/api/projects/${p.id}/issues`),
+      queryFn: () => issuesFetchPool(() => getJson<Issue[]>(`/api/projects/${p.id}/issues`)),
       staleTime: 30_000,
     })),
+    combine: (results) =>
+      results.flatMap((r) => (r.data as Issue[] | undefined) ?? []).map((i) => ({ id: i.id, title: i.title, projectId: i.projectId })),
   });
-
-  const issues = useMemo(
-    () => issueQueries.flatMap((q) => q.data ?? []).map((i) => ({ id: i.id, title: i.title, projectId: i.projectId })),
-    [issueQueries],
-  );
 
   const hits = useMemo(
     () => searchEntities(query, {

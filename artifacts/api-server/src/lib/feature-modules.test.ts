@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { FEATURE_MODULES, isFeatureEnabled, featureStatus, requireFeature, resolveScopedFeatures } from "./feature-modules";
+import { FEATURE_MODULES, isFeatureEnabled, featureStatus, requireFeature, resolveScopedFeatures, governanceCatalogue, governanceGates } from "./feature-modules";
 import { updateSettings } from "./settings";
 import { setProjectType, __resetRateCardCache } from "./rate-card-store";
 
@@ -119,6 +119,21 @@ test("requireFeature calls next when enabled and 404s when disabled (scope-aware
   mw({ params: { projectId: "p9" } } as never, res as never, () => { nexted2 = true; });
   assert.equal(nexted2, false);
   assert.equal(res.statusCode, 404);
+});
+
+test("governanceCatalogue/governanceGates are memoized at module scope (same reference across calls)", () => {
+  const c1 = governanceCatalogue();
+  const c2 = governanceCatalogue();
+  assert.equal(c1, c2, "governanceCatalogue() should return the same cached array reference");
+
+  const g1 = governanceGates();
+  const g2 = governanceGates();
+  assert.equal(g1, g2, "governanceGates() should return the same cached array reference");
+
+  // Still correct: spans modules + reports + methodologies, and stays consistent with isFeatureEnabled.
+  assert.equal(c1.filter((g) => g.kind === "module").length, FEATURE_MODULES.length);
+  assert.ok(c1.some((g) => g.kind === "report"));
+  assert.ok(c1.some((g) => g.kind === "methodology"));
 });
 
 /** Minimal Express-ish response capturing status()/json(). */

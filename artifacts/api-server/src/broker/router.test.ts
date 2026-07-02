@@ -20,6 +20,16 @@ test("endpointsForKind parses BROKER_ENDPOINTS (per-kind URL, | pool, missing �
   assert.equal(endpointsForKind("n8n"), undefined); // nothing declared at all
 });
 
+test("endpointsForKind is memoized on the raw env value but re-parses when it changes (hot-reload)", () => {
+  process.env["BROKER_ENDPOINTS"] = "n8n=https://one/webhook";
+  assert.deepEqual(endpointsForKind("n8n"), ["https://one/webhook"]);
+  // Same raw value again ⇒ cached path, same result.
+  assert.deepEqual(endpointsForKind("n8n"), ["https://one/webhook"]);
+  // Value changes ⇒ must re-parse, not serve the stale cached map.
+  process.env["BROKER_ENDPOINTS"] = "n8n=https://two/webhook";
+  assert.deepEqual(endpointsForKind("n8n"), ["https://two/webhook"]);
+});
+
 test("withEndpoints binds the adapter pool to the routed endpoint for the call's scope", () => {
   // Outside any scope, the pool is the default/env target.
   const outside = webhookPool();

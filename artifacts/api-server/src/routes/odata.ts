@@ -1,5 +1,6 @@
 import { Router, type Request } from "express";
-import { getProjects, getIssues } from "../lib/data";
+import { getProjects } from "../lib/data";
+import { allIssues } from "../lib/portfolio-reads";
 import { groupProgrammes } from "../lib/programmes";
 import {
   buildEdmx,
@@ -57,12 +58,6 @@ function baseUrl(req: Request): string {
   const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] || req.protocol;
   const host = req.headers["x-forwarded-host"] || req.get("host");
   return `${proto}://${host}/api/odata/`;
-}
-
-async function allIssues(req: Request): Promise<Row[]> {
-  const projects = await getProjects(req);
-  const lists = await Promise.all(projects.map((p) => getIssues(req, String((p as Row).id))));
-  return lists.flat();
 }
 
 // Service document.

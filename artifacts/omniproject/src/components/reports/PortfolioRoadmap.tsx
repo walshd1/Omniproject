@@ -66,11 +66,18 @@ export function PortfolioRoadmap() {
   const { data: projects, isLoading, isError, error, refetch } = useListProjects();
 
   // One issues query per project (canonical key ⇒ shared with the rest of the app's cache).
-  const issueQueries = useQueries({
+  // `combine` keeps the per-project results referentially stable across renders that don't change
+  // the underlying query data, so `roadmap` doesn't re-run buildRoadmap over the whole portfolio
+  // on every unrelated re-render. See docs/PERF-PATTERNS-REVIEW.md, Theme C.
+  const issuesByProject = useQueries({
     queries: (projects ?? []).map((p) => getGetProjectIssuesQueryOptions(p.id)),
+    combine: (results) => ({
+      data: results.map((r) => r.data as Issue[] | undefined),
+      isLoading: results.some((r) => r.isLoading),
+    }),
   });
 
-  const issuesLoading = issueQueries.some((q) => q.isLoading);
+  const issuesLoading = issuesByProject.isLoading;
 
   const roadmap = useMemo(() => {
     const list: RoadmapProject[] = (projects ?? []).map((p) => ({
@@ -85,10 +92,10 @@ export function PortfolioRoadmap() {
     // Key issues by the composite source:id so two projects sharing a bare id never collide.
     const byProject: Record<string, Issue[]> = {};
     (projects ?? []).forEach((p, i) => {
-      byProject[roadmapKey(p)] = (issueQueries[i]?.data as Issue[] | undefined) ?? [];
+      byProject[roadmapKey(p)] = issuesByProject.data[i] ?? [];
     });
     return buildRoadmap(list, byProject);
-  }, [projects, issueQueries]);
+  }, [projects, issuesByProject]);
 
   const ticks = useMemo(() => buildTicks(roadmap.min, roadmap.max), [roadmap.min, roadmap.max]);
   const now = Date.now();

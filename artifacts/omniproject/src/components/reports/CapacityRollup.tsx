@@ -47,21 +47,28 @@ export function CapacityRollup() {
   const { data: projects, isLoading: projLoading, isError: projError, error: projErr, refetch } = useListProjects();
   const ids = useMemo(() => (projects ?? []).map((p) => p.id), [projects]);
 
-  const capacityQueries = useQueries({
+  // `combine` keeps this result referentially stable across renders that don't change the
+  // underlying query data, so `rollup` doesn't re-run rollupByProgramme over the whole portfolio
+  // on every unrelated re-render. See docs/PERF-PATTERNS-REVIEW.md, Theme C.
+  const capacityByProject = useQueries({
     queries: ids.map((id) => getGetProjectCapacityQueryOptions(id)),
+    combine: (results) => ({
+      data: results.map((r) => r.data as ResourceCapacity[] | undefined),
+      isLoading: results.some((r) => r.isLoading),
+    }),
   });
 
-  const loading = projLoading || capacityQueries.some((q) => q.isLoading);
+  const loading = projLoading || capacityByProject.isLoading;
   const rollup = useMemo(() => {
     const withCap: ProjectCapacity[] = (projects ?? []).map((p, i) => ({
       projectId: p.id,
       projectName: p.name,
       programmeId: p.programmeId ?? null,
       programmeName: p.programmeName ?? null,
-      resources: (capacityQueries[i]?.data as ResourceCapacity[] | undefined) ?? [],
+      resources: capacityByProject.data[i] ?? [],
     }));
     return rollupByProgramme(withCap);
-  }, [projects, capacityQueries]);
+  }, [projects, capacityByProject]);
 
   const hasData = rollup.portfolio.allocations > 0;
 

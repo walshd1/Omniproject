@@ -68,7 +68,14 @@ export function ExecBoardPack() {
   const [reporting, setReporting] = useState("");
 
   const ids = useMemo(() => (projects ?? []).map((p) => p.id), [projects]);
-  const finQueries = useQueries({ queries: ids.map((id) => getGetProjectFinancialsQueryOptions(id)) });
+  // `combine` keeps the per-project financials array referentially stable across renders that
+  // don't change the underlying query data, so `financials` below doesn't re-run
+  // consolidateFinancials over the whole portfolio on every unrelated re-render. See
+  // docs/PERF-PATTERNS-REVIEW.md, Theme C.
+  const financialsByProject = useQueries({
+    queries: ids.map((id) => getGetProjectFinancialsQueryOptions(id)),
+    combine: (results) => results.map((r) => r.data as ProjectFinancials | undefined),
+  });
 
   const target = reporting || settings?.reportingCurrency || fx?.base || "GBP";
   // Health is the spine; financials are an optional overlay, so don't block the pack on the finance fan-out.
@@ -77,11 +84,11 @@ export function ExecBoardPack() {
   const execHealth = useMemo(() => buildExecHealth(health.data ?? []), [health.data]);
   const financials = useMemo(() => {
     const withFin: ProjectFin[] = (projects ?? [])
-      .map((p, i) => ({ p, fin: finQueries[i]?.data as ProjectFinancials | undefined }))
+      .map((p, i) => ({ p, fin: financialsByProject[i] }))
       .filter((x): x is { p: typeof x.p; fin: ProjectFinancials } => !!x.fin)
       .map(({ p, fin }) => ({ projectId: p.id, projectName: p.name, programmeId: p.programmeId ?? null, programmeName: p.programmeName ?? null, fin }));
     return consolidateFinancials(withFin, target, fx?.rates);
-  }, [projects, finQueries, target, fx]);
+  }, [projects, financialsByProject, target, fx]);
 
   const money = (n: number) => formatCurrency(n, target);
   const options = currencyList(fx?.rates);

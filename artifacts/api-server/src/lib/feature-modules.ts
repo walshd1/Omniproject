@@ -158,6 +158,12 @@ export interface GovernanceItem {
   reason?: GateReason;
 }
 
+// Memoized below — pure over the static FEATURE_MODULES/REPORTS/METHODOLOGIES imports, so it's
+// built ONCE at module scope instead of rebuilt (+ ~10 Sets reallocated) on every gated request.
+// `scopeOverrides()` stays per-call: it reads live settings/env, which genuinely vary per request.
+// See docs/PERF-PATTERNS-REVIEW.md, Theme B.
+let cachedGovernanceCatalogue: GovernanceItem[] | undefined;
+
 /**
  * The full governance catalogue: the feature modules PLUS every shipped report and methodology, so a
  * PMO can mandate ("must use") or forbid ("must not use") any of them through the same resolver.
@@ -165,26 +171,35 @@ export interface GovernanceItem {
  * with a module id; they're default-ON (no safety/cost/storage concern of their own).
  */
 export function governanceCatalogue(): GovernanceItem[] {
-  const modules: GovernanceItem[] = FEATURE_MODULES.map((m) => ({
-    id: m.id, kind: "module", label: m.label, description: m.description,
-    ...(m.defaultOff ? { defaultOff: true } : {}), ...(m.reason ? { reason: m.reason } : {}),
-  }));
-  const reports: GovernanceItem[] = REPORTS.map((r) => ({
-    id: `report:${r.id}`, kind: "report", label: r.label, description: `${r.kind} report`,
-  }));
-  const methodologies: GovernanceItem[] = METHODOLOGIES.map((m) => ({
-    id: `methodology:${m.id}`, kind: "methodology", label: m.label, description: `${m.kind} methodology`,
-  }));
-  return [...modules, ...reports, ...methodologies];
+  if (!cachedGovernanceCatalogue) {
+    const modules: GovernanceItem[] = FEATURE_MODULES.map((m) => ({
+      id: m.id, kind: "module", label: m.label, description: m.description,
+      ...(m.defaultOff ? { defaultOff: true } : {}), ...(m.reason ? { reason: m.reason } : {}),
+    }));
+    const reports: GovernanceItem[] = REPORTS.map((r) => ({
+      id: `report:${r.id}`, kind: "report", label: r.label, description: `${r.kind} report`,
+    }));
+    const methodologies: GovernanceItem[] = METHODOLOGIES.map((m) => ({
+      id: `methodology:${m.id}`, kind: "methodology", label: m.label, description: `${m.kind} methodology`,
+    }));
+    cachedGovernanceCatalogue = [...modules, ...reports, ...methodologies];
+  }
+  return cachedGovernanceCatalogue;
 }
+
+// Memoized alongside governanceCatalogue, for the same reason.
+let cachedGovernanceGates: FeatureGate[] | undefined;
 
 /** The governance catalogue as resolver gates (id + default posture). */
 export function governanceGates(): FeatureGate[] {
-  return governanceCatalogue().map((g) => ({
-    id: g.id,
-    ...(g.defaultOff ? { defaultOff: true } : {}),
-    ...(g.reason ? { reason: g.reason } : {}),
-  }));
+  if (!cachedGovernanceGates) {
+    cachedGovernanceGates = governanceCatalogue().map((g) => ({
+      id: g.id,
+      ...(g.defaultOff ? { defaultOff: true } : {}),
+      ...(g.reason ? { reason: g.reason } : {}),
+    }));
+  }
+  return cachedGovernanceGates;
 }
 
 // Which modules actually got loaded+mounted this process (set by the mount step). Lets the

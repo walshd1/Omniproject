@@ -5,6 +5,7 @@
  */
 import { Router, type Request, type Response } from "express";
 import { getProjects, getIssues, getActivity, type Row } from "../lib/data";
+import { allIssues } from "../lib/portfolio-reads";
 import { toCsv, type CsvValue } from "../lib/csv";
 import { buildXlsx, type Sheet } from "../lib/xlsx";
 import { toMarkdown } from "../lib/md";
@@ -29,12 +30,6 @@ function toMatrix(items: Row[], cols: string[]): CsvValue[][] {
   return items.map((item) => cols.map((c) => cell(item[c])));
 }
 
-async function allIssues(req: Request): Promise<Row[]> {
-  const projects = await getProjects(req);
-  const lists = await Promise.all(projects.map((p) => getIssues(req, String((p as Row).id))));
-  return lists.flat();
-}
-
 function send(res: Response, filename: string, type: string, body: Buffer | string) {
   res.setHeader("Content-Type", type);
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -46,7 +41,8 @@ const stamp = () => new Date().toISOString().slice(0, 10);
 // ── GET /api/export.xlsx — one workbook: Projects + Issues + Activity ─────────
 router.get("/export.xlsx", async (req, res) => {
   try {
-    const [projects, issues, activity] = await Promise.all([getProjects(req), allIssues(req), getActivity(req)]);
+    const projects = await getProjects(req);
+    const [issues, activity] = await Promise.all([allIssues(req, projects), getActivity(req)]);
     const sheets: Sheet[] = [
       { name: "Projects", headers: PROJECT_COLS, rows: toMatrix(projects, PROJECT_COLS) },
       { name: "Issues", headers: ISSUE_COLS, rows: toMatrix(issues, ISSUE_COLS) },

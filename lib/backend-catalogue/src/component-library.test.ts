@@ -37,6 +37,18 @@ test("componentsFor filters by surface and every source shares the content surfa
   assert.ok(onContent.some((c) => c.source === "report") && onContent.some((c) => c.source === "widget"));
 });
 
+test("componentLibrary() is built once at module load — same reference across calls", () => {
+  const lib1 = componentLibrary();
+  const lib2 = componentLibrary();
+  assert.equal(lib1, lib2, "componentLibrary() should return the same cached array reference every call");
+});
+
+test("getComponent is backed by a Map (O(1)) and stays consistent with componentLibrary()", () => {
+  for (const c of componentLibrary()) {
+    assert.equal(getComponent(c.id), c, `getComponent(${c.id}) should return the same object as in componentLibrary()`);
+  }
+});
+
 test("getComponent resolves a namespaced id and carries the renderer registry", () => {
   const evm = getComponent("report:evm");
   assert.equal(evm?.renderer.registry, "report");
