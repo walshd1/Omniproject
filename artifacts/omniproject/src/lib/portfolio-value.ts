@@ -69,7 +69,8 @@ export function rollupIncome(projects: ProjectItems[], reportingCurrency: string
     }
     groups.set(key, row);
   }
-  const programmes = [...groups.values()].map(finaliseIncome).sort((a, b) => b.unbilled - a.unbilled);
+  // key (the programmeId) is unique per group ⇒ deterministic order for equal unbilled value.
+  const programmes = [...groups.values()].map(finaliseIncome).sort((a, b) => b.unbilled - a.unbilled || a.key.localeCompare(b.key));
   return { programmes, portfolio: finaliseIncome(portfolio) };
 }
 
@@ -118,7 +119,7 @@ export function rollupBenefits(projects: ProjectItems[], reportingCurrency: stri
     }
     groups.set(key, row);
   }
-  // Worst realisation first so shortfall surfaces.
-  const programmes = [...groups.values()].map(finaliseBenefits).sort((a, b) => a.realisation - b.realisation);
+  // Worst realisation first so shortfall surfaces; key breaks ties deterministically.
+  const programmes = [...groups.values()].map(finaliseBenefits).sort((a, b) => a.realisation - b.realisation || a.key.localeCompare(b.key));
   return { programmes, portfolio: finaliseBenefits(portfolio) };
 }

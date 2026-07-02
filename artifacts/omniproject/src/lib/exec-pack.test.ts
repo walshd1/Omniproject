@@ -55,3 +55,39 @@ describe("execHeadline", () => {
     expect(execHeadline(s)).toContain("3 active blocker");
   });
 });
+
+// ── Dirty-data resilience (messy-data generator regression) ──────────────────
+describe("buildExecHealth — dirty read model", () => {
+  const dirty = [
+    h({ projectId: "a", ragStatus: "amber" as never, scheduleVarianceDays: "N/A" as never, activeBlockersCount: "3" as never }),
+    h({ projectId: "b", ragStatus: null as never, scheduleVarianceDays: NaN as never, budgetVariancePercentage: Infinity as never, activeBlockersCount: null as never }),
+    h({ projectId: "c", ragStatus: "RED", scheduleVarianceDays: undefined as never, activeBlockersCount: undefined as never }),
+    h({ projectId: null as never, projectName: null as never, ragStatus: "Red" as never }),
+  ];
+
+  it("does not throw and returns finite totals for dirty rows", () => {
+    const s = buildExecHealth(dirty);
+    expect(Number.isFinite(s.totalBlockers)).toBe(true);
+    expect(Number.isFinite(s.worstSlipDays)).toBe(true);
+    expect(Number.isFinite(s.atRiskPct)).toBe(true);
+    for (const e of s.exceptions) {
+      expect(Number.isFinite(e.scheduleVarianceDays)).toBe(true);
+      expect(Number.isFinite(e.budgetVariancePercentage)).toBe(true);
+      expect(Number.isFinite(e.activeBlockersCount)).toBe(true);
+      expect(typeof e.projectId).toBe("string");
+      expect(typeof e.projectName).toBe("string");
+    }
+  });
+
+  it("normalises mixed-casing rag ('amber'/'Red') into the buckets", () => {
+    const s = buildExecHealth(dirty);
+    expect(s.rag.AMBER).toBe(1);
+    expect(s.rag.RED).toBe(2); // "RED" + "Red"
+    expect(execHeadline(s)).not.toContain("NaN");
+  });
+
+  it("coerces stringy numbers ('3') rather than concatenating", () => {
+    const s = buildExecHealth([h({ ragStatus: "AMBER", activeBlockersCount: "3" as never }), h({ ragStatus: "AMBER", activeBlockersCount: 2 })]);
+    expect(s.totalBlockers).toBe(5);
+  });
+});

@@ -9,8 +9,9 @@ import { GlobalSearchTrigger } from "../search/GlobalSearchTrigger";
 import { NotificationsBell } from "../NotificationsBell";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
-import { LogOut, Menu } from "lucide-react";
-import { useVisibleNavItems } from "../../lib/nav";
+import { LogOut, Menu, ChevronDown, ShieldCheck } from "lucide-react";
+import { useNavShelves, type NavItem } from "../../lib/nav";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth, logout } from "../../lib/auth";
 import { useSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
@@ -28,7 +29,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const { data: auth, isLoading: authLoading } = useAuth();
   const { data: setup } = useSetupStatus();
   const { data: projects } = useListProjects();
-  const navItems = useVisibleNavItems();
+  // Progressive disclosure: plain PMs keep the Advanced (governance/config) shelf
+  // collapsed; admin/PMO see it expanded. The toggle lets anyone reveal it —
+  // capability is never removed, only its default visibility in the chrome.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const { primary: primaryNav, admin: adminNav, adminVisible } = useNavShelves(advancedOpen);
   const health = useHealthCheck({
     query: { queryKey: getHealthCheckQueryKey(), refetchInterval: 30_000, retry: false },
   });
@@ -119,26 +124,44 @@ export function AppLayout({ children }: { children: ReactNode }) {
     .map((s) => s[0]?.toUpperCase())
     .join("") || "ME";
 
+  // A single nav row (link + active state + chord hint + demo dot). Shared by the
+  // primary shelf and the collapsed Advanced shelf so they render identically.
+  const navRow = (item: NavItem, compact: boolean) => {
+    const Icon = item.icon;
+    const active = item.match(location);
+    const demoDot = item.href === "/setup" && setup && !setup.broker.configured;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${active ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}
+      >
+        <Icon className="w-4 h-4 mr-3" /> {t(item.i18nKey)}
+        {!compact && item.chord && <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">{item.chord}</span>}
+        {demoDot && <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" title="Running in demo mode" />}
+      </Link>
+    );
+  };
+
   // Shared nav list, rendered identically in the static desktop sidebar and the
-  // mobile drawer. `compact` drops the chord hints (meaningless on touch).
+  // mobile drawer. `compact` drops the chord hints (meaningless on touch). The
+  // everyday (primary) surfaces render flat; the heavy Advanced surfaces live in
+  // a Collapsible (a real <button> trigger → keyboard-operable for free), open by
+  // default for admin/PMO and reachable by everyone else via the toggle.
   const navList = (compact = false) => (
     <nav className="flex-1 py-4 flex flex-col gap-1 px-2 overflow-y-auto">
-      {navItems.map((item) => {
-        const Icon = item.icon;
-        const active = item.match(location);
-        const demoDot = item.href === "/setup" && setup && !setup.broker.configured;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold border border-transparent ${active ? "bg-primary/10 text-primary border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}
-          >
-            <Icon className="w-4 h-4 mr-3" /> {t(item.i18nKey)}
-            {!compact && item.chord && <span className="ml-auto text-[10px] opacity-50 bg-background px-1 border border-border">{item.chord}</span>}
-            {demoDot && <span className="ml-auto w-2 h-2 rounded-full bg-amber-500" title="Running in demo mode" />}
-          </Link>
-        );
-      })}
+      {primaryNav.map((item) => navRow(item, compact))}
+      {adminNav.length > 0 && (
+        <Collapsible open={adminVisible} onOpenChange={setAdvancedOpen} className="mt-2 pt-2 border-t border-border">
+          <CollapsibleTrigger className="flex w-full items-center px-3 py-2 text-sm uppercase tracking-wider font-semibold text-muted-foreground hover:text-foreground hover:bg-accent border border-transparent">
+            <ShieldCheck className="w-4 h-4 mr-3" /> {t("nav.advanced")}
+            <ChevronDown className={`ml-auto w-4 h-4 transition-transform ${adminVisible ? "rotate-180" : ""}`} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="flex flex-col gap-1 pt-1">
+            {adminNav.map((item) => navRow(item, compact))}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </nav>
   );
 

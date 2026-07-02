@@ -38,3 +38,24 @@ describe("rollupByProgramme", () => {
     expect(programmes[0]!.utilisation).toBeNull();
   });
 });
+
+// ── Dirty-data resilience (messy-data generator regression) ──────────────────
+describe("rollupByProgramme — dirty resource numbers", () => {
+  it("does not throw and keeps totals finite when hours arrive as string/null/NaN", () => {
+    const { programmes, portfolio } = rollupByProgramme([
+      proj({ resources: [
+        res({ assignedHours: "32" as never, availableHours: null as never, allocationPercentage: "120" as never }),
+        res({ assignedHours: NaN as never, availableHours: 40, allocationPercentage: Infinity as never }),
+        res({ assignedHours: 8, availableHours: 40 }),
+      ] }),
+    ]);
+    for (const r of [...programmes, portfolio]) {
+      expect(Number.isFinite(r.assignedHours)).toBe(true);
+      expect(Number.isFinite(r.availableHours)).toBe(true);
+      expect(r.utilisation === null || Number.isFinite(r.utilisation)).toBe(true);
+    }
+    expect(portfolio.assignedHours).toBe(40); // 32 + 0 + 8
+    expect(portfolio.availableHours).toBe(80); // 0 + 40 + 40
+    expect(portfolio.overAllocated).toBe(1); // "120" coerces > 100; Infinity is treated as 0 (dirty), so not over
+  });
+});
