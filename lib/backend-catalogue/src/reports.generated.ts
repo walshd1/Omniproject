@@ -190,6 +190,32 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ]
   },
   {
+    "id": "federated-portfolio",
+    "label": "Federated Portfolio (cross-instance)",
+    "docsUrl": "",
+    "kind": "portfolio",
+    "renderer": {
+      "engine": "builtin",
+      "component": "FederatedPortfolio"
+    },
+    "capabilities": {
+      "requiresCapability": "portfolio",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "localSummary",
+      "peerSummaries",
+      "peerStatus"
+    ],
+    "notes": "Consolidated global view across every OmniProject instance configured as a federated peer (backlog #135) — typically one per region/subsidiary under per-country data residency. Merges THIS instance's own portfolio-total aggregate with each peer's, fetched live, clearly labeled by peer/region and never blended into one number. Only pre-aggregated totals ever cross an instance boundary; an unreachable/misconfigured peer shows as unavailable rather than failing the whole view. See docs/DATA-RESIDENCY.md.",
+    "order": 91
+  },
+  {
     "id": "financial-summary",
     "label": "Financial summary",
     "docsUrl": "",

@@ -6,6 +6,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Broker-neutral naming, extended to the backend catalogue.** The `guard-broker-isolation` CI
+  check previously only scanned `artifacts/api-server/src` and `artifacts/omniproject/src`, so a
+  shared/neutral type could still quietly carry a vendor-specific name in
+  `lib/backend-catalogue/src` without CI catching it. Fixed the one instance that had (the
+  `N8nBinding` interface — renamed to `BrokerBinding`; `BackendDefinition = BackendManifest &
+  BrokerBinding`) and extended the guard to cover `lib/backend-catalogue/src` going forward, with an
+  explicit allowlist for the two sanctioned exceptions: `n8n-generator.ts` (the concrete n8n
+  blueprint generator — the equivalent of the adapter folder) and the neutral vendor-id enums
+  (`BrokerKind`, `ActionMapping["kind"]`) whose job is literally to enumerate broker/transport
+  identifiers, the same sanctioned shape as the JSON `id`/`kind` fields they mirror.
+  `*.generated.ts` files are now skipped everywhere the guard scans — they're vendor JSON embedded
+  verbatim, the same "data, not code" exception already carved out for the JSON itself.
+
 ### Added
 
 - **ERP connector: Dynamics 365 Finance & Operations, read-only (backlog #141).** A new
@@ -30,6 +45,56 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     entity/field/key name is a reference mapping, same posture as SAP/NetSuite/Planview/Primavera.
     See `docs/vendors/DYNAMICS-365-FO.md` and `docs/PARKED-DECISIONS.md` §E4 for exactly what
     still needs confirming against a real tenant before this is "supported" rather than "catalogued."
+- **Self-service custom-backend authoring in the admin UI (backlog #137).** A customer's own team
+  can now author a new backend/vendor definition through a guided form instead of hand-editing
+  `lib/backend-catalogue/vendors/backends/<id>.json`. Investigated first: the runtime-load half
+  already existed (backlog #31's `OMNI_CONFIG_DIR/vendors/backends/*.json`, validated + merged over
+  the shipped catalogue at boot by `config-dir.ts`/`vendor-overlay.ts`) — the missing piece was the
+  authoring UI, not a new persistence mechanism.
+  - `CustomBackendAdmin` (`artifacts/omniproject/src/components/settings/CustomBackendAdmin.tsx`,
+    admin-gated like every other technical-config settings surface) builds a full
+    `BackendManifest & N8nBinding` document — identity, capabilities (against the known capability
+    domains), required env, key format, the n8n per-user auth header, and all six contract actions
+    (HTTP or native n8n node, with parameters as JSON) — with a live JSON preview and inline
+    validation. "Start from" clones any shipped catalogue backend as a template; "Import file…"
+    resumes an exported or hand-written definition.
+  - `evaluateDraft` (`artifacts/omniproject/src/lib/backend-authoring.ts`) validates against the
+    *exact same* embedded JSON Schema the config-dir loader enforces
+    (`validateVendor("backends", …)` from `@workspace/backend-catalogue`, unchanged) plus a few
+    authoring-time advisories (unrecognised capability id, no actions mapped, id collides with a
+    shipped backend) — "valid in the form" ⇔ "the loader will accept it".
+  - Deliberately export-first, not a live write: the SPA downloads the validated JSON for the admin
+    to place at `$OMNI_CONFIG_DIR/vendors/backends/<id>.json` and reload/restart — writing to the
+    server's filesystem from the SPA has no place in a stateless/zero-at-rest gateway. True
+    zero-restart activation (no operator step at all) is parked — see `docs/PARKED-DECISIONS.md`
+    §F1 — pending a deliberate hot-reload design for the backend catalogue.
+- **Cross-instance portfolio federation, residency-respecting (backlog #135).** Per-country data
+  residency (backlog #97) naturally pushes a multinational toward one OmniProject instance per
+  region/subsidiary — this closes the resulting gap: no consolidated global portfolio view. A minimal,
+  stateless fan-out that respects the SAME posture as the rest of the residency story — only a
+  pre-aggregated summary ever crosses an instance boundary, never a raw project/issue record.
+  - **`PortfolioSummary`** (`artifacts/api-server/src/lib/portfolio-summary.ts`): a new portfolio-wide
+    aggregate (`summarizeHealth`/`foldFinance`/`foldCapacity`) reducing the existing per-project
+    `portfolioHealth`/`projectFinancials`/`resourceCapacity` broker reads to portfolio-total counts and
+    sums — no project id/name, programme id/name, or person's name ever survives the fold. Served at
+    `GET /portfolio/summary`, the ONE endpoint a peer instance calls.
+  - **`settings.federatedPeers: PeerInstance[]`** — the peer registry (base URL + bearer token +
+    region label per peer), admin-gated and masked on read exactly like an outbound webhook secret.
+    The token must be one of the PEER's own `API_TOKENS` (`lib/api-token.ts`) — no new cross-instance
+    auth scheme, just this instance acting as a read-only API-token client of the peer. New
+    `GET`/`PUT /api/federated-peers` routes; a masked resubmit preserves the real token.
+  - **`GET /api/federated-portfolio`** (`lib/federation.ts`) fans out live to every active peer's
+    `/portfolio/summary` and merges the result with this instance's own into one `FederatedPortfolio`:
+    `local` + a `peers` array, each entry clearly labeled by id/label/region and a `status` (`ok` /
+    `unreachable` / `unauthorized` / `error`) — never silently blended into one number. An
+    unreachable/misconfigured peer degrades to a labeled "unavailable" contribution instead of failing
+    the whole view (mirrors the outbound-webhook delivery fan-out and an FX-rate fallback).
+  - A new **Federated Portfolio** report (`FederatedPortfolio.tsx`, wired into `Reports.tsx` +
+    the report-renderer registry) surfaces the combined rollup; a **Federated peers** admin panel
+    (`FederatedPeersAdmin.tsx`, Settings page) manages the peer registry.
+  - Stateless throughout: nothing is cached beyond the peer config itself: every view re-fans-out
+    live. See `docs/DATA-RESIDENCY.md` → "Cross-instance federation" for exactly what does/doesn't
+    cross an instance boundary.
 - **Bulk feature-gating import/export (backlog #136).** The hierarchical feature-gating model
   (backlog #88 — org→programme→project `programmeFeatures`/`projectFeatures` scope config) was only
   editable one programme or project at a time; at real scale (e.g. 200 projects) that's hundreds of

@@ -2,12 +2,13 @@
  * Broker-NEUTRAL backend catalogue types.
  *
  * A `BackendManifest` describes WHAT a backend is and what it can do —
- * independent of how it is brokered. The n8n-specific transport (how each
- * contract action maps to an n8n node / HTTP call, the per-user auth expression)
- * lives separately as the `N8nBinding` in `./backend-catalogue.ts`. A concrete
+ * independent of how it is brokered. The broker-specific transport (how each
+ * contract action maps to a broker-native node / HTTP call, the per-user auth
+ * expression) lives separately as the `BrokerBinding` in `./backend-catalogue.ts`
+ * (n8n is today's reference implementation of that binding shape). A concrete
  * catalogue entry (`BackendDefinition`) is a manifest **plus** a binding.
  *
- * This is the seam to cut along when a second broker arrives: a non-n8n broker
+ * This is the seam to cut along when a second broker arrives: a different broker
  * (a DB sidecar, a bespoke HTTP service) would attach its OWN binding type to the
  * same neutral manifest, and the catalogue/UI keep working unchanged because they
  * only consume the neutral half (see `backendCatalogue`).

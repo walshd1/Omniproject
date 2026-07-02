@@ -12,9 +12,10 @@ probes your live n8n per action and shows a green/red checklist.
 
 - The backend catalogue lives in `lib/backend-catalogue/src/backend-catalogue.ts`
   (`BACKENDS`, `getBackend`, …). Each entry is a `BackendDefinition` — a
-  broker-neutral `BackendManifest` flattened together with its n8n-specific
-  `N8nBinding` (auth header / credential type / per-action node or HTTP
-  mapping). Vendor DATA isn't a literal in that file — every backend (Jira,
+  broker-neutral `BackendManifest` flattened together with its
+  `BrokerBinding` (auth header / credential type / per-action node or HTTP
+  mapping — n8n's own shape of which this generator consumes). Vendor DATA
+  isn't a literal in that file — every backend (Jira,
   OpenProject, GitHub, Asana, Dynamics 365, …) is authored as its own JSON file
   under `lib/backend-catalogue/vendors/backends/<id>.json`, validated against
   `lib/backend-catalogue/vendors/schema/backend.schema.json`, and embedded by
