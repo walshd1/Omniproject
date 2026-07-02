@@ -14,6 +14,7 @@ import {
   type EnumeratedField,
 } from "./field-registry";
 import { isTimeTravelEnabled, getSettings } from "./settings";
+import { dataResidencyEnabled, allowedRegions } from "./data-residency";
 
 /**
  * Capability signal — which data domains the wired backend(s) can populate, so
@@ -206,9 +207,14 @@ function build(
   const caps = {
     mode,
     timeTravel: isTimeTravelEnabled(),
+    // Non-sensitive residency posture (enabled + allowed region CODES, never URLs/secrets) — open to
+    // any authenticated user via /api/capabilities, unlike the admin-only /api/security/data-residency
+    // status. Lets the cross-programme resource-levelling view gate a modelled move through the SAME
+    // fail-closed policy the broker/egress hop already enforces, instead of inventing a new one.
+    residency: { enabled: dataResidencyEnabled(), allowedRegions: [...allowedRegions()] },
     fields: map.fields,
     entities: map.entities,
-  } as Capabilities;
+  } as unknown as Capabilities;
   for (const d of CAPABILITY_DOMAINS) caps[d] = !!enabled[d];
   return caps;
 }

@@ -30,7 +30,11 @@ export interface CapacityRollup {
   utilisation: number | null;
 }
 
-const STANDALONE = "__standalone__";
+/** The synthetic group key for projects with no programme. Exported so callers building on top of
+ *  the roll-up (e.g. resource-levelling's move simulation) can look up a programme's row by the same
+ *  key `rollupByProgramme` uses, instead of re-deriving the "standalone" sentinel themselves. */
+export const STANDALONE_PROGRAMME_KEY = "__standalone__";
+const STANDALONE = STANDALONE_PROGRAMME_KEY;
 
 /** Coerce a possibly-dirty resource number (string, null, NaN, Infinity) to a finite number, else 0. */
 function num(v: unknown): number {

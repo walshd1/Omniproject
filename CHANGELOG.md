@@ -6,6 +6,33 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Cross-programme / cross-border resource levelling.** A new portfolio-level report
+  (`resource-levelling`, "Cross-programme Resource Levelling") built on top of the existing
+  capacity roll-up (`rollupByProgramme`) and the what-if concurrency model's base-vs-scenario
+  pattern, so managers can ACT on the contention the roll-up already shows:
+  - `lib/resource-levelling.ts` (`levelPortfolio`) sums a person's allocation ACROSS every
+    project/programme they touch, portfolio-wide — surfacing over-allocation a single project's
+    view can't (e.g. 60%/60% across two projects, fine per-row, 120% person-wide) — and flags
+    people whose allocations span more than one programme or declared country.
+  - `skillsSupplyDemand` balances a simple skill/tag supply (available hours) vs demand (assigned
+    hours) per declared skill — deliberately a flat tag list (`ResourceCapacity.skills`, new
+    optional field), not a taxonomy system.
+  - `simulateMove` is a pure WHAT-IF (mirrors `resource-load.ts`'s `loadDeltas`: nothing written
+    back) that models shifting a slice of one resource's allocation between two projects and
+    returns the before/after `CapacityRollup` — and its over-allocation/utilisation deltas — for
+    BOTH the origin and destination programme.
+  - **Data residency**: `residencyGate` reuses the SAME allowed-region policy the broker/egress
+    hop already enforces (`artifacts/api-server/src/lib/data-residency.ts`), surfaced non-admin-safe
+    (region codes only, never URLs/secrets) via a new `Capabilities.residency` field from
+    `GET /api/capabilities`. Fail-closed: once enforcement is on, a modelled move for a resource
+    with no declared country — or one outside the allowed set — is refused, exactly like an
+    undeclared broker-endpoint region. Read-only surfacing needs no extra gate: the data already
+    passed the broker/egress residency check to reach the read model.
+  - `ResourceCapacity` gained two new optional fields (`country`, `skills`) to carry this; both
+    additive/backward-compatible.
+
 ### Documentation
 
 - **Documentation-linking and cross-reference pass.** Every doc under `docs/` is now
