@@ -400,7 +400,7 @@ jobs:
 
       - name: Upload licence SBOM
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-licences
           path: sbom-licences.json
@@ -428,7 +428,7 @@ jobs:
         run: pnpm run e2e
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: playwright-report
