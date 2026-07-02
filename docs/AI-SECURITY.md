@@ -65,10 +65,18 @@ anonymous system call:
 
 - **Containment governs actions; the prompt governs egress.** A public/remote AI sees
   whatever is sent to it.
-- The **portfolio copilot** is read-only, **egress-scoped** (only an aggregated snapshot
-  — project name, RAG, variances, blocker count — leaves; never descriptions, ids or
-  tokens) and **prompt-injection-hardened** (data framed as untrusted content, never
-  instructions; no action surface exposed to the model). `lib/copilot.ts`.
+- The **portfolio copilot**'s Q&A model call is read-only, **egress-scoped** (only an
+  aggregated snapshot — project name, RAG, variances, blocker count — leaves; never
+  descriptions, ids or tokens) and **prompt-injection-hardened** (data framed as untrusted
+  content, never instructions; no action surface exposed to that model call). `lib/copilot.ts`.
+  The copilot CHAT surface additionally offers action-invocation: every message is first
+  tried against the SAME NL→action planner and governed action catalogue the command
+  palette uses (below) — a recognised action shows the identical confirm-before-execute
+  card and runs through the identical MCP write path on confirm; anything the planner
+  doesn't recognise falls straight through to the read-only Q&A answer above. The copilot
+  has no action-matching or write path of its own — it is another entry point into the one
+  the NL→action planner and MCP executor already enforce. `components/settings/Copilot.tsx`,
+  `components/ActionPlanCard.tsx`.
 - **Dictation is local-first** — the device's own speech engine; audio never leaves the
   machine. `components/DictateButton.tsx`.
 - **Prompt DLP redaction (opt-in)** — with `AI_DLP_REDACT=true`, prompt content is masked for
