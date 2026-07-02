@@ -167,6 +167,22 @@ store. Only the no-backend-field fallback needs the encrypted, short-lived, hash
 backend field; ship the local-store fallback **off by default**, encrypted, disclaimed, customer-owned.
 Larger than a report and touches the write path — worth doing deliberately, not blind. Wants your go.
 
+### E4. Dynamics 365 Finance & Operations connector — catalogued, not tenant-verified (backlog #141)
+**What:** `dynamics365-fo` (`lib/backend-catalogue/vendors/backends/dynamics365-fo.json`) — a
+capability-honest, catalogued read backend for D365 F&O's Project Management and Accounting module
+(distinct from the existing `dynamics365` = Project Operations/Dataverse entry). Real F&O OData entities
+(`ProjectsV2`, `ProjectTasks`, `ProjProposalCost`, `ProjCostTrans`), sourced and cross-checked against
+Microsoft's Common Data Model schema docs. Full detail: `docs/vendors/DYNAMICS-365-FO.md`.
+**Why parked (as "supported," not "catalogued"):** this environment has no live F&O tenant to test
+against — same posture as SAP/NetSuite/Planview/Primavera already in the catalogue, all of which carry
+a "confirm against your instance" caveat, just made explicit here because it's a brand-new entry rather
+than an established one. Schema-valid, typechecked, passes the full bundled-backends stress harness, and
+`generateWorkflow()` produces a real n8n scaffold — but no request has ever round-tripped a real tenant.
+**Recommendation:** treat as catalogued/available-to-select, not marketed as "certified." Before calling
+it supported: verify the entity names + `ProjectTasks` composite-key shape against a real environment's
+`/data/$metadata`, confirm the Azure AD OAuth2 app-registration scopes, and run the generated workflow
+against that tenant end-to-end.
+
 ---
 
 ## D. Already covered / not needed (recorded so we don't re-litigate)

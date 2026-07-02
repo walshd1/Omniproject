@@ -760,6 +760,39 @@ test("generateWorkflow: SAP uses an n8n-managed OAuth credential over HTTP", () 
   assert.ok(list?.credentials && "oAuth2Api" in (list.credentials as Record<string, unknown>));
 });
 
+test("Dynamics 365 F&O is a DISTINCT product from Project Operations (dynamics365) — different env, different credential", () => {
+  const fo = getBackend("dynamics365-fo")!;
+  const po = getBackend("dynamics365")!;
+  assert.notEqual(fo.credentialType, po.credentialType, "F&O is not reached over Dataverse OAuth — it must not share the Project Operations credential type");
+  assert.equal(fo.credentialType, "oAuth2Api", "F&O has no n8n-managed Dataverse credential; it's a generic OAuth2 app registration");
+  assert.deepEqual(fo.requiredEnv, ["D365FO_URL", "D365FO_COMPANY"]);
+  assert.notDeepEqual(fo.requiredEnv, po.requiredEnv);
+  // Capability-honest: F&O is finance-first (no backlog/baseline/RAID), unlike some task-first PPM tools.
+  assert.equal(fo.capabilities.financials, true);
+  assert.equal(fo.capabilities.baseline, false);
+  assert.equal(fo.capabilities.raid, false);
+});
+
+test("generateWorkflow: Dynamics 365 F&O uses a generic OAuth2 credential over HTTP (not the Dataverse-specific one)", () => {
+  const wf = generateWorkflow(getBackend("dynamics365-fo")!);
+  const list = wf.nodes.find((n) => n.name === "List Projects");
+  assert.equal(list?.type, "n8n-nodes-base.httpRequest");
+  assert.equal((list?.parameters as { authentication?: string }).authentication, "predefinedCredentialType");
+  assert.equal((list?.parameters as { nodeCredentialType?: string }).nodeCredentialType, "oAuth2Api");
+  assert.ok(list?.credentials && "oAuth2Api" in (list.credentials as Record<string, unknown>));
+  assert.doesNotThrow(() => JSON.stringify(wf));
+});
+
+test("certify Dynamics 365 F&O: list URLs resolve to the real F&O OData Web API", () => {
+  const fo = getBackend("dynamics365-fo")!;
+  const ctx = { env: { D365FO_URL: "https://acme.operations.dynamics.com", D365FO_COMPANY: "USMF" }, payload: { projectId: "PROJ-1", issueId: "TASK-1" } };
+  assert.equal(resolveTemplate(fo.actions.list_projects!.url!, ctx), "https://acme.operations.dynamics.com/data/ProjectsV2?cross-company=true");
+  assert.equal(
+    resolveTemplate(fo.actions.list_issues!.url!, ctx),
+    "https://acme.operations.dynamics.com/data/ProjectTasks?cross-company=true&$filter=ProjectId eq 'PROJ-1'",
+  );
+});
+
 // ── Backend mapping certification (offline) ────────────────────────────────────
 const CERT_CTX = {
   env: { OPENPROJECT_INSTANCE_URL: "https://op.acme.io" },
@@ -1116,6 +1149,7 @@ test("backends: enterprise tier flags SAP/Primavera/Dynamics, not Jira", () => {
   assert.equal(isEnterpriseBackend("sap"), true);
   assert.equal(isEnterpriseBackend("primavera"), true);
   assert.equal(isEnterpriseBackend("dynamics365"), true);
+  assert.equal(isEnterpriseBackend("dynamics365-fo"), true);
   assert.equal(isEnterpriseBackend("jira"), false);
   assert.equal(isEnterpriseBackend("openproject"), false);
 });

@@ -107,4 +107,17 @@ export interface BackendManifest {
     toCanonical: Record<string, string>;
     fromCanonical?: Record<string, string>;
   };
+  /**
+   * Canonical fields this backend CONTRIBUTES to the superset (validated against
+   * assets/schema/field.schema.json by gen-fields and merged in, dedup by key). Use
+   * when a backend exposes a field not yet in the registry.
+   */
+  fields?: Array<Record<string, unknown>>;
+  /**
+   * Canonical field keys this backend REFERENCES/exposes — MUST be a strict subset
+   * of the superset, enforced by the `guard-superset` CI check (scripts/src/guard-superset.ts).
+   * Documents which canonical fields a real integration against this backend would
+   * actually populate, without duplicating field definitions already in the registry.
+   */
+  fieldKeys?: string[];
 }
