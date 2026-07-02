@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omniproject.dev/assets/dashboard-preset.schema.json",
+  "title": "OmniProject dashboard preset",
+  "description": "A ready-made, role-tailored \"what needs me today\" dashboard. One file per preset under assets/dashboard-presets/<id>.json. Each preset assembles EXISTING widget `type`s (assets/widgets) into a layout; applying it mints a fresh dashboard for the user. Presets read through the existing read-model widgets only — no new write paths.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "role", "name", "summary", "widgets"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "Unique preset id; equals the filename." },
+    "role": { "enum": ["head-of-projects", "programme-manager", "project-manager"], "description": "The role persona this preset is tailored to (drives the suggested default)." },
+    "name": { "type": "string", "description": "The dashboard name minted when the preset is applied." },
+    "summary": { "type": "string", "description": "One line describing the \"what needs me today\" lens, shown in the preset picker." },
+    "order": { "type": "integer", "description": "Display order in the preset picker." },
+    "widgets": {
+      "type": "array",
+      "description": "The placed widgets, in order. Each `type` MUST be a real widget type (assets/widgets) — enforced by the preset-coverage guard.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string", "pattern": "^[a-zA-Z0-9]+$", "description": "A widget type from the widget catalogue." },
+          "span": { "enum": [1, 2, 3], "description": "Column span (1–3); defaults to the widget's defaultSpan when omitted." },
+          "title": { "type": "string", "description": "Optional override title for this placed widget." }
+        }
+      }
+    }
+  }
+}

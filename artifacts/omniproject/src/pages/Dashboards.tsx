@@ -7,6 +7,8 @@ import {
   useDashboards,
   useSaveDashboards,
   availableWidgets,
+  availablePresets,
+  dashboardFromPreset,
   widgetDef,
   clampSpan,
   type Dashboard,
@@ -57,6 +59,12 @@ export function Dashboards() {
 
   const catalogue = useMemo(
     () => availableWidgets((entity) => canSurfaceEntity(caps, entity)),
+    [caps],
+  );
+
+  // Role-tailored "what needs me today" presets whose every widget this backend can surface.
+  const presets = useMemo(
+    () => availablePresets((entity) => canSurfaceEntity(caps, entity)),
     [caps],
   );
 
@@ -114,6 +122,16 @@ export function Dashboards() {
     persist((dashboards ?? []).filter((d) => d.id !== active.id));
     setActiveId(null);
     cancelEdit();
+  }
+
+  /** Apply a role-tailored preset — mint a fresh dashboard from it, persist, and select it. Uses the
+   *  same save path as import/create; presets read through the existing read-model widgets only. */
+  function applyPreset(presetId: string) {
+    const preset = presets.find((p) => p.id === presetId);
+    if (!preset) return;
+    const dash: Dashboard = { ...dashboardFromPreset(preset), id: crypto.randomUUID() };
+    persist([...(dashboards ?? []), dash]);
+    setActiveId(dash.id);
   }
 
   /** Import a dashboard file — validate, mint a fresh id, persist, and select it. */
@@ -183,6 +201,20 @@ export function Dashboards() {
             <button onClick={() => fileRef.current?.click()} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Import</button>
             <input ref={fileRef} type="file" accept="application/json,.json" className="sr-only" aria-label="Import dashboard file"
               onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = ""; }} />
+            {presets.length > 0 && (
+              <select
+                aria-label="Apply a preset"
+                title="Apply a role-tailored “what needs me today” preset"
+                className="border-2 border-foreground bg-background px-2 py-1 text-sm"
+                value=""
+                onChange={(e) => { if (e.target.value) { applyPreset(e.target.value); e.target.value = ""; } }}
+              >
+                <option value="">Apply a preset…</option>
+                {presets.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
             {importError && <span role="alert" className="text-xs font-bold text-red-500">{importError}</span>}
             {liveMs > 0 && (
               <span data-testid="dashboard-live" className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-green-600">
@@ -229,9 +261,26 @@ export function Dashboards() {
       <div className="flex-1 p-8 overflow-auto">
         <DataState isLoading={isLoading} isError={isError} error={error} onRetry={refetch}>
           {!active ? (
-            <p className="text-sm text-muted-foreground" data-testid="dashboards-empty">
-              No dashboards yet. Click <span className="font-bold">New</span> to build one from the widget catalogue.
-            </p>
+            <div data-testid="dashboards-empty" className="max-w-3xl">
+              <p className="text-sm text-muted-foreground">
+                No dashboards yet. Start from a role-tailored <span className="font-bold">“what needs me today”</span> preset,
+                or click <span className="font-bold">New</span> to build one from the widget catalogue.
+              </p>
+              {presets.length > 0 && (
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3" data-testid="preset-suggestions">
+                  {presets.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => applyPreset(p.id)}
+                      className="text-left border-2 border-foreground p-3 hover:bg-foreground hover:text-background transition-colors"
+                    >
+                      <span className="block text-sm font-black uppercase tracking-tight">{p.name}</span>
+                      <span className="block mt-1 text-xs text-muted-foreground group-hover:text-background">{p.summary}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : active.widgets.length === 0 ? (
             <p className="text-sm text-muted-foreground" data-testid="dashboard-empty">
               This dashboard has no widgets. {editing ? "Use “Add widget” above." : "Edit it to add some."}

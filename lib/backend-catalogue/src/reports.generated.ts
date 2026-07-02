@@ -92,6 +92,38 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "order": 35
   },
   {
+    "id": "cross-programme-dependencies",
+    "label": "Cross-programme Dependencies",
+    "docsUrl": "",
+    "kind": "schedule",
+    "renderer": {
+      "engine": "builtin",
+      "component": "CrossProgrammeDependencies"
+    },
+    "capabilities": {
+      "requiresCapability": "scheduling",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "dependsOn",
+      "parentTask",
+      "programmeId",
+      "criticalPath",
+      "crossProgrammeEdges"
+    ],
+    "notes": "Cross-programme dependency graph + critical path, derived live from depends-on links and dates. Stateless.",
+    "order": 15,
+    "methodologies": [
+      "waterfall",
+      "prince2"
+    ]
+  },
+  {
     "id": "cumulative-flow",
     "label": "Cumulative flow",
     "docsUrl": "",

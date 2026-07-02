@@ -32,6 +32,12 @@ export interface CapacityRollup {
 
 const STANDALONE = "__standalone__";
 
+/** Coerce a possibly-dirty resource number (string, null, NaN, Infinity) to a finite number, else 0. */
+function num(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function blank(key: string, label: string): CapacityRollup {
   return { key, label, projects: 0, allocations: 0, overAllocated: 0, assignedHours: 0, availableHours: 0, utilisation: null };
 }
@@ -40,10 +46,12 @@ function blank(key: string, label: string): CapacityRollup {
 function fold(acc: CapacityRollup, p: ProjectCapacity): void {
   acc.projects += 1;
   for (const r of p.resources) {
+    // Resource hours/percentages come from the untrusted read model — coerce so a string/null/NaN
+    // can't poison the summed totals (a single NaN would turn the whole roll-up into NaN).
     acc.allocations += 1;
-    if (r.allocationPercentage > 100) acc.overAllocated += 1;
-    acc.assignedHours += r.assignedHours;
-    acc.availableHours += r.availableHours;
+    if (num(r.allocationPercentage) > 100) acc.overAllocated += 1;
+    acc.assignedHours += num(r.assignedHours);
+    acc.availableHours += num(r.availableHours);
   }
 }
 
@@ -66,6 +74,7 @@ export function rollupByProgramme(projects: ProjectCapacity[]): { programmes: Ca
     fold(portfolio, p);
   }
   const programmes = [...groups.values()].map(withUtilisation)
-    .sort((a, b) => (b.utilisation ?? -1) - (a.utilisation ?? -1));
+    // key (the programmeId) is unique per group ⇒ deterministic order for equal utilisation.
+    .sort((a, b) => (b.utilisation ?? -1) - (a.utilisation ?? -1) || a.key.localeCompare(b.key));
   return { programmes, portfolio: withUtilisation(portfolio) };
 }
