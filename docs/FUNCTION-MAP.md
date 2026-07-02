@@ -1328,6 +1328,21 @@ Live collaboration presence hub (Server-Sent Events).
 | `closeAllPresence` | Close every live presence stream and forget them — used on graceful shutdown. |
 | `_resetPresenceForTest` | Test reset hook — drop all presence state without touching connections. |
 
+### `artifacts/api-server/src/lib/proactive-digest.ts`
+
+Proactive "what needs me" digest.
+
+| Function | What it does |
+| --- | --- |
+| `getDigestThresholds` | The thresholds the digest currently runs with. |
+| `setDigestThresholds` | Tune the thresholds. |
+| `__resetDigestThresholds` | Test-only: restore default thresholds. |
+| `buildProactiveDigest` | Build the "what needs me" digest from portfolio rows (PURE). |
+| `runProactiveDigest` | Read the portfolio under a keyed autonomous principal, build the "what needs me" digest, and dispatch it over the notify bus (kind "digest") targeted at the recipient role — unless it's empty (then it's skipped, so a healthy portfolio never pings). |
+| `digestIntervalHours` | The configured cadence in hours: the env override when a valid non-negative number, else the weekly default. |
+| `startProactiveDigestScheduler` | Start the in-process digest timer (single-instance / homelab). |
+| `__stopProactiveDigestScheduler` | Test-only: stop the timer. |
+
 ### `artifacts/api-server/src/lib/programmes.ts`
 
 Programmes are a grouping of related projects, **derived** from each project's optional `programmeId` (owned by the backend).
@@ -1922,7 +1937,7 @@ The only context fields a governance rule may reference — the facts evaluable 
 
 ### `artifacts/api-server/src/routes/health-watch.ts`
 
-Health / anomaly watch + executive digest — the scheduled, read-only autonomous jobs.
+Health / anomaly watch + executive & proactive digests — the scheduled, read-only autonomous jobs.
 
 ### `artifacts/api-server/src/routes/health.ts`
 

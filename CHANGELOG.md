@@ -59,6 +59,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Proactive "what needs me" digest (opt-out).** The overworked PM/PgM lives in email/Slack/Teams, not
+  in a dashboard tab — so the product now PUSHES a concise, role-aware roll-up of what actually needs them
+  (at-risk amber/red projects, active blockers, overdue/slipping schedules, budget breaches), prioritised
+  and bounded, to where they already are. A **pure** digest builder (`buildProactiveDigest`) derives it
+  over the portfolio read model — deterministic, testable, and aggregates-only (it names the projects the
+  recipient already governs, never task ids or detail). It dispatches through the existing notification
+  seam: a new **`digest` notification kind** (in the kind registry) plus a **default route**
+  (`assets/notification-routes/digest.json`) fan it out to email + team chat for the `manager` audience,
+  reusing the generic dispatch/routing — no new egress path, no bypassed seam. The scheduled run mints the
+  keyed, short-lived, viewer-roled `automation:proactive-digest` principal (same mechanism as health-watch
+  / the exec digest), reads the portfolio read-only, and is audited. **ON by a safe weekly default**
+  (`PROACTIVE_DIGEST_INTERVAL_HOURS=0` opts out; a fleet drives `POST /api/admin/proactive-digest/run` from
+  external cron so it fires once), with configurable thresholds. A **healthy portfolio yields an empty
+  digest that is skipped**, so "on by default" is never "noise by default."
 - **Role-tailored persona dashboards — the "what needs me today" view (#103).** A busy PM has minutes
   between meetings and wants ONE screen answering "what needs me today", not another blank dashboard to
   build. Ships a catalogue of **preset dashboards**, one per role persona (head-of-projects /
