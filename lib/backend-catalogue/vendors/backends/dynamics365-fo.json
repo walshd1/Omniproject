@@ -1,0 +1,83 @@
+{
+  "actions": {
+    "create_issue": {
+      "body": "={{ JSON.stringify({ dataAreaId: $env.D365FO_COMPANY, ProjectId: $json.body.payload.projectId, ProjectTaskName: $json.body.payload.title }) }}",
+      "method": "POST",
+      "note": "F&O is multi-company: writes must target a legal entity (dataAreaId). D365FO_COMPANY is the operator's chosen default company — confirm the ProjectTasks composite key shape against your environment's /data/$metadata.",
+      "url": "={{ $env.D365FO_URL }}/data/ProjectTasks"
+    },
+    "delete_issue": {
+      "method": "DELETE",
+      "note": "Composite key shown is a reference mapping (dataAreaId + ProjectId + ProjectTaskId) — confirm the exact key segment names/order against your environment's /data/$metadata.",
+      "url": "={{ $env.D365FO_URL }}/data/ProjectTasks(dataAreaId='{{ $env.D365FO_COMPANY }}',ProjectId='{{ $json.body.payload.projectId }}',ProjectTaskId='{{ $json.body.payload.issueId }}')"
+    },
+    "list_issues": {
+      "method": "GET",
+      "note": "ProjectTasks = the WBS/task lines under a project (the closest F&O analogue to an issue — there is no Jira-style backlog). cross-company=true so the read isn't scoped to one legal entity.",
+      "url": "={{ $env.D365FO_URL }}/data/ProjectTasks?cross-company=true&$filter=ProjectId eq '{{ $json.body.payload.projectId }}'"
+    },
+    "list_projects": {
+      "method": "GET",
+      "note": "ProjectsV2 is the OData entity set for the project header (data entity ProjProjectV2Entity, table ProjTable).",
+      "url": "={{ $env.D365FO_URL }}/data/ProjectsV2?cross-company=true"
+    },
+    "update_issue": {
+      "body": "={{ JSON.stringify({ ProjectTaskName: $json.body.payload.title }) }}",
+      "method": "PATCH",
+      "note": "Composite key shown is a reference mapping — confirm against your environment's /data/$metadata.",
+      "url": "={{ $env.D365FO_URL }}/data/ProjectTasks(dataAreaId='{{ $env.D365FO_COMPANY }}',ProjectId='{{ $json.body.payload.projectId }}',ProjectTaskId='{{ $json.body.payload.issueId }}')"
+    }
+  },
+  "authHeader": "",
+  "capabilities": {
+    "baseline": false,
+    "blockers": false,
+    "financials": true,
+    "history": false,
+    "issues": true,
+    "portfolio": false,
+    "raid": false,
+    "resources": false,
+    "scheduling": true
+  },
+  "credentialType": "oAuth2Api",
+  "docsUrl": "https://learn.microsoft.com/en-us/dynamics365/project-operations/prod-pma/overview-project-management-accounting",
+  "fieldKeys": [
+    "title",
+    "status",
+    "description",
+    "assignee",
+    "priority",
+    "startDate",
+    "dueDate",
+    "actualStart",
+    "actualFinish",
+    "percentWorkComplete",
+    "completionPct",
+    "budget",
+    "plannedCost",
+    "actualCost",
+    "currency",
+    "costCenter",
+    "committedCost",
+    "revenue",
+    "margin",
+    "capitalised",
+    "expenditureType",
+    "capexAmount",
+    "opexAmount",
+    "costCategory",
+    "wbsCode",
+    "purchaseOrder",
+    "costRate",
+    "billRate"
+  ],
+  "id": "dynamics365-fo",
+  "label": "Microsoft Dynamics 365 Finance & Operations (Project Management and Accounting)",
+  "notes": "NOT the same product as the sibling 'dynamics365' backend (Project Operations on Dataverse) — this is the classic Finance & Operations (F&O, formerly AX) Project Management and Accounting (PMA) module, reached over its own OData Web API, finance-first rather than task-first. Real, documented entities this binding maps (Microsoft Common Data Model schema + F&O OData docs): ProjectsV2 (OData set for the project header; data entity ProjProjectV2Entity, table ProjTable) -> project; ProjectTasks (WBS/task lines) -> issue. Financials are backed by ProjProposalCost (budget/estimate lines) for budget/plannedCost, ProjCostTrans (posted actual-cost transactions) for actualCost/costCategory, and F&O's standard financial dimensions (e.g. the CostCenter dimension) for costCenter; capex/opex fields reflect F&O's project capitalisation feature (investment/asset-related projects). PMA has no Jira-style backlog, EVM baseline, or RAID log, so those capabilities are honestly declared off — resource assignment exists in the product but has no entity confirmed here, so 'resources' is also off pending verification. Auth is Azure AD OAuth2 against the F&O environment's own app registration — configured as a generic n8n OAuth2 credential, NOT n8n's Dataverse-specific 'Microsoft Dynamics 365' credential (that one only reaches Dataverse/CRM, not F&O). D365FO_URL is the environment root, e.g. https://yourorg.operations.dynamics.com; D365FO_COMPANY is the legal entity (dataAreaId) writes are scoped to. CATALOGUED, NOT VERIFIED: every entity/field/composite-key name here is a reference mapping sourced from Microsoft's public Common Data Model schema docs and community references, not a live tenant — confirm every path against your own environment's /data/$metadata before relying on this as more than a catalogued starting point (see docs/vendors/DYNAMICS-365-FO.md).",
+  "requiredEnv": [
+    "D365FO_URL",
+    "D365FO_COMPANY"
+  ],
+  "via": "HTTP (F&O OData v4 Web API) + Azure AD OAuth2 (generic n8n OAuth2 credential)"
+}

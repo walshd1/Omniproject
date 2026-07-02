@@ -6,6 +6,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Broker-neutral naming, extended to the backend catalogue.** The `guard-broker-isolation` CI
+  check previously only scanned `artifacts/api-server/src` and `artifacts/omniproject/src`, so a
+  shared/neutral type could still quietly carry a vendor-specific name in
+  `lib/backend-catalogue/src` without CI catching it. Fixed the one instance that had (the
+  `N8nBinding` interface — renamed to `BrokerBinding`; `BackendDefinition = BackendManifest &
+  BrokerBinding`) and extended the guard to cover `lib/backend-catalogue/src` going forward, with an
+  explicit allowlist for the two sanctioned exceptions: `n8n-generator.ts` (the concrete n8n
+  blueprint generator — the equivalent of the adapter folder) and the neutral vendor-id enums
+  (`BrokerKind`, `ActionMapping["kind"]`) whose job is literally to enumerate broker/transport
+  identifiers, the same sanctioned shape as the JSON `id`/`kind` fields they mirror.
+  `*.generated.ts` files are now skipped everywhere the guard scans — they're vendor JSON embedded
+  verbatim, the same "data, not code" exception already carved out for the JSON itself.
+
 ### Added
 
 - **ERP connector: Oracle Fusion Cloud ERP read-only broker adapter (backlog #139).**
@@ -36,6 +51,51 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
     See [docs/vendors/ORACLE-FUSION-ERP.md](docs/vendors/ORACLE-FUSION-ERP.md)
     for exactly what's mapped, the cited REST resource paths, and what a
     maintainer must confirm against a live pod before calling it "supported."
+- **ERP connector: Dynamics 365 Finance & Operations, read-only (backlog #141).** A new
+  catalogued backend, `dynamics365-fo` (`lib/backend-catalogue/vendors/backends/dynamics365-fo.json`),
+  for D365 Finance & Operations' Project Management and Accounting module — distinct from the
+  existing `dynamics365` entry (Project Operations on Dataverse): different OData Web API,
+  different credential (generic OAuth2, not n8n's Dataverse-specific one), finance-first rather
+  than task-first.
+  - Maps real, documented F&O entities (Microsoft Common Data Model schema): `ProjectsV2` →
+    project, `ProjectTasks` (WBS lines) → issue, `ProjProposalCost` (budget/estimate) and
+    `ProjCostTrans` (posted actual cost) back the `financials` capability. Reuses existing
+    canonical fields (`budget`, `plannedCost`, `actualCost`, `currency`, `costCenter`, …) via the
+    `fieldKeys` mechanism — the first vendor to use it — validated against the superset by
+    `guard-superset` (`BackendManifest` gained the matching `fields`/`fieldKeys` optional
+    properties, previously schema-only and untyped).
+  - Capability-honest: only `financials`/`issues`/`scheduling` are declared — `baseline`, `raid`,
+    `resources` and `portfolio` are explicitly left off pending a confirmed entity, rather than
+    guessed at. Added to the enterprise tier (`isEnterpriseBackend`) alongside SAP/NetSuite/Planview.
+  - `generateWorkflow()` verified to produce a real, importable n8n scaffold (all 5 contract
+    actions wired as HTTP-request nodes) — see `artifacts/n8n-blueprints/generated/omniproject-dynamics365-fo.json`.
+  - **Catalogued, not tenant-verified**: no live F&O tenant was available to test against; every
+    entity/field/key name is a reference mapping, same posture as SAP/NetSuite/Planview/Primavera.
+    See `docs/vendors/DYNAMICS-365-FO.md` and `docs/PARKED-DECISIONS.md` §E4 for exactly what
+    still needs confirming against a real tenant before this is "supported" rather than "catalogued."
+- **Self-service custom-backend authoring in the admin UI (backlog #137).** A customer's own team
+  can now author a new backend/vendor definition through a guided form instead of hand-editing
+  `lib/backend-catalogue/vendors/backends/<id>.json`. Investigated first: the runtime-load half
+  already existed (backlog #31's `OMNI_CONFIG_DIR/vendors/backends/*.json`, validated + merged over
+  the shipped catalogue at boot by `config-dir.ts`/`vendor-overlay.ts`) — the missing piece was the
+  authoring UI, not a new persistence mechanism.
+  - `CustomBackendAdmin` (`artifacts/omniproject/src/components/settings/CustomBackendAdmin.tsx`,
+    admin-gated like every other technical-config settings surface) builds a full
+    `BackendManifest & N8nBinding` document — identity, capabilities (against the known capability
+    domains), required env, key format, the n8n per-user auth header, and all six contract actions
+    (HTTP or native n8n node, with parameters as JSON) — with a live JSON preview and inline
+    validation. "Start from" clones any shipped catalogue backend as a template; "Import file…"
+    resumes an exported or hand-written definition.
+  - `evaluateDraft` (`artifacts/omniproject/src/lib/backend-authoring.ts`) validates against the
+    *exact same* embedded JSON Schema the config-dir loader enforces
+    (`validateVendor("backends", …)` from `@workspace/backend-catalogue`, unchanged) plus a few
+    authoring-time advisories (unrecognised capability id, no actions mapped, id collides with a
+    shipped backend) — "valid in the form" ⇔ "the loader will accept it".
+  - Deliberately export-first, not a live write: the SPA downloads the validated JSON for the admin
+    to place at `$OMNI_CONFIG_DIR/vendors/backends/<id>.json` and reload/restart — writing to the
+    server's filesystem from the SPA has no place in a stateless/zero-at-rest gateway. True
+    zero-restart activation (no operator step at all) is parked — see `docs/PARKED-DECISIONS.md`
+    §F1 — pending a deliberate hot-reload design for the backend catalogue.
 - **Cross-instance portfolio federation, residency-respecting (backlog #135).** Per-country data
   residency (backlog #97) naturally pushes a multinational toward one OmniProject instance per
   region/subsidiary — this closes the resulting gap: no consolidated global portfolio view. A minimal,

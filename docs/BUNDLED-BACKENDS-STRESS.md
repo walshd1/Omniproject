@@ -80,6 +80,7 @@ All 39 backends **PASS** every assertion. `acts` = contract actions mapped;
 | celoxis | live | 5 | 5 | per-user | ✅ | ✅ | ✅ | ✅ | PASS |
 | clickup | live | 5 | 2 | apiKey | ✅ | ✅ | ✅ | ✅ | PASS |
 | dolibarr | live | 5 | 3 | apiKey | ✅ | ✅ | ✅ | ✅ | PASS |
+| dynamics365-fo | live | 5 | 3 | oauth2 | ✅ | ✅ | ✅ | ✅ | PASS |
 | dynamics365-sales | live | 5 | 4 | oauth2 | ✅ | ✅ | ✅ | ✅ | PASS |
 | dynamics365 | live | 5 | 6 | oauth2 | ✅ | ✅ | ✅ | ✅ | PASS |
 | enterprise | live | 5 | 2 | apiKey | ✅ | ✅ | ✅ | ✅ | PASS |
@@ -133,7 +134,7 @@ the catalogue internally consistent. The harness is the standing regression guar
 
 | # | Class | Severity | Location | Repro | Status |
 | --- | --- | --- | --- | --- | --- |
-| F1 | Consistency (verified clean) | info | all 38 `lib/backend-catalogue/vendors/backends/*.json` | Harness `backend[*]: capability + transport mapping is internally consistent` | **PASS** — every live/database backend maps the read contract, resolves a real key scheme, and its broker set matches `brokersForTransport`. |
+| F1 | Consistency (verified clean) | info | all 39 `lib/backend-catalogue/vendors/backends/*.json` | Harness `backend[*]: capability + transport mapping is internally consistent` | **PASS** — every live/database backend maps the read contract, resolves a real key scheme, and its broker set matches `brokersForTransport`. |
 | F2 | Gating (verified clean) | info | `artifacts/api-server/src/broker/vendor-profile.ts:47` | Harness `backend[*]: demo-AS-vendor spoof GATES the surface` | **PASS** — the spoof exposes exactly the vendor's declared domains and never surfaces `-demo` over real data. |
 | F3 | Reconciliation (hardening) | low | `artifacts/api-server/src/lib/field-registry.ts:51` `reconcileFields` | Harness `reconcile: an ADVERSARIAL describe … never crashes` | **PASS** — added a crash-proof regression over dupe/empty/garbage enumeration input (previously only the happy path was tested). |
 
