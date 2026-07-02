@@ -821,6 +821,7 @@ const SAMPLE_SETTINGS = {
   branding: null,
   labelOverrides: {},
   webhooks: [],
+  federatedPeers: [],
   loggingSync: { enabled: false, url: null, acknowledgedWarranty: false },
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},

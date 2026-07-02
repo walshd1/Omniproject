@@ -666,6 +666,44 @@ paths:
                 items:
                   $ref: "#/components/schemas/PortfolioHealthSummary"
 
+  /portfolio/summary:
+    get:
+      operationId: getPortfolioSummary
+      tags: [projects]
+      summary: This instance's own pre-aggregated portfolio totals (backlog #135 federation)
+      description: >-
+        Portfolio-wide totals only (RAG counts + variance/blocker averages, a consolidated finance
+        total, a consolidated capacity total) — never per-project or per-programme detail. This is
+        the ONE endpoint a federated peer instance calls (see FEDERATED_PEERS / settings.federatedPeers
+        and docs/DATA-RESIDENCY.md): a bearer token that is one of this instance's own API_TOKENS
+        grants read-only access, exactly like any other read-only API-token consumer.
+      responses:
+        "200":
+          description: Portfolio-wide aggregate totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioSummary"
+
+  /federated-portfolio:
+    get:
+      operationId: getFederatedPortfolio
+      tags: [projects]
+      summary: This instance's portfolio summary merged with every configured peer's (backlog #135)
+      description: >-
+        Fans out live to every ACTIVE peer in settings.federatedPeers (GET their own /portfolio/summary
+        with the configured bearer token) and returns this instance's own summary alongside each peer's,
+        clearly labeled by peer id/label/region — never blended into one number. An unreachable or
+        misconfigured peer degrades to a labeled "unavailable" contribution instead of failing the
+        whole view. Nothing is cached; every call re-fans-out.
+      responses:
+        "200":
+          description: The combined federated portfolio view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FederatedPortfolio"
+
   /activity:
     get:
       operationId: listActivity
@@ -1620,6 +1658,142 @@ components:
         - scheduleVarianceDays
         - budgetVariancePercentage
         - activeBlockersCount
+
+    RagCounts:
+      type: object
+      description: RAG (red/amber/green) distribution across the portfolio's projects.
+      properties:
+        green:
+          type: integer
+        amber:
+          type: integer
+        red:
+          type: integer
+        other:
+          type: integer
+          description: A ragStatus value the broker reported that isn't one of green/amber/red.
+      required: [green, amber, red, other]
+
+    HealthTotals:
+      type: object
+      description: Portfolio-wide totals derived from the same rows GET /portfolio/health serves, with every per-project identifier folded away.
+      properties:
+        projects:
+          type: integer
+        rag:
+          $ref: "#/components/schemas/RagCounts"
+        avgScheduleVarianceDays:
+          type: ["number", "null"]
+        avgBudgetVariancePercentage:
+          type: ["number", "null"]
+        totalActiveBlockers:
+          type: integer
+      required: [projects, rag, avgScheduleVarianceDays, avgBudgetVariancePercentage, totalActiveBlockers]
+
+    FinanceTotals:
+      type: object
+      description: >-
+        The portfolio-total row of the finance roll-up (see artifacts/omniproject/src/lib/portfolio-finance.ts
+        FinanceRollup) — programme/project breakdown is deliberately dropped for federation.
+      properties:
+        currency:
+          type: string
+          description: The reporting currency every amount below is converted into.
+        budget:
+          type: number
+        actual:
+          type: number
+        forecast:
+          type: number
+        earnedValue:
+          type: number
+        variance:
+          type: number
+        cpi:
+          type: ["number", "null"]
+      required: [currency, budget, actual, forecast, earnedValue, variance, cpi]
+
+    CapacityTotals:
+      type: object
+      description: >-
+        The portfolio-total row of the capacity roll-up (see artifacts/omniproject/src/lib/capacity-rollup.ts
+        CapacityRollup) — programme/project breakdown is deliberately dropped for federation.
+      properties:
+        allocations:
+          type: integer
+        overAllocated:
+          type: integer
+        assignedHours:
+          type: number
+        availableHours:
+          type: number
+        utilisation:
+          type: ["number", "null"]
+      required: [allocations, overAllocated, assignedHours, availableHours, utilisation]
+
+    PortfolioSummary:
+      type: object
+      description: >-
+        The ONE aggregate shape allowed to cross an instance boundary for federation (backlog #135).
+        Every field is a portfolio-level total or count — never a project/programme id or name. A
+        section is null when the connected backend doesn't declare the matching capability.
+      properties:
+        projects:
+          type: integer
+        health:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/HealthTotals" }]
+        finance:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/FinanceTotals" }]
+        capacity:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/CapacityTotals" }]
+      required: [projects, health, finance, capacity]
+
+    PeerPortfolioResult:
+      type: object
+      description: One configured peer's contribution to a federated view — always separately labeled, never blended into the local total.
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        region:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [ok, unreachable, unauthorized, error]
+        summary:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/PortfolioSummary" }]
+        error:
+          type: string
+        ms:
+          type: integer
+      required: [id, label, region, status, summary, ms]
+
+    FederatedPortfolio:
+      type: object
+      description: This instance's own portfolio summary plus every configured peer's, fanned out live and merged (backlog #135).
+      properties:
+        generatedAt:
+          type: string
+        local:
+          type: object
+          properties:
+            label:
+              type: string
+            region:
+              type: ["string", "null"]
+            summary:
+              $ref: "#/components/schemas/PortfolioSummary"
+          required: [label, region, summary]
+        peers:
+          type: array
+          items:
+            $ref: "#/components/schemas/PeerPortfolioResult"
+      required: [generatedAt, local, peers]
 
     ActivityEntry:
       type: object

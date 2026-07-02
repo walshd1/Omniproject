@@ -747,6 +747,107 @@ export interface PortfolioHealthSummary {
   activeBlockersCount: number;
 }
 
+/**
+ * RAG (red/amber/green) distribution across the portfolio's projects.
+ */
+export interface RagCounts {
+  green: number;
+  amber: number;
+  red: number;
+  /** A ragStatus value the broker reported that isn't one of green/amber/red. */
+  other: number;
+}
+
+/**
+ * Portfolio-wide totals derived from the same rows GET /portfolio/health serves, with every per-project identifier folded away.
+ */
+export interface HealthTotals {
+  projects: number;
+  rag: RagCounts;
+  /** @nullable */
+  avgScheduleVarianceDays: number | null;
+  /** @nullable */
+  avgBudgetVariancePercentage: number | null;
+  totalActiveBlockers: number;
+}
+
+/**
+ * The portfolio-total row of the finance roll-up (see artifacts/omniproject/src/lib/portfolio-finance.ts FinanceRollup) — programme/project breakdown is deliberately dropped for federation.
+ */
+export interface FinanceTotals {
+  /** The reporting currency every amount below is converted into. */
+  currency: string;
+  budget: number;
+  actual: number;
+  forecast: number;
+  earnedValue: number;
+  variance: number;
+  /** @nullable */
+  cpi: number | null;
+}
+
+/**
+ * The portfolio-total row of the capacity roll-up (see artifacts/omniproject/src/lib/capacity-rollup.ts CapacityRollup) — programme/project breakdown is deliberately dropped for federation.
+ */
+export interface CapacityTotals {
+  allocations: number;
+  overAllocated: number;
+  assignedHours: number;
+  availableHours: number;
+  /** @nullable */
+  utilisation: number | null;
+}
+
+/**
+ * The ONE aggregate shape allowed to cross an instance boundary for federation (backlog #135). Every field is a portfolio-level total or count — never a project/programme id or name. A section is null when the connected backend doesn't declare the matching capability.
+ */
+export interface PortfolioSummary {
+  projects: number;
+  health: HealthTotals | null;
+  finance: FinanceTotals | null;
+  capacity: CapacityTotals | null;
+}
+
+export type PeerPortfolioResultStatus = typeof PeerPortfolioResultStatus[keyof typeof PeerPortfolioResultStatus];
+
+
+export const PeerPortfolioResultStatus = {
+  ok: 'ok',
+  unreachable: 'unreachable',
+  unauthorized: 'unauthorized',
+  error: 'error',
+} as const;
+
+/**
+ * One configured peer's contribution to a federated view — always separately labeled, never blended into the local total.
+ */
+export interface PeerPortfolioResult {
+  id: string;
+  label: string;
+  /** @nullable */
+  region: string | null;
+  status: PeerPortfolioResultStatus;
+  summary: PortfolioSummary | null;
+  error?: string;
+  ms: number;
+}
+
+export type FederatedPortfolioLocal = {
+  label: string;
+  /** @nullable */
+  region: string | null;
+  summary: PortfolioSummary;
+};
+
+/**
+ * This instance's own portfolio summary plus every configured peer's, fanned out live and merged (backlog
+ */
+export interface FederatedPortfolio {
+  generatedAt: string;
+  local: FederatedPortfolioLocal;
+  peers: PeerPortfolioResult[];
+}
+
 export interface ActivityEntry {
   id: string;
   action: string;
