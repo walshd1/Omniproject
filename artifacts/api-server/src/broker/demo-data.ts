@@ -119,12 +119,46 @@ export function sampleActivity(): Row[] {
 
 export const SAMPLE_RAID: Record<string, Row[]> = {
   "proj-001": [
-    { id: "raid-001", projectId: "proj-001", type: "risk", title: "OIDC provider migration may slip the auth cutover", description: "Authentik upgrade has a hard dependency on the new realm export format.", severity: "high", likelihood: "medium", impact: "high", status: "mitigating", owner: "alice", mitigation: "Spike the export on a staging realm before committing the cutover date.", dueDate: "2026-07-01", provenance: "sample", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 6).toISOString(), updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString() },
+    { id: "raid-001", projectId: "proj-001", type: "risk", title: "OIDC provider migration may slip the auth cutover", description: "Authentik upgrade has a hard dependency on the new realm export format.", severity: "high", likelihood: "medium", impact: "high", probability: "likely", riskExposure: 16, responseStrategy: "reduce", status: "mitigating", owner: "alice", mitigation: "Spike the export on a staging realm before committing the cutover date.", dueDate: "2026-07-01", provenance: "sample", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 6).toISOString(), updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString() },
     { id: "raid-002", projectId: "proj-001", type: "dependency", title: "Workflow blueprint sign-off from platform team", description: "Core sync workflow needs platform review before go-live.", severity: "medium", likelihood: null, impact: null, status: "open", owner: "bob", mitigation: null, dueDate: "2026-06-30", provenance: "sample", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(), updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString() },
     { id: "raid-003", projectId: "proj-001", type: "assumption", title: "Backend exposes lockVersion for optimistic concurrency", description: "Assuming OpenProject lockVersion is surfaced through normalization.", severity: "low", likelihood: null, impact: null, status: "open", owner: null, mitigation: null, dueDate: null, provenance: "sample", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString() },
   ],
   "proj-002": [
     { id: "raid-004", projectId: "proj-002", type: "issue", title: "Rate limiter rejects Power BI scheduled refresh under burst", description: "BI token hit the analytics limiter during a 6am refresh window.", severity: "medium", likelihood: null, impact: null, status: "open", owner: "carol", mitigation: "Raise the analytics window or whitelist the BI token key.", dueDate: "2026-06-26", provenance: "sample", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString() },
+    { id: "raid-005", projectId: "proj-002", type: "risk", title: "Gateway throughput may miss the peak-hour SLA", description: "Load tests trend toward the p99 latency ceiling under burst traffic.", severity: "medium", likelihood: "medium", impact: "medium", probability: "possible", riskExposure: 9, responseStrategy: "accept", status: "open", owner: "carol", mitigation: "Right-size the connection pool and add an autoscaling policy before go-live.", dueDate: "2026-07-10", provenance: "sample", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 20).toISOString(), updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString() },
+  ],
+};
+
+/**
+ * Stakeholder register (demo) — the engagement matrix per project: role, the
+ * influence/interest quadrant, current engagement level and the agreed comms
+ * cadence. Illustrative sample data; a real deployment reads stakeholders from a
+ * backend that carries them (gated by the `stakeholders` capability domain).
+ */
+export const SAMPLE_STAKEHOLDERS: Record<string, Row[]> = {
+  "proj-001": [
+    { id: "stk-001", projectId: "proj-001", stakeholderName: "Priya Natarajan", stakeholderRole: "Executive sponsor", influence: "high", interest: "high", engagementLevel: "supportive", commsCadence: "weekly", engagementStrategy: "Manage closely — weekly steering update and early sight of cutover risks.", provenance: "sample" },
+    { id: "stk-002", projectId: "proj-001", stakeholderName: "Platform Team", stakeholderRole: "Upstream dependency owner", influence: "high", interest: "medium", engagementLevel: "neutral", commsCadence: "fortnightly", engagementStrategy: "Keep satisfied — align on realm-export timelines before committing dates.", provenance: "sample" },
+    { id: "stk-003", projectId: "proj-001", stakeholderName: "Support Desk", stakeholderRole: "Operational impact", influence: "low", interest: "high", engagementLevel: "unaware", commsCadence: "monthly", engagementStrategy: "Keep informed — brief on the auth cutover window and rollback plan.", provenance: "sample" },
+  ],
+  "proj-003": [
+    { id: "stk-004", projectId: "proj-003", stakeholderName: "Chief Information Security Officer", stakeholderRole: "Assurance", influence: "high", interest: "high", engagementLevel: "champion", commsCadence: "weekly", engagementStrategy: "Manage closely — co-owns the SSO risk appetite and sign-off.", provenance: "sample" },
+  ],
+};
+
+/**
+ * RACI matrix (demo) — one row per deliverable mapping the Responsible/Accountable/
+ * Consulted/Informed people. One Accountable per deliverable; R/C/I are lists.
+ * Illustrative; gated by the `raci` capability domain.
+ */
+export const SAMPLE_RACI: Record<string, Row[]> = {
+  "proj-001": [
+    { id: "raci-001", projectId: "proj-001", deliverable: "OIDC auth cutover", raciResponsible: ["alice"], raciAccountable: "priya", raciConsulted: ["platform-team", "bob"], raciInformed: ["support-desk"], provenance: "sample" },
+    { id: "raci-002", projectId: "proj-001", deliverable: "Broker sync workflow", raciResponsible: ["bob"], raciAccountable: "alice", raciConsulted: ["platform-team"], raciInformed: ["priya"], provenance: "sample" },
+    { id: "raci-003", projectId: "proj-001", deliverable: "Enterprise K8s deployment", raciResponsible: ["carol", "bob"], raciAccountable: "alice", raciConsulted: [], raciInformed: ["priya", "support-desk"], provenance: "sample" },
+  ],
+  "proj-003": [
+    { id: "raci-004", projectId: "proj-003", deliverable: "SSO token relay", raciResponsible: ["bob"], raciAccountable: "alice", raciConsulted: ["ciso"], raciInformed: ["priya"], provenance: "sample" },
   ],
 };
 

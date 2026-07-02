@@ -1641,6 +1641,16 @@ components:
           description: >-
             Benefits-realisation fields (planned vs actual benefit value, measure,
             owner, status) — true only when a backend can carry them.
+        stakeholders:
+          type: boolean
+          description: >-
+            Stakeholder-engagement fields + entity (role, influence/interest,
+            engagement, comms cadence) — true only when a backend can carry them.
+        raci:
+          type: boolean
+          description: >-
+            RACI-assignment fields + entity (deliverable → Responsible/Accountable/
+            Consulted/Informed) — true only when a backend can carry them.
         timeTravel:
           type: boolean
           description: >-
@@ -1692,6 +1702,8 @@ components:
         - crm
         - service
         - benefits
+        - stakeholders
+        - raci
         - timeTravel
 
     FieldSupport:

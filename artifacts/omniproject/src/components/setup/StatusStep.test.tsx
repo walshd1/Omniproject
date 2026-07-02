@@ -24,6 +24,8 @@ const baseStatus: SetupStatus = {
     crm: false,
     service: false,
     benefits: false,
+    stakeholders: false,
+    raci: false,
     timeTravel: false,
   },
 };

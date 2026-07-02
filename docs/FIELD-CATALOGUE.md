@@ -232,6 +232,38 @@ Strategic alignment: what each project/programme contributes to. Gated by the
 | `expectedBenefit` | text | the benefit case | PRINCE2/MSP tooling, Planview |
 | `benefitRealised` | percent | benefit realised to date | MSP tooling, Planview |
 
+## stakeholder (entity `stakeholder`, domain `stakeholders`)
+The stakeholder engagement register — the influence/interest quadrant and the
+agreed comms plan per stakeholder.
+| key | type | products | ★ |
+| --- | --- | --- | --- |
+| `stakeholderName` | string (required) | MSP/PRINCE2 tooling, Wrike, Smartsheet | |
+| `stakeholderRole` | string | the stakeholder's role/interest | |
+| `influence` | enum | power/influence rating (low/medium/high) | |
+| `interest` | enum | interest rating (low/medium/high) | |
+| `engagementLevel` | enum | unaware/resistant/neutral/supportive/champion | |
+| `commsCadence` | enum | ad-hoc/weekly/fortnightly/monthly/quarterly | |
+| `engagementStrategy` | text | how the stakeholder is managed | |
+
+## raci (entity `raci`, domain `raci`)
+The RACI matrix — one row per deliverable; exactly one Accountable, lists for R/C/I.
+| key | type | products | ★ |
+| --- | --- | --- | --- |
+| `deliverable` | string (required) | MSP/PRINCE2 tooling, Smartsheet | |
+| `raciResponsible` | labels | people who do the work (R) | |
+| `raciAccountable` | user | single accountable owner (A) | |
+| `raciConsulted` | labels | two-way consulted (C) | |
+| `raciInformed` | labels | one-way informed (I) | |
+
+## risk (entity `raid`, domain `raid`) — extends RAID
+Quantitative risk-register fields layered onto the existing RAID log (not a
+duplicate register): they ride the `raid` domain and flow through `/raid`.
+| key | type | products | ★ |
+| --- | --- | --- | --- |
+| `probability` | enum | rare/unlikely/possible/likely/almost-certain | |
+| `riskExposure` | number | probability × impact score | ★ |
+| `responseStrategy` | enum | avoid/reduce/transfer/accept/exploit | |
+
 ---
 
 ## New capability domains implied
@@ -241,6 +273,11 @@ cleanly (each maps a field group → domain, the existing mechanism):
 - **`crm`** — CRM/sales fields + the `account`/`contact`/`deal` entities.
 - **`service`** — ITSM/service fields (SLA, CSAT, change).
 - **`quality`** — risk & quality fields (health, impact/urgency, blocked).
+- **`stakeholders`** — the stakeholder register group + `stakeholder` entity.
+- **`raci`** — the RACI matrix group + `raci` entity.
+
+The **risk** group is deliberately *not* a new domain — it extends the existing
+RAID log, so its fields ride the **`raid`** domain on the `raid` entity.
 
 EVM and billing fields stay under the existing **`financials`** domain; schedule
 floats/critical-path under **`scheduling`**; agile prioritisation under
