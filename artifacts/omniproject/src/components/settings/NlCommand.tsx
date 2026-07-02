@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { planNlAction, executePlannedAction, type ActionPlan } from "../../lib/nl-action";
+import { ActionPlanCard } from "../ActionPlanCard";
 import { ContainmentBadge } from "../ContainmentBadge";
 import { DictateButton } from "../DictateButton";
 
@@ -67,25 +68,7 @@ export function NlCommand() {
 
         {error && <p className="text-sm text-red-600" data-testid="nl-error">{error}</p>}
 
-        {plan?.kind === "action" && (
-          <div className="rounded border border-border p-2 text-sm" data-testid="nl-plan-action">
-            <div className="mb-1 flex items-center gap-2">
-              <span className="font-mono font-medium">{plan.action}</span>
-              {plan.write
-                ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">write</span>
-                : <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-700">read</span>}
-            </div>
-            {Object.keys(plan.args).length > 0 && (
-              <pre className="mb-2 overflow-x-auto rounded bg-muted p-2 text-xs">{JSON.stringify(plan.args, null, 2)}</pre>
-            )}
-            <Button size="sm" variant={plan.write ? "destructive" : "default"} disabled={busy} onClick={() => void onRun(plan)} data-testid="nl-run">
-              {plan.write ? "Confirm & run (write)" : "Run"}
-            </Button>
-          </div>
-        )}
-
-        {plan?.kind === "clarify" && <p className="text-sm" data-testid="nl-clarify">{plan.question}</p>}
-        {plan?.kind === "none" && <p className="text-sm text-muted-foreground" data-testid="nl-none">No matching action: {plan.reason}</p>}
+        {plan && <ActionPlanCard plan={plan} busy={busy} onRun={(p) => void onRun(p)} />}
 
         {result && <pre className="overflow-x-auto rounded bg-muted p-2 text-xs" data-testid="nl-result">{result}</pre>}
       </CardContent>
