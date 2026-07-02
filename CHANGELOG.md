@@ -6,6 +6,25 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **n8n blueprint docs pointed at deleted files; the pre-generated examples had no drift guard.**
+  `artifacts/n8n-blueprints/README.md` (plus `docs/N8N-WORKFLOWS.md`, `docs/dev/PLANE-BACKENDS.md`,
+  `docs/BROKER.md`, `CONTRIBUTING.md`, `LICENSING.md`) still described a "backend library" and
+  "generator" at `artifacts/api-server/src/lib/n8n-backends.ts` / `n8n-generator.ts` — both removed
+  when the backend catalogue moved to `lib/backend-catalogue/src/backend-catalogue.ts` +
+  `n8n-generator.ts` with per-vendor JSON under `lib/backend-catalogue/vendors/backends/`. Repointed
+  every stale reference at the live files/route (`POST /api/setup/generate-workflow`) and the current
+  "author a JSON file, run `gen-vendors`" workflow. Separately, the five hand-committed example
+  workflows under `artifacts/n8n-blueprints/generated/` (asana, dynamics365, github, jira,
+  openproject) had no script or CI check keeping them in sync with `generateWorkflow()` + the current
+  vendor JSON, so they could silently rot. Added `scripts/src/gen-n8n-blueprints.ts`
+  (`pnpm --filter @workspace/scripts run gen-n8n-blueprints`), which regenerates each example from the
+  live (pure, deterministic) generator, wired into a new CI drift-check step mirroring the existing
+  gen-vendors/gen-function-map pattern. Regenerated and committed the five examples, whose action/
+  capability key order had drifted from alphabetical vendor-JSON ordering (same node graph — a
+  formatting-only diff).
+
 ### Documentation
 
 - **Speed / responsiveness / design-patterns review (`docs/PERF-PATTERNS-REVIEW.md`).** A staff-engineering

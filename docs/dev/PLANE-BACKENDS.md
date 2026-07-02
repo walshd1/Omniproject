@@ -1,8 +1,12 @@
 # Dev guide — the BACKENDS plane
 
 A backend is a system of record (Jira, SAP, Salesforce, …). You add one as a
-`BackendDefinition` (neutral `BackendManifest` + an `N8nBinding`) in
-`lib/backend-catalogue/src/n8n-backends.ts`.
+`BackendDefinition` (neutral `BackendManifest` + an `N8nBinding`, flattened
+into one object) by dropping a `<id>.json` file under
+`lib/backend-catalogue/vendors/backends/`, validated against
+`lib/backend-catalogue/vendors/schema/backend.schema.json` and embedded into
+`lib/backend-catalogue/src/backend-catalogue.ts`'s `BACKENDS` array by
+`pnpm --filter @workspace/scripts run gen-vendors`.
 
 ## Shape
 
@@ -38,6 +42,8 @@ A backend is a system of record (Jira, SAP, Salesforce, …). You add one as a
 pnpm --filter @workspace/scripts verify-plane backends my-backend.json
 ```
 
-Then add the object to `BACKENDS`, run `pnpm --filter @workspace/api-server test`
-(the gateway's manifest + HTTP-URL conformance), and the seam works with zero core
-changes. See `docs/BROKER-HTTP-BINDING.md` for the contract the actions normalise to.
+Then save it as `lib/backend-catalogue/vendors/backends/my-backend.json`, run
+`pnpm --filter @workspace/scripts run gen-vendors` (embeds it into `BACKENDS`)
+and `pnpm --filter @workspace/api-server test` (the gateway's manifest +
+HTTP-URL conformance) — the seam works with zero core changes. See
+`docs/BROKER-HTTP-BINDING.md` for the contract the actions normalise to.
