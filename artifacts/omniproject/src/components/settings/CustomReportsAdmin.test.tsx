@@ -45,6 +45,51 @@ describe("CustomReportsAdmin", () => {
     expect(body.customReports[0].metrics[0]).toMatchObject({ agg: "count" });
   });
 
+  it("shows the second group-by select only once a first group-by is chosen, and saves the pivot", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ customReports: [] }) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+
+    fireEvent.click(screen.getByText("+ report"));
+    expect(screen.queryByLabelText("Report 1 group by 2")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Report 1 group by"), { target: { value: "status" } });
+    expect(screen.getByLabelText("Report 1 group by 2")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Report 1 group by 2"), { target: { value: "budget" } });
+
+    fireEvent.click(screen.getByText("Save reports"));
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
+    const body = JSON.parse(init.body as string);
+    expect(body.customReports[0]).toMatchObject({ groupBy: "status", groupBy2: "budget" });
+  });
+
+  it("clears the second group-by when the first is cleared", () => {
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+    fireEvent.click(screen.getByText("+ report"));
+    fireEvent.change(screen.getByLabelText("Report 1 group by"), { target: { value: "status" } });
+    fireEvent.change(screen.getByLabelText("Report 1 group by 2"), { target: { value: "budget" } });
+    fireEvent.change(screen.getByLabelText("Report 1 group by"), { target: { value: "" } });
+    expect(screen.queryByLabelText("Report 1 group by 2")).not.toBeInTheDocument();
+  });
+
+  it("swaps the group-by controls for a date-field selector when viz is line, and saves it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ customReports: [] }) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+
+    fireEvent.click(screen.getByText("+ report"));
+    fireEvent.change(screen.getByLabelText("Report 1 viz"), { target: { value: "line" } });
+    expect(screen.queryByLabelText("Report 1 group by")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Report 1 date field"), { target: { value: "budget" } });
+
+    fireEvent.click(screen.getByText("Save reports"));
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
+    const body = JSON.parse(init.body as string);
+    expect(body.customReports[0]).toMatchObject({ viz: "line", dateField: "budget" });
+  });
+
   it("exports a report definition as a JSON download", () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     vi.stubGlobal("URL", { createObjectURL: () => "blob:x", revokeObjectURL: () => {} });

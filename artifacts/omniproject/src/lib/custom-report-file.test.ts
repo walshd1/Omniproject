@@ -20,6 +20,14 @@ describe("parseReportDef", () => {
     expect(def.metrics[0]).toMatchObject({ id: "m1", field: "id", agg: "count" });
   });
 
+  it("round-trips groupBy2 (pivot) and dateField (trend line)", () => {
+    const pivot: CustomReportDef = { ...valid, groupBy2: "status" };
+    expect(parseReportDef(JSON.parse(reportDefToJson(pivot)))).toEqual(pivot);
+
+    const trend: CustomReportDef = { id: "t", label: "Trend", scope: "project", viz: "line", dateField: "closedAt", metrics: [{ id: "m1", field: "budget", agg: "sum" }] };
+    expect(parseReportDef(JSON.parse(reportDefToJson(trend)))).toEqual(trend);
+  });
+
   it("rejects a bad scope, viz, agg or empty metrics", () => {
     expect(() => parseReportDef({ label: "x", scope: "nope", viz: "table", metrics: [{ field: "a", agg: "sum" }] })).toThrow(/scope/);
     expect(() => parseReportDef({ label: "x", scope: "project", viz: "pie", metrics: [{ field: "a", agg: "sum" }] })).toThrow(/viz/);

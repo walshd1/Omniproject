@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runCustomReport, matchRow, metricLabel, type CustomReportDef } from "./custom-report";
+import { runCustomReport, runCustomReportTrend, matchRow, metricLabel, type CustomReportDef } from "./custom-report";
 
 const rows = [
   { status: "done", budget: 100, region: "EU" },
@@ -48,5 +48,72 @@ describe("runCustomReport", () => {
     expect(metricLabel({ id: "m", field: "budget", agg: "sum" })).toBe("Sum of budget");
     expect(metricLabel({ id: "m", field: "x", agg: "count" })).toBe("Count");
     expect(metricLabel({ id: "m", field: "x", agg: "sum", label: "Spend" })).toBe("Spend");
+  });
+
+  describe("groupBy2 (pivot)", () => {
+    it("produces a cross-tab: rows for groupBy, columns for groupBy2, both levels visible", () => {
+      const res = runCustomReport(def({ groupBy2: "region" }), rows);
+      expect(res.columns).toEqual(["EU", "US"]); // distinct region values, sorted
+      const done = res.groups.find((g) => g.key === "done")!;
+      // done×EU = 100, done×US = 50 — a genuine per-cell breakdown, not a compound key.
+      expect(done.pivot?.["EU"]?.cells["m"]).toBe(100);
+      expect(done.pivot?.["US"]?.cells["m"]).toBe(50);
+      expect(done.cells["m"]).toBe(150); // row total unchanged
+      const todo = res.groups.find((g) => g.key === "todo")!;
+      expect(todo.pivot?.["EU"]?.cells["m"]).toBe(200);
+      expect(todo.pivot?.["US"]?.cells["m"]).toBe(0); // no todo×US rows — filled as 0, not omitted
+      expect(todo.pivot?.["US"]?.count).toBe(0);
+    });
+
+    it("columns span every distinct groupBy2 value across ALL rows, not just this row's own values", () => {
+      const res = runCustomReport(def({ groupBy2: "region" }), rows);
+      for (const g of res.groups) expect(Object.keys(g.pivot!).sort()).toEqual(["EU", "US"]);
+    });
+
+    it("is a no-op without groupBy (groupBy2 alone doesn't pivot)", () => {
+      const res = runCustomReport(def({ groupBy: "", groupBy2: "region" }), rows);
+      expect(res.columns).toBeUndefined();
+      expect(res.groups[0]!.pivot).toBeUndefined();
+    });
+  });
+
+  describe("runCustomReportTrend", () => {
+    const dated = [
+      { budget: 100, closedAt: "2026-01-15" },
+      { budget: 50, closedAt: "2026-01-20" },
+      { budget: 200, closedAt: "2026-02-01" },
+      { budget: 10, closedAt: "not-a-date" },
+      { budget: 5 }, // missing date entirely
+    ];
+
+    function trendDef(over: Partial<CustomReportDef> = {}): CustomReportDef {
+      return { id: "t", label: "T", scope: "project", metrics: [{ id: "m", field: "budget", agg: "sum" }], viz: "line", dateField: "closedAt", ...over };
+    }
+
+    it("buckets rows by month and aggregates the metric, chronologically ascending", () => {
+      const res = runCustomReportTrend(trendDef(), dated);
+      expect(res.points.map((p) => p.period)).toEqual(["2026-01", "2026-02"]);
+      expect(res.points[0]!.label).toBe("Jan 2026");
+      expect(res.points[0]!.cells["m"]).toBe(150); // 100 + 50
+      expect(res.points[1]!.cells["m"]).toBe(200);
+    });
+
+    it("skips rows with an unparseable or missing date, and totals only the dated ones", () => {
+      const res = runCustomReportTrend(trendDef(), dated);
+      expect(res.matched).toBe(3); // 5 rows minus the bad-date and missing-date ones
+      expect(res.grand["m"]).toBe(350);
+    });
+
+    it("applies the filter before bucketing", () => {
+      const res = runCustomReportTrend(trendDef({ filter: { all: [{ field: "budget", op: "gt", value: 60 }] } }), dated);
+      expect(res.matched).toBe(2); // 100 and 200 only
+      expect(res.points.map((p) => p.cells["m"])).toEqual([100, 200]);
+    });
+
+    it("returns no points without a dateField configured", () => {
+      const res = runCustomReportTrend(trendDef({ dateField: undefined }), dated);
+      expect(res.points).toEqual([]);
+      expect(res.matched).toBe(0);
+    });
   });
 });

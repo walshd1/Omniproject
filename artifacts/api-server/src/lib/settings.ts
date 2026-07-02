@@ -315,9 +315,10 @@ export interface CustomReportMetric {
 
 /**
  * A customer-authored report definition (the report generator). Rendered through a generic renderer:
- * filter the work items, group by a field, aggregate the chosen metrics, draw a table or bar chart.
- * `filter` is a predicate condition set (the same engine the rules use); kept loosely typed here and
- * validated at the route. Never holds project data — only field keys + how to summarise them.
+ * filter the work items, group by a field (optionally a second level for a cross-tab), aggregate the
+ * chosen metrics, draw a table, bar chart or month-bucketed trend line. `filter` is a predicate
+ * condition set (the same engine the rules use); kept loosely typed here and validated at the route.
+ * Never holds project data — only field keys + how to summarise them.
  */
 export interface CustomReportDef {
   id: string;
@@ -325,9 +326,13 @@ export interface CustomReportDef {
   /** "project" renders per selected project; "portfolio" rolls up across all projects. */
   scope: "project" | "portfolio";
   groupBy?: string;
+  /** Second group-by level (pivot columns) — ignored without `groupBy`, and for `viz: "line"`. */
+  groupBy2?: string;
   metrics: CustomReportMetric[];
   filter?: { all?: unknown[]; any?: unknown[] };
-  viz: "table" | "bar";
+  viz: "table" | "bar" | "line";
+  /** Required for `viz: "line"`: a date field bucketed by month to build a time trend. */
+  dateField?: string;
 }
 
 /**
@@ -655,8 +660,10 @@ function validateCustomReports(value: unknown): void {
     if (!o || typeof o !== "object" || typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each custom report needs a string id");
     if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" needs a label`);
     if (o["scope"] !== "project" && o["scope"] !== "portfolio") throw new SettingsValidationError(`custom report "${String(o["id"])}" scope must be project | portfolio`);
-    if (o["viz"] !== "table" && o["viz"] !== "bar") throw new SettingsValidationError(`custom report "${String(o["id"])}" viz must be table | bar`);
+    if (o["viz"] !== "table" && o["viz"] !== "bar" && o["viz"] !== "line") throw new SettingsValidationError(`custom report "${String(o["id"])}" viz must be table | bar | line`);
     if (o["groupBy"] != null && typeof o["groupBy"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy must be a string`);
+    if (o["groupBy2"] != null && typeof o["groupBy2"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy2 must be a string`);
+    if (o["dateField"] != null && typeof o["dateField"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" dateField must be a string`);
     if (!Array.isArray(o["metrics"]) || o["metrics"].length === 0) throw new SettingsValidationError(`custom report "${String(o["id"])}" needs at least one metric`);
     for (const m of o["metrics"] as unknown[]) {
       const mm = m as Record<string, unknown>;
