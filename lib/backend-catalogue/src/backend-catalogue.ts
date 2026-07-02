@@ -68,6 +68,11 @@ export interface ActionMapping {
   note?: string;
 }
 
+/** The two transport kinds an {@link ActionMapping} can declare — exported as a runtime value
+ *  (not just the `kind` union above) so authoring UIs can enumerate them without hand-typing
+ *  the broker-specific literal themselves. */
+export const ACTION_KINDS: NonNullable<ActionMapping["kind"]>[] = ["http", "n8nNode"];
+
 /**
  * The broker transport for a backend: the per-user auth expression, an optional
  * broker-managed credential type, and the per-action node/HTTP mappings. This is

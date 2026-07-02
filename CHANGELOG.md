@@ -23,6 +23,29 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Self-service custom-backend authoring in the admin UI (backlog #137).** A customer's own team
+  can now author a new backend/vendor definition through a guided form instead of hand-editing
+  `lib/backend-catalogue/vendors/backends/<id>.json`. Investigated first: the runtime-load half
+  already existed (backlog #31's `OMNI_CONFIG_DIR/vendors/backends/*.json`, validated + merged over
+  the shipped catalogue at boot by `config-dir.ts`/`vendor-overlay.ts`) — the missing piece was the
+  authoring UI, not a new persistence mechanism.
+  - `CustomBackendAdmin` (`artifacts/omniproject/src/components/settings/CustomBackendAdmin.tsx`,
+    admin-gated like every other technical-config settings surface) builds a full
+    `BackendManifest & N8nBinding` document — identity, capabilities (against the known capability
+    domains), required env, key format, the n8n per-user auth header, and all six contract actions
+    (HTTP or native n8n node, with parameters as JSON) — with a live JSON preview and inline
+    validation. "Start from" clones any shipped catalogue backend as a template; "Import file…"
+    resumes an exported or hand-written definition.
+  - `evaluateDraft` (`artifacts/omniproject/src/lib/backend-authoring.ts`) validates against the
+    *exact same* embedded JSON Schema the config-dir loader enforces
+    (`validateVendor("backends", …)` from `@workspace/backend-catalogue`, unchanged) plus a few
+    authoring-time advisories (unrecognised capability id, no actions mapped, id collides with a
+    shipped backend) — "valid in the form" ⇔ "the loader will accept it".
+  - Deliberately export-first, not a live write: the SPA downloads the validated JSON for the admin
+    to place at `$OMNI_CONFIG_DIR/vendors/backends/<id>.json` and reload/restart — writing to the
+    server's filesystem from the SPA has no place in a stateless/zero-at-rest gateway. True
+    zero-restart activation (no operator step at all) is parked — see `docs/PARKED-DECISIONS.md`
+    §F1 — pending a deliberate hot-reload design for the backend catalogue.
 - **Cross-instance portfolio federation, residency-respecting (backlog #135).** Per-country data
   residency (backlog #97) naturally pushes a multinational toward one OmniProject instance per
   region/subsidiary — this closes the resulting gap: no consolidated global portfolio view. A minimal,

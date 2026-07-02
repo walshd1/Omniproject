@@ -30,6 +30,7 @@ import { RateGridAdmin } from "../components/settings/RateGridAdmin";
 import { IdentityMapAdmin } from "../components/settings/IdentityMapAdmin";
 import { CostRulesAdmin } from "../components/settings/CostRulesAdmin";
 import { CustomReportsAdmin } from "../components/settings/CustomReportsAdmin";
+import { CustomBackendAdmin } from "../components/settings/CustomBackendAdmin";
 import { ContentPagesAdmin } from "../components/settings/ContentPagesAdmin";
 import { FederatedPeersAdmin } from "../components/settings/FederatedPeersAdmin";
 import { PriorityWeightsAdmin } from "../components/settings/PriorityWeightsAdmin";
@@ -421,6 +422,10 @@ export function Settings() {
 
       <div className="mt-10">
         <CustomReportsAdmin />
+      </div>
+
+      <div className="mt-10">
+        <CustomBackendAdmin />
       </div>
 
       <div className="mt-10">
