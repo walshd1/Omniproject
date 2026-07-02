@@ -1,5 +1,5 @@
 import { useListProjects, useGetProjectIssues, useGetCapabilities, getGetProjectIssuesQueryKey } from "@workspace/api-client-react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useEffect, useState } from "react";
 import { AgileBoard } from "../components/board/AgileBoard";
 import { IssueGrid } from "../components/grid/IssueGrid";
@@ -35,7 +35,11 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
   const { data: issues, dataUpdatedAt } = useGetProjectIssues(projectId, { query: { queryKey: getGetProjectIssuesQueryKey(projectId) } });
   const { data: features } = useFeatures();
   const gridEnabled = featureEnabled(features, "grid");
-  const [view, setView] = useState<"board" | "grid">("board");
+  // A drill-through (backlog #122, e.g. a "N blocked" figure elsewhere) lands here with a `filter`
+  // query param — default straight to the grid so the pre-filtered list is what the user actually
+  // sees, instead of the board (which doesn't apply the filter at all).
+  const hasDrillFilter = new URLSearchParams(useSearch()).has("filter");
+  const [view, setView] = useState<"board" | "grid">(hasDrillFilter ? "grid" : "board");
   const activeView = gridEnabled ? view : "board";
 
   // Remember this visit for the "Recent" quick-find list (findability).

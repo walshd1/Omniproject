@@ -8,6 +8,7 @@
  * is only OFFERED when the backend can surface the entity it needs (`requiresEntity`).
  */
 import { WIDGETS_DATA } from "./widgets.generated";
+import type { DrillTo } from "./drill-to";
 
 export interface WidgetDefinition {
   /** Unique widget type; the key into the SPA widget renderer registry. */
@@ -23,6 +24,9 @@ export interface WidgetDefinition {
   /** Auto-refresh interval in seconds when rendered as a library component — declarative polling
    *  instead of each widget hardcoding its own. Omitted = no auto-refresh. */
   refresh?: number;
+  /** Declarative drill-down: turns a clicked figure on this widget into a navigation + predicate
+   *  against the work-item grid (see drill-to.ts). Omitted = no drill-through. */
+  drillTo?: DrillTo;
 }
 
 /** Every shipped widget, in display order. Authored as JSON under assets/widgets/<type>.json and

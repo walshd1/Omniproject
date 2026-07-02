@@ -1,5 +1,8 @@
+import type { KeyboardEvent, MouseEvent } from "react";
 import { useGetPortfolioHealth, type PortfolioHealthSummary } from "@workspace/api-client-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { getComponent } from "@workspace/backend-catalogue";
+import { resolveDrillTo } from "../../lib/drill-to";
 import { DataState } from "../DataState";
 
 const RAG: Record<string, { dot: string; text: string; border: string }> = {
@@ -8,8 +11,27 @@ const RAG: Record<string, { dot: string; text: string; border: string }> = {
   RED: { dot: "bg-red-500", text: "text-red-500", border: "border-red-500/40" },
 };
 
+// The portfolioHealth widget's own JSON definition (lib/backend-catalogue/assets/widgets/portfolioHealth.json)
+// declares a `drillTo` for its BLOCKERS figure — the same declarative descriptor the generic SPA
+// drill-down resolver (lib/drill-to.ts) consumes for ANY report/widget. Reading it off the catalogue
+// (rather than hardcoding the predicate here) is what makes it declarative: editing the JSON changes
+// what clicking BLOCKERS filters to, with no code change here (backlog #122).
+const BLOCKERS_DRILL_TO = getComponent("widget:portfolioHealth")?.drillTo;
+
 function KpiCard({ p }: { p: PortfolioHealthSummary }) {
+  const [, navigate] = useLocation();
   const rag = RAG[p.ragStatus] ?? RAG.AMBER!; // AMBER is a literal key of RAG, always present
+  const drill = BLOCKERS_DRILL_TO ? resolveDrillTo(BLOCKERS_DRILL_TO, p as unknown as Record<string, unknown>) : null;
+  // "0 blocked" has nothing to drill into — only a positive count becomes a live link.
+  const canDrill = !!drill && p.activeBlockersCount > 0;
+  // A real nested <a> inside the card's own <a> is invalid HTML (React warns / would hydration-mismatch
+  // under SSR), so the drill-through target is a `role="link"` span with its own click/keyboard
+  // handling instead of a second wouter <Link> — independently navigable, stopping propagation so it
+  // doesn't ALSO fire the card's own "go to project" nav.
+  const openDrill = (e: MouseEvent | KeyboardEvent) => {
+    e.stopPropagation();
+    if (drill) navigate(drill.href);
+  };
   return (
     <Link
       href={`/projects/${p.projectId}`}
@@ -37,9 +59,24 @@ function KpiCard({ p }: { p: PortfolioHealthSummary }) {
         </div>
         <div>
           <div className="text-muted-foreground mb-0.5">BLOCKERS</div>
-          <div className={`font-bold ${p.activeBlockersCount > 0 ? "text-amber-500" : "text-foreground"}`}>
-            {p.activeBlockersCount}
-          </div>
+          {canDrill ? (
+            <span
+              role="link"
+              tabIndex={0}
+              onClick={openDrill}
+              onKeyDown={(e) => { if (e.key === "Enter") openDrill(e); }}
+              className="font-bold text-amber-500 underline decoration-dotted underline-offset-2 hover:text-amber-400 cursor-pointer"
+              aria-label={`${drill!.label} for ${p.projectName}`}
+              data-testid={`kpi-blockers-drill-${p.projectId}`}
+              data-href={drill!.href}
+            >
+              {p.activeBlockersCount}
+            </span>
+          ) : (
+            <div className={`font-bold ${p.activeBlockersCount > 0 ? "text-amber-500" : "text-foreground"}`}>
+              {p.activeBlockersCount}
+            </div>
+          )}
         </div>
       </div>
     </Link>

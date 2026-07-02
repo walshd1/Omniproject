@@ -10,6 +10,7 @@
  */
 import { isCapabilityMet } from "./compatibility";
 import { REPORTS_DATA } from "./reports.generated";
+import type { DrillTo } from "./drill-to";
 
 export type ReportKind = "schedule" | "progress" | "financial" | "resource" | "quality" | "portfolio";
 
@@ -61,6 +62,9 @@ export interface ReportDefinition extends ReportManifest {
   /** Auto-refresh interval in seconds when rendered as a library component (dashboard/content/export
    *  surfaces) — declarative polling instead of each renderer hardcoding its own. Omitted = no auto-refresh. */
   refresh?: number;
+  /** Declarative drill-down: turns a clicked figure on this report into a navigation + predicate
+   *  against the work-item grid (see drill-to.ts). Omitted = no drill-through. */
+  drillTo?: DrillTo;
 }
 
 /** Every shipped report, in display order. Authored as JSON under

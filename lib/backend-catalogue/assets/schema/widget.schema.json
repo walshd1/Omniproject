@@ -13,6 +13,31 @@
     "defaultSpan": { "enum": [1, 2, 3], "description": "Default column width (1–3) when first added to a dashboard." },
     "requiresEntity": { "type": "string", "description": "If set, the widget is only offered when the backend can surface this entity." },
     "order": { "type": "integer", "description": "Display order in the widget picker." },
-    "refresh": { "type": "integer", "minimum": 1, "description": "Auto-refresh interval in seconds when rendered as a library component. Omitted = no auto-refresh." }
+    "refresh": { "type": "integer", "minimum": 1, "description": "Auto-refresh interval in seconds when rendered as a library component. Omitted = no auto-refresh." },
+    "drillTo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target"],
+      "description": "Declarative drill-down (backlog #122): turns a clicked figure on this widget into a navigation + predicate against the work-item grid. Omitted = no drill-through.",
+      "properties": {
+        "target": { "enum": ["grid"], "description": "Where the drill-through lands. Only the project work-item grid exists today." },
+        "projectIdField": { "type": "string", "description": "Field on the clicked data point supplying the target project id. Omitted when the widget is already project-scoped." },
+        "predicate": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Conditions ALWAYS applied (mirrors the SPA predicate engine's ConditionSet — see lib/rate-card.ts).",
+          "properties": {
+            "all": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["field", "op"], "properties": { "field": { "type": "string" }, "op": { "type": "string" }, "value": {} } } },
+            "any": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["field", "op"], "properties": { "field": { "type": "string" }, "op": { "type": "string" }, "value": {} } } }
+          }
+        },
+        "predicateFrom": {
+          "type": "array",
+          "description": "Conditions derived from the clicked data point at click-time, ANDed with `predicate`.",
+          "items": { "type": "object", "additionalProperties": false, "required": ["field", "op"], "properties": { "field": { "type": "string" }, "op": { "type": "string" }, "fromField": { "type": "string" }, "value": {} } }
+        },
+        "label": { "type": "string", "description": "Human label for the resulting filter, shown in the grid's active-filter banner." }
+      }
+    }
   }
 }

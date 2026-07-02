@@ -8,6 +8,30 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **`drillTo` — one-click red-number → blocked tickets (backlog #122).** Declarative drill-down for
+  reports and dashboard widgets, closing the gap the component-library follow-on slice above
+  deliberately left open: a red "N blocked" figure is now a real link straight to the filtered
+  work-item grid — no manual filter-building.
+  - `LibraryComponent`/`ReportDefinition`/`WidgetDefinition` gained an optional `drillTo` descriptor
+    (`lib/backend-catalogue/src/drill-to.ts`), authored per report/widget JSON (new `drillTo` schema
+    field on `assets/schema/report.schema.json` / `widget.schema.json`) and threaded through
+    `componentLibrary()` — the same field-in-JSON pattern as `refresh`. The descriptor reuses the
+    predicate engine's own shape (`field`/`op`/`value`, all-of/any-of — see `lib/rate-card.ts`
+    `Predicate`/`ConditionSet`), plus `predicateFrom` to derive a condition's value from the clicked
+    data point (`fromField`) instead of a literal.
+  - The SPA resolver (`artifacts/omniproject/src/lib/drill-to.ts`, `resolveDrillTo`) turns a
+    `DrillTo` + the specific row a user clicked into a concrete grid href, carrying the resolved
+    predicate as a `filter`/`filterLabel` query param — purely client-side navigation + URL state,
+    nothing persisted, nothing broker-side. `IssueGrid` reads it back (`readDrillFilter`), pre-filters
+    its rows through the SAME `matchRow` engine the custom report builder already runs saved filters
+    through, and shows a "Filtered — <label> (N of M) · Clear filter" banner; `ProjectDetail` lands
+    straight on the grid (instead of the board) when a drill-through filter is present.
+  - Wired end-to-end into the portfolioHealth widget's BLOCKERS figure
+    (`assets/widgets/portfolioHealth.json` declares `drillTo: blocked truthy`, consumed by
+    `PortfolioKpi`) and reused as-is (same descriptor, same resolver) for the exec board pack's
+    exceptions-table blocker count (`ExecBoardPack`) — one declarative descriptor, two surfaces,
+    proving the mechanism composes instead of every "N blocked" figure hand-rolling its own
+    filter-building. Left generic for other reports/widgets to adopt the same way.
 - **Multi-currency portfolio consolidation, hardened: FX as-of-date policy + per-row local-currency
   display.** At 7+ countries every financial roll-up already converted into one reporting currency
   (`settings.reportingCurrency`, org default + PMO/admin-settable) — this hardens the consolidation
