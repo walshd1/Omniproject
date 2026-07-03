@@ -37,12 +37,12 @@ test("clientMatches treats an empty/absent target as a broadcast", () => {
 });
 
 test("clientMatches addresses by sub, email, or role", () => {
-  const c = { sub: "u1", email: "u@test", roles: ["admin", "ops"] };
+  const c = { sub: "u1", email: "u@test", roles: ["admin", "manager"] };
   assert.equal(clientMatches(c, { sub: "u1" }), true);
   assert.equal(clientMatches(c, { sub: "other" }), false);
   assert.equal(clientMatches(c, { email: "u@test" }), true);
   assert.equal(clientMatches(c, { email: "x@test" }), false);
-  assert.equal(clientMatches(c, { role: "ops" }), true);
+  assert.equal(clientMatches(c, { role: "manager" }), true);
   assert.equal(clientMatches(c, { role: "viewer" }), false);
 });
 

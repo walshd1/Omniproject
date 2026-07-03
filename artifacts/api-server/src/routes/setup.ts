@@ -10,6 +10,7 @@ import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
 import { connectedBrokerKinds } from "../broker/registry";
 import { contextFromReq, brokerVerifyConnection, brokerStoreCredential, callBrokerCapability } from "../broker";
 import { v, parseOr400 } from "../lib/validate";
+import { assertEgressAllowed, EgressError } from "../lib/egress";
 
 // Typed + bounded bodies for the broker-credential routes (untrusted admin input).
 const CONNECTION_TEST_BODY = v.object({ backend: v.string({ trim: true, min: 1, max: 100 }) });
@@ -175,6 +176,7 @@ router.post("/setup/test-broker", requireRole("admin"), async (req, res) => {
   }
 
   try {
+    assertEgressAllowed(url); // SSRF guard: never let an admin-pasted URL reach metadata/link-local
     const r = await fetch(url, {
       method: "POST",
       headers: {
@@ -202,6 +204,10 @@ router.post("/setup/test-broker", requireRole("admin"), async (req, res) => {
       capabilities,
     });
   } catch (err) {
+    if (err instanceof EgressError) {
+      res.json({ reachable: false, error: err.message });
+      return;
+    }
     const isTimeout = err instanceof Error && err.name === "TimeoutError";
     res.json({ reachable: false, error: isTimeout ? "Connection timed out" : "Could not reach the webhook URL" });
   }
@@ -507,6 +513,12 @@ router.post("/setup/verify-workflow", requireRole("admin"), async (req, res) => 
   const url = (typeof req.body?.webhookUrl === "string" && req.body.webhookUrl.trim()) || getSettings().brokerUrl;
   if (!url || !/^https?:\/\//i.test(url)) {
     res.status(400).json({ error: "No broker webhook configured. Connect the broker first or pass webhookUrl." });
+    return;
+  }
+  try {
+    assertEgressAllowed(url); // SSRF guard: never let an admin-pasted URL reach metadata/link-local
+  } catch (err) {
+    res.status(400).json({ error: err instanceof EgressError ? err.message : "That webhook URL is not allowed." });
     return;
   }
   const sampleProjectId = typeof req.body?.projectId === "string" ? req.body.projectId : "sample";

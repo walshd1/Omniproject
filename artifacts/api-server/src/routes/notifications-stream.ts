@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import crypto from "node:crypto";
 import { getSession } from "./auth";
-import { roleForReq, isDeprovisioned } from "../lib/rbac";
+import { roleForReq, isDeprovisioned, ROLES } from "../lib/rbac";
 import { addClient, clientCount } from "../lib/notify-hub";
 import { openSse } from "../lib/sse";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
@@ -99,7 +99,9 @@ function ingestAuth(req: Request, res: Response, next: NextFunction): void {
 const NOTIFY_TARGET_BODY = v.object({
   sub: v.optional(v.string({ trim: true, min: 1, max: 200 })),
   email: v.optional(v.string({ trim: true, min: 1, max: 320 })),
-  role: v.optional(v.string({ trim: true, min: 1, max: 50 })),
+  // A fixed RBAC role, not a free-form string — an unrecognised value (wrong case, a
+  // typo, a role that doesn't exist) would otherwise silently match no client at all.
+  role: v.optional(v.enum(ROLES)),
 });
 const NOTIFICATION_INGEST_BODY = v.object({
   notification: v.object({

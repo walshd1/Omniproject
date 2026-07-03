@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireRole } from "../lib/rbac";
+import { requireRole, ROLES, type Role } from "../lib/rbac";
 import { getBroker } from "../broker";
 import { deliverLocal } from "../lib/notify-hub";
 import { runHealthWatch, recentFindings, type HealthFinding } from "../lib/health-watch";
@@ -54,8 +54,13 @@ router.post("/admin/digest/run", requireRole("admin"), async (_req, res) => {
 // scheduler / the broker cron calls this so it fires once for the fleet; the in-process timer is
 // for single instances. An empty (healthy-portfolio) digest is skipped, not dispatched.
 router.post("/admin/proactive-digest/run", requireRole("admin"), async (req, res) => {
+  const requested = req.body?.role;
+  if (requested !== undefined && !(ROLES as readonly string[]).includes(requested)) {
+    res.status(400).json({ error: `role must be one of: ${ROLES.join(", ")}` });
+    return;
+  }
+  const role = requested as Role | undefined;
   try {
-    const role = typeof req.body?.role === "string" ? req.body.role : undefined;
     const result = await runProactiveDigest({ now: Date.now(), broker: getBroker(), role });
     res.json(result);
   } catch (err) {

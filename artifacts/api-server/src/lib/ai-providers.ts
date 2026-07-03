@@ -69,6 +69,37 @@ let state: ProvidersState = { providers: seedProviders(), mapping: {}, keyRotate
 
 const store = new SealedFile(() => resolveConfigFile("AI_PROVIDERS_FILE", "ai-providers.json"), "ai-providers");
 
+// One-generation undo for provider entities + the capability mapping (never the vault-held
+// keys themselves — a deleted/rotated key is not something rollback should silently bring
+// back; see the module docstring). Batched per synchronous tick the same way rate-card-store
+// batches a multi-setter request, so e.g. an accidental removeProvider (entity + mapping edit
+// across two statements) undoes as one step, not the state between them.
+let previousState: { providers: AiProviderConfig[]; mapping: Record<string, string[]> } | null = null;
+let batchOpen = false;
+
+function beginMutation(): void {
+  if (batchOpen) return;
+  previousState = { providers: structuredClone(state.providers), mapping: structuredClone(state.mapping) };
+  batchOpen = true;
+  queueMicrotask(() => { batchOpen = false; });
+}
+
+/** Undo the most recent provider/mapping change (one generation back). One-shot. */
+export function rollbackAiProviders(): boolean {
+  if (!previousState) return false;
+  const restore = previousState;
+  previousState = null;
+  state.providers = restore.providers;
+  state.mapping = restore.mapping;
+  persist();
+  return true;
+}
+
+/** Whether a rollback is currently available (for the admin UI to show/hide the control). */
+export function canRollbackAiProviders(): boolean {
+  return previousState !== null;
+}
+
 function ensureLoaded(): void {
   store.loadOnce((raw) => {
     const parsed = JSON.parse(raw) as Partial<ProvidersState>;
@@ -98,6 +129,7 @@ export function getProvider(id: string): AiProviderConfig | undefined {
 /** Add or replace a provider entity (by id). The id and kind are validated by the caller. */
 export function upsertProvider(cfg: AiProviderConfig): void {
   ensureLoaded();
+  beginMutation();
   const idx = state.providers.findIndex((p) => p.id === cfg.id);
   if (idx >= 0) state.providers[idx] = cfg; else state.providers.push(cfg);
   persist();
@@ -106,6 +138,7 @@ export function upsertProvider(cfg: AiProviderConfig): void {
 /** Remove a provider entity, its stored key, and any mapping references to it. */
 export async function removeProvider(id: string): Promise<void> {
   ensureLoaded();
+  beginMutation(); // snapshot BEFORE mutating — the key deletion below is awaited, so this can't live in persist()
   state.providers = state.providers.filter((p) => p.id !== id);
   for (const cap of Object.keys(state.mapping)) {
     state.mapping[cap] = (state.mapping[cap] ?? []).filter((pid) => pid !== id);
@@ -171,6 +204,7 @@ export function getCapabilityProviders(cap: string): string[] {
 /** Set the ordered provider list for a capability (unknown provider ids are dropped). */
 export function setCapabilityProviders(cap: string, providerIds: string[]): void {
   ensureLoaded();
+  beginMutation();
   const known = new Set(state.providers.map((p) => p.id));
   state.mapping[cap] = providerIds.filter((id) => known.has(id));
   persist();
@@ -209,5 +243,7 @@ export function providersSnapshot(): { providers: Array<AiProviderConfig & { has
 /** Test-only: reset to seed defaults and force reload. */
 export function __resetProviders(): void {
   state = { providers: seedProviders(), mapping: {}, keyRotatedAt: {} };
+  previousState = null;
+  batchOpen = false;
   store.reset();
 }

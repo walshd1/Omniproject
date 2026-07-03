@@ -11,7 +11,7 @@
  */
 import { demoAuthSeverity } from "./deployment-profile";
 import { configuredBrokerUrls } from "./broker-url";
-import { checkRequiredEnv } from "./env-config";
+import { checkRequiredEnv, detectEnvVarTypos } from "./env-config";
 import { productionSignals } from "./dev-mode-guard";
 
 export type Severity = "critical" | "warn" | "info";
@@ -40,6 +40,11 @@ const set = (v: string | undefined) => !!v?.trim();
  */
 export function securityFindings(env: Env): SecurityFinding[] {
   const out: SecurityFinding[] = [];
+  // A misspelled env var (e.g. OIDC_ISUER_URL) silently falls back to a default with zero signal —
+  // env vars are opaque strings with no compiler to catch a typo'd key. Checked in every
+  // environment (not gated on `prod`, below), since a typo is just as silent in dev/staging.
+  for (const issue of detectEnvVarTypos(env)) out.push({ id: "env-var-typo", severity: "warn", message: issue });
+
   const prod = env["NODE_ENV"] === "production" || productionSignals(env).length > 0;
   if (!prod) return out; // dev/test deployments (no production signals either) are expected to be relaxed
 

@@ -1,3 +1,5 @@
+import type { Role } from "./rbac";
+
 /**
  * Real-time notification hub (Server-Sent Events).
  *
@@ -13,7 +15,8 @@
 export interface NotifyTarget {
   sub?: string | undefined;
   email?: string | undefined;
-  role?: string | undefined;
+  /** One of the fixed RBAC roles — a typo here would silently match no client. */
+  role?: Role | undefined;
 }
 
 export interface NotifyClient {

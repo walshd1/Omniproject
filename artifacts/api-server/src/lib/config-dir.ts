@@ -7,6 +7,7 @@ import { updateSettings } from "./settings";
 import { setFieldRules, setRuleModes } from "./ruleset";
 import { setHealthThresholds } from "./health-watch";
 import { logger } from "./logger";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Deployment config directory loader (OMNI_CONFIG_DIR).
@@ -58,13 +59,16 @@ export function configDirSummary(): ConfigDirSummary {
 }
 
 /** Read a config file, transparently decrypting it if sealed at rest (else plaintext).
- *  A sealed file that won't open (wrong key / tampered) throws a clear error. */
+ *  A sealed file that won't open (wrong key / tampered) throws a clear error. Parsed via the
+ *  prototype-pollution-safe reviver — this is operator-mounted config, but a file dropped into
+ *  the watched directory by mistake (or a compromised mount) shouldn't be able to plant a
+ *  `__proto__`/`constructor` key that pollutes Object.prototype once merged into settings. */
 function readConfigJson(file: string): unknown {
   const raw = fs.readFileSync(file, "utf8");
-  if (!raw.startsWith("c1.")) return JSON.parse(raw); // plaintext
+  if (!raw.startsWith("c1.")) return safeParseJson(raw); // plaintext
   const opened = openConfig(raw);
   if (opened === null) throw new Error(`${path.basename(file)}: could not decrypt (wrong config key?)`);
-  return JSON.parse(opened);
+  return safeParseJson(opened);
 }
 
 /** Read every `*.json` file in a directory (empty list if it doesn't exist). */
