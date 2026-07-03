@@ -28,6 +28,10 @@ import { buildDebugBundleZip } from "../lib/debug-bundle";
 import { requiredCredentials, renderCredentialTemplate } from "../lib/connection-credentials";
 import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 import { configDirSummary } from "../lib/config-dir";
+import { refreshConfigDir, configBackupInfo, clearConfigBackup } from "../lib/config-refresh";
+import { requireStepUp } from "../lib/step-up";
+import { recordAudit } from "../lib/audit";
+import { getSession } from "./auth";
 import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus, buildPublicSetupStatus } from "../lib/setup-status";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
@@ -224,9 +228,46 @@ router.get("/setup/export", requireRole("admin"), (req, res) => {
 });
 
 // GET /api/setup/config-dir — admin: what the deployment config directory
-// (OMNI_CONFIG_DIR) loaded at boot (vendor overlay counts, config applied, errors).
+// (OMNI_CONFIG_DIR) loaded (vendor overlay counts, config applied, errors), plus the
+// `.old` backup's age — the SPA nudges the admin to clear it out once `stale`.
 router.get("/setup/config-dir", requireRole("admin"), (_req, res) => {
-  res.json(configDirSummary());
+  res.json({ ...configDirSummary(), backup: configBackupInfo() });
+});
+
+// POST /api/setup/config-dir/refresh — admin + step-up: hot-reload the config directory
+// NOW instead of waiting for a restart (the operator has already edited the files on
+// disk). Backs the current directory up to `.old` first and auto-reverts to it if the
+// new load reports any file error, so a bad hand-edit can never leave the gateway
+// running on a half-applied broken config.
+router.post("/setup/config-dir/refresh", requireRole("admin"), requireStepUp, (_req, res) => {
+  const result = refreshConfigDir();
+  const session = getSession(_req);
+  recordAudit({
+    ts: new Date().toISOString(), category: "admin", action: "config-dir.refresh",
+    actor: session ? { sub: session.sub, email: session.email } : null, write: true,
+    result: result.ok ? "success" : "error",
+    meta: { errors: result.summary.errors.length, warnings: result.summary.warnings.length, reverted: result.reverted, backedUp: result.backedUp },
+  });
+  // Always 200: the REQUEST succeeded (a refresh was attempted and completed one way or
+  // another) regardless of whether the new config was accepted — `ok`/`reverted` on the
+  // body carry that outcome, so the SPA can render "applied" / "reverted, here's why" /
+  // "failed, no backup to revert to" without treating any of them as a transport error.
+  res.json(result);
+});
+
+// POST /api/setup/config-dir/clear-backup — admin: delete the `.old` backup (the 30-day
+// cleanup nudge's action). Not step-up gated — the backup carries no more privilege than
+// the live config already does, and this is a routine housekeeping action, not a change
+// to live behaviour.
+router.post("/setup/config-dir/clear-backup", requireRole("admin"), (_req, res) => {
+  const cleared = clearConfigBackup();
+  const session = getSession(_req);
+  recordAudit({
+    ts: new Date().toISOString(), category: "admin", action: "config-dir.clear-backup",
+    actor: session ? { sub: session.sub, email: session.email } : null, write: true,
+    result: cleared ? "success" : "error",
+  });
+  res.json({ cleared });
 });
 
 // GET /api/setup/config-bundle — admin "lock this config": download the current

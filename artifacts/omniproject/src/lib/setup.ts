@@ -308,3 +308,43 @@ export async function verifyWorkflow(): Promise<VerifyResult> {
   }
   return (await res.json()) as VerifyResult;
 }
+
+/** The `.old` config-dir backup's age — the SPA nudges the admin to clear it out once `stale`. */
+export interface ConfigBackupInfo {
+  present: boolean;
+  ageDays: number | null;
+  stale: boolean;
+}
+
+/** What the deployment config directory (OMNI_CONFIG_DIR) has loaded, plus the backup state. */
+export interface ConfigDirStatus {
+  dir: string | null;
+  present: boolean;
+  vendors: Record<string, number>;
+  configApplied: boolean;
+  rulesetsApplied: boolean;
+  artifacts: number;
+  warnings: string[];
+  errors: string[];
+  backup: ConfigBackupInfo;
+}
+
+export async function fetchConfigDirStatus(): Promise<ConfigDirStatus> {
+  const res = await fetch("/api/setup/config-dir", { credentials: "same-origin" });
+  if (!res.ok) throw new Error(`config-dir status failed: ${res.status}`);
+  return (await res.json()) as ConfigDirStatus;
+}
+
+export interface ConfigRefreshResult {
+  ok: boolean;
+  reverted: boolean;
+  backedUp: boolean;
+  summary: Omit<ConfigDirStatus, "backup">;
+}
+
+/** Hot-reload OMNI_CONFIG_DIR now (the operator has already edited the files on disk).
+ *  Call behind `withStepUp` — this changes live vendor/ruleset config. */
+export const refreshConfigDir = () => postJson("/api/setup/config-dir/refresh", {}) as Promise<ConfigRefreshResult>;
+
+/** Delete the `.old` config-dir backup (the 30-day cleanup nudge's action). */
+export const clearConfigDirBackup = () => postJson("/api/setup/config-dir/clear-backup", {}) as Promise<{ cleared: boolean }>;

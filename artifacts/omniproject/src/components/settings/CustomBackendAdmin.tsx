@@ -3,6 +3,7 @@ import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
+import { ConfigDirPanel } from "./ConfigDirPanel";
 import { backendCatalogue } from "@workspace/backend-catalogue";
 import { suggestBackend } from "../../lib/ai";
 import {
@@ -336,9 +337,9 @@ export function CustomBackendAdmin() {
           </Button>
           <p className="text-xs text-muted-foreground">
             Save the download as <code>vendors/backends/{draft.id || "&lt;id&gt;"}.json</code> inside your{" "}
-            <code>OMNI_CONFIG_DIR</code>, then reload/restart the gateway. <code>GET /api/setup/config-dir</code>{" "}
-            (admin) reports whether it loaded.
+            <code>OMNI_CONFIG_DIR</code>, then use "Quick update" below to load it now (no restart needed).
           </p>
+          <ConfigDirPanel isAdmin={true} />
         </div>
       </div>
     </section>
