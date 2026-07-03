@@ -7,7 +7,7 @@
 
 # ── Builder ───────────────────────────────────────────────────────────────────
 # Mirror the CI toolchain (.github/workflows/ci.yml): Node 22 + pnpm 11.8.0.
-FROM node:22-bookworm-slim AS builder
+FROM node:26-bookworm-slim AS builder
 
 # Node no longer bundles corepack, so install the pinned pnpm directly via npm.
 RUN npm install -g pnpm@11.8.0
@@ -28,7 +28,7 @@ RUN PORT=3000 BASE_PATH=/ pnpm --filter @workspace/omniproject run build \
  && pnpm --filter @workspace/api-server run build
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
-FROM node:22-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 
 ENV NODE_ENV=production
 ENV PORT=3000
