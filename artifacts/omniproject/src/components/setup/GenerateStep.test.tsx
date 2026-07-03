@@ -53,7 +53,7 @@ describe("GenerateStep", () => {
     const { getByRole, findByText, getByText } = renderWithProviders(
       <GenerateStep url="https://broker.example.com/webhook/op" isAdmin status={status} />,
     );
-    expect(getByRole("heading", { name: "Generate a broker workflow" })).toBeInTheDocument();
+    expect(getByRole("heading", { name: "Get the connector for your tool" })).toBeInTheDocument();
     // backend detail panel populated from fetched backends
     expect(await findByText("Jira note.")).toBeInTheDocument();
     expect(getByText("REST")).toBeInTheDocument();
@@ -66,7 +66,7 @@ describe("GenerateStep", () => {
     const { findByText, getByRole } = renderWithProviders(
       <GenerateStep url="" isAdmin status={status} />,
     );
-    expect(await findByText(/Enterprise integration/)).toBeInTheDocument();
+    expect(await findByText(/needs a paid licence key/)).toBeInTheDocument();
     expect(getByRole("button", { name: /Licensed feature/ })).toBeDisabled();
   });
 
@@ -80,7 +80,7 @@ describe("GenerateStep", () => {
       <GenerateStep url="" isAdmin status={entitledStatus} />,
     );
     expect(await findByText(/SAP API docs/)).toBeInTheDocument();
-    expect(queryByText(/Enterprise integration/)).not.toBeInTheDocument();
+    expect(queryByText(/needs a paid licence key/)).not.toBeInTheDocument();
     expect(getByRole("button", { name: /Download workflow/ })).toBeEnabled();
   });
 
@@ -96,6 +96,6 @@ describe("GenerateStep", () => {
   it("renders gracefully when backends fail to load", async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("nope")) as unknown as typeof fetch;
     const { getByRole } = renderWithProviders(<GenerateStep url="" isAdmin status={status} />);
-    expect(getByRole("heading", { name: "Generate a broker workflow" })).toBeInTheDocument();
+    expect(getByRole("heading", { name: "Get the connector for your tool" })).toBeInTheDocument();
   });
 });

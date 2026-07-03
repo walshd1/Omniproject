@@ -92,7 +92,7 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
       toast({ title: label });
       return true;
     } catch (e) {
-      toast({ title: "ERROR", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
+      toast({ title: "Couldn't do that", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
       return false;
     }
   };
@@ -102,9 +102,9 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
       const r = await rollback(body);
       setStore(r.store);
       refreshAndSettings();
-      toast({ title: "ROLLED BACK", description: `Restored config version ${r.appliedVersion}.` });
+      toast({ title: "Rolled back", description: `Restored config version ${r.appliedVersion}.` });
     } catch (e) {
-      toast({ title: "ROLLBACK FAILED", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
+      toast({ title: "Couldn't roll back", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
     }
   };
 
@@ -112,8 +112,8 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
     /* Step 7 — environments & rollback */
     <Step n={7} title="Environments & rollback">
       <p className="text-xs text-muted-foreground">
-        Design and test integration config in a <b>sandbox</b> without touching production, then promote it. Every
-        change is versioned — pin a <b>known-good</b> state and roll back instantly if production fails.
+        Not needed on day one. Once you're running for real, this lets you test changes in a
+        <b> sandbox</b> without touching your live setup, and undo any change instantly.
       </p>
 
       {!isAdmin ? (

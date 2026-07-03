@@ -85,10 +85,10 @@ export function ProfileStep({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <section className="rounded-lg border border-border bg-card p-5" data-testid="profile-step">
-      <h2 className="text-lg font-bold">1 · Choose your deployment type</h2>
+      <h2 className="text-lg font-bold">1 · What kind of setup is this?</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Pick the closest match. Everything advanced stays opt-in; the type only sets sensible
-        defaults and relaxes enterprise requirements (TLS, SSO) where they'd get in your way.
+        Pick whichever sounds like you. This just sets sensible defaults — nothing advanced turns
+        on by itself, and you can change your mind any time.
       </p>
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {order.map((id) => Card(id, data.catalogue![id]!))}

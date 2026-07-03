@@ -37,7 +37,7 @@ describe("Setup", () => {
   it("renders the connection-center heading and intro from setup status", () => {
     renderWithProviders(<Setup />, { client: seed(status()) });
     expect(screen.getByRole("heading", { level: 1, name: /setup/i })).toBeInTheDocument();
-    expect(screen.getByText(/wire omniproject to your broker/i)).toBeInTheDocument();
+    expect(screen.getByText(/get omniproject talking to the tools/i)).toBeInTheDocument();
   });
 
   it("renders the wizard steps when status has loaded", () => {

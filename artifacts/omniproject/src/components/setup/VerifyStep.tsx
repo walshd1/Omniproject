@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { verifyWorkflow, type VerifyResult, type SetupStatus } from "../../lib/setup";
-import { Dot, Step } from "./shared";
+import { Dot, Step, TechDetails } from "./shared";
 
 export function VerifyStep({
   isAdmin,
@@ -22,7 +22,7 @@ export function VerifyStep({
     try {
       setVerifyResult(await verifyWorkflow());
     } catch (e) {
-      toast({ title: "VERIFY FAILED", description: e instanceof Error ? e.message : "error", variant: "destructive" });
+      toast({ title: "Couldn't check", description: e instanceof Error ? e.message : "error", variant: "destructive" });
     } finally {
       setVerifying(false);
     }
@@ -30,10 +30,11 @@ export function VerifyStep({
 
   return (
     /* Step 5 — verify workflow */
-    <Step n={5} title="Verify your workflow">
+    <Step n={5} title="Double-check the connection">
       <p className="text-xs text-muted-foreground">
-        Probe your connected broker for each read action. Sends <span className="font-mono">{`{ verify: true }`}</span> so a
-        generated workflow short-circuits and nothing touches your backend. Write actions are never probed.
+        Run a completely safe check that everything is wired up correctly. This can't change or
+        damage anything in your real tool — it only checks the safe, read-only bits, and never
+        touches anything that creates, changes, or deletes real data.
       </p>
       <button
         onClick={runVerify}
@@ -41,10 +42,10 @@ export function VerifyStep({
         className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-40 flex items-center gap-2"
       >
         {verifying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-        Run verification
+        Run the check
       </button>
       {!status?.broker.configured && (
-        <p className="text-xs text-amber-500">Connect the broker first (step 2) to verify.</p>
+        <p className="text-xs text-amber-500">Finish step 2 first — connect your tool before checking it.</p>
       )}
       {verifyResult && (
         <div className="border border-border bg-background">
@@ -66,9 +67,11 @@ export function VerifyStep({
           <p className="text-[11px] text-muted-foreground p-3 border-t border-border">{verifyResult.note}</p>
         </div>
       )}
-      <p className="text-xs text-muted-foreground">
-        For a full CLI contract test: <span className="font-mono">OMNI_API_BASE=https://your-omni pnpm --filter @workspace/scripts run verify-broker</span>
-      </p>
+      <TechDetails label="For developers: full contract test from a terminal">
+        <p className="text-muted-foreground font-mono">
+          OMNI_API_BASE=https://your-omni pnpm --filter @workspace/scripts run verify-broker
+        </p>
+      </TechDetails>
     </Step>
   );
 }

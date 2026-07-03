@@ -34,8 +34,23 @@ export function Setup() {
         <div className="pb-4 border-b border-border">
           <h1 className="text-3xl font-black uppercase tracking-tighter">{t("nav.setup")}</h1>
           <p className="text-sm text-muted-foreground mt-2">
-            Wire OmniProject to your broker + backend. OmniProject stays stateless — this wizard applies settings for the
-            current session and emits durable config for you to keep in your environment.
+            Get OmniProject talking to the tools your team already uses — Jira, a spreadsheet, SAP,
+            whatever it is. Work down the page in order; nothing here can damage your existing tools
+            (most of it only <em>reads</em> data until you decide otherwise), and every step tells you
+            exactly what to do.
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-primary/40 bg-primary/5 p-4" data-testid="setup-start-here">
+          <h2 className="text-sm font-bold">New here? You only need three things today:</h2>
+          <ol className="mt-2 space-y-1 text-sm text-muted-foreground list-decimal pl-5">
+            <li><strong className="text-foreground">Connect your tool</strong> (step 2, below).</li>
+            <li><strong className="text-foreground">Get the connector file</strong> for it (step 4).</li>
+            <li><strong className="text-foreground">Double-check it</strong> (step 5) — this can't break anything.</li>
+          </ol>
+          <p className="mt-2 text-xs text-muted-foreground">
+            The rest — making it permanent, backups, sandboxes — are things you'll want <em>later</em>, not on day
+            one. Come back to them once you're happy this actually helps.
           </p>
         </div>
 

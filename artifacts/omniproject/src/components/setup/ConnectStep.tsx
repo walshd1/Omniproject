@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { testBrokerConnection, type BrokerTestResult } from "../../lib/setup";
 import { urlFormatError } from "../../lib/validation";
-import { Dot, Step, useRefreshAndSettings } from "./shared";
+import { Dot, Step, NeedsHelp, TechDetails, useRefreshAndSettings } from "./shared";
 
 export function ConnectStep({
   url,
@@ -41,23 +41,34 @@ export function ConnectStep({
       {
         onSuccess: () => {
           refreshAndSettings();
-          toast({ title: "APPLIED FOR THIS SESSION", description: "Persist the config below to make it durable." });
+          toast({ title: "Connected for this session", description: "Make it permanent in step 3 below, so it survives a restart." });
         },
-        onError: () => toast({ title: "ERROR", description: "Could not apply (admin only).", variant: "destructive" }),
+        onError: () => toast({ title: "Couldn't apply that", description: "You may need admin access.", variant: "destructive" }),
       },
     );
   };
 
   return (
     /* Step 2 — connect the broker */
-    <Step n={2} title="Connect the broker">
+    <Step n={2} title="Connect your project tool">
+      <p className="text-xs text-muted-foreground">
+        This is the one address that lets OmniProject talk to your project tool (Jira, OpenProject,
+        SAP, or whatever you use) through your automation system. If you don't have it yet, it's
+        usually something your IT person or whoever manages your automation tool (often called
+        “n8n”) can give you.
+      </p>
+      <NeedsHelp>
+        Don't have this address? Ask whoever manages your automation tool for the <strong>webhook
+        URL</strong> of the OmniProject workflow. Nobody set one up yet? See the{" "}
+        <a href="https://github.com/walshd1/Omniproject/blob/main/docs/QUICKSTART.md" target="_blank" rel="noreferrer" className="underline">Quickstart guide</a>.
+      </NeedsHelp>
       {!isAdmin && (
         <div className="text-xs text-amber-500 border border-amber-500/40 bg-amber-500/10 p-3">
-          Testing and applying require the <span className="font-mono">admin</span> role.
+          Only an admin can test or apply this connection — ask your admin if this is greyed out.
         </div>
       )}
       <label htmlFor="broker-webhook-url" className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-        Broker webhook URL <span className="text-red-500" aria-hidden="true">*</span>
+        Connection address <span className="text-red-500" aria-hidden="true">*</span>
       </label>
       <div className="flex gap-2">
         <input
@@ -88,16 +99,24 @@ export function ConnectStep({
             <Dot on={!!(result.reachable && result.ok)} />
             {result.reachable
               ? result.ok
-                ? "Reachable — webhook responded"
-                : `Reachable, but responded ${result.status}`
-              : `Unreachable — ${result.error ?? "no response"}`}
+                ? "Connected — it's responding correctly"
+                : `Found it, but it answered oddly (code ${result.status}) — worth checking with whoever set it up`
+              : `Couldn't reach it${result.error ? ` — ${result.error}` : ""}. Double-check the address, or ask whoever manages it to confirm it's running.`}
           </div>
           {result.reachable && (
             <div className="text-xs text-muted-foreground mt-1">
               {result.implementsCapabilities
-                ? "Workflow implements get_capabilities ✓ — apply below to use it this session."
-                : "Tip: add a get_capabilities branch to your workflow so OmniProject can label available reports."}
+                ? "It told us what it can do — apply below to start using it this session."
+                : "It's connected, but doesn't yet report what it can do — everyday use still works fine."}
             </div>
+          )}
+          {result.reachable && !result.implementsCapabilities && (
+            <TechDetails label="Tip for whoever built the workflow">
+              <p className="text-muted-foreground">
+                Add a <span className="font-mono">get_capabilities</span> branch to the workflow so
+                OmniProject can label which reports/views are available.
+              </p>
+            </TechDetails>
           )}
           {result.reachable && result.ok && isAdmin && (
             <button

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchConfigExport, type ExportFormat } from "../../lib/setup";
-import { Step } from "./shared";
+import { NeedsHelp, Step, TechDetails } from "./shared";
 
 export function PersistStep({ brokerUrlSet }: { brokerUrlSet: boolean | undefined }) {
   const { toast } = useToast();
@@ -17,19 +17,25 @@ export function PersistStep({ brokerUrlSet }: { brokerUrlSet: boolean | undefine
   const copySnippet = async () => {
     try {
       await navigator.clipboard.writeText(snippet);
-      toast({ title: "COPIED", description: `${format} config copied to clipboard.` });
+      toast({ title: "Copied", description: `${format} config copied to clipboard.` });
     } catch {
-      toast({ title: "COPY FAILED", description: "Select and copy manually.", variant: "destructive" });
+      toast({ title: "Couldn't copy", description: "Select and copy the text by hand instead.", variant: "destructive" });
     }
   };
 
   return (
     /* Step 3 — persist config */
-    <Step n={3} title="Persist config (keep it in your environment)">
+    <Step n={3} title="Make it permanent">
       <p className="text-xs text-muted-foreground">
-        OmniProject never stores this for you. Copy it into your <span className="font-mono">.env</span>, compose file
-        or k8s manifest so the configuration survives restarts.
+        Right now this connection only lasts until the app restarts — that's deliberate (OmniProject
+        doesn't keep a database of its own, so it doesn't quietly store your settings either). To make
+        it stick, someone needs to save a small settings snippet where the app is hosted.
       </p>
+      <NeedsHelp>
+        If that's not you, this is the one step to hand to whoever hosts OmniProject for you. Copy the
+        snippet below and say: <em>"Please save this in OmniProject's environment configuration, then
+        restart the app."</em> They'll know which format (below) matches how it's hosted.
+      </NeedsHelp>
       <div className="flex gap-1">
         {(["env", "compose", "k8s"] as ExportFormat[]).map((f) => (
           <button
@@ -45,6 +51,15 @@ export function PersistStep({ brokerUrlSet }: { brokerUrlSet: boolean | undefine
         </button>
       </div>
       <pre className="bg-background border border-border p-4 text-xs font-mono overflow-x-auto whitespace-pre">{snippet}</pre>
+      <TechDetails label="Not sure which format you need?">
+        <p className="text-muted-foreground">
+          <span className="font-mono">.env</span> — a plain settings file, used when the app runs directly
+          or via Docker Compose. <span className="font-mono">docker-compose</span> — paste into your
+          compose file's <span className="font-mono">environment:</span> section. <span className="font-mono">k8s</span> —
+          a Kubernetes Secret manifest, for a cluster deployment. If in doubt, send all three to whoever
+          hosts it and they'll pick the right one.
+        </p>
+      </TechDetails>
     </Step>
   );
 }

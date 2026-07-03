@@ -16,11 +16,11 @@ describe("PersistStep", () => {
 
   it("renders heading, format tabs and the loaded snippet", async () => {
     mockExport("BROKER_URL=https://n8n");
-    const { getByRole, findByText, getByText } = renderWithProviders(<PersistStep brokerUrlSet={true} />);
-    expect(getByRole("heading", { name: /Persist config/ })).toBeInTheDocument();
+    const { getByRole, findByText } = renderWithProviders(<PersistStep brokerUrlSet={true} />);
+    expect(getByRole("heading", { name: /Make it permanent/ })).toBeInTheDocument();
     expect(getByRole("button", { name: ".env" })).toBeInTheDocument();
-    expect(getByText("docker-compose")).toBeInTheDocument();
-    expect(getByText("k8s")).toBeInTheDocument();
+    expect(getByRole("button", { name: "docker-compose" })).toBeInTheDocument();
+    expect(getByRole("button", { name: "k8s" })).toBeInTheDocument();
     expect(await findByText("BROKER_URL=https://n8n")).toBeInTheDocument();
   });
 
@@ -28,9 +28,9 @@ describe("PersistStep", () => {
     const fn = vi.fn().mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve("snippet") });
     globalThis.fetch = fn as unknown as typeof fetch;
     const user = userEvent.setup();
-    const { findByText, getByText } = renderWithProviders(<PersistStep brokerUrlSet={true} />);
+    const { findByText, getByRole } = renderWithProviders(<PersistStep brokerUrlSet={true} />);
     await findByText("snippet");
-    await user.click(getByText("docker-compose"));
+    await user.click(getByRole("button", { name: "docker-compose" }));
     expect(fn).toHaveBeenCalledWith(expect.stringContaining("format=compose"), expect.anything());
   });
 

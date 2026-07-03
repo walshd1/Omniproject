@@ -18,20 +18,20 @@ describe("VerifyStep", () => {
 
   it("renders the heading and run button", () => {
     const { getByRole } = renderWithProviders(<VerifyStep isAdmin status={configured} />);
-    expect(getByRole("heading", { name: "Verify your workflow" })).toBeInTheDocument();
-    expect(getByRole("button", { name: /Run verification/ })).toBeInTheDocument();
+    expect(getByRole("heading", { name: "Double-check the connection" })).toBeInTheDocument();
+    expect(getByRole("button", { name: /Run the check/ })).toBeInTheDocument();
   });
 
   it("disables the button and warns when broker not configured", () => {
     const status: SetupStatus = { ...configured, broker: { configured: false, urlSet: false } };
     const { getByRole, getByText } = renderWithProviders(<VerifyStep isAdmin status={status} />);
-    expect(getByRole("button", { name: /Run verification/ })).toBeDisabled();
-    expect(getByText(/Connect the broker first/)).toBeInTheDocument();
+    expect(getByRole("button", { name: /Run the check/ })).toBeDisabled();
+    expect(getByText(/Finish step 2 first/)).toBeInTheDocument();
   });
 
   it("disables the button for non-admins", () => {
     const { getByRole } = renderWithProviders(<VerifyStep isAdmin={false} status={configured} />);
-    expect(getByRole("button", { name: /Run verification/ })).toBeDisabled();
+    expect(getByRole("button", { name: /Run the check/ })).toBeDisabled();
   });
 
   it("renders verify results after running", async () => {
@@ -51,7 +51,7 @@ describe("VerifyStep", () => {
     }) as unknown as typeof fetch;
 
     const { getByRole, findByText, getByText } = renderWithProviders(<VerifyStep isAdmin status={configured} />);
-    await user.click(getByRole("button", { name: /Run verification/ }));
+    await user.click(getByRole("button", { name: /Run the check/ }));
     expect(await findByText("1/2 actions responding")).toBeInTheDocument();
     expect(getByText("list_issues")).toBeInTheDocument();
     expect(getByText("list_resources")).toBeInTheDocument();
