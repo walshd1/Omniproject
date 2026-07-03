@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
+import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { backendCatalogue } from "@workspace/backend-catalogue";
+import { suggestBackend } from "../../lib/ai";
 import {
   CONTRACT_ACTIONS,
   CAPABILITY_DOMAINS,
@@ -13,6 +15,7 @@ import {
   emptyBackendDraft,
   cloneFromCatalogue,
   parseBackendFile,
+  toDraft,
   evaluateDraft,
   downloadBackendManifest,
   type BackendDraft,
@@ -108,6 +111,9 @@ export function CustomBackendAdmin() {
   const [importError, setImportError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [vendorName, setVendorName] = useState("");
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
 
   if (!roleAtLeast(auth?.role, "admin")) return null;
 
@@ -132,6 +138,25 @@ export function CustomBackendAdmin() {
       setDraft(parseBackendFile(await file.text()));
     } catch (e) {
       setImportError(e instanceof Error ? e.message : "Could not import that file.");
+    }
+  }
+
+  /** AI-suggest a starting draft (training-knowledge only, no live verification —
+   *  off unless an admin has turned the "AI backend-draft suggestions" capability
+   *  on). Feeds the reply through the exact same toDraft() an uploaded/cloned
+   *  definition goes through, so nothing downstream needs to know where it came
+   *  from — still needs the same review + action-mapping as any other draft. */
+  async function suggestFromAi() {
+    if (!vendorName.trim()) return;
+    setSuggestError(null);
+    setSuggesting(true);
+    try {
+      const manifestGuess = await suggestBackend(vendorName.trim());
+      setDraft(toDraft(manifestGuess));
+    } catch (e) {
+      setSuggestError(e instanceof Error ? e.message : "Could not get a suggestion.");
+    } finally {
+      setSuggesting(false);
     }
   }
 
@@ -173,6 +198,21 @@ export function CustomBackendAdmin() {
         <input ref={fileRef} type="file" accept="application/json,.json" className="sr-only" aria-label="Import backend definition"
           onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = ""; }} />
         {importError && <span role="alert" className="text-xs font-bold text-red-500">{importError}</span>}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 border border-dashed border-border p-2">
+        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Or ask AI to draft one</span>
+        <Input aria-label="Vendor name to suggest" placeholder="e.g. Smartsheet" className="rounded-none border border-border text-xs w-48"
+          value={vendorName} onChange={(e) => setVendorName(e.target.value)} />
+        <Button variant="outline" className="rounded-none border border-border text-xs flex items-center gap-1.5" disabled={!vendorName.trim() || suggesting} onClick={() => void suggestFromAi()}>
+          {suggesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          Suggest
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          Off by default (Settings → AI capabilities). Training-knowledge only — no live verification;
+          review everything, including the "actions" you still map by hand.
+        </span>
+        {suggestError && <span role="alert" className="text-xs font-bold text-red-500">{suggestError}</span>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

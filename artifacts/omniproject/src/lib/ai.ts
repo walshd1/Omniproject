@@ -33,3 +33,20 @@ export async function aiChat(messages: ChatMessage[]): Promise<{ content: string
   }
   return res.json();
 }
+
+/** Ask the gateway's AI to draft a starting-point backend definition for an unlisted
+ *  vendor (admin-gated; off unless an admin has turned the "AI backend-draft
+ *  suggestions" capability on). Returns a manifest-shaped object with no `actions` —
+ *  feed it straight into `parseBackendFile`/`toDraft` (lib/backend-authoring), the
+ *  same path an uploaded file already takes. */
+export async function suggestBackend(vendorName: string, hint?: string): Promise<Record<string, unknown>> {
+  const res = await fetch("/api/ai/suggest-backend", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ vendorName, hint, surface: typeof window !== "undefined" ? window.location.pathname : undefined }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `suggestion failed: ${res.status}`);
+  return (data as { manifest: Record<string, unknown> }).manifest;
+}

@@ -51,8 +51,10 @@ export function plannerPrompt(text: string, tools: McpTool[]): string {
   ].join("\n");
 }
 
-/** Pull the first JSON object out of a model reply (tolerant of code fences / prose). */
-function extractJson(raw: string): Record<string, unknown> | null {
+/** Pull the first JSON object out of a model reply (tolerant of code fences / prose).
+ *  Shared with lib/backend-suggest — any "reply with JSON" prompt hits the same
+ *  fenced/prose tolerance a model reply needs, so it's not re-implemented per feature. */
+export function extractJson(raw: string): Record<string, unknown> | null {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
   const body = fenced ? fenced[1]! : raw;
   const start = body.indexOf("{");

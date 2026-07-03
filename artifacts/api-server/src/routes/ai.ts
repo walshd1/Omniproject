@@ -12,8 +12,10 @@ import { planAction } from "../lib/nl-action";
 import { MCP_TOOLS } from "../lib/mcp";
 import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../lib/approved-actions";
 import { answerCopilot } from "../lib/copilot";
+import { suggestBackendPrompt, parseSuggestedManifest, SuggestParseError } from "../lib/backend-suggest";
 import { getBroker, contextFromReq } from "../broker";
 import { hasRole, roleForReq, requireRole } from "../lib/rbac";
+import { recordAudit } from "../lib/audit";
 import { aiGovernanceStatus, aiUsageReport, type AiGovContext } from "../lib/ai-governance";
 import { aiContainmentLevel, aiSourceLevel } from "../lib/ai-containment";
 import { transcribe, sttStatus, sttCapabilityId, SttError } from "../lib/stt";
@@ -39,6 +41,10 @@ const COPILOT_BODY = v.object({
 const TRANSCRIBE_BODY = v.object({
   audio: v.string({ min: 1, max: 20_000_000 }), // base64 audio; express json limit is the hard ceiling
   mime: v.optional(v.string({ max: 100 })),
+});
+const SUGGEST_BACKEND_BODY = v.object({
+  vendorName: v.string({ trim: true, min: 1, max: 200 }),
+  hint: v.optional(v.string({ trim: true, max: 2_000 })),
 });
 
 /** The actor identity for capability logging, from the request session (or null). */
@@ -205,6 +211,43 @@ router.post("/ai/transcribe", async (req, res) => {
     const status = err instanceof SttError ? err.status : 502;
     req.log.error({ err }, "transcription failed");
     res.status(status).json({ error: err instanceof Error ? err.message : "transcription failed" });
+  }
+});
+
+// ── POST /api/ai/suggest-backend — draft a starting-point backend definition ──
+// Admin-only (same audience as Settings → Custom backends) and gated by its own
+// capability (off by default) on top of the shared provider gate. Returns a plain
+// manifest-shaped object with no "actions" — the SPA loads it through the exact
+// same parseBackendFile()/toDraft() path an uploaded file already takes, and an
+// admin still maps every action by hand.
+router.post("/ai/suggest-backend", requireRole("admin"), async (req, res) => {
+  const parsed = parseOr400(req, res, SUGGEST_BACKEND_BODY);
+  if (!parsed) return;
+
+  const provider = getSettings().aiProvider;
+  const surface = surfaceFromBody(req);
+  const actor = actorFromSession(req);
+  if (!enforceOr403(req, res, `provider:${provider}`, { surface, label: "AI is unavailable here" })) return;
+  if (!enforceOr403(req, res, "backend-draft", { surface, label: "AI backend drafting is unavailable here" })) return;
+
+  try {
+    const prompt = suggestBackendPrompt(parsed.vendorName, parsed.hint);
+    const { content } = await aiChat([{ role: "user", content: prompt }], govCtx(req));
+    const manifest = parseSuggestedManifest(content, parsed.vendorName);
+    recordAudit({
+      ts: new Date().toISOString(),
+      category: "admin",
+      action: "ai.backend_draft_suggested",
+      actor,
+      write: false,
+      meta: { vendorName: parsed.vendorName },
+    });
+    res.json({ manifest });
+  } catch (err) {
+    if (err instanceof SuggestParseError) { res.status(502).json({ error: err.message }); return; }
+    const status = err instanceof AiError ? err.status : 502;
+    req.log.error({ err }, "backend-draft suggestion failed");
+    res.status(status).json({ error: err instanceof Error ? err.message : "suggestion failed" });
   }
 });
 
