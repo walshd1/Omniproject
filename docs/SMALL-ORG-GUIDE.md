@@ -5,6 +5,23 @@ allowlist, session caps, maker-checker) is **off by default**, and the product r
 without any of them. This guide is the small-org counterpart to `docs/AI-SECURITY.md` /
 `docs/ENTERPRISE-OPS.md` — what you actually need, and what you can safely skip.
 
+## Why this exists (for you specifically)
+
+README's "Why OmniProject exists" names three things: tool sprawl, nobody trusting a
+second copy of their data, and migration risk killing the project before it starts. For
+a charity or small team, all three show up sharper than anywhere else. You can't
+justify a fourth subscription just to see status across the spreadsheet, the Trello
+board and whatever the last grant-funded project set up in Jira. You definitely can't
+risk a tool that quietly becomes a new place donor, volunteer or beneficiary data
+lives — a new thing to secure, and a new place it could leak from if a subscription
+lapses or a volunteer moves on. And nobody's getting buy-in to migrate off whatever's
+already limping along, however messy, just to get one dashboard. OmniProject's answer —
+no database of its own, every read/write live against what you already use — is exactly
+why the "opt-in-hardened" claim above is real rather than a marketing line: there's
+genuinely nothing sensitive sitting in OmniProject waiting to be secured until you
+choose to turn something on, so skipping SSO/SCIM/KMS isn't a corner cut, it's a
+control that had nothing to guard in the first place.
+
 ## TL;DR — the smallest real deployment
 
 ```
@@ -18,9 +35,9 @@ That boots, serves **plain HTTP on your LAN** (sessions keep working — no brok
 cookies), authenticates in demo mode, and shows sample data until you wire a backend. Nothing
 is stored at rest beyond your encrypted config.
 
-## Pick your type in the setup wizard
+## Pick your type in the Configurator
 
-The **Setup** wizard opens with **“Choose your deployment type”** — a card per customer type
+The **Configurator** opens with **“Choose your deployment type”** — a card per customer type
 (Enterprise · Business/SME · Non-profit/charity · Self-hosted · Demo) showing what each one
 relaxes and the env it suggests. Picking one persists the choice (admins). For a permanent,
 boot-time setting also set `DEPLOYMENT_PROFILE` in your environment (it stays authoritative
@@ -62,7 +79,7 @@ choices are visible, not accidental.
 - `DEPLOYMENT_PROFILE=business` (the default). Configure OIDC SSO with whatever IdP you have
   (Google Workspace, Entra, Authentik…), serve over HTTPS, set `SESSION_SECRET` + `BROKER_PSK`.
   No OIDC IdP but already on **GitHub**? Use the OAuth2 path instead: set the `OAUTH2_*` env
-  (the setup wizard's GitHub preset pre-fills the endpoints) for "Sign in with GitHub".
+  (the Configurator's GitHub preset pre-fills the endpoints) for "Sign in with GitHub".
 - Turn on **only** the hardening you want — e.g. add a `MAX_SESSIONS_PER_USER` cap or an
   `IP_ALLOWLIST`; ignore SCIM/KMS/maker-checker unless you need them.
 
