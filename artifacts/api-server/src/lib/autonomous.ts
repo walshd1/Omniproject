@@ -74,6 +74,7 @@ const REGISTRY = new Map<string, Role>([
   ["reconciler", "viewer"], //        cross-backend entity resolution (read-only)
   ["exec-digest", "viewer"], //       scheduled read-only portfolio summary → notifications
   ["proactive-digest", "viewer"], //  scheduled read-only "what needs me" digest → notifications
+  ["drift-canary", "viewer"], //      scheduled read-only 3rd-party API drift check → notifications
 ]);
 
 /** Register (or raise/lower) the max role an autonomous actor id may run as (admin/config). */

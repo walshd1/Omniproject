@@ -12,6 +12,7 @@ import { installShutdownHandlers } from "./lib/shutdown";
 import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
 import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
 import { startProactiveDigestScheduler, runProactiveDigest } from "./lib/proactive-digest";
+import { startDriftCanaryScheduler, runDriftCanary } from "./lib/drift-canary";
 import { loadConfigDir } from "./lib/config-dir";
 import { readCacheEnabled, readCacheTtlMs } from "./broker/cache";
 import { startMetricExport } from "./lib/otlp-metrics";
@@ -68,6 +69,14 @@ async function start(): Promise<void> {
   // for a fleet, set it to 0 and drive POST /api/admin/proactive-digest/run from external cron so
   // it fires once. A healthy portfolio yields an empty digest that is skipped, so "on" ≠ "noisy".
   startProactiveDigestScheduler(() => runProactiveDigest({ now: Date.now(), broker: getBroker() }));
+
+  // Third-party API drift canary — ON by a safe 6-hourly default (opt-out): set
+  // DRIFT_CANARY_INTERVAL_HOURS=0 to disable, or to a custom cadence. Diffs the broker's
+  // read-only verify probe (and field enumeration, where supported) against the last run so a
+  // vendor API regression raises an alert instead of surfacing as a silent failure later.
+  // Single-instance timer; for a fleet, set it to 0 and drive POST /api/admin/drift-canary/run
+  // from external cron so it fires once. A quiet run dispatches nothing.
+  startDriftCanaryScheduler(() => runDriftCanary({ now: Date.now(), broker: getBroker() }));
 
   const server = app.listen(port, (err) => {
     if (err) {
