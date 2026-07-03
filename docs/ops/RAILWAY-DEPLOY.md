@@ -11,6 +11,25 @@ from its dashboard — that's what produces a real "Deploy on Railway" button
 URL, which only Railway can mint (there's no way to construct one in advance).
 Until then, this doc **is** the deploy path.
 
+## Why this exists (not just how)
+
+README's "Why OmniProject exists" names three things: tool sprawl, nobody trusting
+a second copy of their data, and migration risk killing the project before it
+starts. Self-hosting is where that promise runs into a real barrier of its own —
+standing up Docker, n8n, and (optionally) Authentik yourself is exactly the kind
+of technical lift that keeps a non-technical PM or a small charity from ever
+trying OmniProject, even though nothing about the *architecture* requires it: the
+gateway runs identically on a laptop, a Docker host, or a hosted platform. A
+Railway deploy doesn't change what OmniProject is or does — it just moves who
+runs the one Docker host it always needed, from "you, with a terminal" to
+"Railway, for a few dollars a month." Same zero-at-rest guarantee (still nothing
+copied out of the real backend), self-hosting kept as a first-class option
+alongside it (this doc adds a second on-ramp; it doesn't replace
+`docs/DEPLOY-LOCAL.md`). Tier 1 in particular — demo auth accepted, two services —
+is deliberately the smallest possible instance of "try OmniProject without anyone
+technical involved," the same problem the Configurator's tile pickers and
+low-tech vendor-request flow have been chipping away at from the other end.
+
 Why Railway over Render/Fly/DigitalOcean: it's the only one of the four that
 can import an existing `docker-compose.yml`-shaped stack directly (drag the
 compose file onto the project canvas and it creates one Railway service per
