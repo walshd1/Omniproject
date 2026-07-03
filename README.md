@@ -13,6 +13,31 @@ into one tool — and you shouldn't have to.
 
 **OmniProject gives you one dashboard across all your project tools, without copying any of your data out of them.**
 
+### Why OmniProject exists
+
+Three problems keep showing up together, at every org from a 5-person charity
+to a multinational running SAP:
+
+1. **Tool sprawl.** Engineering lives in Jira, finance trusts SAP, support runs
+   through ServiceNow, and someone still keeps a spreadsheet nothing else
+   covers. No single tool is "wrong" — but no single person can see across all
+   of them without a Friday afternoon spent copy-pasting into a status deck.
+2. **Nobody trusts a second copy.** Every "unified" tool we looked at solves
+   sprawl by importing your data into *itself* — and the moment it has its own
+   copy, that copy starts drifting from the real thing. Now someone has to
+   answer "which number is actually true" and audit yet another place data
+   at rest can leak from.
+3. **Migration is the actual blocker, not the idea.** Everyone agrees a single
+   view across tools would help. Almost nobody can get their org to rip out
+   Jira, SAP and ServiceNow to get it — the migration risk kills the project
+   before it starts.
+
+OmniProject's answer is to not be a fourth place your data lives: it's a live
+window onto the tools you already run, so there's nothing to migrate, nothing
+to keep in sync, and nothing new to secure. That's the whole bet — see **[How
+OmniProject works](#how-omniproject-works)** below for how it's built to keep
+that promise structurally, not just by policy.
+
 It's free to self-host (Apache-2.0), and it works alongside what you already use — a
 spreadsheet, Trello, Jira, OpenProject, SAP, whatever — instead of asking you to move
 into something new. Pick the door that's you:
