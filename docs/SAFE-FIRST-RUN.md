@@ -12,6 +12,20 @@ with one-click rollback the whole way. Nothing here risks your production data.
 > [README → Safe to try with your real data](../README.md#safe-to-try-with-your-real-data)
 > and [SECURITY.md](../SECURITY.md).
 
+## Why this exists (proof, not just a promise)
+
+README's "Why OmniProject exists" names three problems: tool sprawl, nobody
+trusting a second copy of their data, and migration risk killing the idea before
+it starts. This guide exists because the second one can't just be asserted — it's
+easy to *say* "we store nothing," hard to *trust* it enough to point a new tool at
+the real Jira/SAP/ServiceNow instance a team's whole delivery picture depends on.
+That's why this on-ramp is graduated rather than "just connect it and see": every
+step (read-only wiring, a dry-run verify that never touches the backend, a sandbox
+environment, instant rollback) lets you personally confirm the zero-at-rest
+architecture holds, in your own environment, before extending any trust at all.
+Nobody should have to take "stateless" on faith — that's exactly the migration-fear
+problem the README names, and proving it beats promising it.
+
 ## Step 0 — See it work, zero config (demo mode)
 
 With no environment set, OmniProject runs in **demo mode** against sample data —
