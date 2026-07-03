@@ -136,26 +136,67 @@ function defaultBaseRole(): BaseRole {
 }
 
 /**
+ * Tamper-resistant MFA gate for pmo/admin (real SSO only — demo mode is exempt, see
+ * `grantsFromClaims`). A claim placing someone in the admin/pmo IdP group is not, on
+ * its own, enough to wield that authority: the session's authentication-method
+ * assertion must also prove a hardware-bound, phishing-resistant credential (a
+ * WebAuthn/FIDO2-family method) — not password+OTP/SMS, which are phishable/relayable.
+ *
+ * Sourced from the ID token's `amr` (RFC 8176: "hwk" = hardware-key possession, "swk"
+ * = software-key possession — both are origin-bound public-key crypto, i.e. WebAuthn)
+ * or `acr`, or SAML's configurable `SAML_ACR_ATTR`. Every IdP's exact vocabulary
+ * differs, so the accepted values are configurable:
+ *   OIDC_STRONG_AMR_VALUES   comma list, default "hwk,swk"
+ *   OIDC_STRONG_ACR_VALUES   comma list, default "" (unset — most IdPs don't need it)
+ * A claims match with no qualifying amr/acr does not drop the user to viewer — it
+ * withholds only the pmo/admin authority; the base-role ladder (manager, since an
+ * admin/pmo group membership already implies at least that) is unaffected.
+ */
+const STRONG_AMR = envValueSet("OIDC_STRONG_AMR_VALUES", ["hwk", "swk"]);
+const STRONG_ACR = envValueSet("OIDC_STRONG_ACR_VALUES", []);
+
+function envValueSet(key: string, fallback: string[]): Set<string> {
+  const raw = process.env[key]?.trim();
+  const list = raw ? raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : fallback;
+  return new Set(list);
+}
+
+/** Does this session's auth-method assertion prove tamper-resistant (hardware-bound) MFA? */
+export function hasStrongAuth(session: { amr?: string[] | undefined; acr?: string | undefined } | null | undefined): boolean {
+  if (!session) return false;
+  if ((session.amr ?? []).some((a) => STRONG_AMR.has(a.toLowerCase()))) return true;
+  if (session.acr && STRONG_ACR.has(session.acr.toLowerCase())) return true;
+  return false;
+}
+
+/**
  * Pure mapping from a user's raw claim groups to their GRANTS (base rung + the set
  * of authorities), using the configured role lists. Side-effect free apart from
  * reading env/overrides, so it is unit-testable without an Express request.
  */
-export function grantsFromClaims(claimRoles: string[], opts: { isDemo: boolean }): Grants {
-  // Demo (no IdP) holds every grant so the product is fully usable out of the box.
+export function grantsFromClaims(claimRoles: string[], opts: { isDemo: boolean; strongAuth?: boolean }): Grants {
+  // Demo (no IdP) holds every grant so the product is fully usable out of the box —
+  // there's no real identity to phish in the first place, and this posture is already
+  // surfaced/warned about elsewhere (deployment-profile's demoAuthSeverity).
   if (opts.isDemo) return { base: "manager", authorities: new Set(AUTHORITIES) };
 
   const claims = new Set(claimRoles.map((r) => r.toLowerCase()));
   const hit = (role: Role) => [...claims].some((c) => rolesFor(role).has(c));
 
-  // Authorities are independent flags (union of whatever the claims match).
-  const authorities = new Set<Authority>(AUTHORITIES.filter(hit));
+  // Authorities are independent flags (union of whatever the claims match)…
+  const claimedAuthorities = new Set<Authority>(AUTHORITIES.filter(hit));
+  // …but a claimed pmo/admin authority is only actually GRANTED with proof of strong
+  // auth. `opts.strongAuth` defaults to true (undefined) so existing callers that don't
+  // pass it (e.g. tests exercising the base ladder) are unaffected.
+  const authorities = opts.strongAuth === false ? new Set<Authority>() : claimedAuthorities;
   // Base rung: the highest linear role the claims match; an authority implies
-  // `manager`; otherwise fall back to the configured default.
+  // `manager` (even when withheld above — the claim itself still proves at least
+  // manager-level trust); otherwise fall back to the configured default.
   let base: BaseRole | null = null;
   for (const r of ["manager", "contributor", "viewer"] as BaseRole[]) {
     if (hit(r)) { base = r; break; }
   }
-  if (!base) base = authorities.size > 0 ? "manager" : defaultBaseRole();
+  if (!base) base = claimedAuthorities.size > 0 ? "manager" : defaultBaseRole();
   return { base, authorities };
 }
 
@@ -184,7 +225,7 @@ export function grantsForReq(req: Request): Grants {
   // IdP's group→role assignment flows through without re-issuing OIDC claims.
   const decision = directoryDecision({ email: session.email, sub: session.sub });
   const claims = decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
-  return grantsFromClaims(claims, { isDemo });
+  return grantsFromClaims(claims, { isDemo, strongAuth: hasStrongAuth(session) });
 }
 
 /** Is this request's principal DEPROVISIONED in the SCIM directory? (known + active=false.) */

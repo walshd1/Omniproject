@@ -34,6 +34,8 @@ import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuth
 import { applyCharityOnboarding } from "../lib/charity-onboarding";
 import { sharedStateMode } from "../lib/shared-state";
 import { IDP_PRESETS } from "../lib/idp-presets";
+import { isOidcConfigured } from "../lib/oidc";
+import { isSamlConfigured } from "../lib/saml";
 import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
 import {
   storeView,
@@ -99,6 +101,11 @@ router.get("/setup/profile", requireRole("admin"), (_req, res) => {
       makerChecker: !!process.env["DUAL_CONTROL_ACTIONS"]?.trim(),
       securityStrict: isOn(process.env["SECURITY_STRICT"]),
       rateLimit: !isOn(process.env["RATE_LIMIT_DISABLED"]),
+      // Tamper-resistant MFA (hardware-bound amr/acr) gates pmo/admin authority whenever
+      // real SSO is configured — it's unconditional enforcement, not a separate toggle.
+      // Demo mode has no real identity to gate, so this reads false there (already
+      // covered by the demoAuth warning above).
+      strongMfaAdminPmo: isOidcConfigured || isSamlConfigured(),
       // Whether per-replica registries (e.g. the maker-checker queue) are shared fleet-wide.
       sharedState: sharedStateMode(),
     },

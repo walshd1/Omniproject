@@ -311,6 +311,8 @@ router.get("/auth/callback", async (req, res) => {
       name: claims?.name,
       email: claims?.email,
       roles: claims?.roles,
+      amr: claims?.amr,
+      acr: claims?.acr,
       accessToken: tokens.access_token,
       idToken: tokens.id_token,
       // A step-up re-auth (prompt=login) stamps freshness so a sensitive action proceeds.
@@ -358,6 +360,7 @@ router.post("/auth/saml/callback", async (req, res) => {
       ...(claims.name !== undefined ? { name: claims.name } : {}),
       ...(claims.email !== undefined ? { email: claims.email } : {}),
       ...(claims.roles.length ? { roles: claims.roles } : {}),
+      ...(claims.acr !== undefined ? { acr: claims.acr } : {}),
       // SAML asserts identity, not a backend bearer (see lib/saml HONEST SCOPE).
       accessToken: "saml",
     });

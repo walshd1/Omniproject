@@ -20,6 +20,10 @@ export interface OidcConfig {
   audience: string;
   /** Verify the ID token signature + claims against the issuer JWKS. */
   verifyToken: boolean;
+  /** Requested `acr_values` (space-delimited), best-effort — asks the IdP for a specific
+   *  authentication strength. Not all IdPs honour it; the gateway still separately VERIFIES
+   *  the resulting amr/acr claim (see rbac.hasStrongAuth) rather than trusting the request. */
+  acrValues?: string | undefined;
 }
 
 export interface OidcDiscovery {
@@ -37,6 +41,13 @@ export interface SessionUser {
   email?: string | undefined;
   /** Raw role/group claims from the IdP, used by the RBAC layer. */
   roles?: string[] | undefined;
+  /** Authentication Methods References (RFC 8176) from the ID token, e.g. ["hwk"] for a
+   *  WebAuthn/FIDO2 hardware-bound credential. Used to gate pmo/admin authority on
+   *  tamper-resistant MFA (see rbac.hasStrongAuth) — never trusted for anything else. */
+  amr?: string[] | undefined;
+  /** Authentication Context Class Reference from the ID token — an alternative (IdP-specific)
+   *  way of asserting authentication strength, checked alongside amr. */
+  acr?: string | undefined;
 }
 
 /**
@@ -98,6 +109,7 @@ function providerFromEnv(id: string, label: string, keyPrefix: string): OidcProv
     scope: process.env[`${keyPrefix}_SCOPE`]?.trim() || "openid profile email",
     audience: process.env[`${keyPrefix}_AUDIENCE`]?.trim() || clientId,
     verifyToken,
+    acrValues: process.env[`${keyPrefix}_ACR_VALUES`]?.trim() || undefined,
   };
 }
 
@@ -213,6 +225,7 @@ export function authorizeUrl(params: {
     url.searchParams.set("prompt", "login"); // force a fresh credential prompt (step-up)
     url.searchParams.set("max_age", "0");
   }
+  if (params.provider.acrValues) url.searchParams.set("acr_values", params.provider.acrValues);
   return url.toString();
 }
 
@@ -295,6 +308,8 @@ export function decodeIdTokenClaims(idToken: string): SessionUser | null {
       name: payload.name ?? payload.preferred_username ?? undefined,
       email: payload.email ?? undefined,
       roles: extractRoles(payload),
+      amr: extractAmr(payload),
+      acr: typeof payload.acr === "string" ? payload.acr : undefined,
     };
   } catch {
     return null;
@@ -322,6 +337,18 @@ export function idTokenNonce(idToken: string): string | null {
  * `roles`/`groups` array, Keycloak's `realm_access.roles`, or a space-delimited
  * string. The RBAC layer maps these onto OmniProject roles via env config.
  */
+/** The `amr` (Authentication Methods References, RFC 8176) claim — normally an array,
+ *  but tolerate a single space-delimited string (some IdPs deviate). */
+function extractAmr(payload: Record<string, unknown>): string[] | undefined {
+  const raw = payload["amr"];
+  if (Array.isArray(raw)) {
+    const out = raw.filter((x): x is string => typeof x === "string");
+    return out.length ? out : undefined;
+  }
+  if (typeof raw === "string" && raw.trim()) return raw.trim().split(/\s+/);
+  return undefined;
+}
+
 function extractRoles(payload: Record<string, unknown>): string[] {
   const out = new Set<string>();
   const add = (v: unknown) => {

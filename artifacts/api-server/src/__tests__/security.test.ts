@@ -41,14 +41,17 @@ function signedSessionCookie(session: object): string {
 
 const VIEWER = signedSessionCookie({ sub: "viewer-1", roles: [] });
 const MANAGER = signedSessionCookie({ sub: "manager-1", roles: ["omni-managers"] });
-const PMO = signedSessionCookie({ sub: "pmo-1", roles: ["omni-pmo"] });
+// pmo/admin authority now also requires a tamper-resistant-MFA assertion (amr) — these
+// fixtures carry it so the tests below exercise the OTHER gate under test (role, step-up,
+// SSRF, …), not this one; rbac-strong-auth.test.ts covers the amr gate itself.
+const PMO = signedSessionCookie({ sub: "pmo-1", roles: ["omni-pmo"], amr: ["hwk"] });
 // Freshly stepped-up admin (some sensitive routes — raw escape hatch, governance,
 // key revocation — require a recent re-auth on top of the admin role).
-const ADMIN = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"], stepUpAt: Date.now() });
+const ADMIN = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"], amr: ["hwk"], stepUpAt: Date.now() });
 // An admin WITHOUT a recent step-up — for asserting the step-up wall.
-const ADMIN_NO_STEPUP = signedSessionCookie({ sub: "admin-2", roles: ["omni-admins"] });
+const ADMIN_NO_STEPUP = signedSessionCookie({ sub: "admin-2", roles: ["omni-admins"], amr: ["hwk"] });
 // Holds BOTH authorities — the join (governance + technical).
-const PMO_ADMIN = signedSessionCookie({ sub: "both-1", roles: ["omni-pmo", "omni-admins"], stepUpAt: Date.now() });
+const PMO_ADMIN = signedSessionCookie({ sub: "both-1", roles: ["omni-pmo", "omni-admins"], amr: ["hwk"], stepUpAt: Date.now() });
 
 before(async () => {
   const { default: app } = await import("../app");

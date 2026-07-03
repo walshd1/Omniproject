@@ -38,8 +38,10 @@ function signedSessionCookie(session: object): string {
 }
 
 const VIEWER = signedSessionCookie({ sub: "viewer-1", roles: [] });
-const ADMIN_FRESH = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"], stepUpAt: Date.now() });
-const ADMIN_STALE = signedSessionCookie({ sub: "admin-2", roles: ["omni-admins"] });
+// pmo/admin authority requires a tamper-resistant-MFA assertion (amr) — carried here so
+// these fixtures exercise the dev-mode gates under test, not the amr gate itself.
+const ADMIN_FRESH = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"], amr: ["hwk"], stepUpAt: Date.now() });
+const ADMIN_STALE = signedSessionCookie({ sub: "admin-2", roles: ["omni-admins"], amr: ["hwk"] });
 
 before(async () => {
   const { default: app } = await import("../app");

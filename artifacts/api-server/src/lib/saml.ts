@@ -42,6 +42,12 @@ export interface SamlConfig {
   emailAttr: string;
   nameAttr: string;
   groupsAttr: string;
+  /** Attribute name carrying an authentication-strength assertion (e.g. an
+   *  AuthnContextClassRef the IdP maps into a plain attribute), for the same
+   *  tamper-resistant-MFA gate OIDC's amr/acr feeds (rbac.hasStrongAuth). No
+   *  universal default — unlike email/name/groups there's no cross-IdP convention,
+   *  so this is unset unless SAML_ACR_ATTR is configured. */
+  acrAttr?: string | undefined;
   wantResponseSigned: boolean;
 }
 
@@ -76,6 +82,7 @@ function readConfig(): SamlConfig | null {
     emailAttr: process.env["SAML_EMAIL_ATTR"]?.trim() || "email",
     nameAttr: process.env["SAML_NAME_ATTR"]?.trim() || "displayName",
     groupsAttr: process.env["SAML_GROUPS_ATTR"]?.trim() || "groups",
+    acrAttr: process.env["SAML_ACR_ATTR"]?.trim() || undefined,
     wantResponseSigned: process.env["SAML_WANT_RESPONSE_SIGNED"]?.trim().toLowerCase() === "true",
   };
 }
@@ -146,6 +153,8 @@ export interface SamlClaims {
   name?: string;
   email?: string;
   roles: string[];
+  /** Authentication-strength assertion, if `SAML_ACR_ATTR` is configured (see SamlConfig.acrAttr). */
+  acr?: string;
 }
 
 /** Coerce a SAML attribute value (string | string[] | object) to its first string. */
@@ -187,7 +196,8 @@ export function profileToClaims(profile: SamlProfileLike, cfg: SamlConfig): Saml
   const name = firstString(attr(cfg.nameAttr)) ?? firstString(profile["displayName"]);
   const sub = firstString(profile.nameID) ?? email ?? "unknown";
   const roles = toStringArray(attr(cfg.groupsAttr));
-  return { sub, roles, ...(name ? { name } : {}), ...(email ? { email } : {}) };
+  const acr = cfg.acrAttr ? firstString(attr(cfg.acrAttr)) : undefined;
+  return { sub, roles, ...(name ? { name } : {}), ...(email ? { email } : {}), ...(acr ? { acr } : {}) };
 }
 
 // ── Runtime-optional SAML provider (dynamic import; cached) ───────────────────────
