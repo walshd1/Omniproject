@@ -3,6 +3,7 @@ import { mintAutonomousContext } from "./autonomous";
 import { getNotifyBus } from "./notify-bus";
 import { recordAudit } from "./audit";
 import { logger } from "./logger";
+import { ROLES, type Role } from "./rbac";
 
 /**
  * Proactive "what needs me" digest.
@@ -99,7 +100,7 @@ export interface ProactiveDigest {
   /** The notification kind — always "digest" (registered in the kind registry). */
   kind: "digest";
   /** The RBAC role this digest is aimed at (drives the dispatch audience). */
-  role: string;
+  role: Role;
   title: string;
   body: string;
   /** True when nothing needs attention — the caller SKIPS delivery so silence stays silent. */
@@ -123,7 +124,7 @@ const cap = (names: string[], max: number): string[] => names.slice(0, Math.max(
 export function buildProactiveDigest(
   rows: PortfolioRow[],
   at: string,
-  role = "manager",
+  role: Role = "manager",
   thresholds: DigestThresholds = DEFAULT_DIGEST_THRESHOLDS,
 ): ProactiveDigest {
   // Worst-first ordering within a section: red before amber, then by the relevant magnitude.
@@ -177,13 +178,13 @@ export interface RunDigestOptions {
   broker: Broker;
   now: number;
   /** RBAC role the digest is aimed at (default manager — the PMs/PgMs). */
-  role?: string;
+  role?: Role | undefined;
   /** Thresholds to build with (defaults to the tuned/active thresholds). */
   thresholds?: DigestThresholds;
   /** Send an empty digest anyway (default false — a healthy portfolio stays silent). */
   sendWhenEmpty?: boolean;
   /** Deliver the digest (defaults to the notify bus); injectable for tests. */
-  publish?: (notification: { kind: string; title: string; body: string; target?: { role?: string } }) => Promise<unknown> | unknown;
+  publish?: (notification: { kind: string; title: string; body: string; target?: { role?: Role } }) => Promise<unknown> | unknown;
 }
 
 export interface RunDigestResult {

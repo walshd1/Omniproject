@@ -58,12 +58,12 @@ export function BackupStep({
     try {
       parsed = safeParseJson(await file.text());
     } catch {
-      toast({ title: "RESTORE FAILED", description: "File is not valid JSON.", variant: "destructive" });
+      toast({ title: "Couldn't restore", description: "That file isn't valid JSON.", variant: "destructive" });
       return;
     }
     const shapeError = validateSnapshot(parsed);
     if (shapeError) {
-      toast({ title: "RESTORE FAILED", description: shapeError, variant: "destructive" });
+      toast({ title: "Couldn't restore", description: shapeError, variant: "destructive" });
       return;
     }
     setPending({ snapshot: parsed, fileName: file.name });
@@ -78,12 +78,12 @@ export function BackupStep({
       const result = await restoreSnapshot(snapshot);
       refreshAndSettings();
       toast({
-        title: "CONFIG RESTORED",
+        title: "Settings restored",
         description: result.warnings?.length ? `${result.warnings.length} warning(s) — check the console.` : "Settings restored from snapshot.",
       });
       if (result.warnings?.length) console.warn("Restore warnings:", result.warnings);
     } catch (e) {
-      toast({ title: "RESTORE FAILED", description: e instanceof Error ? e.message : "Invalid snapshot file.", variant: "destructive" });
+      toast({ title: "Couldn't restore", description: e instanceof Error ? e.message : "That doesn't look like a valid snapshot file.", variant: "destructive" });
     }
   };
 
@@ -91,13 +91,12 @@ export function BackupStep({
     /* Step 6 — backup & restore */
     <Step n={6} title="Backup & restore">
       <p className="text-xs text-muted-foreground">
-        Take a JSON snapshot of the gateway config before a risky change or a port — and restore it if setup goes
-        wrong. Secrets stay in your environment (use the config export above for those); this captures the runtime
-        settings.
+        Not needed on day one — come back to this once you're settled in. It takes a snapshot of
+        your settings before a risky change, so you can undo it if something goes wrong.
       </p>
       <div className="flex flex-wrap gap-2 items-center">
         <button
-          onClick={() => downloadSnapshot().catch(() => toast({ title: "ERROR", description: "Could not download (admin only).", variant: "destructive" }))}
+          onClick={() => downloadSnapshot().catch(() => toast({ title: "Couldn't download", description: "You may need admin access.", variant: "destructive" }))}
           disabled={!isAdmin}
           className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-40 flex items-center gap-2"
         >

@@ -25,6 +25,10 @@ export interface AuthState {
   oauth2Configured?: boolean;
   /** Whether passwordless magic-link sign-in is enabled (no IdP). */
   magicLinkEnabled?: boolean;
+  /** This session was flagged as an implausible location jump from its own last login,
+   *  and hasn't been re-verified since (a step-up minted after the flag clears it). Not
+   *  a lockout — the SPA prompts a step-up before the next sensitive (admin/pmo) action. */
+  impossibleTravel?: boolean;
 }
 
 /** The linear base ladder. The authorities (pmo/admin) sit above it and confer manager base. */
@@ -41,6 +45,13 @@ export function roleAtLeast(role: Role | undefined, min: Role): boolean {
   const r = role ?? "viewer";
   if (AUTHORITIES.has(min)) return r === min;
   return baseRank(r) >= BASE_RANK[min as BaseRole];
+}
+
+/** Holds either orthogonal authority — the shared gate for the surfaces that belong
+ *  to whoever owns governance (business, via PMO) or technical config (via admin),
+ *  regardless of which one specifically. */
+export function isPmoOrAdmin(role: Role | undefined): boolean {
+  return roleAtLeast(role, "admin") || roleAtLeast(role, "pmo");
 }
 
 async function fetchAuth(): Promise<AuthState> {

@@ -1,6 +1,42 @@
 # OmniProject
 
+[![CI](https://github.com/walshd1/Omniproject/actions/workflows/ci.yml/badge.svg)](https://github.com/walshd1/Omniproject/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Discussions](https://img.shields.io/badge/community-discussions-blueviolet.svg)](https://github.com/walshd1/Omniproject/discussions)
+
+How many tabs do you have open right now just to answer *"where do things
+actually stand"?* Jira for engineering, a spreadsheet for budget, ServiceNow
+for the support queue, SAP for the numbers finance trusts, and a status deck
+someone rebuilds by hand every Friday. Nobody's going to migrate all of that
+into one tool — and you shouldn't have to.
+
 **OmniProject gives you one dashboard across all your project tools, without copying any of your data out of them.**
+
+### Why OmniProject exists
+
+Three problems keep showing up together, at every org from a 5-person charity
+to a multinational running SAP:
+
+1. **Tool sprawl.** Engineering lives in Jira, finance trusts SAP, support runs
+   through ServiceNow, and someone still keeps a spreadsheet nothing else
+   covers. No single tool is "wrong" — but no single person can see across all
+   of them without a Friday afternoon spent copy-pasting into a status deck.
+2. **Nobody trusts a second copy.** Every "unified" tool we looked at solves
+   sprawl by importing your data into *itself* — and the moment it has its own
+   copy, that copy starts drifting from the real thing. Now someone has to
+   answer "which number is actually true" and audit yet another place data
+   at rest can leak from.
+3. **Migration is the actual blocker, not the idea.** Everyone agrees a single
+   view across tools would help. Almost nobody can get their org to rip out
+   Jira, SAP and ServiceNow to get it — the migration risk kills the project
+   before it starts.
+
+OmniProject's answer is to not be a fourth place your data lives: it's a live
+window onto the tools you already run, so there's nothing to migrate, nothing
+to keep in sync, and nothing new to secure. That's the whole bet — see **[How
+OmniProject works](#how-omniproject-works)** below for how it's built to keep
+that promise structurally, not just by policy.
 
 It's free to self-host (Apache-2.0), and it works alongside what you already use — a
 spreadsheet, Trello, Jira, OpenProject, SAP, whatever — instead of asking you to move
@@ -15,7 +51,11 @@ anywhere. It doesn't keep its own copy of anything — nothing of yours gets cop
 into OmniProject, so there's nothing new to back up, secure or worry about leaking.
 It's **free to self-host, with no per-seat fees**, has a bundled login system so you
 don't need corporate IT, and a one-click **"We're a charity"** setup gives you a
-trustee report and a funder report ready to go. Full walkthrough, written for
+trustee report and a funder report ready to go. No Docker host of your own? A
+manual, no-terminal-once-it's-up recipe for running OmniProject on
+[Railway](docs/ops/RAILWAY-DEPLOY.md) is the fastest path today — a real
+"Deploy on Railway" button is next once that's been run and confirmed by a
+maintainer. Full walkthrough, written for
 non-technical readers: **[docs/SMALL-ORG-GUIDE.md](docs/SMALL-ORG-GUIDE.md)**. If
 you're wondering whether the enterprise-grade work has priced small orgs out: it
 hasn't — see the audit: **[docs/SME-CHARITY-FIT.md](docs/SME-CHARITY-FIT.md)**.
@@ -45,6 +85,24 @@ then **[docs/READING-GUIDE.md](docs/READING-GUIDE.md)** (subsystem → entry-poi
 The rest of this README goes deep on the same material below. Looking for a
 specific audit, runbook or design doc instead? **[docs/DOCUMENTATION-INDEX.md](docs/DOCUMENTATION-INDEX.md)**
 maps everything under `docs/` by purpose.
+
+---
+
+## 🧪 We're looking for testers
+
+This project is past the "does it work" stage and into the "does it survive
+contact with someone else's real Jira/SAP/OpenProject" stage — and that only
+happens with people other than the maintainer actually running it. If you'll
+give it 15 minutes against a real backend (read-only — nothing you wire can
+write until you decide it's earned that) and tell us what broke, confused you,
+or was missing, that's worth more right now than almost any feature request.
+
+**[docs/QUICKSTART.md](docs/QUICKSTART.md)** gets you from clone to your own
+data on screen in about 15 minutes. Then open a
+**[🧪 tester sign-up issue](https://github.com/walshd1/Omniproject/issues/new?template=beta_tester.yml)** — or
+just tell us what happened, good or bad, in
+**[Discussions](https://github.com/walshd1/Omniproject/discussions)**. Every honest "this didn't work for me"
+is more useful than a star.
 
 ---
 
@@ -343,6 +401,10 @@ some flows are render-tested rather than interaction-tested — see
 ## Quick start (local, demo mode)
 
 **Prerequisites:** Node.js 22+ and pnpm (`corepack enable`).
+
+> Want to go straight to your own real data (read-only) instead of stopping at
+> sample data? **[docs/QUICKSTART.md](docs/QUICKSTART.md)** is the same steps
+> below plus wiring one real backend, in about 15 minutes.
 
 ```bash
 git clone https://github.com/walshd1/Omniproject.git

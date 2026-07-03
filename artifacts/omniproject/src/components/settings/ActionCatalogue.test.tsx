@@ -22,7 +22,6 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   fetchMock = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ actions: ACTIONS }) }));
   vi.stubGlobal("fetch", fetchMock);
-  vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -39,9 +38,10 @@ describe("ActionCatalogue", () => {
     expect(screen.getByText("write")).toBeInTheDocument();
   });
 
-  it("approves a blocked write action via PUT", async () => {
+  it("approves a blocked write action via PUT, behind a confirm dialog", async () => {
     renderWithProviders(<ActionCatalogue />, { client: seed("admin") });
-    fireEvent.click(screen.getByTestId("approve-update_issue"));
+    fireEvent.click(screen.getByTestId("approve-update_issue")); // opens the confirm dialog
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" })); // confirm
     await waitFor(() => {
       const call = fetchMock.mock.calls.find((c) => String(c[0]).includes("/api/governance/approved"));
       expect(call).toBeTruthy();

@@ -284,6 +284,32 @@ test("GET /api/ai/providers returns the registry + capability map, with no secre
   }
 });
 
+test("rollback is unavailable before any change, then undoes the last provider/mapping edit", async () => {
+  // Step-up-fresh admin session — /ai/providers writes are admin + step-up gated.
+  const STEPPED_UP = signedSessionCookie({ sub: "admin-su", roles: [], amr: ["hwk"], stepUpAt: Date.now() });
+  const adminGet = (path: string) => fetch(`${base}${path}`, { headers: { cookie: STEPPED_UP } });
+  const adminPost = (path: string, body: unknown) =>
+    fetch(`${base}${path}`, { method: "POST", headers: { cookie: STEPPED_UP, "content-type": "application/json" }, body: JSON.stringify(body) });
+  const adminPut = (path: string, body: unknown) =>
+    fetch(`${base}${path}`, { method: "PUT", headers: { cookie: STEPPED_UP, "content-type": "application/json" }, body: JSON.stringify(body) });
+
+  assert.equal((await readJson(await adminGet("/api/ai/providers/rollback"))).available, false);
+
+  await adminPost("/api/ai/providers", { id: "openai-test", kind: "openai", label: "OpenAI (test)" });
+  assert.equal((await readJson(await adminGet("/api/ai/providers/rollback"))).available, true);
+
+  // A bad edit — accidentally remap chat to nothing.
+  await adminPut("/api/ai/capabilities/chat", { providers: [] });
+
+  const r = await adminPost("/api/ai/providers/rollback", {});
+  assert.equal(r.status, 200);
+  const body = await readJson(r);
+  assert.equal(body.rolledBack, true);
+  // The rollback undoes the capability remap (the most recent edit); the just-added
+  // provider entity from the mutation before it is a separate undo point (different tick).
+  assert.equal((await readJson(await adminGet("/api/ai/providers/rollback"))).available, false);
+});
+
 test("GET /api/ai/stt reports the active speech-to-text engine", async () => {
   const res = await get("/api/ai/stt");
   assert.equal(res.status, 200);
@@ -582,6 +608,17 @@ test("POST /api/setup/test-broker rejects a non-http URL with 400", async () => 
   assert.equal(json.reachable, false);
 });
 
+test("POST /api/setup/test-broker refuses a link-local/metadata URL (SSRF guard) instead of fetching it", async () => {
+  const res = await get("/api/setup/test-broker", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ webhookUrl: "http://169.254.169.254/latest/meta-data/" }),
+  });
+  const json = await readJson(res);
+  assert.equal(json.reachable, false);
+  assert.match(json.error, /blocked|link-local|metadata/i);
+});
+
 test("POST /api/setup/generate-workflow 404s for an unknown backend", async () => {
   const res = await get("/api/setup/generate-workflow", {
     method: "POST",
@@ -598,6 +635,17 @@ test("POST /api/setup/verify-workflow rejects when no webhook is configured", as
     body: JSON.stringify({}),
   });
   assert.equal(res.status, 400);
+});
+
+test("POST /api/setup/verify-workflow refuses a link-local/metadata URL (SSRF guard) with 400", async () => {
+  const res = await get("/api/setup/verify-workflow", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ webhookUrl: "http://169.254.169.254/latest/meta-data/" }),
+  });
+  assert.equal(res.status, 400);
+  const json = await readJson(res);
+  assert.match(json.error, /blocked|link-local|metadata/i);
 });
 
 test("GET /api/setup/environments returns the store view", async () => {
@@ -653,4 +701,20 @@ test("POST /api/notifications/ingest is 503 when ingest is disabled", async () =
   assert.equal(res.status, 503);
   const json = await readJson(res);
   assert.match(json.error, /ingest disabled/);
+});
+
+// The global JSON body parser (app.ts) strips __proto__/constructor/prototype at parse
+// time, before ANY route handler runs — so a polluted body can't affect Object.prototype
+// regardless of which endpoint receives it. Exercised here via a route that reaches this
+// middleware but returns before doing anything with the body.
+test("a __proto__ payload in ANY request body is stripped by the global JSON parser, never pollutes Object.prototype", async () => {
+  // Built as a raw string, not via JSON.stringify({ __proto__: ... }) — a `__proto__` key in an
+  // OBJECT LITERAL sets the literal's own prototype rather than becoming an enumerable property,
+  // so JSON.stringify would never actually emit it. This is the wire-format attack shape instead.
+  const res = await post("/api/notifications/ingest", {
+    headers: { "content-type": "application/json", authorization: "Bearer anything" },
+    body: '{"notification":{"title":"hi"},"__proto__":{"polluted":true}}',
+  });
+  assert.equal(res.status, 503); // same gate as above — the body never even reaches business logic
+  assert.equal(({} as Record<string, unknown>)["polluted"], undefined);
 });

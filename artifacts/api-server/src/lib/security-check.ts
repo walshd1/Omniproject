@@ -11,7 +11,8 @@
  */
 import { demoAuthSeverity } from "./deployment-profile";
 import { configuredBrokerUrls } from "./broker-url";
-import { checkRequiredEnv } from "./env-config";
+import { checkRequiredEnv, detectEnvVarTypos } from "./env-config";
+import { productionSignals } from "./dev-mode-guard";
 
 export type Severity = "critical" | "warn" | "info";
 
@@ -25,11 +26,27 @@ type Env = Record<string, string | undefined>;
 const on = (v: string | undefined) => v?.trim().toLowerCase() === "true" || v?.trim().toLowerCase() === "on";
 const set = (v: string | undefined) => !!v?.trim();
 
-/** Evaluate the deployment config and return any security findings (pure). */
+/**
+ * Evaluate the deployment config and return any security findings (pure).
+ *
+ * `NODE_ENV === "production"` alone is NOT a sufficient trigger: this self-check exists
+ * specifically to catch a customer silently deploying a dangerous combination, and a
+ * deployment with real OIDC/SAML configured (or a licence, or a public hostname) but
+ * NODE_ENV unset/misspelled/"staging" is exactly that customer — skipping every check
+ * here would defeat the self-check's whole purpose. So this also runs whenever
+ * `productionSignals` sees a real-looking deployment, regardless of the NODE_ENV string
+ * (the same detector `session-secret-guard.ts` and `requireTls()` use for the same class
+ * of gap).
+ */
 export function securityFindings(env: Env): SecurityFinding[] {
   const out: SecurityFinding[] = [];
-  const prod = env["NODE_ENV"] === "production";
-  if (!prod) return out; // dev/test deployments are expected to be relaxed
+  // A misspelled env var (e.g. OIDC_ISUER_URL) silently falls back to a default with zero signal —
+  // env vars are opaque strings with no compiler to catch a typo'd key. Checked in every
+  // environment (not gated on `prod`, below), since a typo is just as silent in dev/staging.
+  for (const issue of detectEnvVarTypos(env)) out.push({ id: "env-var-typo", severity: "warn", message: issue });
+
+  const prod = env["NODE_ENV"] === "production" || productionSignals(env).length > 0;
+  if (!prod) return out; // dev/test deployments (no production signals either) are expected to be relaxed
 
   // The big one: production with no OIDC means demo auth — every session is admin. Its
   // severity follows the DEPLOYMENT_PROFILE: a blocker for enterprise/business, an accepted

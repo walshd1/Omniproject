@@ -28,6 +28,7 @@ export const ROUTES: RouteCase[] = [
   { pattern: "/resources", path: "/resources" },
   { pattern: "/explore", path: "/explore" },
   { pattern: "/settings", path: "/settings" },
+  { pattern: "/configurator", path: "/configurator" },
   { pattern: "/setup", path: "/setup" },
   { pattern: "/login", path: "/login", needsAuth: false, isLogin: true },
 ];

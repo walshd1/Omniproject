@@ -78,6 +78,8 @@ export interface BrokerManifest {
   /** The shape of the key required to reach this broker (declared in its JSON). */
   keyFormat?: KeyFormat;
   notes?: string;
+  /** The pre-selected, shipped-as-default broker in the picker UI (at most one). */
+  reference?: boolean;
 }
 
 /** A catalogue entry: the manifest + its linked build tool. */
@@ -143,5 +145,6 @@ export function brokerCatalogue() {
     /** Can it serve the live read-through contract at all? */
     dataBroker: b.capabilities.synchronous,
     notes: b.notes,
+    reference: b.reference ?? false,
   }));
 }

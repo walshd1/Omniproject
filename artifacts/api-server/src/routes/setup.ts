@@ -10,6 +10,7 @@ import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
 import { connectedBrokerKinds } from "../broker/registry";
 import { contextFromReq, brokerVerifyConnection, brokerStoreCredential, callBrokerCapability } from "../broker";
 import { v, parseOr400 } from "../lib/validate";
+import { assertEgressAllowed, EgressError } from "../lib/egress";
 
 // Typed + bounded bodies for the broker-credential routes (untrusted admin input).
 const CONNECTION_TEST_BODY = v.object({ backend: v.string({ trim: true, min: 1, max: 100 }) });
@@ -18,7 +19,7 @@ const CONNECTION_VAULT_BODY = v.object({
   name: v.string({ trim: true, min: 1, max: 200 }),
   value: v.string({ min: 1, max: 8_000 }), // a secret — not trimmed
 });
-import { requireRole, hasRole, getRoleMap } from "../lib/rbac";
+import { requireRole, requireAnyRole, hasRole, getRoleMap } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, notificationKindCatalogue, methodologyCatalogue, methodologyPack, allMethodologyTags, reportCatalogue, screenCatalogue, reportsForMethodology, screensForMethodology, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, dedupeEntities, matchCandidates, normaliseKey } from "@workspace/backend-catalogue";
 import { isEntitled, resolveLicense } from "../lib/license";
@@ -28,12 +29,18 @@ import { buildDebugBundleZip } from "../lib/debug-bundle";
 import { requiredCredentials, renderCredentialTemplate } from "../lib/connection-credentials";
 import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 import { configDirSummary } from "../lib/config-dir";
+import { refreshConfigDir, configBackupInfo, clearConfigBackup } from "../lib/config-refresh";
+import { requireStepUp } from "../lib/step-up";
+import { recordAudit } from "../lib/audit";
+import { getSession } from "./auth";
 import { buildConfigBundle } from "../lib/config-bundle";
-import { buildSetupStatus } from "../lib/setup-status";
+import { buildSetupStatus, buildPublicSetupStatus } from "../lib/setup-status";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
 import { applyCharityOnboarding } from "../lib/charity-onboarding";
 import { sharedStateMode } from "../lib/shared-state";
 import { IDP_PRESETS } from "../lib/idp-presets";
+import { isOidcConfigured } from "../lib/oidc";
+import { isSamlConfigured } from "../lib/saml";
 import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
 import {
   storeView,
@@ -64,10 +71,19 @@ const methodologyAllowed = (id: string): boolean => isFeatureEnabled(`methodolog
  * emits durable config for the operator to keep in their environment.
  */
 
-// GET /api/setup/status — what's wired, for the first-run wizard. Read-only.
-// Assembled from a registry of status sections (see lib/setup-status.ts).
-router.get("/setup/status", async (req, res) => {
+// GET /api/setup/status — what's wired, for the Configurator. Read-only, but carries
+// live broker/backend/licensing state, so it's an INTERNAL call restricted to the
+// entities that actually own that state (PMO/admin). Assembled from a registry of
+// status sections (see lib/setup-status.ts).
+router.get("/setup/status", requireAnyRole("pmo", "admin"), async (req, res) => {
   res.json(await buildSetupStatus(req));
+});
+
+// GET /api/setup/status/public — the OUTER surface: the one fact every authenticated
+// session needs regardless of role (e.g. the demo-mode banner in the global chrome).
+// Non-PMO/admin callers reach only this passed-through subset, never the internal route above.
+router.get("/setup/status/public", (_req, res) => {
+  res.json(buildPublicSetupStatus());
 });
 
 // GET /api/setup/profile — the deployment profile + posture, and which enterprise hardening
@@ -90,6 +106,11 @@ router.get("/setup/profile", requireRole("admin"), (_req, res) => {
       makerChecker: !!process.env["DUAL_CONTROL_ACTIONS"]?.trim(),
       securityStrict: isOn(process.env["SECURITY_STRICT"]),
       rateLimit: !isOn(process.env["RATE_LIMIT_DISABLED"]),
+      // Tamper-resistant MFA (hardware-bound amr/acr) gates pmo/admin authority whenever
+      // real SSO is configured — it's unconditional enforcement, not a separate toggle.
+      // Demo mode has no real identity to gate, so this reads false there (already
+      // covered by the demoAuth warning above).
+      strongMfaAdminPmo: isOidcConfigured || isSamlConfigured(),
       // Whether per-replica registries (e.g. the maker-checker queue) are shared fleet-wide.
       sharedState: sharedStateMode(),
     },
@@ -155,6 +176,7 @@ router.post("/setup/test-broker", requireRole("admin"), async (req, res) => {
   }
 
   try {
+    assertEgressAllowed(url); // SSRF guard: never let an admin-pasted URL reach metadata/link-local
     const r = await fetch(url, {
       method: "POST",
       headers: {
@@ -182,6 +204,10 @@ router.post("/setup/test-broker", requireRole("admin"), async (req, res) => {
       capabilities,
     });
   } catch (err) {
+    if (err instanceof EgressError) {
+      res.json({ reachable: false, error: err.message });
+      return;
+    }
     const isTimeout = err instanceof Error && err.name === "TimeoutError";
     res.json({ reachable: false, error: isTimeout ? "Connection timed out" : "Could not reach the webhook URL" });
   }
@@ -208,9 +234,46 @@ router.get("/setup/export", requireRole("admin"), (req, res) => {
 });
 
 // GET /api/setup/config-dir — admin: what the deployment config directory
-// (OMNI_CONFIG_DIR) loaded at boot (vendor overlay counts, config applied, errors).
+// (OMNI_CONFIG_DIR) loaded (vendor overlay counts, config applied, errors), plus the
+// `.old` backup's age — the SPA nudges the admin to clear it out once `stale`.
 router.get("/setup/config-dir", requireRole("admin"), (_req, res) => {
-  res.json(configDirSummary());
+  res.json({ ...configDirSummary(), backup: configBackupInfo() });
+});
+
+// POST /api/setup/config-dir/refresh — admin + step-up: hot-reload the config directory
+// NOW instead of waiting for a restart (the operator has already edited the files on
+// disk). Backs the current directory up to `.old` first and auto-reverts to it if the
+// new load reports any file error, so a bad hand-edit can never leave the gateway
+// running on a half-applied broken config.
+router.post("/setup/config-dir/refresh", requireRole("admin"), requireStepUp, (_req, res) => {
+  const result = refreshConfigDir();
+  const session = getSession(_req);
+  recordAudit({
+    ts: new Date().toISOString(), category: "admin", action: "config-dir.refresh",
+    actor: session ? { sub: session.sub, email: session.email } : null, write: true,
+    result: result.ok ? "success" : "error",
+    meta: { errors: result.summary.errors.length, warnings: result.summary.warnings.length, reverted: result.reverted, backedUp: result.backedUp },
+  });
+  // Always 200: the REQUEST succeeded (a refresh was attempted and completed one way or
+  // another) regardless of whether the new config was accepted — `ok`/`reverted` on the
+  // body carry that outcome, so the SPA can render "applied" / "reverted, here's why" /
+  // "failed, no backup to revert to" without treating any of them as a transport error.
+  res.json(result);
+});
+
+// POST /api/setup/config-dir/clear-backup — admin: delete the `.old` backup (the 30-day
+// cleanup nudge's action). Not step-up gated — the backup carries no more privilege than
+// the live config already does, and this is a routine housekeeping action, not a change
+// to live behaviour.
+router.post("/setup/config-dir/clear-backup", requireRole("admin"), (_req, res) => {
+  const cleared = clearConfigBackup();
+  const session = getSession(_req);
+  recordAudit({
+    ts: new Date().toISOString(), category: "admin", action: "config-dir.clear-backup",
+    actor: session ? { sub: session.sub, email: session.email } : null, write: true,
+    result: cleared ? "success" : "error",
+  });
+  res.json({ cleared });
 });
 
 // GET /api/setup/config-bundle — admin "lock this config": download the current
@@ -220,29 +283,42 @@ router.get("/setup/config-bundle", requireRole("admin"), (_req, res) => {
   res.type("application/zip").set("Content-Disposition", 'attachment; filename="omniproject-config.zip"').send(zip);
 });
 
-// GET /api/setup/backends — catalogue for the workflow wizard. Admin-only backends
-// (raw SQL / Mongo) are hidden from non-admins so they aren't offered a technical
-// integration they can't configure (wiring one is admin-gated at generate-workflow
-// / settings regardless — this just keeps the wizard honest per role).
-router.get("/setup/backends", (req, res) => {
+// GET /api/setup/backends — full manifest catalogue for the Configurator (docs URLs,
+// required env, actions, capabilities). Internal: restricted to PMO/admin, the only
+// entity that wires backends. Admin-only backends (raw SQL / Mongo) are additionally
+// hidden from a plain PMO caller so they aren't offered a technical integration they
+// can't configure (wiring one is admin-gated at generate-workflow / settings regardless
+// — this just keeps the wizard honest per authority).
+router.get("/setup/backends", requireAnyRole("pmo", "admin"), (req, res) => {
   const isAdmin = hasRole(req, "admin"); // the technical authority
   res.json(backendCatalogue().filter((b) => isAdmin || !b.adminOnly));
 });
 
+// GET /api/setup/backends/ids — the OUTER surface: just the ids, for the one
+// non-Configurator consumer (Settings' backend-source suggestion dropdown). Same
+// admin-only filter, but no manifest detail passed through.
+router.get("/setup/backends/ids", (req, res) => {
+  const isAdmin = hasRole(req, "admin");
+  res.json(backendCatalogue().filter((b) => isAdmin || !b.adminOnly).map((b) => b.id));
+});
+
 // The other two integration planes (same shape): which brokers can serve the
-// data hop, and which outward interfaces expose data/events.
+// data hop, and which outward interfaces expose data/events. Internal: both are
+// Configurator-only reads of live wiring, restricted to PMO/admin.
 // Full broker catalogue, or — with ?connected=1 — only the broker KIND(S) actually
 // wired to this deployment (the active hop ∪ BROKER_KINDS), the set the capability
 // resolver unions over.
-router.get("/setup/brokers", (req, res) => {
+router.get("/setup/brokers", requireAnyRole("pmo", "admin"), (req, res) => {
   if (req.query["connected"] !== "1") { res.json(brokerCatalogue()); return; }
   const kinds = new Set(connectedBrokerKinds());
   res.json(brokerCatalogue().filter((b) => kinds.has(b.id)));
 });
-router.get("/setup/outputs", (_req, res) => {
+router.get("/setup/outputs", requireAnyRole("pmo", "admin"), (_req, res) => {
   res.json(outputCatalogue());
 });
-router.get("/setup/notifications", (_req, res) => {
+// Internal: the Configurator's NotificationPicker is its only SPA consumer, so this
+// is restricted to PMO/admin like the other wiring-catalogue reads above.
+router.get("/setup/notifications", requireAnyRole("pmo", "admin"), (_req, res) => {
   res.json(notificationCatalogue());
 });
 // The notification ROUTING rules (JSON-defined) — which event kinds dispatch to
@@ -283,7 +359,9 @@ router.get("/setup/methodology-preset/:id", (req, res) => {
 // entries the CONNECTED backend(s) can actually feed. The hard rule: if none of
 // the connected backends support a report/screen, ?available=1 omits it. (`caps`
 // is the resolved set — already the union across every connected backend.)
-router.get("/setup/reports", async (req, res) => {
+// Internal: the Configurator's report-picker is its only SPA consumer, so this
+// is restricted to PMO/admin like the other wiring-catalogue reads above.
+router.get("/setup/reports", requireAnyRole("pmo", "admin"), async (req, res) => {
   // Governance gate first (a forbidden report is withheld regardless of backend support), then the
   // backend-capability filter when ?available=1.
   if (req.query["available"] !== "1") { res.json(reportCatalogue().filter((r) => reportAllowed(r.id))); return; }
@@ -435,6 +513,12 @@ router.post("/setup/verify-workflow", requireRole("admin"), async (req, res) => 
   const url = (typeof req.body?.webhookUrl === "string" && req.body.webhookUrl.trim()) || getSettings().brokerUrl;
   if (!url || !/^https?:\/\//i.test(url)) {
     res.status(400).json({ error: "No broker webhook configured. Connect the broker first or pass webhookUrl." });
+    return;
+  }
+  try {
+    assertEgressAllowed(url); // SSRF guard: never let an admin-pasted URL reach metadata/link-local
+  } catch (err) {
+    res.status(400).json({ error: err instanceof EgressError ? err.message : "That webhook URL is not allowed." });
     return;
   }
   const sampleProjectId = typeof req.body?.projectId === "string" ? req.body.projectId : "sample";

@@ -1,12 +1,15 @@
 import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "./ConfirmButton";
 import type { ActionPlan } from "../lib/nl-action";
 
 /**
  * Renders one NL→action plan for review — the SAME confirm-before-execute card for every
  * entry point that offers action-invocation (the command palette `NlCommand`, and the
- * portfolio copilot chat). One renderer, not a fork per surface: a write is always flagged
- * and always requires an explicit click (the caller additionally native-confirms a write
- * before calling `onRun`); a read still requires a click, never auto-executes.
+ * portfolio copilot chat). One renderer, not a fork per surface: a write always shows the
+ * plan (action + args) AND requires an explicit AlertDialog confirmation (the same
+ * accessible, styleable pattern used for every other consequential action in the app,
+ * rather than a native `window.confirm`) before `onRun` fires; a read still requires a
+ * click, never auto-executes.
  *
  * `testIdPrefix` namespaces the `data-testid`s so two instances (e.g. the command palette
  * and the copilot) can render on the same page/settings screen without colliding.
@@ -34,9 +37,23 @@ export function ActionPlanCard({
         {Object.keys(plan.args).length > 0 && (
           <pre className="mb-2 overflow-x-auto rounded bg-muted p-2 text-xs">{JSON.stringify(plan.args, null, 2)}</pre>
         )}
-        <Button size="sm" variant={plan.write ? "destructive" : "default"} disabled={busy} onClick={() => onRun(plan)} data-testid={`${testIdPrefix}-run`}>
-          {plan.write ? "Confirm & run (write)" : "Run"}
-        </Button>
+        {plan.write ? (
+          <ConfirmButton
+            testId={`${testIdPrefix}-run`}
+            disabled={busy}
+            className="inline-flex min-h-8 items-center justify-center rounded-md bg-destructive px-3 text-xs font-medium text-destructive-foreground shadow-sm disabled:pointer-events-none disabled:opacity-50"
+            title="Run this write action?"
+            description={`This will modify data via "${plan.action}". Review the arguments above before confirming — it's still gated by role + write-grants, but this is the last review step.`}
+            confirmLabel="Confirm & run"
+            onConfirm={() => onRun(plan)}
+          >
+            Confirm &amp; run (write)
+          </ConfirmButton>
+        ) : (
+          <Button size="sm" disabled={busy} onClick={() => onRun(plan)} data-testid={`${testIdPrefix}-run`}>
+            Run
+          </Button>
+        )}
       </div>
     );
   }

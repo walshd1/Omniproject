@@ -98,15 +98,15 @@ export function Projects() {
                 </EmptyMedia>
                 <EmptyTitle>No projects yet</EmptyTitle>
                 <EmptyDescription>
-                  Connect your backend in Setup to start pulling projects and issues into OmniProject.
+                  Connect your backend in the Configurator to start pulling projects and issues into OmniProject.
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
                 <Link
-                  href="/setup"
+                  href="/configurator"
                   className="inline-flex items-center gap-2 bg-primary text-primary-foreground border border-primary px-4 py-2 text-sm font-bold uppercase tracking-wider hover:bg-primary/90"
                 >
-                  <PlugZap className="w-4 h-4" /> Go to Setup
+                  <PlugZap className="w-4 h-4" /> Go to Configurator
                 </Link>
               </EmptyContent>
             </Empty>

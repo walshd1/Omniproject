@@ -11,6 +11,18 @@ real, user-facing gap (the AI copilot had no small-org lens despite shipping cha
 methodologies) plus two discoverability gaps, all fixed additively in this change. No
 enterprise feature was removed.
 
+## Why this audit exists (for the reader, not just the record)
+
+README's "Why OmniProject exists" names three problems — tool sprawl, nobody trusting a
+second copy of their data, and migration risk killing the idea before it starts — and a
+small org or charity carries a fourth fear on top: that the product quietly grows up and
+leaves them behind, the way "enterprise-ready" software so often does. This audit exists
+to answer that fear with evidence, not reassurance. Every enterprise feature added since
+(portfolio consolidation, governance hierarchy, EVM, exec packs) had to prove it was
+additive and off-by-default before it shipped — this document is where that promise gets
+checked against the actual code, file and line, which is why README points a skeptical
+small-org reader here instead of just asserting "still free" in a paragraph.
+
 ---
 
 ## What is well-supported (evidence)
@@ -38,7 +50,7 @@ enterprise feature was removed.
 - Every advanced control (SSO, SCIM, KMS, IP allowlist, session caps, maker-checker) is
   **off by default**; the profile only relaxes TLS coupling and the no-IdP severity —
   `artifacts/api-server/src/lib/deployment-profile.ts:1-18,163-176`.
-- The setup wizard opens with a deployment-type picker surfacing each profile's posture —
+- The Configurator opens with a deployment-type picker surfacing each profile's posture —
   `artifacts/omniproject/src/lib/deployment-profile.ts:59`,
   `artifacts/omniproject/src/components/setup/ProfileStep.tsx`.
 - A thorough small-org guide already exists — `docs/SMALL-ORG-GUIDE.md`.
@@ -97,7 +109,7 @@ the goal is that small orgs stay first-class, not that large orgs lose anything.
 ---
 
 ## Recommendations not taken here (future, low priority)
-- Consider a charity/SME **preset bundle** in the setup wizard that pre-selects a free
+- Consider a charity/SME **preset bundle** in the Configurator that pre-selects a free
   backend + a starter methodology (grant tracking / volunteer roster) in one click.
 - Consider surfacing the charity starter methodologies more prominently in the methodology
   picker for the `nonprofit` profile.

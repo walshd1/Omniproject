@@ -1,0 +1,63 @@
+name: 🧪 I'll test this against my own setup
+description: Volunteer to try OmniProject against a real backend and report back
+labels: ["testing", "feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project needs real-world mileage more than it needs more features
+        right now — a handful of people running it against a real Jira/OpenProject/
+        SAP/whatever, and telling us what broke, was confusing, or was missing, is
+        worth more than almost anything else at this stage.
+
+        You don't need to commit to anything beyond this issue. Fill in what you
+        can; we'll follow up here. See [docs/QUICKSTART.md](../../blob/main/docs/QUICKSTART.md)
+        for the 15-minute on-ramp, and [docs/SAFE-FIRST-RUN.md](../../blob/main/docs/SAFE-FIRST-RUN.md)
+        for why it's safe to point at real data (read-only first, always).
+  - type: input
+    id: backend
+    attributes:
+      label: Which backend(s) would you test against?
+      placeholder: e.g. Jira Cloud, OpenProject, ServiceNow, SAP S/4HANA, a spreadsheet
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How would you run it?
+      options:
+        - Local (pnpm dev, on my machine)
+        - Docker Compose (standalone or enterprise profile)
+        - Kubernetes
+        - Not sure yet
+    validations:
+      required: false
+  - type: dropdown
+    id: org-type
+    attributes:
+      label: What kind of team/org is this for?
+      options:
+        - Solo / personal project
+        - Small team (< 20 people)
+        - Charity / non-profit
+        - Mid-size org
+        - Enterprise
+        - Just kicking the tyres
+    validations:
+      required: false
+  - type: textarea
+    id: goal
+    attributes:
+      label: What would make this useful for you, specifically?
+      description: The one or two things that would make you actually keep using it, or tell us it's a no.
+    validations:
+      required: false
+  - type: checkboxes
+    id: contact
+    attributes:
+      label: Follow-up
+      options:
+        - label: I'm happy to be pinged here with questions while I try it
+          required: false
+        - label: I'd be willing to hop on a short call to walk through feedback
+          required: false

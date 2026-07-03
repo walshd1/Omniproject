@@ -4,7 +4,7 @@ import {
   listProviders, getProvider, upsertProvider, removeProvider,
   setProviderKey, clearProviderKey, providerKeyState, providerReady,
   getCapabilityProviders, setCapabilityProviders, resolveProviderForCapability,
-  providersSnapshot, __resetProviders,
+  providersSnapshot, rollbackAiProviders, canRollbackAiProviders, __resetProviders,
 } from "./ai-providers";
 import { __resetVault, setSecret } from "./vault";
 import { updateSettings, getSettings } from "./settings";
@@ -102,4 +102,43 @@ test("removeProvider drops the entity, its key, and mapping references", async (
   assert.equal(getProvider("openai-2"), undefined);
   assert.equal(providerKeyState("openai-2").hasKey, false);
   assert.deepEqual(getCapabilityProviders("chat"), ["ollama"]);
+});
+
+test("no rollback available before any mutation", () => {
+  assert.equal(canRollbackAiProviders(), false);
+  assert.equal(rollbackAiProviders(), false);
+});
+
+test("rollback undoes the last provider/mapping edit and is one-shot", async () => {
+  setCapabilityProviders("chat", ["ollama"]);
+  await Promise.resolve(); // flush the microtask queue — closes this batch
+  assert.equal(canRollbackAiProviders(), true);
+
+  // A bad edit — remap chat to nothing.
+  setCapabilityProviders("chat", []);
+  assert.deepEqual(getCapabilityProviders("chat"), []);
+
+  assert.equal(rollbackAiProviders(), true);
+  assert.deepEqual(getCapabilityProviders("chat"), ["ollama"]);
+
+  // One-shot: a second rollback right after is a no-op.
+  assert.equal(canRollbackAiProviders(), false);
+  assert.equal(rollbackAiProviders(), false);
+  assert.deepEqual(getCapabilityProviders("chat"), ["ollama"]); // unchanged
+});
+
+test("rollback restores a removed provider entity + its mapping reference, never the deleted key", async () => {
+  upsertProvider({ id: "openai-3", kind: "openai", label: "OpenAI (team 3)" });
+  await setProviderKey("openai-3", "sk-3");
+  setCapabilityProviders("chat", ["openai-3", "ollama"]);
+  await Promise.resolve(); // close the setup batch — the removal below is its own undo point
+
+  await removeProvider("openai-3");
+  assert.equal(getProvider("openai-3"), undefined);
+
+  assert.equal(rollbackAiProviders(), true);
+  assert.ok(getProvider("openai-3")); // the entity is back
+  assert.deepEqual(getCapabilityProviders("chat"), ["openai-3", "ollama"]); // and its mapping reference
+  // The vault key itself is NOT restored — key deletion is a separate, irreversible action.
+  assert.equal(providerKeyState("openai-3").hasKey, false);
 });

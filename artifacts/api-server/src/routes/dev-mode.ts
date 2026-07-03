@@ -2,6 +2,7 @@ import { Router } from "express";
 import { backendCatalogue } from "@workspace/backend-catalogue";
 import { devModeStatus, isDevMode } from "../lib/dev-mode";
 import { requireRole, roleFromClaims } from "../lib/rbac";
+import { requireStepUp } from "../lib/step-up";
 import { getDevBrokerConfig, setDevBrokerConfig, DEV_DATA_SOURCES, type DevDataSource } from "../broker/dev-broker";
 import { resetBroker } from "../broker";
 import { getRealSession, startImpersonation, stopImpersonation } from "./auth";
@@ -149,14 +150,26 @@ function isRealAdmin(req: import("express").Request): boolean {
   return roleFromClaims(real?.roles ?? [], { isDemo: isDemoAuth() }) === "admin";
 }
 
-/** GET — the current impersonation (for the UI banner), or null. */
+/** GET — the current impersonation (for the UI banner), or null. Zero trust: being
+ *  authenticated at all must not imply the right to read this — a plain session
+ *  with no impersonation of its own may only read it if it's the REAL admin who
+ *  could have started one (so a viewer that's currently BEING impersonated still
+ *  sees its own "Impersonating X — stop" banner; an unrelated viewer cannot probe
+ *  this endpoint at all). */
 router.get("/dev-mode/impersonate", requireDevMode, (req, res) => {
   const imp = activeImpersonation(getRealSession(req));
+  if (!imp && !isRealAdmin(req)) {
+    res.status(403).json({ error: "admin only" });
+    return;
+  }
   res.json({ impersonation: imp ? { sub: imp.sub, email: imp.email, roles: imp.roles, reason: imp.reason, by: imp.by, expiresAt: imp.expiresAt } : null });
 });
 
-/** POST — start impersonating { sub, email?, roles?, reason }. Real-admin only. */
-router.post("/dev-mode/impersonate", requireDevMode, (req, res) => {
+/** POST — start impersonating { sub, email?, roles?, reason }. Real-admin only, and
+ *  — like every other identity-altering action in the app — requires a FRESH
+ *  step-up: this is the single highest-risk action available (assuming a whole
+ *  other identity), so holding an admin session alone is not enough on its own. */
+router.post("/dev-mode/impersonate", requireDevMode, requireStepUp, (req, res) => {
   const real = getRealSession(req);
   const realRole = roleFromClaims(real?.roles ?? [], { isDemo: isDemoAuth() });
   if (!real || realRole !== "admin") {
@@ -223,8 +236,10 @@ router.delete("/dev-mode/impersonate", requireDevMode, (req, res) => {
 // Force individual premium features on/off to test licensed vs unlicensed UX
 // without a real licence. Dev-only; real admin; ephemeral (in-memory); audited.
 
-/** GET — the catalogue, current overrides, and the effective entitlements. */
-router.get("/dev-mode/entitlements", requireDevMode, (req, res) => {
+/** GET — the catalogue, current overrides, and the effective entitlements. Admin
+ *  only: unlike the impersonation banner, no other role has a legitimate reason to
+ *  read this, so a plain authenticated session gets no implicit access here. */
+router.get("/dev-mode/entitlements", requireDevMode, requireRole("admin"), (req, res) => {
   res.json({ catalog: LICENSE_FEATURES, overrides: getDevEntitlementOverrides(), effective: licenseSummary().features });
 });
 

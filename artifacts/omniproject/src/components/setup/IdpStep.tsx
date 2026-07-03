@@ -1,4 +1,5 @@
 import { useIdp, type IdpStatus, type IdpPreset } from "../../lib/idp";
+import { NeedsHelp, TechDetails } from "./shared";
 
 /**
  * Setup-wizard "staff accounts" step. OmniProject doesn't store users — your IdP does — so
@@ -33,10 +34,11 @@ function PresetCards({ presets, callbackUrl }: { presets: IdpPreset[]; callbackU
   if (!presets?.length) return null;
   return (
     <div className="mt-4 space-y-2" data-testid="idp-presets">
-      <h3 className="text-sm font-bold">Use an SSO you already have</h3>
+      <h3 className="text-sm font-bold">Already use Google or Microsoft for logins?</h3>
       <p className="text-xs text-muted-foreground">
-        Most teams already have Google Workspace or Microsoft 365 — no need to deploy an IdP. Create an
-        OAuth app there, add the redirect URI <span className="font-mono">{callbackUrl}</span>, then set the env below.
+        Most teams already have Google Workspace or Microsoft 365 — you can use that instead of
+        setting up anything new. This part is technical (creating an app registration in that
+        console) — worth handing to IT if you have one. Click a card below for exact steps.
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         {presets.map((p) => (
@@ -71,13 +73,14 @@ export function IdpStep() {
       {idp.mode === "oidc" ? (
         <div className="mt-2 space-y-3 text-sm">
           <p className="text-muted-foreground">
-            SSO is active{idp.bundled ? " via the bundled IdP" : ""} — accounts live in your IdP
-            {idp.issuerOrigin && <> (<span className="font-mono">{idp.issuerOrigin}</span>)</>}.
+            Company login is already switched on{idp.bundled ? " (using the built-in login system)" : ""} —
+            staff accounts live in your login system
+            {idp.issuerOrigin && <> (<span className="font-mono">{idp.issuerOrigin}</span>)</>}, not in OmniProject.
           </p>
           <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
-            <li>Open your IdP admin{adminLink && <> — <a className="text-primary underline" href={adminLink} target="_blank" rel="noreferrer">{adminLink}</a></>} and create a user for each staff member.</li>
+            <li>Open your login system's admin screen{adminLink && <> — <a className="text-primary underline" href={adminLink} target="_blank" rel="noreferrer">{adminLink}</a></>} and create a user for each staff member.</li>
             <li>Add each user to the group for the role you want them to have (below).</li>
-            <li>They sign in at this app — their role follows from their group, no per-user setup here.</li>
+            <li>They sign in at this app — their role follows from their group, nothing more to set up here.</li>
           </ol>
           <div className="rounded border border-border p-3" data-testid="idp-rolemap"><RoleTable idp={idp} /></div>
           <PresetCards presets={idp.presets} callbackUrl={idp.callbackUrl} />
@@ -85,19 +88,31 @@ export function IdpStep() {
       ) : (
         <div className="mt-2 space-y-3 text-sm">
           <p className="text-muted-foreground">
-            You're in <strong>demo mode</strong> (everyone is admin). To give your team real
-            accounts + roles <em>without a corporate IdP</em>, use the <strong>bundled identity
-            provider</strong> (Authentik) that ships with the standalone deployment — no cloud, no licence.
+            Right now everyone who opens this app is treated as an admin — fine for trying it out,
+            not fine once real people are using it. To give each staff member their own account and
+            role, you need a proper login system (an "identity provider"). OmniProject ships with a
+            free one built in, so you don't need to buy or configure anything separate.
           </p>
-          <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
-            <li>Bring up the standalone stack (<span className="font-mono">docker compose -f docker-compose.standalone.yml up -d</span>). The OmniProject app and the <span className="font-mono">omni-*</span> role groups are pre-created by the bundled blueprint.</li>
-            <li>Set <span className="font-mono">OIDC_CLIENT_SECRET</span> in <span className="font-mono">.env</span> and restart — that points this app at the bundled IdP.</li>
-            <li>In the Authentik admin, create a user per staff member and add them to the group for their role:</li>
-          </ol>
+          <NeedsHelp>
+            Setting up the login system itself is a one-time, server-side step — hand this to
+            whoever hosts OmniProject for you. Once it's running, <em>you</em> just create a user
+            per staff member and pick their role, below.
+          </NeedsHelp>
+          <TechDetails label="Technical steps for whoever hosts this">
+            <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
+              <li>Bring up the standalone stack (<span className="font-mono">docker compose -f docker-compose.standalone.yml up -d</span>). The OmniProject app and the <span className="font-mono">omni-*</span> role groups are pre-created by the bundled blueprint.</li>
+              <li>Set <span className="font-mono">OIDC_CLIENT_SECRET</span> in <span className="font-mono">.env</span> and restart — that points this app at the bundled IdP.</li>
+              <li>The IdP must allow this redirect URI: <span className="font-mono">{idp.callbackUrl}</span> (the blueprint sets it automatically).</li>
+            </ol>
+            <p className="text-muted-foreground">
+              Full steps: <span className="font-mono">docs/DEPLOY-LOCAL.md</span> / <span className="font-mono">docs/SMALL-ORG-GUIDE.md</span>.
+            </p>
+          </TechDetails>
+          <p className="text-muted-foreground">
+            Once that's running: in the admin screen, create a user per staff member and add them
+            to the group for their role:
+          </p>
           <div className="rounded border border-border p-3" data-testid="idp-rolemap"><RoleTable idp={idp} /></div>
-          <p className="text-xs text-muted-foreground">
-            The IdP must allow this redirect URI: <span className="font-mono">{idp.callbackUrl}</span> (the blueprint sets it for the bundled IdP). Full steps in <span className="font-mono">docs/DEPLOY-LOCAL.md</span> / <span className="font-mono">docs/SMALL-ORG-GUIDE.md</span>.
-          </p>
           <PresetCards presets={idp.presets} callbackUrl={idp.callbackUrl} />
         </div>
       )}

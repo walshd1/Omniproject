@@ -43,11 +43,11 @@ muted autoplay) have no sound. Keep each on screen ~2–3s.
 | ---- | ------------------ | --------------- |
 | 0:00–0:06 | Cold open on the dashboard (brutalist UI, sample portfolio). Slow, confident. | **OmniProject — programme management with no database.** |
 | 0:06–0:10 | Stay on dashboard; cursor rests on a RAG card with a `SAMPLE`/`DERIVED` badge. | *Your tools stay the source of truth. This is just a view.* |
-| 0:10–0:24 | **The trust shot.** Go to **Setup → Verify** and click **Verify**. Let the per-action checklist tick **green** row by row. | **Dry-run verify — probes your n8n, never touches the backend.** |
+| 0:10–0:24 | **The trust shot.** Go to **Configurator → Verify** and click **Verify**. Let the per-action checklist tick **green** row by row. | **Dry-run verify — probes your n8n, never touches the backend.** |
 | 0:24–0:36 | **Programmes** → a programme-wide rollup (portfolio RAG), then click into one project. | **Roll programmes up → drill into a project.** |
 | 0:36–0:50 | On that project, use the **view switcher**: Kanban → Scrum (burndown) → Gantt → PRINCE2. Pause ~2s on each. | **One dataset, your methodology — Kanban / Scrum / Gantt / PRINCE2 / RAID.** |
 | 0:50–1:02 | **Reports**: Portfolio RAG cards → Resource heatmap (an over-allocated row) → EVM chart (CPI/SPI). | **Finance (EVM), time & resources — read-through from your backends.** |
-| 1:02–1:10 | **Setup → Connection Center**: show the backend list + "Generate workflow". | **n8n is the only broker — connect to anything, nothing to sync.** |
+| 1:02–1:10 | **Configurator**: show the backend list + "Generate workflow". | **n8n is the only broker — connect to anything, nothing to sync.** |
 | 1:10–1:15 | Cut to logo + tagline on a clean background. | **Apache-2.0 · self-hostable · try it read-only → github.com/walshd1/Omniproject** |
 
 **Pacing notes:** let the Verify checklist (0:10–0:24) breathe — it's the most

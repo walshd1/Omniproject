@@ -12,65 +12,7 @@ import {
 } from "../../lib/setup";
 import { Step, useRefreshAndSettings } from "./shared";
 import { envNameError } from "../../lib/validation";
-import {
-  AlertDialog,
-  AlertDialogTrigger,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from "@/components/ui/alert-dialog";
-
-/**
- * Wraps a destructive trigger button in an AlertDialog confirmation. The trigger
- * keeps the original button's classes/content; `onConfirm` runs only after the
- * user accepts. RBAC gating stays on the caller (these only render for admins).
- */
-function ConfirmButton({
-  className,
-  children,
-  title,
-  description,
-  confirmLabel,
-  onConfirm,
-  disabled,
-  triggerTitle,
-}: {
-  className: string;
-  children: React.ReactNode;
-  title: string;
-  description: React.ReactNode;
-  confirmLabel: string;
-  onConfirm: () => void;
-  disabled?: boolean;
-  /** Tooltip / accessible label for an icon-only trigger button. */
-  triggerTitle?: string;
-}) {
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <button type="button" disabled={disabled} className={className} title={triggerTitle} aria-label={triggerTitle}>
-          {children}
-        </button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} className="bg-red-500 text-background hover:bg-red-600">
-            {confirmLabel}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
+import { ConfirmButton } from "../ConfirmButton";
 
 export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
   const refreshAndSettings = useRefreshAndSettings();
@@ -92,7 +34,7 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
       toast({ title: label });
       return true;
     } catch (e) {
-      toast({ title: "ERROR", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
+      toast({ title: "Couldn't do that", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
       return false;
     }
   };
@@ -102,9 +44,9 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
       const r = await rollback(body);
       setStore(r.store);
       refreshAndSettings();
-      toast({ title: "ROLLED BACK", description: `Restored config version ${r.appliedVersion}.` });
+      toast({ title: "Rolled back", description: `Restored config version ${r.appliedVersion}.` });
     } catch (e) {
-      toast({ title: "ROLLBACK FAILED", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
+      toast({ title: "Couldn't roll back", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
     }
   };
 
@@ -112,8 +54,8 @@ export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
     /* Step 7 — environments & rollback */
     <Step n={7} title="Environments & rollback">
       <p className="text-xs text-muted-foreground">
-        Design and test integration config in a <b>sandbox</b> without touching production, then promote it. Every
-        change is versioned — pin a <b>known-good</b> state and roll back instantly if production fails.
+        Not needed on day one. Once you're running for real, this lets you test changes in a
+        <b> sandbox</b> without touching your live setup, and undo any change instantly.
       </p>
 
       {!isAdmin ? (

@@ -1,16 +1,17 @@
 import { Router } from "express";
-import { requireRole } from "../lib/rbac";
+import { requireRole, ROLES, type Role } from "../lib/rbac";
 import { getBroker } from "../broker";
 import { deliverLocal } from "../lib/notify-hub";
 import { runHealthWatch, recentFindings, type HealthFinding } from "../lib/health-watch";
 import { runExecDigest } from "../lib/exec-digest";
 import { runProactiveDigest } from "../lib/proactive-digest";
+import { runDriftCanary, recentDriftFindings } from "../lib/drift-canary";
 
 /**
- * Health / anomaly watch + executive & proactive digests — the scheduled, read-only autonomous
- * jobs. An admin can trigger any of them; a manager+ can read recent health findings. Each runs
- * as a keyed, short-lived autonomous actor and dispatches over the notification seam (never
- * writes here).
+ * Health / anomaly watch + executive & proactive digests + the drift canary — the scheduled,
+ * read-only autonomous jobs. An admin can trigger any of them; a manager+ can read recent health
+ * findings. Each runs as a keyed, short-lived autonomous actor and dispatches over the
+ * notification seam (never writes here).
  */
 const router = Router();
 
@@ -53,13 +54,34 @@ router.post("/admin/digest/run", requireRole("admin"), async (_req, res) => {
 // scheduler / the broker cron calls this so it fires once for the fleet; the in-process timer is
 // for single instances. An empty (healthy-portfolio) digest is skipped, not dispatched.
 router.post("/admin/proactive-digest/run", requireRole("admin"), async (req, res) => {
+  const requested = req.body?.role;
+  if (requested !== undefined && !(ROLES as readonly string[]).includes(requested)) {
+    res.status(400).json({ error: `role must be one of: ${ROLES.join(", ")}` });
+    return;
+  }
+  const role = requested as Role | undefined;
   try {
-    const role = typeof req.body?.role === "string" ? req.body.role : undefined;
     const result = await runProactiveDigest({ now: Date.now(), broker: getBroker(), role });
     res.json(result);
   } catch (err) {
     res.status(502).json({ error: err instanceof Error ? err.message : "proactive-digest run failed" });
   }
+});
+
+// Trigger the third-party API drift canary now (admin). Like the digests, an external scheduler
+// / the broker cron calls this so it fires once for the fleet; the in-process timer is for
+// single instances. A quiet run (nothing broke) dispatches no notification.
+router.post("/admin/drift-canary/run", requireRole("admin"), async (_req, res) => {
+  try {
+    const result = await runDriftCanary({ now: Date.now(), broker: getBroker() });
+    res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: err instanceof Error ? err.message : "drift-canary run failed" });
+  }
+});
+
+router.get("/drift-canary", requireRole("manager"), (_req, res) => {
+  res.json({ findings: recentDriftFindings() });
 });
 
 export default router;

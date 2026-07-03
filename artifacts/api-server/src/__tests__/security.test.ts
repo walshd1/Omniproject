@@ -41,14 +41,17 @@ function signedSessionCookie(session: object): string {
 
 const VIEWER = signedSessionCookie({ sub: "viewer-1", roles: [] });
 const MANAGER = signedSessionCookie({ sub: "manager-1", roles: ["omni-managers"] });
-const PMO = signedSessionCookie({ sub: "pmo-1", roles: ["omni-pmo"] });
+// pmo/admin authority now also requires a tamper-resistant-MFA assertion (amr) — these
+// fixtures carry it so the tests below exercise the OTHER gate under test (role, step-up,
+// SSRF, …), not this one; rbac-strong-auth.test.ts covers the amr gate itself.
+const PMO = signedSessionCookie({ sub: "pmo-1", roles: ["omni-pmo"], amr: ["hwk"] });
 // Freshly stepped-up admin (some sensitive routes — raw escape hatch, governance,
 // key revocation — require a recent re-auth on top of the admin role).
-const ADMIN = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"], stepUpAt: Date.now() });
+const ADMIN = signedSessionCookie({ sub: "admin-1", roles: ["omni-admins"], amr: ["hwk"], stepUpAt: Date.now() });
 // An admin WITHOUT a recent step-up — for asserting the step-up wall.
-const ADMIN_NO_STEPUP = signedSessionCookie({ sub: "admin-2", roles: ["omni-admins"] });
+const ADMIN_NO_STEPUP = signedSessionCookie({ sub: "admin-2", roles: ["omni-admins"], amr: ["hwk"] });
 // Holds BOTH authorities — the join (governance + technical).
-const PMO_ADMIN = signedSessionCookie({ sub: "both-1", roles: ["omni-pmo", "omni-admins"], stepUpAt: Date.now() });
+const PMO_ADMIN = signedSessionCookie({ sub: "both-1", roles: ["omni-pmo", "omni-admins"], amr: ["hwk"], stepUpAt: Date.now() });
 
 before(async () => {
   const { default: app } = await import("../app");
@@ -308,14 +311,22 @@ test("RBAC: a PMO CANNOT change technical settings (still admin-only)", async ()
   assert.equal(res.status, 403);
 });
 
-test("admin-only backends (raw SQL / Mongo) are hidden from non-admins in the wizard", async () => {
-  const forViewer = (await (await req("/api/setup/backends", { headers: { cookie: VIEWER } })).json()) as { id: string; adminOnly: boolean }[];
-  assert.equal(forViewer.some((b) => b.id === "sql" || b.id === "mongodb"), false, "non-admin must not be offered DB backends");
-  assert.ok(forViewer.some((b) => b.id === "excel"), "but the Excel import source is fine for anyone");
+test("GET /api/setup/backends (the full internal manifest) is PMO/admin-gated", async () => {
+  const res = await req("/api/setup/backends", { headers: { cookie: VIEWER } });
+  assert.equal(res.status, 403, "a plain viewer must not reach the internal wiring catalogue at all");
+});
+
+test("admin-only backends (raw SQL / Mongo) are hidden from non-admins on the outer ids surface", async () => {
+  const forViewer = (await (await req("/api/setup/backends/ids", { headers: { cookie: VIEWER } })).json()) as string[];
+  assert.equal(forViewer.some((id) => id === "sql" || id === "mongodb"), false, "non-admin must not be offered DB backends");
+  assert.ok(forViewer.some((id) => id === "excel"), "but the Excel import source is fine for anyone");
 
   const forAdmin = (await (await req("/api/setup/backends", { headers: { cookie: ADMIN } })).json()) as { id: string; adminOnly: boolean }[];
   const sql = forAdmin.find((b) => b.id === "sql");
   assert.ok(sql?.adminOnly, "admin sees the SQL backend, flagged admin-only");
+
+  const forPmo = (await (await req("/api/setup/backends", { headers: { cookie: PMO } })).json()) as { id: string; adminOnly: boolean }[];
+  assert.equal(forPmo.some((b) => b.id === "sql" || b.id === "mongodb"), false, "PMO holds no technical authority, so DB backends stay hidden even on the internal route");
 });
 
 test("RBAC: an admin is NOT blocked by the contributor gate", async () => {
@@ -513,4 +524,26 @@ test("baseline security headers are present", async () => {
   assert.ok(res.headers.get("permissions-policy"));
   // HSTS only in production (set above).
   assert.match(res.headers.get("strict-transport-security") ?? "", /max-age=\d+/);
+});
+
+test("GET /api/auth/me exposes impossibleTravel: false for an ordinary session", async () => {
+  const res = await req("/api/auth/me", { headers: { cookie: ADMIN } });
+  const json = (await res.json()) as { impossibleTravel?: boolean };
+  assert.equal(json.impossibleTravel, false);
+});
+
+test("GET /api/auth/me exposes impossibleTravel: true while a flag raised after the last step-up is unresolved", async () => {
+  const stepUpAt = Date.now() - 60_000; // 1 min ago — otherwise well within the fresh window
+  const flagged = signedSessionCookie({ sub: "flagged-1", roles: ["omni-admins"], amr: ["hwk"], stepUpAt, impossibleTravelAt: stepUpAt + 1 });
+  const res = await req("/api/auth/me", { headers: { cookie: flagged } });
+  const json = (await res.json()) as { impossibleTravel?: boolean };
+  assert.equal(json.impossibleTravel, true);
+});
+
+test("an impossible-travel flag raised after the last step-up blocks a step-up-gated admin action, even though stepUpAt is fresh", async () => {
+  const stepUpAt = Date.now() - 60_000;
+  const flagged = signedSessionCookie({ sub: "flagged-2", roles: ["omni-admins"], amr: ["hwk"], stepUpAt, impossibleTravelAt: stepUpAt + 1 });
+  const res = await req("/api/security/keys/whatever/revoke", { method: "POST", headers: { cookie: flagged, "content-type": "application/json" }, body: "{}" });
+  assert.equal(res.status, 403);
+  assert.equal(((await res.json()) as { code?: string }).code, "step_up_required");
 });

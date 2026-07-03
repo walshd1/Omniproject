@@ -8,9 +8,12 @@ import { useQuery } from "@tanstack/react-query";
  *
  * Reads the public `/api/dev-mode` status (which always reports `devMode:false`
  * in production, where dev mode is hard-gated off), so the watermark simply never
- * appears on a released deployment. The overlay is non-interactive
- * (`pointer-events-none`) and marked decorative for assistive tech; the corner
- * badge carries the same information as text for screen readers.
+ * appears on a released deployment. Every layer is non-interactive
+ * (`pointer-events-none`), so nothing here can ever block a real click — the top
+ * banner is deliberately loud (dev mode is the one place "anything goes": auth-bypass
+ * impersonation, entitlement overrides, synthetic data corruption are all live tools),
+ * while the corner badge carries the same information as persistent text for screen
+ * readers and anyone who scrolled the banner out of view.
  */
 interface DevModeStatus {
   devMode: boolean;
@@ -34,6 +37,20 @@ export function DevModeWatermark() {
 
   return (
     <>
+      {/* Massive, high-contrast top banner — impossible to miss or mistake for a
+          subtle chrome element. Dev mode is a deliberate "anything goes" exception
+          to every access control elsewhere in the app (auth-bypass impersonation,
+          license/entitlement overrides, synthetic data corruption), so the warning
+          has to be loud in proportion: this is the one place holding a session here
+          is NOT enough on its own, and the data on screen may not be real. */}
+      <div
+        role="alert"
+        data-testid="dev-mode-warning-banner"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[10000] bg-amber-500 px-3 py-1.5 text-center text-xs font-black uppercase tracking-wide text-black shadow-md"
+      >
+        ⚠ Developer mode — not for real data. Auth-bypass impersonation, license
+        overrides, and synthetic data corruption tools are live on this instance.
+      </div>
       {/* Diagonal repeating watermark across the whole viewport. */}
       <div
         aria-hidden="true"

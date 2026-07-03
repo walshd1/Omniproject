@@ -21,7 +21,7 @@ const VIEW: DeploymentProfileView = {
   posture: posture({ label: "Business / SME" }),
   tls: { servedOverTls: true },
   demoAuth: { active: false, accepted: false, severity: "critical" },
-  hardening: { oidc: true, scim: false, ipAllowlist: false, sessionCap: false, kms: false, makerChecker: false, securityStrict: false, rateLimit: true },
+  hardening: { oidc: true, scim: false, ipAllowlist: false, sessionCap: false, kms: false, makerChecker: false, securityStrict: false, rateLimit: true, strongMfaAdminPmo: true },
   profiles: ["enterprise", "business", "nonprofit", "self-hosted", "demo"],
   catalogue: {
     enterprise: posture({ label: "Enterprise", audience: "Large org", presetEnv: [{ key: "SCIM_TOKEN", why: "provisioning" }] }),

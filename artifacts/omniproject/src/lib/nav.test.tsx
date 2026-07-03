@@ -41,6 +41,12 @@ function withMyWorkEnabled(enabled: boolean): QueryClient {
   return qc;
 }
 
+function withRole(role: Role | undefined): QueryClient {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  if (role) qc.setQueryData(["auth", "me"], { sub: "u1", role });
+  return qc;
+}
+
 describe("NAV_ITEMS", () => {
   it("exposes the expected hrefs in order", () => {
     expect(NAV_ITEMS.map((n) => n.href)).toEqual([
@@ -54,7 +60,7 @@ describe("NAV_ITEMS", () => {
       "/resources",
       "/explore",
       "/settings",
-      "/setup",
+      "/configurator",
     ]);
   });
 
@@ -94,6 +100,7 @@ describe("NAV_ITEMS", () => {
       ["/reports", "G+R"],
       ["/explore", "G+E"],
       ["/settings", "G+S"],
+      ["/configurator", "G+C"],
     ]);
     expect(NAV_ITEMS.find((n) => n.href === "/programmes")!.chord).toBeUndefined();
   });
@@ -130,8 +137,30 @@ describe("useVisibleNavItems — feature gating", () => {
   });
 });
 
+describe("useVisibleNavItems — role gating (hard gate)", () => {
+  const cases: Array<[Role | undefined, boolean]> = [
+    ["admin", true],
+    ["pmo", true],
+    ["manager", false],
+    ["contributor", false],
+    ["viewer", false],
+    [undefined, false],
+  ];
+  for (const [role, expected] of cases) {
+    it(`${role ?? "unauthenticated"} → ${expected ? "sees" : "never sees"} the Configurator`, () => {
+      const { queryByText } = renderWithProviders(<Probe />, { client: withRole(role) });
+      expect(queryByText("Configurator") !== null).toBe(expected);
+    });
+  }
+
+  it("ungated items stay visible regardless of role", () => {
+    const { queryByText } = renderWithProviders(<Probe />, { client: withRole("viewer") });
+    expect(queryByText("Projects")).not.toBeNull();
+  });
+});
+
 describe("nav grouping — progressive disclosure", () => {
-  const ADMIN_HREFS = ["/explore", "/settings", "/setup"];
+  const ADMIN_HREFS = ["/explore", "/settings", "/configurator"];
   const PRIMARY_HREFS = ["/", "/my-work", "/dashboards", "/content", "/programmes", "/projects", "/reports", "/resources"];
 
   it("classifies the everyday surfaces as primary and the governance/config surfaces as admin", () => {
@@ -190,6 +219,6 @@ describe("navShelvesForRole — visibility per role", () => {
 
   it("the admin shelf still carries all governance/config routes (deep-links stay reachable)", () => {
     const { admin } = navShelvesForRole(NAV_ITEMS, "viewer", false);
-    expect(admin.map((i) => i.href)).toEqual(["/explore", "/settings", "/setup"]);
+    expect(admin.map((i) => i.href)).toEqual(["/explore", "/settings", "/configurator"]);
   });
 });

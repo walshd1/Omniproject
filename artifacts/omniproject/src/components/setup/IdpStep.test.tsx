@@ -33,7 +33,7 @@ describe("IdpStep", () => {
   it("demo mode: guides the bundled-IdP path with the role→group map and callback URL", () => {
     renderWithProviders(<IdpStep />, { client: seed(base) });
     expect(screen.getByTestId("idp-step")).toBeInTheDocument();
-    expect(screen.getByText(/bundled identity/i)).toBeInTheDocument();
+    expect(screen.getByText(/identity provider/i)).toBeInTheDocument();
     // falls back to the suggested group names when nothing is configured yet
     expect(screen.getByTestId("idp-rolemap")).toHaveTextContent("omni-admins");
     // The redirect URI appears in the bundled-IdP guidance and the preset cards.
@@ -47,7 +47,7 @@ describe("IdpStep", () => {
     renderWithProviders(<IdpStep />, {
       client: seed({ ...base, mode: "oidc", issuer: "https://authentik.local/application/o/omniproject/", issuerOrigin: "https://authentik.local", bundled: true, roleGroups: [{ role: "admin", groups: ["omni-admins"] }] }),
     });
-    expect(screen.getByText(/SSO is active/i)).toBeInTheDocument();
+    expect(screen.getByText(/Company login is already switched on/i)).toBeInTheDocument();
     expect(screen.getByTestId("idp-rolemap")).toHaveTextContent("omni-admins");
   });
 });

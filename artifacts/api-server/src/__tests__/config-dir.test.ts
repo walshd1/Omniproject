@@ -103,6 +103,14 @@ test("a SEALED config.json is decrypted at boot (encrypted snapshots at rest)", 
   assert.equal(summary.errors.length, 0);
 });
 
+test("a config.json carrying a __proto__ payload cannot pollute Object.prototype", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "omni-config-proto-"));
+  const payload = '{"__proto__":{"polluted":true},"aiProvider":"none"}';
+  fs.writeFileSync(path.join(root, "config.json"), sealConfig(payload));
+  loadConfigDir(root);
+  assert.equal(({} as Record<string, unknown>)["polluted"], undefined);
+});
+
 test("a config.json sealed under a DIFFERENT key surfaces a clear decrypt error", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "omni-config-badkey-"));
   // c1. token whose body is garbage ⇒ can't decrypt with this deployment's key.

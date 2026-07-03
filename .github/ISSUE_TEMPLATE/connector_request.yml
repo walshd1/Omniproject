@@ -1,0 +1,62 @@
+name: 🔌 Backend / connector request
+description: Ask for a new system-of-record backend (Jira, an ERP, an in-house tool, ...)
+labels: ["enhancement", "connector"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Backends are declarative — most of what we need to build one is exactly
+        what you fill in below. See [docs/dev/PLANE-BACKENDS.md](../../blob/main/docs/dev/PLANE-BACKENDS.md)
+        if you'd rather add it yourself (it's free and documented, PRs welcome).
+  - type: input
+    id: system
+    attributes:
+      label: System / product name
+      placeholder: e.g. Smartsheet, Linear, a bespoke in-house tracker
+    validations:
+      required: true
+  - type: dropdown
+    id: api-kind
+    attributes:
+      label: How is it reached?
+      options:
+        - REST / JSON API
+        - GraphQL
+        - OData
+        - SOAP
+        - Only a database (no API)
+        - Only a spreadsheet export
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: docs-url
+    attributes:
+      label: Link to its API docs (if any)
+    validations:
+      required: false
+  - type: textarea
+    id: capabilities
+    attributes:
+      label: What should OmniProject read/write from it?
+      description: Projects and issues at minimum — anything else you rely on (financials, resourcing, custom fields)?
+    validations:
+      required: true
+  - type: textarea
+    id: auth
+    attributes:
+      label: How do you authenticate to it today?
+      description: API key, OAuth2, Basic, SSO-only, etc. — helps size the work.
+    validations:
+      required: false
+  - type: checkboxes
+    id: access
+    attributes:
+      label: Access to test against
+      options:
+        - label: I have a sandbox/test instance I can share credentials or access for
+          required: false
+        - label: I'd be willing to test a generated workflow against my real instance, read-only
+          required: false
+        - label: I'd be willing to help build this myself
+          required: false

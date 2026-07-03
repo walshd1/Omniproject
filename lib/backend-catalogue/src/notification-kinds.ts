@@ -23,6 +23,7 @@ export const NOTIFICATION_KINDS: NotificationKindDef[] = [
   { id: "blocker", label: "Blocker", severity: "critical" },
   { id: "incident", label: "Incident", severity: "critical" },
   { id: "digest", label: "Digest", severity: "info" },
+  { id: "integration_drift", label: "Integration drift", severity: "warning" },
 ];
 
 /** The known kind ids — the set routing rules / the guard validate against. */

@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Redirect, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +10,7 @@ import { A11yProvider } from "./lib/a11y-prefs";
 import { PlatformProvider } from "./lib/platform-context";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DevModeWatermark } from "./components/DevModeWatermark";
+import { ImpossibleTravelBanner } from "./components/ImpossibleTravelBanner";
 import { DevPerfOverlay } from "./components/DevPerfOverlay";
 import { SessionTimeoutWatcher } from "./components/SessionTimeoutWatcher";
 import { DevImpersonationControl } from "./components/DevImpersonationControl";
@@ -33,7 +34,7 @@ const ProgrammeDetail = lazy(() => import("./pages/ProgrammeDetail").then((m) =>
 const Projects = lazy(() => import("./pages/Projects").then((m) => ({ default: m.Projects })));
 const ProjectDetail = lazy(() => import("./pages/ProjectDetail").then((m) => ({ default: m.ProjectDetail })));
 const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
-const Setup = lazy(() => import("./pages/Setup").then((m) => ({ default: m.Setup })));
+const Configurator = lazy(() => import("./pages/Configurator").then((m) => ({ default: m.Configurator })));
 const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
 const Resources = lazy(() => import("./pages/Resources").then((m) => ({ default: m.Resources })));
 const Explore = lazy(() => import("./pages/Explore").then((m) => ({ default: m.Explore })));
@@ -107,8 +108,11 @@ function Router() {
       <Route path="/settings">
         <AppLayout><Settings /></AppLayout>
       </Route>
+      <Route path="/configurator">
+        <AppLayout><Configurator /></AppLayout>
+      </Route>
       <Route path="/setup">
-        <AppLayout><Setup /></AppLayout>
+        <Redirect to="/configurator" />
       </Route>
       <Route component={NotFound} />
     </Switch>
@@ -143,6 +147,7 @@ function App() {
           <SwitchScanner />
           <VoiceInput />
           <DevModeWatermark />
+          <ImpossibleTravelBanner />
           <DevImpersonationControl />
           <DevEntitlementsControl />
           <MessyDataControl />

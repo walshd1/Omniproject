@@ -54,6 +54,18 @@ hard barrier for charities.
 **Why parked:** business model + infrastructure + ongoing-ops decision.
 **Recommendation:** at minimum publish one-click deploy templates; a managed tier is a bigger
 commitment to weigh.
+**Status:** platform comparison done — Railway is the strongest first target (only one of the four
+that imports an existing `docker-compose.yml`-shaped stack directly, plus existing community
+templates for both n8n and Authentik). A manual, hands-run recipe is written up at
+`docs/ops/RAILWAY-DEPLOY.md` (Tier 1: omni-shell + n8n, demo auth accepted — the actual "no IT
+person, no SSO to configure" target; Tier 2: real per-user logins via Authentik). Tier 2 now has an
+actual config-as-code path, not just a sketch: `deploy/railway/` ships `railway.json` files for
+omni-shell and for a custom Authentik image (`deploy/railway/authentik/Dockerfile`) that bakes in
+the OmniProject OAuth-app blueprint at build time — solving the one real gotcha (Railway has no
+bind-mount equivalent for the read-only blueprint mount `docker-compose.standalone.yml` uses).
+Turning either tier into a real "Deploy on Railway" button still needs a maintainer to run it once
+in their own Railway account and use Railway's "Create Template" action — that URL can't be
+predicted or fabricated in advance.
 
 ### A3. mTLS for the gateway↔broker seam; FIPS-validated crypto mode
 **What:** mutual-TLS between gateway and broker (today: PSK + per-session HMAC), and a FIPS-mode for
@@ -62,6 +74,46 @@ gov.
 (FIPS) — both infra/policy decisions.
 **Recommendation:** offer mTLS as an optional hardening for high-assurance deployments; treat FIPS as
 demand-driven (only if a gov deal needs it).
+
+### A4. Native mobile app (App Store / Google Play listing)
+**What:** a real installable, store-listed mobile app, beyond the PWA that already ships today
+(`lib/pwa.ts` — installable, app-shell-only offline caching, zero-at-rest preserved). The codebase
+already reserves a `nativeBridge` capability flag (`lib/platform.ts`) for exactly this, naming
+Capacitor as the anticipated wrapper — this isn't a new architectural choice, just finishing one
+already started.
+**Why (the same itch, not a bolt-on feature):** README's "Why OmniProject exists" names three
+things — tool sprawl, nobody trusting a second copy of their data, and migration risk killing the
+project before it starts. Mobile is where tool sprawl bites hardest: the head-of-projects checking
+status between meetings, away from a laptop, is exactly who ends up opening five apps on a phone to
+piece together "where do things actually stand." A native listing doesn't change what OmniProject
+*is* to answer that — it's still a live window onto the tools already run, never a fourth (or fifth)
+place data lives. That's precisely why Capacitor (wrap the existing SPA) was the right call over a
+from-scratch React Native/Expo rewrite: the zero-at-rest promise is a property of the *web app*
+(`pwa.ts`'s app-shell-only caching — nothing project-specific ever touches the device), and wrapping
+it natively inherits that property for free rather than requiring it be re-earned in a parallel
+codebase. The only things a store listing genuinely adds are discoverability (an icon and a listing
+non-technical stakeholders recognise as "a real app," not a bookmarked browser tab) and OTA update
+plumbing (§ below) — not a second architecture to keep honest.
+**Why parked:** app-store accounts, code signing/CI, and ongoing store-compliance upkeep are a real
+ongoing-ops commitment, same category as A2.
+**Status:** tooling researched. **Ionic Appflow (the "batteries-included" Capacitor build/submit
+service) was discontinued for new customers in Feb 2025** — existing customers only, support ends
+Dec 31 2027 — so it's not a viable foundation to build on now. The live path is **Capacitor +
+Fastlane** (the open-source iOS/Android build-and-submit CLI, unaffected by Appflow's shutdown) run
+on a CI that already understands mobile builds — **Codemagic** is the natural Appflow successor
+(free tier, purpose-built for Capacitor/Ionic) since Apple's toolchain (Xcode/codesign) is Mac-only
+and can't run on ordinary Linux CI. If OTA updates (shipping JS/asset bundle fixes without a full
+store review) are wanted later, **Capgo** (`@capgo/capacitor-updater`) is the actively-maintained
+open-source successor to Appflow Live-Update — it only ships static bundle diffs (no user/app data),
+matching `pwa.ts`'s app-shell-only posture, and should be **self-hosted** rather than pointed at
+Capgo's cloud to keep "nothing leaves your infra" fully intact.
+**One real gotcha:** app-store listings require privacy disclosures (Apple's Privacy Nutrition
+Label + `PrivacyInfo.xcprivacy` manifest — which Apple explicitly lists Capacitor itself as
+requiring; Google's Data Safety form) regardless of self-hosting, since they ask what the *app*
+collects, not where it's stored. Not a blocker, but a tripwire: adding any crash-reporting/analytics
+SDK later would force new disclosures neither Capacitor nor Fastlane require today.
+**Recommendation:** prototype Capacitor + Fastlane on Codemagic's free tier before committing
+further; defer OTA (and self-host it via Capgo, not their cloud) until genuinely needed.
 
 ---
 

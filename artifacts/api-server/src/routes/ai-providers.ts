@@ -9,6 +9,7 @@ import {
   listProviders, upsertProvider, removeProvider,
   setProviderKey, clearProviderKey, providerKeyState,
   setCapabilityProviders, providersSnapshot,
+  rollbackAiProviders, canRollbackAiProviders,
 } from "../lib/ai-providers";
 import { vaultBackendId, VAULT_BACKENDS } from "../lib/vault-store";
 import { kmsProvider, kmsEnabled } from "../lib/kms";
@@ -49,6 +50,19 @@ router.get("/ai/providers", requireRole("admin"), (_req, res) => {
     capabilities: AI_CAPABILITIES,
     vault: { backend: vaultBackendId(), backends: VAULT_BACKENDS, kms: kmsEnabled() ? kmsProvider() : "none" },
   });
+});
+
+// One-generation undo for the last provider/mapping change — same admin + step-up gate as the
+// writes it reverses. Never restores a deleted/rotated KEY (those live in the vault, out of
+// scope for this undo — see lib/ai-providers.ts).
+router.get("/ai/providers/rollback", requireRole("admin"), (_req, res) => {
+  res.json({ available: canRollbackAiProviders() });
+});
+
+router.post("/ai/providers/rollback", requireRole("admin"), requireStepUp, (req, res) => {
+  const rolledBack = rollbackAiProviders();
+  audit(req, "ai-provider.rollback", { rolledBack });
+  res.json({ rolledBack, ...providersSnapshot() });
 });
 
 // ── POST /api/ai/providers — add / update a provider entity (admin + step-up) ───

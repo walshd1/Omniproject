@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { renderWithProviders } from "../test/utils";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 function Boom(): never {
@@ -21,7 +22,9 @@ describe("ErrorBoundary", () => {
   it("catches a render throw and shows the themed recovery panel", () => {
     // React logs the caught error; silence it so the test output stays clean.
     vi.spyOn(console, "error").mockImplementation(() => {});
-    render(
+    // The default panel always mounts ReportProblemDialog (even while closed), which
+    // reads setup status via react-query — matches the real nesting under QueryClientProvider.
+    renderWithProviders(
       <ErrorBoundary>
         <Boom />
       </ErrorBoundary>,

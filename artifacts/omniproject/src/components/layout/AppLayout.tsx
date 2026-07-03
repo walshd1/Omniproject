@@ -9,11 +9,12 @@ import { GlobalSearchTrigger } from "../search/GlobalSearchTrigger";
 import { NotificationsBell } from "../NotificationsBell";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
-import { LogOut, Menu, ChevronDown, ShieldCheck } from "lucide-react";
+import { LogOut, Menu, ChevronDown, ShieldCheck, Flag } from "lucide-react";
+import { ReportProblemDialog } from "../ReportProblemDialog";
 import { useNavShelves, type NavItem } from "../../lib/nav";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth, logout } from "../../lib/auth";
-import { useSetupStatus } from "../../lib/setup";
+import { usePublicSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
 import { useBranding } from "../../lib/branding";
 import { LanguageSwitcher } from "../LanguageSwitcher";
@@ -27,12 +28,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const { t } = useT();
   const brand = useBranding();
   const { data: auth, isLoading: authLoading } = useAuth();
-  const { data: setup } = useSetupStatus();
+  const { data: setup } = usePublicSetupStatus();
   const { data: projects } = useListProjects();
   // Progressive disclosure: plain PMs keep the Advanced (governance/config) shelf
   // collapsed; admin/PMO see it expanded. The toggle lets anyone reveal it —
   // capability is never removed, only its default visibility in the chrome.
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const { primary: primaryNav, admin: adminNav, adminVisible } = useNavShelves(advancedOpen);
   const health = useHealthCheck({
     query: { queryKey: getHealthCheckQueryKey(), refetchInterval: 30_000, retry: false },
@@ -80,6 +82,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           if (ev.key === "r") setLocation("/reports");
           if (ev.key === "e") setLocation("/explore");
           if (ev.key === "s") setLocation("/settings");
+          if (ev.key === "c") setLocation("/configurator");
           document.removeEventListener("keydown", nextKey);
         };
         document.addEventListener("keydown", nextKey);
@@ -129,7 +132,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const navRow = (item: NavItem, compact: boolean) => {
     const Icon = item.icon;
     const active = item.match(location);
-    const demoDot = item.href === "/setup" && setup && !setup.broker.configured;
+    const demoDot = item.href === "/configurator" && setup && !setup.broker.configured;
     return (
       <Link
         key={item.href}
@@ -242,6 +245,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <GlobalSearchTrigger />
             <button
               type="button"
+              onClick={() => setReportOpen(true)}
+              aria-label="Report a problem"
+              title="Report a problem"
+              className="flex h-7 w-7 items-center justify-center border border-border bg-card text-muted-foreground hover:text-foreground"
+            >
+              <Flag className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
               onClick={() => setShortcutsOpen(true)}
               aria-label="Keyboard shortcuts"
               title="Keyboard shortcuts (?)"
@@ -276,12 +288,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        {setup && !setup.broker.configured && location !== "/setup" && (
+        {setup && !setup.broker.configured && location !== "/configurator" && (
           <div className="bg-amber-500/10 border-b border-amber-500/40 px-6 py-2 text-xs flex items-center justify-between">
             <span className="font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
               {t("header.demoBanner")}
             </span>
-            <Link href="/setup" className="font-black uppercase tracking-widest border border-amber-500/50 text-amber-600 dark:text-amber-400 px-2 py-1 hover:bg-amber-500 hover:text-background">
+            <Link href="/configurator" className="font-black uppercase tracking-widest border border-amber-500/50 text-amber-600 dark:text-amber-400 px-2 py-1 hover:bg-amber-500 hover:text-background">
               {t("header.openSetup")}
             </Link>
           </div>
@@ -293,6 +305,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       <CommandPalette />
       <ShortcutsDialog open={isShortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <ReportProblemDialog open={reportOpen} onOpenChange={setReportOpen} />
       {/* Global "new task" — requires an explicit project (a task always belongs
           to one); the board's in-context IssueDialog stays project-fixed. */}
       <NewTaskDialog open={isNewIssueOpen} onOpenChange={setNewIssueOpen} />

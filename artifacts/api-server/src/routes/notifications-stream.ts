@@ -1,15 +1,16 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import crypto from "node:crypto";
 import { getSession } from "./auth";
-import { roleForReq, isDeprovisioned } from "../lib/rbac";
-import { addClient, clientCount, type NotifyTarget } from "../lib/notify-hub";
+import { roleForReq, isDeprovisioned, ROLES } from "../lib/rbac";
+import { addClient, clientCount } from "../lib/notify-hub";
 import { openSse } from "../lib/sse";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
 import { emitWebhookEvent } from "../lib/webhooks";
 import { routeNotification, getNotificationChannel, notificationSeverity } from "@workspace/backend-catalogue";
 import { logger } from "../lib/logger";
 import { traceFn } from "../broker/trace";
-import type { NotificationIngest, IngestedNotification } from "../broker/contract";
+import { v, parseOr400 } from "../lib/validate";
+import type { IngestedNotification } from "../broker/contract";
 
 /** The notify-plane dispatch decision, traced/capturable like the broker seam. */
 const tracedRouteNotification = traceFn("notify", "route", routeNotification);
@@ -90,26 +91,48 @@ function ingestAuth(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
+// Border validation for this externally-driven route: n8n/tools push arbitrary JSON
+// in with only a shared secret standing between it and the notify bus, so every
+// field is bounded/typed here rather than trusted as-is (the previous version cast
+// `req.body` with loose fallbacks and no length caps — a bad or malicious sender
+// could push unbounded strings straight into the bus/webhook fan-out).
+const NOTIFY_TARGET_BODY = v.object({
+  sub: v.optional(v.string({ trim: true, min: 1, max: 200 })),
+  email: v.optional(v.string({ trim: true, min: 1, max: 320 })),
+  // A fixed RBAC role, not a free-form string — an unrecognised value (wrong case, a
+  // typo, a role that doesn't exist) would otherwise silently match no client at all.
+  role: v.optional(v.enum(ROLES)),
+});
+const NOTIFICATION_INGEST_BODY = v.object({
+  notification: v.object({
+    id: v.nullable(v.string({ trim: true, min: 1, max: 200 })),
+    kind: v.nullable(v.string({ trim: true, min: 1, max: 100 })),
+    title: v.string({ trim: true, min: 1, max: 500 }),
+    body: v.nullable(v.string({ max: 10_000 })),
+    projectId: v.nullable(v.string({ trim: true, min: 1, max: 200 })),
+    issueId: v.nullable(v.string({ trim: true, min: 1, max: 200 })),
+  }),
+  target: v.optional(NOTIFY_TARGET_BODY),
+});
+
 // POST /api/notifications/ingest — n8n/tools push an event; the bus fans it out
 // across replicas (Redis) or in-process.
 ingestRouter.post("/notifications/ingest", ingestAuth, async (req: Request, res: Response) => {
-  const body = (req.body ?? {}) as Partial<NotificationIngest> & { target?: NotifyTarget };
-  const n = body.notification as Record<string, unknown> | undefined;
-  if (!n || typeof n !== "object" || typeof n["title"] !== "string") {
-    res.status(400).json({ error: "notification.title is required" });
-    return;
-  }
+  const parsed = parseOr400(req, res, NOTIFICATION_INGEST_BODY);
+  if (!parsed) return;
+  const n = parsed.notification;
   const notification: IngestedNotification = {
-    id: typeof n["id"] === "string" ? n["id"] : crypto.randomUUID(),
-    kind: typeof n["kind"] === "string" ? n["kind"] : "info",
-    title: n["title"] as string,
-    body: (n["body"] as string | null | undefined) ?? null,
-    projectId: (n["projectId"] as string | null | undefined) ?? null,
-    issueId: (n["issueId"] as string | null | undefined) ?? null,
+    id: n.id ?? crypto.randomUUID(),
+    kind: n.kind ?? "info",
+    title: n.title,
+    body: n.body ?? null,
+    projectId: n.projectId ?? null,
+    issueId: n.issueId ?? null,
     read: false,
     timestamp: new Date().toISOString(),
   };
-  const localDelivered = await getNotifyBus().publish({ notification, ...(body.target !== undefined ? { target: body.target } : {}) });
+  const target = parsed.target;
+  const localDelivered = await getNotifyBus().publish({ notification, ...(target !== undefined ? { target } : {}) });
   // Generic, above-the-seam DISPATCH: the JSON routing rules decide which external
   // delivery channels this event goes to (gated to channels that actually exist).
   // The DECISION rides along with the outbound event; DELIVERY stays below the seam
@@ -120,7 +143,7 @@ ingestRouter.post("/notifications/ingest", ingestAuth, async (req: Request, res:
   const severity = notificationSeverity(notification.kind);
   // Also push to any outbound webhook subscribers (premium; no-op if unlicensed
   // or none configured). Fire-and-forget so SSE latency isn't affected.
-  emitWebhookEvent("notification", { notification, target: body.target ?? null, dispatch, severity });
+  emitWebhookEvent("notification", { notification, target: target ?? null, dispatch, severity });
   // In-process: exact local count. Redis: delivery is async across replicas, so
   // we report local connections instead of a cross-replica count.
   const delivered = localDelivered ?? clientCount();

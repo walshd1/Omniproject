@@ -28,9 +28,15 @@ interface StatusContext {
 /** A subsystem's contribution to the status report (merged into the response). */
 type StatusSection = (ctx: StatusContext) => Record<string, unknown>;
 
+/** Whether a broker is wired at all — the ONE fact the public/outer surface needs
+ *  (e.g. every session's demo-mode banner), independent of the caller's role. */
+export function brokerConfigured(): boolean {
+  return isLiveBroker() || !!getSettings().brokerUrl;
+}
+
 const SECTIONS: StatusSection[] = [
-  ({ settings, req }) => ({ configured: isLiveBroker() || !!settings.brokerUrl, role: roleForReq(req) }),
-  ({ settings }) => ({ broker: { configured: isLiveBroker() || !!settings.brokerUrl, urlSet: !!settings.brokerUrl } }),
+  ({ req }) => ({ configured: brokerConfigured(), role: roleForReq(req) }),
+  ({ settings }) => ({ broker: { configured: brokerConfigured(), urlSet: !!settings.brokerUrl } }),
   () => ({ auth: { mode: isOidcConfigured ? "oidc" : "demo" } }),
   ({ settings }) => ({ ai: { provider: settings.aiProvider } }),
   () => ({ realtime: { enabled: !!process.env["NOTIFY_INGEST_SECRET"]?.trim(), bus: busMode() } }),
@@ -49,4 +55,12 @@ export async function buildSetupStatus(req: Request): Promise<Record<string, unk
   const capabilities = await resolveCapabilities(req).catch(() => null);
   const ctx: StatusContext = { req, settings, capabilities };
   return Object.assign({}, ...SECTIONS.map((section) => section(ctx)));
+}
+
+/** The "outer surface" of setup status — the one fact every authenticated session
+ *  needs regardless of role (e.g. the demo-mode banner in the global chrome). The
+ *  full report above carries live broker/backend/licensing state and is gated to
+ *  PMO/admin at the route; this is what's passed through to everyone else instead. */
+export function buildPublicSetupStatus(): { broker: { configured: boolean } } {
+  return { broker: { configured: brokerConfigured() } };
 }

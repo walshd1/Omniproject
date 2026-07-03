@@ -27,6 +27,7 @@ export interface DeploymentProfileView {
   hardening: {
     oidc: boolean; scim: boolean; ipAllowlist: boolean; sessionCap: boolean;
     kms: boolean; makerChecker: boolean; securityStrict: boolean; rateLimit: boolean;
+    strongMfaAdminPmo: boolean;
   };
   profiles: string[];
   /** Every customer type's posture + preset (for the wizard picker). */
@@ -88,4 +89,5 @@ export const HARDENING_LABELS: Record<string, string> = {
   makerChecker: "Maker-checker",
   securityStrict: "Strict boot checks",
   rateLimit: "Rate limiting",
+  strongMfaAdminPmo: "Tamper-resistant MFA (pmo/admin)",
 };

@@ -1,10 +1,24 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetCapabilitiesQueryKey, getGetSettingsQueryKey, type Capabilities } from "@workspace/api-client-react";
-import { CheckCircle2, XCircle, Circle } from "lucide-react";
+import { CheckCircle2, XCircle, Circle, ChevronRight, HelpCircle } from "lucide-react";
+import { useIsTechnicalMode } from "../../lib/configurator-mode";
 
-export const CAP_DOMAINS: (keyof Capabilities)[] = [
+export const CAP_DOMAINS = [
   "issues", "scheduling", "resources", "financials", "portfolio", "baseline", "blockers", "history", "raid",
-];
+] as const satisfies readonly (keyof Capabilities)[];
+
+/** Plain-English label for each capability domain, shown instead of the raw field name. */
+export const CAP_LABELS: Record<(typeof CAP_DOMAINS)[number], string> = {
+  issues: "Tasks & issues",
+  scheduling: "Timelines & schedule",
+  resources: "People & workload",
+  financials: "Budgets & costs",
+  portfolio: "Programme rollup",
+  baseline: "Baselines",
+  blockers: "Blockers",
+  history: "Activity history",
+  raid: "Risks & issues log",
+};
 
 export function download(url: string) {
   const a = document.createElement("a");
@@ -22,6 +36,80 @@ export function Dot({ on }: { on: boolean | undefined }) {
     <CheckCircle2 role="img" aria-label="available" className="w-4 h-4 text-green-500" />
   ) : (
     <XCircle role="img" aria-label="unavailable" className="w-4 h-4 text-red-500" />
+  );
+}
+
+/**
+ * Collapsed-by-default technical detail (raw env vars, CLI commands, internal field
+ * names). Everyone sees the plain-English copy around it; anyone who wants the exact
+ * technical wording — to do it themselves or to hand to whoever manages hosting/IT —
+ * expands this. Nothing is removed, just not shown by default.
+ */
+export function TechDetails({ label = "Show the technical details", children }: { label?: string; children: React.ReactNode }) {
+  const technical = useIsTechnicalMode();
+  return (
+    <details className="group text-xs border border-border/60 bg-background/40 rounded" open={technical || undefined}>
+      <summary className="cursor-pointer select-none px-3 py-2 text-muted-foreground hover:text-foreground font-bold uppercase tracking-widest flex items-center gap-1.5">
+        <ChevronRight className="w-3 h-3 transition-transform group-open:rotate-90" aria-hidden="true" />
+        {label}
+      </summary>
+      <div className="px-3 pb-3 space-y-2">{children}</div>
+    </details>
+  );
+}
+
+/** A callout for the handful of steps that genuinely need a technical/hosting person — says so plainly instead of pretending. */
+export function NeedsHelp({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="border border-blue-500/40 bg-blue-500/10 p-3 text-xs flex gap-2 items-start">
+      <HelpCircle className="w-4 h-4 shrink-0 text-blue-500 mt-0.5" aria-hidden="true" />
+      <div className="text-blue-900 dark:text-blue-200">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Shared "tell us what you have" tile grid — a picker instead of a raw dropdown.
+ * Used for backends, brokers, outputs and reports alike so the visual language (and
+ * the accessible listbox/option semantics) stays one thing, not four near-duplicates.
+ */
+export function PickerGrid<T>({
+  items,
+  getKey,
+  isSelected,
+  onSelect,
+  renderTile,
+  ariaLabel,
+  extraTile,
+}: {
+  items: T[];
+  getKey: (item: T) => string;
+  isSelected: (item: T) => boolean;
+  onSelect: (item: T) => void;
+  renderTile: (item: T, selected: boolean) => React.ReactNode;
+  ariaLabel: string;
+  /** An extra, non-data tile appended after the items (e.g. "Don't see it? Request it"). */
+  extraTile?: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" role="listbox" aria-label={ariaLabel}>
+      {items.map((item) => {
+        const selected = isSelected(item);
+        return (
+          <button
+            key={getKey(item)}
+            type="button"
+            role="option"
+            aria-selected={selected}
+            onClick={() => onSelect(item)}
+            className={`text-left border p-3 text-xs ${selected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}
+          >
+            {renderTile(item, selected)}
+          </button>
+        );
+      })}
+      {extraTile}
+    </div>
   );
 }
 

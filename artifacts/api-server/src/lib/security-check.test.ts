@@ -7,10 +7,28 @@ test("non-production deployments produce no findings (relaxed by design)", () =>
   assert.deepEqual(securityFindings({}), []);
 });
 
+test("a likely env-var typo is flagged even in dev — a typo is just as silent there", () => {
+  const f = securityFindings({ NODE_ENV: "development", OIDC_ISUER_URL: "https://idp.example.com" });
+  const finding = f.find((x) => x.id === "env-var-typo");
+  assert.ok(finding && finding.severity === "warn");
+  assert.match(finding!.message, /OIDC_ISSUER_URL/);
+});
+
 test("production without OIDC is a CRITICAL finding (demo auth = everyone admin)", () => {
   const f = securityFindings({ NODE_ENV: "production" });
   const crit = f.find((x) => x.id === "demo-auth-in-prod");
   assert.ok(crit && crit.severity === "critical");
+});
+
+test("also runs when NODE_ENV isn't literally 'production' but a real production signal is present", () => {
+  // A public hostname with no OIDC and NODE_ENV unset — the same demo-auth-in-prod gap, just not
+  // spelled the literal way. Must not be silently skipped (closes the class of gap
+  // session-secret-guard.ts / requireTls() also close).
+  const f = securityFindings({ PUBLIC_URL: "https://omni.example.com" });
+  const crit = f.find((x) => x.id === "demo-auth-in-prod");
+  assert.ok(crit && crit.severity === "critical");
+  // No production signal at all (plain dev) is still fully relaxed.
+  assert.deepEqual(securityFindings({ NODE_ENV: "staging" }), []);
 });
 
 test("a self-hosted/charity profile makes no-IdP an accepted choice (warn, not critical)", () => {

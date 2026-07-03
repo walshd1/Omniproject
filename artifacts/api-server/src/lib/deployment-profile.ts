@@ -16,6 +16,8 @@
  * or an explicit acknowledgement (e.g. ACCEPT_DEMO_AUTH=1 / PUBLIC_TLS=0), and both are
  * reported on the setup/profile surface so the choice is visible and auditable.
  */
+import { productionSignals } from "./dev-mode-guard";
+
 export type DeploymentProfile = "enterprise" | "business" | "nonprofit" | "self-hosted" | "demo";
 export const DEPLOYMENT_PROFILES: readonly DeploymentProfile[] = ["enterprise", "business", "nonprofit", "self-hosted", "demo"];
 
@@ -156,16 +158,25 @@ export function acceptDemoAuth(env?: Env): boolean {
 
 /**
  * Should the gateway treat itself as served over TLS (secure cookies + HSTS)? An explicit
- * PUBLIC_TLS wins; otherwise "lan-ok" profiles default to HTTP, and "required" profiles to
- * "secure in production" — so the default (business) profile keeps today's behaviour exactly,
- * while a self-hoster/charity can run production-stable on plain HTTP without breaking sessions.
+ * PUBLIC_TLS wins; otherwise "lan-ok" profiles default to HTTP (a deliberate, accepted posture —
+ * a self-hoster/charity can run production-stable on plain HTTP without breaking sessions), and
+ * "required" profiles (business/enterprise) default to true whenever this looks like a real
+ * deployment.
+ *
+ * `NODE_ENV === "production"` alone is NOT a sufficient trigger for that last case: a "required"
+ * deployment with real OIDC/SAML configured (or a licence, or a public hostname) but NODE_ENV
+ * unset/misspelled/"staging" would otherwise silently serve the session + CSRF cookies WITHOUT
+ * the Secure attribute — a browser will then happily send them over plain HTTP too, so any hop
+ * that isn't fully HTTPS (a misconfigured proxy, a captive portal) can intercept them in the
+ * clear. So this also treats `productionSignals` (the same detector `session-secret-guard.ts`
+ * uses for the equivalent problem) as sufficient, regardless of the NODE_ENV string.
  */
 export function requireTls(env?: Env): boolean {
   const e = env ?? process.env;
   const explicit = e["PUBLIC_TLS"];
   if (explicit !== undefined && explicit.trim() !== "") return truthy(explicit);
   if (POSTURE[resolve(env)].tls === "lan-ok") return false;
-  return e["NODE_ENV"] === "production";
+  return e["NODE_ENV"] === "production" || productionSignals(e).length > 0;
 }
 
 /** The severity of the no-IdP finding for this deployment: the profile's default, or "info"

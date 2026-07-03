@@ -47,9 +47,8 @@ export function Copilot() {
   };
 
   const onRun = async (p: Extract<ActionPlan, { kind: "action" }>): Promise<void> => {
-    // Identical confirm gate as the command palette: a write needs an explicit second
-    // confirm; nothing here weakens or bypasses it.
-    if (p.write && !window.confirm(`This will MODIFY data (${p.action}). Run it?`)) return;
+    // The second confirm for a write lives in ActionPlanCard itself (an AlertDialog,
+    // shared with the command palette) — onRun only fires after that's accepted.
     setBusy(true); setError(null);
     try {
       const r = await executePlannedAction(p.tool, p.args);

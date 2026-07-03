@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { envStr, envInt, envEnum, envUrl, checkRequiredEnv } from "./env-config";
+import { envStr, envInt, envEnum, envUrl, checkRequiredEnv, detectEnvVarTypos } from "./env-config";
 
 afterEach(() => { for (const k of ["X_STR", "X_INT", "X_ENUM", "X_URL"]) delete process.env[k]; });
 
@@ -32,6 +32,31 @@ test("checkRequiredEnv: clean in dev, flags weak prod config", () => {
   assert.match(issues.join(" "), /RATE_LIMIT_DISABLED/);
   // A well-configured prod deployment is clean.
   assert.deepEqual(checkRequiredEnv({ NODE_ENV: "production", SESSION_SECRET: "a-strong-secret-value-1234" }), []);
+});
+
+test("checkRequiredEnv: also runs when NODE_ENV isn't literally 'production' but production signals are present", () => {
+  // A real OIDC issuer configured (a production signal) with a weak SCIM token, NODE_ENV unset —
+  // this must NOT be silently skipped just because NODE_ENV isn't the exact string "production".
+  const issues = checkRequiredEnv({ OIDC_ISSUER_URL: "https://idp.example.com", SCIM_TOKEN: "short" });
+  assert.match(issues.join(" "), /SCIM_TOKEN/);
+  // No production signals at all ⇒ unchanged (plain dev/test stays relaxed).
+  assert.deepEqual(checkRequiredEnv({ NODE_ENV: "development", SCIM_TOKEN: "short" }), []);
+});
+
+test("detectEnvVarTypos: flags a near-miss on a known var, ignores unrelated env", () => {
+  // The exact bug class this closes: OIDC_ISSUER_URL misspelled as OIDC_ISUER_URL silently
+  // never took effect (no OIDC config, no error) — this must surface it as a likely typo.
+  const issues = detectEnvVarTypos({ OIDC_ISUER_URL: "https://idp.example.com" });
+  assert.equal(issues.length, 1);
+  assert.match(issues[0]!, /OIDC_ISUER_URL/);
+  assert.match(issues[0]!, /OIDC_ISSUER_URL/);
+  // Unrelated host/platform env vars (no known var shares their leading word) are never touched,
+  // even ones that are superficially "close" to something — this must not be noisy.
+  assert.deepEqual(detectEnvVarTypos({ PATH: "/usr/bin", DATABASE_URL: "postgres://x", HOME: "/root" }), []);
+  // An exact match on a known var is never flagged as its own typo.
+  assert.deepEqual(detectEnvVarTypos({ OIDC_ISSUER_URL: "https://idp.example.com" }), []);
+  // A wildly different suffix on the same leading word is NOT a typo (too far to guess at).
+  assert.deepEqual(detectEnvVarTypos({ OIDC_COMPLETELY_UNRELATED_THING: "x" }), []);
 });
 
 test("checkRequiredEnv: a partially-configured SAML rollout is flagged in prod, complete is clean", () => {

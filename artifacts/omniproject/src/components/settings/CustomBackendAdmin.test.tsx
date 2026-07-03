@@ -113,4 +113,46 @@ describe("CustomBackendAdmin", () => {
     expect(within(errors).getByText(/parameters is not valid JSON/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Export/ })).toBeDisabled();
   });
+
+  it("disables Suggest until a vendor name is entered", () => {
+    renderWithProviders(<CustomBackendAdmin />, { client: seed("admin") });
+    expect(screen.getByRole("button", { name: /Suggest/ })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Vendor name to suggest"), { target: { value: "Smartsheet" } });
+    expect(screen.getByRole("button", { name: /Suggest/ })).toBeEnabled();
+  });
+
+  it("loads an AI-suggested draft through the same path as an imported file", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        manifest: {
+          id: "smartsheet", label: "Smartsheet", docsUrl: "https://developers.smartsheet.com",
+          via: "API key", requiredEnv: ["SMARTSHEET_API_BASE"], capabilities: { issues: true },
+          notes: "AI-suggested, unverified — review before use.",
+        },
+      }),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<CustomBackendAdmin />, { client: seed("admin") });
+    fireEvent.change(screen.getByLabelText("Vendor name to suggest"), { target: { value: "Smartsheet" } });
+    fireEvent.click(screen.getByRole("button", { name: /Suggest/ }));
+
+    expect(await screen.findByLabelText("Backend id")).toHaveValue("smartsheet");
+    expect(screen.getByLabelText("Backend via")).toHaveValue("API key");
+    // No actions are suggested — the preview must not fabricate any endpoint mapping.
+    expect(screen.getByTestId("backend-json-preview")).toHaveTextContent(/"actions": \{\}/);
+  });
+
+  it("shows a friendly error when the suggestion request fails (e.g. the capability is off)", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: () => Promise.resolve({ error: "AI backend drafting is unavailable here: capability \"backend-draft\" is turned off" }),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<CustomBackendAdmin />, { client: seed("admin") });
+    fireEvent.change(screen.getByLabelText("Vendor name to suggest"), { target: { value: "Smartsheet" } });
+    fireEvent.click(screen.getByRole("button", { name: /Suggest/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/turned off/);
+  });
 });

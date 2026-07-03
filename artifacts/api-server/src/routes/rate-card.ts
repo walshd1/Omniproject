@@ -22,6 +22,8 @@ import {
   setScopeUplift,
   getCostRules,
   setCostRules,
+  rollbackRateCard,
+  canRollbackRateCard,
   type ProjectType,
 } from "../lib/rate-card-store";
 
@@ -135,6 +137,20 @@ router.put("/rate-card", requireRole("pmo"), (req, res) => {
   if (u.margin !== undefined || u.overhead !== undefined) setCentralUplift({ margin: u.margin ?? 0, overhead: u.overhead ?? 0 });
   audit(req, "rate_card.update", { titles: Object.keys(card.titles).length, projectTypes: projectTypes.length });
   res.json({ ...getRateCard(), projectTypes: getProjectTypes(), uplift: getUpliftConfig() });
+});
+
+// One-generation undo across EVERY rate-card mutator (the card itself, uplift, identities,
+// project types, cost rules — they all funnel through the same store, so one undo buffer
+// covers all of them). `available` lets the admin UI show/hide the control without a wasted
+// round trip on the common case of "nothing to undo yet".
+router.get("/rate-card/rollback", requireRole("pmo"), (_req, res) => {
+  res.json({ available: canRollbackRateCard() });
+});
+
+router.post("/rate-card/rollback", requireRole("pmo"), (req, res) => {
+  const rolledBack = rollbackRateCard();
+  audit(req, "rate_card.rollback", { rolledBack });
+  res.json({ rolledBack, ...getRateCard(), projectTypes: getProjectTypes(), uplift: getUpliftConfig() });
 });
 
 /** Override the margin/overhead for one programme/project scope (an empty body clears the override). */

@@ -48,6 +48,21 @@ const empty = (): RateCardState => ({
 });
 
 let cache: RateCardState | null = null;
+// One-generation undo buffer: the state as it was immediately before the LAST mutation,
+// across every setter (they all funnel through `persist`, below). A bad edit from any of
+// the rate-card family of admin editors — the card itself, uplift, identity map, project
+// types, cost rules — can be undone in one step without an operator restart, closing the
+// same "no admin-facing undo" gap the config directory's `.old` backup closes for its JSON.
+let previousState: RateCardState | null = null;
+// A single logical request (e.g. PUT /rate-card) can call SEVERAL setters synchronously
+// (setRateCard then setProjectTypes then setCentralUplift) — each is its own `persist()`
+// call. Without batching, the undo buffer would only capture the state between the last
+// two calls, not before the whole request, so "undo" would silently undo less than the
+// admin actually just did. `batchOpen` makes every persist() within the same synchronous
+// tick share ONE snapshot (taken before the first of them); it's cleared on a microtask,
+// which always runs before the next request's handler, so separate requests still get
+// separate undo points with no explicit "begin transaction" call needed at any call site.
+let batchOpen = false;
 
 function file(): string | null {
   const explicit = process.env["RATE_CARD_FILE"]?.trim();
@@ -86,10 +101,41 @@ function load(): RateCardState {
 }
 
 function persist(state: RateCardState): void {
+  if (!batchOpen) {
+    // Snapshot what was live BEFORE this batch — via load(), never the raw `cache`, so the
+    // very first mutation in a process still captures a real prior state (empty/from-disk),
+    // not a false "nothing to undo" from the cache simply not having been populated yet.
+    previousState = load();
+    batchOpen = true;
+    queueMicrotask(() => { batchOpen = false; });
+  }
+  applyAndWrite(state);
+}
+
+function applyAndWrite(state: RateCardState): void {
   cache = state;
   const f = file();
   if (!f) return; // RAM-only deployment
   fs.writeFileSync(f, sealConfig(JSON.stringify(state)));
+}
+
+/**
+ * Undo the most recent rate-card change (one generation back), restoring whatever was live
+ * immediately before it. One-shot: the undo buffer is cleared after use, so rolling back
+ * twice in a row is a no-op rather than reintroducing the just-undone state. Returns false
+ * when there's nothing to undo (no mutation yet this process).
+ */
+export function rollbackRateCard(): boolean {
+  if (!previousState) return false;
+  const restore = previousState;
+  previousState = null;
+  applyAndWrite(restore);
+  return true;
+}
+
+/** Whether a rollback is currently available (for the admin UI to show/hide the control). */
+export function canRollbackRateCard(): boolean {
+  return previousState !== null;
 }
 
 /** The current rate card (job-title hashes → label + rates), decrypted into memory. */
@@ -208,6 +254,8 @@ export function setIdentityAssignments(
 /** Test-only: drop the in-memory cache (and reset to empty when RAM-only). */
 export function __resetRateCardCache(): void {
   cache = null;
+  previousState = null;
+  batchOpen = false;
   if (!file()) cache = empty();
 }
 

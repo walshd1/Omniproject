@@ -232,3 +232,39 @@ if (DEV_PERSIST_FILE && !BACKEND_CONFIGURED) {
   const saved = loadState(DEV_PERSIST_FILE);
   if (saved) loadDemoState(saved);
 }
+
+// ── Periodic reset (public demo isolation) ────────────────────────────────────
+// The demo store is one shared, process-wide sandbox — every concurrent visitor
+// reads and writes the SAME in-memory data (there is no per-session broker
+// context; the Broker interface's read methods take no identity at all). On a
+// shared public demo link, one visitor's edits (or deliberate vandalism) are
+// immediately visible to, and overwritable by, every other visitor, indefinitely
+// (until the process happens to restart). A periodic reset back to the pristine
+// seed bounds that exposure without touching the Broker interface or threading a
+// session identity through every read/write call site.
+//
+// Captured AFTER every seeding step above (including DEMO_SCALE_PROJECTS and any
+// dev-persist hydration), so a reset restores exactly what THIS process booted
+// with — never a hand-authored "true" seed that could drift from what's live.
+const PRISTINE_SEED: { projects: Row[]; issues: Record<string, Row[]>; raid: Record<string, Row[]> } =
+  structuredClone(getDemoState());
+
+/** Restore the demo dataset to what this process booted with. Re-clones the
+ *  pristine snapshot on every call so the snapshot itself is never mutated by a
+ *  subsequent write (loadDemoState installs the passed objects BY REFERENCE). */
+export function resetDemoDataToSeed(): void {
+  loadDemoState(structuredClone(PRISTINE_SEED));
+}
+
+/** Whether the periodic reset should run: only in genuine demo mode (no real
+ *  backend) and only when the operator hasn't opted into durable dev persistence
+ *  (DEV_PERSIST_FILE), which is a deliberate request for state to accumulate. */
+export function shouldAutoResetDemo(): boolean {
+  return !BACKEND_CONFIGURED && !DEV_PERSIST_FILE;
+}
+
+/** How often to reset (minutes). `DEMO_RESET_MINUTES=0` disables it entirely. */
+export function demoResetIntervalMinutes(): number {
+  const raw = Number(process.env["DEMO_RESET_MINUTES"]);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 60;
+}

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { ReportProblemDialog } from "./ReportProblemDialog";
 
 interface Props {
   children: ReactNode;
@@ -9,6 +10,7 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  reportOpen: boolean;
 }
 
 /**
@@ -21,11 +23,11 @@ interface State {
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, reportOpen: false };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, reportOpen: false };
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
@@ -36,6 +38,9 @@ export class ErrorBoundary extends Component<Props, State> {
   private handleReload = () => {
     window.location.reload();
   };
+
+  private openReport = () => this.setState({ reportOpen: true });
+  private closeReport = () => this.setState({ reportOpen: false });
 
   override render() {
     if (this.state.hasError) {
@@ -48,21 +53,32 @@ export class ErrorBoundary extends Component<Props, State> {
           <div className="max-w-md w-full border-2 border-border bg-card p-8 text-center space-y-4">
             <div className="text-lg font-black uppercase tracking-tighter">Something went wrong</div>
             <p className="text-sm text-muted-foreground">
-              An unexpected error interrupted this view. Reloading usually clears it.
+              An unexpected error interrupted this view. Reloading usually clears it — if it keeps
+              happening, letting us know helps get it fixed.
             </p>
             {this.state.error?.message && (
               <p className="text-xs text-muted-foreground font-mono break-words border border-border bg-background p-2">
                 {this.state.error.message}
               </p>
             )}
-            <button
-              type="button"
-              onClick={this.handleReload}
-              className="inline-flex items-center gap-2 border border-primary bg-primary text-primary-foreground px-4 py-2 text-sm font-black uppercase tracking-widest hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              Reload
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={this.handleReload}
+                className="inline-flex items-center gap-2 border border-primary bg-primary text-primary-foreground px-4 py-2 text-sm font-black uppercase tracking-widest hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                Reload
+              </button>
+              <button
+                type="button"
+                onClick={this.openReport}
+                className="inline-flex items-center gap-2 border border-border px-4 py-2 text-sm font-black uppercase tracking-widest hover:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                Report this
+              </button>
+            </div>
           </div>
+          <ReportProblemDialog open={this.state.reportOpen} onOpenChange={this.closeReport} errorMessage={this.state.error?.message} />
         </div>
       );
     }

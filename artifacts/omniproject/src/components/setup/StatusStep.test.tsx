@@ -34,9 +34,10 @@ describe("StatusStep", () => {
   it("renders the heading and capability domains", () => {
     const { getByRole, getByText } = renderWithProviders(<StatusStep status={baseStatus} />);
     expect(getByRole("heading", { name: "Status" })).toBeInTheDocument();
-    expect(getByText("issues")).toBeInTheDocument();
-    expect(getByText("raid")).toBeInTheDocument();
-    expect(getByText(/mode: n8n/)).toBeInTheDocument();
+    expect(getByText("Tasks & issues")).toBeInTheDocument();
+    expect(getByText("Risks & issues log")).toBeInTheDocument();
+    expect(getByText(/Mode:/)).toBeInTheDocument();
+    expect(getByText("n8n", { selector: "span" })).toBeInTheDocument();
   });
 
   it("shows connected broker, OIDC identity and role when configured", () => {
@@ -56,7 +57,7 @@ describe("StatusStep", () => {
     const { getByText } = renderWithProviders(<StatusStep status={status} />);
     expect(getByText("Demo (sample data)")).toBeInTheDocument();
     expect(getByText("Demo login")).toBeInTheDocument();
-    expect(getByText(/mode: —/)).toBeInTheDocument();
+    expect(getByText((_, node) => node?.tagName === "P" && /Mode: —/.test(node.textContent ?? ""))).toBeInTheDocument();
   });
 
   it("renders realtime and audit rows when present", () => {

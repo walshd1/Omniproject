@@ -29,7 +29,7 @@ describe("SHORTCUT_GROUPS", () => {
 
   it("documents the G-chord navigation that the app wires up (incl. Explore)", () => {
     const navKeys = SHORTCUT_GROUPS.find((g) => g.heading === "Navigation")!.items.map((s) => s.keys.join("+"));
-    for (const chord of ["G+D", "G+P", "G+R", "G+E", "G+S"]) {
+    for (const chord of ["G+D", "G+P", "G+R", "G+E", "G+S", "G+C"]) {
       expect(navKeys).toContain(chord);
     }
   });

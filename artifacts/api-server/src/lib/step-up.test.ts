@@ -29,3 +29,19 @@ test("a bad STEP_UP_MINUTES falls back to the 5-minute default", () => {
   process.env["STEP_UP_MINUTES"] = "nonsense";
   assert.equal(stepUpWindowMs(), 5 * 60_000);
 });
+
+test("an impossible-travel flag raised AFTER the last step-up invalidates it", () => {
+  const now = 1_000_000;
+  const stepUpAt = now - 60_000; // 1 min ago — otherwise well within the fresh window
+  assert.equal(stepUpFresh({ stepUpAt, impossibleTravelAt: stepUpAt + 1 }, now), false);
+});
+
+test("an impossible-travel flag raised BEFORE the last step-up does not invalidate it", () => {
+  const now = 1_000_000;
+  const stepUpAt = now - 60_000;
+  assert.equal(stepUpFresh({ stepUpAt, impossibleTravelAt: stepUpAt - 1 }, now), true);
+});
+
+test("an impossible-travel flag with no step-up at all is still just 'never fresh'", () => {
+  assert.equal(stepUpFresh({ impossibleTravelAt: Date.now() }, Date.now()), false);
+});

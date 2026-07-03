@@ -63,15 +63,18 @@ test("deploy guard: every required ${VAR:?} in compose is listed in .env.example
 
 // ── D. The gateway must fail fast on a default/empty SESSION_SECRET in prod ──────
 // The k8s Secret ships SESSION_SECRET empty by design; the safety net is that the
-// gateway refuses to boot in production with an unset/empty/default secret rather
-// than signing session cookies with a public key. This guards that net against a
-// regression that reintroduces a silent fallback (cf. the original critical find).
+// gateway refuses to boot in production (or anywhere else showing production
+// signals — see lib/session-secret-guard.ts) with an unset/empty/default secret
+// rather than signing session cookies with a public key. This guards that net
+// against a regression that reintroduces a silent fallback (cf. the original
+// critical find). The logic lives in lib/session-secret-guard.ts (pure + unit
+// tested there), not inline in app.ts, so this test inspects that file.
 test("deploy guard: gateway fails fast on a default/empty SESSION_SECRET in production", () => {
-  const appSrc = read("artifacts/api-server/src/app.ts");
+  const appSrc = read("artifacts/api-server/src/lib/session-secret-guard.ts");
   assert.match(
     appSrc,
     /NODE_ENV"?\]?\s*===\s*"production"/,
-    "app.ts must branch on production for SESSION_SECRET handling",
+    "session-secret-guard.ts must branch on production for SESSION_SECRET handling",
   );
   assert.match(
     appSrc,

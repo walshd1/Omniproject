@@ -5,6 +5,21 @@ Ollama, a local **Authentik** IdP, and **Traefik** terminating real TLS for
 `*.local`. This is the one-time setup. The lean BYO profile
 (`docker-compose.enterprise.yml`) needs none of this — see its header.
 
+## Why this stack exists
+
+README's "Why OmniProject exists" names three problems: tool sprawl, nobody
+trusting a second copy of their data, and migration risk killing the idea before
+it starts. This stack is what fully committing to answering all three, on your
+own infrastructure, actually looks like: real SSO with **your own** IdP (not a
+hosted auth vendor holding staff identities), a broker you control end to end, and
+still zero project data at rest anywhere in OmniProject — self-hosting the IdP
+doesn't trade the zero-at-rest promise away, it just means the one thing that
+genuinely has to exist (who your staff are) lives on your infrastructure too,
+not a vendor's. Nothing here asks anyone to migrate off Jira/SAP/whatever —
+this stack sits *beside* it, wiring six services together correctly (TLS,
+hairpin-free DNS, blueprint-provisioned roles) so getting one dashboard for a
+whole team doesn't require an enterprise IT department to assemble it by hand.
+
 ## Why these steps exist
 
 - **Real TLS, not ACME.** Let's Encrypt **cannot** issue certificates for `.local`
@@ -80,7 +95,7 @@ So the one-time setup is just:
 
 In the Authentik admin → **Directory → Users**, create a user per staff member, then add each
 to the `omni-*` group for their role (admin → `omni-admins`, …). Their OmniProject role follows
-from the group — no per-user setup in OmniProject. The app's **Setup → Staff accounts & roles**
+from the group — no per-user setup in OmniProject. The app's **Configurator → Staff accounts & roles**
 step shows this mapping and the exact callback URL.
 
 > If you'd rather wire it by hand (or the blueprint doesn't apply on your Authentik version),

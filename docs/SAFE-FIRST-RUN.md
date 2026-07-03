@@ -12,6 +12,20 @@ with one-click rollback the whole way. Nothing here risks your production data.
 > [README → Safe to try with your real data](../README.md#safe-to-try-with-your-real-data)
 > and [SECURITY.md](../SECURITY.md).
 
+## Why this exists (proof, not just a promise)
+
+README's "Why OmniProject exists" names three problems: tool sprawl, nobody
+trusting a second copy of their data, and migration risk killing the idea before
+it starts. This guide exists because the second one can't just be asserted — it's
+easy to *say* "we store nothing," hard to *trust* it enough to point a new tool at
+the real Jira/SAP/ServiceNow instance a team's whole delivery picture depends on.
+That's why this on-ramp is graduated rather than "just connect it and see": every
+step (read-only wiring, a dry-run verify that never touches the backend, a sandbox
+environment, instant rollback) lets you personally confirm the zero-at-rest
+architecture holds, in your own environment, before extending any trust at all.
+Nobody should have to take "stateless" on faith — that's exactly the migration-fear
+problem the README names, and proving it beats promising it.
+
 ## Step 0 — See it work, zero config (demo mode)
 
 With no environment set, OmniProject runs in **demo mode** against sample data —
@@ -27,7 +41,7 @@ so you always know what's real vs. illustrative.
 
 ## Step 1 — Wire n8n **read-only** (it physically can't write)
 
-In the app: **Setup → Connection Center**.
+In the app: the **Configurator**.
 
 1. **Generate a workflow** for your backend (`POST /api/setup/generate-workflow`)
    and import it into n8n.
@@ -42,7 +56,7 @@ In the app: **Setup → Connection Center**.
 
 ## Step 2 — Dry-run **verify** (probe without touching the backend)
 
-**Setup → Verify** (`POST /api/setup/verify-workflow`) runs each **non-mutating**
+**Configurator → Verify** (`POST /api/setup/verify-workflow`) runs each **non-mutating**
 action against your n8n with `{ verify: true }`. Generated workflows honour that
 flag and short-circuit, so **even reads never reach the backend** — you get a
 green/red per-action checklist proving the contract works, with zero side
