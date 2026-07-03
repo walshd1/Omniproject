@@ -27,7 +27,7 @@ so you always know what's real vs. illustrative.
 
 ## Step 1 — Wire n8n **read-only** (it physically can't write)
 
-In the app: **Setup → Connection Center**.
+In the app: the **Configurator**.
 
 1. **Generate a workflow** for your backend (`POST /api/setup/generate-workflow`)
    and import it into n8n.
@@ -42,7 +42,7 @@ In the app: **Setup → Connection Center**.
 
 ## Step 2 — Dry-run **verify** (probe without touching the backend)
 
-**Setup → Verify** (`POST /api/setup/verify-workflow`) runs each **non-mutating**
+**Configurator → Verify** (`POST /api/setup/verify-workflow`) runs each **non-mutating**
 action against your n8n with `{ verify: true }`. Generated workflows honour that
 flag and short-circuit, so **even reads never reach the backend** — you get a
 green/red per-action checklist proving the contract works, with zero side

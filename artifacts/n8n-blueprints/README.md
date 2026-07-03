@@ -5,10 +5,10 @@ don't have to wire the nodes by hand.
 
 ## Generate one for your backend (recommended)
 
-You usually shouldn't edit these by hand. Open **Setup → Connection Center** in
+You usually shouldn't edit these by hand. Open the **Configurator** in
 the app (or `POST /api/setup/generate-workflow`) and pick your backend — it emits
-a complete, importable workflow tailored to that system. Then **Setup → Verify**
-probes your live n8n per action and shows a green/red checklist.
+a complete, importable workflow tailored to that system. Then **Configurator →
+Verify** probes your live n8n per action and shows a green/red checklist.
 
 - The backend catalogue lives in `lib/backend-catalogue/src/backend-catalogue.ts`
   (`BACKENDS`, `getBackend`, …). Each entry is a `BackendDefinition` — a

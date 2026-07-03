@@ -101,7 +101,7 @@ describe("AppLayout", () => {
       { client: seed({ brokerConfigured: false }) },
     );
     expect(screen.getByText(/demo mode/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /open setup/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /open configurator/i })).toBeInTheDocument();
   });
 
   it("collapses the Advanced (governance/config) surfaces for a plain PM but keeps the toggle reachable", () => {

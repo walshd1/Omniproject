@@ -38,7 +38,7 @@ your machine.
 
 ## 4–9 min — generate a workflow for your real backend
 
-In the app: **Setup → Connection Center → Generate an n8n workflow**, pick the
+In the app: **Configurator → Generate an n8n workflow**, pick the
 backend you actually use (Jira, OpenProject, GitHub, ServiceNow, Plane, and
 others are free; SAP/Oracle/Dynamics/NetSuite need a licence key — see
 [LICENSING.md](../LICENSING.md)), and download the JSON. In n8n: **Workflows →

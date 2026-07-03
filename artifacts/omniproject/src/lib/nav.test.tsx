@@ -54,7 +54,7 @@ describe("NAV_ITEMS", () => {
       "/resources",
       "/explore",
       "/settings",
-      "/setup",
+      "/configurator",
     ]);
   });
 
@@ -131,7 +131,7 @@ describe("useVisibleNavItems — feature gating", () => {
 });
 
 describe("nav grouping — progressive disclosure", () => {
-  const ADMIN_HREFS = ["/explore", "/settings", "/setup"];
+  const ADMIN_HREFS = ["/explore", "/settings", "/configurator"];
   const PRIMARY_HREFS = ["/", "/my-work", "/dashboards", "/content", "/programmes", "/projects", "/reports", "/resources"];
 
   it("classifies the everyday surfaces as primary and the governance/config surfaces as admin", () => {
@@ -190,6 +190,6 @@ describe("navShelvesForRole — visibility per role", () => {
 
   it("the admin shelf still carries all governance/config routes (deep-links stay reachable)", () => {
     const { admin } = navShelvesForRole(NAV_ITEMS, "viewer", false);
-    expect(admin.map((i) => i.href)).toEqual(["/explore", "/settings", "/setup"]);
+    expect(admin.map((i) => i.href)).toEqual(["/explore", "/settings", "/configurator"]);
   });
 });

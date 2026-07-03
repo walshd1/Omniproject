@@ -95,12 +95,12 @@ goes wrong:
 
 Secrets (`SESSION_SECRET`, `OIDC_CLIENT_SECRET`, `NOTIFY_INGEST_SECRET`,
 `REDIS_URL`) are **not** in the snapshot — they live in the environment. To move
-a whole instance, pair the snapshot with the env **config export** (Setup → step
-3).
+a whole instance, pair the snapshot with the env **config export** (Configurator →
+step 3).
 
 ## Generate a workflow
 
-- **UI:** Setup → Connection Center → *Generate an n8n workflow* → pick backend →
+- **UI:** Configurator → *Generate an n8n workflow* → pick backend →
   **Download workflow** → in n8n: *Workflows → Import from File*.
 - **API:** `POST /api/setup/generate-workflow { "backendId": "openproject" }`
   (admin) returns the importable JSON.
@@ -140,7 +140,7 @@ integrations* are licensed:
 
 ## Verify a workflow
 
-- **UI:** Setup → Connection Center → *Verify your workflow* → **Run
+- **UI:** Configurator → *Verify your workflow* → **Run
   verification** → green/red per-action checklist.
 - **API:** `POST /api/setup/verify-workflow` (admin) probes the configured n8n
   with `{ verify: true }` for every **read/declarative** action and reports

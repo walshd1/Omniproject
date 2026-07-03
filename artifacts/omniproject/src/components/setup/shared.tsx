@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetCapabilitiesQueryKey, getGetSettingsQueryKey, type Capabilities } from "@workspace/api-client-react";
 import { CheckCircle2, XCircle, Circle, ChevronRight, HelpCircle } from "lucide-react";
+import { useIsTechnicalMode } from "../../lib/configurator-mode";
 
 export const CAP_DOMAINS = [
   "issues", "scheduling", "resources", "financials", "portfolio", "baseline", "blockers", "history", "raid",
@@ -45,8 +46,9 @@ export function Dot({ on }: { on: boolean | undefined }) {
  * expands this. Nothing is removed, just not shown by default.
  */
 export function TechDetails({ label = "Show the technical details", children }: { label?: string; children: React.ReactNode }) {
+  const technical = useIsTechnicalMode();
   return (
-    <details className="group text-xs border border-border/60 bg-background/40 rounded">
+    <details className="group text-xs border border-border/60 bg-background/40 rounded" open={technical || undefined}>
       <summary className="cursor-pointer select-none px-3 py-2 text-muted-foreground hover:text-foreground font-bold uppercase tracking-widest flex items-center gap-1.5">
         <ChevronRight className="w-3 h-3 transition-transform group-open:rotate-90" aria-hidden="true" />
         {label}
