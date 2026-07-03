@@ -6,6 +6,7 @@ import { isDone, isClosed } from "./vocabulary";
 import {
   SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
   SAMPLE_PORTFOLIO, DEMO_FX, sampleActivity, sampleNotifications, persistDemoState,
+  resetDemoDataToSeed, shouldAutoResetDemo, demoResetIntervalMinutes,
 } from "./demo-data";
 import {
   BrokerError,
@@ -44,6 +45,32 @@ let taskItemCounter = 100;
 /** In-memory child issues/notes per task (demo only). */
 const SAMPLE_TASK_ITEMS: Record<string, TaskItem[]> = {};
 
+/** Restore everything DemoBroker can mutate (projects/issues/raid via demo-data,
+ *  plus this file's own task-items store and id counters) back to a fresh boot
+ *  state. See demo-data's "Periodic reset" section for why this exists. Exported
+ *  for tests; the running scheduler below is what fires it in practice. */
+export function resetDemoBrokerState(): void {
+  resetDemoDataToSeed();
+  for (const k of Object.keys(SAMPLE_TASK_ITEMS)) delete SAMPLE_TASK_ITEMS[k];
+  issueCounter = 100;
+  raidCounter = 100;
+  projectCounter = 100;
+  taskItemCounter = 100;
+}
+
+// Scheduled once per process (guarded below), not per DemoBroker instance —
+// tests and the dev broker construct DemoBroker repeatedly, and re-arming a
+// timer on every construction would be wasteful (though harmless, since it's
+// unref'd and never blocks process exit).
+let resetScheduled = false;
+function scheduleAutoReset(): void {
+  if (resetScheduled || !shouldAutoResetDemo()) return;
+  resetScheduled = true;
+  const minutes = demoResetIntervalMinutes();
+  if (minutes <= 0) return; // DEMO_RESET_MINUTES=0 disables it
+  setInterval(resetDemoBrokerState, minutes * 60_000).unref();
+}
+
 /**
  * Illustrative canonical → backend native field mapping, so the demo can show
  * granular lineage ("dueDate ← <system>:duedate"). The mechanism is
@@ -80,6 +107,10 @@ function recountProject(projectId: string): void {
 export class DemoBroker implements Broker {
   readonly kind = "demo";
   readonly live = false;
+
+  constructor() {
+    scheduleAutoReset();
+  }
 
   async listProjects(): Promise<Project[]> {
     return SAMPLE_PROJECTS as unknown as Project[];
