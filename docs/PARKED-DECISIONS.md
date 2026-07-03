@@ -81,6 +81,19 @@ demand-driven (only if a gov deal needs it).
 already reserves a `nativeBridge` capability flag (`lib/platform.ts`) for exactly this, naming
 Capacitor as the anticipated wrapper — this isn't a new architectural choice, just finishing one
 already started.
+**Why (the same itch, not a bolt-on feature):** README's "Why OmniProject exists" names three
+things — tool sprawl, nobody trusting a second copy of their data, and migration risk killing the
+project before it starts. Mobile is where tool sprawl bites hardest: the head-of-projects checking
+status between meetings, away from a laptop, is exactly who ends up opening five apps on a phone to
+piece together "where do things actually stand." A native listing doesn't change what OmniProject
+*is* to answer that — it's still a live window onto the tools already run, never a fourth (or fifth)
+place data lives. That's precisely why Capacitor (wrap the existing SPA) was the right call over a
+from-scratch React Native/Expo rewrite: the zero-at-rest promise is a property of the *web app*
+(`pwa.ts`'s app-shell-only caching — nothing project-specific ever touches the device), and wrapping
+it natively inherits that property for free rather than requiring it be re-earned in a parallel
+codebase. The only things a store listing genuinely adds are discoverability (an icon and a listing
+non-technical stakeholders recognise as "a real app," not a bookmarked browser tab) and OTA update
+plumbing (§ below) — not a second architecture to keep honest.
 **Why parked:** app-store accounts, code signing/CI, and ongoing store-compliance upkeep are a real
 ongoing-ops commitment, same category as A2.
 **Status:** tooling researched. **Ionic Appflow (the "batteries-included" Capacitor build/submit
