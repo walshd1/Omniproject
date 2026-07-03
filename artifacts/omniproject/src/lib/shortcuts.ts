@@ -36,6 +36,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
       { keys: ["G", "R"], label: "Go to Reports" },
       { keys: ["G", "E"], label: "Go to Explore" },
       { keys: ["G", "S"], label: "Go to Settings" },
+      { keys: ["G", "C"], label: "Go to Configurator" },
     ],
   },
   {

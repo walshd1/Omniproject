@@ -51,7 +51,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/resources", i18nKey: "nav.resources", label: "Resources", icon: Users, match: (l) => l.startsWith("/resources"), requiresEntity: "member", group: "primary" },
   { href: "/explore", i18nKey: "nav.explore", label: "Explore", icon: FlaskConical, chord: "G+E", match: (l) => l.startsWith("/explore"), group: "admin" },
   { href: "/settings", i18nKey: "nav.settings", label: "Settings", icon: SettingsIcon, chord: "G+S", match: (l) => l.startsWith("/settings"), group: "admin" },
-  { href: "/configurator", i18nKey: "nav.configurator", label: "Configurator", icon: PlugZap, match: (l) => l.startsWith("/configurator") || l.startsWith("/setup"), group: "admin" },
+  { href: "/configurator", i18nKey: "nav.configurator", label: "Configurator", icon: PlugZap, chord: "G+C", match: (l) => l.startsWith("/configurator") || l.startsWith("/setup"), group: "admin" },
 ];
 
 /** An item's group, defaulting to "primary" when unset. */

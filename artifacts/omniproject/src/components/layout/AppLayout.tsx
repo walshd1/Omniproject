@@ -82,6 +82,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           if (ev.key === "r") setLocation("/reports");
           if (ev.key === "e") setLocation("/explore");
           if (ev.key === "s") setLocation("/settings");
+          if (ev.key === "c") setLocation("/configurator");
           document.removeEventListener("keydown", nextKey);
         };
         document.addEventListener("keydown", nextKey);

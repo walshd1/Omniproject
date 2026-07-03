@@ -94,6 +94,7 @@ describe("NAV_ITEMS", () => {
       ["/reports", "G+R"],
       ["/explore", "G+E"],
       ["/settings", "G+S"],
+      ["/configurator", "G+C"],
     ]);
     expect(NAV_ITEMS.find((n) => n.href === "/programmes")!.chord).toBeUndefined();
   });
