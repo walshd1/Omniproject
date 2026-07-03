@@ -59,6 +59,7 @@ Running it in production.
 
 - **[OPERATIONS.md](OPERATIONS.md)** — scaling, high availability, disaster recovery & backup, and enabling OTLP telemetry.
 - **[SCALING.md](SCALING.md)** — how OmniProject stays fast and gentle on backend rate limits as usage grows; companion to `ops/MULTI-REPLICA.md`.
+- **[QUICKSTART.md](QUICKSTART.md)** — clone to your own real data (read-only) in about 15 minutes; the fast on-ramp before the standalone stack below.
 - **[DEPLOY-LOCAL.md](DEPLOY-LOCAL.md)** — the standalone stack (bundled Authentik IdP, Traefik, local-CA TLS) for fastest evaluation.
 - **[REVERSE-PROXY.md](REVERSE-PROXY.md)** — putting `omni-shell` behind an existing Traefik / Caddy / nginx.
 - **[COMPOSE-AUDIT.md](COMPOSE-AUDIT.md)** — the Docker Compose topology correctness audit and the CI checks that keep it correct.

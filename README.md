@@ -1,5 +1,16 @@
 # OmniProject
 
+[![CI](https://github.com/walshd1/Omniproject/actions/workflows/ci.yml/badge.svg)](https://github.com/walshd1/Omniproject/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Discussions](https://img.shields.io/badge/community-discussions-blueviolet.svg)](https://github.com/walshd1/Omniproject/discussions)
+
+How many tabs do you have open right now just to answer *"where do things
+actually stand"?* Jira for engineering, a spreadsheet for budget, ServiceNow
+for the support queue, SAP for the numbers finance trusts, and a status deck
+someone rebuilds by hand every Friday. Nobody's going to migrate all of that
+into one tool — and you shouldn't have to.
+
 **OmniProject gives you one dashboard across all your project tools, without copying any of your data out of them.**
 
 It's free to self-host (Apache-2.0), and it works alongside what you already use — a
@@ -45,6 +56,24 @@ then **[docs/READING-GUIDE.md](docs/READING-GUIDE.md)** (subsystem → entry-poi
 The rest of this README goes deep on the same material below. Looking for a
 specific audit, runbook or design doc instead? **[docs/DOCUMENTATION-INDEX.md](docs/DOCUMENTATION-INDEX.md)**
 maps everything under `docs/` by purpose.
+
+---
+
+## 🧪 We're looking for testers
+
+This project is past the "does it work" stage and into the "does it survive
+contact with someone else's real Jira/SAP/OpenProject" stage — and that only
+happens with people other than the maintainer actually running it. If you'll
+give it 15 minutes against a real backend (read-only — nothing you wire can
+write until you decide it's earned that) and tell us what broke, confused you,
+or was missing, that's worth more right now than almost any feature request.
+
+**[docs/QUICKSTART.md](docs/QUICKSTART.md)** gets you from clone to your own
+data on screen in about 15 minutes. Then open a
+**[🧪 tester sign-up issue](https://github.com/walshd1/Omniproject/issues/new?template=beta_tester.yml)** — or
+just tell us what happened, good or bad, in
+**[Discussions](https://github.com/walshd1/Omniproject/discussions)**. Every honest "this didn't work for me"
+is more useful than a star.
 
 ---
 
@@ -343,6 +372,10 @@ some flows are render-tested rather than interaction-tested — see
 ## Quick start (local, demo mode)
 
 **Prerequisites:** Node.js 22+ and pnpm (`corepack enable`).
+
+> Want to go straight to your own real data (read-only) instead of stopping at
+> sample data? **[docs/QUICKSTART.md](docs/QUICKSTART.md)** is the same steps
+> below plus wiring one real backend, in about 15 minutes.
 
 ```bash
 git clone https://github.com/walshd1/Omniproject.git

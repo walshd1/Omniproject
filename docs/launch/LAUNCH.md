@@ -221,6 +221,10 @@ Paste as the Release body when tagging `0.1.0`. (Template — adapt per release.
       12s loop; the Verify-goes-green shot is the money beat).
 - [ ] Enable **Discussions** and **private security advisories** in repo settings
       (issue templates already link to them).
+- [ ] Open the **🧪 tester call-out** — either the pinned Discussion this section
+      implies, or an actual issue from the `beta_tester.yml` template — so every
+      Reddit/HN post below has somewhere concrete to send people. The README's
+      "We're looking for testers" section links `../../issues/new?template=beta_tester.yml`.
 - [x] Tag **`0.1.0`** / **`0.2.0`** and cut the Releases (note above).
 - [ ] Final secret sweep (working tree + history) — done once; re-check if new
       commits added config.

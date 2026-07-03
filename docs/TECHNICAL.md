@@ -14,8 +14,9 @@ the API surface, data schemas, and how to extend the system.
 
 OmniProject is a **read-through overlay with no database of its own**. It stores
 no project data; every read and write is brokered to the real backend(s) — Plane,
-OpenProject, Jira, Azure DevOps, ServiceNow, SAP, Dynamics 365, or anything else
-the broker can reach. Because nothing is copied, the backend stays the single
+OpenProject, Jira, Azure DevOps, ServiceNow, SAP S/4HANA, Oracle Fusion Cloud ERP,
+NetSuite, Dynamics 365 (Project Operations and Finance & Operations), or anything
+else the broker can reach. Because nothing is copied, the backend stays the single
 source of truth and there is no cached state to fall out of sync — the UI is a
 *view*, never a fork of your data.
 
@@ -268,6 +269,30 @@ Each variant **must** map its response to the §6 schema before `Respond`.
 n8n workflow and normalize to the contract. Point `backendSource` (free-form) at
 a routing hint your workflow understands, or leave it `all`.
 
+### Scaling the broker — pooling & load balancing
+
+A single broker endpoint doesn't have to be a single point of failure or a
+throughput ceiling. Two independent mechanisms, usable together:
+
+- **A flat pool** — set `BROKER_URLS` to a comma-separated list of webhook URLs
+  (instead of the single `BROKER_URL`). Every call round-robins across the pool
+  and, on a connection-level failure (timeout, DNS, connection refused —
+  never a real HTTP response from the broker), retries the next endpoint in
+  rotation. This is for running several instances of the *same* broker (e.g.
+  n8n behind a load balancer, or several n8n workers) for throughput and
+  redundancy.
+- **Per-kind routed pools** — `BROKER_ENDPOINTS` takes `kind=url1|url2,kind2=url3`
+  so different broker *kinds* (or different backend groupings, e.g. one region's
+  n8n vs another's — see [docs/DATA-RESIDENCY.md](DATA-RESIDENCY.md)) each get
+  their own pool, resolved per-call via the router (`artifacts/api-server/src/
+  broker/router.ts`, an `AsyncLocalStorage`-scoped endpoint context) rather than
+  one global default. This is what lets one deployment read from several
+  *different* systems concurrently while each still gets its own failover pool.
+
+Implementation: `webhookPool()` / `resolvePool()` / `orderedTargets()` in
+`artifacts/api-server/src/broker/n8n/index.ts`. See
+[docs/BROKER-HTTP-BINDING.md](BROKER-HTTP-BINDING.md) for the exact env syntax.
+
 ---
 
 ## 4. API surface
@@ -473,7 +498,7 @@ automatically**.
 | `branding` | **White-label** the UI: app name, short badge, logo, accent colour, login heading + footer. The login screen is branded pre-auth. | `GET /api/branding` (public), `PUT`/`DELETE /api/branding` (admin) |
 | `labels` | **Company nomenclature** — override UI terms ("Projects" → "Engagements", "Programmes" → "Portfolios") from a curated catalogue; layered over i18n so it wins in every locale. | `GET /api/labels` (public), `PUT /api/labels` (admin) |
 | `webhooks` | **Outbound push** — fan events (`notification`, `audit`, `config.changed`) to a customer endpoint, SIEM, Slack, or an n8n webhook node. Each delivery is HMAC-SHA256 signed (`X-OmniProject-Signature`). Fire-and-forget (stateless); for at-least-once, target an n8n webhook and let n8n queue retries. | `GET`/`POST /api/webhooks`, `DELETE /api/webhooks/:id`, `POST /api/webhooks/:id/test` (all admin) |
-| `enterprise_workflows` | **Enterprise backend integrations** — generate importable n8n workflows for the large ERPs / scheduling systems (SAP, Primavera, Dynamics 365, MS Project, generic enterprise template). Standard backends (Jira, OpenProject, GitHub, ServiceNow, …) stay free. | `POST /api/setup/generate-workflow` (admin) returns 402 for an enterprise backend without the feature |
+| `enterprise_workflows` | **Enterprise backend integrations** — generate importable n8n workflows for the large ERPs / scheduling systems (SAP S/4HANA, SAP S/4HANA financials, Oracle Primavera, Oracle Fusion Cloud ERP, NetSuite, Dynamics 365 Project Operations, Dynamics 365 Finance & Operations, MS Project, generic enterprise template). Standard backends (Jira, OpenProject, GitHub, ServiceNow, …) stay free. | `POST /api/setup/generate-workflow` (admin) returns 402 for an enterprise backend without the feature |
 
 Write paths return **402 Payment Required** when the feature isn't licensed
 (under enforcement; dormant in the pre-community period — all features are free
