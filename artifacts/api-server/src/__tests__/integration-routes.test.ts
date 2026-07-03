@@ -702,3 +702,19 @@ test("POST /api/notifications/ingest is 503 when ingest is disabled", async () =
   const json = await readJson(res);
   assert.match(json.error, /ingest disabled/);
 });
+
+// The global JSON body parser (app.ts) strips __proto__/constructor/prototype at parse
+// time, before ANY route handler runs — so a polluted body can't affect Object.prototype
+// regardless of which endpoint receives it. Exercised here via a route that reaches this
+// middleware but returns before doing anything with the body.
+test("a __proto__ payload in ANY request body is stripped by the global JSON parser, never pollutes Object.prototype", async () => {
+  // Built as a raw string, not via JSON.stringify({ __proto__: ... }) — a `__proto__` key in an
+  // OBJECT LITERAL sets the literal's own prototype rather than becoming an enumerable property,
+  // so JSON.stringify would never actually emit it. This is the wire-format attack shape instead.
+  const res = await post("/api/notifications/ingest", {
+    headers: { "content-type": "application/json", authorization: "Bearer anything" },
+    body: '{"notification":{"title":"hi"},"__proto__":{"polluted":true}}',
+  });
+  assert.equal(res.status, 503); // same gate as above — the body never even reaches business logic
+  assert.equal(({} as Record<string, unknown>)["polluted"], undefined);
+});

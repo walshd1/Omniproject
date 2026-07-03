@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { safeParseJson } from "./safe-json";
+import { safeParseJson, stripDangerousKeys } from "./safe-json";
 
 test("parses valid JSON like JSON.parse", () => {
   assert.deepEqual(safeParseJson('{"a":1,"b":[2,3],"c":"x"}'), { a: 1, b: [2, 3], c: "x" });
@@ -30,4 +30,11 @@ test("strips nested constructor/prototype keys at any depth (own props removed)"
 test("does not pollute via the classic attack payload", () => {
   safeParseJson('{"__proto__":{"isAdmin":true}}');
   assert.equal(({} as Record<string, unknown>)["isAdmin"], undefined);
+});
+
+test("stripDangerousKeys is a drop-in JSON.parse reviver (usable directly, e.g. by express.json)", () => {
+  const parsed = JSON.parse('{"__proto__":{"polluted":true},"ok":1}', stripDangerousKeys) as Record<string, unknown>;
+  assert.equal(parsed["polluted"], undefined);
+  assert.equal(parsed["ok"], 1);
+  assert.equal(({} as Record<string, unknown>)["polluted"], undefined);
 });

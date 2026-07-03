@@ -32,6 +32,7 @@ import { tracingMiddleware } from "./lib/tracing";
 import { ipAllowGuard } from "./lib/ip-allow";
 import { maintenanceGuard } from "./lib/maintenance";
 import { requireTls } from "./lib/deployment-profile";
+import { stripDangerousKeys } from "./lib/safe-json";
 
 const app: Express = express();
 
@@ -149,7 +150,11 @@ app.use(csrfGuard);
 // payloads). Explicit + configurable rather than relying on Express's implicit
 // 100kb default. Project payloads are small; 256kb is generous headroom.
 const BODY_LIMIT = process.env["BODY_LIMIT"]?.trim() || "256kb";
-app.use(express.json({ limit: BODY_LIMIT }));
+// `reviver` strips __proto__/constructor/prototype keys from EVERY request body at parse
+// time — the same guard lib/safe-json.ts applies to uploaded/imported JSON, but here for
+// req.body itself, so no individual route can forget it. (express.urlencoded's qs parser
+// already defaults allowPrototypes: false, so it needs no equivalent change.)
+app.use(express.json({ limit: BODY_LIMIT, reviver: stripDangerousKeys }));
 app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 
 // Dev-mode signalling: mark every response so a proxy/monitor/anyone can see this

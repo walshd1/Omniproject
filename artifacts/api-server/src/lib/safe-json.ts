@@ -10,6 +10,12 @@
  */
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
+/** The stripping reviver itself — exported so it can also be handed straight to a JSON.parse-
+ *  compatible option elsewhere (e.g. body-parser's `reviver` option for express.json()). */
+export function stripDangerousKeys(key: string, value: unknown): unknown {
+  return FORBIDDEN_KEYS.has(key) ? undefined : value;
+}
+
 export function safeParseJson<T = unknown>(text: string): T {
-  return JSON.parse(text, (key, value) => (FORBIDDEN_KEYS.has(key) ? undefined : value)) as T;
+  return JSON.parse(text, stripDangerousKeys) as T;
 }
