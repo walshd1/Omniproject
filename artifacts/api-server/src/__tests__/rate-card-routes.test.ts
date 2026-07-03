@@ -41,6 +41,8 @@ afterEach(async () => {
 
 const put = (path: string, body: unknown) =>
   fetch(`${base}/api${path}`, { method: "PUT", headers: { cookie: PMO, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const post = (path: string, body: unknown = {}) =>
+  fetch(`${base}/api${path}`, { method: "POST", headers: { cookie: PMO, "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const get = (path: string) => fetch(`${base}/api${path}`, { headers: { cookie: PMO } });
 
 test("a PMO sets the rate card + project types and reads them back", async () => {
@@ -181,4 +183,26 @@ test("the staff-cost endpoint never leaks raw rates — only aggregated cost", a
   const raw = await get("/projects/proj-001/staff-cost").then((x) => x.text());
   assert.ok(!raw.includes('"rates"'));
   assert.ok(!/\b"100"\b|:100\b/.test(raw) || raw.includes("2600")); // the per-hour rate 100 isn't surfaced as a field
+});
+
+test("rollback is unavailable before any mutation, then undoes the last rate-card change", async () => {
+  assert.equal(((await get("/rate-card/rollback").then((x) => x.json())) as { available: boolean }).available, false);
+
+  const senior = hashIdentity("Senior Engineer");
+  await put("/rate-card", { titles: { [senior]: "Senior Engineer" }, rates: { [senior]: { "*": { client: 100, internal: 60 } } }, projectTypes: [] });
+  assert.equal(((await get("/rate-card/rollback").then((x) => x.json())) as { available: boolean }).available, true);
+
+  // A bad edit — accidentally wipe the card.
+  await put("/rate-card", { titles: {}, rates: {}, projectTypes: [] });
+  assert.deepEqual((await get("/rate-card").then((x) => x.json())) as { titles: Record<string, string> }, { titles: {}, rates: {}, projectTypes: [], uplift: { central: { margin: 0, overhead: 0 }, programme: {}, project: {} } });
+
+  const r = await post("/rate-card/rollback");
+  assert.equal(r.status, 200);
+  const body = (await r.json()) as { rolledBack: boolean; titles: Record<string, string> };
+  assert.equal(body.rolledBack, true);
+  assert.equal(body.titles[senior], "Senior Engineer"); // back to the pre-wipe card
+
+  // One-shot: rolling back again (nothing left to undo) is a no-op, not a further reversion.
+  const second = (await post("/rate-card/rollback").then((x) => x.json())) as { rolledBack: boolean };
+  assert.equal(second.rolledBack, false);
 });

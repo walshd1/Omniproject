@@ -7,6 +7,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useAutonomousGrants, relaxContainment, setAiKill, CONTAINMENT_INFO, SOURCE_LABEL, type AiContainment } from "../../lib/containment";
 import { withStepUp } from "../../lib/step-up";
+import { ConfirmButton } from "../ConfirmButton";
 
 /**
  * Admin governance dashboard — visibility into what's turned on and the live activity
@@ -54,8 +55,27 @@ export function GovernanceDashboard() {
             <div className="mb-1 flex flex-wrap items-center gap-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Autonomous AI</h3>
               {autonomous.aiKill
-                ? <button data-testid="ai-kill-toggle" onClick={() => void onToggleKill(false)} className="rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">AI KILLED — release</button>
-                : <button data-testid="ai-kill-toggle" onClick={() => void onToggleKill(true)} className="rounded border border-red-300 px-1.5 py-0.5 text-[11px] font-medium text-red-700" title="Break-glass: stop all AI + suspend autonomous writes">Kill AI</button>}
+                ? <ConfirmButton
+                    testId="ai-kill-toggle"
+                    className="rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-semibold text-white"
+                    title="Release the AI kill switch?"
+                    description="This re-arms every autonomous AI capability and scoped write grant that was suspended. Only do this once you've confirmed whatever triggered the kill is resolved."
+                    confirmLabel="Release"
+                    onConfirm={() => void onToggleKill(false)}
+                  >
+                    AI KILLED — release
+                  </ConfirmButton>
+                : <ConfirmButton
+                    testId="ai-kill-toggle"
+                    className="rounded border border-red-300 px-1.5 py-0.5 text-[11px] font-medium text-red-700"
+                    triggerTitle="Break-glass: stop all AI + suspend autonomous writes"
+                    title="Kill all AI capabilities?"
+                    description="This is a break-glass switch: every AI tool, MCP surface, and autonomous write grant is suspended immediately across the deployment, for every user. Use this if something's misbehaving and you need it stopped NOW."
+                    confirmLabel="Kill AI"
+                    onConfirm={() => void onToggleKill(true)}
+                  >
+                    Kill AI
+                  </ConfirmButton>}
               <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ${CONTAINMENT_INFO[autonomous.level].cls}`} title={CONTAINMENT_INFO[autonomous.level].note}>
                 {CONTAINMENT_INFO[autonomous.level].label}
               </span>

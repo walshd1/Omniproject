@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireRole, getRoleMap, setRoleMap, ROLES } from "../lib/rbac";
+import { requireRole, getRoleMap, setRoleMap, rollbackRoleMap, canRollbackRoleMap, ROLES } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { recordAudit, actorForAudit } from "../lib/audit";
 
@@ -14,7 +14,24 @@ import { recordAudit, actorForAudit } from "../lib/audit";
 const router = Router();
 
 router.get("/admin/role-map", requireRole("admin"), (_req, res) => {
-  res.json({ roles: ROLES, mapping: getRoleMap() });
+  res.json({ roles: ROLES, mapping: getRoleMap(), rollbackAvailable: canRollbackRoleMap() });
+});
+
+// One-generation undo for the last role-map change — same step-up gate as the edit it
+// reverses, since restoring an old mapping is exactly as consequential as setting a new one.
+router.post("/admin/role-map/rollback", requireRole("admin"), requireStepUp, (req, res) => {
+  const rolledBack = rollbackRoleMap();
+  const mapping = getRoleMap();
+  recordAudit({
+    ts: new Date().toISOString(),
+    category: "admin",
+    action: "role_map_rollback",
+    actor: actorForAudit(req),
+    result: "success",
+    status: 200,
+    meta: { rolledBack },
+  });
+  res.json({ roles: ROLES, mapping, rolledBack });
 });
 
 router.put("/admin/role-map", requireRole("admin"), requireStepUp, (req, res) => {

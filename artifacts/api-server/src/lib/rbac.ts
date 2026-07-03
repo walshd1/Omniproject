@@ -102,6 +102,18 @@ export function getRoleMap(): { role: Role; claims: string[]; source: "env" | "o
   }));
 }
 
+// One-generation undo buffer for the role-map override — the state immediately before the
+// LAST setRoleMap() call, so a bad edit (e.g. a typo'd IdP group name that locks admins out
+// of their own authority) can be undone in one step without an operator restart. Mirrors the
+// same pattern used for the config directory (.old backup) and the rate card.
+let previousRoleMapOverride: Partial<Record<Role, Set<string>>> | null = null;
+
+function cloneOverride(o: Partial<Record<Role, Set<string>>>): Partial<Record<Role, Set<string>>> {
+  const out: Partial<Record<Role, Set<string>>> = {};
+  for (const role of ROLES) if (o[role]) out[role] = new Set(o[role]);
+  return out;
+}
+
 /**
  * Set admin overrides for the claim→role mapping. ONLY the five known roles are
  * accepted (unknown keys ignored), and each value must be an array of group
@@ -109,6 +121,7 @@ export function getRoleMap(): { role: Role; claims: string[]; source: "env" | "o
  * permission — only to decide which IdP groups land in an existing role.
  */
 export function setRoleMap(next: unknown): ReturnType<typeof getRoleMap> {
+  previousRoleMapOverride = cloneOverride(roleMapOverride);
   if (next && typeof next === "object" && !Array.isArray(next)) {
     const obj = next as Record<string, unknown>;
     for (const role of ROLES) {
@@ -124,9 +137,28 @@ export function setRoleMap(next: unknown): ReturnType<typeof getRoleMap> {
   return getRoleMap();
 }
 
-/** Test-only: drop all overrides (back to pure env mapping). */
+/**
+ * Undo the most recent setRoleMap() call, restoring the override exactly as it was before.
+ * One-shot: the undo buffer is cleared after use. Returns false when there's nothing to undo.
+ */
+export function rollbackRoleMap(): boolean {
+  if (!previousRoleMapOverride) return false;
+  const restore = previousRoleMapOverride;
+  previousRoleMapOverride = null;
+  for (const role of ROLES) delete roleMapOverride[role];
+  for (const role of ROLES) if (restore[role]) roleMapOverride[role] = restore[role];
+  return true;
+}
+
+/** Whether a rollback is currently available (for the admin UI to show/hide the control). */
+export function canRollbackRoleMap(): boolean {
+  return previousRoleMapOverride !== null;
+}
+
+/** Test-only: drop all overrides (back to pure env mapping) and clear the undo buffer. */
 export function resetRoleMap(): void {
   for (const role of ROLES) delete roleMapOverride[role];
+  previousRoleMapOverride = null;
 }
 
 /** The default BASE rung for an authenticated user with no matching claim. */

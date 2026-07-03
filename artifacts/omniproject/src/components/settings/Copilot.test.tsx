@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "../../test/utils";
 import { Copilot } from "./Copilot";
 
@@ -109,8 +109,7 @@ describe("Copilot — action invocation (same planner + confirm gate as the comm
     await waitFor(() => expect(screen.getByTestId("copilot-clarify")).toHaveTextContent("Which project?"));
   });
 
-  it("flags a write action and only runs it after an explicit confirm", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+  it("flags a write action and only runs it after an explicit confirm dialog", async () => {
     fetchMock.mockImplementation((url: string) => {
       if (url === "/api/ai/nl-action") {
         return Promise.resolve(jsonRes({ plan: { kind: "action", tool: "omniproject_update_issue", action: "update_issue", args: { projectId: "P1", issueId: "42", status: "done" }, write: true } }));
@@ -123,14 +122,14 @@ describe("Copilot — action invocation (same planner + confirm gate as the comm
     fireEvent.click(screen.getByTestId("copilot-ask"));
     await waitFor(() => expect(screen.getByTestId("copilot-plan-action")).toBeInTheDocument());
     expect(screen.getByText("write")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("copilot-run"));
-    expect(confirmSpy).toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("copilot-run")); // opens the confirm dialog
+    const dialog = await screen.findByRole("alertdialog");
+    expect(fetchMock.mock.calls.some((c) => c[0] === "/api/mcp")).toBe(false); // not yet
+    fireEvent.click(within(dialog).getByRole("button", { name: /confirm & run/i }));
     await waitFor(() => expect(screen.getByTestId("copilot-result")).toBeInTheDocument());
-    confirmSpy.mockRestore();
   });
 
-  it("declining the write confirm never calls the execute endpoint", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("declining the write confirm dialog never calls the execute endpoint", async () => {
     fetchMock.mockImplementation((url: string) => {
       if (url === "/api/ai/nl-action") {
         return Promise.resolve(jsonRes({ plan: { kind: "action", tool: "omniproject_delete_issue", action: "delete_issue", args: { projectId: "P1", issueId: "42" }, write: true } }));
@@ -142,9 +141,9 @@ describe("Copilot — action invocation (same planner + confirm gate as the comm
     fireEvent.click(screen.getByTestId("copilot-ask"));
     await waitFor(() => expect(screen.getByTestId("copilot-plan-action")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("copilot-run"));
-    expect(confirmSpy).toHaveBeenCalled();
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /cancel/i }));
     expect(fetchMock.mock.calls.some((c) => c[0] === "/api/mcp")).toBe(false);
     expect(screen.getByTestId("copilot-plan-action")).toBeInTheDocument();
-    confirmSpy.mockRestore();
   });
 });

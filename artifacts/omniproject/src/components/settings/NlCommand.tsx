@@ -30,7 +30,8 @@ export function NlCommand() {
   };
 
   const onRun = async (p: Extract<ActionPlan, { kind: "action" }>): Promise<void> => {
-    if (p.write && !window.confirm(`This will MODIFY data (${p.action}). Run it?`)) return;
+    // The confirm for a write lives in ActionPlanCard itself (an AlertDialog, shared with
+    // the copilot) — onRun only fires after that's accepted.
     setBusy(true); setError(null);
     try {
       const r = await executePlannedAction(p.tool, p.args);

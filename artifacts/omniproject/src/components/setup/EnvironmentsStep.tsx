@@ -12,65 +12,7 @@ import {
 } from "../../lib/setup";
 import { Step, useRefreshAndSettings } from "./shared";
 import { envNameError } from "../../lib/validation";
-import {
-  AlertDialog,
-  AlertDialogTrigger,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from "@/components/ui/alert-dialog";
-
-/**
- * Wraps a destructive trigger button in an AlertDialog confirmation. The trigger
- * keeps the original button's classes/content; `onConfirm` runs only after the
- * user accepts. RBAC gating stays on the caller (these only render for admins).
- */
-function ConfirmButton({
-  className,
-  children,
-  title,
-  description,
-  confirmLabel,
-  onConfirm,
-  disabled,
-  triggerTitle,
-}: {
-  className: string;
-  children: React.ReactNode;
-  title: string;
-  description: React.ReactNode;
-  confirmLabel: string;
-  onConfirm: () => void;
-  disabled?: boolean;
-  /** Tooltip / accessible label for an icon-only trigger button. */
-  triggerTitle?: string;
-}) {
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <button type="button" disabled={disabled} className={className} title={triggerTitle} aria-label={triggerTitle}>
-          {children}
-        </button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} className="bg-red-500 text-background hover:bg-red-600">
-            {confirmLabel}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
+import { ConfirmButton } from "../ConfirmButton";
 
 export function EnvironmentsStep({ isAdmin }: { isAdmin: boolean }) {
   const refreshAndSettings = useRefreshAndSettings();

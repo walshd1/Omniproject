@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth, roleAtLeast, logout } from "../../lib/auth";
 import { useSecurityKeys, revokeKey, revokeUserSessions, useConfigKeyFingerprint, exportConfigBundle, useMaintenance, setMaintenance, type KeyStatus } from "../../lib/security";
 import { stepUp } from "../../lib/step-up";
+import { ConfirmButton } from "../ConfirmButton";
 
 /**
  * Admin key revocation. Retire a compromised signing key (session / provenance / broker)
@@ -20,9 +21,9 @@ export function SecurityKeys() {
   const { data: maintenance } = useMaintenance();
   const [sub, setSub] = useState("");
   const [lockReason, setLockReason] = useState("");
+  const [revokeReason, setRevokeReason] = useState("");
 
   const onToggleMaintenance = async (engage: boolean): Promise<void> => {
-    if (engage && !window.confirm("Put the system into READ-ONLY maintenance mode? All changes will be blocked until you lift it.")) return;
     if (!(await stepUp())) return;
     try { await setMaintenance(engage, lockReason); await qc.invalidateQueries({ queryKey: ["maintenance"] }); setLockReason(""); }
     catch { /* surfaced by the unchanged state */ }
@@ -33,16 +34,14 @@ export function SecurityKeys() {
   if (!data?.keys) return null;
 
   const onExportConfig = async (): Promise<void> => {
-    if (!window.confirm("Export config? The internal key stays put and is rotated; you'll get an encrypted bundle + a one-time key to carry separately.")) return;
     if (!(await stepUp())) return; // step-up gated
     try { setExported(await exportConfigBundle()); }
     catch { /* surfaced by absence of output */ }
   };
 
   const onRevoke = async (key: KeyStatus): Promise<void> => {
-    const warn = key.name === "session" ? " This signs EVERYONE out, including you." : "";
-    const reason = window.prompt(`Revoke + rotate the "${key.name}" key?${warn}\nReason (optional):`);
-    if (reason === null) return; // cancelled
+    const reason = revokeReason;
+    setRevokeReason("");
     // Key revocation is step-up gated: obtain a fresh re-auth first (demo confirms in
     // place; OIDC navigates to the IdP and the user retries after returning).
     if (!(await stepUp())) return;
@@ -70,7 +69,30 @@ export function SecurityKeys() {
                 <span className="text-xs text-muted-foreground">v{key.version}{key.revokedVersions.length ? ` · revoked ${key.revokedVersions.join(", ")}` : ""}</span>
                 {key.lastReason && <p className="text-xs text-muted-foreground">last: {key.lastReason}</p>}
               </div>
-              <Button variant="outline" size="sm" data-testid={`revoke-${key.name}`} onClick={() => void onRevoke(key)}>Revoke &amp; rotate</Button>
+              <ConfirmButton
+                testId={`revoke-${key.name}`}
+                className="inline-flex min-h-8 items-center justify-center rounded-md border [border-color:var(--button-outline)] px-3 text-xs font-medium shadow-xs disabled:pointer-events-none disabled:opacity-50"
+                title={`Revoke & rotate the "${key.name}" key?`}
+                description={
+                  <div className="space-y-2">
+                    <p>
+                      {key.name === "session" && "This signs EVERYONE out, including you. "}
+                      Anything signed by the current version stops verifying (sessions) or is flagged untrusted (provenance).
+                    </p>
+                    <input
+                      value={revokeReason}
+                      onChange={(e) => setRevokeReason(e.target.value)}
+                      placeholder="Reason (optional)"
+                      aria-label={`Reason for revoking the ${key.name} key`}
+                      className="h-9 w-full rounded-md border border-border bg-transparent px-2 text-sm text-foreground"
+                    />
+                  </div>
+                }
+                confirmLabel="Revoke & rotate"
+                onConfirm={() => void onRevoke(key)}
+              >
+                Revoke &amp; rotate
+              </ConfirmButton>
             </li>
           ))}
         </ul>
@@ -103,7 +125,16 @@ export function SecurityKeys() {
             </span>
             {maintenance?.engaged
               ? <Button variant="outline" size="sm" data-testid="maintenance-release" onClick={() => void onToggleMaintenance(false)}>Lift lockdown</Button>
-              : <Button variant="outline" size="sm" data-testid="maintenance-engage" onClick={() => void onToggleMaintenance(true)}>Engage read-only</Button>}
+              : <ConfirmButton
+                  testId="maintenance-engage"
+                  className="inline-flex min-h-8 items-center justify-center rounded-md border [border-color:var(--button-outline)] px-3 text-xs font-medium shadow-xs"
+                  title="Engage read-only maintenance mode?"
+                  description="All changes will be blocked (503) until you lift it. Reads keep working, and sign-in + this toggle stay available so you can lift it yourself."
+                  confirmLabel="Engage read-only"
+                  onConfirm={() => void onToggleMaintenance(true)}
+                >
+                  Engage read-only
+                </ConfirmButton>}
           </div>
           {!maintenance?.engaged && (
             <input
@@ -128,7 +159,16 @@ export function SecurityKeys() {
               Config encryption key{" "}
               {configFp && <span className="font-mono text-xs text-muted-foreground">#{configFp.fingerprint}</span>}
             </span>
-            <Button variant="outline" size="sm" data-testid="export-config-key" onClick={() => void onExportConfig()}>Export bundle</Button>
+            <ConfirmButton
+              testId="export-config-key"
+              className="inline-flex min-h-8 items-center justify-center rounded-md border [border-color:var(--button-outline)] px-3 text-xs font-medium shadow-xs"
+              title="Export the config bundle?"
+              description="The internal key stays put and is rotated; you'll get an encrypted bundle plus a one-time key to carry separately. Move the bundle, keep the key separate."
+              confirmLabel="Export"
+              onConfirm={() => void onExportConfig()}
+            >
+              Export bundle
+            </ConfirmButton>
           </div>
           <p className="text-xs text-muted-foreground">Config is encrypted at rest. Export re-encrypts a portable bundle under a one-time key (the internal key never leaves and is rotated). Move the bundle, carry the key separately, import on the target.</p>
           {exported && (
