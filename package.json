@@ -18,8 +18,8 @@
   },
   "private": true,
   "devDependencies": {
-    "@playwright/test": "1.55.1",
-    "prettier": "^3.8.3",
-    "typescript": "~5.9.3"
+    "@playwright/test": "1.61.1",
+    "prettier": "^3.9.4",
+    "typescript": "~6.0.3"
   }
 }
