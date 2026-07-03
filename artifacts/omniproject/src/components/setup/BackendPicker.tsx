@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PlugZap, HelpCircle } from "lucide-react";
 import { fetchBackends } from "../../lib/setup";
+import { PickerGrid } from "./shared";
 import { RequestVendorDialog } from "./RequestVendorDialog";
 
 /**
@@ -27,19 +28,16 @@ export function BackendPicker({
       <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
         What do you use today?
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" role="listbox" aria-label="Pick your project tool">
-        {backends.map((b) => {
-          const selected = b.id === backendId;
+      <PickerGrid
+        items={backends}
+        getKey={(b) => b.id}
+        isSelected={(b) => b.id === backendId}
+        onSelect={(b) => setBackendId(b.id)}
+        ariaLabel="Pick your project tool"
+        renderTile={(b) => {
           const capCount = Object.values(b.capabilities).filter(Boolean).length;
           return (
-            <button
-              key={b.id}
-              type="button"
-              role="option"
-              aria-selected={selected}
-              onClick={() => setBackendId(b.id)}
-              className={`text-left border p-3 text-xs ${selected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}
-            >
+            <>
               <div className="font-black uppercase tracking-wider flex items-center gap-1.5">
                 <PlugZap className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                 {b.label}
@@ -48,21 +46,23 @@ export function BackendPicker({
               <div className="text-muted-foreground mt-1">
                 {capCount} thing{capCount === 1 ? "" : "s"} it can read/write
               </div>
-            </button>
+            </>
           );
-        })}
-        <button
-          type="button"
-          onClick={() => setRequestOpen(true)}
-          className="text-left border border-dashed border-border p-3 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground"
-        >
-          <div className="font-black uppercase tracking-wider flex items-center gap-1.5">
-            <HelpCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-            Don't see it?
-          </div>
-          <div className="mt-1">Tell us what you use — no technical detail needed.</div>
-        </button>
-      </div>
+        }}
+        extraTile={
+          <button
+            type="button"
+            onClick={() => setRequestOpen(true)}
+            className="text-left border border-dashed border-border p-3 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground"
+          >
+            <div className="font-black uppercase tracking-wider flex items-center gap-1.5">
+              <HelpCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              Don't see it?
+            </div>
+            <div className="mt-1">Tell us what you use — no technical detail needed.</div>
+          </button>
+        }
+      />
       <RequestVendorDialog open={requestOpen} onOpenChange={setRequestOpen} />
     </div>
   );

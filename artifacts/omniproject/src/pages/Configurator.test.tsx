@@ -31,6 +31,9 @@ beforeEach(() => {
     const url = String(input);
     if (url.includes("/api/setup/export")) return new Response("# config", { status: 200 });
     if (url.includes("/api/setup/backends")) return new Response("[]", { status: 200 });
+    if (url.includes("/api/setup/brokers")) return new Response("[]", { status: 200 });
+    if (url.includes("/api/setup/outputs")) return new Response("[]", { status: 200 });
+    if (url.includes("/api/setup/reports")) return new Response("[]", { status: 200 });
     return new Response("{}", { status: 200 });
   }) as unknown as typeof fetch;
 });

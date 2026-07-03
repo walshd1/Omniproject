@@ -86,6 +86,56 @@ export async function fetchBackends(): Promise<BackendInfo[]> {
   return (await res.json()) as BackendInfo[];
 }
 
+export interface BrokerInfo {
+  id: string;
+  label: string;
+  docsUrl: string;
+  kind: string;
+  hosted: boolean;
+  capabilities: { synchronous: boolean; selfHostable: boolean; managedAuth: boolean; eventsInbound: boolean; eventsOutbound: boolean };
+  build: string;
+  notes?: string;
+}
+
+/** The broker kinds OmniProject knows how to be driven by — n8n is the shipped reference. */
+export async function fetchBrokers(): Promise<BrokerInfo[]> {
+  const res = await fetch("/api/setup/brokers", { credentials: "same-origin" });
+  if (!res.ok) throw new Error(`brokers failed: ${res.status}`);
+  return (await res.json()) as BrokerInfo[];
+}
+
+export interface OutputInfo {
+  id: string;
+  label: string;
+  route: string;
+  kind: string;
+  capabilities: { readOnly: boolean; streaming: boolean; auth: string };
+  notes?: string;
+}
+
+/** The outward interfaces that expose portfolio data/events to other systems (BI feeds, MCP, exports, …). */
+export async function fetchOutputs(): Promise<OutputInfo[]> {
+  const res = await fetch("/api/setup/outputs", { credentials: "same-origin" });
+  if (!res.ok) throw new Error(`outputs failed: ${res.status}`);
+  return (await res.json()) as OutputInfo[];
+}
+
+export interface ReportInfo {
+  id: string;
+  label: string;
+  docsUrl: string;
+  kind: string;
+  capabilities: { requiresCapability: string | null; timeSeries: boolean; exports: string[] };
+  notes?: string;
+}
+
+/** Reports this instance's governance allows — filtered further to what a connected backend actually supports via `?available=1`. */
+export async function fetchReports(): Promise<ReportInfo[]> {
+  const res = await fetch("/api/setup/reports", { credentials: "same-origin" });
+  if (!res.ok) throw new Error(`reports failed: ${res.status}`);
+  return (await res.json()) as ReportInfo[];
+}
+
 /** Generate a backend workflow and trigger a browser download. */
 export async function downloadWorkflow(backendId: string, webhookPath?: string): Promise<void> {
   const res = await fetch("/api/setup/generate-workflow", {

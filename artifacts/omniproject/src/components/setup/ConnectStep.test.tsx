@@ -12,12 +12,13 @@ function Harness({ initial = "", isAdmin = true }: { initial?: string; isAdmin?:
   return <ConnectStep url={url} setUrl={setUrl} backendId={backendId} setBackendId={setBackendId} isAdmin={isAdmin} />;
 }
 
-// The backend picker fetches /api/setup/backends independently of the broker test call
-// (/api/setup/test-broker) — branch by URL so each gets its own shaped response.
+// The backend/broker pickers fetch /api/setup/backends and /api/setup/brokers
+// independently of the broker test call (/api/setup/test-broker) — branch by URL so
+// each gets its own shaped response.
 function mockFetch(testBrokerPayload: unknown) {
   const fn = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url.includes("/api/setup/backends")) {
+    if (url.includes("/api/setup/backends") || url.includes("/api/setup/brokers")) {
       return { ok: true, status: 200, json: () => Promise.resolve([]) };
     }
     return { ok: true, status: 200, json: () => Promise.resolve(testBrokerPayload) };

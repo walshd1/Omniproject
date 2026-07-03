@@ -68,6 +68,51 @@ export function NeedsHelp({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Shared "tell us what you have" tile grid — a picker instead of a raw dropdown.
+ * Used for backends, brokers, outputs and reports alike so the visual language (and
+ * the accessible listbox/option semantics) stays one thing, not four near-duplicates.
+ */
+export function PickerGrid<T>({
+  items,
+  getKey,
+  isSelected,
+  onSelect,
+  renderTile,
+  ariaLabel,
+  extraTile,
+}: {
+  items: T[];
+  getKey: (item: T) => string;
+  isSelected: (item: T) => boolean;
+  onSelect: (item: T) => void;
+  renderTile: (item: T, selected: boolean) => React.ReactNode;
+  ariaLabel: string;
+  /** An extra, non-data tile appended after the items (e.g. "Don't see it? Request it"). */
+  extraTile?: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" role="listbox" aria-label={ariaLabel}>
+      {items.map((item) => {
+        const selected = isSelected(item);
+        return (
+          <button
+            key={getKey(item)}
+            type="button"
+            role="option"
+            aria-selected={selected}
+            onClick={() => onSelect(item)}
+            className={`text-left border p-3 text-xs ${selected ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}
+          >
+            {renderTile(item, selected)}
+          </button>
+        );
+      })}
+      {extraTile}
+    </div>
+  );
+}
+
 export function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <section className="border border-border bg-card">

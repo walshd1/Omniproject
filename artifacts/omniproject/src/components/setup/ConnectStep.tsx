@@ -6,6 +6,7 @@ import { testBrokerConnection, type BrokerTestResult } from "../../lib/setup";
 import { urlFormatError } from "../../lib/validation";
 import { Dot, Step, NeedsHelp, TechDetails, useRefreshAndSettings } from "./shared";
 import { BackendPicker } from "./BackendPicker";
+import { BrokerPicker } from "./BrokerPicker";
 
 export function ConnectStep({
   url,
@@ -57,6 +58,9 @@ export function ConnectStep({
     /* Step 2 — connect the broker */
     <Step n={2} title="Connect your project tool">
       <BackendPicker backendId={backendId} setBackendId={setBackendId} />
+      <TechDetails label="Which automation tool is running this?">
+        <BrokerPicker />
+      </TechDetails>
       <p className="text-xs text-muted-foreground">
         Whatever you picked above, this is the one address that lets OmniProject talk to it through
         your automation system. If you don't have it yet, it's usually something your IT person or
