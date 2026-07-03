@@ -2601,6 +2601,7 @@ export const BROKERS_DATA: BrokerDefinition[] = [
     "kind": "low-code",
     "label": "n8n",
     "notes": "The reference broker. Self-hostable, maintained nodes for most backends, synchronous webhook response.",
+    "reference": true,
     "transports": [
       "http",
       "native-node"

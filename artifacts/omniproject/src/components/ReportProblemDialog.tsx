@@ -12,10 +12,16 @@ const REPO = "walshd1/Omniproject";
  * *they* click through to GitHub or paste it somewhere themselves. No network call,
  * no telemetry: matches the app's stateless/zero-at-rest posture.
  */
+function modeLabel(mode: "demo" | "connected" | "unknown"): string {
+  if (mode === "connected") return "Connected (broker + backend)";
+  if (mode === "demo") return "Demo mode (no broker / no SSO)";
+  return "Not sure";
+}
+
 function diagnostics(mode: "demo" | "connected" | "unknown"): string {
   const lines = [
     `Page: ${window.location.pathname}`,
-    `Mode: ${mode === "connected" ? "Connected (n8n + backend)" : mode === "demo" ? "Demo mode (no n8n / no SSO)" : "Not sure"}`,
+    `Mode: ${modeLabel(mode)}`,
     `Browser: ${navigator.userAgent}`,
     `Screen: ${window.innerWidth}×${window.innerHeight}`,
     `When: ${new Date().toISOString()}`,
@@ -44,7 +50,7 @@ export function ReportProblemDialog({
     const params = new URLSearchParams({
       template: "bug_report.yml",
       "what-happened": errorMessage ? `The app crashed: ${errorMessage}\n\n${whatHappened}`.trim() : whatHappened,
-      mode: mode === "connected" ? "Connected (n8n + backend)" : mode === "demo" ? "Demo mode (no n8n / no SSO)" : "Not sure",
+      mode: modeLabel(mode),
       env: diag,
     });
     return `https://github.com/${REPO}/issues/new?${params.toString()}`;

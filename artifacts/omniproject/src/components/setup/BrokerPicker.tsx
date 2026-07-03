@@ -13,8 +13,9 @@ import { Dot, PickerGrid, TechDetails } from "./shared";
  */
 export function BrokerPicker() {
   const { data: brokers = [] } = useQuery({ queryKey: ["setup-brokers"], queryFn: fetchBrokers, staleTime: 60_000 });
-  const [brokerId, setBrokerId] = useState("n8n");
-  const selected = brokers.find((b) => b.id === brokerId);
+  const [brokerId, setBrokerId] = useState<string | null>(null);
+  const effectiveId = brokerId ?? brokers.find((b) => b.reference)?.id ?? brokers[0]?.id;
+  const selected = brokers.find((b) => b.id === effectiveId);
 
   if (brokers.length === 0) return null;
 
@@ -26,7 +27,7 @@ export function BrokerPicker() {
       <PickerGrid
         items={brokers}
         getKey={(b) => b.id}
-        isSelected={(b) => b.id === brokerId}
+        isSelected={(b) => b.id === effectiveId}
         onSelect={(b) => setBrokerId(b.id)}
         ariaLabel="Pick your automation broker"
         renderTile={(b) => (
@@ -34,7 +35,7 @@ export function BrokerPicker() {
             <div className="font-black uppercase tracking-wider flex items-center gap-1.5">
               <Waypoints className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               {b.label}
-              {b.id === "n8n" && <span className="text-primary" title="The shipped reference broker">•</span>}
+              {b.reference && <span className="text-primary" title="The shipped reference broker">•</span>}
             </div>
             <div className="text-muted-foreground mt-1">{b.hosted ? "vendor-hosted" : "self-hosted"}</div>
           </>

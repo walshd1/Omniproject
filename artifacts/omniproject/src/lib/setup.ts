@@ -131,6 +131,8 @@ export interface BrokerInfo {
   capabilities: { synchronous: boolean; selfHostable: boolean; managedAuth: boolean; eventsInbound: boolean; eventsOutbound: boolean };
   build: string;
   notes?: string;
+  /** The pre-selected, shipped-as-default broker in the picker UI. */
+  reference?: boolean;
 }
 
 /** The broker kinds OmniProject knows how to be driven by — n8n is the shipped reference. */

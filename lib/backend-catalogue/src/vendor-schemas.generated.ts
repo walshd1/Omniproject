@@ -283,6 +283,10 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
       "notes": {
         "type": "string"
       },
+      "reference": {
+        "type": "boolean",
+        "description": "The pre-selected, shipped-as-default broker in the picker UI (at most one vendor file should set this)."
+      },
       "keyFormat": {
         "type": "object",
         "additionalProperties": false,

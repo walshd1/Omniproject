@@ -64,7 +64,7 @@ export function ConnectStep({
       <p className="text-xs text-muted-foreground">
         Whatever you picked above, this is the one address that lets OmniProject talk to it through
         your automation system. If you don't have it yet, it's usually something your IT person or
-        whoever manages your automation tool (often called “n8n”) can give you.
+        whoever manages your automation tool can give you.
       </p>
       <NeedsHelp>
         Don't have this address? Ask whoever manages your automation tool for the <strong>webhook
