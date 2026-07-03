@@ -80,7 +80,7 @@ So the one-time setup is just:
 
 In the Authentik admin → **Directory → Users**, create a user per staff member, then add each
 to the `omni-*` group for their role (admin → `omni-admins`, …). Their OmniProject role follows
-from the group — no per-user setup in OmniProject. The app's **Setup → Staff accounts & roles**
+from the group — no per-user setup in OmniProject. The app's **Configurator → Staff accounts & roles**
 step shows this mapping and the exact callback URL.
 
 > If you'd rather wire it by hand (or the blueprint doesn't apply on your Authentik version),

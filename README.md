@@ -51,7 +51,11 @@ anywhere. It doesn't keep its own copy of anything — nothing of yours gets cop
 into OmniProject, so there's nothing new to back up, secure or worry about leaking.
 It's **free to self-host, with no per-seat fees**, has a bundled login system so you
 don't need corporate IT, and a one-click **"We're a charity"** setup gives you a
-trustee report and a funder report ready to go. Full walkthrough, written for
+trustee report and a funder report ready to go. No Docker host of your own? A
+manual, no-terminal-once-it's-up recipe for running OmniProject on
+[Railway](docs/ops/RAILWAY-DEPLOY.md) is the fastest path today — a real
+"Deploy on Railway" button is next once that's been run and confirmed by a
+maintainer. Full walkthrough, written for
 non-technical readers: **[docs/SMALL-ORG-GUIDE.md](docs/SMALL-ORG-GUIDE.md)**. If
 you're wondering whether the enterprise-grade work has priced small orgs out: it
 hasn't — see the audit: **[docs/SME-CHARITY-FIT.md](docs/SME-CHARITY-FIT.md)**.
