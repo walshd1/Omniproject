@@ -2,6 +2,7 @@ import { type SetupStatus } from "../../lib/setup";
 import { CAP_DOMAINS, CAP_LABELS, Dot, Step, TechDetails } from "./shared";
 import { OutputPicker } from "./OutputPicker";
 import { ReportPicker } from "./ReportPicker";
+import { NotificationPicker } from "./NotificationPicker";
 
 export function StatusStep({ status }: { status: SetupStatus | undefined }) {
   const caps = status?.capabilities ?? undefined;
@@ -52,9 +53,10 @@ export function StatusStep({ status }: { status: SetupStatus | undefined }) {
         </TechDetails>
       </div>
 
-      <TechDetails label="What can other systems get from OmniProject, and which reports are on offer?">
+      <TechDetails label="What can other systems get from OmniProject, which reports are on offer, and where can alerts go?">
         <OutputPicker />
         <ReportPicker />
+        <NotificationPicker />
       </TechDetails>
 
       {(status?.realtime || status?.audit) && (

@@ -269,7 +269,9 @@ router.get("/setup/brokers", requireAnyRole("pmo", "admin"), (req, res) => {
 router.get("/setup/outputs", requireAnyRole("pmo", "admin"), (_req, res) => {
   res.json(outputCatalogue());
 });
-router.get("/setup/notifications", (_req, res) => {
+// Internal: the Configurator's NotificationPicker is its only SPA consumer, so this
+// is restricted to PMO/admin like the other wiring-catalogue reads above.
+router.get("/setup/notifications", requireAnyRole("pmo", "admin"), (_req, res) => {
   res.json(notificationCatalogue());
 });
 // The notification ROUTING rules (JSON-defined) — which event kinds dispatch to

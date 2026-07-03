@@ -156,6 +156,29 @@ export async function fetchOutputs(): Promise<OutputInfo[]> {
   return (await res.json()) as OutputInfo[];
 }
 
+export interface NotificationChannelInfo {
+  id: string;
+  label: string;
+  docsUrl: string;
+  kind: string;
+  capabilities: {
+    channels: boolean;
+    directMessage: boolean;
+    richFormatting: boolean;
+    threads: boolean;
+    inboundReply: boolean;
+    delivery: string;
+  };
+  notes?: string;
+}
+
+/** The channels OmniProject can push alerts/events to (Slack, PagerDuty, email, …). */
+export async function fetchNotificationChannels(): Promise<NotificationChannelInfo[]> {
+  const res = await fetch("/api/setup/notifications", { credentials: "same-origin" });
+  if (!res.ok) throw new Error(`notifications failed: ${res.status}`);
+  return (await res.json()) as NotificationChannelInfo[];
+}
+
 export interface ReportInfo {
   id: string;
   label: string;

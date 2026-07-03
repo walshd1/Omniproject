@@ -44,6 +44,7 @@ beforeEach(() => {
     if (url.includes("/api/setup/brokers")) return new Response("[]", { status: 200 });
     if (url.includes("/api/setup/outputs")) return new Response("[]", { status: 200 });
     if (url.includes("/api/setup/reports")) return new Response("[]", { status: 200 });
+    if (url.includes("/api/setup/notifications")) return new Response("[]", { status: 200 });
     return new Response("{}", { status: 200 });
   }) as unknown as typeof fetch;
 });
