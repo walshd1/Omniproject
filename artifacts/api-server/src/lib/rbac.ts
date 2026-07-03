@@ -238,3 +238,17 @@ export function requireRole(need: Role) {
     res.status(403).json({ error: `Requires ${what} (you are ${roleForReq(req)})` });
   };
 }
+
+/** Express middleware: require ANY of the given grants (OR gate) — e.g. the surfaces
+ *  that belong to whoever owns governance (pmo) or technical config (admin), since
+ *  the two authorities are orthogonal and neither alone implies the other. Else 403. */
+export function requireAnyRole(...need: Role[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (need.some((r) => hasRole(req, r))) {
+      next();
+      return;
+    }
+    const what = need.map((r) => (isAuthority(r) ? `the ${r} authority` : `at least the ${r} role`)).join(" or ");
+    res.status(403).json({ error: `Requires ${what} (you are ${roleForReq(req)})` });
+  };
+}

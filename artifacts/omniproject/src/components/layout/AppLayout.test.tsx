@@ -38,14 +38,9 @@ function seed(
   });
   qc.setQueryData(getHealthCheckQueryKey(), { status: connected ? "ok" : "down" });
   qc.setQueryData(getListProjectsQueryKey(), [project()]);
-  qc.setQueryData(["setup", "status"], {
-    configured: brokerConfigured,
-    role: "admin",
-    broker: { configured: brokerConfigured, urlSet: brokerConfigured },
-    auth: { mode: "demo" },
-    ai: { provider: "none" },
-    capabilities: null,
-  });
+  // AppLayout reads the outer-surface public status (broker.configured only), not the
+  // PMO/admin-gated internal one.
+  qc.setQueryData(["setup", "status", "public"], { broker: { configured: brokerConfigured } });
   qc.setQueryData(getListNotificationsQueryKey(), []);
   return qc;
 }

@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
-import { fetchBackends } from "../lib/setup";
+import { fetchBackendIds } from "../lib/setup";
 import { PremiumAdmin } from "../components/PremiumAdmin";
 import { LoggingSyncSettings } from "../components/settings/LoggingSyncSettings";
 import { TranslationLayer } from "../components/settings/TranslationLayer";
@@ -63,7 +63,9 @@ export function Settings() {
   const queryClient = useQueryClient();
   // Backend-source suggestions come from the catalogue (admin-filtered server-side), so no
   // vendor ids are hardcoded in the SPA. "all" (no-filter) is the only built-in suggestion.
-  const { data: backends } = useQuery({ queryKey: ["setup-backends"], queryFn: fetchBackends, staleTime: 60_000 });
+  // Uses the outer-surface ids-only endpoint — this page isn't PMO/admin-gated, so it must
+  // not reach the Configurator's internal full-manifest route.
+  const { data: backendIds } = useQuery({ queryKey: ["setup-backend-ids"], queryFn: fetchBackendIds, staleTime: 60_000 });
 
   const [formData, setFormData] = useState({
     brokerUrl: "",
@@ -186,7 +188,7 @@ export function Settings() {
             />
             <datalist id="backend-suggestions">
               <option value="all" />
-              {(backends ?? []).map((b) => <option key={b.id} value={b.id} />)}
+              {(backendIds ?? []).map((id) => <option key={id} value={id} />)}
             </datalist>
             <p className="text-xs text-muted-foreground">
               Optional routing hint sent to the broker. Use <span className="font-mono">all</span> for any backend the broker is wired

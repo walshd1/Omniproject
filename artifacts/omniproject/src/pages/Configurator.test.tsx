@@ -22,9 +22,15 @@ function status(over: Partial<SetupStatus> = {}): SetupStatus {
   };
 }
 
+// Seeds BOTH the session (which the page's access gate reads via useAuth()) and the
+// PMO/admin-gated setup-status query, keeping their `role` in lockstep like a real
+// session would — the gateway derives both from the same principal.
 function seed(s: SetupStatus | undefined): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  if (s) qc.setQueryData(["setup", "status"], s);
+  if (s) {
+    qc.setQueryData(["auth", "me"], { sub: "u1", role: s.role });
+    qc.setQueryData(["setup", "status"], s);
+  }
   return qc;
 }
 
@@ -72,6 +78,8 @@ describe("Configurator", () => {
 
   it("renders an error state when setup status fails to load", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    // PMO so the page's access gate passes and the internal query actually fires.
+    qc.setQueryData(["auth", "me"], { sub: "u1", role: "pmo" });
     const observer = qc.getQueryCache().build(qc, { queryKey: ["setup", "status"] });
     observer.setState({ status: "error", error: new Error("nope"), fetchStatus: "idle" } as never);
     renderWithProviders(<Configurator />, { client: qc });

@@ -18,7 +18,7 @@ const CONNECTION_VAULT_BODY = v.object({
   name: v.string({ trim: true, min: 1, max: 200 }),
   value: v.string({ min: 1, max: 8_000 }), // a secret — not trimmed
 });
-import { requireRole, hasRole, getRoleMap } from "../lib/rbac";
+import { requireRole, requireAnyRole, hasRole, getRoleMap } from "../lib/rbac";
 import { buildConfigExport, type ExportFormat } from "../lib/config-export";
 import { backendCatalogue, getBackend, isEnterpriseBackend, generateWorkflow, brokerCatalogue, outputCatalogue, notificationCatalogue, notificationRouteCatalogue, notificationKindCatalogue, methodologyCatalogue, methodologyPack, allMethodologyTags, reportCatalogue, screenCatalogue, reportsForMethodology, screensForMethodology, planeCatalogue, availableReports, availableScreens, VIEWS, viewsForMethodology, dedupeEntities, matchCandidates, normaliseKey } from "@workspace/backend-catalogue";
 import { isEntitled, resolveLicense } from "../lib/license";
@@ -29,7 +29,7 @@ import { requiredCredentials, renderCredentialTemplate } from "../lib/connection
 import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 import { configDirSummary } from "../lib/config-dir";
 import { buildConfigBundle } from "../lib/config-bundle";
-import { buildSetupStatus } from "../lib/setup-status";
+import { buildSetupStatus, buildPublicSetupStatus } from "../lib/setup-status";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
 import { applyCharityOnboarding } from "../lib/charity-onboarding";
 import { sharedStateMode } from "../lib/shared-state";
@@ -64,10 +64,19 @@ const methodologyAllowed = (id: string): boolean => isFeatureEnabled(`methodolog
  * emits durable config for the operator to keep in their environment.
  */
 
-// GET /api/setup/status — what's wired, for the first-run wizard. Read-only.
-// Assembled from a registry of status sections (see lib/setup-status.ts).
-router.get("/setup/status", async (req, res) => {
+// GET /api/setup/status — what's wired, for the Configurator. Read-only, but carries
+// live broker/backend/licensing state, so it's an INTERNAL call restricted to the
+// entities that actually own that state (PMO/admin). Assembled from a registry of
+// status sections (see lib/setup-status.ts).
+router.get("/setup/status", requireAnyRole("pmo", "admin"), async (req, res) => {
   res.json(await buildSetupStatus(req));
+});
+
+// GET /api/setup/status/public — the OUTER surface: the one fact every authenticated
+// session needs regardless of role (e.g. the demo-mode banner in the global chrome).
+// Non-PMO/admin callers reach only this passed-through subset, never the internal route above.
+router.get("/setup/status/public", (_req, res) => {
+  res.json(buildPublicSetupStatus());
 });
 
 // GET /api/setup/profile — the deployment profile + posture, and which enterprise hardening
@@ -220,26 +229,37 @@ router.get("/setup/config-bundle", requireRole("admin"), (_req, res) => {
   res.type("application/zip").set("Content-Disposition", 'attachment; filename="omniproject-config.zip"').send(zip);
 });
 
-// GET /api/setup/backends — catalogue for the workflow wizard. Admin-only backends
-// (raw SQL / Mongo) are hidden from non-admins so they aren't offered a technical
-// integration they can't configure (wiring one is admin-gated at generate-workflow
-// / settings regardless — this just keeps the wizard honest per role).
-router.get("/setup/backends", (req, res) => {
+// GET /api/setup/backends — full manifest catalogue for the Configurator (docs URLs,
+// required env, actions, capabilities). Internal: restricted to PMO/admin, the only
+// entity that wires backends. Admin-only backends (raw SQL / Mongo) are additionally
+// hidden from a plain PMO caller so they aren't offered a technical integration they
+// can't configure (wiring one is admin-gated at generate-workflow / settings regardless
+// — this just keeps the wizard honest per authority).
+router.get("/setup/backends", requireAnyRole("pmo", "admin"), (req, res) => {
   const isAdmin = hasRole(req, "admin"); // the technical authority
   res.json(backendCatalogue().filter((b) => isAdmin || !b.adminOnly));
 });
 
+// GET /api/setup/backends/ids — the OUTER surface: just the ids, for the one
+// non-Configurator consumer (Settings' backend-source suggestion dropdown). Same
+// admin-only filter, but no manifest detail passed through.
+router.get("/setup/backends/ids", (req, res) => {
+  const isAdmin = hasRole(req, "admin");
+  res.json(backendCatalogue().filter((b) => isAdmin || !b.adminOnly).map((b) => b.id));
+});
+
 // The other two integration planes (same shape): which brokers can serve the
-// data hop, and which outward interfaces expose data/events.
+// data hop, and which outward interfaces expose data/events. Internal: both are
+// Configurator-only reads of live wiring, restricted to PMO/admin.
 // Full broker catalogue, or — with ?connected=1 — only the broker KIND(S) actually
 // wired to this deployment (the active hop ∪ BROKER_KINDS), the set the capability
 // resolver unions over.
-router.get("/setup/brokers", (req, res) => {
+router.get("/setup/brokers", requireAnyRole("pmo", "admin"), (req, res) => {
   if (req.query["connected"] !== "1") { res.json(brokerCatalogue()); return; }
   const kinds = new Set(connectedBrokerKinds());
   res.json(brokerCatalogue().filter((b) => kinds.has(b.id)));
 });
-router.get("/setup/outputs", (_req, res) => {
+router.get("/setup/outputs", requireAnyRole("pmo", "admin"), (_req, res) => {
   res.json(outputCatalogue());
 });
 router.get("/setup/notifications", (_req, res) => {
@@ -283,7 +303,9 @@ router.get("/setup/methodology-preset/:id", (req, res) => {
 // entries the CONNECTED backend(s) can actually feed. The hard rule: if none of
 // the connected backends support a report/screen, ?available=1 omits it. (`caps`
 // is the resolved set — already the union across every connected backend.)
-router.get("/setup/reports", async (req, res) => {
+// Internal: the Configurator's report-picker is its only SPA consumer, so this
+// is restricted to PMO/admin like the other wiring-catalogue reads above.
+router.get("/setup/reports", requireAnyRole("pmo", "admin"), async (req, res) => {
   // Governance gate first (a forbidden report is withheld regardless of backend support), then the
   // backend-capability filter when ?available=1.
   if (req.query["available"] !== "1") { res.json(reportCatalogue().filter((r) => reportAllowed(r.id))); return; }

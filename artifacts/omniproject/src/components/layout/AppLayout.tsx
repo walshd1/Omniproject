@@ -14,7 +14,7 @@ import { ReportProblemDialog } from "../ReportProblemDialog";
 import { useNavShelves, type NavItem } from "../../lib/nav";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth, logout } from "../../lib/auth";
-import { useSetupStatus } from "../../lib/setup";
+import { usePublicSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
 import { useBranding } from "../../lib/branding";
 import { LanguageSwitcher } from "../LanguageSwitcher";
@@ -28,7 +28,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const { t } = useT();
   const brand = useBranding();
   const { data: auth, isLoading: authLoading } = useAuth();
-  const { data: setup } = useSetupStatus();
+  const { data: setup } = usePublicSetupStatus();
   const { data: projects } = useListProjects();
   // Progressive disclosure: plain PMs keep the Advanced (governance/config) shelf
   // collapsed; admin/PMO see it expanded. The toggle lets anyone reveal it —

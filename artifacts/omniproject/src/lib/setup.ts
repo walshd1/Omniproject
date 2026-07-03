@@ -44,9 +44,34 @@ async function fetchSetupStatus(): Promise<SetupStatus> {
   return (await res.json()) as SetupStatus;
 }
 
-/** Reactively track what's wired, for the Setup / Connection Center. */
-export function useSetupStatus() {
-  return useQuery({ queryKey: ["setup", "status"], queryFn: fetchSetupStatus, retry: false, staleTime: 10_000 });
+/** Reactively track what's wired, for the Configurator. Internal: the gateway route
+ *  is PMO/admin-gated, so callers outside that role must not fire this query — pass
+ *  `enabled: false` (see `isPmoOrAdmin` in lib/auth) rather than let it 403. */
+export function useSetupStatus(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["setup", "status"],
+    queryFn: fetchSetupStatus,
+    retry: false,
+    staleTime: 10_000,
+    ...(options?.enabled !== undefined ? { enabled: options.enabled } : {}),
+  });
+}
+
+export interface PublicSetupStatus {
+  broker: { configured: boolean };
+}
+
+async function fetchPublicSetupStatus(): Promise<PublicSetupStatus> {
+  const res = await fetch("/api/setup/status/public", { credentials: "same-origin" });
+  if (!res.ok) throw new Error(`setup status (public) failed: ${res.status}`);
+  return (await res.json()) as PublicSetupStatus;
+}
+
+/** The outer-surface counterpart to `useSetupStatus` — the one fact every session
+ *  needs regardless of role (e.g. the demo-mode banner in the global chrome). Use
+ *  this instead of `useSetupStatus` for anything outside the Configurator. */
+export function usePublicSetupStatus() {
+  return useQuery({ queryKey: ["setup", "status", "public"], queryFn: fetchPublicSetupStatus, retry: false, staleTime: 10_000 });
 }
 
 /** Non-destructive reachability + capability probe of a candidate broker webhook URL. */
@@ -80,10 +105,21 @@ export interface BackendInfo {
   tier?: "standard" | "enterprise";
 }
 
+/** Internal: the Configurator's full backend catalogue (docs, required env, actions,
+ *  capabilities). Gated to PMO/admin at the gateway. */
 export async function fetchBackends(): Promise<BackendInfo[]> {
   const res = await fetch("/api/setup/backends", { credentials: "same-origin" });
   if (!res.ok) throw new Error(`backends failed: ${res.status}`);
   return (await res.json()) as BackendInfo[];
+}
+
+/** Outer surface: just the known backend ids, for non-Configurator callers (e.g.
+ *  Settings' backend-source suggestion dropdown) that need to validate/suggest an
+ *  id but have no business seeing the full internal manifest. */
+export async function fetchBackendIds(): Promise<string[]> {
+  const res = await fetch("/api/setup/backends/ids", { credentials: "same-origin" });
+  if (!res.ok) throw new Error(`backend ids failed: ${res.status}`);
+  return (await res.json()) as string[];
 }
 
 export interface BrokerInfo {

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Copy, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useSetupStatus } from "../lib/setup";
+import { usePublicSetupStatus } from "../lib/setup";
 
 const REPO = "walshd1/Omniproject";
 
@@ -33,7 +33,7 @@ export function ReportProblemDialog({
   onOpenChange: (open: boolean) => void;
   errorMessage?: string | undefined;
 }) {
-  const { data: status } = useSetupStatus();
+  const { data: status } = usePublicSetupStatus();
   const { toast } = useToast();
   const [whatHappened, setWhatHappened] = useState("");
 

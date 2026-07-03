@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSetupStatus } from "../lib/setup";
-import { roleAtLeast, isPmoOrAdmin } from "../lib/auth";
+import { useAuth, roleAtLeast, isPmoOrAdmin } from "../lib/auth";
 import { useT } from "../lib/i18n";
 import { useConfiguratorMode, ConfiguratorModeProvider } from "../lib/configurator-mode";
 import { LoadingState } from "../components/LoadingState";
@@ -18,7 +18,12 @@ import { GovernanceStep } from "../components/setup/GovernanceStep";
 
 export function Configurator() {
   const { t } = useT();
-  const { data: status, isLoading, isError, error, refetch } = useSetupStatus();
+  const { data: auth, isLoading: authLoading } = useAuth();
+  const allowed = isPmoOrAdmin(auth?.role);
+  // The gateway route carries live broker/backend/licensing state and is gated to
+  // PMO/admin there too — only fire it once the session is known to qualify, so a
+  // restricted role never even reaches the internal call (it'd just 403).
+  const { data: status, isLoading, isError, error, refetch } = useSetupStatus({ enabled: allowed });
   const [mode, setMode] = useConfiguratorMode();
   // Guided mode starts collapsed to the 3 essential steps; Technical mode always
   // shows everything. The toggle only matters in Guided mode.
@@ -35,13 +40,12 @@ export function Configurator() {
   const guided = mode === "guided";
   const showAdvanced = !guided || showRest;
 
-  if (isLoading) return <LoadingState className="p-8 text-center" />;
-  if (isError) return <DataState isError error={error} onRetry={() => refetch()} className="p-8 min-h-[16rem]">{null}</DataState>;
+  if (authLoading) return <LoadingState className="p-8 text-center" />;
 
   // Hard view gate, mirroring the nav's `visibleToRoles` — this page reads live
   // broker/backend state, so it's restricted to PMO/admin even if a plain role
   // navigates here directly (nav hides the link, but that's not enforcement).
-  if (!isPmoOrAdmin(status?.role)) {
+  if (!allowed) {
     return (
       <div className="h-full flex items-center justify-center p-8">
         <div role="alert" className="max-w-md w-full border-2 border-border bg-card p-8 text-center space-y-3">
@@ -57,6 +61,9 @@ export function Configurator() {
       </div>
     );
   }
+
+  if (isLoading) return <LoadingState className="p-8 text-center" />;
+  if (isError) return <DataState isError error={error} onRetry={() => refetch()} className="p-8 min-h-[16rem]">{null}</DataState>;
 
   return (
     <ConfiguratorModeProvider mode={mode}>
