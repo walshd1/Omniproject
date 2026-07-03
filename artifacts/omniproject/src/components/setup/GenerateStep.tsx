@@ -1,31 +1,39 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, Download, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { fetchBackends, downloadWorkflow, type BackendInfo, type SetupStatus } from "../../lib/setup";
+import { fetchBackends, downloadWorkflow, type SetupStatus } from "../../lib/setup";
 import { Dot, Step, TechDetails } from "./shared";
 
 export function GenerateStep({
   url,
   isAdmin,
   status,
+  backendId,
+  setBackendId,
 }: {
   url: string;
   isAdmin: boolean;
   status: SetupStatus | undefined;
+  backendId: string;
+  setBackendId: (id: string) => void;
 }) {
   const { toast } = useToast();
 
-  const [backends, setBackends] = useState<BackendInfo[]>([]);
-  const [backendId, setBackendId] = useState("");
+  // Same cache key as BackendPicker (ConnectStep, above) — picking a tool there and
+  // reaching this step reuses the same network round trip instead of fetching twice.
+  const { data: backends = [] } = useQuery({ queryKey: ["setup-backends"], queryFn: fetchBackends, staleTime: 60_000 });
   const [generating, setGenerating] = useState(false);
 
   const selectedBackend = backends.find((b) => b.id === backendId);
   const enterpriseEntitled = !!status?.licensing?.features.includes("enterprise_workflows");
   const enterpriseLocked = selectedBackend?.tier === "enterprise" && !enterpriseEntitled;
 
+  // Default to the first backend only if nothing's been picked yet (e.g. via the picker
+  // in ConnectStep above) — never overrides an existing choice.
   useEffect(() => {
-    fetchBackends().then((b) => { setBackends(b); setBackendId((id) => id || b[0]?.id || ""); }).catch(() => setBackends([]));
-  }, []);
+    if (!backendId && backends[0]) setBackendId(backends[0].id);
+  }, [backends, backendId, setBackendId]);
 
   const generate = async () => {
     if (!backendId) return;

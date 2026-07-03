@@ -27,6 +27,9 @@ export function Configurator() {
   // The webhook URL is shared between the connect step (where it's tested and
   // applied) and the generate step (which derives the workflow path from it).
   const [url, setUrl] = useState("");
+  // Which tool the user picked in the Connect step's backend picker — carried down to
+  // Generate so nobody has to pick it twice.
+  const [backendId, setBackendId] = useState("");
 
   const isAdmin = roleAtLeast(status?.role, "admin");
   const guided = mode === "guided";
@@ -99,9 +102,9 @@ export function Configurator() {
           <ProfileStep isAdmin={isAdmin} />
           {showAdvanced && isAdmin && <IdpStep />}
           {showAdvanced && <StatusStep status={status} />}
-          <ConnectStep url={url} setUrl={setUrl} isAdmin={isAdmin} />
+          <ConnectStep url={url} setUrl={setUrl} backendId={backendId} setBackendId={setBackendId} isAdmin={isAdmin} />
           {showAdvanced && <PersistStep brokerUrlSet={status?.broker.urlSet} />}
-          <GenerateStep url={url} isAdmin={isAdmin} status={status} />
+          <GenerateStep url={url} isAdmin={isAdmin} status={status} backendId={backendId} setBackendId={setBackendId} />
           <VerifyStep isAdmin={isAdmin} status={status} />
           {showAdvanced && <BackupStep isAdmin={isAdmin} status={status} />}
           {showAdvanced && <EnvironmentsStep isAdmin={isAdmin} />}

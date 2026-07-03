@@ -5,17 +5,22 @@ import { waitFor } from "@testing-library/react";
 import { renderWithProviders } from "../../test/utils";
 import { ConnectStep } from "./ConnectStep";
 
-// A small harness so the controlled `url` prop updates as the user types.
+// A small harness so the controlled `url`/`backendId` props update as the user interacts.
 function Harness({ initial = "", isAdmin = true }: { initial?: string; isAdmin?: boolean }) {
   const [url, setUrl] = useState(initial);
-  return <ConnectStep url={url} setUrl={setUrl} isAdmin={isAdmin} />;
+  const [backendId, setBackendId] = useState("");
+  return <ConnectStep url={url} setUrl={setUrl} backendId={backendId} setBackendId={setBackendId} isAdmin={isAdmin} />;
 }
 
-function mockFetch(payload: unknown) {
-  const fn = vi.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve(payload),
+// The backend picker fetches /api/setup/backends independently of the broker test call
+// (/api/setup/test-broker) — branch by URL so each gets its own shaped response.
+function mockFetch(testBrokerPayload: unknown) {
+  const fn = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/api/setup/backends")) {
+      return { ok: true, status: 200, json: () => Promise.resolve([]) };
+    }
+    return { ok: true, status: 200, json: () => Promise.resolve(testBrokerPayload) };
   });
   globalThis.fetch = fn as unknown as typeof fetch;
   return fn;

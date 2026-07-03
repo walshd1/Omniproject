@@ -5,14 +5,19 @@ import { useToast } from "@/hooks/use-toast";
 import { testBrokerConnection, type BrokerTestResult } from "../../lib/setup";
 import { urlFormatError } from "../../lib/validation";
 import { Dot, Step, NeedsHelp, TechDetails, useRefreshAndSettings } from "./shared";
+import { BackendPicker } from "./BackendPicker";
 
 export function ConnectStep({
   url,
   setUrl,
+  backendId,
+  setBackendId,
   isAdmin,
 }: {
   url: string;
   setUrl: (url: string) => void;
+  backendId: string;
+  setBackendId: (id: string) => void;
   isAdmin: boolean;
 }) {
   const updateSettings = useUpdateSettings();
@@ -51,11 +56,11 @@ export function ConnectStep({
   return (
     /* Step 2 — connect the broker */
     <Step n={2} title="Connect your project tool">
+      <BackendPicker backendId={backendId} setBackendId={setBackendId} />
       <p className="text-xs text-muted-foreground">
-        This is the one address that lets OmniProject talk to your project tool (Jira, OpenProject,
-        SAP, or whatever you use) through your automation system. If you don't have it yet, it's
-        usually something your IT person or whoever manages your automation tool (often called
-        “n8n”) can give you.
+        Whatever you picked above, this is the one address that lets OmniProject talk to it through
+        your automation system. If you don't have it yet, it's usually something your IT person or
+        whoever manages your automation tool (often called “n8n”) can give you.
       </p>
       <NeedsHelp>
         Don't have this address? Ask whoever manages your automation tool for the <strong>webhook

@@ -1,8 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../../test/utils";
 import { GenerateStep } from "./GenerateStep";
 import type { BackendInfo, SetupStatus } from "../../lib/setup";
+
+// A small harness so the controlled `backendId` prop updates (defaulting to the first
+// fetched backend, same as the real Configurator page does via GenerateStep's effect).
+function Harness({ url, isAdmin, status }: { url: string; isAdmin: boolean; status: SetupStatus }) {
+  const [backendId, setBackendId] = useState("");
+  return <GenerateStep url={url} isAdmin={isAdmin} status={status} backendId={backendId} setBackendId={setBackendId} />;
+}
 
 const status: SetupStatus = {
   configured: true,
@@ -51,7 +59,7 @@ describe("GenerateStep", () => {
   it("renders the heading and the loaded backend details", async () => {
     mockBackends([jira]);
     const { getByRole, findByText, getByText } = renderWithProviders(
-      <GenerateStep url="https://broker.example.com/webhook/op" isAdmin status={status} />,
+      <Harness url="https://broker.example.com/webhook/op" isAdmin status={status} />,
     );
     expect(getByRole("heading", { name: "Get the connector for your tool" })).toBeInTheDocument();
     // backend detail panel populated from fetched backends
@@ -64,7 +72,7 @@ describe("GenerateStep", () => {
   it("locks generation for an enterprise backend without entitlement", async () => {
     mockBackends([sap]);
     const { findByText, getByRole } = renderWithProviders(
-      <GenerateStep url="" isAdmin status={status} />,
+      <Harness url="" isAdmin status={status} />,
     );
     expect(await findByText(/needs a paid licence key/)).toBeInTheDocument();
     expect(getByRole("button", { name: /Licensed feature/ })).toBeDisabled();
@@ -77,7 +85,7 @@ describe("GenerateStep", () => {
       licensing: { valid: true, tier: "ent", features: ["enterprise_workflows"], expiresInDays: null },
     };
     const { findByText, getByRole, queryByText } = renderWithProviders(
-      <GenerateStep url="" isAdmin status={entitledStatus} />,
+      <Harness url="" isAdmin status={entitledStatus} />,
     );
     expect(await findByText(/SAP API docs/)).toBeInTheDocument();
     expect(queryByText(/needs a paid licence key/)).not.toBeInTheDocument();
@@ -87,7 +95,7 @@ describe("GenerateStep", () => {
   it("disables download for non-admins", async () => {
     mockBackends([jira]);
     const { findByText, getByRole } = renderWithProviders(
-      <GenerateStep url="" isAdmin={false} status={status} />,
+      <Harness url="" isAdmin={false} status={status} />,
     );
     await findByText("Jira note.");
     expect(getByRole("button", { name: /Download workflow/ })).toBeDisabled();
@@ -95,7 +103,7 @@ describe("GenerateStep", () => {
 
   it("renders gracefully when backends fail to load", async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("nope")) as unknown as typeof fetch;
-    const { getByRole } = renderWithProviders(<GenerateStep url="" isAdmin status={status} />);
+    const { getByRole } = renderWithProviders(<Harness url="" isAdmin status={status} />);
     expect(getByRole("heading", { name: "Get the connector for your tool" })).toBeInTheDocument();
   });
 });
