@@ -11,6 +11,19 @@ This page is just the shortest path to *your own data on screen*.
 [n8n](https://n8n.io) instance you can import a workflow into (n8n Cloud's free
 tier works fine, or `docker run -p 5678:5678 n8nio/n8n`).
 
+## Why this is the fast path (and why read-only first)
+
+README's "Why OmniProject exists" comes down to three things: tool sprawl, nobody
+trusting a second copy of their data, and migration risk killing the idea before it
+starts. This guide is built to answer the third one in 15 minutes flat, not just
+claim it: you connect one real backend, **read-only**, and OmniProject renders it
+live — nothing is copied out of it, nothing new is written to it, and disconnecting
+when you're done undoes exactly nothing, because nothing was ever moved. That's why
+"make it physically read-only" (the 9–12 min step below) isn't a caution bolted onto
+a tutorial — it's the fastest way to actually experience the architecture: no
+database of its own, no write path unless you deliberately wire one, so trying this
+against real data carries genuinely as little risk as it sounds.
+
 ---
 
 ## 0–2 min — clone and install
@@ -58,8 +71,8 @@ backend — not "won't", *can't*. This is the one step worth not skipping.
 export BROKER_URL=https://your-n8n.example.com/webhook/omni
 ```
 
-(Or set it in **Setup → Configuration** instead of an env var.) Then **Setup →
-Verify your workflow → Run verification** — this probes every read action with
+(Or set it in **Configurator → Configuration** instead of an env var.) Then
+**Configurator → Verify your workflow → Run verification** — this probes every read action with
 `{ verify: true }`; generated workflows short-circuit on that flag, so **even
 this check never touches your backend**. Green across the board means the
 contract works.
@@ -78,8 +91,8 @@ way for this session to change it.**
   probably still pointed at a placeholder URL/credential; check the workflow's
   env vars against what your instance actually needs.
 - **"ENTER (DEMO MODE)" won't go away** — `BROKER_URL` isn't set where the
-  gateway process can see it (env var vs. Setup → Configuration; the gateway
-  needs a restart to pick up an env var change, but not a Setup-panel change).
+  gateway process can see it (env var vs. Configurator → Configuration; the gateway
+  needs a restart to pick up an env var change, but not a Configurator-panel change).
 - **Nothing in n8n's execution log** — the SPA is still talking to demo mode;
   hard-refresh, or check the gateway logs for which broker URL it resolved.
 
