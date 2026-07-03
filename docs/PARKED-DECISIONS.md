@@ -58,10 +58,14 @@ commitment to weigh.
 that imports an existing `docker-compose.yml`-shaped stack directly, plus existing community
 templates for both n8n and Authentik). A manual, hands-run recipe is written up at
 `docs/ops/RAILWAY-DEPLOY.md` (Tier 1: omni-shell + n8n, demo auth accepted — the actual "no IT
-person, no SSO to configure" target; Tier 2: add Authentik for real per-user logins, sketched but
-not yet verified end-to-end). Turning that into a real "Deploy on Railway" button still needs a
-maintainer to run it once in their own Railway account and use Railway's "Create Template" action —
-that URL can't be predicted or fabricated in advance.
+person, no SSO to configure" target; Tier 2: real per-user logins via Authentik). Tier 2 now has an
+actual config-as-code path, not just a sketch: `deploy/railway/` ships `railway.json` files for
+omni-shell and for a custom Authentik image (`deploy/railway/authentik/Dockerfile`) that bakes in
+the OmniProject OAuth-app blueprint at build time — solving the one real gotcha (Railway has no
+bind-mount equivalent for the read-only blueprint mount `docker-compose.standalone.yml` uses).
+Turning either tier into a real "Deploy on Railway" button still needs a maintainer to run it once
+in their own Railway account and use Railway's "Create Template" action — that URL can't be
+predicted or fabricated in advance.
 
 ### A3. mTLS for the gateway↔broker seam; FIPS-validated crypto mode
 **What:** mutual-TLS between gateway and broker (today: PSK + per-session HMAC), and a FIPS-mode for

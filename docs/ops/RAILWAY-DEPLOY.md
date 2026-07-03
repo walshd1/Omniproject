@@ -36,6 +36,9 @@ section of `docker-compose.standalone.yml` simply doesn't apply here.
    (root `Dockerfile` — the same image `docker-compose.standalone.yml` and
    the Kubernetes manifest both deploy: SPA + gateway on one port). Railway
    builds it and assigns a public `*.up.railway.app` domain automatically.
+   Point its **Config-as-code Path** (Settings) at
+   [`deploy/railway/omni-shell.railway.json`](../../deploy/railway/omni-shell.railway.json)
+   for the build + healthcheck settings, rather than re-entering them by hand.
 2. **Add a second service** from the `n8nio/n8n` Docker image (pin the same
    version `docker-compose.standalone.yml` uses — see that file for the
    current pin). Attach a **persistent volume** at `/home/node/.n8n` (n8n's
@@ -78,7 +81,7 @@ means anyone with the URL is an admin. Either keep the URL private to the
 person evaluating it, put an `IP_ALLOWLIST` in front of it, or move to Tier 2
 below for real per-user logins before wider use.
 
-## Tier 2 (sketch — needs hands-on validation before relying on it)
+## Tier 2 — real per-user SSO, now with an actual config path (not just a sketch)
 
 Adding real SSO means adding Authentik: `authentik-postgres`,
 `authentik-server`, `authentik-worker` as three more Railway services,
@@ -87,23 +90,52 @@ automatic HTTPS replaces that entire section) and minus the `.local`
 hostname scheme (use each service's real Railway public domain instead of
 `app.local` / `authentik.local`).
 
-**One real gotcha, flagged rather than papered over:** the compose file
+**The one real gotcha, solved rather than just flagged:** the compose file
 auto-provisions the OmniProject OAuth app + role groups in Authentik by
 bind-mounting `./infra/authentik/blueprints` read-only into the Authentik
 containers. Railway doesn't support bind-mounting an arbitrary repo
-subdirectory into a service the way Docker Compose does — only named
-persistent volumes for a service's own writable data. Two ways through:
-- Bake the blueprint into a small custom Authentik image (a two-line
-  Dockerfile that `FROM ghcr.io/goauthentik/server:<pin>` and `COPY`s
-  `infra/authentik/blueprints/omniproject.yaml` to the blueprints path), or
-- Skip the blueprint and create the provider/application/groups by hand in
-  the Authentik admin UI once — `docs/DEPLOY-LOCAL.md` §5 already documents
-  this exact manual fallback (same slug, same redirect URI) for when the
-  blueprint doesn't apply.
+subdirectory into a running service the way Docker Compose does. Rather than
+skip the blueprint and wire the OAuth app by hand, [`deploy/railway/`](../../deploy/railway/)
+now ships the other fix: a small custom Authentik image
+([`deploy/railway/authentik/Dockerfile`](../../deploy/railway/authentik/Dockerfile))
+that bakes the same blueprint in at build time — same pinned upstream image,
+same auto-provisioning effect, no bind mount needed.
 
-This tier is **not yet verified end-to-end on Railway** — treat it as a
-starting sketch, and confirm each step actually boots before trusting it for
-anything beyond a test.
+1. **authentik-postgres** — plain `postgres:16.14-alpine` (or whatever
+   `docker-compose.standalone.yml` currently pins) as a "Deploy Docker Image"
+   service, a persistent volume at `/var/lib/postgresql/data`, and
+   `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD` set as Variables. No
+   config-as-code file — it's a bare image, not built from this repo.
+2. **authentik-server** and **authentik-worker** — two services *built from
+   this repo*, each with **Root Directory left at its default** (the repo
+   root — the Dockerfile is written for a repo-root build context on
+   purpose) and **Config-as-code Path** pointed at
+   [`deploy/railway/authentik/server.railway.json`](../../deploy/railway/authentik/server.railway.json)
+   and
+   [`deploy/railway/authentik/worker.railway.json`](../../deploy/railway/authentik/worker.railway.json)
+   respectively. Both need the same env vars
+   `docker-compose.standalone.yml`'s `authentik-server`/`authentik-worker`
+   sections set (`AUTHENTIK_POSTGRESQL__*`, `AUTHENTIK_SECRET_KEY`,
+   `AUTHENTIK_OMNI_CLIENT_SECRET`) pointed at authentik-postgres's private
+   network hostname. Give authentik-server a public domain (needed for its
+   own admin UI and as the OIDC issuer); the worker needs no public domain.
+3. **omni-shell** additionally needs `OIDC_ISSUER_URL` set to
+   `https://<authentik-server's public domain>/application/o/omniproject/`,
+   plus `OIDC_CLIENT_ID`/`OIDC_CLIENT_SECRET` matching what you set on
+   Authentik. Drop `ACCEPT_DEMO_AUTH`/`DEPLOYMENT_PROFILE=nonprofit` from
+   Tier 1 once this is wired — you're no longer running on demo auth.
+4. Full wiring reference (env var names, the blueprint's exact effect,
+   the manual-fallback path if you ever need to recreate the OAuth app by
+   hand instead): [`docs/DEPLOY-LOCAL.md`](../DEPLOY-LOCAL.md) §4–5 — same
+   Authentik setup, just against Railway's real domains instead of mkcert's
+   `.local` ones.
+
+See [`deploy/railway/README.md`](../../deploy/railway/README.md) for exactly
+which dashboard field each file wires up. This tier's config files are
+written to Railway's verified schema and are valid JSON, but — like Tier 1 —
+**not yet run end-to-end against a live Railway account from here**; confirm
+Authentik's own admin UI comes up and a test login round-trips through
+`/api/auth/callback` before relying on it for more than a test.
 
 ## Turning a working deployment into a real "Deploy on Railway" button
 
