@@ -1142,6 +1142,17 @@ App-layer IP allowlisting — defence in depth even behind an ingress/LB.
 | `clientIp` | Resolve the client IP — socket peer, or the first X-Forwarded-For hop when TRUST_PROXY. |
 | `ipAllowGuard` | Middleware: refuse a client whose IP isn't allowlisted (no-op when the list is empty). |
 
+### `artifacts/api-server/src/lib/ip-ranges.ts`
+
+Correct (not string-prefix) containment checks for the link-local / cloud-metadata ranges that the egress guards (`lib/egress.ts`, `lib/url-safety.ts`) must always reject:
+
+| Function | What it does |
+| --- | --- |
+| `isLinkLocalIPv4` | Correct (not string-prefix) containment checks for the link-local / cloud-metadata ranges that the egress guards (`lib/egress.ts`, `lib/url-safety.ts`) must always reject: |
+| `isLinkLocalIPv6` | IPv6 literal (as produced by `URL.hostname`, brackets stripped) → true if link-local (fe80::/10), the exact AWS IMDSv2 address, or an IPv4-mapped 169.254.0.0/16 address. |
+| `isBlockedHostLiteral` | Is `host` (already lower-cased, IPv6 brackets stripped) a blocked literal — a known metadata hostname, or an IPv4/IPv6 literal in the link-local/metadata range? Does NOT resolve a plain hostname — see the module docstring. |
+| `isBlockedIp` | Is a resolved DNS address (from `dns.lookup`) in the blocked link-local/metadata range? |
+
 ### `artifacts/api-server/src/lib/jwks.ts`
 
 JWKS / ID-token verification.
@@ -1356,6 +1367,14 @@ Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
 | `verifyIdToken` | Cryptographically verify the ID token against the issuer's JWKS and validate iss/aud/exp/nbf. |
 | `decodeIdTokenClaims` | Decode the JWT id_token to extract user claims. |
 | `idTokenNonce` | Read the `nonce` claim from an ID token's payload (or null if absent/malformed). |
+
+### `artifacts/api-server/src/lib/origin-allowlist.ts`
+
+The set of origins this deployment trusts for cross-origin browser interaction — shared by CORS (which cross-origin page's JS may read our responses) and, via CSRF_TRUSTED_ORIGINS, the CSRF guard (which Origin/Referer a cookie-bearing mutation may announce).
+
+| Function | What it does |
+| --- | --- |
+| `configuredCorsOrigins` | — |
 
 ### `artifacts/api-server/src/lib/otlp-metrics.ts`
 
@@ -1718,6 +1737,7 @@ Startup security self-check — surface dangerous *production* configurations lo
 
 | Function | What it does |
 | --- | --- |
+| `bootRefusalActive` | Is the CRITICAL-finding boot refusal active? True unless an operator has explicitly opted out (`SECURITY_STRICT=off`) — refusal is the default, not something that must be turned on. |
 | `securityFindings` | Evaluate the deployment config and return any security findings (pure). |
 | `runSecuritySelfCheck` | Boot hook: log findings at their severity. |
 
@@ -1911,6 +1931,14 @@ Distributed tracing via W3C Trace Context — no OTel SDK, just the wire format 
 | `currentTrace` | The active trace context, or null. |
 | `tracingMiddleware` | Express middleware: establish/continue the trace, correlate the logger, propagate, export. |
 
+### `artifacts/api-server/src/lib/trust-proxy.ts`
+
+How many reverse-proxy hops in front of this process to trust `X-Forwarded-*` from (Express's `trust proxy` setting).
+
+| Function | What it does |
+| --- | --- |
+| `resolveTrustProxy` | How many reverse-proxy hops in front of this process to trust `X-Forwarded-*` from (Express's `trust proxy` setting). |
+
 ### `artifacts/api-server/src/lib/url-safety.ts`
 
 Outbound-URL safety for admin-configured endpoints (the broker URL and premium webhook targets), which are passed to `fetch()`.
@@ -2046,6 +2074,7 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 
 | Function | What it does |
 | --- | --- |
+| `resolveBaseUrl` | Pure decision for the gateway's own public base URL, used to construct every security- sensitive link (magic-link verification, OAuth2/OIDC redirect URIs). |
 | `slideSession` | Slide the idle timeout forward on activity: re-stamp `seen` (throttled) so an active user stays signed in, and tidy up an expired/garbage session cookie. |
 | `getSession` | Exposed so other routes (e.g. the n8n proxy) can pull the bearer token. |
 | `getRealSession` | The REAL signed-in session, ignoring any impersonation — used to authorise starting/stopping an impersonation against the genuine actor. |

@@ -36,6 +36,7 @@ import { getSession } from "./auth";
 import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus, buildPublicSetupStatus } from "../lib/setup-status";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
+import { bootRefusalActive } from "../lib/security-check";
 import { applyCharityOnboarding } from "../lib/charity-onboarding";
 import { sharedStateMode } from "../lib/shared-state";
 import { IDP_PRESETS } from "../lib/idp-presets";
@@ -104,7 +105,7 @@ router.get("/setup/profile", requireRole("admin"), (_req, res) => {
       sessionCap: Number(process.env["MAX_SESSIONS_PER_USER"]) > 0,
       kms: (process.env["KMS_PROVIDER"]?.trim() || "none") !== "none",
       makerChecker: !!process.env["DUAL_CONTROL_ACTIONS"]?.trim(),
-      securityStrict: isOn(process.env["SECURITY_STRICT"]),
+      securityStrict: bootRefusalActive(process.env),
       rateLimit: !isOn(process.env["RATE_LIMIT_DISABLED"]),
       // Tamper-resistant MFA (hardware-bound amr/acr) gates pmo/admin authority whenever
       // real SSO is configured — it's unconditional enforcement, not a separate toggle.
@@ -176,7 +177,7 @@ router.post("/setup/test-broker", requireRole("admin"), async (req, res) => {
   }
 
   try {
-    assertEgressAllowed(url); // SSRF guard: never let an admin-pasted URL reach metadata/link-local
+    await assertEgressAllowed(url); // SSRF guard: never let an admin-pasted URL reach metadata/link-local
     const r = await fetch(url, {
       method: "POST",
       headers: {
@@ -516,7 +517,7 @@ router.post("/setup/verify-workflow", requireRole("admin"), async (req, res) => 
     return;
   }
   try {
-    assertEgressAllowed(url); // SSRF guard: never let an admin-pasted URL reach metadata/link-local
+    await assertEgressAllowed(url); // SSRF guard: never let an admin-pasted URL reach metadata/link-local
   } catch (err) {
     res.status(400).json({ error: err instanceof EgressError ? err.message : "That webhook URL is not allowed." });
     return;

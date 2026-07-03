@@ -6,6 +6,7 @@
 import crypto from "node:crypto";
 import { getSettings, updateSettings, type WebhookSubscription } from "./settings";
 import { assertSafeOutboundUrl } from "./url-safety";
+import { safeFetch, EgressError } from "./egress";
 import { isEntitled } from "./license";
 import { logger } from "./logger";
 import {
@@ -127,7 +128,12 @@ async function deliverOne(sub: WebhookSubscription, event: WebhookEvent, payload
   const body = JSON.stringify(envelope);
   const started = Date.now();
   try {
-    const r = await fetch(sub.url, {
+    // safeFetch re-validates the target at DELIVERY time (incl. a fresh DNS resolution), not
+    // just once at subscription-creation time — a subscription's URL is admin/customer-supplied
+    // and can sit unused for a long time, during which its DNS record (or the record of a domain
+    // it's since been repointed to) could be rebound to a link-local/metadata address. Re-checking
+    // on every delivery closes that TOCTOU/DNS-rebinding gap.
+    const r = await safeFetch(sub.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -142,7 +148,8 @@ async function deliverOne(sub: WebhookSubscription, event: WebhookEvent, payload
     return { id: sub.id, url: sub.url, ok: r.ok, status: r.status, ms: Date.now() - started };
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === "TimeoutError";
-    return { id: sub.id, url: sub.url, ok: false, status: 0, ms: Date.now() - started, error: isTimeout ? "timed out" : "unreachable" };
+    const error = err instanceof EgressError ? "blocked by egress policy" : isTimeout ? "timed out" : "unreachable";
+    return { id: sub.id, url: sub.url, ok: false, status: 0, ms: Date.now() - started, error };
   }
 }
 

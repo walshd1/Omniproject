@@ -1,9 +1,12 @@
 /**
  * Startup security self-check — surface dangerous *production* configurations
  * loudly at boot so a customer can't silently deploy the headline. Pure + tested
- * (`securityFindings`), with a boot hook (`runSecuritySelfCheck`) that logs the
- * findings and, in strict mode (`SECURITY_STRICT=on`), refuses to boot on a
- * CRITICAL finding.
+ * (`securityFindings`), with a boot hook (`runSecuritySelfCheck`) that logs every
+ * finding and, by DEFAULT, refuses to boot on a CRITICAL one (e.g. demo auth —
+ * every session is admin — reaching production with no override). A log-only
+ * check that a customer can simply ignore is not a control; refusing to boot is
+ * what makes it one. `SECURITY_STRICT=off` is the one explicit escape hatch, for
+ * a deliberate staged rollout — anything else (unset, "on", "1"...) enforces.
  *
  * It complements the hard fail-fast already in app.ts (default SESSION_SECRET in
  * prod) — this catches the *combinations* that are insecure but not individually
@@ -25,6 +28,19 @@ export interface SecurityFinding {
 type Env = Record<string, string | undefined>;
 const on = (v: string | undefined) => v?.trim().toLowerCase() === "true" || v?.trim().toLowerCase() === "on";
 const set = (v: string | undefined) => !!v?.trim();
+const explicitlyOff = (v: string | undefined) => {
+  const t = v?.trim().toLowerCase();
+  return t === "off" || t === "false" || t === "0" || t === "no";
+};
+
+/**
+ * Is the CRITICAL-finding boot refusal active? True unless an operator has explicitly opted
+ * out (`SECURITY_STRICT=off`) — refusal is the default, not something that must be turned on.
+ * Exported so the setup UI's hardening checklist reports the SAME thing the boot hook enforces.
+ */
+export function bootRefusalActive(env: Env): boolean {
+  return !explicitlyOff(env["SECURITY_STRICT"]);
+}
 
 /**
  * Evaluate the deployment config and return any security findings (pure).
@@ -103,6 +119,18 @@ export function securityFindings(env: Env): SecurityFinding[] {
       message: "RATE_LIMIT_DISABLED is on in production — abuse/DoS protection is removed.",
     });
   }
+  // CSRF guard disabled — SameSite=Lax cookies already block most cross-site vectors, so this
+  // is a relaxation rather than the full authentication bypass OIDC_SKIP_TOKEN_VERIFY is, but a
+  // deployment that quietly disabled it (e.g. to work around a legacy reverse proxy) should
+  // still see that surfaced at every boot, not just once when it was set.
+  if (on(env["CSRF_DISABLED"])) {
+    out.push({
+      id: "csrf-disabled",
+      severity: "warn",
+      message: "CSRF_DISABLED is on in production — the Origin/Referer + double-submit-token guard for " +
+        "cookie-authenticated mutations is off (SameSite=Lax cookies still block most cross-site vectors).",
+    });
+  }
   // Premium/labels free-to-run is a business choice, not security — skip.
   // Egress not pinned (link-local/metadata are still blocked regardless).
   if (!set(env["EGRESS_ALLOWLIST"])) {
@@ -137,9 +165,12 @@ export interface Logger {
 }
 
 /**
- * Boot hook: log findings at their severity. In strict mode, a CRITICAL finding
- * throws (fail-closed) so the gateway refuses to boot insecurely. Returns the
- * findings (for tests / diagnostics).
+ * Boot hook: log findings at their severity. By default, a CRITICAL finding throws
+ * (fail-closed) so the gateway refuses to boot insecurely — e.g. a production-like
+ * deployment with no OIDC (demo auth: every session is admin) and no explicit
+ * DEPLOYMENT_PROFILE/ACCEPT_DEMO_AUTH override. Set `SECURITY_STRICT=off` to
+ * downgrade this to a log-only warning (a deliberate, explicit choice — never the
+ * default). Returns the findings (for tests / diagnostics).
  */
 export function runSecuritySelfCheck(env: Env, logger: Logger): SecurityFinding[] {
   const findings = securityFindings(env);
@@ -149,12 +180,13 @@ export function runSecuritySelfCheck(env: Env, logger: Logger): SecurityFinding[
     else if (f.severity === "warn") logger.warn({ finding: f }, line);
     else logger.info({ finding: f }, line);
   }
-  if (on(env["SECURITY_STRICT"])) {
+  if (bootRefusalActive(env)) {
     const critical = findings.filter((f) => f.severity === "critical");
     if (critical.length) {
       throw new Error(
-        `SECURITY_STRICT is on and ${critical.length} critical security finding(s) were detected: ` +
-          critical.map((f) => f.id).join(", ") + ". Fix them or disable SECURITY_STRICT to boot.",
+        `${critical.length} critical security finding(s) were detected: ` +
+          critical.map((f) => f.id).join(", ") +
+          ". Refusing to boot. Fix them, or set SECURITY_STRICT=off to boot anyway (soft-check only — not recommended in production).",
       );
     }
   }

@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import { envFlag } from "./env";
 import { requireTls } from "./deployment-profile";
 import { constantTimeEqual } from "./crypto-keys";
+import { configuredCorsOrigins } from "./origin-allowlist";
 
 /**
  * CSRF hardening for cookie-authenticated mutations (security item B).
@@ -38,18 +39,13 @@ function disabled(): boolean {
   return envFlag("CSRF_DISABLED");
 }
 
-/** Our own origin(s): PUBLIC_URL, the request's derived origin, + any trusted extras. */
+/** Our own origin(s): PUBLIC_URL / CORS_ALLOWED_ORIGINS / CSRF_TRUSTED_ORIGINS (shared with the
+ *  CORS allowlist — see lib/origin-allowlist.ts), plus the request's own derived origin. */
 function allowedOrigins(req: Request): Set<string> {
-  const out = new Set<string>();
-  const pub = process.env["PUBLIC_URL"]?.trim();
-  if (pub) out.add(pub.replace(/\/+$/, "").toLowerCase());
+  const out = configuredCorsOrigins();
   const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0]?.trim() || req.protocol;
   const host = (req.headers["x-forwarded-host"] as string)?.split(",")[0]?.trim() || req.get("host");
   if (host) out.add(`${proto}://${host}`.toLowerCase());
-  for (const extra of (process.env["CSRF_TRUSTED_ORIGINS"]?.split(",") ?? [])) {
-    const e = extra.trim().replace(/\/+$/, "").toLowerCase();
-    if (e) out.add(e);
-  }
   return out;
 }
 

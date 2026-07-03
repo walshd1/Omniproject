@@ -1145,6 +1145,29 @@ test("webhooks: deliver is a no-op without the entitlement (enforced)", async ()
   }
 });
 
+test("webhooks: delivery is re-validated against the FULL egress policy every time, not just at creation (TOCTOU)", async () => {
+  // A URL that was perfectly safe when the subscription was created (passes the literal-only
+  // SSRF check in both createWebhook and every settings write) can still need blocking LATER —
+  // e.g. once an operator locks egress down with EGRESS_ALLOWLIST. Only a fresh, delivery-time
+  // check catches that; a one-time creation-time check (or a raw, unguarded fetch) would not.
+  // A literal (non-hostname) IP is used so this needs no real DNS resolution.
+  updateSettings({
+    webhooks: [{ id: "toctou", url: "http://93.184.216.34/hook", secret: "s", events: ["*"], active: true }],
+  });
+  const savedAllowlist = process.env["EGRESS_ALLOWLIST"];
+  process.env["EGRESS_ALLOWLIST"] = "idp.example.com"; // tightened AFTER the webhook was created
+  try {
+    const results = await deliverWebhooks("notification", { hello: "world" });
+    assert.equal(results.length, 1);
+    assert.equal(results[0]!.ok, false);
+    assert.equal(results[0]!.status, 0);
+    assert.equal(results[0]!.error, "blocked by egress policy");
+  } finally {
+    updateSettings({ webhooks: [] });
+    if (savedAllowlist === undefined) delete process.env["EGRESS_ALLOWLIST"]; else process.env["EGRESS_ALLOWLIST"] = savedAllowlist;
+  }
+});
+
 // ── Enterprise backend gating ───────────────────────────────────────────────────
 test("backends: enterprise tier flags SAP/Primavera/Dynamics, not Jira", () => {
   assert.equal(isEnterpriseBackend("sap"), true);

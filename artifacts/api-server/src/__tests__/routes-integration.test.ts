@@ -14,7 +14,10 @@ const SECRET = "test-session-secret-do-not-use-in-prod";
 process.env["SESSION_SECRET"] = SECRET;
 process.env["NODE_ENV"] = "production";
 process.env["RATE_LIMIT_DISABLED"] = "true";
-// No OIDC_ISSUER_URL → demo auth → sessions are admin (so writes are allowed).
+// No OIDC_ISSUER_URL → demo auth → sessions are admin (so writes are allowed). That, plus
+// rate-limiting deliberately off, are now CRITICAL boot-refusing findings by default — opt
+// out for this harness only (this "production" is a test convenience, not a real deployment).
+process.env["SECURITY_STRICT"] = "off";
 
 let server: Server;
 let base: string;

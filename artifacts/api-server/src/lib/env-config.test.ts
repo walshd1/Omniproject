@@ -34,6 +34,13 @@ test("checkRequiredEnv: clean in dev, flags weak prod config", () => {
   assert.deepEqual(checkRequiredEnv({ NODE_ENV: "production", SESSION_SECRET: "a-strong-secret-value-1234" }), []);
 });
 
+test("checkRequiredEnv: OIDC_SKIP_TOKEN_VERIFY left on in production is a critical finding (auth bypass)", () => {
+  const issues = checkRequiredEnv({ NODE_ENV: "production", OIDC_SKIP_TOKEN_VERIFY: "true" });
+  assert.match(issues.join(" "), /OIDC_SKIP_TOKEN_VERIFY/);
+  assert.deepEqual(checkRequiredEnv({ NODE_ENV: "production", OIDC_SKIP_TOKEN_VERIFY: "false" }), []);
+  assert.deepEqual(checkRequiredEnv({ NODE_ENV: "development", OIDC_SKIP_TOKEN_VERIFY: "true" }), []);
+});
+
 test("checkRequiredEnv: also runs when NODE_ENV isn't literally 'production' but production signals are present", () => {
   // A real OIDC issuer configured (a production signal) with a weak SCIM token, NODE_ENV unset —
   // this must NOT be silently skipped just because NODE_ENV isn't the exact string "production".

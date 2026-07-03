@@ -6,8 +6,16 @@
 # k8s-enterprise-manifest.yaml all deploy.
 
 # ── Builder ───────────────────────────────────────────────────────────────────
-# Mirror the CI toolchain (.github/workflows/ci.yml): Node 22 + pnpm 11.8.0.
-FROM node:26-bookworm-slim AS builder
+# Mirror the CI toolchain (.github/workflows/ci.yml): Node 26 + pnpm 11.8.0 — if you bump
+# either version here, bump the matching one in ci.yml (node-version / pnpm/action-setup's
+# `version:`) too, so the build and CI toolchains can't silently drift apart.
+#
+# Pinned by digest, not just the `26-bookworm-slim` tag: a tag is mutable (the same tag name
+# gets repointed at a new image on every Debian/Node patch release), so pinning only by tag
+# means every build silently pulls whatever the tag currently resolves to — not reproducible,
+# and a compromised/tampered upstream tag would go unnoticed. Refresh the digest deliberately
+# (e.g. `docker buildx imagetools inspect node:26-bookworm-slim`) alongside a real version bump.
+FROM node:26-bookworm-slim@sha256:b16ca7b4dcfb20184e1c70f9ee30c6a75ed1da669cfafd6d2add4761b123d79f AS builder
 
 # Node no longer bundles corepack, so install the pinned pnpm directly via npm.
 RUN npm install -g pnpm@11.8.0
@@ -28,7 +36,7 @@ RUN PORT=3000 BASE_PATH=/ pnpm --filter @workspace/omniproject run build \
  && pnpm --filter @workspace/api-server run build
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
-FROM node:26-bookworm-slim AS runtime
+FROM node:26-bookworm-slim@sha256:b16ca7b4dcfb20184e1c70f9ee30c6a75ed1da669cfafd6d2add4761b123d79f AS runtime
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -37,13 +45,20 @@ ENV STATIC_DIR=/app/public
 
 WORKDIR /app
 
-# Self-contained esbuild bundle + pino worker sidecar files.
-COPY --from=builder /app/artifacts/api-server/dist ./dist
+# Self-contained esbuild bundle + pino worker sidecar files — `*.mjs` only, deliberately
+# excluding the sibling `*.map` files the build emits (esbuild's `sourcemap: "linked"` embeds
+# the full original TypeScript source in each one). Shipping them into the image would put
+# readable source on disk for no runtime benefit — the error handler never returns a stack
+# trace to a client (lib/error-handler.ts), and nothing here serves ./dist statically, so the
+# maps would have no legitimate reader once the build is done.
+COPY --from=builder /app/artifacts/api-server/dist/*.mjs ./dist/
 # Built static frontend.
 COPY --from=builder /app/artifacts/omniproject/dist/public ./public
 
 EXPOSE 3000
 USER node
 
-# Liveness/readiness probes target /api/healthz on this port.
-CMD ["node", "--enable-source-maps", "dist/index.mjs"]
+# Liveness/readiness probes target /api/healthz on this port. No --enable-source-maps: the
+# runtime image ships no .map files (see above), so it would be a no-op; keeping it off avoids
+# a future re-add of the maps silently starting to reference them.
+CMD ["node", "dist/index.mjs"]

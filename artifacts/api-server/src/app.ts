@@ -33,12 +33,15 @@ import { ipAllowGuard } from "./lib/ip-allow";
 import { maintenanceGuard } from "./lib/maintenance";
 import { requireTls } from "./lib/deployment-profile";
 import { stripDangerousKeys } from "./lib/safe-json";
+import { resolveTrustProxy } from "./lib/trust-proxy";
+import { configuredCorsOrigins } from "./lib/origin-allowlist";
 
 const app: Express = express();
 
-// Honour X-Forwarded-* headers (Traefik / k8s ingress) so OIDC redirect URIs
-// and secure-cookie detection resolve to the public origin.
-app.set("trust proxy", true);
+// Honour X-Forwarded-* headers (Traefik / k8s ingress) so OIDC redirect URIs and secure-cookie
+// detection resolve to the public origin — but ONLY when the operator has confirmed a trusted
+// proxy is actually there (TRUST_PROXY). Off by default.
+app.set("trust proxy", resolveTrustProxy(process.env["TRUST_PROXY"]));
 
 // Response compression (gzip/brotli) — first in the chain so it wraps the final
 // body of every API + SPA response. SSE/ranged/binary responses pass through.
@@ -110,7 +113,19 @@ app.use(
 // x-request-id, propagate via AsyncLocalStorage, and export an OTLP span when configured.
 // Runs right after pinoHttp so it can enrich the request logger.
 app.use(tracingMiddleware);
-app.use(cors());
+// CORS: no origin is trusted by default (deny cross-origin reads) — the common single-container/
+// reverse-proxy deployment serves the SPA + API from the same origin, where CORS never even
+// applies. PUBLIC_URL / CORS_ALLOWED_ORIGINS / CSRF_TRUSTED_ORIGINS opt specific origins in; see
+// lib/origin-allowlist.ts. Requests with no Origin header (same-origin, curl, server-to-server)
+// are unaffected either way — CORS is a browser-side, cross-origin-only restriction.
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || configuredCorsOrigins().has(origin.toLowerCase())) callback(null, true);
+      else callback(null, false);
+    },
+  }),
+);
 
 // Baseline security headers on every response (API + SPA). Deliberately
 // conservative — no CSP here (it would need per-deployment tuning for the SPA's

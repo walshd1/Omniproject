@@ -241,7 +241,7 @@ async function callN8n<T = unknown>(
   let lastErr: unknown;
   for (const target of targets) {
     try {
-      assertEgressAllowed(target); // SSRF guard: never let the broker URL reach metadata/link-local
+      await assertEgressAllowed(target); // SSRF guard: never let the broker URL reach metadata/link-local
       res = await fetch(target, { ...init, signal: AbortSignal.timeout(10_000) });
       break;
     } catch (e) {
@@ -296,7 +296,7 @@ async function callN8n<T = unknown>(
 export async function pingBroker(timeoutMs = 2000): Promise<{ reachable: boolean; status?: number; detail?: string }> {
   const url = webhookPool()[0]!;
   try {
-    assertEgressAllowed(url);
+    await assertEgressAllowed(url);
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", [REQUEST_HEADERS.action]: "__ready", [REQUEST_HEADERS.origin]: GATEWAY_ORIGIN },
@@ -486,7 +486,7 @@ export class N8nBroker implements Broker {
     const actions = await poolMap(VERIFIABLE_ACTIONS, VERIFY_PROBE_FANOUT_LIMIT, async (action) => {
       const started = Date.now();
       try {
-        assertEgressAllowed(url); // SSRF guard on the verify probe too
+        await assertEgressAllowed(url); // SSRF guard on the verify probe too
         const probe = { action, payload: { projectId }, source: "verify", origin: GATEWAY_ORIGIN, verify: true };
         const psk = pskEnabled();
         const res = await fetch(url, {

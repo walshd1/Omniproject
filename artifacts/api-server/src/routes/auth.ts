@@ -39,6 +39,7 @@ import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
 import { currentVersion, isActive, userSessionsRevokedAt } from "../lib/key-registry";
 import { registerSession } from "../lib/session-registry";
 import { requireTls } from "../lib/deployment-profile";
+import { productionSignals } from "../lib/dev-mode-guard";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
 import { checkLogin } from "../lib/impossible-travel";
 import { recordAudit } from "../lib/audit";
@@ -94,12 +95,67 @@ function cookieBase() {
   };
 }
 
-function baseUrl(req: Request): string {
-  const configured = process.env["PUBLIC_URL"]?.trim();
+/** Thrown by `resolveBaseUrl` when a production-like deployment has no `PUBLIC_URL` — building
+ *  a security-sensitive link (magic-link, OAuth/OIDC redirect) from a client-supplied Host
+ *  header would let a request forger poison it. The route's own error handling turns this into
+ *  a safe generic 500, never the raw client-supplied value. */
+export class InsecureBaseUrlError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InsecureBaseUrlError";
+  }
+}
+
+/**
+ * Pure decision for the gateway's own public base URL, used to construct every security-
+ * sensitive link (magic-link verification, OAuth2/OIDC redirect URIs). Exported (and kept
+ * request-free) so the policy is unit-testable without an Express `Request`.
+ *
+ * `PUBLIC_URL` is always authoritative when set. When it's NOT set, a client-supplied `Host` /
+ * `X-Forwarded-Host` header is NEVER safe to trust blindly — either header is just a string the
+ * caller chose, and an attacker can spoof it on the very request that triggers a magic-link
+ * email to a VICTIM, poisoning the link the victim receives with an attacker-controlled domain
+ * (classic host-header-injection account takeover). So:
+ *   - In a production-like deployment (real SSO configured, a licence, etc. — the SAME detector
+ *     `session-secret-guard.ts`/`requireTls()` use for the equivalent class of gap), missing
+ *     `PUBLIC_URL` is a hard failure, not a silent header-trusting fallback.
+ *   - In dev/demo (no production signals), a fallback is kept for local convenience, but
+ *     `X-Forwarded-*` is honoured ONLY when the operator has explicitly opted into trusting a
+ *     reverse proxy (`req.app.get("trust proxy")`) — otherwise even those are just more
+ *     client-supplied strings.
+ */
+export function resolveBaseUrl(opts: {
+  configured: string | undefined;
+  productionLike: boolean;
+  trustProxy: boolean;
+  forwardedProto: string | undefined;
+  forwardedHost: string | undefined;
+  reqProtocol: string;
+  rawHost: string | undefined;
+}): string {
+  const configured = opts.configured?.trim();
   if (configured) return configured.replace(/\/+$/, "");
-  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] || req.protocol;
-  const host = req.headers["x-forwarded-host"] || req.get("host");
+  if (opts.productionLike) {
+    throw new InsecureBaseUrlError(
+      "PUBLIC_URL must be set in a production deployment — building magic-link/OAuth redirect " +
+        "URLs from a client-supplied Host header is unsafe (host-header injection).",
+    );
+  }
+  const proto = (opts.trustProxy ? opts.forwardedProto?.split(",")[0]?.trim() : undefined) || opts.reqProtocol;
+  const host = (opts.trustProxy ? opts.forwardedHost : undefined) || opts.rawHost;
   return `${proto}://${host}`;
+}
+
+function baseUrl(req: Request): string {
+  return resolveBaseUrl({
+    configured: process.env["PUBLIC_URL"],
+    productionLike: process.env["NODE_ENV"] === "production" || productionSignals(process.env).length > 0,
+    trustProxy: !!req.app.get("trust proxy"),
+    forwardedProto: req.headers["x-forwarded-proto"] as string | undefined,
+    forwardedHost: req.headers["x-forwarded-host"] as string | undefined,
+    reqProtocol: req.protocol,
+    rawHost: req.get("host"),
+  });
 }
 
 function readSession(req: Request): Session | null {

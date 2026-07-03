@@ -27,6 +27,9 @@ process.env["OMNI_DEV_MODE"] = "1"; // force dev mode on regardless of other deb
 // to exercise viewer-vs-admin gating, so it acknowledges the guard like local testing would.
 process.env["OMNI_DEV_MODE_ACK_INSECURE"] = "1";
 process.env["RATE_LIMIT_DISABLED"] = "true";
+// Real OIDC is a production signal (regardless of NODE_ENV), and RATE_LIMIT_DISABLED-in-prod
+// is a CRITICAL boot-refusing finding by default (env-config) — opt out for this harness only.
+process.env["SECURITY_STRICT"] = "off";
 
 let server: Server;
 let base: string;

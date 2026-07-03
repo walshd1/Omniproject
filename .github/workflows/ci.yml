@@ -19,6 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Keep this pnpm/Node pair in sync with the Dockerfile's builder stage — it deliberately
+      # mirrors these exact versions, and bumping one without the other risks a silent drift
+      # between what CI verifies and what actually ships.
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:

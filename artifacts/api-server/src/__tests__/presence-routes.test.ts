@@ -14,6 +14,10 @@ process.env["NODE_ENV"] = "production";
 process.env["RATE_LIMIT_DISABLED"] = "true";
 // presence is default-off (cost: SSE streams) in the gating model — opt it in for these route tests.
 process.env["ENABLED_FEATURES"] = "presence";
+// This "production" is a test-harness convenience flag, not a real deployment: no OIDC is
+// configured (demo auth) and rate-limiting is deliberately off, both of which are now CRITICAL
+// boot-refusing findings by default. Opt out for this harness only.
+process.env["SECURITY_STRICT"] = "off";
 
 let server: Server;
 let base: string;
