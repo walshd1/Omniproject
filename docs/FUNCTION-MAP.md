@@ -90,10 +90,17 @@ Demo dataset — the canned data the DemoBroker serves.
 | `getDemoState` | ── Stateful dev mode (opt-in via DEV_PERSIST_FILE; demo only) ───────────────── |
 | `persistDemoState` | Persist the in-memory demo dataset so it survives a restart (dev/test only). |
 | `loadDemoState` | Hydrate the demo dataset from disk on boot when stateful dev mode is enabled. |
+| `resetDemoDataToSeed` | Restore the demo dataset to what this process booted with. |
+| `shouldAutoResetDemo` | Whether the periodic reset should run: only in genuine demo mode (no real backend) and only when the operator hasn't opted into durable dev persistence (DEV_PERSIST_FILE), which is a deliberate request for state to accumulate. |
+| `demoResetIntervalMinutes` | How often to reset (minutes). |
 
 ### `artifacts/api-server/src/broker/demo.ts`
 
 Demo broker — the fake adapter.
+
+| Function | What it does |
+| --- | --- |
+| `resetDemoBrokerState` | Restore everything DemoBroker can mutate (projects/issues/raid via demo-data, plus this file's own task-items store and id counters) back to a fresh boot state. |
 
 ### `artifacts/api-server/src/broker/dev-broker.ts`
 
@@ -387,6 +394,8 @@ AI provider registry + capability→provider mapping.
 
 | Function | What it does |
 | --- | --- |
+| `rollbackAiProviders` | Undo the most recent provider/mapping change (one generation back). |
+| `canRollbackAiProviders` | Whether a rollback is currently available (for the admin UI to show/hide the control). |
 | `listProviders` | ── Provider entities ────────────────────────────────────────────────────────── |
 | `getProvider` | The provider entity with this id, or undefined. |
 | `upsertProvider` | Add or replace a provider entity (by id). |
@@ -515,6 +524,15 @@ AWS Signature V4 for the JSON (`x-amz-json-1.1`) services we call (Secrets Manag
 | --- | --- |
 | `awsSignedHeaders` | Build the signed headers for a POST to an AWS JSON API endpoint at `host`. |
 | `awsCredsFromEnv` | Read AWS credentials + region from the environment. |
+
+### `artifacts/api-server/src/lib/backend-suggest.ts`
+
+AI-drafted starting point for the backend/vendor authoring form (Settings → Custom backends, `CustomBackendAdmin.tsx` in the SPA).
+
+| Function | What it does |
+| --- | --- |
+| `suggestBackendPrompt` | Build the model prompt for one vendor-draft request. |
+| `parseSuggestedManifest` | Parse the model's reply into a manifest-shaped object, tagging it as AI-suggested regardless of what the model actually wrote in "notes" (belt and braces — the UI's "unverified" framing must never depend on the model having followed instructions). |
 
 ### `artifacts/api-server/src/lib/branding.ts`
 
@@ -690,6 +708,16 @@ Config export for the Setup wizard.
 | `configEntries` | Resolve the ordered env entries that reproduce the given configuration. |
 | `buildConfigExport` | Render the deploy config in the requested format (.env / docker-compose / k8s). |
 
+### `artifacts/api-server/src/lib/config-refresh.ts`
+
+Hot-reload the runtime config directory (OMNI_CONFIG_DIR) without a restart.
+
+| Function | What it does |
+| --- | --- |
+| `refreshConfigDir` | Reload the config directory now. |
+| `configBackupInfo` | The `.old` backup's age, for the 30-day "go clear this out" admin nudge. |
+| `clearConfigBackup` | Delete the `.old` backup (admin cleanup, after the 30-day nudge or any time). |
+
 ### `artifacts/api-server/src/lib/config-snapshot.ts`
 
 Config snapshot / backup-restore.
@@ -859,7 +887,7 @@ Deployment profile — lets a deployment declare its CONTEXT so the gateway's de
 | `profilePosture` | The posture for the active profile. |
 | `profileCatalogue` | Every profile's posture (the picker catalogue + per-customer-type presets). |
 | `acceptDemoAuth` | Has the operator explicitly accepted no-IdP demo auth (everyone admin)? |
-| `requireTls` | Should the gateway treat itself as served over TLS (secure cookies + HSTS)? An explicit PUBLIC_TLS wins; otherwise "lan-ok" profiles default to HTTP, and "required" profiles to "secure in production" — so the default (business) profile keeps today's behaviour exactly, while a self-hoster/charity can run production-stable on plain HTTP without breaking sessions. |
+| `requireTls` | Should the gateway treat itself as served over TLS (secure cookies + HSTS)? An explicit PUBLIC_TLS wins; otherwise "lan-ok" profiles default to HTTP (a deliberate, accepted posture — a self-hoster/charity can run production-stable on plain HTTP without breaking sessions), and "required" profiles (business/enterprise) default to true whenever this looks like a real deployment. |
 | `demoAuthSeverity` | The severity of the no-IdP finding for this deployment: the profile's default, or "info" once the operator explicitly accepts it (so SECURITY_STRICT won't block a deliberate choice). |
 
 ### `artifacts/api-server/src/lib/dev-entitlements.ts`
@@ -901,6 +929,20 @@ Stateful developer mode (opt-in).
 | --- | --- |
 | `saveState` | Dev-only: persist the in-memory demo state to disk (off in prod). |
 | `loadState` | Dev-only: load a previously persisted demo state, or null if none. |
+
+### `artifacts/api-server/src/lib/drift-canary.ts`
+
+Third-party API drift canary.
+
+| Function | What it does |
+| --- | --- |
+| `diffSnapshots` | Diff two canary snapshots (PURE). |
+| `recentDriftFindings` | The most recent drift findings (newest last). |
+| `__resetDriftCanaryState` | Test-only: clear the baseline snapshot + findings ring. |
+| `runDriftCanary` | Run the canary: snapshot the broker's read-only surface, diff against the last snapshot, and dispatch a notification (kind "integration_drift", targeted at admins) when something broke or a field disappeared. |
+| `driftCanaryIntervalHours` | The configured cadence in hours: the env override when a valid non-negative number, else the 6-hour default. |
+| `startDriftCanaryScheduler` | Start the in-process canary timer (single-instance / homelab). |
+| `__stopDriftCanaryScheduler` | Test-only: stop the timer. |
 
 ### `artifacts/api-server/src/lib/dsar.ts`
 
@@ -946,6 +988,7 @@ Validated, typed environment access — the zero-trust stance applied to configu
 | `envInt` | An integer env var validated against an optional range; falls back when unset/invalid. |
 | `envEnum` | One of a fixed set; falls back when unset or not in the set. |
 | `envUrl` | An http(s) URL that passes the outbound-safety guard (no metadata/link-local), or undefined. |
+| `detectEnvVarTypos` | Env vars actually SET whose name looks like a near-miss on a known OmniProject var (e.g. `OIDC_ISUER_URL`) but doesn't exactly match one — a likely typo that would otherwise silently fall back to a default with zero signal, since env vars are opaque strings with no compiler to catch a misspelled key. |
 | `checkRequiredEnv` | Validate the security-critical env at boot. |
 
 ### `artifacts/api-server/src/lib/env.ts`
@@ -1076,6 +1119,16 @@ Tabular import — the write JOB, separated from the HTTP shell (routes/import.t
 | Function | What it does |
 | --- | --- |
 | `commitImport` | Write each mapped payload as an issue, skipping (never forcing) rows blocked by a missing title, the ruleset, or a broker error. |
+
+### `artifacts/api-server/src/lib/impossible-travel.ts`
+
+Impossible-travel detection — flags a login when the implied travel speed from the same principal's previous login is beyond physically plausible.
+
+| Function | What it does |
+| --- | --- |
+| `evaluateTravel` | Pure comparison of two login locations for one principal — no IO, fully unit-testable without the optional geoip-lite dependency installed. |
+| `checkLogin` | Record a login for `sub` from `ip` and check it against their last known location in this process. |
+| `__resetImpossibleTravelState` | Test-only: clear all remembered per-principal locations. |
 
 ### `artifacts/api-server/src/lib/ip-allow.ts`
 
@@ -1230,6 +1283,7 @@ Natural-language → canonical action planner.
 | Function | What it does |
 | --- | --- |
 | `plannerPrompt` | Build the planner prompt: the catalogue + a strict JSON output contract. |
+| `extractJson` | Pull the first JSON object out of a model reply (tolerant of code fences / prose). |
 | `toPlan` | Validate a parsed model reply against the tool catalogue into a typed plan. |
 | `planAction` | Plan an action from natural language. |
 
@@ -1467,6 +1521,8 @@ Sealed at-rest store for the rate card, the hashed identity→role map, and the 
 
 | Function | What it does |
 | --- | --- |
+| `rollbackRateCard` | Undo the most recent rate-card change (one generation back), restoring whatever was live immediately before it. |
+| `canRollbackRateCard` | Whether a rollback is currently available (for the admin UI to show/hide the control). |
 | `getRateCard` | The current rate card (job-title hashes → label + rates), decrypted into memory. |
 | `getIdentityMap` | The hashed identity→role map (central + per-scope overrides). |
 | `getProjectTypes` | The PMO-defined project-type list. |
@@ -1516,7 +1572,10 @@ Role-based access control.
 | --- | --- |
 | `getRoleMap` | The effective claim→role mapping + where each role's list comes from. |
 | `setRoleMap` | Set admin overrides for the claim→role mapping. |
-| `resetRoleMap` | Test-only: drop all overrides (back to pure env mapping). |
+| `rollbackRoleMap` | Undo the most recent setRoleMap() call, restoring the override exactly as it was before. |
+| `canRollbackRoleMap` | Whether a rollback is currently available (for the admin UI to show/hide the control). |
+| `resetRoleMap` | Test-only: drop all overrides (back to pure env mapping) and clear the undo buffer. |
+| `hasStrongAuth` | Does this session's auth-method assertion prove tamper-resistant (hardware-bound) MFA? |
 | `grantsFromClaims` | Pure mapping from a user's raw claim groups to their GRANTS (base rung + the set of authorities), using the configured role lists. |
 | `roleFromClaims` | Back-compat single-role view of a user's claims (the representative label). |
 | `grantsForReq` | Resolve a request's session (or API token) to its grants. |
@@ -1526,6 +1585,7 @@ Role-based access control.
 | `grantsSatisfy` | Do these grants satisfy the gate `need`? (The request-free core of `hasRole`.) - a BASE role (viewer/contributor/manager) → base rung ≥ that rank (an authority confers manager-level base, so a PMO or admin clears `manager`); - an AUTHORITY (pmo/admin) → that exact authority is held. |
 | `hasRole` | Does the request satisfy the gate `need`? |
 | `requireRole` | Express middleware: require the `need` grant, else 403. |
+| `requireAnyRole` | Express middleware: require ANY of the given grants (OR gate) — e.g. the surfaces that belong to whoever owns governance (pmo) or technical config (admin), since the two authorities are orthogonal and neither alone implies the other. |
 
 ### `artifacts/api-server/src/lib/read-cache.ts`
 
@@ -1596,6 +1656,15 @@ Runtime RED metrics (Rate, Errors, Duration) — the always-available observabil
 | `recordUnhandledError` | Count an error that reached the unhandled-error seam (error-handler.ts). |
 | `runtimeMetrics` | Snapshot the RED metrics as Prometheus metric descriptors. |
 | `resetRuntimeMetrics` | Test-only reset of all counters. |
+
+### `artifacts/api-server/src/lib/safe-json.ts`
+
+safeParseJson — native JSON.parse hardened against prototype pollution, for UNTRUSTED input (uploaded files, imported config/definitions, operator-mounted config directories).
+
+| Function | What it does |
+| --- | --- |
+| `stripDangerousKeys` | The stripping reviver itself — exported so it can also be handed straight to a JSON.parse- compatible option elsewhere (e.g. body-parser's `reviver` option for express.json()). |
+| `safeParseJson` | — |
 
 ### `artifacts/api-server/src/lib/saml.ts`
 
@@ -1692,6 +1761,15 @@ Concurrent-session cap.
 | `activeSessionCount` | How many sessions the registry currently tracks for a user (diagnostics). |
 | `__resetSessionRegistry` | Test-only: clear the registry. |
 
+### `artifacts/api-server/src/lib/session-secret-guard.ts`
+
+The session-cookie signing secret's boot-time guard, factored out of app.ts so the decision logic is pure and unit-testable (mirrors dev-mode-guard.ts's split of evaluate/throw).
+
+| Function | What it does |
+| --- | --- |
+| `evaluateSessionSecret` | Evaluate the guard (pure). |
+| `resolveSessionSecret` | Boot hook: evaluate the guard and throw (refuse to boot) when it fails. |
+
 ### `artifacts/api-server/src/lib/session-timeout.ts`
 
 Session timeout policy — a sliding IDLE timeout plus an ABSOLUTE lifetime cap.
@@ -1720,7 +1798,9 @@ Setup-status report — a registry of SECTIONS, each contributing a slice of the
 
 | Function | What it does |
 | --- | --- |
+| `brokerConfigured` | Whether a broker is wired at all — the ONE fact the public/outer surface needs (e.g. every session's demo-mode banner), independent of the caller's role. |
 | `buildSetupStatus` | Assemble the setup/status report from the registered sections. |
+| `buildPublicSetupStatus` | The "outer surface" of setup status — the one fact every authenticated session needs regardless of role (e.g. the demo-mode banner in the global chrome). |
 
 ### `artifacts/api-server/src/lib/shared-state.ts`
 
@@ -1782,7 +1862,7 @@ Step-up (re-authentication) for the highest-risk actions (security item D).
 | Function | What it does |
 | --- | --- |
 | `stepUpWindowMs` | How long a step-up stays fresh (STEP_UP_MINUTES, default 5). |
-| `stepUpFresh` | Has this session re-authenticated within the freshness window? |
+| `stepUpFresh` | Has this session re-authenticated within the freshness window? An impossible-travel flag (lib/impossible-travel.ts) raised AFTER the last step-up invalidates it — the holder must re-verify with a step-up minted after the flag before it counts as fresh again, regardless of how recently they last stepped up before the flag was raised. |
 | `requireStepUp` | Middleware: require a fresh step-up. |
 
 ### `artifacts/api-server/src/lib/stt.ts`
@@ -2027,7 +2107,7 @@ GET /api/federated-portfolio — this instance's own portfolio summary PLUS ever
 
 ### `artifacts/api-server/src/routes/health-watch.ts`
 
-Health / anomaly watch + executive & proactive digests — the scheduled, read-only autonomous jobs.
+Health / anomaly watch + executive & proactive digests + the drift canary — the scheduled, read-only autonomous jobs.
 
 ### `artifacts/api-server/src/routes/health.ts`
 
