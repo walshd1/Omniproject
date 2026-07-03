@@ -17,6 +17,7 @@ import { logger } from "./lib/logger";
 import { runWithTiming, getUpstreamMs } from "./lib/request-timing";
 import { runSecuritySelfCheck } from "./lib/security-check";
 import { runDevModeGuard } from "./lib/dev-mode-guard";
+import { resolveSessionSecret } from "./lib/session-secret-guard";
 import { isDevMode } from "./lib/dev-mode";
 import { httpRequestStarted, recordHttpRequest } from "./lib/runtime-metrics";
 import { errorHandler } from "./lib/error-handler";
@@ -54,24 +55,9 @@ app.use((req, res, next) => {
 // environment: an unset/empty/default value would sign auth cookies with a
 // world-readable constant, making sessions and roles forgeable (see
 // security.test.ts, which mints an admin session from a known secret). So we
-// fail fast rather than boot silently-insecure. The dev default is only ever
-// used outside production, where convenience beats hardening.
-const DEV_SESSION_SECRET = "omniproject-dev-secret-change-in-production";
+// fail fast rather than boot silently-insecure — see lib/session-secret-guard.ts
+// for the full threat model and the (pure, unit-tested) decision logic.
 const SESSION_SECRET = resolveSessionSecret();
-
-function resolveSessionSecret(): string {
-  const fromEnv = process.env["SESSION_SECRET"]?.trim();
-  if (process.env["NODE_ENV"] === "production") {
-    if (!fromEnv || fromEnv === DEV_SESSION_SECRET) {
-      throw new Error(
-        "SESSION_SECRET must be set to a strong, non-default value in production " +
-          "(the gateway refuses to boot otherwise so sessions can't be signed with a public key).",
-      );
-    }
-    return fromEnv;
-  }
-  return fromEnv || DEV_SESSION_SECRET;
-}
 
 // Loudly surface dangerous production config combinations at boot (and refuse to
 // boot in SECURITY_STRICT mode on a critical finding). Complements the hard
