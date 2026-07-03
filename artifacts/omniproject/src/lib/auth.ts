@@ -25,6 +25,10 @@ export interface AuthState {
   oauth2Configured?: boolean;
   /** Whether passwordless magic-link sign-in is enabled (no IdP). */
   magicLinkEnabled?: boolean;
+  /** This session was flagged as an implausible location jump from its own last login,
+   *  and hasn't been re-verified since (a step-up minted after the flag clears it). Not
+   *  a lockout — the SPA prompts a step-up before the next sensitive (admin/pmo) action. */
+  impossibleTravel?: boolean;
 }
 
 /** The linear base ladder. The authorities (pmo/admin) sit above it and confer manager base. */

@@ -76,6 +76,10 @@ export interface Session extends SessionUser {
   kver?: number;
   /** Epoch ms of the last step-up (re-authentication) — gates the highest-risk actions. */
   stepUpAt?: number;
+  /** Epoch ms this login was flagged as an implausible jump from the same principal's
+   *  previous login location (lib/impossible-travel.ts). Invalidates any step-up minted
+   *  before it — see lib/step-up.ts's stepUpFresh. */
+  impossibleTravelAt?: number;
   /** Monotonic-clock reading (ns, as a string) at session creation — the
    *  non-rewindable "session start time" bound into the per-session broker key. */
   smono?: string;

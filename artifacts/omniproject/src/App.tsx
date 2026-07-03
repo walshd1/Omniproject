@@ -10,6 +10,7 @@ import { A11yProvider } from "./lib/a11y-prefs";
 import { PlatformProvider } from "./lib/platform-context";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { DevModeWatermark } from "./components/DevModeWatermark";
+import { ImpossibleTravelBanner } from "./components/ImpossibleTravelBanner";
 import { DevPerfOverlay } from "./components/DevPerfOverlay";
 import { SessionTimeoutWatcher } from "./components/SessionTimeoutWatcher";
 import { DevImpersonationControl } from "./components/DevImpersonationControl";
@@ -146,6 +147,7 @@ function App() {
           <SwitchScanner />
           <VoiceInput />
           <DevModeWatermark />
+          <ImpossibleTravelBanner />
           <DevImpersonationControl />
           <DevEntitlementsControl />
           <MessyDataControl />

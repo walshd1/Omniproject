@@ -525,3 +525,25 @@ test("baseline security headers are present", async () => {
   // HSTS only in production (set above).
   assert.match(res.headers.get("strict-transport-security") ?? "", /max-age=\d+/);
 });
+
+test("GET /api/auth/me exposes impossibleTravel: false for an ordinary session", async () => {
+  const res = await req("/api/auth/me", { headers: { cookie: ADMIN } });
+  const json = (await res.json()) as { impossibleTravel?: boolean };
+  assert.equal(json.impossibleTravel, false);
+});
+
+test("GET /api/auth/me exposes impossibleTravel: true while a flag raised after the last step-up is unresolved", async () => {
+  const stepUpAt = Date.now() - 60_000; // 1 min ago — otherwise well within the fresh window
+  const flagged = signedSessionCookie({ sub: "flagged-1", roles: ["omni-admins"], amr: ["hwk"], stepUpAt, impossibleTravelAt: stepUpAt + 1 });
+  const res = await req("/api/auth/me", { headers: { cookie: flagged } });
+  const json = (await res.json()) as { impossibleTravel?: boolean };
+  assert.equal(json.impossibleTravel, true);
+});
+
+test("an impossible-travel flag raised after the last step-up blocks a step-up-gated admin action, even though stepUpAt is fresh", async () => {
+  const stepUpAt = Date.now() - 60_000;
+  const flagged = signedSessionCookie({ sub: "flagged-2", roles: ["omni-admins"], amr: ["hwk"], stepUpAt, impossibleTravelAt: stepUpAt + 1 });
+  const res = await req("/api/security/keys/whatever/revoke", { method: "POST", headers: { cookie: flagged, "content-type": "application/json" }, body: "{}" });
+  assert.equal(res.status, 403);
+  assert.equal(((await res.json()) as { code?: string }).code, "step_up_required");
+});

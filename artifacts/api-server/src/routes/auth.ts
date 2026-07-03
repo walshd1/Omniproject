@@ -40,8 +40,38 @@ import { currentVersion, isActive, userSessionsRevokedAt } from "../lib/key-regi
 import { registerSession } from "../lib/session-registry";
 import { requireTls } from "../lib/deployment-profile";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
+import { checkLogin } from "../lib/impossible-travel";
+import { recordAudit } from "../lib/audit";
+import { stepUpFresh } from "../lib/step-up";
 
 const router = Router();
+
+/** Check a fresh login for implausible travel from the same principal's last login in
+ *  this process, audit-log it loudly if flagged, and return the session patch to merge
+ *  in (empty object when clean). Shared by every real-identity login path (OIDC, SAML,
+ *  OAuth2, magic-link) — demo mode is exempt (see lib/impossible-travel.ts's caller
+ *  contract; demo's single shared "demo-user" identity has no real location to protect). */
+async function travelCheck(sub: string, email: string | undefined, ip: string | undefined): Promise<{ impossibleTravelAt?: number }> {
+  const result = await checkLogin(sub, ip);
+  if (!result.flagged) return {};
+  recordAudit({
+    ts: new Date().toISOString(),
+    category: "auth",
+    action: "impossible_travel_flagged",
+    actor: { sub, email },
+    status: 200,
+    write: false,
+    meta: {
+      distanceKm: result.distanceKm,
+      speedKmh: result.speedKmh,
+      minutesElapsed: result.minutesElapsed,
+      fromCountry: result.fromCountry,
+      toCountry: result.toCountry,
+      ip,
+    },
+  });
+  return { impossibleTravelAt: Date.now() };
+}
 
 const SESSION_COOKIE = "omni_session";
 const FLOW_COOKIE = "omni_oidc_flow";
@@ -180,6 +210,9 @@ router.get("/auth/me", (req, res) => {
       role: roleForReq(req),
       // Lets the SPA warn before, and redirect on, an idle/absolute timeout.
       sessionTimeout: timeoutPolicy(),
+      // Currently-unresolved impossible-travel flag (cleared by a step-up minted AFTER
+      // it was raised — see stepUpFresh) — the SPA prompts a re-verification while true.
+      impossibleTravel: !!session.impossibleTravelAt && !stepUpFresh(session, Date.now()),
       samlConfigured: isSamlConfigured(),
       // Surfaces a PARTIALLY-configured SAML rollout (what's still missing) so IT can self-diagnose.
       samlStatus: samlConfigStatus(),
@@ -305,6 +338,7 @@ router.get("/auth/callback", async (req, res) => {
     }
 
     const claims = decodeIdTokenClaims(tokens.id_token);
+    const travel = await travelCheck(claims?.sub || "unknown", claims?.email, req.ip);
 
     setSession(res, {
       sub: claims?.sub || "unknown",
@@ -317,6 +351,7 @@ router.get("/auth/callback", async (req, res) => {
       idToken: tokens.id_token,
       // A step-up re-auth (prompt=login) stamps freshness so a sensitive action proceeds.
       ...(stepup ? { stepUpAt: Date.now() } : {}),
+      ...travel,
     });
     setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
 
@@ -355,6 +390,7 @@ router.post("/auth/saml/callback", async (req, res) => {
   try {
     const claims = await validateSamlResponse(body.SAMLResponse);
     if (!claims) { res.status(503).send("SAML SSO is unavailable (provider library not installed)."); return; }
+    const travel = await travelCheck(claims.sub, claims.email, req.ip);
     setSession(res, {
       sub: claims.sub,
       ...(claims.name !== undefined ? { name: claims.name } : {}),
@@ -363,6 +399,7 @@ router.post("/auth/saml/callback", async (req, res) => {
       ...(claims.acr !== undefined ? { acr: claims.acr } : {}),
       // SAML asserts identity, not a backend bearer (see lib/saml HONEST SCOPE).
       accessToken: "saml",
+      ...travel,
     });
     setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
     res.redirect(safeLocalPath(typeof body.RelayState === "string" ? body.RelayState : "/"));
@@ -427,6 +464,7 @@ router.get("/auth/oauth2/callback", async (req, res) => {
     const info = await fetchUserInfo(oauth2Config, tokens.access_token);
     const user = mapUserInfo(oauth2Config, info);
     if (!user) { res.status(502).send("OAuth2 provider returned no usable identity."); return; }
+    const travel = await travelCheck(user.sub, user.email, req.ip);
     setSession(res, {
       sub: user.sub,
       ...(user.name !== undefined ? { name: user.name } : {}),
@@ -434,6 +472,7 @@ router.get("/auth/oauth2/callback", async (req, res) => {
       ...(user.roles && user.roles.length ? { roles: user.roles } : {}),
       // The provider's access token is opaque (not a backend bearer); identity only.
       accessToken: "oauth2",
+      ...travel,
     });
     setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
     res.redirect(safeLocalPath(returnTo));
@@ -465,7 +504,8 @@ router.get("/auth/magic/verify", async (req, res) => {
   const verdict = verifyMagicToken(token, Date.now());
   if (!verdict) { res.status(400).send("This sign-in link is invalid or has expired."); return; }
   if (!(await consumeMagicToken(verdict.jti))) { res.status(400).send("This sign-in link has already been used."); return; }
-  setSession(res, { sub: verdict.email, name: verdict.email, email: verdict.email, accessToken: "magic" });
+  const travel = await travelCheck(verdict.email, verdict.email, req.ip);
+  setSession(res, { sub: verdict.email, name: verdict.email, email: verdict.email, accessToken: "magic", ...travel });
   setCsrfCookie(res, newCsrfToken());
   res.redirect(safeLocalPath(req.query["returnTo"]));
 });

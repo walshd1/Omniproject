@@ -23,9 +23,14 @@ export function stepUpWindowMs(): number {
   return min * 60_000;
 }
 
-/** Has this session re-authenticated within the freshness window? */
-export function stepUpFresh(session: { stepUpAt?: number } | null | undefined, now: number): boolean {
-  return !!session?.stepUpAt && now - session.stepUpAt < stepUpWindowMs();
+/** Has this session re-authenticated within the freshness window? An impossible-travel
+ *  flag (lib/impossible-travel.ts) raised AFTER the last step-up invalidates it — the
+ *  holder must re-verify with a step-up minted after the flag before it counts as fresh
+ *  again, regardless of how recently they last stepped up before the flag was raised. */
+export function stepUpFresh(session: { stepUpAt?: number; impossibleTravelAt?: number } | null | undefined, now: number): boolean {
+  if (!session?.stepUpAt || now - session.stepUpAt >= stepUpWindowMs()) return false;
+  if (session.impossibleTravelAt && session.impossibleTravelAt > session.stepUpAt) return false;
+  return true;
 }
 
 /**
