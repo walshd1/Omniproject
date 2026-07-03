@@ -27,11 +27,21 @@ describe("DevModeWatermark", () => {
     expect(badge).toHaveTextContent(/capture/);
   });
 
+  it("shows a loud, non-blocking top warning banner naming the live risk tools", () => {
+    const client = clientWith({ devMode: true, env: "development", surfaces: { persist: false, trace: false, capture: false } });
+    renderWithProviders(<DevModeWatermark />, { client });
+    const banner = screen.getByTestId("dev-mode-warning-banner");
+    expect(banner).toHaveTextContent(/developer mode/i);
+    expect(banner).toHaveTextContent(/not for real data/i);
+    expect(banner.className).toMatch(/pointer-events-none/); // never blocks a real click
+  });
+
   it("renders nothing when dev mode is off (the production case)", () => {
     const client = clientWith({ devMode: false, env: "production", surfaces: { persist: false, trace: false, capture: false } });
     renderWithProviders(<DevModeWatermark />, { client });
     expect(screen.queryByTestId("dev-mode-watermark")).not.toBeInTheDocument();
     expect(screen.queryByTestId("dev-mode-badge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("dev-mode-warning-banner")).not.toBeInTheDocument();
   });
 
   it("renders nothing before the status has loaded", () => {

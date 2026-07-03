@@ -98,6 +98,12 @@ export const v = {
   optional<T>(inner: Validator<T>): Validator<T | undefined> {
     return (value, path) => (value === undefined ? undefined : inner(value, path));
   },
+  /** Makes a field nullable-or-optional: `null` or `undefined`/missing both pass
+   *  through unchanged; otherwise validates. For external JSON senders (e.g. n8n)
+   *  that send an explicit `null` for "not set" rather than omitting the key. */
+  nullable<T>(inner: Validator<T>): Validator<T | null | undefined> {
+    return (value, path) => (value === undefined || value === null ? (value as null | undefined) : inner(value, path));
+  },
 };
 
 /** Parse an untrusted request part against a schema. On failure, send a 400 with the issues
