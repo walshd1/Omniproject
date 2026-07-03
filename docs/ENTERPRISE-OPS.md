@@ -5,6 +5,18 @@ written to be handed to a security or privacy reviewer. The short version: OmniP
 **stateless overlay** — it holds essentially no business data at rest — so most data-lifecycle
 obligations land on your **systems of record** (reached through the broker), not on OmniProject.
 
+## Why this document exists (the buyer's actual question)
+
+README's "Why OmniProject exists" names three problems: tool sprawl, nobody trusting a
+second copy of their data, and migration risk killing the idea before it starts. For an
+enterprise buyer, the middle one **is** the security review: *"if we adopt this, does our
+attack surface grow, and do we now carry DSAR/retention/backup obligations for a new store
+of our own data?"* The honest answer — backed by the data map below rather than asserted —
+is no, because there genuinely isn't a second copy to have obligations about. That's the
+same bet README's "For enterprises" pitch makes ("this can't become a new place our data
+can leak from," by design, not by policy); this document is where that claim gets checked
+line by line, not just taken on trust.
+
 ---
 
 ## 1. Data map — what OmniProject holds (and doesn't)
