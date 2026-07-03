@@ -22,6 +22,18 @@ test("a self-hoster/charity can run production-stable on plain HTTP (no secure-c
   assert.equal(requireTls({ NODE_ENV: "production", DEPLOYMENT_PROFILE: "nonprofit" }), false);
 });
 
+test("a 'required' profile with real production signals needs TLS even when NODE_ENV isn't literally 'production' (closes the same gap session-secret-guard.ts closes)", () => {
+  assert.equal(requireTls({ NODE_ENV: "development", OIDC_ISSUER_URL: "https://idp.example.com" }), true);
+  assert.equal(requireTls({ OIDC_ISSUER_URL: "https://idp.example.com" }), true); // NODE_ENV unset entirely
+  assert.equal(requireTls({ NODE_ENV: "staging", LICENSE_KEY: "some-licence" }), true);
+  assert.equal(requireTls({ PUBLIC_URL: "https://omni.example.com" }), true);
+  // No signals at all ⇒ unchanged (plain dev/test stays plain HTTP).
+  assert.equal(requireTls({ NODE_ENV: "development" }), false);
+  // A "lan-ok" profile stays HTTP-fine even with production signals present — that's the
+  // profile's deliberate, accepted posture, not an accidental gap.
+  assert.equal(requireTls({ DEPLOYMENT_PROFILE: "self-hosted", OIDC_ISSUER_URL: "https://idp.example.com" }), false);
+});
+
 test("explicit PUBLIC_TLS overrides the profile either way", () => {
   assert.equal(requireTls({ DEPLOYMENT_PROFILE: "self-hosted", PUBLIC_TLS: "1" }), true);
   assert.equal(requireTls({ NODE_ENV: "production", DEPLOYMENT_PROFILE: "enterprise", PUBLIC_TLS: "0" }), false);

@@ -34,6 +34,15 @@ test("checkRequiredEnv: clean in dev, flags weak prod config", () => {
   assert.deepEqual(checkRequiredEnv({ NODE_ENV: "production", SESSION_SECRET: "a-strong-secret-value-1234" }), []);
 });
 
+test("checkRequiredEnv: also runs when NODE_ENV isn't literally 'production' but production signals are present", () => {
+  // A real OIDC issuer configured (a production signal) with a weak SCIM token, NODE_ENV unset —
+  // this must NOT be silently skipped just because NODE_ENV isn't the exact string "production".
+  const issues = checkRequiredEnv({ OIDC_ISSUER_URL: "https://idp.example.com", SCIM_TOKEN: "short" });
+  assert.match(issues.join(" "), /SCIM_TOKEN/);
+  // No production signals at all ⇒ unchanged (plain dev/test stays relaxed).
+  assert.deepEqual(checkRequiredEnv({ NODE_ENV: "development", SCIM_TOKEN: "short" }), []);
+});
+
 test("checkRequiredEnv: a partially-configured SAML rollout is flagged in prod, complete is clean", () => {
   const partial = checkRequiredEnv({ NODE_ENV: "production", SAML_IDP_ENTRY_POINT: "https://idp/sso" });
   assert.match(partial.join(" "), /SAML SSO is partially configured/);

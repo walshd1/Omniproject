@@ -1,5 +1,6 @@
 import { isSafeOutboundUrl } from "./url-safety";
 import { samlConfigStatusFrom } from "./saml";
+import { productionSignals } from "./dev-mode-guard";
 
 /**
  * Validated, typed environment access — the zero-trust stance applied to configuration:
@@ -44,11 +45,16 @@ export function envUrl(name: string): string | undefined {
  * production, callers should treat a non-empty list as fatal. SESSION_SECRET strength is
  * ALREADY enforced (hard fail-fast) in app.ts, so it's intentionally not repeated here — this
  * covers the checks that weren't centralised, so they can't silently regress.
+ *
+ * Runs whenever NODE_ENV is literally "production" OR `productionSignals` sees a real-looking
+ * deployment (real SSO, a licence, a public hostname) — the same detector used by
+ * `session-secret-guard.ts` and `requireTls()` for the equivalent gap: a deployment that looks
+ * production but has NODE_ENV unset/misspelled/"staging" must not silently skip these checks.
  */
 export function checkRequiredEnv(env: NodeJS.ProcessEnv = process.env): string[] {
   const issues: string[] = [];
-  const isProd = env["NODE_ENV"] === "production";
-  if (!isProd) return issues; // dev/test may use defaults
+  const isProd = env["NODE_ENV"] === "production" || productionSignals(env).length > 0;
+  if (!isProd) return issues; // dev/test (no production signals either) may use defaults
 
   // If SCIM lifecycle is on, its bearer token must be strong (it can deprovision every user).
   const scimToken = env["SCIM_TOKEN"]?.trim();
