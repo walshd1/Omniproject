@@ -71,6 +71,33 @@ gov.
 **Recommendation:** offer mTLS as an optional hardening for high-assurance deployments; treat FIPS as
 demand-driven (only if a gov deal needs it).
 
+### A4. Native mobile app (App Store / Google Play listing)
+**What:** a real installable, store-listed mobile app, beyond the PWA that already ships today
+(`lib/pwa.ts` — installable, app-shell-only offline caching, zero-at-rest preserved). The codebase
+already reserves a `nativeBridge` capability flag (`lib/platform.ts`) for exactly this, naming
+Capacitor as the anticipated wrapper — this isn't a new architectural choice, just finishing one
+already started.
+**Why parked:** app-store accounts, code signing/CI, and ongoing store-compliance upkeep are a real
+ongoing-ops commitment, same category as A2.
+**Status:** tooling researched. **Ionic Appflow (the "batteries-included" Capacitor build/submit
+service) was discontinued for new customers in Feb 2025** — existing customers only, support ends
+Dec 31 2027 — so it's not a viable foundation to build on now. The live path is **Capacitor +
+Fastlane** (the open-source iOS/Android build-and-submit CLI, unaffected by Appflow's shutdown) run
+on a CI that already understands mobile builds — **Codemagic** is the natural Appflow successor
+(free tier, purpose-built for Capacitor/Ionic) since Apple's toolchain (Xcode/codesign) is Mac-only
+and can't run on ordinary Linux CI. If OTA updates (shipping JS/asset bundle fixes without a full
+store review) are wanted later, **Capgo** (`@capgo/capacitor-updater`) is the actively-maintained
+open-source successor to Appflow Live-Update — it only ships static bundle diffs (no user/app data),
+matching `pwa.ts`'s app-shell-only posture, and should be **self-hosted** rather than pointed at
+Capgo's cloud to keep "nothing leaves your infra" fully intact.
+**One real gotcha:** app-store listings require privacy disclosures (Apple's Privacy Nutrition
+Label + `PrivacyInfo.xcprivacy` manifest — which Apple explicitly lists Capacitor itself as
+requiring; Google's Data Safety form) regardless of self-hosting, since they ask what the *app*
+collects, not where it's stored. Not a blocker, but a tripwire: adding any crash-reporting/analytics
+SDK later would force new disclosures neither Capacitor nor Fastlane require today.
+**Recommendation:** prototype Capacitor + Fastlane on Codemagic's free tier before committing
+further; defer OTA (and self-host it via Capgo, not their cloud) until genuinely needed.
+
 ---
 
 ## B. Supply chain / release (infra + policy)
