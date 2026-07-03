@@ -9,7 +9,11 @@ import { Configurator } from "./Configurator";
 function status(over: Partial<SetupStatus> = {}): SetupStatus {
   return {
     configured: false,
-    role: "viewer",
+    // PMO by default: passes the page's access gate (like the pre-existing "admin
+    // action" gating, unaffected — isAdmin stays false, same as the old "viewer"
+    // default) while these tests exercise the configurator's internal steps, not
+    // the access gate itself — that gets its own describe block below.
+    role: "pmo",
     broker: { configured: false, urlSet: false },
     auth: { mode: "demo" },
     ai: { provider: "none" },
@@ -74,4 +78,24 @@ describe("Configurator", () => {
     // DataState error path renders a retry affordance instead of the wizard.
     expect(screen.queryByRole("heading", { level: 1, name: /configurator/i })).not.toBeInTheDocument();
   });
+});
+
+describe("Configurator — access gate (PMO/admin only)", () => {
+  const restricted: Array<SetupStatus["role"]> = ["viewer", "contributor", "manager"];
+  for (const role of restricted) {
+    it(`shows "Access restricted" instead of the configurator for role ${role}`, () => {
+      renderWithProviders(<Configurator />, { client: seed(status({ role })) });
+      expect(screen.getByRole("alert")).toHaveTextContent(/access restricted/i);
+      expect(screen.queryByRole("heading", { level: 1, name: /configurator/i })).not.toBeInTheDocument();
+      expect(screen.queryByTestId("setup-start-here")).not.toBeInTheDocument();
+    });
+  }
+
+  for (const role of ["pmo", "admin"] as Array<SetupStatus["role"]>) {
+    it(`renders the full configurator for role ${role}`, () => {
+      renderWithProviders(<Configurator />, { client: seed(status({ role })) });
+      expect(screen.getByRole("heading", { level: 1, name: /configurator/i })).toBeInTheDocument();
+      expect(screen.queryByText(/access restricted/i)).not.toBeInTheDocument();
+    });
+  }
 });

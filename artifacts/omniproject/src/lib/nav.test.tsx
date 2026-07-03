@@ -41,6 +41,12 @@ function withMyWorkEnabled(enabled: boolean): QueryClient {
   return qc;
 }
 
+function withRole(role: Role | undefined): QueryClient {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  if (role) qc.setQueryData(["auth", "me"], { sub: "u1", role });
+  return qc;
+}
+
 describe("NAV_ITEMS", () => {
   it("exposes the expected hrefs in order", () => {
     expect(NAV_ITEMS.map((n) => n.href)).toEqual([
@@ -128,6 +134,28 @@ describe("useVisibleNavItems — feature gating", () => {
   it("shows My Work by default while features are still loading", () => {
     const { queryByText } = renderWithProviders(<Probe />, { client: withProgramme(true) });
     expect(queryByText("My Work")).not.toBeNull();
+  });
+});
+
+describe("useVisibleNavItems — role gating (hard gate)", () => {
+  const cases: Array<[Role | undefined, boolean]> = [
+    ["admin", true],
+    ["pmo", true],
+    ["manager", false],
+    ["contributor", false],
+    ["viewer", false],
+    [undefined, false],
+  ];
+  for (const [role, expected] of cases) {
+    it(`${role ?? "unauthenticated"} → ${expected ? "sees" : "never sees"} the Configurator`, () => {
+      const { queryByText } = renderWithProviders(<Probe />, { client: withRole(role) });
+      expect(queryByText("Configurator") !== null).toBe(expected);
+    });
+  }
+
+  it("ungated items stay visible regardless of role", () => {
+    const { queryByText } = renderWithProviders(<Probe />, { client: withRole("viewer") });
+    expect(queryByText("Projects")).not.toBeNull();
   });
 });
 

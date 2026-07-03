@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { roleAtLeast, login, logout, type Role } from "./auth";
+import { roleAtLeast, isPmoOrAdmin, login, logout, type Role } from "./auth";
 
 describe("roleAtLeast", () => {
   it("ranks viewer < contributor < manager < admin", () => {
@@ -33,6 +33,17 @@ describe("roleAtLeast", () => {
     // A plain manager holds no authority.
     expect(roleAtLeast("manager", "pmo")).toBe(false);
     expect(roleAtLeast("manager", "admin")).toBe(false);
+  });
+});
+
+describe("isPmoOrAdmin", () => {
+  it("holds for either orthogonal authority, not for plain base roles", () => {
+    expect(isPmoOrAdmin("admin")).toBe(true);
+    expect(isPmoOrAdmin("pmo")).toBe(true);
+    expect(isPmoOrAdmin("manager")).toBe(false);
+    expect(isPmoOrAdmin("contributor")).toBe(false);
+    expect(isPmoOrAdmin("viewer")).toBe(false);
+    expect(isPmoOrAdmin(undefined)).toBe(false);
   });
 });
 

@@ -43,6 +43,13 @@ export function roleAtLeast(role: Role | undefined, min: Role): boolean {
   return baseRank(r) >= BASE_RANK[min as BaseRole];
 }
 
+/** Holds either orthogonal authority — the shared gate for the surfaces that belong
+ *  to whoever owns governance (business, via PMO) or technical config (via admin),
+ *  regardless of which one specifically. */
+export function isPmoOrAdmin(role: Role | undefined): boolean {
+  return roleAtLeast(role, "admin") || roleAtLeast(role, "pmo");
+}
+
 async function fetchAuth(): Promise<AuthState> {
   const res = await fetch("/api/auth/me", { credentials: "same-origin" });
   if (!res.ok) throw new Error(`auth check failed: ${res.status}`);

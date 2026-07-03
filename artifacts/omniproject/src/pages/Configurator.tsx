@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSetupStatus } from "../lib/setup";
-import { roleAtLeast } from "../lib/auth";
+import { roleAtLeast, isPmoOrAdmin } from "../lib/auth";
 import { useT } from "../lib/i18n";
 import { useConfiguratorMode, ConfiguratorModeProvider } from "../lib/configurator-mode";
 import { LoadingState } from "../components/LoadingState";
@@ -37,6 +37,26 @@ export function Configurator() {
 
   if (isLoading) return <LoadingState className="p-8 text-center" />;
   if (isError) return <DataState isError error={error} onRetry={() => refetch()} className="p-8 min-h-[16rem]">{null}</DataState>;
+
+  // Hard view gate, mirroring the nav's `visibleToRoles` — this page reads live
+  // broker/backend state, so it's restricted to PMO/admin even if a plain role
+  // navigates here directly (nav hides the link, but that's not enforcement).
+  if (!isPmoOrAdmin(status?.role)) {
+    return (
+      <div className="h-full flex items-center justify-center p-8">
+        <div role="alert" className="max-w-md w-full border-2 border-border bg-card p-8 text-center space-y-3">
+          <div className="text-sm font-black uppercase tracking-widest text-muted-foreground">
+            Access restricted
+          </div>
+          <p className="text-sm text-muted-foreground">
+            The Configurator is available to <strong className="text-foreground">PMO</strong> and{" "}
+            <strong className="text-foreground">Admin</strong> roles only. Ask an admin or PMO on your
+            team if you need a backend connected or reconfigured.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ConfiguratorModeProvider mode={mode}>
