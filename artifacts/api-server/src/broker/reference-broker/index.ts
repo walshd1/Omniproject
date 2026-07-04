@@ -35,6 +35,8 @@ import { pskEnabled, sealPayload, openPayload, PSK_HEADER, PSK_PREFIX } from "..
 import { signBrokerRequest } from "../../lib/broker-hmac";
 import { assertSafeBrokerPayload, assertSafeAuthHeader } from "../../lib/payload-guard";
 import { currentTraceparent } from "../../lib/tracing";
+import { brokerFetch } from "../../lib/broker-transport";
+import type { RequestInit as BrokerRequestInit, Response as BrokerResponse } from "undici";
 
 /**
  * n8n broker — THE one place that knows the broker is n8n.
@@ -184,12 +186,12 @@ function buildEnvelope(
  * re-read) so the encrypt decision here and the decrypt decision in
  * `unwrapResponse` always agree, even though `pskEnabled()` is just an env read.
  */
-function signAndEncrypt(envelope: BuiltEnvelope["envelope"], ctx: ActorContext, psk: boolean): RequestInit {
+function signAndEncrypt(envelope: BuiltEnvelope["envelope"], ctx: ActorContext, psk: boolean): BrokerRequestInit {
   // When PSK is ON, encrypt the WHOLE envelope including the forwarded auth token
   // and send only an opaque ciphertext + a version marker. Nothing sensitive —
   // not the action, the backend source, nor the bearer token — appears in
   // cleartext on the wire, so a packet capture sees ciphertext, not a breach.
-  const init: RequestInit = psk
+  const init: BrokerRequestInit = psk
     ? {
         method: "POST",
         headers: { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") },
@@ -240,14 +242,14 @@ function signAndEncrypt(envelope: BuiltEnvelope["envelope"], ctx: ActorContext, 
  * on a connection-level error (a returned HTTP status is a real response, not
  * an unreachable instance). Each attempt gets a fresh timeout signal.
  */
-async function sendWithFailover(init: RequestInit): Promise<{ res: Response | undefined; targets: string[]; lastErr: unknown }> {
+async function sendWithFailover(init: BrokerRequestInit): Promise<{ res: BrokerResponse | undefined; targets: string[]; lastErr: unknown }> {
   const targets = orderedTargets();
-  let res: Response | undefined;
+  let res: BrokerResponse | undefined;
   let lastErr: unknown;
   for (const target of targets) {
     try {
       await assertEgressAllowed(target); // SSRF guard: never let the broker URL reach metadata/link-local
-      res = await fetch(target, { ...init, signal: AbortSignal.timeout(10_000) });
+      res = await brokerFetch(target, { ...init, signal: AbortSignal.timeout(10_000) });
       break;
     } catch (e) {
       lastErr = e;
@@ -262,7 +264,7 @@ async function sendWithFailover(init: RequestInit): Promise<{ res: Response | un
  * every outcome via the caller's `audit` closure.
  */
 async function unwrapResponse<T>(
-  res: Response,
+  res: BrokerResponse,
   psk: boolean,
   audit: (result: "success" | "error", status: number, extra?: Record<string, unknown>) => void,
 ): Promise<AdapterResult<T>> {
@@ -354,7 +356,7 @@ export async function pingBroker(timeoutMs = 2000): Promise<{ reachable: boolean
   const url = webhookPool()[0]!;
   try {
     await assertEgressAllowed(url);
-    const res = await fetch(url, {
+    const res = await brokerFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", [REQUEST_HEADERS.action]: "__ready", [REQUEST_HEADERS.origin]: GATEWAY_ORIGIN },
       body: JSON.stringify({ action: "__ready", payload: {}, source: "readiness", origin: GATEWAY_ORIGIN, verify: true }),
@@ -405,7 +407,7 @@ export async function probeVerifiableActions(
       await assertEgressAllowed(url); // SSRF guard on the verify probe too
       const probe = { action, payload: { projectId }, source: "verify", origin: GATEWAY_ORIGIN, verify: true };
       const psk = pskEnabled();
-      const res = await fetch(url, {
+      const res = await brokerFetch(url, {
         method: "POST",
         headers: psk
           ? { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") }

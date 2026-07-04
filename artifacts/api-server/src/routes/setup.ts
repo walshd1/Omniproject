@@ -37,6 +37,7 @@ import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus, buildPublicSetupStatus } from "../lib/setup-status";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
 import { bootRefusalActive } from "../lib/security-check";
+import { brokerMtlsConfigured } from "../lib/broker-transport";
 import { applyCharityOnboarding } from "../lib/charity-onboarding";
 import { sharedStateMode } from "../lib/shared-state";
 import { IDP_PRESETS } from "../lib/idp-presets";
@@ -113,6 +114,9 @@ router.get("/setup/profile", requireRole("admin"), (_req, res) => {
       strongMfaAdminPmo: isOidcConfigured || isSamlConfigured(),
       // Whether per-replica registries (e.g. the maker-checker queue) are shared fleet-wide.
       sharedState: sharedStateMode(),
+      // Mutual TLS to the broker (client cert + optional private CA) — defence in depth
+      // on top of the HMAC/PSK signing every broker call already carries.
+      mtls: brokerMtlsConfigured(),
     },
     profiles: DEPLOYMENT_PROFILES,
     // The picker catalogue: every customer type's posture + preset (audience, what it relaxes,

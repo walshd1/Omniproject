@@ -119,6 +119,18 @@ export function securityFindings(env: Env): SecurityFinding[] {
       message: "RATE_LIMIT_DISABLED is on in production — abuse/DoS protection is removed.",
     });
   }
+  // mTLS deliberately downgraded to accept an unverified broker certificate — the same class
+  // of "explicit insecure escape hatch left on in prod" as the checks above, so it gets the
+  // same CRITICAL treatment (refuses to boot by default) rather than a log-only warning.
+  if (on(env["BROKER_MTLS_INSECURE"])) {
+    out.push({
+      id: "broker-mtls-insecure",
+      severity: "critical",
+      message: "BROKER_MTLS_INSECURE is on in production — the broker's TLS certificate is not verified " +
+        "(rejectUnauthorized: false). This is a testing-only escape hatch for a self-signed broker cert; " +
+        "remove it (or install the broker's real/private CA cert via BROKER_MTLS_CA) before going live.",
+    });
+  }
   // CSRF guard disabled — SameSite=Lax cookies already block most cross-site vectors, so this
   // is a relaxation rather than the full authentication bypass OIDC_SKIP_TOKEN_VERIFY is, but a
   // deployment that quietly disabled it (e.g. to work around a legacy reverse proxy) should

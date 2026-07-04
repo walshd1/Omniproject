@@ -72,6 +72,13 @@ test("checks EVERY loaded broker, not just the primary (per-kind BROKER_ENDPOINT
   assert.match(plaintext[0]!.message, /node-red\.internal/);
 });
 
+test("flags BROKER_MTLS_INSECURE left on in production as CRITICAL (unverified broker cert)", () => {
+  const f = securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm", BROKER_MTLS_INSECURE: "true" });
+  const finding = f.find((x) => x.id === "broker-mtls-insecure");
+  assert.ok(finding && finding.severity === "critical");
+  assert.equal(securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm" }).some((x) => x.id === "broker-mtls-insecure"), false);
+});
+
 test("flags CSRF_DISABLED left on in production (warn, not critical — SameSite=Lax still mitigates)", () => {
   const f = securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm", CSRF_DISABLED: "true" });
   const finding = f.find((x) => x.id === "csrf-disabled");
