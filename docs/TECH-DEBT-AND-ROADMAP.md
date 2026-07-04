@@ -21,12 +21,13 @@ These are the items most likely to bite in production, because they're verified 
   not a single call has hit a live cloud endpoint.
   **Action:** a one-time smoke test per backend against a real account; capture the exact IAM
   policy / Key Vault access policy / Vault policy needed, and add to the deploy docs.
-- **[caveat] OTLP export is untested, not just mock-verified.** `lib/tracing.ts`'s `exportSpan()`
-  and `lib/otlp-metrics.ts`'s `exportMetricsOnce()` build and POST an OTLP/JSON payload, but neither
-  is called from either file's test suite (no `fetch` mock, no live collector) — one rung short of
-  the vault/KMS adapters above, which at least exercise a stubbed `fetch`.
-  **Action:** add a mocked-`fetch` unit test for both export paths first (parity with the vault/KMS
-  adapters), then smoke test against a real OTLP collector; confirm trace/span IDs render and the
+- **[caveat] OTLP export is mock-verified and smoke-tested against a local listener, not a real
+  collector.** `lib/tracing.test.ts` and `lib/otlp-metrics.test.ts` now mock `fetch` for
+  `exportSpan()`/`exportMetricsOnce()` (parity with the vault/KMS adapters above), and both have
+  been run against a real local HTTP listener standing in for an OTLP collector — confirmed a real
+  trace span and a real periodic metrics push land correctly-shaped. What's still open: neither has
+  been validated against an actual Datadog/Jaeger/Tempo/Grafana-Agent collector.
+  **Action:** smoke test against one real OTLP collector; confirm trace/span IDs render and the
   broker hop joins the same trace.
 - **[caveat] The Authentik blueprint is not applied against a live Authentik.**
   `infra/authentik/blueprints/omniproject.yaml` is written to the documented schema but
