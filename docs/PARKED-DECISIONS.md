@@ -167,15 +167,12 @@ third-party request (better for privacy, charities, air-gapped, and a cleaner `f
 licence check (JetBrains Mono is OFL — fine to bundle).
 **Recommendation:** straightforward once the font files are added; low effort, real privacy win.
 
-### C4. Real email sending (magic-link without n8n)
-**What:** `sendMagicLink` is currently a **stub** (it logs the link); an SMTP sender would make
-passwordless sign-in actually work for a small org — a real charity unlock (most have Google
-Workspace / Microsoft 365 SMTP).
-**Why parked:** needs an SMTP client **dependency** (e.g. nodemailer) whose **esbuild bundling** into
-the self-contained runtime needs verifying (dynamic requires / optional deps), and SMTP can't be
-end-to-end tested in the build sandbox. Credentials would come from env (`SMTP_URL`), never stored.
-**Recommendation:** add nodemailer + a small `lib/email` (env-config, disabled when unset), verify the
-bundle, then wire `sendMagicLink`. Worth doing — just wants a watched first build.
+### C4. Real email sending (magic-link without n8n) — **shipped**
+`sendMagicLink` now sends via SMTP when `SMTP_URL` is set (`artifacts/api-server/src/lib/email.ts`,
+using `nodemailer`), falling back to its original log-only behaviour when unset. `nodemailer` turned
+out to be zero-runtime-dependency, so it bundles cleanly into the self-contained esbuild output (no
+node_modules needed at runtime) — verified end-to-end against a real local SMTP listener and via a
+live HTTP request to the built gateway, not just a mocked transport.
 
 ---
 
