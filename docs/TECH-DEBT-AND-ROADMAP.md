@@ -21,9 +21,12 @@ These are the items most likely to bite in production, because they're verified 
   not a single call has hit a live cloud endpoint.
   **Action:** a one-time smoke test per backend against a real account; capture the exact IAM
   policy / Key Vault access policy / Vault policy needed, and add to the deploy docs.
-- **[caveat] OTLP export is mock-verified.** `lib/tracing` builds and POSTs an OTLP/JSON span
-  but hasn't been validated end-to-end against a Datadog/Jaeger/Tempo collector.
-  **Action:** smoke test against one OTLP collector; confirm trace/span IDs render and the
+- **[caveat] OTLP export is untested, not just mock-verified.** `lib/tracing.ts`'s `exportSpan()`
+  and `lib/otlp-metrics.ts`'s `exportMetricsOnce()` build and POST an OTLP/JSON payload, but neither
+  is called from either file's test suite (no `fetch` mock, no live collector) — one rung short of
+  the vault/KMS adapters above, which at least exercise a stubbed `fetch`.
+  **Action:** add a mocked-`fetch` unit test for both export paths first (parity with the vault/KMS
+  adapters), then smoke test against a real OTLP collector; confirm trace/span IDs render and the
   broker hop joins the same trace.
 - **[caveat] The Authentik blueprint is not applied against a live Authentik.**
   `infra/authentik/blueprints/omniproject.yaml` is written to the documented schema but
@@ -87,8 +90,6 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
   for the copilot — recommended, not built (awaiting go-ahead). *(Partially shipped: the copilot
   now lenses answers through methodology personas authored as catalogue JSON; standalone
   retrieval `.md` files are the remaining idea.)*
-- **[idea] DSAR tooling beyond docs.** `docs/ENTERPRISE-OPS.md` documents the (stateless) DSAR
-  story; a one-click "what we hold for subject X" report could automate the evidence.
 
 ---
 

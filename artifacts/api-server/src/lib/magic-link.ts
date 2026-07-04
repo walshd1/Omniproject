@@ -3,6 +3,7 @@ import { seal, open } from "./session-crypto";
 import { sharedKv } from "./shared-state";
 import { isOidcConfigured } from "./oidc";
 import { isSamlConfigured } from "./saml";
+import { sendEmail } from "./email";
 import { logger } from "./logger";
 
 /**
@@ -19,8 +20,8 @@ import { logger } from "./logger";
  *
  * OFF by default and only available when there's no real SSO: enable with `MAGIC_LINK_ENABLED=true`
  * AND neither OIDC nor SAML configured (real SSO always wins). The request endpoint is rate-limited
- * (the shared loginLimiter). Email DELIVERY is pluggable and the operator's responsibility — the
- * default sender just logs the link; wire an SMTP relay / the notification egress for real sending.
+ * (the shared loginLimiter). Email delivery is via `SMTP_URL` (lib/email.ts) when set; unset, it
+ * falls back to logging the link for the operator/dev to relay by hand.
  */
 
 export function magicLinkEnabled(): boolean {
@@ -73,11 +74,20 @@ export async function consumeMagicToken(jti: string): Promise<boolean> {
   return true;
 }
 
-/** The pluggable sender. Default logs the link (operator wires a real relay / the notify egress).
- *  Returns true if a real sender handled it, false if it only logged (dev/unconfigured). */
+/** Sends via SMTP when `SMTP_URL` is set (lib/email.ts); otherwise falls back to logging the
+ *  link for the operator/dev to relay by hand. Returns true if a real send succeeded. */
 export async function sendMagicLink(email: string, link: string): Promise<boolean> {
-  // Hook point: an operator can replace this with an SMTP relay or the notification egress.
-  logger.info({ email }, "magic-link: issued (no relay configured — link logged for the operator/dev only)");
-  logger.debug({ email, link }, "magic-link: link");
-  return false;
+  const minutes = Math.round(ttlMs() / 60_000);
+  const sent = await sendEmail({
+    to: email,
+    subject: "Your OmniProject sign-in link",
+    text: `Click to sign in (expires in ${minutes} minutes): ${link}\n\nIf you didn't request this, you can ignore this email.`,
+  });
+  if (sent) {
+    logger.info({ email }, "magic-link: sent via SMTP");
+  } else {
+    logger.info({ email }, "magic-link: issued (no relay configured — link logged for the operator/dev only)");
+    logger.debug({ email, link }, "magic-link: link");
+  }
+  return sent;
 }

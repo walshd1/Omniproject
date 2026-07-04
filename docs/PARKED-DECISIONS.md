@@ -120,7 +120,7 @@ further; defer OTA (and self-host it via Capgo, not their cloud) until genuinely
 ## B. Supply chain / release (infra + policy)
 
 ### B0. Distroless runtime image + seccomp profile
-**What:** swap the runtime base from `node:22-bookworm-slim` to a **distroless** (or Chainguard) image
+**What:** swap the runtime base from `node:26-bookworm-slim` to a **distroless** (or Chainguard) image
 and add a seccomp/AppArmor profile — the last-mile reduction of attack surface on top of the existing
 read-only-fs / cap-drop / non-root posture.
 **Why parked:** distroless has **no shell and only the `node` binary**, so the compose
@@ -167,15 +167,12 @@ third-party request (better for privacy, charities, air-gapped, and a cleaner `f
 licence check (JetBrains Mono is OFL — fine to bundle).
 **Recommendation:** straightforward once the font files are added; low effort, real privacy win.
 
-### C4. Real email sending (magic-link without n8n)
-**What:** `sendMagicLink` is currently a **stub** (it logs the link); an SMTP sender would make
-passwordless sign-in actually work for a small org — a real charity unlock (most have Google
-Workspace / Microsoft 365 SMTP).
-**Why parked:** needs an SMTP client **dependency** (e.g. nodemailer) whose **esbuild bundling** into
-the self-contained runtime needs verifying (dynamic requires / optional deps), and SMTP can't be
-end-to-end tested in the build sandbox. Credentials would come from env (`SMTP_URL`), never stored.
-**Recommendation:** add nodemailer + a small `lib/email` (env-config, disabled when unset), verify the
-bundle, then wire `sendMagicLink`. Worth doing — just wants a watched first build.
+### C4. Real email sending (magic-link without n8n) — **shipped**
+`sendMagicLink` now sends via SMTP when `SMTP_URL` is set (`artifacts/api-server/src/lib/email.ts`,
+using `nodemailer`), falling back to its original log-only behaviour when unset. `nodemailer` turned
+out to be zero-runtime-dependency, so it bundles cleanly into the self-contained esbuild output (no
+node_modules needed at runtime) — verified end-to-end against a real local SMTP listener and via a
+live HTTP request to the built gateway, not just a mocked transport.
 
 ---
 
@@ -186,27 +183,17 @@ bundle, then wire `sendMagicLink`. Worth doing — just wants a watched first bu
 - **Portfolio Roadmap** — cross-programme timeline, `lib/roadmap` + `PortfolioRoadmap` (PR #278).
 - **Critical Path (CPM)** — forward/backward-pass solver, `lib/critical-path` + `CriticalPath` (PR #279).
 
-The rest of the enterprise-EPM gap needs **fields the canonical model doesn't carry**, or a stateful
-decision — so they're parked here rather than guessed:
+### E1. Benefits realisation tracking — **shipped**
+A `benefits` field group (`benefitType`/`benefitOwner`/`benefitMeasure`/`benefitBaseline`/
+`benefitTarget`/`plannedBenefitValue`/`benefitRealised`/`benefitStartDate`/`benefitDueDate`/
+`benefitStatus`/`benefitConfidence`) is in `lib/backend-catalogue/src/fields.generated.ts`, with
+`BenefitsRealisation.tsx`, `BenefitsRealisationRollup.tsx`, and `PortfolioBenefits.tsx` reports
+(`artifacts/omniproject/src/components/reports/`), backed by `lib/benefits.ts` /
+`lib/benefits-realisation.ts`.
 
-### E1. Benefits realisation tracking
-**What:** planned-vs-actual benefit curves, benefit owners, realisation dates — the "did the programme
-deliver value" view boards ask for.
-**Why parked:** there is **no canonical benefit field** (the registry has cost/effort/schedule, not
-benefits). It can't be derived from what backends expose today.
-**Recommendation:** either (a) **extend the field registry** with a `benefits` group (planned/actual
-value, realise-by date, owner) gated on a backend that can carry them — the clean, stateless route; or
-(b) accept benefits as a **JSON import** (rung 1) the user maintains and we visualise. (a) is the right
-long-term call; needs your yes on adding the field group.
-
-### E2. Capitalisation (CapEx/OpEx) split + cost-rate roll-up
-**What:** classify effort/cost as capital vs operating expense and roll up a blended cost using per-role
-rates — finance-grade reporting large orgs need for the balance sheet.
-**Why parked:** needs a **capex/opex classification field** and **role cost-rates**, neither canonical.
-Deriving capex from a label convention would be guesswork.
-**Recommendation:** add a small `finance` field-group extension (`capexOpex` enum, `costRate`) gated on
-a costed backend; or take **rates as a JSON config import** (rung 1) and classification from a customer
-field mapping. Wants your call on the field-group vs JSON-config route.
+### E2. Capitalisation (CapEx/OpEx) split + cost-rate roll-up — **shipped**
+`capexAmount`/`opexAmount`/`costRate` fields are in `fields.generated.ts`, with a `CapexOpex.tsx`
+report backed by `lib/capex.ts`.
 
 ### E3. Stage-gate governance (PRINCE2 / phase-gate)
 **What:** define gates (e.g. SOBC → OBC → FBC, or Discovery → Alpha → Beta → Live) and advance/hold a
@@ -315,32 +302,12 @@ confirms/adjusts the field and service names.
 
 ## G. Self-service extensibility
 
-### G1. Zero-restart activation of an admin-authored backend/vendor (backlog #137 follow-on)
-**What:** backlog #137 asked for self-service custom-backend authoring in the admin UI, so a
-customer's team can add a new vendor without a core-repo code change. **Investigated first, not
-assumed:** the runtime-load half of this already existed (backlog #31) — `OMNI_CONFIG_DIR/vendors/
-backends/*.json` is read at boot by `artifacts/api-server/src/lib/config-dir.ts`, validated against
-the same embedded schema as the shipped catalogue, and merged over the defaults via the vendor
-overlay (`lib/backend-catalogue/src/vendor-overlay.ts`, `registerVendor`/`withOverlay`) — so the gap
-was genuinely just the missing authoring UI, not a missing persistence mechanism. **Shipped this
-round:** `CustomBackendAdmin` (`artifacts/omniproject/src/components/settings/CustomBackendAdmin.tsx`
-+ `artifacts/omniproject/src/lib/backend-authoring.ts`) — a guided, admin-gated form that builds a
-`BackendManifest & N8nBinding` document, validates it against the *exact* schema the config-dir
-loader enforces (`validateVendor("backends", …)`, shared unchanged), shows a live JSON preview, and
-exports the file for the operator to place.
-**Why the remaining gap is parked, not built:** exporting a file still requires an operator to place
-it in the mounted config directory and **restart (or otherwise reload) the gateway process** —
-`loadConfigDir()` only runs at boot. There is no live, admin-triggered "register this backend now,
-no restart" path, and building one would mean either (a) an API endpoint that lets the SPA write
-into the server's mounted filesystem — wrong direction for a stateless/zero-at-rest gateway whose
-only persistence is the operator's own folder — or (b) a genuine **hot-reload mechanism** for the
-backend catalogue (re-run `loadConfigDir()` and safely swap the in-memory overlay while requests are
-in flight, plus decide what happens to a broker/workflow already wired against the old definition)
-that doesn't exist today and touches more than this slice's scope.
-**Recommendation:** if "no restart at all" becomes a real requirement, add a `POST /api/setup/
-config-dir/reload` (admin, step-up gated like other config-mutating actions) that re-runs
-`loadConfigDir()` in place — `registerVendor`'s overlay swap is already safe to call at runtime (it's
-how tests exercise it), so the main new work is the endpoint + a UI trigger next to the existing
-`GET /api/setup/config-dir` status read, not a new storage layer. Left undone here because it's an
-operational/reload-safety decision (do in-flight requests see old or new definitions mid-swap?)
-better made deliberately than bundled into a UI-authoring slice.
+### G1. Zero-restart activation of an admin-authored backend/vendor — **shipped**
+`CustomBackendAdmin` (`artifacts/omniproject/src/components/settings/CustomBackendAdmin.tsx` +
+`artifacts/omniproject/src/lib/backend-authoring.ts`) is a guided, admin-gated form that builds and
+validates a `BackendManifest & N8nBinding` document against the same schema the config-dir loader
+enforces. The originally-parked "no restart" gap is also shipped: `POST /setup/config-dir/refresh`
+(`artifacts/api-server/src/routes/setup.ts`, admin + step-up gated) re-runs `loadConfigDir()` in
+place via `refreshConfigDir()` (`lib/config-refresh.ts`), with a backup-to-`.old` and auto-revert on
+error — wired to a UI trigger in `ConfigDirPanel.tsx`, mounted in `CustomBackendAdmin.tsx` and
+`pages/Settings.tsx`.
