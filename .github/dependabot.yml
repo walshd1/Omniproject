@@ -24,10 +24,19 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 8
     groups:
+      # Only minor/patch dev-deps get batched. A single 46-package batch (dev-deps,
+      # PR #347) silently carried FIVE breaking major bumps (typescript, vitest +
+      # @vitest/coverage-v8, recharts, react-day-picker, react-resizable-panels) past
+      # review — CI caught it, but by then it was one huge diff to untangle instead of
+      # five small, independently revertable ones. Excluding "major" here means an
+      # unmatched major-bump PR gets its own individual PR (not grouped, not batched),
+      # so each is small, bisectable, and CI failure on one never blocks the rest —
+      # raised the open-PR cap accordingly since majors no longer collapse into one PR.
       dev-deps:
         dependency-type: development
+        update-types: ["minor", "patch"]
     ignore:
       # 2.x -> 4.12.0 (a 46-package dev-deps batch) silently broke CI: the new major
       # renamed every export (PanelGroup/Panel/PanelResizeHandle -> Group/Panel/Separator)
