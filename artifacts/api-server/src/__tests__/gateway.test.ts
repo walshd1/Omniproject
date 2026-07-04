@@ -5,7 +5,7 @@ import type { Request } from "express";
 
 import { versionConflict } from "../lib/concurrency";
 import { roleFromClaims, grantsFromClaims } from "../lib/rbac";
-import { idempotencyKey } from "../broker/n8n/index";
+import { idempotencyKey } from "../broker/reference-broker/index";
 import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
 import { BACKENDS, getBackend, isEnterpriseBackend, backendCatalogue, generateWorkflow } from "@workspace/backend-catalogue";
@@ -22,7 +22,7 @@ import { applyODataQuery, buildEdmx, type EntityModel } from "../lib/odata";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
-import { resolveTemplate, isFullyResolved } from "../broker/n8n/expr";
+import { resolveTemplate, isFullyResolved } from "../broker/reference-broker/expr";
 import { updateSettings, getSettings } from "../lib/settings";
 import {
   __resetConfigStore,

@@ -18,7 +18,7 @@ import { runScheduledAutonomousJob, createIntervalScheduler } from "./scheduled-
  *
  * Reuses read-only surface the gateway already calls elsewhere — `Broker.verify()` (the
  * same bounded, egress-guarded, timeout-capped probe the setup wizard uses,
- * broker/n8n/index.ts) and, where a broker implements the OPTIONAL `describeFields()`
+ * broker/reference-broker/index.ts) and, where a broker implements the OPTIONAL `describeFields()`
  * enumeration, the canonical field reconciliation (lib/field-registry.ts). Zero new
  * egress surface — only a before/after diff over calls that already happen.
  *

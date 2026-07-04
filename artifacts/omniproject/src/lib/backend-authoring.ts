@@ -5,7 +5,7 @@ import { downloadJson } from "./custom-report-file";
 
 /**
  * Self-service backend/vendor authoring (backlog #137) — build a valid
- * `BackendManifest & N8nBinding` JSON document through a guided form instead of
+ * `BackendManifest & BrokerBinding` JSON document through a guided form instead of
  * hand-editing `lib/backend-catalogue/vendors/backends/<id>.json`.
  *
  * IMPORTANT — this is authoring + validation + EXPORT, not a live write path.
@@ -64,7 +64,7 @@ export interface ActionDraft {
 }
 
 /** The full form state for one backend/vendor definition — a string-friendly shadow of
- *  `BackendManifest & N8nBinding` (the `BackendDefinition` catalogue entry shape). */
+ *  `BackendManifest & BrokerBinding` (the `BackendDefinition` catalogue entry shape). */
 export interface BackendDraft {
   id: string;
   label: string;

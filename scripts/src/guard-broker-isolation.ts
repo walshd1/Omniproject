@@ -26,7 +26,7 @@ const GATEWAY_SRC = "artifacts/api-server/src";
 const CATALOGUE_SRC = "lib/backend-catalogue/src";
 
 /** Concrete adapter folders (relative to GATEWAY_SRC) that may only be imported via the seam. */
-const ADAPTER_DIRS = ["broker/n8n"];
+const ADAPTER_DIRS = ["broker/reference-broker"];
 /** Files allowed to import a concrete adapter (relative to GATEWAY_SRC): the seam factory. */
 const SEAM_FACTORY = ["broker/index.ts"];
 
@@ -44,10 +44,10 @@ const NAMING_DIRS = [GATEWAY_SRC, "artifacts/omniproject/src", CATALOGUE_SRC];
  *  vendor/transport identifiers — the same sanctioned shape as the JSON `id`/`kind` fields they
  *  mirror, not vendor-specific behaviour. */
 const NAMING_ALLOW = [
-  `${GATEWAY_SRC}/broker/n8n`,
+  `${GATEWAY_SRC}/broker/reference-broker`,
   `${GATEWAY_SRC}/broker/index.ts`,
   `${GATEWAY_SRC}/lib/broker-url.ts`,
-  `${CATALOGUE_SRC}/n8n-generator.ts`,
+  `${CATALOGUE_SRC}/workflow-generator.ts`,
   `${CATALOGUE_SRC}/broker-catalogue.ts`,
   `${CATALOGUE_SRC}/backend-catalogue.ts`,
   `${CATALOGUE_SRC}/index.ts`, // barrel re-export of the generator above, same reasoning

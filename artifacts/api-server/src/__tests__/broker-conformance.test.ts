@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DemoBroker } from "../broker/demo";
-import { N8nBroker } from "../broker/n8n";
+import { ReferenceBroker } from "../broker/reference-broker";
 import { runReadConformance, structuralConformance } from "../broker/conformance";
 import type { Broker, ActorContext } from "../broker/types";
 
@@ -10,7 +10,7 @@ import type { Broker, ActorContext } from "../broker/types";
  * an implementation. The read-only + structural checks live in the broker-agnostic
  * suite (broker/conformance.ts) so the SAME assertions run against:
  *   - DemoBroker        → the reference pass (here),
- *   - N8nBroker (live)  → the real-world pass (the verify-broker CI step).
+ *   - ReferenceBroker (live)  → the real-world pass (the verify-broker CI step).
  * The mutation tests below stay DemoBroker-only so the suite can never write to a
  * real backend.
  */
@@ -29,7 +29,7 @@ test("DemoBroker is the reference pass for the read-only conformance suite", asy
 });
 
 test("both brokers structurally implement the full contract surface", () => {
-  for (const b of [new DemoBroker(), new N8nBroker()] as Broker[]) {
+  for (const b of [new DemoBroker(), new ReferenceBroker()] as Broker[]) {
     const res = structuralConformance(b);
     assert.ok(res.ok, `${b.kind} is missing contract methods: ${reportDetail(res.checks)}`);
   }

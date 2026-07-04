@@ -96,7 +96,7 @@ jobs:
 
       - name: Verify the n8n example blueprints are in sync with the generator + vendor JSON
         run: |
-          pnpm --filter @workspace/scripts run gen-n8n-blueprints
+          pnpm --filter @workspace/scripts run gen-workflow-blueprints
           if ! git diff --quiet -- artifacts/n8n-blueprints/generated; then
             echo "::error::n8n example blueprints are out of date. Run 'pnpm --filter @workspace/scripts run gen-n8n-blueprints' and commit the result."
             git --no-pager diff --stat -- artifacts/n8n-blueprints/generated

@@ -18,7 +18,7 @@ function pointBroker(url: string | null): void {
  * that a workflow's own `asOf` in the reply wins over the request's when both are present — still a
  * live read every time, nothing cached or stored.
  */
-test("N8nBroker.fxRates: forwards opts.asOf as payload.asOf to the get_fx_rates action", async () => {
+test("ReferenceBroker.fxRates: forwards opts.asOf as payload.asOf to the get_fx_rates action", async () => {
   const captured: unknown[] = [];
   const server = http.createServer((req, res) => {
     let raw = "";
@@ -37,8 +37,8 @@ test("N8nBroker.fxRates: forwards opts.asOf as payload.asOf to the get_fx_rates 
   pointBroker(`http://127.0.0.1:${port}`);
 
   try {
-    const { N8nBroker } = await import("./index");
-    const broker = new N8nBroker();
+    const { ReferenceBroker } = await import("./index");
+    const broker = new ReferenceBroker();
     const ctx: ActorContext = { sub: "tester", email: "t@example.test", role: "admin", authHeader: "Bearer test" };
 
     const fx = await broker.fxRates(ctx, { asOf: "2026-06-30" });
@@ -56,7 +56,7 @@ test("N8nBroker.fxRates: forwards opts.asOf as payload.asOf to the get_fx_rates 
   }
 });
 
-test("N8nBroker.fxRates: no asOf hint when the policy is spot (opts omitted)", async () => {
+test("ReferenceBroker.fxRates: no asOf hint when the policy is spot (opts omitted)", async () => {
   const captured: unknown[] = [];
   const server = http.createServer((req, res) => {
     let raw = "";
@@ -74,8 +74,8 @@ test("N8nBroker.fxRates: no asOf hint when the policy is spot (opts omitted)", a
   pointBroker(`http://127.0.0.1:${port}`);
 
   try {
-    const { N8nBroker } = await import("./index");
-    const broker = new N8nBroker();
+    const { ReferenceBroker } = await import("./index");
+    const broker = new ReferenceBroker();
     const ctx: ActorContext = { sub: "tester", email: "t@example.test", role: "admin", authHeader: "Bearer test" };
 
     await broker.fxRates(ctx);

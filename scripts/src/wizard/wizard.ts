@@ -99,13 +99,13 @@ async function promptBroker(p: Prompter): Promise<BrokerChoice> {
     // contribute back, so the wizard + gateway know it next time.
     contributeCatalogue = await p.confirm("  Also generate a catalogue entry + field map to add this backend permanently?", true);
   }
-  const bundleN8n = await p.confirm("\nBundle a ready-to-configure n8n (the reference broker) in the compose?", true);
-  const brokerUrl = bundleN8n ? "" : await p.ask("External broker (n8n webhook) URL:", "https://n8n.internal/webhook/omniproject");
-  const wantPsk = !bundleN8n && (await p.confirm("Encrypt the broker hop with a pre-shared key? (only if TLS isn't available on that hop)", false));
+  const bundleReferenceBroker = await p.confirm("\nBundle a ready-to-configure n8n (the reference broker) in the compose?", true);
+  const brokerUrl = bundleReferenceBroker ? "" : await p.ask("External broker (n8n webhook) URL:", "https://n8n.internal/webhook/omniproject");
+  const wantPsk = !bundleReferenceBroker && (await p.confirm("Encrypt the broker hop with a pre-shared key? (only if TLS isn't available on that hop)", false));
   const psk = wantPsk ? rand(32) : undefined;
 
   return {
-    broker: { backendId: effectiveBackendId, bundleN8n, brokerUrl, ...(psk ? { psk } : {}) },
+    broker: { backendId: effectiveBackendId, bundleReferenceBroker, brokerUrl, ...(psk ? { psk } : {}) },
     custom, backendLabel, contributeCatalogue,
   };
 }
@@ -264,7 +264,7 @@ async function writeOutputs(config: DeployConfig, brokerChoice: BrokerChoice, p:
   console.log(b("\nNext steps:"));
   console.log(`  1. Review ${path.relative(process.cwd(), composePath)} and the .env.`);
   console.log(`  2. From the repo root:  docker compose --env-file ${path.relative(process.cwd(), envPath)} -f ${path.relative(process.cwd(), composePath)} up -d`);
-  if (config.broker.bundleN8n) console.log(`  3. Open n8n at http://localhost:5678, import ${workflowPath ? path.basename(workflowPath) : "your workflow"}, point BROKER_URL → ${effectiveBrokerUrl(config)}.`);
+  if (config.broker.bundleReferenceBroker) console.log(`  3. Open n8n at http://localhost:5678, import ${workflowPath ? path.basename(workflowPath) : "your workflow"}, point BROKER_URL → ${effectiveBrokerUrl(config)}.`);
   if (custom) console.log(`  ${err("→")} New backend: follow ${guidePath ? path.basename(guidePath) : "the binding guide"} to wire your API, then verify with the smoke test.`);
   if (config.idp.kind === "authentik-bundled") console.log("  4. Configure the OmniProject provider in Authentik, then confirm the issuer URL matches.");
   console.log(`  Verify readiness:  curl ${config.publicUrl}/api/readyz\n`);

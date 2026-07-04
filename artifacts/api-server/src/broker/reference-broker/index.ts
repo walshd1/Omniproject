@@ -60,10 +60,10 @@ function brokerUrlFromEnv(): string | undefined {
 
 /** True when a broker is wired via the environment (selection signal at boot). */
 const ENV_WEBHOOK = brokerUrlFromEnv();
-export const N8N_ENV_CONFIGURED = !!ENV_WEBHOOK;
+export const BROKER_ENV_CONFIGURED = !!ENV_WEBHOOK;
 
 /** The canonical response envelope (see broker/contract.ts). */
-type N8nResult<T = unknown> = BrokerEnvelope<T>;
+type AdapterResult<T = unknown> = BrokerEnvelope<T>;
 
 const DEFAULT_WEBHOOK = "http://localhost:5678/webhook/omniproject";
 
@@ -75,7 +75,7 @@ const VERIFY_PROBE_FANOUT_LIMIT = 5;
  * comma-separated list of n8n instances and the adapter load-balances across them
  * (round-robin) with connection-level failover. Otherwise the single
  * settings/env URL is used. Read live so config changes take effect without a
- * restart. This is entirely below the seam — nothing above N8nBroker knows.
+ * restart. This is entirely below the seam — nothing above ReferenceBroker knows.
  */
 export function webhookPool(): string[] {
   const pool = resolvePool();
@@ -132,7 +132,7 @@ function backendSource(): string {
   return getSettings().backendSource;
 }
 
-/** The plaintext envelope callN8n sends (or seals under PSK) + the bookkeeping
+/** The plaintext envelope callBroker sends (or seals under PSK) + the bookkeeping
  *  (idempotency key, actor) the rest of the call needs. */
 interface BuiltEnvelope {
   envelope: { action: string; payload: Record<string, unknown>; source: string; origin: string; idempotencyKey: string };
@@ -257,7 +257,7 @@ async function sendWithFailover(init: RequestInit): Promise<{ res: Response | un
 }
 
 /**
- * Step 4: unwrap the upstream response into the normalized `N8nResult`,
+ * Step 4: unwrap the upstream response into the normalized `AdapterResult`,
  * mapping non-2xx / network-level failures onto `BrokerError`, and auditing
  * every outcome via the caller's `audit` closure.
  */
@@ -265,7 +265,7 @@ async function unwrapResponse<T>(
   res: Response,
   psk: boolean,
   audit: (result: "success" | "error", status: number, extra?: Record<string, unknown>) => void,
-): Promise<N8nResult<T>> {
+): Promise<AdapterResult<T>> {
   try {
     if (!res.ok) {
       // Propagate meaningful upstream codes — notably 409 (optimistic-concurrency
@@ -285,8 +285,8 @@ async function unwrapResponse<T>(
       const opened = openPayload((json as { enc: string }).enc);
       json = opened ? (JSON.parse(opened) as unknown) : {};
     }
-    const result: N8nResult<T> =
-      json && typeof json === "object" && "success" in json ? (json as N8nResult<T>) : { success: true, data: json as T };
+    const result: AdapterResult<T> =
+      json && typeof json === "object" && "success" in json ? (json as AdapterResult<T>) : { success: true, data: json as T };
     audit(result.success === false ? "error" : "success", res.status, result.success === false ? { message: result.message } : undefined);
     return result;
   } catch (err) {
@@ -303,11 +303,11 @@ async function unwrapResponse<T>(
  * steps above in sequence: build the envelope, sign/encrypt it, send it with
  * pool failover, then unwrap the response — auditing every outcome along the way.
  */
-async function callN8n<T = unknown>(
+async function callBroker<T = unknown>(
   action: string,
   payload: Record<string, unknown>,
   opts: { ctx: ActorContext; source: string; withActor: boolean },
-): Promise<N8nResult<T>> {
+): Promise<AdapterResult<T>> {
   const { envelope, actor, key, origin } = buildEnvelope(action, payload, opts);
 
   const startedAt = Date.now();
@@ -435,34 +435,34 @@ export async function probeVerifiableActions(
   });
 }
 
-export class N8nBroker implements Broker {
+export class ReferenceBroker implements Broker {
   readonly kind = "n8n";
   readonly live = true;
 
   async listProjects(ctx: ActorContext): Promise<Project[]> {
-    const r = await callN8n<Project[]>("list_projects", {}, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<Project[]>("list_projects", {}, { ctx, source: backendSource(), withActor: false });
     return r.data ?? [];
   }
 
   async listIssues(ctx: ActorContext, projectId: string): Promise<Issue[]> {
-    const r = await callN8n<Issue[]>("list_issues", { projectId }, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<Issue[]>("list_issues", { projectId }, { ctx, source: backendSource(), withActor: false });
     return r.data ?? [];
   }
 
   async createProject(ctx: ActorContext, input: ProjectWrite): Promise<Project> {
-    const r = await callN8n<Project>("create_project", { ...input }, { ctx, source: backendSource(), withActor: true });
+    const r = await callBroker<Project>("create_project", { ...input }, { ctx, source: backendSource(), withActor: true });
     if (!r.data) throw new BrokerError("bad_request", "create_project returned no project");
     return r.data;
   }
 
   async updateProject(ctx: ActorContext, projectId: string, input: ProjectWrite): Promise<Project> {
-    const r = await callN8n<Project>("update_project", { projectId, ...input }, { ctx, source: backendSource(), withActor: true });
+    const r = await callBroker<Project>("update_project", { projectId, ...input }, { ctx, source: backendSource(), withActor: true });
     if (!r.data) throw new BrokerError("bad_request", "update_project returned no project");
     return r.data;
   }
 
   async getIssue(ctx: ActorContext, projectId: string, issueId: string): Promise<Issue | null> {
-    const r = await callN8n<Issue | null>("get_issue", { projectId, issueId }, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<Issue | null>("get_issue", { projectId, issueId }, { ctx, source: backendSource(), withActor: false });
     return r.data ?? null;
   }
 
@@ -470,33 +470,33 @@ export class N8nBroker implements Broker {
     const action = `${op}_issue`;
     const { projectId, issueId, ...rest } = input;
     const payload: Record<string, unknown> = { projectId, ...(issueId ? { issueId } : {}), ...rest };
-    const r = await callN8n<Issue>(action, payload, { ctx, source: backendSource(), withActor: true });
+    const r = await callBroker<Issue>(action, payload, { ctx, source: backendSource(), withActor: true });
     return op === "delete" ? null : (r.data ?? null);
   }
 
   async projectMembers(ctx: ActorContext, projectId: string): Promise<ProjectMember[]> {
-    const r = await callN8n<ProjectMember[]>("list_project_members", { projectId }, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<ProjectMember[]>("list_project_members", { projectId }, { ctx, source: backendSource(), withActor: false });
     return r.data ?? [];
   }
 
   async listTaskItems(ctx: ActorContext, projectId: string, taskId: string): Promise<TaskItem[]> {
-    const r = await callN8n<TaskItem[]>("list_task_items", { projectId, taskId }, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<TaskItem[]>("list_task_items", { projectId, taskId }, { ctx, source: backendSource(), withActor: false });
     return r.data ?? [];
   }
 
   async createTaskItem(ctx: ActorContext, projectId: string, taskId: string, input: TaskItemWrite): Promise<TaskItem> {
-    const r = await callN8n<TaskItem>("create_task_item", { projectId, taskId, ...input }, { ctx, source: backendSource(), withActor: true });
+    const r = await callBroker<TaskItem>("create_task_item", { projectId, taskId, ...input }, { ctx, source: backendSource(), withActor: true });
     if (!r.data) throw new BrokerError("bad_request", "create_task_item returned no item");
     return r.data;
   }
 
   async listActivity(ctx: ActorContext): Promise<Row[]> {
-    const r = await callN8n<Row[]>("list_activity", {}, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<Row[]>("list_activity", {}, { ctx, source: backendSource(), withActor: false });
     return r.data ?? [];
   }
 
   async projectSummary(ctx: ActorContext, projectId: string): Promise<Summary> {
-    const r = await callN8n<Summary>("project_summary", { projectId }, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<Summary>("project_summary", { projectId }, { ctx, source: backendSource(), withActor: false });
     // The contract requires a Summary. If the backend returns nothing/non-object,
     // surface it as a backend error (502) rather than emitting `undefined` cast as
     // a Summary, which would crash consumers or render as bogus all-undefined data.
@@ -507,49 +507,49 @@ export class N8nBroker implements Broker {
   }
 
   async projectHistory(ctx: ActorContext, projectId: string): Promise<HistoryPoint[]> {
-    const r = await callN8n<HistoryPoint[]>("get_project_history", { projectId }, { ctx, source: "history_provider", withActor: false });
+    const r = await callBroker<HistoryPoint[]>("get_project_history", { projectId }, { ctx, source: "history_provider", withActor: false });
     return (r.data ?? []).map((p) => ({ ...p, provenance: p.provenance ?? "sourced" }));
   }
 
   async baseline(ctx: ActorContext, projectId: string): Promise<Baseline | null> {
-    const r = await callN8n<Baseline | null>("get_baseline", { projectId }, { ctx, source: "baseline_store", withActor: false });
+    const r = await callBroker<Baseline | null>("get_baseline", { projectId }, { ctx, source: "baseline_store", withActor: false });
     return r.data ? { ...r.data, provenance: r.data.provenance ?? "sourced" } : null;
   }
 
   async listRaid(ctx: ActorContext, projectId: string): Promise<Row[]> {
-    const r = await callN8n<Row[]>("get_raid", { projectId }, { ctx, source: "raid_register", withActor: false });
+    const r = await callBroker<Row[]>("get_raid", { projectId }, { ctx, source: "raid_register", withActor: false });
     return (r.data ?? []).map((e) => ({ provenance: "sourced", ...e }));
   }
 
   async addRaid(ctx: ActorContext, projectId: string, input: Record<string, unknown>): Promise<Row> {
-    const r = await callN8n<Row>("create_raid_entry", { projectId, ...input }, { ctx, source: "raid_register", withActor: true });
+    const r = await callBroker<Row>("create_raid_entry", { projectId, ...input }, { ctx, source: "raid_register", withActor: true });
     return (r.data ?? {}) as Row;
   }
 
   async notifications(ctx: ActorContext): Promise<Row[]> {
-    const r = await callN8n<Row[]>("get_notifications", {}, { ctx, source: "notification_center", withActor: false });
+    const r = await callBroker<Row[]>("get_notifications", {}, { ctx, source: "notification_center", withActor: false });
     return r.data ?? [];
   }
 
   async portfolioHealth(ctx: ActorContext): Promise<PortfolioRow[]> {
-    const r = await callN8n<PortfolioRow[]>("get_portfolio_health", {}, { ctx, source: "portfolio_master", withActor: true });
+    const r = await callBroker<PortfolioRow[]>("get_portfolio_health", {}, { ctx, source: "portfolio_master", withActor: true });
     return r.data ?? [];
   }
 
   async resourceCapacity(ctx: ActorContext, projectId: string): Promise<Row[]> {
-    const r = await callN8n<Row[]>("get_resource_capacity", { projectId }, { ctx, source: "capacity_engine", withActor: true });
+    const r = await callBroker<Row[]>("get_resource_capacity", { projectId }, { ctx, source: "capacity_engine", withActor: true });
     return r.data ?? [];
   }
 
   async projectFinancials(ctx: ActorContext, projectId: string): Promise<Row> {
-    const r = await callN8n<Record<string, unknown>>("get_project_financials", { projectId }, { ctx, source: "financial_ledger", withActor: true });
+    const r = await callBroker<Record<string, unknown>>("get_project_financials", { projectId }, { ctx, source: "financial_ledger", withActor: true });
     return { provenance: "sourced", ...(r.data ?? {}) };
   }
 
   async capabilities(ctx: ActorContext): Promise<CapabilityFlags> {
     if (capCache && Date.now() - capCache.at < CAP_TTL_MS) return capCache.value;
     try {
-      const r = await callN8n<Partial<CapabilityFlags>>("get_capabilities", {}, { ctx, source: "capability_probe", withActor: true });
+      const r = await callBroker<Partial<CapabilityFlags>>("get_capabilities", {}, { ctx, source: "capability_probe", withActor: true });
       const data = r.data;
       const value = (data && typeof data === "object" ? { ...CONSERVATIVE, ...data } : { ...CONSERVATIVE }) as CapabilityFlags;
       capCache = { value, at: Date.now() };
@@ -563,7 +563,7 @@ export class N8nBroker implements Broker {
     try {
       // `asOf` is a best-effort hint forwarded to the workflow; a workflow that can't resolve a
       // historical rate is free to ignore it and answer with its current spot rate (as ours does).
-      const r = await callN8n<Partial<FxRates>>("get_fx_rates", { asOf: opts?.asOf }, { ctx, source: "fx_provider", withActor: false });
+      const r = await callBroker<Partial<FxRates>>("get_fx_rates", { asOf: opts?.asOf }, { ctx, source: "fx_provider", withActor: false });
       const data = r.data;
       if (data && data.rates && typeof data.rates === "object") {
         return { base: data.base || "GBP", rates: data.rates, provenance: "sourced", asOf: data.asOf || opts?.asOf || new Date().toISOString() };
@@ -575,7 +575,7 @@ export class N8nBroker implements Broker {
   }
 
   async replay(ctx: ActorContext, opts: { from?: string; to?: string }): Promise<HistoryState[]> {
-    const r = await callN8n<HistoryState[]>("replay", { from: opts.from, to: opts.to }, { ctx, source: "history_provider", withActor: false });
+    const r = await callBroker<HistoryState[]>("replay", { from: opts.from, to: opts.to }, { ctx, source: "history_provider", withActor: false });
     // Recorded states default to `replayed` provenance unless the workflow says otherwise.
     return (r.data ?? []).map((p) => ({ ...p, provenance: p.provenance ?? "replayed" }));
   }
@@ -586,7 +586,7 @@ export class N8nBroker implements Broker {
    * Broker interface — `source` is an n8n-envelope concern.
    */
   async commandWithSource(ctx: ActorContext, name: string, payload: Record<string, unknown>, source: string): Promise<unknown> {
-    return callN8n(name, payload, { ctx, source, withActor: true });
+    return callBroker(name, payload, { ctx, source, withActor: true });
   }
 
   async verify(ctx: ActorContext, opts: { projectId?: string } = {}): Promise<VerifyReport> {
@@ -599,4 +599,4 @@ export class N8nBroker implements Broker {
 }
 
 /** The n8n adapter exposes its generic command path for the broker-command route. */
-export type { N8nResult };
+export type { AdapterResult };

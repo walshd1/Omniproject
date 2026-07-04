@@ -48,8 +48,8 @@ test("PSK on: the gateway's wire body is ciphertext with no plaintext action/dat
   pointBroker(`http://127.0.0.1:${port}`);
 
   try {
-    const { N8nBroker } = await import("./n8n");
-    const broker = new N8nBroker();
+    const { ReferenceBroker } = await import("./reference-broker");
+    const broker = new ReferenceBroker();
     const ctx: ActorContext = { sub: "tester", email: "t@example.test", role: "admin", authHeader: "Bearer super-secret-token-xyz" };
 
     const projects = await broker.listProjects(ctx);
@@ -86,8 +86,8 @@ test("PSK on: full encrypted round-trip through the reference sidecar (read + wr
   pointBroker(`http://127.0.0.1:${port}`);
 
   try {
-    const { N8nBroker } = await import("./n8n");
-    const broker = new N8nBroker();
+    const { ReferenceBroker } = await import("./reference-broker");
+    const broker = new ReferenceBroker();
     const ctx: ActorContext = { sub: "tester", email: "t@example.test", role: "admin", authHeader: "Bearer test" };
 
     // Read path: the sidecar decrypts, dispatches, re-encrypts — and it works.

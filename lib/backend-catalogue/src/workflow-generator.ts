@@ -13,7 +13,7 @@ import type { ContractAction } from "./backend-manifest";
  * result into their own n8n).
  */
 
-interface N8nNode {
+interface WorkflowNode {
   parameters: Record<string, unknown>;
   id: string;
   name: string;
@@ -30,7 +30,7 @@ interface N8nWorkflow {
   active: boolean;
   settings: { executionOrder: string };
   pinData: Record<string, never>;
-  nodes: N8nNode[];
+  nodes: WorkflowNode[];
   connections: Record<string, { main: Array<Array<{ node: string; type: "main"; index: number }>> }>;
 }
 
@@ -52,7 +52,7 @@ function credPlaceholder(manifest: BackendDefinition, credType: string): Record<
 }
 
 /** Shared tail for both node kinds: attach the resolved credential placeholder and carry the mapping's note through. */
-function finishNode(node: N8nNode, credType: string | undefined, manifest: BackendDefinition, mapping: ActionMapping): N8nNode {
+function finishNode(node: WorkflowNode, credType: string | undefined, manifest: BackendDefinition, mapping: ActionMapping): WorkflowNode {
   if (credType) node.credentials = credPlaceholder(manifest, credType);
   if (mapping.note) node.notes = mapping.note;
   return node;
@@ -63,7 +63,7 @@ function singleCondition(leftValue: unknown, rightValue: unknown, operator: Reco
   return { options: { caseSensitive: true, typeValidation: "loose" }, combinator: "and", conditions: [{ leftValue, rightValue, operator }] };
 }
 
-function httpNode(id: string, name: string, mapping: ActionMapping, manifest: BackendDefinition, pos: [number, number]): N8nNode {
+function httpNode(id: string, name: string, mapping: ActionMapping, manifest: BackendDefinition, pos: [number, number]): WorkflowNode {
   // An n8n-managed credential (e.g. Microsoft Dynamics OAuth) takes over auth;
   // otherwise we forward the active user's bearer token.
   const credType = mapping.credentialType ?? manifest.credentialType;
@@ -93,16 +93,16 @@ function httpNode(id: string, name: string, mapping: ActionMapping, manifest: Ba
     parameters["jsonBody"] = mapping.body;
   }
 
-  const node: N8nNode = { parameters, id, name, type: "n8n-nodes-base.httpRequest", typeVersion: 4.2, position: pos };
+  const node: WorkflowNode = { parameters, id, name, type: "n8n-nodes-base.httpRequest", typeVersion: 4.2, position: pos };
   return finishNode(node, credType, manifest, mapping);
 }
 
-function nativeNode(id: string, name: string, mapping: ActionMapping, manifest: BackendDefinition, pos: [number, number], action: ContractAction): N8nNode {
+function nativeNode(id: string, name: string, mapping: ActionMapping, manifest: BackendDefinition, pos: [number, number], action: ContractAction): WorkflowNode {
   if (!mapping.node) {
     throw new Error(`backend "${manifest.id}" action "${action}" declares kind: "n8nNode" but has no "node" type`);
   }
   const credType = mapping.credentialType ?? manifest.credentialType;
-  const node: N8nNode = {
+  const node: WorkflowNode = {
     parameters: mapping.parameters ?? {},
     id,
     name,
@@ -113,17 +113,17 @@ function nativeNode(id: string, name: string, mapping: ActionMapping, manifest: 
   return finishNode(node, credType, manifest, mapping);
 }
 
-function codeNode(id: string, name: string, jsCode: string, pos: [number, number]): N8nNode {
+function codeNode(id: string, name: string, jsCode: string, pos: [number, number]): WorkflowNode {
   return { parameters: { jsCode }, id, name, type: "n8n-nodes-base.code", typeVersion: 2, position: pos };
 }
 
 /** The webhook + verify/loop-guard scaffold nodes — identical for every backend. */
 function buildScaffoldNodes(manifest: BackendDefinition, webhookPath: string, next: () => string) {
-  const webhook: N8nNode = {
+  const webhook: WorkflowNode = {
     parameters: { httpMethod: "POST", path: webhookPath, responseMode: "responseNode", options: {} },
     id: next(), name: "Webhook", type: "n8n-nodes-base.webhook", typeVersion: 2, position: [-520, 320], notes: `POST body { action, payload, source, origin, idempotencyKey }.`,
   };
-  const verifyIf: N8nNode = {
+  const verifyIf: WorkflowNode = {
     parameters: {
       conditions: singleCondition("={{ $json.body.verify }}", true, { type: "boolean", operation: "true", singleValue: true }),
       options: {},
@@ -132,7 +132,7 @@ function buildScaffoldNodes(manifest: BackendDefinition, webhookPath: string, ne
     notes: "When the gateway's workflow verifier sends { verify: true }, short-circuit with a no-op acknowledgement so verification never touches the backend.",
   };
   const verifyRespond = codeNode(next(), "Verify ACK", `// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = ${JSON.stringify(manifest.capabilities)};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: ${JSON.stringify(manifest.id)}, capabilities: caps }, message: 'verify ok' } }];`, [-120, 140]);
-  const loopIf: N8nNode = {
+  const loopIf: WorkflowNode = {
     parameters: {
       conditions: singleCondition("={{ $json.body.origin }}", "={{ $json.body.payload && $json.body.payload.lastUpdatedBy }}", { type: "string", operation: "notEquals" }),
       options: {},
@@ -145,7 +145,7 @@ function buildScaffoldNodes(manifest: BackendDefinition, webhookPath: string, ne
 }
 
 /** The Switch node that routes on `$json.body.action`, one rule per contract action. */
-function buildSwitchNode(actions: ContractAction[], next: () => string): N8nNode {
+function buildSwitchNode(actions: ContractAction[], next: () => string): WorkflowNode {
   const switchRules = actions.map((a) => ({
     conditions: singleCondition("={{ $json.body.action }}", a, { type: "string", operation: "equals" }),
     renameOutput: true, outputKey: a,
@@ -160,7 +160,7 @@ function buildSwitchNode(actions: ContractAction[], next: () => string): N8nNode
 function buildResponseNodes(next: () => string) {
   const normalize = codeNode(next(), "Normalize → BrokerActionResult", `// Normalize the backend response to { success, data, message }.\nconst action = $('Webhook').first().json.body.action;\nconst rows = items.map((i) => i.json);\nconst data = rows.length === 1 ? rows[0] : rows;\nreturn [{ json: { success: true, data, message: action + ' ok' } }];`, [620, 320]);
   const unsupported = codeNode(next(), "Unsupported Action", `const action = $('Webhook').first().json.body.action;\nreturn [{ json: { success: false, data: {}, message: 'Unsupported action: ' + action } }];`, [620, 560]);
-  const respond: N8nNode = {
+  const respond: WorkflowNode = {
     parameters: { respondWith: "firstIncomingItem", options: {} },
     id: next(), name: "Respond", type: "n8n-nodes-base.respondToWebhook", typeVersion: 1, position: [880, 320],
   };
@@ -184,11 +184,11 @@ function buildActionNodes(
   actions: ContractAction[],
   next: () => string,
   connect: (from: string, to: string, outIndex?: number) => void,
-): N8nNode[] {
-  const nodes: N8nNode[] = [];
+): WorkflowNode[] {
+  const nodes: WorkflowNode[] = [];
   let y = 80;
   actions.forEach((action, i) => {
-    let node: N8nNode;
+    let node: WorkflowNode;
     if (action === ALWAYS) {
       node = codeNode(next(), "Capabilities", `// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: ${JSON.stringify(manifest.capabilities)} } }];`, [380, y]);
       nodes.push(node);
@@ -224,7 +224,7 @@ export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPat
   const routeNode = buildSwitchNode(actions, next);
   const { normalize, unsupported, respond } = buildResponseNodes(next);
 
-  const nodes: N8nNode[] = [webhook, verifyIf, verifyRespond, loopIf, dropLoop, routeNode, normalize, unsupported, respond];
+  const nodes: WorkflowNode[] = [webhook, verifyIf, verifyRespond, loopIf, dropLoop, routeNode, normalize, unsupported, respond];
 
   // Wire the scaffold.
   connect("Webhook", "Verify probe?");

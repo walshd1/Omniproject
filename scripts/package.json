@@ -13,7 +13,7 @@
     "gen-openapi": "tsx ./src/gen-openapi-bundle.ts",
     "gen-function-map": "tsx ./src/gen-function-map.ts",
     "gen-vendors": "tsx ./src/gen-vendors.ts",
-    "gen-n8n-blueprints": "tsx ./src/gen-n8n-blueprints.ts",
+    "gen-workflow-blueprints": "tsx ./src/gen-workflow-blueprints.ts",
     "gen-views": "tsx ./src/gen-views.ts",
     "gen-notification-routes": "tsx ./src/gen-notification-routes.ts",
     "gen-fields": "tsx ./src/gen-fields.ts",

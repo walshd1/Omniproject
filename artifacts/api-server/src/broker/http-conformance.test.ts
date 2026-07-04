@@ -13,7 +13,7 @@ function pointBroker(url: string | null): void {
 }
 
 /**
- * Proves the broker HTTP binding end-to-end: the reference broker (N8nBroker)
+ * Proves the broker HTTP binding end-to-end: the reference broker (ReferenceBroker)
  * talks over real HTTP to the reference sidecar, and the broker-agnostic
  * conformance suite passes. This is the acceptance test a DB-backed sidecar
  * (RFC-003) must also pass — when it does, it drops in with zero core changes
@@ -30,8 +30,8 @@ test("reference HTTP sidecar passes broker conformance over the wire", async () 
 
   try {
     // Import after pointing BROKER_URL at the sidecar; webhookUrl() reads live.
-    const { N8nBroker } = await import("./n8n");
-    const broker = new N8nBroker();
+    const { ReferenceBroker } = await import("./reference-broker");
+    const broker = new ReferenceBroker();
     const ctx: ActorContext = { sub: "tester", email: "t@example.test", role: "admin", authHeader: "Bearer test" };
 
     const structural = structuralConformance(broker);
@@ -56,9 +56,9 @@ test("reference sidecar handles the write path + error taxonomy over HTTP", asyn
   process.env["BROKER_URL"] = `http://127.0.0.1:${port}`;
   pointBroker(`http://127.0.0.1:${port}`);
   try {
-    const { N8nBroker } = await import("./n8n");
+    const { ReferenceBroker } = await import("./reference-broker");
     const { BrokerError } = await import("./types");
-    const broker = new N8nBroker();
+    const broker = new ReferenceBroker();
     const ctx: ActorContext = { sub: "tester", email: "t@example.test", role: "admin", authHeader: "Bearer test" };
     const pid = "proj-ref-1";
 
