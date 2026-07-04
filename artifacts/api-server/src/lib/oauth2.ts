@@ -160,10 +160,12 @@ function pickString(info: Record<string, unknown>, primary: string, fallbacks: s
 
 /** Map a provider's userinfo JSON onto a session user via the configured field mapping. The
  *  `sub` is required (we fall back across sub/id/login so GitHub works out of the box); roles are
- *  handed to the RBAC layer, which maps them onto OmniProject roles exactly as for OIDC. */
-export function mapUserInfo(config: OAuth2Config, info: Record<string, unknown>): SessionUser | null {
+ *  handed to the RBAC layer, which maps them onto OmniProject roles exactly as for OIDC. Throws
+ *  when no usable identifier is present — matching the sibling OAuth2 functions in this file,
+ *  which throw for their equivalent failures rather than returning a sentinel. */
+export function mapUserInfo(config: OAuth2Config, info: Record<string, unknown>): SessionUser {
   const sub = pickString(info, config.fields.sub, ["sub", "id", "login"]);
-  if (!sub) return null;
+  if (!sub) throw new Error("OAuth2 userinfo response has no subject identifier");
   return {
     sub,
     name: pickString(info, config.fields.name, ["name", "login"]),

@@ -227,6 +227,41 @@ function fromEnv(): Capabilities | null {
   return build("env", enabled);
 }
 
+/** Await an optional-method call, swallowing a rejection to `fallback` (never throws).
+ *  `result` is the already-invoked `broker.x?.(ctx)` — `undefined` when the broker doesn't
+ *  implement the method at all, in which case there's nothing to await. */
+async function probe<T>(result: Promise<T> | undefined, fallback: T): Promise<T> {
+  if (!result) return fallback;
+  return result.catch(() => fallback);
+}
+
+/**
+ * The describe → reconcile path: ask the backend what fields it actually exposes and
+ * auto-surface any NON-canonical ones as gated custom fields (so tenant/custom fields light
+ * up without a registry edit), plus per-field lineage (which backend system/field each came
+ * from). Mutates and returns `caps` in place — best-effort, a broker that doesn't enumerate
+ * fields simply contributes nothing here.
+ */
+function enrichWithCustomFieldsAndLineage(caps: Capabilities, enumerated: EnumeratedField[] | null, brokerKind: string): Capabilities {
+  if (!enumerated || !enumerated.length) return caps;
+  const customs = customFieldsFrom(enumerated);
+  if (customs.length) {
+    caps.customFields = customs;
+    // Discovering customs flips the passthrough entity on (surface). Storing
+    // them stays whatever the map already said — read-through unless declared.
+    const existing = caps.entities["customField"];
+    caps.entities = { ...caps.entities, customField: { surface: true, store: existing?.store ?? false } };
+  }
+  // Per-field lineage: capture the backend system + native field for any
+  // enumerated field that declares one, so the UI can show where data came from.
+  const sources: Record<string, { system: string; field: string }> = {};
+  for (const f of enumerated) {
+    if (f.sourceField) sources[f.key] = { system: f.sourceSystem ?? brokerKind, field: f.sourceField };
+  }
+  if (Object.keys(sources).length) caps.fieldSources = sources;
+  return caps;
+}
+
 /**
  * Resolve which data domains the active backend can populate. Order:
  *   1. CAPABILITIES env (gateway-declared, authoritative).
@@ -240,37 +275,16 @@ export async function resolveCapabilities(req: Request): Promise<Capabilities> {
 
   const broker = getBroker();
   const ctx = contextFromReq(req);
-  const flags = await broker.capabilities(ctx).catch(() => null);
+  const flags = await probe(broker.capabilities(ctx), null);
   const enabled = Object.fromEntries(
     CAPABILITY_DOMAINS.map((d) => [d, !!flags?.[d]]),
   ) as Record<CapabilityDomain, boolean>;
   // Prefer the broker's explicit field/entity map; fall back to domain-derived.
-  const map = (await broker.fieldMap?.(ctx).catch(() => null)) ?? undefined;
+  const map = await probe(broker.fieldMap?.(ctx), undefined);
   const caps = build(broker.kind, enabled, map ?? undefined);
 
-  // The describe → reconcile path: ask the backend what fields it actually
-  // exposes and auto-surface any NON-canonical ones as gated custom fields, so
-  // tenant/custom fields light up without a registry edit. Best-effort — a
-  // broker that doesn't enumerate fields simply contributes nothing here.
-  const enumerated = (await broker.describeFields?.(ctx).catch(() => null)) ?? null;
-  if (enumerated && enumerated.length) {
-    const customs = customFieldsFrom(enumerated);
-    if (customs.length) {
-      caps.customFields = customs;
-      // Discovering customs flips the passthrough entity on (surface). Storing
-      // them stays whatever the map already said — read-through unless declared.
-      const existing = caps.entities["customField"];
-      caps.entities = { ...caps.entities, customField: { surface: true, store: existing?.store ?? false } };
-    }
-    // Per-field lineage: capture the backend system + native field for any
-    // enumerated field that declares one, so the UI can show where data came from.
-    const sources: Record<string, { system: string; field: string }> = {};
-    for (const f of enumerated) {
-      if (f.sourceField) sources[f.key] = { system: f.sourceSystem ?? broker.kind, field: f.sourceField };
-    }
-    if (Object.keys(sources).length) caps.fieldSources = sources;
-  }
-  return caps;
+  const enumerated = await probe(broker.describeFields?.(ctx), null);
+  return enrichWithCustomFieldsAndLineage(caps, enumerated, broker.kind);
 }
 
 /**
@@ -319,7 +333,7 @@ export interface FieldManifest {
 export async function resolveFieldManifest(req: Request): Promise<FieldManifest> {
   const broker = getBroker();
   const ctx = contextFromReq(req);
-  const enumerated = (await broker.describeFields?.(ctx).catch(() => null)) ?? [];
+  const enumerated = await probe(broker.describeFields?.(ctx), []);
   return {
     mode: broker.kind,
     enumerated,

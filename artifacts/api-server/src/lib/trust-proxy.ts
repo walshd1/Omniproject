@@ -16,3 +16,14 @@ export function resolveTrustProxy(raw: string | undefined): boolean | number {
   if (v === "1" || v === "true" || v === "on" || v === "yes") return 1;
   return false; // unrecognised ⇒ fail closed, don't silently trust
 }
+
+/** The FIRST value in a comma-separated `X-Forwarded-*` header (the chain runs
+ *  furthest-hop-first, so the first entry is what the nearest trusted proxy actually saw) —
+ *  trimmed, or undefined when the header is absent/empty. Only meaningful once the caller has
+ *  already decided the immediate peer is a trusted proxy (see `resolveTrustProxy`); this is
+ *  just the parsing, not the trust decision. */
+export function firstForwardedValue(req: { headers: Record<string, unknown> }, headerName: string): string | undefined {
+  const raw = req.headers[headerName];
+  if (typeof raw !== "string") return undefined;
+  return raw.split(",")[0]?.trim() || undefined;
+}

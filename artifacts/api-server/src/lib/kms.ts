@@ -96,6 +96,18 @@ async function unwrapInto(envName: string, label: string): Promise<Buffer | null
   return key;
 }
 
+/** Unwrap one root key and, on success, hand it to `assign` (the cache var setter) + log.
+ *  A failure is logged loudly (not fatal) so the gateway falls back to env/derived keys —
+ *  never lets one root key's failure block the other's. */
+async function resolveKey(envName: string, label: string, assign: (key: Buffer) => void): Promise<void> {
+  try {
+    const key = await unwrapInto(envName, label);
+    if (key) { assign(key); logger.info({ provider: kmsProvider() }, `kms: ${label} key unwrapped`); }
+  } catch (err) {
+    logger.warn({ err, provider: kmsProvider() }, `kms: failed to unwrap ${label} key — falling back`);
+  }
+}
+
 /**
  * Resolve KMS-wrapped root keys at boot, BEFORE any sealed file is read. Idempotent; failures
  * are logged loudly (not fatal) so the gateway falls back to env/derived keys. The CONFIG key
@@ -105,18 +117,8 @@ export async function initKms(): Promise<void> {
   if (initialised) return;
   initialised = true;
   if (!kmsEnabled()) return;
-  try {
-    const cfg = await unwrapInto("CONFIG_KEY_ENC", "config");
-    if (cfg) { configKeyCache = cfg; logger.info({ provider: kmsProvider() }, "kms: config-at-rest key unwrapped"); }
-  } catch (err) {
-    logger.warn({ err, provider: kmsProvider() }, "kms: failed to unwrap config key — falling back");
-  }
-  try {
-    const vault = await unwrapInto("VAULT_KEY_ENC", "vault");
-    if (vault) { vaultKeyCache = vault; logger.info({ provider: kmsProvider() }, "kms: vault root key unwrapped"); }
-  } catch (err) {
-    logger.warn({ err, provider: kmsProvider() }, "kms: failed to unwrap vault key — falling back");
-  }
+  await resolveKey("CONFIG_KEY_ENC", "config", (key) => { configKeyCache = key; });
+  await resolveKey("VAULT_KEY_ENC", "vault", (key) => { vaultKeyCache = key; });
 }
 
 /** The KMS-unwrapped vault root key, or null when KMS isn't used / hasn't resolved yet. */

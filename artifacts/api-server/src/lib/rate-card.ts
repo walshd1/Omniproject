@@ -64,14 +64,32 @@ export const emptyRateCard = (): RateCard => ({ titles: {}, rates: {} });
 export const emptyIdentityMap = (): IdentityMap => ({ central: {}, programme: {}, project: {} });
 
 /**
+ * Resolve a value under the shared project → programme → central precedence rule: a project
+ * override wins, then a programme override, then the central default — so a person/setting can
+ * carry a different value on a specific engagement without needing to override every level.
+ * `projectMap`/`programmeMap` are keyed by scope id; `pick` extracts the effective value from a
+ * scope-level container (undefined when that scope isn't set, or has no entry there — falls
+ * through to the next level).
+ */
+export function resolveScoped<S, T>(
+  scope: RateScope,
+  projectMap: Record<string, S> | undefined,
+  programmeMap: Record<string, S> | undefined,
+  central: S,
+  pick: (container: S | undefined) => T | undefined,
+): T | undefined {
+  const proj = scope.projectId ? projectMap?.[scope.projectId] : undefined;
+  const prog = scope.programmeId ? programmeMap?.[scope.programmeId] : undefined;
+  return pick(proj) ?? pick(prog) ?? pick(central);
+}
+
+/**
  * The job-title hash assigned to a person at a scope. Project override wins over programme, which wins
  * over the central default — so a person can carry a different grade on a specific engagement.
  */
 export function resolveTitleHash(map: IdentityMap, assignee: string, scope: RateScope = {}): string | null {
   const h = hashIdentity(assignee);
-  if (scope.projectId && map.project[scope.projectId]?.[h]) return map.project[scope.projectId]![h]!;
-  if (scope.programmeId && map.programme[scope.programmeId]?.[h]) return map.programme[scope.programmeId]![h]!;
-  return map.central[h] ?? null;
+  return resolveScoped(scope, map.project, map.programme, map.central, (container) => container?.[h]) ?? null;
 }
 
 /**

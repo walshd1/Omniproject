@@ -1,9 +1,7 @@
 import type { ActorContext, Broker, VerifyReport } from "../broker/types";
-import { mintAutonomousContext } from "./autonomous";
-import { getNotifyBus } from "./notify-bus";
-import { recordAudit } from "./audit";
 import { logger } from "./logger";
 import { reconcileFields, type EnumeratedField, type FieldReconciliation } from "./field-registry";
+import { runScheduledAutonomousJob, createIntervalScheduler } from "./scheduled-job";
 
 /**
  * Third-party API drift canary.
@@ -155,44 +153,46 @@ export interface RunDriftCanaryResult {
  * Read-only; audited like the other scheduled autonomous jobs.
  */
 export async function runDriftCanary(opts: RunDriftCanaryOptions): Promise<RunDriftCanaryResult> {
-  const ctx: ActorContext = mintAutonomousContext(
-    { id: "drift-canary", role: "viewer", reason: "scheduled third-party API drift check" },
-    opts.now,
-  );
   const getSnapshot = opts.getSnapshot ?? (() => lastSnapshot);
   const saveSnapshot = opts.saveSnapshot ?? ((s: CanarySnapshot) => { lastSnapshot = s; });
 
-  const snapshot = await takeSnapshot(opts.broker, ctx, opts.now);
-  const prev = getSnapshot();
-  const findings = diffSnapshots(prev, snapshot);
-  saveSnapshot(snapshot);
+  const result = await runScheduledAutonomousJob({
+    id: "drift-canary",
+    reason: "scheduled third-party API drift check",
+    now: opts.now,
+    auditAction: "drift-canary.run",
+    idPrefix: "drift-canary",
+    ...(opts.publish ? { publish: (n: { kind: string; title: string; body: string }) => opts.publish!(n) } : {}),
+    run: async (ctx: ActorContext) => {
+      const snapshot = await takeSnapshot(opts.broker, ctx, opts.now);
+      const prev = getSnapshot();
+      const findings = diffSnapshots(prev, snapshot);
+      saveSnapshot(snapshot);
 
-  for (const f of findings) {
-    ring.push(f);
-    if (ring.length > RING_MAX) ring.shift();
-  }
+      for (const f of findings) {
+        ring.push(f);
+        if (ring.length > RING_MAX) ring.shift();
+      }
 
-  const alertWorthy = findings.filter((f) => f.kind !== "action_recovered");
-  const dispatched = alertWorthy.length > 0;
-  if (dispatched) {
-    const at = new Date(opts.now).toISOString();
-    const title = `⚠ ${alertWorthy.length} third-party API change${alertWorthy.length === 1 ? "" : "s"} detected`;
-    const body = alertWorthy.map((f) => `• ${f.detail}`).join("\n");
-    const publish = opts.publish ?? ((n) =>
-      getNotifyBus().publish({
-        notification: { kind: n.kind, title: n.title, body: n.body, id: `drift-canary-${opts.now}`, read: false, timestamp: at } as never,
-        target: { role: "admin" },
-      }));
-    await publish({ kind: "integration_drift", title, body });
-  }
+      const alertWorthy = findings.filter((f) => f.kind !== "action_recovered");
+      const dispatch = alertWorthy.length > 0
+        ? {
+            kind: "integration_drift",
+            title: `⚠ ${alertWorthy.length} third-party API change${alertWorthy.length === 1 ? "" : "s"} detected`,
+            body: alertWorthy.map((f) => `• ${f.detail}`).join("\n"),
+            target: { role: "admin" as const },
+          }
+        : null;
 
-  recordAudit({
-    ts: new Date(opts.now).toISOString(), category: "autonomous", action: "drift-canary.run",
-    actor: { sub: ctx.sub, role: ctx.role }, write: false, result: "success",
-    meta: { findings: findings.length, alertWorthy: alertWorthy.length },
+      return {
+        data: { findings, snapshot },
+        dispatch,
+        auditMeta: () => ({ findings: findings.length, alertWorthy: alertWorthy.length }),
+      };
+    },
   });
 
-  return { findings, snapshot, dispatched };
+  return result;
 }
 
 // Default cadence: every 6 hours — frequent enough to catch a breaking vendor change
@@ -201,17 +201,13 @@ export async function runDriftCanary(opts: RunDriftCanaryOptions): Promise<RunDr
 // operator opts OUT by setting DRIFT_CANARY_INTERVAL_HOURS=0, mirroring proactive-digest.
 const DEFAULT_INTERVAL_HOURS = 6;
 
+const scheduler = createIntervalScheduler("DRIFT_CANARY_INTERVAL_HOURS", DEFAULT_INTERVAL_HOURS, "drift-canary");
+
 /** The configured cadence in hours: the env override when a valid non-negative number,
  *  else the 6-hour default. 0 = disabled (opt-out). */
 export function driftCanaryIntervalHours(): number {
-  const raw = process.env["DRIFT_CANARY_INTERVAL_HOURS"]?.trim();
-  if (raw === undefined || raw === "") return DEFAULT_INTERVAL_HOURS;
-  const hours = Number(raw);
-  if (!Number.isFinite(hours) || hours < 0) return DEFAULT_INTERVAL_HOURS;
-  return hours;
+  return scheduler.intervalHours();
 }
-
-let timer: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Start the in-process canary timer (single-instance / homelab). ON by the 6-hour
@@ -220,14 +216,8 @@ let timer: ReturnType<typeof setInterval> | null = null;
  * scheduler hitting the trigger endpoint, so it fires once rather than once per replica.
  */
 export function startDriftCanaryScheduler(run: () => Promise<unknown>): boolean {
-  const hours = driftCanaryIntervalHours();
-  if (hours <= 0) return false;
-  if (timer) clearInterval(timer);
-  timer = setInterval(() => { void run().catch((err) => logger.warn({ err }, "drift-canary run failed")); }, hours * 60 * 60 * 1000);
-  if (typeof timer.unref === "function") timer.unref(); // don't keep the process alive for the timer
-  logger.info({ everyHours: hours }, "drift-canary: scheduled in-process (opt-out; set DRIFT_CANARY_INTERVAL_HOURS=0 to disable, or use the trigger endpoint + external cron for a fleet)");
-  return true;
+  return scheduler.start(run);
 }
 
 /** Test-only: stop the timer. */
-export function __stopDriftCanaryScheduler(): void { if (timer) { clearInterval(timer); timer = null; } }
+export function __stopDriftCanaryScheduler(): void { scheduler.stop(); }

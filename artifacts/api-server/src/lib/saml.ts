@@ -1,4 +1,6 @@
 import { logger } from "./logger";
+import { loadOptionalDependency } from "./optional-dependency";
+import { decodePemOrBase64 } from "./pem";
 
 /**
  * SAML 2.0 SSO — an OPTIONAL identity path that sits alongside OIDC behind the same auth
@@ -53,16 +55,8 @@ export interface SamlConfig {
 
 /** Accept an IdP cert as PEM, or as base64-of-PEM (env-friendly, no embedded newlines). */
 function readCert(raw?: string): string | null {
-  const v = raw?.trim();
-  if (!v) return null;
-  if (v.includes("BEGIN CERTIFICATE")) return v;
-  try {
-    const decoded = Buffer.from(v, "base64").toString("utf8");
-    if (decoded.includes("BEGIN CERTIFICATE")) return decoded;
-  } catch {
-    /* not base64 */
-  }
-  return v; // assume a bare base64 cert body, which node-saml also accepts
+  // A bare base64 cert body (no PEM markers at all) is also accepted — node-saml handles it.
+  return decodePemOrBase64(raw, "BEGIN CERTIFICATE", true);
 }
 
 function readConfig(): SamlConfig | null {
@@ -214,17 +208,15 @@ let providerPromise: Promise<SamlProvider | null> | null = null;
 async function getProvider(): Promise<SamlProvider | null> {
   if (!samlConfig) return null;
   providerPromise ??= (async () => {
-    // Variable specifier so the bundler/tsc don't statically resolve the optional dep.
-    const pkgName = "@node-saml/node-saml";
-    const mod = await import(pkgName).catch(() => null);
-    const SamlClass = (mod as { SAML?: unknown } | null)?.SAML;
-    if (typeof SamlClass !== "function") {
-      logger.warn(
-        "SAML is configured but '@node-saml/node-saml' is not installed — SAML SSO is UNAVAILABLE (OIDC/demo unaffected). Run: pnpm --filter @workspace/api-server add @node-saml/node-saml",
-      );
-      return null;
-    }
-    const Ctor = SamlClass as new (opts: Record<string, unknown>) => SamlProvider;
+    const Ctor = await loadOptionalDependency<new (opts: Record<string, unknown>) => SamlProvider>(
+      "@node-saml/node-saml",
+      (mod) => {
+        const SamlClass = (mod as { SAML?: unknown } | null)?.SAML;
+        return typeof SamlClass === "function" ? (SamlClass as new (opts: Record<string, unknown>) => SamlProvider) : undefined;
+      },
+      "SAML is configured but '@node-saml/node-saml' is not installed — SAML SSO is UNAVAILABLE (OIDC/demo unaffected). Run: pnpm --filter @workspace/api-server add @node-saml/node-saml",
+    );
+    if (!Ctor) return null;
     return new Ctor({
       callbackUrl: samlConfig.callbackUrl,
       entryPoint: samlConfig.entryPoint,

@@ -57,12 +57,20 @@ export function listWebhooks(): RedactedSubscription[] {
   return subs().map(redact);
 }
 
+/** Thrown when a webhook subscription id doesn't exist (delete/test). */
+export class WebhookNotFoundError extends Error {
+  constructor(message = "Unknown webhook id") {
+    super(message);
+    this.name = "WebhookNotFoundError";
+  }
+}
+
 /**
- * Validate + create a subscription. Returns the full record INCLUDING the
- * plaintext secret so the caller can reveal it once at creation time; list/get
- * never expose it again. Throws on bad input.
+ * Validate a webhook create request and build the subscription record (including a freshly
+ * minted id + signing secret). Pure — throws on bad input, never touches settings. Split from
+ * `createWebhook` so validation/construction and persistence are two separate, testable steps.
  */
-export function createWebhook(input: unknown): WebhookSubscription {
+function parseWebhookInput(input: unknown): WebhookSubscription {
   if (!input || typeof input !== "object") throw new Error("webhook must be an object");
   const o = input as Record<string, unknown>;
   const url = String(o["url"] ?? "").trim();
@@ -79,7 +87,7 @@ export function createWebhook(input: unknown): WebhookSubscription {
     ? o["secret"].trim()
     : crypto.randomBytes(24).toString("base64url");
 
-  const sub: WebhookSubscription = {
+  return {
     id: crypto.randomUUID(),
     url,
     secret,
@@ -87,16 +95,25 @@ export function createWebhook(input: unknown): WebhookSubscription {
     active: o["active"] !== false,
     description: typeof o["description"] === "string" ? o["description"].slice(0, 200) : undefined,
   };
+}
+
+/**
+ * Validate + create a subscription. Returns the full record INCLUDING the
+ * plaintext secret so the caller can reveal it once at creation time; list/get
+ * never expose it again. Throws on bad input.
+ */
+export function createWebhook(input: unknown): WebhookSubscription {
+  const sub = parseWebhookInput(input);
   updateSettings({ webhooks: [...subs(), sub] });
   return sub;
 }
 
-/** Remove a subscription by id; returns false if no such subscription existed. */
-export function deleteWebhook(id: string): boolean {
+/** Remove a subscription by id. Throws WebhookNotFoundError if no such subscription existed —
+ *  matching createWebhook's throw-on-bad-input convention rather than a sentinel return. */
+export function deleteWebhook(id: string): void {
   const next = subs().filter((s) => s.id !== id);
-  if (next.length === subs().length) return false;
+  if (next.length === subs().length) throw new WebhookNotFoundError();
   updateSettings({ webhooks: next });
-  return true;
 }
 
 /** The full subscription (incl. secret) by id, for internal delivery use. */
@@ -177,9 +194,10 @@ export function emitWebhookEvent(event: WebhookEvent, payload: unknown): void {
   void deliverWebhooks(event, payload).catch((err) => logger.warn({ err, event }, "webhook fan-out failed"));
 }
 
-/** Send a single test event to one subscription (ignores active/event filters). */
-export async function testWebhook(id: string): Promise<DeliveryResult | null> {
+/** Send a single test event to one subscription (ignores active/event filters). Throws
+ *  WebhookNotFoundError if no such subscription existed. */
+export async function testWebhook(id: string): Promise<DeliveryResult> {
   const sub = getWebhook(id);
-  if (!sub) return null;
+  if (!sub) throw new WebhookNotFoundError();
   return deliverOne(sub, "webhook.test", { message: "Test event from OmniProject", webhookId: id }, new Date().toISOString());
 }

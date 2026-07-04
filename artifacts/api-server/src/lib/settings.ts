@@ -11,6 +11,7 @@ import { assertSafeOutboundUrl, isSafeOutboundUrl, UnsafeUrlError } from "./url-
 import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "./deployment-profile";
 import type { BackendFieldMap } from "../broker/types";
 import type { GovernanceRule } from "./governance-rules";
+import { logger } from "./logger";
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
@@ -464,7 +465,8 @@ function labelsFromEnv(): Record<string, string> {
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(parsed)) if (typeof v === "string") out[k] = v;
     return out;
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, "LABEL_OVERRIDES is not valid JSON — ignoring, no label overrides seeded");
     return {};
   }
 }
@@ -489,7 +491,8 @@ function webhooksFromEnv(): WebhookSubscription[] {
       // (e.g. a link-local/metadata target) is dropped at load rather than being
       // admitted here and then blocking every later validated webhook mutation.
       .filter((w) => isSafeOutboundUrl(w.url));
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, "WEBHOOKS is not valid JSON — ignoring, no webhooks seeded from env");
     return [];
   }
 }
@@ -512,7 +515,8 @@ function peersFromEnv(): PeerInstance[] {
       }))
       // Same safety check as admin writes (see webhooksFromEnv for the same rationale).
       .filter((p) => isSafeOutboundUrl(p.baseUrl));
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, "FEDERATED_PEERS is not valid JSON — ignoring, no federated peers seeded from env");
     return [];
   }
 }
@@ -768,7 +772,11 @@ function validateContentPages(value: unknown): void {
   }
 }
 
-function validatePatch(patch: Record<string, unknown>): void {
+/** Validate a settings patch and return a NORMALIZED copy (reportingCurrency upper-cased,
+ *  fxRateAsOfDate/reportingCurrency empty-string coerced to null, …) — pure, never mutates the
+ *  caller's `patch` object. Throws SettingsValidationError on bad input. */
+function validatePatch(patch: Record<string, unknown>): Record<string, unknown> {
+  const normalized: Record<string, unknown> = { ...patch };
   if ("aiProvider" in patch && !(AI_PROVIDERS as readonly string[]).includes(patch["aiProvider"] as string)) {
     throw new SettingsValidationError(`aiProvider must be one of: ${AI_PROVIDERS.join(", ")}`);
   }
@@ -783,7 +791,7 @@ function validatePatch(patch: Record<string, unknown>): void {
     if (typeof v !== "string" || (v !== "" && !/^[A-Za-z]{3}$/.test(v))) {
       throw new SettingsValidationError("reportingCurrency must be a 3-letter ISO 4217 code (or null to clear)");
     }
-    patch["reportingCurrency"] = v.toUpperCase() || null;
+    normalized["reportingCurrency"] = v.toUpperCase() || null;
   }
   if ("fxRatePolicy" in patch && !(FX_RATE_POLICIES as readonly string[]).includes(patch["fxRatePolicy"] as string)) {
     throw new SettingsValidationError(`fxRatePolicy must be one of: ${FX_RATE_POLICIES.join(", ")}`);
@@ -793,7 +801,7 @@ function validatePatch(patch: Record<string, unknown>): void {
     if (typeof v !== "string" || (v !== "" && Number.isNaN(Date.parse(v)))) {
       throw new SettingsValidationError("fxRateAsOfDate must be an ISO 8601 date string (or null to clear)");
     }
-    patch["fxRateAsOfDate"] = v || null;
+    normalized["fxRateAsOfDate"] = v || null;
   }
   for (const key of ["brokerUrl", "oidcIssuerUrl"] as const) {
     if (key in patch && patch[key] != null) {
@@ -922,20 +930,21 @@ function validatePatch(patch: Record<string, unknown>): void {
       }
     }
   }
+  return normalized;
 }
 
 /** Validate + apply a partial settings patch, returning the new settings. Throws
  *  SettingsValidationError on bad input (rejected atomically — nothing persists). */
 export function updateSettings(patch: Record<string, unknown>): SettingsState {
-  validatePatch(patch);
+  const normalized = validatePatch(patch);
   const writable = store as unknown as Record<string, unknown>;
   for (const key of ALLOWED_KEYS) {
-    if (key in patch) {
-      writable[key] = patch[key];
+    if (key in normalized) {
+      writable[key] = normalized[key];
     }
   }
   // A profile change takes effect for the runtime accessors (TLS posture, reporting, …).
-  if ("deploymentProfile" in patch) setRuntimeProfile(store.deploymentProfile ?? null);
+  if ("deploymentProfile" in normalized) setRuntimeProfile(store.deploymentProfile ?? null);
   return { ...store };
 }
 

@@ -15,7 +15,7 @@
 import { demoAuthSeverity } from "./deployment-profile";
 import { configuredBrokerUrls } from "./broker-url";
 import { checkRequiredEnv, detectEnvVarTypos } from "./env-config";
-import { productionSignals } from "./dev-mode-guard";
+import { isProductionLike } from "./dev-mode-guard";
 
 export type Severity = "critical" | "warn" | "info";
 
@@ -61,7 +61,7 @@ export function securityFindings(env: Env): SecurityFinding[] {
   // environment (not gated on `prod`, below), since a typo is just as silent in dev/staging.
   for (const issue of detectEnvVarTypos(env)) out.push({ id: "env-var-typo", severity: "warn", message: issue });
 
-  const prod = env["NODE_ENV"] === "production" || productionSignals(env).length > 0;
+  const prod = isProductionLike(env);
   if (!prod) return out; // dev/test deployments (no production signals either) are expected to be relaxed
 
   // The big one: production with no OIDC means demo auth — every session is admin. Its

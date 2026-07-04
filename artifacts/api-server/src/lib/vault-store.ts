@@ -1,13 +1,11 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import { sealConfig, readMaybeSealed } from "./config-crypto";
 import { awsSecretsStore } from "./vault-aws";
 import { azureKeyVaultStore } from "./vault-azure";
 import { kmsVaultKey } from "./kms";
 import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
 import { decodeKey32 } from "./crypto-keys";
 import { logger } from "./logger";
+import { SealedFile, resolveConfigFile } from "./sealed-file";
 
 /**
  * Vault STORAGE seam. Where AI provider keys actually live is pluggable — the same
@@ -70,21 +68,18 @@ function sealSecret(ref: string, value: string): string {
 
 function openSecret(ref: string, env: string): string | null {
   if (!env.startsWith(ENV_PREFIX)) return null;
-  return aesGcmOpen(env.slice(ENV_PREFIX.length), subKey(ref));
+  const opened = aesGcmOpen(env.slice(ENV_PREFIX.length), subKey(ref));
+  if (opened === null) logger.warn({ ref }, "vault(local): an envelope entry exists but failed to decrypt — check VAULT_KEY/KMS config hasn't changed");
+  return opened;
 }
 
-function localFile(): string | null {
-  const explicit = process.env["VAULT_FILE"]?.trim();
-  if (explicit) return explicit;
-  const dir = process.env["OMNI_CONFIG_DIR"]?.trim();
-  return dir ? path.join(dir, "vault.json") : null;
-}
+const store = new SealedFile(() => resolveConfigFile("VAULT_FILE", "vault.json"), "vault(local)");
 
 function readEnvelopes(): Record<string, string> {
-  const file = localFile();
-  if (!file || !fs.existsSync(file)) return {};
+  const raw = store.read();
+  if (raw === null) return {};
   try {
-    const parsed = JSON.parse(readMaybeSealed(fs.readFileSync(file, "utf8"))) as { secrets?: Record<string, string> };
+    const parsed = JSON.parse(raw) as { secrets?: Record<string, string> };
     return parsed.secrets && typeof parsed.secrets === "object" ? parsed.secrets : {};
   } catch (err) {
     logger.warn({ err }, "vault(local): failed to read file — treating as empty");
@@ -93,9 +88,7 @@ function readEnvelopes(): Record<string, string> {
 }
 
 function writeEnvelopes(envelopes: Record<string, string>): void {
-  const file = localFile();
-  if (!file) return; // RAM-only deployment
-  fs.writeFileSync(file, sealConfig(JSON.stringify({ secrets: envelopes })));
+  store.write(JSON.stringify({ secrets: envelopes }));
 }
 
 const localStore: VaultStore = {

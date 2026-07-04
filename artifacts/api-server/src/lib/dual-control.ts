@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { sharedKv } from "./shared-state";
+import { parseCsvEnv } from "./env";
 
 /**
  * Maker-checker (four-eyes) dual control for sensitive admin actions.
@@ -47,7 +48,7 @@ export function registerExecutor(action: string, fn: Executor): void { executors
 
 /** The set of action ids that require dual control (from DUAL_CONTROL_ACTIONS). */
 export function dualControlActions(): Set<string> {
-  return new Set((process.env["DUAL_CONTROL_ACTIONS"]?.trim() || "").split(",").map((s) => s.trim()).filter(Boolean));
+  return new Set(parseCsvEnv("DUAL_CONTROL_ACTIONS"));
 }
 
 /** Does this action require a second approver? */

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { applyDevEntitlementOverrides } from "./dev-entitlements";
+import { decodePemOrBase64 } from "./pem";
 
 /**
  * Licensing / entitlements — the paywall for premium overlay features.
@@ -62,15 +63,7 @@ function b64urlJson(obj: unknown): string {
 
 /** Resolve a PEM public/private key from an env value (raw PEM or base64 of PEM). */
 function resolvePem(raw: string | undefined): string | null {
-  const v = raw?.trim();
-  if (!v) return null;
-  if (v.includes("BEGIN")) return v;
-  try {
-    const decoded = Buffer.from(v, "base64").toString("utf8");
-    return decoded.includes("BEGIN") ? decoded : null;
-  } catch {
-    return null;
-  }
+  return decodePemOrBase64(raw, "BEGIN", false);
 }
 
 /**

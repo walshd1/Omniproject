@@ -47,6 +47,11 @@ export interface ConfigDirSummary {
   errors: string[];
 }
 
+/** A thrown value's message, or its string form when it isn't an `Error`. */
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 function emptySummary(dir: string | null): ConfigDirSummary {
   return { dir, present: false, vendors: {}, configApplied: false, rulesetsApplied: false, artifacts: 0, warnings: [], errors: [] };
 }
@@ -100,7 +105,7 @@ export function loadConfigDir(dir = process.env["OMNI_CONFIG_DIR"]?.trim()): Con
     try {
       loader.load(dir, summary);
     } catch (err) {
-      summary.errors.push(`${loader.name}: ${err instanceof Error ? err.message : String(err)}`);
+      summary.errors.push(`${loader.name}: ${errMsg(err)}`);
     }
   }
 
@@ -123,7 +128,7 @@ function loadVendors(dir: string, summary: ConfigDirSummary): void {
         registerVendor(plane, data as { id: string });
         count++;
       } catch (err) {
-        summary.errors.push(`vendors/${plane}/${file}: ${err instanceof Error ? err.message : String(err)}`);
+        summary.errors.push(`vendors/${plane}/${file}: ${errMsg(err)}`);
       }
     }
     summary.vendors[plane] = count;
@@ -140,7 +145,7 @@ function loadConfigJson(dir: string, summary: ConfigDirSummary): void {
     summary.configApplied = true;
     summary.warnings.push(...warnings);
   } catch (err) {
-    summary.errors.push(`config.json: ${err instanceof Error ? err.message : String(err)}`);
+    summary.errors.push(`config.json: ${errMsg(err)}`);
   }
 }
 
@@ -153,7 +158,7 @@ function loadRulesets(dir: string, summary: ConfigDirSummary): void {
       fn(readConfigJson(full));
       summary.rulesetsApplied = true;
     } catch (err) {
-      summary.errors.push(`rulesets/${file}: ${err instanceof Error ? err.message : String(err)}`);
+      summary.errors.push(`rulesets/${file}: ${errMsg(err)}`);
     }
   };
   apply("field-rules.json", (d) => setFieldRules(d));
@@ -179,7 +184,7 @@ function safeRead(dir: string, summary: ConfigDirSummary): Array<{ file: string;
   try {
     return readJsonDir(dir);
   } catch (err) {
-    summary.errors.push(`${dir}: ${err instanceof Error ? err.message : String(err)}`);
+    summary.errors.push(`${dir}: ${errMsg(err)}`);
     return [];
   }
 }

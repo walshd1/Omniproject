@@ -4,6 +4,7 @@ import { envFlag } from "./env";
 import { requireTls } from "./deployment-profile";
 import { constantTimeEqual } from "./crypto-keys";
 import { configuredCorsOrigins } from "./origin-allowlist";
+import { firstForwardedValue } from "./trust-proxy";
 
 /**
  * CSRF hardening for cookie-authenticated mutations (security item B).
@@ -43,8 +44,8 @@ function disabled(): boolean {
  *  CORS allowlist — see lib/origin-allowlist.ts), plus the request's own derived origin. */
 function allowedOrigins(req: Request): Set<string> {
   const out = configuredCorsOrigins();
-  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0]?.trim() || req.protocol;
-  const host = (req.headers["x-forwarded-host"] as string)?.split(",")[0]?.trim() || req.get("host");
+  const proto = firstForwardedValue(req, "x-forwarded-proto") || req.protocol;
+  const host = firstForwardedValue(req, "x-forwarded-host") || req.get("host");
   if (host) out.add(`${proto}://${host}`.toLowerCase());
   return out;
 }

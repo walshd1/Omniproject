@@ -107,6 +107,6 @@ test("mapUserInfo falls back across sub/id/login and collects roles from a strin
   assert.deepEqual(fromArray!.roles, ["manager", "contributor"]);
 });
 
-test("mapUserInfo returns null when no identifier is present", () => {
-  assert.equal(mapUserInfo(CONFIG, { name: "no id here" }), null);
+test("mapUserInfo throws when no identifier is present", () => {
+  assert.throws(() => mapUserInfo(CONFIG, { name: "no id here" }), /no subject identifier/);
 });

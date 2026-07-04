@@ -34,6 +34,7 @@ import dns from "node:dns/promises";
 import net from "node:net";
 import { assertEgressResidency } from "./data-residency";
 import { isBlockedHostLiteral, isBlockedIp } from "./ip-ranges";
+import { parseCsvEnv } from "./env";
 
 export class EgressError extends Error {
   constructor(message: string) {
@@ -85,9 +86,9 @@ export async function assertEgressAllowed(rawUrl: string, lookup: LookupFn = dns
       throw new EgressError(`egress to ${host} resolves to ${blocked.address}, which is blocked (link-local/metadata range)`);
     }
   }
-  const allow = process.env["EGRESS_ALLOWLIST"]?.trim();
-  if (allow) {
-    const set = new Set(allow.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const allowlist = parseCsvEnv("EGRESS_ALLOWLIST");
+  if (allowlist.length) {
+    const set = new Set(allowlist.map((s) => s.toLowerCase()));
     if (!set.has(host)) {
       throw new EgressError(`egress to ${host} is not in EGRESS_ALLOWLIST`);
     }

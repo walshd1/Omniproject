@@ -215,14 +215,14 @@ test("parseJwt: extracts header/claims (decode only)", () => {
   assert.equal(p.claims.sub, "user-1");
 });
 
-test("validateClaims: passes for matching iss/aud and unexpired", () => {
-  assert.equal(validateClaims(GOOD_CLAIMS, { issuer: "https://idp.test", audience: "omni-client" }), null);
+test("validateClaims: does not throw for matching iss/aud and unexpired", () => {
+  assert.doesNotThrow(() => validateClaims(GOOD_CLAIMS, { issuer: "https://idp.test", audience: "omni-client" }));
 });
 
-test("validateClaims: rejects wrong audience, wrong issuer, and expiry", () => {
-  assert.match(validateClaims(GOOD_CLAIMS, { issuer: "https://idp.test", audience: "other" })!, /audience/);
-  assert.match(validateClaims(GOOD_CLAIMS, { issuer: "https://evil", audience: "omni-client" })!, /issuer/);
-  assert.match(validateClaims({ ...GOOD_CLAIMS, exp: NOW - 3600 }, { issuer: "https://idp.test", audience: "omni-client" })!, /expired/);
+test("validateClaims: throws on wrong audience, wrong issuer, and expiry", () => {
+  assert.throws(() => validateClaims(GOOD_CLAIMS, { issuer: "https://idp.test", audience: "other" }), /audience/);
+  assert.throws(() => validateClaims(GOOD_CLAIMS, { issuer: "https://evil", audience: "omni-client" }), /issuer/);
+  assert.throws(() => validateClaims({ ...GOOD_CLAIMS, exp: NOW - 3600 }, { issuer: "https://idp.test", audience: "omni-client" }), /expired/);
 });
 
 test("verifyIdToken: end-to-end with a stubbed JWKS endpoint", async () => {

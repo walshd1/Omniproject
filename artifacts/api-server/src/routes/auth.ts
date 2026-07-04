@@ -398,15 +398,15 @@ router.get("/auth/callback", async (req, res) => {
     }
 
     const claims = decodeIdTokenClaims(tokens.id_token);
-    const travel = await travelCheck(claims?.sub || "unknown", claims?.email, req.ip);
+    const travel = await travelCheck(claims.sub || "unknown", claims.email, req.ip);
 
     setSession(res, {
-      sub: claims?.sub || "unknown",
-      name: claims?.name,
-      email: claims?.email,
-      roles: claims?.roles,
-      amr: claims?.amr,
-      acr: claims?.acr,
+      sub: claims.sub || "unknown",
+      name: claims.name,
+      email: claims.email,
+      roles: claims.roles,
+      amr: claims.amr,
+      acr: claims.acr,
       accessToken: tokens.access_token,
       idToken: tokens.id_token,
       // A step-up re-auth (prompt=login) stamps freshness so a sensitive action proceeds.
@@ -523,7 +523,6 @@ router.get("/auth/oauth2/callback", async (req, res) => {
     });
     const info = await fetchUserInfo(oauth2Config, tokens.access_token);
     const user = mapUserInfo(oauth2Config, info);
-    if (!user) { res.status(502).send("OAuth2 provider returned no usable identity."); return; }
     const travel = await travelCheck(user.sub, user.email, req.ip);
     setSession(res, {
       sub: user.sub,

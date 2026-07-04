@@ -83,13 +83,13 @@ test("decodeIdTokenClaims falls back to preferred_username and merges role sourc
   assert.deepEqual(claims?.roles?.sort(), ["g1", "g2", "r1"]);
 });
 
-test("decodeIdTokenClaims returns null on a non-3-part token", () => {
-  assert.equal(decodeIdTokenClaims("not.a.jwt.token"), null);
-  assert.equal(decodeIdTokenClaims("only-one-part"), null);
+test("decodeIdTokenClaims throws on a non-3-part token (post-verification decode failure)", () => {
+  assert.throws(() => decodeIdTokenClaims("not.a.jwt.token"), oidc.InvalidIdTokenClaimsError);
+  assert.throws(() => decodeIdTokenClaims("only-one-part"), oidc.InvalidIdTokenClaimsError);
 });
 
-test("decodeIdTokenClaims returns null on an undecodable payload", () => {
-  assert.equal(decodeIdTokenClaims("aaa.@@@not-base64-json@@@.ccc"), null);
+test("decodeIdTokenClaims throws on an undecodable payload (post-verification decode failure)", () => {
+  assert.throws(() => decodeIdTokenClaims("aaa.@@@not-base64-json@@@.ccc"), oidc.InvalidIdTokenClaimsError);
 });
 
 // ── discover ──────────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import { setSecret, getSecret, hasSecret, deleteSecret, secretFingerprint } from
 import { getSettings } from "./settings";
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
+import { createUndoBuffer } from "./undo-buffer";
 
 /**
  * AI provider registry + capability→provider mapping.
@@ -74,30 +75,26 @@ const store = new SealedFile(() => resolveConfigFile("AI_PROVIDERS_FILE", "ai-pr
 // back; see the module docstring). Batched per synchronous tick the same way rate-card-store
 // batches a multi-setter request, so e.g. an accidental removeProvider (entity + mapping edit
 // across two statements) undoes as one step, not the state between them.
-let previousState: { providers: AiProviderConfig[]; mapping: Record<string, string[]> } | null = null;
-let batchOpen = false;
-
+const undo = createUndoBuffer<{ providers: AiProviderConfig[]; mapping: Record<string, string[]> }>(
+  () => ({ providers: structuredClone(state.providers), mapping: structuredClone(state.mapping) }),
+  (restore) => {
+    state.providers = restore.providers;
+    state.mapping = restore.mapping;
+    persist();
+  },
+);
 function beginMutation(): void {
-  if (batchOpen) return;
-  previousState = { providers: structuredClone(state.providers), mapping: structuredClone(state.mapping) };
-  batchOpen = true;
-  queueMicrotask(() => { batchOpen = false; });
+  undo.beginMutation();
 }
 
 /** Undo the most recent provider/mapping change (one generation back). One-shot. */
 export function rollbackAiProviders(): boolean {
-  if (!previousState) return false;
-  const restore = previousState;
-  previousState = null;
-  state.providers = restore.providers;
-  state.mapping = restore.mapping;
-  persist();
-  return true;
+  return undo.rollback();
 }
 
 /** Whether a rollback is currently available (for the admin UI to show/hide the control). */
 export function canRollbackAiProviders(): boolean {
-  return previousState !== null;
+  return undo.canRollback();
 }
 
 function ensureLoaded(): void {
@@ -243,7 +240,6 @@ export function providersSnapshot(): { providers: Array<AiProviderConfig & { has
 /** Test-only: reset to seed defaults and force reload. */
 export function __resetProviders(): void {
   state = { providers: seedProviders(), mapping: {}, keyRotatedAt: {} };
-  previousState = null;
-  batchOpen = false;
+  undo.reset();
   store.reset();
 }

@@ -1,6 +1,7 @@
 import type { ActorContext, Broker, PortfolioRow } from "../broker/types";
 import { mintAutonomousContext } from "./autonomous";
 import { recordAudit } from "./audit";
+import { pushBounded } from "./ring-buffer";
 
 /**
  * Health / anomaly watch.
@@ -122,8 +123,7 @@ export async function runHealthWatch(opts: RunOptions): Promise<HealthFinding[]>
 
   for (const f of findings) {
     opts.notify(f);
-    ring.push(f);
-    if (ring.length > RING_MAX) ring.shift();
+    pushBounded(ring, f, RING_MAX);
   }
 
   recordAudit({
