@@ -1,6 +1,33 @@
-import { test } from "node:test";
+import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { parseTraceparent, formatTraceparent, currentTraceparent } from "./tracing";
+import type { Request, Response, NextFunction } from "express";
+import { parseTraceparent, formatTraceparent, currentTraceparent, tracingMiddleware } from "./tracing";
+
+const realFetch = globalThis.fetch;
+const ENV_KEYS = ["OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_HEADERS"] as const;
+const saved: Record<string, string | undefined> = {};
+for (const k of ENV_KEYS) saved[k] = process.env[k];
+afterEach(() => {
+  globalThis.fetch = realFetch;
+  for (const k of ENV_KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]!; }
+});
+
+/** A minimal fake req/res pair — just enough of the Express shape tracingMiddleware touches. */
+function fakeReqRes(): { req: Request; res: Response; finish: () => void } {
+  let finishCb: (() => void) | undefined;
+  const headers: Record<string, string> = {};
+  const req = { headers: {}, method: "GET", path: "/api/projects" } as unknown as Request;
+  const res = {
+    statusCode: 200,
+    setHeader(k: string, v: string) { headers[k] = v; },
+    on(event: string, cb: () => void) { if (event === "finish") finishCb = cb; },
+  } as unknown as Response;
+  return { req, res, finish: () => finishCb?.() };
+}
+
+/** Let a fire-and-forget async export (kicked off inside a "finish" handler, never awaited by the
+ *  caller) settle before the test asserts on its side effects (same pattern as audit-sink.test.ts). */
+async function flush(): Promise<void> { await new Promise((r) => setImmediate(r)); }
 
 /**
  * W3C trace context parsing/formatting + AsyncLocalStorage propagation.
@@ -29,4 +56,49 @@ test("formatTraceparent round-trips through parseTraceparent", () => {
 
 test("currentTraceparent is null outside a request context", () => {
   assert.equal(currentTraceparent(), null);
+});
+
+test("tracingMiddleware does not export a span when no OTLP endpoint is configured", async () => {
+  delete process.env["OTEL_EXPORTER_OTLP_ENDPOINT"];
+  let called = false;
+  globalThis.fetch = (async () => { called = true; return new Response(null, { status: 200 }); }) as unknown as typeof fetch;
+
+  const { req, res, finish } = fakeReqRes();
+  tracingMiddleware(req, res, (() => {}) as NextFunction);
+  finish();
+  await flush();
+  assert.equal(called, false);
+});
+
+test("tracingMiddleware exports a span to the OTLP endpoint on response finish", async () => {
+  process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://collector:4318";
+  const calls: Array<{ url: string; body: any }> = [];
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+    return new Response(null, { status: 200 });
+  }) as unknown as typeof fetch;
+
+  const { req, res, finish } = fakeReqRes();
+  tracingMiddleware(req, res, (() => {}) as NextFunction);
+  finish();
+  await flush();
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!.url, "http://collector:4318/v1/traces");
+  const span = calls[0]!.body.resourceSpans[0].scopeSpans[0].spans[0];
+  assert.equal(span.name, "GET /api/projects");
+  assert.equal(span.status.code, 1); // 200 -> OK
+  assert.match(span.traceId, /^[0-9a-f]{32}$/);
+});
+
+test("tracingMiddleware's export is best-effort — a fetch rejection never throws", async () => {
+  process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://collector:4318";
+  globalThis.fetch = (async () => { throw new Error("connection refused"); }) as unknown as typeof fetch;
+
+  const { req, res, finish } = fakeReqRes();
+  assert.doesNotThrow(() => {
+    tracingMiddleware(req, res, (() => {}) as NextFunction);
+    finish();
+  });
+  await flush(); // let the rejected promise settle+log without an unhandled-rejection
 });
