@@ -136,11 +136,15 @@ real hardening once confirmed.
 `packages: write` + `id-token: write`. See [`SUPPLY-CHAIN.md`](./SUPPLY-CHAIN.md) §Parked.
 **Recommendation:** yes once you confirm the registry; it's a small CI addition after that.
 
-### B2. Secret-scanning gate (gitleaks) tuning
-**Why parked:** the repo has intentional test fixtures that look like secrets; a blocking gate needs a
-tuned allowlist to avoid false positives — best done in one watched iteration. Also: turn on GitHub's
-native **secret scanning + push protection** in repo settings (zero-config).
-**Recommendation:** do the allowlist together; enable native push-protection now.
+### B2. Secret-scanning gate (gitleaks) tuning — **shipped** (CI half)
+A blocking `secret-scan` CI job runs `gitleaks detect` over the checked-out source
+(`.github/workflows/ci.yml`), tuned via `.gitleaks.toml` — a single, precisely-scoped allowlist
+entry for the repo's one known-fake test fixture (`broker-transport.test.ts`'s `FAKE_CERT`/
+`FAKE_KEY`, whose PEM body is the literal base64 encoding of the word "fake"), verified against a
+real gitleaks scan of the full working tree AND full commit history (709 commits, nothing else
+found) before tuning, and confirmed the allowlist still catches a real-looking injected secret.
+**Still open (needs you):** turning on GitHub's **native** secret scanning + push protection is a
+repo setting, not something a CI job can do — no tool available here can toggle it.
 
 ### B3. Signed release tags + the 0.7.0 release itself
 **Why parked:** releasing is maintainer-owned (you tag/publish). Draft is ready in
