@@ -67,13 +67,13 @@ Turning either tier into a real "Deploy on Railway" button still needs a maintai
 in their own Railway account and use Railway's "Create Template" action — that URL can't be
 predicted or fabricated in advance.
 
-### A3. mTLS for the gateway↔broker seam; FIPS-validated crypto mode
-**What:** mutual-TLS between gateway and broker (today: PSK + per-session HMAC), and a FIPS-mode for
-gov.
-**Why parked:** needs a certificate-management strategy (mTLS) and a validated crypto module choice
-(FIPS) — both infra/policy decisions.
-**Recommendation:** offer mTLS as an optional hardening for high-assurance deployments; treat FIPS as
-demand-driven (only if a gov deal needs it).
+### A3. FIPS-validated crypto mode
+**What:** a FIPS-mode for gov deployments.
+**Why parked:** needs a validated crypto module choice — an infra/policy decision.
+**Recommendation:** treat as demand-driven (only if a gov deal needs it).
+**Status:** mTLS for the gateway↔broker seam **shipped** — `BROKER_MTLS_CERT`/`BROKER_MTLS_KEY` (+
+optional `BROKER_MTLS_CA`), off unless configured, layered on top of the existing PSK + per-session
+HMAC (`artifacts/api-server/src/lib/broker-transport.ts`). FIPS itself remains parked.
 
 ### A4. Native mobile app (App Store / Google Play listing)
 **What:** a real installable, store-listed mobile app, beyond the PWA that already ships today
