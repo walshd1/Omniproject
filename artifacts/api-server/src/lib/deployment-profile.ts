@@ -16,7 +16,7 @@
  * or an explicit acknowledgement (e.g. ACCEPT_DEMO_AUTH=1 / PUBLIC_TLS=0), and both are
  * reported on the setup/profile surface so the choice is visible and auditable.
  */
-import { productionSignals } from "./dev-mode-guard";
+import { isProductionLike } from "./dev-mode-guard";
 
 export type DeploymentProfile = "enterprise" | "business" | "nonprofit" | "self-hosted" | "demo";
 export const DEPLOYMENT_PROFILES: readonly DeploymentProfile[] = ["enterprise", "business", "nonprofit", "self-hosted", "demo"];
@@ -57,7 +57,6 @@ const POSTURE: Record<DeploymentProfile, ProfilePosture> = {
       { key: "IP_ALLOWLIST", why: "restrict to your networks" },
       { key: "DUAL_CONTROL_ACTIONS", value: "key.revoke,maintenance.engage", why: "four-eyes on sensitive ops" },
       { key: "AUDIT_HTTP_URL", why: "ship the tamper-evident audit to your SIEM" },
-      { key: "SECURITY_STRICT", value: "on", why: "refuse to boot on a critical finding" },
     ],
     recommend: ["OIDC SSO + SCIM", "KMS/BYOK", "IP allowlist", "Maker-checker", "Ship audit to a SIEM", "Serve over HTTPS"],
   },
@@ -176,7 +175,7 @@ export function requireTls(env?: Env): boolean {
   const explicit = e["PUBLIC_TLS"];
   if (explicit !== undefined && explicit.trim() !== "") return truthy(explicit);
   if (POSTURE[resolve(env)].tls === "lan-ok") return false;
-  return e["NODE_ENV"] === "production" || productionSignals(e).length > 0;
+  return isProductionLike(e);
 }
 
 /** The severity of the no-IdP finding for this deployment: the profile's default, or "info"

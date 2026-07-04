@@ -59,26 +59,25 @@ export function parseJwt(token: string): { header: { alg: string; kid?: string; 
   return { header, claims };
 }
 
-/** Validate the standard claims (pure comparison, no crypto). Returns null on
- *  success, else the reason. `verifyIdToken` enforces these via jose; this is a
- *  standalone helper for callers that already hold verified claims. */
+/** Validate the standard claims (pure comparison, no crypto); throws on failure — matching the
+ *  sibling `verifyIdToken`, which throws for the same failure class rather than returning a
+ *  sentinel. `verifyIdToken` enforces these via jose already; this is a standalone helper for
+ *  callers that already hold verified claims. */
 export function validateClaims(
   claims: JwtClaims,
   opts: { issuer: string; audience: string; now?: number; leewaySec?: number },
-): string | null {
+): void {
   const now = opts.now ?? Math.floor(Date.now() / 1000);
   const leeway = opts.leewaySec ?? LEEWAY_SEC;
 
-  if (claims.iss !== opts.issuer) return `issuer mismatch (got ${claims.iss})`;
+  if (claims.iss !== opts.issuer) throw new Error(`issuer mismatch (got ${claims.iss})`);
 
   const aud = claims.aud;
   const audOk = Array.isArray(aud) ? aud.includes(opts.audience) : aud === opts.audience;
-  if (!audOk) return "audience mismatch";
+  if (!audOk) throw new Error("audience mismatch");
 
-  if (typeof claims.exp === "number" && now > claims.exp + leeway) return "token expired";
-  if (typeof claims.nbf === "number" && now + leeway < claims.nbf) return "token not yet valid";
-
-  return null;
+  if (typeof claims.exp === "number" && now > claims.exp + leeway) throw new Error("token expired");
+  if (typeof claims.nbf === "number" && now + leeway < claims.nbf) throw new Error("token not yet valid");
 }
 
 // ── JWKS fetch + cache (SSRF-guarded) ───────────────────────────────────────────

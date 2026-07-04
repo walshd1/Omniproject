@@ -1,4 +1,5 @@
 import type { PortfolioHealthSummary } from "@workspace/api-client-react";
+import { numLoose as num } from "./num";
 
 /**
  * Executive / board reporting pack — the portfolio-wide summary a head of projects puts in front of a
@@ -30,12 +31,6 @@ export interface ExecHealth {
 }
 
 const RANK: Record<Rag, number> = { RED: 0, AMBER: 1, GREEN: 2 };
-
-/** Coerce a possibly-dirty read-model value (string, null, NaN, Infinity) to a finite number, else 0. */
-function num(v: unknown): number {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
 
 /** Severity ordering: RED before AMBER, then more blockers, bigger schedule slip, then budget overrun. */
 function bySeverity(a: ExecException, b: ExecException): number {

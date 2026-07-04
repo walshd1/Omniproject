@@ -1,4 +1,5 @@
 import { logger } from "./logger";
+import { loadOptionalDependency } from "./optional-dependency";
 
 /**
  * Shared-state seam (roadmap §2) — an OPT-IN key/value store the per-replica registries can
@@ -119,13 +120,12 @@ let ready: Promise<void> | null = null;
 export function sharedStateMode(): SharedStateMode { return mode; }
 
 async function initRedis(url: string): Promise<void> {
-  const moduleName = "ioredis"; // variable specifier so it isn't statically resolved
-  const mod = (await import(moduleName).catch(() => null)) as { default?: new (u: string) => KvRedis } | null;
-  const Redis = mod?.default;
-  if (!Redis) {
-    logger.warn("shared state: REDIS_URL set but 'ioredis' is not installed — registries stay PER-REPLICA. Run: pnpm --filter @workspace/api-server add ioredis");
-    return;
-  }
+  const Redis = await loadOptionalDependency<new (u: string) => KvRedis>(
+    "ioredis",
+    (mod) => (mod as { default?: new (u: string) => KvRedis } | null)?.default,
+    "shared state: REDIS_URL set but 'ioredis' is not installed — registries stay PER-REPLICA. Run: pnpm --filter @workspace/api-server add ioredis",
+  );
+  if (!Redis) return;
   try {
     active = new RedisKv(new Redis(url));
     mode = "redis";

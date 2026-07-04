@@ -2,7 +2,7 @@
  * n8n example-blueprint generator + drift guard.
  *
  * `artifacts/n8n-blueprints/generated/*.json` are hand-committed EXAMPLE outputs
- * of `generateWorkflow()` (lib/backend-catalogue/src/n8n-generator.ts) — one per
+ * of `generateWorkflow()` (lib/backend-catalogue/src/workflow-generator.ts) — one per
  * backend, so operators can see what a generated workflow looks like without
  * running the app. `generateWorkflow` is pure and deterministic (no timestamps,
  * random ids, or ambient state — see its header comment), so for any backend
@@ -22,7 +22,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getBackend } from "../../lib/backend-catalogue/src/backend-catalogue";
-import { generateWorkflow } from "../../lib/backend-catalogue/src/n8n-generator";
+import { generateWorkflow } from "../../lib/backend-catalogue/src/workflow-generator";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");

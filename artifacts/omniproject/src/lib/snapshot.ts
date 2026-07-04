@@ -1,5 +1,6 @@
 import { sendJson } from "./api";
 import { safeParseJson } from "./safe-json";
+import { triggerBlobDownload } from "./setup";
 
 /**
  * Provably-immutable snapshots (client). Capture freezes a report's data: the server content-hashes it,
@@ -47,14 +48,7 @@ export function downloadSnapshot(bundle: SnapshotBundle): void {
   const stamp = bundle.manifest.createdAt.slice(0, 10);
   const safe = bundle.manifest.scope.replace(/[^a-z0-9]+/gi, "-");
   const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `snapshot-${safe}-${stamp}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, `snapshot-${safe}-${stamp}.json`);
 }
 
 /** Parse an uploaded file as a snapshot bundle, throwing a friendly error if it isn't one. */

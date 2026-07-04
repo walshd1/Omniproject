@@ -98,15 +98,23 @@ export interface ResidencyVerdict {
   reason?: string;
 }
 
+/** Fail-closed gate shared by every residency check: an invalid policy can't prove residency,
+ *  so it's refused outright before any region-specific logic runs. Returns the already-parsed
+ *  policy state too (so callers that need it, e.g. `checkEgressResidency`, don't re-parse it). */
+function policyErrorVerdict(env: NodeJS.ProcessEnv): { pol: ReturnType<typeof residencyPolicyState>; verdict: ResidencyVerdict | null } {
+  const pol = residencyPolicyState(env);
+  if (pol.error) return { pol, verdict: { allowed: false, reason: `data-residency policy is invalid: ${pol.error} (fail-closed)` } };
+  return { pol, verdict: null };
+}
+
 /**
  * Verify every candidate endpoint sits in an allowed region. Pure (no side effects) so it can
  * be unit-tested and reused by the status view. Returns the FIRST offending endpoint. When
  * enforcement is off, everything is allowed.
  */
 export function checkResidency(urls: string[], env: NodeJS.ProcessEnv = process.env): ResidencyVerdict {
-  const pol = residencyPolicyState(env);
-  // An invalid policy can't prove residency ⇒ refuse everything (fail-closed).
-  if (pol.error) return { allowed: false, reason: `data-residency policy is invalid: ${pol.error} (fail-closed)` };
+  const { verdict } = policyErrorVerdict(env);
+  if (verdict) return verdict;
   if (!dataResidencyEnabled(env)) return { allowed: true };
   const allow = allowedRegions(env);
   for (const url of urls) {
@@ -147,8 +155,8 @@ export function assertResidency(urls: string[], env: NodeJS.ProcessEnv = process
  * default deployment are unchanged). Pure — no audit/throw — for reuse by tests and the status view.
  */
 export function checkEgressResidency(host: string, env: NodeJS.ProcessEnv = process.env): ResidencyVerdict {
-  const pol = residencyPolicyState(env);
-  if (pol.error) return { allowed: false, reason: `data-residency policy is invalid: ${pol.error} (fail-closed)` };
+  const { pol, verdict } = policyErrorVerdict(env);
+  if (verdict) return verdict;
   if (!pol.policy) return { allowed: true };
   if (policyEgressAllowed(pol.policy, host)) return { allowed: true };
   return { allowed: false, reason: `egress host '${host}' is not permitted by any allowed region's egress policy` };
@@ -163,8 +171,8 @@ export function checkEgressResidency(host: string, env: NodeJS.ProcessEnv = proc
 export function assertEgressResidency(url: string, env: NodeJS.ProcessEnv = process.env): void {
   const pol = residencyPolicyState(env);
   if (!pol.policy && !pol.error) return; // no policy ⇒ egress residency is inert
-  let host: string;
-  try { host = new URL(url).hostname; } catch { return; } // scheme/URL validity is the egress guard's job
+  const host = safeUrlPart(url, "hostname");
+  if (host === null) return; // scheme/URL validity is the egress guard's job
   const verdict = checkEgressResidency(host, env);
   if (verdict.allowed) return;
   recordAudit({
@@ -176,6 +184,17 @@ export function assertEgressResidency(url: string, env: NodeJS.ProcessEnv = proc
     meta: { host, reason: verdict.reason },
   });
   throw new DataResidencyError(verdict.reason ?? "blocked by the data-residency egress policy", url);
+}
+
+/** `new URL(url)[part]`, or null if `url` doesn't parse — URL validity is each guard's own job,
+ *  not this helper's; shared by every residency check that only needs one derived URL part and
+ *  tolerates an unparseable input degrading rather than throwing. */
+function safeUrlPart(url: string, part: "hostname" | "origin"): string | null {
+  try {
+    return new URL(url)[part];
+  } catch {
+    return null;
+  }
 }
 
 export interface ResidencyStatus {
@@ -197,8 +216,7 @@ export function residencyStatus(env: NodeJS.ProcessEnv = process.env): Residency
   const allow = allowedRegions(env);
   const endpoints = configuredBrokerUrls(env).map((url) => {
     const region = regionForUrl(url, env);
-    let origin = url;
-    try { origin = new URL(url).origin; } catch { /* keep raw if unparseable */ }
+    const origin = safeUrlPart(url, "origin") ?? url; // keep raw if unparseable
     return { origin, region, allowed: !enabled || (region !== null && allow.has(region)) };
   });
   const pol = residencyPolicyState(env);

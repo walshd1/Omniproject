@@ -2,6 +2,7 @@ import { runtimeMetrics } from "./runtime-metrics";
 import { readCacheStats } from "../broker/cache";
 import type { AnyMetric } from "./metrics";
 import { logger } from "./logger";
+import { envInt } from "./env-config";
 
 /**
  * OTLP/HTTP metrics export — the metrics counterpart to lib/tracing's span export. The same
@@ -113,9 +114,7 @@ export async function exportMetricsOnce(): Promise<void> {
 
 /** The export interval (ms) from OTEL_METRIC_EXPORT_INTERVAL, clamped to a sane floor; default 60s. */
 export function metricExportIntervalMs(): number {
-  const raw = Number(process.env["OTEL_METRIC_EXPORT_INTERVAL"]);
-  if (!Number.isFinite(raw) || raw <= 0) return 60_000;
-  return Math.max(1_000, raw);
+  return Math.max(1_000, envInt("OTEL_METRIC_EXPORT_INTERVAL", 60_000, { min: 1 }));
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;

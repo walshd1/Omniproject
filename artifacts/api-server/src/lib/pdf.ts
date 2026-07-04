@@ -65,14 +65,24 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-/** Render a simple table to a minimal, dependency-free PDF document (Buffer). */
-export function buildPdf(table: PdfTable): Buffer {
+interface PdfObjects {
+  /** 1-indexed PDF object bodies (index 0 unused). */
+  objects: string[];
+  /** The highest object number in use. */
+  total: number;
+}
+
+/**
+ * Build the PDF's page/content/font objects for a table — 1=Catalog, 2=Pages, 3=Font, then per
+ * page: content + page. Pure data construction; no binary framing/xref/trailer, that's
+ * `serializePdf`'s job (mirroring how xlsx.ts delegates its persist step to `buildZip`).
+ */
+function buildPdfObjects(table: PdfTable): PdfObjects {
   const stamp = new Date().toISOString().slice(0, 10);
   const allLines = [table.title, `Exported ${stamp} - ${table.rows.length} rows`, "", ...toLines(table)];
   const pages = chunk(allLines, LINES_PER_PAGE);
   if (pages.length === 0) pages.push([table.title]);
 
-  // Build PDF objects. 1=Catalog, 2=Pages, 3=Font, then per page: content + page.
   const objects: string[] = [];
   const pageObjNums: number[] = [];
   let objNum = 3; // next after font
@@ -84,7 +94,6 @@ export function buildPdf(table: PdfTable): Buffer {
     return `BT /F1 ${FONT_SIZE} Tf ${MARGIN} ${TOP} Td ${LINE_H} TL\n${body}\nET`;
   };
 
-  const pageContentNums: number[] = [];
   for (const lines of pages) {
     const content = contentForPage(lines);
     objNum += 1;
@@ -94,15 +103,18 @@ export function buildPdf(table: PdfTable): Buffer {
     const pageNum = objNum;
     objects[pageNum] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentNum} 0 R >>`;
     pageObjNums.push(pageNum);
-    pageContentNums.push(contentNum);
   }
 
   objects[1] = `<< /Type /Catalog /Pages 2 0 R >>`;
   objects[2] = `<< /Type /Pages /Kids [${pageObjNums.map((n) => `${n} 0 R`).join(" ")}] /Count ${pageObjNums.length} >>`;
   objects[3] = `<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>`;
 
-  // Serialize with an xref table.
-  const total = objNum;
+  return { objects, total: objNum };
+}
+
+/** Hand-serialize built PDF objects into the final binary (Buffer): the object bodies, an xref
+ *  table of their byte offsets, and the trailer. */
+function serializePdf({ objects, total }: PdfObjects): Buffer {
   let pdf = "%PDF-1.4\n";
   const offsets: number[] = [];
   for (let i = 1; i <= total; i++) {
@@ -117,4 +129,9 @@ export function buildPdf(table: PdfTable): Buffer {
   pdf += `trailer\n<< /Size ${total + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
 
   return Buffer.from(pdf, "binary");
+}
+
+/** Render a simple table to a minimal, dependency-free PDF document (Buffer). */
+export function buildPdf(table: PdfTable): Buffer {
+  return serializePdf(buildPdfObjects(table));
 }

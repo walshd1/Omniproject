@@ -1,6 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { contextFromReq, respondBrokerError, isLiveBroker, BrokerError, brokerCommand } from "../broker";
-import { getSettings } from "../lib/settings";
+import { contextFromReq, respondBrokerError, BrokerError, brokerCommand, brokerConfigured } from "../broker";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { getSession } from "./auth";
@@ -39,10 +38,6 @@ const WARNING =
 
 function rawEnabled(): boolean {
   return envFlag("RAW_API_ENABLED");
-}
-
-function brokerConfigured(): boolean {
-  return isLiveBroker() || !!getSettings().brokerUrl?.trim();
 }
 
 async function handle(req: Request, res: Response): Promise<void> {

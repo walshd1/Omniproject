@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useRateCard, useSaveRateCard, type RateCardConfig, type Role, type Facing } from "../../lib/rate-card";
+import { useDraftAdmin } from "../../hooks/use-draft-admin";
 
 /**
  * PMO rate grid — a rate per job title × project type × facing (client / internal). Titles are authored
@@ -28,15 +28,12 @@ export function RateGridAdmin() {
   const { data: auth } = useAuth();
   const { data: server } = useRateCard();
   const save = useSaveRateCard();
-  const [roles, setRoles] = useState<DraftRole[] | null>(null);
-
-  useEffect(() => { if (server) setRoles(rolesFromConfig(server)); }, [server]);
+  const { draft: roles, setDraft: setRoles, dirty, reset } = useDraftAdmin<RateCardConfig, DraftRole[]>(server, rolesFromConfig);
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
   if (!server || !roles) return null;
 
   const types = server.projectTypes;
-  const dirty = JSON.stringify(roles) !== JSON.stringify(rolesFromConfig(server));
 
   function setRate(ri: number, typeId: string, facing: Facing, raw: string) {
     setRoles(roles!.map((r, i) => {
@@ -118,7 +115,7 @@ export function RateGridAdmin() {
         <Button className="rounded-none border-2 border-foreground font-bold uppercase tracking-wider" onClick={onSave} disabled={!dirty || save.isPending}>
           {save.isPending ? "Saving…" : "Save rates"}
         </Button>
-        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={() => setRoles(rolesFromConfig(server))}>Reset</Button>}
+        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={reset}>Reset</Button>}
         {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
       </div>
     </section>

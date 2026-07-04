@@ -78,12 +78,22 @@ const ChartContainer = React.forwardRef<
 })
 ChartContainer.displayName = "Chart"
 
+// This CSS is injected verbatim via dangerouslySetInnerHTML, so every piece of it must be
+// constrained to a charset that can't break out of the <style> tag (e.g. `</style>`) or inject
+// an extra rule/selector (e.g. `; } .evil{...}`). `config` can originate from a customer-authored
+// report/dashboard definition (see the bespoke report generator), not just developer-written
+// code, so this is validated defensively rather than trusted as always-safe.
+const CSS_IDENTIFIER_RE = /^[a-zA-Z0-9_-]+$/
+const CSS_COLOR_VALUE_RE = /^[a-zA-Z0-9#().,%\s-]+$/
+
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
+  const safeId = CSS_IDENTIFIER_RE.test(id) ? id : null
   const colorConfig = Object.entries(config).filter(
-    ([, config]) => config.theme || config.color
+    ([key, config]) =>
+      CSS_IDENTIFIER_RE.test(key) && (config.theme || config.color)
   )
 
-  if (!colorConfig.length) {
+  if (!safeId || !colorConfig.length) {
     return null
   }
 
@@ -93,13 +103,15 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
         __html: Object.entries(THEMES)
           .map(
             ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+${prefix} [data-chart=${safeId}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    return color && CSS_COLOR_VALUE_RE.test(color)
+      ? `  --color-${key}: ${color};`
+      : null
   })
   .join("\n")}
 }

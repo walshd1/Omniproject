@@ -7,22 +7,22 @@ function base(over: Partial<DeployConfig> = {}): DeployConfig {
     publicUrl: "https://omni.example.com",
     port: 3000,
     sessionSecret: "a-strong-secret",
-    broker: { backendId: "jira", bundleN8n: true, brokerUrl: "" },
+    broker: { backendId: "jira", bundleReferenceBroker: true, brokerUrl: "" },
     idp: { kind: "oidc", issuerUrl: "https://idp/realm", clientId: "omni", clientSecret: "shh" },
     ai: { provider: "none" },
     ...over,
   };
 }
 
-test("bundled n8n resolves the broker URL to the internal service", () => {
-  assert.equal(effectiveBrokerUrl(base()), "http://n8n:5678/webhook/omniproject");
-  assert.equal(effectiveBrokerUrl(base({ broker: { backendId: "jira", bundleN8n: false, brokerUrl: "https://n8n.acme/webhook/x" } })), "https://n8n.acme/webhook/x");
+test("bundled reference broker resolves the broker URL to the internal service", () => {
+  assert.equal(effectiveBrokerUrl(base()), "http://reference-broker:5678/webhook/omniproject");
+  assert.equal(effectiveBrokerUrl(base({ broker: { backendId: "jira", bundleReferenceBroker: false, brokerUrl: "https://n8n.acme/webhook/x" } })), "https://n8n.acme/webhook/x");
 });
 
 test("envMap carries the core + OIDC + chosen-AI vars, omits unset ones", () => {
   const env = envMap(base({ ai: { provider: "openai", model: "gpt-4o-mini", apiKey: "sk-test" } }));
   assert.equal(env["SESSION_SECRET"], "a-strong-secret");
-  assert.equal(env["BROKER_URL"], "http://n8n:5678/webhook/omniproject");
+  assert.equal(env["BROKER_URL"], "http://reference-broker:5678/webhook/omniproject");
   assert.equal(env["BACKEND_SOURCE"], "jira");
   assert.equal(env["OIDC_ISSUER_URL"], "https://idp/realm");
   assert.equal(env["AI_PROVIDER"], "openai");
@@ -38,19 +38,19 @@ test("demo IdP omits OIDC vars and the .env carries a loud warning", () => {
   assert.match(renderEnv(cfg), /DEMO AUTH/);
 });
 
-test("renderCompose always has the shell; bundles n8n/redis/authentik only when chosen", () => {
+test("renderCompose always has the shell; bundles the reference broker/redis/authentik only when chosen", () => {
   const plain = renderCompose(base());
   assert.match(plain, /omni-shell:/);
-  assert.match(plain, /n8n:/);              // bundled by default here
+  assert.match(plain, /reference-broker:/); // bundled by default here
   assert.ok(!/authentik-server:/.test(plain));
   assert.ok(!/ {2}redis:/.test(plain));
 
   const full = renderCompose(base({
-    broker: { backendId: "jira", bundleN8n: false, brokerUrl: "https://n8n.acme/webhook/x" },
+    broker: { backendId: "jira", bundleReferenceBroker: false, brokerUrl: "https://n8n.acme/webhook/x" },
     idp: { kind: "authentik-bundled", issuerUrl: "https://idp/x", clientId: "omni", clientSecret: "s", pgPassword: "p", secretKey: "k" },
     bundleRedis: true,
   }));
-  assert.ok(!/ {2}n8n:/.test(full));        // external broker → no n8n service
+  assert.ok(!/ {2}reference-broker:/.test(full)); // external broker → no reference-broker service
   assert.match(full, /authentik-server:/);
   assert.match(full, /authentik-worker:/);
   assert.match(full, /authentik_pg_data:/); // volume declared
@@ -88,9 +88,9 @@ test("validateDeployConfig surfaces the gateway's own findings (demo-auth, plain
   assert.ok(demo.some((f) => f.id === "demo-auth-in-prod" && f.severity === "critical"));
 
   // Plain-http external broker to a remote host → the broker-plaintext warning.
-  const http = validateDeployConfig(base({ broker: { backendId: "jira", bundleN8n: false, brokerUrl: "http://n8n.remote:5678/webhook" } }));
+  const http = validateDeployConfig(base({ broker: { backendId: "jira", bundleReferenceBroker: false, brokerUrl: "http://n8n.remote:5678/webhook" } }));
   assert.ok(http.some((f) => f.id === "broker-plaintext"));
 
-  // A clean config (OIDC + bundled n8n on the internal network) → no criticals.
+  // A clean config (OIDC + bundled reference broker on the internal network) → no criticals.
   assert.equal(validateDeployConfig(base()).filter((f) => f.severity === "critical").length, 0);
 });

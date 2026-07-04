@@ -2,6 +2,7 @@ import { Router, type Request } from "express";
 import { getProjects } from "../lib/data";
 import { allIssues } from "../lib/portfolio-reads";
 import { groupProgrammes } from "../lib/programmes";
+import { baseUrl as resolveRequestBaseUrl } from "./auth";
 import {
   buildEdmx,
   serviceDocument,
@@ -55,9 +56,7 @@ const ENTITIES: EntityModel[] = [
 ];
 
 function baseUrl(req: Request): string {
-  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] || req.protocol;
-  const host = req.headers["x-forwarded-host"] || req.get("host");
-  return `${proto}://${host}/api/odata/`;
+  return `${resolveRequestBaseUrl(req)}/api/odata/`;
 }
 
 // Service document.

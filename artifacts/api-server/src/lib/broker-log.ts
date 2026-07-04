@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 import type { AuditEvent } from "./audit";
+import { envInt } from "./env-config";
+import { pushBounded } from "./ring-buffer";
 
 /**
  * In-session broker activity log — a BOUNDED, in-memory ring of the most recent
@@ -19,10 +21,7 @@ import type { AuditEvent } from "./audit";
  * bus is wired through `registerBrokerLogPublisher` to avoid a circular import.
  */
 
-const MAX = (() => {
-  const n = Number(process.env["BROKER_LOG_SIZE"]);
-  return Number.isFinite(n) && n > 0 ? Math.min(n, 5000) : 500;
-})();
+const MAX = Math.min(envInt("BROKER_LOG_SIZE", 500, { min: 1 }), 5000);
 
 /** A short, stable label for THIS process, shown on every locally-recorded entry
  *  so a fleet-wide log is attributable. Operator-set `REPLICA_ID` wins; otherwise
@@ -76,8 +75,7 @@ function project(ev: AuditEvent): BrokerLogEntry {
  *  (a locally-recorded entry) it is also handed to the cross-replica publishers;
  *  remote entries fold in with `publish: false` so they are never re-broadcast. */
 function ingest(entry: BrokerLogEntry, publish: boolean): void {
-  ring.push(entry);
-  if (ring.length > MAX) ring.shift();
+  pushBounded(ring, entry, MAX);
   for (const l of listeners) {
     try {
       l(entry);

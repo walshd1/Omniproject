@@ -88,7 +88,9 @@ const KINDS: Record<ChatKind, ChatKindDef> = {
     endpoint: OLLAMA_DEFAULT,
     chat: async (endpoint, _key, model, messages) => {
       const json = (await postJson(`${endpoint}/api/chat`, {}, { model, messages, stream: false })) as { message?: { content?: string } };
-      return json.message?.content ?? "";
+      const content = json.message?.content;
+      if (content === undefined) throw new AiError("Ollama response has no message content");
+      return content;
     },
   },
   openrouter: {
@@ -99,7 +101,9 @@ const KINDS: Record<ChatKind, ChatKindDef> = {
         { Authorization: `Bearer ${key}`, "HTTP-Referer": "https://github.com/walshd1/Omniproject", "X-Title": "OmniProject" },
         { model, messages },
       )) as { choices?: Array<{ message?: { content?: string } }> };
-      return json.choices?.[0]?.message?.content ?? "";
+      const content = json.choices?.[0]?.message?.content;
+      if (content === undefined) throw new AiError("OpenRouter response has no message content");
+      return content;
     },
   },
   openai: {
@@ -110,7 +114,9 @@ const KINDS: Record<ChatKind, ChatKindDef> = {
         { Authorization: `Bearer ${key}` },
         { model, messages },
       )) as { choices?: Array<{ message?: { content?: string } }> };
-      return json.choices?.[0]?.message?.content ?? "";
+      const content = json.choices?.[0]?.message?.content;
+      if (content === undefined) throw new AiError("OpenAI response has no message content");
+      return content;
     },
   },
   anthropic: {
@@ -124,7 +130,9 @@ const KINDS: Record<ChatKind, ChatKindDef> = {
         { "x-api-key": key as string, "anthropic-version": "2023-06-01" },
         { model, max_tokens: 1024, system, messages: turns },
       )) as { content?: Array<{ text?: string }> };
-      return json.content?.[0]?.text ?? "";
+      const text = json.content?.[0]?.text;
+      if (text === undefined) throw new AiError("Anthropic response has no content");
+      return text;
     },
   },
 };
@@ -159,13 +167,21 @@ export function aiStatus(): AiStatus {
   return { provider: provider.kind, model: resolvedModel(provider), configured: ready, detail };
 }
 
-/** Send a chat-completion to the resolved provider and return the reply. Throws AiError when
- *  no ready provider is configured or the upstream call fails.
- *
- *  `ctx` carries the optional governance scope (the caller's role + a budget scope, e.g. the
- *  user sub). All governance is opt-in: DLP redaction applies whenever AI_DLP_REDACT is on; the
- *  per-role model allowlist and token budget apply only when configured AND a `ctx` is supplied. */
-export async function aiChat(messages: ChatMessage[], ctx?: AiGovContext): Promise<ChatResult> {
+interface ChatAllowance {
+  provider: AiProviderConfig & { kind: ChatKind };
+  def: ChatKindDef;
+  endpoint: string;
+  key: string | undefined;
+  model: string;
+}
+
+/**
+ * Governance gate for `aiChat`, enforced in this order: the global kill switch, then provider
+ * resolution + readiness (there's no usable provider without both), then — opt-in, only when
+ * `ctx` supplies the relevant field — the per-role model allowlist and the soft per-scope token
+ * budget. Throws `AiError` on the first failure; returns everything the network call needs.
+ */
+async function assertChatAllowed(ctx: AiGovContext | undefined, messages: ChatMessage[]): Promise<ChatAllowance> {
   // Break-glass: the global kill switch hard-stops every model call.
   if (aiKillEngaged()) throw new AiError("AI is disabled by the kill switch.", 403);
 
@@ -190,11 +206,28 @@ export async function aiChat(messages: ChatMessage[], ctx?: AiGovContext): Promi
     if (!verdict.ok) throw new AiError(`AI token budget exceeded (${verdict.used}/${verdict.limit} this window).`, 429);
   }
 
+  return { provider: provider as AiProviderConfig & { kind: ChatKind }, def, endpoint, key, model };
+}
+
+/** Record approximate usage against the scope's running budget after a successful chat call
+ *  (soft, best-effort) — a no-op unless `ctx` supplies a scope. */
+async function recordChatUsage(ctx: AiGovContext | undefined, messages: ChatMessage[], content: string): Promise<void> {
+  if (ctx?.scope) await recordUsage(ctx.scope, estimateTokens(messages) + estimateTokens([{ content }]));
+}
+
+/** Send a chat-completion to the resolved provider and return the reply. Throws AiError when
+ *  no ready provider is configured or the upstream call fails.
+ *
+ *  `ctx` carries the optional governance scope (the caller's role + a budget scope, e.g. the
+ *  user sub). All governance is opt-in: DLP redaction applies whenever AI_DLP_REDACT is on; the
+ *  per-role model allowlist and token budget apply only when configured AND a `ctx` is supplied. */
+export async function aiChat(messages: ChatMessage[], ctx?: AiGovContext): Promise<ChatResult> {
+  const { provider, def, endpoint, key, model } = await assertChatAllowed(ctx, messages);
+
   // DLP: redact PII/secrets in the prompt BEFORE it egresses (when AI_DLP_REDACT is on).
   const outbound = dlpEnabled() ? redactForEgress(messages).messages : messages;
   const content = await def.chat(endpoint, key, model, outbound);
 
-  // Record approximate usage against the scope's budget (soft, best-effort).
-  if (ctx?.scope) await recordUsage(ctx.scope, estimateTokens(messages) + estimateTokens([{ content }]));
+  await recordChatUsage(ctx, messages, content);
   return { content, provider: provider.kind, model };
 }

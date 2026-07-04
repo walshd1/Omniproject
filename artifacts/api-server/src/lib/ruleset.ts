@@ -148,9 +148,15 @@ export function getFieldRules(): FieldRule[] {
 }
 
 /** Admin replaces the field-rule set. Only well-formed rules (valid mode, string
- *  action/field) are accepted — they can only REQUIRE a field, never grant. */
+ *  action/field) are accepted — they can only REQUIRE a field, never grant. Malformed entries
+ *  are dropped silently from the applied set but logged, so a typo'd rule doesn't just vanish
+ *  without a trace (matching the env-seed path's `logger.warn` on bad JSON). */
 export function setFieldRules(next: unknown): FieldRule[] {
-  if (Array.isArray(next)) fieldRules = next.filter(isFieldRule).map((r) => ({ id: r.id, action: r.action, field: r.field, mode: r.mode, ...(r.whenPresent ? { whenPresent: r.whenPresent } : {}), ...(r.message ? { message: r.message } : {}) }));
+  if (Array.isArray(next)) {
+    const dropped = next.length - next.filter(isFieldRule).length;
+    if (dropped > 0) logger.warn({ dropped }, "setFieldRules: ignoring malformed field rule(s)");
+    fieldRules = next.filter(isFieldRule).map((r) => ({ id: r.id, action: r.action, field: r.field, mode: r.mode, ...(r.whenPresent ? { whenPresent: r.whenPresent } : {}), ...(r.message ? { message: r.message } : {}) }));
+  }
   return getFieldRules();
 }
 

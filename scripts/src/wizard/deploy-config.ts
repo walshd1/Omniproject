@@ -29,9 +29,9 @@ export interface DeployConfig {
   broker: {
     /** A catalogue id (jira, openproject, …) or "custom" — routing hint only. */
     backendId: string;
-    /** Bundle a standalone n8n service, or point BROKER_URL at an external one. */
-    bundleN8n: boolean;
-    /** Used when bundleN8n is false. */
+    /** Bundle a standalone reference-broker (n8n) service, or point BROKER_URL at an external one. */
+    bundleReferenceBroker: boolean;
+    /** Used when bundleReferenceBroker is false. */
     brokerUrl: string;
     /** Optional app-layer broker encryption (fallback below TLS). */
     psk?: string;
@@ -51,7 +51,7 @@ export interface DeployConfig {
   bundleOllama?: boolean;
 }
 
-const INTERNAL_N8N_URL = "http://n8n:5678/webhook/omniproject";
+const INTERNAL_REFERENCE_BROKER_URL = "http://reference-broker:5678/webhook/omniproject";
 const INTERNAL_REDIS_URL = "redis://redis:6379";
 const INTERNAL_OLLAMA_URL = "http://ollama:11434";
 
@@ -64,9 +64,9 @@ export function publicHost(c: DeployConfig): string {
   }
 }
 
-/** The effective broker URL (internal n8n when bundled, else the external one). */
+/** The effective broker URL (internal reference-broker when bundled, else the external one). */
 export function effectiveBrokerUrl(c: DeployConfig): string {
-  return c.broker.bundleN8n ? INTERNAL_N8N_URL : c.broker.brokerUrl;
+  return c.broker.bundleReferenceBroker ? INTERNAL_REFERENCE_BROKER_URL : c.broker.brokerUrl;
 }
 
 /** The effective Redis URL (internal when bundled, else the external one). */
@@ -182,7 +182,7 @@ function shellService(c: DeployConfig): string {
     : ["    ports:", `      - "127.0.0.1:${c.port}:${c.port}"`];
   // One depends_on block covering every bundled dependency (never duplicate keys).
   const deps: string[] = [];
-  if (c.broker.bundleN8n) deps.push("      n8n:\n        condition: service_healthy");
+  if (c.broker.bundleReferenceBroker) deps.push("      reference-broker:\n        condition: service_healthy");
   if (proxy) deps.push("      traefik:\n        condition: service_healthy");
   const dependsBlock = deps.length ? [`    depends_on:\n${deps.join("\n")}`] : [];
   return [
@@ -217,12 +217,12 @@ function shellService(c: DeployConfig): string {
   ].join("\n");
 }
 
-function n8nService(): string {
+function referenceBrokerService(): string {
   return [
-    "  # ── n8n (reference broker) ──────────────────────────────────────────────────",
-    "  n8n:",
+    "  # ── reference broker (n8n) ──────────────────────────────────────────────────",
+    "  reference-broker:",
     "    image: n8nio/n8n:1.123.61",
-    "    container_name: omni-n8n",
+    "    container_name: omni-reference-broker",
     "    ports:",
     '      - "127.0.0.1:5678:5678"',
     "    security_opt:",
@@ -231,9 +231,9 @@ function n8nService(): string {
     "      N8N_PORT: 5678",
     "      GENERIC_TIMEZONE: UTC",
     "      DB_TYPE: sqlite",
-    "      WEBHOOK_URL: ${N8N_PUBLIC_URL:-http://localhost:5678/}",
+    "      WEBHOOK_URL: ${REFERENCE_BROKER_PUBLIC_URL:-http://localhost:5678/}",
     "    volumes:",
-    "      - n8n_data:/home/node/.n8n",
+    "      - reference_broker_data:/home/node/.n8n",
     "    healthcheck:",
     `      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5678/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]`,
     "      interval: 10s",
@@ -418,13 +418,13 @@ export function renderCompose(c: DeployConfig): string {
   const services: string[] = [];
   if (c.reverseProxy) services.push(traefikService());
   services.push(shellService(c));
-  if (c.broker.bundleN8n) services.push(n8nService());
+  if (c.broker.bundleReferenceBroker) services.push(referenceBrokerService());
   if (c.bundleRedis) services.push(redisService());
   if (c.bundleOllama) services.push(ollamaService());
   if (c.idp.kind === "authentik-bundled") services.push(authentikServices());
 
   const volumes: string[] = [];
-  if (c.broker.bundleN8n) volumes.push("  n8n_data:");
+  if (c.broker.bundleReferenceBroker) volumes.push("  reference_broker_data:");
   if (c.bundleOllama) volumes.push("  ollama_data:");
   if (c.reverseProxy) volumes.push("  traefik_letsencrypt:");
   if (c.idp.kind === "authentik-bundled") volumes.push("  authentik_pg_data:", "  authentik_media:");

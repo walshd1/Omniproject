@@ -5,7 +5,7 @@ import type { Request } from "express";
 
 import { versionConflict } from "../lib/concurrency";
 import { roleFromClaims, grantsFromClaims } from "../lib/rbac";
-import { idempotencyKey } from "../broker/n8n/index";
+import { idempotencyKey } from "../broker/reference-broker/index";
 import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
 import { BACKENDS, getBackend, isEnterpriseBackend, backendCatalogue, generateWorkflow } from "@workspace/backend-catalogue";
@@ -22,7 +22,7 @@ import { applyODataQuery, buildEdmx, type EntityModel } from "../lib/odata";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
-import { resolveTemplate, isFullyResolved } from "../broker/n8n/expr";
+import { resolveTemplate, isFullyResolved } from "../broker/reference-broker/expr";
 import { updateSettings, getSettings } from "../lib/settings";
 import {
   __resetConfigStore,
@@ -215,14 +215,14 @@ test("parseJwt: extracts header/claims (decode only)", () => {
   assert.equal(p.claims.sub, "user-1");
 });
 
-test("validateClaims: passes for matching iss/aud and unexpired", () => {
-  assert.equal(validateClaims(GOOD_CLAIMS, { issuer: "https://idp.test", audience: "omni-client" }), null);
+test("validateClaims: does not throw for matching iss/aud and unexpired", () => {
+  assert.doesNotThrow(() => validateClaims(GOOD_CLAIMS, { issuer: "https://idp.test", audience: "omni-client" }));
 });
 
-test("validateClaims: rejects wrong audience, wrong issuer, and expiry", () => {
-  assert.match(validateClaims(GOOD_CLAIMS, { issuer: "https://idp.test", audience: "other" })!, /audience/);
-  assert.match(validateClaims(GOOD_CLAIMS, { issuer: "https://evil", audience: "omni-client" })!, /issuer/);
-  assert.match(validateClaims({ ...GOOD_CLAIMS, exp: NOW - 3600 }, { issuer: "https://idp.test", audience: "omni-client" })!, /expired/);
+test("validateClaims: throws on wrong audience, wrong issuer, and expiry", () => {
+  assert.throws(() => validateClaims(GOOD_CLAIMS, { issuer: "https://idp.test", audience: "other" }), /audience/);
+  assert.throws(() => validateClaims(GOOD_CLAIMS, { issuer: "https://evil", audience: "omni-client" }), /issuer/);
+  assert.throws(() => validateClaims({ ...GOOD_CLAIMS, exp: NOW - 3600 }, { issuer: "https://idp.test", audience: "omni-client" }), /expired/);
 });
 
 test("verifyIdToken: end-to-end with a stubbed JWKS endpoint", async () => {
@@ -1142,6 +1142,29 @@ test("webhooks: deliver is a no-op without the entitlement (enforced)", async ()
     if (saved !== undefined) process.env["LICENSE_DEV_FEATURES"] = saved;
     if (savedNode === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = savedNode;
     if (savedEnf === undefined) delete process.env["PREMIUM_ENFORCEMENT"]; else process.env["PREMIUM_ENFORCEMENT"] = savedEnf;
+  }
+});
+
+test("webhooks: delivery is re-validated against the FULL egress policy every time, not just at creation (TOCTOU)", async () => {
+  // A URL that was perfectly safe when the subscription was created (passes the literal-only
+  // SSRF check in both createWebhook and every settings write) can still need blocking LATER —
+  // e.g. once an operator locks egress down with EGRESS_ALLOWLIST. Only a fresh, delivery-time
+  // check catches that; a one-time creation-time check (or a raw, unguarded fetch) would not.
+  // A literal (non-hostname) IP is used so this needs no real DNS resolution.
+  updateSettings({
+    webhooks: [{ id: "toctou", url: "http://93.184.216.34/hook", secret: "s", events: ["*"], active: true }],
+  });
+  const savedAllowlist = process.env["EGRESS_ALLOWLIST"];
+  process.env["EGRESS_ALLOWLIST"] = "idp.example.com"; // tightened AFTER the webhook was created
+  try {
+    const results = await deliverWebhooks("notification", { hello: "world" });
+    assert.equal(results.length, 1);
+    assert.equal(results[0]!.ok, false);
+    assert.equal(results[0]!.status, 0);
+    assert.equal(results[0]!.error, "blocked by egress policy");
+  } finally {
+    updateSettings({ webhooks: [] });
+    if (savedAllowlist === undefined) delete process.env["EGRESS_ALLOWLIST"]; else process.env["EGRESS_ALLOWLIST"] = savedAllowlist;
   }
 });
 

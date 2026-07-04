@@ -10,6 +10,7 @@ import { downloadReportDef, downloadJson, readReportDefFile, uniqueReportId } fr
 import { resolveReportRenderer } from "../reports/report-renderers";
 import { useReportOverrides, useSaveReportOverrides, type ReportOverride } from "../../lib/report-overrides";
 import type { Predicate, ConditionSet } from "../../lib/rate-card";
+import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { PredicateEditor } from "./PredicateEditor";
 
 /** A one-line description of how a report is realised, from its `renderer`. */
@@ -94,18 +95,15 @@ export function CustomReportsAdmin() {
   const { data: server } = useCustomReports();
   const { data: availability } = useAvailability();
   const save = useSaveCustomReports();
-  const [draft, setDraft] = useState<CustomReportDef[] | null>(null);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<CustomReportDef[], CustomReportDef[]>(server, structuredClone);
   const [importError, setImportError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { if (server) setDraft(structuredClone(server)); }, [server]);
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
   if (!draft) return null;
 
   const fields = availability?.available ?? [];
   const patch = (i: number, r: CustomReportDef) => setDraft(draft.map((x, j) => (j === i ? r : x)));
-  const dirty = JSON.stringify(draft) !== JSON.stringify(server);
 
   function addReport() {
     setDraft([...draft!, { id: `report-${draft!.length + 1}`, label: `Report ${draft!.length + 1}`, scope: "project", metrics: [{ id: "m1", field: fields[0] ?? "budget", agg: "count" }], viz: "table" }]);
@@ -247,7 +245,7 @@ export function CustomReportsAdmin() {
         <Button className="rounded-none border-2 border-foreground font-bold uppercase tracking-wider" onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}>
           {save.isPending ? "Saving…" : "Save reports"}
         </Button>
-        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={() => server && setDraft(structuredClone(server))}>Reset</Button>}
+        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={reset}>Reset</Button>}
         {importError && <span role="alert" className="text-xs font-bold text-red-500">{importError}</span>}
         {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
       </div>

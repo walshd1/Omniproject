@@ -1,6 +1,7 @@
 import { closeAllClients } from "./notify-hub";
 import { closeAllPresence } from "./presence-hub";
 import { wipeInMemoryState } from "./wipe";
+import { closeBrokerDispatcher } from "./broker-transport";
 
 /**
  * Graceful shutdown — on SIGTERM/SIGINT (e.g. `docker stop`, a rolling deploy),
@@ -65,6 +66,7 @@ export function installShutdownHandlers(server: ClosableServer, logger: Shutdown
   const drain = (): number => {
     const streams = closeAllClients() + closeAllPresence();
     wipeInMemoryState();
+    void closeBrokerDispatcher(); // release the broker's warm keep-alive sockets
     return streams;
   };
   for (const signal of ["SIGTERM", "SIGINT"] as const) {

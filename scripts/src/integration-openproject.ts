@@ -10,20 +10,15 @@
  * v3 endpoints the generated OpenProject workflow uses and asserts the contract.
  */
 
+import { createAsserter, green, red } from "./lib/assert";
+
 export {};
 
 const url = process.env["OPENPROJECT_LIVE_URL"]?.replace(/\/+$/, "");
 const token = process.env["OPENPROJECT_TOKEN"];
 
-const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
-const red = (s: string) => `\x1b[31m${s}\x1b[0m`;
-
-let pass = 0;
-let fail = 0;
-function assert(label: string, cond: boolean, detail?: string) {
-  if (cond) { console.log(`  ${green("✓")} ${label}`); pass++; }
-  else { console.log(`  ${red("✗")} ${label}${detail ? ` — ${detail}` : ""}`); fail++; }
-}
+const t = createAsserter();
+const assert = t.assert;
 
 async function main() {
   if (!url || !token) {
@@ -64,8 +59,8 @@ async function main() {
     }
   }
 
-  console.log(`\n${fail === 0 ? green(`✓ ${pass} checks passed — OpenProject mapping certified.`) : red(`✗ ${fail} failed.`)}`);
-  process.exit(fail === 0 ? 0 : 1);
+  console.log(`\n${t.fail === 0 ? green(`✓ ${t.pass} checks passed — OpenProject mapping certified.`) : red(`✗ ${t.fail} failed.`)}`);
+  process.exit(t.fail === 0 ? 0 : 1);
 }
 
 main().catch((err) => { console.error(err); process.exit(1); });

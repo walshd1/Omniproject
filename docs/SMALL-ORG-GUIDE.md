@@ -52,7 +52,7 @@ self-hosted · demo`. It only changes two things; **everything else is identical
 | Coupling | enterprise / business | nonprofit / self-hosted / demo |
 |---|---|---|
 | **TLS** (secure cookies + HSTS) | required in production | **HTTP-on-LAN is fine** — no secure-cookie breakage |
-| **No SSO** (demo auth = everyone admin) | a **critical** finding (can block `SECURITY_STRICT` boot) | an **accepted choice** (warn/info) |
+| **No SSO** (demo auth = everyone admin) | a **critical** finding — **refuses to boot** by default | an **accepted choice** (warn/info), boots fine |
 
 Overrides if you want finer control: `PUBLIC_TLS=1/0` forces the TLS posture either way;
 `ACCEPT_DEMO_AUTH=1` accepts no-SSO on any profile. The active profile + every relaxation is
@@ -101,6 +101,6 @@ choices are visible, not accidental.
 | have more than one user | the bundled IdP, or `OIDC_ISSUER_URL` |
 | are reachable from the internet | HTTPS + `DEPLOYMENT_PROFILE=business` (or `PUBLIC_TLS=1`) |
 | handle sensitive data | `IP_ALLOWLIST`, `MAX_SESSIONS_PER_USER`, ship audit to a SIEM |
-| have compliance obligations | `SECURITY_STRICT=on`, `KMS_PROVIDER`, `DUAL_CONTROL_ACTIONS`, SCIM |
+| have compliance obligations | `KMS_PROVIDER`, `DUAL_CONTROL_ACTIONS`, SCIM (boot refusal on a critical finding is already the default) |
 
 You never have to adopt the enterprise surface to run OmniProject — you grow into it.

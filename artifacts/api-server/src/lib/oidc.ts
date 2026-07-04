@@ -298,26 +298,47 @@ export async function verifyIdToken(
   });
 }
 
-/**
- * Decode the JWT id_token to extract user claims. The signature MUST have been
- * verified first (see verifyIdToken); this only reads the payload.
- */
-export function decodeIdTokenClaims(idToken: string): SessionUser | null {
+/** Decode a JWT's payload segment (base64url JSON) without checking its signature — the
+ *  signature MUST already have been verified by the caller (see verifyIdToken); this only
+ *  reads bytes already proven authentic. Malformed structure (wrong segment count, bad
+ *  base64/JSON) ⇒ null. */
+function decodeJwtPayload(idToken: string): Record<string, unknown> | null {
   const parts = idToken.split(".");
   if (parts.length !== 3) return null;
   try {
-    const payload = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8")); // length === 3 checked above
-    return {
-      sub: String(payload.sub ?? ""),
-      name: payload.name ?? payload.preferred_username ?? undefined,
-      email: payload.email ?? undefined,
-      roles: extractRoles(payload),
-      amr: extractAmr(payload),
-      acr: typeof payload.acr === "string" ? payload.acr : undefined,
-    };
+    return JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8")) as Record<string, unknown>;
   } catch {
     return null;
   }
+}
+
+/** Thrown by decodeIdTokenClaims when the (already signature-verified) ID token's payload
+ *  can't be decoded — this only runs AFTER verification has succeeded, so a decode failure
+ *  here means the "verified" bytes aren't well-formed JWT claims: a real bug or tampering,
+ *  not a normal "claims absent" case. */
+export class InvalidIdTokenClaimsError extends Error {
+  constructor() {
+    super("ID token claims could not be decoded after signature verification succeeded — this indicates tampering or a non-compliant IdP");
+    this.name = "InvalidIdTokenClaimsError";
+  }
+}
+
+/**
+ * Decode the JWT id_token to extract user claims. The signature MUST have been
+ * verified first (see verifyIdToken); this only reads the payload. Throws
+ * InvalidIdTokenClaimsError if the (already-verified) token can't be decoded.
+ */
+export function decodeIdTokenClaims(idToken: string): SessionUser {
+  const payload = decodeJwtPayload(idToken);
+  if (!payload) throw new InvalidIdTokenClaimsError();
+  return {
+    sub: String(payload["sub"] ?? ""),
+    name: (payload["name"] as string | undefined) ?? (payload["preferred_username"] as string | undefined) ?? undefined,
+    email: (payload["email"] as string | undefined) ?? undefined,
+    roles: extractRoles(payload),
+    amr: extractAmr(payload),
+    acr: typeof payload["acr"] === "string" ? (payload["acr"] as string) : undefined,
+  };
 }
 
 /**
@@ -326,14 +347,9 @@ export function decodeIdTokenClaims(idToken: string): SessionUser | null {
  * been verified first (see verifyIdToken); this only reads the payload.
  */
 export function idTokenNonce(idToken: string): string | null {
-  const parts = idToken.split(".");
-  if (parts.length !== 3) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8")) as { nonce?: unknown };
-    return typeof payload.nonce === "string" ? payload.nonce : null;
-  } catch {
-    return null;
-  }
+  const payload = decodeJwtPayload(idToken);
+  if (!payload) return null;
+  return typeof payload["nonce"] === "string" ? (payload["nonce"] as string) : null;
 }
 
 /**

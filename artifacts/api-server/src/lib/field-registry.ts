@@ -43,20 +43,33 @@ export interface FieldReconciliation {
   missing: string[];
 }
 
+/** Dedupe enumerated fields by key: skip any with an empty/missing key, and any repeat
+ *  occurrence of a key (first wins). The "have we seen this key" shape both `reconcileFields`
+ *  and `customFieldsFrom` need before doing their own thing with the survivors. */
+function dedupeByKey(enumerated: EnumeratedField[]): EnumeratedField[] {
+  const seen = new Set<string>();
+  const out: EnumeratedField[] = [];
+  for (const f of enumerated) {
+    if (!f.key || seen.has(f.key)) continue;
+    seen.add(f.key);
+    out.push(f);
+  }
+  return out;
+}
+
 /**
  * Diff an enumerated backend API against the canonical registry. The `unknown`
  * list is the actionable output: each is a candidate to add to FIELD_REGISTRY
  * (and the contract) so the new system of record is fully understood.
  */
 export function reconcileFields(enumerated: EnumeratedField[]): FieldReconciliation {
+  const deduped = dedupeByKey(enumerated);
   const known: string[] = [];
   const unknown: string[] = [];
-  const seen = new Set<string>();
-  for (const f of enumerated) {
-    if (!f.key || seen.has(f.key)) continue;
-    seen.add(f.key);
+  for (const f of deduped) {
     (CANONICAL_FIELD_KEYS.has(f.key) ? known : unknown).push(f.key);
   }
+  const seen = new Set(deduped.map((f) => f.key));
   const missing = [...CANONICAL_FIELD_KEYS].filter((k) => !seen.has(k));
   return { known, unknown, missing };
 }
@@ -69,14 +82,18 @@ export function reconcileFields(enumerated: EnumeratedField[]): FieldReconciliat
  * a registry edit. Type defaults to "string" when the backend doesn't say.
  */
 export function customFieldsFrom(enumerated: EnumeratedField[]): EnumeratedField[] {
-  const out: EnumeratedField[] = [];
-  const seen = new Set<string>();
-  for (const f of enumerated) {
-    if (!f.key || seen.has(f.key) || CANONICAL_FIELD_KEYS.has(f.key)) continue;
-    seen.add(f.key);
-    out.push({ key: f.key, label: f.label ?? f.key, type: f.type ?? "string", surface: f.surface ?? true, store: f.store ?? false, ...(f.references ? { references: f.references } : {}), ...(f.sourceSystem ? { sourceSystem: f.sourceSystem } : {}), ...(f.sourceField ? { sourceField: f.sourceField } : {}) });
-  }
-  return out;
+  return dedupeByKey(enumerated)
+    .filter((f) => !CANONICAL_FIELD_KEYS.has(f.key))
+    .map((f) => ({
+      key: f.key,
+      label: f.label ?? f.key,
+      type: f.type ?? "string",
+      surface: f.surface ?? true,
+      store: f.store ?? false,
+      ...(f.references ? { references: f.references } : {}),
+      ...(f.sourceSystem ? { sourceSystem: f.sourceSystem } : {}),
+      ...(f.sourceField ? { sourceField: f.sourceField } : {}),
+    }));
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 import type { CustomReportDef, CustomReportAgg, CustomReportMetric } from "./custom-report";
 import type { ConditionSet } from "./rate-card";
 import { safeParseJson } from "./safe-json";
+import { triggerBlobDownload } from "./setup";
 
 /**
  * Round-trip a bespoke report DEFINITION in and out of a JSON file — so a report built in the generator
@@ -67,14 +68,7 @@ export function reportDefToJson(def: CustomReportDef): string {
 /** Trigger a browser download of any value as pretty JSON. The one place the download idiom lives. */
 export function downloadJson(value: unknown, filename: string): void {
   const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, filename);
 }
 
 /** Trigger a browser download of a report definition (or a list) as a JSON file. */

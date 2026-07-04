@@ -2,7 +2,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { endpointsForKind, routeBrokerCall } from "./router";
 import { withEndpoints } from "./endpoint-context";
-import { webhookPool } from "./n8n";
+import { webhookPool } from "./reference-broker";
 import { getBroker } from "./index";
 
 const ACTIVE = getBroker().kind; // "demo" in tests (no BROKER_URL)

@@ -3,7 +3,7 @@
  * `N8N_WEBHOOK_URL` alias. Centralised here (a broker-NEUTRAL helper) so callers ask for "the
  * broker URL(s)", not for a vendor-specific variable, and so checks reference EVERY loaded broker
  * rather than singling one out. The broker-isolation guard relies on this being the only
- * non-`broker/n8n/` site that mentions the alias.
+ * non-`broker/reference-broker/` site that mentions the alias.
  */
 
 /** Every configured broker endpoint URL across ALL loaded brokers — the default `BROKER_URL`, any

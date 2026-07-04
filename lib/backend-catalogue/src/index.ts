@@ -4,7 +4,7 @@
  * capabilities kept SEPARATE from its concrete tools, linked into one definition):
  *
  *   - BACKENDS — systems of record (./backend-manifest + ./backend-catalogue), with
- *     the n8n binding + workflow generator (./n8n-generator).
+ *     the n8n binding + workflow generator (./workflow-generator).
  *   - BROKERS  — the automation/translation layer (./broker-catalogue).
  *   - OUTPUTS  — the outward interfaces: MCP, OData, BI, metrics, exports, events
  *     (./output-catalogue).
@@ -17,7 +17,7 @@
 export * from "./backend-manifest";
 export * from "./backend-catalogue";
 export * from "./key-format";
-export * from "./n8n-generator";
+export * from "./workflow-generator";
 export * from "./broker-catalogue";
 export * from "./output-catalogue";
 export * from "./notification-catalogue";

@@ -79,6 +79,11 @@ function captureEntry(): ZipEntry[] {
   return [{ name: "capture-tape.jsonl", data: fs.readFileSync(p) }];
 }
 
+/** A bundle entry whose content is pretty-printed JSON — the shape every non-file entry shares. */
+function jsonEntry(name: string, value: unknown): ZipEntry {
+  return { name, data: Buffer.from(JSON.stringify(value, null, 2), "utf8") };
+}
+
 const README = (now: string): string =>
   "# OmniProject debug bundle\n\n" +
   `Generated ${now}.\n\n` +
@@ -99,8 +104,29 @@ const README = (now: string): string =>
   "   re-issue the recorded instructions against this instance and diff the results).\n\n" +
   "Dev mode is a debugging aid; it is **inert in production** and never bundles there.\n";
 
-/** Assemble the bundle entries + manifest for a given timestamp. */
-export function buildDebugBundleEntries(now: string): { manifest: DebugBundleManifest; entries: ZipEntry[] } {
+interface DebugBundleData {
+  config: ReturnType<typeof buildSnapshot>;
+  vendors: { backends: ReturnType<typeof backendCatalogue>; brokers: ReturnType<typeof brokerCatalogue>; configDir: ReturnType<typeof configDirSummary> };
+  features: ReturnType<typeof featureStatus>;
+  posture: {
+    devMode: ReturnType<typeof devModeStatus>;
+    ai: ReturnType<typeof aiStatus>;
+    aiGovernance: ReturnType<typeof aiGovernanceStatus>;
+    audit: ReturnType<typeof auditStatus>;
+    stt: ReturnType<typeof sttStatus>;
+    license: ReturnType<typeof licenseSummary>;
+    capabilityStates: ReturnType<typeof getSettings>["capabilityStates"];
+    presence: ReturnType<typeof presenceStats>;
+    brokerReads: { singleFlight: ReturnType<typeof singleFlightStats>; cache: ReturnType<typeof readCacheStats> };
+  };
+  state: ReturnType<typeof getDemoState>;
+  dirEntries: ZipEntry[];
+  tapeEntries: ZipEntry[];
+}
+
+/** Gather a point-in-time snapshot from every subsystem the bundle covers. Read-only; no
+ *  serialization/zip concerns here — that's `toZipEntries`/`buildManifest`, below. */
+function gatherDebugData(): DebugBundleData {
   const config = buildSnapshot(getSettings());
   const vendors = { backends: backendCatalogue(), brokers: brokerCatalogue(), configDir: configDirSummary() };
   const state = getDemoState();
@@ -127,17 +153,27 @@ export function buildDebugBundleEntries(now: string): { manifest: DebugBundleMan
     brokerReads: { singleFlight: singleFlightStats(), cache: readCacheStats() },
   };
 
-  const entries: ZipEntry[] = [
-    { name: "config.json", data: Buffer.from(JSON.stringify(config, null, 2), "utf8") },
-    { name: "vendors.json", data: Buffer.from(JSON.stringify(vendors, null, 2), "utf8") },
-    { name: "feature-modules.json", data: Buffer.from(JSON.stringify(features, null, 2), "utf8") },
-    { name: "runtime-posture.json", data: Buffer.from(JSON.stringify(posture, null, 2), "utf8") },
-    { name: "demo-state.json", data: Buffer.from(JSON.stringify(state, null, 2), "utf8") },
-    ...dirEntries,
-    ...tapeEntries,
-  ];
+  return { config, vendors, features, posture, state, dirEntries, tapeEntries };
+}
 
-  const manifest: DebugBundleManifest = {
+/** Serialize gathered data to the bundle's ZIP entries (excluding manifest/README, added by the
+ *  caller once the entry list — and hence the manifest's `contents` — is final). */
+function toZipEntries(data: DebugBundleData): ZipEntry[] {
+  return [
+    jsonEntry("config.json", data.config),
+    jsonEntry("vendors.json", data.vendors),
+    jsonEntry("feature-modules.json", data.features),
+    jsonEntry("runtime-posture.json", data.posture),
+    jsonEntry("demo-state.json", data.state),
+    ...data.dirEntries,
+    ...data.tapeEntries,
+  ];
+}
+
+/** Build the manifest from the final entry list (so `contents` lists everything the bundle
+ *  actually carries) plus the generation time + dev-mode surfaces. */
+function buildManifest(now: string, entries: ZipEntry[]): DebugBundleManifest {
+  return {
     schema: "omniproject/debug-bundle",
     version: 1,
     generatedAt: now,
@@ -145,8 +181,15 @@ export function buildDebugBundleEntries(now: string): { manifest: DebugBundleMan
     surfaces: devModeStatus().surfaces,
     contents: entries.map((e) => e.name),
   };
+}
 
-  entries.unshift({ name: "manifest.json", data: Buffer.from(JSON.stringify(manifest, null, 2), "utf8") });
+/** Assemble the bundle entries + manifest for a given timestamp. */
+export function buildDebugBundleEntries(now: string): { manifest: DebugBundleManifest; entries: ZipEntry[] } {
+  const data = gatherDebugData();
+  const entries = toZipEntries(data);
+  const manifest = buildManifest(now, entries);
+
+  entries.unshift(jsonEntry("manifest.json", manifest));
   entries.unshift({ name: "README.md", data: Buffer.from(README(now), "utf8") });
   return { manifest, entries };
 }

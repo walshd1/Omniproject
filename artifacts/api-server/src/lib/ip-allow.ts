@@ -1,5 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { logger } from "./logger";
+import { parseCsvEnv } from "./env";
+import { firstForwardedValue } from "./trust-proxy";
 
 /**
  * App-layer IP allowlisting — defence in depth even behind an ingress/LB. When
@@ -78,7 +80,7 @@ export function ipInCidr(ip: string, cidr: string): boolean {
 
 /** The configured allowlist entries (empty ⇒ allowlisting off). */
 export function ipAllowlist(): string[] {
-  return (process.env["IP_ALLOWLIST"]?.trim() || "").split(",").map((s) => s.trim()).filter(Boolean);
+  return parseCsvEnv("IP_ALLOWLIST");
 }
 
 /** Is this client IP allowed? True when the allowlist is empty (feature off). */
@@ -92,7 +94,7 @@ export function ipAllowed(ip: string): boolean {
 export function clientIp(req: Request): string {
   const trust = process.env["TRUST_PROXY"]?.trim();
   if (trust && trust !== "0" && trust.toLowerCase() !== "false") {
-    const xff = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim();
+    const xff = firstForwardedValue(req, "x-forwarded-for");
     if (xff) return xff;
   }
   return (req.socket?.remoteAddress ?? "").replace(/^::ffff:/i, "");

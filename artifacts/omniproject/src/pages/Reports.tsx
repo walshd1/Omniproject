@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useListProjects, useGetCapabilities, type Capabilities } from "@workspace/api-client-react";
-import { useStore } from "../store/useStore";
+import { useActiveProjectSelector } from "../hooks/use-active-project-selector";
 import { ExecBoardPack } from "../components/reports/ExecBoardPack";
 import { PortfolioKpi } from "../components/reports/PortfolioKpi";
 import { FederatedPortfolio } from "../components/reports/FederatedPortfolio";
@@ -77,19 +77,7 @@ export function Reports() {
   const { data: projects, dataUpdatedAt } = useListProjects();
   const { data: caps } = useGetCapabilities();
   const { data: auth } = useAuth();
-  const { activeProjectId, setActiveProjectId } = useStore();
-  const [projectId, setProjectId] = useState(activeProjectId || "");
-
-  useEffect(() => {
-    if (!projectId && projects && projects.length > 0) {
-      setProjectId(activeProjectId || projects[0]!.id); // length > 0 checked above
-    }
-  }, [projects, projectId, activeProjectId]);
-
-  const onSelect = (id: string) => {
-    setProjectId(id);
-    setActiveProjectId(id);
-  };
+  const { projectId, onSelect } = useActiveProjectSelector(projects);
 
   return (
     <div className="h-full overflow-y-auto p-8">

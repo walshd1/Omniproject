@@ -14,6 +14,10 @@ import type { Server } from "node:http";
 process.env["SESSION_SECRET"] = "test-session-secret-do-not-use-in-prod";
 process.env["NODE_ENV"] = "production";
 process.env["RATE_LIMIT_DISABLED"] = "true";
+// This "production" is a test-harness convenience flag, not a real deployment: no OIDC is
+// configured (demo auth) and rate-limiting is deliberately off, both of which are now CRITICAL
+// boot-refusing findings by default. Opt out for this harness only.
+process.env["SECURITY_STRICT"] = "off";
 
 let server: Server;
 let base: string;

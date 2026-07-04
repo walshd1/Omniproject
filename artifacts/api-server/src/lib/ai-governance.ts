@@ -1,4 +1,5 @@
 import { sharedKv } from "./shared-state";
+import { envInt } from "./env-config";
 
 /**
  * AI governance — opt-in cost control + data-loss prevention layered on the single model-egress
@@ -81,12 +82,10 @@ export function modelAllowed(role: string | undefined, model: string): boolean {
 
 // ── Token budget / quota (shared-state backed) ─────────────────────────────────────
 export function tokenBudget(): number {
-  const n = Number(process.env["AI_TOKEN_BUDGET"]);
-  return Number.isFinite(n) && n > 0 ? n : 0; // 0 ⇒ no budget
+  return envInt("AI_TOKEN_BUDGET", 0, { min: 1 }); // 0 ⇒ no budget
 }
 function windowMs(): number {
-  const h = Number(process.env["AI_BUDGET_WINDOW_HOURS"]);
-  return (Number.isFinite(h) && h > 0 ? h : 24) * 60 * 60 * 1000;
+  return envInt("AI_BUDGET_WINDOW_HOURS", 24, { min: 1 }) * 60 * 60 * 1000;
 }
 /** Rough token estimate (chars/4) over a set of messages. */
 export function estimateTokens(messages: { content: string }[]): number {

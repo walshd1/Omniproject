@@ -1,4 +1,5 @@
-import { logger } from "./logger";
+import { envInt } from "./env-config";
+import { loadOptionalDependency } from "./optional-dependency";
 
 /**
  * Impossible-travel detection — flags a login when the implied travel speed from the
@@ -50,42 +51,32 @@ interface GeoLookupResult {
 type GeoipModule = { lookup(ip: string): GeoLookupResult | null };
 
 let geoipPromise: Promise<GeoipModule | null> | null = null;
-let warnedMissing = false;
 
 async function getGeoip(): Promise<GeoipModule | null> {
-  geoipPromise ??= (async () => {
-    // Variable specifier so the bundler/tsc don't statically resolve the optional dep.
-    const pkgName = "geoip-lite";
-    const mod = (await import(pkgName).catch(() => null)) as { lookup?: unknown; default?: { lookup?: unknown } } | null;
-    const lookupFn =
-      typeof mod?.lookup === "function" ? mod.lookup
-      : typeof mod?.default?.lookup === "function" ? mod.default.lookup
-      : null;
-    if (!lookupFn) {
-      if (!warnedMissing) {
-        warnedMissing = true;
-        logger.warn(
-          "Impossible-travel geolocation checking is enabled by default but 'geoip-lite' is not installed — the check is a no-op (logins are never blocked by its absence). Run: pnpm --filter @workspace/api-server add geoip-lite",
-        );
-      }
-      return null;
-    }
-    return { lookup: lookupFn as (ip: string) => GeoLookupResult | null };
-  })();
+  geoipPromise ??= loadOptionalDependency<GeoipModule>(
+    "geoip-lite",
+    (mod) => {
+      const m = mod as { lookup?: unknown; default?: { lookup?: unknown } } | null;
+      const lookupFn =
+        typeof m?.lookup === "function" ? m.lookup
+        : typeof m?.default?.lookup === "function" ? m.default.lookup
+        : null;
+      return lookupFn ? { lookup: lookupFn as (ip: string) => GeoLookupResult | null } : null;
+    },
+    "Impossible-travel geolocation checking is enabled by default but 'geoip-lite' is not installed — the check is a no-op (logins are never blocked by its absence). Run: pnpm --filter @workspace/api-server add geoip-lite",
+  );
   return geoipPromise;
 }
 
 /** Faster than any commercial flight door-to-door; generous margin for GeoIP imprecision. */
 function maxPlausibleKmh(): number {
-  const raw = Number(process.env["IMPOSSIBLE_TRAVEL_MAX_KMH"]);
-  return Number.isFinite(raw) && raw > 0 ? raw : 1000;
+  return envInt("IMPOSSIBLE_TRAVEL_MAX_KMH", 1000, { min: 1 });
 }
 
 /** Ignore short hops (city-level GeoIP jitter, a metro-area move, a VPN exit-node swap
  *  within the same region) — only a genuinely long jump is worth flagging at all. */
 function minFlagKm(): number {
-  const raw = Number(process.env["IMPOSSIBLE_TRAVEL_MIN_KM"]);
-  return Number.isFinite(raw) && raw >= 0 ? raw : 300;
+  return envInt("IMPOSSIBLE_TRAVEL_MIN_KM", 300, { min: 0 });
 }
 
 const EARTH_RADIUS_KM = 6371;

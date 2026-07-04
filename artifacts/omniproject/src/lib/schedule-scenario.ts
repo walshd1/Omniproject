@@ -1,3 +1,5 @@
+import { DAY_MS } from "./date-utils";
+
 /**
  * Schedule what-if engine — a STATELESS, in-browser scheduler for "if this work
  * package starts later, what are the knock-ons?".
@@ -13,8 +15,6 @@
  * call, no storage. Dependencies are the ones you already asserted (or draw in
  * the sandbox), and every figure it emits is `projected`.
  */
-
-const DAY_MS = 1000 * 60 * 60 * 24;
 
 /** Whole-day index (UTC-agnostic floor), matching the Gantt view's bucketing. */
 export function startOfDay(d: Date): number {

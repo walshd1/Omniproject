@@ -19,6 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Keep this pnpm/Node pair in sync with the Dockerfile's builder stage — it deliberately
+      # mirrors these exact versions, and bumping one without the other risks a silent drift
+      # between what CI verifies and what actually ships.
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -93,7 +96,7 @@ jobs:
 
       - name: Verify the n8n example blueprints are in sync with the generator + vendor JSON
         run: |
-          pnpm --filter @workspace/scripts run gen-n8n-blueprints
+          pnpm --filter @workspace/scripts run gen-workflow-blueprints
           if ! git diff --quiet -- artifacts/n8n-blueprints/generated; then
             echo "::error::n8n example blueprints are out of date. Run 'pnpm --filter @workspace/scripts run gen-n8n-blueprints' and commit the result."
             git --no-pager diff --stat -- artifacts/n8n-blueprints/generated
@@ -360,8 +363,11 @@ jobs:
 
       - name: Smoke-boot in demo mode (API health + served SPA root)
         run: |
+          # ACCEPT_DEMO_AUTH=1: the boot-time security self-check refuses to start with
+          # OIDC unset (demo-auth-in-prod) unless this is set — this smoke test IS demo mode.
           docker run -d --name omni -p 3000:3000 \
             -e SESSION_SECRET=ci-smoke-secret-not-for-prod \
+            -e ACCEPT_DEMO_AUTH=1 \
             omni-shell:ci
           for _ in $(seq 1 30); do
             curl -fsS http://localhost:3000/api/healthz >/dev/null 2>&1 && break

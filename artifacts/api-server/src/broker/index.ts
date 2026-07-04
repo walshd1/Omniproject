@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { getSession } from "../routes/auth";
 import { sessionBindFromSession } from "../lib/session-key";
 import { roleForReq } from "../lib/rbac";
-import { N8nBroker, N8N_ENV_CONFIGURED, pingBroker } from "./n8n";
+import { ReferenceBroker, BROKER_ENV_CONFIGURED, pingBroker } from "./reference-broker";
 import { DemoBroker } from "./demo";
 import { BrokerError, type Broker, type ActorContext } from "./types";
 import { instrumented, wrapWithTrace } from "./trace";
@@ -36,18 +36,18 @@ export function getBroker(): Broker {
     // source (demo/bundle/cassette) for testing without a real backend. Null
     // outside dev mode, so production is unaffected.
     const dev = devBrokerFromEnv();
-    let base: Broker = dev ?? (N8N_ENV_CONFIGURED ? new N8nBroker() : new DemoBroker());
+    let base: Broker = dev ?? (BROKER_ENV_CONFIGURED ? new ReferenceBroker() : new DemoBroker());
     // Keyed-access posture: a LIVE broker is hard-gated behind a configured key
     // (BROKER_PSK) outside dev mode — no keyless request reaches a real vendor/broker.
     // Innermost so a cache hit (which reaches no broker) isn't blocked. Demo/dev brokers
     // serve sample data and reach no vendor, so they're exempt.
-    if (N8N_ENV_CONFIGURED && !dev && !isDevMode()) base = wrapWithKeyGuard(base);
+    if (BROKER_ENV_CONFIGURED && !dev && !isDevMode()) base = wrapWithKeyGuard(base);
     // Demonstration flavour: present the demo AS the vendor named by `backendSource`,
     // gated to its declared capabilities, so a prospect previews the product on THEIR
     // stack over sample data. `demoVendorFor` enforces the hard rule that a thin-file
     // spoof NEVER appears over real data — it returns null when a real backend is
     // connected (prod) or the dev broker is active, so only real vendors show in prod.
-    const demoVendor = demoVendorFor({ devActive: !!dev, realBackend: N8N_ENV_CONFIGURED, source: getSettings().backendSource });
+    const demoVendor = demoVendorFor({ devActive: !!dev, realBackend: BROKER_ENV_CONFIGURED, source: getSettings().backendSource });
     if (demoVendor) base = applyVendorProfile(base, demoVendor);
     // ALWAYS ON: coalesce concurrent identical reads into one upstream call (single-flight).
     // Introduces no staleness — coalesced callers all get the one live result — so it's safe to
@@ -101,14 +101,26 @@ export function isLiveBroker(): boolean {
 }
 
 /**
+ * Is there a broker endpoint to forward a command to? True when one is configured
+ * at boot (`BROKER_URL` ⇒ `isLiveBroker()`) OR set at runtime by an admin via
+ * settings. The ReferenceBroker command edges resolve their webhook from
+ * `getSettings().brokerUrl` first (it takes precedence over the env), so an
+ * admin-configured URL is reachable without a restart — this gate just has to
+ * agree with that precedence instead of looking only at the boot-time env.
+ */
+export function brokerConfigured(): boolean {
+  return isLiveBroker() || !!getSettings().brokerUrl?.trim();
+}
+
+/**
  * Generic command passthrough — forward an arbitrary action + payload through the
  * n8n adapter's command edge. This lives in the broker barrel (the seam) so the
  * adapter import stays here; the command edges above the seam (`/broker/command`,
  * the raw escape hatch) call THIS instead of importing the adapter themselves.
  * The generic command is an n8n-adapter concern (not on the neutral Broker
- * interface), so it always uses an N8nBroker bound to the configured webhook.
+ * interface), so it always uses a ReferenceBroker bound to the configured webhook.
  */
-const commandBroker = new N8nBroker();
+const commandBroker = new ReferenceBroker();
 /** Forward an arbitrary action + payload through the adapter's command edge. */
 export function brokerCommand(ctx: ActorContext, action: string, payload: Record<string, unknown>, source: string): Promise<unknown> {
   // Arbitrary commands may mutate the backend, and they bypass the cached broker —
@@ -146,6 +158,13 @@ export async function brokerReadiness(timeoutMs = 2000): Promise<BrokerReadiness
 export function resetReadinessCache(): void {
   readyCache = null;
 }
+
+/**
+ * The n8n adapter's verify probe, exposed through the seam for `/setup/verify-workflow`
+ * (which points at an admin-supplied candidate URL, not necessarily the active broker) —
+ * see broker/n8n for what "probe" means (PSK-aware, bounded fan-out, dry-run).
+ */
+export { probeVerifiableActions } from "./reference-broker";
 
 /** Build the domain ActorContext (forwarded identity + transport auth) from a request. */
 export function contextFromReq(req: Request): ActorContext {

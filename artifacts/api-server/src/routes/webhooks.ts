@@ -4,7 +4,7 @@
  * Use in production requires a valid OmniProject commercial licence.
  */
 import { Router } from "express";
-import { listWebhooks, createWebhook, deleteWebhook, testWebhook, WEBHOOK_EVENTS } from "../lib/webhooks";
+import { listWebhooks, createWebhook, deleteWebhook, testWebhook, WebhookNotFoundError, WEBHOOK_EVENTS } from "../lib/webhooks";
 import { requireRole } from "../lib/rbac";
 import { requireEntitlement, isEntitled } from "../lib/license";
 
@@ -34,21 +34,23 @@ router.post("/webhooks", requireRole("admin"), requireEntitlement("webhooks"), (
 });
 
 router.delete("/webhooks/:id", requireRole("admin"), (req, res) => {
-  const ok = deleteWebhook(String(req.params["id"]));
-  if (!ok) {
-    res.status(404).json({ error: "Unknown webhook id" });
-    return;
+  try {
+    deleteWebhook(String(req.params["id"]));
+    res.json({ deleted: true });
+  } catch (err) {
+    if (err instanceof WebhookNotFoundError) { res.status(404).json({ error: err.message }); return; }
+    throw err;
   }
-  res.json({ deleted: true });
 });
 
 router.post("/webhooks/:id/test", requireRole("admin"), requireEntitlement("webhooks"), async (req, res) => {
-  const result = await testWebhook(String(req.params["id"]));
-  if (!result) {
-    res.status(404).json({ error: "Unknown webhook id" });
-    return;
+  try {
+    const result = await testWebhook(String(req.params["id"]));
+    res.json({ tested: true, result });
+  } catch (err) {
+    if (err instanceof WebhookNotFoundError) { res.status(404).json({ error: err.message }); return; }
+    throw err;
   }
-  res.json({ tested: true, result });
 });
 
 export default router;

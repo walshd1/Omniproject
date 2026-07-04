@@ -1,9 +1,7 @@
-import type { ActorContext, Broker, PortfolioRow } from "../broker/types";
-import { mintAutonomousContext } from "./autonomous";
-import { getNotifyBus } from "./notify-bus";
-import { recordAudit } from "./audit";
-import { logger } from "./logger";
+import type { Broker, PortfolioRow } from "../broker/types";
 import { ROLES, type Role } from "./rbac";
+import { runScheduledAutonomousJob, createIntervalScheduler } from "./scheduled-job";
+import { logger } from "./logger";
 
 /**
  * Proactive "what needs me" digest.
@@ -69,10 +67,14 @@ export function getDigestThresholds(): DigestThresholds {
 }
 
 /** Tune the thresholds. Only finite, non-negative numbers are accepted; anything
- *  missing/invalid falls back to the default for that field. */
+ *  missing/invalid falls back to the default for that field (logged — a malformed
+ *  admin edit that appears to apply but silently keeps the old threshold is a footgun). */
 export function setDigestThresholds(input: unknown): DigestThresholds {
   const o = (input ?? {}) as Record<string, unknown>;
   const num = (v: unknown, d: number): number => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : d);
+  const invalid = (["scheduleSlipDays", "budgetOverrunPct", "blockers", "maxNamed"] as const)
+    .filter((k) => o[k] !== undefined && !(typeof o[k] === "number" && Number.isFinite(o[k] as number) && (o[k] as number) >= 0));
+  if (invalid.length) logger.warn({ fields: invalid }, "setDigestThresholds: ignoring invalid value(s), falling back to the default for those fields");
   activeThresholds = {
     scheduleSlipDays: num(o["scheduleSlipDays"], DEFAULT_DIGEST_THRESHOLDS.scheduleSlipDays),
     budgetOverrunPct: num(o["budgetOverrunPct"], DEFAULT_DIGEST_THRESHOLDS.budgetOverrunPct),
@@ -113,20 +115,19 @@ export interface ProactiveDigest {
 
 const cap = (names: string[], max: number): string[] => names.slice(0, Math.max(1, max));
 
+export interface CategorizedDigest {
+  sections: DigestSection[];
+  stats: ProactiveDigest["stats"];
+  /** True when nothing needs attention. */
+  empty: boolean;
+}
+
 /**
- * Build the "what needs me" digest from portfolio rows (PURE).
- *
- * `role` frames the digest for its recipient (a manager/PgM sees their portfolio). `at` is an
- * ISO timestamp for the heading. Rows are prioritised into at-risk → blockers → overdue →
- * budget sections; each carries a bounded count + the worst project names. A portfolio where
- * everything is healthy yields `empty: true` so the caller can skip a "nothing to report" ping.
+ * Categorize + aggregate portfolio rows into prioritised sections (PURE). Rows are bucketed
+ * into at-risk → blockers → overdue → budget; each carries a bounded count + the worst project
+ * names. A portfolio where everything is healthy yields `empty: true`.
  */
-export function buildProactiveDigest(
-  rows: PortfolioRow[],
-  at: string,
-  role: Role = "manager",
-  thresholds: DigestThresholds = DEFAULT_DIGEST_THRESHOLDS,
-): ProactiveDigest {
+export function categorizeDigest(rows: PortfolioRow[], thresholds: DigestThresholds = DEFAULT_DIGEST_THRESHOLDS): CategorizedDigest {
   // Worst-first ordering within a section: red before amber, then by the relevant magnitude.
   const bySeverity = (a: PortfolioRow, b: PortfolioRow): number => {
     const w = (r: PortfolioRow) => (rag(r) === "red" ? 2 : rag(r) === "amber" ? 1 : 0);
@@ -158,6 +159,12 @@ export function buildProactiveDigest(
     budgetBreach: budget.length,
   };
 
+  return { sections, stats, empty: sections.length === 0 };
+}
+
+/** Render the digest's title/body text from its categorized sections + stats (PURE). `at` is
+ *  an ISO timestamp for the heading. */
+export function renderDigestText(sections: DigestSection[], stats: ProactiveDigest["stats"], at: string): { title: string; body: string } {
   const empty = sections.length === 0;
 
   const title = empty
@@ -171,6 +178,23 @@ export function buildProactiveDigest(
         ...sections.map((s) => `• ${s.label}: ${s.count} — ${s.named.join(", ")}${s.count > s.named.length ? ", …" : ""}`),
       ].join("\n");
 
+  return { title, body };
+}
+
+/**
+ * Build the "what needs me" digest from portfolio rows (PURE).
+ *
+ * `role` frames the digest for its recipient (a manager/PgM sees their portfolio). `at` is an
+ * ISO timestamp for the heading.
+ */
+export function buildProactiveDigest(
+  rows: PortfolioRow[],
+  at: string,
+  role: Role = "manager",
+  thresholds: DigestThresholds = DEFAULT_DIGEST_THRESHOLDS,
+): ProactiveDigest {
+  const { sections, stats, empty } = categorizeDigest(rows, thresholds);
+  const { title, body } = renderDigestText(sections, stats, at);
   return { kind: "digest", role, title, body, empty, sections, stats };
 }
 
@@ -200,47 +224,41 @@ export interface RunDigestResult {
  */
 export async function runProactiveDigest(opts: RunDigestOptions): Promise<RunDigestResult> {
   const role = opts.role ?? "manager";
-  const ctx: ActorContext = mintAutonomousContext(
-    { id: "proactive-digest", role: "viewer", reason: "scheduled proactive what-needs-me digest" },
-    opts.now,
-  );
-  const rows = await opts.broker.portfolioHealth(ctx);
-  const at = new Date(opts.now).toISOString();
-  const digest = buildProactiveDigest(rows, at, role, opts.thresholds ?? getDigestThresholds());
-
-  const dispatched = !digest.empty || opts.sendWhenEmpty === true;
-  if (dispatched) {
-    const publish = opts.publish ?? ((n) =>
-      getNotifyBus().publish({
-        notification: { kind: n.kind, title: n.title, body: n.body, id: `proactive-digest-${opts.now}`, read: false, timestamp: at } as never,
-        target: { role: n.target?.role },
-      }));
-    await publish({ kind: digest.kind, title: digest.title, body: digest.body, target: { role } });
-  }
-
-  recordAudit({
-    ts: at, category: "autonomous", action: "proactive-digest.run",
-    actor: { sub: ctx.sub, role: ctx.role }, write: false, result: "success",
-    meta: { projects: digest.stats.total, atRisk: digest.stats.atRisk, dispatched },
+  const result = await runScheduledAutonomousJob({
+    id: "proactive-digest",
+    reason: "scheduled proactive what-needs-me digest",
+    now: opts.now,
+    auditAction: "proactive-digest.run",
+    idPrefix: "proactive-digest",
+    ...(opts.publish ? { publish: opts.publish } : {}),
+    run: async (ctx) => {
+      const rows = await opts.broker.portfolioHealth(ctx);
+      const at = new Date(opts.now).toISOString();
+      const digest = buildProactiveDigest(rows, at, role, opts.thresholds ?? getDigestThresholds());
+      const dispatch = !digest.empty || opts.sendWhenEmpty === true
+        ? { kind: digest.kind, title: digest.title, body: digest.body, target: { role } }
+        : null;
+      return {
+        data: { digest },
+        dispatch,
+        auditMeta: (dispatched) => ({ projects: digest.stats.total, atRisk: digest.stats.atRisk, dispatched }),
+      };
+    },
   });
-  return { digest, dispatched };
+  return result;
 }
 
 // Default cadence: weekly (Monday-morning cadence for the working week). On by default —
 // an operator opts OUT by setting PROACTIVE_DIGEST_INTERVAL_HOURS=0.
 const DEFAULT_INTERVAL_HOURS = 24 * 7;
 
+const scheduler = createIntervalScheduler("PROACTIVE_DIGEST_INTERVAL_HOURS", DEFAULT_INTERVAL_HOURS, "proactive-digest");
+
 /** The configured cadence in hours: the env override when a valid non-negative number,
  *  else the weekly default. 0 = disabled (opt-out). */
 export function digestIntervalHours(): number {
-  const raw = process.env["PROACTIVE_DIGEST_INTERVAL_HOURS"]?.trim();
-  if (raw === undefined || raw === "") return DEFAULT_INTERVAL_HOURS;
-  const hours = Number(raw);
-  if (!Number.isFinite(hours) || hours < 0) return DEFAULT_INTERVAL_HOURS;
-  return hours;
+  return scheduler.intervalHours();
 }
-
-let timer: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Start the in-process digest timer (single-instance / homelab). ON by the weekly default;
@@ -249,14 +267,8 @@ let timer: ReturnType<typeof setInterval> | null = null;
  * external scheduler hitting the trigger endpoint, so it fires once rather than once per replica.
  */
 export function startProactiveDigestScheduler(run: () => Promise<unknown>): boolean {
-  const hours = digestIntervalHours();
-  if (hours <= 0) return false;
-  if (timer) clearInterval(timer);
-  timer = setInterval(() => { void run().catch((err) => logger.warn({ err }, "proactive-digest run failed")); }, hours * 60 * 60 * 1000);
-  if (typeof timer.unref === "function") timer.unref(); // don't keep the process alive for the timer
-  logger.info({ everyHours: hours }, "proactive-digest: scheduled in-process (opt-out; set PROACTIVE_DIGEST_INTERVAL_HOURS=0 to disable, or use the trigger endpoint + external cron for a fleet)");
-  return true;
+  return scheduler.start(run);
 }
 
 /** Test-only: stop the timer. */
-export function __stopProactiveDigestScheduler(): void { if (timer) { clearInterval(timer); timer = null; } }
+export function __stopProactiveDigestScheduler(): void { scheduler.stop(); }

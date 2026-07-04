@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
-import { useFederatedPeers, useSaveFederatedPeers, type FederatedPeerDraft } from "../../lib/federated-peers";
+import { useFederatedPeers, useSaveFederatedPeers, type FederatedPeerDraft, type FederatedPeerRedacted } from "../../lib/federated-peers";
+import { useDraftAdmin } from "../../hooks/use-draft-admin";
 
 /**
  * Federated-peer registry (backlog #135) — the other OmniProject instances (typically one per
@@ -11,22 +11,18 @@ import { useFederatedPeers, useSaveFederatedPeers, type FederatedPeerDraft } fro
  * API_TOKENS (read-only API-token auth — no new cross-instance auth scheme). Config only, never
  * project data — same trust class as an outbound webhook target. Admin-gated, mirroring the server.
  */
+function toDraft(peers: FederatedPeerRedacted[]): FederatedPeerDraft[] {
+  return peers.map((p) => ({ id: p.id, label: p.label, baseUrl: p.baseUrl, region: p.region, active: p.active, token: p.tokenSet ? "********" : "" }));
+}
+
 export function FederatedPeersAdmin() {
   const { data: auth } = useAuth();
   const { data: server } = useFederatedPeers();
   const save = useSaveFederatedPeers();
-  const [draft, setDraft] = useState<FederatedPeerDraft[] | null>(null);
-
-  useEffect(() => {
-    if (server) setDraft(server.map((p) => ({ id: p.id, label: p.label, baseUrl: p.baseUrl, region: p.region, active: p.active, token: p.tokenSet ? "********" : "" })));
-  }, [server]);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<FederatedPeerRedacted[], FederatedPeerDraft[]>(server, toDraft);
 
   if (!roleAtLeast(auth?.role, "admin")) return null;
   if (!draft) return null;
-
-  const dirty = JSON.stringify(draft) !== JSON.stringify(
-    (server ?? []).map((p) => ({ id: p.id, label: p.label, baseUrl: p.baseUrl, region: p.region, active: p.active, token: p.tokenSet ? "********" : "" })),
-  );
 
   const patch = (i: number, p: FederatedPeerDraft) => setDraft(draft.map((x, j) => (j === i ? p : x)));
 
@@ -78,7 +74,7 @@ export function FederatedPeersAdmin() {
           {save.isPending ? "Saving…" : "Save federated peers"}
         </Button>
         {dirty && (
-          <Button variant="ghost" className="rounded-none text-xs" onClick={() => server && setDraft(server.map((p) => ({ id: p.id, label: p.label, baseUrl: p.baseUrl, region: p.region, active: p.active, token: p.tokenSet ? "********" : "" })))}>
+          <Button variant="ghost" className="rounded-none text-xs" onClick={reset}>
             Reset
           </Button>
         )}

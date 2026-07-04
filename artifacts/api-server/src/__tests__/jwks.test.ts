@@ -61,41 +61,39 @@ test("parseJwt throws when the header has no alg", () => {
   assert.throws(() => parseJwt(token), /missing alg/);
 });
 
-test("validateClaims passes for matching iss/aud and unexpired token", () => {
+test("validateClaims passes (does not throw) for matching iss/aud and unexpired token", () => {
   const now = 1_000_000;
-  const reason = validateClaims(
+  assert.doesNotThrow(() => validateClaims(
     { iss: "https://idp", aud: "client-1", exp: now + 100 },
     { issuer: "https://idp", audience: "client-1", now },
-  );
-  assert.equal(reason, null);
+  ));
 });
 
-test("validateClaims reports issuer / audience / expiry / nbf failures", () => {
+test("validateClaims throws reporting issuer / audience / expiry / nbf failures", () => {
   const now = 1_000_000;
-  assert.match(
-    validateClaims({ iss: "https://evil", aud: "c" }, { issuer: "https://idp", audience: "c", now })!,
+  assert.throws(
+    () => validateClaims({ iss: "https://evil", aud: "c" }, { issuer: "https://idp", audience: "c", now }),
     /issuer mismatch/,
   );
-  assert.match(
-    validateClaims({ iss: "https://idp", aud: "other" }, { issuer: "https://idp", audience: "c", now })!,
+  assert.throws(
+    () => validateClaims({ iss: "https://idp", aud: "other" }, { issuer: "https://idp", audience: "c", now }),
     /audience mismatch/,
   );
-  assert.match(
-    validateClaims({ iss: "https://idp", aud: "c", exp: now - 1000 }, { issuer: "https://idp", audience: "c", now })!,
+  assert.throws(
+    () => validateClaims({ iss: "https://idp", aud: "c", exp: now - 1000 }, { issuer: "https://idp", audience: "c", now }),
     /expired/,
   );
-  assert.match(
-    validateClaims({ iss: "https://idp", aud: "c", nbf: now + 1000 }, { issuer: "https://idp", audience: "c", now })!,
+  assert.throws(
+    () => validateClaims({ iss: "https://idp", aud: "c", nbf: now + 1000 }, { issuer: "https://idp", audience: "c", now }),
     /not yet valid/,
   );
 });
 
 test("validateClaims accepts an audience array containing the expected value", () => {
-  const reason = validateClaims(
+  assert.doesNotThrow(() => validateClaims(
     { iss: "https://idp", aud: ["other", "client-1"] },
     { issuer: "https://idp", audience: "client-1", now: 0 },
-  );
-  assert.equal(reason, null);
+  ));
 });
 
 test("fetchJwks fetches, caches, and returns the keys", async () => {

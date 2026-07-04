@@ -10,26 +10,16 @@
  * Not a browser test — a fast HTTP-level smoke that catches a broken container.
  */
 
+import { login } from "./lib/demo-session";
+import { createAsserter, green, red, bold } from "./lib/assert";
+
 export {};
 
-const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
-const red = (s: string) => `\x1b[31m${s}\x1b[0m`;
-const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
-
 const base = process.env["OMNI_API_BASE"] ?? "http://localhost:5000";
-let pass = 0;
-let fail = 0;
-function assert(label: string, cond: boolean, detail?: string) {
-  if (cond) { console.log(`  ${green("✓")} ${label}`); pass++; }
-  else { console.log(`  ${red("✗")} ${label}${detail ? ` — ${detail}` : ""}`); fail++; }
-}
+const t = createAsserter();
+const assert = t.assert;
 
 let cookie = "";
-async function login(): Promise<void> {
-  const r = await fetch(`${base}/api/auth/login`, { redirect: "manual" });
-  const sc = r.headers.get("set-cookie");
-  if (sc) cookie = sc.split(";")[0]!; // sc truthy ⇒ split yields ≥1 element
-}
 function authed(): RequestInit {
   return { headers: cookie ? { Cookie: cookie } : {} };
 }
@@ -54,7 +44,7 @@ async function main() {
   } catch { assert("health reachable", false); }
 
   // 3. Auth journey.
-  await login();
+  cookie = await login(base);
   assert("Demo login issued a session cookie", !!cookie);
 
   // 4. Critical data journey.
@@ -81,9 +71,9 @@ async function main() {
     } catch { assert(`${label} reachable`, false); }
   }
 
-  const total = pass + fail;
-  console.log(fail === 0 ? bold(green(`\n✓ E2E smoke passed (${total} checks).\n`)) : bold(red(`\n✗ ${fail}/${total} E2E checks failed.\n`)));
-  process.exit(fail === 0 ? 0 : 1);
+  const total = t.pass + t.fail;
+  console.log(t.fail === 0 ? bold(green(`\n✓ E2E smoke passed (${total} checks).\n`)) : bold(red(`\n✗ ${t.fail}/${total} E2E checks failed.\n`)));
+  process.exit(t.fail === 0 ? 0 : 1);
 }
 
 main().catch((err) => { console.error(red("Fatal:"), err); process.exit(1); });

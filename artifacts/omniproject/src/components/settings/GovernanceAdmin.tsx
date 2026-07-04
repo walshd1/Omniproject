@@ -9,6 +9,7 @@ import {
   type ResolvedCapability, type DeploymentState, type CapabilityKind, type CapabilityWrite, type Surface,
 } from "../../lib/tools";
 import { stepUp } from "../../lib/step-up";
+import { useToast } from "@/hooks/use-toast";
 
 /**
  * Admin governance for AI tools, the MCP, AI providers and vendors. Each is set to
@@ -24,6 +25,7 @@ export function GovernanceAdmin() {
   const { data: auth } = useAuth();
   const qc = useQueryClient();
   const { data } = useGovernance();
+  const { toast } = useToast();
 
   if (!roleAtLeast(auth?.role, "admin")) return null;
   if (!data?.capabilities) return null;
@@ -32,8 +34,12 @@ export function GovernanceAdmin() {
   const save = async (id: string, setting: CapabilityWrite): Promise<void> => {
     // Changing an egress/governance setting is step-up gated — get a fresh re-auth first.
     if (!(await stepUp())) return;
-    await saveCapability(id, setting);
-    await qc.invalidateQueries({ queryKey: ["governance"] });
+    try {
+      await saveCapability(id, setting);
+      await qc.invalidateQueries({ queryKey: ["governance"] });
+    } catch (e) {
+      toast({ title: "Couldn't save that", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
+    }
   };
 
   const groups = KIND_ORDER.map((kind) => ({ kind, items: data.capabilities.filter((c) => c.kind === kind) })).filter((g) => g.items.length);

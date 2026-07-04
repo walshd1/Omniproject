@@ -33,8 +33,8 @@ function ctx(): ActorContext {
 test("real broker passes structural + read conformance over the wire", { skip }, async () => {
   process.env["BROKER_URL"] = URL;
   updateSettings({ brokerUrl: URL });
-  const { N8nBroker } = await import("./n8n");
-  const broker = new N8nBroker();
+  const { ReferenceBroker } = await import("./reference-broker");
+  const broker = new ReferenceBroker();
 
   const structural = structuralConformance(broker);
   assert.ok(structural.ok, `structural failures: ${JSON.stringify(structural.checks.filter((c) => !c.ok))}`);
@@ -47,8 +47,8 @@ test("real broker passes structural + read conformance over the wire", { skip },
 test("real broker create → update → delete round-trip", { skip: skip || (process.env["SMOKE_WRITE"] === "1" ? false : "set SMOKE_WRITE=1 to exercise writes (mutates the backend)") }, async () => {
   process.env["BROKER_URL"] = URL;
   updateSettings({ brokerUrl: URL });
-  const { N8nBroker } = await import("./n8n");
-  const broker = new N8nBroker();
+  const { ReferenceBroker } = await import("./reference-broker");
+  const broker = new ReferenceBroker();
   const c = ctx();
 
   const projects = await broker.listProjects(c);

@@ -109,22 +109,31 @@ export function replaceUser(id: string, input: Partial<ScimUser>): ScimUser | nu
   return updated;
 }
 
+/** One SCIM PATCH operation, normalized: lower-cased `op`/`path`, defaulted when absent. */
+interface NormalizedScimOp { op: string; path: string; value: unknown }
+
+/** Normalize a batch of SCIM PATCH operations — the shape `patchUser` and `patchGroup` both
+ *  loop over before branching on their own fields. */
+function* normalizedOps(operations: Array<{ op: string; path?: string; value?: unknown }>): Generator<NormalizedScimOp> {
+  for (const opRaw of operations) {
+    yield { op: (opRaw.op || "").toLowerCase(), path: (opRaw.path || "").toLowerCase(), value: opRaw.value };
+  }
+}
+
 /** Apply a SCIM PATCH (the subset IdPs use — most importantly toggling `active`). */
 export function patchUser(id: string, operations: Array<{ op: string; path?: string; value?: unknown }>): ScimUser | null {
   ensureLoaded();
   const user = dir.users[id];
   if (!user) return null;
-  for (const opRaw of operations) {
-    const op = (opRaw.op || "").toLowerCase();
-    const p = (opRaw.path || "").toLowerCase();
+  for (const { op, path: p, value } of normalizedOps(operations)) {
     if (op === "replace" || op === "add") {
-      if (p === "active" || (!p && typeof opRaw.value === "object" && opRaw.value && "active" in (opRaw.value as object))) {
-        const v = p === "active" ? opRaw.value : (opRaw.value as { active?: unknown }).active;
+      if (p === "active" || (!p && typeof value === "object" && value && "active" in (value as object))) {
+        const v = p === "active" ? value : (value as { active?: unknown }).active;
         user.active = v === true || v === "true";
       } else if (p === "displayname") {
-        user.displayName = String(opRaw.value ?? "");
+        user.displayName = String(value ?? "");
       } else if (p === "username") {
-        user.userName = String(opRaw.value ?? user.userName);
+        user.userName = String(value ?? user.userName);
       }
     }
   }
@@ -196,16 +205,14 @@ export function patchGroup(id: string, operations: Array<{ op: string; path?: st
   ensureLoaded();
   const group = dir.groups[id];
   if (!group) return null;
-  for (const opRaw of operations) {
-    const op = (opRaw.op || "").toLowerCase();
-    const p = (opRaw.path || "").toLowerCase();
+  for (const { op, path: p, value } of normalizedOps(operations)) {
     if (p === "members" || p.startsWith("members")) {
-      const members = Array.isArray(opRaw.value) ? (opRaw.value as Array<{ value: string }>) : [];
+      const members = Array.isArray(value) ? (value as Array<{ value: string }>) : [];
       if (op === "add") for (const m of members) { if (!group.members.some((x) => x.value === m.value)) group.members.push({ value: m.value }); }
       else if (op === "remove") group.members = group.members.filter((x) => !members.some((m) => m.value === x.value));
       else if (op === "replace") group.members = members.map((m) => ({ value: m.value }));
     } else if (p === "displayname" && (op === "replace" || op === "add")) {
-      group.displayName = String(opRaw.value ?? group.displayName);
+      group.displayName = String(value ?? group.displayName);
     }
   }
   group.meta.lastModified = now();

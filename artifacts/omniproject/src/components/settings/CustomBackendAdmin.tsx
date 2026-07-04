@@ -96,7 +96,7 @@ function ActionEditor({ action, value, onChange }: { action: string; value: Acti
 
 /**
  * Self-service backend/vendor authoring (backlog #137) — a guided form that builds a valid
- * `BackendManifest & N8nBinding` JSON document (the shape of `lib/backend-catalogue/vendors/
+ * `BackendManifest & BrokerBinding` JSON document (the shape of `lib/backend-catalogue/vendors/
  * backends/<id>.json`) without touching TypeScript. OmniProject already lets a deployment add
  * or override backends without a rebuild by dropping validated JSON into
  * `$OMNI_CONFIG_DIR/vendors/backends/*.json` (`artifacts/api-server/src/lib/config-dir.ts`); this

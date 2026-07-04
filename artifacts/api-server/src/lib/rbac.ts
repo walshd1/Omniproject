@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { getSession } from "../routes/auth";
 import { directoryDecision } from "./scim";
+import { parseCommaSet } from "./env";
 
 /**
  * Role-based access control.
@@ -62,12 +63,7 @@ export interface Grants {
 }
 
 function envRoles(key: string): Set<string> {
-  return new Set(
-    (process.env[key] ?? "")
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
-  );
+  return parseCommaSet(process.env[key]);
 }
 
 /** The env var carrying each role's IdP group list. */
@@ -188,9 +184,7 @@ const STRONG_AMR = envValueSet("OIDC_STRONG_AMR_VALUES", ["hwk", "swk"]);
 const STRONG_ACR = envValueSet("OIDC_STRONG_ACR_VALUES", []);
 
 function envValueSet(key: string, fallback: string[]): Set<string> {
-  const raw = process.env[key]?.trim();
-  const list = raw ? raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : fallback;
-  return new Set(list);
+  return parseCommaSet(process.env[key], fallback);
 }
 
 /** Does this session's auth-method assertion prove tamper-resistant (hardware-bound) MFA? */
@@ -247,25 +241,36 @@ export function roleFromClaims(claimRoles: string[], opts: { isDemo: boolean }):
   return displayRole(grantsFromClaims(claimRoles, opts));
 }
 
+type Session = NonNullable<ReturnType<typeof getSession>>;
+
+/** The request's session + its SCIM directory decision, or null when there's no session
+ *  (an unauthenticated caller or a read-only API token) — the pair every per-request grant
+ *  decision (`grantsForReq`, `isDeprovisioned`) starts from. */
+function sessionDecision(req: Request): { session: Session; decision: ReturnType<typeof directoryDecision> } | null {
+  const session = getSession(req);
+  if (!session) return null;
+  const decision = directoryDecision({ email: session.email, sub: session.sub });
+  return { session, decision };
+}
+
 /** Resolve a request's session (or API token) to its grants. */
 export function grantsForReq(req: Request): Grants {
-  const session = getSession(req);
+  const sd = sessionDecision(req);
   // No session → read-only API tokens (and unauthenticated callers) are viewers.
-  if (!session) return { base: "viewer", authorities: new Set<Authority>() };
+  if (!sd) return { base: "viewer", authorities: new Set<Authority>() };
+  const { session, decision } = sd;
   const isDemo = !process.env["OIDC_ISSUER_URL"]?.trim();
   // A SCIM-provisioned user's group memberships are merged in as extra role claims, so the
   // IdP's group→role assignment flows through without re-issuing OIDC claims.
-  const decision = directoryDecision({ email: session.email, sub: session.sub });
   const claims = decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
   return grantsFromClaims(claims, { isDemo, strongAuth: hasStrongAuth(session) });
 }
 
 /** Is this request's principal DEPROVISIONED in the SCIM directory? (known + active=false.) */
 export function isDeprovisioned(req: Request): boolean {
-  const session = getSession(req);
-  if (!session) return false;
-  const decision = directoryDecision({ email: session.email, sub: session.sub });
-  return decision.known && !decision.active;
+  const sd = sessionDecision(req);
+  if (!sd) return false;
+  return sd.decision.known && !sd.decision.active;
 }
 
 /** A representative role label for the request (display/audit only). */

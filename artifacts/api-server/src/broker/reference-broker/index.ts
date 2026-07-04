@@ -35,6 +35,8 @@ import { pskEnabled, sealPayload, openPayload, PSK_HEADER, PSK_PREFIX } from "..
 import { signBrokerRequest } from "../../lib/broker-hmac";
 import { assertSafeBrokerPayload, assertSafeAuthHeader } from "../../lib/payload-guard";
 import { currentTraceparent } from "../../lib/tracing";
+import { brokerFetch } from "../../lib/broker-transport";
+import type { RequestInit as BrokerRequestInit, Response as BrokerResponse } from "undici";
 
 /**
  * n8n broker — THE one place that knows the broker is n8n.
@@ -60,10 +62,10 @@ function brokerUrlFromEnv(): string | undefined {
 
 /** True when a broker is wired via the environment (selection signal at boot). */
 const ENV_WEBHOOK = brokerUrlFromEnv();
-export const N8N_ENV_CONFIGURED = !!ENV_WEBHOOK;
+export const BROKER_ENV_CONFIGURED = !!ENV_WEBHOOK;
 
 /** The canonical response envelope (see broker/contract.ts). */
-type N8nResult<T = unknown> = BrokerEnvelope<T>;
+type AdapterResult<T = unknown> = BrokerEnvelope<T>;
 
 const DEFAULT_WEBHOOK = "http://localhost:5678/webhook/omniproject";
 
@@ -75,7 +77,7 @@ const VERIFY_PROBE_FANOUT_LIMIT = 5;
  * comma-separated list of n8n instances and the adapter load-balances across them
  * (round-robin) with connection-level failover. Otherwise the single
  * settings/env URL is used. Read live so config changes take effect without a
- * restart. This is entirely below the seam — nothing above N8nBroker knows.
+ * restart. This is entirely below the seam — nothing above ReferenceBroker knows.
  */
 export function webhookPool(): string[] {
   const pool = resolvePool();
@@ -132,15 +134,25 @@ function backendSource(): string {
   return getSettings().backendSource;
 }
 
+/** The plaintext envelope callBroker sends (or seals under PSK) + the bookkeeping
+ *  (idempotency key, actor) the rest of the call needs. */
+interface BuiltEnvelope {
+  envelope: { action: string; payload: Record<string, unknown>; source: string; origin: string; idempotencyKey: string };
+  actor: { sub: string | undefined; email: string | undefined; name: string | undefined; role: string | undefined; token: string | undefined } | undefined;
+  key: string;
+  origin: string;
+}
+
 /**
- * Forward an action to n8n and return its normalized result. Bare payloads are
- * wrapped so callers always see `{ success, data, message }`.
+ * Step 1: assemble the envelope — origin, idempotency key, the per-user-context
+ * block (when `withActor`), and the injection guards. Everything downstream
+ * (signing, sending, auditing) is derived from this.
  */
-async function callN8n<T = unknown>(
+function buildEnvelope(
   action: string,
   payload: Record<string, unknown>,
   opts: { ctx: ActorContext; source: string; withActor: boolean },
-): Promise<N8nResult<T>> {
+): BuiltEnvelope {
   const origin = GATEWAY_ORIGIN;
   const key = idempotencyKey(action, payload);
   const actor = opts.withActor
@@ -159,6 +171,146 @@ async function callN8n<T = unknown>(
   // defence-in-depth — a hostile value never reaches the backend.
   assertSafeBrokerPayload(enrichedPayload);
   assertSafeAuthHeader(opts.ctx.authHeader);
+
+  // The plaintext request envelope. When PSK is OFF this is the body and the
+  // routing details ride in X-OmniProject-* headers + Authorization (TLS is then
+  // what protects them on the wire — see lib/broker-psk.ts for the hierarchy).
+  const envelope = { action, payload: enrichedPayload, source: opts.source, origin, idempotencyKey: key };
+  return { envelope, actor, key, origin };
+}
+
+/**
+ * Step 2: turn the envelope into a signed, optionally-sealed `RequestInit` —
+ * PSK encryption (or plain headers), the detached HMAC signature (+ session
+ * binding), and the trace context. `psk` is threaded in (rather than
+ * re-read) so the encrypt decision here and the decrypt decision in
+ * `unwrapResponse` always agree, even though `pskEnabled()` is just an env read.
+ */
+function signAndEncrypt(envelope: BuiltEnvelope["envelope"], ctx: ActorContext, psk: boolean): BrokerRequestInit {
+  // When PSK is ON, encrypt the WHOLE envelope including the forwarded auth token
+  // and send only an opaque ciphertext + a version marker. Nothing sensitive —
+  // not the action, the backend source, nor the bearer token — appears in
+  // cleartext on the wire, so a packet capture sees ciphertext, not a breach.
+  const init: BrokerRequestInit = psk
+    ? {
+        method: "POST",
+        headers: { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") },
+        body: JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify({ ...envelope, auth: ctx.authHeader ?? null })) }),
+      }
+    : {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(ctx.authHeader ? { Authorization: ctx.authHeader } : {}),
+          [REQUEST_HEADERS.source]: envelope.source,
+          [REQUEST_HEADERS.action]: envelope.action,
+          [REQUEST_HEADERS.origin]: envelope.origin,
+          [REQUEST_HEADERS.idempotencyKey]: envelope.idempotencyKey,
+        },
+        body: JSON.stringify(envelope),
+      };
+
+  // Detached request signature (+ timestamp + nonce): lets a PSK-aware broker refuse
+  // REPLAYED or forged requests across untrusted networks. The same keyed MAC underpins
+  // the provenance chain. The PSK seal already covers confidentiality + integrity; this
+  // adds replay defence and a verifiable signature. Additive headers — a broker that
+  // doesn't check them simply ignores them.
+  const sig = signBrokerRequest(typeof init.body === "string" ? init.body : "", ctx.sessionBind);
+  init.headers = { ...(init.headers as Record<string, string>), "X-Omni-Sig": sig.sig, "X-Omni-Ts": String(sig.ts), "X-Omni-Nonce": sig.nonce };
+  // When the signature used a per-session key, ship the (non-secret) binding so the
+  // broker re-derives that key from its master and confirms the request came from THIS
+  // user's valid session. No binding ⇒ the broker verifies under the static key.
+  if (sig.bind) {
+    init.headers = {
+      ...(init.headers as Record<string, string>),
+      "X-Omni-Bind-Sub": sig.bind.sub,
+      "X-Omni-Bind-Mono": sig.bind.smono,
+      "X-Omni-Bind-Salt": sig.bind.salt,
+      "X-Omni-Bind-Kver": String(sig.bind.bkver ?? ""),
+    };
+  }
+
+  // Forward the W3C trace context so the broker hop joins the same distributed trace.
+  const traceparent = currentTraceparent();
+  if (traceparent) init.headers = { ...(init.headers as Record<string, string>), traceparent };
+
+  return init;
+}
+
+/**
+ * Step 3: round-robin across the n8n pool; fail over to the next instance ONLY
+ * on a connection-level error (a returned HTTP status is a real response, not
+ * an unreachable instance). Each attempt gets a fresh timeout signal.
+ */
+async function sendWithFailover(init: BrokerRequestInit): Promise<{ res: BrokerResponse | undefined; targets: string[]; lastErr: unknown }> {
+  const targets = orderedTargets();
+  let res: BrokerResponse | undefined;
+  let lastErr: unknown;
+  for (const target of targets) {
+    try {
+      await assertEgressAllowed(target); // SSRF guard: never let the broker URL reach metadata/link-local
+      res = await brokerFetch(target, { ...init, signal: AbortSignal.timeout(10_000) });
+      break;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  return { res, targets, lastErr };
+}
+
+/**
+ * Step 4: unwrap the upstream response into the normalized `AdapterResult`,
+ * mapping non-2xx / network-level failures onto `BrokerError`, and auditing
+ * every outcome via the caller's `audit` closure.
+ */
+async function unwrapResponse<T>(
+  res: BrokerResponse,
+  psk: boolean,
+  audit: (result: "success" | "error", status: number, extra?: Record<string, unknown>) => void,
+): Promise<AdapterResult<T>> {
+  try {
+    if (!res.ok) {
+      // Propagate meaningful upstream codes — notably 409 (optimistic-concurrency
+      // conflict) and 404; 5xx collapses to "unavailable". The upstream body is
+      // kept for server-side diagnostics (audit meta) only — it is never surfaced
+      // to the client, which receives a generic, code-derived message.
+      const detail = await res.text().catch(() => "");
+      audit("error", res.status, detail ? { upstreamBody: detail.slice(0, 500) } : undefined);
+      throw BrokerError.fromStatus(res.status);
+    }
+
+    let json = (await res.json().catch(() => ({}))) as unknown;
+    // When PSK is on, a conformant broker encrypts its reply the same way; unwrap
+    // the `{ v, enc }` envelope back to the plaintext result. A non-encrypted body
+    // is left as-is (a broker that doesn't speak PSK simply won't decrypt anyway).
+    if (psk && json && typeof json === "object" && typeof (json as { enc?: unknown }).enc === "string") {
+      const opened = openPayload((json as { enc: string }).enc);
+      json = opened ? (JSON.parse(opened) as unknown) : {};
+    }
+    const result: AdapterResult<T> =
+      json && typeof json === "object" && "success" in json ? (json as AdapterResult<T>) : { success: true, data: json as T };
+    audit(result.success === false ? "error" : "success", res.status, result.success === false ? { message: result.message } : undefined);
+    return result;
+  } catch (err) {
+    if (err instanceof BrokerError) throw err;
+    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+    audit("error", 0, { error: err instanceof Error ? err.name : "error" });
+    throw new BrokerError("unavailable", isTimeout ? "backend request timed out" : "backend unreachable");
+  }
+}
+
+/**
+ * Forward an action to n8n and return its normalized result. Bare payloads are
+ * wrapped so callers always see `{ success, data, message }`. Composes the four
+ * steps above in sequence: build the envelope, sign/encrypt it, send it with
+ * pool failover, then unwrap the response — auditing every outcome along the way.
+ */
+async function callBroker<T = unknown>(
+  action: string,
+  payload: Record<string, unknown>,
+  opts: { ctx: ActorContext; source: string; withActor: boolean },
+): Promise<AdapterResult<T>> {
+  const { envelope, actor, key, origin } = buildEnvelope(action, payload, opts);
 
   const startedAt = Date.now();
   const audit = (result: "success" | "error", status: number, extra?: Record<string, unknown>) => {
@@ -180,74 +332,9 @@ async function callN8n<T = unknown>(
     });
   };
 
-  // The plaintext request envelope. When PSK is OFF this is the body and the
-  // routing details ride in X-OmniProject-* headers + Authorization (TLS is then
-  // what protects them on the wire — see lib/broker-psk.ts for the hierarchy).
-  const envelope = { action, payload: enrichedPayload, source: opts.source, origin, idempotencyKey: key };
-
-  // When PSK is ON, encrypt the WHOLE envelope including the forwarded auth token
-  // and send only an opaque ciphertext + a version marker. Nothing sensitive —
-  // not the action, the backend source, nor the bearer token — appears in
-  // cleartext on the wire, so a packet capture sees ciphertext, not a breach.
   const psk = pskEnabled();
-  const init: RequestInit = psk
-    ? {
-        method: "POST",
-        headers: { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") },
-        body: JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify({ ...envelope, auth: opts.ctx.authHeader ?? null })) }),
-      }
-    : {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(opts.ctx.authHeader ? { Authorization: opts.ctx.authHeader } : {}),
-          [REQUEST_HEADERS.source]: opts.source,
-          [REQUEST_HEADERS.action]: action,
-          [REQUEST_HEADERS.origin]: origin,
-          [REQUEST_HEADERS.idempotencyKey]: key,
-        },
-        body: JSON.stringify(envelope),
-      };
-
-  // Detached request signature (+ timestamp + nonce): lets a PSK-aware broker refuse
-  // REPLAYED or forged requests across untrusted networks. The same keyed MAC underpins
-  // the provenance chain. The PSK seal already covers confidentiality + integrity; this
-  // adds replay defence and a verifiable signature. Additive headers — a broker that
-  // doesn't check them simply ignores them.
-  const sig = signBrokerRequest(typeof init.body === "string" ? init.body : "", opts.ctx.sessionBind);
-  init.headers = { ...(init.headers as Record<string, string>), "X-Omni-Sig": sig.sig, "X-Omni-Ts": String(sig.ts), "X-Omni-Nonce": sig.nonce };
-  // When the signature used a per-session key, ship the (non-secret) binding so the
-  // broker re-derives that key from its master and confirms the request came from THIS
-  // user's valid session. No binding ⇒ the broker verifies under the static key.
-  if (sig.bind) {
-    init.headers = {
-      ...(init.headers as Record<string, string>),
-      "X-Omni-Bind-Sub": sig.bind.sub,
-      "X-Omni-Bind-Mono": sig.bind.smono,
-      "X-Omni-Bind-Salt": sig.bind.salt,
-      "X-Omni-Bind-Kver": String(sig.bind.bkver ?? ""),
-    };
-  }
-
-  // Forward the W3C trace context so the broker hop joins the same distributed trace.
-  const traceparent = currentTraceparent();
-  if (traceparent) init.headers = { ...(init.headers as Record<string, string>), traceparent };
-
-  // Round-robin across the n8n pool; fail over to the next instance ONLY on a
-  // connection-level error (a returned HTTP status is a real response, not an
-  // unreachable instance). Each attempt gets a fresh timeout signal.
-  const targets = orderedTargets();
-  let res: Response | undefined;
-  let lastErr: unknown;
-  for (const target of targets) {
-    try {
-      assertEgressAllowed(target); // SSRF guard: never let the broker URL reach metadata/link-local
-      res = await fetch(target, { ...init, signal: AbortSignal.timeout(10_000) });
-      break;
-    } catch (e) {
-      lastErr = e;
-    }
-  }
+  const init = signAndEncrypt(envelope, opts.ctx, psk);
+  const { res, targets, lastErr } = await sendWithFailover(init);
 
   if (!res) {
     const isTimeout = lastErr instanceof Error && lastErr.name === "TimeoutError";
@@ -255,35 +342,7 @@ async function callN8n<T = unknown>(
     throw new BrokerError("unavailable", isTimeout ? "all broker instances timed out" : "all broker instances unreachable");
   }
 
-  try {
-    if (!res.ok) {
-      // Propagate meaningful upstream codes — notably 409 (optimistic-concurrency
-      // conflict) and 404; 5xx collapses to "unavailable". The upstream body is
-      // kept for server-side diagnostics (audit meta) only — it is never surfaced
-      // to the client, which receives a generic, code-derived message.
-      const detail = await res.text().catch(() => "");
-      audit("error", res.status, detail ? { upstreamBody: detail.slice(0, 500) } : undefined);
-      throw BrokerError.fromStatus(res.status);
-    }
-
-    let json = (await res.json().catch(() => ({}))) as unknown;
-    // When PSK is on, a conformant broker encrypts its reply the same way; unwrap
-    // the `{ v, enc }` envelope back to the plaintext result. A non-encrypted body
-    // is left as-is (a broker that doesn't speak PSK simply won't decrypt anyway).
-    if (psk && json && typeof json === "object" && typeof (json as { enc?: unknown }).enc === "string") {
-      const opened = openPayload((json as { enc: string }).enc);
-      json = opened ? (JSON.parse(opened) as unknown) : {};
-    }
-    const result: N8nResult<T> =
-      json && typeof json === "object" && "success" in json ? (json as N8nResult<T>) : { success: true, data: json as T };
-    audit(result.success === false ? "error" : "success", res.status, result.success === false ? { message: result.message } : undefined);
-    return result;
-  } catch (err) {
-    if (err instanceof BrokerError) throw err;
-    const isTimeout = err instanceof Error && err.name === "TimeoutError";
-    audit("error", 0, { error: err instanceof Error ? err.name : "error" });
-    throw new BrokerError("unavailable", isTimeout ? "backend request timed out" : "backend unreachable");
-  }
+  return unwrapResponse<T>(res, psk, audit);
 }
 
 /**
@@ -296,8 +355,8 @@ async function callN8n<T = unknown>(
 export async function pingBroker(timeoutMs = 2000): Promise<{ reachable: boolean; status?: number; detail?: string }> {
   const url = webhookPool()[0]!;
   try {
-    assertEgressAllowed(url);
-    const res = await fetch(url, {
+    await assertEgressAllowed(url);
+    const res = await brokerFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", [REQUEST_HEADERS.action]: "__ready", [REQUEST_HEADERS.origin]: GATEWAY_ORIGIN },
       body: JSON.stringify({ action: "__ready", payload: {}, source: "readiness", origin: GATEWAY_ORIGIN, verify: true }),
@@ -324,34 +383,88 @@ const CAP_TTL_MS = 60_000;
 // degradation in the n8n path). Shared with the demo adapter — single source.
 const FALLBACK_FX: FxRates = INDICATIVE_FX_RATES;
 
-export class N8nBroker implements Broker {
+/**
+ * The one probe both the adapter's `verify()` (VerifyReport, the live broker's
+ * self-check) and `POST /setup/verify-workflow` (an admin pointing at a
+ * candidate/not-yet-wired webhook URL) run: POST every `VERIFIABLE_ACTIONS`
+ * entry as a dry-run (`verify: true`) probe with an 8s timeout, bounded fan-out,
+ * and report `{ action, ok, status, ms, verifyAware, message }` for each.
+ *
+ * PSK-aware: when `BROKER_PSK` is set, probes are sealed the same way a real
+ * call would be. This isn't optional here — a PSK-only broker (the honest
+ * hierarchy in lib/broker-psk.ts assumes TLS is unavailable on the hop) can't
+ * even parse a plaintext probe, so a PSK-blind prober would report every
+ * action "unreachable"/failing against a broker that is, in fact, fine. Callers
+ * that don't need `verifyAware` (the adapter's `verify()`) just ignore it.
+ */
+export async function probeVerifiableActions(
+  url: string,
+  projectId: string,
+): Promise<Array<{ action: string; ok: boolean; status: number; ms: number; verifyAware: boolean; message: string | null }>> {
+  return poolMap(VERIFIABLE_ACTIONS, VERIFY_PROBE_FANOUT_LIMIT, async (action) => {
+    const started = Date.now();
+    try {
+      await assertEgressAllowed(url); // SSRF guard on the verify probe too
+      const probe = { action, payload: { projectId }, source: "verify", origin: GATEWAY_ORIGIN, verify: true };
+      const psk = pskEnabled();
+      const res = await brokerFetch(url, {
+        method: "POST",
+        headers: psk
+          ? { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") }
+          : { "Content-Type": "application/json", "X-OmniProject-Action": action, "X-OmniProject-Origin": GATEWAY_ORIGIN },
+        body: psk
+          ? JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify(probe)) })
+          : JSON.stringify(probe),
+        signal: AbortSignal.timeout(8_000),
+      });
+      let json = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string; enc?: string; data?: { verified?: boolean } };
+      if (psk && typeof json.enc === "string") {
+        const opened = openPayload(json.enc);
+        json = opened ? (JSON.parse(opened) as typeof json) : {};
+      }
+      return {
+        action,
+        ok: res.ok && json?.success !== false,
+        status: res.status,
+        ms: Date.now() - started,
+        verifyAware: !!json?.data?.verified,
+        message: json?.message ?? null,
+      };
+    } catch (err) {
+      const isTimeout = err instanceof Error && err.name === "TimeoutError";
+      return { action, ok: false, status: 0, ms: Date.now() - started, verifyAware: false, message: isTimeout ? "timed out" : "unreachable" };
+    }
+  });
+}
+
+export class ReferenceBroker implements Broker {
   readonly kind = "n8n";
   readonly live = true;
 
   async listProjects(ctx: ActorContext): Promise<Project[]> {
-    const r = await callN8n<Project[]>("list_projects", {}, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<Project[]>("list_projects", {}, { ctx, source: backendSource(), withActor: false });
     return r.data ?? [];
   }
 
   async listIssues(ctx: ActorContext, projectId: string): Promise<Issue[]> {
-    const r = await callN8n<Issue[]>("list_issues", { projectId }, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<Issue[]>("list_issues", { projectId }, { ctx, source: backendSource(), withActor: false });
     return r.data ?? [];
   }
 
   async createProject(ctx: ActorContext, input: ProjectWrite): Promise<Project> {
-    const r = await callN8n<Project>("create_project", { ...input }, { ctx, source: backendSource(), withActor: true });
+    const r = await callBroker<Project>("create_project", { ...input }, { ctx, source: backendSource(), withActor: true });
     if (!r.data) throw new BrokerError("bad_request", "create_project returned no project");
     return r.data;
   }
 
   async updateProject(ctx: ActorContext, projectId: string, input: ProjectWrite): Promise<Project> {
-    const r = await callN8n<Project>("update_project", { projectId, ...input }, { ctx, source: backendSource(), withActor: true });
+    const r = await callBroker<Project>("update_project", { projectId, ...input }, { ctx, source: backendSource(), withActor: true });
     if (!r.data) throw new BrokerError("bad_request", "update_project returned no project");
     return r.data;
   }
 
   async getIssue(ctx: ActorContext, projectId: string, issueId: string): Promise<Issue | null> {
-    const r = await callN8n<Issue | null>("get_issue", { projectId, issueId }, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<Issue | null>("get_issue", { projectId, issueId }, { ctx, source: backendSource(), withActor: false });
     return r.data ?? null;
   }
 
@@ -359,33 +472,33 @@ export class N8nBroker implements Broker {
     const action = `${op}_issue`;
     const { projectId, issueId, ...rest } = input;
     const payload: Record<string, unknown> = { projectId, ...(issueId ? { issueId } : {}), ...rest };
-    const r = await callN8n<Issue>(action, payload, { ctx, source: backendSource(), withActor: true });
+    const r = await callBroker<Issue>(action, payload, { ctx, source: backendSource(), withActor: true });
     return op === "delete" ? null : (r.data ?? null);
   }
 
   async projectMembers(ctx: ActorContext, projectId: string): Promise<ProjectMember[]> {
-    const r = await callN8n<ProjectMember[]>("list_project_members", { projectId }, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<ProjectMember[]>("list_project_members", { projectId }, { ctx, source: backendSource(), withActor: false });
     return r.data ?? [];
   }
 
   async listTaskItems(ctx: ActorContext, projectId: string, taskId: string): Promise<TaskItem[]> {
-    const r = await callN8n<TaskItem[]>("list_task_items", { projectId, taskId }, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<TaskItem[]>("list_task_items", { projectId, taskId }, { ctx, source: backendSource(), withActor: false });
     return r.data ?? [];
   }
 
   async createTaskItem(ctx: ActorContext, projectId: string, taskId: string, input: TaskItemWrite): Promise<TaskItem> {
-    const r = await callN8n<TaskItem>("create_task_item", { projectId, taskId, ...input }, { ctx, source: backendSource(), withActor: true });
+    const r = await callBroker<TaskItem>("create_task_item", { projectId, taskId, ...input }, { ctx, source: backendSource(), withActor: true });
     if (!r.data) throw new BrokerError("bad_request", "create_task_item returned no item");
     return r.data;
   }
 
   async listActivity(ctx: ActorContext): Promise<Row[]> {
-    const r = await callN8n<Row[]>("list_activity", {}, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<Row[]>("list_activity", {}, { ctx, source: backendSource(), withActor: false });
     return r.data ?? [];
   }
 
   async projectSummary(ctx: ActorContext, projectId: string): Promise<Summary> {
-    const r = await callN8n<Summary>("project_summary", { projectId }, { ctx, source: backendSource(), withActor: false });
+    const r = await callBroker<Summary>("project_summary", { projectId }, { ctx, source: backendSource(), withActor: false });
     // The contract requires a Summary. If the backend returns nothing/non-object,
     // surface it as a backend error (502) rather than emitting `undefined` cast as
     // a Summary, which would crash consumers or render as bogus all-undefined data.
@@ -396,49 +509,49 @@ export class N8nBroker implements Broker {
   }
 
   async projectHistory(ctx: ActorContext, projectId: string): Promise<HistoryPoint[]> {
-    const r = await callN8n<HistoryPoint[]>("get_project_history", { projectId }, { ctx, source: "history_provider", withActor: false });
+    const r = await callBroker<HistoryPoint[]>("get_project_history", { projectId }, { ctx, source: "history_provider", withActor: false });
     return (r.data ?? []).map((p) => ({ ...p, provenance: p.provenance ?? "sourced" }));
   }
 
   async baseline(ctx: ActorContext, projectId: string): Promise<Baseline | null> {
-    const r = await callN8n<Baseline | null>("get_baseline", { projectId }, { ctx, source: "baseline_store", withActor: false });
+    const r = await callBroker<Baseline | null>("get_baseline", { projectId }, { ctx, source: "baseline_store", withActor: false });
     return r.data ? { ...r.data, provenance: r.data.provenance ?? "sourced" } : null;
   }
 
   async listRaid(ctx: ActorContext, projectId: string): Promise<Row[]> {
-    const r = await callN8n<Row[]>("get_raid", { projectId }, { ctx, source: "raid_register", withActor: false });
+    const r = await callBroker<Row[]>("get_raid", { projectId }, { ctx, source: "raid_register", withActor: false });
     return (r.data ?? []).map((e) => ({ provenance: "sourced", ...e }));
   }
 
   async addRaid(ctx: ActorContext, projectId: string, input: Record<string, unknown>): Promise<Row> {
-    const r = await callN8n<Row>("create_raid_entry", { projectId, ...input }, { ctx, source: "raid_register", withActor: true });
+    const r = await callBroker<Row>("create_raid_entry", { projectId, ...input }, { ctx, source: "raid_register", withActor: true });
     return (r.data ?? {}) as Row;
   }
 
   async notifications(ctx: ActorContext): Promise<Row[]> {
-    const r = await callN8n<Row[]>("get_notifications", {}, { ctx, source: "notification_center", withActor: false });
+    const r = await callBroker<Row[]>("get_notifications", {}, { ctx, source: "notification_center", withActor: false });
     return r.data ?? [];
   }
 
   async portfolioHealth(ctx: ActorContext): Promise<PortfolioRow[]> {
-    const r = await callN8n<PortfolioRow[]>("get_portfolio_health", {}, { ctx, source: "portfolio_master", withActor: true });
+    const r = await callBroker<PortfolioRow[]>("get_portfolio_health", {}, { ctx, source: "portfolio_master", withActor: true });
     return r.data ?? [];
   }
 
   async resourceCapacity(ctx: ActorContext, projectId: string): Promise<Row[]> {
-    const r = await callN8n<Row[]>("get_resource_capacity", { projectId }, { ctx, source: "capacity_engine", withActor: true });
+    const r = await callBroker<Row[]>("get_resource_capacity", { projectId }, { ctx, source: "capacity_engine", withActor: true });
     return r.data ?? [];
   }
 
   async projectFinancials(ctx: ActorContext, projectId: string): Promise<Row> {
-    const r = await callN8n<Record<string, unknown>>("get_project_financials", { projectId }, { ctx, source: "financial_ledger", withActor: true });
+    const r = await callBroker<Record<string, unknown>>("get_project_financials", { projectId }, { ctx, source: "financial_ledger", withActor: true });
     return { provenance: "sourced", ...(r.data ?? {}) };
   }
 
   async capabilities(ctx: ActorContext): Promise<CapabilityFlags> {
     if (capCache && Date.now() - capCache.at < CAP_TTL_MS) return capCache.value;
     try {
-      const r = await callN8n<Partial<CapabilityFlags>>("get_capabilities", {}, { ctx, source: "capability_probe", withActor: true });
+      const r = await callBroker<Partial<CapabilityFlags>>("get_capabilities", {}, { ctx, source: "capability_probe", withActor: true });
       const data = r.data;
       const value = (data && typeof data === "object" ? { ...CONSERVATIVE, ...data } : { ...CONSERVATIVE }) as CapabilityFlags;
       capCache = { value, at: Date.now() };
@@ -452,7 +565,7 @@ export class N8nBroker implements Broker {
     try {
       // `asOf` is a best-effort hint forwarded to the workflow; a workflow that can't resolve a
       // historical rate is free to ignore it and answer with its current spot rate (as ours does).
-      const r = await callN8n<Partial<FxRates>>("get_fx_rates", { asOf: opts?.asOf }, { ctx, source: "fx_provider", withActor: false });
+      const r = await callBroker<Partial<FxRates>>("get_fx_rates", { asOf: opts?.asOf }, { ctx, source: "fx_provider", withActor: false });
       const data = r.data;
       if (data && data.rates && typeof data.rates === "object") {
         return { base: data.base || "GBP", rates: data.rates, provenance: "sourced", asOf: data.asOf || opts?.asOf || new Date().toISOString() };
@@ -464,7 +577,7 @@ export class N8nBroker implements Broker {
   }
 
   async replay(ctx: ActorContext, opts: { from?: string; to?: string }): Promise<HistoryState[]> {
-    const r = await callN8n<HistoryState[]>("replay", { from: opts.from, to: opts.to }, { ctx, source: "history_provider", withActor: false });
+    const r = await callBroker<HistoryState[]>("replay", { from: opts.from, to: opts.to }, { ctx, source: "history_provider", withActor: false });
     // Recorded states default to `replayed` provenance unless the workflow says otherwise.
     return (r.data ?? []).map((p) => ({ ...p, provenance: p.provenance ?? "replayed" }));
   }
@@ -475,44 +588,17 @@ export class N8nBroker implements Broker {
    * Broker interface — `source` is an n8n-envelope concern.
    */
   async commandWithSource(ctx: ActorContext, name: string, payload: Record<string, unknown>, source: string): Promise<unknown> {
-    return callN8n(name, payload, { ctx, source, withActor: true });
+    return callBroker(name, payload, { ctx, source, withActor: true });
   }
 
   async verify(ctx: ActorContext, opts: { projectId?: string } = {}): Promise<VerifyReport> {
     const projectId = opts.projectId ?? "sample";
     const url = webhookUrl();
-    // Bounded so the verify probe (a diagnostic path) can't itself become the herd the
-    // single-flight layer exists to prevent — see docs/PERF-PATTERNS-REVIEW.md, Theme A.
-    const actions = await poolMap(VERIFIABLE_ACTIONS, VERIFY_PROBE_FANOUT_LIMIT, async (action) => {
-      const started = Date.now();
-      try {
-        assertEgressAllowed(url); // SSRF guard on the verify probe too
-        const probe = { action, payload: { projectId }, source: "verify", origin: GATEWAY_ORIGIN, verify: true };
-        const psk = pskEnabled();
-        const res = await fetch(url, {
-          method: "POST",
-          headers: psk
-            ? { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") }
-            : { "Content-Type": "application/json", "X-OmniProject-Action": action, "X-OmniProject-Origin": GATEWAY_ORIGIN },
-          body: psk
-            ? JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify(probe)) })
-            : JSON.stringify(probe),
-          signal: AbortSignal.timeout(8_000),
-        });
-        let json = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string; enc?: string };
-        if (psk && typeof json.enc === "string") {
-          const opened = openPayload(json.enc);
-          json = opened ? (JSON.parse(opened) as typeof json) : {};
-        }
-        return { name: action, ok: res.ok && json?.success !== false, status: res.status, ms: Date.now() - started, note: json?.message ?? null };
-      } catch (err) {
-        const isTimeout = err instanceof Error && err.name === "TimeoutError";
-        return { name: action, ok: false, status: 0, ms: Date.now() - started, note: isTimeout ? "timed out" : "unreachable" };
-      }
-    });
+    const probes = await probeVerifiableActions(url, projectId);
+    const actions = probes.map((p) => ({ name: p.action, ok: p.ok, status: p.status, ms: p.ms, note: p.message }));
     return { ok: actions.every((a) => a.ok), actions };
   }
 }
 
 /** The n8n adapter exposes its generic command path for the broker-command route. */
-export type { N8nResult };
+export type { AdapterResult };

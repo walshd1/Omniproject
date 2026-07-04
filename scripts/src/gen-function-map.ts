@@ -18,6 +18,7 @@ import ts from "typescript";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { walkFiles } from "./lib/walk-files";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -70,16 +71,6 @@ interface FileEntry {
   rel: string;
   title: string;
   fns: FnEntry[];
-}
-
-/** All non-test .ts files under a directory, depth-first. */
-function walk(dir: string, out: string[] = []): string[] {
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, e.name);
-    if (e.isDirectory()) walk(full, out);
-    else if (e.name.endsWith(".ts") && !e.name.endsWith(".test.ts")) out.push(full);
-  }
-  return out;
 }
 
 /** Collapse a raw comment block to its first complete sentence (the summary). */
@@ -172,7 +163,7 @@ function readFile(abs: string, rel: string): FileEntry {
 // ── Build the model ───────────────────────────────────────────────────────────
 const sections = ROOTS.map((root) => {
   const exempt = new Set(root.exempt);
-  const files = walk(path.join(ROOT, root.dir))
+  const files = walkFiles(path.join(ROOT, root.dir), { extensions: [".ts"], excludeSuffixes: [".test.ts"] })
     .map((abs) => ({ abs, rel: path.relative(ROOT, abs) }))
     .filter(({ rel }) => !exempt.has(rel))
     .sort((a, b) => a.rel.localeCompare(b.rel))

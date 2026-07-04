@@ -1,5 +1,6 @@
 import type { ResourceCapacity } from "@workspace/api-client-react";
 import { rollupByProgramme, STANDALONE_PROGRAMME_KEY, type ProjectCapacity, type CapacityRollup } from "./capacity-rollup";
+import { numLoose as num } from "./num";
 
 /**
  * Cross-programme / cross-border resource LEVELLING — the ACT-ON-IT layer on top of the existing
@@ -71,11 +72,6 @@ export function flattenAllocations(projects: ProjectCapacity[]): LevellingAlloca
     }
   }
   return out;
-}
-
-function num(v: unknown): number {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
 }
 
 // ── Per-person portfolio-wide levelling ───────────────────────────────────────

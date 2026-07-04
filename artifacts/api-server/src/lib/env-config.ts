@@ -40,6 +40,13 @@ export function envUrl(name: string): string | undefined {
   return v && isSafeOutboundUrl(v) ? v : undefined;
 }
 
+/** Is this env var set to a truthy flag (1/true/on/yes, case-insensitive)? Unset ⇒ false.
+ *  Takes an explicit env map (defaulting to `process.env`) so callers like `checkRequiredEnv`
+ *  can evaluate an arbitrary env object, not just the live process. */
+export function envBool(name: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  return /^(1|true|on|yes)$/i.test(env[name]?.trim() ?? "");
+}
+
 /**
  * Every environment variable name OmniProject reads somewhere in the codebase. Used only by
  * `detectEnvVarTypos`, below — kept as a flat list rather than derived from anything, since
@@ -53,7 +60,8 @@ const KNOWN_ENV_VARS = [
   "AWS_ACCESS_KEY_ID", "AWS_REGION", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AZURE_CLIENT_ID",
   "AZURE_CLIENT_SECRET", "AZURE_TENANT_ID", "BACKEND_SOURCE", "BRAND_APP_NAME", "BRAND_FONT_FAMILY",
   "BRAND_FOOTER_TEXT", "BRAND_LOGIN_HEADING", "BRAND_LOGO_URL", "BRAND_PRIMARY_COLOR", "BRAND_SHORT_NAME",
-  "BRAND_SUPPORT_URL", "BROKER_CAPTURE", "BROKER_LOG_SIZE", "BROKER_PSK", "BROKER_TRACE", "BROKER_URL",
+  "BRAND_SUPPORT_URL", "BROKER_CAPTURE", "BROKER_LOG_SIZE", "BROKER_MTLS_CA", "BROKER_MTLS_CERT",
+  "BROKER_MTLS_INSECURE", "BROKER_MTLS_KEY", "BROKER_PSK", "BROKER_TRACE", "BROKER_URL",
   "BUSINESS_FIELD_RULES", "BUSINESS_RULE_MODES", "CAPABILITIES", "CONFIG_KEY_ENC", "CONFIG_KEY_RAW",
   "CONTENT_SECURITY_POLICY", "COPILOT_PERSONAS", "CSP_CONNECT_SRC", "CSP_REPORT_ONLY", "CSP_REPORT_URI",
   "CSRF_DISABLED", "CSRF_TRUSTED_ORIGINS", "DATA_RESIDENCY_POLICY", "DEPLOYMENT_PROFILE",
@@ -147,7 +155,15 @@ export function checkRequiredEnv(env: NodeJS.ProcessEnv = process.env): string[]
   if (scimToken !== undefined && scimToken.length < 24) issues.push("SCIM_TOKEN must be at least 24 characters when SCIM is enabled");
 
   // Disabling rate limiting in production removes a key DoS/brute-force control.
-  if (/^(1|true|on|yes)$/i.test(env["RATE_LIMIT_DISABLED"]?.trim() ?? "")) issues.push("RATE_LIMIT_DISABLED must not be set in production");
+  if (envBool("RATE_LIMIT_DISABLED", env)) issues.push("RATE_LIMIT_DISABLED must not be set in production");
+
+  // OIDC_SKIP_TOKEN_VERIFY is a debug-only escape hatch that disables JWT signature
+  // verification entirely — anyone can forge an arbitrary token/claims and walk in as any
+  // user or role. Left on in production it's a full authentication bypass, not a mere
+  // relaxation, so it gets the same hard interlock as every other critical finding here.
+  if (envBool("OIDC_SKIP_TOKEN_VERIFY", env)) {
+    issues.push("OIDC_SKIP_TOKEN_VERIFY must not be set in production — it disables OIDC token signature verification (authentication bypass)");
+  }
 
   // A HALF-configured SAML rollout silently stays disabled — surface it as a boot issue so the
   // operator finishes the SSO setup instead of shipping with an unexpectedly-off login path.

@@ -1,12 +1,6 @@
 import { useListActivity, useListProjects, useGetCapabilities } from "@workspace/api-client-react";
 import { DataProvenance } from "../components/DataProvenance";
-
-const DASHBOARD_PROJECT_FIELDS = [
-  { key: "description", label: "Description" },
-  { key: "programmeName", label: "Programme" },
-  { key: "issueCount", label: "Issues" },
-  { key: "memberCount", label: "Members" },
-];
+import { PROJECT_FIELDS } from "../lib/constants";
 import { useStore } from "../store/useStore";
 import { useEffect } from "react";
 import { format } from "date-fns";
@@ -50,7 +44,7 @@ export function Home() {
             </div>
             <div className="flex items-center gap-3">
               {projects && projects.length > 0 && (
-                <DataProvenance rows={projects as unknown as Record<string, unknown>[]} fields={DASHBOARD_PROJECT_FIELDS} mode={caps?.mode}
+                <DataProvenance rows={projects as unknown as Record<string, unknown>[]} fields={PROJECT_FIELDS} mode={caps?.mode}
                   filename="dashboard-projects" fieldSources={caps?.fieldSources} polledAt={dataUpdatedAt} />
               )}
               {projects && projects.length > 0 && (

@@ -23,6 +23,9 @@ process.env["RATE_LIMIT_DISABLED"] = "true";
 // odata + integrations are default-off (cost) in the gating model — opt them in for these route tests.
 process.env["ENABLED_FEATURES"] = "odata,integrations";
 delete process.env["OIDC_ISSUER_URL"]; // demo mode → sessions are admin
+// This file has a test asserting X-Forwarded-* is honoured for origin resolution — that now
+// requires explicitly opting into trusting a reverse proxy (trust proxy defaults to OFF).
+process.env["TRUST_PROXY"] = "1";
 
 function signedSessionCookie(session: object): string {
   const value = JSON.stringify(session);

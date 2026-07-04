@@ -64,6 +64,7 @@ export function SavedViewsBar({
           {views.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
         </select>
       )}
+      {save.isError && <span role="alert" className="font-bold text-red-500">{(save.error as Error).message}</span>}
     </div>
   );
 }

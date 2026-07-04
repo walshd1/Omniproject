@@ -25,6 +25,11 @@ export function devModeActive(env: Env): boolean {
   return env["OMNI_DEV_MODE"] === "1" || set(env["DEV_PERSIST_FILE"]) || env["BROKER_TRACE"] === "1" || set(env["BROKER_CAPTURE"]);
 }
 
+/** Does this environment look like production — literally, or via `productionSignals`? */
+export function isProductionLike(env: Env): boolean {
+  return env["NODE_ENV"] === "production" || productionSignals(env).length > 0;
+}
+
 /** Production signals that must not coexist with dev mode. */
 export function productionSignals(env: Env): string[] {
   const signals: string[] = [];

@@ -59,40 +59,49 @@ const PROVIDER_STATES: Partial<Record<(typeof AI_PROVIDERS)[number], DeploymentS
   openrouter: ["public"],
 };
 
+/** Build a `GovernedCapability[]` from a catalogue array — the identical shape
+ *  provider/vendor/broker capabilities share, differing only in the id prefix, the kind,
+ *  and how each item is described. */
+function toCapability<T>(
+  prefix: string,
+  kind: CapabilityKind,
+  items: readonly T[],
+  describe: (item: T) => { id: string; label: string; description: string; supportedStates: DeploymentState[] },
+): GovernedCapability[] {
+  return items.map((item) => {
+    const d = describe(item);
+    return { id: `${prefix}:${d.id}`, kind, label: d.label, description: d.description, supportedStates: d.supportedStates, surfaceAware: true };
+  });
+}
+
 function providerCapabilities(): GovernedCapability[] {
-  return AI_PROVIDERS.filter((p) => PROVIDER_STATES[p]).map((p) => ({
-    id: `provider:${p}`,
-    kind: "ai-provider" as const,
+  return toCapability("provider", "ai-provider", AI_PROVIDERS.filter((p) => PROVIDER_STATES[p]), (p) => ({
+    id: p,
     label: `AI provider — ${p}`,
     description: PROVIDER_STATES[p]!.includes("public") ? "A third-party LLM API." : "A local / self-hosted LLM runtime.",
     supportedStates: PROVIDER_STATES[p]!,
-    surfaceAware: true,
   }));
 }
 
 function vendorCapabilities(): GovernedCapability[] {
   // Derived from the backend catalogue. Most backends can be self-hosted (user-defined)
   // or used as SaaS (public); the admin picks the actual state per deployment.
-  return BACKENDS.map((b) => ({
-    id: `vendor:${b.id}`,
-    kind: "vendor" as const,
+  return toCapability("vendor", "vendor", BACKENDS, (b) => ({
+    id: b.id,
     label: `Vendor — ${b.label}`,
     description: `Connect ${b.label} as a backend.`,
     supportedStates: ANY,
-    surfaceAware: true,
   }));
 }
 
 function brokerCapabilities(): GovernedCapability[] {
   // The broker seam (n8n by default). Self-hosted/in-cluster brokers are user-defined;
   // a managed broker is public. Same tri-state as everything else.
-  return BROKERS.map((b) => ({
-    id: `broker:${b.id}`,
-    kind: "broker" as const,
+  return toCapability("broker", "broker", BROKERS, (b) => ({
+    id: b.id,
     label: `Broker — ${b.label}`,
     description: `Route backend traffic through ${b.label}.`,
     supportedStates: ANY,
-    surfaceAware: true,
   }));
 }
 
@@ -287,6 +296,34 @@ export function recentCapabilityLog(): CapabilityLogEntry[] {
 
 const actorLabel = (a?: Actor | null): string | null => a?.email ?? a?.sub ?? null;
 
+/** Record one capability event to BOTH the audit log and the live activity ring, sharing the
+ *  timestamp between them — the pair every capability event (a use/block decision, an admin
+ *  reconfiguring one) writes, differing only in the action name(s), the audit `result`, and
+ *  the audit `meta` shape. */
+function recordCapabilityEvent(opts: {
+  auditAction: string;
+  logAction: CapabilityLogEntry["action"];
+  id: string;
+  kind: CapabilityKind | null;
+  surface: string | null;
+  state: DeploymentState;
+  actor?: Actor | null | undefined;
+  result?: "success" | "error";
+  meta: Record<string, unknown>;
+}): void {
+  const ts = new Date().toISOString();
+  recordAudit({
+    ts,
+    category: "admin",
+    action: opts.auditAction,
+    actor: opts.actor ?? null,
+    write: true,
+    ...(opts.result ? { result: opts.result } : {}),
+    meta: opts.meta,
+  });
+  pushLog({ ts, action: opts.logAction, capability: opts.id, kind: opts.kind, surface: opts.surface, state: opts.state, actor: actorLabel(opts.actor) });
+}
+
 /**
  * Resolve a capability-use decision for a surface AND record it — to the audit log and
  * the live activity ring — whether allowed or denied, so there's always a trail of
@@ -299,31 +336,25 @@ export function decideCapability(id: string, opts: { surface?: string | undefine
   const state = effectiveState(id, opts.surface);
   const allowed = state !== "off";
   const endpoint = state === "user-defined" ? (getSettings().capabilityStates[id]?.endpoint ?? null) : null;
-  recordAudit({
-    ts: new Date().toISOString(),
-    category: "admin",
-    action: allowed ? "capability.use" : "capability.blocked",
-    actor: opts.actor ?? null,
-    write: true,
+  recordCapabilityEvent({
+    auditAction: allowed ? "capability.use" : "capability.blocked",
+    logAction: allowed ? "use" : "blocked",
+    id, kind: cap?.kind ?? null, surface, state, actor: opts.actor,
     result: allowed ? "success" : "error",
     meta: { capability: id, kind: cap?.kind ?? null, surface, state },
   });
-  pushLog({ ts: new Date().toISOString(), action: allowed ? "use" : "blocked", capability: id, kind: cap?.kind ?? null, surface, state, actor: actorLabel(opts.actor) });
   return { id, kind: cap?.kind ?? null, surface, state, allowed, endpoint };
 }
 
 /** Record an admin turning a capability on/off (audited + shown on the dashboard). */
 export function noteCapabilityConfigured(id: string, setting: CapabilitySetting, actor?: Actor | null): void {
   const cap = getCapability(id);
-  recordAudit({
-    ts: new Date().toISOString(),
-    category: "admin",
-    action: "capability.configured",
-    actor: actor ?? null,
-    write: true,
+  recordCapabilityEvent({
+    auditAction: "capability.configured",
+    logAction: "configured",
+    id, kind: cap?.kind ?? null, surface: null, state: setting.state, actor,
     meta: { capability: id, kind: cap?.kind ?? null, state: setting.state, surfaces: setting.surfaces ?? {} },
   });
-  pushLog({ ts: new Date().toISOString(), action: "configured", capability: id, kind: cap?.kind ?? null, surface: null, state: setting.state, actor: actorLabel(actor) });
 }
 
 /**

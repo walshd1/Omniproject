@@ -26,6 +26,9 @@ process.env["OIDC_MANAGER_ROLES"] = "omni-managers";
 process.env["OIDC_DEFAULT_ROLE"] = "viewer";
 process.env["NODE_ENV"] = "production";
 process.env["RATE_LIMIT_DISABLED"] = "true"; // isolate auth behaviour from the limiter
+// RATE_LIMIT_DISABLED in "production" is a CRITICAL boot-refusing finding by default (env-config),
+// independent of OIDC being configured — opt out for this harness only.
+process.env["SECURITY_STRICT"] = "off";
 
 let server: Server;
 let base: string;

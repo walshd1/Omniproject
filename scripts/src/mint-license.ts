@@ -42,10 +42,7 @@ function keygen(): void {
 
 function mint(): void {
   const privPem = process.env["LICENSE_PRIVATE_KEY"]?.trim();
-  if (!privPem) {
-    process.stderr.write("error: set LICENSE_PRIVATE_KEY (PEM) to mint a licence\n");
-    process.exit(1);
-  }
+  if (!privPem) throw new Error("set LICENSE_PRIVATE_KEY (PEM) to mint a licence");
   const customer = arg("customer", "Customer")!;
   const tier = arg("tier", "professional")!;
   const featuresArg = (arg("features", "branding,labels,webhooks") ?? "").split(",").map((s) => s.trim());
@@ -67,9 +64,14 @@ function mint(): void {
 }
 
 const cmd = process.argv[2];
-if (cmd === "keygen") keygen();
-else if (cmd === "mint") mint();
-else {
-  process.stderr.write("usage: mint-license.ts <keygen|mint> [--customer .. --tier .. --features a,b --days N]\n");
+try {
+  if (cmd === "keygen") keygen();
+  else if (cmd === "mint") mint();
+  else {
+    process.stderr.write("usage: mint-license.ts <keygen|mint> [--customer .. --tier .. --features a,b --days N]\n");
+    process.exit(1);
+  }
+} catch (e) {
+  process.stderr.write(`error: ${e instanceof Error ? e.message : e}\n`);
   process.exit(1);
 }

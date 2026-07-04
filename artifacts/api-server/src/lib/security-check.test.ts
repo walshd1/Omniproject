@@ -72,6 +72,20 @@ test("checks EVERY loaded broker, not just the primary (per-kind BROKER_ENDPOINT
   assert.match(plaintext[0]!.message, /node-red\.internal/);
 });
 
+test("flags BROKER_MTLS_INSECURE left on in production as CRITICAL (unverified broker cert)", () => {
+  const f = securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm", BROKER_MTLS_INSECURE: "true" });
+  const finding = f.find((x) => x.id === "broker-mtls-insecure");
+  assert.ok(finding && finding.severity === "critical");
+  assert.equal(securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm" }).some((x) => x.id === "broker-mtls-insecure"), false);
+});
+
+test("flags CSRF_DISABLED left on in production (warn, not critical — SameSite=Lax still mitigates)", () => {
+  const f = securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm", CSRF_DISABLED: "true" });
+  const finding = f.find((x) => x.id === "csrf-disabled");
+  assert.ok(finding && finding.severity === "warn");
+  assert.equal(securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm" }).some((x) => x.id === "csrf-disabled"), false);
+});
+
 test("flags disabled rate limiting and surfaces egress/logging notes", () => {
   const f = securityFindings({
     NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm",
@@ -88,22 +102,40 @@ function fakeLogger() {
   return { calls, error: rec("error"), warn: rec("warn"), info: rec("info") };
 }
 
-test("runSecuritySelfCheck logs findings at their severity", () => {
+test("runSecuritySelfCheck logs findings at their severity, and REFUSES TO BOOT by default on a critical one", () => {
   const log = fakeLogger();
-  runSecuritySelfCheck({ NODE_ENV: "production" }, log);
-  assert.ok(log.calls.some((c) => c.level === "error")); // the critical demo-auth finding
+  assert.throws(() => runSecuritySelfCheck({ NODE_ENV: "production" }, log), /critical security finding/i);
+  assert.ok(log.calls.some((c) => c.level === "error")); // the critical demo-auth finding was still logged first
 });
 
-test("SECURITY_STRICT refuses to boot on a critical finding", () => {
+test("SECURITY_STRICT=off downgrades the boot refusal to a log-only warning (explicit opt-out only)", () => {
+  const log = fakeLogger();
+  const findings = runSecuritySelfCheck({ NODE_ENV: "production", SECURITY_STRICT: "off" }, log);
+  assert.ok(findings.some((f) => f.id === "demo-auth-in-prod" && f.severity === "critical"));
+  assert.ok(log.calls.some((c) => c.level === "error"));
+});
+
+test("an explicit SECURITY_STRICT=on is redundant but harmless — still refuses to boot", () => {
   const log = fakeLogger();
   assert.throws(
     () => runSecuritySelfCheck({ NODE_ENV: "production", SECURITY_STRICT: "on" }, log),
     /critical security finding/i,
   );
-  // …but a clean prod config in strict mode boots fine.
+  // …but a clean prod config boots fine either way.
   const clean: SecurityFinding[] = runSecuritySelfCheck(
     { NODE_ENV: "production", SECURITY_STRICT: "on", OIDC_ISSUER_URL: "https://idp/realm", EGRESS_ALLOWLIST: "idp" },
     log,
   );
   assert.equal(clean.filter((x) => x.severity === "critical").length, 0);
+  const cleanDefault: SecurityFinding[] = runSecuritySelfCheck(
+    { NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm", EGRESS_ALLOWLIST: "idp" },
+    log,
+  );
+  assert.equal(cleanDefault.filter((x) => x.severity === "critical").length, 0);
+});
+
+test("a self-hosted/nonprofit profile with no override never trips the default boot refusal", () => {
+  const log = fakeLogger();
+  const findings = runSecuritySelfCheck({ NODE_ENV: "production", DEPLOYMENT_PROFILE: "self-hosted" }, log);
+  assert.equal(findings.filter((f) => f.severity === "critical").length, 0); // warn, not critical — boots fine
 });

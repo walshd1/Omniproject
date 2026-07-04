@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { usePriorityWeights, useSavePriorityWeights, DEFAULT_PRIORITY_WEIGHTS, type PriorityWeights } from "../../lib/priority-weights-api";
+import { useDraftAdmin } from "../../hooks/use-draft-admin";
 
 /**
  * Portfolio prioritisation scoring weights (backlog #98) — the ONLY configurable part of the
@@ -22,9 +22,7 @@ export function PriorityWeightsAdmin() {
   const { data: auth } = useAuth();
   const { data: server } = usePriorityWeights();
   const save = useSavePriorityWeights();
-  const [draft, setDraft] = useState<PriorityWeights | null>(null);
-
-  useEffect(() => { if (server) setDraft({ ...server }); }, [server]);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<PriorityWeights, PriorityWeights>(server, (s) => ({ ...s }));
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
   if (!draft) return null;
@@ -33,7 +31,6 @@ export function PriorityWeightsAdmin() {
     const n = Number(raw);
     setDraft({ ...draft, [key]: Number.isFinite(n) && n >= 0 ? n : 0 });
   };
-  const dirty = JSON.stringify(draft) !== JSON.stringify(server);
 
   return (
     <section className="space-y-4" data-testid="priority-weights-admin">
@@ -66,7 +63,7 @@ export function PriorityWeightsAdmin() {
         <Button className="rounded-none border-2 border-foreground font-bold uppercase tracking-wider" onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}>
           {save.isPending ? "Saving…" : "Save weights"}
         </Button>
-        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={() => server && setDraft({ ...server })}>Reset</Button>}
+        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={reset}>Reset</Button>}
         <Button variant="ghost" className="rounded-none text-xs" onClick={() => setDraft({ ...DEFAULT_PRIORITY_WEIGHTS })}>Restore defaults</Button>
         {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
       </div>

@@ -10,26 +10,14 @@
 
 import http from "http";
 import { URL } from "url";
+import { createAsserter, green, red, bold } from "./lib/assert";
 
 // ── ANSI helpers ─────────────────────────────────────────────────────────────
-const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
-const red = (s: string) => `\x1b[31m${s}\x1b[0m`;
-const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 
 // ── Test state ────────────────────────────────────────────────────────────────
-let passed = 0;
-let failed = 0;
-
-function assert(label: string, condition: boolean, detail?: string) {
-  if (condition) {
-    console.log(`  ${green("✓")} ${label}`);
-    passed++;
-  } else {
-    console.log(`  ${red("✗")} ${label}${detail ? ` — ${detail}` : ""}`);
-    failed++;
-  }
-}
+const t = createAsserter();
+const assert = t.assert;
 
 // ── Mock broker server ───────────────────────────────────────────────────────────
 interface MockRequest {
@@ -173,118 +161,12 @@ function login(apiBase: string): Promise<void> {
 }
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
-function post(url: string, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number; data: unknown }> {
-  return new Promise((resolve, reject) => {
-    const parsed = new URL(url);
-    const payload = JSON.stringify(body);
-
-    const req = http.request(
-      {
-        hostname: parsed.hostname,
-        port: Number(parsed.port),
-        path: parsed.pathname,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(payload),
-          ...(sessionCookie ? { Cookie: sessionCookie } : {}),
-          ...headers,
-        },
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => {
-          try {
-            resolve({ status: res.statusCode ?? 0, data: JSON.parse(data) });
-          } catch {
-            resolve({ status: res.statusCode ?? 0, data });
-          }
-        });
-      },
-    );
-
-    req.on("error", reject);
-    req.setTimeout(8_000, () => {
-      req.destroy();
-      reject(new Error("Request timeout"));
-    });
-    req.write(payload);
-    req.end();
-  });
-}
-
-function patch(url: string, body: unknown): Promise<{ status: number; data: unknown }> {
-  return new Promise((resolve, reject) => {
-    const parsed = new URL(url);
-    const payload = JSON.stringify(body);
-    const req = http.request(
-      {
-        hostname: parsed.hostname,
-        port: Number(parsed.port),
-        path: parsed.pathname,
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(payload),
-          ...(sessionCookie ? { Cookie: sessionCookie } : {}),
-        },
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => {
-          try {
-            resolve({ status: res.statusCode ?? 0, data: JSON.parse(data) });
-          } catch {
-            resolve({ status: res.statusCode ?? 0, data });
-          }
-        });
-      },
-    );
-    req.on("error", reject);
-    req.setTimeout(8_000, () => {
-      req.destroy();
-      reject(new Error("Request timeout"));
-    });
-    req.write(payload);
-    req.end();
-  });
-}
-
-function get(url: string): Promise<{ status: number; data: unknown }> {
-  return new Promise((resolve, reject) => {
-    const parsed = new URL(url);
-    const req = http.request(
-      {
-        hostname: parsed.hostname,
-        port: Number(parsed.port),
-        path: parsed.pathname + parsed.search, // preserve query (e.g. OData $top)
-        method: "GET",
-        headers: sessionCookie ? { Cookie: sessionCookie } : {},
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => {
-          try {
-            resolve({ status: res.statusCode ?? 0, data: JSON.parse(data) });
-          } catch {
-            resolve({ status: res.statusCode ?? 0, data });
-          }
-        });
-      },
-    );
-    req.on("error", reject);
-    req.setTimeout(8_000, () => {
-      req.destroy();
-      reject(new Error("Request timeout"));
-    });
-    req.end();
-  });
-}
-
-function method(verb: "PUT" | "DELETE", url: string, body?: unknown): Promise<{ status: number; data: unknown }> {
+function request(
+  verb: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
+  url: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+): Promise<{ status: number; data: unknown }> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     const payload = body === undefined ? "" : JSON.stringify(body);
@@ -292,11 +174,12 @@ function method(verb: "PUT" | "DELETE", url: string, body?: unknown): Promise<{ 
       {
         hostname: parsed.hostname,
         port: Number(parsed.port),
-        path: parsed.pathname + parsed.search,
+        path: parsed.pathname + parsed.search, // preserve query (e.g. OData $top)
         method: verb,
         headers: {
           ...(payload ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) } : {}),
           ...(sessionCookie ? { Cookie: sessionCookie } : {}),
+          ...headers,
         },
       },
       (res) => {
@@ -320,8 +203,11 @@ function method(verb: "PUT" | "DELETE", url: string, body?: unknown): Promise<{ 
     req.end();
   });
 }
-const put = (url: string, body?: unknown) => method("PUT", url, body);
-const del = (url: string) => method("DELETE", url);
+const get = (url: string) => request("GET", url);
+const post = (url: string, body: unknown, headers: Record<string, string> = {}) => request("POST", url, body, headers);
+const patch = (url: string, body: unknown) => request("PATCH", url, body);
+const put = (url: string, body?: unknown) => request("PUT", url, body);
+const del = (url: string) => request("DELETE", url);
 
 // ── Test suites ───────────────────────────────────────────────────────────────
 async function testOutbound(apiBase: string) {
@@ -1082,15 +968,15 @@ async function main() {
   }
 
   console.log(dim("\n" + "═".repeat(55)));
-  const total = passed + failed;
-  if (failed === 0) {
+  const total = t.pass + t.fail;
+  if (t.fail === 0) {
     console.log(
       bold(green(`\n✓ All ${total} assertions passed. broker contract verified.\n`)),
     );
     process.exit(0);
   } else {
     console.log(
-      bold(red(`\n✗ ${failed}/${total} assertions failed. Fix before deploying.\n`)),
+      bold(red(`\n✗ ${t.fail}/${total} assertions failed. Fix before deploying.\n`)),
     );
     process.exit(1);
   }

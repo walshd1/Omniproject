@@ -7,14 +7,7 @@ import { ExportMenu } from "../components/ExportMenu";
 import { DataProvenance } from "../components/DataProvenance";
 import { NewProjectDialog } from "../components/NewProjectDialog";
 import { canStoreEntity } from "../lib/capabilities-fields";
-
-/** The list-row fields whose fill rate is worth surfacing on the index. */
-const PROJECT_FIELDS = [
-  { key: "description", label: "Description" },
-  { key: "programmeName", label: "Programme" },
-  { key: "memberCount", label: "Members" },
-  { key: "issueCount", label: "Issues" },
-];
+import { PROJECT_FIELDS } from "../lib/constants";
 import { Button } from "@/components/ui/button";
 import { DataState } from "../components/DataState";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";

@@ -10,7 +10,18 @@
  * which includes the 169.254.169.254 IMDS endpoint, and IPv6 fe80::/10), so we
  * reject those and require a well-formed http(s) URL. This blunts the worst SSRF
  * vector — metadata-credential theft — without breaking internal brokers.
+ *
+ * The range check itself lives in `lib/ip-ranges.ts` — shared with `lib/egress.ts`
+ * so the two guards can never disagree on what "link-local/metadata" means. This
+ * function is intentionally kept SYNCHRONOUS (no DNS resolution): it's called from
+ * many places, several of them not already in an async context (e.g. `envUrl` at
+ * plain config-read time), so it only catches a literal IP/known-metadata hostname
+ * in the URL text, not a plain domain that merely *resolves* to one. Call sites
+ * that fetch a LIVE, potentially attacker-influenced URL (the broker, admin-pasted
+ * setup probes) go through `lib/egress.ts`'s `assertEgressAllowed`/`safeFetch`
+ * instead, which additionally resolves DNS and checks the resolved address(es).
  */
+import { isBlockedHostLiteral } from "./ip-ranges";
 
 export class UnsafeUrlError extends Error {
   constructor(message: string) {
@@ -30,20 +41,9 @@ export function assertSafeOutboundUrl(raw: string, label = "URL"): void {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new UnsafeUrlError(`${label} must use http or https`);
   }
-  // Hostname may be bracketed for IPv6; strip brackets for the prefix checks.
+  // Hostname may be bracketed for IPv6; strip brackets for the range check.
   const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  // IPv4 link-local / cloud metadata (169.254.0.0/16) and IPv6 link-local (fe80::/10).
-  // Node canonicalises numeric IPv4 forms (decimal/hex/octal) back to dotted-decimal,
-  // so /^169\.254\./ catches those. It also folds an IPv4-mapped IPv6 literal
-  // ([::ffff:169.254.169.254]) to its hex form ::ffff:a9fe:a9fe (a9fe == 169.254),
-  // so the mapped link-local range is rejected explicitly too.
-  if (
-    /^169\.254\./.test(host) ||
-    /^fe[89ab][0-9a-f]:/.test(host) ||
-    host === "fe80::" ||
-    /^::ffff:a9fe:/.test(host) ||
-    /^::ffff:169\.254\./.test(host)
-  ) {
+  if (isBlockedHostLiteral(host)) {
     throw new UnsafeUrlError(`${label} targets a link-local/metadata address, which is not allowed`);
   }
 }

@@ -1,5 +1,6 @@
 import type { Dashboard, DashboardWidget } from "./dashboards";
 import { safeParseJson } from "./safe-json";
+import { triggerBlobDownload } from "./setup";
 
 /**
  * Round-trip a dashboard DEFINITION in and out of a JSON file — the same principle as the report
@@ -47,14 +48,7 @@ export function parseDashboard(value: unknown): Dashboard {
 export function downloadDashboard(dash: Dashboard): void {
   const safe = (dash.name || "dashboard").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "dashboard";
   const blob = new Blob([JSON.stringify(dash, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `dashboard-${safe}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, `dashboard-${safe}.json`);
 }
 
 /** Parse an uploaded file as a dashboard (throws a friendly error if it isn't valid JSON / a dashboard). */

@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useRateCard, useSaveRateCard, type RateCardConfig, type ProjectType, type ValueColumn } from "../../lib/rate-card";
+import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { PercentInput } from "./PercentInput";
 
 /**
@@ -16,10 +16,7 @@ export function RateCardAdmin() {
   const { data: auth } = useAuth();
   const { data: server } = useRateCard();
   const save = useSaveRateCard();
-  const [draft, setDraft] = useState<RateCardConfig | null>(null);
-
-  // Seed the draft from the server once it loads (and whenever the server copy changes underneath us).
-  useEffect(() => { if (server) setDraft(structuredClone(server)); }, [server]);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<RateCardConfig, RateCardConfig>(server, structuredClone);
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
   if (!draft) return null;
@@ -53,8 +50,6 @@ export function RateCardAdmin() {
     if (v !== undefined) next[field] = v;
     patchColumn(ti, ci, { uplift: next });
   }
-
-  const dirty = JSON.stringify(draft) !== JSON.stringify(server);
 
   function onSave() {
     save.mutate({
@@ -144,7 +139,7 @@ export function RateCardAdmin() {
         <Button className="rounded-none border-2 border-foreground font-bold uppercase tracking-wider" onClick={onSave} disabled={!dirty || save.isPending}>
           {save.isPending ? "Saving…" : "Save rate card"}
         </Button>
-        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={() => server && setDraft(structuredClone(server))}>Reset</Button>}
+        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={reset}>Reset</Button>}
         {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
         {save.isSuccess && !dirty && <span className="text-xs text-muted-foreground">Saved.</span>}
       </div>

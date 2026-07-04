@@ -7,25 +7,13 @@
  */
 import { Router, type Request, type Response } from "express";
 import { BrokerCommandBody } from "@workspace/api-zod";
-import { contextFromReq, respondBrokerError, isLiveBroker, BrokerError, brokerCommand } from "../broker";
+import { contextFromReq, respondBrokerError, BrokerError, brokerCommand, brokerConfigured } from "../broker";
 import { getSettings } from "../lib/settings";
 import { requireRole } from "../lib/rbac";
 import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, getCapability } from "../lib/tools";
 
 const router = Router();
-
-/**
- * Is there a broker endpoint to forward a command to? True when one is configured
- * at boot (`BROKER_URL` ⇒ `isLiveBroker()`) OR set at runtime by an admin via
- * settings. The N8nBroker this edge uses resolves its webhook from
- * `getSettings().brokerUrl` first (it takes precedence over the env), so an
- * admin-configured URL is reachable without a restart — this gate just has to
- * agree with that precedence instead of looking only at the boot-time env.
- */
-function brokerConfigured(): boolean {
-  return isLiveBroker() || !!getSettings().brokerUrl?.trim();
-}
 
 async function handle(req: Request, res: Response): Promise<void> {
   // This edge can invoke arbitrary backend actions, including writes
