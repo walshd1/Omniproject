@@ -13,6 +13,7 @@ export interface Asserter {
   readonly fail: number;
 }
 
+/** A fresh, independent pass/fail tally + printer for one script run. */
 export function createAsserter(): Asserter {
   let pass = 0;
   let fail = 0;
