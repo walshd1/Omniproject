@@ -1,5 +1,6 @@
 import type { ProjectFinancials } from "@workspace/api-client-react";
-import { convertAmount } from "./currency";
+import { convertAmount, LocalTracker } from "./currency";
+import { numLoose as num } from "./num";
 
 /**
  * Portfolio financial consolidation — convert each project's budget / actual / forecast into ONE
@@ -55,20 +56,14 @@ export interface CurrencyMix {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Coerce a possibly-dirty financial amount (string, null, NaN, Infinity) to a finite number, else 0. */
-function num(v: unknown): number {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-/** A roll-up row mid-fold: carries the set of source currencies seen so far, so `fold` can tell
+/** A roll-up row mid-fold: carries the tracker of source currencies seen so far, so `fold` can tell
  *  whether the row is still single-currency (and so can show a `local` figure) or has gone mixed. */
 interface WorkingRollup extends FinanceRollup {
-  _currencies: Set<string>;
+  _tracker: LocalTracker;
 }
 
 function blank(key: string, label: string): WorkingRollup {
-  return { key, label, projects: 0, budget: 0, actual: 0, forecast: 0, earnedValue: 0, variance: 0, cpi: null, localCurrency: null, local: null, _currencies: new Set() };
+  return { key, label, projects: 0, budget: 0, actual: 0, forecast: 0, earnedValue: 0, variance: 0, cpi: null, localCurrency: null, local: null, _tracker: new LocalTracker() };
 }
 
 /** Fold one project's financials (converted to the reporting currency) into a roll-up row, tracking
@@ -90,9 +85,7 @@ function fold(acc: WorkingRollup, p: ProjectFin, target: string, rates?: Record<
   acc.forecast += conv(raw.forecast);
   acc.earnedValue += conv(raw.earnedValue);
 
-  acc._currencies.add(currency);
-  if (acc._currencies.size === 1) {
-    acc.localCurrency = currency;
+  if (acc._tracker.add(currency)) {
     const local = acc.local ?? { budget: 0, actual: 0, forecast: 0, earnedValue: 0 };
     local.budget += raw.budget;
     local.actual += raw.actual;
@@ -101,9 +94,9 @@ function fold(acc: WorkingRollup, p: ProjectFin, target: string, rates?: Record<
     acc.local = local;
   } else {
     // A second distinct currency showed up — the row is mixed, a single local figure no longer applies.
-    acc.localCurrency = null;
     acc.local = null;
   }
+  acc.localCurrency = acc._tracker.currency;
 }
 
 /** Finalise the derived fields (variance + consolidated CPI) and round the money, in both the

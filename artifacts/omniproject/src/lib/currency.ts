@@ -37,6 +37,22 @@ export function currencyList(rates?: Record<string, number>): string[] {
   return rates ? Object.keys(rates).sort() : [];
 }
 
+/** Track whether every project folded into a currency roll-up row so far shares one source
+ *  currency, so the row can show a `local` (un-converted) figure alongside the consolidated
+ *  total. Once a second currency shows up the row is "mixed" and only the consolidated total
+ *  applies. Shared by every portfolio roll-up (financials, income, benefits). */
+export class LocalTracker {
+  currency: string | null = null;
+  private seen = new Set<string>();
+
+  /** Fold one more project's currency in; returns true while the row is still single-currency. */
+  add(currency: string): boolean {
+    this.seen.add(currency);
+    this.currency = this.seen.size === 1 ? currency : null;
+    return this.seen.size === 1;
+  }
+}
+
 /** The first currency seen across a set of items, falling back to a default (e.g. for a report's display). */
 export function firstCurrency(items: readonly { currency?: string | null }[] | undefined, fallback = "GBP"): string {
   return (items ?? []).find((i) => i.currency)?.currency || fallback;

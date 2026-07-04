@@ -1,9 +1,10 @@
+import { DAY_MS } from "./date-utils";
+
 /**
  * Pure date-shift helpers for live drag-to-reschedule on the Gantt. Kept separate
  * from the React component so the arithmetic is unit-tested without simulating
  * pointer events (jsdom can't measure pixel geometry).
  */
-const DAY_MS = 1000 * 60 * 60 * 24;
 
 /** Shift an ISO date string by whole days, returning a date-only `YYYY-MM-DD`. */
 export function shiftIsoDate(iso: string, deltaDays: number): string {

@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useCostRules, useSaveCostRules, type CostRule, type Predicate } from "../../lib/rate-card";
+import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { PercentInput } from "./PercentInput";
 import { PredicateEditor } from "./PredicateEditor";
 
@@ -26,15 +26,12 @@ export function CostRulesAdmin() {
   const { data: auth } = useAuth();
   const { data: server } = useCostRules();
   const save = useSaveCostRules();
-  const [draft, setDraft] = useState<CostRule[] | null>(null);
-
-  useEffect(() => { if (server) setDraft(structuredClone(server)); }, [server]);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<CostRule[], CostRule[]>(server, structuredClone);
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
   if (!draft) return null;
 
   const patch = (i: number, r: CostRule) => setDraft(draft.map((x, j) => (j === i ? r : x)));
-  const dirty = JSON.stringify(draft) !== JSON.stringify(server);
 
   // Set or clear one effect field, omitting a cleared field entirely (exactOptionalPropertyTypes).
   function setEffect(i: number, field: "margin" | "overhead", v: number | undefined) {
@@ -96,7 +93,7 @@ export function CostRulesAdmin() {
           onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}>
           {save.isPending ? "Saving…" : "Save cost rules"}
         </Button>
-        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={() => server && setDraft(structuredClone(server))}>Reset</Button>}
+        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={reset}>Reset</Button>}
         {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
       </div>
     </section>

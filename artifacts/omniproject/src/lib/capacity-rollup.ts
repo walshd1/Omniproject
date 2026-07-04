@@ -1,4 +1,5 @@
 import type { ResourceCapacity } from "@workspace/api-client-react";
+import { numLoose as num } from "./num";
 
 /**
  * Capacity roll-up — aggregate per-project resource capacity into programme and portfolio totals, so a
@@ -35,12 +36,6 @@ export interface CapacityRollup {
  *  key `rollupByProgramme` uses, instead of re-deriving the "standalone" sentinel themselves. */
 export const STANDALONE_PROGRAMME_KEY = "__standalone__";
 const STANDALONE = STANDALONE_PROGRAMME_KEY;
-
-/** Coerce a possibly-dirty resource number (string, null, NaN, Infinity) to a finite number, else 0. */
-function num(v: unknown): number {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
 
 function blank(key: string, label: string): CapacityRollup {
   return { key, label, projects: 0, allocations: 0, overAllocated: 0, assignedHours: 0, availableHours: 0, utilisation: null };

@@ -12,12 +12,11 @@ import {
 import { STATUS_COLORS, STATUS_LABELS } from "../../lib/constants";
 import { canStoreField } from "../../lib/capabilities-fields";
 import { rescheduledDates } from "../../lib/reschedule";
+import { DAY_MS, dayToShortDate } from "../../lib/date-utils";
 import { useToast } from "@/hooks/use-toast";
 import { IssueDialog } from "../IssueDialog";
 import { LoadingState } from "../LoadingState";
 import { DataState } from "../DataState";
-
-const DAY_MS = 1000 * 60 * 60 * 24;
 
 function startOfDay(d: Date): number {
   return Math.floor(d.getTime() / DAY_MS);
@@ -120,7 +119,7 @@ export function GanttChart({ projectId }: { projectId: string }) {
   }
 
   const { lanes, min, span, today } = model;
-  const fmt = (day: number) => new Date(day * DAY_MS).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const fmt = dayToShortDate;
   const todayPct = today >= min && today <= min + span ? ((today - min) / span) * 100 : null;
 
   return (

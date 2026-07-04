@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { componentsFor } from "@workspace/backend-catalogue";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useContentPages, useSaveContentPages, type ContentPageDef } from "../../lib/content-pages";
+import { useDraftAdmin } from "../../hooks/use-draft-admin";
 
 /**
  * Content-page builder (the "content pages" feature module). A content page is deliberately minimal —
@@ -17,15 +17,12 @@ export function ContentPagesAdmin() {
   const { data: auth } = useAuth();
   const { data: server } = useContentPages();
   const save = useSaveContentPages();
-  const [draft, setDraft] = useState<ContentPageDef[] | null>(null);
-
-  useEffect(() => { if (server) setDraft(structuredClone(server)); }, [server]);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<ContentPageDef[], ContentPageDef[]>(server, structuredClone);
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
   if (!draft) return null;
 
   const catalogue = componentsFor("content");
-  const dirty = JSON.stringify(draft) !== JSON.stringify(server);
 
   const patch = (i: number, p: ContentPageDef) => setDraft(draft.map((x, j) => (j === i ? p : x)));
 
@@ -109,7 +106,7 @@ export function ContentPagesAdmin() {
         <Button className="rounded-none border-2 border-foreground font-bold uppercase tracking-wider" onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}>
           {save.isPending ? "Saving…" : "Save content pages"}
         </Button>
-        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={() => server && setDraft(structuredClone(server))}>Reset</Button>}
+        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={reset}>Reset</Button>}
         {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
       </div>
     </section>

@@ -146,7 +146,11 @@ export function resolveBaseUrl(opts: {
   return `${proto}://${host}`;
 }
 
-function baseUrl(req: Request): string {
+/** The gateway's own public base URL for THIS request — see `resolveBaseUrl` for
+ *  the hardening. Shared by every route that must build an absolute self-URL
+ *  (OIDC/OAuth2 redirects and magic links here; OData/discovery/IdP-setup
+ *  elsewhere), so the host-header-injection guard lives in exactly one place. */
+export function baseUrl(req: Request): string {
   return resolveBaseUrl({
     configured: process.env["PUBLIC_URL"],
     productionLike: process.env["NODE_ENV"] === "production" || productionSignals(process.env).length > 0,

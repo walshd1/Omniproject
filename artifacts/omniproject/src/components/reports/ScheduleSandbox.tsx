@@ -8,12 +8,9 @@ import {
   type ScheduleInput,
 } from "../../lib/schedule-scenario";
 import { triggerBlobDownload } from "../../lib/setup";
+import { dayToShortDate as fmtDay } from "../../lib/date-utils";
 import { useScheduleShifts } from "./use-schedule-shifts";
 import { useResourceContention } from "./use-resource-contention";
-
-const DAY_MS = 1000 * 60 * 60 * 24;
-const fmtDay = (day: number) =>
-  new Date(day * DAY_MS).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
 /**
  * Schedule what-if sandbox — drag a work package into the future and watch the

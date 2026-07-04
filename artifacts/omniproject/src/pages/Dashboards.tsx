@@ -17,6 +17,7 @@ import {
 import { downloadDashboard, readDashboardFile } from "../lib/dashboard-file";
 import { WidgetView } from "../components/dashboard/widgets";
 import { DataState } from "../components/DataState";
+import { useToast } from "@/hooks/use-toast";
 
 /**
  * Custom dashboards (the "dashboards" feature module). Build named dashboards from the widget
@@ -49,6 +50,7 @@ export function Dashboards() {
   const { data: caps } = useGetCapabilities();
   const { data: dashboards, isLoading, isError, error, refetch } = useDashboards();
   const save = useSaveDashboards();
+  const { toast } = useToast();
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -85,8 +87,11 @@ export function Dashboards() {
     return () => clearInterval(t);
   }, [liveMs, qc]);
 
-  function persist(next: Dashboard[]) {
-    save.mutate(next);
+  function persist(next: Dashboard[], onSuccess: () => void = () => {}) {
+    save.mutate(next, {
+      onSuccess,
+      onError: (e) => toast({ title: "Couldn't save dashboards", description: e instanceof Error ? e.message : "failed", variant: "destructive" }),
+    });
   }
 
   function startNew() {
@@ -111,17 +116,20 @@ export function Dashboards() {
   function saveEdit() {
     if (!draft) return;
     const others = (dashboards ?? []).filter((d) => d.id !== draft.id);
-    persist([...others, draft]);
-    setEditing(false);
-    setDraft(null);
-    setActiveId(draft.id);
+    const savedId = draft.id;
+    persist([...others, draft], () => {
+      setEditing(false);
+      setDraft(null);
+      setActiveId(savedId);
+    });
   }
 
   function deleteActive() {
     if (!active) return;
-    persist((dashboards ?? []).filter((d) => d.id !== active.id));
-    setActiveId(null);
-    cancelEdit();
+    persist((dashboards ?? []).filter((d) => d.id !== active.id), () => {
+      setActiveId(null);
+      cancelEdit();
+    });
   }
 
   /** Apply a role-tailored preset — mint a fresh dashboard from it, persist, and select it. Uses the
@@ -130,8 +138,7 @@ export function Dashboards() {
     const preset = presets.find((p) => p.id === presetId);
     if (!preset) return;
     const dash: Dashboard = { ...dashboardFromPreset(preset), id: crypto.randomUUID() };
-    persist([...(dashboards ?? []), dash]);
-    setActiveId(dash.id);
+    persist([...(dashboards ?? []), dash], () => setActiveId(dash.id));
   }
 
   /** Import a dashboard file — validate, mint a fresh id, persist, and select it. */
@@ -141,8 +148,7 @@ export function Dashboards() {
     try {
       const parsed = await readDashboardFile(file);
       const dash: Dashboard = { ...parsed, id: crypto.randomUUID() };
-      persist([...(dashboards ?? []), dash]);
-      setActiveId(dash.id);
+      persist([...(dashboards ?? []), dash], () => setActiveId(dash.id));
     } catch (e) {
       setImportError(e instanceof Error ? e.message : "Could not import that file.");
     }
@@ -253,7 +259,8 @@ export function Dashboards() {
             </label>
             <button onClick={saveEdit} disabled={save.isPending} className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-foreground text-background disabled:opacity-50">Save</button>
             <button onClick={cancelEdit} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-foreground">Cancel</button>
-            <button onClick={deleteActive} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-red-500 text-red-500">Delete</button>
+            <button onClick={deleteActive} disabled={save.isPending} className="px-3 py-1 text-xs font-bold uppercase tracking-wider border-2 border-red-500 text-red-500 disabled:opacity-50">Delete</button>
+            {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
           </div>
         )}
       </div>

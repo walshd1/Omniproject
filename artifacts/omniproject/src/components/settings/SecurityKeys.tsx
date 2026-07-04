@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth, roleAtLeast, logout } from "../../lib/auth";
 import { useSecurityKeys, revokeKey, revokeUserSessions, useConfigKeyFingerprint, exportConfigBundle, useMaintenance, setMaintenance, type KeyStatus } from "../../lib/security";
-import { stepUp } from "../../lib/step-up";
+import { stepUp, withStepUp } from "../../lib/step-up";
+import { useToast } from "@/hooks/use-toast";
 import { ConfirmButton } from "../ConfirmButton";
 
 /**
@@ -19,14 +20,13 @@ export function SecurityKeys() {
   const { data } = useSecurityKeys();
   const { data: configFp } = useConfigKeyFingerprint();
   const { data: maintenance } = useMaintenance();
+  const { toast } = useToast();
   const [sub, setSub] = useState("");
   const [lockReason, setLockReason] = useState("");
   const [revokeReason, setRevokeReason] = useState("");
 
   const onToggleMaintenance = async (engage: boolean): Promise<void> => {
-    if (!(await stepUp())) return;
-    try { await setMaintenance(engage, lockReason); await qc.invalidateQueries({ queryKey: ["maintenance"] }); setLockReason(""); }
-    catch { /* surfaced by the unchanged state */ }
+    await withStepUp(async () => { await setMaintenance(engage, lockReason); await qc.invalidateQueries({ queryKey: ["maintenance"] }); setLockReason(""); });
   };
   const [exported, setExported] = useState<{ bundle: string; exportKey: string; warning: string } | null>(null);
 
@@ -45,9 +45,22 @@ export function SecurityKeys() {
     // Key revocation is step-up gated: obtain a fresh re-auth first (demo confirms in
     // place; OIDC navigates to the IdP and the user retries after returning).
     if (!(await stepUp())) return;
-    await revokeKey(key.name, reason);
-    if (key.name === "session") { void logout(); return; }
-    await qc.invalidateQueries({ queryKey: ["security-keys"] });
+    try {
+      await revokeKey(key.name, reason);
+      if (key.name === "session") { void logout(); return; }
+      await qc.invalidateQueries({ queryKey: ["security-keys"] });
+    } catch (e) {
+      toast({ title: "Couldn't revoke key", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
+    }
+  };
+
+  const onRevokeSessions = async (): Promise<void> => {
+    try {
+      await revokeUserSessions(sub.trim());
+      setSub("");
+    } catch (e) {
+      toast({ title: "Couldn't revoke sessions", description: e instanceof Error ? e.message : "failed", variant: "destructive" });
+    }
   };
 
   return (
@@ -108,7 +121,7 @@ export function SecurityKeys() {
             variant="outline"
             size="sm"
             disabled={!sub.trim()}
-            onClick={async () => { await revokeUserSessions(sub.trim()); setSub(""); }}
+            onClick={() => void onRevokeSessions()}
           >
             Revoke user's sessions
           </Button>

@@ -1,3 +1,11 @@
+/** The list-row fields whose fill rate is worth surfacing on the projects index/dashboard. */
+export const PROJECT_FIELDS = [
+  { key: "description", label: "Description" },
+  { key: "programmeName", label: "Programme" },
+  { key: "memberCount", label: "Members" },
+  { key: "issueCount", label: "Issues" },
+];
+
 export const STATUS_COLORS: Record<string, string> = {
   backlog: "bg-zinc-500",
   todo: "bg-blue-500",

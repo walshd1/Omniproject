@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useListProjects } from "@workspace/api-client-react";
 import { getComponent } from "@workspace/backend-catalogue";
-import { useStore } from "../store/useStore";
+import { useActiveProjectSelector } from "../hooks/use-active-project-selector";
 import { useFeatures, featureEnabled } from "../lib/features";
 import { useContentPages } from "../lib/content-pages";
 import { LibraryComponentView } from "../components/library/LibraryComponentView";
@@ -21,23 +21,11 @@ export function ContentPages() {
   const enabled = featureEnabled(features, "contentPages");
   const { data: pages, isLoading, isError, error, refetch } = useContentPages();
   const { data: projects } = useListProjects();
-  const { activeProjectId, setActiveProjectId } = useStore();
-  const [projectId, setProjectId] = useState(activeProjectId || "");
+  const { projectId, onSelect: onSelectProject } = useActiveProjectSelector(projects);
   const [activeId, setActiveId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!projectId && projects && projects.length > 0) {
-      setProjectId(activeProjectId || projects[0]!.id); // length > 0 checked above
-    }
-  }, [projects, projectId, activeProjectId]);
 
   const list = pages ?? [];
   const active = list.find((p) => p.id === activeId) ?? list[0] ?? null;
-
-  const onSelectProject = (id: string) => {
-    setProjectId(id);
-    setActiveProjectId(id);
-  };
 
   if (!enabled) {
     return <div className="p-8 text-sm text-muted-foreground">The “Content pages” module is not enabled.</div>;

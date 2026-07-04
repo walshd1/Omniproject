@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth, roleAtLeast } from "../../lib/auth";
-import { stepUp } from "../../lib/step-up";
+import { withStepUp } from "../../lib/step-up";
+import { useToast } from "@/hooks/use-toast";
 import {
   useAiProviders, upsertProvider, removeProvider, setProviderKey, clearProviderKey,
   setCapabilityProviders, type AiProviderKind, type AiProviderRow,
@@ -18,6 +19,7 @@ export function AiProvidersAdmin() {
   const { data: auth } = useAuth();
   const qc = useQueryClient();
   const { data } = useAiProviders();
+  const { toast } = useToast();
   const [keyDraft, setKeyDraft] = useState<Record<string, string>>({});
   const [add, setAdd] = useState<{ id: string; kind: AiProviderKind; label: string; endpoint: string; model: string }>(
     { id: "", kind: "openai", label: "", endpoint: "", model: "" },
@@ -28,8 +30,11 @@ export function AiProvidersAdmin() {
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["ai-providers"] });
   const guarded = async (fn: () => Promise<void>): Promise<void> => {
-    if (!(await stepUp())) return; // sensitive: provider/key/mapping changes
-    try { await fn(); await refresh(); } catch { /* quiet; the row simply won't change */ }
+    // sensitive: provider/key/mapping changes
+    await withStepUp(async () => {
+      try { await fn(); await refresh(); }
+      catch (e) { toast({ title: "Couldn't save that", description: e instanceof Error ? e.message : "failed", variant: "destructive" }); }
+    });
   };
 
   const saveKey = (id: string) => guarded(async () => {

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { OPENAPI_YAML, OPENAPI_INFO, OPENAPI_PATHS } from "../lib/openapi.generated";
+import { baseUrl, InsecureBaseUrlError } from "./auth";
 
 /**
  * The consumer (northbound) API spec — exposed at runtime, broker-agnostic.
@@ -25,9 +26,16 @@ router.get("/openapi.yaml", (_req, res) => {
 // what this API is, that it's broker-agnostic, and where to find the spec, the
 // broker contract, and the other outward interfaces.
 router.get("/discovery", (req, res) => {
-  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] || req.protocol;
-  const host = (req.headers["x-forwarded-host"] as string) || req.get("host") || "";
-  const base = host ? `${proto}://${host}` : "";
+  // Unlike the auth redirects/magic links baseUrl() also serves, this is a public,
+  // unauthenticated, read-only pointer document — a spoofed Host header here can't
+  // drive a redirect or land in anyone's inbox. So degrade to relative paths rather
+  // than fail closed when PUBLIC_URL isn't set in a production-like deployment.
+  let base = "";
+  try {
+    base = baseUrl(req);
+  } catch (err) {
+    if (!(err instanceof InsecureBaseUrlError)) throw err;
+  }
   const abs = (p: string) => (base ? `${base}${p}` : p);
   res.json({
     name: OPENAPI_INFO.title === "Api" ? "OmniProject API" : OPENAPI_INFO.title,

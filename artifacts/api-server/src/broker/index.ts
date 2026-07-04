@@ -101,6 +101,18 @@ export function isLiveBroker(): boolean {
 }
 
 /**
+ * Is there a broker endpoint to forward a command to? True when one is configured
+ * at boot (`BROKER_URL` ⇒ `isLiveBroker()`) OR set at runtime by an admin via
+ * settings. The N8nBroker command edges resolve their webhook from
+ * `getSettings().brokerUrl` first (it takes precedence over the env), so an
+ * admin-configured URL is reachable without a restart — this gate just has to
+ * agree with that precedence instead of looking only at the boot-time env.
+ */
+export function brokerConfigured(): boolean {
+  return isLiveBroker() || !!getSettings().brokerUrl?.trim();
+}
+
+/**
  * Generic command passthrough — forward an arbitrary action + payload through the
  * n8n adapter's command edge. This lives in the broker barrel (the seam) so the
  * adapter import stays here; the command edges above the seam (`/broker/command`,
@@ -146,6 +158,13 @@ export async function brokerReadiness(timeoutMs = 2000): Promise<BrokerReadiness
 export function resetReadinessCache(): void {
   readyCache = null;
 }
+
+/**
+ * The n8n adapter's verify probe, exposed through the seam for `/setup/verify-workflow`
+ * (which points at an admin-supplied candidate URL, not necessarily the active broker) —
+ * see broker/n8n for what "probe" means (PSK-aware, bounded fan-out, dry-run).
+ */
+export { probeVerifiableActions } from "./n8n";
 
 /** Build the domain ActorContext (forwarded identity + transport auth) from a request. */
 export function contextFromReq(req: Request): ActorContext {

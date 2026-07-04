@@ -189,10 +189,9 @@ export interface DraftEvaluation {
   warnings: string[];
 }
 
-/** Build the exported JSON (trimming blanks/disabled actions) and validate it against the SAME schema
- *  the config-dir loader (`registerVendor` → `validateVendor`) and `gen-vendors` enforce, plus a few
- *  authoring-time advisories the schema itself can't express. */
-export function evaluateDraft(draft: BackendDraft): DraftEvaluation {
+/** Build the exported JSON (trimming blanks/disabled actions), collecting the blocking problems
+ *  that only surface while building it (a malformed type version or `parameters` JSON blob). */
+function buildManifest(draft: BackendDraft): { manifest: Record<string, unknown>; errors: string[] } {
   const errors: string[] = [];
   const actions: Record<string, ActionMapping> = {};
 
@@ -245,26 +244,34 @@ export function evaluateDraft(draft: BackendDraft): DraftEvaluation {
     manifest["keyFormat"] = kf;
   }
 
-  // The embedded schema only checks TYPE for these (a blank string is a valid "string"), so a blank
-  // required field would otherwise sail through as "valid" — check presence ourselves so the guided
-  // form actually guides. authHeader isn't in the schema's required[] (a backend with a "none"-scheme
-  // key genuinely has no per-user header), but the wizard/n8n-generator need SOME value, so it's
-  // required here too.
-  const REQUIRED_STRING_FIELDS: Array<"id" | "label" | "docsUrl" | "via"> = ["id", "label", "docsUrl", "via"];
+  return { manifest, errors };
+}
+
+// The embedded schema only checks TYPE for these (a blank string is a valid "string"), so a blank
+// required field would otherwise sail through as "valid" — check presence ourselves so the guided
+// form actually guides. authHeader isn't in the schema's required[] (a backend with a "none"-scheme
+// key genuinely has no per-user header), but the wizard/n8n-generator need SOME value, so it's
+// required here too.
+const REQUIRED_STRING_FIELDS: Array<"id" | "label" | "docsUrl" | "via"> = ["id", "label", "docsUrl", "via"];
+
+function requiredFieldErrors(manifest: Record<string, unknown>): string[] {
+  const errors: string[] = [];
   for (const field of REQUIRED_STRING_FIELDS) {
     if (!String(manifest[field] ?? "").trim()) errors.push(`"${field}" is required`);
   }
-  if (!draft.authHeader.trim()) errors.push('"authHeader" is required (the broker expression for the per-user Authorization header)');
+  if (!String(manifest["authHeader"] ?? "").trim()) errors.push('"authHeader" is required (the broker expression for the per-user Authorization header)');
+  return errors;
+}
 
-  errors.push(...validateVendor("backends", manifest));
-
+/** Non-blocking advisories the embedded schema can't express (it always defers pass/fail to it). */
+function draftWarnings(draft: BackendDraft): string[] {
   const warnings: string[] = [];
   for (const key of Object.keys(draft.capabilities)) {
     if (draft.capabilities[key] && !(CAPABILITY_DOMAINS as readonly string[]).includes(key)) {
       warnings.push(`"${key}" is not one of the known capability domains — it won't gate any report/view that reads the registry.`);
     }
   }
-  if (Object.keys(actions).length === 0) {
+  if (!CONTRACT_ACTIONS.some((action) => draft.actions[action]?.enabled)) {
     warnings.push("No actions are mapped yet — this backend can't do anything until at least one contract action is wired.");
   }
   const id = draft.id.trim();
@@ -272,7 +279,16 @@ export function evaluateDraft(draft: BackendDraft): DraftEvaluation {
   if (existing) {
     warnings.push(`"${id}" matches an existing catalogue backend ("${existing.label}") — placing this file will OVERRIDE it, not add a new one.`);
   }
+  return warnings;
+}
 
+/** Build the exported JSON and validate it against the SAME schema the config-dir loader
+ *  (`registerVendor` → `validateVendor`) and `gen-vendors` enforce, plus a few authoring-time
+ *  advisories the schema itself can't express. */
+export function evaluateDraft(draft: BackendDraft): DraftEvaluation {
+  const { manifest, errors: buildErrors } = buildManifest(draft);
+  const errors = [...buildErrors, ...requiredFieldErrors(manifest), ...validateVendor("backends", manifest)];
+  const warnings = draftWarnings(draft);
   return { manifest, errors, warnings };
 }
 

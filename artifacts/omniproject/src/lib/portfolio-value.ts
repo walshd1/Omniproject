@@ -1,4 +1,4 @@
-import { convertAmount } from "./currency";
+import { convertAmount, LocalTracker } from "./currency";
 import { summariseIncome, type IncomeInput } from "./income";
 import { summariseBenefits, type BenefitInput } from "./benefits";
 
@@ -24,21 +24,6 @@ const STANDALONE = "__standalone__";
 
 function groupKeyLabel(p: ProjectItems): { key: string; label: string } {
   return p.programmeId ? { key: p.programmeId, label: p.programmeName ?? p.programmeId } : { key: STANDALONE, label: "Standalone" };
-}
-
-/** Track whether every project folded into a row so far shares one source currency, so the row can
- *  show a `local` (un-converted) figure alongside the consolidated total. Once a second currency
- *  shows up the row is "mixed" and only the consolidated total applies. Shared by both roll-ups. */
-class LocalTracker {
-  currency: string | null = null;
-  private seen = new Set<string>();
-
-  /** Fold one more project's currency in; returns true while the row is still single-currency. */
-  add(currency: string): boolean {
-    this.seen.add(currency);
-    this.currency = this.seen.size === 1 ? currency : null;
-    return this.seen.size === 1;
-  }
 }
 
 // ── Income roll-up ───────────────────────────────────────────────────────────

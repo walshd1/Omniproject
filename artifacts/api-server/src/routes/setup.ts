@@ -8,7 +8,7 @@ import { Router, type Response } from "express";
 import { getSettings, updateSettings } from "../lib/settings";
 import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
 import { connectedBrokerKinds } from "../broker/registry";
-import { contextFromReq, brokerVerifyConnection, brokerStoreCredential, callBrokerCapability } from "../broker";
+import { contextFromReq, brokerVerifyConnection, brokerStoreCredential, callBrokerCapability, probeVerifiableActions } from "../broker";
 import { v, parseOr400 } from "../lib/validate";
 import { assertEgressAllowed, EgressError } from "../lib/egress";
 
@@ -32,7 +32,7 @@ import { configDirSummary } from "../lib/config-dir";
 import { refreshConfigDir, configBackupInfo, clearConfigBackup } from "../lib/config-refresh";
 import { requireStepUp } from "../lib/step-up";
 import { recordAudit } from "../lib/audit";
-import { getSession } from "./auth";
+import { getSession, baseUrl } from "./auth";
 import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus, buildPublicSetupStatus } from "../lib/setup-status";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
@@ -42,7 +42,6 @@ import { sharedStateMode } from "../lib/shared-state";
 import { IDP_PRESETS } from "../lib/idp-presets";
 import { isOidcConfigured } from "../lib/oidc";
 import { isSamlConfigured } from "../lib/saml";
-import { VERIFIABLE_ACTIONS } from "../broker/verifiable-actions";
 import {
   storeView,
   captureVersion,
@@ -132,9 +131,7 @@ router.get("/setup/idp", requireRole("admin"), (req, res) => {
   try { if (issuer) issuerOrigin = new URL(issuer).origin; } catch { /* malformed issuer */ }
   // "Bundled" = the Authentik that ships in docker-compose.standalone.yml.
   const bundled = /authentik/i.test(issuer);
-  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] || req.protocol;
-  const host = req.headers["x-forwarded-host"] || req.get("host");
-  const base = (process.env["PUBLIC_URL"]?.trim() || `${proto}://${host}`).replace(/\/+$/, "");
+  const base = baseUrl(req);
   // The redirect URI the IdP must allow (the one thing operators get wrong).
   const callbackUrl = `${base}/api/auth/callback`;
   // The live group→role mapping (so they know which IdP group grants which role)…
@@ -524,31 +521,7 @@ router.post("/setup/verify-workflow", requireRole("admin"), async (req, res) => 
   }
   const sampleProjectId = typeof req.body?.projectId === "string" ? req.body.projectId : "sample";
 
-  const results = await Promise.all(
-    VERIFIABLE_ACTIONS.map(async (action) => {
-      const started = Date.now();
-      try {
-        const r = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-OmniProject-Action": action,
-            "X-OmniProject-Origin": "omniproject",
-          },
-          body: JSON.stringify({ action, payload: { projectId: sampleProjectId }, source: "verify", origin: "omniproject", verify: true }),
-          signal: AbortSignal.timeout(8_000),
-        });
-        const ms = Date.now() - started;
-        const json = (await r.json().catch(() => ({}))) as { success?: boolean; data?: { verified?: boolean }; message?: string };
-        const verifyAware = !!json?.data?.verified;
-        const ok = r.ok && json?.success !== false;
-        return { action, ok, status: r.status, ms, verifyAware, message: json?.message ?? null };
-      } catch (err) {
-        const isTimeout = err instanceof Error && err.name === "TimeoutError";
-        return { action, ok: false, status: 0, ms: Date.now() - started, verifyAware: false, message: isTimeout ? "timed out" : "unreachable" };
-      }
-    }),
-  );
+  const results = await probeVerifiableActions(url, sampleProjectId);
 
   const passed = results.filter((r) => r.ok).length;
   res.json({

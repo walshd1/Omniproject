@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useFeatures, useGovernanceRules, useSaveGovernanceRules, GOVERNANCE_RULE_FIELDS, type GovernanceRule, type FeatureStatus } from "../../lib/features";
 import type { Predicate } from "../../lib/rate-card";
+import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { PredicateEditor } from "./PredicateEditor";
 
 /**
@@ -27,9 +27,7 @@ export function GovernanceRulesAdmin() {
   const { data: rules } = useGovernanceRules();
   const { data: features } = useFeatures();
   const save = useSaveGovernanceRules();
-  const [draft, setDraft] = useState<GovernanceRule[] | null>(null);
-
-  useEffect(() => { if (rules) setDraft(structuredClone(rules)); }, [rules]);
+  const { draft, setDraft, dirty, reset } = useDraftAdmin<GovernanceRule[], GovernanceRule[]>(rules, structuredClone);
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
   if (!draft || !features) return null;
@@ -37,7 +35,6 @@ export function GovernanceRulesAdmin() {
   // Only governable catalogue items (modules + reports + methodologies) can be required/forbidden/disabled.
   const catalogue: FeatureStatus[] = features;
   const patch = (i: number, r: GovernanceRule) => setDraft(draft.map((x, j) => (j === i ? r : x)));
-  const dirty = JSON.stringify(draft) !== JSON.stringify(rules);
 
   return (
     <section className="space-y-3" data-testid="governance-rules-admin">
@@ -94,7 +91,7 @@ export function GovernanceRulesAdmin() {
           onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}>
           {save.isPending ? "Saving…" : "Save governance rules"}
         </Button>
-        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={() => rules && setDraft(structuredClone(rules))}>Reset</Button>}
+        {dirty && <Button variant="ghost" className="rounded-none text-xs" onClick={reset}>Reset</Button>}
         {save.isError && <span role="alert" className="text-xs font-bold text-red-500">{(save.error as Error).message}</span>}
       </div>
     </section>

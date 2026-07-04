@@ -132,15 +132,25 @@ function backendSource(): string {
   return getSettings().backendSource;
 }
 
+/** The plaintext envelope callN8n sends (or seals under PSK) + the bookkeeping
+ *  (idempotency key, actor) the rest of the call needs. */
+interface BuiltEnvelope {
+  envelope: { action: string; payload: Record<string, unknown>; source: string; origin: string; idempotencyKey: string };
+  actor: { sub: string | undefined; email: string | undefined; name: string | undefined; role: string | undefined; token: string | undefined } | undefined;
+  key: string;
+  origin: string;
+}
+
 /**
- * Forward an action to n8n and return its normalized result. Bare payloads are
- * wrapped so callers always see `{ success, data, message }`.
+ * Step 1: assemble the envelope — origin, idempotency key, the per-user-context
+ * block (when `withActor`), and the injection guards. Everything downstream
+ * (signing, sending, auditing) is derived from this.
  */
-async function callN8n<T = unknown>(
+function buildEnvelope(
   action: string,
   payload: Record<string, unknown>,
   opts: { ctx: ActorContext; source: string; withActor: boolean },
-): Promise<N8nResult<T>> {
+): BuiltEnvelope {
   const origin = GATEWAY_ORIGIN;
   const key = idempotencyKey(action, payload);
   const actor = opts.withActor
@@ -160,51 +170,40 @@ async function callN8n<T = unknown>(
   assertSafeBrokerPayload(enrichedPayload);
   assertSafeAuthHeader(opts.ctx.authHeader);
 
-  const startedAt = Date.now();
-  const audit = (result: "success" | "error", status: number, extra?: Record<string, unknown>) => {
-    // Attribute this call's wait to the request's upstream-timing total (no-op
-    // outside a request context, e.g. the conformance harness).
-    addUpstreamMs(Date.now() - startedAt);
-    recordAudit({
-      ts: new Date().toISOString(),
-      category: "broker",
-      action,
-      actor: actor ? { sub: actor.sub, email: actor.email, role: actor.role } : null,
-      projectId: (payload["projectId"] as string | undefined) ?? null,
-      origin,
-      write: /^(create|update|delete)_/.test(action),
-      result,
-      status,
-      ms: Date.now() - startedAt,
-      meta: { idempotencyKey: key, source: opts.source, ...extra },
-    });
-  };
-
   // The plaintext request envelope. When PSK is OFF this is the body and the
   // routing details ride in X-OmniProject-* headers + Authorization (TLS is then
   // what protects them on the wire — see lib/broker-psk.ts for the hierarchy).
   const envelope = { action, payload: enrichedPayload, source: opts.source, origin, idempotencyKey: key };
+  return { envelope, actor, key, origin };
+}
 
+/**
+ * Step 2: turn the envelope into a signed, optionally-sealed `RequestInit` —
+ * PSK encryption (or plain headers), the detached HMAC signature (+ session
+ * binding), and the trace context. `psk` is threaded in (rather than
+ * re-read) so the encrypt decision here and the decrypt decision in
+ * `unwrapResponse` always agree, even though `pskEnabled()` is just an env read.
+ */
+function signAndEncrypt(envelope: BuiltEnvelope["envelope"], ctx: ActorContext, psk: boolean): RequestInit {
   // When PSK is ON, encrypt the WHOLE envelope including the forwarded auth token
   // and send only an opaque ciphertext + a version marker. Nothing sensitive —
   // not the action, the backend source, nor the bearer token — appears in
   // cleartext on the wire, so a packet capture sees ciphertext, not a breach.
-  const psk = pskEnabled();
   const init: RequestInit = psk
     ? {
         method: "POST",
         headers: { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") },
-        body: JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify({ ...envelope, auth: opts.ctx.authHeader ?? null })) }),
+        body: JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify({ ...envelope, auth: ctx.authHeader ?? null })) }),
       }
     : {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(opts.ctx.authHeader ? { Authorization: opts.ctx.authHeader } : {}),
-          [REQUEST_HEADERS.source]: opts.source,
-          [REQUEST_HEADERS.action]: action,
-          [REQUEST_HEADERS.origin]: origin,
-          [REQUEST_HEADERS.idempotencyKey]: key,
+          ...(ctx.authHeader ? { Authorization: ctx.authHeader } : {}),
+          [REQUEST_HEADERS.source]: envelope.source,
+          [REQUEST_HEADERS.action]: envelope.action,
+          [REQUEST_HEADERS.origin]: envelope.origin,
+          [REQUEST_HEADERS.idempotencyKey]: envelope.idempotencyKey,
         },
         body: JSON.stringify(envelope),
       };
@@ -214,7 +213,7 @@ async function callN8n<T = unknown>(
   // the provenance chain. The PSK seal already covers confidentiality + integrity; this
   // adds replay defence and a verifiable signature. Additive headers — a broker that
   // doesn't check them simply ignores them.
-  const sig = signBrokerRequest(typeof init.body === "string" ? init.body : "", opts.ctx.sessionBind);
+  const sig = signBrokerRequest(typeof init.body === "string" ? init.body : "", ctx.sessionBind);
   init.headers = { ...(init.headers as Record<string, string>), "X-Omni-Sig": sig.sig, "X-Omni-Ts": String(sig.ts), "X-Omni-Nonce": sig.nonce };
   // When the signature used a per-session key, ship the (non-secret) binding so the
   // broker re-derives that key from its master and confirms the request came from THIS
@@ -233,9 +232,15 @@ async function callN8n<T = unknown>(
   const traceparent = currentTraceparent();
   if (traceparent) init.headers = { ...(init.headers as Record<string, string>), traceparent };
 
-  // Round-robin across the n8n pool; fail over to the next instance ONLY on a
-  // connection-level error (a returned HTTP status is a real response, not an
-  // unreachable instance). Each attempt gets a fresh timeout signal.
+  return init;
+}
+
+/**
+ * Step 3: round-robin across the n8n pool; fail over to the next instance ONLY
+ * on a connection-level error (a returned HTTP status is a real response, not
+ * an unreachable instance). Each attempt gets a fresh timeout signal.
+ */
+async function sendWithFailover(init: RequestInit): Promise<{ res: Response | undefined; targets: string[]; lastErr: unknown }> {
   const targets = orderedTargets();
   let res: Response | undefined;
   let lastErr: unknown;
@@ -248,13 +253,19 @@ async function callN8n<T = unknown>(
       lastErr = e;
     }
   }
+  return { res, targets, lastErr };
+}
 
-  if (!res) {
-    const isTimeout = lastErr instanceof Error && lastErr.name === "TimeoutError";
-    audit("error", 0, { error: lastErr instanceof Error ? lastErr.name : "error", instancesTried: targets.length });
-    throw new BrokerError("unavailable", isTimeout ? "all broker instances timed out" : "all broker instances unreachable");
-  }
-
+/**
+ * Step 4: unwrap the upstream response into the normalized `N8nResult`,
+ * mapping non-2xx / network-level failures onto `BrokerError`, and auditing
+ * every outcome via the caller's `audit` closure.
+ */
+async function unwrapResponse<T>(
+  res: Response,
+  psk: boolean,
+  audit: (result: "success" | "error", status: number, extra?: Record<string, unknown>) => void,
+): Promise<N8nResult<T>> {
   try {
     if (!res.ok) {
       // Propagate meaningful upstream codes — notably 409 (optimistic-concurrency
@@ -284,6 +295,52 @@ async function callN8n<T = unknown>(
     audit("error", 0, { error: err instanceof Error ? err.name : "error" });
     throw new BrokerError("unavailable", isTimeout ? "backend request timed out" : "backend unreachable");
   }
+}
+
+/**
+ * Forward an action to n8n and return its normalized result. Bare payloads are
+ * wrapped so callers always see `{ success, data, message }`. Composes the four
+ * steps above in sequence: build the envelope, sign/encrypt it, send it with
+ * pool failover, then unwrap the response — auditing every outcome along the way.
+ */
+async function callN8n<T = unknown>(
+  action: string,
+  payload: Record<string, unknown>,
+  opts: { ctx: ActorContext; source: string; withActor: boolean },
+): Promise<N8nResult<T>> {
+  const { envelope, actor, key, origin } = buildEnvelope(action, payload, opts);
+
+  const startedAt = Date.now();
+  const audit = (result: "success" | "error", status: number, extra?: Record<string, unknown>) => {
+    // Attribute this call's wait to the request's upstream-timing total (no-op
+    // outside a request context, e.g. the conformance harness).
+    addUpstreamMs(Date.now() - startedAt);
+    recordAudit({
+      ts: new Date().toISOString(),
+      category: "broker",
+      action,
+      actor: actor ? { sub: actor.sub, email: actor.email, role: actor.role } : null,
+      projectId: (payload["projectId"] as string | undefined) ?? null,
+      origin,
+      write: /^(create|update|delete)_/.test(action),
+      result,
+      status,
+      ms: Date.now() - startedAt,
+      meta: { idempotencyKey: key, source: opts.source, ...extra },
+    });
+  };
+
+  const psk = pskEnabled();
+  const init = signAndEncrypt(envelope, opts.ctx, psk);
+  const { res, targets, lastErr } = await sendWithFailover(init);
+
+  if (!res) {
+    const isTimeout = lastErr instanceof Error && lastErr.name === "TimeoutError";
+    audit("error", 0, { error: lastErr instanceof Error ? lastErr.name : "error", instancesTried: targets.length });
+    throw new BrokerError("unavailable", isTimeout ? "all broker instances timed out" : "all broker instances unreachable");
+  }
+
+  return unwrapResponse<T>(res, psk, audit);
 }
 
 /**
@@ -323,6 +380,60 @@ const CAP_TTL_MS = 60_000;
 // Indicative FX fallback used when the backend FX read fails (graceful
 // degradation in the n8n path). Shared with the demo adapter — single source.
 const FALLBACK_FX: FxRates = INDICATIVE_FX_RATES;
+
+/**
+ * The one probe both the adapter's `verify()` (VerifyReport, the live broker's
+ * self-check) and `POST /setup/verify-workflow` (an admin pointing at a
+ * candidate/not-yet-wired webhook URL) run: POST every `VERIFIABLE_ACTIONS`
+ * entry as a dry-run (`verify: true`) probe with an 8s timeout, bounded fan-out,
+ * and report `{ action, ok, status, ms, verifyAware, message }` for each.
+ *
+ * PSK-aware: when `BROKER_PSK` is set, probes are sealed the same way a real
+ * call would be. This isn't optional here — a PSK-only broker (the honest
+ * hierarchy in lib/broker-psk.ts assumes TLS is unavailable on the hop) can't
+ * even parse a plaintext probe, so a PSK-blind prober would report every
+ * action "unreachable"/failing against a broker that is, in fact, fine. Callers
+ * that don't need `verifyAware` (the adapter's `verify()`) just ignore it.
+ */
+export async function probeVerifiableActions(
+  url: string,
+  projectId: string,
+): Promise<Array<{ action: string; ok: boolean; status: number; ms: number; verifyAware: boolean; message: string | null }>> {
+  return poolMap(VERIFIABLE_ACTIONS, VERIFY_PROBE_FANOUT_LIMIT, async (action) => {
+    const started = Date.now();
+    try {
+      await assertEgressAllowed(url); // SSRF guard on the verify probe too
+      const probe = { action, payload: { projectId }, source: "verify", origin: GATEWAY_ORIGIN, verify: true };
+      const psk = pskEnabled();
+      const res = await fetch(url, {
+        method: "POST",
+        headers: psk
+          ? { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") }
+          : { "Content-Type": "application/json", "X-OmniProject-Action": action, "X-OmniProject-Origin": GATEWAY_ORIGIN },
+        body: psk
+          ? JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify(probe)) })
+          : JSON.stringify(probe),
+        signal: AbortSignal.timeout(8_000),
+      });
+      let json = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string; enc?: string; data?: { verified?: boolean } };
+      if (psk && typeof json.enc === "string") {
+        const opened = openPayload(json.enc);
+        json = opened ? (JSON.parse(opened) as typeof json) : {};
+      }
+      return {
+        action,
+        ok: res.ok && json?.success !== false,
+        status: res.status,
+        ms: Date.now() - started,
+        verifyAware: !!json?.data?.verified,
+        message: json?.message ?? null,
+      };
+    } catch (err) {
+      const isTimeout = err instanceof Error && err.name === "TimeoutError";
+      return { action, ok: false, status: 0, ms: Date.now() - started, verifyAware: false, message: isTimeout ? "timed out" : "unreachable" };
+    }
+  });
+}
 
 export class N8nBroker implements Broker {
   readonly kind = "n8n";
@@ -481,35 +592,8 @@ export class N8nBroker implements Broker {
   async verify(ctx: ActorContext, opts: { projectId?: string } = {}): Promise<VerifyReport> {
     const projectId = opts.projectId ?? "sample";
     const url = webhookUrl();
-    // Bounded so the verify probe (a diagnostic path) can't itself become the herd the
-    // single-flight layer exists to prevent — see docs/PERF-PATTERNS-REVIEW.md, Theme A.
-    const actions = await poolMap(VERIFIABLE_ACTIONS, VERIFY_PROBE_FANOUT_LIMIT, async (action) => {
-      const started = Date.now();
-      try {
-        await assertEgressAllowed(url); // SSRF guard on the verify probe too
-        const probe = { action, payload: { projectId }, source: "verify", origin: GATEWAY_ORIGIN, verify: true };
-        const psk = pskEnabled();
-        const res = await fetch(url, {
-          method: "POST",
-          headers: psk
-            ? { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") }
-            : { "Content-Type": "application/json", "X-OmniProject-Action": action, "X-OmniProject-Origin": GATEWAY_ORIGIN },
-          body: psk
-            ? JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify(probe)) })
-            : JSON.stringify(probe),
-          signal: AbortSignal.timeout(8_000),
-        });
-        let json = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string; enc?: string };
-        if (psk && typeof json.enc === "string") {
-          const opened = openPayload(json.enc);
-          json = opened ? (JSON.parse(opened) as typeof json) : {};
-        }
-        return { name: action, ok: res.ok && json?.success !== false, status: res.status, ms: Date.now() - started, note: json?.message ?? null };
-      } catch (err) {
-        const isTimeout = err instanceof Error && err.name === "TimeoutError";
-        return { name: action, ok: false, status: 0, ms: Date.now() - started, note: isTimeout ? "timed out" : "unreachable" };
-      }
-    });
+    const probes = await probeVerifiableActions(url, projectId);
+    const actions = probes.map((p) => ({ name: p.action, ok: p.ok, status: p.status, ms: p.ms, note: p.message }));
     return { ok: actions.every((a) => a.ok), actions };
   }
 }

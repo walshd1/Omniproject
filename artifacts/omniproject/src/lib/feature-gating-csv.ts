@@ -1,4 +1,5 @@
 import type { ScopeFeatureConfig } from "./features";
+import { triggerBlobDownload } from "./setup";
 
 /**
  * Bulk feature-gating CSV — round-trips `settings.programmeFeatures` / `projectFeatures` (see
@@ -227,18 +228,10 @@ export function buildFeatureGatingExportRows(
   return rows;
 }
 
-/** Trigger a browser download of the gating CSV. The one place the download idiom lives for this file
- *  (mirrors lib/custom-report-file.ts's downloadJson). */
+/** Trigger a browser download of the gating CSV. */
 export function downloadFeatureGatingCsv(rows: readonly ScopeGatingRow[], filename = "feature-gating.csv"): void {
   const blob = new Blob([featureGatingRowsToCsv(rows)], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, filename);
 }
 
 // ---------------------------------------------------------------------------

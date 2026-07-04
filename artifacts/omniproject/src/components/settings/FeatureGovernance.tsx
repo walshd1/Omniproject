@@ -94,21 +94,9 @@ export function FeatureGovernance() {
       const merged: Record<string, Choice> = {};
       for (const f of features ?? []) merged[f.id] = choice(f);
       if (level === "org") {
-        const enabled: string[] = [], disabled: string[] = [], required: string[] = [], forbidden: string[] = [];
-        for (const [id, c] of Object.entries(merged)) {
-          if (c === "require") required.push(id);
-          else if (c === "forbid") forbidden.push(id);
-          else if (c === "on") enabled.push(id);
-          else if (c === "off") disabled.push(id);
-        }
-        await setOrg.mutateAsync({ enabledFeatures: enabled, disabledFeatures: disabled, featureGovernance: { required, forbidden } });
+        await setOrg.mutateAsync(buildOrgPayload(merged));
       } else {
-        const cfg: ScopeCfg = { disabled: [], required: [], forbidden: [] };
-        for (const [id, c] of Object.entries(merged)) {
-          if (c === "require") cfg.required.push(id);
-          else if (c === "forbid") cfg.forbidden.push(id);
-          else if (c === "off") cfg.disabled.push(id);
-        }
+        const cfg = buildScopePayload(merged, level);
         if (level === "programme") await setProg.mutateAsync({ programmeId: target, config: cfg });
         else await setProj.mutateAsync({ projectId: target, programmeId, config: cfg });
       }
@@ -218,6 +206,27 @@ export function FeatureGovernance() {
       )}
     </section>
   );
+}
+
+function buildOrgPayload(merged: Record<string, Choice>) {
+  const enabled: string[] = [], disabled: string[] = [], required: string[] = [], forbidden: string[] = [];
+  for (const [id, c] of Object.entries(merged)) {
+    if (c === "require") required.push(id);
+    else if (c === "forbid") forbidden.push(id);
+    else if (c === "on") enabled.push(id);
+    else if (c === "off") disabled.push(id);
+  }
+  return { enabledFeatures: enabled, disabledFeatures: disabled, featureGovernance: { required, forbidden } };
+}
+
+function buildScopePayload(merged: Record<string, Choice>, level: GateLevel): ScopeCfg {
+  const cfg: ScopeCfg = { disabled: [], required: [], forbidden: [] };
+  for (const [id, c] of Object.entries(merged)) {
+    if (c === "require") cfg.required.push(id);
+    else if (c === "forbid") cfg.forbidden.push(id);
+    else if (c === "off") cfg.disabled.push(id);
+  }
+  return cfg;
 }
 
 function seedOrg(features: FeatureStatus[] | undefined): OrgConfig {
