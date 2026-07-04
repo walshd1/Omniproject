@@ -144,6 +144,7 @@ Broker selection + the request→domain context adapter.
 | `brokerStoreCredential` | Delegate a credential to the broker's vault, or null if the broker has none. |
 | `brokerKind` | Diagnostics: "n8n" | "demo". |
 | `isLiveBroker` | True when the active broker is backed by a real backend (not demo). |
+| `brokerConfigured` | Is there a broker endpoint to forward a command to? True when one is configured at boot (`BROKER_URL` ⇒ `isLiveBroker()`) OR set at runtime by an admin via settings. |
 | `brokerCommand` | Forward an arbitrary action + payload through the adapter's command edge. |
 | `brokerReadiness` | Probe (and briefly cache) whether this replica can reach its backend. |
 | `resetReadinessCache` | Test-only: drop the readiness cache. |
@@ -169,26 +170,6 @@ Messy-data broker decorator — DEV MODE ONLY.
 | `messyDataArmed` | Is the messy-data transform armed? Only ever true in dev mode. |
 | `wrapWithMessy` | Wrap a broker so its entity reads are messified (dev only). |
 
-### `artifacts/api-server/src/broker/n8n/expr.ts`
-
-Minimal resolver for the n8n expressions used in backend manifest URLs, so we can *certify* a mapping offline: resolve a manifest's templates against a sample env + payload and assert the concrete request matches the backend's real API (method / URL).
-
-| Function | What it does |
-| --- | --- |
-| `resolveTemplate` | Resolve a manifest URL/header template. |
-| `isFullyResolved` | True when no `{{…}}` placeholders remain (the template fully resolved). |
-
-### `artifacts/api-server/src/broker/n8n/index.ts`
-
-n8n broker — THE one place that knows the broker is n8n.
-
-| Function | What it does |
-| --- | --- |
-| `webhookPool` | The pool of n8n webhook endpoints. |
-| `orderedTargets` | The pool rotated by a round-robin offset, so consecutive calls spread load and a failed instance is followed by the next one. |
-| `idempotencyKey` | Deterministic idempotency key: sha256(action + projectId + issueId + timestamp_rounded_to_nearest_minute) Identical actions on the same entity within the same minute collapse to the same key, letting n8n drop duplicate triggers / webhook storms. |
-| `pingBroker` | Lightweight readiness probe: is the broker reachable RIGHT NOW? One bounded POST to the first pool endpoint — any HTTP response counts as reachable (we are checking connectivity, not authorisation); only a connection error/timeout is "not ready". |
-
 ### `artifacts/api-server/src/broker/provenance.ts`
 
 Provenance decorator for the broker seam.
@@ -211,6 +192,27 @@ REFERENCE BROKER BLUEPRINT — a functionally COMPLETE design that is deliberate
 | `processBrokerCall` | Core broker call: parse (decrypting a PSK envelope), route the action, return the result. |
 | `signEvent` | Sign an outbound event body: `sha256=<hex HMAC>` over the exact serialised body, using the subscription secret. |
 | `createReferenceBrokerBlueprint` | Build (but don't start) the blueprint HTTP server — a thin Node-HTTP adapter over `processBrokerCall`. |
+
+### `artifacts/api-server/src/broker/reference-broker/expr.ts`
+
+Minimal resolver for the n8n expressions used in backend manifest URLs, so we can *certify* a mapping offline: resolve a manifest's templates against a sample env + payload and assert the concrete request matches the backend's real API (method / URL).
+
+| Function | What it does |
+| --- | --- |
+| `resolveTemplate` | Resolve a manifest URL/header template. |
+| `isFullyResolved` | True when no `{{…}}` placeholders remain (the template fully resolved). |
+
+### `artifacts/api-server/src/broker/reference-broker/index.ts`
+
+n8n broker — THE one place that knows the broker is n8n.
+
+| Function | What it does |
+| --- | --- |
+| `webhookPool` | The pool of n8n webhook endpoints. |
+| `orderedTargets` | The pool rotated by a round-robin offset, so consecutive calls spread load and a failed instance is followed by the next one. |
+| `idempotencyKey` | Deterministic idempotency key: sha256(action + projectId + issueId + timestamp_rounded_to_nearest_minute) Identical actions on the same entity within the same minute collapse to the same key, letting n8n drop duplicate triggers / webhook storms. |
+| `pingBroker` | Lightweight readiness probe: is the broker reachable RIGHT NOW? One bounded POST to the first pool endpoint — any HTTP response counts as reachable (we are checking connectivity, not authorisation); only a connection error/timeout is "not ready". |
+| `probeVerifiableActions` | The one probe both the adapter's `verify()` (VerifyReport, the live broker's self-check) and `POST /setup/verify-workflow` (an admin pointing at a candidate/not-yet-wired webhook URL) run: POST every `VERIFIABLE_ACTIONS` entry as a dry-run (`verify: true`) probe with an 8s timeout, bounded fan-out, and report `{ action, ok, status, ms, verifyAware, message }` for each. |
 
 ### `artifacts/api-server/src/broker/reference-output-blueprint.ts`
 
@@ -589,6 +591,17 @@ Opt-in pre-shared-key (PSK) encryption for the broker hop — a *fallback below 
 | `sealPayload` | Encrypt + authenticate a string. |
 | `openPayload` | Decrypt + verify. |
 
+### `artifacts/api-server/src/lib/broker-transport.ts`
+
+The broker HTTP transport — a custom dispatcher shared by every call to the broker, and a `fetch()` that's guaranteed to actually accept it.
+
+| Function | What it does |
+| --- | --- |
+| `brokerMtlsConfigured` | True when the gateway presents a client certificate to the broker (mTLS engaged). |
+| `brokerDispatcher` | The shared broker dispatcher (lazily built, cached across calls). |
+| `closeBrokerDispatcher` | Close the cached dispatcher (graceful shutdown; also test-only reset-between-toggles). |
+| `brokerFetch` | `fetch()` to the broker: undici's own implementation, wired to the shared dispatcher above. |
+
 ### `artifacts/api-server/src/lib/broker-url.ts`
 
 The single home for resolving configured broker endpoints — including the deprecated pre-0.2.0 `N8N_WEBHOOK_URL` alias.
@@ -908,6 +921,7 @@ Dev-mode production guard — the hard safety interlock that stops a developer/ 
 | Function | What it does |
 | --- | --- |
 | `devModeActive` | Dev mode computed purely from an env map (mirrors lib/dev-mode.isDevMode). |
+| `isProductionLike` | Does this environment look like production — literally, or via `productionSignals`? |
 | `productionSignals` | Production signals that must not coexist with dev mode. |
 | `evaluateDevModeGuard` | Evaluate the guard (pure). |
 | `runDevModeGuard` | Boot hook: evaluate the guard, log loudly, and THROW (refuse to boot) when dev mode collides with production signals. |
@@ -988,6 +1002,7 @@ Validated, typed environment access — the zero-trust stance applied to configu
 | `envInt` | An integer env var validated against an optional range; falls back when unset/invalid. |
 | `envEnum` | One of a fixed set; falls back when unset or not in the set. |
 | `envUrl` | An http(s) URL that passes the outbound-safety guard (no metadata/link-local), or undefined. |
+| `envBool` | Is this env var set to a truthy flag (1/true/on/yes, case-insensitive)? Unset ⇒ false. |
 | `detectEnvVarTypos` | Env vars actually SET whose name looks like a near-miss on a known OmniProject var (e.g. `OIDC_ISUER_URL`) but doesn't exactly match one — a likely typo that would otherwise silently fall back to a default with zero signal, since env vars are opaque strings with no compiler to catch a misspelled key. |
 | `checkRequiredEnv` | Validate the security-critical env at boot. |
 
@@ -997,7 +1012,9 @@ Tiny environment-variable helpers, so the same parsing isn't re-spelled at each 
 
 | Function | What it does |
 | --- | --- |
-| `envFlag` | Tiny environment-variable helpers, so the same parsing isn't re-spelled at each read site. |
+| `envFlag` | Is this env var set to a truthy flag (1/true/on/yes, case-insensitive)? Unset ⇒ false. |
+| `parseCommaSet` | Parse a comma-separated env value into a lower-cased `Set` (the recurring "role list" / "value list" shape) — trimmed, empty entries dropped. |
+| `parseCsvEnv` | Parse a comma-separated env value into a trimmed, non-empty string list — order preserved, no case-folding/dedup (callers apply that themselves when it matters, e.g. hostname case-insensitivity). |
 
 ### `artifacts/api-server/src/lib/error-handler.ts`
 
@@ -1160,7 +1177,7 @@ JWKS / ID-token verification.
 | Function | What it does |
 | --- | --- |
 | `parseJwt` | Decode a compact JWS into its header + claims without verifying. |
-| `validateClaims` | Validate the standard claims (pure comparison, no crypto). |
+| `validateClaims` | Validate the standard claims (pure comparison, no crypto); throws on failure — matching the sibling `verifyIdToken`, which throws for the same failure class rather than returning a sentinel. |
 | `fetchJwks` | Fetch the issuer's JWKS signing keys, cached for 10 minutes. |
 | `verifyIdToken` | Full verification: fetch the JWKS (SSRF-guarded), then have jose verify the signature against the matching key and validate iss/aud/exp/nbf under the asymmetric-only algorithm allowlist. |
 
@@ -1368,6 +1385,14 @@ Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
 | `decodeIdTokenClaims` | Decode the JWT id_token to extract user claims. |
 | `idTokenNonce` | Read the `nonce` claim from an ID token's payload (or null if absent/malformed). |
 
+### `artifacts/api-server/src/lib/optional-dependency.ts`
+
+Runtime-optional dependency loader — the shared shape behind every "this package isn't a committed dependency, load it if present, degrade to a no-op if not" seam (Redis clients, the SAML library, geoip-lite, …): dynamic `import()` by a variable specifier (so bundlers/tsc never statically resolve it), extract the piece the caller needs, and on absence/mismatch log ONE warning and resolve to `null` — never throw.
+
+| Function | What it does |
+| --- | --- |
+| `loadOptionalDependency` | Runtime-optional dependency loader — the shared shape behind every "this package isn't a committed dependency, load it if present, degrade to a no-op if not" seam (Redis clients, the SAML library, geoip-lite, …): dynamic `import()` by a variable specifier (so bundlers/tsc never statically resolve it), extract the piece the caller needs, and on absence/mismatch log ONE warning and resolve to `null` — never throw. |
+
 ### `artifacts/api-server/src/lib/origin-allowlist.ts`
 
 The set of origins this deployment trusts for cross-origin browser interaction — shared by CORS (which cross-origin page's JS may read our responses) and, via CSRF_TRUSTED_ORIGINS, the CSRF guard (which Origin/Referer a cookie-bearing mutation may announce).
@@ -1408,6 +1433,14 @@ Minimal, dependency-free PDF writer.
 | Function | What it does |
 | --- | --- |
 | `buildPdf` | Render a simple table to a minimal, dependency-free PDF document (Buffer). |
+
+### `artifacts/api-server/src/lib/pem.ts`
+
+Decode a PEM-ish env value that may be supplied either as raw PEM or as base64-of-PEM (env-friendly — no embedded newlines).
+
+| Function | What it does |
+| --- | --- |
+| `decodePemOrBase64` | Decode a PEM-ish env value that may be supplied either as raw PEM or as base64-of-PEM (env-friendly — no embedded newlines). |
 
 ### `artifacts/api-server/src/lib/personas.ts`
 
@@ -1474,6 +1507,8 @@ Proactive "what needs me" digest.
 | `getDigestThresholds` | The thresholds the digest currently runs with. |
 | `setDigestThresholds` | Tune the thresholds. |
 | `__resetDigestThresholds` | Test-only: restore default thresholds. |
+| `categorizeDigest` | Categorize + aggregate portfolio rows into prioritised sections (PURE). |
+| `renderDigestText` | Render the digest's title/body text from its categorized sections + stats (PURE). |
 | `buildProactiveDigest` | Build the "what needs me" digest from portfolio rows (PURE). |
 | `runProactiveDigest` | Read the portfolio under a keyed autonomous principal, build the "what needs me" digest, and dispatch it over the notify bus (kind "digest") targeted at the recipient role — unless it's empty (then it's skipped, so a healthy portfolio never pings). |
 | `digestIntervalHours` | The configured cadence in hours: the env override when a valid non-negative number, else the weekly default. |
@@ -1568,6 +1603,7 @@ Rate-card domain — the pure core of staff time-and-cost.
 | `hashIdentity` | A stable, non-reversible keyed hash of a raw identity/title value. |
 | `emptyRateCard` | — |
 | `emptyIdentityMap` | — |
+| `resolveScoped` | Resolve a value under the shared project → programme → central precedence rule: a project override wins, then a programme override, then the central default — so a person/setting can carry a different value on a specific engagement without needing to override every level. |
 | `resolveTitleHash` | The job-title hash assigned to a person at a scope. |
 | `resolveRate` | The hourly rate for a role on a project type and facing. |
 | `emptyUplift` | — |
@@ -1648,6 +1684,14 @@ Aggregate per-project member rosters into one portfolio-wide resource pool: dedu
 | --- | --- |
 | `aggregateResourcePool` | Aggregate per-project member rosters into one portfolio-wide resource pool: dedupe people by id, union their skills, sum their capacity, and collect the projects they belong to. |
 
+### `artifacts/api-server/src/lib/ring-buffer.ts`
+
+Push onto a bounded, in-memory ring (oldest evicted once `max` is exceeded) — the shared shape behind every RAM-only "recent N events" list (the broker log, health-watch findings, …): memory-safe by construction, nothing persisted, gone on restart.
+
+| Function | What it does |
+| --- | --- |
+| `pushBounded` | Push onto a bounded, in-memory ring (oldest evicted once `max` is exceeded) — the shared shape behind every RAM-only "recent N events" list (the broker log, health-watch findings, …): memory-safe by construction, nothing persisted, gone on restart. |
+
 ### `artifacts/api-server/src/lib/ruleset.ts`
 
 Business ruleset engine — EXTRA, admin-configurable rules layered ON TOP of the hard ruleset.
@@ -1698,6 +1742,15 @@ SAML 2.0 SSO — an OPTIONAL identity path that sits alongside OIDC behind the s
 | `samlLoginUrl` | The IdP redirect URL to begin SP-initiated login; `relayState` round-trips the returnTo. |
 | `validateSamlResponse` | Validate a base64 SAMLResponse from the ACS POST and return canonical claims, or null (unconfigured / library absent). |
 | `samlMetadata` | The SP metadata XML (so an IdP admin can configure the integration), or null. |
+
+### `artifacts/api-server/src/lib/scheduled-job.ts`
+
+Shared skeleton behind every scheduled autonomous job (proactive-digest, drift-canary, …): mint the keyed, short-lived, viewer-roled autonomous principal → gather/decide (caller- supplied) → publish over the notify bus IF the job decided there's something worth telling someone → record an audit event.
+
+| Function | What it does |
+| --- | --- |
+| `runScheduledAutonomousJob` | Run one scheduled autonomous job and return its result plus whether it dispatched a notification. |
+| `createIntervalScheduler` | The shared "env-var hours → setInterval → unref → stoppable timer" bootstrap behind every scheduled job's in-process cadence: an env-var override in hours (0 = opt out), a self-unref'd interval so it never keeps the process alive, and a run's errors logged (never fatal, never lost). |
 
 ### `artifacts/api-server/src/lib/scim.ts`
 
@@ -1938,6 +1991,15 @@ How many reverse-proxy hops in front of this process to trust `X-Forwarded-*` fr
 | Function | What it does |
 | --- | --- |
 | `resolveTrustProxy` | How many reverse-proxy hops in front of this process to trust `X-Forwarded-*` from (Express's `trust proxy` setting). |
+| `firstForwardedValue` | The FIRST value in a comma-separated `X-Forwarded-*` header (the chain runs furthest-hop-first, so the first entry is what the nearest trusted proxy actually saw) — trimmed, or undefined when the header is absent/empty. |
+
+### `artifacts/api-server/src/lib/undo-buffer.ts`
+
+One-generation undo buffer — the "snapshot before the first mutation in a batch, one-shot restore" mechanism shared by every admin editor that offers an undo (the rate card, the AI provider registry, the role map, …).
+
+| Function | What it does |
+| --- | --- |
+| `createUndoBuffer` | @param snapshot captures the current state (called once per batch, before the first mutation) — return a copy if the caller mutates in place, or just the current reference if the caller only ever replaces it wholesale. |
 
 ### `artifacts/api-server/src/lib/url-safety.ts`
 
@@ -2016,7 +2078,7 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 | `redact` | Strip the signing secret from a subscription for safe display (keeps a `secretSet` flag). |
 | `listWebhooks` | All configured webhook subscriptions, secret-redacted. |
 | `createWebhook` | Validate + create a subscription. |
-| `deleteWebhook` | Remove a subscription by id; returns false if no such subscription existed. |
+| `deleteWebhook` | Remove a subscription by id. |
 | `getWebhook` | The full subscription (incl. |
 | `signBody` | Sign a serialized body with a subscription secret (HMAC-SHA256, hex). |
 | `deliverWebhooks` | Fan an event out to all matching subscriptions. |
@@ -2075,6 +2137,7 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 | Function | What it does |
 | --- | --- |
 | `resolveBaseUrl` | Pure decision for the gateway's own public base URL, used to construct every security- sensitive link (magic-link verification, OAuth2/OIDC redirect URIs). |
+| `baseUrl` | The gateway's own public base URL for THIS request — see `resolveBaseUrl` for the hardening. |
 | `slideSession` | Slide the idle timeout forward on activity: re-stamp `seen` (throttled) so an active user stays signed in, and tidy up an expired/garbage session cookie. |
 | `getSession` | Exposed so other routes (e.g. the n8n proxy) can pull the bearer token. |
 | `getRealSession` | The REAL signed-in session, ignoring any impersonation — used to authorise starting/stopping an impersonation against the genuine actor. |
@@ -2412,14 +2475,6 @@ REFERENCE RULESETS — a curated, named business-ruleset bundle per methodology,
 | `getReferenceRuleset` | The reference ruleset bundle for a methodology (a deep copy), or undefined. |
 | `referenceRulesetCatalogue` | All reference ruleset bundles, ordered to match the methodology catalogue (so the planes line up). |
 
-### `lib/backend-catalogue/src/n8n-generator.ts`
-
-Pure n8n workflow generator.
-
-| Function | What it does |
-| --- | --- |
-| `generateWorkflow` | Generate an importable n8n workflow JSON for a backend from its binding. |
-
 ### `lib/backend-catalogue/src/notification-catalogue.ts`
 
 NOTIFICATION registry — the channels OmniProject can deliver alerts/events TO (Slack, Teams, …).
@@ -2582,6 +2637,14 @@ WIDGET registry — the dashboard widget types OmniProject can render.
 
 GENERATED by scripts/src/gen-widgets.ts — do not edit.
 
+### `lib/backend-catalogue/src/workflow-generator.ts`
+
+Pure n8n workflow generator.
+
+| Function | What it does |
+| --- | --- |
+| `generateWorkflow` | Generate an importable n8n workflow JSON for a backend from its binding. |
+
 ## Scripts (`scripts`)
 
 Developer + operator tooling: generators, the setup wizard, verifiers, and load/smoke harnesses.
@@ -2614,10 +2677,6 @@ Methodology catalogue generator.
 
 Methodology reference-ruleset catalogue generator.
 
-### `scripts/src/gen-n8n-blueprints.ts`
-
-n8n example-blueprint generator + drift guard.
-
 ### `scripts/src/gen-notification-routes.ts`
 
 Notification-route catalogue generator.
@@ -2649,6 +2708,10 @@ View catalogue generator.
 ### `scripts/src/gen-widgets.ts`
 
 Widget catalogue generator.
+
+### `scripts/src/gen-workflow-blueprints.ts`
+
+n8n example-blueprint generator + drift guard.
 
 ### `scripts/src/guard-broker-isolation.ts`
 
@@ -2700,6 +2763,17 @@ Trivial workspace smoke script — prints a hello line to prove tsx + the worksp
 
 Live OpenProject integration check — "certify" the mapping against a real instance.
 
+### `scripts/src/lib/assert.ts`
+
+Shared pass/fail assertion helper for the script-level verifiers (verify-broker-contract, e2e-smoke, integration-openproject): prints a checkmark/cross per label and tallies totals so each script's `main()` can report a summary and exit non-zero on any failure.
+
+| Function | What it does |
+| --- | --- |
+| `green` | Shared pass/fail assertion helper for the script-level verifiers (verify-broker-contract, e2e-smoke, integration-openproject): prints a checkmark/cross per label and tallies totals so each script's `main()` can report a summary and exit non-zero on any failure. |
+| `red` | — |
+| `bold` | — |
+| `createAsserter` | A fresh, independent pass/fail tally + printer for one script run. |
+
 ### `scripts/src/lib/coverage.ts`
 
 "Every declared item is built" — the pure core of the coverage guard.
@@ -2709,6 +2783,14 @@ Live OpenProject integration check — "certify" the mapping against a real inst
 | `checkCoverage` | Check one plane: every declared id must map to an implementation that exists, is wired into the page, and is tested — and the map must not carry stale entries for ids the catalogue no longer declares. |
 | `fsProbes` | ── fs-backed probe factory (used by the real guard; tests inject their own) ───── |
 | `idsFromAssets` | List declared ids from a catalogue assets dir (one `<id>.json` per item). |
+
+### `scripts/src/lib/demo-session.ts`
+
+Demo-auth session helper shared by the read-only harnesses (e2e-smoke, stress-test) that exercise a server running without a configured IdP: GET /api/auth/login issues a local session cookie they can reuse for the rest of the run.
+
+| Function | What it does |
+| --- | --- |
+| `login` | Demo-auth session helper shared by the read-only harnesses (e2e-smoke, stress-test) that exercise a server running without a configured IdP: GET /api/auth/login issues a local session cookie they can reuse for the rest of the run. |
 
 ### `scripts/src/lib/gen-registry.ts`
 
@@ -2739,6 +2821,14 @@ The canonical field superset = the base vocabulary (assets/fields.json) UNION ev
 | --- | --- |
 | `loadSuperset` | The merged superset: base fields first, then each backend's contributed `fields[]`. |
 | `backendFieldRefs` | The canonical field keys each backend REFERENCES (its `fieldKeys[]`), per file. |
+
+### `scripts/src/lib/walk-files.ts`
+
+Which files a walk collects: by extension, with optional filename-suffix exclusions (e.g. test/spec files) checked before the extension match is returned.
+
+| Function | What it does |
+| --- | --- |
+| `walkFiles` | Recursively collect files under `dir` matching `extensions` (and not matching any `excludeSuffixes`), depth-first. |
 
 ### `scripts/src/load-harness.ts`
 
@@ -2784,7 +2874,7 @@ Deployment config model + pure generators for the first-run setup wizard.
 | Function | What it does |
 | --- | --- |
 | `publicHost` | The host portion of PUBLIC_URL (for the Traefik router rule). |
-| `effectiveBrokerUrl` | The effective broker URL (internal n8n when bundled, else the external one). |
+| `effectiveBrokerUrl` | The effective broker URL (internal reference-broker when bundled, else the external one). |
 | `effectiveRedisUrl` | The effective Redis URL (internal when bundled, else the external one). |
 | `envMap` | ── .env rendering ──────────────────────────────────────────────────────────── |
 | `renderEnv` | Render the `.env` file (compose reads it for ${VAR} substitution). |
