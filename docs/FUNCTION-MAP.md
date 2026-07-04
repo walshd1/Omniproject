@@ -992,6 +992,15 @@ Egress / SSRF guard for the gateway's outbound HTTP.
 | `assertEgressAllowed` | Validate a URL is allowed for server-side egress; throws EgressError if not. |
 | `safeFetch` | fetch() with the egress guard applied first. |
 
+### `artifacts/api-server/src/lib/email.ts`
+
+Real SMTP email sending — off unless `SMTP_URL` is set (e.g. `smtps://user:pass@smtp.example.com`), so passwordless sign-in (magic-link) can actually deliver mail for a small org with real SMTP (Google Workspace / Microsoft 365 / any relay) instead of only logging the link.
+
+| Function | What it does |
+| --- | --- |
+| `isEmailConfigured` | Is real SMTP delivery available? True once `SMTP_URL` is set. |
+| `sendEmail` | Best-effort SMTP send: never throws. |
+
 ### `artifacts/api-server/src/lib/env-config.ts`
 
 Validated, typed environment access — the zero-trust stance applied to configuration: env vars are UNTRUSTED input too, so read them through typed accessors that enforce a rule (presence, type, range, format) instead of scattering `process.env[X]` casts.
@@ -1251,7 +1260,7 @@ Magic-link / email-OTP — passwordless sign-in for orgs with NO IdP (the charit
 | `mintMagicToken` | Mint a sealed, single-use, time-boxed magic token for an email. |
 | `verifyMagicToken` | Open + validate a magic token (tamper + expiry). |
 | `consumeMagicToken` | Enforce single-use: returns true the FIRST time a jti is seen, false on replay. |
-| `sendMagicLink` | The pluggable sender. |
+| `sendMagicLink` | Sends via SMTP when `SMTP_URL` is set (lib/email.ts); otherwise falls back to logging the link for the operator/dev to relay by hand. |
 
 ### `artifacts/api-server/src/lib/maintenance.ts`
 
