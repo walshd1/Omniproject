@@ -42,7 +42,7 @@ function TrendReport({ def, rows }: { def: CustomReportDef; rows: readonly Row[]
           <Tooltip formatter={(v) => fmt(v as number)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {def.metrics.map((m, i) => (
-            <Line key={m.id} type="monotone" dataKey={m.id} name={metricLabel(m)} stroke={PALETTE[i % PALETTE.length]} strokeWidth={2} dot={{ r: 3 }} />
+            <Line key={m.id} type="monotone" dataKey={m.id} name={metricLabel(m)} stroke={PALETTE[i % PALETTE.length]!} strokeWidth={2} dot={{ r: 3 }} />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -113,7 +113,7 @@ function GroupedReport({ def, rows }: { def: CustomReportDef; rows: readonly Row
             <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 10 }} />
             <Tooltip formatter={(v) => fmt(v as number)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            {def.metrics.map((m, i) => <Bar key={m.id} dataKey={m.id} name={metricLabel(m)} fill={PALETTE[i % PALETTE.length]} />)}
+            {def.metrics.map((m, i) => <Bar key={m.id} dataKey={m.id} name={metricLabel(m)} fill={PALETTE[i % PALETTE.length]!} />)}
           </BarChart>
         </ResponsiveContainer>
       )}
