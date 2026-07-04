@@ -95,7 +95,7 @@ export function MonteCarloRisk({ projectId }: { projectId: string }) {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="value" tick={{ fontSize: 11 }} />
                 <YAxis tickFormatter={(v) => `${Math.round(v * 100)}%`} domain={[0, 1]} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number) => `${Math.round(v * 100)}% chance ≤`} labelFormatter={(l) => `${Number(l).toLocaleString()} hrs`} />
+                <Tooltip formatter={(v) => `${Math.round(Number(v) * 100)}% chance ≤`} labelFormatter={(l) => `${Number(l).toLocaleString()} hrs`} />
                 <ReferenceLine x={result.deterministic} stroke="#dc2626" strokeDasharray="4 2" label={{ value: "plan", fontSize: 10, fill: "#dc2626" }} />
                 <ReferenceLine x={result.p80} stroke="#16a34a" strokeDasharray="4 2" label={{ value: "P80", fontSize: 10, fill: "#16a34a" }} />
                 <Area type="monotone" dataKey="probability" stroke="#2563eb" fill="#2563eb" fillOpacity={0.15} />
@@ -109,7 +109,7 @@ export function MonteCarloRisk({ projectId }: { projectId: string }) {
               <BarChart data={tornado} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
                 <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
                 <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v: number) => `${v}% of variance`} />
+                <Tooltip formatter={(v) => `${Number(v)}% of variance`} />
                 <Bar dataKey="value">
                   {tornado.map((tk) => <Cell key={tk.id} fill="#d97706" />)}
                 </Bar>

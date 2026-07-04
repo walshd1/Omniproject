@@ -1,10 +1,13 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
-    // No rootDir: these are tsx-run tooling scripts (never emitted), and the
+    // No outDir/rootDir: these are tsx-run tooling scripts (never emitted), and the
     // setup wizard imports a few PURE libs from @workspace/api-server by relative
     // path (single source of truth for the backend catalogue + security check).
+    // An outDir with noEmit:true is vestigial (nothing is ever written there) but
+    // still makes tsc infer a rootDir for emit-layout purposes — which then rejects
+    // those cross-package imports as outside it. Omitting outDir removes the need
+    // for that inference entirely.
     "noEmit": true,
     "types": ["node"]
   },

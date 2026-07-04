@@ -37,15 +37,17 @@ export default defineConfig({
         "src/.generated/**",
       ],
       // Ratchet: floors set just below measured coverage to prevent regressions.
-      // Current: ~89% lines/statements, ~83% branches, ~65% functions (the
-      // function number trails because many small inline handlers/callbacks
-      // aren't individually invoked; branch coverage drifted as branchy UI/config
-      // code outgrew its tests). Raise these as coverage grows.
+      // Recalibrated for the vitest/@vitest/coverage-v8 3.2.6 -> 4.1.9 major bump: v8's
+      // new instrumentation counts statements/branches differently (measured
+      // statements/branches/lines all dropped a few points with NO source or test changes,
+      // while functions coverage rose — the signature of a counting-method shift, not a real
+      // regression). Current measured: ~81% statements, ~75% branches, ~74% functions, ~84% lines.
+      // Raise these as coverage grows.
       thresholds: {
-        statements: 85,
-        branches: 83,
-        functions: 60,
-        lines: 85,
+        statements: 80,
+        branches: 74,
+        functions: 70,
+        lines: 83,
       },
     },
   },
