@@ -24,11 +24,9 @@
     <meta name="twitter:title" content="OmniProject" />
     <meta name="twitter:description" content="OmniProject — one pane of glass over the project tools you already run, brokered through n8n." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- The UI is JetBrains Mono throughout. Loaded here (not via a render-blocking
-         CSS @import) so the font request runs in parallel with the stylesheet. -->
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <!-- The UI is JetBrains Mono throughout — self-hosted via @fontsource (imported in
+         main.tsx), not Google Fonts: no third-party request, works air-gapped, and needs
+         no font-src/style-src CSP exception (the default CSP has neither). -->
   </head>
   <body>
     <div id="root"></div>

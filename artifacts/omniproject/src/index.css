@@ -1,5 +1,5 @@
-/* JetBrains Mono is loaded via a <link> in index.html (parallel, non-blocking)
-   rather than a render-blocking @import here. */
+/* JetBrains Mono is self-hosted (@fontsource, imported in main.tsx) — no Google Fonts
+   request, no font-src/style-src CSP exception needed. */
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";

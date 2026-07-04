@@ -160,12 +160,15 @@ defining.
 **Why parked:** needs a decision on **which languages** to prioritise and human-quality translations.
 **Recommendation:** pick the top 3–4 languages for your target NGOs; the framework is ready.
 
-### C3. Self-hosted web font (privacy / air-gap / CSP cleanliness)
-**What:** bundle JetBrains Mono as a static asset instead of the Google Fonts `<link>`, removing a
-third-party request (better for privacy, charities, air-gapped, and a cleaner `font-src 'self'` CSP).
-**Why parked:** needs the woff2 font files committed (couldn't fetch them in the build sandbox) and a
-licence check (JetBrains Mono is OFL — fine to bundle).
-**Recommendation:** straightforward once the font files are added; low effort, real privacy win.
+### C3. Self-hosted web font (privacy / air-gap / CSP cleanliness) — **shipped**
+JetBrains Mono is now bundled via `@fontsource/jetbrains-mono` (imported in `main.tsx`), removing
+the Google Fonts `<link>`/`preconnect` tags from `index.html` entirely. This wasn't only a privacy
+nicety: the default CSP's `style-src` (`'self' 'unsafe-inline'`) and `font-src` (`'self' data:`)
+have no override for `fonts.googleapis.com`/`fonts.gstatic.com`, so on any deployment using the
+default policy the Google Fonts stylesheet request was already CSP-blocked — the font never
+actually loaded. Self-hosting fixes a real bug, not just a cleanliness issue. Verified in a real
+browser: zero external requests, the `@font-face` rules resolve and render (checked via
+`document.fonts`).
 
 ### C4. Real email sending (magic-link without n8n) — **shipped**
 `sendMagicLink` now sends via SMTP when `SMTP_URL` is set (`artifacts/api-server/src/lib/email.ts`,
