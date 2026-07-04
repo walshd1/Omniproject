@@ -16,6 +16,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { walkFiles } from "./lib/walk-files";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -23,15 +24,6 @@ const SPA_SRC = path.join(ROOT, "artifacts/omniproject/src");
 
 /** Native elements that are keyboard-operable on their own. */
 const INTERACTIVE = new Set(["button", "a", "input", "select", "textarea", "option", "label", "summary", "details"]);
-
-function walk(dir: string, out: string[]): void {
-  for (const name of fs.readdirSync(dir)) {
-    const full = path.join(dir, name);
-    const stat = fs.statSync(full);
-    if (stat.isDirectory()) walk(full, out);
-    else if (name.endsWith(".tsx") && !name.endsWith(".test.tsx")) out.push(full);
-  }
-}
 
 /** Find the opening tag (`<div …`) that an `onClick` belongs to, scanning back from its index. */
 function owningTag(src: string, clickIdx: number): { tag: string; open: number } | null {
@@ -42,8 +34,7 @@ function owningTag(src: string, clickIdx: number): { tag: string; open: number }
 }
 
 const violations: string[] = [];
-const files: string[] = [];
-walk(SPA_SRC, files);
+const files = walkFiles(SPA_SRC, { extensions: [".tsx"], excludeSuffixes: [".test.tsx"] });
 
 for (const file of files) {
   const src = fs.readFileSync(file, "utf8");

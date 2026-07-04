@@ -51,6 +51,18 @@ function credPlaceholder(manifest: BackendDefinition, credType: string): Record<
   return { [credType]: { id: "", name: `${manifest.label} account` } };
 }
 
+/** Shared tail for both node kinds: attach the resolved credential placeholder and carry the mapping's note through. */
+function finishNode(node: N8nNode, credType: string | undefined, manifest: BackendDefinition, mapping: ActionMapping): N8nNode {
+  if (credType) node.credentials = credPlaceholder(manifest, credType);
+  if (mapping.note) node.notes = mapping.note;
+  return node;
+}
+
+/** n8n IF/Switch condition boilerplate around a single condition entry. */
+function singleCondition(leftValue: unknown, rightValue: unknown, operator: Record<string, unknown>) {
+  return { options: { caseSensitive: true, typeValidation: "loose" }, combinator: "and", conditions: [{ leftValue, rightValue, operator }] };
+}
+
 function httpNode(id: string, name: string, mapping: ActionMapping, manifest: BackendDefinition, pos: [number, number]): N8nNode {
   // An n8n-managed credential (e.g. Microsoft Dynamics OAuth) takes over auth;
   // otherwise we forward the active user's bearer token.
@@ -82,28 +94,120 @@ function httpNode(id: string, name: string, mapping: ActionMapping, manifest: Ba
   }
 
   const node: N8nNode = { parameters, id, name, type: "n8n-nodes-base.httpRequest", typeVersion: 4.2, position: pos };
-  if (credType) node.credentials = credPlaceholder(manifest, credType);
-  if (mapping.note) node.notes = mapping.note;
-  return node;
+  return finishNode(node, credType, manifest, mapping);
 }
 
-function nativeNode(id: string, name: string, mapping: ActionMapping, manifest: BackendDefinition, pos: [number, number]): N8nNode {
+function nativeNode(id: string, name: string, mapping: ActionMapping, manifest: BackendDefinition, pos: [number, number], action: ContractAction): N8nNode {
+  if (!mapping.node) {
+    throw new Error(`backend "${manifest.id}" action "${action}" declares kind: "n8nNode" but has no "node" type`);
+  }
   const credType = mapping.credentialType ?? manifest.credentialType;
   const node: N8nNode = {
     parameters: mapping.parameters ?? {},
     id,
     name,
-    type: mapping.node!,
+    type: mapping.node,
     typeVersion: mapping.typeVersion ?? 1,
     position: pos,
   };
-  if (credType) node.credentials = credPlaceholder(manifest, credType);
-  if (mapping.note) node.notes = mapping.note;
-  return node;
+  return finishNode(node, credType, manifest, mapping);
 }
 
 function codeNode(id: string, name: string, jsCode: string, pos: [number, number]): N8nNode {
   return { parameters: { jsCode }, id, name, type: "n8n-nodes-base.code", typeVersion: 2, position: pos };
+}
+
+/** The webhook + verify/loop-guard scaffold nodes — identical for every backend. */
+function buildScaffoldNodes(manifest: BackendDefinition, webhookPath: string, next: () => string) {
+  const webhook: N8nNode = {
+    parameters: { httpMethod: "POST", path: webhookPath, responseMode: "responseNode", options: {} },
+    id: next(), name: "Webhook", type: "n8n-nodes-base.webhook", typeVersion: 2, position: [-520, 320], notes: `POST body { action, payload, source, origin, idempotencyKey }.`,
+  };
+  const verifyIf: N8nNode = {
+    parameters: {
+      conditions: singleCondition("={{ $json.body.verify }}", true, { type: "boolean", operation: "true", singleValue: true }),
+      options: {},
+    },
+    id: next(), name: "Verify probe?", type: "n8n-nodes-base.if", typeVersion: 2, position: [-320, 320],
+    notes: "When the gateway's workflow verifier sends { verify: true }, short-circuit with a no-op acknowledgement so verification never touches the backend.",
+  };
+  const verifyRespond = codeNode(next(), "Verify ACK", `// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = ${JSON.stringify(manifest.capabilities)};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: ${JSON.stringify(manifest.id)}, capabilities: caps }, message: 'verify ok' } }];`, [-120, 140]);
+  const loopIf: N8nNode = {
+    parameters: {
+      conditions: singleCondition("={{ $json.body.origin }}", "={{ $json.body.payload && $json.body.payload.lastUpdatedBy }}", { type: "string", operation: "notEquals" }),
+      options: {},
+    },
+    id: next(), name: "Drop loop?", type: "n8n-nodes-base.if", typeVersion: 2, position: [-120, 460],
+    notes: "Loop guard: drop echoes where origin === payload.lastUpdatedBy (best-effort; the gateway idempotency key is the primary dedupe).",
+  };
+  const dropLoop = codeNode(next(), "Drop (loop)", `return [{ json: { success: true, data: { dropped: true }, message: 'Loop mutation dropped' } }];`, [120, 620]);
+  return { webhook, verifyIf, verifyRespond, loopIf, dropLoop };
+}
+
+/** The Switch node that routes on `$json.body.action`, one rule per contract action. */
+function buildSwitchNode(actions: ContractAction[], next: () => string): N8nNode {
+  const switchRules = actions.map((a) => ({
+    conditions: singleCondition("={{ $json.body.action }}", a, { type: "string", operation: "equals" }),
+    renameOutput: true, outputKey: a,
+  }));
+  return {
+    parameters: { rules: { values: switchRules }, options: { fallbackOutput: "extra" } },
+    id: next(), name: "Route Action", type: "n8n-nodes-base.switch", typeVersion: 3, position: [120, 320],
+  };
+}
+
+/** The post-route nodes: normalize the per-action result, the unsupported-action fallback, and the final respond. */
+function buildResponseNodes(next: () => string) {
+  const normalize = codeNode(next(), "Normalize → BrokerActionResult", `// Normalize the backend response to { success, data, message }.\nconst action = $('Webhook').first().json.body.action;\nconst rows = items.map((i) => i.json);\nconst data = rows.length === 1 ? rows[0] : rows;\nreturn [{ json: { success: true, data, message: action + ' ok' } }];`, [620, 320]);
+  const unsupported = codeNode(next(), "Unsupported Action", `const action = $('Webhook').first().json.body.action;\nreturn [{ json: { success: false, data: {}, message: 'Unsupported action: ' + action } }];`, [620, 560]);
+  const respond: N8nNode = {
+    parameters: { respondWith: "firstIncomingItem", options: {} },
+    id: next(), name: "Respond", type: "n8n-nodes-base.respondToWebhook", typeVersion: 1, position: [880, 320],
+  };
+  return { normalize, unsupported, respond };
+}
+
+/** A connections map plus the mutable `connect` helper that builds it (n8n wires nodes by name, output-index-addressed). */
+function createConnectionGraph(): { connections: N8nWorkflow["connections"]; connect: (from: string, to: string, outIndex?: number) => void } {
+  const connections: N8nWorkflow["connections"] = {};
+  const connect = (from: string, to: string, outIndex = 0) => {
+    const conn = (connections[from] ??= { main: [] });
+    while (conn.main.length <= outIndex) conn.main.push([]);
+    conn.main[outIndex]!.push({ node: to, type: "main", index: 0 }); // loop above grew main past outIndex
+  };
+  return { connections, connect };
+}
+
+/** Per-action nodes (Switch output order matches `actions`), wired to Route Action and onward to Normalize/Respond. */
+function buildActionNodes(
+  manifest: BackendDefinition,
+  actions: ContractAction[],
+  next: () => string,
+  connect: (from: string, to: string, outIndex?: number) => void,
+): N8nNode[] {
+  const nodes: N8nNode[] = [];
+  let y = 80;
+  actions.forEach((action, i) => {
+    let node: N8nNode;
+    if (action === ALWAYS) {
+      node = codeNode(next(), "Capabilities", `// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: ${JSON.stringify(manifest.capabilities)} } }];`, [380, y]);
+      nodes.push(node);
+      connect("Route Action", node.name, i);
+      connect(node.name, "Respond");
+    } else {
+      const mapping = manifest.actions[action]!;
+      node = mapping.kind === "n8nNode"
+        ? nativeNode(next(), titleFor(action), mapping, manifest, [380, y], action)
+        : httpNode(next(), titleFor(action), mapping, manifest, [380, y]);
+      nodes.push(node);
+      connect("Route Action", node.name, i);
+      connect(node.name, "Normalize → BrokerActionResult");
+    }
+    y += 180;
+  });
+  // Fallback output (after all rule outputs) → Unsupported.
+  connect("Route Action", "Unsupported Action", actions.length);
+  return nodes;
 }
 
 /** Generate an importable n8n workflow JSON for a backend from its binding. */
@@ -114,63 +218,13 @@ export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPat
 
   let n = 0;
   const next = () => uid(n++);
+  const { connections, connect } = createConnectionGraph();
 
-  const nodes: N8nNode[] = [];
-  const connections: N8nWorkflow["connections"] = {};
-  const connect = (from: string, to: string, outIndex = 0) => {
-    const conn = (connections[from] ??= { main: [] });
-    while (conn.main.length <= outIndex) conn.main.push([]);
-    conn.main[outIndex]!.push({ node: to, type: "main", index: 0 }); // loop above grew main past outIndex
-  };
+  const { webhook, verifyIf, verifyRespond, loopIf, dropLoop } = buildScaffoldNodes(manifest, webhookPath, next);
+  const routeNode = buildSwitchNode(actions, next);
+  const { normalize, unsupported, respond } = buildResponseNodes(next);
 
-  // Static scaffold nodes.
-  const webhook: N8nNode = {
-    parameters: { httpMethod: "POST", path: webhookPath, responseMode: "responseNode", options: {} },
-    id: next(), name: "Webhook", type: "n8n-nodes-base.webhook", typeVersion: 2, position: [-520, 320], notes: `POST body { action, payload, source, origin, idempotencyKey }.`,
-  };
-  const verifyIf: N8nNode = {
-    parameters: {
-      conditions: { options: { caseSensitive: true, typeValidation: "loose" }, combinator: "and", conditions: [
-        { leftValue: "={{ $json.body.verify }}", rightValue: true, operator: { type: "boolean", operation: "true", singleValue: true } },
-      ] },
-      options: {},
-    },
-    id: next(), name: "Verify probe?", type: "n8n-nodes-base.if", typeVersion: 2, position: [-320, 320],
-    notes: "When the gateway's workflow verifier sends { verify: true }, short-circuit with a no-op acknowledgement so verification never touches the backend.",
-  };
-  const verifyRespond = codeNode(next(), "Verify ACK", `// No-op acknowledgement for the OmniProject workflow verifier.\nconst body = $('Webhook').first().json.body;\nconst caps = ${JSON.stringify(manifest.capabilities)};\nreturn [{ json: { success: true, data: { action: body.action, verified: true, backend: ${JSON.stringify(manifest.id)}, capabilities: caps }, message: 'verify ok' } }];`, [-120, 140]);
-  const loopIf: N8nNode = {
-    parameters: {
-      conditions: { options: { caseSensitive: true, typeValidation: "loose" }, combinator: "and", conditions: [
-        { leftValue: "={{ $json.body.origin }}", rightValue: "={{ $json.body.payload && $json.body.payload.lastUpdatedBy }}", operator: { type: "string", operation: "notEquals" } },
-      ] },
-      options: {},
-    },
-    id: next(), name: "Drop loop?", type: "n8n-nodes-base.if", typeVersion: 2, position: [-120, 460],
-    notes: "Loop guard: drop echoes where origin === payload.lastUpdatedBy (best-effort; the gateway idempotency key is the primary dedupe).",
-  };
-  const dropLoop = codeNode(next(), "Drop (loop)", `return [{ json: { success: true, data: { dropped: true }, message: 'Loop mutation dropped' } }];`, [120, 620]);
-
-  // Switch.
-  const switchRules = actions.map((a) => ({
-    conditions: { options: { caseSensitive: true, typeValidation: "loose" }, combinator: "and", conditions: [
-      { leftValue: "={{ $json.body.action }}", rightValue: a, operator: { type: "string", operation: "equals" } },
-    ] },
-    renameOutput: true, outputKey: a,
-  }));
-  const routeNode: N8nNode = {
-    parameters: { rules: { values: switchRules }, options: { fallbackOutput: "extra" } },
-    id: next(), name: "Route Action", type: "n8n-nodes-base.switch", typeVersion: 3, position: [120, 320],
-  };
-
-  const normalize = codeNode(next(), "Normalize → BrokerActionResult", `// Normalize the backend response to { success, data, message }.\nconst action = $('Webhook').first().json.body.action;\nconst rows = items.map((i) => i.json);\nconst data = rows.length === 1 ? rows[0] : rows;\nreturn [{ json: { success: true, data, message: action + ' ok' } }];`, [620, 320]);
-  const unsupported = codeNode(next(), "Unsupported Action", `const action = $('Webhook').first().json.body.action;\nreturn [{ json: { success: false, data: {}, message: 'Unsupported action: ' + action } }];`, [620, 560]);
-  const respond: N8nNode = {
-    parameters: { respondWith: "firstIncomingItem", options: {} },
-    id: next(), name: "Respond", type: "n8n-nodes-base.respondToWebhook", typeVersion: 1, position: [880, 320],
-  };
-
-  nodes.push(webhook, verifyIf, verifyRespond, loopIf, dropLoop, routeNode, normalize, unsupported, respond);
+  const nodes: N8nNode[] = [webhook, verifyIf, verifyRespond, loopIf, dropLoop, routeNode, normalize, unsupported, respond];
 
   // Wire the scaffold.
   connect("Webhook", "Verify probe?");
@@ -183,28 +237,7 @@ export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPat
   connect("Normalize → BrokerActionResult", "Respond");
   connect("Unsupported Action", "Respond");
 
-  // Per-action nodes + wiring (Switch output order matches `actions`).
-  let y = 80;
-  actions.forEach((action, i) => {
-    let node: N8nNode;
-    if (action === ALWAYS) {
-      node = codeNode(next(), "Capabilities", `// Declare which domains your wired backend(s) can populate. Edit to match.\nreturn [{ json: { success: true, data: ${JSON.stringify(manifest.capabilities)} } }];`, [380, y]);
-      nodes.push(node);
-      connect("Route Action", node.name, i);
-      connect(node.name, "Respond");
-    } else {
-      const mapping = manifest.actions[action]!;
-      node = mapping.kind === "n8nNode"
-        ? nativeNode(next(), titleFor(action), mapping, manifest, [380, y])
-        : httpNode(next(), titleFor(action), mapping, manifest, [380, y]);
-      nodes.push(node);
-      connect("Route Action", node.name, i);
-      connect(node.name, "Normalize → BrokerActionResult");
-    }
-    y += 180;
-  });
-  // Fallback output (after all rule outputs) → Unsupported.
-  connect("Route Action", "Unsupported Action", actions.length);
+  nodes.push(...buildActionNodes(manifest, actions, next, connect));
 
   return {
     name: `OmniProject — ${manifest.label}`,

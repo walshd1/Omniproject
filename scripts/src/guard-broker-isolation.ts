@@ -19,6 +19,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { walkFiles } from "./lib/walk-files";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const GATEWAY_SRC = "artifacts/api-server/src";
@@ -66,15 +67,10 @@ function importsAdapter(line: string): string | null {
 }
 
 function listTsFiles(relDir: string): string[] {
-  const absDir = path.join(ROOT, relDir);
-  if (!fs.existsSync(absDir)) return [];
-  const out: string[] = [];
-  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
-    const rel = `${relDir}/${entry.name}`;
-    if (entry.isDirectory()) out.push(...listTsFiles(rel));
-    else if (/\.tsx?$/.test(entry.name) && !/\.(test|spec)\.tsx?$/.test(entry.name)) out.push(rel);
-  }
-  return out;
+  return walkFiles(path.join(ROOT, relDir), {
+    extensions: [".ts", ".tsx"],
+    excludeSuffixes: [".test.ts", ".spec.ts", ".test.tsx", ".spec.tsx"],
+  }).map((abs) => path.relative(ROOT, abs));
 }
 
 /** Per-line CODE (line + block comments stripped), tracking block-comment state. */
