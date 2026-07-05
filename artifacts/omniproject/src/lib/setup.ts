@@ -200,25 +200,20 @@ export async function fetchReports(): Promise<ReportInfo[]> {
   return (await res.json()) as ReportInfo[];
 }
 
-/** The filename a generated workflow download/toast should use — kept in one place so callers can't drift. */
-export function workflowFilename(backendId: string, readOnly: boolean): string {
-  return `omniproject-${backendId}${readOnly ? "-readonly" : ""}.json`;
-}
-
-/** Generate a backend workflow and trigger a browser download. `readOnly` (default true) omits every write action. */
-export async function downloadWorkflow(backendId: string, webhookPath?: string, readOnly = true): Promise<void> {
+/** Generate a backend workflow and trigger a browser download. */
+export async function downloadWorkflow(backendId: string, webhookPath?: string): Promise<void> {
   const res = await fetch("/api/setup/generate-workflow", {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ backendId, webhookPath, readOnly }),
+    body: JSON.stringify({ backendId, webhookPath }),
   });
   if (!res.ok) {
     const msg = await res.json().then((j) => (j as { error?: string }).error).catch(() => null);
     throw new Error(msg || `generate failed: ${res.status}`);
   }
   const blob = await res.blob();
-  triggerBlobDownload(blob, workflowFilename(backendId, readOnly));
+  triggerBlobDownload(blob, `omniproject-${backendId}.json`);
 }
 
 export interface VerifyActionResult {

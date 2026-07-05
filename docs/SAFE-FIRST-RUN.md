@@ -44,13 +44,12 @@ so you always know what's real vs. illustrative.
 In the app: the **Configurator**.
 
 1. **Generate a workflow** for your backend (`POST /api/setup/generate-workflow`)
-   and import it into n8n. **It's read-only by default** — the UI checkbox and
-   the API's `readOnly` param both default to `true`, so the JSON you get back
-   simply never has a `create_issue` / `update_issue` / `delete_issue` node to
-   begin with. There's no manual step to remember: with no write path in the
-   workflow, OmniProject *cannot* mutate your backend, full stop. (Attaching a
-   backend credential with only read scope is a good belt-and-braces extra, but
-   it isn't required to get this guarantee.)
+   and import it into n8n.
+2. **Make it read-only:** in n8n, keep only the read actions
+   (`list_projects`, `list_issues`, `list_activity`, `get_*`) and **delete or
+   disable the `create_issue` / `update_issue` / `delete_issue` nodes** — or
+   attach a backend credential that only has read scope. With no write path,
+   OmniProject *cannot* mutate your backend, full stop.
 3. **Test reachability** (`POST /api/setup/test-n8n`) — a non-destructive probe
    that just checks the webhook answers and reports which capabilities it exposes.
 4. Point the gateway at it (`BROKER_URL`).
@@ -89,13 +88,11 @@ those principals are **GET-only**; a leaked token can never mutate.
 
 1. **Pin the current config as known-good** first so you always have a safe point
    to return to: `POST /api/setup/versions/{id}/known-good`.
-2. Get the write actions (`create_issue` / `update_issue` / `delete_issue`) into
-   your n8n workflow — regenerate with the **Read-only** checkbox off (or
-   `"readOnly": false`) to get a workflow with them already built, or add them
-   by hand to the workflow you already imported. Each write now runs **as the
-   logged-in user** (their own token is forwarded; the backend authorises it),
-   is **concurrency-checked** (`expectedVersion` → `409`, never a silent
-   overwrite), and is **idempotent** (dedup key + loop-guard).
+2. Implement the write actions (`create_issue` / `update_issue` / `delete_issue`)
+   in your n8n workflow. Each write now runs **as the logged-in user** (their own
+   token is forwarded; the backend authorises it), is **concurrency-checked**
+   (`expectedVersion` → `409`, never a silent overwrite), and is **idempotent**
+   (dedup key + loop-guard).
 3. Promote to production when verified.
 
 ## Step 6 — Roll back instantly if anything looks off

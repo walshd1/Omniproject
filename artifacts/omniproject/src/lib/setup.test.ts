@@ -98,7 +98,7 @@ describe("fetchBackends", () => {
 });
 
 describe("downloadWorkflow (blob download)", () => {
-  it("defaults to readOnly: true and names the file accordingly", async () => {
+  it("POSTs and triggers an anchor click with the expected filename", async () => {
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     const blob = new Blob(["{}"], { type: "application/json" });
     const fetchMock = vi.fn().mockResolvedValue(res(null, { blob }));
@@ -108,23 +108,10 @@ describe("downloadWorkflow (blob download)", () => {
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/setup/generate-workflow");
-    expect(JSON.parse(init.body)).toEqual({ backendId: "openproject", webhookPath: "/hooks/op", readOnly: true });
+    expect(JSON.parse(init.body)).toEqual({ backendId: "openproject", webhookPath: "/hooks/op" });
     expect(clickSpy).toHaveBeenCalledOnce();
-    expect((clickSpy.mock.instances[0] as HTMLAnchorElement).download).toBe("omniproject-openproject-readonly.json");
     expect(URL.createObjectURL).toHaveBeenCalledWith(blob);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:fake");
-  });
-
-  it("passes readOnly: false through and drops the filename suffix", async () => {
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-    const fetchMock = vi.fn().mockResolvedValue(res(null, { blob: new Blob(["{}"]) }));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
-
-    await downloadWorkflow("openproject", undefined, false);
-
-    const [, init] = fetchMock.mock.calls[0];
-    expect(JSON.parse(init.body)).toEqual({ backendId: "openproject", webhookPath: undefined, readOnly: false });
-    expect((clickSpy.mock.instances[0] as HTMLAnchorElement).download).toBe("omniproject-openproject.json");
   });
 
   it("throws the server error message when generation fails", async () => {

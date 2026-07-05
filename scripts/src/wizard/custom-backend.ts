@@ -49,16 +49,12 @@ function placeholderManifest(id: string, label: string): BackendDefinition {
   };
 }
 
-/**
- * A structurally-valid, importable n8n workflow skeleton for a custom backend.
- * Deliberately full read+write (not the Configurator's read-only-by-default): this is
- * a starting point for someone AUTHORING a backend, who needs every action's shape.
- */
+/** A structurally-valid, importable n8n workflow skeleton for a custom backend. */
 export function renderSkeletonWorkflow(id: string, label: string): string {
   return JSON.stringify(generateWorkflow(placeholderManifest(id, label), { webhookPath: "omniproject" }), null, 2) + "\n";
 }
 
-/** For a SHIPPED backend, the complete ready-to-import workflow (or null if it has no mapping) — see renderSkeletonWorkflow. */
+/** For a SHIPPED backend, the ready-to-import workflow (or null if it has no mapping). */
 export function renderKnownWorkflow(id: string): string | null {
   const b = getBackend(id);
   if (!b || Object.keys(b.actions).length === 0) return null;
