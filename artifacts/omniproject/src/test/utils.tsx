@@ -86,3 +86,21 @@ export function mockReload(): ReturnType<typeof vi.fn> {
   Object.defineProperty(window, "location", { value: { ...window.location, reload }, writable: true });
   return reload;
 }
+
+/**
+ * Stubs the browser file-download plumbing (`URL.createObjectURL`/`revokeObjectURL`, which jsdom
+ * doesn't implement, plus the anchor `.click()` that would otherwise navigate jsdom) so a test can
+ * assert a `triggerBlobDownload`-based export happened without an actual file download. Call
+ * `restore()` in a `finally` block so the stub doesn't leak into a later test.
+ */
+export function mockBlobDownload(): { click: ReturnType<typeof vi.fn>; restore: () => void } {
+  vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: vi.fn() });
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  return {
+    click,
+    restore: () => {
+      click.mockRestore();
+      vi.unstubAllGlobals();
+    },
+  };
+}
