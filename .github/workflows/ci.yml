@@ -432,6 +432,21 @@ jobs:
           name: sbom-licences
           path: sbom-licences.json
 
+  # Secret scanning: fail on a real-looking credential anywhere in the checked-out source.
+  # .gitleaks.toml allowlists exactly one known-fake test fixture (a PEM block whose body
+  # decodes to the literal word "fake") — see that file for why it's provably not a secret.
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
+            | tar xz gitleaks
+      - name: Scan for secrets (gitleaks)
+        run: ./gitleaks detect --source . --no-git --config .gitleaks.toml -v
+
   # Acceptance (end-to-end) — drives the real built SPA in Chromium against the gateway in demo
   # mode. Separate from `verify` so its browser download + build never slows the fast lane.
   e2e:

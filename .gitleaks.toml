@@ -1,0 +1,18 @@
+title = "OmniProject gitleaks config"
+
+# Extend gitleaks' own actively-maintained detection rules rather than redefining them —
+# this file only adds an allowlist for known-fake fixtures, it never narrows detection.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known-fake test fixtures (not real secrets)"
+regexes = [
+  # broker-transport.test.ts's FAKE_CERT/FAKE_KEY: a PEM-shaped block whose body is the
+  # literal base64 encoding of the word "fake" (ZmFrZQ== -> "fake") — used only to exercise
+  # the "is mTLS configured" presence-check, never parsed as real key material. No genuine
+  # cert/key ever base64-decodes to the word "fake", so this is safe to allowlist by content,
+  # not just by path (a path-based allowlist would blind the scanner to a REAL secret
+  # accidentally pasted into the same test file later).
+  '''-----BEGIN (CERTIFICATE|PRIVATE KEY)-----\\nZmFrZQ==\\n-----END (CERTIFICATE|PRIVATE KEY)-{4,5}''',
+]
