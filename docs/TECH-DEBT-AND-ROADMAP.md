@@ -143,6 +143,17 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
   category as above. Found via a security review of `BrandingAdmin.test.tsx`'s new coverage of the
   reset flow; not fixed here for the same reason (needs the same `withStepUp`-swallows-errors
   rework, done once for all affected components rather than piecemeal).
+- **[security debt] `FeatureModulesAdmin`'s `toggle()` has no draft/dirty gate — every click is an
+  immediate, unreviewed `PATCH /api/settings`.** `toggle()` recomputes the full disabled-feature-id
+  set from render-time props and calls `setDisabled.mutate(...)` synchronously on click, with no
+  optimistic-concurrency control (no ETag/If-Match) against a concurrent admin's own change. This is
+  the same fundamental class of gap as `RateCardAdmin`'s `useDraftAdmin` (a stale read between the
+  page loading and the write landing), but worse: `useDraftAdmin`'s panels narrow that window to
+  "load → click Save", whereas here there is no Save step at all, so the vulnerable window is the
+  entire time the tab is open. Found via a security review of `FeatureModulesAdmin.test.tsx`'s new
+  coverage of the toggle flow. Not fixed here — it needs the same explicit dirty/Save-gate (and
+  ideally a shared optimistic-concurrency primitive) that would also benefit `RateCardAdmin`, so
+  it's best done once across both rather than piecemeal per component.
 
 ---
 
