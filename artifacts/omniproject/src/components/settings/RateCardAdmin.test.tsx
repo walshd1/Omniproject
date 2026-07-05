@@ -60,4 +60,110 @@ describe("RateCardAdmin", () => {
     expect(body.uplift.margin).toBeCloseTo(0.25);
     expect(body.titles).toEqual({ h1: "Engineer" }); // untouched parts round-tripped
   });
+
+  it("edits the central overhead percentage in the draft", () => {
+    renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config()) });
+    fireEvent.change(screen.getByLabelText("Central overhead %"), { target: { value: "15" } });
+    expect(screen.getByLabelText("Central overhead %")).toHaveValue(15);
+  });
+
+  it("clearing the central margin/overhead falls back to 0 rather than leaving them unset", () => {
+    renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config()) });
+    fireEvent.change(screen.getByLabelText("Central margin %"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Central overhead %"), { target: { value: "" } });
+    // Central margin/overhead are non-optional (unlike a per-column uplift), so clearing
+    // the input resets the underlying value to 0 rather than leaving it undefined.
+    expect(screen.getByLabelText("Central margin %")).toHaveValue(0);
+    expect(screen.getByLabelText("Central overhead %")).toHaveValue(0);
+  });
+
+  it("shows an empty-state hint and no type cards when there are no project types", () => {
+    renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config({ projectTypes: [] })) });
+    expect(screen.getByTestId("rate-card-no-types")).toBeInTheDocument();
+    expect(screen.queryByTestId("rate-card-type-0")).not.toBeInTheDocument();
+  });
+
+  it("removes a project type, reverting to the empty-state hint when it was the last one", () => {
+    renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config()) });
+    expect(screen.getByTestId("rate-card-type-0")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Remove type"));
+    expect(screen.queryByTestId("rate-card-type-0")).not.toBeInTheDocument();
+    expect(screen.getByTestId("rate-card-no-types")).toBeInTheDocument();
+  });
+
+  it("removes a value column from a project type", () => {
+    renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config()) });
+    expect(screen.getByTestId("rate-card-col-0-0")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Remove column 1 from type 1"));
+    expect(screen.queryByTestId("rate-card-col-0-0")).not.toBeInTheDocument();
+  });
+
+  it("edits a project type's id and label", () => {
+    renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config()) });
+    fireEvent.change(screen.getByLabelText("Project type 1 id"), { target: { value: "consulting" } });
+    fireEvent.change(screen.getByLabelText("Project type 1 label"), { target: { value: "Consulting" } });
+    expect(screen.getByLabelText("Project type 1 id")).toHaveValue("consulting");
+    expect(screen.getByLabelText("Project type 1 label")).toHaveValue("Consulting");
+  });
+
+  it("edits a value column's id and label", () => {
+    renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config()) });
+    fireEvent.change(screen.getByLabelText("Type 1 column 1 id"), { target: { value: "rate" } });
+    fireEvent.change(screen.getByLabelText("Type 1 column 1 label"), { target: { value: "Rate" } });
+    expect(screen.getByLabelText("Type 1 column 1 id")).toHaveValue("rate");
+    expect(screen.getByLabelText("Type 1 column 1 label")).toHaveValue("Rate");
+  });
+
+  it("switching a column's kind to charge reveals its margin/overhead inputs, and clearing one keeps the other", () => {
+    renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config()) });
+    expect(screen.queryByLabelText("Type 1 column 1 margin %")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Type 1 column 1 kind"), { target: { value: "charge" } });
+    expect(screen.getByLabelText("Type 1 column 1 margin %")).toHaveValue(null);
+    expect(screen.getByLabelText("Type 1 column 1 overhead %")).toHaveValue(null);
+
+    fireEvent.change(screen.getByLabelText("Type 1 column 1 margin %"), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText("Type 1 column 1 overhead %"), { target: { value: "5" } });
+    expect(screen.getByLabelText("Type 1 column 1 margin %")).toHaveValue(10);
+    expect(screen.getByLabelText("Type 1 column 1 overhead %")).toHaveValue(5);
+
+    // Clearing margin leaves the already-set overhead untouched (setColumnUplift preserves the other field).
+    fireEvent.change(screen.getByLabelText("Type 1 column 1 margin %"), { target: { value: "" } });
+    expect(screen.getByLabelText("Type 1 column 1 margin %")).toHaveValue(null);
+    expect(screen.getByLabelText("Type 1 column 1 overhead %")).toHaveValue(5);
+  });
+
+  it("shows Reset once dirty, and reverts the draft to the server value on click", () => {
+    renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config()) });
+    expect(screen.queryByText("Reset")).not.toBeInTheDocument();
+    expect(screen.getByText("Save rate card")).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Central margin %"), { target: { value: "25" } });
+    expect(screen.getByText("Save rate card")).toBeEnabled();
+    fireEvent.click(screen.getByText("Reset"));
+
+    expect(screen.getByLabelText("Central margin %")).toHaveValue(20); // back to the server's 0.2
+    expect(screen.queryByText("Reset")).not.toBeInTheDocument();
+  });
+
+  it("shows the server's error message when saving fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: "Locked by another editor" }) } as Response));
+    renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config()) });
+
+    fireEvent.change(screen.getByLabelText("Central margin %"), { target: { value: "25" } });
+    fireEvent.click(screen.getByText("Save rate card"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Locked by another editor");
+  });
+
+  it("shows a Saved confirmation once the save succeeds and the draft is no longer dirty", async () => {
+    const saved = config({ uplift: { central: { margin: 0.25, overhead: 0.1 }, programme: {}, project: {} } });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => saved } as Response));
+    renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config()) });
+
+    fireEvent.change(screen.getByLabelText("Central margin %"), { target: { value: "25" } });
+    fireEvent.click(screen.getByText("Save rate card"));
+
+    expect(await screen.findByText("Saved.")).toBeInTheDocument();
+  });
 });
