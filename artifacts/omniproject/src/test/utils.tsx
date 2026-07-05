@@ -76,3 +76,13 @@ export function resetFetchMock(): void {
   // @ts-expect-error test-only cleanup of the stub installed by mockFetchRouter
   delete globalThis.fetch;
 }
+
+/**
+ * Stubs `window.location.reload` for components that reload the page after a mutation
+ * (branding/labels save, etc.). Returns the spy so a test can assert it was/wasn't called.
+ */
+export function mockReload(): ReturnType<typeof vi.fn> {
+  const reload = vi.fn();
+  Object.defineProperty(window, "location", { value: { ...window.location, reload }, writable: true });
+  return reload;
+}

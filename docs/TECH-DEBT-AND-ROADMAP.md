@@ -138,6 +138,11 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
   }`) rather than propagating it, so this needs a considered pass, not a one-line change. Needs
   wrapping `promoteEnvironment`/`rollback`/`markKnownGood` in `withStepUp` and surfacing failure
   via `withStepUp`'s `null` return instead of a caught exception.
+  **Same gap found in `BrandingAdmin.tsx`'s `reset()`**: it DELETEs the branding config and
+  reloads the page immediately after only an `AlertDialog` confirm, never `withStepUp`, same
+  category as above. Found via a security review of `BrandingAdmin.test.tsx`'s new coverage of the
+  reset flow; not fixed here for the same reason (needs the same `withStepUp`-swallows-errors
+  rework, done once for all affected components rather than piecemeal).
 
 ---
 
