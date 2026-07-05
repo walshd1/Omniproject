@@ -332,14 +332,30 @@ describe("IssueDialog mutations", () => {
     return calls;
   }
 
+  function renderDialog(issue: Issue | null, onOpenChange: (open: boolean) => void = () => {}) {
+    return renderWithProviders(
+      <>
+        <IssueDialog projectId="proj-1" open onOpenChange={onOpenChange} issue={issue} defaultStatus="backlog" />
+        <Toaster />
+      </>,
+      { client: makeQC() },
+    );
+  }
+
+  // Radix icon/text triggers inside an AlertDialog don't reliably open under userEvent
+  // in jsdom (same workaround already used for this pattern elsewhere — see
+  // PremiumAdmin.test.tsx's "opens the delete-webhook confirmation dialog").
+  async function confirmDelete() {
+    fireEvent.click(screen.getByRole("button", { name: "DELETE" }));
+    const confirmDialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+  }
+
   afterEach(() => vi.restoreAllMocks());
 
   it("shows a title-required error and never calls fetch when submitting an empty title", async () => {
     const calls = mockFetchOnce({ ok: true });
-    renderWithProviders(
-      <><IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={null} defaultStatus="backlog" /><Toaster /></>,
-      { client: makeQC() },
-    );
+    renderDialog(null);
     // fireEvent.submit dispatches the event directly, bypassing the native HTML5
     // `required`-attribute validation a real click on the submit button would trigger
     // first (which would block the submit event before our handler ever ran). The
@@ -354,11 +370,8 @@ describe("IssueDialog mutations", () => {
     const user = userEvent.setup();
     const calls = mockFetchOnce({ ok: true, body: { id: "new-1" } });
     const onOpenChange = vi.fn();
-    renderWithProviders(
-      <><IssueDialog projectId="proj-1" open onOpenChange={onOpenChange} issue={null} defaultStatus="backlog" /><Toaster /></>,
-      { client: makeQC() },
-    );
-    await user.type(screen.getByLabelText("Title", { exact: false }), "Ship the thing");
+    renderDialog(null, onOpenChange);
+    fireEvent.change(screen.getByLabelText("Title", { exact: false }), { target: { value: "Ship the thing" } });
     await user.click(screen.getByRole("button", { name: /Create issue/i }));
 
     expect(await screen.findByText("ISSUE CREATED")).toBeInTheDocument();
@@ -373,11 +386,8 @@ describe("IssueDialog mutations", () => {
     const user = userEvent.setup();
     mockFetchOnce({ ok: false, status: 500 });
     const onOpenChange = vi.fn();
-    renderWithProviders(
-      <><IssueDialog projectId="proj-1" open onOpenChange={onOpenChange} issue={null} defaultStatus="backlog" /><Toaster /></>,
-      { client: makeQC() },
-    );
-    await user.type(screen.getByLabelText("Title", { exact: false }), "Will fail");
+    renderDialog(null, onOpenChange);
+    fireEvent.change(screen.getByLabelText("Title", { exact: false }), { target: { value: "Will fail" } });
     await user.click(screen.getByRole("button", { name: /Create issue/i }));
 
     expect(await screen.findByText("ERROR")).toBeInTheDocument();
@@ -389,10 +399,7 @@ describe("IssueDialog mutations", () => {
     const user = userEvent.setup();
     const calls = mockFetchOnce({ ok: true, body: { id: "i1" } });
     const onOpenChange = vi.fn();
-    renderWithProviders(
-      <><IssueDialog projectId="proj-1" open onOpenChange={onOpenChange} issue={editIssue} /><Toaster /></>,
-      { client: makeQC() },
-    );
+    renderDialog(editIssue, onOpenChange);
     await user.click(screen.getByRole("button", { name: /Save changes/i }));
 
     expect(await screen.findByText("ISSUE UPDATED")).toBeInTheDocument();
@@ -406,10 +413,7 @@ describe("IssueDialog mutations", () => {
     const user = userEvent.setup();
     mockFetchOnce({ ok: false, status: 409 });
     const onOpenChange = vi.fn();
-    renderWithProviders(
-      <><IssueDialog projectId="proj-1" open onOpenChange={onOpenChange} issue={editIssue} /><Toaster /></>,
-      { client: makeQC() },
-    );
+    renderDialog(editIssue, onOpenChange);
     await user.click(screen.getByRole("button", { name: /Save changes/i }));
 
     expect(await screen.findByText("EDIT CONFLICT")).toBeInTheDocument();
@@ -420,10 +424,7 @@ describe("IssueDialog mutations", () => {
     const user = userEvent.setup();
     mockFetchOnce({ ok: false, status: 500 });
     const onOpenChange = vi.fn();
-    renderWithProviders(
-      <><IssueDialog projectId="proj-1" open onOpenChange={onOpenChange} issue={editIssue} /><Toaster /></>,
-      { client: makeQC() },
-    );
+    renderDialog(editIssue, onOpenChange);
     await user.click(screen.getByRole("button", { name: /Save changes/i }));
 
     expect(await screen.findByText("ERROR")).toBeInTheDocument();
@@ -435,10 +436,7 @@ describe("IssueDialog mutations", () => {
     const user = userEvent.setup();
     const calls = mockFetchOnce({ ok: true, body: { id: "dup-1" } });
     const onOpenChange = vi.fn();
-    renderWithProviders(
-      <><IssueDialog projectId="proj-1" open onOpenChange={onOpenChange} issue={editIssue} /><Toaster /></>,
-      { client: makeQC() },
-    );
+    renderDialog(editIssue, onOpenChange);
     await user.click(screen.getByRole("button", { name: /Duplicate/i }));
 
     expect(await screen.findByText("TASK DUPLICATED")).toBeInTheDocument();
@@ -450,11 +448,8 @@ describe("IssueDialog mutations", () => {
   it("shows a title-required error and never calls fetch when duplicating with an emptied title", async () => {
     const user = userEvent.setup();
     const calls = mockFetchOnce({ ok: true });
-    renderWithProviders(
-      <><IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={editIssue} /><Toaster /></>,
-      { client: makeQC() },
-    );
-    await user.clear(screen.getByLabelText("Title", { exact: false }));
+    renderDialog(editIssue);
+    fireEvent.change(screen.getByLabelText("Title", { exact: false }), { target: { value: "" } });
     await user.click(screen.getByRole("button", { name: /Duplicate/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("An issue needs a title.");
@@ -464,16 +459,8 @@ describe("IssueDialog mutations", () => {
   it("deletes an issue via the confirm dialog, then restores it via the toast's Undo action", async () => {
     const calls = mockFetchOnce({ ok: true, body: {} });
     const onOpenChange = vi.fn();
-    renderWithProviders(
-      <><IssueDialog projectId="proj-1" open onOpenChange={onOpenChange} issue={editIssue} /><Toaster /></>,
-      { client: makeQC() },
-    );
-    // Radix icon/text triggers inside an AlertDialog don't reliably open under userEvent
-    // in jsdom (same workaround already used for this pattern elsewhere — see
-    // PremiumAdmin.test.tsx's "opens the delete-webhook confirmation dialog").
-    fireEvent.click(screen.getByRole("button", { name: "DELETE" }));
-    const confirmDialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+    renderDialog(editIssue, onOpenChange);
+    await confirmDelete();
 
     expect(await screen.findByText("ISSUE DELETED")).toBeInTheDocument();
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -495,13 +482,8 @@ describe("IssueDialog mutations", () => {
   it("shows a generic error toast and keeps the dialog open when delete fails", async () => {
     mockFetchOnce({ ok: false, status: 500 });
     const onOpenChange = vi.fn();
-    renderWithProviders(
-      <><IssueDialog projectId="proj-1" open onOpenChange={onOpenChange} issue={editIssue} /><Toaster /></>,
-      { client: makeQC() },
-    );
-    fireEvent.click(screen.getByRole("button", { name: "DELETE" }));
-    const confirmDialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+    renderDialog(editIssue, onOpenChange);
+    await confirmDelete();
 
     expect(await screen.findByText("ERROR")).toBeInTheDocument();
     expect(screen.getByText("Failed to delete issue.")).toBeInTheDocument();

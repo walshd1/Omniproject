@@ -98,6 +98,15 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
 
 - **[debt] Large branch / changelog churn.** The last integration was 85 commits; keep future
   work in smaller, single-concern PRs to ease review and reduce changelog conflicts.
+- **[a11y bug] Toast actions are unreachable while a modal dialog stays open.** Radix's Dialog
+  focus scope marks sibling portals `aria-hidden="true"` while the dialog is open. The app's
+  toast viewport is one such sibling, so when a mutation inside an open dialog (e.g. deleting an
+  issue from the edit dialog) triggers a toast with an action button (e.g. "Undo"), a screen
+  reader user cannot reach that button until the dialog closes — even though it's visible on
+  screen. Found via IssueDialog.test.tsx's delete/undo test, which has to pass `{ hidden: true }`
+  to `getByRole` to reach the button at all (a working-around-the-symptom test flag, not a real
+  fix). Needs either rendering the toast viewport inside the dialog's own portal/focus scope, or
+  moving destructive-action toasts to fire only after the triggering dialog closes.
 
 ---
 
