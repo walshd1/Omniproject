@@ -96,7 +96,7 @@ export function WebhooksAdmin({ entitled }: { entitled: boolean }) {
               <Button type="button" variant="outline" disabled={!entitled} onClick={() => test(h.id)} className="rounded-none border-border h-8 text-xs uppercase">Test</Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <button type="button" className="text-muted-foreground hover:text-destructive" aria-label="Delete webhook"><Trash2 className="w-4 h-4" /></button>
+                  <button type="button" disabled={!entitled} className="text-muted-foreground hover:text-destructive disabled:opacity-50 disabled:pointer-events-none" aria-label="Delete webhook"><Trash2 className="w-4 h-4" /></button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
