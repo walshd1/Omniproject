@@ -1,5 +1,5 @@
 import type { BackendManifest, ActionMapping, ContractAction, KeyFormat } from "@workspace/backend-catalogue";
-import { validateVendor, getBackend, ACTION_KINDS } from "@workspace/backend-catalogue";
+import { validateVendor, getBackend, ACTION_KINDS, VERIFICATION_STATUSES } from "@workspace/backend-catalogue";
 import { safeParseJson } from "./safe-json";
 import { downloadJson } from "./custom-report-file";
 
@@ -43,6 +43,7 @@ export const CAPABILITY_DOMAINS = [
 
 export const KEY_SCHEMES: NonNullable<KeyFormat["scheme"]>[] = ["psk", "bearer", "apiKey", "basic", "oauth2", "per-user", "none"];
 export const BACKEND_KINDS: NonNullable<BackendManifest["kind"]>[] = ["live", "import", "database"];
+export { VERIFICATION_STATUSES };
 export { ACTION_KINDS };
 export const HTTP_METHODS: NonNullable<ActionMapping["method"]>[] = ["GET", "POST", "PATCH", "PUT", "DELETE"];
 
@@ -69,6 +70,7 @@ export interface BackendDraft {
   id: string;
   label: string;
   docsUrl: string;
+  verification: BackendManifest["verification"];
   via: string;
   requiredEnv: string[];
   capabilities: Record<string, boolean>;
@@ -91,6 +93,10 @@ export function emptyBackendDraft(): BackendDraft {
     id: "",
     label: "",
     docsUrl: "",
+    // A self-authored draft has no track record yet — default to the least-trusted
+    // status; the admin can upgrade it once they've actually run it against a
+    // live instance (or leave it "catalogued" if cloning a shipped definition).
+    verification: "experimental",
     via: "",
     requiredEnv: [],
     capabilities: Object.fromEntries(CAPABILITY_DOMAINS.map((d) => [d, false])),
@@ -145,6 +151,9 @@ export function toDraft(value: Record<string, unknown>): BackendDraft {
     id: typeof value["id"] === "string" ? value["id"] : "",
     label: typeof value["label"] === "string" ? value["label"] : "",
     docsUrl: typeof value["docsUrl"] === "string" ? value["docsUrl"] : "",
+    verification: (VERIFICATION_STATUSES as readonly string[]).includes(value["verification"] as string)
+      ? (value["verification"] as BackendDraft["verification"])
+      : base.verification,
     via: typeof value["via"] === "string" ? value["via"] : "",
     requiredEnv: Array.isArray(value["requiredEnv"]) ? (value["requiredEnv"] as unknown[]).filter((e): e is string => typeof e === "string") : [],
     capabilities,
@@ -225,6 +234,7 @@ function buildManifest(draft: BackendDraft): { manifest: Record<string, unknown>
     id: draft.id.trim(),
     label: draft.label.trim(),
     docsUrl: draft.docsUrl.trim(),
+    verification: draft.verification,
     via: draft.via.trim(),
     requiredEnv: draft.requiredEnv.map((e) => e.trim()).filter(Boolean),
     capabilities: draft.capabilities,

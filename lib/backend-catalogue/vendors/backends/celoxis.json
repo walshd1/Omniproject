@@ -42,5 +42,6 @@
   "requiredEnv": [
     "CELOXIS_INSTANCE_URL"
   ],
+  "verification": "catalogued",
   "via": "HTTP + per-user API token"
 }

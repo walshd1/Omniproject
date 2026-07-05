@@ -43,5 +43,6 @@
     "PLANE_INSTANCE_URL",
     "PLANE_WORKSPACE_SLUG"
   ],
+  "verification": "catalogued",
   "via": "HTTP + per-user token / X-API-Key"
 }

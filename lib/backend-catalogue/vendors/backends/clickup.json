@@ -85,5 +85,6 @@
   "requiredEnv": [
     "CLICKUP_SPACE_ID"
   ],
+  "verification": "catalogued",
   "via": "Native n8n node (clickUpApi credential)"
 }

@@ -46,5 +46,6 @@
     "AZDO_ORG_URL",
     "AZDO_BASIC_AUTH"
   ],
+  "verification": "catalogued",
   "via": "HTTP + Basic (PAT)"
 }

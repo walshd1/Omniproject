@@ -42,5 +42,6 @@
   "requiredEnv": [
     "LIQUIDPLANNER_WORKSPACE_URL"
   ],
+  "verification": "catalogued",
   "via": "HTTP + per-user API token (workspace-scoped)"
 }

@@ -56,5 +56,6 @@
       "todo": "reopen"
     }
   },
+  "verification": "catalogued",
   "via": "HTTP + per-user token"
 }

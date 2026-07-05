@@ -45,5 +45,6 @@
   "requiredEnv": [
     "SMARTSHEET_TOKEN"
   ],
+  "verification": "catalogued",
   "via": "HTTP (Smartsheet API) + bearer token"
 }

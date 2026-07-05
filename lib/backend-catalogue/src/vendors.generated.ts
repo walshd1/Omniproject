@@ -97,6 +97,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "ASANA_WORKSPACE_ID"
     ],
+    "verification": "catalogued",
     "via": "Native n8n node (asanaApi credential)"
   },
   {
@@ -147,6 +148,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "AZDO_ORG_URL",
       "AZDO_BASIC_AUTH"
     ],
+    "verification": "catalogued",
     "via": "HTTP + Basic (PAT)"
   },
   {
@@ -193,6 +195,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "CELOXIS_INSTANCE_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP + per-user API token"
   },
   {
@@ -282,6 +285,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "CLICKUP_SPACE_ID"
     ],
+    "verification": "catalogued",
     "via": "Native n8n node (clickUpApi credential)"
   },
   {
@@ -330,6 +334,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "DOLIBARR_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP (Dolibarr REST) + n8n Header-Auth credential (DOLAPIKEY)"
   },
   {
@@ -377,6 +382,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "DATAVERSE_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP + n8n-managed Dynamics OAuth (Dataverse Web API)"
   },
   {
@@ -460,6 +466,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "D365FO_URL",
       "D365FO_COMPANY"
     ],
+    "verification": "catalogued",
     "via": "HTTP (F&O OData v4 Web API) + Azure AD OAuth2 (generic n8n OAuth2 credential)"
   },
   {
@@ -510,6 +517,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "DATAVERSE_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP + n8n-managed Dynamics OAuth (Dataverse Web API)"
   },
   {
@@ -557,6 +565,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "BACKBONE_BASE_URL"
     ],
+    "verification": "experimental",
     "via": "HTTP + n8n credential — point at your endpoint"
   },
   {
@@ -579,6 +588,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "label": "Excel / CSV import",
     "notes": "One-shot tabular import for spreadsheets and CSV exports (and any legacy system that can export a sheet). POST { headers, rows } to /api/import/preview to auto-map columns to canonical fields (exact / synonym / fuzzy), confirm the mapping, then /api/import/commit to create the issues via your live backend. Reference mapping — review before importing.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Spreadsheet upload → column/field mapper (/api/import)"
   },
   {
@@ -656,6 +666,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "label": "Freshservice (Freshworks ITSM)",
     "notes": "Freshworks ITSM. Departments → projects, Tickets → issues. service capability on.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Native n8n node (freshserviceApi credential)"
   },
   {
@@ -715,6 +726,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
         "closed": "done"
       }
     },
+    "verification": "catalogued",
     "via": "HTTP + per-user token"
   },
   {
@@ -775,6 +787,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
         "todo": "reopen"
       }
     },
+    "verification": "catalogued",
     "via": "HTTP + per-user token"
   },
   {
@@ -821,6 +834,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "label": "Google Tasks",
     "notes": "Task lists → projects, tasks → issues. Auth via an n8n Google OAuth2 credential scoped to Tasks.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "HTTP (Google Tasks API) + n8n-managed Google OAuth"
   },
   {
@@ -903,6 +917,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "label": "HubSpot",
     "notes": "CRM mapping: Company → project, Deal → issue. crm + financials capabilities light up amount / pipeline / stage. Confirm resource/param names against the installed HubSpot node version after import.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Native n8n node (hubspotApi or hubspotOAuth2Api credential)"
   },
   {
@@ -950,6 +965,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "JIRA_INSTANCE_URL",
       "JIRA_BASIC_AUTH"
     ],
+    "verification": "catalogued",
     "via": "HTTP + Basic (email:token)"
   },
   {
@@ -1001,6 +1017,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "JIRA_BASE_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP (JSM servicedeskapi) + n8n-managed Jira credential"
   },
   {
@@ -1083,6 +1100,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "notes": "Teams → projects, issues → issues. Confirm resource/param names against the installed Linear node version.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Native n8n node (linearApi credential)"
   },
   {
@@ -1129,6 +1147,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "LIQUIDPLANNER_WORKSPACE_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP + per-user API token (workspace-scoped)"
   },
   {
@@ -1210,6 +1229,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "label": "Microsoft To Do",
     "notes": "Personal task manager: task lists → projects, tasks → issues. Updates/deletes need both the list id (projectId) and the task id (issueId).",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Native n8n node (microsoftToDoOAuth2Api credential)"
   },
   {
@@ -1293,6 +1313,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "notes": "projectId = board id, issueId = item id. Boards map to projects, items to issues. Column mapping is board-specific — finish it in the node.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Native n8n node (mondayComApi credential)"
   },
   {
@@ -1345,6 +1366,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "MONGO_SIDECAR_URL",
       "MONGO_SIDECAR_TOKEN"
     ],
+    "verification": "catalogued",
     "via": "HTTP sidecar that holds the Mongo connection — admin-only"
   },
   {
@@ -1392,6 +1414,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "DATAVERSE_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP + n8n-managed Dynamics OAuth (Dataverse Web API)"
   },
   {
@@ -1441,6 +1464,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "NETSUITE_BASE_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP (SuiteTalk REST) + n8n-managed token auth (OAuth 1.0a TBA)"
   },
   {
@@ -1532,6 +1556,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "label": "Odoo",
     "notes": "Odoo via the custom-model resource: project.project → projects, project.task → issues. Auth + URL live in the Odoo credential. Confirm model/field names for your Odoo modules.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Native n8n node (odooApi credential)"
   },
   {
@@ -1579,6 +1604,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "OPENPROJECT_INSTANCE_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP + per-user OIDC token"
   },
   {
@@ -1638,6 +1664,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "ORACLE_FUSION_BASE_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP + n8n Basic credential (Fusion REST, OWSM-secured; OAuth2/IAM client-credentials also supported)"
   },
   {
@@ -1729,6 +1756,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "notes": "CRM mapping: Organization → project, Deal → issue. crm + financials capabilities light up deal value / stage. Confirm field + param names against the installed Pipedrive node version after import.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Native n8n node (pipedriveApi credential)"
   },
   {
@@ -1776,6 +1804,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "PLANE_INSTANCE_URL",
       "PLANE_WORKSPACE_SLUG"
     ],
+    "verification": "catalogued",
     "via": "HTTP + per-user token / X-API-Key"
   },
   {
@@ -1823,6 +1852,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "PLANVIEW_INSTANCE_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP + Planview OAuth2 (managed credential)"
   },
   {
@@ -1870,6 +1900,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "P6_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP + n8n Basic credential (P6 REST)"
   },
   {
@@ -1964,6 +1995,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "label": "Salesforce",
     "notes": "CRM mapping: Account → project, Opportunity → issue. crm + financials capabilities light up deal value / stage / close date. Confirm field + param names against your Salesforce edition after import.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Native n8n node (salesforceOAuth2Api credential)"
   },
   {
@@ -2012,6 +2044,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "SAP_S4_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP + n8n OAuth2 credential (OData; Basic on-prem)"
   },
   {
@@ -2065,6 +2098,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "SAP_S4_URL"
     ],
+    "verification": "catalogued",
     "via": "HTTP (SAP Gateway OData, read-only) + n8n OAuth2 credential (client-credentials; Basic on-prem)"
   },
   {
@@ -2170,6 +2204,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "notes": "Uses the generic tableRecord resource against the PPM tables (pm_project / pm_project_task). Adjust table/field names to your ServiceNow PPM model.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Native n8n node (serviceNowBasicApi credential)"
   },
   {
@@ -2219,6 +2254,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "SMARTSHEET_TOKEN"
     ],
+    "verification": "catalogued",
     "via": "HTTP (Smartsheet API) + bearer token"
   },
   {
@@ -2271,6 +2307,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "SQL_SIDECAR_URL",
       "SQL_SIDECAR_TOKEN"
     ],
+    "verification": "catalogued",
     "via": "HTTP sidecar that holds the DB connection — admin-only"
   },
   {
@@ -2318,6 +2355,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "requiredEnv": [
       "TODOIST_TOKEN"
     ],
+    "verification": "catalogued",
     "via": "HTTP (Todoist REST v2) + bearer token"
   },
   {
@@ -2404,6 +2442,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "notes": "Kanban-shaped: boards/lists → projects, cards → issues. Scheduling off unless you use Trello due dates.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Native n8n node (trelloApi credential)"
   },
   {
@@ -2480,6 +2519,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     "label": "Wrike",
     "notes": "Folders/projects → projects, tasks → issues.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Native n8n node (wrikeOAuth2Api credential)"
   },
   {
@@ -2566,6 +2606,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
     },
     "notes": "Support/ITSM: Organization → project, Ticket → issue. service capability lights up SLA/CSAT fields.",
     "requiredEnv": [],
+    "verification": "catalogued",
     "via": "Native n8n node (zendeskApi credential)"
   }
 ];

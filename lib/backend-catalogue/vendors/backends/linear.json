@@ -78,5 +78,6 @@
   },
   "notes": "Teams \u2192 projects, issues \u2192 issues. Confirm resource/param names against the installed Linear node version.",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Native n8n node (linearApi credential)"
 }

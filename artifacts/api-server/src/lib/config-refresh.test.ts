@@ -16,6 +16,7 @@ const JIRA_OVERRIDE = {
   id: "jira",
   label: "Jira (our tenant)",
   docsUrl: "https://example.test/jira",
+  verification: "catalogued",
   via: "HTTP",
   requiredEnv: ["JIRA_INSTANCE_URL"],
   capabilities: { issues: true },

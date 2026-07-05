@@ -55,5 +55,6 @@
   "requiredEnv": [
     "ORACLE_FUSION_BASE_URL"
   ],
+  "verification": "catalogued",
   "via": "HTTP + n8n Basic credential (Fusion REST, OWSM-secured; OAuth2/IAM client-credentials also supported)"
 }

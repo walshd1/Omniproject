@@ -43,5 +43,6 @@
     "JIRA_INSTANCE_URL",
     "JIRA_BASIC_AUTH"
   ],
+  "verification": "catalogued",
   "via": "HTTP + Basic (email:token)"
 }

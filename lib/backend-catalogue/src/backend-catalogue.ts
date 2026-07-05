@@ -139,6 +139,7 @@ export function backendCatalogue() {
       id: b.id,
       label: b.label,
       docsUrl: b.docsUrl,
+      verification: b.verification,
       via: b.via,
       credentialType: b.credentialType ?? null,
       requiredEnv: b.requiredEnv,

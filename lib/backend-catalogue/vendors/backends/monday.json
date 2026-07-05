@@ -79,5 +79,6 @@
   },
   "notes": "projectId = board id, issueId = item id. Boards map to projects, items to issues. Column mapping is board-specific \u2014 finish it in the node.",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Native n8n node (mondayComApi credential)"
 }

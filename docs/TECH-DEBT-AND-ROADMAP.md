@@ -172,6 +172,17 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
   the real fix is a design decision (e.g. scope `dirty` per source, or have `exportReplica` mark
   its own source clean and have the page only clear sources it actually exported), not a one-line
   patch.
+- **[altitude] The backend-catalogue growth freeze (`scripts/src/lib/backend-freeze.ts`) is a
+  bespoke one-off in `gen-vendors.ts` rather than living in `plane-verifier.ts`'s existing `CHECKS`
+  registry.** `plane-verifier.ts` already holds per-plane business-rule invariants (e.g. the
+  backends plane's `kind === "import"` exemption), but its `CHECKS` entries are per-entry
+  (`(e, errors) => void`), while the freeze is an aggregate, whole-list check — it doesn't fit that
+  signature as-is, which is why it was wired directly into the generator instead. Found via a
+  clean-code review of the `verification` field PR. Not restructured here — the fix is a small
+  parallel `PLANE_INVARIANTS` registry (`Partial<Record<PlaneId, (rows) => string[]>>`) next to
+  `CHECKS`, with `gen-vendors.ts` calling one generic `runPlaneInvariants(group.label, rows)` for
+  every plane instead of special-casing "backends" by name — worth doing once a second aggregate
+  invariant (for this or another plane) actually needs the same seam, not preemptively for one.
 
 ---
 

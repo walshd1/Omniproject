@@ -27,6 +27,25 @@ export type ContractAction =
 export type BackendTier = "standard" | "enterprise";
 
 /**
+ * How confident we are that this manifest is actually correct for the vendor's
+ * real, live API — as opposed to merely well-formed and matching public docs:
+ *  - "verified"     exercised end-to-end against a live instance of the vendor.
+ *  - "catalogued"   built from the vendor's public API docs/schema, matching
+ *                   the manifest shape, but not yet run against a live instance.
+ *  - "experimental" speculative or partial — a generic placeholder, or an API
+ *                   surface we're not even confident about on paper.
+ * Surfaced as a badge in the Configurator so an operator knows how much to trust
+ * a mapping before wiring it up. See `lib/backend-catalogue/vendors/README.md`
+ * for the catalogue-freeze policy this backs.
+ *
+ * PURELY an honesty/UI signal, self-declared in JSON — never a trust boundary.
+ * Nothing in the gateway/broker may consult it to gate a capability, skip a
+ * warning, or auto-grant anything; it carries no more authority than `notes`.
+ */
+export const VERIFICATION_STATUSES = ["verified", "catalogued", "experimental"] as const;
+export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
+
+/**
  * How a backend is reached — the integration METHOD, broker-neutral:
  *  - "http"        a plain REST API. Portable across ANY HTTP-capable broker
  *                  (n8n, Make, or a custom sidecar).
@@ -65,6 +84,8 @@ export interface BackendManifest {
   id: string;
   label: string;
   docsUrl: string;
+  /** How confident we are this manifest matches the real, live vendor API — see {@link VerificationStatus}. */
+  verification: VerificationStatus;
   /** How this backend authenticates / is wired — human-readable, for the wizard UI. */
   via: string;
   /** Env vars the operator must set for this backend. */

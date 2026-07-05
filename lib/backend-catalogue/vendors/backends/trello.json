@@ -82,5 +82,6 @@
   },
   "notes": "Kanban-shaped: boards/lists \u2192 projects, cards \u2192 issues. Scheduling off unless you use Trello due dates.",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Native n8n node (trelloApi credential)"
 }

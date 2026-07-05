@@ -88,5 +88,6 @@
   "requiredEnv": [
     "ASANA_WORKSPACE_ID"
   ],
+  "verification": "catalogued",
   "via": "Native n8n node (asanaApi credential)"
 }

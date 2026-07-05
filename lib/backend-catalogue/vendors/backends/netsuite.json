@@ -45,5 +45,6 @@
   "requiredEnv": [
     "NETSUITE_BASE_URL"
   ],
+  "verification": "catalogued",
   "via": "HTTP (SuiteTalk REST) + n8n-managed token auth (OAuth 1.0a TBA)"
 }

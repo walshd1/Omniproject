@@ -43,5 +43,6 @@
   "requiredEnv": [
     "BACKBONE_BASE_URL"
   ],
+  "verification": "experimental",
   "via": "HTTP + n8n credential — point at your endpoint"
 }

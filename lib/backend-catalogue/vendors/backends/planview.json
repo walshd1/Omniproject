@@ -43,5 +43,6 @@
   "requiredEnv": [
     "PLANVIEW_INSTANCE_URL"
   ],
+  "verification": "catalogued",
   "via": "HTTP + Planview OAuth2 (managed credential)"
 }

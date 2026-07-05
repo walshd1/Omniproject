@@ -92,6 +92,15 @@ test("Planview (enterprise) + Celoxis + LiquidPlanner backends are catalogued, c
   assert.equal(lp?.capabilities.resources, true);
 });
 
+test("backendCatalogue() passes through the raw manifest's verification status unchanged", () => {
+  const cat = backendCatalogue();
+  const jira = cat.find((b) => b.id === "jira");
+  assert.equal(jira?.verification, "catalogued");
+  // The generic enterprise catch-all is not a real vendor — flagged experimental, not catalogued.
+  const enterprise = cat.find((b) => b.id === "enterprise");
+  assert.equal(enterprise?.verification, "experimental");
+});
+
 test("SAP S/4HANA PS/PPM financials backend is catalogued, read-only and capability-honest", async () => {
   const cat = backendCatalogue();
   const sapFin = cat.find((b) => b.id === "sap-s4hana-financials");

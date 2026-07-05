@@ -39,6 +39,7 @@ function placeholderManifest(id: string, label: string): BackendDefinition {
     id,
     label,
     docsUrl: "https://your-backend.example.com/api-docs",
+    verification: "experimental",
     via: "Custom HTTP binding (fill in the endpoints + auth in n8n)",
     authHeader: USER_BEARER,
     requiredEnv: ["CUSTOM_API_BASE"],
@@ -83,6 +84,7 @@ export function renderManifestSource(id: string, label: string): string {
   id: ${JSON.stringify(id)},
   label: ${JSON.stringify(label)},
   docsUrl: "https://your-backend.example.com/api-docs",
+  verification: "experimental", // bump to "catalogued" once this matches your backend's real API, "verified" once you've run it end-to-end
   via: "Custom HTTP binding (fill in endpoints + auth)",
   authHeader: ${JSON.stringify(USER_BEARER)},
   requiredEnv: ["CUSTOM_API_BASE"],

@@ -4,6 +4,7 @@ import { PlugZap, HelpCircle } from "lucide-react";
 import { fetchBackends } from "../../lib/setup";
 import { PickerGrid } from "./shared";
 import { RequestVendorDialog } from "./RequestVendorDialog";
+import { VerificationBadge } from "./VerificationBadge";
 
 /**
  * "Tell us what you have" — a picker instead of the raw backend id a technical setup
@@ -45,6 +46,9 @@ export function BackendPicker({
               </div>
               <div className="text-muted-foreground mt-1">
                 {capCount} thing{capCount === 1 ? "" : "s"} it can read/write
+              </div>
+              <div className="mt-1.5">
+                <VerificationBadge verification={b.verification} />
               </div>
             </>
           );

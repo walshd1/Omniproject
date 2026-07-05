@@ -42,6 +42,7 @@ test("a deployment vendor JSON overrides a shipped backend via the catalogue", (
       id: "jira",
       label: "Jira (our tenant)", // override the shipped label
       docsUrl: "https://example.test/jira",
+      verification: "catalogued",
       via: "HTTP",
       requiredEnv: ["JIRA_INSTANCE_URL"],
       capabilities: { issues: true },

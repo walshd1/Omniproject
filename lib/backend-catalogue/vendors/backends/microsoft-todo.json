@@ -77,5 +77,6 @@
   "label": "Microsoft To Do",
   "notes": "Personal task manager: task lists → projects, tasks → issues. Updates/deletes need both the list id (projectId) and the task id (issueId).",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Native n8n node (microsoftToDoOAuth2Api credential)"
 }

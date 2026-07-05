@@ -19,6 +19,7 @@ export const REFERENCE_BACKEND: BackendDefinition = {
   id: "reference-backend",
   label: "Reference backend (TEMPLATE — replace me)",
   docsUrl: "https://your-backend.example.com/api-docs",
+  verification: "experimental",
   via: "Custom HTTP binding — fill in the endpoints + auth",
   authHeader: USER_BEARER, // forwards the signed-in user's token; swap for an n8n credential if needed
   requiredEnv: ["YOUR_API_BASE"],
