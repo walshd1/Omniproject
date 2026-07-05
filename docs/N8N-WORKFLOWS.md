@@ -110,13 +110,31 @@ Each generated workflow is: `Webhook → Verify short-circuit → Loop guard →
 Route(action) → per-action HTTP node → Normalize → Respond`, plus a
 `Capabilities` node you edit to declare what your backend exposes.
 
+### Read-only generation (the default)
+
+`{ "readOnly": true }` — the **default** for both the UI checkbox and the API
+(omit it, or pass `true` explicitly) — drops every write action (any mapping
+whose method is `POST`/`PATCH`/`PUT`/`DELETE`) before the workflow is built, so
+the downloaded JSON never contains a `Create Issue` / `Update Issue` / `Delete
+Issue` node in the first place. That's the mechanism behind
+[docs/QUICKSTART.md](QUICKSTART.md)'s "connect one real backend, read-only" —
+the operator doesn't need to remember to delete write nodes after import; there
+simply aren't any. Pass `"readOnly": false` (or uncheck the box) to generate
+the full read/write workflow once you're ready to add writes — see
+[docs/SAFE-FIRST-RUN.md](SAFE-FIRST-RUN.md).
+
+The filename and the workflow's own name/description note whether it's the
+read-only variant (`omniproject-<id>-readonly.json`, workflow name suffixed
+`(read-only)`), so a read-only and a full workflow for the same backend are
+never confused after download.
+
 ### What's open vs. licensed (and what's a service)
 
 The **tools to build workflows are open** — only the *prebuilt enterprise
 integrations* are licensed:
 
 - **Free, Apache-2.0, ungated:** the generator
-  (`lib/backend-catalogue/src/n8n-generator.ts`), the manifest library
+  (`lib/backend-catalogue/src/workflow-generator.ts`), the manifest library
   (`lib/backend-catalogue/src/backend-catalogue.ts` + the vendor JSON), the
   contract above, the verifier, and generating a workflow for any **standard**
   backend (Jira, GitHub, GitLab, Azure

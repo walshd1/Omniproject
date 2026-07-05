@@ -482,9 +482,12 @@ router.get("/setup/entity-resolution/preview", (_req, res) => {
 
 // POST /api/setup/generate-workflow — emit an importable n8n workflow for the
 // chosen backend. Stateless: returned for download, nothing stored. Admin only.
+// readOnly (default true) omits every write action, so the quickstart default
+// is a workflow that cannot mutate the backend even before anyone reviews it.
 router.post("/setup/generate-workflow", requireRole("admin"), (req, res) => {
   const backendId = typeof req.body?.backendId === "string" ? req.body.backendId : "";
   const webhookPath = typeof req.body?.webhookPath === "string" ? req.body.webhookPath : undefined;
+  const readOnly = typeof req.body?.readOnly === "boolean" ? req.body.readOnly : true;
   const manifest = getBackend(backendId);
   if (!manifest) {
     res.status(404).json({ error: `Unknown backend: ${backendId}` });
@@ -500,10 +503,10 @@ router.post("/setup/generate-workflow", requireRole("admin"), (req, res) => {
     });
     return;
   }
-  const workflow = generateWorkflow(manifest, { webhookPath });
+  const workflow = generateWorkflow(manifest, { webhookPath, readOnly });
   res
     .type("application/json")
-    .set("Content-Disposition", `attachment; filename="omniproject-${manifest.id}.json"`)
+    .set("Content-Disposition", `attachment; filename="omniproject-${manifest.id}${readOnly ? "-readonly" : ""}.json"`)
     .send(JSON.stringify(workflow, null, 2));
 });
 

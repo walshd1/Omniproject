@@ -631,6 +631,31 @@ test("POST /api/setup/generate-workflow 404s for an unknown backend", async () =
   assert.equal(res.status, 404);
 });
 
+test("POST /api/setup/generate-workflow defaults to read-only: no write action nodes, filename says so", async () => {
+  const res = await get("/api/setup/generate-workflow", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ backendId: "jira" }),
+  });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-disposition") ?? "", /omniproject-jira-readonly\.json/);
+  const workflow = await readJson(res);
+  assert.match(workflow.name, /read-only/);
+  assert.ok(!workflow.nodes.some((n: { name: string }) => n.name === "Create Issue"), "no write node in the default download");
+});
+
+test("POST /api/setup/generate-workflow with readOnly: false includes write actions again", async () => {
+  const res = await get("/api/setup/generate-workflow", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ backendId: "jira", readOnly: false }),
+  });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-disposition") ?? "", /omniproject-jira\.json/);
+  const workflow = await readJson(res);
+  assert.ok(workflow.nodes.some((n: { name: string }) => n.name === "Create Issue"), "readOnly: false must keep write nodes");
+});
+
 test("POST /api/setup/verify-workflow rejects when no webhook is configured", async () => {
   const res = await get("/api/setup/verify-workflow", {
     method: "POST",
