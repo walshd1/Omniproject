@@ -33,28 +33,38 @@ export function ConnectionsAdmin() {
 
   const [status, setStatus] = useState<Record<string, string>>({});
   const test = async (backend: string) => {
-    const r = await fetch("/api/setup/connections/test", {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-      body: JSON.stringify({ backend }),
-    });
-    const j = await r.json().catch(() => ({}));
-    setStatus((s) => ({ ...s, [backend]: r.ok ? (j.ok ? `ok — ${j.detail ?? "reachable"}` : "unreachable") : (j.error ?? "unsupported") }));
+    try {
+      const r = await fetch("/api/setup/connections/test", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({ backend }),
+      });
+      const j = await r.json().catch(() => ({}));
+      setStatus((s) => ({ ...s, [backend]: r.ok ? (j.ok ? `ok — ${j.detail ?? "reachable"}` : "unreachable") : (j.error ?? "unsupported") }));
+    } catch {
+      setStatus((s) => ({ ...s, [backend]: "unreachable" }));
+    }
   };
 
   // Optional: relay a secret to the broker's vault (delegate-to-broker option). The
-  // value is sent once and NOT stored by OmniProject; we never read it back.
+  // value is sent once and NOT stored by OmniProject; we never read it back. Cleared
+  // from local state in a `finally` so a network failure can't leave it lingering.
   const [vaultVal, setVaultVal] = useState<Record<string, string>>({});
   const [vaultRef, setVaultRef] = useState<Record<string, string>>({});
   const sendToVault = async (backend: string, name: string) => {
     const value = vaultVal[name] ?? "";
     if (!value) return;
-    const r = await fetch("/api/setup/connections/vault", {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-      body: JSON.stringify({ backend, name, value }),
-    });
-    const j = await r.json().catch(() => ({}));
-    setVaultVal((v) => ({ ...v, [name]: "" })); // clear the field after relaying
-    setVaultRef((v) => ({ ...v, [name]: r.ok && j.stored ? `stored → ${j.ref ?? "ok"}` : (j.error ?? "failed") }));
+    try {
+      const r = await fetch("/api/setup/connections/vault", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        body: JSON.stringify({ backend, name, value }),
+      });
+      const j = await r.json().catch(() => ({}));
+      setVaultRef((v) => ({ ...v, [name]: r.ok && j.stored ? `stored → ${j.ref ?? "ok"}` : (j.error ?? "failed") }));
+    } catch {
+      setVaultRef((v) => ({ ...v, [name]: "failed" }));
+    } finally {
+      setVaultVal((v) => ({ ...v, [name]: "" })); // clear the field even if the request failed
+    }
   };
 
   return (
