@@ -2,6 +2,7 @@ import type { ReactElement, ReactNode } from "react";
 import { vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
+import type { Issue } from "@workspace/api-client-react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 // BrandingProvider nests an I18nProvider internally, so this single wrapper
 // satisfies both useBranding and useT for any component under test.
@@ -103,4 +104,9 @@ export function mockBlobDownload(): { click: ReturnType<typeof vi.fn>; restore: 
       vi.unstubAllGlobals();
     },
   };
+}
+
+/** A minimal valid Issue fixture, for tests that only need a shape to seed a query cache with. */
+export function issue(over: Partial<Issue> = {}): Issue {
+  return { id: "i", projectId: "p1", title: "Task", status: "todo", priority: "high", labels: [], source: "jira", createdAt: "", updatedAt: "", ...over } as Issue;
 }
