@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
-import { renderWithProviders } from "../../test/utils";
+import { renderWithProviders, mockFetchRouter } from "../../test/utils";
+import { Toaster } from "../ui/toaster";
 import { AgileBoard } from "./AgileBoard";
 
 function issue(over: Partial<Issue> = {}): Issue {
@@ -18,8 +19,12 @@ function issue(over: Partial<Issue> = {}): Issue {
   } as Issue;
 }
 
+function freshClient(): QueryClient {
+  return new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+}
+
 function seeded(issues: Issue[]): QueryClient {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  const qc = freshClient();
   qc.setQueryData(getGetProjectIssuesQueryKey("proj-1"), issues);
   return qc;
 }
@@ -48,5 +53,101 @@ describe("AgileBoard", () => {
     renderWithProviders(<AgileBoard projectId="proj-1" />, { client: seeded([]) });
     expect(screen.getByTestId("column-todo")).toBeInTheDocument();
     expect(screen.getByTestId("column-done")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Loading/error data states, opening the create/edit dialog, and the drag-and-drop move
+ * (optimistic update, undo, and rollback-on-error) — none of the tests above ever click a
+ * card, drag one, or let the issues query fail, so this is genuinely new coverage.
+ */
+describe("AgileBoard interactions", () => {
+  const inProgressIssue = issue({ id: "iss-1", title: "Build the thing", status: "in_progress" });
+
+  // A drag operation's payload must be the SAME object across dragStart/drop — a real browser
+  // DataTransfer persists for one drag gesture; this stands in for that.
+  function makeDataTransfer() {
+    let stored = "";
+    return {
+      setData: (_type: string, value: string) => { stored = value; },
+      getData: () => stored,
+    };
+  }
+
+  // Drags iss-1 from its seeded column onto "done". Shared by the success/failure move tests,
+  // which only differ in the routes they've configured beforehand.
+  function dragIssueToDone() {
+    const dt = makeDataTransfer();
+    fireEvent.dragStart(screen.getByTestId("issue-card-iss-1"), { dataTransfer: dt });
+    fireEvent.drop(screen.getByTestId("column-done"), { dataTransfer: dt });
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("shows a loading skeleton (one per conventional column) before issues have loaded", () => {
+    const { container } = renderWithProviders(<AgileBoard projectId="proj-1" />, { client: freshClient() });
+    expect(screen.queryByTestId("column-todo")).toBeNull();
+    expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
+  });
+
+  it("shows an error state when the issues fetch fails, and retries on click", async () => {
+    const calls = mockFetchRouter({ "/api/projects/proj-1/issues": { ok: false, status: 500 } });
+    renderWithProviders(<AgileBoard projectId="proj-1" />, { client: freshClient() });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load");
+    const before = calls.length;
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(calls.length).toBeGreaterThan(before);
+  });
+
+  it("opens the create-issue dialog with the clicked column's status pre-selected", async () => {
+    renderWithProviders(<AgileBoard projectId="proj-1" />, { client: seeded([]) });
+    fireEvent.click(screen.getByRole("button", { name: "New issue in IN REVIEW" }));
+    expect(await screen.findByText("NEW ISSUE")).toBeInTheDocument();
+    expect(screen.getByLabelText("Status")).toHaveTextContent("IN REVIEW");
+  });
+
+  it("opens the edit-issue dialog pre-filled when a card is clicked", async () => {
+    renderWithProviders(<AgileBoard projectId="proj-1" />, { client: seeded([inProgressIssue]) });
+    fireEvent.click(screen.getByTestId("issue-card-iss-1"));
+    expect(await screen.findByText("EDIT ISSUE")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Build the thing")).toBeInTheDocument();
+  });
+
+  it("moves an issue via drag-and-drop, optimistically updates, and offers an Undo action", async () => {
+    // The invalidateQueries() in moveIssue's onSuccess refetches this list; the response
+    // reflects what a real backend would confirm — the issue now in its new column — so the
+    // refetch doesn't clobber the optimistic update back to the pre-move status.
+    const calls = mockFetchRouter({
+      "/api/projects/proj-1/issues": { ok: true, body: [issue({ id: "iss-1", title: "Build the thing", status: "done" })] },
+    });
+    renderWithProviders(<><AgileBoard projectId="proj-1" /><Toaster /></>, { client: seeded([inProgressIssue]) });
+    dragIssueToDone();
+
+    // Optimistic: the card lands in its new column before any network response settles.
+    await waitFor(() => expect(screen.getByTestId("column-done")).toHaveTextContent("Build the thing"));
+    expect(await screen.findByText("ISSUE MOVED")).toBeInTheDocument();
+    const patchCall = calls.find((c) => c.init?.method === "PATCH");
+    expect(patchCall).toBeTruthy();
+    const body = JSON.parse(String(patchCall!.init!.body));
+    expect(body.status).toBe("done");
+
+    // Undo re-issues the inverse move.
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(await screen.findByText("MOVE UNDONE")).toBeInTheDocument();
+  });
+
+  it("rolls the card back and shows an error toast when the move fails", async () => {
+    mockFetchRouter({
+      "/api/projects/proj-1/issues": { ok: true, body: [inProgressIssue] },
+      "/api/projects/proj-1/issues/iss-1": { ok: false, status: 500 },
+    });
+    renderWithProviders(<><AgileBoard projectId="proj-1" /><Toaster /></>, { client: seeded([inProgressIssue]) });
+    dragIssueToDone();
+
+    expect(await screen.findByText("ERROR")).toBeInTheDocument();
+    expect(screen.getByText("Failed to move issue.")).toBeInTheDocument();
+    // Rolled back to its original column.
+    expect(screen.getByTestId("column-in_progress")).toHaveTextContent("Build the thing");
+    expect(screen.getByTestId("column-done")).not.toHaveTextContent("Build the thing");
   });
 });

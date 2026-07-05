@@ -6,7 +6,7 @@ import {
   getGetSettingsQueryKey,
   type Settings as SettingsType,
 } from "@workspace/api-client-react";
-import { renderWithProviders } from "../test/utils";
+import { renderWithProviders, mockFetchRouter } from "../test/utils";
 import { A11yProvider } from "../lib/a11y-prefs";
 import { PlatformProvider } from "../lib/platform-context";
 import { Toaster } from "../components/ui/toaster";
@@ -75,28 +75,6 @@ function renderSettings(client: QueryClient) {
     <A11yProvider><PlatformProvider><Settings /><Toaster /></PlatformProvider></A11yProvider>,
     { client },
   );
-}
-
-// Routes a request by URL pathname to a canned response; anything not listed falls back to a
-// no-op 200 (matching the blanket stub the other tests in this file rely on), so a test only
-// needs to describe the one or two endpoints it actually cares about.
-function mockFetchRouter(routes: Record<string, { ok: boolean; status?: number; body?: unknown }>) {
-  const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
-  globalThis.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-    const href = String(url);
-    calls.push({ url: href, init });
-    const path = new URL(href, "http://localhost").pathname;
-    const route = routes[path] ?? { ok: true, body: {} };
-    return {
-      ok: route.ok,
-      status: route.status ?? (route.ok ? 200 : 500),
-      statusText: route.ok ? "OK" : "Error",
-      headers: new Headers({ "content-type": "application/json" }),
-      json: () => Promise.resolve(route.body ?? {}),
-      text: () => Promise.resolve(JSON.stringify(route.body ?? {})),
-    } as unknown as Response;
-  }) as unknown as typeof fetch;
-  return calls;
 }
 
 beforeEach(() => {
