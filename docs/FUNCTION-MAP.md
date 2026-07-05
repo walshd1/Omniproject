@@ -2653,6 +2653,7 @@ Pure n8n workflow generator.
 | Function | What it does |
 | --- | --- |
 | `generateWorkflow` | Generate an importable n8n workflow JSON for a backend from its binding. |
+| `titleFor` | The node title a contract action gets in the generated workflow (e.g. "create_issue" → "Create Issue"). |
 
 ## Scripts (`scripts`)
 
@@ -2879,7 +2880,7 @@ Onboarding a backend OmniProject doesn't ship a mapping for yet ("custom", or an
 | --- | --- |
 | `isCustomBackend` | True when this backend has no shipped mapping and needs guided onboarding. |
 | `renderSkeletonWorkflow` | A structurally-valid, importable n8n workflow skeleton for a custom backend. |
-| `renderKnownWorkflow` | For a SHIPPED backend, the ready-to-import workflow (or null if it has no mapping). |
+| `renderKnownWorkflow` | For a SHIPPED backend, the complete ready-to-import workflow (or null if it has no mapping) — see renderSkeletonWorkflow. |
 | `renderManifestSource` | A contributable `BackendManifest` source stub — paste into the BACKENDS array in `lib/backend-catalogue/src/backend-catalogue.ts` to promote a custom backend to a first-class shipped catalogue entry (so the wizard + gateway both know it next time). |
 | `renderFieldMap` | A contributable `BackendFieldMap` stub (surface/store per field + entity). |
 | `renderBindingGuide` | The step-by-step binding guide for onboarding a custom backend. |
