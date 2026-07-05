@@ -2783,6 +2783,14 @@ Shared pass/fail assertion helper for the script-level verifiers (verify-broker-
 | `bold` | — |
 | `createAsserter` | A fresh, independent pass/fail tally + printer for one script run. |
 
+### `scripts/src/lib/backend-freeze.ts`
+
+Backend-catalogue growth freeze.
+
+| Function | What it does |
+| --- | --- |
+| `checkCatalogueFreeze` | Throws if the catalogue has grown past its baseline while any flagship backend is still unverified. |
+
 ### `scripts/src/lib/coverage.ts`
 
 "Every declared item is built" — the pure core of the coverage guard.
