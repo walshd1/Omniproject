@@ -18,8 +18,14 @@ export function shouldRegister(env: { serviceWorker: boolean; isProd: boolean })
 export function isBypassed(url: string, method = "GET"): boolean {
   if (method.toUpperCase() !== "GET") return true;
   try {
-    const path = new URL(url, "http://x").pathname;
-    return path.startsWith("/api/") || path.startsWith("/auth/") || path.startsWith("/oauth");
+    const path = new URL(url, "http://x").pathname.toLowerCase();
+    return (
+      path === "/api" ||
+      path.startsWith("/api/") ||
+      path === "/auth" ||
+      path.startsWith("/auth/") ||
+      path.startsWith("/oauth")
+    );
   } catch {
     return true; // unparseable ⇒ be safe, don't cache
   }
