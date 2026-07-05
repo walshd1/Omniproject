@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
-import { renderWithProviders, mockFetchRouter } from "../../test/utils";
+import { renderWithProviders, mockFetchRouter, mockReload } from "../../test/utils";
 import { Toaster } from "../ui/toaster";
 import { LabelsAdmin } from "./LabelsAdmin";
 
@@ -20,12 +20,6 @@ const CATALOG = [
   { key: "project", default: "Project" },
   { key: "issue", default: "Task" },
 ];
-
-function mockReload(): ReturnType<typeof vi.fn> {
-  const reload = vi.fn();
-  Object.defineProperty(window, "location", { value: { ...window.location, reload }, writable: true });
-  return reload;
-}
 
 afterEach(() => vi.restoreAllMocks());
 
