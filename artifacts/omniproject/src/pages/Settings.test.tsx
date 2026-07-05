@@ -161,12 +161,10 @@ describe("Settings interactions", () => {
     expect(calls.length).toBeGreaterThan(before);
   });
 
-  it("shows a validation error for a malformed broker URL and disables submit", async () => {
-    const user = userEvent.setup();
+  it("shows a validation error for a malformed broker URL and disables submit", () => {
     renderSettings(seed(settings()));
     const input = screen.getByDisplayValue("https://broker.example.com/webhook/abc");
-    await user.clear(input);
-    await user.type(input, "not a url");
+    fireEvent.change(input, { target: { value: "not a url" } });
     expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid URL (including http:// or https://).");
     expect(screen.getByRole("button", { name: /commit changes/i })).toBeDisabled();
   });
