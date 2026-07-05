@@ -35,6 +35,14 @@ That boots, serves **plain HTTP on your LAN** (sessions keep working — no brok
 cookies), authenticates in demo mode, and shows sample data until you wire a backend. Nothing
 is stored at rest beyond your encrypted config.
 
+Running in containers instead of bare `node`? **`docker-compose.slim.yml`** is exactly this
+setup packaged up — `omni-shell` + a single n8n, nothing else, the same defaults as above:
+
+```bash
+export SESSION_SECRET=$(openssl rand -hex 32)
+docker compose -f docker-compose.slim.yml up -d
+```
+
 ## Pick your type in the Configurator
 
 The **Configurator** opens with **“Choose your deployment type”** — a card per customer type
@@ -63,7 +71,8 @@ choices are visible, not accidental.
 
 ### Self-hoster / homelab
 - `DEPLOYMENT_PROFILE=self-hosted`, set `SESSION_SECRET`, run on HTTP behind your home network.
-- One admin? Demo auth is fine. Multiple people? Use the **bundled IdP** (Authentik ships in
+- One admin? Demo auth is fine — `docker-compose.slim.yml` (`omni-shell` + a single n8n, nothing
+  else) is the fastest path in. Multiple people? Use the **bundled IdP** (Authentik ships in
   `docker-compose.standalone.yml`) for real accounts + roles — still self-contained, no cloud.
 - Remote access? Put any TLS reverse proxy in front and set `PUBLIC_TLS=1` (or
   `DEPLOYMENT_PROFILE=business`).

@@ -1,0 +1,109 @@
+name: omniproject-slim
+
+# OmniProject — Slim mode (minimal footprint, small orgs & charities)
+# ─────────────────────────────────────────────────────────────────────────────
+# The leanest REAL deployment: omni-shell + a single standalone n8n. No
+# Traefik, no Authentik, no local database, no local LLM — just the two
+# containers OmniProject actually needs, sized for a single small team or
+# charity running on one small box. See docs/SMALL-ORG-GUIDE.md.
+#
+# Defaults assume DEPLOYMENT_PROFILE=self-hosted: plain HTTP on your LAN and
+# demo auth (every session is admin — fine for a single trusted operator) are
+# both ACCEPTED CHOICES for this profile, not blockers — the gateway won't
+# refuse to boot over them. Set DEPLOYMENT_PROFILE=nonprofit (or business) and
+# wire OIDC_ISSUER_URL/OIDC_CLIENT_ID/OIDC_CLIENT_SECRET the moment more than
+# one person needs their own account; nothing here blocks that upgrade path.
+# For remote (non-LAN) access, put a TLS reverse proxy in front — see
+# docs/REVERSE-PROXY.md — and set PUBLIC_URL to its https origin.
+
+networks:
+  omni-slim:
+    driver: bridge
+
+volumes:
+  n8n_slim_data:
+
+services:
+  # ── OmniProject shell (SPA + gateway) ───────────────────────────────────────
+  omni-shell:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: omniproject-shell:0.2.0
+    container_name: omni-shell
+    ports:
+      # Published on all interfaces by default — reachable on your LAN with no
+      # reverse proxy required. Set OMNI_SHELL_PORT to change the host port.
+      - "${OMNI_SHELL_PORT:-3000}:3000"
+    # Stateless gateway — drop privileges and run read-only, same as every other profile.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      BASE_PATH: /
+      DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:-self-hosted}
+      # Change this to your box's LAN address/hostname (or a fronting proxy's
+      # https origin) if the default doesn't match how you'll reach it.
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      BROKER_URL: ${BROKER_URL:-http://n8n:5678/webhook/omniproject}
+      # ── Auth: BYO OIDC if you have one; otherwise demo auth (accepted under
+      #    the self-hosted/nonprofit profiles above — see deployment-profile.ts) ──
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      # The one secret this profile truly needs — signs session/CSRF cookies.
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET (long random string)}
+      # ── Read-only API tokens for Power BI / scheduled exports (optional) ────
+      API_TOKENS: ${API_TOKENS:-}
+      # ── AI: off by default; BYO public provider if you want one (no local LLM here) ──
+      AI_PROVIDER: ${AI_PROVIDER:-none}
+      AI_MODEL: ${AI_MODEL:-}
+      VAULT_KEY: ${VAULT_KEY:-}
+    depends_on:
+      n8n:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    networks:
+      - omni-slim
+    mem_limit: 384m
+    restart: unless-stopped
+
+  # ── n8n (single standalone broker, sqlite — no separate DB container) ──────
+  n8n:
+    image: n8nio/n8n:1.123.61   # pinned for reproducibility; matches the other profiles
+    container_name: omni-n8n
+    # Loopback-only: the editor is administrative, not meant for the LAN. The
+    # shell reaches n8n in-network via http://n8n:5678.
+    ports:
+      - "127.0.0.1:5678:5678"
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      N8N_PORT: 5678
+      GENERIC_TIMEZONE: UTC
+      DB_TYPE: sqlite
+      WEBHOOK_URL: ${N8N_PUBLIC_URL:-http://localhost:5678/}
+      # n8n prompts you to create an owner account on first run.
+    volumes:
+      - n8n_slim_data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5678/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    networks:
+      - omni-slim
+    mem_limit: 512m
+    restart: unless-stopped

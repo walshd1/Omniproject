@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parse } from "yaml";
-import { isPinnedImage, auditComposeDoc, auditRepoCompose } from "./guard-compose";
+import { isPinnedImage, auditComposeDoc, auditRepoCompose, COMPOSE_FILES } from "./guard-compose";
 
 /**
  * Compose correctness guard — invariants `docker compose config` can't see: healthcheck-backed
@@ -90,4 +90,10 @@ services:
 test("the repo's real compose files satisfy every invariant", () => {
   // This is the live guard over the actual files — it must stay green.
   assert.deepEqual(auditRepoCompose(), []);
+});
+
+test("the slim (small-org) profile is registered as production-intent", () => {
+  const slim = COMPOSE_FILES.find((f) => f.file === "docker-compose.slim.yml");
+  assert.ok(slim, "docker-compose.slim.yml must be registered in COMPOSE_FILES");
+  assert.equal(slim!.prod, true, "slim is a real deploy target, not a dev/test rig — must get gateway hardening");
 });

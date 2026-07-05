@@ -1,7 +1,7 @@
 # Docker Compose correctness audit
 
 This note records the audit of OmniProject's Compose topologies and the checks that now keep them
-correct in CI. It covers the four compose files in the repo and the single `Dockerfile` they build.
+correct in CI. It covers the five compose files in the repo and the single `Dockerfile` they build.
 
 ## The topologies
 
@@ -9,11 +9,12 @@ correct in CI. It covers the four compose files in the repo and the single `Dock
 | --- | --- | --- | --- | --- | --- |
 | `docker-compose.standalone.yml` | Full self-contained local stack | Traefik (mkcert) | bundled Authentik | n8n (sqlite) | local Ollama |
 | `docker-compose.enterprise.yml` | BYO-everything evaluation | your ingress | your OIDC IdP | n8n (sqlite) | your systems |
+| `docker-compose.slim.yml` | Smallest real deployment (small orgs/charities) | none (LAN HTTP by default) | demo auth by default, BYO OIDC optional | n8n (sqlite) | your systems |
 | `docker-compose.loadtest.yml` | Disposable measurement rig | none | none | n8n **queue mode** + workers | OpenProject |
 | `docker-compose.dev.yml` | Dev/debug **override** (layer on a base) | — | — | — | — |
 
 The `Dockerfile` builds one image — `omniproject-shell` — that serves the SPA and the gateway on a
-single port (3000); standalone, enterprise, loadtest and the k8s manifest all deploy it.
+single port (3000); standalone, enterprise, slim, loadtest and the k8s manifest all deploy it.
 
 ## What was verified
 
@@ -51,6 +52,12 @@ No correctness defects were found in the compose files. Two robustness/coverage 
    and enterprise were).
 3. **A liveness healthcheck on the load-test `gateway`**, so the rig can be brought up with `--wait`
    and the harness only starts measuring once the gateway is serving — matching the other topologies.
+4. **`docker-compose.slim.yml`** — a fifth topology for small orgs/charities: the same `omni-shell` +
+   single-n8n shape as enterprise, but with `DEPLOYMENT_PROFILE` defaulting to `self-hosted` and OIDC
+   left optional (demo auth is an accepted choice under that profile, not a boot-refusal), and lower
+   `mem_limit`s. Registered in `guard-compose.ts`'s `COMPOSE_FILES` as production-intent (`prod:
+   true`), so it gets the same gateway-hardening + pinned-image + healthcheck checks as standalone and
+   enterprise.
 
 ## Running the checks locally
 
@@ -59,5 +66,6 @@ pnpm --filter @workspace/scripts run guard-compose      # invariants (no Docker 
 docker compose -f docker-compose.standalone.yml config -q
 docker compose -f docker-compose.standalone.yml -f docker-compose.dev.yml config -q
 docker compose -f docker-compose.enterprise.yml config -q
+docker compose -f docker-compose.slim.yml config -q
 docker compose -f docker-compose.loadtest.yml config -q
 ```
