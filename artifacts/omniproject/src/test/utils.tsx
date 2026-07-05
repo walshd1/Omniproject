@@ -60,3 +60,14 @@ export function mockFetchRouter(routes: Record<string, { ok: boolean; status?: n
   }) as unknown as typeof fetch;
   return calls;
 }
+
+/**
+ * Undoes `mockFetchRouter`'s plain-assignment stub. Call from a file-level `afterEach` in any
+ * test file that uses `mockFetchRouter` (or otherwise stubs `globalThis.fetch` directly) —
+ * `vi.restoreAllMocks()` does not undo a plain assignment, so a stale mock would otherwise leak
+ * into a later test's (unmocked) background refetch.
+ */
+export function resetFetchMock(): void {
+  // @ts-expect-error test-only cleanup of the stub installed by mockFetchRouter
+  delete globalThis.fetch;
+}

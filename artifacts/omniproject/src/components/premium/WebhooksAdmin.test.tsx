@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
-import { renderWithProviders, mockFetchRouter } from "../../test/utils";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
 import { Toaster } from "../ui/toaster";
 import { WebhooksAdmin } from "./WebhooksAdmin";
 
@@ -39,13 +39,7 @@ const HOOK_B: Webhook = {
   secretSet: true,
 };
 
-afterEach(() => {
-  // mockFetchRouter installs a plain assignment on globalThis.fetch, not a vi.spyOn, so nothing
-  // auto-restores it between tests — leaving a stale mock would leak into the next test's
-  // (unmocked) background refetch.
-  // @ts-expect-error test-only cleanup of the stub installed by mockFetchRouter
-  delete globalThis.fetch;
-});
+afterEach(resetFetchMock);
 
 describe("WebhooksAdmin", () => {
   it("shows a lock notice and disables the form when not entitled", () => {
