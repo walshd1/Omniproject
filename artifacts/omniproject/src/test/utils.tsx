@@ -41,6 +41,10 @@ export function renderWithProviders(ui: ReactElement, opts: { client?: QueryClie
  * two endpoints it actually cares about. Installed directly on `globalThis.fetch` rather than
  * via `vi.spyOn`, so restore it yourself between tests if a later test relies on the real
  * (unmocked) fetch stub — `vi.restoreAllMocks()` does not undo a plain assignment.
+ *
+ * A key may be a bare pathname (matches any method — the common case) or `"METHOD /path"` for a
+ * route that needs to answer a GET and a POST to the SAME path differently (checked first, so it
+ * takes precedence over a bare-pathname entry for that path).
  */
 export function mockFetchRouter(routes: Record<string, { ok: boolean; status?: number; body?: unknown }>) {
   const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
@@ -48,7 +52,8 @@ export function mockFetchRouter(routes: Record<string, { ok: boolean; status?: n
     const href = String(url);
     calls.push({ url: href, init });
     const path = new URL(href, "http://localhost").pathname;
-    const route = routes[path] ?? { ok: true, body: {} };
+    const method = (init?.method ?? "GET").toUpperCase();
+    const route = routes[`${method} ${path}`] ?? routes[path] ?? { ok: true, body: {} };
     return {
       ok: route.ok,
       status: route.status ?? (route.ok ? 200 : 500),

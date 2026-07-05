@@ -99,6 +99,30 @@ describe("validateSnapshot / parseSnapshotFile", () => {
     expect(parseSnapshotFile("not json")).toEqual([]);
     expect(parseSnapshotFile(JSON.stringify({ snapshots: [snap, { bad: true }] }))).toHaveLength(1);
   });
+
+  it("caps an oversized snapshot's rows rather than accepting an unbounded array", () => {
+    const huge = {
+      capturedAt: "2026-01-01T00:00:00Z",
+      projects: Array.from({ length: 10_000 }, (_, i) => ({ id: `p${i}`, name: "X", issueCount: 1, completedCount: 1 })),
+      portfolio: Array.from({ length: 10_000 }, (_, i) => ({ projectId: `p${i}`, ragStatus: "GREEN", scheduleVarianceDays: 0, budgetVariancePercentage: 0, activeBlockersCount: 0 })),
+    };
+    const snap = validateSnapshot(huge);
+    expect(snap?.projects.length).toBe(5_000);
+    expect(snap?.portfolio.length).toBe(5_000);
+  });
+
+  it("caps the number of snapshots accepted from a single imported bundle", () => {
+    const snap = createSnapshot({ projects }, "2026-01-01T00:00:00Z");
+    const manySnapshots = Array.from({ length: 600 }, (_, i) => ({ ...snap, capturedAt: `2026-01-${String((i % 28) + 1).padStart(2, "0")}T00:00:00Z` }));
+    const bundle = JSON.stringify({ schema: 1, exportedAt: "2026-01-01T00:00:00Z", snapshots: manySnapshots });
+    expect(parseSnapshotFile(bundle)).toHaveLength(500);
+  });
+
+  it("strips dangerous keys from an imported bundle via safeParseJson (prototype-pollution guard)", () => {
+    const malicious = `{"snapshots":[{"capturedAt":"2026-01-01T00:00:00Z","projects":[],"portfolio":[],"__proto__":{"polluted":true}}]}`;
+    parseSnapshotFile(malicious);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
 });
 
 describe("auto-capture schedule", () => {

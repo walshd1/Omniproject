@@ -123,6 +123,21 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
   Needs either building `sw.js` so it can import the shared `isBypassed` from `lib/pwa.ts`, or a
   dedicated test harness (e.g. a minimal service-worker-global shim) that exercises `sw.js` as its
   own module.
+- **[security debt] `EnvironmentsStep`'s promote/rollback/known-good actions skip step-up re-auth
+  that comparably consequential admin actions elsewhere require.** `promoteEnvironment`,
+  `rollback`, and `markKnownGood` (`lib/setup.ts`) all take immediate, live effect ("Live traffic
+  will use the restored settings immediately" / "immediately use the promoted settings" — the
+  component's own confirm-dialog copy) and are gated only by a `ConfirmButton` click, never by
+  `lib/step-up.ts`'s `withStepUp`. Every other comparably sensitive admin mutation in the codebase
+  (`SecurityKeys.tsx`, `ActionCatalogue.tsx`, `AiProvidersAdmin.tsx`, `GovernanceDashboard.tsx`,
+  `ConfigDirPanel.tsx`, and `setup.ts`'s own `refreshConfigDir`, which has an explicit "Call behind
+  `withStepUp`" comment) wraps its mutation in `withStepUp` first. Found via a security review of
+  `EnvironmentsStep.test.tsx`'s new coverage of the promote/rollback/known-good flows. Not fixed
+  here — wrapping these calls also requires reworking `envAction`/`doRollback`'s own try/catch
+  toasts, since `withStepUp` swallows the wrapped function's thrown error (`catch { return null;
+  }`) rather than propagating it, so this needs a considered pass, not a one-line change. Needs
+  wrapping `promoteEnvironment`/`rollback`/`markKnownGood` in `withStepUp` and surfacing failure
+  via `withStepUp`'s `null` return instead of a caught exception.
 
 ---
 
