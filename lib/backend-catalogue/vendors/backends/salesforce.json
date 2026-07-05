@@ -90,5 +90,6 @@
   "label": "Salesforce",
   "notes": "CRM mapping: Account → project, Opportunity → issue. crm + financials capabilities light up deal value / stage / close date. Confirm field + param names against your Salesforce edition after import.",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Native n8n node (salesforceOAuth2Api credential)"
 }

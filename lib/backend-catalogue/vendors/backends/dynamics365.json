@@ -43,5 +43,6 @@
   "requiredEnv": [
     "DATAVERSE_URL"
   ],
+  "verification": "catalogued",
   "via": "HTTP + n8n-managed Dynamics OAuth (Dataverse Web API)"
 }

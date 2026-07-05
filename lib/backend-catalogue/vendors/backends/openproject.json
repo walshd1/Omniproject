@@ -43,5 +43,6 @@
   "requiredEnv": [
     "OPENPROJECT_INSTANCE_URL"
   ],
+  "verification": "catalogued",
   "via": "HTTP + per-user OIDC token"
 }

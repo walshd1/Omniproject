@@ -72,5 +72,6 @@
   "label": "Wrike",
   "notes": "Folders/projects → projects, tasks → issues.",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Native n8n node (wrikeOAuth2Api credential)"
 }

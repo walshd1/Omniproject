@@ -73,5 +73,6 @@
   "label": "Freshservice (Freshworks ITSM)",
   "notes": "Freshworks ITSM. Departments → projects, Tickets → issues. service capability on.",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Native n8n node (freshserviceApi credential)"
 }

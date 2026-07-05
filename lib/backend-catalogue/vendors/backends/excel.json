@@ -18,5 +18,6 @@
   "label": "Excel / CSV import",
   "notes": "One-shot tabular import for spreadsheets and CSV exports (and any legacy system that can export a sheet). POST { headers, rows } to /api/import/preview to auto-map columns to canonical fields (exact / synonym / fuzzy), confirm the mapping, then /api/import/commit to create the issues via your live backend. Reference mapping — review before importing.",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Spreadsheet upload → column/field mapper (/api/import)"
 }

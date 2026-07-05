@@ -56,12 +56,23 @@ describe("CustomBackendAdmin", () => {
     expect(screen.getByTestId("backend-json-preview")).toHaveTextContent('"issues": true');
   });
 
+  it("defaults verification to 'experimental' for a blank draft, and changing it updates the preview", () => {
+    renderWithProviders(<CustomBackendAdmin />, { client: seed("admin") });
+    expect(screen.getByLabelText("Verification status")).toHaveValue("experimental");
+    expect(screen.getByTestId("backend-json-preview")).toHaveTextContent('"verification": "experimental"');
+
+    fireEvent.change(screen.getByLabelText("Verification status"), { target: { value: "verified" } });
+    expect(screen.getByTestId("backend-json-preview")).toHaveTextContent('"verification": "verified"');
+  });
+
   it("clones a shipped backend as a starting point", () => {
     renderWithProviders(<CustomBackendAdmin />, { client: seed("admin") });
     fireEvent.change(screen.getByLabelText("Clone an existing backend"), { target: { value: "todoist" } });
     fireEvent.click(screen.getByText("Clone"));
     expect(screen.getByLabelText("Backend id")).toHaveValue("todoist");
     expect(screen.getByLabelText("Backend label")).toHaveValue("Todoist");
+    // The cloned backend's own verification status carries over, not the blank-draft default.
+    expect(screen.getByLabelText("Verification status")).toHaveValue("catalogued");
     // Cloning a real, already-valid backend leaves nothing to fix...
     expect(screen.queryByTestId("backend-errors")).not.toBeInTheDocument();
     // ...but does warn that exporting it will override the shipped one.

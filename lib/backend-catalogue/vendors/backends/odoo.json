@@ -87,5 +87,6 @@
   "label": "Odoo",
   "notes": "Odoo via the custom-model resource: project.project → projects, project.task → issues. Auth + URL live in the Odoo credential. Confirm model/field names for your Odoo modules.",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Native n8n node (odooApi credential)"
 }

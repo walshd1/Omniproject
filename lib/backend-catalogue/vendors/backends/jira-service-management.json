@@ -47,5 +47,6 @@
   "requiredEnv": [
     "JIRA_BASE_URL"
   ],
+  "verification": "catalogued",
   "via": "HTTP (JSM servicedeskapi) + n8n-managed Jira credential"
 }

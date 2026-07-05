@@ -87,5 +87,6 @@
   },
   "notes": "CRM mapping: Organization \u2192 project, Deal \u2192 issue. crm + financials capabilities light up deal value / stage. Confirm field + param names against the installed Pipedrive node version after import.",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Native n8n node (pipedriveApi credential)"
 }

@@ -11,6 +11,7 @@ import {
   CAPABILITY_DOMAINS,
   KEY_SCHEMES,
   BACKEND_KINDS,
+  VERIFICATION_STATUSES,
   ACTION_KINDS,
   HTTP_METHODS,
   emptyBackendDraft,
@@ -233,6 +234,13 @@ export function CustomBackendAdmin() {
                 value={draft.kind} onChange={(e) => patch({ kind: e.target.value as BackendDraft["kind"] })}>
                 <option value="">live (default)</option>
                 {BACKEND_KINDS.filter((k) => k !== "live").map((k) => <option key={k} value={k}>{k}</option>)}
+              </select>
+            </label>
+            <label className="text-xs flex items-center gap-1">
+              <span className="text-muted-foreground" title="How confident this definition is against a REAL, live instance of the vendor — not just well-formed on paper.">Verification</span>
+              <select aria-label="Verification status" className="rounded-none border border-border bg-background px-2 py-1 text-xs"
+                value={draft.verification} onChange={(e) => patch({ verification: e.target.value as BackendDraft["verification"] })}>
+                {VERIFICATION_STATUSES.map((v) => <option key={v} value={v}>{v}</option>)}
               </select>
             </label>
             <label className="text-xs flex items-center gap-2">

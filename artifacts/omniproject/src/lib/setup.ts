@@ -96,6 +96,9 @@ export interface BackendInfo {
   id: string;
   label: string;
   docsUrl: string;
+  /** How confident we are this manifest matches the real, live vendor API — see
+   *  `VerificationStatus` in `lib/backend-catalogue/src/backend-manifest.ts`. */
+  verification?: "verified" | "catalogued" | "experimental";
   via: string;
   credentialType: string | null;
   requiredEnv: string[];

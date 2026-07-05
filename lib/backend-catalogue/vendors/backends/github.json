@@ -55,5 +55,6 @@
       "closed": "done"
     }
   },
+  "verification": "catalogued",
   "via": "HTTP + per-user token"
 }

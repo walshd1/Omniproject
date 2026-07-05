@@ -43,5 +43,6 @@
   "requiredEnv": [
     "P6_URL"
   ],
+  "verification": "catalogued",
   "via": "HTTP + n8n Basic credential (P6 REST)"
 }

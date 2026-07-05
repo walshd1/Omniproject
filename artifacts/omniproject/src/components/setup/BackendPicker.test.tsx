@@ -9,6 +9,7 @@ const jira: BackendInfo = {
   id: "jira",
   label: "Jira",
   docsUrl: "https://docs/jira",
+  verification: "catalogued",
   via: "REST",
   credentialType: "apiToken",
   requiredEnv: ["JIRA_URL"],
@@ -21,6 +22,7 @@ const sap: BackendInfo = {
   id: "sap",
   label: "SAP",
   docsUrl: "https://docs/sap",
+  verification: "experimental",
   via: "OData",
   credentialType: null,
   requiredEnv: [],
@@ -69,5 +71,21 @@ describe("BackendPicker", () => {
     await findByRole("option", { name: /jira/i });
     await user.click(getByRole("button", { name: /don't see it/i }));
     expect(getByRole("heading", { name: /tell us what you use/i })).toBeInTheDocument();
+  });
+
+  it("shows each tile's verification badge", async () => {
+    mockBackends([jira, sap]);
+    const { findByRole, getByRole } = renderWithProviders(<Harness />);
+    const jiraTile = await findByRole("option", { name: /jira/i });
+    expect(jiraTile).toHaveTextContent("CATALOGUED");
+    const sapTile = getByRole("option", { name: /sap/i });
+    expect(sapTile).toHaveTextContent("EXPERIMENTAL");
+  });
+
+  it("defaults a tile's badge to CATALOGUED when the backend omits verification", async () => {
+    const { verification: _omit, ...noVerification } = jira;
+    mockBackends([noVerification as BackendInfo]);
+    const jiraTile = await renderWithProviders(<Harness />).findByRole("option", { name: /jira/i });
+    expect(jiraTile).toHaveTextContent("CATALOGUED");
   });
 });

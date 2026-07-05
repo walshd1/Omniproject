@@ -14,6 +14,7 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
       "id",
       "label",
       "docsUrl",
+      "verification",
       "via",
       "requiredEnv",
       "capabilities",
@@ -30,6 +31,14 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
       },
       "docsUrl": {
         "type": "string"
+      },
+      "verification": {
+        "enum": [
+          "verified",
+          "catalogued",
+          "experimental"
+        ],
+        "description": "How confident we are this manifest matches the vendor's real, live API. \"catalogued\": built from public docs, not yet run against a live instance. \"verified\": exercised end-to-end against a live instance. \"experimental\": speculative/partial, or a generic placeholder."
       },
       "via": {
         "type": "string",

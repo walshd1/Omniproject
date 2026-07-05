@@ -32,6 +32,10 @@ describe("emptyBackendDraft", () => {
     expect(Object.values(draft.capabilities).every((v) => v === false)).toBe(true);
     expect(Object.values(draft.actions).every((a) => a.enabled === false)).toBe(true);
   });
+
+  it("defaults verification to 'experimental' — a self-authored draft has no track record yet", () => {
+    expect(emptyBackendDraft().verification).toBe("experimental");
+  });
 });
 
 describe("evaluateDraft", () => {
@@ -107,6 +111,13 @@ describe("evaluateDraft", () => {
     expect(warnings.some((w) => /jira/.test(w) && /OVERRIDE/.test(w))).toBe(true);
   });
 
+  it("carries the draft's verification status into the built manifest", () => {
+    const draft = validDraft();
+    draft.verification = "verified";
+    const { manifest } = evaluateDraft(draft);
+    expect(manifest["verification"]).toBe("verified");
+  });
+
   it("includes keyFormat only once enabled with a scheme chosen", () => {
     const draft = validDraft();
     const before = evaluateDraft(draft).manifest;
@@ -137,6 +148,9 @@ describe("cloneFromCatalogue / toDraft round-trip", () => {
     expect(draft!.actions.list_issues.enabled).toBe(true);
     expect(draft!.actions.list_issues.url).toContain("todoist.com");
     expect(draft!.capabilities.issues).toBe(true);
+    // A cloned shipped backend keeps its own verification status — it doesn't
+    // regress to the blank-draft "experimental" default just because it was cloned.
+    expect(draft!.verification).toBe("catalogued");
 
     const { errors } = evaluateDraft(draft!);
     expect(errors).toEqual([]);
@@ -148,12 +162,19 @@ describe("cloneFromCatalogue / toDraft round-trip", () => {
 
   it("round-trips a built manifest through toDraft without loss of the mapped fields", () => {
     const draft = validDraft();
+    draft.verification = "verified";
     const { manifest } = evaluateDraft(draft);
     const restored = toDraft(manifest);
     expect(restored.id).toBe(draft.id);
     expect(restored.label).toBe(draft.label);
+    expect(restored.verification).toBe("verified");
     expect(restored.actions.list_issues).toMatchObject({ enabled: true, method: "GET" });
     expect(evaluateDraft(restored).errors).toEqual([]);
+  });
+
+  it("falls back to the blank-draft default when an imported object's verification is missing/invalid", () => {
+    expect(toDraft({ verification: "not-a-real-status" }).verification).toBe("experimental");
+    expect(toDraft({}).verification).toBe("experimental");
   });
 });
 

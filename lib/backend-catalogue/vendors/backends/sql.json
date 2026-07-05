@@ -48,5 +48,6 @@
     "SQL_SIDECAR_URL",
     "SQL_SIDECAR_TOKEN"
   ],
+  "verification": "catalogued",
   "via": "HTTP sidecar that holds the DB connection — admin-only"
 }

@@ -48,5 +48,6 @@
     "MONGO_SIDECAR_URL",
     "MONGO_SIDECAR_TOKEN"
   ],
+  "verification": "catalogued",
   "via": "HTTP sidecar that holds the Mongo connection — admin-only"
 }

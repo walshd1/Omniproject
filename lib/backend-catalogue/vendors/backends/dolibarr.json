@@ -44,5 +44,6 @@
   "requiredEnv": [
     "DOLIBARR_URL"
   ],
+  "verification": "catalogued",
   "via": "HTTP (Dolibarr REST) + n8n Header-Auth credential (DOLAPIKEY)"
 }

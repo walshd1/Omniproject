@@ -1,4 +1,5 @@
 import { PLANES, type PlaneId } from "./planes";
+import { VERIFICATION_STATUSES } from "./backend-manifest";
 
 /**
  * Plane verifier — validates a developer-written entry for ANY plane against that
@@ -29,6 +30,9 @@ function base(e: Rec, errors: string[]): void {
 
 const CHECKS: Record<PlaneId, (e: Rec, errors: string[]) => void> = {
   backends: (e, errors) => {
+    if (!(VERIFICATION_STATUSES as readonly string[]).includes(e["verification"] as string)) {
+      errors.push(`verification: required, one of ${VERIFICATION_STATUSES.join("|")}`);
+    }
     if (!isStr(e["via"])) errors.push("via: required string");
     if (!isArr(e["requiredEnv"])) errors.push("requiredEnv: required array");
     if (!isObj(e["capabilities"])) errors.push("capabilities: required object");

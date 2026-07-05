@@ -79,5 +79,6 @@
     "D365FO_URL",
     "D365FO_COMPANY"
   ],
+  "verification": "catalogued",
   "via": "HTTP (F&O OData v4 Web API) + Azure AD OAuth2 (generic n8n OAuth2 credential)"
 }

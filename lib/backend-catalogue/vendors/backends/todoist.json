@@ -43,5 +43,6 @@
   "requiredEnv": [
     "TODOIST_TOKEN"
   ],
+  "verification": "catalogued",
   "via": "HTTP (Todoist REST v2) + bearer token"
 }

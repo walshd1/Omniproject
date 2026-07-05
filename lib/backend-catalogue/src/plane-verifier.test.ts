@@ -37,6 +37,13 @@ test("plane-specific invariants are enforced (broker.synchronous, report.require
   assert.ok(verifyPlaneEntry("screens", { id: "s", label: "S", route: "/x", kind: "detail", capabilities: { requiresRole: "wizard" }, tools: [] }).errors.some((e) => e.includes("requiresRole")));
 });
 
+test("backends.verification is required and must be one of verified|catalogued|experimental", () => {
+  const base = { id: "acme", label: "Acme", via: "HTTP", requiredEnv: [], capabilities: {}, authHeader: "x", actions: { list_projects: {}, list_issues: {} } };
+  assert.ok(verifyPlaneEntry("backends", base).errors.some((e) => e.includes("verification")), "missing verification must error");
+  assert.ok(verifyPlaneEntry("backends", { ...base, verification: "bogus" }).errors.some((e) => e.includes("verification")), "an unrecognised value must error");
+  assert.equal(verifyPlaneEntry("backends", { ...base, verification: "catalogued" }).ok, true);
+});
+
 test("unknown plane + cross-plane reference checks", () => {
   assert.equal(verifyPlaneEntry("nope", {}).ok, false);
   const r = verifyPlaneEntry("brokers", { id: "b", label: "B", kind: "low-code", capabilities: { synchronous: true }, transports: ["http"], build: "x", alsoProvides: [{ plane: "made-up" }] });

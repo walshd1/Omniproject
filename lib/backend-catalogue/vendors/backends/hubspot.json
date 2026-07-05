@@ -78,5 +78,6 @@
   "label": "HubSpot",
   "notes": "CRM mapping: Company → project, Deal → issue. crm + financials capabilities light up amount / pipeline / stage. Confirm resource/param names against the installed HubSpot node version after import.",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Native n8n node (hubspotApi or hubspotOAuth2Api credential)"
 }

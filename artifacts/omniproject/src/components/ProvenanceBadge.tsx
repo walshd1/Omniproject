@@ -1,6 +1,8 @@
+import { StatusBadge, type StatusMeta } from "./StatusBadge";
+
 export type Provenance = "sourced" | "derived" | "sample" | "captured";
 
-const META: Record<Provenance, { label: string; cls: string; title: string }> = {
+const META: Record<Provenance, StatusMeta> = {
   sourced: {
     label: "LIVE · BACKEND",
     cls: "border-green-500/40 text-green-600 dark:text-green-400 bg-green-500/10",
@@ -39,15 +41,7 @@ export function ProvenanceBadge({
 }) {
   const resolved: Provenance = provenance ?? (mode === "demo" || !mode ? "sample" : "sourced");
   // Defensive: the logging server can emit provenance values outside this badge's
-  // vocabulary (e.g. "replayed", "projected"); fall back to "sourced" rather than
-  // crashing on an undefined META entry.
-  const m = META[resolved] ?? META.sourced;
-  return (
-    <span
-      title={m.title}
-      className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest border ${m.cls} ${className}`}
-    >
-      {m.label}
-    </span>
-  );
+  // vocabulary (e.g. "replayed", "projected"); StatusBadge falls back to "sourced"
+  // rather than crashing on an undefined META entry.
+  return <StatusBadge value={resolved} meta={META} fallback="sourced" className={className} />;
 }

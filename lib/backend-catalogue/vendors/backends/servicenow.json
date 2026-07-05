@@ -101,5 +101,6 @@
   },
   "notes": "Uses the generic tableRecord resource against the PPM tables (pm_project / pm_project_task). Adjust table/field names to your ServiceNow PPM model.",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Native n8n node (serviceNowBasicApi credential)"
 }

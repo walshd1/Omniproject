@@ -5,11 +5,15 @@
   "description": "A system-of-record backend: the neutral manifest plus its n8n binding. One file per vendor under vendors/backends/<id>.json.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "label", "docsUrl", "via", "requiredEnv", "capabilities", "authHeader", "actions"],
+  "required": ["id", "label", "docsUrl", "verification", "via", "requiredEnv", "capabilities", "authHeader", "actions"],
   "properties": {
     "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
     "label": { "type": "string" },
     "docsUrl": { "type": "string" },
+    "verification": {
+      "enum": ["verified", "catalogued", "experimental"],
+      "description": "How confident we are this manifest matches the vendor's real, live API. \"catalogued\": built from public docs, not yet run against a live instance. \"verified\": exercised end-to-end against a live instance. \"experimental\": speculative/partial, or a generic placeholder."
+    },
     "via": { "type": "string", "description": "How this backend authenticates / is wired (human-readable, for the wizard)." },
     "requiredEnv": { "type": "array", "items": { "type": "string" } },
     "capabilities": { "type": "object", "additionalProperties": { "type": "boolean" } },

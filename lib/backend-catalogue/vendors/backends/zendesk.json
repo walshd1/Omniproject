@@ -82,5 +82,6 @@
   },
   "notes": "Support/ITSM: Organization \u2192 project, Ticket \u2192 issue. service capability lights up SLA/CSAT fields.",
   "requiredEnv": [],
+  "verification": "catalogued",
   "via": "Native n8n node (zendeskApi credential)"
 }

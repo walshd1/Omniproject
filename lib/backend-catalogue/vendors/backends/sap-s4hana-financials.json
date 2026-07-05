@@ -49,5 +49,6 @@
   "requiredEnv": [
     "SAP_S4_URL"
   ],
+  "verification": "catalogued",
   "via": "HTTP (SAP Gateway OData, read-only) + n8n OAuth2 credential (client-credentials; Basic on-prem)"
 }

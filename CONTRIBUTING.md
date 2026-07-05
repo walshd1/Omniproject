@@ -72,7 +72,16 @@ Backends are declarative. Add a JSON manifest under
 generator emits an importable n8n workflow — see
 [docs/N8N-WORKFLOWS.md](docs/N8N-WORKFLOWS.md). Standard backends are free; the
 large ERPs (SAP, Primavera, …) are gated as enterprise — match the existing
-pattern.
+pattern. Every manifest must declare a `verification` status
+(`verified`/`catalogued`/`experimental`) — see
+[vendors/README.md#verification-status](lib/backend-catalogue/vendors/README.md#verification-status).
+
+**The catalogue is currently frozen at 41 backends** — `gen-vendors` refuses to
+embed a 42nd+ until `jira`, `asana`, `salesforce`, `servicenow` and `sap` are all
+`verified` against a live instance. See
+[vendors/README.md#catalogue-freeze](lib/backend-catalogue/vendors/README.md#catalogue-freeze)
+for the rationale and how to verify one of the flagship five instead of adding a
+new one.
 
 ## Project status
 
