@@ -87,6 +87,12 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
+/** Caps on a single snapshot's row counts — an imported file is user-controlled and
+ *  otherwise has no bound on how many rows land in sessionStorage (quota exhaustion). */
+const MAX_ROWS_PER_SNAPSHOT = 5_000;
+/** Cap on how many snapshots one import can add in a single call, for the same reason. */
+const MAX_SNAPSHOTS_PER_IMPORT = 500;
+
 /** Returns the snapshot if `obj` is structurally a valid snapshot, else null. */
 export function validateSnapshot(obj: unknown): PortfolioSnapshot | null {
   if (!isRecord(obj)) return null;
@@ -100,19 +106,25 @@ export function validateSnapshot(obj: unknown): PortfolioSnapshot | null {
     capturedAt: snap.capturedAt,
     label: typeof snap.label === "string" ? snap.label : undefined,
     mode: typeof snap.mode === "string" ? snap.mode : undefined,
-    projects: snap.projects.filter(isRecord).map((p) => ({
-      id: String((p as SnapshotProject).id ?? ""),
-      name: String((p as SnapshotProject).name ?? ""),
-      issueCount: Number((p as SnapshotProject).issueCount ?? 0),
-      completedCount: Number((p as SnapshotProject).completedCount ?? 0),
-    })),
-    portfolio: snap.portfolio.filter(isRecord).map((r) => ({
-      projectId: String((r as SnapshotPortfolioRow).projectId ?? ""),
-      ragStatus: String((r as SnapshotPortfolioRow).ragStatus ?? ""),
-      scheduleVarianceDays: Number((r as SnapshotPortfolioRow).scheduleVarianceDays ?? 0),
-      budgetVariancePercentage: Number((r as SnapshotPortfolioRow).budgetVariancePercentage ?? 0),
-      activeBlockersCount: Number((r as SnapshotPortfolioRow).activeBlockersCount ?? 0),
-    })),
+    projects: snap.projects
+      .slice(0, MAX_ROWS_PER_SNAPSHOT)
+      .filter(isRecord)
+      .map((p) => ({
+        id: String((p as SnapshotProject).id ?? ""),
+        name: String((p as SnapshotProject).name ?? ""),
+        issueCount: Number((p as SnapshotProject).issueCount ?? 0),
+        completedCount: Number((p as SnapshotProject).completedCount ?? 0),
+      })),
+    portfolio: snap.portfolio
+      .slice(0, MAX_ROWS_PER_SNAPSHOT)
+      .filter(isRecord)
+      .map((r) => ({
+        projectId: String((r as SnapshotPortfolioRow).projectId ?? ""),
+        ragStatus: String((r as SnapshotPortfolioRow).ragStatus ?? ""),
+        scheduleVarianceDays: Number((r as SnapshotPortfolioRow).scheduleVarianceDays ?? 0),
+        budgetVariancePercentage: Number((r as SnapshotPortfolioRow).budgetVariancePercentage ?? 0),
+        activeBlockersCount: Number((r as SnapshotPortfolioRow).activeBlockersCount ?? 0),
+      })),
   };
 }
 
@@ -126,7 +138,10 @@ export function parseSnapshotFile(text: string): PortfolioSnapshot[] {
   }
   const asBundle = parsed as unknown as SnapshotBundle;
   const raw: unknown[] = isRecord(parsed) && Array.isArray(asBundle.snapshots) ? asBundle.snapshots : [parsed];
-  return raw.map(validateSnapshot).filter((s): s is PortfolioSnapshot => s !== null);
+  return raw
+    .slice(0, MAX_SNAPSHOTS_PER_IMPORT)
+    .map(validateSnapshot)
+    .filter((s): s is PortfolioSnapshot => s !== null);
 }
 
 // ── Session persistence (volatile) ───────────────────────────────────────────
@@ -136,16 +151,23 @@ export function loadSnapshots(): PortfolioSnapshot[] {
   try {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    const list = JSON.parse(raw);
+    const list = safeParseJson(raw);
     return Array.isArray(list) ? list.map(validateSnapshot).filter((s): s is PortfolioSnapshot => s !== null) : [];
   } catch {
     return [];
   }
 }
 
+/** Swallows quota-exceeded (e.g. an oversized imported bundle) rather than throwing
+ *  into a caller that may be running inside the auto-capture ticker's interval callback. */
 export function saveSnapshots(list: PortfolioSnapshot[]): void {
   if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  try {
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  } catch {
+    // sessionStorage quota exceeded — the in-memory list still reflects the capture;
+    // it just won't survive a refresh. Nothing actionable to surface here.
+  }
 }
 
 /** Append (de-duped by id), keep sorted by capturedAt, persist, and return the list. */
