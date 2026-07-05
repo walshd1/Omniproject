@@ -31,7 +31,14 @@ function isBypassed(request) {
   if (request.method !== "GET") return true;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return true; // third-party (fonts, etc.)
-  return url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/") || url.pathname.startsWith("/oauth");
+  const path = url.pathname.toLowerCase();
+  return (
+    path === "/api" ||
+    path.startsWith("/api/") ||
+    path === "/auth" ||
+    path.startsWith("/auth/") ||
+    path.startsWith("/oauth")
+  );
 }
 
 self.addEventListener("fetch", (event) => {

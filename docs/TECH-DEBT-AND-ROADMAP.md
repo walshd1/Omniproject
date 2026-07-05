@@ -115,6 +115,14 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
   grouping logic correctly (via a cast to a shape real data can never have). Needs either adding
   a `status` field to the canonical `Project` contract (and wiring brokers to populate it), or
   pointing the widget at a field that actually exists.
+- **[debt] `isBypassed` is hand-duplicated between `lib/pwa.ts` and `public/sw.js`.** Both encode
+  the "never cache /api, /auth, /oauth, or non-GET" policy independently, so a fix to one (see the
+  case-sensitivity/exact-path bug just fixed in `lib/pwa.ts`) doesn't propagate to the other unless
+  someone remembers to hand-port it. `public/sw.js` also has zero test coverage of its own — it's
+  a raw service-worker script (uses `self`/`caches`), not something Vitest can import directly.
+  Needs either building `sw.js` so it can import the shared `isBypassed` from `lib/pwa.ts`, or a
+  dedicated test harness (e.g. a minimal service-worker-global shim) that exercises `sw.js` as its
+  own module.
 
 ---
 
