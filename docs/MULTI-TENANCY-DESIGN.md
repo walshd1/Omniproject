@@ -193,7 +193,7 @@ with phase 2 the dominant cost. Each phase lands green and is independently revi
    **per tenant** via KMS (strongest; more onboarding)?
 3. **Tenant onboarding** — config-folder drop (ops) vs an admin "create tenant" API (self-serve;
    bigger surface)?
-4. **Backend topology** — one broker/n8n per tenant (strong physical isolation) or a shared
+4. **Backend topology** — one broker instance per tenant (strong physical isolation) or a shared
    broker that itself routes by tenant (cheaper; trust moves into the broker)?
 5. **Scope** — full pooled multi-tenancy, or stop at "per-tenant config + keys on shared
    processes" without per-tenant backend routing (if all tenants share backends)?

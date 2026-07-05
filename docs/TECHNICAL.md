@@ -28,7 +28,7 @@ n8n specifics are confined to one adapter module behind the seam, and an
 architecture-guard test fails CI if any n8n-ism leaks above it — so "swap the
 broker if n8n is superseded" is a property the build enforces, not just an
 intention. See [BROKER.md](BROKER.md). The n8n contract documented in §3 is the
-**N8nBroker's** contract, under the seam.
+**ReferenceBroker's** contract, under the seam.
 
 The `Broker` interface itself is **published as a versioned contract**:
 [CONTRACT.md](CONTRACT.md) plus a machine-readable
@@ -178,8 +178,8 @@ Generate tokens with `openssl rand -hex 32`.
 
 ## 3. The n8n integration contract
 
-> This is the **N8nBroker's** wire contract — the webhook envelope, headers and
-> action catalogue live *inside the adapter* (`src/broker/n8n/index.ts`), under the
+> This is the **ReferenceBroker's** wire contract — the webhook envelope, headers and
+> action catalogue live *inside the adapter* (`src/broker/reference-broker/index.ts`), under the
 > `Broker` seam (§1, [BROKER.md](BROKER.md)). Nothing above the seam sees any of
 > it. It is documented here because n8n is the implementation operators wire up.
 
@@ -290,7 +290,7 @@ throughput ceiling. Two independent mechanisms, usable together:
   *different* systems concurrently while each still gets its own failover pool.
 
 Implementation: `webhookPool()` / `resolvePool()` / `orderedTargets()` in
-`artifacts/api-server/src/broker/n8n/index.ts`. See
+`artifacts/api-server/src/broker/reference-broker/index.ts`. See
 [docs/BROKER-HTTP-BINDING.md](BROKER-HTTP-BINDING.md) for the exact env syntax.
 
 ---
@@ -387,7 +387,7 @@ interface (`getBroker()`), never to n8n directly — see [BROKER.md](BROKER.md).
 1. Define the path + schema in `openapi.yaml`; run codegen.
 2. Add the operation to the `Broker` interface in `src/broker/types.ts` (domain
    vocabulary — no action strings).
-3. Implement it in **both** adapters: `N8nBroker` (`src/broker/n8n/index.ts`) maps it to
+3. Implement it in **both** adapters: `ReferenceBroker` (`src/broker/reference-broker/index.ts`) maps it to
    an n8n action + normalizes the response; `DemoBroker` (`src/broker/demo.ts`)
    returns canned data so it runs offline.
 4. Add an Express route in `artifacts/api-server/src/routes/` that calls

@@ -381,13 +381,19 @@ security headers; TLS gateway↔n8n in production; secret redaction in logs (and
 the settings read endpoint); rate limiting; and a supply chain with a dependency
 release-age delay.
 
-It's covered by **~820 automated tests** (421 gateway + 401 SPA) behind
-**enforced CI coverage gates** (~91% gateway / ~89% SPA lines), an **axe-core
-WCAG 2.1 AA accessibility** job, a live **n8n contract verification**, and a
-**load-test harness** that exercises 2,000 concurrent users over 200 projects and
-fails above a 1% error rate. (Honest caveat: SPA *function* coverage is ~64%, and
-some flows are render-tested rather than interaction-tested — see
-[docs/TESTING.md](docs/TESTING.md).)
+It's covered by **2,000+ automated tests** (~1,550 gateway + ~1,660 SPA — these
+counts grow with nearly every merge; see [docs/TESTING.md](docs/TESTING.md) for
+how to get a current count rather than trusting a hardcoded one) behind
+**enforced CI coverage gates** (82% lines / 84% functions gateway; 83% lines /
+70% functions SPA), an **axe-core WCAG 2.1 AA accessibility** job, a live **n8n
+contract verification**, and a **load-test harness**
+(`pnpm --filter @workspace/scripts run load`) that can drive configurable
+concurrency against a real gateway → broker → backend path and fails above a 1%
+error rate — **it has not yet been run for real**: the harness ships and is
+unit-tested, but queue-mode n8n throughput numbers are still a placeholder (see
+[docs/ops/LOAD-HARNESS.md](docs/ops/LOAD-HARNESS.md)). (Honest caveat: SPA
+*function* coverage is ~64%, and some flows are render-tested rather than
+interaction-tested — see [docs/TESTING.md](docs/TESTING.md).)
 
 > Full control inventory and the security review: **[SECURITY.md](SECURITY.md)**.
 > **We invite independent code audit and penetration testing** — scope, rules of

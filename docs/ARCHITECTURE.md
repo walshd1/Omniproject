@@ -51,7 +51,7 @@ flowchart TB
     ROUTES["Route handlers (above the seam)<br/>routes/*"]
     SEAM{{"Broker seam — getBroker()<br/>broker/index.ts"}}
     DEC["Decorator chain (Proxies)<br/>trace(dev) → messy(dev) → provenance → cache → single-flight"]
-    ADAPT["Adapters (below the seam)<br/>N8nBroker · DemoBroker · DevBroker"]
+    ADAPT["Adapters (below the seam)<br/>ReferenceBroker · DemoBroker · DevBroker"]
     STATIC["Serves the built SPA (STATIC_DIR)"]
   end
 
@@ -60,7 +60,7 @@ flowchart TB
   BE["Backends<br/>Jira · OpenProject · Plane · SAP · Dynamics · ServiceNow"]
 
   SPA -->|"/api/*"| MW --> ROUTES --> SEAM --> DEC --> ADAPT
-  ADAPT -->|"HTTP webhook (N8nBroker only)"| BROKER --> BE
+  ADAPT -->|"HTTP webhook (ReferenceBroker only)"| BROKER --> BE
   MW -->|"Authorization Code + PKCE"| IdP
   Gateway --> STATIC --> SPA
 ```
@@ -73,7 +73,7 @@ flowchart TB
 | **Gateway middleware** | [`artifacts/api-server/src/app.ts`](../artifacts/api-server/src/app.ts) | Compression, IP allowlist, cookie-parser, sliding session timeout, CSRF guard, body limits, request logging/timing, then mounts the `/api` router. |
 | **Route handlers** | [`artifacts/api-server/src/routes/`](../artifacts/api-server/src/routes/) | Domain-facing. They only ever call `getBroker()` + the `Broker` interface — never a concrete adapter. |
 | **Broker seam** | [`artifacts/api-server/src/broker/index.ts`](../artifacts/api-server/src/broker/index.ts) | Picks the implementation once and wraps it in the decorator chain (§4). |
-| **Adapters** | [`broker/n8n/`](../artifacts/api-server/src/broker/n8n/) · [`demo.ts`](../artifacts/api-server/src/broker/demo.ts) · [`dev-broker.ts`](../artifacts/api-server/src/broker/dev-broker.ts) | The only code that knows a real backend/broker exists. All n8n specifics are confined here. |
+| **Adapters** | [`broker/reference-broker/`](../artifacts/api-server/src/broker/reference-broker/) · [`demo.ts`](../artifacts/api-server/src/broker/demo.ts) · [`dev-broker.ts`](../artifacts/api-server/src/broker/dev-broker.ts) | The only code that knows a real backend/broker exists. All n8n specifics are confined here. |
 | **Broker + backends** | external | n8n (reference broker) runs one workflow per backend and forwards the user's own token. |
 
 ---
@@ -84,7 +84,7 @@ Everything above the seam calls `getBroker()` and speaks the `Broker` interface
 ([`broker/types.ts`](../artifacts/api-server/src/broker/types.ts)) in OmniProject's
 own domain vocabulary. Two implementations ship; a third is dev-only:
 
-- **`N8nBroker`** — the reference broker; the **only** n8n-aware code. Maps
+- **`ReferenceBroker`** — the reference broker; the **only** n8n-aware code. Maps
   domain methods (`listProjects`, `writeIssue`, …) to n8n actions
   (`list_projects`, `create_issue`, …), builds the webhook envelope, computes the
   idempotency key, stamps `origin` for the loop-guard, and normalises the
@@ -98,7 +98,7 @@ own domain vocabulary. Two implementations ship; a third is dev-only:
 ```mermaid
 flowchart LR
   R["route handlers<br/>services · exporter · BI · MCP"] --> IF{{"Broker interface<br/>(domain types)<br/>broker/types.ts"}}
-  IF -.implements.- N["N8nBroker<br/>(reference broker)<br/>broker/n8n/"]
+  IF -.implements.- N["ReferenceBroker<br/>(reference broker)<br/>broker/reference-broker/"]
   IF -.implements.- D["DemoBroker<br/>(canned data, no network)<br/>broker/demo.ts"]
   IF -.implements.- V["DevBroker<br/>(dev-only vendor spoof)<br/>broker/dev-broker.ts"]
   N -->|"webhook envelope<br/>X-OmniProject-* headers"| n8n[(n8n)]
@@ -144,7 +144,7 @@ flowchart TB
     SF["single-flight (always on)<br/>broker/single-flight.ts — wrapWithSingleFlight<br/>coalesces concurrent identical reads"]
     VP["vendor-profile (demo preview only)"]
     KG["key-guard (live broker, prod)<br/>broker/key-guard.ts"]
-    BASE["adapter: N8nBroker / DemoBroker / DevBroker"]
+    BASE["adapter: ReferenceBroker / DemoBroker / DevBroker"]
   end
   T --> M --> P --> C --> SF --> VP --> KG --> BASE
   BASE -->|"result flows back up"| T

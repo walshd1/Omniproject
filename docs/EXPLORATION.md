@@ -17,7 +17,7 @@ historical figure can never be mistaken for production reality. Everything in it
   control and a native leave-warning fire while there is undownloaded work; close
   the tab and anything you didn't export to a JSON file on your own disk is gone.
 
-> **Maturity: Beta.** Exploration mode and its four tools are functional and
+> **Maturity: Beta.** Exploration mode and its five tools are functional and
 > covered by unit/component tests, but they are **new and not yet hardened by
 > real-world use**. See [Maturity & known limitations](#maturity--known-limitations)
 > below, and the [CHANGELOG `[Unreleased]`](../CHANGELOG.md) for the canonical
@@ -43,7 +43,7 @@ and `projected` (a model of the future, never fact). Those belong to the
 
 ---
 
-## The four tools
+## The five tools
 
 ### 1. Portfolio snapshots → trends
 
@@ -137,6 +137,36 @@ JSON file for durability; the gateway stores nothing.
 
 **Status: Beta.**
 
+### 5. Replica workbench — the live app, frozen and editable in-session
+
+**What it does.** Captures a full snapshot of every live view's underlying reads
+(projects, issues, summaries, capacity, financials, history, baseline, RAID — the
+same data the real app reads) and mounts the **actual, real view components**
+(board, Gantt, Scrum, …) against it, so you get the genuine UI, frozen at a
+point in time, instead of a bespoke read-only preview. A fetch interceptor
+resolves every hook from the captured replica instead of the broker; edits
+(create/update/delete) land in a volatile in-session overlay and are applied on
+top of the replica for the rest of the session — **never sent to a backend**.
+
+**Client-side / session-volatile.** Entering replica mode marks exploration
+**dirty**; leaving it (or the tab closing) discards the replica and its overlay
+entirely. Export triggers a JSON download of the captured replica (not the
+overlay's edits — see the limitation below).
+
+**Status: Beta.** `lib/explore-replica.ts` is at 100% test coverage on all four
+metrics; the workbench component itself is tested but newer than the other four
+tools.
+
+> **Limitation (known bug, not yet fixed):** the page's shared "dirty" flag is a
+> single unscoped boolean across all exploration sources, so entering replica
+> mode with no staged snapshots/edges, then clicking the page's **"Download
+> exploration"** button, can export nothing (there's nothing to export) but
+> still clear dirty — silently disarming the "unsaved exploration" banner and
+> the `beforeunload` warning while the replica overlay's own edits are still
+> headed for loss. See `docs/TECH-DEBT-AND-ROADMAP.md` §5 for the full trace.
+> Use the workbench's own "Export" control to download the replica, not the
+> page-level download button, until this is fixed.
+
 ---
 
 ## Maturity & known limitations
@@ -150,7 +180,10 @@ battle-tested**. In plain terms:
   `derived`) accordingly.
 - Per-tool limits, restated: auto-snapshot runs **tab-open only**; the what-if
   sandbox is **coarse and portfolio-level**; dependency drift recomputes **only for
-  currently-loaded endpoints**.
+  currently-loaded endpoints**; the replica workbench's page-level download
+  button can clear the "unsaved" warning without actually exporting the
+  replica's edits (use the workbench's own Export control instead — see
+  [tool 5](#5-replica-workbench--the-live-app-frozen-and-editable-in-session)).
 - It is covered by unit/component tests (the pure snapshot/scenario/dependency maths,
   and the surface's render behaviour), but several flows are render-tested rather
   than fully interaction-tested. See [TESTING.md](TESTING.md).

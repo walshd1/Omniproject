@@ -16,7 +16,7 @@ adversarial conditions.
 
 | Plane | Count |
 | --- | ---: |
-| **Backends stressed** | **39** |
+| **Backends stressed** | **41** |
 | Brokers stressed | 7 |
 | (context) notification vendors | 11 |
 | (context) output vendors | 9 |
@@ -70,7 +70,7 @@ drives the **demo** broker (sample data), never a real backend.
 
 ## Per-backend pass/fail matrix
 
-All 39 backends **PASS** every assertion. `acts` = contract actions mapped;
+All 41 backends **PASS** every assertion. `acts` = contract actions mapped;
 `caps` = capability domains enabled; `key` = resolved key scheme.
 
 | backend | kind | acts | caps | key | schema | cap/transport | spoof gating | messy | result |
@@ -101,6 +101,7 @@ All 39 backends **PASS** every assertion. `acts` = contract actions mapped;
 | netsuite | live | 5 | 5 | oauth2 | ✅ | ✅ | ✅ | ✅ | PASS |
 | odoo | live | 5 | 3 | apiKey | ✅ | ✅ | ✅ | ✅ | PASS |
 | openproject | live | 5 | 5 | per-user | ✅ | ✅ | ✅ | ✅ | PASS |
+| oracle-fusion-erp | live | 5 | 2 | basic | ✅ | ✅ | ✅ | ✅ | PASS |
 | pipedrive | live | 5 | 4 | apiKey | ✅ | ✅ | ✅ | ✅ | PASS |
 | plane | live | 5 | 2 | per-user | ✅ | ✅ | ✅ | ✅ | PASS |
 | planview | live | 5 | 8 | oauth2 | ✅ | ✅ | ✅ | ✅ | PASS |
@@ -135,7 +136,7 @@ the catalogue internally consistent. The harness is the standing regression guar
 
 | # | Class | Severity | Location | Repro | Status |
 | --- | --- | --- | --- | --- | --- |
-| F1 | Consistency (verified clean) | info | all 39 `lib/backend-catalogue/vendors/backends/*.json` | Harness `backend[*]: capability + transport mapping is internally consistent` | **PASS** — every live/database backend maps the read contract, resolves a real key scheme, and its broker set matches `brokersForTransport`. |
+| F1 | Consistency (verified clean) | info | all 41 `lib/backend-catalogue/vendors/backends/*.json` | Harness `backend[*]: capability + transport mapping is internally consistent` | **PASS** — every live/database backend maps the read contract, resolves a real key scheme, and its broker set matches `brokersForTransport`. |
 | F2 | Gating (verified clean) | info | `artifacts/api-server/src/broker/vendor-profile.ts:47` | Harness `backend[*]: demo-AS-vendor spoof GATES the surface` | **PASS** — the spoof exposes exactly the vendor's declared domains and never surfaces `-demo` over real data. |
 | F3 | Reconciliation (hardening) | low | `artifacts/api-server/src/lib/field-registry.ts:51` `reconcileFields` | Harness `reconcile: an ADVERSARIAL describe … never crashes` | **PASS** — added a crash-proof regression over dupe/empty/garbage enumeration input (previously only the happy path was tested). |
 

@@ -215,9 +215,12 @@ scale headroom; operational runbooks; low run cost.
   probes, and no auto-mounted service-account token.
 - **Fits your identity + edge** — BYO SSO (OIDC/SAML/SCIM); reverse-proxy guide
   (`docs/REVERSE-PROXY.md`) for Traefik/Caddy/nginx.
-- **HA posture** — stateless replicas share rate-limit + presence/SSE state via
-  Redis; DR is "container start + config mount," with no data to rehydrate because
-  the backends are the source of truth (`docs/ENTERPRISE-OPS.md`).
+- **HA posture** — stateless replicas share rate-limit counters and the
+  broker-log/notification SSE bus via Redis when `REDIS_URL` is set; **presence
+  is currently per-replica only** (connections live on one replica — see the
+  "Multi-replica note" in `artifacts/api-server/src/lib/presence-hub.ts`). DR is
+  "container start + config mount," with no data to rehydrate because the
+  backends are the source of truth (`docs/ENTERPRISE-OPS.md`).
 - **Scale mechanisms** — single-flight read coalescing, optional latency-aware TTL
   cache, list virtualisation, abortable fan-outs, tunable rate limiting
   (`docs/SCALING.md`), plus a load-test rig (`docker-compose.loadtest.yml`).

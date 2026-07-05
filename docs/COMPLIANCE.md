@@ -46,7 +46,7 @@ So responsibility splits:
 | Change management | CI gates (typecheck, tests, drift guards, e2e) on every change; PR review | CC8.1 | A.8.32 | PR.PS-06 |
 | Config / secure baseline | Hardened container (read-only fs, cap-drop, no-new-privileges, non-root); compose guard | CC7.1 | A.8.9 | PR.PS-01 |
 | Data subject rights | DSAR evidence report; erasure guidance | P-series, C1.1 | A.5.34 | GV.OC |
-| Retention & disposal | Configurable retention; nothing-at-rest gateway | C1.2 | A.8.10 | PR.DS-03 |
+| Retention & disposal | No built-in retention config (nothing-at-rest gateway — there is no first-party data to retain); where audit/security events leave the gateway (your SIEM, your log sink), retention is entirely your policy, not OmniProject's | C1.2 | A.8.10 | PR.DS-03 |
 | Resilience / DR | Backup of config+vault+durable state; documented DR runbook (RTO/RPO) | A1.2, A1.3 | A.5.29, A.8.13/14 | RC.RP-01 |
 | Availability / scale | Horizontal replicas + shared state; single-flight + adaptive cache | A1.1 | A.8.6 | PR.IR-03 |
 | AI governance | No-AI-by-default; tri-state capability gating; prompt DLP; kill-switch | CC1.x, CC5.x | A.5.1, A.8.* | GV.RM, GV.SC |

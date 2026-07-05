@@ -39,10 +39,12 @@ For every non-base locale, the audit classifies each base key as:
 
 ## Coverage snapshot
 
-At the time this audit was introduced:
+As of this writing (run `pnpm --filter @workspace/scripts run guard-i18n-coverage`
+for the current numbers — the dictionary grows over time, so treat this section
+as a snapshot, not a standing guarantee):
 
-- Base locale **English** declares **31** keys.
-- **fr / de / es**: each **30 / 31** translated (**96.8%**), with a single
+- Base locale **English** declares **33** keys.
+- **fr / de / es**: each **32 / 33** translated (**97%**), with a single
   untranslated key — `nav.explore` — apiece.
 - No empty values, no orphan keys.
 
