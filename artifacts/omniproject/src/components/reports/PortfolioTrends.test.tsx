@@ -9,7 +9,7 @@ import {
   type Project,
   type PortfolioHealthSummary,
 } from "@workspace/api-client-react";
-import { renderWithProviders } from "../../test/utils";
+import { renderWithProviders, mockBlobDownload } from "../../test/utils";
 import { Toaster } from "../ui/toaster";
 import { PortfolioTrends } from "./PortfolioTrends";
 
@@ -129,8 +129,7 @@ describe("PortfolioTrends", () => {
   });
 
   it("exports all snapshots and a single snapshot as file downloads", async () => {
-    vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: vi.fn() });
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const { click, restore } = mockBlobDownload();
     try {
       renderWithProviders(<PortfolioTrends />, { client: seeded() });
       const capture = screen.getByTestId("capture-snapshot");
@@ -138,13 +137,12 @@ describe("PortfolioTrends", () => {
 
       expect(screen.getByRole("button", { name: /export all/i })).toBeEnabled();
       await userEvent.click(screen.getByRole("button", { name: /export all/i }));
-      expect(clickSpy).toHaveBeenCalledTimes(1);
+      expect(click).toHaveBeenCalledTimes(1);
 
       await userEvent.click(screen.getByRole("button", { name: /export snapshot/i }));
-      expect(clickSpy).toHaveBeenCalledTimes(2);
+      expect(click).toHaveBeenCalledTimes(2);
     } finally {
-      clickSpy.mockRestore();
-      vi.unstubAllGlobals();
+      restore();
     }
   });
 
