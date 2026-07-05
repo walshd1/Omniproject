@@ -3,6 +3,7 @@ import {
   useCreateIssue,
   useListProjects,
   useListProjectMembers,
+  getListProjectMembersQueryKey,
   type IssueInput,
 } from "@workspace/api-client-react";
 import { useInvalidateIssueQueries } from "../hooks/use-invalidate-issue-queries";
@@ -43,8 +44,12 @@ export function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     }
   }, [open, activeProjectId, projects]);
 
-  // Members of the selected project — only WRITE-access people can be assigned.
-  const { data: members } = useListProjectMembers(form.projectId || "");
+  // Members of the selected project — only WRITE-access people can be assigned. Disabled while
+  // projectId is blank (e.g. the brief moment the draft resets after a successful submit, just
+  // before the dialog closes) so it never fires a request against a malformed empty-id URL.
+  const { data: members } = useListProjectMembers(form.projectId || "", {
+    query: { enabled: !!form.projectId, queryKey: getListProjectMembersQueryKey(form.projectId) },
+  });
   const assignable = (members ?? []).filter((m) => m.access === "write");
 
   const titleError = form.title.trim() ? "" : "Title is required";
