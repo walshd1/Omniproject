@@ -1,16 +1,21 @@
 import { Button } from "@/components/ui/button";
+import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useFeatures, useSetDisabledFeatures, type FeatureStatus } from "../../lib/features";
 
 /**
  * Admin panel for the optional feature modules. Everything is on by default; an admin switches a
  * module off and the gateway stops serving it (and, on the next restart, stops loading its code).
  * Disabling persists to the config bundle (settings.disabledFeatures), so the chosen module set
- * travels with the deployment.
+ * travels with the deployment. Client-side-gated to "admin" — mirrors the server's own
+ * `requireRole("admin")` on `PATCH /api/settings` — since, unlike RateCardAdmin's page, this
+ * panel's parent route isn't itself admin-only.
  */
 export function FeatureModulesAdmin() {
+  const { data: auth } = useAuth();
   const { data: features, isLoading } = useFeatures();
   const setDisabled = useSetDisabledFeatures();
 
+  if (!roleAtLeast(auth?.role, "admin")) return null;
   if (isLoading || !features) return null;
 
   // This panel governs the toggleable modules only; reports + methodologies live in FeatureGovernance.
