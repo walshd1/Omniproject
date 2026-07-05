@@ -119,7 +119,7 @@ sequenceDiagram
       SF-->>C: shares the one in-flight promise
     else
       SF->>A: listProjects(ctx)
-      A->>BE: (N8nBroker) POST webhook / (DemoBroker) canned data
+      A->>BE: (ReferenceBroker) POST webhook / (DemoBroker) canned data
       BE-->>A: rows
       A-->>SF: normalised Project[]
     end
@@ -152,7 +152,7 @@ The call passes through the `Proxy` chain composed once in `getBroker()`:
   flight, all callers share that one promise — introducing no staleness — which
   collapses "N users open the same dashboard ⇒ N backend calls" to one.
 - The **adapter** then serves it: `DemoBroker` from canned data,
-  `N8nBroker` by POSTing the webhook envelope and normalising the response.
+  `ReferenceBroker` by POSTing the webhook envelope and normalising the response.
 
 In dev builds the outermost wraps are **messy** (injects dirty data into reads, §7)
 and **trace** (logs `→`/`←` with timing); both are absent in production.
@@ -165,7 +165,7 @@ and **trace** (logs `→`/`←` with timing); both are absent in production.
 [`broker/types.ts`](../artifacts/api-server/src/broker/types.ts),
 [`lib/concurrency.ts`](../artifacts/api-server/src/lib/concurrency.ts),
 [`broker/demo.ts`](../artifacts/api-server/src/broker/demo.ts),
-[`broker/n8n/`](../artifacts/api-server/src/broker/n8n/),
+[`broker/reference-broker/`](../artifacts/api-server/src/broker/reference-broker/),
 [`broker/cache.ts`](../artifacts/api-server/src/broker/cache.ts),
 [`broker/index.ts`](../artifacts/api-server/src/broker/index.ts).
 
@@ -193,7 +193,7 @@ sequenceDiagram
       A->>A: {...current, ...patch, version: current+1, updatedAt}
       A-->>R: updated Issue (version 43)
     end
-  else N8nBroker (forwards; backend enforces)
+  else ReferenceBroker (forwards; backend enforces)
     A->>BE: POST update_issue (expectedVersion in payload; idempotencyKey; origin loop-guard)
     BE-->>A: 200 Issue  |  409 (backend lockVersion mismatch)
     A-->>R: Issue  |  BrokerError.fromStatus(409)
@@ -225,7 +225,7 @@ immediately visible. The generic command path also calls `invalidateReadCache()`
 `true` iff `expectedVersion` is present and differs from the current version. The
 **`DemoBroker`** ([`broker/demo.ts`](../artifacts/api-server/src/broker/demo.ts))
 checks locally: on conflict it throws `BrokerError("conflict", …, currentIssue)`;
-otherwise it merges the patch and **increments `version`**. The **`N8nBroker`** maps
+otherwise it merges the patch and **increments `version`**. The **`ReferenceBroker`** maps
 `op` → `"${op}_issue"`, forwards the full input (including `expectedVersion`) with an
 `idempotencyKey` (`sha256(action:projectId:issueId:minute)`) and the
 `origin=omniproject` **loop-guard** header, and lets the backend enforce concurrency
@@ -278,7 +278,7 @@ baseline, blockers, history, raid, quality, crm, service, benefits`) and
 `resolveCapabilities(req)` ([`lib/capabilities.ts`](../artifacts/api-server/src/lib/capabilities.ts))
 resolves in order: (1) the `CAPABILITIES` env var if set (authoritative); else
 (2) the active broker's `capabilities(ctx)` — the **`DemoBroker` enables every
-domain**, a live `N8nBroker` starts from a **conservative** flag set and merges what
+domain**, a live `ReferenceBroker` starts from a **conservative** flag set and merges what
 the backend's probe reports. `deriveFieldMap()` turns coarse domain flags into a
 per-field `{surface, store}` map via `GROUP_DOMAIN` (each field group → its gating
 domain; derived/rolled-up fields are read-only), which a broker can override with an

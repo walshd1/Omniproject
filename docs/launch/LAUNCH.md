@@ -4,10 +4,11 @@ Everything needed to launch in one place: the positioning, ready-to-paste posts,
 the GitHub release note, and the pre-launch checklist. Swap in the repo URL where
 noted. Keep this updated as the messaging evolves.
 
-> **Status:** `0.1.0` (first public release) and `0.2.0` (broker decoupling) have
-> both shipped — see the [CHANGELOG](../../CHANGELOG.md) and the Releases page.
+> **Status:** `0.1.0` (first public release) through `0.6.0` have shipped — see
+> the [CHANGELOG](../../CHANGELOG.md) and the Releases page for what's in each.
 > The release-note template in §4 below is the original 0.1.0 note, kept as a
-> reusable pattern; tags are **un-prefixed** (`0.1.0`, `0.2.0` — no `v`).
+> reusable pattern rather than rewritten per release; tags are **un-prefixed**
+> (`0.1.0`, `0.2.0`, … — no `v`, with one stray historical exception).
 
 ---
 

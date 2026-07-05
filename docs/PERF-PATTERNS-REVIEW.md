@@ -1,6 +1,13 @@
 # OmniProject — Speed / Responsiveness / Design-Patterns Review
 
 _Staff-engineering synthesis · scale target 60 programmes / 200 projects · 60 findings · 155 files across 7 groups_
+_Date: 2026-07-02_
+
+> **Point-in-time snapshot.** The codebase has grown since this review — the
+> "155 files" figure is not a current count. Each finding's file:line citation
+> is a historical record of what was true when found (and, where noted, fixed);
+> re-run the review if you need current file counts or want to check for new
+> instances of the same anti-patterns elsewhere.
 
 ## 1. Executive summary & verdict
 

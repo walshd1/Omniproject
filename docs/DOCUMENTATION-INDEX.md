@@ -24,6 +24,8 @@ How the system is put together, the broker seam, and the extensibility model.
 - **[CONTRACT.md](CONTRACT.md)** — the published, versioned `Broker` contract (request/response shapes, control semantics), generated from source.
 - **[INTEGRATION-PLANES.md](INTEGRATION-PLANES.md)** — the seven integration planes (backends, brokers, outputs, notifications, methodologies, reports, screens) and the shared catalogue.
 - **[vendors/ORACLE-FUSION-ERP.md](vendors/ORACLE-FUSION-ERP.md)** — the Oracle Fusion Cloud ERP (Project Financial Management) connector: what's genuinely mapped, and why it's catalogued but not yet live-tenant-verified.
+- **[vendors/NETSUITE.md](vendors/NETSUITE.md)** — the Oracle NetSuite connector: capability-honest notes on the read/write mapping, catalogued but not yet live-tenant-verified.
+- **[vendors/SAP-S4HANA-PS-PPM.md](vendors/SAP-S4HANA-PS-PPM.md)** — the SAP S/4HANA (PS/PPM) financials read-only connector: catalogued, not yet verified against a live tenant.
 - **[METHODOLOGIES.md](METHODOLOGIES.md)** — the methodology views (Kanban, Scrum, Gantt, PRINCE2, RAID, list) and how to add your own.
 - **[FEATURE-MODULES.md](FEATURE-MODULES.md)** — optional, lazily-loaded backend modules an operator can switch off.
 - **[FEATURE-GOVERNANCE.md](FEATURE-GOVERNANCE.md)** — how features/methodologies/reports are gated across org → programme → project.

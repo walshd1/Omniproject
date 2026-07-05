@@ -251,7 +251,7 @@ against that tenant end-to-end.
     two simultaneous connections of the *same* kind, by design, not oversight.
   - **The existing same-kind pool (`BROKER_URLS`, and the `kind=url1|url2` form in
     `BROKER_ENDPOINTS`, see `artifacts/api-server/src/broker/router.ts` /
-    `artifacts/api-server/src/broker/n8n/index.ts`) is a *horizontal-scale replica pool*, not a
+    `artifacts/api-server/src/broker/reference-broker/index.ts`) is a *horizontal-scale replica pool*, not a
     fan-out source list.** `webhookPool()`/`orderedTargets()` round-robin and fail over across the
     URLs on the assumption every entry is an identical instance of the *same* logical backend
     (redundancy/throughput), and pick exactly one per call. Repurposing it to mean "N distinct

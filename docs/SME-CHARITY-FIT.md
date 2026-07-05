@@ -60,7 +60,7 @@ small-org reader here instead of just asserting "still free" in a paragraph.
   with no tiering/ordering field that would bias the picker toward paid vendors —
   `lib/backend-catalogue/vendors/backends/openproject.json`,
   `lib/backend-catalogue/vendors/backends/plane.json`,
-  `lib/backend-catalogue/vendors/backends/excel.json`. All 38 vendors are flat/equal.
+  `lib/backend-catalogue/vendors/backends/excel.json`. All 41 vendors are flat/equal.
 
 ### Charity/SME domain templates already ship
 - Charity/SME starter methodologies: **grant tracking**, **fundraising pipeline**,

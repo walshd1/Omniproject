@@ -27,7 +27,7 @@ All gateway paths are under `artifacts/api-server/src/`.
 ### Broker seam & adapters
 - **Selection + decorator composition:** [`broker/index.ts`](../artifacts/api-server/src/broker/index.ts) (`getBroker`, `contextFromReq`, `respondBrokerError`).
 - **Interface + domain types:** [`broker/types.ts`](../artifacts/api-server/src/broker/types.ts) (`Broker`, `ActorContext`, `IssueWrite`, `CapabilityFlags`, `BrokerError`).
-- **Reference broker (only n8n-aware code):** [`broker/n8n/`](../artifacts/api-server/src/broker/n8n/) (`writeIssue`, `callN8n`, `idempotencyKey`).
+- **Reference broker (only n8n-aware code):** [`broker/reference-broker/`](../artifacts/api-server/src/broker/reference-broker/) (`ReferenceBroker`, `writeIssue`, `idempotencyKey`).
 - **Demo broker (canned, no network):** [`broker/demo.ts`](../artifacts/api-server/src/broker/demo.ts) + [`broker/demo-data.ts`](../artifacts/api-server/src/broker/demo-data.ts).
 - **Decorators:** [`single-flight.ts`](../artifacts/api-server/src/broker/single-flight.ts) · [`cache.ts`](../artifacts/api-server/src/broker/cache.ts) + [`adaptive-ttl.ts`](../artifacts/api-server/src/broker/adaptive-ttl.ts) · [`provenance.ts`](../artifacts/api-server/src/broker/provenance.ts) · [`messy-broker.ts`](../artifacts/api-server/src/broker/messy-broker.ts) · [`trace.ts`](../artifacts/api-server/src/broker/trace.ts) · [`key-guard.ts`](../artifacts/api-server/src/broker/key-guard.ts).
 - **The seam is enforced:** [`__tests__/broker-guard.test.ts`](../artifacts/api-server/src/__tests__/broker-guard.test.ts).

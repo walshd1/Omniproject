@@ -10,7 +10,11 @@ describes are enforced in code and CI.
 ## How conformance is enforced (not just claimed)
 
 - **Automated WCAG checks in CI.** The `accessibility` job runs **axe-core (WCAG 2.1 A/AA)** against
-  the built SPA in a real browser on every change; a regression fails the build.
+  the built SPA in a real browser on every change over 4 representative routes (`/`, `/projects`,
+  `/reports`, `/settings` — configurable via `A11Y_ROUTES`; modals/wizards/sub-settings panels aren't
+  separately enumerated); a violation on a scanned route fails the build. The scan itself fails
+  **open**, not closed: if the throwaway Playwright/axe-core install isn't resolvable in a given CI
+  environment, it prints `SKIPPED` and exits 0 rather than blocking (see `scripts/a11y-scan.cjs`).
 - **Keyboard/mouse parity is a CI gate.** The `guard-interactive` drift guard fails CI if any
   clickable element lacks a keyboard path; paired Playwright specs exercise both routes for each
   affordance.
@@ -37,7 +41,7 @@ describes are enforced in code and CI.
 | 1.4.10 Reflow / 1.4.12 Text Spacing | Supports | Responsive layout; UI density tokens; no fixed-width text traps. |
 | 2.1.1 Keyboard / 2.1.2 No Trap | Supports | `guard-interactive` CI gate + paired e2e; overlays close on Escape. |
 | 2.4.7 Focus Visible | Supports | `:focus-visible` outlines; reinforced in high-contrast mode. |
-| 2.5.x Pointer / Target Size | Supports | Touch layout enforces ≥44px hit targets; gestures are additive to button/keyboard paths. |
+| 2.5.8 Target Size (Minimum) — WCAG 2.2 AA (no 2.1 AA target-size criterion exists; 2.5.5 Target Size is AAA-only in 2.1) | Supports | Touch layout enforces ≥44px hit targets; gestures are additive to button/keyboard paths. |
 | 3.3.1/3.3.2 Error ID & Labels | Supports | `aria-invalid`, `role="alert"` messages, associated labels. |
 | 4.1.3 Status Messages | Supports | `role="status"`/live regions; verbose mode for screen-reader users. |
 

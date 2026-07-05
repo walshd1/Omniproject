@@ -124,9 +124,15 @@ integrations* are licensed:
   [Adding your own backend](#adding-a-backend) is free too — nothing about *how*
   to build a workflow is black-boxed.
 - **Licensed feature (`enterprise_workflows`):** generating the prebuilt
-  workflows for the heavyweight backbones — **SAP S/4HANA, Oracle Primavera P6,
-  Microsoft Dynamics 365 / Project**. For those, `POST /api/setup/generate-workflow`
-  returns **`402`** without a valid `LICENSE_KEY`. You're paying for the *prebuilt*
+  workflows for the heavyweight backbones — all 11 backends the catalogue tiers
+  as enterprise: **SAP S/4HANA (both the PS and the PS/PPM-financials
+  connectors), Oracle Primavera P6, Oracle NetSuite, Oracle Fusion Cloud ERP,
+  Microsoft Dynamics 365 (Project Operations, Sales, and Finance & Operations),
+  Microsoft Project, Planview, and the generic Enterprise backbone**. For those,
+  `POST /api/setup/generate-workflow` returns **`402`** without a valid
+  `LICENSE_KEY` (the full, authoritative list is `ENTERPRISE_BACKENDS` in
+  `lib/backend-catalogue/src/backend-catalogue.ts` — everything else in the
+  catalogue is free). You're paying for the *prebuilt*
   integration so you don't have to build it — not for permission to build one. You
   can still wire any of these yourself for free with the same open generator plus
   the generic **Enterprise backbone** preset; the contract and tools are identical.

@@ -3,6 +3,12 @@
 _Whole-codebase clean-code review — stateless PM/PgM overlay_
 _Date: 2026-07-01 · Files reviewed: 519 across 9 source groups · Findings: 67_
 
+> **This is a point-in-time snapshot, not a current file count.** The codebase
+> has grown substantially since 2026-07-01 (well past 519 files) — treat the
+> per-finding file:line citations below as historical record (each was true when
+> found and fixed), not the "67 findings, zero defects" line as a live coverage
+> claim. Re-run the review if you need current numbers.
+
 ---
 
 ## 1. Executive Summary

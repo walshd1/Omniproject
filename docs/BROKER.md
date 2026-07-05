@@ -12,13 +12,13 @@ in one new class and nothing above the seam changes.
 
 ```
  route handlers ─┐
- services        ├─▶  Broker (interface, domain types)  ◀─ N8nBroker  (reference broker)
+ services        ├─▶  Broker (interface, domain types)  ◀─ ReferenceBroker  (reference broker)
  exporter / BI  ─┘            src/broker/types.ts        ◀─ DemoBroker (canned data, no network)
 ```
 
 - Interface + domain types: [`artifacts/api-server/src/broker/types.ts`](../artifacts/api-server/src/broker/types.ts)
 - Selection + request→domain context: [`src/broker/index.ts`](../artifacts/api-server/src/broker/index.ts)
-- n8n implementation (the reference broker — the **only** n8n-aware code): [`src/broker/n8n/index.ts`](../artifacts/api-server/src/broker/n8n/index.ts)
+- n8n implementation (the reference broker — the **only** n8n-aware code): [`src/broker/reference-broker/index.ts`](../artifacts/api-server/src/broker/reference-broker/index.ts)
 - Demo implementation: [`src/broker/demo.ts`](../artifacts/api-server/src/broker/demo.ts) (+ `demo-data.ts`)
 
 ## The contract
@@ -54,14 +54,14 @@ which **fails CI** on violation:
    `callN8n`, `isN8nConfigured`, `N8nError`, `N8nResult`, `authHeaderFromReq`,
    `userContextFromReq`. If one resurfaces above the seam, a caller has bypassed
    the interface.
-3. **Nothing above the seam imports the n8n adapter directly** (`../broker/n8n`)
+3. **Nothing above the seam imports the n8n adapter directly** (`../broker/reference-broker`)
    — except the one documented frozen-surface route below.
 
 What this means concretely — these must **not** appear above the seam: the
 webhook envelope (`{ action, payload, source, origin, idempotencyKey }`), the
 `X-OmniProject-*` headers, n8n action strings (`list_projects`, `create_issue`,
 …), n8n source labels (`capacity_engine`, …), or the `{ success, data, message }`
-response shape. All of that lives in `N8nBroker`. (The broker endpoint is read
+response shape. All of that lives in `ReferenceBroker`. (The broker endpoint is read
 from the broker-named `BROKER_URL` — itself fine above the seam; what must not
 leak is the n8n *webhook contract* it points at.)
 
@@ -87,7 +87,7 @@ asserts it stays that way.
 
 The only remaining *intentional* n8n names are under/at the seam:
 
-- **`src/broker/`** — the adapter itself (`n8n/index.ts`) and the barrel that exposes the
+- **`src/broker/`** — the adapter itself (`reference-broker/index.ts`) and the barrel that exposes the
   neutral `brokerCommand()` helper;
 - the **workflow generator**
   (`lib/backend-catalogue/src/backend-catalogue.ts`,
@@ -117,7 +117,7 @@ runs against it (see the `DemoBroker` unit test and the guard).
 ## "n8n is superseded" — the swap story
 
 If a better broker arrives (or n8n is retired), the entire migration is: write
-`FooBroker implements Broker`, point the selector at it, and delete `n8n/` (and
+`FooBroker implements Broker`, point the selector at it, and delete `reference-broker/` (and
 re-point `brokerCommand()` in the barrel). The data path, the API surface, the SPA,
 and every test above the seam are untouched — because none of them ever knew the
 broker was n8n. That is the property this boundary exists to guarantee.
