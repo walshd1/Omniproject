@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Download, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { fetchBackends, downloadWorkflow, type SetupStatus } from "../../lib/setup";
+import { fetchBackends, downloadWorkflow, workflowFilename, type SetupStatus } from "../../lib/setup";
 import { Dot, Step, TechDetails } from "./shared";
 
 export function GenerateStep({
@@ -24,6 +24,9 @@ export function GenerateStep({
   // reaching this step reuses the same network round trip instead of fetching twice.
   const { data: backends = [] } = useQuery({ queryKey: ["setup-backends"], queryFn: fetchBackends, staleTime: 60_000 });
   const [generating, setGenerating] = useState(false);
+  // Read-only by default: the quickstart path is "connect real data with no write path",
+  // not "connect, then remember to go delete the write nodes yourself."
+  const [readOnly, setReadOnly] = useState(true);
 
   const selectedBackend = backends.find((b) => b.id === backendId);
   const enterpriseEntitled = !!status?.licensing?.features.includes("enterprise_workflows");
@@ -39,8 +42,11 @@ export function GenerateStep({
     if (!backendId) return;
     setGenerating(true);
     try {
-      await downloadWorkflow(backendId, url.trim() ? new URL(url.trim()).pathname.split("/").pop() : undefined);
-      toast({ title: "Downloaded", description: `Send omniproject-${backendId}.json to whoever manages your automation system to import.` });
+      await downloadWorkflow(backendId, url.trim() ? new URL(url.trim()).pathname.split("/").pop() : undefined, readOnly);
+      toast({
+        title: "Downloaded",
+        description: `Send ${workflowFilename(backendId, readOnly)} to whoever manages your automation system to import.`,
+      });
     } catch (e) {
       toast({ title: "Couldn't generate that", description: e instanceof Error ? e.message : "You may need admin access.", variant: "destructive" });
     } finally {
@@ -66,6 +72,13 @@ export function GenerateStep({
           </span>
         </div>
       )}
+      <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+        <input type="checkbox" checked={readOnly} onChange={(e) => setReadOnly(e.target.checked)} className="accent-primary" />
+        <span>
+          <strong className="text-foreground">Read-only</strong> (recommended) — leaves out every action that could
+          change your tool, so this connector genuinely can't write to it, not just "won't."
+        </span>
+      </label>
       <div className="flex flex-wrap gap-2 items-center">
         <select
           value={backendId}

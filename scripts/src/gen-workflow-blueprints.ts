@@ -39,6 +39,8 @@ for (const file of files) {
   const manifest = getBackend(id);
   if (!manifest) throw new Error(`${file}: backend "${id}" is not in the catalogue (renamed/removed?) — delete the stale example or rename the file`);
 
+  // Full read+write, deliberately: these committed examples document the COMPLETE contract
+  // shape, not the Configurator's read-only-by-default download — see artifacts/n8n-blueprints/README.md.
   const workflow = generateWorkflow(manifest, {});
   const out = JSON.stringify(workflow, null, 2) + "\n";
   fs.writeFileSync(path.join(GENERATED_DIR, file), out);
