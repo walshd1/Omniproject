@@ -58,13 +58,12 @@ export function useScheduleShifts({ items, getSpan }: UseScheduleShiftsArgs) {
       const [p, s] = e.type === "blocks" ? [e.from.itemRef, e.to.itemRef] : [e.to.itemRef, e.from.itemRef];
       if (ids.has(p) && ids.has(s) && p !== s) imported.push({ predecessorId: p, successorId: s });
     }
-    if (imported.length) {
-      setEdges((cur) => {
-        const seen = new Set(cur.map((x) => `${x.predecessorId}>${x.successorId}`));
-        return [...cur, ...imported.filter((x) => !seen.has(`${x.predecessorId}>${x.successorId}`))];
-      });
-      touch();
-    }
+    const edgeKey = (x: DepEdge) => `${x.predecessorId}>${x.successorId}`;
+    const seen = new Set(edges.map(edgeKey));
+    const fresh = imported.filter((x) => !seen.has(edgeKey(x)));
+    if (!fresh.length) return;
+    setEdges((cur) => [...cur, ...fresh]);
+    touch();
   };
 
   const onPointerDown = (e: React.PointerEvent, id: string) => {
