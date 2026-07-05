@@ -107,6 +107,14 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
   to `getByRole` to reach the button at all (a working-around-the-symptom test flag, not a real
   fix). Needs either rendering the toast viewport inside the dialog's own portal/focus scope, or
   moving destructive-action toasts to fire only after the triggering dialog closes.
+- **[bug] `StatusBreakdownWidget` groups by a field `Project` doesn't have.** It reads
+  `(p as { status?: string }).status ?? "unknown"`, but the canonical `Project` type
+  (`lib/api-client-react/src/generated/api.schemas.ts`) has no `status` field — every real
+  project falls into the "unknown" bucket, making the widget's per-status grouping and
+  most-common-first sort dead in production even though `widgets.test.tsx` exercises the
+  grouping logic correctly (via a cast to a shape real data can never have). Needs either adding
+  a `status` field to the canonical `Project` contract (and wiring brokers to populate it), or
+  pointing the widget at a field that actually exists.
 
 ---
 
