@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { isSpeechSupported, createDictation, insertIntoField } from "./speech";
+import { installFakeSpeechRecognition } from "../test/fake-speech-recognition";
 
 /**
  * Speech-to-text feature detection (the user's own browser engine) and the
@@ -19,17 +20,7 @@ describe("feature detection", () => {
   });
 
   it("reports supported, starts/stops, and forwards recognised text", () => {
-    const instances: FakeRecognition[] = [];
-    class FakeRecognition {
-      lang = ""; continuous = false; interimResults = false;
-      onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null = null;
-      onerror: ((e: unknown) => void) | null = null;
-      onend: (() => void) | null = null;
-      start = vi.fn();
-      stop = vi.fn();
-      constructor() { instances.push(this); }
-    }
-    (window as unknown as Record<string, unknown>).SpeechRecognition = FakeRecognition;
+    const instances = installFakeSpeechRecognition();
 
     expect(isSpeechSupported()).toBe(true);
     const captured: string[] = [];
