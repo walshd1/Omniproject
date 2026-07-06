@@ -1,9 +1,17 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, vi } from "vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 
 // Unmount React trees between tests so the DOM and effects don't leak across cases.
 afterEach(() => cleanup());
+
+// findBy*/waitFor's default 1000ms ceiling is tight enough that CI's coverage-instrumented,
+// fully-parallel run occasionally trips it under CPU contention on a slow async update (e.g.
+// a toast firing after several userEvent interactions) even though the same test passes
+// reliably every time in isolation. Raising the ceiling doesn't slow passing tests down —
+// they still resolve as soon as the assertion is true — it only gives a genuinely slow CI
+// run more room before failing.
+configure({ asyncUtilTimeout: 5000 });
 
 // ── jsdom polyfills ──────────────────────────────────────────────────────────
 // jsdom omits several browser APIs that Radix UI, recharts and our own code use.
