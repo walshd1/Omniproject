@@ -3,7 +3,13 @@ import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../../test/utils";
 import { GenerateStep } from "./GenerateStep";
+import * as setupLib from "../../lib/setup";
 import type { BackendInfo, SetupStatus } from "../../lib/setup";
+
+vi.mock("../../lib/setup", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/setup")>();
+  return { ...actual, downloadWorkflow: vi.fn().mockResolvedValue(undefined) };
+});
 
 // A small harness so the controlled `backendId` prop updates (defaulting to the first
 // fetched backend, same as the real Configurator page does via GenerateStep's effect).
@@ -105,5 +111,27 @@ describe("GenerateStep", () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("nope")) as unknown as typeof fetch;
     const { getByRole } = renderWithProviders(<Harness url="" isAdmin status={status} />);
     expect(getByRole("heading", { name: "Get the connector for your tool" })).toBeInTheDocument();
+  });
+
+  it("defaults the read-only checkbox to checked and downloads read-only by default", async () => {
+    mockBackends([jira]);
+    const user = userEvent.setup();
+    const { findByText, getByRole } = renderWithProviders(<Harness url="" isAdmin status={status} />);
+    await findByText("Jira note.");
+    expect(getByRole("checkbox", { name: /Read-only/ })).toBeChecked();
+
+    await user.click(getByRole("button", { name: /Download workflow/ }));
+    expect(setupLib.downloadWorkflow).toHaveBeenCalledWith("jira", undefined, true);
+  });
+
+  it("passes readOnly: false when the checkbox is unchecked", async () => {
+    mockBackends([jira]);
+    const user = userEvent.setup();
+    const { findByText, getByRole } = renderWithProviders(<Harness url="" isAdmin status={status} />);
+    await findByText("Jira note.");
+
+    await user.click(getByRole("checkbox", { name: /Read-only/ }));
+    await user.click(getByRole("button", { name: /Download workflow/ }));
+    expect(setupLib.downloadWorkflow).toHaveBeenCalledWith("jira", undefined, false);
   });
 });

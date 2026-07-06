@@ -18,11 +18,13 @@ trusting a second copy of their data, and migration risk killing the idea before
 starts. This guide is built to answer the third one in 15 minutes flat, not just
 claim it: you connect one real backend, **read-only**, and OmniProject renders it
 live — nothing is copied out of it, nothing new is written to it, and disconnecting
-when you're done undoes exactly nothing, because nothing was ever moved. That's why
-"make it physically read-only" (the 9–12 min step below) isn't a caution bolted onto
-a tutorial — it's the fastest way to actually experience the architecture: no
-database of its own, no write path unless you deliberately wire one, so trying this
-against real data carries genuinely as little risk as it sounds.
+when you're done undoes exactly nothing, because nothing was ever moved. Read-only
+isn't a caution bolted onto a tutorial, and it isn't something you have to remember
+to do yourself — it's the **default** the generator downloads (the 4–9 min step
+below): the workflow it hands you simply has no `create_issue` / `update_issue` /
+`delete_issue` node in it, so there's no write path to disable in the first place.
+No database of its own, no write path unless you deliberately opt into one — trying
+this against real data carries genuinely as little risk as it sounds.
 
 ---
 
@@ -49,23 +51,20 @@ looking at the full app — dashboard, board, reports — over sample data, badg
 `SAMPLE` so nothing is mistaken for real. Nothing has touched a network beyond
 your machine.
 
-## 4–9 min — generate a workflow for your real backend
+## 4–10 min — generate a read-only workflow for your real backend
 
 In the app: **Configurator → Generate an n8n workflow**, pick the
 backend you actually use (Jira, OpenProject, GitHub, ServiceNow, Plane, and
 others are free; SAP/Oracle/Dynamics/NetSuite need a licence key — see
-[LICENSING.md](../LICENSING.md)), and download the JSON. In n8n: **Workflows →
-Import from File**. Fill in the one or two env vars it needs (instance URL,
-credential) — the workflow tells you which.
+[LICENSING.md](../LICENSING.md)). Leave the **Read-only** checkbox on (it's
+checked by default) and download the JSON — `omniproject-<backend>-readonly.json`.
+Because every write action was left out at generation time, there is no
+`create_issue` / `update_issue` / `delete_issue` node to find and delete: the
+workflow you're about to import genuinely cannot mutate your backend, not
+"won't", *can't*. In n8n: **Workflows → Import from File**. Fill in the one or
+two env vars it needs (instance URL, credential) — the workflow tells you which.
 
-## 9–12 min — make it physically read-only
-
-Before you point OmniProject at it, open the imported workflow in n8n and
-**delete (or disable) the `create_issue` / `update_issue` / `delete_issue`
-nodes**. With no write path in the workflow, OmniProject cannot mutate your
-backend — not "won't", *can't*. This is the one step worth not skipping.
-
-## 12–14 min — wire it up and verify
+## 10–12 min — wire it up and verify
 
 ```bash
 export BROKER_URL=https://your-n8n.example.com/webhook/omni
@@ -77,7 +76,7 @@ export BROKER_URL=https://your-n8n.example.com/webhook/omni
 this check never touches your backend**. Green across the board means the
 contract works.
 
-## 14–15 min — look at your real data
+## 12–15 min — look at your real data
 
 Open a real project. What you're seeing is live from your backend, rendered
 through OmniProject, and — because you only wired read actions — **there is no

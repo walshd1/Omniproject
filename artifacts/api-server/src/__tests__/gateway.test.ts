@@ -8,7 +8,7 @@ import { roleFromClaims, grantsFromClaims } from "../lib/rbac";
 import { idempotencyKey } from "../broker/reference-broker/index";
 import { resolveCapabilities } from "../lib/capabilities";
 import { buildConfigExport, configEntries } from "../lib/config-export";
-import { BACKENDS, getBackend, isEnterpriseBackend, backendCatalogue, generateWorkflow } from "@workspace/backend-catalogue";
+import { BACKENDS, getBackend, isEnterpriseBackend, backendCatalogue, generateWorkflow, titleFor } from "@workspace/backend-catalogue";
 import { buildSnapshot, applySnapshot, SNAPSHOT_SCHEMA } from "../lib/config-snapshot";
 import { convertAmount, supportedCurrencies } from "../lib/currency";
 import { shouldAudit, createHttpSink } from "../lib/audit";
@@ -710,6 +710,52 @@ test("generateWorkflow: always includes get_capabilities and an Unsupported fall
   const actionCount = Object.keys(getBackend("github")!.actions).length + 1; // + get_capabilities
   assert.equal(route.main.length, actionCount + 1);
   assert.ok(wf.nodes.some((n) => n.name === "Unsupported Action"));
+});
+
+const WRITE_ACTIONS = ["create_issue", "update_issue", "delete_issue"] as const;
+
+test("generateWorkflow: readOnly omits every write action but keeps get_capabilities", () => {
+  const jira = getBackend("jira")!;
+  const writeActions = WRITE_ACTIONS.filter((a) => a in jira.actions);
+  assert.ok(writeActions.length > 0, "fixture assumption: jira must map at least one write action");
+
+  const wf = generateWorkflow(jira, { readOnly: true });
+  const names = new Set(wf.nodes.map((n) => n.name));
+  for (const action of writeActions) {
+    assert.ok(!names.has(titleFor(action)), `${action} node should be absent in read-only mode`);
+  }
+  assert.ok(names.has("Capabilities"), "get_capabilities must survive read-only filtering");
+
+  const readActionCount = Object.keys(jira.actions).length - writeActions.length + 1; // + get_capabilities
+  assert.equal(wf.connections["Route Action"]!.main.length, readActionCount + 1); // + fallback
+});
+
+test("generateWorkflow: without readOnly, write actions are still generated (unchanged default)", () => {
+  const jira = getBackend("jira")!;
+  const wf = generateWorkflow(jira);
+  const writeActions = WRITE_ACTIONS.filter((a) => a in jira.actions);
+  const names = new Set(wf.nodes.map((n) => n.name));
+  for (const action of writeActions) assert.ok(names.has(titleFor(action)), `${action} node should be present by default`);
+});
+
+test("generateWorkflow: readOnly correctly excludes native-node (n8nNode transport) write actions too", () => {
+  // Regression guard: write-ness must be classified from the contract action name, not the
+  // mapping's HTTP method — a native-node mapping (e.g. Asana) never sets `method` at all, so a
+  // method-based classifier would silently leave every native-node write action in a "read-only" download.
+  const asana = getBackend("asana")!;
+  assert.equal(asana.actions.create_issue?.kind, "n8nNode", "fixture assumption: asana's create_issue is native-node transport");
+
+  const wf = generateWorkflow(asana, { readOnly: true });
+  const names = new Set(wf.nodes.map((n) => n.name));
+  for (const action of ["create_issue", "update_issue", "delete_issue"] as const) {
+    assert.ok(!names.has(titleFor(action)), `${action} node should be absent in read-only mode`);
+  }
+});
+
+test("generateWorkflow: readOnly is reflected in the workflow name and description", () => {
+  const wf = generateWorkflow(getBackend("jira")!, { readOnly: true });
+  assert.match(wf.name, /read-only/);
+  assert.match(wf.meta.description, /Read-only/);
 });
 
 test("generateWorkflow: webhook path is honoured", () => {

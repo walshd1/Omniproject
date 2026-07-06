@@ -43,8 +43,14 @@ function uid(i: number): string {
 
 const ALWAYS: ContractAction = "get_capabilities";
 
-function isWrite(m: ActionMapping): boolean {
-  return m.method === "POST" || m.method === "PATCH" || m.method === "PUT" || m.method === "DELETE";
+// Write-ness is a property of the CONTRACT action, not the transport: an HTTP mapping's
+// method is meaningless for an "n8nNode" mapping (it uses parameters.operation instead), so
+// checking the mapping would silently under-classify every native-node write action. The
+// contract action set is closed to these six names, so checking the action name directly is
+// exhaustive regardless of which transport a given backend uses for it.
+const WRITE_ACTIONS: ReadonlySet<ContractAction> = new Set(["create_issue", "update_issue", "delete_issue"]);
+function isWrite(action: ContractAction): boolean {
+  return WRITE_ACTIONS.has(action);
 }
 
 function credPlaceholder(manifest: BackendDefinition, credType: string): Record<string, { id: string; name: string }> {
@@ -63,7 +69,7 @@ function singleCondition(leftValue: unknown, rightValue: unknown, operator: Reco
   return { options: { caseSensitive: true, typeValidation: "loose" }, combinator: "and", conditions: [{ leftValue, rightValue, operator }] };
 }
 
-function httpNode(id: string, name: string, mapping: ActionMapping, manifest: BackendDefinition, pos: [number, number]): WorkflowNode {
+function httpNode(id: string, name: string, mapping: ActionMapping, manifest: BackendDefinition, pos: [number, number], action: ContractAction): WorkflowNode {
   // An n8n-managed credential (e.g. Microsoft Dynamics OAuth) takes over auth;
   // otherwise we forward the active user's bearer token.
   const credType = mapping.credentialType ?? manifest.credentialType;
@@ -72,7 +78,7 @@ function httpNode(id: string, name: string, mapping: ActionMapping, manifest: Ba
   if (!credType && manifest.authHeader) {
     headerParameters.push({ name: "Authorization", value: manifest.authHeader });
   }
-  if (isWrite(mapping)) {
+  if (isWrite(action)) {
     headerParameters.push({ name: "X-OmniProject-Idempotency-Key", value: "={{ $json.body.idempotencyKey }}" });
   }
 
@@ -198,7 +204,7 @@ function buildActionNodes(
       const mapping = manifest.actions[action]!;
       node = mapping.kind === "n8nNode"
         ? nativeNode(next(), titleFor(action), mapping, manifest, [380, y], action)
-        : httpNode(next(), titleFor(action), mapping, manifest, [380, y]);
+        : httpNode(next(), titleFor(action), mapping, manifest, [380, y], action);
       nodes.push(node);
       connect("Route Action", node.name, i);
       connect(node.name, "Normalize → BrokerActionResult");
@@ -210,10 +216,17 @@ function buildActionNodes(
   return nodes;
 }
 
-/** Generate an importable n8n workflow JSON for a backend from its binding. */
-export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPath?: string } = {}): N8nWorkflow {
+/**
+ * Generate an importable n8n workflow JSON for a backend from its binding.
+ *
+ * `opts.readOnly` omits every write action (create_issue/update_issue/delete_issue,
+ * regardless of transport) outright — not "generate then delete the node yourself",
+ * the workflow never has a write node to begin with, so there's no write path to disable.
+ */
+export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPath?: string; readOnly?: boolean } = {}): N8nWorkflow {
   const webhookPath = opts.webhookPath?.trim() || "omniproject";
-  const actions = Object.keys(manifest.actions) as ContractAction[];
+  let actions = Object.keys(manifest.actions) as ContractAction[];
+  if (opts.readOnly) actions = actions.filter((a) => !isWrite(a));
   if (!actions.includes(ALWAYS)) actions.push(ALWAYS);
 
   let n = 0;
@@ -239,9 +252,11 @@ export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPat
 
   nodes.push(...buildActionNodes(manifest, actions, next, connect));
 
+  const readOnlySuffix = opts.readOnly ? " (read-only)" : "";
+  const readOnlyNote = opts.readOnly ? " Read-only: no write actions are included — this workflow cannot mutate the backend." : "";
   return {
-    name: `OmniProject — ${manifest.label}`,
-    meta: { templateId: `omniproject-${manifest.id}`, description: `Generated OmniProject contract workflow for ${manifest.label}. Set env: ${manifest.requiredEnv.join(", ")}.` },
+    name: `OmniProject — ${manifest.label}${readOnlySuffix}`,
+    meta: { templateId: `omniproject-${manifest.id}`, description: `Generated OmniProject contract workflow for ${manifest.label}.${readOnlyNote} Set env: ${manifest.requiredEnv.join(", ")}.` },
     active: false,
     settings: { executionOrder: "v1" },
     pinData: {},
@@ -250,6 +265,7 @@ export function generateWorkflow(manifest: BackendDefinition, opts: { webhookPat
   };
 }
 
-function titleFor(action: ContractAction): string {
+/** The node title a contract action gets in the generated workflow (e.g. "create_issue" → "Create Issue"). */
+export function titleFor(action: ContractAction): string {
   return action.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
