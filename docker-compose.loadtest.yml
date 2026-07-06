@@ -61,6 +61,12 @@ services:
       N8N_ENCRYPTION_KEY: loadtest-not-a-secret
       # Throughput knobs worth sweeping when you measure:
       N8N_CONCURRENCY_PRODUCTION_LIMIT: 20
+      # Resolves the imported workflow's {{ $env.OPENPROJECT_INSTANCE_URL }} expression —
+      # in-network hostname, not the host-mapped localhost:8080 below. NOT yet verified
+      # against this exact n8n version whether $env access needs an additional opt-in
+      # (recent n8n releases have gated it) — if the imported workflow's HTTP Request
+      # nodes come back with an unresolved/empty URL, that's the first thing to check.
+      OPENPROJECT_INSTANCE_URL: http://openproject:80
     ports:
       - "5678:5678"
     healthcheck:
@@ -84,6 +90,9 @@ services:
       DB_POSTGRESDB_PASSWORD: n8n
       DB_POSTGRESDB_DATABASE: n8n
       N8N_ENCRYPTION_KEY: loadtest-not-a-secret
+      # In queue mode the WORKER executes nodes (main only receives the webhook and
+      # enqueues), so $env expressions resolve here, not on `n8n` above — must match.
+      OPENPROJECT_INSTANCE_URL: http://openproject:80
 
   # ── A real backend to measure against (system of record) ─────────────────────
   openproject:
