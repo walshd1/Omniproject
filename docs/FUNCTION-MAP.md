@@ -697,6 +697,7 @@ Config-at-rest encryption + secure export.
 | `sealConfig` | Seal a config string under the current internal key (version embedded). |
 | `openConfig` | Open an internal-format token, or null. |
 | `readMaybeSealed` | Read possibly-sealed config text: open if sealed, else return as-is (plaintext migration). |
+| `isSealedConfig` | True when `text` is a sealed (internal-format) config token — a content-based check, so callers (e.g. the debug bundle) can recognise "this file IS a secret store" without knowing every filename a `SealedFile`-backed module happens to use. |
 | `rotateInternalKey` | Rotate the internal key forward (new seals use the next version). |
 | `internalKeyFingerprint` | A non-secret fingerprint of the CURRENT internal key (confirm a match without revealing). |
 | `exportConfigBundle` | Produce a portable, ephemerally-keyed bundle of `plaintext`, then ROTATE the internal key. |
