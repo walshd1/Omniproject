@@ -2,7 +2,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   sealConfig, openConfig, readMaybeSealed, exportConfigBundle, openBundle,
-  rotateInternalKey, internalKeyFingerprint, __resetConfigCrypto,
+  rotateInternalKey, internalKeyFingerprint, isSealedConfig, __resetConfigCrypto,
 } from "./config-crypto";
 
 /**
@@ -27,6 +27,12 @@ test("a tampered token fails authentication (returns null)", () => {
 test("readMaybeSealed opens sealed text and passes plaintext through (migration)", () => {
   assert.equal(readMaybeSealed(sealConfig("hello")), "hello");
   assert.equal(readMaybeSealed('{"plain":true}'), '{"plain":true}');
+});
+
+test("isSealedConfig recognises sealed tokens by content, not plaintext", () => {
+  assert.equal(isSealedConfig(sealConfig("anything")), true);
+  assert.equal(isSealedConfig('{"plain":true}'), false);
+  assert.equal(isSealedConfig(""), false);
 });
 
 test("a rotated internal key still opens OLD tokens (version embedded) + seals new ones", () => {

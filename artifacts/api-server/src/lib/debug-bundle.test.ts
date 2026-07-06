@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildDebugBundleEntries, buildDebugBundleZip } from "./debug-bundle";
+import { sealConfig } from "./config-crypto";
 
 /**
  * Debug bundle assembly. A bundle must carry everything needed to reproduce an
@@ -86,6 +87,28 @@ test("the captured traffic tape is included when capture is armed", () => {
   } finally {
     if (saved.env === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = saved.env;
     if (saved.cap === undefined) delete process.env["BROKER_CAPTURE"]; else process.env["BROKER_CAPTURE"] = saved.cap;
+  }
+});
+
+test("config-dir files are bundled, but a sealed (secret) one is excluded and reported", () => {
+  const dir = mkdtempSync(join(tmpdir(), "omni-bundle-configdir-"));
+  mkdirSync(join(dir, "vendors", "backends"), { recursive: true });
+  // A plain operator-authored config file — this SHOULD end up in the bundle.
+  writeFileSync(join(dir, "vendors", "backends", "acme.json"), JSON.stringify({ id: "acme" }));
+  // A sealed (secret) file, exactly the shape vault.json/rate-card.json/scim.json/security-state
+  // are written as via SealedFile — this must NOT end up in the bundle, ciphertext or not.
+  writeFileSync(join(dir, "vault.json"), sealConfig(JSON.stringify({ secrets: { "aiprovider:openai": "k1.envelope" } })));
+  const saved = process.env["OMNI_CONFIG_DIR"];
+  process.env["OMNI_CONFIG_DIR"] = dir;
+  try {
+    const { entries, manifest } = buildDebugBundleEntries("2026-01-01T00:00:00.000Z");
+    assert.ok(entries.some((e) => e.name === "config-dir/vendors/backends/acme.json"), "plaintext config-dir file should be bundled");
+    assert.ok(!entries.some((e) => e.name === "config-dir/vault.json"), "sealed vault.json must never be bundled, even as ciphertext");
+    assert.deepEqual(manifest.skippedSealedConfigFiles, ["vault.json"]);
+    const readme = entries.find((e) => e.name === "README.md")!;
+    assert.match(readme.data.toString("utf8"), /Excluded this run:.*vault\.json/);
+  } finally {
+    if (saved === undefined) delete process.env["OMNI_CONFIG_DIR"]; else process.env["OMNI_CONFIG_DIR"] = saved;
   }
 });
 

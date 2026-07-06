@@ -81,6 +81,13 @@ export function readMaybeSealed(text: string): string {
   return text.startsWith(INT_PREFIX) ? (openConfig(text) ?? "") : text;
 }
 
+/** True when `text` is a sealed (internal-format) config token — a content-based check, so
+ *  callers (e.g. the debug bundle) can recognise "this file IS a secret store" without knowing
+ *  every filename a `SealedFile`-backed module happens to use. */
+export function isSealedConfig(text: string): boolean {
+  return text.startsWith(INT_PREFIX);
+}
+
 /** Rotate the internal key forward (new seals use the next version). */
 export function rotateInternalKey(): number {
   currentVersion += 1;
