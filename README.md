@@ -500,6 +500,23 @@ export PLANE_INSTANCE_URL=...  OPENPROJECT_INSTANCE_URL=...   # or your own back
 docker compose -f docker-compose.enterprise.yml up -d
 ```
 
+### Slim (small orgs & charities — smallest real deployment)
+
+The leanest real deployment: `omni-shell` + a single n8n, nothing else. No
+Traefik, no Authentik, no database, no local LLM. Demo auth and plain HTTP on
+your LAN are accepted choices for a single small team (`DEPLOYMENT_PROFILE`
+defaults to `self-hosted`) — wire real OIDC SSO later, whenever more than one
+person needs their own account. See **[docs/SMALL-ORG-GUIDE.md](docs/SMALL-ORG-GUIDE.md)**.
+
+```bash
+export SESSION_SECRET=$(openssl rand -hex 32)
+docker compose -f docker-compose.slim.yml up -d
+```
+
+Open `http://<this-box's-address>:3000`. For remote (non-LAN) access, put a
+TLS reverse proxy in front (**[docs/REVERSE-PROXY.md](docs/REVERSE-PROXY.md)**)
+and set `PUBLIC_URL` to its https origin.
+
 ### Kubernetes
 
 ```bash
@@ -521,6 +538,7 @@ the common gotchas (router-name consistency, the `Host()` backticks, cross-provi
 | Scenario | CPU | RAM | Disk |
 | -------- | --- | --- | ---- |
 | Dev — shell only (demo) | 2 cores | 4 GB | ~2 GB |
+| Slim — omni-shell + n8n, demo/self-hosted auth | 1 vCPU | 2 GB | 5 GB |
 | Enterprise — omni-shell + n8n (BYO SSO/backends) | 2 vCPU | 4 GB | 10 GB |
 | Standalone (+ Authentik) | 4 cores | 8–16 GB | 20 GB+ |
 | Standalone + local LLM (Ollama) | 4–8 cores | 16–32 GB | 30 GB+ |

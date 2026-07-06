@@ -11,7 +11,7 @@ import { parse } from "yaml";
  *   1. Every `depends_on: { x: { condition: service_healthy } }` target actually DEFINES a
  *      healthcheck — otherwise the dependant waits forever (or Compose errors at up time).
  *   2. Every image is PINNED (an explicit, non-`latest` tag or a digest) — reproducible deploys.
- *   3. Production-intent compose files (standalone/enterprise) run the gateway hardened:
+ *   3. Production-intent compose files (standalone/enterprise/slim) run the gateway hardened:
  *      no-new-privileges, cap_drop ALL, read_only — matching the stateless posture.
  *   4. Traefik never exposes its dashboard via the insecure API (`--api.insecure`).
  *
@@ -101,6 +101,7 @@ export function auditComposeDoc(file: string, doc: ComposeDoc, opts: { prod: boo
 export const COMPOSE_FILES: { file: string; prod: boolean }[] = [
   { file: "docker-compose.standalone.yml", prod: true },
   { file: "docker-compose.enterprise.yml", prod: true },
+  { file: "docker-compose.slim.yml", prod: true },
   { file: "docker-compose.loadtest.yml", prod: false },
   { file: "docker-compose.dev.yml", prod: false },
 ];
