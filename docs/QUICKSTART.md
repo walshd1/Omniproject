@@ -55,8 +55,10 @@ your machine.
 
 In the app: **Configurator → Generate an n8n workflow**, pick the
 backend you actually use (Jira, OpenProject, GitHub, ServiceNow, Plane, and
-others are free; SAP/Oracle/Dynamics/NetSuite need a licence key — see
-[LICENSING.md](../LICENSING.md)). Leave the **Read-only** checkbox on (it's
+others are free; SAP/Oracle/Dynamics/NetSuite are free too **right now** —
+enforcement is dormant during the pre-community period, so no licence key
+is actually required yet (see [LICENSING.md](../LICENSING.md) for when
+that changes). Leave the **Read-only** checkbox on (it's
 checked by default) and download the JSON — `omniproject-<backend>-readonly.json`.
 Because every write action was left out at generation time, there is no
 `create_issue` / `update_issue` / `delete_issue` node to find and delete: the
