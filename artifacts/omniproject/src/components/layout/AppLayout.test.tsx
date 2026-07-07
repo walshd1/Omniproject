@@ -254,7 +254,8 @@ describe("AppLayout", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/auth/logout"))).toBe(true);
+      const calls = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls.some((c) => String(c[0]).includes("/api/auth/logout"))).toBe(true);
     });
   });
 
