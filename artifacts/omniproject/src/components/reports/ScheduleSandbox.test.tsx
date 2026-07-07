@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { screen, within, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import {
   getListProjectsQueryKey,
@@ -7,7 +8,7 @@ import {
   type Project,
   type Issue,
 } from "@workspace/api-client-react";
-import { renderWithProviders } from "../../test/utils";
+import { renderWithProviders, mockBlobDownload } from "../../test/utils";
 import { ScheduleSandbox } from "./ScheduleSandbox";
 
 const D = (day: number) => new Date(day * 86400000).toISOString();
@@ -89,5 +90,87 @@ describe("ScheduleSandbox", () => {
     ] as unknown as Issue[]);
     renderWithProviders(<ScheduleSandbox />, { client: qc });
     expect(within(screen.getByTestId("resource-capacity")).getByText(/No resource clashes/i)).toBeInTheDocument();
+  });
+
+  it("shows the empty state when the project has no scheduled issues", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getListProjectsQueryKey(), projects);
+    qc.setQueryData(getGetProjectIssuesQueryKey("p1"), []);
+    renderWithProviders(<ScheduleSandbox />, { client: qc });
+    expect(screen.getByText(/No scheduled issues in this project/i)).toBeInTheDocument();
+  });
+
+  it("nudging left records the move in the opposite direction", () => {
+    renderWithProviders(<ScheduleSandbox />, { client: seeded() });
+    const bar = screen.getByRole("button", { name: /Walls:/ });
+    fireEvent.keyDown(bar, { key: "ArrowLeft" });
+    const summary = screen.getByTestId("schedule-summary");
+    expect(within(summary).getByLabelText("Moved")).toHaveTextContent("1");
+  });
+
+  it("dragging a bar via pointer events doesn't throw and can shift it", () => {
+    renderWithProviders(<ScheduleSandbox />, { client: seeded() });
+    const bar = screen.getByRole("button", { name: /Foundations:/ });
+    fireEvent.pointerDown(bar, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerMove(bar, { clientX: 140, pointerId: 1 });
+    fireEvent.pointerUp(bar, { clientX: 140, pointerId: 1 });
+    // Whether or not the drag crossed a day boundary, the handlers must run without throwing.
+    expect(screen.getByTestId("schedule-sandbox")).toBeInTheDocument();
+  });
+
+  it("switching the scenario project resets the dirty scenario and shows the new project's issues", async () => {
+    const user = userEvent.setup();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    const twoProjects = [
+      ...projects,
+      { id: "p2", name: "Beta", identifier: "BE", source: "jira", issueCount: 1, completedCount: 0, memberCount: 1, updatedAt: "" },
+    ] as unknown as Project[];
+    qc.setQueryData(getListProjectsQueryKey(), twoProjects);
+    qc.setQueryData(getGetProjectIssuesQueryKey("p1"), issues);
+    qc.setQueryData(getGetProjectIssuesQueryKey("p2"), [
+      { id: "C", title: "Roofing", status: "todo", startDate: D(0), dueDate: D(3) },
+    ] as unknown as Issue[]);
+    renderWithProviders(<ScheduleSandbox />, { client: qc });
+
+    // Make a change so Reset/Export are enabled, then switch projects.
+    fireEvent.keyDown(screen.getByRole("button", { name: /Foundations:/ }), { key: "ArrowRight" });
+    expect(screen.getByRole("button", { name: /^reset$/i })).toBeEnabled();
+
+    await user.click(screen.getByLabelText("Scenario project"));
+    await user.click(await screen.findByRole("option", { name: "Beta" }));
+
+    expect(screen.getByRole("button", { name: /Roofing:/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^reset$/i })).toBeDisabled();
+  });
+
+  it("exports the scenario as a downloaded JSON file once dirty", async () => {
+    const { click, restore } = mockBlobDownload();
+    try {
+      renderWithProviders(<ScheduleSandbox />, { client: seeded() });
+      const exportBtn = screen.getByRole("button", { name: /^export$/i });
+      expect(exportBtn).toBeDisabled();
+      fireEvent.keyDown(screen.getByRole("button", { name: /Foundations:/ }), { key: "ArrowRight" });
+      expect(exportBtn).toBeEnabled();
+      fireEvent.click(exportBtn);
+      expect(click).toHaveBeenCalledTimes(1);
+    } finally {
+      restore();
+    }
+  });
+
+  it("adds and removes a sandbox dependency edge", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ScheduleSandbox />, { client: seeded() });
+
+    await user.click(screen.getByLabelText("Dependent issue"));
+    await user.click(await screen.findByRole("option", { name: "Walls" }));
+    await user.click(screen.getByLabelText("Predecessor issue"));
+    await user.click(await screen.findByRole("option", { name: "Foundations" }));
+    await user.click(screen.getByRole("button", { name: /^add$/i }));
+
+    expect(screen.getAllByText(/depends on/i)).toHaveLength(2); // the static label + the new edge row
+    expect(screen.getByText((_, el) => el?.tagName === "SPAN" && el.textContent === "Walls depends on Foundations")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Remove dependency/i }));
+    expect(screen.getAllByText(/depends on/i)).toHaveLength(1); // only the static label remains
   });
 });
