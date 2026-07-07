@@ -2,10 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import fs from "node:fs";
-import { methodologyCatalogue, getMethodology } from "./methodology-catalogue";
-import { reportCatalogue, getReport } from "./report-catalogue";
-import { screenCatalogue, getScreen } from "./screen-catalogue";
-import { PLANES, planeCatalogue } from "./planes";
+import { methodologyCatalogue, getMethodology, METHODOLOGIES } from "./methodology-catalogue";
+import { reportCatalogue, getReport, reportsForMethodology } from "./report-catalogue";
+import { screenCatalogue, getScreen, screensForMethodology } from "./screen-catalogue";
+import { PLANES, planeCatalogue, getPlane } from "./planes";
 import { brokerCatalogue } from "./broker-catalogue";
 import { backendCatalogue, isAdminOnlyBackend } from "./backend-catalogue";
 
@@ -13,6 +13,41 @@ test("planes meta-registry lists all seven planes with dev docs", () => {
   const ids = PLANES.map((p) => p.id).sort();
   assert.deepEqual(ids, ["backends", "brokers", "methodologies", "notifications", "outputs", "reports", "screens"]);
   for (const p of planeCatalogue()) assert.ok(p.label && p.registry && p.devDocs);
+});
+
+test("getPlane looks a descriptor up by id (and is undefined for a non-plane)", () => {
+  const reports = getPlane("reports");
+  assert.equal(reports?.id, "reports");
+  assert.equal(reports?.registry, "reportCatalogue");
+  assert.equal(getPlane("not-a-plane"), undefined);
+});
+
+test("methodologyCatalogue returns an independent defensive copy of every methodology", () => {
+  const cat = methodologyCatalogue();
+  assert.deepEqual(cat.map((m) => m.id).sort(), METHODOLOGIES.map((m) => m.id).sort());
+  // Mutating the copy must not corrupt the shared registry.
+  cat[0]!.label = "MUTATED";
+  assert.notEqual(getMethodology(cat[0]!.id)?.label, "MUTATED");
+});
+
+test("reportsForMethodology / screensForMethodology return tagged plus neutral assets, and exclude other-methodology-only ones", () => {
+  const scrumReports = reportsForMethodology("scrum");
+  // Burndown is scrum-tagged; it must be present.
+  assert.ok(scrumReports.some((r) => r.id === "burndown"));
+  // Every returned report is neutral (untagged / "*") or explicitly tags scrum.
+  for (const r of scrumReports) {
+    assert.ok(!r.methodologies || r.methodologies.includes("*") || r.methodologies.includes("scrum"));
+  }
+  // A report tagged for OTHER methodologies only must be filtered out.
+  const otherOnly = reportCatalogue().find((r) => r.methodologies && !r.methodologies.includes("*") && !r.methodologies.includes("scrum"));
+  if (otherOnly) assert.ok(!scrumReports.some((r) => r.id === otherOnly.id));
+
+  const scrumScreens = screensForMethodology("scrum");
+  for (const s of scrumScreens) {
+    assert.ok(!s.methodologies || s.methodologies.includes("*") || s.methodologies.includes("scrum"));
+  }
+  // A capability-free, methodology-neutral screen (home) always appears.
+  assert.ok(scrumScreens.some((s) => s.id === "home"));
 });
 
 test("methodologies: capabilities + tools separate but linked; cross-plane declared", () => {
