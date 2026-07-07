@@ -162,6 +162,34 @@ test("a governance rule with a non-array require field is rejected → 400", asy
   assert.equal(r.status, 400);
 });
 
+test("a governance rule without an id is rejected → 400", async () => {
+  // readGovernanceRules: `if (!asStr(o["id"])) throw` — a rule object missing its id.
+  const r = await put("/features/governance-rules", { governanceRules: [{ label: "no id here", forbid: ["report:evm"] }] });
+  assert.equal(r.status, 400);
+});
+
+test("a governance rule with a malformed predicate (unknown op) is rejected → 400", async () => {
+  // validatePredicate rejects the op before the sync-safe-field check, so the `if (err) throw` arm fires.
+  const r = await put("/features/governance-rules", {
+    governanceRules: [{ id: "bad-pred", when: { all: [{ field: "projectType", op: "definitely-not-an-op", value: "internal" }] }, forbid: ["report:evm"] }],
+  });
+  assert.equal(r.status, 400);
+});
+
+test("PUT governance-rules with no governanceRules array clears the list → 200", async () => {
+  // readGovernanceRules: the `Array.isArray(raw) ? raw : []` false arm — a body with no array.
+  const r = await put("/features/governance-rules", {});
+  assert.equal(r.status, 200);
+  const body = (await r.json()) as { governanceRules: unknown[] };
+  assert.deepEqual(body.governanceRules, []);
+});
+
+test("a reserved prototype key as the project scope id is rejected → 400", async () => {
+  // The project handler's safeScopeKey guard (mirror of the programme one), which was uncovered.
+  const r = await put("/features/project/__proto__", { forbidden: ["grid"] });
+  assert.equal(r.status, 400);
+});
+
 test("an org `forbid report:x` actually withholds the report from /setup/reports (not just the admin table)", async () => {
   const reportsOf = () => fetch(`${base}/api/setup/reports`, { headers: { cookie: ADMIN } }).then(async (r) => (await r.json() as { id: string }[]).map((x) => x.id));
   assert.ok((await reportsOf()).includes("evm")); // present by default

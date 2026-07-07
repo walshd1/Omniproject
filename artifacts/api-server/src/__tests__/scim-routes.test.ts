@@ -37,6 +37,19 @@ test("rejects a missing/invalid bearer token with 401", async () => {
   assert.equal(res.status, 401);
 });
 
+test("rejects a request with no Authorization header at all → 401", async () => {
+  // Exercises the `req.headers.authorization ?? ""` default (no header ⇒ empty ⇒ invalid token).
+  const res = await fetch(`${base}/api/scim/v2/Users`);
+  assert.equal(res.status, 401);
+  assert.equal(res.headers.get("www-authenticate"), "Bearer");
+});
+
+test("rejects a non-Bearer Authorization scheme → 401", async () => {
+  // Exercises the `startsWith("Bearer ") ? … : ""` else arm — a Basic header yields no token.
+  const res = await fetch(`${base}/api/scim/v2/Users`, { headers: { authorization: "Basic aWRwOnNlY3JldA==" } });
+  assert.equal(res.status, 401);
+});
+
 test("ServiceProviderConfig advertises patch + filter support", async () => {
   const res = await scim("/ServiceProviderConfig");
   assert.equal(res.status, 200);
@@ -79,6 +92,27 @@ test("create a group with a member", async () => {
   const group = await g.json() as any;
   assert.equal(group.displayName, "omni-admins");
   assert.equal(group.members[0].value, u.id);
+});
+
+test("POST /Users carries externalId, displayName + emails through to the created resource", async () => {
+  // Exercises the three conditional-spread arms in the POST /Users handler (externalId/displayName/emails present).
+  const emails = [{ value: "leo@corp.com", primary: true }];
+  const created = await scim("/Users", {
+    method: "POST",
+    body: JSON.stringify({ userName: "leo@corp.com", externalId: "ext-leo", displayName: "Leo", emails }),
+  });
+  assert.equal(created.status, 201);
+  const user = await created.json() as any;
+  assert.equal(user.externalId, "ext-leo");
+  assert.equal(user.displayName, "Leo");
+  assert.equal(user.emails[0].value, "leo@corp.com");
+});
+
+test("POST /Groups carries externalId through to the created resource", async () => {
+  // Exercises the externalId conditional-spread arm in the POST /Groups handler.
+  const g = await scim("/Groups", { method: "POST", body: JSON.stringify({ displayName: "with-ext", externalId: "ext-grp" }) });
+  assert.equal(g.status, 201);
+  assert.equal((await g.json() as any).externalId, "ext-grp");
 });
 
 // ── Discovery endpoints (ResourceTypes / Schemas) ────────────────────────────
