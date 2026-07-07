@@ -32,6 +32,7 @@
     "license": "tsx ./src/mint-license.ts",
     "load": "tsx ./src/load-harness.ts",
     "test": "tsx --test \"src/**/*.test.ts\"",
+    "test:coverage": "c8 tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "guard-interactive": "tsx ./src/guard-interactive.ts",
     "guard-e2e-routes": "tsx ./src/guard-e2e-routes.ts",
@@ -47,6 +48,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "c8": "^11.0.0",
     "tsx": "catalog:"
   }
 }
