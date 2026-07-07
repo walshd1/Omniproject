@@ -89,7 +89,7 @@ test("fetchPeerSummary: a peer with no region reports region null", async () => 
     res.end(JSON.stringify({ projects: 1, health: null, finance: null, capacity: null }));
   });
   try {
-    const result = await fetchPeerSummary(peer({ baseUrl: base, region: undefined }));
+    const result = await fetchPeerSummary(peer({ baseUrl: base, region: undefined } as unknown as Partial<PeerInstance>));
     assert.equal(result.region, null);
     assert.equal(result.status, "ok");
   } finally {

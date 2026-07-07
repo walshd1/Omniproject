@@ -48,7 +48,7 @@ test("transcribe is blocked by the AI kill switch with 403", async () => {
 test("transcribe (whisper) posts a multipart upload and returns the recognised text", async () => {
   updateSettings({ sttProvider: "whisper" });
   process.env["WHISPER_URL"] = "http://whisper.local/v1/audio/transcriptions";
-  let seen: { url: string; method?: string; hasBody: boolean } = { url: "", hasBody: false };
+  let seen: { url: string; method: string | undefined; hasBody: boolean } = { url: "", method: undefined, hasBody: false };
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     seen = { url: String(url), method: init?.method, hasBody: !!init?.body };
     return new Response(JSON.stringify({ text: "hello world" }), { status: 200 });

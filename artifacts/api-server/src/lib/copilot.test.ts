@@ -105,7 +105,7 @@ test("an empty question short-circuits without calling the model", async () => {
 test("scopeContext coerces missing/invalid fields to safe defaults", () => {
   const ctx = scopeContext([
     { projectId: "P2" } as PortfolioRow, // everything else absent
-    row({ ragStatus: null, scheduleVarianceDays: "abc", budgetVariancePercentage: undefined, activeBlockersCount: NaN }),
+    row({ ragStatus: null, scheduleVarianceDays: "abc", budgetVariancePercentage: undefined, activeBlockersCount: NaN } as unknown as Parameters<typeof row>[0]),
   ]);
   assert.deepEqual(ctx[0], { project: "", rag: "", scheduleVarianceDays: 0, budgetVariancePct: 0, blockers: 0 });
   assert.equal(ctx[1]!.scheduleVarianceDays, 0); // non-numeric → 0

@@ -80,3 +80,77 @@ test("create a group with a member", async () => {
   assert.equal(group.displayName, "omni-admins");
   assert.equal(group.members[0].value, u.id);
 });
+
+// ── Discovery endpoints (ResourceTypes / Schemas) ────────────────────────────
+test("ResourceTypes and Schemas list the User + Group resources", async () => {
+  const rt = await scim("/ResourceTypes");
+  assert.equal(rt.status, 200);
+  const rtBody = await rt.json() as any;
+  assert.deepEqual(rtBody.Resources.map((r: any) => r.id).sort(), ["Group", "User"]);
+  const sc = await scim("/Schemas");
+  assert.equal(sc.status, 200);
+  assert.equal((await sc.json() as any).totalResults, 2);
+});
+
+// ── User validation + replace + not-found branches ───────────────────────────
+test("POST /Users without userName → 400", async () => {
+  const r = await scim("/Users", { method: "POST", body: JSON.stringify({ active: true }) });
+  assert.equal(r.status, 400);
+});
+
+test("PUT /Users/:id replaces an existing user; PUT an unknown id → 404", async () => {
+  const u = await (await scim("/Users", { method: "POST", body: JSON.stringify({ userName: "ivan@corp.com", active: true }) })).json() as any;
+  const replaced = await scim(`/Users/${u.id}`, { method: "PUT", body: JSON.stringify({ userName: "ivan@corp.com", active: false, displayName: "Ivan" }) });
+  assert.equal(replaced.status, 200);
+  assert.equal((await replaced.json() as any).active, false);
+  assert.equal((await scim("/Users/no-such-user", { method: "PUT", body: JSON.stringify({ userName: "x" }) })).status, 404);
+});
+
+test("PATCH /Users/:id without Operations[] → 400; PATCH an unknown id → 404", async () => {
+  const u = await (await scim("/Users", { method: "POST", body: JSON.stringify({ userName: "judy@corp.com" }) })).json() as any;
+  assert.equal((await scim(`/Users/${u.id}`, { method: "PATCH", body: JSON.stringify({ schemas: [] }) })).status, 400);
+  const goodOps = JSON.stringify({ Operations: [{ op: "replace", path: "active", value: false }] });
+  assert.equal((await scim("/Users/no-such-user", { method: "PATCH", body: goodOps })).status, 404);
+});
+
+test("DELETE an unknown user → 404", async () => {
+  assert.equal((await scim("/Users/no-such-user", { method: "DELETE" })).status, 404);
+});
+
+// ── Group get / replace / patch / delete + validation + not-found ────────────
+test("GET /Groups lists groups; GET an unknown group → 404", async () => {
+  await scim("/Groups", { method: "POST", body: JSON.stringify({ displayName: "list-probe" }) });
+  const list = await scim("/Groups");
+  assert.equal(list.status, 200);
+  assert.ok((await list.json() as any).totalResults >= 1);
+  assert.equal((await scim("/Groups/no-such-group")).status, 404);
+});
+
+test("POST /Groups without displayName → 400", async () => {
+  assert.equal((await scim("/Groups", { method: "POST", body: JSON.stringify({ externalId: "e1" }) })).status, 400);
+});
+
+test("group lifecycle: create → GET → PUT replace → PATCH add member → DELETE", async () => {
+  const g = await (await scim("/Groups", { method: "POST", body: JSON.stringify({ displayName: "lifecycle" }) })).json() as any;
+  assert.equal((await scim(`/Groups/${g.id}`)).status, 200);
+
+  const replaced = await scim(`/Groups/${g.id}`, { method: "PUT", body: JSON.stringify({ displayName: "lifecycle-renamed" }) });
+  assert.equal(replaced.status, 200);
+  assert.equal((await replaced.json() as any).displayName, "lifecycle-renamed");
+
+  const u = await (await scim("/Users", { method: "POST", body: JSON.stringify({ userName: "kim@corp.com" }) })).json() as any;
+  const patched = await scim(`/Groups/${g.id}`, { method: "PATCH", body: JSON.stringify({ Operations: [{ op: "add", path: "members", value: [{ value: u.id }] }] }) });
+  assert.equal(patched.status, 200);
+  assert.equal((await patched.json() as any).members[0].value, u.id);
+
+  assert.equal((await scim(`/Groups/${g.id}`, { method: "DELETE" })).status, 204);
+  assert.equal((await scim(`/Groups/${g.id}`)).status, 404);
+});
+
+test("group PUT/PATCH/DELETE on unknown ids → 404; PATCH without Operations → 400", async () => {
+  assert.equal((await scim("/Groups/nope", { method: "PUT", body: JSON.stringify({ displayName: "x" }) })).status, 404);
+  assert.equal((await scim("/Groups/nope", { method: "PATCH", body: JSON.stringify({ Operations: [] }) })).status, 404);
+  assert.equal((await scim("/Groups/nope", { method: "DELETE" })).status, 404);
+  const g = await (await scim("/Groups", { method: "POST", body: JSON.stringify({ displayName: "patch-shape" }) })).json() as any;
+  assert.equal((await scim(`/Groups/${g.id}`, { method: "PATCH", body: JSON.stringify({ schemas: [] }) })).status, 400);
+});

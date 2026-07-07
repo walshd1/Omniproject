@@ -122,6 +122,46 @@ test("governance rules round-trip and restrict predicates to the sync-safe field
   assert.equal(badId.status, 400);
 });
 
+test("a non-array field in a scope config is rejected → 400 (readScopeConfig shape guard)", async () => {
+  const r = await put("/features/programme/prog-platform", { disabled: "not-an-array" });
+  assert.equal(r.status, 400);
+});
+
+test("a project PUT with a malformed config is rejected → 400 (SettingsValidationError path)", async () => {
+  // proj-001 is owned, so we get past ownership/ceiling and hit the body-shape validation error.
+  const r = await put("/features/project/proj-001", { forbidden: [123] });
+  assert.equal(r.status, 400);
+});
+
+test("a project the caller owns can be governed → 200 (project scope config saved)", async () => {
+  const r = await put("/features/project/proj-001", { forbidden: ["grid"] });
+  assert.equal(r.status, 200);
+  const body = (await r.json()) as { projectId: string; config: { forbidden: string[] } };
+  assert.equal(body.projectId, "proj-001");
+  assert.deepEqual(body.config.forbidden, ["grid"]);
+  // and the project scope now reports grid blocked
+  const scoped = (await getFeatures("?projectId=proj-001")).body.features.find((f) => f.id === "grid")!;
+  assert.equal(scoped.enabled, false);
+});
+
+test("governance rules carry a label, require/disable arrays, and an `any` predicate set", async () => {
+  const r = await put("/features/governance-rules", {
+    governanceRules: [
+      { id: "labelled", label: "internal locks report", when: { any: [{ field: "projectType", op: "eq", value: "internal" }] }, require: ["grid"], disable: ["presence"] },
+    ],
+  });
+  assert.equal(r.status, 200);
+  const got = (await fetch(`${base}/api/features/governance-rules`, { headers: { cookie: ADMIN } }).then((x) => x.json())) as { governanceRules: { id: string; label?: string; require?: string[]; disable?: string[] }[] };
+  assert.equal(got.governanceRules[0]!.label, "internal locks report");
+  assert.deepEqual(got.governanceRules[0]!.require, ["grid"]);
+  assert.deepEqual(got.governanceRules[0]!.disable, ["presence"]);
+});
+
+test("a governance rule with a non-array require field is rejected → 400", async () => {
+  const r = await put("/features/governance-rules", { governanceRules: [{ id: "bad", require: "grid" }] });
+  assert.equal(r.status, 400);
+});
+
 test("an org `forbid report:x` actually withholds the report from /setup/reports (not just the admin table)", async () => {
   const reportsOf = () => fetch(`${base}/api/setup/reports`, { headers: { cookie: ADMIN } }).then(async (r) => (await r.json() as { id: string }[]).map((x) => x.id));
   assert.ok((await reportsOf()).includes("evm")); // present by default

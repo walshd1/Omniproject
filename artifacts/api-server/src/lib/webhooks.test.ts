@@ -79,10 +79,13 @@ test("deliverWebhooks fans out to matching active subscriptions and signs the bo
     assert.equal(results[0]!.ok, true);
     assert.equal(results[0]!.status, 200);
     assert.ok(received);
-    const env = JSON.parse(received!.body) as { event: string; data: { id: string } };
+    // Assigned inside the sink callback, so TS control-flow can't see the write and
+    // narrows the null-initialised var to `never` after assert.ok — cast back to the real shape.
+    const got = received as { headers: http.IncomingHttpHeaders; body: string };
+    const env = JSON.parse(got.body) as { event: string; data: { id: string } };
     assert.equal(env.event, "notification");
     assert.equal(env.data.id, "I1");
-    assert.equal(received!.headers["x-omniproject-signature"], signBody(received!.body, sub.secret));
+    assert.equal(got.headers["x-omniproject-signature"], signBody(got.body, sub.secret));
   } finally {
     server.close();
   }
