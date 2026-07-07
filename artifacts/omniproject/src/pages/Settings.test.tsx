@@ -278,3 +278,91 @@ describe("Settings field edits", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid URL");
   });
 });
+
+/**
+ * Residual branch coverage: the AI "not ready" status styling, the settings→form fallbacks for
+ * missing values, the FX as-of-date payload branch (only sent off "spot"), the datalist's nullish
+ * fallback before backend ids load, and the in-flight "SAVING…" submit label.
+ */
+describe("Settings branch coverage", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("shows a NOT READY status in warning styling when the AI provider isn't configured", async () => {
+    const user = userEvent.setup();
+    mockFetchRouter({
+      "/api/ai/status": { ok: true, body: { provider: "openai", model: "", configured: false, detail: "No API key set" } },
+    });
+    renderSettings(seed(settings({ aiProvider: "openai" })));
+    await user.click(screen.getByRole("button", { name: /test connection/i }));
+
+    const status = await screen.findByText(/NOT READY/);
+    expect(status).toHaveTextContent("No API key set");
+    expect(status).toHaveClass("text-amber-500");
+  });
+
+  it("leaves the broker URL blank and saves it as null when settings carry no broker URL", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetchRouter({});
+    renderSettings(seed(settings({ brokerUrl: null as unknown as string })));
+    expect(screen.getByLabelText(/broker url/i)).toHaveValue("");
+
+    // Submitting with an empty (valid) broker URL sends it as null (the `trim() || null` fallback).
+    await user.click(screen.getByRole("button", { name: /commit changes/i }));
+    expect(await screen.findByText("SETTINGS SAVED")).toBeInTheDocument();
+    const patch = calls.find((c) => new URL(c.url, "http://localhost").pathname === "/api/settings" && c.init?.method === "PATCH");
+    expect(JSON.parse(String(patch!.init!.body)).brokerUrl).toBeNull();
+  });
+
+  it("sends the FX as-of-date in the save payload when the policy isn't spot", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetchRouter({});
+    renderSettings(seed(settings({ fxRatePolicy: "periodClose", fxRateAsOfDate: "2026-06-30" })));
+    await user.click(screen.getByRole("button", { name: /commit changes/i }));
+
+    expect(await screen.findByText("SETTINGS SAVED")).toBeInTheDocument();
+    const patch = calls.find((c) => new URL(c.url, "http://localhost").pathname === "/api/settings" && c.init?.method === "PATCH");
+    expect(JSON.parse(String(patch!.init!.body)).fxRateAsOfDate).toBe("2026-06-30");
+  });
+
+  it("sends a null FX as-of-date when the policy isn't spot but no date is set", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetchRouter({});
+    renderSettings(seed(settings({ fxRatePolicy: "budgetRate", fxRateAsOfDate: "" })));
+    await user.click(screen.getByRole("button", { name: /commit changes/i }));
+
+    expect(await screen.findByText("SETTINGS SAVED")).toBeInTheDocument();
+    const patch = calls.find((c) => new URL(c.url, "http://localhost").pathname === "/api/settings" && c.init?.method === "PATCH");
+    expect(JSON.parse(String(patch!.init!.body)).fxRateAsOfDate).toBeNull();
+  });
+
+  it("renders only the built-in 'all' datalist option before backend ids resolve", () => {
+    // No backend-ids seeded → the `backendIds ?? []` fallback renders just the built-in option.
+    mockFetchRouter({ "/api/setup/backends/ids": { ok: true, body: [] } });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetSettingsQueryKey(), settings());
+    const { container } = renderSettings(qc);
+    const options = container.querySelectorAll("#backend-suggestions option");
+    expect(options).toHaveLength(1);
+    expect(options[0]!.getAttribute("value")).toBe("all");
+  });
+
+  it("shows a disabled SAVING… label on the submit button while the save is in flight", async () => {
+    const user = userEvent.setup();
+    let resolvePatch: (v: Response) => void = () => {};
+    const patchPromise = new Promise<Response>((r) => { resolvePatch = r; });
+    globalThis.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const path = new URL(String(url), "http://localhost").pathname;
+      if (path === "/api/settings" && (init?.method ?? "GET").toUpperCase() === "PATCH") return patchPromise;
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+
+    renderSettings(seed(settings()));
+    await user.click(screen.getByRole("button", { name: /commit changes/i }));
+
+    // Mid-flight the submit button flips to the pending label and disables.
+    expect(await screen.findByRole("button", { name: /saving/i })).toBeDisabled();
+    resolvePatch(new Response("{}", { status: 200 }));
+    // Once the save settles the button returns to its normal label.
+    expect(await screen.findByRole("button", { name: /commit changes/i })).toBeInTheDocument();
+  });
+});

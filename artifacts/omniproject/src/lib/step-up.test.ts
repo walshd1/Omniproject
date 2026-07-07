@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { stepUp, isStepUpRequired } from "./step-up";
+import { stepUp, isStepUpRequired, withStepUp } from "./step-up";
 
 /**
  * Client step-up: demo confirms in place (true); OIDC returns a redirect (navigates,
@@ -40,6 +40,41 @@ describe("stepUp", () => {
     Object.defineProperty(window, "location", { value: { pathname: "/reports", href: "" }, writable: true });
     expect(await stepUp()).toBe(true);
     expect(JSON.parse(String((fetchMock.mock.calls[0]![1] as RequestInit).body))).toEqual({ returnTo: "/reports" });
+  });
+
+  it("defaults returnTo to \"/\" in a non-browser context (no window)", async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(new Response("{}", { status: 200 })));
+    vi.stubGlobal("fetch", fetchMock);
+    // Drive the else side of the default-param `typeof window !== "undefined"` guard.
+    vi.stubGlobal("window", undefined);
+    expect(await stepUp()).toBe(true);
+    expect(JSON.parse(String((fetchMock.mock.calls[0]![1] as RequestInit).body))).toEqual({ returnTo: "/" });
+  });
+});
+
+describe("withStepUp", () => {
+  it("runs fn and returns its result when the step-up succeeds", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("{}", { status: 200 }))));
+    Object.defineProperty(window, "location", { value: { pathname: "/settings", href: "" }, writable: true });
+    const fn = vi.fn(() => Promise.resolve("saved"));
+    expect(await withStepUp(fn)).toBe("saved");
+    expect(fn).toHaveBeenCalledOnce();
+  });
+
+  it("returns null and never runs fn when the step-up is declined", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("nope", { status: 500 }))));
+    Object.defineProperty(window, "location", { value: { pathname: "/settings", href: "" }, writable: true });
+    const fn = vi.fn(() => Promise.resolve("saved"));
+    expect(await withStepUp(fn)).toBeNull();
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("returns null when fn throws after a successful step-up", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("{}", { status: 200 }))));
+    Object.defineProperty(window, "location", { value: { pathname: "/settings", href: "" }, writable: true });
+    const fn = vi.fn(() => Promise.reject(new Error("boom")));
+    expect(await withStepUp(fn)).toBeNull();
+    expect(fn).toHaveBeenCalledOnce();
   });
 });
 

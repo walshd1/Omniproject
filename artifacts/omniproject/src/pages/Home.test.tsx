@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
@@ -9,7 +9,7 @@ import {
   type Project,
   type ActivityEntry,
 } from "@workspace/api-client-react";
-import { renderWithProviders } from "../test/utils";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../test/utils";
 import { useStore } from "../store/useStore";
 import { Home } from "./Home";
 
@@ -131,4 +131,24 @@ describe("Home dashboard", () => {
     renderWithProviders(<Home />, { client: qc });
     expect(screen.getByRole("heading", { level: 1, name: /dashboard/i })).toBeInTheDocument();
   });
+
+  it("shows the DataState error block and refetches when Retry is clicked", async () => {
+    // Let the projects query actually run and fail so it settles in the error
+    // state (a manually-seeded error observer just refetches away on mount).
+    const calls = mockFetchRouter({ "/api/projects": { ok: false, status: 500 } });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getListActivityQueryKey(), []);
+    renderWithProviders(<Home />, { client: qc });
+
+    // Error surface rendered by DataState.
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not load/i);
+
+    const projectCalls = () => calls.filter((c) => new URL(c.url, "http://localhost").pathname === "/api/projects").length;
+    const before = projectCalls();
+    // Fire the DataState error-state onRetry callback (Home.tsx: () => refetchProjects()).
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(projectCalls()).toBeGreaterThan(before);
+  });
 });
+
+afterEach(() => resetFetchMock());
