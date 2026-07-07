@@ -1,12 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, renderHook, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   getGetProjectRaidQueryKey,
   type RaidEntry,
 } from "@workspace/api-client-react";
-import { renderWithProviders } from "../../test/utils";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
+import { useToast } from "@/hooks/use-toast";
 import { RaidView } from "./RaidView";
 
 const PROJECT = "proj-1";
@@ -122,11 +123,96 @@ describe("RaidView", () => {
     expect(screen.getByRole("button", { name: /Add to register/i })).toBeInTheDocument();
   });
 
-  it("renders an error alert with retry when the RAID query fails", async () => {
+  it("renders an error alert with retry when the RAID query fails, and Retry re-triggers the fetch", async () => {
     const qc = makeClient();
     seedAuth(qc, "viewer");
     renderWithProviders(<RaidView projectId={PROJECT} />, { client: qc });
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+    const retry = screen.getByRole("button", { name: /retry/i });
+    expect(retry).toBeInTheDocument();
+    fireEvent.click(retry);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+  });
+
+  it("shows optional description/mitigation/owner/due-date fields on a card when present", () => {
+    const qc = makeClient();
+    seedAuth(qc, "viewer");
+    qc.setQueryData(getGetProjectRaidQueryKey(PROJECT), [
+      entry({
+        id: "full1",
+        title: "Fully detailed risk",
+        description: "A description",
+        mitigation: "A mitigation plan",
+        owner: "alice",
+        dueDate: "2026-08-01",
+      }),
+    ]);
+    renderWithProviders(<RaidView projectId={PROJECT} />, { client: qc });
+    expect(screen.getByText("A description")).toBeInTheDocument();
+    expect(screen.getByText(/A mitigation plan/)).toBeInTheDocument();
+    expect(screen.getByText("@alice")).toBeInTheDocument();
+    expect(screen.getByText("due 2026-08-01")).toBeInTheDocument();
+  });
+
+  describe("submitting a new entry", () => {
+    afterEach(resetFetchMock);
+
+    it("fills out every field, submits, shows a success toast and closes the form", async () => {
+      const user = userEvent.setup();
+      const qc = makeClient();
+      seedAuth(qc, "contributor");
+      qc.setQueryData(getGetProjectRaidQueryKey(PROJECT), ENTRIES);
+      const calls = mockFetchRouter({
+        [`POST /api/projects/${PROJECT}/raid`]: { ok: true, body: entry({ id: "new1", title: "New risk" }) },
+        [`GET /api/projects/${PROJECT}/raid`]: { ok: true, body: ENTRIES },
+      });
+      const { result: toastResult } = renderHook(() => useToast());
+      const { container } = renderWithProviders(<RaidView projectId={PROJECT} />, { client: qc });
+
+      await user.click(screen.getByRole("button", { name: /\+ Add entry/i }));
+      await user.type(screen.getByPlaceholderText("Title"), "New risk");
+      await user.type(screen.getByPlaceholderText("Description"), "Some detail");
+      await user.selectOptions(screen.getByDisplayValue("risk"), "issue");
+      await user.selectOptions(screen.getByDisplayValue("medium"), "critical");
+      await user.type(screen.getByPlaceholderText("Owner"), "bob");
+      const dueDateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
+      fireEvent.change(dueDateInput, { target: { value: "2026-09-01" } });
+      await user.click(screen.getByRole("button", { name: /Add to register/i }));
+
+      await waitFor(() =>
+        expect(toastResult.current.toasts.some((t) => t.title === "RAID ENTRY ADDED" && t.description === "New risk")).toBe(true),
+      );
+      expect(screen.queryByPlaceholderText("Title")).not.toBeInTheDocument();
+
+      const postCall = calls.find((c) => c.url.includes(`/api/projects/${PROJECT}/raid`) && c.init?.method === "POST");
+      const body = JSON.parse(String(postCall!.init!.body));
+      expect(body).toMatchObject({
+        title: "New risk",
+        description: "Some detail",
+        type: "issue",
+        severity: "critical",
+        owner: "bob",
+        dueDate: "2026-09-01",
+      });
+    });
+
+    it("shows an error toast and keeps the form open when the create mutation fails", async () => {
+      const user = userEvent.setup();
+      const qc = makeClient();
+      seedAuth(qc, "contributor");
+      qc.setQueryData(getGetProjectRaidQueryKey(PROJECT), ENTRIES);
+      mockFetchRouter({
+        [`POST /api/projects/${PROJECT}/raid`]: { ok: false, status: 500, body: { message: "boom" } },
+      });
+      const { result: toastResult } = renderHook(() => useToast());
+      renderWithProviders(<RaidView projectId={PROJECT} />, { client: qc });
+
+      await user.click(screen.getByRole("button", { name: /\+ Add entry/i }));
+      await user.type(screen.getByPlaceholderText("Title"), "Will fail");
+      await user.click(screen.getByRole("button", { name: /Add to register/i }));
+
+      await waitFor(() => expect(toastResult.current.toasts.some((t) => t.title === "ERROR")).toBe(true));
+      expect(screen.getByPlaceholderText("Title")).toBeInTheDocument();
+    });
   });
 });
