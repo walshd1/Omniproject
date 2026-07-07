@@ -70,4 +70,49 @@ describe("useIssueFieldWrite", () => {
     const after = result.current.toast.toasts.filter((t) => t.title === "Saved").length;
     expect(after).toBe(before); // no NEW undo toast for a no-op change
   });
+
+  it("reverts the optimistic cache and shows an EDIT CONFLICT toast on a 409", async () => {
+    // Fail the PATCH with a 409; GETs still succeed so any invalidation refetch is harmless.
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, o?: RequestInit) => {
+      const method = (o?.method ?? "GET") as string;
+      const isWrite = /PATCH|PUT|POST/.test(method);
+      return new Response(isWrite ? "{}" : "[]", { status: isWrite ? 409 : 200, headers: { "Content-Type": "application/json" } });
+    }));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    qc.setQueryData(getGetProjectIssuesQueryKey("p1"), [issue({ status: "todo" })]);
+    const { result } = renderHook(() => ({ writer: useIssueFieldWrite(), toast: useToast() }), { wrapper: wrapper(qc) });
+    act(() => result.current.writer.write("p1", issue({ status: "todo" }), "status", "done"));
+    await waitFor(() => expect(result.current.toast.toasts.some((t) => t.title === "EDIT CONFLICT")).toBe(true));
+    // The optimistic "done" was rolled back to the pre-write value.
+    const cached = qc.getQueryData<Issue[]>(getGetProjectIssuesQueryKey("p1"))!;
+    expect(cached[0]!.status).toBe("todo");
+  });
+
+  it("shows a generic ERROR toast on a non-conflict failure", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, o?: RequestInit) => {
+      const method = (o?.method ?? "GET") as string;
+      const isWrite = /PATCH|PUT|POST/.test(method);
+      return new Response(isWrite ? "{}" : "[]", { status: isWrite ? 500 : 200, headers: { "Content-Type": "application/json" } });
+    }));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    qc.setQueryData(getGetProjectIssuesQueryKey("p1"), [issue({ status: "todo" })]);
+    const { result } = renderHook(() => ({ writer: useIssueFieldWrite(), toast: useToast() }), { wrapper: wrapper(qc) });
+    act(() => result.current.writer.write("p1", issue({ status: "todo" }), "status", "done"));
+    await waitFor(() => expect(result.current.toast.toasts.some((t) => t.title === "ERROR")).toBe(true));
+  });
+
+  it("undo re-issues the inverse write against the freshest cached version", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    qc.setQueryData(getGetProjectIssuesQueryKey("p1"), [issue({ status: "todo" })]);
+    const { result } = renderHook(() => ({ writer: useIssueFieldWrite(), toast: useToast() }), { wrapper: wrapper(qc) });
+    act(() => result.current.writer.write("p1", issue({ status: "todo" }), "status", "done", { undoable: true }));
+    await waitFor(() => expect(result.current.toast.toasts.some((t) => t.title === "Saved" && !!t.action)).toBe(true));
+
+    const saved = result.current.toast.toasts.find((t) => t.title === "Saved" && !!t.action)!;
+    const before = mutatingCalls().length;
+    // Fire the Undo action's handler — it reads the freshest cached issue and writes the old value back.
+    act(() => (saved.action as unknown as { props: { onClick: () => void } }).props.onClick());
+    await waitFor(() => expect(mutatingCalls().length).toBeGreaterThan(before));
+    expect(String((mutatingCalls().at(-1)![1] as RequestInit).body)).toContain("\"status\":\"todo\"");
+  });
 });

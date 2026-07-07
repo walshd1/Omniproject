@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import {
   getListProjectsQueryKey,
@@ -40,9 +41,12 @@ function activity(over: Partial<ActivityEntry> = {}): ActivityEntry {
   };
 }
 
+// Grab the real store actions once so a test that stubs one (below) can be undone.
+const realSetActiveProjectId = useStore.getState().setActiveProjectId;
+
 beforeEach(() => {
-  // Reset the persisted store between cases so activeProjectId doesn't leak.
-  useStore.setState({ activeProjectId: null, currentView: "kanban" });
+  // Reset the persisted store between cases so activeProjectId / a stubbed action doesn't leak.
+  useStore.setState({ activeProjectId: null, currentView: "kanban", isNewIssueOpen: false, setActiveProjectId: realSetActiveProjectId });
 });
 
 describe("Home dashboard", () => {
@@ -68,6 +72,49 @@ describe("Home dashboard", () => {
     // Activity feed entry rendered.
     expect(screen.getByText(/wire the broker/i)).toBeInTheDocument();
     expect(screen.getByText(/issue created/i)).toBeInTheDocument();
+  });
+
+  it("opens the New Issue dialog when the enabled button is clicked", async () => {
+    const user = userEvent.setup();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getListProjectsQueryKey(), [project()]);
+    qc.setQueryData(getListActivityQueryKey(), []);
+    qc.setQueryData(getGetProjectIssuesQueryKey("proj-1"), []);
+    renderWithProviders(<Home />, { client: qc });
+    // Auto-selected project enables the action.
+    const btn = screen.getByTestId("new-issue-button");
+    expect(btn).toBeEnabled();
+    await user.click(btn);
+    expect(useStore.getState().isNewIssueOpen).toBe(true);
+  });
+
+  it("switches the active project via the selector", async () => {
+    const user = userEvent.setup();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getListProjectsQueryKey(), [project(), project({ id: "proj-2", name: "Second Project" })]);
+    qc.setQueryData(getListActivityQueryKey(), []);
+    qc.setQueryData(getGetProjectIssuesQueryKey("proj-1"), []);
+    qc.setQueryData(getGetProjectIssuesQueryKey("proj-2"), []);
+    renderWithProviders(<Home />, { client: qc });
+    // Effect auto-selects the first project.
+    expect(useStore.getState().activeProjectId).toBe("proj-1");
+    await user.click(screen.getByLabelText(/active project/i));
+    await user.click(await screen.findByRole("option", { name: "Second Project" }));
+    expect(useStore.getState().activeProjectId).toBe("proj-2");
+  });
+
+  it("shows the 'pick a project' prompt and activates on click when no project is active", () => {
+    // Stub the store action so the auto-select effect can't set an active project,
+    // exercising the projects-present-but-none-active empty state.
+    useStore.setState({ setActiveProjectId: () => {} });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getListProjectsQueryKey(), [project()]);
+    qc.setQueryData(getListActivityQueryKey(), []);
+    renderWithProviders(<Home />, { client: qc });
+    expect(screen.getByText(/pick a project to get started/i)).toBeInTheDocument();
+    // The "Open <name>" button is wired to the (stubbed) activate action — clicking is a no-op but covers the handler.
+    fireEvent.click(screen.getByRole("button", { name: /open platform rewrite/i }));
+    expect(useStore.getState().activeProjectId).toBeNull();
   });
 
   it("renders an error state when the projects query fails", () => {

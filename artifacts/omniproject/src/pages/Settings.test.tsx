@@ -193,3 +193,88 @@ describe("Settings interactions", () => {
     expect(screen.getByText("Could not reach AI status.")).toBeInTheDocument();
   });
 });
+
+/**
+ * Field-level editing: every controlled input/select onChange handler, the FX as-of-date input
+ * that only appears off "spot", the backend-id datalist suggestions, and the submit guard that
+ * bails when a URL is invalid.
+ */
+describe("Settings field edits", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function seedWithBackendIds(s: SettingsType, ids: string[]): QueryClient {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetSettingsQueryKey(), s);
+    qc.setQueryData(["setup-backend-ids"], ids);
+    return qc;
+  }
+
+  it("renders backend-id suggestions from the catalogue in the datalist", () => {
+    const { container } = renderSettings(seedWithBackendIds(settings(), ["jira-cloud", "azure-devops"]));
+    const options = container.querySelectorAll("#backend-suggestions option");
+    const values = Array.from(options).map((o) => o.getAttribute("value"));
+    expect(values).toContain("jira-cloud");
+    expect(values).toContain("azure-devops");
+  });
+
+  // The Radix Select triggers are <button role="combobox">; the backend <input list> ALSO
+  // reports role combobox, so filter to the button triggers: [FX policy, AI provider, STT].
+  const selectTriggers = () => screen.getAllByRole("combobox").filter((el) => el.tagName === "BUTTON");
+
+  it("edits the backend, reporting-currency, AI-model and OIDC fields", () => {
+    renderSettings(seed(settings({ aiProvider: "openai", aiModel: "seed-model" })));
+
+    const backend = screen.getByPlaceholderText("all");
+    fireEvent.change(backend, { target: { value: "jira-cloud" } });
+    expect(backend).toHaveValue("jira-cloud");
+
+    const currency = screen.getByLabelText(/reporting currency/i);
+    fireEvent.change(currency, { target: { value: "gbp" } });
+    expect(currency).toHaveValue("GBP"); // upper-cased + sliced to 3 by the handler
+
+    const model = screen.getByDisplayValue("seed-model");
+    fireEvent.change(model, { target: { value: "gpt-4o" } });
+    expect(model).toHaveValue("gpt-4o");
+
+    const oidc = screen.getByLabelText(/oidc issuer url/i);
+    fireEvent.change(oidc, { target: { value: "https://auth.example.com/realm" } });
+    expect(oidc).toHaveValue("https://auth.example.com/realm");
+  });
+
+  it("reveals and edits the FX as-of-date input once the policy leaves 'spot'", async () => {
+    const user = userEvent.setup();
+    const { container } = renderSettings(seed(settings({ fxRatePolicy: "spot" })));
+    expect(container.querySelector("#fx-rate-as-of-date")).toBeNull();
+
+    // Open the FX policy select (first button trigger) and pick a non-spot policy.
+    await user.click(selectTriggers()[0]!);
+    await user.click(await screen.findByRole("option", { name: /period-close rate/i }));
+
+    const dateInput = container.querySelector("#fx-rate-as-of-date") as HTMLInputElement;
+    expect(dateInput).not.toBeNull();
+    fireEvent.change(dateInput, { target: { value: "2026-06-30" } });
+    expect(dateInput).toHaveValue("2026-06-30");
+  });
+
+  it("changes the speech-to-text engine via its select", async () => {
+    const user = userEvent.setup();
+    renderSettings(seed(settings({ aiProvider: "none" })));
+    // Button triggers are [FX policy, AI provider, STT engine].
+    const sttSelect = selectTriggers()[2]!;
+    await user.click(sttSelect);
+    await user.click(await screen.findByRole("option", { name: /on-device/i }));
+    expect(sttSelect).toHaveTextContent(/browser/i);
+  });
+
+  it("does not submit (no toast) when a URL field is invalid", () => {
+    mockFetchRouter({});
+    renderSettings(seed(settings()));
+    const oidc = screen.getByLabelText(/oidc issuer url/i);
+    fireEvent.change(oidc, { target: { value: "not a url" } });
+    // Submit event still fires the handler even though the button is disabled.
+    const form = screen.getByRole("button", { name: /commit changes/i }).closest("form")!;
+    fireEvent.submit(form);
+    expect(screen.queryByText("SETTINGS SAVED")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid URL");
+  });
+});
