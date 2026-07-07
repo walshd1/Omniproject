@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import {
   getListProjectsQueryKey,
@@ -48,8 +48,11 @@ function seed(
 beforeEach(() => {
   // Disable the SSE channel so NotificationsBell doesn't construct an EventSource.
   window.localStorage.setItem("omni.notify.live", "off");
-  useStore.setState({ activeProjectId: "proj-1" });
+  useStore.setState({ activeProjectId: "proj-1", isShortcutsOpen: false, isNewIssueOpen: false });
   globalThis.fetch = vi.fn(async () => new Response("{}", { status: 200 })) as unknown as typeof fetch;
+  // Known starting location for the chord-navigation tests below (setLocation goes through
+  // wouter's own history patch, so this only needs setting once per test, not per assertion).
+  window.history.pushState({}, "", "/");
 });
 
 describe("AppLayout", () => {
@@ -139,5 +142,131 @@ describe("AppLayout", () => {
       { client: qc },
     );
     expect(screen.getByText(/authenticating/i)).toBeInTheDocument();
+  });
+
+  it("redirects to /login and renders nothing once auth resolves to not-authenticated", async () => {
+    renderWithProviders(
+      <AppLayout>
+        <div>HIDDEN</div>
+      </AppLayout>,
+      { client: seed({ authed: false }) },
+    );
+    await waitFor(() => expect(window.location.pathname).toBe("/login"));
+    expect(screen.queryByText("HIDDEN")).not.toBeInTheDocument();
+  });
+
+  it("renders the branded logo image instead of the short-name mark when branding sets a logoUrl", () => {
+    const qc = seed();
+    qc.setQueryData(["branding"], {
+      appName: "Acme PM", shortName: "AP", logoUrl: "https://cdn.acme.example/logo.png", primaryColor: "",
+      loginHeading: "", footerText: "", supportUrl: "", fontFamily: "", entitled: true, locked: false,
+    });
+    const { container } = renderWithProviders(
+      <AppLayout>
+        <div>BODY</div>
+      </AppLayout>,
+      { client: qc },
+    );
+    // The brand mark's <img> is decorative (alt=""), so it has no accessible role — query the DOM directly.
+    expect(container.querySelector("img")).toHaveAttribute("src", "https://cdn.acme.example/logo.png");
+  });
+
+  it("falls back to the first project when the active project id matches none of them", () => {
+    const qc = seed();
+    qc.setQueryData(getListProjectsQueryKey(), [project({ id: "proj-1", name: "Platform Rewrite" }), project({ id: "proj-2", name: "Data Migration" })]);
+    useStore.setState({ activeProjectId: "does-not-exist" });
+    renderWithProviders(
+      <AppLayout>
+        <div>BODY</div>
+      </AppLayout>,
+      { client: qc },
+    );
+    expect(screen.getByText("Platform Rewrite")).toBeInTheDocument();
+    expect(screen.queryByText("Data Migration")).not.toBeInTheDocument();
+  });
+
+  it("opens the mobile nav drawer via the hamburger button", async () => {
+    renderWithProviders(
+      <AppLayout>
+        <div>BODY</div>
+      </AppLayout>,
+      { client: seed() },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /open navigation menu/i }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("'?' opens the keyboard shortcuts dialog", async () => {
+    renderWithProviders(
+      <AppLayout>
+        <div>BODY</div>
+      </AppLayout>,
+      { client: seed() },
+    );
+    fireEvent.keyDown(document, { key: "?" });
+    expect(await screen.findByRole("heading", { name: /keyboard shortcuts/i })).toBeInTheDocument();
+  });
+
+  it("clicking 'Report a problem' opens its dialog", async () => {
+    renderWithProviders(
+      <AppLayout>
+        <div>BODY</div>
+      </AppLayout>,
+      { client: seed() },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /report a problem/i }));
+    expect(await screen.findByRole("heading", { name: /report a problem/i })).toBeInTheDocument();
+  });
+
+  it("the 'g d' chord navigates to the dashboard and updates the document title", async () => {
+    window.history.pushState({}, "", "/projects");
+    renderWithProviders(
+      <AppLayout>
+        <div>BODY</div>
+      </AppLayout>,
+      { client: seed() },
+    );
+    fireEvent.keyDown(document, { key: "g" });
+    fireEvent.keyDown(document, { key: "d" });
+    await waitFor(() => expect(window.location.pathname).toBe("/"));
+    expect(document.title).toMatch(/dashboard/i);
+  });
+
+  it("clicking the '?' button (not just the key) opens the keyboard shortcuts dialog", async () => {
+    renderWithProviders(
+      <AppLayout>
+        <div>BODY</div>
+      </AppLayout>,
+      { client: seed() },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /keyboard shortcuts/i }));
+    expect(await screen.findByRole("heading", { name: /keyboard shortcuts/i })).toBeInTheDocument();
+  });
+
+  it("clicking sign out signs the session out", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(
+      <AppLayout>
+        <div>BODY</div>
+      </AppLayout>,
+      { client: seed() },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/auth/logout"))).toBe(true);
+    });
+  });
+
+  it("the 'g p' chord navigates to /projects", async () => {
+    renderWithProviders(
+      <AppLayout>
+        <div>BODY</div>
+      </AppLayout>,
+      { client: seed() },
+    );
+    fireEvent.keyDown(document, { key: "g" });
+    fireEvent.keyDown(document, { key: "p" });
+    await waitFor(() => expect(window.location.pathname).toBe("/projects"));
   });
 });
