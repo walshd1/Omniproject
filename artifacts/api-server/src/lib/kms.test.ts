@@ -78,6 +78,63 @@ test("aws provider calls KMS Decrypt with a SigV4 Authorization", async () => {
   assert.match(captured.body!, /CiphertextBlob/);
 });
 
+test("unwrapDataKey throws when no KMS provider is configured", async () => {
+  await assert.rejects(() => unwrapDataKey("anything"), /KMS_PROVIDER is not set/);
+});
+
+test("initKms is a no-op when KMS is disabled and is idempotent", async () => {
+  await initKms(); // disabled → returns early, nothing cached
+  assert.equal(kmsVaultKey(), null);
+  assert.equal(kmsConfigKey(), null);
+
+  // Enable AFTER the first init: the idempotency guard means it stays uninitialised.
+  process.env["KMS_PROVIDER"] = "local";
+  process.env["VAULT_KEY_ENC"] = KEY32.toString("base64");
+  await initKms();
+  assert.equal(kmsVaultKey(), null, "already-initialised guard prevents a second resolve");
+});
+
+test("aws: a non-ok KMS response throws", async () => {
+  process.env["KMS_PROVIDER"] = "aws";
+  process.env["AWS_REGION"] = "eu-west-1";
+  process.env["AWS_ACCESS_KEY_ID"] = "AKID";
+  process.env["AWS_SECRET_ACCESS_KEY"] = "s";
+  globalThis.fetch = (async () => new Response("denied", { status: 400 })) as typeof fetch;
+  await assert.rejects(() => unwrapDataKey("Q2lwaGVy"), /AWS KMS Decrypt 400/);
+});
+
+test("aws: a response with no Plaintext throws", async () => {
+  process.env["KMS_PROVIDER"] = "aws";
+  process.env["AWS_REGION"] = "eu-west-1";
+  process.env["AWS_ACCESS_KEY_ID"] = "AKID";
+  process.env["AWS_SECRET_ACCESS_KEY"] = "s";
+  globalThis.fetch = (async () => new Response(JSON.stringify({}), { status: 200 })) as typeof fetch;
+  await assert.rejects(() => unwrapDataKey("Q2lwaGVy"), /returned no plaintext/);
+});
+
+test("azure: an AAD token failure throws", async () => {
+  process.env["KMS_PROVIDER"] = "azure";
+  process.env["VAULT_KMS_KEY_URL"] = "https://kv.vault.azure.net/keys/k/abc";
+  process.env["AZURE_TENANT_ID"] = "t";
+  globalThis.fetch = (async () => new Response("no", { status: 401 })) as typeof fetch;
+  await assert.rejects(() => unwrapDataKey(Buffer.from("c").toString("base64")), /Azure AAD token 401/);
+});
+
+test("azure: a non-ok decrypt throws; a decrypt with no value throws", async () => {
+  process.env["KMS_PROVIDER"] = "azure";
+  process.env["VAULT_KMS_KEY_URL"] = "https://kv.vault.azure.net/keys/k/abc/"; // trailing slash trimmed
+  process.env["AZURE_TENANT_ID"] = "t";
+  const token = () => new Response(JSON.stringify({ access_token: "tok" }), { status: 200 });
+
+  globalThis.fetch = (async (url: string | URL | Request) =>
+    String(url).includes("login.microsoftonline.com") ? token() : new Response("err", { status: 500 })) as typeof fetch;
+  await assert.rejects(() => unwrapDataKey(Buffer.from("c").toString("base64")), /Azure Key Vault decrypt 500/);
+
+  globalThis.fetch = (async (url: string | URL | Request) =>
+    String(url).includes("login.microsoftonline.com") ? token() : new Response(JSON.stringify({}), { status: 200 })) as typeof fetch;
+  await assert.rejects(() => unwrapDataKey(Buffer.from("c").toString("base64")), /returned no value/);
+});
+
 test("azure provider gets an AAD token then calls key decrypt", async () => {
   process.env["KMS_PROVIDER"] = "azure";
   process.env["VAULT_KMS_KEY_URL"] = "https://kv.vault.azure.net/keys/k/abc";

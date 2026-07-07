@@ -27,6 +27,21 @@ test("gracefulShutdown drains, closes the server, and exits 0", () => {
   assert.equal(exitCode, 0);
 });
 
+test("gracefulShutdown logs the number of live SSE streams it drained", () => {
+  const log = fakeLogger();
+  let exitCode: number | null = null;
+  gracefulShutdown({
+    server: { close: (cb) => cb?.() },
+    signal: "SIGTERM",
+    logger: log,
+    exit: (c) => { exitCode = c; },
+    drain: () => 3, // 3 streams drained → the "closed live SSE streams" log fires
+    timeoutMs: 1000,
+  });
+  assert.equal(exitCode, 0);
+  assert.ok(log.calls.some((m) => /closed live SSE streams/.test(m)));
+});
+
 test("gracefulShutdown exits 1 when the server reports a close error", () => {
   let exitCode: number | null = null;
   gracefulShutdown({

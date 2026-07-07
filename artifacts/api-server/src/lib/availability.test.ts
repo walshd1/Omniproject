@@ -39,6 +39,22 @@ test("applyCuration: hides only available fields, leaving the rest; reports the 
   assert.deepEqual(a.relationships, []); // a relationship on a hidden field is dropped too
 });
 
+test("availabilityFromManifest: no populated → uses `fields`; missing tables/relationships default to []", () => {
+  const b = availabilityFromManifest({ fields: ["title", "status"] } as never);
+  assert.deepEqual(b.available, ["title", "status"]); // fields used when populated absent
+  assert.deepEqual(b.tables, []); // m.tables ?? []
+  assert.deepEqual(b.relationships, []); // m.relationships ?? []
+});
+
+test("resolveAvailability: a second call within the TTL is served from the cache", async () => {
+  delete process.env["CAPABILITIES"];
+  __resetAvailabilityCacheForTest();
+  const first = await resolveAvailability({} as Request);
+  const second = await resolveAvailability({} as Request); // cache-hit branch (no re-resolve)
+  assert.deepEqual(second.available, first.available);
+  assert.equal(second.source, first.source);
+});
+
 test("resolveAvailability: a backend WITHOUT describeSchema falls back to capability flags", async () => {
   delete process.env["CAPABILITIES"]; // else the env short-circuit pre-empts the broker
   __resetAvailabilityCacheForTest();

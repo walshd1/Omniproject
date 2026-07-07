@@ -142,3 +142,53 @@ test("aiChat (ollama) wraps a non-ok provider response in AiError", async () => 
 
   globalThis.fetch = realFetch;
 });
+
+// --- governance gate (opt-in role allowlist + token budget) and DLP ------------
+const GOV_ENV = ["AI_MODEL_ALLOWLIST", "AI_TOKEN_BUDGET", "AI_DLP_REDACT", "AI_BUDGET_WINDOW_HOURS"];
+afterEach(() => { for (const k of GOV_ENV) delete process.env[k]; });
+
+test("aiChat (ollama) errors when the provider returns no message content", async () => {
+  updateSettings({ aiProvider: "ollama", aiModel: "llama3.2" });
+  globalThis.fetch = (async () => new Response(JSON.stringify({ message: {} }), { status: 200 })) as typeof fetch;
+  await assert.rejects(
+    () => aiChat([{ role: "user", content: "ping" }]),
+    (err: unknown) => err instanceof AiError && /no message content/i.test(err.message),
+  );
+  globalThis.fetch = realFetch;
+});
+
+test("aiChat enforces the per-role model allowlist with a 403", async () => {
+  updateSettings({ aiProvider: "ollama", aiModel: "llama3.2" });
+  process.env["AI_MODEL_ALLOWLIST"] = "analyst=only-this-model"; // llama3.2 not allowed for analyst
+  await assert.rejects(
+    () => aiChat([{ role: "user", content: "hi" }], { role: "analyst" }),
+    (err: unknown) => err instanceof AiError && err.status === 403 && /not permitted for your role/i.test(err.message),
+  );
+});
+
+test("aiChat enforces the per-scope token budget with a 429", async () => {
+  updateSettings({ aiProvider: "ollama", aiModel: "llama3.2" });
+  process.env["AI_TOKEN_BUDGET"] = "1"; // any real prompt exceeds a 1-token budget
+  await assert.rejects(
+    () => aiChat([{ role: "user", content: "a fairly long prompt that exceeds one token" }], { scope: "user-1" }),
+    (err: unknown) => err instanceof AiError && err.status === 429 && /budget exceeded/i.test(err.message),
+  );
+});
+
+test("aiChat redacts PII before egress (DLP) and records usage when governance passes", async () => {
+  updateSettings({ aiProvider: "ollama", aiModel: "llama3.2" });
+  process.env["AI_DLP_REDACT"] = "true";
+  process.env["AI_TOKEN_BUDGET"] = "1000000"; // generous, so the call goes through
+  process.env["AI_MODEL_ALLOWLIST"] = "admin=*"; // admin may use any model
+  let sentBody = "";
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    sentBody = String(init?.body);
+    return new Response(JSON.stringify({ message: { content: "ok" } }), { status: 200 });
+  }) as typeof fetch;
+
+  const result = await aiChat([{ role: "user", content: "email me at alice@example.com" }], { role: "admin", scope: "user-1" });
+  assert.equal(result.content, "ok");
+  assert.ok(sentBody.includes("[redacted-email]"), "the outbound prompt was DLP-masked");
+  assert.ok(!sentBody.includes("alice@example.com"));
+  globalThis.fetch = realFetch;
+});

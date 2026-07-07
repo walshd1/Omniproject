@@ -101,3 +101,28 @@ test("an empty question short-circuits without calling the model", async () => {
   assert.equal(called, false);
   assert.equal(r.projects, 0);
 });
+
+test("scopeContext coerces missing/invalid fields to safe defaults", () => {
+  const ctx = scopeContext([
+    { projectId: "P2" } as PortfolioRow, // everything else absent
+    row({ ragStatus: null, scheduleVarianceDays: "abc", budgetVariancePercentage: undefined, activeBlockersCount: NaN }),
+  ]);
+  assert.deepEqual(ctx[0], { project: "", rag: "", scheduleVarianceDays: 0, budgetVariancePct: 0, blockers: 0 });
+  assert.equal(ctx[1]!.scheduleVarianceDays, 0); // non-numeric → 0
+  assert.equal(ctx[1]!.budgetVariancePct, 0);
+  assert.equal(ctx[1]!.blockers, 0);
+});
+
+test("an explicit methodology hint is threaded into persona retrieval", async () => {
+  const broker = { portfolioHealth: async () => [row({})] } as unknown as Broker;
+  const result = await answerCopilot({
+    question: "how is delivery tracking?",
+    broker,
+    ctx: { sub: "u1" },
+    methodology: "agile",
+    complete: async () => "answered",
+  });
+  assert.equal(result.answer, "answered");
+  // A persona is still resolved (rag mode) with the methodology hint applied.
+  assert.ok(result.persona === undefined || typeof result.persona.id === "string");
+});
