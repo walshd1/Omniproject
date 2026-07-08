@@ -44,18 +44,25 @@ const REPORT_PROJECT_FIELDS = [
 ];
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-/** Render a report only when its data domain is available; else label the dependency. */
+/** Render a report only when its data domain is available; else label the dependency.
+ *  With `section`, wraps the children in the standard `<section><h2>…</h2>` block used by most
+ *  reports (the heading defaults to `title`; pass `heading` when the section heading differs from
+ *  the shorter dependency label). Without it, children render bare. */
 function Gated({
   caps,
   domain,
   title,
   requires,
+  section = false,
+  heading,
   children,
 }: {
   caps?: Capabilities | undefined;
   domain: keyof Capabilities;
   title: string;
   requires: string;
+  section?: boolean;
+  heading?: ReactNode;
   children: ReactNode;
 }) {
   // Render until capabilities load; only block when explicitly unavailable.
@@ -66,6 +73,14 @@ function Gated({
         <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           Not available for this backend — requires {requires} wired through the broker.
         </div>
+      </section>
+    );
+  }
+  if (section) {
+    return (
+      <section>
+        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">{heading ?? title}</h2>
+        {children}
       </section>
     );
   }
@@ -109,85 +124,52 @@ export function Reports() {
           )}
         </div>
 
-        <Gated caps={caps} domain="portfolio" title="Executive Board Pack" requires="a portfolio rollup (get_portfolio_health)">
-          <section>
-            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Executive Board Pack</h2>
-            <ExecBoardPack />
-          </section>
+        <Gated caps={caps} domain="portfolio" title="Executive Board Pack" requires="a portfolio rollup (get_portfolio_health)" section>
+          <ExecBoardPack />
         </Gated>
 
         <Gated caps={caps} domain="portfolio" title="Portfolio Health" requires="a portfolio rollup (get_portfolio_health)">
           <PortfolioKpi />
         </Gated>
 
-        <Gated caps={caps} domain="portfolio" title="Federated Portfolio" requires="a portfolio rollup (get_portfolio_health)">
-          <section>
-            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Federated Portfolio (cross-instance)</h2>
-            <FederatedPortfolio />
-          </section>
+        <Gated caps={caps} domain="portfolio" title="Federated Portfolio" requires="a portfolio rollup (get_portfolio_health)" section heading="Federated Portfolio (cross-instance)">
+          <FederatedPortfolio />
         </Gated>
 
-        <Gated caps={caps} domain="portfolio" title="Portfolio Prioritisation" requires="a portfolio rollup (get_portfolio_health)">
-          <section>
-            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Prioritisation &amp; Funding Funnel</h2>
-            <PortfolioPrioritisation />
-          </section>
+        <Gated caps={caps} domain="portfolio" title="Portfolio Prioritisation" requires="a portfolio rollup (get_portfolio_health)" section heading="Portfolio Prioritisation & Funding Funnel">
+          <PortfolioPrioritisation />
         </Gated>
 
-        <Gated caps={caps} domain="scheduling" title="Portfolio Roadmap" requires="start / due dates on work items">
-          <section>
-            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Roadmap</h2>
-            <PortfolioRoadmap />
-          </section>
+        <Gated caps={caps} domain="scheduling" title="Portfolio Roadmap" requires="start / due dates on work items" section>
+          <PortfolioRoadmap />
         </Gated>
 
-        <Gated caps={caps} domain="scheduling" title="Cross-programme Dependencies" requires="depends-on links + start / due dates on work items">
-          <section>
-            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Cross-programme Dependency &amp; Critical-Path Map</h2>
-            <CrossProgrammeDependencies />
-          </section>
+        <Gated caps={caps} domain="scheduling" title="Cross-programme Dependencies" requires="depends-on links + start / due dates on work items" section heading="Cross-programme Dependency & Critical-Path Map">
+          <CrossProgrammeDependencies />
         </Gated>
 
-        <Gated caps={caps} domain="resources" title="Capacity Roll-up" requires="a resource-management source">
-          <section>
-            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Capacity Roll-up (programme &amp; portfolio)</h2>
-            <CapacityRollup />
-          </section>
+        <Gated caps={caps} domain="resources" title="Capacity Roll-up" requires="a resource-management source" section heading="Capacity Roll-up (programme & portfolio)">
+          <CapacityRollup />
         </Gated>
 
-        <Gated caps={caps} domain="resources" title="Cross-programme Resource Levelling" requires="a resource-management source">
-          <section>
-            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Cross-programme Resource Levelling</h2>
-            <ResourceLevelling />
-          </section>
+        <Gated caps={caps} domain="resources" title="Cross-programme Resource Levelling" requires="a resource-management source" section>
+          <ResourceLevelling />
         </Gated>
 
-        <Gated caps={caps} domain="financials" title="Portfolio Financials" requires="a cost / ERP source">
-          <section>
-            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Financials (consolidated)</h2>
-            <PortfolioFinancials />
-          </section>
+        <Gated caps={caps} domain="financials" title="Portfolio Financials" requires="a cost / ERP source" section heading="Portfolio Financials (consolidated)">
+          <PortfolioFinancials />
         </Gated>
 
-        <Gated caps={caps} domain="financials" title="Portfolio Income" requires="revenue / invoiced amounts on work items">
-          <section>
-            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Income (consolidated)</h2>
-            <PortfolioIncome />
-          </section>
+        <Gated caps={caps} domain="financials" title="Portfolio Income" requires="revenue / invoiced amounts on work items" section heading="Portfolio Income (consolidated)">
+          <PortfolioIncome />
         </Gated>
 
-        <Gated caps={caps} domain="benefits" title="Portfolio Benefits" requires="benefit value/status fields on work items">
-          <section>
-            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Portfolio Benefits (consolidated)</h2>
-            <PortfolioBenefits />
-          </section>
+        <Gated caps={caps} domain="benefits" title="Portfolio Benefits" requires="benefit value/status fields on work items" section heading="Portfolio Benefits (consolidated)">
+          <PortfolioBenefits />
         </Gated>
 
-        <Gated caps={caps} domain="benefits" title="Benefits Realisation" requires="benefit value/status/due-date fields on work items">
-          <section>
-            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Benefits Realisation (pipeline &amp; trajectory)</h2>
-            <BenefitsRealisationRollup />
-          </section>
+        <Gated caps={caps} domain="benefits" title="Benefits Realisation" requires="benefit value/status/due-date fields on work items" section heading="Benefits Realisation (pipeline & trajectory)">
+          <BenefitsRealisationRollup />
         </Gated>
 
         {/* Customer-built portfolio reports (the report generator). Render nothing unless any are defined. */}
@@ -207,56 +189,38 @@ export function Reports() {
         </div>
 
         {projectId && (
-          <Gated caps={caps} domain="financials" title="Forecasting Windows" requires="a cost / ERP source + work-item dates">
-            <section>
-              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Forecasting Windows (time-phased S-curve)</h2>
-              <ForecastWindows projectId={projectId} />
-            </section>
+          <Gated caps={caps} domain="financials" title="Forecasting Windows" requires="a cost / ERP source + work-item dates" section heading="Forecasting Windows (time-phased S-curve)">
+            <ForecastWindows projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
-          <Gated caps={caps} domain="scheduling" title="Schedule Risk (Monte Carlo)" requires="effort estimates on work items">
-            <section>
-              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Schedule Risk (Monte Carlo)</h2>
-              <MonteCarloRisk projectId={projectId} />
-            </section>
+          <Gated caps={caps} domain="scheduling" title="Schedule Risk (Monte Carlo)" requires="effort estimates on work items" section>
+            <MonteCarloRisk projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
-          <Gated caps={caps} domain="scheduling" title="Critical Path (CPM)" requires="durations + blocks/depends-on dependencies">
-            <section>
-              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Critical Path (CPM)</h2>
-              <CriticalPath projectId={projectId} />
-            </section>
+          <Gated caps={caps} domain="scheduling" title="Critical Path (CPM)" requires="durations + blocks/depends-on dependencies" section>
+            <CriticalPath projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
-          <Gated caps={caps} domain="benefits" title="Benefits Realisation" requires="benefit value/status fields on work items">
-            <section>
-              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Benefits Realisation</h2>
-              <BenefitsRealisation projectId={projectId} />
-            </section>
+          <Gated caps={caps} domain="benefits" title="Benefits Realisation" requires="benefit value/status fields on work items" section>
+            <BenefitsRealisation projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
-          <Gated caps={caps} domain="financials" title="Income & Invoicing" requires="revenue / invoiced amounts on work items">
-            <section>
-              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Income &amp; Invoicing</h2>
-              <IncomeInvoicing projectId={projectId} />
-            </section>
+          <Gated caps={caps} domain="financials" title="Income & Invoicing" requires="revenue / invoiced amounts on work items" section heading="Income &amp; Invoicing">
+            <IncomeInvoicing projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
-          <Gated caps={caps} domain="financials" title="CapEx / OpEx" requires="capex/opex classification on work items">
-            <section>
-              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">CapEx / OpEx</h2>
-              <CapexOpex projectId={projectId} />
-            </section>
+          <Gated caps={caps} domain="financials" title="CapEx / OpEx" requires="capex/opex classification on work items" section>
+            <CapexOpex projectId={projectId} />
           </Gated>
         )}
 
@@ -285,29 +249,20 @@ export function Reports() {
         )}
 
         {projectId && (
-          <Gated caps={caps} domain="financials" title="Financial Summary" requires="a cost / ERP source">
-            <section>
-              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Financial Summary</h2>
-              <FinancialSummary projectId={projectId} />
-            </section>
+          <Gated caps={caps} domain="financials" title="Financial Summary" requires="a cost / ERP source" section>
+            <FinancialSummary projectId={projectId} />
           </Gated>
         )}
 
         {projectId && roleAtLeast(auth?.role, "pmo") && (
-          <Gated caps={caps} domain="financials" title="Staff Time & Cost" requires="a cost / ERP source + a PMO rate card">
-            <section>
-              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Staff Time &amp; Cost</h2>
-              <StaffTimeCost projectId={projectId} />
-            </section>
+          <Gated caps={caps} domain="financials" title="Staff Time & Cost" requires="a cost / ERP source + a PMO rate card" section heading="Staff Time &amp; Cost">
+            <StaffTimeCost projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
-          <Gated caps={caps} domain="raid" title="RAID Register" requires="a RAID log (get_project_raid)">
-            <section>
-              <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">RAID Register</h2>
-              <RaidRegister projectId={projectId} />
-            </section>
+          <Gated caps={caps} domain="raid" title="RAID Register" requires="a RAID log (get_project_raid)" section>
+            <RaidRegister projectId={projectId} />
           </Gated>
         )}
 

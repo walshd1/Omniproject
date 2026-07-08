@@ -9,6 +9,7 @@ import { assertSafeOutboundUrl } from "./url-safety";
 import { safeFetch, EgressError } from "./egress";
 import { isEntitled } from "./license";
 import { logger } from "./logger";
+import { isTimeoutError } from "./timeout-error";
 import {
   OUTBOUND_EVENT_NAMES,
   OUTBOUND_HEADERS,
@@ -164,7 +165,7 @@ async function deliverOne(sub: WebhookSubscription, event: WebhookEvent, payload
     });
     return { id: sub.id, url: sub.url, ok: r.ok, status: r.status, ms: Date.now() - started };
   } catch (err) {
-    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+    const isTimeout = isTimeoutError(err);
     const error = err instanceof EgressError ? "blocked by egress policy" : isTimeout ? "timed out" : "unreachable";
     return { id: sub.id, url: sub.url, ok: false, status: 0, ms: Date.now() - started, error };
   }

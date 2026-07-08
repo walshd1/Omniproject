@@ -20,6 +20,7 @@
 
 import { writeFileSync } from "node:fs";
 import { Recorder, runPool, verdict, classifyStatus, type LoadReport, type Thresholds } from "./lib/load-core";
+import { bold, dim, green, red, amber } from "./lib/ansi";
 
 export {};
 
@@ -30,10 +31,6 @@ const CONCURRENCY = Number(process.env["LOAD_CONCURRENCY"]) || 50;
 const MAX_ERROR_RATE = Number(process.env["LOAD_MAX_ERROR_RATE"]) || 0.01;
 const MAX_P99 = process.env["LOAD_MAX_P99_MS"] ? Number(process.env["LOAD_MAX_P99_MS"]) : undefined;
 const REPORT_PATH = process.env["LOAD_REPORT"];
-
-const c = (code: number, s: string) => `\x1b[${code}m${s}\x1b[0m`;
-const bold = (s: string) => c(1, s), dim = (s: string) => c(2, s), green = (s: string) => c(32, s);
-const red = (s: string) => c(31, s), amber = (s: string) => c(33, s);
 
 let authHeaders: Record<string, string> = {};
 

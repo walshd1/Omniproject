@@ -1,14 +1,8 @@
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { useQueries } from "@tanstack/react-query";
 import { Link } from "wouter";
-import {
-  useListProjects, useGetSettings, useGetPortfolioHealth,
-  getGetProjectFinancialsQueryOptions, type ProjectFinancials,
-} from "@workspace/api-client-react";
+import { useGetPortfolioHealth } from "@workspace/api-client-react";
 import { componentsFor, getComponent } from "@workspace/backend-catalogue";
-import { useFxRates, resolveFxAsOf, currencyList, DEFAULT_CURRENCY } from "../../lib/currency";
-import { consolidateFinancials, type ProjectFin } from "../../lib/portfolio-finance";
 import { buildExecHealth, execHeadline, type ExecException, type Rag } from "../../lib/exec-pack";
 import { resolveDrillTo, overdueDrillTo, costOverrunDrillTo, type ResolvedDrillTo } from "../../lib/drill-to";
 import { useT } from "../../lib/i18n";
@@ -17,6 +11,7 @@ import { StatCard } from "./StatCard";
 import { SnapshotButton } from "./SnapshotControls";
 import { LibraryComponentView } from "../library/LibraryComponentView";
 import { resolveLibraryComponent } from "../../lib/component-library";
+import { usePortfolioFinancials } from "./use-portfolio-financials";
 
 /**
  * Executive / board reporting pack — one consolidated, board-ready view across the whole portfolio:
@@ -134,11 +129,8 @@ type ExceptionView = ExecException;
 
 export function ExecBoardPack() {
   const { formatCurrency } = useT();
-  const { data: projects, isLoading: projLoading, isError: projErr, error: projError, refetch } = useListProjects();
+  const { projects, consolidated: financials, target, setReporting, options, projLoading, isError: projErr, error: projError, refetch, settings, fx } = usePortfolioFinancials();
   const health = useGetPortfolioHealth();
-  const { data: settings } = useGetSettings();
-  const { data: fx } = useFxRates(resolveFxAsOf(settings));
-  const [reporting, setReporting] = useState("");
   // Extra library components chosen for THIS board pack, on top of the fixed sections below —
   // componentsFor("export") is the same unified library the Reports page + dashboards draw from.
   // Only offer components with a real inline renderer (a surfaced-via report has nowhere to render).
@@ -146,31 +138,12 @@ export function ExecBoardPack() {
   const [extraIds, setExtraIds] = useState<string[]>([]);
   const extras = extraCatalogue.filter((c) => extraIds.includes(c.id));
 
-  const ids = useMemo(() => (projects ?? []).map((p) => p.id), [projects]);
-  // `combine` keeps the per-project financials array referentially stable across renders that
-  // don't change the underlying query data, so `financials` below doesn't re-run
-  // consolidateFinancials over the whole portfolio on every unrelated re-render. See
-  // docs/PERF-PATTERNS-REVIEW.md, Theme C.
-  const financialsByProject = useQueries({
-    queries: ids.map((id) => getGetProjectFinancialsQueryOptions(id)),
-    combine: (results) => results.map((r) => r.data as ProjectFinancials | undefined),
-  });
-
-  const target = reporting || settings?.reportingCurrency || fx?.base || DEFAULT_CURRENCY;
   // Health is the spine; financials are an optional overlay, so don't block the pack on the finance fan-out.
   const loading = projLoading || health.isLoading;
 
   const execHealth = useMemo(() => buildExecHealth(health.data ?? []), [health.data]);
-  const financials = useMemo(() => {
-    const withFin: ProjectFin[] = (projects ?? [])
-      .map((p, i) => ({ p, fin: financialsByProject[i] }))
-      .filter((x): x is { p: typeof x.p; fin: ProjectFinancials } => !!x.fin)
-      .map(({ p, fin }) => ({ projectId: p.id, projectName: p.name, programmeId: p.programmeId ?? null, programmeName: p.programmeName ?? null, fin }));
-    return consolidateFinancials(withFin, target, fx?.rates);
-  }, [projects, financialsByProject, target, fx]);
 
   const money = (n: number) => formatCurrency(n, target);
-  const options = currencyList(fx?.rates);
   const programmeCount = new Set((projects ?? []).map((p) => p.programmeId ?? p.id)).size;
   const hasData = execHealth.total > 0;
   const fin = financials.portfolio;

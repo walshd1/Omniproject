@@ -1958,6 +1958,14 @@ AI-assisted speech-to-text — provider-pluggable, governed, with Whisper as ONE
 | `transcribe` | Transcribe an audio clip with the configured AI-assisted provider. |
 | `sttCapabilityId` | The governance capability id for the active STT provider (for the enforce gate). |
 
+### `artifacts/api-server/src/lib/timeout-error.ts`
+
+Shared predicate for "did this fetch/abort as a timeout?".
+
+| Function | What it does |
+| --- | --- |
+| `isTimeoutError` | Shared predicate for "did this fetch/abort as a timeout?". |
+
 ### `artifacts/api-server/src/lib/tools.ts`
 
 Capability governance — one model for every "thing that can move data or be turned on/off": AI tools, the MCP, AI providers and vendors.
@@ -2774,15 +2782,16 @@ Trivial workspace smoke script — prints a hello line to prove tsx + the worksp
 
 Live OpenProject integration check — "certify" the mapping against a real instance.
 
+### `scripts/src/lib/ansi.ts`
+
+Shared ANSI colour helpers for the script-level CLIs (verifiers, wizard, load/stress harnesses).
+
 ### `scripts/src/lib/assert.ts`
 
 Shared pass/fail assertion helper for the script-level verifiers (verify-broker-contract, e2e-smoke, integration-openproject): prints a checkmark/cross per label and tallies totals so each script's `main()` can report a summary and exit non-zero on any failure.
 
 | Function | What it does |
 | --- | --- |
-| `green` | Shared pass/fail assertion helper for the script-level verifiers (verify-broker-contract, e2e-smoke, integration-openproject): prints a checkmark/cross per label and tallies totals so each script's `main()` can report a summary and exit non-zero on any failure. |
-| `red` | — |
-| `bold` | — |
 | `createAsserter` | A fresh, independent pass/fail tally + printer for one script run. |
 
 ### `scripts/src/lib/backend-freeze.ts`
@@ -2819,6 +2828,7 @@ Generic JSON-asset registry generator.
 | --- | --- |
 | `loadGroup` | Read, validate (schema + filename===id + unique) and id-sort one group. |
 | `emitRegistry` | Emit a generated module: the header comment, the type imports, then one const per group. |
+| `runSingleAssetGenerator` | Run one single-group JSON-asset generator end-to-end: resolve the asset paths, read + validate the group, emit its `lib/backend-catalogue/src/<label>.generated.ts`, and log the summary. |
 
 ### `scripts/src/lib/load-core.ts`
 
