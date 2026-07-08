@@ -23,6 +23,7 @@ import crypto from "node:crypto";
 
 const FEATURES = ["branding", "labels", "webhooks", "enterprise_workflows"] as const;
 const TOKEN_PREFIX = "omni-lic.v1";
+const SECONDS_PER_DAY = 86_400;
 
 function arg(name: string, fallback?: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -49,7 +50,7 @@ function mint(): void {
   const features = FEATURES.filter((f) => featuresArg.includes(f));
   const days = Number(arg("days", "365"));
   const iat = Math.floor(Date.now() / 1000);
-  const exp = Number.isFinite(days) && days > 0 ? iat + Math.round(days * 86400) : undefined;
+  const exp = Number.isFinite(days) && days > 0 ? iat + Math.round(days * SECONDS_PER_DAY) : undefined;
 
   const payload = { customer, tier, features, iat, ...(exp ? { exp } : {}) };
   const body = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");

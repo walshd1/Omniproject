@@ -82,7 +82,7 @@ const CHECKS: Record<PlaneId, (e: Rec, errors: string[]) => void> = {
     if (!isStr(e["kind"])) errors.push("kind: required");
     const c = e["capabilities"] as Rec | undefined;
     const roles = ["viewer", "contributor", "manager", "pmo", "admin"];
-    if (!isObj(c) || !roles.includes(c?.["requiresRole"] as string)) errors.push("capabilities.requiresRole: viewer|contributor|manager|admin");
+    if (!isObj(c) || !roles.includes(c?.["requiresRole"] as string)) errors.push(`capabilities.requiresRole: ${roles.join("|")}`);
     if (!isArr(e["tools"])) errors.push("tools: required array");
   },
 };

@@ -14,6 +14,7 @@
 
 import { login } from "./lib/demo-session";
 import { percentile, runPool } from "./lib/load-core";
+import { green, red, bold } from "./lib/assert";
 
 export {};
 
@@ -23,9 +24,6 @@ const REQS = Number(process.env["STRESS_REQS"]) || 3;
 const CONCURRENCY = Number(process.env["STRESS_CONCURRENCY"]) || 100;
 const MAX_ERROR_RATE = Number(process.env["STRESS_MAX_ERROR_RATE"]) || 0.01;
 
-const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
-const red = (s: string) => `\x1b[31m${s}\x1b[0m`;
-const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 
 async function main() {

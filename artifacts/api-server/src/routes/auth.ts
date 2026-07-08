@@ -79,6 +79,10 @@ const FLOW_COOKIE = "omni_oidc_flow";
 const OAUTH2_FLOW_COOKIE = "omni_oauth2_flow";
 // Re-seal an active session at most this often (don't re-sign on every request).
 const SLIDE_THROTTLE_MS = 60_000;
+/** Session cookie lifetime (8h). NOTE: the CSRF cookie in lib/csrf.ts hand-mirrors this value. */
+const SESSION_TTL_MS = 1000 * 60 * 60 * 8;
+/** OAuth/magic-link flow-cookie lifetime (10 min) — the in-flight auth handshake window. */
+const FLOW_COOKIE_TTL_MS = 1000 * 60 * 10;
 
 // The shared cookie attributes. `secure` is computed FRESH on every call (the single source
 // of the flag) so a runtime deployment-profile change applies to the next set/clear alike —
@@ -204,7 +208,7 @@ function setSession(res: Response, session: Session): void {
   };
   res.cookie(SESSION_COOKIE, seal(JSON.stringify(stamped)), {
     ...cookieBase(), // secure is evaluated here, so a wizard profile change applies to new sessions
-    maxAge: 1000 * 60 * 60 * 8, // 8h
+    maxAge: SESSION_TTL_MS,
   });
 }
 
@@ -319,7 +323,7 @@ router.get("/auth/login", async (req, res) => {
     // The flow cookie carries the provider id so the callback verifies against the SAME provider.
     res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, provider: provider.id }), {
       ...cookieBase(),
-      maxAge: 1000 * 60 * 10, // 10 min
+      maxAge: FLOW_COOKIE_TTL_MS,
     });
 
     res.redirect(authorizeUrl({ provider, discovery, redirectUri, state, nonce, verifier }));
@@ -486,7 +490,7 @@ router.get("/auth/oauth2/login", (req, res) => {
   const { state, verifier } = newOAuth2Flow();
   res.cookie(OAUTH2_FLOW_COOKIE, JSON.stringify({ state, verifier, returnTo }), {
     ...cookieBase(),
-    maxAge: 1000 * 60 * 10, // 10 min
+    maxAge: FLOW_COOKIE_TTL_MS,
   });
   const redirectUri = `${baseUrl(req)}/api/auth/oauth2/callback`;
   res.redirect(buildAuthUrl({ config: oauth2Config, redirectUri, state, codeVerifier: verifier }));
@@ -619,7 +623,7 @@ router.get("/auth/step-up", async (req, res) => {
     const verifier = randomToken(48);
     const nonce = randomToken();
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
-    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, stepup: true, provider: provider.id }), { ...cookieBase(), maxAge: 1000 * 60 * 10 });
+    res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, stepup: true, provider: provider.id }), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
     res.redirect(authorizeUrl({ provider, discovery, redirectUri, state, nonce, verifier, prompt: "login" }));
   } catch (err) {
     req.log.error({ err }, "step-up initiation failed");
