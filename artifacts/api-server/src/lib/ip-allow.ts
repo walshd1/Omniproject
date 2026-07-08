@@ -71,7 +71,14 @@ export function ipInCidr(ip: string, cidr: string): boolean {
   const base = parseIp(net);
   if (!target || !base || target.v !== base.v) return false;
   const bits = target.v === 4 ? 32 : 128;
-  const prefix = slash >= 0 ? Number(cidr.slice(slash + 1)) : bits;
+  let prefix = bits;
+  if (slash >= 0) {
+    // Require an explicit numeric prefix. `Number("")` is 0, so a trailing-slash typo like
+    // "10.0.0.0/" would otherwise parse as /0 and fail OPEN (match every address) — reject it.
+    const raw = cidr.slice(slash + 1);
+    if (!/^\d+$/.test(raw)) return false;
+    prefix = Number(raw);
+  }
   if (!Number.isInteger(prefix) || prefix < 0 || prefix > bits) return false;
   if (prefix === 0) return true;
   const mask = ((1n << BigInt(prefix)) - 1n) << BigInt(bits - prefix);

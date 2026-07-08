@@ -2566,6 +2566,15 @@ The PLANES meta-registry — the seven integration planes OmniProject models, al
 | `getPlane` | Look up a single plane descriptor by its id. |
 | `planeCatalogue` | All plane descriptors (a defensive copy). |
 
+### `lib/backend-catalogue/src/proptest.ts`
+
+Tiny, dependency-free PROPERTY-TESTING harness — the structured approach to edge-case + data verification.
+
+| Function | What it does |
+| --- | --- |
+| `mulberry32` | mulberry32 — a fast, well-distributed seedable PRNG (no crypto needed here). |
+| `check` | Assert `prop` holds for `runs` generated inputs. |
+
 ### `lib/backend-catalogue/src/report-catalogue.ts`
 
 REPORT registry — the report / visualisation types OmniProject can render.
