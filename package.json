@@ -5,8 +5,8 @@
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
-    "test": "pnpm -r --if-present run test",
-    "test:coverage": "pnpm -r --if-present run test:coverage",
+    "test": "pnpm -r --workspace-concurrency=1 --if-present run test",
+    "test:coverage": "pnpm -r --workspace-concurrency=1 --if-present run test:coverage",
     "test:regression": "bash scripts/run-regression.sh",
     "audit": "pnpm audit --audit-level critical",
     "sbom": "pnpm licenses list --json > sbom-licences.json",
