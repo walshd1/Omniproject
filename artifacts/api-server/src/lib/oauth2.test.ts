@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
+import { spawnNode } from "../broker/spawn-helper.test";
 import {
   isOAuth2Configured,
   buildAuthUrl,
@@ -109,4 +111,58 @@ test("mapUserInfo falls back across sub/id/login and collects roles from a strin
 
 test("mapUserInfo throws when no identifier is present", () => {
   assert.throws(() => mapUserInfo(CONFIG, { name: "no id here" }), /no subject identifier/);
+});
+
+// The module builds `oauth2Config` from OAUTH2_* env at import time, so it can only
+// be exercised in a fresh process with those vars set. Spawn one and read the parsed
+// config back as JSON.
+const MODULE = fileURLToPath(new URL("./oauth2.ts", import.meta.url));
+function loadConfigWithEnv(env: Record<string, string>): { cfg: unknown; configured: boolean } {
+  const code =
+    "import(process.env.MOD).then(m => console.log(JSON.stringify({ cfg: m.oauth2Config, configured: m.isOAuth2Configured })))" +
+    ".catch(e => { console.error(e); process.exit(1); })";
+  const res = spawnNode(["--import", "tsx", "-e", code], { ...process.env, MOD: MODULE, ...env } as Record<string, string>);
+  assert.equal(res.status, 0, res.stderr);
+  return JSON.parse(res.stdout.trim()) as { cfg: unknown; configured: boolean };
+}
+
+test("oauth2Config is built with defaults when the five required OAUTH2_* vars are set", () => {
+  const { cfg, configured } = loadConfigWithEnv({
+    OAUTH2_AUTH_URL: "https://prov.test/authorize",
+    OAUTH2_TOKEN_URL: "https://prov.test/token",
+    OAUTH2_USERINFO_URL: "https://prov.test/userinfo",
+    OAUTH2_CLIENT_ID: "the-client",
+    OAUTH2_CLIENT_SECRET: "the-secret",
+    // optional vars deliberately unset → the `|| default` fallbacks are used
+    OAUTH2_SCOPE: "",
+    OAUTH2_USERINFO_SUB_FIELD: "",
+    OAUTH2_USERINFO_NAME_FIELD: "",
+    OAUTH2_USERINFO_EMAIL_FIELD: "",
+    OAUTH2_USERINFO_ROLES_FIELD: "",
+  });
+  assert.equal(configured, true);
+  const c = cfg as OAuth2Config;
+  assert.equal(c.authUrl, "https://prov.test/authorize");
+  assert.equal(c.clientId, "the-client");
+  assert.equal(c.scope, "read:user user:email"); // default
+  assert.deepEqual(c.fields, { sub: "sub", name: "name", email: "email", roles: "roles" }); // defaults
+});
+
+test("oauth2Config honours the optional OAUTH2_* overrides when provided", () => {
+  const { cfg, configured } = loadConfigWithEnv({
+    OAUTH2_AUTH_URL: "https://prov.test/authorize",
+    OAUTH2_TOKEN_URL: "https://prov.test/token",
+    OAUTH2_USERINFO_URL: "https://prov.test/userinfo",
+    OAUTH2_CLIENT_ID: "the-client",
+    OAUTH2_CLIENT_SECRET: "the-secret",
+    OAUTH2_SCOPE: "openid profile",
+    OAUTH2_USERINFO_SUB_FIELD: "id",
+    OAUTH2_USERINFO_NAME_FIELD: "login",
+    OAUTH2_USERINFO_EMAIL_FIELD: "primaryEmail",
+    OAUTH2_USERINFO_ROLES_FIELD: "groups",
+  });
+  assert.equal(configured, true);
+  const c = cfg as OAuth2Config;
+  assert.equal(c.scope, "openid profile");
+  assert.deepEqual(c.fields, { sub: "id", name: "login", email: "primaryEmail", roles: "groups" });
 });

@@ -47,6 +47,26 @@ test("passes writes straight through (only reads are messified)", async () => {
   assert.equal(created?.["title"], "clean write");
 });
 
+test("messifies a single-row read (getIssue) via the row-mode path", async () => {
+  setMessyConfig({ on: true, intensity: 1, seed: "s" });
+  const base = new DemoBroker();
+  const raw = await base.getIssue(ctx, "proj-001", "iss-001");
+  assert.ok(raw && typeof raw === "object", "precondition: getIssue returns a row");
+  const wrapped = wrapWithMessy(base);
+  const via = await wrapped.getIssue(ctx, "proj-001", "iss-001");
+  assert.ok(via, "row-mode read still returns an object");
+  // The messified row differs from the clean one, but the store is untouched.
+  assert.notEqual(JSON.stringify(via), JSON.stringify(raw));
+  assert.equal(JSON.stringify(await base.getIssue(ctx, "proj-001", "iss-001")), JSON.stringify(raw));
+});
+
+test("row-mode read of a missing entity passes the null result straight through", async () => {
+  setMessyConfig({ on: true, intensity: 1, seed: "s" });
+  const wrapped = wrapWithMessy(new DemoBroker());
+  const via = await wrapped.getIssue(ctx, "proj-001", "does-not-exist");
+  assert.equal(via, null); // null is not an object → returned unmodified
+});
+
 test("messyDataArmed is false outside dev mode, true inside it when on", () => {
   process.env["NODE_ENV"] = "production";
   process.env["OMNI_DEV_MODE"] = "1";

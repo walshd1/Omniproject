@@ -28,6 +28,26 @@ function signedSessionCookie(session: object): string {
   return `omni_session=${encodeURIComponent("s:" + value + "." + mac)}`;
 }
 const USER = signedSessionCookie({ sub: "u-pres", name: "Ada Lovelace", email: "ada@x.io", roles: ["omni-admins"] });
+// A session with no display name → the room label must fall back to the email.
+const NAMELESS = signedSessionCookie({ sub: "u-anon", email: "anon@x.io", roles: ["omni-admins"] });
+
+/** Open an SSE stream and wait for the first presence snapshot so the connection is registered. */
+async function openStream(room: string, cid: string, cookie: string): Promise<{ abort: () => void }> {
+  const ac = new AbortController();
+  const res = await fetch(`${base}/api/presence/rooms/${room}/stream?cid=${cid}`, { headers: { cookie }, signal: ac.signal });
+  assert.equal(res.status, 200);
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  const deadline = Date.now() + 4000;
+  while (!buf.includes("event: presence") && Date.now() < deadline) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+  }
+  assert.ok(buf.includes("event: presence"), "stream should emit a presence snapshot on join");
+  return { abort: () => { ac.abort(); reader.cancel().catch(() => {}); } };
+}
 
 before(async () => {
   const { default: app } = await import("../app");
@@ -88,4 +108,40 @@ test("the stream registers a connection; a heartbeat sets the advisory editing c
 
   ac.abort();
   try { await reader.cancel(); } catch { /* aborted */ }
+});
+
+test("GET stream without a cid is a 400", async () => {
+  const r = await fetch(`${base}/api/presence/rooms/issue:p1:i1/stream`, { headers: { cookie: USER } });
+  assert.equal(r.status, 400);
+  const body = (await r.json()) as { error: string };
+  assert.match(body.error, /roomId and cid are required/);
+});
+
+test("editing:null releases a previously-claimed field", async () => {
+  const cid = "c-release";
+  const room = "issue:p2:i2";
+  const stream = await openStream(room, cid, USER);
+  try {
+    await post(room, { cid, editing: "title" });
+    const r = await post(room, { cid, editing: null });
+    assert.equal(r.status, 200);
+    const body = (await r.json()) as { peers: { cid: string; editing: string | null }[] };
+    assert.equal(body.peers.find((p) => p.cid === cid)!.editing, null);
+  } finally {
+    stream.abort();
+  }
+});
+
+test("a nameless session's presence label falls back to the email", async () => {
+  const cid = "c-nameless";
+  const room = "issue:p3:i3";
+  const stream = await openStream(room, cid, NAMELESS);
+  try {
+    const r = await post(room, { cid, editing: "status" });
+    assert.equal(r.status, 200);
+    const body = (await r.json()) as { peers: { cid: string; label: string }[] };
+    assert.equal(body.peers.find((p) => p.cid === cid)!.label, "anon@x.io");
+  } finally {
+    stream.abort();
+  }
 });
