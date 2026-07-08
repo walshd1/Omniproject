@@ -1,3 +1,4 @@
+import { DEFAULT_CURRENCY } from "../../lib/currency";
 import { useMemo, useState } from "react";
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
@@ -24,7 +25,7 @@ export function ForecastWindows({ projectId, now }: { projectId: string; now?: n
 
   const f = fin.data;
   const asOf = now ?? Date.now();
-  const ccy = f?.currency || "GBP";
+  const ccy = f?.currency || DEFAULT_CURRENCY;
   const money = (n: number) => formatCurrency(n, ccy);
 
   const curve = useMemo(() => {

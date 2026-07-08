@@ -53,8 +53,12 @@ export class LocalTracker {
   }
 }
 
+/** The display currency assumed when nothing else resolves one (no item currency, no FX base,
+ *  no configured reporting currency). Kept in one place so every financial surface agrees. */
+export const DEFAULT_CURRENCY = "GBP";
+
 /** The first currency seen across a set of items, falling back to a default (e.g. for a report's display). */
-export function firstCurrency(items: readonly { currency?: string | null }[] | undefined, fallback = "GBP"): string {
+export function firstCurrency(items: readonly { currency?: string | null }[] | undefined, fallback = DEFAULT_CURRENCY): string {
   return (items ?? []).find((i) => i.currency)?.currency || fallback;
 }
 

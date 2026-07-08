@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useGetCapabilities, type ProgrammeFinancials } from "@workspace/api-client-react";
 import { useT } from "../lib/i18n";
-import { useDisplayCurrency } from "../lib/currency";
+import { useDisplayCurrency, DEFAULT_CURRENCY } from "../lib/currency";
 import { RAG_TEXT as HEALTH } from "../lib/methodology";
 import { ReportingBadge } from "./ReportingBadge";
 
@@ -27,7 +27,7 @@ function Stat({ label, value, accent, badge }: { label: string; value: string; a
 export function ProgrammeFinancialsCard({ financials }: { financials: ProgrammeFinancials }) {
   const { data: caps } = useGetCapabilities();
   const { formatCurrency } = useT();
-  const native = financials.currency || "GBP";
+  const native = financials.currency || DEFAULT_CURRENCY;
   const { displayCcy, setDisplay, convert, currencyOptions } = useDisplayCurrency(native);
 
   // Hide entirely when the backend declares no financials domain.

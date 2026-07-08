@@ -7,7 +7,7 @@ import {
   getGetProjectFinancialsQueryOptions, type ProjectFinancials,
 } from "@workspace/api-client-react";
 import { componentsFor, getComponent } from "@workspace/backend-catalogue";
-import { useFxRates, resolveFxAsOf, currencyList } from "../../lib/currency";
+import { useFxRates, resolveFxAsOf, currencyList, DEFAULT_CURRENCY } from "../../lib/currency";
 import { consolidateFinancials, type ProjectFin } from "../../lib/portfolio-finance";
 import { buildExecHealth, execHeadline, type ExecException, type Rag } from "../../lib/exec-pack";
 import { resolveDrillTo, overdueDrillTo, costOverrunDrillTo, type ResolvedDrillTo } from "../../lib/drill-to";
@@ -156,7 +156,7 @@ export function ExecBoardPack() {
     combine: (results) => results.map((r) => r.data as ProjectFinancials | undefined),
   });
 
-  const target = reporting || settings?.reportingCurrency || fx?.base || "GBP";
+  const target = reporting || settings?.reportingCurrency || fx?.base || DEFAULT_CURRENCY;
   // Health is the spine; financials are an optional overlay, so don't block the pack on the finance fan-out.
   const loading = projLoading || health.isLoading;
 
