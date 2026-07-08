@@ -193,3 +193,176 @@ describe("Settings interactions", () => {
     expect(screen.getByText("Could not reach AI status.")).toBeInTheDocument();
   });
 });
+
+/**
+ * Field-level editing: every controlled input/select onChange handler, the FX as-of-date input
+ * that only appears off "spot", the backend-id datalist suggestions, and the submit guard that
+ * bails when a URL is invalid.
+ */
+describe("Settings field edits", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function seedWithBackendIds(s: SettingsType, ids: string[]): QueryClient {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetSettingsQueryKey(), s);
+    qc.setQueryData(["setup-backend-ids"], ids);
+    return qc;
+  }
+
+  it("renders backend-id suggestions from the catalogue in the datalist", () => {
+    const { container } = renderSettings(seedWithBackendIds(settings(), ["jira-cloud", "azure-devops"]));
+    const options = container.querySelectorAll("#backend-suggestions option");
+    const values = Array.from(options).map((o) => o.getAttribute("value"));
+    expect(values).toContain("jira-cloud");
+    expect(values).toContain("azure-devops");
+  });
+
+  // The Radix Select triggers are <button role="combobox">; the backend <input list> ALSO
+  // reports role combobox, so filter to the button triggers: [FX policy, AI provider, STT].
+  const selectTriggers = () => screen.getAllByRole("combobox").filter((el) => el.tagName === "BUTTON");
+
+  it("edits the backend, reporting-currency, AI-model and OIDC fields", () => {
+    renderSettings(seed(settings({ aiProvider: "openai", aiModel: "seed-model" })));
+
+    const backend = screen.getByPlaceholderText("all");
+    fireEvent.change(backend, { target: { value: "jira-cloud" } });
+    expect(backend).toHaveValue("jira-cloud");
+
+    const currency = screen.getByLabelText(/reporting currency/i);
+    fireEvent.change(currency, { target: { value: "gbp" } });
+    expect(currency).toHaveValue("GBP"); // upper-cased + sliced to 3 by the handler
+
+    const model = screen.getByDisplayValue("seed-model");
+    fireEvent.change(model, { target: { value: "gpt-4o" } });
+    expect(model).toHaveValue("gpt-4o");
+
+    const oidc = screen.getByLabelText(/oidc issuer url/i);
+    fireEvent.change(oidc, { target: { value: "https://auth.example.com/realm" } });
+    expect(oidc).toHaveValue("https://auth.example.com/realm");
+  });
+
+  it("reveals and edits the FX as-of-date input once the policy leaves 'spot'", async () => {
+    const user = userEvent.setup();
+    const { container } = renderSettings(seed(settings({ fxRatePolicy: "spot" })));
+    expect(container.querySelector("#fx-rate-as-of-date")).toBeNull();
+
+    // Open the FX policy select (first button trigger) and pick a non-spot policy.
+    await user.click(selectTriggers()[0]!);
+    await user.click(await screen.findByRole("option", { name: /period-close rate/i }));
+
+    const dateInput = container.querySelector("#fx-rate-as-of-date") as HTMLInputElement;
+    expect(dateInput).not.toBeNull();
+    fireEvent.change(dateInput, { target: { value: "2026-06-30" } });
+    expect(dateInput).toHaveValue("2026-06-30");
+  });
+
+  it("changes the speech-to-text engine via its select", async () => {
+    const user = userEvent.setup();
+    renderSettings(seed(settings({ aiProvider: "none" })));
+    // Button triggers are [FX policy, AI provider, STT engine].
+    const sttSelect = selectTriggers()[2]!;
+    await user.click(sttSelect);
+    await user.click(await screen.findByRole("option", { name: /on-device/i }));
+    expect(sttSelect).toHaveTextContent(/browser/i);
+  });
+
+  it("does not submit (no toast) when a URL field is invalid", () => {
+    mockFetchRouter({});
+    renderSettings(seed(settings()));
+    const oidc = screen.getByLabelText(/oidc issuer url/i);
+    fireEvent.change(oidc, { target: { value: "not a url" } });
+    // Submit event still fires the handler even though the button is disabled.
+    const form = screen.getByRole("button", { name: /commit changes/i }).closest("form")!;
+    fireEvent.submit(form);
+    expect(screen.queryByText("SETTINGS SAVED")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid URL");
+  });
+});
+
+/**
+ * Residual branch coverage: the AI "not ready" status styling, the settings→form fallbacks for
+ * missing values, the FX as-of-date payload branch (only sent off "spot"), the datalist's nullish
+ * fallback before backend ids load, and the in-flight "SAVING…" submit label.
+ */
+describe("Settings branch coverage", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("shows a NOT READY status in warning styling when the AI provider isn't configured", async () => {
+    const user = userEvent.setup();
+    mockFetchRouter({
+      "/api/ai/status": { ok: true, body: { provider: "openai", model: "", configured: false, detail: "No API key set" } },
+    });
+    renderSettings(seed(settings({ aiProvider: "openai" })));
+    await user.click(screen.getByRole("button", { name: /test connection/i }));
+
+    const status = await screen.findByText(/NOT READY/);
+    expect(status).toHaveTextContent("No API key set");
+    expect(status).toHaveClass("text-amber-500");
+  });
+
+  it("leaves the broker URL blank and saves it as null when settings carry no broker URL", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetchRouter({});
+    renderSettings(seed(settings({ brokerUrl: null as unknown as string })));
+    expect(screen.getByLabelText(/broker url/i)).toHaveValue("");
+
+    // Submitting with an empty (valid) broker URL sends it as null (the `trim() || null` fallback).
+    await user.click(screen.getByRole("button", { name: /commit changes/i }));
+    expect(await screen.findByText("SETTINGS SAVED")).toBeInTheDocument();
+    const patch = calls.find((c) => new URL(c.url, "http://localhost").pathname === "/api/settings" && c.init?.method === "PATCH");
+    expect(JSON.parse(String(patch!.init!.body)).brokerUrl).toBeNull();
+  });
+
+  it("sends the FX as-of-date in the save payload when the policy isn't spot", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetchRouter({});
+    renderSettings(seed(settings({ fxRatePolicy: "periodClose", fxRateAsOfDate: "2026-06-30" })));
+    await user.click(screen.getByRole("button", { name: /commit changes/i }));
+
+    expect(await screen.findByText("SETTINGS SAVED")).toBeInTheDocument();
+    const patch = calls.find((c) => new URL(c.url, "http://localhost").pathname === "/api/settings" && c.init?.method === "PATCH");
+    expect(JSON.parse(String(patch!.init!.body)).fxRateAsOfDate).toBe("2026-06-30");
+  });
+
+  it("sends a null FX as-of-date when the policy isn't spot but no date is set", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetchRouter({});
+    renderSettings(seed(settings({ fxRatePolicy: "budgetRate", fxRateAsOfDate: "" })));
+    await user.click(screen.getByRole("button", { name: /commit changes/i }));
+
+    expect(await screen.findByText("SETTINGS SAVED")).toBeInTheDocument();
+    const patch = calls.find((c) => new URL(c.url, "http://localhost").pathname === "/api/settings" && c.init?.method === "PATCH");
+    expect(JSON.parse(String(patch!.init!.body)).fxRateAsOfDate).toBeNull();
+  });
+
+  it("renders only the built-in 'all' datalist option before backend ids resolve", () => {
+    // No backend-ids seeded → the `backendIds ?? []` fallback renders just the built-in option.
+    mockFetchRouter({ "/api/setup/backends/ids": { ok: true, body: [] } });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(getGetSettingsQueryKey(), settings());
+    const { container } = renderSettings(qc);
+    const options = container.querySelectorAll("#backend-suggestions option");
+    expect(options).toHaveLength(1);
+    expect(options[0]!.getAttribute("value")).toBe("all");
+  });
+
+  it("shows a disabled SAVING… label on the submit button while the save is in flight", async () => {
+    const user = userEvent.setup();
+    let resolvePatch: (v: Response) => void = () => {};
+    const patchPromise = new Promise<Response>((r) => { resolvePatch = r; });
+    globalThis.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const path = new URL(String(url), "http://localhost").pathname;
+      if (path === "/api/settings" && (init?.method ?? "GET").toUpperCase() === "PATCH") return patchPromise;
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+
+    renderSettings(seed(settings()));
+    await user.click(screen.getByRole("button", { name: /commit changes/i }));
+
+    // Mid-flight the submit button flips to the pending label and disables.
+    expect(await screen.findByRole("button", { name: /saving/i })).toBeDisabled();
+    resolvePatch(new Response("{}", { status: 200 }));
+    // Once the save settles the button returns to its normal label.
+    expect(await screen.findByRole("button", { name: /commit changes/i })).toBeInTheDocument();
+  });
+});

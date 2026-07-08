@@ -48,3 +48,43 @@ test("when headers are already sent it just ends the response (no double-send)",
   assert.equal(res.ended, true);
   assert.equal(res.body, undefined);
 });
+
+test("fingerprint tolerates a non-Error value (no name/message/stack)", () => {
+  assert.match(fingerprint(null), /^[0-9a-f]{12}$/);
+  assert.match(fingerprint({}), /^[0-9a-f]{12}$/);
+  assert.match(fingerprint("just a string"), /^[0-9a-f]{12}$/);
+});
+
+test("an exposed 4xx http-error surfaces its own message and status (client_error, no bug metric)", () => {
+  resetRuntimeMetrics();
+  const res = fakeRes();
+  const err = { status: 413, expose: true, message: "request entity too large" };
+  errorHandler(err, req() as never, res as never, (() => {}) as never);
+  assert.equal(res.statusCode, 413);
+  assert.equal((res.body as { error: string }).error, "request entity too large");
+  // A 4xx is a client error, not a bug → the unhandled-error metric stays at 0.
+  assert.match(formatPrometheus(runtimeMetrics()), /omniproject_unhandled_errors_total 0/);
+});
+
+test("a NON-exposed 4xx uses a generic 'Bad request' message", () => {
+  const res = fakeRes();
+  errorHandler({ statusCode: 400, message: "leaky parser detail" }, req() as never, res as never, (() => {}) as never);
+  assert.equal(res.statusCode, 400);
+  assert.equal((res.body as { error: string }).error, "Bad request");
+  assert.ok(!JSON.stringify(res.body).includes("leaky parser detail"));
+});
+
+test("an out-of-range status falls back to a 500 bug response", () => {
+  const res = fakeRes();
+  errorHandler({ status: 200, message: "not an error status" }, req() as never, res as never, (() => {}) as never);
+  assert.equal(res.statusCode, 500);
+  assert.equal((res.body as { error: string }).error, "Internal server error");
+});
+
+test("uses the request-bound logger when present (req.log)", () => {
+  const res = fakeRes();
+  let warned = false;
+  const reqWithLog = { ...req(), log: { error() {}, warn() { warned = true; } } };
+  errorHandler({ status: 400, expose: true, message: "bad" }, reqWithLog as never, res as never, (() => {}) as never);
+  assert.equal(warned, true);
+});

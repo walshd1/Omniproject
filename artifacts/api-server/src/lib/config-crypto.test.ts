@@ -67,3 +67,31 @@ test("CONFIG_KEY_RAW is used directly (restore a specific key on a target)", () 
   __resetConfigCrypto(); // simulate a fresh process with the same CONFIG_KEY_RAW
   assert.equal(openConfig(token), "restored");
 });
+
+test("openConfig rejects non-internal, dot-less, and non-integer-version tokens", () => {
+  assert.equal(openConfig("e1.something"), null); // wrong prefix
+  assert.equal(openConfig("c1."), null); // nothing after prefix (dot at index <= 0)
+  assert.equal(openConfig("c1.payload-no-version-dot"), null); // no dot inside the rest
+  assert.equal(openConfig("c1.abc.payload"), null); // version "abc" is not an integer
+});
+
+test("opening an OLDER version token doesn't lower the current version (noteVersion guard)", () => {
+  rotateInternalKey(); // currentVersion → 2
+  rotateInternalKey(); // → 3
+  const v3token = sealConfig("at v3");
+  // A v1 token opens fine but must not pull currentVersion back down to 1.
+  assert.equal(openConfig("c1.1.not-a-real-payload"), null); // decrypt fails but version noted
+  assert.equal(openConfig(v3token), "at v3", "current version unchanged, v3 still opens");
+});
+
+test("readMaybeSealed passes plaintext through and yields '' for an unopenable sealed token", () => {
+  assert.equal(readMaybeSealed("just plaintext"), "just plaintext");
+  assert.equal(readMaybeSealed("c1.1.garbage-that-cannot-decrypt"), "");
+});
+
+test("openBundle rejects a wrong prefix and a wrong-length key", () => {
+  const { bundle, exportKey } = exportConfigBundle("payload");
+  assert.equal(openBundle("nope.payload", exportKey), null); // wrong prefix
+  assert.equal(openBundle(bundle, Buffer.alloc(16).toString("base64")), null); // 16-byte key
+  assert.equal(openBundle(bundle, exportKey), "payload"); // sanity: correct key opens it
+});

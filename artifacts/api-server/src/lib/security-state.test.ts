@@ -12,7 +12,8 @@ const FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "omni-sec-")), "sec
 process.env["SECURITY_STATE_FILE"] = FILE;
 
 // Import AFTER the env is set so the module reads the file path.
-const { persistSecurityState, loadSecurityState, collectSecurityState } = await import("./security-state");
+const { persistSecurityState, loadSecurityState, collectSecurityState, applySecurityState } = await import("./security-state");
+const { maintenanceEngaged, releaseMaintenance } = await import("./maintenance");
 const { revokeKey, isActive, __resetKeyRegistry } = await import("./key-registry");
 const { registerAutonomousGrant, getAutonomousGrant, __resetAutonomousGrants } = await import("./autonomous-grant");
 const { setContainmentRelax, getContainmentRelax, __resetContainmentRelax } = await import("./ai-containment");
@@ -21,6 +22,7 @@ const { isActionApproved, approveAction, __resetApproved } = await import("./app
 
 afterEach(() => {
   __resetKeyRegistry(); __resetAutonomousGrants(); __resetContainmentRelax(); __resetAiKill(); __resetApproved();
+  releaseMaintenance();
   if (fs.existsSync(FILE)) fs.rmSync(FILE);
 });
 
@@ -60,4 +62,27 @@ test("collectSecurityState reflects the live registries", () => {
   const snap = collectSecurityState();
   assert.equal(snap.containment, "remote");
   assert.equal(snap.aiKill, false);
+});
+
+test("maintenance mode survives a restart; a released kill switch is restored released", () => {
+  const snap = { ...collectSecurityState(), aiKill: false, maintenance: { engaged: true, reason: "upgrade" } };
+  applySecurityState(snap);
+  assert.equal(maintenanceEngaged(), true);
+  assert.equal(aiKillEngaged(), false);
+
+  // Now apply a snapshot with maintenance off + kill on → both flip.
+  applySecurityState({ ...snap, maintenance: { engaged: false, reason: "" }, aiKill: true });
+  assert.equal(maintenanceEngaged(), false);
+  assert.equal(aiKillEngaged(), true);
+});
+
+test("applySecurityState tolerates a sparse snapshot (missing sections are skipped)", () => {
+  // No keys/grants/containment/approved/maintenance — only the aiKill flag present.
+  applySecurityState({ aiKill: false } as never);
+  assert.equal(aiKillEngaged(), false);
+});
+
+test("loadSecurityState tolerates a corrupt state file (keeps defaults, no throw)", () => {
+  fs.writeFileSync(FILE, "this is not sealed json");
+  assert.doesNotThrow(() => loadSecurityState());
 });

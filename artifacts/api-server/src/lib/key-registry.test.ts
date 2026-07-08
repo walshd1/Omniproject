@@ -1,13 +1,15 @@
-import { test, beforeEach } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { currentVersion, isActive, derivedKey, revokeKey, listKeys, revokeUserSessions, userSessionsRevokedAt, __resetKeyRegistry } from "./key-registry";
+import { currentVersion, isActive, derivedKey, revokeKey, listKeys, revokeUserSessions, userSessionsRevokedAt, snapshotKeys, restoreKeys, __resetKeyRegistry } from "./key-registry";
 import { record, recentProvenance, verifyChain, __resetProvenance } from "./provenance";
 
 /**
  * Key registry + revocation: revoking retires a version (rejected) and rolls to a fresh
  * derived key; provenance entries under a revoked version still verify but are flagged.
  */
+const ENV = ["SESSION_SECRET", "PROVENANCE_KEY", "BROKER_PSK", "AUDIT_KEY"];
 beforeEach(() => { __resetKeyRegistry(); __resetProvenance(); });
+afterEach(() => { for (const k of ENV) delete process.env[k]; __resetKeyRegistry(); });
 
 test("keys start at version 1, active, and derive distinct material per version", () => {
   assert.equal(currentVersion("session"), 1);
@@ -42,4 +44,50 @@ test("revoking the provenance key: new entries verify, old ones are flagged revo
   const v = verifyChain(entries);
   assert.equal(v.ok, true); // integrity still checks (material re-derived per version)
   assert.deepEqual(v.revokedKeyVersions, [1]); // ...but the old key is untrusted
+});
+
+test("master key derivation uses the per-name env secret, then a fallback chain", () => {
+  process.env["SESSION_SECRET"] = "sess";
+  process.env["PROVENANCE_KEY"] = "prov";
+  process.env["BROKER_PSK"] = "brok";
+  process.env["AUDIT_KEY"] = "aud";
+  // Each name derives distinct material because each resolves a distinct per-name master.
+  const keys = ["session", "provenance", "broker", "audit"].map((n) => derivedKey(n, 1));
+  assert.equal(new Set(keys).size, 4);
+
+  // With only PROVENANCE_KEY set, a name whose own secret is absent falls back to it.
+  for (const k of ENV) delete process.env[k];
+  process.env["PROVENANCE_KEY"] = "only-prov";
+  const before = derivedKey("session", 1);
+  process.env["PROVENANCE_KEY"] = "changed-prov";
+  assert.notEqual(derivedKey("session", 1), before, "session falls back to PROVENANCE_KEY");
+});
+
+test("snapshotKeys/restoreKeys round-trips revocation state", () => {
+  revokeKey("session", { by: "admin", reason: "leak" });
+  revokeUserSessions("u1");
+  const snap = snapshotKeys();
+  assert.equal(snap.keys["session"]!.version, 2);
+  assert.deepEqual(snap.keys["session"]!.revoked, [1]);
+  assert.ok(snap.userRevokedAt["u1"]! > 0);
+
+  __resetKeyRegistry();
+  assert.equal(currentVersion("session"), 1); // reset
+  restoreKeys(snap);
+  assert.equal(currentVersion("session"), 2);
+  assert.equal(isActive("session", 1), false);
+  assert.ok(userSessionsRevokedAt("u1") > 0);
+});
+
+test("restoreKeys tolerates a snapshot with missing/partial fields", () => {
+  restoreKeys({ keys: { broker: { version: 3 } as never }, userRevokedAt: {} });
+  assert.equal(currentVersion("broker"), 3);
+  const status = listKeys().find((k) => k.name === "broker")!;
+  assert.deepEqual(status.revokedVersions, []); // defaulted from a missing `revoked`
+  assert.equal(status.rotatedAt, null);
+  assert.equal(status.lastActor, null);
+
+  // An entirely empty snapshot is a no-op, not a throw.
+  restoreKeys({ keys: {}, userRevokedAt: {} } as never);
+  restoreKeys({} as never);
 });

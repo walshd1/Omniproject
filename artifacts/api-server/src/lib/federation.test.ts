@@ -82,3 +82,33 @@ test("fetchPeerSummary: trims a trailing slash on baseUrl before appending the s
     server.close();
   }
 });
+
+test("fetchPeerSummary: a peer with no region reports region null", async () => {
+  const { server, base } = await startPeer((_req, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ projects: 1, health: null, finance: null, capacity: null }));
+  });
+  try {
+    const result = await fetchPeerSummary(peer({ baseUrl: base, region: undefined } as unknown as Partial<PeerInstance>));
+    assert.equal(result.region, null);
+    assert.equal(result.status, "ok");
+  } finally {
+    server.close();
+  }
+});
+
+test("fetchPeerSummary: a timeout is labeled 'timed out' (not a plain 'unreachable')", async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    const err = new Error("The operation was aborted due to timeout");
+    err.name = "TimeoutError";
+    throw err;
+  }) as typeof fetch;
+  try {
+    const result = await fetchPeerSummary(peer({ baseUrl: "http://127.0.0.1:1" }));
+    assert.equal(result.status, "unreachable");
+    assert.equal(result.error, "timed out");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

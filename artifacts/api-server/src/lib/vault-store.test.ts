@@ -1,5 +1,9 @@
 import { test, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import crypto from "node:crypto";
 import { activeVaultStore, vaultBackendId, VAULT_BACKENDS } from "./vault-store";
 
 /**
@@ -18,7 +22,71 @@ afterEach(() => {
     "VAULT_ADDR", "VAULT_TOKEN", "VAULT_HTTP_URL", "VAULT_HTTP_TOKEN",
     "AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
     "VAULT_AZURE_VAULT_URL", "AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET",
+    "VAULT_FILE", "VAULT_KEY",
   ]) delete process.env[k];
+  for (const f of tmpFiles.splice(0)) {
+    try { fs.rmSync(f, { force: true }); } catch { /* ignore */ }
+  }
+});
+
+const tmpFiles: string[] = [];
+function tmpVaultFile(): string {
+  const f = path.join(os.tmpdir(), `omni-vault-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
+  tmpFiles.push(f);
+  return f;
+}
+
+test("local store: seals a secret to its file and round-trips load/loadSync + del", async () => {
+  process.env["VAULT_BACKEND"] = "local";
+  process.env["VAULT_FILE"] = tmpVaultFile();
+  const store = activeVaultStore();
+  await store.put("aiprovider:openai", "sk-secret");
+
+  // At rest the value is enveloped (k1.) — not stored in the clear.
+  const onDisk = fs.readFileSync(process.env["VAULT_FILE"]!, "utf8");
+  assert.ok(!onDisk.includes("sk-secret"));
+
+  assert.deepEqual(await store.load(), { "aiprovider:openai": "sk-secret" });
+  assert.deepEqual(store.loadSync!(), { "aiprovider:openai": "sk-secret" });
+
+  await store.del("aiprovider:openai");
+  assert.deepEqual(await store.load(), {});
+  await store.del("already-gone"); // no-op, doesn't throw
+});
+
+test("local store: an unreadable/corrupt vault file is treated as empty", async () => {
+  process.env["VAULT_BACKEND"] = "local";
+  const file = tmpVaultFile();
+  process.env["VAULT_FILE"] = file;
+  fs.writeFileSync(file, "this is not json");
+  assert.deepEqual(await activeVaultStore().load(), {});
+});
+
+test("local store: a secrets file whose `secrets` isn't an object is treated as empty", async () => {
+  process.env["VAULT_BACKEND"] = "local";
+  const file = tmpVaultFile();
+  process.env["VAULT_FILE"] = file;
+  fs.writeFileSync(file, JSON.stringify({ secrets: "not-an-object" }));
+  assert.deepEqual(await activeVaultStore().load(), {});
+});
+
+test("local store: a secret that cannot be decrypted (key changed) is silently dropped", async () => {
+  process.env["VAULT_BACKEND"] = "local";
+  process.env["VAULT_FILE"] = tmpVaultFile();
+  await activeVaultStore().put("aiprovider:openai", "sk-secret"); // sealed under the master-derived key
+
+  // Rotate the root key: the existing envelope no longer opens → openSecret returns null.
+  process.env["VAULT_KEY"] = crypto.randomBytes(32).toString("base64");
+  assert.deepEqual(await activeVaultStore().load(), {});
+});
+
+test("local store: an explicit 32-byte VAULT_KEY is used as the root key", async () => {
+  process.env["VAULT_BACKEND"] = "local";
+  process.env["VAULT_FILE"] = tmpVaultFile();
+  process.env["VAULT_KEY"] = crypto.randomBytes(32).toString("base64");
+  const store = activeVaultStore();
+  await store.put("k", "v");
+  assert.deepEqual(await store.load(), { k: "v" }); // opens under the same explicit key
 });
 
 test("defaults to the local backend; registry includes the external stores", () => {

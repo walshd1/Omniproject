@@ -92,3 +92,31 @@ test("a SAML group lands in the same role-map as an OIDC claim (single-value att
   const claims = profileToClaims({ nameID: "u4", attributes: { groups: "omni-admins" } }, cfg);
   assert.deepEqual(claims.roles, ["omni-admins"]);
 });
+
+test("firstString picks the first string from an array attribute (email/name as arrays)", () => {
+  const claims = profileToClaims(
+    { nameID: "u5", attributes: { email: ["primary@x.com", "alt@x.com"], displayName: ["Ada Lovelace"] } },
+    cfg,
+  );
+  assert.equal(claims.email, "primary@x.com");
+  assert.equal(claims.name, "Ada Lovelace");
+});
+
+test("an array attribute with no string members yields no email/name (omitted)", () => {
+  const claims = profileToClaims({ nameID: "u6", attributes: { email: [123, {}], displayName: [] } }, cfg);
+  assert.equal(claims.email, undefined);
+  assert.equal(claims.name, undefined);
+  assert.equal("email" in claims, false); // absent, not just undefined
+});
+
+test("the ACR attribute is surfaced only when SAML_ACR_ATTR is configured", () => {
+  const withAcr = profileToClaims(
+    { nameID: "u7", attributes: { authnContext: "https://refeds.org/profile/mfa" } },
+    { ...cfg, acrAttr: "authnContext" },
+  );
+  assert.equal(withAcr.acr, "https://refeds.org/profile/mfa");
+
+  // No acrAttr configured → no acr claim, even if a matching attribute is present.
+  const withoutAcr = profileToClaims({ nameID: "u8", attributes: { authnContext: "x" } }, cfg);
+  assert.equal("acr" in withoutAcr, false);
+});

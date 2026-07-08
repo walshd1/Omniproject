@@ -1,0 +1,7 @@
+{
+  "provider": "v8",
+  "all": true,
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "**/*.generated.ts", "**/dist/**"],
+  "reporter": ["text", "lcov"]
+}

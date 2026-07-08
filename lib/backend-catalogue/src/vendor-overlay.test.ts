@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { withOverlay, registerVendor, clearVendorOverlay } from "./vendor-overlay";
+import { withOverlay, registerVendor, clearVendorOverlay, validateVendor, vendorOverlayCounts, vendorOverlayEntries } from "./vendor-overlay";
 import { BACKENDS, getBackend } from "./backend-catalogue";
 
 /**
@@ -47,6 +47,35 @@ test("registering / clearing invalidates the memoised merge", () => {
   assert.notEqual(afterRegister, first, "registering must invalidate the cache");
   clearVendorOverlay();
   assert.equal(withOverlay("backends", BACKENDS), BACKENDS, "clearing returns the base");
+});
+
+test("validateVendor rejects an unknown plane and a schema-invalid vendor, accepts a good one", () => {
+  clearVendorOverlay();
+  const unknown = validateVendor("not-a-plane" as never, SAMPLE);
+  assert.ok(unknown.some((e) => e.includes('unknown plane "not-a-plane"')));
+  assert.deepEqual(validateVendor("backends", SAMPLE), [], "a well-formed backend passes");
+  const bad = validateVendor("backends", { id: 123 });
+  assert.ok(bad.length > 0, "a malformed backend fails its schema");
+});
+
+test("registerVendor throws with the schema errors when the candidate is invalid", () => {
+  clearVendorOverlay();
+  assert.throws(() => registerVendor("backends", { id: "broken" }), /invalid backends vendor "broken"/);
+  clearVendorOverlay();
+});
+
+test("vendorOverlayCounts and vendorOverlayEntries report the registered overlay per plane", () => {
+  clearVendorOverlay();
+  assert.deepEqual(vendorOverlayCounts(), { backends: 0, brokers: 0, notifications: 0, outputs: 0 });
+  assert.deepEqual(vendorOverlayEntries(), { backends: [], brokers: [], notifications: [], outputs: [] });
+
+  registerVendor("backends", SAMPLE);
+  registerVendor("backends", { ...SAMPLE, id: "perf-sample-2" });
+  assert.deepEqual(vendorOverlayCounts(), { backends: 2, brokers: 0, notifications: 0, outputs: 0 });
+  const entries = vendorOverlayEntries();
+  assert.deepEqual(entries.brokers, []);
+  assert.deepEqual(entries.backends.map((b) => b.id).sort(), ["perf-sample", "perf-sample-2"]);
+  clearVendorOverlay();
 });
 
 test("catalogue lookups stay cheap (100k getBackend calls well under 1s)", () => {
