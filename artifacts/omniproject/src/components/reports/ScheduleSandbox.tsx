@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useListProjects, useGetProjectIssues, useGetCapabilities } from "@workspace/api-client-react";
+import { useListProjects, useGetProjectIssues, useGetCapabilities, getGetProjectIssuesQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -22,7 +22,11 @@ export function ScheduleSandbox() {
   const { data: caps } = useGetCapabilities();
   const [projectId, setProjectId] = useState("");
   const activeProject = projectId || projects?.[0]?.id || "";
-  const { data: issues } = useGetProjectIssues(activeProject);
+  // Guard the query so it never fires with an empty id before `projects` resolves (which would
+  // request the malformed `/api/projects//issues` → 404) — same pattern as DependencyLinks.
+  const { data: issues } = useGetProjectIssues(activeProject, {
+    query: { enabled: !!activeProject, queryKey: getGetProjectIssuesQueryKey(activeProject) },
+  });
 
   const items = useMemo(
     () => buildScheduleItems((issues ?? []) as ScheduleInput[]),
