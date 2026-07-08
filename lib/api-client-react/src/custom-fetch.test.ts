@@ -31,6 +31,33 @@ function stubFetch(factory: (args: FetchArgs) => Response): void {
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
 
+/**
+ * A minimal Response-like stand-in for runtimes that don't implement the whole
+ * Response API — notably React Native, where `response.blob` is absent. Used to
+ * drive the "blob() unavailable" fallbacks that a real Node Response can't reach.
+ */
+function fakeResponse(opts: {
+  status?: number;
+  statusText?: string;
+  headers?: Record<string, string>;
+  text: string;
+  /** Omit to simulate a runtime with no `blob()` method. */
+  withBlob?: boolean;
+}): Response {
+  const status = opts.status ?? 200;
+  const base: Record<string, unknown> = {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: opts.statusText ?? "",
+    url: "",
+    headers: new Headers(opts.headers ?? {}),
+    body: {}, // non-null: a payload is readable via text()
+    text: async () => opts.text,
+  };
+  if (opts.withBlob) base["blob"] = async () => new Blob([opts.text]);
+  return base as unknown as Response;
+}
+
 beforeEach(() => {
   calls = [];
   setBaseUrl(null);
@@ -158,4 +185,187 @@ test("an interceptor returning handled:false falls through to fetch", async () =
   const data = await customFetch<{ fromNetwork: boolean }>("/api/x");
   assert.deepEqual(data, { fromNetwork: true });
   assert.equal(calls.length, 1);
+});
+
+// --- interceptor sees the write body -------------------------------------
+test("an interceptor receives the request method and JSON body of a write", async () => {
+  stubFetch(() => json({}));
+  let seen: { method: string; body: string | null } | null = null;
+  setFetchInterceptor((req) => {
+    seen = { method: req.method, body: req.body };
+    return { handled: true, data: { ok: true } };
+  });
+  await customFetch("/api/x", { method: "POST", body: JSON.stringify({ a: 1 }) });
+  assert.deepEqual(seen, { method: "POST", body: '{"a":1}' });
+  assert.equal(calls.length, 0);
+});
+
+// --- input shapes: URL object and Request object -------------------------
+test("accepts a URL object as input and resolves it for the request", async () => {
+  stubFetch(() => json({ ok: true }));
+  const data = await customFetch<{ ok: boolean }>(new URL("https://api.example.com/api/z"));
+  assert.deepEqual(data, { ok: true });
+  assert.equal(String(calls[0]!.input), "https://api.example.com/api/z");
+});
+
+test("accepts a Request object, taking its method and forwarding its headers", async () => {
+  stubFetch(() => json({ ok: true }));
+  const req = new Request("https://api.example.com/req", {
+    method: "POST",
+    headers: { "x-req": "y" },
+    body: JSON.stringify({ a: 1 }),
+  });
+  await customFetch(req);
+  const sentHeaders = new Headers(calls[0]!.init!.headers);
+  assert.equal(sentHeaders.get("x-req"), "y");
+  assert.equal(calls[0]!.init!.method, "POST");
+});
+
+// --- explicit request headers are merged in ------------------------------
+test("merges explicitly supplied request headers", async () => {
+  stubFetch(() => json({}));
+  await customFetch("/api/x", { headers: { "x-test": "1" } });
+  const sentHeaders = new Headers(calls[0]!.init!.headers);
+  assert.equal(sentHeaders.get("x-test"), "1");
+});
+
+// --- auth token getter resolving async / returning a string --------------
+test("awaits an async auth token getter", async () => {
+  stubFetch(() => json({}));
+  setAuthTokenGetter(async () => "async-tok");
+  await customFetch("/api/x");
+  const sentHeaders = new Headers(calls[0]!.init!.headers);
+  assert.equal(sentHeaders.get("authorization"), "Bearer async-tok");
+});
+
+test("an explicit Authorization header is not overwritten by the token getter", async () => {
+  stubFetch(() => json({}));
+  setAuthTokenGetter(() => "tok-123");
+  await customFetch("/api/x", { headers: { authorization: "Bearer explicit" } });
+  const sentHeaders = new Headers(calls[0]!.init!.headers);
+  assert.equal(sentHeaders.get("authorization"), "Bearer explicit");
+});
+
+// --- success-body content-type inference ---------------------------------
+test("auto-infers text for an application/xml body", async () => {
+  stubFetch(() => new Response("<x/>", { status: 200, headers: { "Content-Type": "application/xml" } }));
+  assert.equal(await customFetch("/api/xml"), "<x/>");
+});
+
+test("auto-infers blob for a binary content-type", async () => {
+  stubFetch(() => new Response("BINDATA", { status: 200, headers: { "Content-Type": "application/octet-stream" } }));
+  const data = await customFetch<Blob>("/api/bin");
+  assert.ok(data instanceof Blob);
+  assert.equal(await data.text(), "BINDATA");
+});
+
+test("responseType json returns null for a whitespace-only body", async () => {
+  stubFetch(() => new Response("   ", { status: 200, headers: { "Content-Type": "application/json" } }));
+  assert.equal(await customFetch("/api/x", { responseType: "json" }), null);
+});
+
+test("responseType blob throws a TypeError when blob() is unavailable", async () => {
+  stubFetch(() => fakeResponse({ text: "payload", withBlob: false }));
+  await assert.rejects(
+    customFetch("/api/x", { responseType: "blob" }),
+    (err: unknown) => {
+      assert.ok(err instanceof TypeError);
+      assert.match((err as TypeError).message, /Blob responses are not supported/);
+      return true;
+    },
+  );
+});
+
+// --- error-body parsing branches -----------------------------------------
+test("ApiError data is null when the error response has no body", async () => {
+  stubFetch(() => new Response(null, { status: 500, statusText: "Server Error" }));
+  await assert.rejects(customFetch("/api/x"), (err: unknown) => {
+    assert.ok(err instanceof ApiError);
+    assert.equal(err.data, null);
+    return true;
+  });
+});
+
+test("ApiError data is null when the error body is whitespace only", async () => {
+  stubFetch(() => new Response("   ", { status: 500, statusText: "Server Error", headers: { "Content-Type": "text/plain" } }));
+  await assert.rejects(customFetch("/api/x"), (err: unknown) => {
+    assert.ok(err instanceof ApiError);
+    assert.equal(err.data, null);
+    return true;
+  });
+});
+
+test("ApiError keeps the raw string when a JSON error body fails to parse", async () => {
+  stubFetch(() => new Response("{oops", { status: 400, statusText: "Bad Request", headers: { "Content-Type": "application/json" } }));
+  await assert.rejects(customFetch("/api/x"), (err: unknown) => {
+    assert.ok(err instanceof ApiError);
+    assert.equal(err.data, "{oops");
+    return true;
+  });
+});
+
+test("ApiError reads a binary error body as a Blob", async () => {
+  stubFetch(() => new Response("BINERR", { status: 500, statusText: "Server Error", headers: { "Content-Type": "application/octet-stream" } }));
+  await assert.rejects(customFetch("/api/x"), (err: unknown) => {
+    assert.ok(err instanceof ApiError);
+    assert.ok(err.data instanceof Blob);
+    return true;
+  });
+});
+
+test("ApiError falls back to text() for a binary error body when blob() is unavailable", async () => {
+  stubFetch(() => fakeResponse({
+    status: 500,
+    statusText: "Server Error",
+    headers: { "content-type": "application/octet-stream" },
+    text: "BINERR",
+    withBlob: false,
+  }));
+  await assert.rejects(customFetch("/api/x"), (err: unknown) => {
+    assert.ok(err instanceof ApiError);
+    assert.equal(err.data, "BINERR");
+    return true;
+  });
+});
+
+// --- error message shaping variants --------------------------------------
+test("ApiError message uses detail alone when there is no title", async () => {
+  stubFetch(() => new Response(JSON.stringify({ detail: "just detail" }), {
+    status: 400, statusText: "Bad Request", headers: { "Content-Type": "application/problem+json" },
+  }));
+  await assert.rejects(customFetch("/api/x"), (err: unknown) => {
+    assert.match((err as ApiError).message, /HTTP 400 Bad Request: just detail/);
+    return true;
+  });
+});
+
+test("ApiError message uses message / error_description / error fields", async () => {
+  stubFetch(() => new Response(JSON.stringify({ error: "e-code", error_description: "human readable" }), {
+    status: 401, statusText: "Unauthorized", headers: { "Content-Type": "application/json" },
+  }));
+  await assert.rejects(customFetch("/api/x"), (err: unknown) => {
+    // error_description is preferred over error
+    assert.match((err as ApiError).message, /HTTP 401 Unauthorized: human readable/);
+    return true;
+  });
+});
+
+test("ApiError message uses title alone when there is no detail or message", async () => {
+  stubFetch(() => new Response(JSON.stringify({ title: "Only Title" }), {
+    status: 409, statusText: "Conflict", headers: { "Content-Type": "application/problem+json" },
+  }));
+  await assert.rejects(customFetch("/api/x"), (err: unknown) => {
+    assert.match((err as ApiError).message, /HTTP 409 Conflict: Only Title/);
+    return true;
+  });
+});
+
+test("ApiError message is just the status line for an unrecognised JSON error shape", async () => {
+  stubFetch(() => new Response(JSON.stringify({ weird: "shape" }), {
+    status: 418, statusText: "I'm a teapot", headers: { "Content-Type": "application/json" },
+  }));
+  await assert.rejects(customFetch("/api/x"), (err: unknown) => {
+    assert.equal((err as ApiError).message, "HTTP 418 I'm a teapot");
+    return true;
+  });
 });
