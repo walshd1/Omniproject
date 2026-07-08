@@ -772,6 +772,99 @@ function validateContentPages(value: unknown): void {
   }
 }
 
+/** Shape-validate the outbound webhook list: an array whose every entry is an object with a
+ *  string, safe-outbound `url`. */
+function validateWebhooks(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("webhooks must be an array");
+  for (const w of value) {
+    if (!w || typeof w !== "object") throw new SettingsValidationError("each webhook must be an object");
+    const url = (w as Record<string, unknown>)["url"];
+    if (typeof url !== "string") throw new SettingsValidationError("each webhook needs a url string");
+    try {
+      assertSafeOutboundUrl(url, "webhook url");
+    } catch (err) {
+      throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "webhook url is invalid");
+    }
+  }
+}
+
+/** Shape-validate the federated-peer list: id/label required, a safe-outbound `baseUrl`, a token
+ *  string, and optional typed region/active. */
+function validateFederatedPeers(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("federatedPeers must be an array");
+  for (const p of value) {
+    if (!p || typeof p !== "object") throw new SettingsValidationError("each federated peer must be an object");
+    const o = p as Record<string, unknown>;
+    if (typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each federated peer needs a string id");
+    if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a label`);
+    const baseUrl = o["baseUrl"];
+    if (typeof baseUrl !== "string" || !baseUrl) throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a baseUrl`);
+    try {
+      assertSafeOutboundUrl(baseUrl, "federated peer baseUrl");
+    } catch (err) {
+      throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "federated peer baseUrl is invalid");
+    }
+    if (typeof o["token"] !== "string") throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a token string`);
+    if (o["region"] != null && typeof o["region"] !== "string") throw new SettingsValidationError(`federated peer "${String(o["id"])}" region must be a string or null`);
+    if ("active" in o && typeof o["active"] !== "boolean") throw new SettingsValidationError(`federated peer "${String(o["id"])}" active must be a boolean`);
+  }
+}
+
+/** Shape-validate the saved-view list: an array whose every entry is an object with a string id + name. */
+function validateSavedViews(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("savedViews must be an array");
+  for (const view of value) {
+    if (!view || typeof view !== "object") throw new SettingsValidationError("each saved view must be an object");
+    const { id, name } = view as Record<string, unknown>;
+    if (typeof id !== "string" || !id) throw new SettingsValidationError("each saved view needs a string id");
+    if (typeof name !== "string" || !name) throw new SettingsValidationError("each saved view needs a name");
+  }
+}
+
+/** Shape-validate the dashboard list: id/name required, optional non-negative refreshMs, and a
+ *  widgets array whose entries each carry a string id + type. */
+function validateDashboards(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("dashboards must be an array");
+  for (const dash of value) {
+    if (!dash || typeof dash !== "object") throw new SettingsValidationError("each dashboard must be an object");
+    const { id, name, widgets } = dash as Record<string, unknown>;
+    if (typeof id !== "string" || !id) throw new SettingsValidationError("each dashboard needs a string id");
+    if (typeof name !== "string" || !name) throw new SettingsValidationError("each dashboard needs a name");
+    const { refreshMs } = dash as Record<string, unknown>;
+    if (refreshMs != null && (typeof refreshMs !== "number" || refreshMs < 0)) throw new SettingsValidationError("each dashboard refreshMs must be a non-negative number");
+    if (!Array.isArray(widgets)) throw new SettingsValidationError("each dashboard needs a widgets array");
+    for (const w of widgets) {
+      if (!w || typeof w !== "object") throw new SettingsValidationError("each dashboard widget must be an object");
+      const { id: wid, type } = w as Record<string, unknown>;
+      if (typeof wid !== "string" || !wid) throw new SettingsValidationError("each dashboard widget needs a string id");
+      if (typeof type !== "string" || !type) throw new SettingsValidationError("each dashboard widget needs a type");
+    }
+  }
+}
+
+/** Validate the opt-in logging-sync egress config: an object with an optional safe-outbound `url`;
+ *  turning it on requires both a url and an explicit warranty acknowledgement. */
+function validateLoggingSync(value: unknown): void {
+  if (!value || typeof value !== "object") throw new SettingsValidationError("loggingSync must be an object");
+  const { enabled, url, acknowledgedWarranty } = value as Record<string, unknown>;
+  if (url != null) {
+    if (typeof url !== "string") throw new SettingsValidationError("loggingSync.url must be a string or null");
+    try {
+      assertSafeOutboundUrl(url, "loggingSync.url");
+    } catch (err) {
+      throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "loggingSync.url is invalid");
+    }
+  }
+  if (enabled === true) {
+    // Egress is the one out-of-warranty relaxation: it can only be turned on
+    // with a destination AND an explicit acknowledgement of the warranty boundary.
+    if (typeof url !== "string" || !url) throw new SettingsValidationError("enable the logging sync requires a url");
+    if (acknowledgedWarranty !== true) {
+      throw new SettingsValidationError("enabling the logging sync requires acknowledging that egressed data is outside OmniProject's warranty");
+    }
+  }
+}
+
 /** Validate a settings patch and return a NORMALIZED copy (reportingCurrency upper-cased,
  *  fxRateAsOfDate/reportingCurrency empty-string coerced to null, …) — pure, never mutates the
  *  caller's `patch` object. Throws SettingsValidationError on bad input. */
@@ -813,40 +906,8 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
       }
     }
   }
-  if ("webhooks" in patch) {
-    const webhooks = patch["webhooks"];
-    if (!Array.isArray(webhooks)) throw new SettingsValidationError("webhooks must be an array");
-    for (const w of webhooks) {
-      if (!w || typeof w !== "object") throw new SettingsValidationError("each webhook must be an object");
-      const url = (w as Record<string, unknown>)["url"];
-      if (typeof url !== "string") throw new SettingsValidationError("each webhook needs a url string");
-      try {
-        assertSafeOutboundUrl(url, "webhook url");
-      } catch (err) {
-        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "webhook url is invalid");
-      }
-    }
-  }
-  if ("federatedPeers" in patch) {
-    const peers = patch["federatedPeers"];
-    if (!Array.isArray(peers)) throw new SettingsValidationError("federatedPeers must be an array");
-    for (const p of peers) {
-      if (!p || typeof p !== "object") throw new SettingsValidationError("each federated peer must be an object");
-      const o = p as Record<string, unknown>;
-      if (typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each federated peer needs a string id");
-      if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a label`);
-      const baseUrl = o["baseUrl"];
-      if (typeof baseUrl !== "string" || !baseUrl) throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a baseUrl`);
-      try {
-        assertSafeOutboundUrl(baseUrl, "federated peer baseUrl");
-      } catch (err) {
-        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "federated peer baseUrl is invalid");
-      }
-      if (typeof o["token"] !== "string") throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a token string`);
-      if (o["region"] != null && typeof o["region"] !== "string") throw new SettingsValidationError(`federated peer "${String(o["id"])}" region must be a string or null`);
-      if ("active" in o && typeof o["active"] !== "boolean") throw new SettingsValidationError(`federated peer "${String(o["id"])}" active must be a boolean`);
-    }
-  }
+  if ("webhooks" in patch) validateWebhooks(patch["webhooks"]);
+  if ("federatedPeers" in patch) validateFederatedPeers(patch["federatedPeers"]);
   if ("branding" in patch && patch["branding"] != null && typeof patch["branding"] !== "object") {
     throw new SettingsValidationError("branding must be an object or null");
   }
@@ -875,61 +936,14 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
       throw new SettingsValidationError("hiddenFields must be an array of strings");
     }
   }
-  if ("savedViews" in patch) {
-    const v = patch["savedViews"];
-    if (!Array.isArray(v)) throw new SettingsValidationError("savedViews must be an array");
-    for (const view of v) {
-      if (!view || typeof view !== "object") throw new SettingsValidationError("each saved view must be an object");
-      const { id, name } = view as Record<string, unknown>;
-      if (typeof id !== "string" || !id) throw new SettingsValidationError("each saved view needs a string id");
-      if (typeof name !== "string" || !name) throw new SettingsValidationError("each saved view needs a name");
-    }
-  }
+  if ("savedViews" in patch) validateSavedViews(patch["savedViews"]);
   if ("customReports" in patch) validateCustomReports(patch["customReports"]);
   if ("reportOverrides" in patch) validateReportOverrides(patch["reportOverrides"]);
   if ("contentPages" in patch) validateContentPages(patch["contentPages"]);
   if ("priorityWeights" in patch) validatePriorityWeights(patch["priorityWeights"]);
-  if ("dashboards" in patch) {
-    const v = patch["dashboards"];
-    if (!Array.isArray(v)) throw new SettingsValidationError("dashboards must be an array");
-    for (const dash of v) {
-      if (!dash || typeof dash !== "object") throw new SettingsValidationError("each dashboard must be an object");
-      const { id, name, widgets } = dash as Record<string, unknown>;
-      if (typeof id !== "string" || !id) throw new SettingsValidationError("each dashboard needs a string id");
-      if (typeof name !== "string" || !name) throw new SettingsValidationError("each dashboard needs a name");
-      const { refreshMs } = dash as Record<string, unknown>;
-      if (refreshMs != null && (typeof refreshMs !== "number" || refreshMs < 0)) throw new SettingsValidationError("each dashboard refreshMs must be a non-negative number");
-      if (!Array.isArray(widgets)) throw new SettingsValidationError("each dashboard needs a widgets array");
-      for (const w of widgets) {
-        if (!w || typeof w !== "object") throw new SettingsValidationError("each dashboard widget must be an object");
-        const { id: wid, type } = w as Record<string, unknown>;
-        if (typeof wid !== "string" || !wid) throw new SettingsValidationError("each dashboard widget needs a string id");
-        if (typeof type !== "string" || !type) throw new SettingsValidationError("each dashboard widget needs a type");
-      }
-    }
-  }
+  if ("dashboards" in patch) validateDashboards(patch["dashboards"]);
   if ("fieldOverrides" in patch) validateFieldOverrides(patch["fieldOverrides"]);
-  if ("loggingSync" in patch) {
-    const sync = patch["loggingSync"];
-    if (!sync || typeof sync !== "object") throw new SettingsValidationError("loggingSync must be an object");
-    const { enabled, url, acknowledgedWarranty } = sync as Record<string, unknown>;
-    if (url != null) {
-      if (typeof url !== "string") throw new SettingsValidationError("loggingSync.url must be a string or null");
-      try {
-        assertSafeOutboundUrl(url, "loggingSync.url");
-      } catch (err) {
-        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "loggingSync.url is invalid");
-      }
-    }
-    if (enabled === true) {
-      // Egress is the one out-of-warranty relaxation: it can only be turned on
-      // with a destination AND an explicit acknowledgement of the warranty boundary.
-      if (typeof url !== "string" || !url) throw new SettingsValidationError("enable the logging sync requires a url");
-      if (acknowledgedWarranty !== true) {
-        throw new SettingsValidationError("enabling the logging sync requires acknowledging that egressed data is outside OmniProject's warranty");
-      }
-    }
-  }
+  if ("loggingSync" in patch) validateLoggingSync(patch["loggingSync"]);
   return normalized;
 }
 

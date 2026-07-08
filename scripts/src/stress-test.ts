@@ -14,7 +14,7 @@
 
 import { login } from "./lib/demo-session";
 import { percentile, runPool } from "./lib/load-core";
-import { green, red, bold } from "./lib/assert";
+import { green, red, bold, dim } from "./lib/ansi";
 
 export {};
 
@@ -23,8 +23,6 @@ const USERS = Number(process.env["STRESS_USERS"]) || 2000;
 const REQS = Number(process.env["STRESS_REQS"]) || 3;
 const CONCURRENCY = Number(process.env["STRESS_CONCURRENCY"]) || 100;
 const MAX_ERROR_RATE = Number(process.env["STRESS_MAX_ERROR_RATE"]) || 0.01;
-
-const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 
 async function main() {
   console.log(bold("OmniProject — Stress test"));

@@ -54,6 +54,7 @@ import {
   promote,
 } from "../lib/config-store";
 import { isFeatureEnabled } from "../lib/feature-modules";
+import { isTimeoutError } from "../lib/timeout-error";
 
 const router = Router();
 
@@ -210,7 +211,7 @@ router.post("/setup/test-broker", requireRole("admin"), async (req, res) => {
       res.json({ reachable: false, error: err.message });
       return;
     }
-    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+    const isTimeout = isTimeoutError(err);
     res.json({ reachable: false, error: isTimeout ? "Connection timed out" : "Could not reach the webhook URL" });
   }
 });

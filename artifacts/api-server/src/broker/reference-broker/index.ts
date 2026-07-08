@@ -36,6 +36,7 @@ import { signBrokerRequest } from "../../lib/broker-hmac";
 import { assertSafeBrokerPayload, assertSafeAuthHeader } from "../../lib/payload-guard";
 import { currentTraceparent } from "../../lib/tracing";
 import { brokerFetch } from "../../lib/broker-transport";
+import { isTimeoutError } from "../../lib/timeout-error";
 import type { RequestInit as BrokerRequestInit, Response as BrokerResponse } from "undici";
 
 /**
@@ -293,7 +294,7 @@ async function unwrapResponse<T>(
     return result;
   } catch (err) {
     if (err instanceof BrokerError) throw err;
-    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+    const isTimeout = isTimeoutError(err);
     audit("error", 0, { error: err instanceof Error ? err.name : "error" });
     throw new BrokerError("unavailable", isTimeout ? "backend request timed out" : "backend unreachable");
   }
@@ -337,7 +338,7 @@ async function callBroker<T = unknown>(
   const { res, targets, lastErr } = await sendWithFailover(init);
 
   if (!res) {
-    const isTimeout = lastErr instanceof Error && lastErr.name === "TimeoutError";
+    const isTimeout = isTimeoutError(lastErr);
     audit("error", 0, { error: lastErr instanceof Error ? lastErr.name : "error", instancesTried: targets.length });
     throw new BrokerError("unavailable", isTimeout ? "all broker instances timed out" : "all broker instances unreachable");
   }
@@ -364,7 +365,7 @@ export async function pingBroker(timeoutMs = 2000): Promise<{ reachable: boolean
     });
     return { reachable: true, status: res.status };
   } catch (err) {
-    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+    const isTimeout = isTimeoutError(err);
     return { reachable: false, detail: isTimeout ? "timed out" : err instanceof Error ? err.name : "unreachable" };
   }
 }
@@ -431,7 +432,7 @@ export async function probeVerifiableActions(
         message: json?.message ?? null,
       };
     } catch (err) {
-      const isTimeout = err instanceof Error && err.name === "TimeoutError";
+      const isTimeout = isTimeoutError(err);
       return { action, ok: false, status: 0, ms: Date.now() - started, verifyAware: false, message: isTimeout ? "timed out" : "unreachable" };
     }
   });

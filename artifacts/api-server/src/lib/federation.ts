@@ -3,6 +3,7 @@ import { getSettings, type PeerInstance } from "./settings";
 import { allowedRegions } from "./data-residency";
 import { computeLocalPortfolioSummary, type PortfolioSummary } from "./portfolio-summary";
 import { logger } from "./logger";
+import { isTimeoutError } from "./timeout-error";
 
 /**
  * Cross-instance portfolio federation (backlog #135) — a minimal, stateless fan-out that lets a
@@ -64,7 +65,7 @@ export async function fetchPeerSummary(peer: PeerInstance): Promise<PeerPortfoli
     return { ...base, status: "ok", summary, ms };
   } catch (err) {
     const ms = Date.now() - started;
-    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+    const isTimeout = isTimeoutError(err);
     return { ...base, status: "unreachable", summary: null, error: isTimeout ? "timed out" : "unreachable", ms };
   }
 }
