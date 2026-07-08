@@ -1,6 +1,6 @@
 import { useGetProjectFinancials, useGetCapabilities, getGetProjectFinancialsQueryKey } from "@workspace/api-client-react";
 import { useT } from "../lib/i18n";
-import { useDisplayCurrency } from "../lib/currency";
+import { useDisplayCurrency, DEFAULT_CURRENCY } from "../lib/currency";
 import { RAG_TEXT as HEALTH } from "../lib/methodology";
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: string | undefined }) {
@@ -25,7 +25,7 @@ export function ProjectFinancialsStrip({ projectId }: { projectId: string }) {
     query: { enabled, retry: false, queryKey: getGetProjectFinancialsQueryKey(projectId) },
   });
   const { formatCurrency } = useT();
-  const native = f?.currency || "GBP";
+  const native = f?.currency || DEFAULT_CURRENCY;
   const { displayCcy, setDisplay, convert, currencyOptions } = useDisplayCurrency(native);
 
   if (caps?.financials === false) return null;

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useListProjects, useGetSettings, getGetProjectIssuesQueryOptions, type Issue, type FxRates } from "@workspace/api-client-react";
-import { useFxRates, resolveFxAsOf, firstCurrency } from "../../lib/currency";
+import { useFxRates, resolveFxAsOf, firstCurrency, DEFAULT_CURRENCY } from "../../lib/currency";
 import type { ProjectItems } from "../../lib/portfolio-value";
 
 /**
@@ -52,5 +52,5 @@ export function usePortfolioItems(): {
     });
   }, [projectList, issuesByProject]);
 
-  return { projects, loading, isError, error, refetch, target: settings?.reportingCurrency || fx?.base || "GBP", rates: fx?.rates, fx };
+  return { projects, loading, isError, error, refetch, target: settings?.reportingCurrency || fx?.base || DEFAULT_CURRENCY, rates: fx?.rates, fx };
 }

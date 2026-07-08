@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useListProjects, useGetSettings, getGetProjectFinancialsQueryOptions, type ProjectFinancials } from "@workspace/api-client-react";
-import { useFxRates, resolveFxAsOf, currencyList } from "../../lib/currency";
+import { useFxRates, resolveFxAsOf, currencyList, DEFAULT_CURRENCY } from "../../lib/currency";
 import { consolidateFinancials, type ProjectFin, type FinanceRollup } from "../../lib/portfolio-finance";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
@@ -63,7 +63,7 @@ export function PortfolioFinancials() {
   const finQueries = useQueries({ queries: ids.map((id) => getGetProjectFinancialsQueryOptions(id)) });
 
   // View override → the org default reporting currency → the FX base.
-  const target = reporting || settings?.reportingCurrency || fx?.base || "GBP";
+  const target = reporting || settings?.reportingCurrency || fx?.base || DEFAULT_CURRENCY;
   const loading = projLoading || finQueries.some((q) => q.isLoading);
 
   const consolidated = useMemo(() => {
