@@ -97,6 +97,10 @@ export function buildScheduleItems(inputs: ScheduleInput[]): ScheduleItem[] {
     const end = i.dueDate ? new Date(i.dueDate) : new Date(i.startDate!);
     let s = startOfDay(start);
     let e = startOfDay(end);
+    // An unparseable date string (e.g. "not-a-date") makes startOfDay return NaN, which would
+    // propagate NaN day numbers into computeSchedule and the Gantt render. Such an item can't be
+    // scheduled, so drop it rather than emit NaN.
+    if (Number.isNaN(s) || Number.isNaN(e)) continue;
     if (e < s) [s, e] = [e, s];
     items.push({
       id: i.id,

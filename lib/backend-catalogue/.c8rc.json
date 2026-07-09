@@ -2,6 +2,6 @@
   "provider": "v8",
   "all": true,
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts", "src/index.ts", "src/**/*.generated.ts", "**/dist/**"],
+  "exclude": ["src/**/*.test.ts", "src/proptest.ts", "src/index.ts", "src/**/*.generated.ts", "**/dist/**"],
   "reporter": ["text", "lcov"]
 }

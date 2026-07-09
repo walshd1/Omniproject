@@ -24,7 +24,9 @@ const HKDF_SALT = Buffer.from("omniproject/hkdf/v1");
  * `info` binding means a key minted for one domain can never collide with another's.
  */
 export function deriveKey(secret: string, info: string): Buffer {
-  const cacheKey = `${info} ${secret}`;
+  // Length-prefix `info` so the (info, secret) boundary is unambiguous: a space-joined key would
+  // let deriveKey("z","x y") and deriveKey("y z","x") collide, silently breaking domain separation.
+  const cacheKey = `${info.length}:${info}${secret}`;
   let key = keyCache.get(cacheKey);
   if (!key) {
     // hkdfSync returns an ArrayBuffer; wrap it as a Buffer for the crypto APIs.

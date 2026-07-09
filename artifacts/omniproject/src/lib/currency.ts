@@ -27,10 +27,13 @@ export function resolveFxAsOf(settings: Pick<Settings, "fxRatePolicy" | "fxRateA
  *  original amount if a rate is missing (so the UI never shows NaN). */
 export function convertAmount(amount: number, from: string, to: string, rates?: Record<string, number>): number {
   if (!rates || from === to) return amount;
-  const rFrom = rates[from];
-  const rTo = rates[to];
-  if (!rFrom || !rTo) return amount;
-  return (amount * rFrom) / rTo;
+  // Own-property + finite guards: a currency code like "__proto__"/"constructor" would otherwise
+  // read an inherited Object.prototype member (an object/function), and `amount * {}` = NaN would
+  // reach a rendered figure. Missing or non-finite rate ⇒ pass the amount through unchanged.
+  const rFrom = Object.hasOwn(rates, from) ? rates[from] : undefined;
+  const rTo = Object.hasOwn(rates, to) ? rates[to] : undefined;
+  if (!Number.isFinite(rFrom) || !Number.isFinite(rTo) || rTo === 0) return amount;
+  return (amount * (rFrom as number)) / (rTo as number);
 }
 
 export function currencyList(rates?: Record<string, number>): string[] {
