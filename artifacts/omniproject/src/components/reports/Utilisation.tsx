@@ -5,6 +5,8 @@ import type { ProjectItems } from "../../lib/portfolio-value";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { usePortfolioItems } from "./use-portfolio-items";
+import { SkillsCapacity } from "./SkillsCapacity";
+import { useSkillsPlanning } from "../../lib/skills";
 
 /**
  * Utilisation (timesheets / capacity) — rolls every work item up by its assignee and, per person, sums
@@ -186,6 +188,7 @@ export function Utilisation() {
   const { formatNumber } = useT();
   const { projects, loading, isError, error, refetch } = usePortfolioItems();
   const { rows, totals } = useMemo(() => rollupUtilisation(projects), [projects]);
+  const { data: skills } = useSkillsPlanning();
   const h = (n: number) => `${formatNumber(n)}h`;
 
   return (
@@ -237,6 +240,7 @@ export function Utilisation() {
             reporting-period capacity of {PERIOD_CAPACITY_HOURS}h per person; a person is flagged Overloaded at/above {OVERLOAD_PCT}%
             and Under-utilised below {UNDER_PCT}%. Billable % is billable logged hours over total logged. Derived live; nothing is stored.
           </p>
+          <SkillsCapacity resources={skills?.matrix ?? []} demand={skills?.demand ?? []} />
         </div>
       )}
     </DataState>

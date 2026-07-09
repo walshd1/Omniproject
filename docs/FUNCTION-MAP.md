@@ -2489,6 +2489,10 @@ Setup-wizard + operations endpoints — backend/plane catalogues, workflow gener
 
 Provably-immutable snapshots.
 
+### `artifacts/api-server/src/routes/timesheets.ts`
+
+Timesheets API — entry + the submit/approve workflow, persisted BELOW the seam via the resolved `TimesheetStore` (self-host DB and/or backend, per docs/PPM-DEPTH.md).
+
 ### `artifacts/api-server/src/routes/tools.ts`
 
 Capability governance plane — the admin-set deployment state (off / user-defined / public, and per-surface for AI tools) of every AI tool, the MCP, AI providers and vendors (see lib/tools).
@@ -2561,6 +2565,26 @@ Self-host DB *setup wizard* — the pure state machine behind the wizard step th
 | `toConfig` | Project the wizard state into its persisted config. |
 | `configToOrgSelection` | Project a persisted config into the org-scope selection the capability-gating model consumes. |
 | `configToGatingInput` | Build a full `GatingInput` (org scope only) straight from a wizard config — the common case. |
+
+### `artifacts/api-server/src/timesheets/state-machine.ts`
+
+Timesheet workflow — the AUTHORITATIVE copy of the state machine, enforced in the gateway (the SPA has an optimistic mirror in lib/timesheet.ts, but transition rules — especially segregation of duties — can't be trusted to the client).
+
+| Function | What it does |
+| --- | --- |
+| `timesheetHours` | — |
+| `applyTimesheetAction` | — |
+
+### `artifacts/api-server/src/timesheets/store.ts`
+
+Timesheet STORE seam — where timesheets live is BELOW the seam (the operator's choice, per docs/PPM-DEPTH.md): the self-host DB when adoption is on, and/or a 3rd-party backend when it supports timesheets and it's enabled.
+
+| Function | What it does |
+| --- | --- |
+| `registerTimesheetStore` | Register the deployment's timesheet store provider (self-host / broker), at boot. |
+| `resetTimesheetStore` | Reset to no store — used by tests to isolate. |
+| `timesheetStoreFor` | The store for a scope, or null. |
+| `describeTimesheetSources` | Report which timesheet sources a deployment COULD use, for the UI to explain availability: - self-host: adoption is on (settings.selfHost.mode !== "off"); - backend: a backend-source provider is registered. |
 
 ## Backend catalogue (`lib/backend-catalogue`)
 

@@ -35,16 +35,22 @@ investment + coverage %. Rendered as an **OKR cascade** panel in Strategy Alignm
 
 `lib/skills-capacity.ts` + `SkillsCapacity` component. Matches role/skill-qualified supply against
 demand requests (proficiency-bar aware, senior-first) and surfaces the **unmet gap by skill** plus
-per-resource over-allocation. Skills/demand aren't canonical fields, so a deployment sources the
-matrix from backend role data or a config overlay; the component renders an honest empty state until
-one is wired.
+per-resource over-allocation. **Data source (wired):** skills aren't a canonical field, so the matrix
++ demand are PLANNING CONFIG in `settings.skillsPlanning` (like rate cards / priority weights) — read
+via `useSkillsPlanning`, admin/PMO edited, riding the snapshot. Rendered in the Utilisation report.
 
 ## M6 — Timesheets
 
 `lib/timesheet.ts` + `TimesheetPanel` component. Weekly time entry + a **submit → approve/reject →
 reopen** state machine with segregation-of-duties (no self-approval), and an actuals rollup
-(`timesheetActualsByProject`) that feeds utilisation / EVM `loggedHours`. Per the stateless overlay,
-persistence is brokered to the backend; the workflow + rollup logic is pure and here.
+(`timesheetActualsByProject`) that feeds utilisation / EVM `loggedHours`. **Data source (wired):**
+timesheets are transactional at-rest data, so they persist BELOW the seam via a resolved
+`TimesheetStore` — the self-host DB when adoption is on, and/or a 3rd-party backend when it supports
+timesheets and it's enabled. The gateway holds nothing: `/api/timesheets` enforces the authoritative
+state machine + RBAC (owner submits; manager+ approves; never self-approve) and delegates load/save to
+the store; when none is configured it answers an honest 409. Surfaced in the My Work page via
+`TimesheetReview`; the concrete store impls (self-host / broker) are injected at boot like the
+retention source.
 
 ## M3 — Stage-gate lifecycle
 
