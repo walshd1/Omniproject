@@ -11,6 +11,7 @@ import { assertSafeOutboundUrl, isSafeOutboundUrl, UnsafeUrlError } from "./url-
 import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "./deployment-profile";
 import type { BackendFieldMap } from "../broker/types";
 import type { GovernanceRule } from "./governance-rules";
+import { isValidCadence, type SnapshotCadence } from "../history/cadence";
 import { logger } from "./logger";
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
@@ -149,6 +150,27 @@ const SELF_HOST_MODES = ["off", "augmenting", "system-of-record"] as const;
 const DEFAULT_SELF_HOST: SelfHostConfig = { mode: "off", adopted: [], acknowledgedDataResponsibility: false };
 
 /**
+ * History-retention config — the snapshot cadence for the durable time-series behind trend analysis.
+ * Operator-confirmed posture: **infinite snapshot retention** (never pruned) and a **variable cadence
+ * gated by admin (the org default) + PMO (per-programme/project overrides)** — see history/cadence.
+ * Config only (cadence policy), never project data; rides the snapshot/export bundle.
+ */
+export interface HistoryRetentionSettings {
+  /** Admin: org-wide default cadence. */
+  orgDefault: SnapshotCadence;
+  /** PMO: per-programme cadence overrides, keyed by programmeId. */
+  programme: Record<string, SnapshotCadence>;
+  /** PMO/PM: per-project cadence overrides, keyed by projectId. */
+  project: Record<string, SnapshotCadence>;
+}
+
+const DEFAULT_HISTORY_RETENTION: HistoryRetentionSettings = {
+  orgDefault: { kind: "interval", everyHours: 24 },
+  programme: {},
+  project: {},
+};
+
+/**
  * A programme's or project's feature policy in the org→programme→project gating model. Disable-only
  * for the everyday narrowing, plus `required`/`forbidden` for PMO governance mandates ("must use" /
  * "must not use") — all resolved by lib/feature-resolution. Lists of catalogue ids (features ∪
@@ -197,6 +219,8 @@ export interface SettingsState {
   loggingSync: LoggingSyncConfig;
   /** Opt-in self-host DB adoption (off by default; needs a data-responsibility ack to enable). */
   selfHost: SelfHostConfig;
+  /** Snapshot cadence for durable history retention (admin org default + PMO scope overrides). */
+  historyRetention: HistoryRetentionSettings;
   /**
    * Admin translation-layer overrides: per-field / per-entity surface+store that
    * REPLACE the broker-derived/declared capability map. Lets an admin correct a
@@ -584,6 +608,7 @@ const store: SettingsState = {
   federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
   selfHost: { ...DEFAULT_SELF_HOST },
+  historyRetention: { ...DEFAULT_HISTORY_RETENTION },
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
   userPrefs: {},
@@ -625,6 +650,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "federatedPeers",
   "loggingSync",
   "selfHost",
+  "historyRetention",
   "fieldOverrides",
   "screenLayouts",
   "userPrefs",
@@ -910,6 +936,23 @@ function validateSelfHost(value: unknown): void {
   }
 }
 
+/** Validate the history-retention config: a valid org-default cadence plus per-scope override maps of
+ *  valid cadences. Retention is infinite by policy, so there's no window to validate — only cadence. */
+function validateHistoryRetention(value: unknown): void {
+  if (!value || typeof value !== "object") throw new SettingsValidationError("historyRetention must be an object");
+  const { orgDefault, programme, project } = value as Record<string, unknown>;
+  if (!isValidCadence(orgDefault)) {
+    throw new SettingsValidationError("historyRetention.orgDefault must be a valid cadence (onWrite | manual | interval{everyHours})");
+  }
+  for (const [name, map] of [["programme", programme], ["project", project]] as const) {
+    if (map === undefined) continue;
+    if (!map || typeof map !== "object") throw new SettingsValidationError(`historyRetention.${name} must be an object`);
+    for (const [key, cadence] of Object.entries(map as Record<string, unknown>)) {
+      if (!isValidCadence(cadence)) throw new SettingsValidationError(`historyRetention.${name}.${key} must be a valid cadence`);
+    }
+  }
+}
+
 /** Validate a settings patch and return a NORMALIZED copy (reportingCurrency upper-cased,
  *  fxRateAsOfDate/reportingCurrency empty-string coerced to null, …) — pure, never mutates the
  *  caller's `patch` object. Throws SettingsValidationError on bad input. */
@@ -990,6 +1033,7 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   if ("fieldOverrides" in patch) validateFieldOverrides(patch["fieldOverrides"]);
   if ("loggingSync" in patch) validateLoggingSync(patch["loggingSync"]);
   if ("selfHost" in patch) validateSelfHost(patch["selfHost"]);
+  if ("historyRetention" in patch) validateHistoryRetention(patch["historyRetention"]);
   return normalized;
 }
 

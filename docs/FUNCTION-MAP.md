@@ -381,6 +381,65 @@ Scatter a patch to each field's SINGLE writer — the write half of the tier.
 
 Composition-tier types — the vocabulary of the stateless "brain" that sits between the broker (north seam) and the store adapters (south seam).
 
+### `artifacts/api-server/src/history/cadence.ts`
+
+Snapshot cadence — HOW OFTEN the retention source materialises a snapshot, resolved across the org → programme → project hierarchy.
+
+| Function | What it does |
+| --- | --- |
+| `isValidCadence` | Structural validity of a cadence value (used by settings validation on untrusted input). |
+| `resolveCadence` | Resolve the effective cadence for a scope: project override ▸ programme override ▸ org default. |
+| `dueForSnapshot` | Is a fresh snapshot due, given the last snapshot's time and `now`? - `onWrite` ⇒ always (the caller invokes this on a transaction boundary); - `manual` ⇒ never automatically (baseline capture forces one out-of-band); - `interval` ⇒ when at least `everyHours` have elapsed (or there's no prior snapshot). |
+
+### `artifacts/api-server/src/history/index.ts`
+
+History retention — the durable time-series layer behind tracking + trend analysis.
+
+### `artifacts/api-server/src/history/journal.ts`
+
+The write half of retention: turn a write patch into append-only change-journal rows by diffing the new values against the prior state.
+
+| Function | What it does |
+| --- | --- |
+| `diffToJournal` | Diff `next` (the write patch) against `prev` (the entity's current stored values) into one journal entry per genuinely-changed field. |
+
+### `artifacts/api-server/src/history/retention.ts`
+
+The retention SOURCE seam — the one abstraction the gateway drives for durable history.
+
+| Function | What it does |
+| --- | --- |
+| `registerRetentionProvider` | Register the deployment's retention provider (the self-host source, in production). |
+| `resetRetentionProvider` | Reset to the default (no source) — used by tests to isolate. |
+| `retentionSourceFor` | The source for a scope, or null. |
+| `buildTrend` | Build a trend series for a scope: resolve the source, read its snapshots, compute the series. |
+| `recordWrite` | The write-path glue: on a write, append the field diffs to the journal and — if the cadence says a snapshot is due — materialise + persist one. |
+
+### `artifacts/api-server/src/history/snapshot.ts`
+
+The read half of retention: fold the append-only journal into point-in-time snapshots.
+
+| Function | What it does |
+| --- | --- |
+| `foldTo` | Apply every journal entry with `changedAt <= asOf`, in time order, over an optional base state. |
+| `materialiseSnapshot` | Materialise one entity's snapshot as of a time — the fold of its journal up to that instant. |
+| `snapshotsAtBoundaries` | Produce a snapshot at each boundary time (cadence.ts computes the boundaries), for one entity. |
+
+### `artifacts/api-server/src/history/trends.ts`
+
+Trend computation — turn a set of point-in-time snapshots into a bucketed `TrendSeries` for a metric.
+
+| Function | What it does |
+| --- | --- |
+| `bucketStart` | Truncate an ISO timestamp to the start of its bucket, in UTC. |
+| `bucketsIn` | The ordered bucket-start timestamps covering [from, to) at a grain. |
+| `computeSeries` | Compute a bucketed trend series for a metric over a window. |
+| `unavailableSeries` | An honest empty series for when no retention source can answer (history not yet retained). |
+
+### `artifacts/api-server/src/history/types.ts`
+
+History-retention vocabulary — the durable time-series layer that lets the self-host DB (or any retention source) answer "what did this look like on that date" and "how has this metric moved".
+
 ### `artifacts/api-server/src/index.ts`
 
 Server entrypoint.
