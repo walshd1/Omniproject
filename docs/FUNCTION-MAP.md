@@ -381,6 +381,15 @@ Scatter a patch to each field's SINGLE writer — the write half of the tier.
 
 Composition-tier types — the vocabulary of the stateless "brain" that sits between the broker (north seam) and the store adapters (south seam).
 
+### `artifacts/api-server/src/history/broker-source.ts`
+
+`BrokerRetentionSource` — the gateway's no-SDK bridge to the retention-broker service.
+
+| Function | What it does |
+| --- | --- |
+| `brokerRetentionSource` | A `RetentionSource` backed by the retention-broker HTTP service (no cloud SDK in this process). |
+| `registerBrokerRetentionFromEnv` | Register the broker retention provider from the environment. |
+
 ### `artifacts/api-server/src/history/cadence.ts`
 
 Snapshot cadence — HOW OFTEN the retention source materialises a snapshot, resolved across the org → programme → project hierarchy.

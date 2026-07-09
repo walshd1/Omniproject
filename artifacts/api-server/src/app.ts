@@ -35,6 +35,7 @@ import { requireTls } from "./lib/deployment-profile";
 import { stripDangerousKeys } from "./lib/safe-json";
 import { resolveTrustProxy } from "./lib/trust-proxy";
 import { configuredCorsOrigins } from "./lib/origin-allowlist";
+import { registerBrokerRetentionFromEnv } from "./history/broker-source";
 
 const app: Express = express();
 
@@ -88,6 +89,9 @@ export async function bootstrap(): Promise<void> {
   await initKms();
   loadSecurityState();
   await hydrateVault();
+  // Point durable history at the retention-broker when RETENTION_BROKER_URL is set (no-op otherwise);
+  // the gateway stays SDK-free — the broker process holds the cloud SDK. See history/broker-source.
+  registerBrokerRetentionFromEnv();
 }
 
 app.use(

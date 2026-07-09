@@ -10,3 +10,4 @@ export * from "./cadence";
 export * from "./trends";
 export * from "./retention";
 export * from "./connectors";
+export * from "./broker-source";
