@@ -23,6 +23,10 @@ import { PortfolioIncome } from "../components/reports/PortfolioIncome";
 import { PortfolioBenefits } from "../components/reports/PortfolioBenefits";
 import { PortfolioPrioritisation } from "../components/reports/PortfolioPrioritisation";
 import { StrategyAlignment } from "../components/reports/StrategyAlignment";
+import { ProjectHealth } from "../components/reports/ProjectHealth";
+import { DemandIntake } from "../components/reports/DemandIntake";
+import { Utilisation } from "../components/reports/Utilisation";
+import { ValueStreamFlow } from "../components/reports/ValueStreamFlow";
 import { BenefitsRealisationRollup } from "../components/reports/BenefitsRealisationRollup";
 import { CustomReportsProject, CustomReportsPortfolio } from "../components/reports/CustomReportsPanel";
 import { SnapshotVerifyPanel } from "../components/reports/SnapshotControls";
@@ -143,6 +147,22 @@ export function Reports() {
 
         <Gated caps={caps} domain="portfolio" title="Strategy Alignment" requires="a portfolio rollup (get_portfolio_health)" section heading="Strategy Alignment (strategy-to-execution / OKRs)">
           <StrategyAlignment />
+        </Gated>
+
+        <Gated caps={caps} domain="portfolio" title="Project Health" requires="a portfolio rollup (get_portfolio_health)" section heading="Project Health (predictive risk scoring)">
+          <ProjectHealth />
+        </Gated>
+
+        <Gated caps={caps} domain="portfolio" title="Demand Intake" requires="a portfolio rollup (get_portfolio_health)" section heading="Demand Intake (intake funnel & prioritisation)">
+          <DemandIntake />
+        </Gated>
+
+        <Gated caps={caps} domain="portfolio" title="Value Stream Flow" requires="a portfolio rollup (get_portfolio_health)" section heading="Value Stream Flow (WIP, aging, throughput & cycle time)">
+          <ValueStreamFlow />
+        </Gated>
+
+        <Gated caps={caps} domain="resources" title="Utilisation" requires="a resource-management source" section heading="Utilisation (timesheets & capacity)">
+          <Utilisation />
         </Gated>
 
         <Gated caps={caps} domain="scheduling" title="Portfolio Roadmap" requires="start / due dates on work items" section>
