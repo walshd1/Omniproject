@@ -902,6 +902,7 @@ const SAMPLE_SETTINGS = {
   webhooks: [],
   federatedPeers: [],
   loggingSync: { enabled: false, url: null, acknowledgedWarranty: false },
+  selfHost: { mode: "off" as const, adopted: [], acknowledgedDataResponsibility: false },
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
   userPrefs: {},

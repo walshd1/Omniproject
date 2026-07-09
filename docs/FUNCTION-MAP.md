@@ -344,6 +344,43 @@ Canonical value vocabularies — the cross-backend meanings the gateway reasons 
 | `financialHealthFrom` | RAG from cost performance: prefer CPI when earned value is known, else the spend ratio. |
 | `ragBuckets` | A zeroed RAG tally (e.g. for the Prometheus portfolio gauge). |
 
+### `artifacts/api-server/src/composition/combine.ts`
+
+A value counts as "present" unless it's null/undefined/empty-string (0 and false ARE present).
+
+| Function | What it does |
+| --- | --- |
+| `combine` | Combine every store's fragment into one record — the read half of the tier. |
+| `isPartial` | A record is PARTIAL when any field is `unavailable` — an owner was down, so the read is incomplete. |
+
+### `artifacts/api-server/src/composition/compositor.ts`
+
+The Compositor drives the tier over a set of south-seam `StoreAdapter`s.
+
+### `artifacts/api-server/src/composition/index.ts`
+
+Composition tier — the stateless, role-aware brain between the broker (north seam) and the store adapters (south seam).
+
+### `artifacts/api-server/src/composition/ownership.ts`
+
+Resolve, per field, who WRITES it and in what order it's READ — the pure plan the compositor drives.
+
+| Function | What it does |
+| --- | --- |
+| `resolveOwnership` | Resolve, per field, who WRITES it and in what order it's READ — the pure plan the compositor drives. |
+
+### `artifacts/api-server/src/composition/scatter.ts`
+
+Scatter a patch to each field's SINGLE writer — the write half of the tier.
+
+| Function | What it does |
+| --- | --- |
+| `scatter` | Scatter a patch to each field's SINGLE writer — the write half of the tier. |
+
+### `artifacts/api-server/src/composition/types.ts`
+
+Composition-tier types — the vocabulary of the stateless "brain" that sits between the broker (north seam) and the store adapters (south seam).
+
 ### `artifacts/api-server/src/index.ts`
 
 Server entrypoint.
@@ -2376,6 +2413,59 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 | --- | --- |
 | `securityTxt` | Build the RFC 9116 security.txt body, with a rolling one-year `Expires`. |
 
+### `artifacts/api-server/src/selfhost/adapter.ts`
+
+`SelfHostDbAdapter` — the composition-tier **south-seam** façade over the optional self-host database.
+
+### `artifacts/api-server/src/selfhost/capability-gating.ts`
+
+Self-host capability gating — turns an operator's adoption choices into (a) the set of self-host *domains* that are live for a scope, and (b) the `StoreCapability` the composition tier reads when it plans ownership.
+
+| Function | What it does |
+| --- | --- |
+| `roleForMode` | The role a self-host store takes in the composition precedence, per mode. |
+| `selfHostGates` | The self-host domains as feature-gates: core ⇒ default-on, everything else opt-in with its reason. |
+| `resolveGating` | Resolve which self-host domains are live for a scope. |
+| `buildSelfHostCapability` | Build the `StoreCapability` the composition tier reads for the self-host store. |
+| `domainRowsForScope` | The per-domain rows for a scope — the admin/wizard read model (a thin re-export of the gating rows). |
+
+### `artifacts/api-server/src/selfhost/domains.ts`
+
+Self-host DB *domains* — the unit an operator adopts when they let OmniProject's own database become a system-of-record (or an augmenting store) for a slice of the work-item superset.
+
+| Function | What it does |
+| --- | --- |
+| `selfHostGovernanceId` | The governed catalogue id for a domain — namespaced so it never clashes with a module id. |
+| `domainById` | Look a domain up by id (throws on an unknown id — ids are a closed set). |
+
+### `artifacts/api-server/src/selfhost/index.ts`
+
+Self-host DB adoption — the optional, gated feature that lets an operator with no existing PM tool make OmniProject's own database a system-of-record (or an augmenting store) for a slice of the work-item superset.
+
+### `artifacts/api-server/src/selfhost/runtime.ts`
+
+Self-host runtime bridge — the ONE place that turns persisted settings into a composition-tier `GatingInput` for a scope.
+
+| Function | What it does |
+| --- | --- |
+| `gatingInputFromSettings` | Turn live settings into a `GatingInput` for a scope — the runtime entry to `resolveGating`. |
+| `selfHostGatingForScope` | Resolve the live self-host gating for a scope, straight from settings. |
+
+### `artifacts/api-server/src/selfhost/setup-wizard.ts`
+
+Self-host DB *setup wizard* — the pure state machine behind the wizard step that lets a first-time operator (who has no existing PM tool) adopt OmniProject's own database, and behind the admin screen that later tunes it.
+
+| Function | What it does |
+| --- | --- |
+| `wizardReducer` | Pure reducer. |
+| `guardrails` | The four guardrails, evaluated against a state. |
+| `blockers` | The active blocking guardrails — non-empty ⇒ the wizard step cannot complete. |
+| `canComplete` | True when the wizard step may finish: `off` always completes; any adoption needs the ack. |
+| `holdsOnlyCopy` | Does the self-host DB hold the ONLY copy of some data under this state? True for any non-off adoption: system-of-record holds the sole copy of the whole adopted spine; augmenting holds the sole copy of the gap fields no backend covers. |
+| `toConfig` | Project the wizard state into its persisted config. |
+| `configToOrgSelection` | Project a persisted config into the org-scope selection the capability-gating model consumes. |
+| `configToGatingInput` | Build a full `GatingInput` (org scope only) straight from a wizard config — the common case. |
+
 ## Backend catalogue (`lib/backend-catalogue`)
 
 The seven vendor-neutral integration-plane registries (backends, brokers, outputs, notifications, methodologies, reports, screens) shared across the workspace.
@@ -2803,6 +2893,10 @@ Superset guard — enforces the invariant that every backend's field set is a st
 ### `scripts/src/guard-widget-coverage.ts`
 
 Widget-coverage guard — "every declared dashboard widget is built".
+
+### `scripts/src/guard-zero-at-rest-above-seam.ts`
+
+Zero-at-rest-above-the-seam guard.
 
 ### `scripts/src/hello.ts`
 

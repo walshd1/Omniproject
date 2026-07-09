@@ -221,6 +221,9 @@ jobs:
       - name: Verify compose deployment-safety invariants (compose guard)
         run: pnpm --filter @workspace/scripts run guard-compose
 
+      - name: Verify no persistence layer is imported above the south seam (zero-at-rest guard)
+        run: pnpm --filter @workspace/scripts run guard-zero-at-rest-above-seam
+
       - name: Build gateway
         run: pnpm --filter @workspace/api-server run build
 

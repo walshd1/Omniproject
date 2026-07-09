@@ -35,6 +35,7 @@ import { recordAudit } from "../lib/audit";
 import { getSession, baseUrl } from "./auth";
 import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus, buildPublicSetupStatus } from "../lib/setup-status";
+import { selfHostGatingForScope } from "../selfhost";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
 import { bootRefusalActive } from "../lib/security-check";
 import { brokerMtlsConfigured } from "../lib/broker-transport";
@@ -160,6 +161,43 @@ router.post("/setup/profile", requireRole("admin"), (req, res) => {
   }
   updateSettings({ deploymentProfile: profile });
   res.json({ profile: deploymentProfile(), posture: profilePosture(), tls: { servedOverTls: requireTls() } });
+});
+
+// GET /api/setup/self-host — the current self-host DB adoption + its resolved domain gating for a
+// scope (admin/PMO). Programme/project narrowing reuses the existing governance maps, so the admin
+// screen sees the same resolution the composition tier runs. Read-only; never project data.
+router.get("/setup/self-host", requireAnyRole("admin", "pmo"), (req, res) => {
+  const config = getSettings().selfHost;
+  const programmeId = (req.query["programmeId"] as string | undefined)?.trim() || null;
+  const projectId = (req.query["projectId"] as string | undefined)?.trim() || null;
+  const gating = selfHostGatingForScope({ programmeId, projectId });
+  res.json({
+    config,
+    mode: gating.mode,
+    holdsOnlyCopy: config.mode !== "off",
+    domains: gating.rows,
+    enabledDomains: [...gating.enabledDomainIds],
+  });
+});
+
+// POST /api/setup/self-host — adopt (or turn off) the self-host DB from the wizard/admin (admin).
+// The "disclose, don't insure" gate lives in `updateSettings` → `validateSelfHost`: a non-off mode
+// without the data-responsibility acknowledgement is rejected (400), so this can never persist an
+// un-acknowledged adoption. Persisting rides the config bundle like any other setting.
+router.post("/setup/self-host", requireRole("admin"), (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const mode = typeof body["mode"] === "string" ? body["mode"] : "off";
+  const adopted = Array.isArray(body["adopted"]) ? body["adopted"].filter((x): x is string => typeof x === "string") : [];
+  const ack = body["acknowledgedDataResponsibility"] === true;
+  try {
+    updateSettings({ selfHost: { mode, adopted, acknowledgedDataResponsibility: ack } });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "invalid self-host config" });
+    return;
+  }
+  const config = getSettings().selfHost;
+  const gating = selfHostGatingForScope();
+  res.json({ config, domains: gating.rows, enabledDomains: [...gating.enabledDomainIds], holdsOnlyCopy: config.mode !== "off" });
 });
 
 // POST /api/setup/charity-onboarding — the "We're a charity" one-click preset (admin). Selects
