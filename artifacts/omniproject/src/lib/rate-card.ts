@@ -213,6 +213,19 @@ export interface ColumnTotal {
   total: number;
 }
 
+/** Internal staff cost derived from APPROVED timesheets (approved hours × the same rate card),
+ *  reported alongside the backend-logged cost. Present only when a timesheet store is configured;
+ *  carries the core roll-up (no project type / value columns — it's the actuals view of tracked time). */
+export interface TimesheetActuals {
+  internalCost: number;
+  clientCost: number;
+  totalCost: number;
+  charge: number;
+  margin: number;
+  unratedHours: number;
+  byTitle: StaffCostRow[];
+}
+
 /** The server-side staff time-and-cost roll-up for one project (aggregated; carries no rates). */
 export interface StaffCost {
   internalCost: number;
@@ -229,6 +242,8 @@ export interface StaffCost {
   columns: ColumnTotal[];
   /** Ids of the general cost rules that fired for this project (margin/overhead overrides applied). */
   appliedCostRules: string[];
+  /** Internal staff cost from approved timesheets, when a timesheet store is configured (else absent). */
+  timesheetActuals?: TimesheetActuals;
 }
 
 /** React Query cache key for a project's staff time-and-cost roll-up. */

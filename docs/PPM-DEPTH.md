@@ -52,6 +52,15 @@ the store; when none is configured it answers an honest 409. Surfaced in the My 
 `TimesheetReview`; the concrete store impls (self-host / broker) are injected at boot like the
 retention source.
 
+**Staff-cost actuals (wired):** approved timesheets feed the internal staff-cost figure.
+`timesheets/actuals.ts` sums **approved** hours per resource for a project (draft/submitted excluded)
+and turns them into synthetic internal-time items, which flow through the same `staffCost` math (rate
+card + hashed identity map) as the backend-logged cost. The staff-cost endpoint returns this as
+`timesheetActuals` **alongside** the logged cost (never replacing it) when a timesheet store is
+resolved, so the PMO can compare "what the tracked, approved time actually cost" to logged effort.
+Rendered as a *Timesheet actuals* card in the Staff Time & Cost report. Nothing is stored — it reads
+the store below the seam and derives live.
+
 ## M3 — Stage-gate lifecycle
 
 `lib/stage-gate.ts` + `StageGatePanel` component. A project advances through an ordered, configurable

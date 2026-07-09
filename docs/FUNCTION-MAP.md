@@ -2566,6 +2566,15 @@ Self-host DB *setup wizard* — the pure state machine behind the wizard step th
 | `configToOrgSelection` | Project a persisted config into the org-scope selection the capability-gating model consumes. |
 | `configToGatingInput` | Build a full `GatingInput` (org scope only) straight from a wizard config — the common case. |
 
+### `artifacts/api-server/src/timesheets/actuals.ts`
+
+Timesheet ACTUALS — turn approved timesheets into the internal staff-cost figure.
+
+| Function | What it does |
+| --- | --- |
+| `approvedHoursByResource` | Sum APPROVED timesheet hours per resource for one project (draft/submitted excluded). |
+| `approvedItemsFrom` | Synthetic internal-time work items (one per resource) so approved hours flow through `staffCost`. |
+
 ### `artifacts/api-server/src/timesheets/state-machine.ts`
 
 Timesheet workflow — the AUTHORITATIVE copy of the state machine, enforced in the gateway (the SPA has an optimistic mirror in lib/timesheet.ts, but transition rules — especially segregation of duties — can't be trusted to the client).
