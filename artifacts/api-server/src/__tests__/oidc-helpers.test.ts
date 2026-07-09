@@ -10,6 +10,12 @@ import crypto from "node:crypto";
  *
  * discover/exchangeCode/verifyIdToken all take their config explicitly, so they
  * don't depend on the module-load-time OIDC_* env that other test files set.
+ *
+ * discover()/exchangeCode() now route through the egress guard (safeFetch), which
+ * DNS-resolves any non-IP hostname and fails closed. So the network-touching cases
+ * below use loopback-IP issuer/token hosts (net.isIP ≠ 0 ⇒ the guard skips DNS, and
+ * loopback isn't in the blocked link-local/metadata range) while still hitting the
+ * mocked globalThis.fetch — keeping them pure unit tests with the guard satisfied.
  */
 const oidc = await import("../lib/oidc");
 const {
@@ -100,7 +106,7 @@ test("decodeIdTokenClaims throws on an undecodable payload (post-verification de
 test("discover throws on a non-ok discovery response", async () => {
   globalThis.fetch = (async () => new Response("nope", { status: 404 })) as typeof fetch;
   await assert.rejects(
-    () => discover({ ...CONFIG, issuerUrl: "https://idp2.test" }),
+    () => discover({ ...CONFIG, issuerUrl: "https://127.0.0.2" }),
     /OIDC discovery failed \(404\)/,
   );
 });
@@ -109,7 +115,7 @@ test("discover throws when required endpoints are missing", async () => {
   globalThis.fetch = (async () =>
     new Response(JSON.stringify({ issuer: "x" }), { status: 200 })) as typeof fetch;
   await assert.rejects(
-    () => discover({ ...CONFIG, issuerUrl: "https://idp3.test" }),
+    () => discover({ ...CONFIG, issuerUrl: "https://127.0.0.3" }),
     /missing required endpoints/,
   );
 });
@@ -127,9 +133,9 @@ test("discover fetches the well-known document (and caches it)", async () => {
     return new Response(JSON.stringify(doc), { status: 200 });
   }) as typeof fetch;
 
-  const result = await discover(CONFIG);
+  const result = await discover({ ...CONFIG, issuerUrl: "https://127.0.0.1" });
   assert.equal(result.token_endpoint, "https://idp.test/token");
-  assert.match(calls[0]!, /\/\.well-known\/openid-configuration$/);
+  assert.match(calls[0]!, /^https:\/\/127\.0\.0\.1\/\.well-known\/openid-configuration$/);
 });
 
 // ── exchangeCode ──────────────────────────────────────────────────────────────
@@ -143,14 +149,14 @@ test("exchangeCode posts the code and returns the token response", async () => {
 
   const tokens = await exchangeCode({
     config: CONFIG,
-    discovery: { authorization_endpoint: "https://idp.test/auth", token_endpoint: "https://idp.test/token" },
+    discovery: { authorization_endpoint: "https://idp.test/auth", token_endpoint: "https://127.0.0.1/token" },
     code: "the-code",
     redirectUri: "https://app/callback",
     codeVerifier: "verifier",
   });
   assert.equal(tokens.access_token, "at");
   assert.equal(tokens.id_token, "it");
-  assert.equal(seen!.url, "https://idp.test/token");
+  assert.equal(seen!.url, "https://127.0.0.1/token");
   assert.match(seen!.body, /grant_type=authorization_code/);
   assert.match(seen!.body, /code=the-code/);
 });
@@ -161,7 +167,7 @@ test("exchangeCode throws with the upstream status on failure", async () => {
     () =>
       exchangeCode({
         config: CONFIG,
-        discovery: { authorization_endpoint: "a", token_endpoint: "https://idp.test/token" },
+        discovery: { authorization_endpoint: "a", token_endpoint: "https://127.0.0.1/token" },
         code: "x",
         redirectUri: "y",
         codeVerifier: "z",

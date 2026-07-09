@@ -610,6 +610,14 @@ Action audit logging.
 | `actorForAudit` | The audit `actor` field for a request — the session's sub + a display role, or `null` when unauthenticated. |
 | `auditStatus` | Status for the setup/diagnostics view. |
 
+### `artifacts/api-server/src/lib/auth-config.ts`
+
+Is the gateway running in DEMO auth mode — i.e. NO real authentication method is configured at all?
+
+| Function | What it does |
+| --- | --- |
+| `isDemoAuth` | Is the gateway running in DEMO auth mode — i.e. NO real authentication method is configured at all? |
+
 ### `artifacts/api-server/src/lib/autonomous-grant.ts`
 
 Autonomous WRITE authorisation — the hard limit that stops an autonomous session being a backdoor.

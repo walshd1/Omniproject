@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { verifyIdToken as jwksVerify } from "./jwks";
 import { assertSafeOutboundUrl } from "./url-safety";
+import { safeFetch } from "./egress";
 
 /**
  * Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
@@ -177,7 +178,9 @@ export async function discover(config: OidcConfig): Promise<OidcDiscovery> {
   if (cached && Date.now() - cached.at < DISCOVERY_TTL_MS) return cached.doc;
   const url = `${config.issuerUrl}/.well-known/openid-configuration`;
   assertSafeOutboundUrl(url, "OIDC issuer");
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  // safeFetch re-checks after DNS resolution (blocks an issuer host that resolves to a metadata/
+  // link-local/private IP) and enforces the residency egress gate on the IdP hop.
+  const res = await safeFetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     throw new Error(`OIDC discovery failed (${res.status}) at ${url}`);
   }
@@ -260,9 +263,11 @@ export async function exchangeCode(params: {
     code_verifier: params.codeVerifier,
   });
 
-  // token_endpoint comes from the issuer's discovery doc (IdP-controlled) — guard it too.
+  // token_endpoint comes from the issuer's discovery doc (IdP-controlled) — guard it too, and
+  // resolve-then-check + residency-gate via safeFetch so the client_secret can't be POSTed to a
+  // host that resolves to cloud metadata.
   assertSafeOutboundUrl(params.discovery.token_endpoint, "token_endpoint");
-  const res = await fetch(params.discovery.token_endpoint, {
+  const res = await safeFetch(params.discovery.token_endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,

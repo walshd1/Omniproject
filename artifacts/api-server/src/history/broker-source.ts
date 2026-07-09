@@ -9,6 +9,7 @@
 import type { EntitySnapshot, HistoryEntry, TimeWindow } from "./types";
 import type { RetentionSource, RetentionScope, RetentionProvider } from "./retention";
 import { registerRetentionProvider } from "./retention";
+import { safeFetch } from "../lib/egress";
 
 export interface BrokerRetentionOptions {
   /** Base URL of the retention-broker service (e.g. http://retention-broker:8090). */
@@ -23,7 +24,10 @@ export interface BrokerRetentionOptions {
 
 /** POST one retention op to the broker and parse its JSON reply. */
 async function call<T>(opts: BrokerRetentionOptions, op: string, body: unknown): Promise<T> {
-  const doFetch = opts.fetchImpl ?? fetch;
+  // Default to safeFetch so the broker hop honours the egress/SSRF/residency guard like every other
+  // outbound call; tests still inject fetchImpl. The comment about the stale RETENTION-CONNECTORS doc
+  // was fixed to RETENTION.md above.
+  const doFetch = opts.fetchImpl ?? safeFetch;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 10_000);
   try {

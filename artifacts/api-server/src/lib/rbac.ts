@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { getSession } from "../routes/auth";
 import { directoryDecision } from "./scim";
 import { parseCommaSet } from "./env";
+import { isDemoAuth } from "./auth-config";
 
 /**
  * Role-based access control.
@@ -259,7 +260,7 @@ export function grantsForReq(req: Request): Grants {
   // No session → read-only API tokens (and unauthenticated callers) are viewers.
   if (!sd) return { base: "viewer", authorities: new Set<Authority>() };
   const { session, decision } = sd;
-  const isDemo = !process.env["OIDC_ISSUER_URL"]?.trim();
+  const isDemo = isDemoAuth();
   // A SCIM-provisioned user's group memberships are merged in as extra role claims, so the
   // IdP's group→role assignment flows through without re-issuing OIDC claims.
   const claims = decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
