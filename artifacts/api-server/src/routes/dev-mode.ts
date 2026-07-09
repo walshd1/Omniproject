@@ -2,6 +2,7 @@ import { Router } from "express";
 import { backendCatalogue } from "@workspace/backend-catalogue";
 import { devModeStatus, isDevMode } from "../lib/dev-mode";
 import { requireRole, roleFromClaims } from "../lib/rbac";
+import { isDemoAuth } from "../lib/auth-config";
 import { requireStepUp } from "../lib/step-up";
 import { getDevBrokerConfig, setDevBrokerConfig, DEV_DATA_SOURCES, type DevDataSource } from "../broker/dev-broker";
 import { resetBroker } from "../broker";
@@ -141,8 +142,6 @@ router.post("/dev-mode/messy", requireDevMode, requireRole("admin"), (req, res) 
 // Auth bypass for reproducing role-specific issues. Hard-gated: dev only; the
 // REAL caller must be admin; a reason is required (the UI approval dialog); and it
 // expires (IMPERSONATION_TTL_MS). Every start/stop is audited with the reason.
-
-const isDemoAuth = () => !process.env["OIDC_ISSUER_URL"]?.trim();
 
 /** Is the REAL caller (ignoring impersonation) an admin? */
 function isRealAdmin(req: import("express").Request): boolean {

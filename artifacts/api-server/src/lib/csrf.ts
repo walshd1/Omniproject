@@ -85,7 +85,9 @@ export function ensureCsrfCookie(req: Request, res: Response): void {
 
 /** The CSRF guard middleware (mount after cookieParser + slideSession). */
 export function csrfGuard(req: Request, res: Response, next: NextFunction): void {
-  if (SAFE.has(req.method) || disabled() || !req.path.startsWith("/api")) { next(); return; }
+  // Case-insensitive `/api` match: Express routes case-insensitively by default, so `/API/...` still
+  // reaches a mutation handler — the guard's scope filter must agree or it silently skips CSRF there.
+  if (SAFE.has(req.method) || disabled() || !req.path.toLowerCase().startsWith("/api")) { next(); return; }
   // Only ambient-cookie requests are CSRF-able; bearer/secret callers carry no session cookie.
   if (!req.signedCookies?.[SESSION_COOKIE]) { next(); return; }
 
