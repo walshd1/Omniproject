@@ -130,6 +130,25 @@ export interface LoggingSyncConfig {
 const DEFAULT_LOGGING_SYNC: LoggingSyncConfig = { enabled: false, url: null, acknowledgedWarranty: false };
 
 /**
+ * Self-host DB adoption — the operator's choice to let OmniProject's OWN database become a
+ * system-of-record (or an augmenting store) for a slice of the work-item superset. Same "disclose,
+ * don't insure" trust class as `loggingSync`: adopting it moves the only copy of some data into
+ * infrastructure OmniProject neither operates nor backs up nor warrants, so it can only be turned on
+ * with an explicit data-responsibility acknowledgement. `adopted` is the org-level opt-in set of
+ * gated `selfhost:<domain>` domains (core domains are implicit). See selfhost/setup-wizard.
+ */
+export interface SelfHostConfig {
+  mode: "off" | "augmenting" | "system-of-record";
+  /** Gated domain ids opted into at org level (e.g. "financials", "quality"). Core is implicit. */
+  adopted: string[];
+  /** The admin acknowledged that self-host data is theirs to own, secure and back up. */
+  acknowledgedDataResponsibility: boolean;
+}
+
+const SELF_HOST_MODES = ["off", "augmenting", "system-of-record"] as const;
+const DEFAULT_SELF_HOST: SelfHostConfig = { mode: "off", adopted: [], acknowledgedDataResponsibility: false };
+
+/**
  * A programme's or project's feature policy in the org→programme→project gating model. Disable-only
  * for the everyday narrowing, plus `required`/`forbidden` for PMO governance mandates ("must use" /
  * "must not use") — all resolved by lib/feature-resolution. Lists of catalogue ids (features ∪
@@ -176,6 +195,8 @@ export interface SettingsState {
   federatedPeers: PeerInstance[];
   /** Opt-in state-history egress to an operator-owned logging server (off by default). */
   loggingSync: LoggingSyncConfig;
+  /** Opt-in self-host DB adoption (off by default; needs a data-responsibility ack to enable). */
+  selfHost: SelfHostConfig;
   /**
    * Admin translation-layer overrides: per-field / per-entity surface+store that
    * REPLACE the broker-derived/declared capability map. Lets an admin correct a
@@ -562,6 +583,7 @@ const store: SettingsState = {
   webhooks: webhooksFromEnv(),
   federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
+  selfHost: { ...DEFAULT_SELF_HOST },
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
   userPrefs: {},
@@ -602,6 +624,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "webhooks",
   "federatedPeers",
   "loggingSync",
+  "selfHost",
   "fieldOverrides",
   "screenLayouts",
   "userPrefs",
@@ -865,6 +888,28 @@ function validateLoggingSync(value: unknown): void {
   }
 }
 
+/** Validate the opt-in self-host adoption config: a valid mode, a string[] of adopted domain ids,
+ *  and — the "disclose, don't insure" gate — an explicit acknowledgement whenever the mode isn't
+ *  `off`. A non-off mode without the acknowledgement is rejected, mirroring `validateLoggingSync`. */
+function validateSelfHost(value: unknown): void {
+  if (!value || typeof value !== "object") throw new SettingsValidationError("selfHost must be an object");
+  const { mode, adopted, acknowledgedDataResponsibility } = value as Record<string, unknown>;
+  if (!(SELF_HOST_MODES as readonly string[]).includes(mode as string)) {
+    throw new SettingsValidationError(`selfHost.mode must be one of: ${SELF_HOST_MODES.join(", ")}`);
+  }
+  if (!Array.isArray(adopted) || adopted.some((x) => typeof x !== "string")) {
+    throw new SettingsValidationError("selfHost.adopted must be an array of strings");
+  }
+  if (typeof acknowledgedDataResponsibility !== "boolean") {
+    throw new SettingsValidationError("selfHost.acknowledgedDataResponsibility must be a boolean");
+  }
+  if (mode !== "off" && acknowledgedDataResponsibility !== true) {
+    throw new SettingsValidationError(
+      "enabling self-host storage requires acknowledging that the data is yours to own, secure and back up (outside OmniProject's warranty)",
+    );
+  }
+}
+
 /** Validate a settings patch and return a NORMALIZED copy (reportingCurrency upper-cased,
  *  fxRateAsOfDate/reportingCurrency empty-string coerced to null, …) — pure, never mutates the
  *  caller's `patch` object. Throws SettingsValidationError on bad input. */
@@ -944,6 +989,7 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   if ("dashboards" in patch) validateDashboards(patch["dashboards"]);
   if ("fieldOverrides" in patch) validateFieldOverrides(patch["fieldOverrides"]);
   if ("loggingSync" in patch) validateLoggingSync(patch["loggingSync"]);
+  if ("selfHost" in patch) validateSelfHost(patch["selfHost"]);
   return normalized;
 }
 

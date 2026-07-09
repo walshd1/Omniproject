@@ -9,8 +9,8 @@ import type { ConditionSet } from "./rate-card";
  */
 export type GateLevel = "org" | "programme" | "project";
 
-/** The catalogue item kind: a toggleable module, a report surface, or a methodology. */
-export type GovernanceKind = "module" | "report" | "methodology";
+/** The catalogue item kind: a toggleable module, a report surface, a methodology, or a self-host domain. */
+export type GovernanceKind = "module" | "report" | "methodology" | "selfhost";
 
 export interface FeatureStatus {
   id: string;

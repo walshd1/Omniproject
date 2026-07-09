@@ -127,6 +127,17 @@ test("loggingSync: object with a safe url; enabling needs url + warranty ack", (
   updateSettings({ loggingSync: { enabled: false, url: null, acknowledgedWarranty: false } });
 });
 
+test("selfHost: valid mode + string[] adopted; a non-off mode needs the data-responsibility ack", () => {
+  throws({ selfHost: "nope" });
+  throws({ selfHost: { mode: "bogus", adopted: [], acknowledgedDataResponsibility: false } }); // bad mode
+  throws({ selfHost: { mode: "off", adopted: [1], acknowledgedDataResponsibility: false } }); // non-string id
+  throws({ selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: "yes" } }); // non-boolean ack
+  throws({ selfHost: { mode: "system-of-record", adopted: ["financials"], acknowledgedDataResponsibility: false } }); // no ack
+  assert.doesNotThrow(() => updateSettings({ selfHost: { mode: "augmenting", adopted: ["quality"], acknowledgedDataResponsibility: true } }));
+  // Reset back off so it doesn't leak into other tests.
+  updateSettings({ selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: false } });
+});
+
 test("redactSettingsForRead masks webhook secrets and peer tokens", () => {
   updateSettings({
     webhooks: [{ id: "w", url: "https://example.com/h", secret: "topsecret", events: ["*"], active: true }],
