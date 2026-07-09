@@ -9,3 +9,4 @@ export * from "./snapshot";
 export * from "./cadence";
 export * from "./trends";
 export * from "./retention";
+export * from "./connectors";

@@ -39,6 +39,12 @@ const FORBIDDEN = [
   "mongodb", "mongoose",
   // embedded key-value / on-disk stores
   "redis", "ioredis", "level", "levelup", "leveldown", "lmdb", "node-persist",
+  // cloud object stores / NoSQL / warehouses — the retention connectors are pure logic over an
+  // injected port; their SDK-backed ports live in the operator's broker/boot layer, never here.
+  "@aws-sdk/client-s3", "@aws-sdk/client-dynamodb", "@aws-sdk/lib-dynamodb", "aws-sdk",
+  "@google-cloud/storage", "@google-cloud/bigquery", "@google-cloud/firestore",
+  "@azure/storage-blob", "@azure/cosmos", "@azure/data-tables",
+  "@snowflake/sdk", "snowflake-sdk",
 ];
 
 /** Extract the imported module specifier from an import/require/dynamic-import line. */

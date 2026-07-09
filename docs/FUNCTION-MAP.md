@@ -391,6 +391,34 @@ Snapshot cadence — HOW OFTEN the retention source materialises a snapshot, res
 | `resolveCadence` | Resolve the effective cadence for a scope: project override ▸ programme override ▸ org default. |
 | `dueForSnapshot` | Is a fresh snapshot due, given the last snapshot's time and `now`? - `onWrite` ⇒ always (the caller invokes this on a transaction boundary); - `manual` ⇒ never automatically (baseline capture forces one out-of-band); - `interval` ⇒ when at least `everyHours` have elapsed (or there's no prior snapshot). |
 
+### `artifacts/api-server/src/history/connectors/index.ts`
+
+Retention connectors — pluggable `RetentionSource` implementations for the common cloud stores, each pure logic over an injected client port (no cloud SDK above the seam).
+
+### `artifacts/api-server/src/history/connectors/object-store.ts`
+
+Object-store retention connector — a `RetentionSource` backed by an S3-compatible object store (AWS S3, GCS, Azure Blob, MinIO — they share the same put/get/list key-value model).
+
+| Function | What it does |
+| --- | --- |
+| `objectStoreRetentionSource` | Build a `RetentionSource` over an object store. |
+
+### `artifacts/api-server/src/history/connectors/table-store.ts`
+
+Table-store retention connector — a `RetentionSource` backed by a DynamoDB-style key-value table (also fits Azure Cosmos, Cassandra/Scylla, any single-table PK+SK store).
+
+| Function | What it does |
+| --- | --- |
+| `tableStoreRetentionSource` | Build a `RetentionSource` over a single DynamoDB-style table. |
+
+### `artifacts/api-server/src/history/connectors/warehouse.ts`
+
+Warehouse retention connector — a `RetentionSource` backed by a columnar analytics warehouse (BigQuery; also fits Snowflake, Redshift, ClickHouse).
+
+| Function | What it does |
+| --- | --- |
+| `warehouseRetentionSource` | Build a `RetentionSource` over a warehouse. |
+
 ### `artifacts/api-server/src/history/index.ts`
 
 History retention — the durable time-series layer behind tracking + trend analysis.
