@@ -1,0 +1,42 @@
+# AWS EKS quickstart overlay for the OmniProject shell.
+#   helm upgrade --install omniproject deploy/helm/omniproject \
+#     -f deploy/helm/omniproject/values-eks.yaml \
+#     --set config.PUBLIC_URL=https://app.example.com \
+#     --set-file secret.data.SESSION_SECRET=<(openssl rand -hex 32)
+# See docs/CLOUD-HOSTING.md.
+
+# The AWS Load Balancer Controller provisions an internet-facing ALB from the Ingress.
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    # Terminate TLS at the ALB with an ACM cert (replace the ARN):
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:REGION:ACCOUNT:certificate/ID
+  hosts:
+    - host: app.example.com
+      paths: [{ path: /, pathType: Prefix }]
+  tls: []  # TLS terminated at the ALB via ACM; no in-cluster Secret needed.
+
+# IRSA: bind the pod to an IAM role so the retention connectors' SDK-backed port (S3/DynamoDB) uses
+# short-lived, keyless credentials. Create the role + trust policy, then set its ARN here.
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/omniproject-retention
+
+# EBS gp3 for the (optional) config PVC.
+persistence:
+  storageClassName: gp3
+
+autoscaling:
+  enabled: false  # enable AFTER setting config.REDIS_URL (e.g. ElastiCache) — see values.yaml.
+
+config:
+  # BYOK envelope keys via AWS KMS (the gateway already supports KMS_PROVIDER=aws).
+  KMS_PROVIDER: "aws"
+  # Point retention at S3 and/or DynamoDB in your broker/boot layer; the region is read by the SDK port.
+  AWS_REGION: "us-east-1"

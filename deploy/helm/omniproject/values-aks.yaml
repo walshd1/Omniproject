@@ -1,0 +1,42 @@
+# Azure AKS quickstart overlay for the OmniProject shell.
+#   helm upgrade --install omniproject deploy/helm/omniproject \
+#     -f deploy/helm/omniproject/values-aks.yaml \
+#     --set config.PUBLIC_URL=https://app.example.com \
+#     --set-file secret.data.SESSION_SECRET=<(openssl rand -hex 32)
+# See docs/CLOUD-HOSTING.md.
+
+# The AKS Application Gateway Ingress Controller (AGIC) fronts the shell. (nginx works too — swap the
+# className + annotations for the default values.yaml ingress block.)
+ingress:
+  enabled: true
+  className: azure-application-gateway
+  annotations:
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: app.example.com
+      paths: [{ path: /, pathType: Prefix }]
+  tls:
+    - secretName: omniproject-tls
+      hosts: [app.example.com]
+
+# Workload Identity: federate the KSA to a Microsoft Entra managed identity so the retention
+# connectors' SDK-backed port (Blob/Cosmos) uses keyless credentials. Annotate + label per the
+# azure-workload-identity docs, then set the client id here.
+serviceAccount:
+  create: true
+  annotations:
+    azure.workload.identity/client-id: "MANAGED_IDENTITY_CLIENT_ID"
+podLabels:
+  azure.workload.identity/use: "true"
+
+# Azure managed CSI disk for the (optional) config PVC.
+persistence:
+  storageClassName: managed-csi
+
+autoscaling:
+  enabled: false  # enable AFTER setting config.REDIS_URL (e.g. Azure Cache for Redis) — see values.yaml.
+
+config:
+  # BYOK envelope keys via Azure Key Vault (the gateway already supports KMS_PROVIDER=azure).
+  KMS_PROVIDER: "azure"
