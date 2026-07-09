@@ -2,7 +2,8 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   peerColor, toPeer, roomSnapshot, joinRoom, setEditing, presenceStats,
-  closeAllPresence, _resetPresenceForTest, LOCK_TTL_MS, type PresencePeer,
+  closeAllPresence, _resetPresenceForTest, foldRemotePresence, localPresenceForHeartbeat,
+  registerPresencePublisher, LOCK_TTL_MS, PEER_TTL_MS, type PresencePeer, type PresenceEvent,
 } from "./presence-hub";
 
 /**
@@ -75,4 +76,93 @@ test("presenceStats counts rooms and connections; closeAllPresence drains them",
 
 test("roomSnapshot of an unknown room is empty (idle rooms cost nothing)", () => {
   assert.deepEqual(roomSnapshot("nobody-here", Date.now()), []);
+});
+
+// --- Fleet-awareness (opt-in): remote peers folded from the presence bus. Deterministic `now`. ---
+
+/** Build a publishable peer upsert for a remote replica's peer. */
+function remoteUpsert(roomId: string, peer: Partial<PresencePeer> & { cid: string }): PresenceEvent {
+  return {
+    kind: "upsert", roomId, cid: peer.cid,
+    peer: { cid: peer.cid, sub: peer.sub ?? peer.cid, label: peer.label ?? peer.cid, color: peer.color ?? "#000", editing: peer.editing ?? null, editingAt: peer.editingAt ?? 0 },
+  };
+}
+
+test("a local mutation publishes exactly one event to a registered publisher", () => {
+  const seen: PresenceEvent[] = [];
+  registerPresencePublisher((ev) => seen.push(ev));
+  const a = sink();
+  const leave = joinRoom({ roomId: "r1", cid: "a", sub: "u1", label: "Ada", send: a.send }, 0);
+  assert.deepEqual(seen.map((e) => e.kind), ["upsert"]);      // join → 1 upsert
+  setEditing("r1", "a", "status", 1000);
+  assert.deepEqual(seen.map((e) => e.kind), ["upsert", "upsert"]); // editing-change → 1 more
+  leave();
+  assert.deepEqual(seen.map((e) => e.kind), ["upsert", "upsert", "leave"]); // leave → 1 leave
+  assert.equal(seen.at(-1)?.cid, "a");
+});
+
+test("foldRemotePresence merges a remote peer into the roster and re-fans to local sockets", () => {
+  const a = sink();
+  joinRoom({ roomId: "r1", cid: "a", sub: "u1", label: "Ada", send: a.send }, 0);
+  const before = a.events.length;
+  foldRemotePresence(remoteUpsert("r1", { cid: "b", label: "Bo" }), 0);
+  // The local roster now shows both peers…
+  assert.equal(roomSnapshot("r1", 0).map((p) => p.cid).sort().join(","), "a,b");
+  // …and the local socket was re-broadcast the merged snapshot (no re-publish involved).
+  assert.equal(a.events.length, before + 1);
+  const last = a.events.at(-1)?.data as { peers: PresencePeer[] };
+  assert.equal(last.peers.length, 2);
+});
+
+test("foldRemotePresence does NOT re-publish (loop-safe): folding fires no publisher", () => {
+  const seen: PresenceEvent[] = [];
+  registerPresencePublisher((ev) => seen.push(ev));
+  foldRemotePresence(remoteUpsert("r1", { cid: "b" }), 0);
+  assert.deepEqual(seen, []); // a folded remote event must never bounce back onto the bus
+});
+
+test("a remote leave removes the remote peer from the roster", () => {
+  foldRemotePresence(remoteUpsert("r1", { cid: "b" }), 0);
+  assert.equal(roomSnapshot("r1", 0).length, 1);
+  foldRemotePresence({ kind: "leave", roomId: "r1", cid: "b" }, 0);
+  assert.equal(roomSnapshot("r1", 0).length, 0);
+});
+
+test("a remote editing claim is carried and expires against the local clock", () => {
+  foldRemotePresence(remoteUpsert("r1", { cid: "b", editing: "status", editingAt: 1000 }), 1000);
+  assert.equal(roomSnapshot("r1", 1000 + LOCK_TTL_MS - 1).find((p) => p.cid === "b")?.editing, "status");
+  assert.equal(roomSnapshot("r1", 1000 + LOCK_TTL_MS).find((p) => p.cid === "b")?.editing, null);
+});
+
+test("ghost expiry: a remote peer past PEER_TTL_MS is dropped and pruned (crashed-replica ghosts)", () => {
+  foldRemotePresence(remoteUpsert("r1", { cid: "b" }), 1000);
+  assert.equal(roomSnapshot("r1", 1000 + PEER_TTL_MS - 1).length, 1); // still alive
+  assert.equal(roomSnapshot("r1", 1000 + PEER_TTL_MS).length, 0);     // ghost reaped
+  // Pruned, not merely filtered: a later read at the same idle room stays empty and cheap.
+  assert.deepEqual(roomSnapshot("r1", 1000 + PEER_TTL_MS + 5), []);
+});
+
+test("a fresh remote event refreshes lastSeen so a live-but-idle peer is not ghosted", () => {
+  foldRemotePresence(remoteUpsert("r1", { cid: "b" }), 1000);
+  foldRemotePresence(remoteUpsert("r1", { cid: "b" }), 1000 + PEER_TTL_MS - 1); // heartbeat
+  assert.equal(roomSnapshot("r1", 1000 + PEER_TTL_MS + 1).length, 1); // survived because refreshed
+});
+
+test("a local connection wins over a same-cid remote (the socket is the truth)", () => {
+  const a = sink();
+  joinRoom({ roomId: "r1", cid: "dup", sub: "u1", label: "Local", send: a.send }, 0);
+  foldRemotePresence(remoteUpsert("r1", { cid: "dup", label: "Remote" }), 0);
+  const peers = roomSnapshot("r1", 0);
+  assert.equal(peers.length, 1);
+  assert.equal(peers[0]?.label, "Local");
+});
+
+test("localPresenceForHeartbeat lists every live local peer as an upsert (fleet heartbeat source)", () => {
+  const a = sink(), b = sink();
+  joinRoom({ roomId: "r1", cid: "a", sub: "u1", label: "Ada", send: a.send }, 0);
+  joinRoom({ roomId: "r2", cid: "b", sub: "u2", label: "Bo", send: b.send }, 0);
+  const beats = localPresenceForHeartbeat();
+  assert.equal(beats.length, 2);
+  assert.ok(beats.every((e) => e.kind === "upsert" && e.peer));
+  assert.equal(beats.map((e) => e.cid).sort().join(","), "a,b");
 });

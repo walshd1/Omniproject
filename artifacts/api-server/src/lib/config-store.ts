@@ -3,6 +3,7 @@ import { getSettings, updateSettings } from "./settings";
 import { buildSnapshot, applySnapshot, type ConfigSnapshot } from "./config-snapshot";
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
+import { sharedStateMode, sharedRingPush, sharedRingRead } from "./shared-state";
 
 /**
  * Configuration environments + versioned rollback.
@@ -35,6 +36,7 @@ interface StoreState {
 }
 
 const MAX_VERSIONS = 100;
+const SHARED_VERSIONS_PREFIX = "config:ver:";
 const DEFAULT_ENV = "production";
 // Encrypted at rest (AES-256-GCM) so a copy of the raw file is opaque off-box.
 const store = new SealedFile(() => resolveConfigFile("CONFIG_STORE_FILE"), "config store");
@@ -87,7 +89,27 @@ function record(env: string, snapshot: ConfigSnapshot, label?: string): ConfigVe
   const version: ConfigVersion = { id: nextId(), env, at: new Date().toISOString(), snapshot: structuredClone(snapshot), ...(label !== undefined ? { label } : {}), knownGood: false };
   s.versions.push(version);
   if (s.versions.length > MAX_VERSIONS) s.versions.splice(0, s.versions.length - MAX_VERSIONS);
+  // Opt-in fleet-sharing: mirror the new version into the shared ring when Redis-backed, so
+  // version history is fleet-consistent. Best-effort — the local (RAM/SealedFile) history stays
+  // authoritative and unchanged when no REDIS_URL is set.
+  if (sharedStateMode() === "redis") {
+    void sharedRingPush(SHARED_VERSIONS_PREFIX, JSON.stringify(version), MAX_VERSIONS).catch((err) =>
+      logger.warn({ err }, "config store: shared version mirror failed"));
+  }
   return version;
+}
+
+/** The fleet-wide version history (newest first) when Redis-backed, else the local history.
+ *  Never throws — falls back to the local versions if the shared read fails. */
+export async function sharedVersionHistory(): Promise<ConfigVersion[]> {
+  if (sharedStateMode() !== "redis") return [...ensure().versions].reverse();
+  try {
+    const raw = await sharedRingRead(SHARED_VERSIONS_PREFIX, MAX_VERSIONS);
+    return raw.map((v) => JSON.parse(v) as ConfigVersion).reverse();
+  } catch (err) {
+    logger.warn({ err }, "config store: shared version read failed — using local history");
+    return [...ensure().versions].reverse();
+  }
 }
 
 /** The current config state as JSON (decrypted) — what an export bundle wraps. */
@@ -128,6 +150,16 @@ export function storeView(): StoreView {
     lastKnownGoodId: lastKnownGood(s.activeEnv)?.id ?? null,
     persisted: store.enabled,
   };
+}
+
+/** The store summary with FLEET-wide version history when Redis-backed (else identical to
+ *  {@link storeView}). `versions` reflects every replica's captures; the other fields (active
+ *  env, env names, disk-persistence) remain this replica's, and `lastKnownGoodId` is computed
+ *  from local state — a known-good flag set on one replica is not mirrored (documented limit). */
+export async function storeViewShared(): Promise<StoreView> {
+  if (sharedStateMode() !== "redis") return storeView();
+  const local = storeView();
+  return { ...local, versions: await sharedVersionHistory() };
 }
 
 /** Capture the current settings as a new version of the active environment. */

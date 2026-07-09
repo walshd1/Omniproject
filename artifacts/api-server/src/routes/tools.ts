@@ -12,7 +12,7 @@ import { captureVersion } from "../lib/config-store";
 import { getSession } from "./auth";
 import {
   listResolvedCapabilities, listSurfaces, setCapabilityState, noteCapabilityConfigured,
-  recentCapabilityLog, checkEndpointReachable, getCapability, UnknownCapabilityError,
+  recentCapabilityLogShared, checkEndpointReachable, getCapability, UnknownCapabilityError,
 } from "../lib/tools";
 import { getSettings } from "../lib/settings";
 import { v, parseOr400 } from "../lib/validate";
@@ -33,9 +33,10 @@ router.get("/governance", (_req, res) => {
   res.json({ capabilities: listResolvedCapabilities(), surfaces: listSurfaces() });
 });
 
-// Live activity for the admin governance dashboard (uses, blocks, config changes).
-router.get("/governance/log", requireRole("admin"), (_req, res) => {
-  res.json({ entries: recentCapabilityLog() });
+// Live activity for the admin governance dashboard (uses, blocks, config changes). Fleet-wide
+// when Redis-backed (shared ring), else this replica's RAM ring.
+router.get("/governance/log", requireRole("admin"), async (_req, res) => {
+  res.json({ entries: await recentCapabilityLogShared() });
 });
 
 // Autonomous posture for the admin dashboard: the ENFORCED containment level + how it's

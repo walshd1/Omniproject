@@ -10,6 +10,7 @@ import { isOidcConfigured } from "./lib/oidc";
 import { getSettings } from "./lib/settings";
 import { installShutdownHandlers } from "./lib/shutdown";
 import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
+import { initPresenceBus, presenceBusMode } from "./lib/presence-bus";
 import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
 import { startProactiveDigestScheduler, runProactiveDigest } from "./lib/proactive-digest";
 import { startDriftCanaryScheduler, runDriftCanary } from "./lib/drift-canary";
@@ -55,6 +56,10 @@ async function start(): Promise<void> {
   // immediately. In-process unless REDIS_URL is set — see lib/broker-log-bus.ts.
   initBrokerLogBus();
 
+  // Start the presence fan-out so this replica begins RECEIVING the fleet's presence changes
+  // (rosters + editing indicators). In-process unless REDIS_URL is set — see lib/presence-bus.ts.
+  initPresenceBus();
+
   // Optional single-instance scheduled executive digest (off unless EXEC_DIGEST_INTERVAL_HOURS>0;
   // for a fleet, use the trigger endpoint + an external scheduler so it fires once).
   startExecDigestScheduler(() => runExecDigest({ now: Date.now(), broker: getBroker() }));
@@ -90,6 +95,7 @@ async function start(): Promise<void> {
         auth: isOidcConfigured ? "oidc" : "demo",
         aiProvider: getSettings().aiProvider,
         brokerLogBus: brokerLogBusMode(),
+        presenceBus: presenceBusMode(),
       },
       "Server listening",
     );

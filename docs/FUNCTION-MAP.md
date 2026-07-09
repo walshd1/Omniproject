@@ -456,11 +456,13 @@ Tamper-evident audit trail.
 | Function | What it does |
 | --- | --- |
 | `sealAuditEvent` | Seal an event into the chain: advances the head and returns the event with its seal. |
+| `sealAuditEventShared` | Seal an event into the FLEET-shared chain. |
 | `auditAnchorMessage` | The exact, deterministic message that is signed for an anchor — the chain TIP bound to the key version. |
 | `auditAnchor` | The current chain anchor — what an external verifier checks the tip against. |
+| `auditAnchorShared` | The anchor over the FLEET-shared tip when Redis-backed, else the local {@link auditAnchor}. |
 | `verifyAuditAnchor` | Verify an anchor's Ed25519 signature against a published public key (PEM). |
 | `verifyAuditChain` | Verify an ordered list of sealed audit events. |
-| `__resetAuditChain` | Test-only: reset the in-memory head. |
+| `__resetAuditChain` | Test-only: reset the in-memory head (and the shared head key). |
 
 ### `artifacts/api-server/src/lib/audit.ts`
 
@@ -470,7 +472,7 @@ Action audit logging.
 | --- | --- |
 | `auditLevel` | The configured audit verbosity (off | writes | all) from AUDIT_LEVEL. |
 | `shouldAudit` | Pure decision: should an event at this level be recorded? |
-| `createHttpSink` | Build a batching HTTP audit sink (buffers events + flushes to a SIEM URL). |
+| `createHttpSink` | Build a batching HTTP sink (buffers records + flushes them as NDJSON to a SIEM URL). |
 | `recordAudit` | Record one audit event: stdout (pino) + the external sink, gated by level. |
 | `actorForAudit` | The audit `actor` field for a request — the session's sub + a display role, or `null` when unauthenticated. |
 | `auditStatus` | Status for the setup/diagnostics view. |
@@ -747,9 +749,11 @@ Configuration environments + versioned rollback.
 
 | Function | What it does |
 | --- | --- |
+| `sharedVersionHistory` | The fleet-wide version history (newest first) when Redis-backed, else the local history. |
 | `serializeState` | The current config state as JSON (decrypted) — what an export bundle wraps. |
 | `exportConfig` | Securely export the config: re-encrypt the decrypted state under a one-time ephemeral key, then ROTATE the internal key and re-seal the on-disk store under the new version. |
 | `storeView` | The store summary for the UI: active env, env names, versions (newest first), the last known-good id, and whether it's disk-persisted. |
+| `storeViewShared` | The store summary with FLEET-wide version history when Redis-backed (else identical to {@link storeView}). |
 | `captureVersion` | Capture the current settings as a new version of the active environment. |
 | `createEnvironment` | Create a named environment, seeded by cloning the active env's current config. |
 | `activateEnvironment` | Switch the active environment and apply its config to the live settings. |
@@ -1492,21 +1496,33 @@ Conditional predicate engine — the pure "when" of the PMO rule plane.
 | `selectMatching` | From a list of conditioned items, the ones whose condition matches the context, **in declared order**. |
 | `validatePredicate` | Validate a predicate's shape (used at the rule-authoring boundary). |
 
+### `artifacts/api-server/src/lib/presence-bus.ts`
+
+Presence fan-out bus — makes live-collaboration presence (rosters + advisory editing indicators) **fleet-wide** under horizontal scale, strictly OPT-IN via `REDIS_URL`.
+
+| Function | What it does |
+| --- | --- |
+| `initPresenceBus` | Construct (idempotently) and return the presence bus. |
+| `presenceBusMode` | Which fan-out backend presence uses: in-process or Redis. |
+
 ### `artifacts/api-server/src/lib/presence-hub.ts`
 
 Live collaboration presence hub (Server-Sent Events).
 
 | Function | What it does |
 | --- | --- |
+| `registerPresencePublisher` | Register a cross-replica publisher (the presence bus). |
 | `peerColor` | A stable colour for a user, derived from their `sub` so it's the same across sessions/devices. |
 | `toPeer` | Project a connection to the public peer shape, expiring a stale editing claim against `now`. |
-| `roomSnapshot` | The current peers in a room (editing claims expired against `now`). |
+| `roomSnapshot` | The current peers in a room — LOCAL connections merged with REMOTE peers mirrored from other replicas, both with editing claims expired against `now`. |
 | `broadcastRoom` | Push the room's current snapshot to every connection in it. |
 | `joinRoom` | Add a connection to a room and announce it. |
 | `setEditing` | Update a connection's editing claim (a field id, or null to release) + heartbeat it. |
-| `presenceStats` | Diagnostics for dev mode: how many rooms / connections are live right now. |
+| `foldRemotePresence` | Fold a presence change that originated on ANOTHER replica into this replica's remote mirror, then re-fan the merged roster to our own locally-connected sockets. |
+| `localPresenceForHeartbeat` | Every live LOCAL peer as an `upsert` event — the fleet heartbeat re-publishes these on an interval (Redis mode only) so other replicas keep this node's peers alive past their {@link PEER_TTL_MS} even when nobody is actively editing. |
+| `presenceStats` | Diagnostics for dev mode: how many rooms / connections are live right now (LOCAL sockets only — the authoritative in-process view; remote mirror entries are not counted). |
 | `closeAllPresence` | Close every live presence stream and forget them — used on graceful shutdown. |
-| `_resetPresenceForTest` | Test reset hook — drop all presence state without touching connections. |
+| `_resetPresenceForTest` | Test reset hook — drop all presence state (local + remote mirror + publishers) without touching connections. |
 
 ### `artifacts/api-server/src/lib/proactive-digest.ts`
 
@@ -1892,7 +1908,10 @@ Shared-state seam (roadmap §2) — an OPT-IN key/value store the per-replica re
 | Function | What it does |
 | --- | --- |
 | `sharedStateMode` | Whether shared state is per-replica ("in-process") or fleet-wide ("redis"). |
+| `sharedRingPush` | Append `value` to the shared ring under `prefix`, keeping at most ~`max` entries. |
+| `sharedRingRead` | The shared ring's entries under `prefix`, oldest→newest, capped at `max`. |
 | `__resetSharedStateForTest` | Test-only: reset to a fresh in-process backend (drops any Redis binding + data). |
+| `__setRedisKvForTest` | Test-only: bind the shared KV to a Redis-shaped double so the RedisKv backend (native INCRBY / the atomic CAS Lua / SCAN) is exercised without a live Redis server. |
 
 ### `artifacts/api-server/src/lib/shutdown.ts`
 
@@ -1983,7 +2002,9 @@ Capability governance — one model for every "thing that can move data or be tu
 | `validEndpoint` | Validate a user-defined endpoint: a well-formed http(s) URL, or null. |
 | `screenIdForRoute` | Normalise a client-supplied surface (which may be a route path like "/reports") to a canonical screen id from the registry, so per-surface overrides always match. |
 | `checkEndpointReachable` | Probe a user-defined endpoint: any HTTP response = reachable; a network error or timeout = not. |
-| `recentCapabilityLog` | Recent capability activity (uses, blocks, config changes), newest first. |
+| `recentCapabilityLog` | Recent capability activity (uses, blocks, config changes), newest first — the fast LOCAL (per-replica) RAM ring. |
+| `recentCapabilityLogShared` | Recent capability activity across the FLEET (newest first) when Redis-backed; otherwise the local ring. |
+| `__resetCapabilityLogSink` | Test-only: reset the external log sink (so an env change is re-read). |
 | `decideCapability` | Resolve a capability-use decision for a surface AND record it — to the audit log and the live activity ring — whether allowed or denied, so there's always a trail of which AI/vendor/broker ran where and for whom. |
 | `noteCapabilityConfigured` | Record an admin turning a capability on/off (audited + shown on the dashboard). |
 | `enforceCapability` | Strong call-time gate: decide + log, and THROW CapabilityBlockedError when the capability is off for this surface. |

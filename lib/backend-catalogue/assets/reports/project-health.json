@@ -1,0 +1,32 @@
+{
+  "id": "project-health",
+  "label": "Project Health",
+  "docsUrl": "",
+  "kind": "portfolio",
+  "renderer": {
+    "engine": "builtin",
+    "component": "ProjectHealth"
+  },
+  "capabilities": {
+    "requiresCapability": "portfolio",
+    "timeSeries": false,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "status",
+    "dueDate",
+    "healthStatus",
+    "riskLevel",
+    "blocked",
+    "blockedReason",
+    "budget",
+    "actualCost",
+    "benefitConfidence"
+  ],
+  "notes": "Predictive project-health / risk scoring: derives a composite 0-100 health score and RAG band per project from the delivery-risk signals its work items carry — RAG health status, risk level, blocked flags, schedule slip (overdue open items), budget burn running ahead of delivery, benefit confidence and the open-vs-done ratio. Shows a RAG heatmap distribution, an at-risk ranking (worst first, with the driving factors) and portfolio red/amber/green + mean-health StatCards. Portfolio risk roll-up, derived live; nothing is stored.",
+  "order": 72
+}

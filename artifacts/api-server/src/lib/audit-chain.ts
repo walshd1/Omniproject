@@ -4,6 +4,7 @@ import { canonical } from "./provenance";
 import { signMessage, publicKeyId, verifySignature } from "./signing";
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
+import { sharedKv, sharedStateMode } from "./shared-state";
 import type { AuditEvent } from "./audit";
 
 /**
@@ -62,7 +63,9 @@ function persistHead(): void {
   store.write(JSON.stringify(head));
 }
 
-/** Seal an event into the chain: advances the head and returns the event with its seal. */
+/** Seal an event into the chain: advances the head and returns the event with its seal.
+ *  SYNC — the single-replica path (in-memory head, optionally SealedFile-persisted). This is
+ *  the ONLY path when REDIS_URL is unset, and it is byte-identical to before this change. */
 export function sealAuditEvent(ev: AuditEvent): SealedAuditEvent {
   ensureLoaded();
   const version = currentVersion("audit");
@@ -72,6 +75,46 @@ export function sealAuditEvent(ev: AuditEvent): SealedAuditEvent {
   head = { seq, lastHash: hash };
   persistHead();
   return { ...ev, seal: { seq, prevHash, hash, kv: version } };
+}
+
+// ── Fleet-shared chain head (opt-in: only active when REDIS_URL ⇒ shared-state mode "redis") ──
+// The head {seq,lastHash} lives at ONE shared key and advances by ATOMIC compare-and-set. Each
+// seal reads the current head, computes its link against it, then CASes {expected: exact bytes
+// read, next: new head}. Only one writer can win the transition from a given head value; every
+// racing writer sees a different current value, so its CAS fails and it RETRIES against the new
+// head. That makes advancement a single linear sequence across all replicas — the chain cannot
+// fork. There is no ABA hazard because the compared value embeds a strictly increasing `seq`, so
+// a head value never recurs.
+const SHARED_HEAD_KEY = "audit:chain:head";
+const MAX_CAS_ATTEMPTS = 64;
+
+async function readSharedHead(): Promise<{ seq: number; lastHash: string; raw: string | null }> {
+  const raw = await sharedKv.get(SHARED_HEAD_KEY);
+  if (raw === null) return { seq: 0, lastHash: GENESIS, raw: null };
+  const p = JSON.parse(raw) as Head;
+  return { seq: p.seq, lastHash: p.lastHash, raw };
+}
+
+/**
+ * Seal an event into the FLEET-shared chain. When shared-state is in-process (no REDIS_URL) this
+ * is exactly the sync single-replica seal, so behaviour is unchanged. When Redis-backed, it
+ * advances the one shared head via atomic CAS (retrying on a lost race) so replicas can't fork
+ * the chain. Async because a correct cross-replica advance requires the CAS round-trip.
+ */
+export async function sealAuditEventShared(ev: AuditEvent): Promise<SealedAuditEvent> {
+  if (sharedStateMode() !== "redis") return sealAuditEvent(ev);
+  const version = currentVersion("audit");
+  for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+    const cur = await readSharedHead();
+    const seq = cur.seq + 1;
+    const prevHash = cur.lastHash;
+    const hash = linkHash(seq, prevHash, ev, version);
+    const won = await sharedKv.cas(SHARED_HEAD_KEY, cur.raw, JSON.stringify({ seq, lastHash: hash } satisfies Head));
+    if (won) return { ...ev, seal: { seq, prevHash, hash, kv: version } };
+    // Lost the CAS: another replica advanced the head. Loop re-reads it and re-links.
+  }
+  // Extreme, sustained contention only. Surface it rather than risk an unlinked seal.
+  throw new Error("audit chain: shared head CAS contention exceeded retry budget");
 }
 
 export interface AuditAnchor {
@@ -92,16 +135,29 @@ export function auditAnchorMessage(a: { seq: number; lastHash: string; algorithm
   return canonical({ seq: a.seq, lastHash: a.lastHash, algorithm: a.algorithm, keyVersion: a.keyVersion });
 }
 
+/** Wrap a chain tip in an anchor, adding the Ed25519 signature when asymmetric signing is on. */
+function signAnchor(seq: number, lastHash: string): AuditAnchor {
+  const base = { seq, lastHash, algorithm: "HMAC-SHA256/chain", keyVersion: currentVersion("audit") };
+  const signature = signMessage(auditAnchorMessage(base));
+  if (!signature) return base;
+  const kid = publicKeyId();
+  return { ...base, signatureAlgorithm: "Ed25519", signature, ...(kid ? { publicKeyId: kid } : {}) };
+}
+
 /** The current chain anchor — what an external verifier checks the tip against. When
  *  asymmetric signing is configured it also carries an Ed25519 signature over the tip,
  *  so the gateway non-repudiably attests to this position in the chain. */
 export function auditAnchor(): AuditAnchor {
   ensureLoaded();
-  const base = { seq: head.seq, lastHash: head.lastHash, algorithm: "HMAC-SHA256/chain", keyVersion: currentVersion("audit") };
-  const signature = signMessage(auditAnchorMessage(base));
-  if (!signature) return base;
-  const kid = publicKeyId();
-  return { ...base, signatureAlgorithm: "Ed25519", signature, ...(kid ? { publicKeyId: kid } : {}) };
+  return signAnchor(head.seq, head.lastHash);
+}
+
+/** The anchor over the FLEET-shared tip when Redis-backed, else the local {@link auditAnchor}.
+ *  Use this where the anchor must reflect the whole fleet's chain, not one replica's head. */
+export async function auditAnchorShared(): Promise<AuditAnchor> {
+  if (sharedStateMode() !== "redis") return auditAnchor();
+  const cur = await readSharedHead();
+  return signAnchor(cur.seq, cur.lastHash);
 }
 
 /** Verify an anchor's Ed25519 signature against a published public key (PEM). False when the
@@ -134,8 +190,9 @@ export function verifyAuditChain(events: SealedAuditEvent[], expectedFirstPrev: 
   return { ok: true, count: events.length, brokenAt: null };
 }
 
-/** Test-only: reset the in-memory head. */
+/** Test-only: reset the in-memory head (and the shared head key). */
 export function __resetAuditChain(): void {
   head = { seq: 0, lastHash: GENESIS };
   store.reset();
+  void sharedKv.del(SHARED_HEAD_KEY);
 }
