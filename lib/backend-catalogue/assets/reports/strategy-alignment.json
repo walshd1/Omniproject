@@ -1,0 +1,32 @@
+{
+  "id": "strategy-alignment",
+  "label": "Strategy Alignment",
+  "docsUrl": "",
+  "kind": "portfolio",
+  "renderer": {
+    "engine": "builtin",
+    "component": "StrategyAlignment"
+  },
+  "capabilities": {
+    "requiresCapability": "portfolio",
+    "timeSeries": false,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "strategicTheme",
+    "strategicGoals",
+    "strategicContribution",
+    "objectives",
+    "kpis",
+    "plannedBenefitValue",
+    "actualBenefitValue",
+    "benefitStatus",
+    "healthStatus"
+  ],
+  "notes": "Strategy-to-execution / OKR alignment roll-up: groups every work item by its strategic theme (or strategic goal), and shows per theme the average strategic contribution, planned vs realised benefit value, and a RAG health rollup — answering which strategic objectives the portfolio is investing in and how they are tracking. Portfolio strategy roll-up, derived live.",
+  "order": 71
+}
