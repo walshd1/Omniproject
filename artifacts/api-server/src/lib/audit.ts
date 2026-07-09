@@ -2,7 +2,8 @@ import type { Request } from "express";
 import { logger } from "./logger";
 import { pushBrokerEvent } from "./broker-log";
 import { recordBrokerCall } from "./runtime-metrics";
-import { sealAuditEvent } from "./audit-chain";
+import { sealAuditEvent, sealAuditEventShared } from "./audit-chain";
+import { sharedStateMode } from "./shared-state";
 import { getSession } from "../routes/auth";
 import { roleForReq } from "./rbac";
 
@@ -73,22 +74,24 @@ export function shouldAudit(
 
 // ── External HTTP sink (batched, best-effort, in-memory) ──────────────────────
 
-export interface HttpSink {
-  enqueue(ev: AuditEvent): void;
+export interface HttpSink<T = AuditEvent> {
+  enqueue(ev: T): void;
   flush(): Promise<number>;
   size(): number;
 }
 
 const MAX_BUFFER = 1000;
 
-/** Build a batching HTTP audit sink (buffers events + flushes to a SIEM URL). */
-export function createHttpSink(opts: {
+/** Build a batching HTTP sink (buffers records + flushes them as NDJSON to a SIEM URL). Generic
+ *  so it backs both the audit stream and other durable append streams (e.g. the governance log);
+ *  defaults to AuditEvent so existing call sites are unchanged. */
+export function createHttpSink<T = AuditEvent>(opts: {
   url: string;
   token?: string;
   batch?: number;
   fetchImpl?: typeof fetch;
-}): HttpSink {
-  const buffer: AuditEvent[] = [];
+}): HttpSink<T> {
+  const buffer: T[] = [];
   let dropped = 0;
   const doFetch = opts.fetchImpl ?? fetch;
   const batchSize = opts.batch ?? 50;
@@ -159,6 +162,17 @@ export function recordAudit(ev: AuditEvent): void {
   if (!shouldAudit(auditLevel(), ev)) return;
   // Seal into the tamper-evident hash chain, then emit the SEALED event so the stdout/SIEM
   // copy is self-verifying (each record carries its seq + prevHash + keyed hash).
+  if (sharedStateMode() === "redis") {
+    // Fleet-shared, fork-free chain head via atomic CAS. The advance needs a Redis round-trip,
+    // so it's async + best-effort here — matching this module's stated best-effort delivery
+    // ethos (never block a request). The default (no REDIS_URL) path below is byte-identical to
+    // before. NOTE: under Redis the seal is therefore emitted asynchronously, so the autonomous
+    // fail-closed guarantee (a throwing seal denying the write) applies only to that sync path.
+    void sealAuditEventShared(ev)
+      .then((sealed) => { logger.info({ audit: true, ...sealed }, "audit"); ensureSink()?.enqueue(sealed); })
+      .catch((err) => logger.warn({ err }, "audit chain: shared seal failed"));
+    return;
+  }
   const sealed = sealAuditEvent(ev);
   logger.info({ audit: true, ...sealed }, "audit");
   ensureSink()?.enqueue(sealed);

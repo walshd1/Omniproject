@@ -13,7 +13,8 @@
     "smoke": "tsx --test src/broker/smoke.integration.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test \"src/**/*.test.ts\"",
-    "test:coverage": "c8 tsx --test \"src/**/*.test.ts\""
+    "test:coverage": "c8 tsx --test \"src/**/*.test.ts\"",
+    "test:integration:live": "tsx --test src/__tests__/live-endpoints.integration.test.ts"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

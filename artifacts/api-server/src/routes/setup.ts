@@ -45,6 +45,7 @@ import { isOidcConfigured } from "../lib/oidc";
 import { isSamlConfigured } from "../lib/saml";
 import {
   storeView,
+  storeViewShared,
   captureVersion,
   createEnvironment,
   activateEnvironment,
@@ -572,9 +573,10 @@ function handle(res: Response, fn: () => unknown): void {
   }
 }
 
-// GET /api/setup/environments — environments, active env, version history.
-router.get("/setup/environments", requireRole("admin"), (_req, res) => {
-  res.json(storeView());
+// GET /api/setup/environments — environments, active env, version history (fleet-wide when
+// Redis-backed, else this replica's local history).
+router.get("/setup/environments", requireRole("admin"), async (_req, res) => {
+  res.json(await storeViewShared());
 });
 
 // POST /api/setup/environments { name } — create a sandbox (clone of active).
