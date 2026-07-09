@@ -6,6 +6,8 @@ import type { ProjectItems } from "../../lib/portfolio-value";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { usePortfolioItems } from "./use-portfolio-items";
+import { StrategyCascade } from "./StrategyCascade";
+import type { CascadeItem } from "../../lib/strategy-cascade";
 
 /**
  * Strategy Alignment (Strategy-to-execution / OKR alignment) — groups every work item by its strategic
@@ -172,6 +174,33 @@ export function StrategyAlignment() {
   const { themes, totals } = useMemo(() => rollupStrategyThemes(projects, target, rates), [projects, target, rates]);
   const money = (n: number) => formatCurrency(n, target);
 
+  // Each project is one strategic INITIATIVE: aggregate its items' theme/objectives/kpis/contribution
+  // and delivery progress, then the OKR cascade builds the theme→objective→initiative tree. Only
+  // strategic projects (theme, objective, or a contribution signal) join — non-strategic ones aren't
+  // "unaligned", they're just out of scope.
+  const cascadeItems = useMemo<CascadeItem[]>(() => {
+    const dedupe = (xs: (string | null | undefined)[]) => [...new Set(xs.map((s) => (s ?? "").trim()).filter(Boolean))];
+    return projects
+      .map((p): CascadeItem => {
+        const items = p.items as unknown as StrategyItem[];
+        const contribs = items.map((i) => i.strategicContribution).filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+        const progressReads = items
+          .map((i) => (i as { percentWorkComplete?: number | null; completionPct?: number | null }))
+          .map((i) => (typeof i.percentWorkComplete === "number" ? i.percentWorkComplete : typeof i.completionPct === "number" ? i.completionPct : null))
+          .filter((n): n is number => n != null);
+        return {
+          id: p.projectId,
+          name: p.projectName,
+          strategicTheme: dedupe(items.map((i) => i.strategicTheme))[0] ?? null,
+          objectives: dedupe(items.flatMap((i) => i.objectives ?? [])),
+          kpis: dedupe(items.flatMap((i) => i.kpis ?? [])),
+          strategicContribution: contribs.length ? Math.round(contribs.reduce((a, b) => a + b, 0) / contribs.length) : null,
+          progressPct: progressReads.length ? Math.round(progressReads.reduce((a, b) => a + b, 0) / progressReads.length) : 0,
+        };
+      })
+      .filter((ci) => (ci.objectives?.length ?? 0) > 0 || !!ci.strategicTheme || ci.strategicContribution != null);
+  }, [projects]);
+
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {themes.length === 0 ? (
@@ -228,6 +257,7 @@ export function StrategyAlignment() {
             benefit (biggest strategic investment first). Contribution is the mean strategic contribution of the items that report it;
             RAG rolls up each item&apos;s delivery health (falling back to benefit status). Derived live; nothing is stored.
           </p>
+          <StrategyCascade items={cascadeItems} />
         </div>
       )}
     </DataState>
