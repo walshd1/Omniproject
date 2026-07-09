@@ -2572,8 +2572,8 @@ Timesheet workflow — the AUTHORITATIVE copy of the state machine, enforced in 
 
 | Function | What it does |
 | --- | --- |
-| `timesheetHours` | — |
-| `applyTimesheetAction` | — |
+| `timesheetHours` | Total logged hours on a sheet (non-finite entries ignored). |
+| `applyTimesheetAction` | Apply a workflow action, returning a NEW sheet (pure). |
 
 ### `artifacts/api-server/src/timesheets/store.ts`
 
