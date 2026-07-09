@@ -130,5 +130,5 @@ core change. The protocol (action catalogue, request envelope, control headers,
 response/error mapping, optimistic concurrency) is specified in
 [BROKER-HTTP-BINDING.md](BROKER-HTTP-BINDING.md). The first planned use is an
 optional, separate **database broker** (OmniProject as system of record) — see
-[design/RFC-003](design/RFC-003-db-broker.md). The conformance suite
+[design/RFC-003](archive/design/RFC-003-db-broker.md). The conformance suite
 (`broker/conformance.ts`) is the acceptance test for any such broker.

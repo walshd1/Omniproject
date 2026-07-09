@@ -5,7 +5,7 @@
 > run when you're ready. Nothing here tags or publishes anything on its own.
 >
 > Fill in the final version/date when cutting the release. The exhaustive, itemised list lives in
-> [`CHANGELOG.md`](../CHANGELOG.md) under *Unreleased* — this is the curated, themed summary.
+> [`CHANGELOG.md`](../../../CHANGELOG.md) under *Unreleased* — this is the curated, themed summary.
 
 OmniProject is a stateless, zero-at-rest PM/PgM overlay gateway: an Express API + React SPA that puts
 one consistent, governed, broker-agnostic surface over whatever project/work backends a customer

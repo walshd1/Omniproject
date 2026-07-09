@@ -4,7 +4,7 @@ This is the **reference HTTP binding** of the broker contract — the exact wire
 protocol a *contract-speaking HTTP broker* implements. It is what n8n implements
 today, and what an external **sidecar broker** (e.g. a Postgres-backed
 "OmniProject as system of record" service, see
-[RFC-003](design/RFC-003-db-broker.md)) implements to plug in with **zero changes
+[RFC-003](archive/design/RFC-003-db-broker.md)) implements to plug in with **zero changes
 to the core**: you point `BROKER_URL` at it instead of n8n.
 
 It is language-agnostic. If your service accepts these POSTs and returns these

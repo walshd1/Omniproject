@@ -70,5 +70,5 @@ stateless, so horizontal scaling only needs `REDIS_URL` for the real-time bus.
 
 The gateway still **holds nothing**. Project data stays in your connected tool (or the self-host DB);
 retained history lives in whichever retention store you wire — S3/GCS/Blob, DynamoDB/Cosmos, or
-BigQuery/Snowflake (see [RETENTION-CONNECTORS.md](RETENTION-CONNECTORS.md)). Back up **those** stores;
+BigQuery/Snowflake (see [RETENTION.md](RETENTION.md)). Back up **those** stores;
 the gateway pods are disposable.
