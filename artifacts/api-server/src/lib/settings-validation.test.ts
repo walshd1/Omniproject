@@ -138,6 +138,16 @@ test("selfHost: valid mode + string[] adopted; a non-off mode needs the data-res
   updateSettings({ selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: false } });
 });
 
+test("historyRetention: valid org-default + scope cadence maps; bad cadences rejected", () => {
+  throws({ historyRetention: "nope" });
+  throws({ historyRetention: { orgDefault: { kind: "bogus" } } });
+  throws({ historyRetention: { orgDefault: { kind: "interval", everyHours: 0 } } });
+  throws({ historyRetention: { orgDefault: { kind: "onWrite" }, programme: { P1: { kind: "interval", everyHours: -1 } } } });
+  assert.doesNotThrow(() => updateSettings({ historyRetention: { orgDefault: { kind: "interval", everyHours: 12 }, programme: { P1: { kind: "onWrite" } }, project: {} } }));
+  // Reset back to the default so it doesn't leak into other tests.
+  updateSettings({ historyRetention: { orgDefault: { kind: "interval", everyHours: 24 }, programme: {}, project: {} } });
+});
+
 test("redactSettingsForRead masks webhook secrets and peer tokens", () => {
   updateSettings({
     webhooks: [{ id: "w", url: "https://example.com/h", secret: "topsecret", events: ["*"], active: true }],

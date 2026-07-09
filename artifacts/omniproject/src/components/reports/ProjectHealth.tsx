@@ -5,6 +5,8 @@ import type { ProjectItems } from "../../lib/portfolio-value";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { usePortfolioItems } from "./use-portfolio-items";
+import { useTrend } from "../../lib/trends";
+import { TrendChart } from "./TrendChart";
 
 /**
  * Project Health (predictive project-health / risk scoring) — derives a composite 0–100 HEALTH SCORE and a
@@ -310,6 +312,7 @@ export function ProjectHealth() {
               </tbody>
             </table>
           </div>
+          <HealthTrajectory />
           <p className="text-[11px] text-muted-foreground">
             Each project scores 0–100 from the delivery-risk signals its work items carry — RAG health, risk level, blocked
             flags, schedule slip (overdue open items), budget burn running ahead of delivery, benefit confidence and the
@@ -319,5 +322,22 @@ export function ProjectHealth() {
         </div>
       )}
     </DataState>
+  );
+}
+
+/**
+ * Health trajectory — the trend view over the durable history the retention layer keeps (completion
+ * and open-blocker movement). The snapshot itself is stateless; this panel reads the *retained*
+ * time-series. Until a retention source is populated (self-host history domain), it shows an honest
+ * "history not yet retained" note rather than a fabricated line. See docs/HISTORY-RETENTION.md.
+ */
+export function HealthTrajectory() {
+  const completion = useTrend({ metric: "completionPct", grain: "month" });
+  const blockers = useTrend({ metric: "openBlockers", grain: "month" });
+  return (
+    <section className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4" data-testid="project-health-trajectory">
+      <TrendChart series={completion.data} label="Completion trajectory" unit="%" />
+      <TrendChart series={blockers.data} label="Open blockers" />
+    </section>
   );
 }
