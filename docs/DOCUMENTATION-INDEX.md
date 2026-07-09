@@ -59,6 +59,7 @@ Short how-tos for extending each integration plane (`docs/dev/`).
 Controls, audits, and the frameworks they map to.
 
 - **[SECURITY-AUDIT.md](SECURITY-AUDIT.md)** — the consolidated security posture: every control, where it's implemented, and residual risk.
+- **[AUDIT-2026-07.md](AUDIT-2026-07.md)** — the 2026-07 whole-codebase deep pass (multi-agent, adversarially verified): 16 security + 31 clean-code findings, ranked.
 - **[AI-SECURITY.md](AI-SECURITY.md)** — the end-to-end AI control model: what's gated, contained, and the residual boundaries.
 - **[THREAT-MODEL.md](THREAT-MODEL.md)** — a STRIDE threat model and trust boundaries, for security review and pen-test scoping.
 - **[COMPLIANCE.md](COMPLIANCE.md)** — control mapping to SOC 2, ISO/IEC 27001:2022 and NIST CSF 2.0.
