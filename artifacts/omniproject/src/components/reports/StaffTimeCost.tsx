@@ -31,7 +31,7 @@ export function StaffTimeCost({ projectId }: { projectId: string }) {
 
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
-      {!data || (data.totalCost === 0 && data.unratedHours === 0) ? (
+      {!data || (data.totalCost === 0 && data.unratedHours === 0 && !data.timesheetActuals) ? (
         <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="staff-cost-empty">
           No costable time — log hours against work items and map assignees to rated job titles (PMO rate card) to see staff time and cost.
         </div>
@@ -49,6 +49,23 @@ export function StaffTimeCost({ projectId }: { projectId: string }) {
               {data.columns.map((c) => (
                 <StatCard key={c.id} label={c.label} value={money(c.total)} hint={c.kind === "charge" ? "cost to customer" : "true cost"} />
               ))}
+            </div>
+          )}
+
+          {data.timesheetActuals && (
+            <div className="border border-border bg-muted/30 p-3 space-y-2" data-testid="timesheet-actuals">
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                Timesheet actuals — cost of approved time
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <StatCard label="Internal cost (approved)" value={money(data.timesheetActuals.internalCost)} hint="approved timesheet hours × rate card" />
+                <StatCard label="Total cost (approved)" value={money(data.timesheetActuals.totalCost)} hint="all approved tracked time" />
+                <StatCard label="Unrated (approved)" value={data.timesheetActuals.unratedHours.toLocaleString()} hint={data.timesheetActuals.unratedHours > 0 ? "no rate mapped — excluded" : "all approved time costed"} />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Derived from <strong>approved</strong> timesheets below the seam, alongside the backend-logged cost above.
+                Draft and submitted sheets are excluded.
+              </p>
             </div>
           )}
 
