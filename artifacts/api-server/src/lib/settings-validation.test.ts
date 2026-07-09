@@ -148,6 +148,17 @@ test("historyRetention: valid org-default + scope cadence maps; bad cadences rej
   updateSettings({ historyRetention: { orgDefault: { kind: "interval", everyHours: 24 }, programme: {}, project: {} } });
 });
 
+test("skillsPlanning: validates the matrix (proficiency 1–5, non-negative capacity) + demand", () => {
+  throws({ skillsPlanning: "nope" });
+  throws({ skillsPlanning: { matrix: [{ resourceId: "r", name: "R", skills: { react: 9 }, capacityHours: 10 }] } }); // proficiency > 5
+  throws({ skillsPlanning: { matrix: [{ resourceId: "r", name: "R", skills: { react: 3 }, capacityHours: -1 }] } }); // negative capacity
+  throws({ skillsPlanning: { demand: [{ id: "d", skill: "react", hoursNeeded: -5 }] } }); // negative hours
+  throws({ skillsPlanning: { demand: [{ id: "d", skill: "react", hoursNeeded: 10, minProficiency: 0 }] } }); // bad bar
+  assert.doesNotThrow(() => updateSettings({ skillsPlanning: { matrix: [{ resourceId: "r", name: "Ada", skills: { react: 4 }, capacityHours: 250 }], demand: [{ id: "d1", initiative: "x", skill: "react", hoursNeeded: 400, minProficiency: 3 }] } }));
+  // Reset so it doesn't leak into other tests.
+  updateSettings({ skillsPlanning: { matrix: [], demand: [] } });
+});
+
 test("redactSettingsForRead masks webhook secrets and peer tokens", () => {
   updateSettings({
     webhooks: [{ id: "w", url: "https://example.com/h", secret: "topsecret", events: ["*"], active: true }],

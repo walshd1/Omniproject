@@ -904,6 +904,7 @@ const SAMPLE_SETTINGS = {
   loggingSync: { enabled: false, url: null, acknowledgedWarranty: false },
   selfHost: { mode: "off" as const, adopted: [], acknowledgedDataResponsibility: false },
   historyRetention: { orgDefault: { kind: "interval" as const, everyHours: 24 }, programme: {}, project: {} },
+  skillsPlanning: { matrix: [], demand: [] },
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
   userPrefs: {},

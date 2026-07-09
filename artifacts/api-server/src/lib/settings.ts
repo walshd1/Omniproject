@@ -171,6 +171,33 @@ const DEFAULT_HISTORY_RETENTION: HistoryRetentionSettings = {
 };
 
 /**
+ * Skills matrix + demand — PLANNING CONFIG (like rate cards / cost rules / priority weights): the
+ * resource→skill proficiencies and the role/skill demand requests the skills-capacity report matches.
+ * Config, not project data — rides the snapshot/export bundle, admin/PMO edited. Skills aren't a
+ * canonical work-item field, so this is the deployment's source of truth for them.
+ */
+export interface SkillResource {
+  resourceId: string;
+  name: string;
+  role?: string;
+  /** skill → proficiency 1–5. */
+  skills: Record<string, number>;
+  capacityHours: number;
+}
+export interface SkillDemandItem {
+  id: string;
+  initiative: string;
+  skill: string;
+  hoursNeeded: number;
+  minProficiency?: number;
+}
+export interface SkillsPlanningSettings {
+  matrix: SkillResource[];
+  demand: SkillDemandItem[];
+}
+const DEFAULT_SKILLS: SkillsPlanningSettings = { matrix: [], demand: [] };
+
+/**
  * A programme's or project's feature policy in the org→programme→project gating model. Disable-only
  * for the everyday narrowing, plus `required`/`forbidden` for PMO governance mandates ("must use" /
  * "must not use") — all resolved by lib/feature-resolution. Lists of catalogue ids (features ∪
@@ -221,6 +248,8 @@ export interface SettingsState {
   selfHost: SelfHostConfig;
   /** Snapshot cadence for durable history retention (admin org default + PMO scope overrides). */
   historyRetention: HistoryRetentionSettings;
+  /** Skills matrix + demand for the skills-capacity report (planning config, admin/PMO edited). */
+  skillsPlanning: SkillsPlanningSettings;
   /**
    * Admin translation-layer overrides: per-field / per-entity surface+store that
    * REPLACE the broker-derived/declared capability map. Lets an admin correct a
@@ -609,6 +638,7 @@ const store: SettingsState = {
   loggingSync: loggingSyncFromEnv(),
   selfHost: { ...DEFAULT_SELF_HOST },
   historyRetention: { ...DEFAULT_HISTORY_RETENTION },
+  skillsPlanning: { matrix: [], demand: [] },
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
   userPrefs: {},
@@ -651,6 +681,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "loggingSync",
   "selfHost",
   "historyRetention",
+  "skillsPlanning",
   "fieldOverrides",
   "screenLayouts",
   "userPrefs",
@@ -953,6 +984,35 @@ function validateHistoryRetention(value: unknown): void {
   }
 }
 
+/** Validate the skills-planning config: a matrix of resources (skills 1–5, non-negative capacity) and
+ *  a list of demand requests (positive hours, optional proficiency bar). Config, so kept light. */
+function validateSkillsPlanning(value: unknown): void {
+  if (!value || typeof value !== "object") throw new SettingsValidationError("skillsPlanning must be an object");
+  const { matrix, demand } = value as Record<string, unknown>;
+  if (matrix !== undefined) {
+    if (!Array.isArray(matrix)) throw new SettingsValidationError("skillsPlanning.matrix must be an array");
+    for (const r of matrix) {
+      const res = r as Record<string, unknown>;
+      if (typeof res?.["resourceId"] !== "string" || typeof res?.["name"] !== "string") throw new SettingsValidationError("each skills matrix row needs resourceId + name");
+      if (typeof res["capacityHours"] !== "number" || !Number.isFinite(res["capacityHours"]) || res["capacityHours"] < 0) throw new SettingsValidationError("skills matrix capacityHours must be a non-negative number");
+      const skills = res["skills"];
+      if (!skills || typeof skills !== "object") throw new SettingsValidationError("skills matrix row needs a skills object");
+      for (const [, prof] of Object.entries(skills as Record<string, unknown>)) {
+        if (typeof prof !== "number" || prof < 1 || prof > 5) throw new SettingsValidationError("skill proficiency must be 1–5");
+      }
+    }
+  }
+  if (demand !== undefined) {
+    if (!Array.isArray(demand)) throw new SettingsValidationError("skillsPlanning.demand must be an array");
+    for (const d of demand) {
+      const req = d as Record<string, unknown>;
+      if (typeof req?.["id"] !== "string" || typeof req?.["skill"] !== "string") throw new SettingsValidationError("each demand row needs id + skill");
+      if (typeof req["hoursNeeded"] !== "number" || !Number.isFinite(req["hoursNeeded"]) || req["hoursNeeded"] < 0) throw new SettingsValidationError("demand hoursNeeded must be a non-negative number");
+      if (req["minProficiency"] !== undefined && (typeof req["minProficiency"] !== "number" || req["minProficiency"] < 1 || req["minProficiency"] > 5)) throw new SettingsValidationError("demand minProficiency must be 1–5");
+    }
+  }
+}
+
 /** Validate a settings patch and return a NORMALIZED copy (reportingCurrency upper-cased,
  *  fxRateAsOfDate/reportingCurrency empty-string coerced to null, …) — pure, never mutates the
  *  caller's `patch` object. Throws SettingsValidationError on bad input. */
@@ -1034,6 +1094,7 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   if ("loggingSync" in patch) validateLoggingSync(patch["loggingSync"]);
   if ("selfHost" in patch) validateSelfHost(patch["selfHost"]);
   if ("historyRetention" in patch) validateHistoryRetention(patch["historyRetention"]);
+  if ("skillsPlanning" in patch) validateSkillsPlanning(patch["skillsPlanning"]);
   return normalized;
 }
 

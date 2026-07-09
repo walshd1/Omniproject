@@ -9,6 +9,7 @@ import { useLiveEvents, type LiveEvent } from "../lib/live-events";
 import { STATUS_ORDER, statusLabel } from "../lib/constants";
 import { createConcurrencyLimiter } from "../lib/concurrency-pool";
 import { DataState } from "../components/DataState";
+import { TimesheetReview } from "../components/reports/TimesheetReview";
 
 /**
  * My Work / Inbox (the "myWork" feature module). Two tabs:
@@ -146,6 +147,10 @@ export function MyWork() {
             )}
           </div>
         )}
+
+        <div className="mt-8">
+          <TimesheetReview />
+        </div>
       </div>
     </div>
   );
