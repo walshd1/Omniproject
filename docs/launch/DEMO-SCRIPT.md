@@ -78,7 +78,9 @@ Export ~12s, 1280×800 → scale to ~960px wide, < 5 MB.
 
 ### Embed in the README
 
-Put it right under the hero blockquote:
+Once recorded, commit the GIF to `docs/assets/` (create the folder — it doesn't exist yet) and embed
+it right under the hero blockquote. The path below is written **relative to the repo-root README**,
+where this snippet is pasted (not relative to this file):
 
 ```markdown
 ![OmniProject demo](docs/assets/omniproject-demo.gif)
