@@ -4,7 +4,7 @@
 HTTP **sidecar broker** (Option A, §12). The core needs no changes. Build of the
 sidecar itself not started; no commitment to dates.
 **Author:** build session.
-**Supersedes/Depends:** builds on the broker seam ([BROKER.md](../BROKER.md), [adr/0001](../adr/0001-broker-boundary.md)), the published contract ([CONTRACT.md](../CONTRACT.md)), the conformance suite, and the field registry / capability model.
+**Supersedes/Depends:** builds on the broker seam ([BROKER.md](../../BROKER.md), [adr/0001](../../adr/0001-broker-boundary.md)), the published contract ([CONTRACT.md](../../CONTRACT.md)), the conformance suite, and the field registry / capability model.
 
 ---
 
@@ -286,9 +286,9 @@ container instead of wiring n8n".
 > blank-canvas user prove necessary.
 
 **What this repo provides as the boundary** (so the sidecar can be built in any
-language, today): the published [contract schema](../contract/broker.v1.schema.json),
-[CONTRACT.md](../CONTRACT.md), the runnable conformance suite, and the precise
-**[HTTP binding spec](../BROKER-HTTP-BINDING.md)** — the action catalogue, request
+language, today): the published [contract schema](../../contract/broker.v1.schema.json),
+[CONTRACT.md](../../CONTRACT.md), the runnable conformance suite, and the precise
+**[HTTP binding spec](../../BROKER-HTTP-BINDING.md)** — the action catalogue, request
 envelope, control headers, response/error mapping and optimistic-concurrency
 rule. A sidecar that passes the conformance suite and answers those actions is a
 first-class broker.

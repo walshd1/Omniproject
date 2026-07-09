@@ -383,7 +383,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Performance
 
-- **Bounded portfolio fan-out (Theme A of `docs/PERF-PATTERNS-REVIEW.md`) — the biggest scale risk
+- **Bounded portfolio fan-out (Theme A of `docs/archive/reviews/PERF-PATTERNS-REVIEW.md`) — the biggest scale risk
   at the 60/200 target.** A tiny hand-rolled concurrency pool (`poolMap`/`createConcurrencyLimiter`;
   no new dependency) now caps every "one call per project" fan-out instead of firing all ~200
   concurrently:
@@ -421,7 +421,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   reference every render, forcing the downstream `useMemo` to re-run its full O(200-project)
   aggregation on every unrelated re-render (tab switch, sibling widget settling, every keystroke).
 
-  See `docs/PERF-PATTERNS-REVIEW.md` for the full findings this scoped pass addresses.
+  See `docs/archive/reviews/PERF-PATTERNS-REVIEW.md` for the full findings this scoped pass addresses.
 ### Security
 
 - **Fixed a silent-failure bug on two SPA admin mutation clients (from the clean-code audit's Theme
@@ -441,7 +441,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
-- **Landed a scoped subset of the clean-code audit's Top-20 duplication fixes** (`docs/CLEAN-CODE-AUDIT.md`),
+- **Landed a scoped subset of the clean-code audit's Top-20 duplication fixes** (`docs/archive/reviews/CLEAN-CODE-AUDIT.md`),
   chosen for being low-risk and behaviour-preserving:
   - A shared `num()` finite-coercion helper (`lib/num.ts`) replaces five copy-pasted copies in
     `capex.ts`, `benefits.ts`, `income.ts`, `financial-summary.ts`, `capacity-actuals.ts`.
@@ -519,12 +519,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   re-framed. The small-org quick-start section now also mentions the "We're a
   charity" one-click preset.
 
-- **Speed / responsiveness / design-patterns review (`docs/PERF-PATTERNS-REVIEW.md`).** A staff-engineering
+- **Speed / responsiveness / design-patterns review (`docs/archive/reviews/PERF-PATTERNS-REVIEW.md`).** A staff-engineering
   pass (155 files, 60 findings) for the 60-programme/200-project scale target. Verdict: no correctness bugs, but
   ~10 recurring patterns that turn O(1) into O(portfolio) — unbounded portfolio fan-out (200-way query storms),
   pure static derivations rebuilt per call, and React memos that never hit (fresh `useQueries` array refs). Most
   fixes are small/local; report only, remediation sequenced. Prioritized Top-15 by ROI included.
-- **Whole-codebase clean-code audit (`docs/CLEAN-CODE-AUDIT.md`).** A 1-for-1 review across all 519 source
+- **Whole-codebase clean-code audit (`docs/archive/reviews/CLEAN-CODE-AUDIT.md`).** A 1-for-1 review across all 519 source
   files (9 groups) — verdict **GOOD (B+)**: zero correctness/security defects, 15 medium + 52 low cleanliness
   findings, dominated by under-adoption of helpers that already exist. Flags two systemic risks to remediate
   (hand-rolled constant-time equality in 5 files; a few SPA mutation clients skipping the `res.ok` check) and
@@ -533,7 +533,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 ### Security
 
 - **Re-audit (2026-07) of the newest surfaces — messy-data, dev-mode routes, report overrides,
-  dashboards persistence/import, snapshots, safe-json seams** (see `docs/SECURITY-AUDIT-2026-07.md`).
+  dashboards persistence/import, snapshots, safe-json seams** (see `docs/archive/reviews/SECURITY-AUDIT-2026-07.md`).
   One Medium fixed: the dashboard-file import seam (`lib/dashboard-file.readDashboardFile`, added after
   the #320 prototype-pollution hardening pass) parsed uploaded JSON with the **raw** `JSON.parse` instead
   of `safeParseJson`, leaving the untrusted-upload reviver un-applied at a new seam and contradicting the
@@ -686,7 +686,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   reconciliation against the canonical `FIELD_REGISTRY` (including adversarial dupe/empty/garbage input)
   never crashes and flags unknown fields as gated passthrough; and that driving each vendor's demo read
   model through the messy-data transform (max intensity, several seeds) preserves row counts and never
-  severs a row from its project. Findings are documented in `docs/BUNDLED-BACKENDS-STRESS.md`. The pass
+  severs a row from its project. Findings are documented in `docs/archive/reviews/BUNDLED-BACKENDS-STRESS.md`. The pass
   found the bundled defs internally consistent (38 backends, 7 brokers) — no broken defs; two low-severity
   follow-ups are recorded.
 - **Enterprise-readiness buyer-panel gap analysis (`docs/ENTERPRISE-READINESS.md`).** A new,
@@ -734,7 +734,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   Deterministic, non-breaking exit behaviour: fully-covered locales make it a hard guard (a future
   untranslated key then fails CI); pre-existing gaps make it **warn-only** (reported, CI stays green,
   since English fallback keeps the app correct); orphan keys are always a hard failure. Wired as a CI step
-  and documented in `docs/I18N-COVERAGE.md`. Snapshot at introduction: fr/de/es each 30/31 (96.8%), one
+  and documented in `docs/archive/reviews/I18N-COVERAGE.md`. Snapshot at introduction: fr/de/es each 30/31 (96.8%), one
   untranslated key (`nav.explore`) apiece — warn-only.
 - **Messy-data generator (DEV MODE ONLY) — resilience stress-testing against imperfect data.** A dev-only
   broker read-decorator (`broker/messy-broker`) that passes the read model through a pure, deterministic
@@ -883,7 +883,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   `deploy-lint` job now also validates the **load-test** compose and the **dev override layered on
   the standalone base** (previously only standalone + enterprise were parsed), and the load-test
   gateway gained a liveness healthcheck so the rig supports `--wait`. The full audit — topologies,
-  what was verified, and the stateless/read-only rationale — is documented in `docs/COMPOSE-AUDIT.md`.
+  what was verified, and the stateless/read-only rationale — is documented in `docs/archive/reviews/COMPOSE-AUDIT.md`.
   No correctness defects were found in the existing compose files; this locks that in against drift.
 
 - **Live collaboration presence (Phase 2 UX polish — real-time).** A new opt-out **`presence`**
@@ -1000,7 +1000,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   `rollupByProgramme` (capacity-rollup) coerces resource hours/percentages; and `summariseBenefits`
   (benefits) now carries only the modelled fields into each report row so unmodelled dirty fields can't
   leak. A committed probe (`scripts/messy-resilience-probe.ts`) and per-lib regression tests lock this in;
-  full findings in `docs/RESILIENCE-FINDINGS.md`.
+  full findings in `docs/archive/reviews/RESILIENCE-FINDINGS.md`.
 - **Logic & collision audit — valid data producing wrong results.** A per-definition audit for bugs
   where rows are individually **valid** but a consumer keys / dedupes / groups / sorts on a
   **non-unique** field. Two classes fixed surgically in the shared derivations:
@@ -1017,7 +1017,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   (`collision-stress.test.ts`, both SPA + api-server) auto-enumerates all **36** catalogue definitions
   and drives the derivations through empty / single / messy / **collide** datasets. Remaining items
   (assignee name-collision in the resource-load sandbox; a catalogue-`order` tiebreaker in the generated
-  catalogues) are documented as follow-ups in `docs/LOGIC-FINDINGS.md`.
+  catalogues) are documented as follow-ups in `docs/archive/reviews/LOGIC-FINDINGS.md`.
 
 - **SPA history-fallback 500 on deep links.** With a *relative* `STATIC_DIR`, the single-container
   server's `res.sendFile` rejected the relative path and returned **500 for every client-side route**
@@ -1282,7 +1282,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   never project detail. Trigger with `POST /api/admin/digest/run` (admin; for a fleet, fire it
   from an external scheduler / the broker so it sends once), or set `EXEC_DIGEST_INTERVAL_HOURS>0`
   for an in-process timer on a single instance. Off by default.
-- **Stage-gates / governance approval workflows — design doc** (`docs/STAGE-GATES-DESIGN.md`).
+- **Stage-gates / governance approval workflows — design doc** (`docs/archive/design/STAGE-GATES-DESIGN.md`).
   Records why this is design-first: maker-checker can't replay a *brokered* write under
   zero-data-at-rest (the user's backend token is never stored), so gating brokered plan/baseline
   changes needs an approve-then-reissue flow; gating *gateway-side* governance changes

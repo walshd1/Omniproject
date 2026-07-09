@@ -45,6 +45,6 @@ left for review rather than guessed at:
    watched iteration. (GitHub's native **secret scanning** + **push protection**, enabled in repo
    settings, is a zero-config complement worth turning on regardless.)
 3. **Signed release tags.** Tagging `0.7.0` with a GPG/SSH-signed tag — pairs with the
-   maintainer-driven release in [`RELEASE-NOTES-0.7.0-DRAFT.md`](./RELEASE-NOTES-0.7.0-DRAFT.md).
+   maintainer-driven release in [`RELEASE-NOTES-0.7.0-DRAFT.md`](./archive/releases/RELEASE-NOTES-0.7.0-DRAFT.md).
 
 See [`PARKED-DECISIONS.md`](./PARKED-DECISIONS.md) for the full list of items awaiting a decision.

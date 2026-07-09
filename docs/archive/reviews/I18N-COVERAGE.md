@@ -2,7 +2,7 @@
 
 OmniProject localises its high-traffic surfaces through a small, dependency-free
 translation dictionary in
-[`artifacts/omniproject/src/lib/i18n.tsx`](../artifacts/omniproject/src/lib/i18n.tsx):
+[`artifacts/omniproject/src/lib/i18n.tsx`](../../../artifacts/omniproject/src/lib/i18n.tsx):
 one `Dict` (a flat `key → string` map) per operating language, with **English as
 the base and fallback**. On top of the localized dictionaries sits a
 per-deployment `LABEL_OVERRIDES` layer (`labelOverrides` on `I18nProvider`) that
@@ -69,7 +69,7 @@ pnpm --filter @workspace/scripts run guard-i18n-coverage
   dead weight or a typo, cheap to fix, and never legitimate translation debt.
 
 The audit is wired into CI in
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) alongside the other
+[`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml) alongside the other
 coverage guards.
 
 ## Closing a gap

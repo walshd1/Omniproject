@@ -117,7 +117,7 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
 
 ## 4. Not built yet (designed or deferred)
 
-- **[gap] Multi-tenancy.** Designed end-to-end in `docs/MULTI-TENANCY-DESIGN.md` (tenant context
+- **[gap] Multi-tenancy.** Designed end-to-end in `docs/archive/design/MULTI-TENANCY-DESIGN.md` (tenant context
   via AsyncLocalStorage, per-tenant config/vault/keys, fail-closed broker scoping, isolation test
   matrix) but **not implemented**. Single-tenant today. Needs the 5 open decisions in that doc
   answered before Phase 1 (tenant-context plumbing).

@@ -95,9 +95,9 @@ UI**", not new architecture.
 | --- | --- | --- | --- |
 | n8n load-balancing pool + failover (`BROKER_URLS`) | **Done** (#98) | | gateway→n8n hop. |
 | CI builds + smoke-boots the Docker image | **Done** (#84) | | |
-| **n8n-at-scale load harness** (queue mode + real backend) | **Foundation laid** ([runbook](../ops/LOAD-HARNESS.md)) | M | Harness shipped: drives reads **and** the write path, labels the broker it measured (demo runs marked `UNVERIFIED`, never passed off as n8n), structured report + verdict, tested pure core. **Still pending:** an actual queue-mode n8n + real-backend run to record numbers — the tool exists, the proof does not yet. |
+| **n8n-at-scale load harness** (queue mode + real backend) | **Foundation laid** ([runbook](../../ops/LOAD-HARNESS.md)) | M | Harness shipped: drives reads **and** the write path, labels the broker it measured (demo runs marked `UNVERIFIED`, never passed off as n8n), structured report + verdict, tested pure core. **Still pending:** an actual queue-mode n8n + real-backend run to record numbers — the tool exists, the proof does not yet. |
 | **Short-TTL gateway read cache** (optional scale relaxation) | **Foundation laid** | M | `lib/read-cache.ts` shipped — OFF by default (`READ_CACHE_TTL_MS=0`); a hot read becomes `getReadCache().wrap(...)`. Ephemeral, same trust class as the OData/Power-BI egress. |
-| **Security/audit prep** (egress inventory + SBOM) | **Done** | | [Egress & trust-boundary inventory](../ops/EGRESS-INVENTORY.md) consolidates the "stateless asterisks"; CI runs `pnpm audit` (blocks on critical) + emits an SBOM. Helps the CISO persona now and an eventual SOC 2. |
+| **Security/audit prep** (egress inventory + SBOM) | **Done** | | [Egress & trust-boundary inventory](../../ops/EGRESS-INVENTORY.md) consolidates the "stateless asterisks"; CI runs `pnpm audit` (blocks on critical) + emits an SBOM. Helps the CISO persona now and an eventual SOC 2. |
 | **HTTP broker seam proven** (reference sidecar + conformance over the wire) | **Done** | | `reference-sidecar.ts` + `http-conformance.test.ts` — any binding-speaking sidecar (incl. a DB broker) drops in. |
 | **Upstream-timing headers** (gateway vs broker latency) | **Done** | | `X-Omni-Upstream-Ms` / `X-Omni-Total-Ms`; load-test compose (`docker-compose.loadtest.yml`) brings up n8n queue mode + OpenProject. |
 
