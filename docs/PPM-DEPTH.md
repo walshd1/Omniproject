@@ -12,8 +12,10 @@ pure, stateless, tested module consistent with the overlay posture (nothing stor
 | M4 | **OKR / strategy cascade** — theme→objective→key-result→initiative tree, contribution-weighted rollup, alignment coverage | Jira Align / Planview OKR cascade | ✅ shipped |
 | M2 | **Skills-based demand/capacity** — skills matrix + role/skill-matched demand vs capacity, unmet-demand gap | Clarity / Planview resource mgmt | ✅ shipped |
 | M6 | **Timesheets** — weekly entry + submit→approve, actuals feeding utilisation/EVM (overlay: brokered) | Clarity / Sciforma timesheets | ✅ shipped |
-| M3 | **Stage-gate lifecycle** — configurable phase-gates, criteria/checklists, go/kill/hold, review-board approvals | Sciforma / Clarity phase-gate | ▶ next |
-| M5 | **SAFe PI-planning board** — PI/iteration model, team load vs capacity, cross-team dependency board | Jira Align PI planning | ▶ next |
+| M3 | **Stage-gate lifecycle** — configurable phase-gates, criteria/checklists, go/kill/hold, review-board approvals | Sciforma / Clarity phase-gate | ✅ shipped |
+| M5 | **SAFe PI-planning board** — PI/iteration model, team load vs capacity, cross-team dependency board | Jira Align PI planning | ✅ shipped |
+
+**All six gaps are now closed.**
 
 ## M1 — Portfolio optimiser
 
@@ -44,9 +46,24 @@ reopen** state machine with segregation-of-duties (no self-approval), and an act
 (`timesheetActualsByProject`) that feeds utilisation / EVM `loggedHours`. Per the stateless overlay,
 persistence is brokered to the backend; the workflow + rollup logic is pure and here.
 
+## M3 — Stage-gate lifecycle
+
+`lib/stage-gate.ts` + `StageGatePanel` component. A project advances through an ordered, configurable
+gate lifecycle; each gate has **entry criteria** + a **required number of review-board go-approvals**,
+and ends in a **go / kill / hold** decision. The state machine enforces the guards — a gate can't be
+passed until its criteria are met AND it has the required distinct go-votes; kill is terminal; hold
+records but stays. State is brokered; the transition rules are pure and here.
+
+## M5 — SAFe PI-planning board
+
+`lib/pi-planning.ts` + `PiBoard` component. The ART-level board: per-team **load vs capacity** across
+the PI's iterations (over-commitment flagged), the **committed-vs-stretch business-value** split, and
+a **cross-team dependency board** (dependencies pointing off the ART flagged). Pure planning over the
+teams / load / objectives / dependencies given.
+
 ## Posture
 
 All modules stay true to the stateless overlay: the analytics ones (M1, M4) derive live from the
-portfolio the gateway already reads; the resource/workflow ones (M2, M6 — and M3, M5 to come) hold
-their state below the seam / broker to the backend, with the pure decision logic in the gateway. Each
-is governable through the existing report/feature catalogue.
+portfolio the gateway already reads; the resource/workflow ones (M2, M6, M3, M5) hold their state
+below the seam / broker to the backend, with the pure decision logic in the gateway. Each is
+governable through the existing report/feature catalogue.
