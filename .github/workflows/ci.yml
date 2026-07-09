@@ -479,3 +479,25 @@ jobs:
           name: playwright-report
           path: playwright-report
           retention-days: 7
+
+  # Standalone retention-broker service (services/retention-broker) — NOT part of the pnpm workspace,
+  # so it has its own npm install + node:test. Isolated here so its cloud SDKs never touch the
+  # monorepo's install or supply-chain guard. Offline: the SDK clients are faked in the tests.
+  retention-broker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: services/retention-broker
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Install (isolated npm)
+        run: npm ci || npm install
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test (offline; SDK clients faked)
+        run: npm test

@@ -22,19 +22,49 @@ Each returns a `RetentionSource` with the full contract (`readSnapshots`, `readJ
 `appendJournal`, `writeSnapshot`, `lastSnapshotAt`), so the trends API and `recordWrite` treat them
 identically. Retention stays **infinite**; snapshots are derived from the append-only journal.
 
-## Wiring one up (boot layer)
+## Wiring — the retention-broker process (shipped)
 
-```ts
-import { registerRetentionProvider, objectStoreRetentionSource } from "./history";
-import { s3ObjectStorePort } from "./boot/retention-ports"; // YOUR SDK-backed port (below the seam)
+The SDK-backed ports are shipped as a **standalone service**, `services/retention-broker`, so the
+cloud SDK runs in its OWN process — a package boundary alone wouldn't keep the SDK out of the gateway
+process, only a process boundary does. The gateway talks to it over HTTP:
 
-// One line at boot: point the deployment's retention at S3.
-const source = objectStoreRetentionSource(s3ObjectStorePort({ bucket: process.env.RETENTION_BUCKET! }));
-registerRetentionProvider(() => source);
+```
+gateway (zero-at-rest)            services/retention-broker            cloud store
+  BrokerRetentionSource ──HTTP──▶ /retention/<op> ──▶ SDK port ──▶ S3 / DynamoDB / BigQuery
+   (history/broker-source.ts,      (ports/{s3,dynamo,bigquery}.ts,
+    no SDK)                         shared pure connector algebra)
 ```
 
-The `*Port` implementation is the only place a cloud SDK appears. A reference example (per cloud)
-belongs in the broker/sidecar image, not the gateway — keep it out of `artifacts/*/src`.
+- **Gateway side** (`artifacts/api-server/src/history/broker-source.ts`) — `brokerRetentionSource`
+  implements `RetentionSource` by POSTing to `/retention/<op>`; no cloud SDK. Registered at boot from
+  `RETENTION_BROKER_URL` (+ optional `RETENTION_BROKER_TOKEN`); a no-op when unset, so the trend API
+  stays honest ("history not yet retained").
+- **Broker side** (`services/retention-broker`) — a tiny HTTP service that picks a backend from
+  `RETENTION_BACKEND` (`s3` | `dynamodb` | `bigquery`), builds a `RetentionSource` from the SDK port +
+  the **same pure connector algebra** the gateway defines (imported, one source of truth for the
+  key/query layout), and serves the ops. See its `README.md`.
+
+Run it and point the gateway at it (compose sketch):
+
+```yaml
+services:
+  retention-broker:
+    build: { context: ., dockerfile: services/retention-broker/Dockerfile }
+    environment:
+      RETENTION_BACKEND: s3
+      RETENTION_S3_BUCKET: my-omni-history
+      AWS_REGION: us-east-1
+      RETENTION_BROKER_TOKEN: "${RETENTION_BROKER_TOKEN:?openssl rand -hex 24}"
+  omni-shell:
+    environment:
+      RETENTION_BROKER_URL: "http://retention-broker:8090"
+      RETENTION_BROKER_TOKEN: "${RETENTION_BROKER_TOKEN}"
+```
+
+The service is **not** part of the pnpm workspace — its cloud SDKs are isolated in its own
+`package.json`, so they never touch the monorepo install or the `minimumReleaseAge` supply-chain
+guard. It has its own CI job (`retention-broker`) that installs + typechecks + tests it offline (the
+SDK clients are faked).
 
 ## Choosing a store
 
