@@ -159,6 +159,23 @@ test("skillsPlanning: validates the matrix (proficiency 1–5, non-negative capa
   updateSettings({ skillsPlanning: { matrix: [], demand: [] } });
 });
 
+test("governanceRules: the optional `when` predicate is validated (bad condition set rejected)", () => {
+  throws({ governanceRules: [{ id: "r", when: { all: {} } }] }); // all must be an array, not an object
+  throws({ governanceRules: [{ id: "r", when: "nope" }] }); // when must be an object
+  throws({ governanceRules: [{ id: "r", when: { all: [{ op: "gt", value: 1 }] } }] }); // predicate missing field
+  assert.doesNotThrow(() => updateSettings({ governanceRules: [{ id: "r", require: ["labels"], when: { all: [{ field: "projectType", op: "eq", value: "delivery" }] } }] }));
+  updateSettings({ governanceRules: [] });
+});
+
+test("previously-unvalidated writable keys are type-checked (aiModel / backendSource / object maps)", () => {
+  throws({ aiModel: 5 });
+  throws({ backendSource: {} }); // object where a string is required (crashed broker-command before)
+  throws({ capabilityStates: [] }); // array is not an object map
+  throws({ screenLayouts: "nope" });
+  throws({ userPrefs: 3 });
+  assert.doesNotThrow(() => updateSettings({ aiModel: null, backendSource: "all", capabilityStates: {}, screenLayouts: {}, userPrefs: {} }));
+});
+
 test("redactSettingsForRead masks webhook secrets and peer tokens", () => {
   updateSettings({
     webhooks: [{ id: "w", url: "https://example.com/h", secret: "topsecret", events: ["*"], active: true }],

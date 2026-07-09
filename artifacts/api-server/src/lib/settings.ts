@@ -11,6 +11,7 @@ import { assertSafeOutboundUrl, isSafeOutboundUrl, UnsafeUrlError } from "./url-
 import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "./deployment-profile";
 import type { BackendFieldMap } from "../broker/types";
 import type { GovernanceRule } from "./governance-rules";
+import { validatePredicate } from "./predicate";
 import { isValidCadence, type SnapshotCadence } from "../history/cadence";
 import { logger } from "./logger";
 
@@ -785,6 +786,25 @@ function validateGovernanceRules(value: unknown, label: string): void {
     for (const k of ["require", "forbid", "disable"]) if (k in o && !isStringArray(o[k])) {
       throw new SettingsValidationError(`${label} "${String(o["id"])}".${k} must be an array of strings`);
     }
+    // Validate the optional `when` predicate too — an unvalidated malformed condition set (e.g.
+    // `all` as an object) is persisted here and then throws in predicate.matches(), 500-ing every
+    // feature-gated read for all users. (matches() is also hardened, but reject bad input on write.)
+    if ("when" in o && o["when"] != null) {
+      const when = o["when"];
+      if (typeof when !== "object" || Array.isArray(when)) {
+        throw new SettingsValidationError(`${label} "${String(o["id"])}".when must be an object`);
+      }
+      for (const key of ["all", "any"] as const) {
+        if (key in (when as Record<string, unknown>)) {
+          const arr = (when as Record<string, unknown>)[key];
+          if (!Array.isArray(arr)) throw new SettingsValidationError(`${label} "${String(o["id"])}".when.${key} must be an array`);
+          for (const p of arr) {
+            const err = validatePredicate(p);
+            if (err) throw new SettingsValidationError(`${label} "${String(o["id"])}".when.${key}: ${err}`);
+          }
+        }
+      }
+    }
   }
 }
 
@@ -1095,6 +1115,19 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   if ("selfHost" in patch) validateSelfHost(patch["selfHost"]);
   if ("historyRetention" in patch) validateHistoryRetention(patch["historyRetention"]);
   if ("skillsPlanning" in patch) validateSkillsPlanning(patch["skillsPlanning"]);
+  // Remaining writable keys that previously had no validator: a wrong-typed value was persisted and
+  // then crashed a downstream sink (e.g. backendSource:{} → broker-command TypeError, 500 for all).
+  if ("aiModel" in patch && patch["aiModel"] != null && typeof patch["aiModel"] !== "string") {
+    throw new SettingsValidationError("aiModel must be a string or null");
+  }
+  if ("backendSource" in patch && typeof patch["backendSource"] !== "string") {
+    throw new SettingsValidationError("backendSource must be a string");
+  }
+  for (const key of ["capabilityStates", "screenLayouts", "userPrefs"] as const) {
+    if (key in patch && (typeof patch[key] !== "object" || patch[key] == null || Array.isArray(patch[key]))) {
+      throw new SettingsValidationError(`${key} must be an object`);
+    }
+  }
   return normalized;
 }
 

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { sealConfig, readMaybeSealed } from "./config-crypto";
+import { sealConfig, readMaybeSealed, isUndecryptableSealed, ConfigDecryptError } from "./config-crypto";
 import { logger } from "./logger";
 
 /**
@@ -41,19 +41,35 @@ export class SealedFile {
     this.loadedOnce = false;
   }
 
-  /** The decrypted file contents, or null when persistence is off or the file is absent. */
+  /** The decrypted file contents, or null when persistence is off or the file is absent. An
+   *  undecryptable sealed file (wrong/rotated/lost key) is logged and read as null — but is NOT
+   *  treated as empty by {@link write}, which refuses to overwrite it (see below). */
   read(): string | null {
     const f = this.resolvePath();
     if (!f || !fs.existsSync(f)) return null;
-    return readMaybeSealed(fs.readFileSync(f, "utf8"));
+    try {
+      return readMaybeSealed(fs.readFileSync(f, "utf8"));
+    } catch (err) {
+      if (err instanceof ConfigDecryptError) {
+        logger.error({ file: f }, `${this.label}: sealed file could not be decrypted (wrong/rotated/lost key?) — NOT loading defaults over it`);
+        return null;
+      }
+      throw err;
+    }
   }
 
   /** Seal + write the serialized content. Persistence-off is a no-op; I/O errors are logged,
-   *  not thrown (a durable-state write must never take down a request). */
+   *  not thrown (a durable-state write must never take down a request). REFUSES to overwrite an
+   *  existing sealed file that can't currently be decrypted — otherwise a key mismatch would seal
+   *  default/empty state over valid ciphertext and permanently destroy the store. */
   write(content: string): void {
     const f = this.resolvePath();
     if (!f) return;
     try {
+      if (fs.existsSync(f) && isUndecryptableSealed(fs.readFileSync(f, "utf8"))) {
+        logger.error({ file: f }, `${this.label}: refusing to overwrite — existing sealed file can't be decrypted (wrong/rotated key?); fix the key or move the file to proceed`);
+        return;
+      }
       fs.writeFileSync(f, sealConfig(content));
     } catch (err) {
       logger.warn({ err }, `${this.label}: failed to persist`);

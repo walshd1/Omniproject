@@ -44,9 +44,27 @@ function rawKey(): Buffer | null {
   return raw ? decodeKey32(raw) : null;
 }
 
-/** The internal key for a version (raw override wins; else derived, domain-separated). */
+/** Raised when a sealed (`c1.`) config token cannot be opened with the current key material
+ *  (wrong / rotated / lost key, or KMS unavailable). Distinguishes "undecryptable" from "empty"
+ *  so callers never silently treat unreadable ciphertext as no-content and overwrite it. */
+export class ConfigDecryptError extends Error {
+  constructor(message = "sealed config could not be decrypted with the current key") {
+    super(message);
+    this.name = "ConfigDecryptError";
+  }
+}
+
+/** The internal key for a version. With a raw/KMS override, v1 uses the key directly (so files
+ *  sealed before per-version salting still open), and later versions derive a distinct
+ *  domain-separated subkey via HKDF — so the post-export rekey genuinely rotates the at-rest key
+ *  even under CONFIG_KEY_RAW / KMS (previously a silent no-op: the same key keyed every version). */
 function internalKey(version: number): Buffer {
-  return rawKey() ?? crypto.createHash("sha256").update(`config:v${version}:${master()}`).digest();
+  const raw = rawKey();
+  if (raw) {
+    if (version <= 1) return raw;
+    return Buffer.from(crypto.hkdfSync("sha256", raw, Buffer.alloc(0), Buffer.from(`config:v${version}`), 32));
+  }
+  return crypto.createHash("sha256").update(`config:v${version}:${master()}`).digest();
 }
 
 // Current internal key version (in-memory; advanced to the highest version ever opened so
@@ -76,9 +94,20 @@ export function openConfig(token: string): string | null {
   return decrypt(rest.slice(dot + 1), internalKey(version));
 }
 
-/** Read possibly-sealed config text: open if sealed, else return as-is (plaintext migration). */
+/** Read possibly-sealed config text: open if sealed, else return as-is (plaintext migration).
+ *  THROWS `ConfigDecryptError` when the text is a sealed token that fails to open — so a caller
+ *  can distinguish "genuinely empty" from "can't decrypt" and refuse to overwrite valid ciphertext
+ *  with default/empty state (which permanently destroyed the vault/rate-card/config stores before). */
 export function readMaybeSealed(text: string): string {
-  return text.startsWith(INT_PREFIX) ? (openConfig(text) ?? "") : text;
+  if (!text.startsWith(INT_PREFIX)) return text;
+  const opened = openConfig(text);
+  if (opened === null) throw new ConfigDecryptError();
+  return opened;
+}
+
+/** True iff `text` is a sealed token that CANNOT be opened with the current key material. */
+export function isUndecryptableSealed(text: string): boolean {
+  return text.startsWith(INT_PREFIX) && openConfig(text) === null;
 }
 
 /** True when `text` is a sealed (internal-format) config token — a content-based check, so
