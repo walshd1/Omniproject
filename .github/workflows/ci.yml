@@ -30,7 +30,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 26
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies
@@ -325,7 +325,7 @@ jobs:
           version: 11.8.0
       - uses: actions/setup-node@v6
         with:
-          node-version: 26
+          node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
@@ -405,7 +405,7 @@ jobs:
           version: 11.8.0
       - uses: actions/setup-node@v6
         with:
-          node-version: 26
+          node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
@@ -467,7 +467,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 26
+          node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Install Playwright Chromium
@@ -496,7 +496,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 26
+          node-version: 22
       - name: Install (isolated npm)
         # Strict lockfile install only — no `|| npm install` fallback (that fails open on lockfile
         # drift, defeating integrity for the cloud-credentialed broker package).
