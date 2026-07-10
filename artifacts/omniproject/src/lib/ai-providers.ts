@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getJson, safeJson, responseError } from "./api";
+import { getJson, sendJson } from "./api";
 
 /**
  * AI Providers client (admin). Providers are first-class entities; each provider's API key
@@ -43,37 +43,27 @@ export function useAiProviders() {
   });
 }
 
-async function send(url: string, method: string, body?: unknown): Promise<void> {
-  const res = await fetch(url, {
-    method,
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-  if (!res.ok) throw responseError(res, await safeJson(res));
-}
-
 /** Add or update a provider entity (admin; step-up gated server-side). */
 export function upsertProvider(p: { id: string; kind: AiProviderKind; label: string; endpoint?: string; model?: string }): Promise<void> {
-  return send("/api/ai/providers", "POST", p);
+  return sendJson("/api/ai/providers", p, "POST");
 }
 
 /** Remove a provider entity and its stored key. */
 export function removeProvider(id: string): Promise<void> {
-  return send(`/api/ai/providers/${encodeURIComponent(id)}`, "DELETE");
+  return sendJson(`/api/ai/providers/${encodeURIComponent(id)}`, undefined, "DELETE");
 }
 
 /** Store a provider's API key in the vault (write-only; never echoed back). */
 export function setProviderKey(id: string, key: string): Promise<void> {
-  return send(`/api/ai/providers/${encodeURIComponent(id)}/key`, "PUT", { key });
+  return sendJson(`/api/ai/providers/${encodeURIComponent(id)}/key`, { key });
 }
 
 /** Remove a provider's stored key. */
 export function clearProviderKey(id: string): Promise<void> {
-  return send(`/api/ai/providers/${encodeURIComponent(id)}/key`, "DELETE");
+  return sendJson(`/api/ai/providers/${encodeURIComponent(id)}/key`, undefined, "DELETE");
 }
 
 /** Set the ordered provider list for a capability. */
 export function setCapabilityProviders(cap: string, providers: string[]): Promise<void> {
-  return send(`/api/ai/capabilities/${encodeURIComponent(cap)}`, "PUT", { providers });
+  return sendJson(`/api/ai/capabilities/${encodeURIComponent(cap)}`, { providers });
 }
