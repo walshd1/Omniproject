@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getJson, sendJson } from "./api";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getJson } from "./api";
 import type { DemandRequest, ResourceSkills } from "./skills-capacity";
 
 /**
@@ -22,14 +21,5 @@ export function useSkillsPlanning() {
     queryFn: () =>
       getJson<{ skillsPlanning?: SkillsPlanning }>("/api/settings").then((s) => s.skillsPlanning ?? { matrix: [], demand: [] }),
     staleTime: 30_000,
-  });
-}
-
-/** Persist the skills matrix + demand (admin/PMO). Bounded server-side by settings validation. */
-export function useSaveSkillsPlanning() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (skillsPlanning: SkillsPlanning) => sendJson("/api/settings", { skillsPlanning }, "PATCH"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: skillsPlanningQueryKey }),
   });
 }

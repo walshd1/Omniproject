@@ -147,14 +147,6 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
   },
 ];
 
-/** The registry as pure feature-gates (id + default posture) for the hierarchical resolver. */
-export function featureGates(): FeatureGate[] {
-  return FEATURE_MODULES.map((m) => ({
-    id: m.id,
-    ...(m.defaultOff ? { defaultOff: true } : {}),
-    ...(m.reason ? { reason: m.reason } : {}),
-  }));
-}
 
 /** Memoize a zero-arg computation — compute it once, on first call, and cache the result. The
  *  shared shape behind `governanceCatalogue`/`governanceGates`'s "pure over static imports, so
@@ -237,13 +229,6 @@ export function governanceGates(): FeatureGate[] {
 const loaded = new Set<string>();
 export function markFeatureLoaded(id: string): void {
   loaded.add(id);
-}
-
-/** The full set of disabled ids: env (`DISABLED_FEATURES`) ∪ settings (`disabledFeatures`). */
-export function disabledFeatureIds(): Set<string> {
-  const out = new Set<string>();
-  for (const id of getSettings().disabledFeatures ?? []) out.add(id);
-  return out;
 }
 
 /**

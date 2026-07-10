@@ -1125,7 +1125,6 @@ Maker-checker (four-eyes) dual control for sensitive admin actions.
 | `requiresDualControl` | Does this action require a second approver? |
 | `propose` | Create a pending proposal for an action (the maker step). |
 | `listProposals` | Pending proposals (for the admin queue). |
-| `getProposal` | A single proposal by id. |
 | `approve` | Approve and EXECUTE a proposal (the checker step). |
 | `reject` | Reject a pending proposal (any admin, including the proposer). |
 | `__resetDualControl` | Test-only: clear the proposal queue (executors persist). |
@@ -1198,11 +1197,9 @@ A resolution scope: a project (and/or its programme).
 
 | Function | What it does |
 | --- | --- |
-| `featureGates` | The registry as pure feature-gates (id + default posture) for the hierarchical resolver. |
 | `governanceCatalogue` | The full governance catalogue: the feature modules PLUS every shipped report and methodology, so a PMO can mandate ("must use") or forbid ("must not use") any of them through the same resolver. |
 | `governanceGates` | The governance catalogue as resolver gates (id + default posture). |
 | `markFeatureLoaded` | — |
-| `disabledFeatureIds` | The full set of disabled ids: env (`DISABLED_FEATURES`) ∪ settings (`disabledFeatures`). |
 | `scopeOverrides` | Build the resolver's scope overrides from settings + the requested programme/project. |
 | `resolveScopedFeatures` | Resolve every governable item (modules + reports + methodologies) for a scope, with lock detail. |
 | `isFeatureEnabled` | True when a module id is enabled for the given scope (org by default). |

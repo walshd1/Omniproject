@@ -29,14 +29,6 @@ export function useTimesheets(status?: Timesheet["status"], enabled = true) {
   });
 }
 
-export function useSaveTimesheet() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (sheet: Pick<Timesheet, "id" | "weekStart" | "entries">) => sendJson<Timesheet>("/api/timesheets", sheet, "POST"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["timesheets"] }),
-  });
-}
-
 export function useTimesheetAction() {
   const qc = useQueryClient();
   return useMutation({
