@@ -754,6 +754,14 @@ The single home for resolving configured broker endpoints — including the depr
 | `configuredBrokerUrls` | The single home for resolving configured broker endpoints — including the deprecated pre-0.2.0 `N8N_WEBHOOK_URL` alias. |
 | `configuredBrokerUrl` | The primary configured broker base URL (the first of {@link configuredBrokerUrls}), or undefined when none is set. |
 
+### `artifacts/api-server/src/lib/canonical-json.ts`
+
+The one canonical-JSON serializer.
+
+| Function | What it does |
+| --- | --- |
+| `canonicalJson` | The one canonical-JSON serializer. |
+
 ### `artifacts/api-server/src/lib/capabilities.ts`
 
 Capability signal — which data domains the wired backend(s) can populate, so the UI can pre-emptively label available reports/views instead of probing per request.
@@ -2089,7 +2097,6 @@ Provably-immutable snapshots.
 
 | Function | What it does |
 | --- | --- |
-| `canonicalJson` | Deterministic JSON with sorted object keys, so the hash is stable regardless of property order. |
 | `contentHash` | SHA-256 hex of the canonicalised value — the content address. |
 | `manifestAnchor` | The exact, deterministic message that is signed for a manifest — binds the content hash to its identity + time + scope, so altering any of them invalidates the signature. |
 | `buildSnapshot` | Build a signed snapshot bundle over `data`. |

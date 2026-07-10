@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { signMessage, verifySignature, publicKeyId, publicKeyPem } from "./signing";
+import { canonicalJson } from "./canonical-json";
 
 /**
  * Provably-immutable snapshots. A snapshot freezes a set of inputs (a report's rows, a board pack) so it
@@ -36,14 +37,10 @@ export interface SnapshotBundle {
   data: unknown;
 }
 
-/** Deterministic JSON with sorted object keys, so the hash is stable regardless of property order. */
-export function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value ?? null);
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  const obj = value as Record<string, unknown>;
-  const keys = Object.keys(obj).filter((k) => obj[k] !== undefined).sort();
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`).join(",")}}`;
-}
+/** Deterministic JSON with sorted object keys, so the hash is stable regardless of property order.
+ *  Re-exported from the shared serializer (lib/canonical-json) — snapshot hashes and the provenance
+ *  MAC chain must canonicalise through the exact same bytes. */
+export { canonicalJson } from "./canonical-json";
 
 /** SHA-256 hex of the canonicalised value — the content address. */
 export function contentHash(value: unknown): string {
