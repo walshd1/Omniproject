@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   sealConfig, openConfig, readMaybeSealed, exportConfigBundle, openBundle,
   rotateInternalKey, internalKeyFingerprint, isSealedConfig, __resetConfigCrypto,
+  ConfigDecryptError, isUndecryptableSealed,
 } from "./config-crypto";
 
 /**
@@ -84,9 +85,27 @@ test("opening an OLDER version token doesn't lower the current version (noteVers
   assert.equal(openConfig(v3token), "at v3", "current version unchanged, v3 still opens");
 });
 
-test("readMaybeSealed passes plaintext through and yields '' for an unopenable sealed token", () => {
+test("readMaybeSealed passes plaintext through and THROWS on an unopenable sealed token (never silent '')", () => {
   assert.equal(readMaybeSealed("just plaintext"), "just plaintext");
-  assert.equal(readMaybeSealed("c1.1.garbage-that-cannot-decrypt"), "");
+  // An undecryptable sealed token must NOT read as empty — that let a wrong/rotated key seal
+  // default state over valid ciphertext and destroy the store. It now throws so callers can refuse.
+  assert.throws(() => readMaybeSealed("c1.1.garbage-that-cannot-decrypt"), ConfigDecryptError);
+  assert.equal(isUndecryptableSealed("c1.1.garbage-that-cannot-decrypt"), true);
+  assert.equal(isUndecryptableSealed("just plaintext"), false);
+});
+
+test("with CONFIG_KEY_RAW, a post-export rekey genuinely rotates the at-rest key (v1 still opens, v2 differs)", () => {
+  process.env["CONFIG_KEY_RAW"] = Buffer.alloc(32, 7).toString("base64");
+  __resetConfigCrypto();
+  const v1 = sealConfig("secret");
+  assert.ok(v1.startsWith("c1.1."));
+  const fp1 = internalKeyFingerprint();
+  rotateInternalKey(); // the post-export rekey — was a silent no-op under a raw key before
+  const v2 = sealConfig("secret");
+  assert.ok(v2.startsWith("c1.2."));
+  assert.notEqual(internalKeyFingerprint(), fp1); // key actually changed
+  assert.equal(openConfig(v1), "secret"); // v1 still opens (backward-compatible: v1 = raw key)
+  assert.equal(openConfig(v2), "secret");
 });
 
 test("openBundle rejects a wrong prefix and a wrong-length key", () => {

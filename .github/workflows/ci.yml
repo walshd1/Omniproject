@@ -496,7 +496,9 @@ jobs:
         with:
           node-version: 22
       - name: Install (isolated npm)
-        run: npm ci || npm install
+        # Strict lockfile install only — no `|| npm install` fallback (that fails open on lockfile
+        # drift, defeating integrity for the cloud-credentialed broker package).
+        run: npm ci
       - name: Typecheck
         run: npm run typecheck
       - name: Test (offline; SDK clients faked)
