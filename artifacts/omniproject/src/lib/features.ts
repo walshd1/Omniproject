@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, safeJson, responseError } from "./api";
+import { getJson, sendJson } from "./api";
 import type { ConditionSet } from "./rate-card";
 
 /**
@@ -94,22 +94,12 @@ export function useScopeFeatureMaps() {
   });
 }
 
-async function patchJson(url: string, body: unknown, errMsg: string): Promise<unknown> {
-  const res = await fetch(url, {
-    method: url.includes("/features/") ? "PUT" : "PATCH",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw responseError(res, await safeJson(res), errMsg);
-  return res.json();
-}
-
-/** Persist the org opt-out set (admin). CSRF is attached by the global fetch patch (lib/csrf). */
+/** Persist the org opt-out set (admin). CSRF is attached by the global fetch patch (lib/csrf).
+ *  Settings mutations PATCH `/api/settings`; scope-feature mutations PUT `/api/features/*`. */
 export function useSetDisabledFeatures() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (disabledFeatures: string[]) => patchJson("/api/settings", { disabledFeatures }, "Failed to update feature modules"),
+    mutationFn: (disabledFeatures: string[]) => sendJson("/api/settings", { disabledFeatures }, "PATCH", "Failed to update feature modules"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["features"] }),
   });
 }
@@ -119,7 +109,7 @@ export function useSetOrgGovernance() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (patch: { disabledFeatures?: string[]; enabledFeatures?: string[]; featureGovernance?: { required: string[]; forbidden: string[] } }) =>
-      patchJson("/api/settings", patch, "Failed to update org feature governance"),
+      sendJson("/api/settings", patch, "PATCH", "Failed to update org feature governance"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["features"] }),
   });
 }
@@ -129,7 +119,7 @@ export function useSetProgrammeFeatures() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ programmeId, config }: { programmeId: string; config: ScopeFeatureConfig }) =>
-      patchJson(`/api/features/programme/${encodeURIComponent(programmeId)}`, config, "Failed to update programme features"),
+      sendJson(`/api/features/programme/${encodeURIComponent(programmeId)}`, config, "PUT", "Failed to update programme features"),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["features"] }); qc.invalidateQueries({ queryKey: scopeFeatureMapsQueryKey }); },
   });
 }
@@ -139,7 +129,7 @@ export function useSetProjectFeatures() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ projectId, programmeId, config }: { projectId: string; programmeId?: string | null; config: ScopeFeatureConfig }) =>
-      patchJson(`/api/features/project/${encodeURIComponent(projectId)}${programmeId ? `?programmeId=${encodeURIComponent(programmeId)}` : ""}`, config, "Failed to update project features"),
+      sendJson(`/api/features/project/${encodeURIComponent(projectId)}${programmeId ? `?programmeId=${encodeURIComponent(programmeId)}` : ""}`, config, "PUT", "Failed to update project features"),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["features"] }); qc.invalidateQueries({ queryKey: scopeFeatureMapsQueryKey }); },
   });
 }
@@ -176,7 +166,7 @@ export function useGovernanceRules() {
 export function useSaveGovernanceRules() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (governanceRules: GovernanceRule[]) => patchJson("/api/features/governance-rules", { governanceRules }, "Failed to update governance rules"),
+    mutationFn: (governanceRules: GovernanceRule[]) => sendJson("/api/features/governance-rules", { governanceRules }, "PUT", "Failed to update governance rules"),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: governanceRulesQueryKey });
       qc.invalidateQueries({ queryKey: ["features"] });
