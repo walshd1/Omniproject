@@ -7,6 +7,7 @@
  * screen only appears when the backend can feed it.
  */
 import { isCapabilityMet } from "./compatibility";
+import { matchesMethodology } from "./methodology-match";
 import { SCREENS_DATA } from "./screens.generated";
 
 export type ScreenKind = "dashboard" | "detail" | "planning" | "report" | "admin";
@@ -68,5 +69,5 @@ export function availableScreens(caps: Record<string, boolean>): ScreenDefinitio
 /** Screens tagged with a methodology — those carrying its tag, plus the neutral
  *  ("*"/untagged) ones. The screen-plane analogue of `viewsForMethodology`. */
 export function screensForMethodology(methodology: string): ScreenDefinition[] {
-  return SCREENS.filter((s) => !s.methodologies || s.methodologies.includes("*") || s.methodologies.includes(methodology));
+  return SCREENS.filter((s) => matchesMethodology(s.methodologies, methodology));
 }

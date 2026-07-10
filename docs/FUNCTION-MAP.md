@@ -2732,6 +2732,14 @@ METHODOLOGY registry — the PM methodologies OmniProject can shape itself to (S
 | `getMethodology` | One methodology definition by id, or undefined. |
 | `methodologyCatalogue` | All methodology definitions (a defensive copy). |
 
+### `lib/backend-catalogue/src/methodology-match.ts`
+
+The single predicate behind `reportsForMethodology` / `screensForMethodology` / `viewsForMethodology`: does an entry whose methodology tags are `tags` apply to methodology `id`?
+
+| Function | What it does |
+| --- | --- |
+| `matchesMethodology` | The single predicate behind `reportsForMethodology` / `screensForMethodology` / `viewsForMethodology`: does an entry whose methodology tags are `tags` apply to methodology `id`? |
+
 ### `lib/backend-catalogue/src/methodology-pack.ts`
 
 METHODOLOGY PACKS — a methodology is a DERIVED grouping, not a plane: a "pack" is the methodology's definition plus every asset that carries its methodology tag, collected from across the catalogue.
