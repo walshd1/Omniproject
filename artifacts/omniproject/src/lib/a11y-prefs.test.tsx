@@ -98,4 +98,51 @@ describe("A11yControls", () => {
     expect(document.documentElement.getAttribute("data-density")).toBe("compact");
     expect(JSON.parse(localStorage.getItem("omni:a11y")!).density).toBe("compact");
   });
+
+  it("decreases the text size and reflects the percentage", () => {
+    render(<Providers><A11yControls /></Providers>);
+    fireEvent.click(screen.getByLabelText("Decrease text size"));
+    expect(screen.getByText("90%")).toBeInTheDocument();
+    expect(document.documentElement.style.getPropertyValue("--user-font-scale")).toBe("0.9");
+  });
+
+  it("sets a custom background colour and clears it back to the company default", () => {
+    render(<Providers><A11yControls /></Providers>);
+    expect(screen.queryByRole("button", { name: "Clear background colour" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Background colour"), { target: { value: "#112233" } });
+    expect(JSON.parse(localStorage.getItem("omni:a11y")!).backgroundColor).toBe("#112233");
+    expect((screen.getByLabelText("Background colour") as HTMLInputElement).value).toBe("#112233");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear background colour" }));
+    expect(JSON.parse(localStorage.getItem("omni:a11y")!).backgroundColor).toBeNull();
+    expect((screen.getByLabelText("Background colour") as HTMLInputElement).value).toBe("#f2f3f5");
+    expect(screen.queryByRole("button", { name: "Clear background colour" })).not.toBeInTheDocument();
+  });
+
+  it("switching to single-switch scanning reveals the scan-rate slider, which adjusts the dwell time", () => {
+    render(<Providers><A11yControls /></Providers>);
+    expect(screen.queryByLabelText("Auto-scan dwell time")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Switch-access scanning"), { target: { value: "single" } });
+    expect(JSON.parse(localStorage.getItem("omni:a11y")!).switchScan).toBe("single");
+    const slider = screen.getByLabelText("Auto-scan dwell time");
+    expect(screen.getByText("1.50s")).toBeInTheDocument();
+
+    fireEvent.change(slider, { target: { value: "2500" } });
+    expect(screen.getByText("2.50s")).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("omni:a11y")!).scanRateMs).toBe(2500);
+
+    fireEvent.change(screen.getByLabelText("Switch-access scanning"), { target: { value: "off" } });
+    expect(screen.queryByLabelText("Auto-scan dwell time")).not.toBeInTheDocument();
+  });
+
+  it("changes the mobile layout mode and reflects whether the layout is currently mobile", () => {
+    render(<Providers><A11yControls /></Providers>);
+    expect(screen.getByText(/Currently off/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Mobile layout"), { target: { value: "on" } });
+    expect(JSON.parse(localStorage.getItem("omni:a11y")!).mobileMode).toBe("on");
+    expect(screen.getByText(/Currently on/)).toBeInTheDocument();
+  });
 });
