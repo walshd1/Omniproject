@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { num } from "../../lib/num";
 import { useT } from "../../lib/i18n";
@@ -194,9 +195,9 @@ export function Utilisation() {
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {rows.length === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="utilisation-empty">
+        <ReportEmpty testId="utilisation-empty">
           No time data — log effort (estimate / logged / remaining hours) and assign work items to people to see per-assignee utilisation.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="utilisation">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

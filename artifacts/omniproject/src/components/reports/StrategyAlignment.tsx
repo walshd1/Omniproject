@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { convertAmount } from "../../lib/currency";
 import { num } from "../../lib/num";
@@ -204,9 +205,9 @@ export function StrategyAlignment() {
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {themes.length === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="strategy-alignment-empty">
+        <ReportEmpty testId="strategy-alignment-empty">
           No strategic data — set a strategic theme / goal, objectives, KPIs, contribution or benefit values on work items to see how the portfolio maps to strategy.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="strategy-alignment">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

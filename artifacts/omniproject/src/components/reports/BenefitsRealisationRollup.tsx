@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
@@ -61,9 +62,9 @@ export function BenefitsRealisationRollup({ now }: { now?: number }) {
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {pipeline.totalPlanned === 0 && pipeline.totalActual === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="benefits-realisation-empty">
+        <ReportEmpty testId="benefits-realisation-empty">
           No benefits data — set planned/actual benefit values, a status and a due date on work items to track realisation over time.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-5" data-testid="benefits-realisation">
           <div className="flex flex-wrap items-start justify-between gap-3">

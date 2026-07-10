@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { type FinanceRollup } from "../../lib/portfolio-finance";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
@@ -61,9 +62,9 @@ export function PortfolioFinancials() {
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {!hasData ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="portfolio-fin-empty">
+        <ReportEmpty testId="portfolio-fin-empty">
           No financials — connect a cost / ERP source so projects report budget, actual and forecast.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="portfolio-financials">
           <div className="flex flex-wrap items-center justify-between gap-3">
