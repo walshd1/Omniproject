@@ -64,7 +64,7 @@ from `FIELD_REGISTRY`:
 - **`capability-gating.ts`** — `resolveGating({mode, org, programme?, project?})` reuses the org →
   programme → project **feature-resolution** model wholesale (monotonic narrowing + PMO
   require/forbid locks). `buildSelfHostCapability` turns the live domains into the `StoreCapability`
-  the compositor reads; `domainRowsForScope` is the admin/wizard read model.
+  the compositor reads; `resolveGating(...).rows` is the admin/wizard read model.
 - **`adapter.ts`** — `SelfHostDbAdapter implements StoreAdapter` over an injected `SelfHostDbPort`
   (`readRows`/`writeRow`). The adapter enforces the capability: a field the gating hasn't enabled is
   never read up, never written down. It speaks **no SQL** — the port does (the port's concrete

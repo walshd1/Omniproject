@@ -51,8 +51,8 @@ export async function transcribeClip(blob: Blob): Promise<string> {
   return ((await res.json()) as { text?: string }).text ?? "";
 }
 
-/** Encode a Blob as base64 (no data: prefix) for a JSON body. */
-export function blobToBase64(blob: Blob): Promise<string> {
+/** Encode a Blob as base64 (no data: prefix) for a JSON body. Internal to this module. */
+function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {

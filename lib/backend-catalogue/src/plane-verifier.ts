@@ -81,7 +81,10 @@ const CHECKS: Record<PlaneId, (e: Rec, errors: string[]) => void> = {
     if (!isStr(e["route"])) errors.push("route: required");
     if (!isStr(e["kind"])) errors.push("kind: required");
     const c = e["capabilities"] as Rec | undefined;
-    const roles = ["viewer", "contributor", "manager", "pmo", "admin"];
+    // Must match ScreenCapability.requiresRole exactly (screen-catalogue.ts): the linear ladder
+    // only — `pmo`/`admin` are orthogonal authorities and `pmo` is NOT a valid screen-gate role,
+    // so it must not be accepted here (the validator had drifted more permissive than the type).
+    const roles = ["viewer", "contributor", "manager", "admin"];
     if (!isObj(c) || !roles.includes(c?.["requiresRole"] as string)) errors.push(`capabilities.requiresRole: ${roles.join("|")}`);
     if (!isArr(e["tools"])) errors.push("tools: required array");
   },
