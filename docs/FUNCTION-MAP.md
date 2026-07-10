@@ -2019,6 +2019,14 @@ Session timeout policy — a sliding IDLE timeout plus an ABSOLUTE lifetime cap.
 | `isSessionExpired` | Has this session expired by idle or absolute age at `now`? Missing timestamps are treated as NOT expired so pre-upgrade cookies survive — they get stamped on the next request and are enforced from then on (see auth.ts slideSession). |
 | `timeoutPolicy` | Public view of the policy, for the frontend idle warning / countdown. |
 
+### `artifacts/api-server/src/lib/settings-collection-router.ts`
+
+Factory for the recurring "settings collection" route shape: a GET that reads one `SettingsState` field and a write (PUT/PATCH) that persists it, wrapped in the standard `SettingsValidationError → 400` catch and a config-version capture.
+
+| Function | What it does |
+| --- | --- |
+| `settingsCollectionRouter` | Build a `Router` exposing the GET + write pair for one settings-collection field. |
+
 ### `artifacts/api-server/src/lib/settings.ts`
 
 Gateway-local settings store.

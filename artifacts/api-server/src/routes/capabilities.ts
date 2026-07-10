@@ -8,8 +8,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { resolveCapabilities, resolveFieldManifest } from "../lib/capabilities";
 import { resolveAvailability } from "../lib/availability";
 import { requireRole, roleForReq } from "../lib/rbac";
-import { getSettings, updateSettings, SettingsValidationError } from "../lib/settings";
-import { captureVersion } from "../lib/config-store";
+import { settingsCollectionRouter } from "../lib/settings-collection-router";
 
 const router = Router();
 
@@ -43,24 +42,20 @@ router.get("/availability", async (req, res) => {
   }
 });
 
-// PATCH /api/availability/curation — admin OR PMO sets the hidden-field list (view-curation). It
-// can only HIDE available fields; persisted to the config bundle (settings.hiddenFields).
-router.patch("/availability/curation", requireAdminOrPmo, (req, res) => {
-  const hiddenFields = (req.body as { hiddenFields?: unknown })?.hiddenFields;
-  try {
-    const settings = updateSettings({ hiddenFields });
-    captureVersion("field visibility curated");
-    res.json({ hiddenFields: settings.hiddenFields });
-  } catch (err) {
-    if (err instanceof SettingsValidationError) { res.status(400).json({ error: err.message }); return; }
-    throw err;
-  }
-});
-
-// GET /api/availability/curation — the current hidden-field list (admin/PMO panel reads it).
-router.get("/availability/curation", requireAdminOrPmo, (_req, res) => {
-  res.json({ hiddenFields: getSettings().hiddenFields ?? [] });
-});
+// GET/PATCH /api/availability/curation — the hidden-field list (view-curation). Admin OR PMO on
+// both verbs; the write can only HIDE available fields, persisted to the config bundle
+// (settings.hiddenFields). A settings-collection instance with the read guarded too, since the
+// curation panel is admin/PMO.
+router.use(
+  settingsCollectionRouter({
+    path: "/availability/curation",
+    settingsKey: "hiddenFields",
+    versionLabel: "field visibility curated",
+    method: "patch",
+    readGuards: [requireAdminOrPmo],
+    writeGuards: [requireAdminOrPmo],
+  }),
+);
 
 // GET /api/fields/manifest — the describe → reconcile path made inspectable.
 // Manager+ because it reveals backend schema detail (every field the backend
