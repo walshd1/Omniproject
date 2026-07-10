@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Capabilities } from "@workspace/api-client-react";
 import type { Role } from "./auth";
+import { getJson } from "./api";
 
 export interface SetupStatus {
   configured: boolean;
@@ -39,9 +40,7 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
 }
 
 async function fetchSetupStatus(): Promise<SetupStatus> {
-  const res = await fetch("/api/setup/status", { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`setup status failed: ${res.status}`);
-  return (await res.json()) as SetupStatus;
+  return getJson<SetupStatus>("/api/setup/status");
 }
 
 /** Reactively track what's wired, for the Configurator. Internal: the gateway route
@@ -62,9 +61,7 @@ export interface PublicSetupStatus {
 }
 
 async function fetchPublicSetupStatus(): Promise<PublicSetupStatus> {
-  const res = await fetch("/api/setup/status/public", { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`setup status (public) failed: ${res.status}`);
-  return (await res.json()) as PublicSetupStatus;
+  return getJson<PublicSetupStatus>("/api/setup/status/public");
 }
 
 /** The outer-surface counterpart to `useSetupStatus` — the one fact every session
@@ -111,18 +108,14 @@ export interface BackendInfo {
 /** Internal: the Configurator's full backend catalogue (docs, required env, actions,
  *  capabilities). Gated to PMO/admin at the gateway. */
 export async function fetchBackends(): Promise<BackendInfo[]> {
-  const res = await fetch("/api/setup/backends", { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`backends failed: ${res.status}`);
-  return (await res.json()) as BackendInfo[];
+  return getJson<BackendInfo[]>("/api/setup/backends");
 }
 
 /** Outer surface: just the known backend ids, for non-Configurator callers (e.g.
  *  Settings' backend-source suggestion dropdown) that need to validate/suggest an
  *  id but have no business seeing the full internal manifest. */
 export async function fetchBackendIds(): Promise<string[]> {
-  const res = await fetch("/api/setup/backends/ids", { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`backend ids failed: ${res.status}`);
-  return (await res.json()) as string[];
+  return getJson<string[]>("/api/setup/backends/ids");
 }
 
 export interface BrokerInfo {
@@ -140,9 +133,7 @@ export interface BrokerInfo {
 
 /** The broker kinds OmniProject knows how to be driven by — n8n is the shipped reference. */
 export async function fetchBrokers(): Promise<BrokerInfo[]> {
-  const res = await fetch("/api/setup/brokers", { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`brokers failed: ${res.status}`);
-  return (await res.json()) as BrokerInfo[];
+  return getJson<BrokerInfo[]>("/api/setup/brokers");
 }
 
 export interface OutputInfo {
@@ -156,9 +147,7 @@ export interface OutputInfo {
 
 /** The outward interfaces that expose portfolio data/events to other systems (BI feeds, MCP, exports, …). */
 export async function fetchOutputs(): Promise<OutputInfo[]> {
-  const res = await fetch("/api/setup/outputs", { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`outputs failed: ${res.status}`);
-  return (await res.json()) as OutputInfo[];
+  return getJson<OutputInfo[]>("/api/setup/outputs");
 }
 
 export interface NotificationChannelInfo {
@@ -179,9 +168,7 @@ export interface NotificationChannelInfo {
 
 /** The channels OmniProject can push alerts/events to (Slack, PagerDuty, email, …). */
 export async function fetchNotificationChannels(): Promise<NotificationChannelInfo[]> {
-  const res = await fetch("/api/setup/notifications", { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`notifications failed: ${res.status}`);
-  return (await res.json()) as NotificationChannelInfo[];
+  return getJson<NotificationChannelInfo[]>("/api/setup/notifications");
 }
 
 export interface ReportInfo {
@@ -195,9 +182,7 @@ export interface ReportInfo {
 
 /** Reports this instance's governance allows — filtered further to what a connected backend actually supports via `?available=1`. */
 export async function fetchReports(): Promise<ReportInfo[]> {
-  const res = await fetch("/api/setup/reports", { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`reports failed: ${res.status}`);
-  return (await res.json()) as ReportInfo[];
+  return getJson<ReportInfo[]>("/api/setup/reports");
 }
 
 /** The filename a generated workflow download/toast should use — kept in one place so callers can't drift. */

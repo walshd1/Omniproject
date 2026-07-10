@@ -91,9 +91,15 @@ describe("fetchBackends", () => {
     await expect(fetchBackends()).resolves.toEqual(backends);
   });
 
-  it("throws on failure", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(res(null, { ok: false, status: 404 })) as unknown as typeof fetch;
-    await expect(fetchBackends()).rejects.toThrow("backends failed: 404");
+  it("throws the server's error on failure (via the shared getJson error handling)", async () => {
+    // getJson surfaces the server's `error` field instead of a generic "backends failed: 404".
+    globalThis.fetch = vi.fn().mockResolvedValue(res({ error: "PMO role required" }, { ok: false, status: 403 })) as unknown as typeof fetch;
+    await expect(fetchBackends()).rejects.toThrow("PMO role required");
+  });
+
+  it("falls back to a status message when the error body is empty", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(res({}, { ok: false, status: 404 })) as unknown as typeof fetch;
+    await expect(fetchBackends()).rejects.toThrow("Failed (404)");
   });
 });
 
