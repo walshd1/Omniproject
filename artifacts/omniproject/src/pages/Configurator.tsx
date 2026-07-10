@@ -15,6 +15,7 @@ import { VerifyStep } from "../components/setup/VerifyStep";
 import { BackupStep } from "../components/setup/BackupStep";
 import { EnvironmentsStep } from "../components/setup/EnvironmentsStep";
 import { GovernanceStep } from "../components/setup/GovernanceStep";
+import { SelfHostDbStep } from "../components/setup/SelfHostDbStep";
 
 export function Configurator() {
   const { t } = useT();
@@ -136,6 +137,7 @@ export function Configurator() {
           {showAdvanced && <BackupStep isAdmin={isAdmin} status={status} />}
           {showAdvanced && <EnvironmentsStep isAdmin={isAdmin} />}
           {showAdvanced && <GovernanceStep isAdmin={isAdmin} />}
+          {showAdvanced && isAdmin && <SelfHostDbStep n={9} isAdmin={isAdmin} />}
         </div>
       </div>
     </ConfiguratorModeProvider>

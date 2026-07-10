@@ -1,0 +1,31 @@
+{
+  "id": "value-stream",
+  "label": "Value Stream Flow",
+  "docsUrl": "",
+  "kind": "portfolio",
+  "renderer": {
+    "engine": "builtin",
+    "component": "ValueStreamFlow"
+  },
+  "capabilities": {
+    "requiresCapability": "portfolio",
+    "timeSeries": false,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "valueStream",
+    "status",
+    "labels",
+    "startDate",
+    "dueDate",
+    "createdAt",
+    "updatedAt",
+    "storyPoints"
+  ],
+  "notes": "Value-stream / flow-metrics roll-up: groups every work item by its value stream (or first label), and shows per stream the WIP (in-progress count), flow load (story points in flight), aging of in-progress work, throughput (items finished in the recent window) and mean cycle time — answering where work is piling up, how old the in-flight work is, and how fast each value stream is finishing. Portfolio flow roll-up, derived live.",
+  "order": 75
+}

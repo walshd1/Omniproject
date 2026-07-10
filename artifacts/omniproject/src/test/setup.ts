@@ -57,6 +57,32 @@ if (!Element.prototype.hasPointerCapture) Element.prototype.hasPointerCapture = 
 if (!Element.prototype.setPointerCapture) Element.prototype.setPointerCapture = () => {};
 if (!Element.prototype.releasePointerCapture) Element.prototype.releasePointerCapture = () => {};
 
+// localStorage polyfill. Newer Node (26+) ships a built-in Web Storage global that is file-backed and
+// inert by default; under vitest's jsdom environment it collides with jsdom's own, leaving
+// `window.localStorage` unusable (accessing it throws / is undefined). Install a minimal in-memory
+// Storage when the runtime's is not usable, so component tests that persist UI state work on ANY Node
+// version. This is a NO-OP where a working localStorage already exists (e.g. Node 22 + jsdom).
+function ensureUsableLocalStorage(target: Window & typeof globalThis): void {
+  try {
+    target.localStorage.setItem("__probe__", "1");
+    target.localStorage.removeItem("__probe__");
+    return; // existing one works — keep it
+  } catch {
+    /* fall through and install an in-memory Storage */
+  }
+  const store = new Map<string, string>();
+  const memory: Storage = {
+    get length() { return store.size; },
+    clear: () => store.clear(),
+    getItem: (k) => (store.has(k) ? store.get(k)! : null),
+    key: (i) => Array.from(store.keys())[i] ?? null,
+    removeItem: (k) => void store.delete(k),
+    setItem: (k, v) => void store.set(String(k), String(v)),
+  };
+  Object.defineProperty(target, "localStorage", { configurable: true, value: memory });
+}
+ensureUsableLocalStorage(window as Window & typeof globalThis);
+
 // Some components persist UI state; give each test a clean localStorage.
 afterEach(() => {
   window.localStorage.clear();

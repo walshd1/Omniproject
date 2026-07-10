@@ -6,6 +6,12 @@
  *
  * HONEST SCOPE: the registry is per-replica RAM. Behind N replicas a user could hold up to
  * cap×N sessions; a shared store (Redis) would make it global. Unset / 0 ⇒ unlimited (no-op).
+ *
+ * DELIBERATELY NOT shared via the sharedKv seam (unlike audit-chain / config-store / the
+ * governance log). `registerSession` is a SYNC auth hot-path called on every authenticated
+ * request; the shared-state seam is async, so adopting it would force this decision to await a
+ * Redis round-trip inline in auth. That async refactor of the auth path is higher-risk and out
+ * of scope here, so the per-replica cap is a knowingly-accepted limit rather than an oversight.
  */
 interface Entry { first: number; last: number }
 const users = new Map<string, Map<string, Entry>>();

@@ -77,9 +77,6 @@ export async function listProposals(): Promise<Proposal[]> {
   return entries.map((e) => JSON.parse(e.value) as Proposal).filter((p) => p.status === "pending");
 }
 
-/** A single proposal by id. */
-export function getProposal(id: string): Promise<Proposal | undefined> { return loadProposal(id); }
-
 export interface DecisionResult { ok: boolean; error?: string; proposal?: Proposal }
 
 /**

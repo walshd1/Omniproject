@@ -56,4 +56,26 @@ describe("StaffTimeCost", () => {
     renderWithProviders(<StaffTimeCost projectId="p1" />, { client: seed(staffCost()) });
     expect(screen.getByTestId("staff-cost-empty")).toBeInTheDocument();
   });
+
+  it("renders the timesheet-actuals card when approved-timesheet cost is present", () => {
+    renderWithProviders(<StaffTimeCost projectId="p1" />, {
+      client: seed(staffCost({
+        totalCost: 5000, clientCost: 5000, charge: 5000,
+        byTitle: [{ titleHash: "h1", titleLabel: "Eng", hours: 50, cost: 5000, charge: 5000 }],
+        timesheetActuals: { internalCost: 600, clientCost: 0, totalCost: 600, charge: 0, margin: 0, unratedHours: 0, byTitle: [{ titleHash: "h1", titleLabel: "Eng", hours: 10, cost: 600, charge: 0 }] },
+      })),
+    });
+    expect(screen.getByTestId("timesheet-actuals")).toBeInTheDocument();
+    expect(screen.getByText("approved timesheet hours × rate card")).toBeInTheDocument();
+  });
+
+  it("shows approved-timesheet actuals even when there is no backend-logged cost", () => {
+    renderWithProviders(<StaffTimeCost projectId="p1" />, {
+      client: seed(staffCost({
+        timesheetActuals: { internalCost: 600, clientCost: 0, totalCost: 600, charge: 0, margin: 0, unratedHours: 0, byTitle: [] },
+      })),
+    });
+    expect(screen.queryByTestId("staff-cost-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("timesheet-actuals")).toBeInTheDocument();
+  });
 });

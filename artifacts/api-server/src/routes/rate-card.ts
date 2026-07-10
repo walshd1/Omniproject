@@ -6,6 +6,8 @@ import { programmeIdOf } from "../lib/programmes";
 import { staffCost, valueColumns, hashIdentity, type RateCard, type Facing, type TimedItem, type Uplift, type ValueColumn } from "../lib/rate-card";
 import { applyCostRules, firedCostRuleIds, type CostRule } from "../lib/cost-rules";
 import { validatePredicate, type ConditionSet } from "../lib/predicate";
+import { timesheetStoreFor } from "../timesheets/store";
+import { approvedHoursByResource, approvedItemsFrom } from "../timesheets/actuals";
 import {
   getRateCard,
   setRateCard,
@@ -265,7 +267,16 @@ router.get("/projects/:projectId/staff-cost", requireRole("pmo"), async (req, re
 
     const cost = staffCost(issues as unknown as TimedItem[], getRateCard(), getIdentityMap(), projectType, uplift, scope);
     const columns = valueColumns(cost, valueModelFor(projectId), uplift);
-    res.json({ ...cost, projectType, columns, appliedCostRules: firedCostRuleIds(rules, ctx) });
+
+    // Internal staff cost from APPROVED timesheets (when a timesheet store is configured): approved
+    // hours per resource × the same rate card, reported ALONGSIDE the backend-logged cost so the PMO
+    // can compare tracked-time actuals to logged effort. Nothing stored — read from the store below the seam.
+    const tsStore = timesheetStoreFor(scope);
+    const timesheetActuals = tsStore
+      ? staffCost(approvedItemsFrom(await approvedHoursByResource(tsStore, projectId)) as unknown as TimedItem[], getRateCard(), getIdentityMap(), projectType, uplift, scope)
+      : null;
+
+    res.json({ ...cost, projectType, columns, appliedCostRules: firedCostRuleIds(rules, ctx), ...(timesheetActuals ? { timesheetActuals } : {}) });
   } catch (err) {
     req.log.error({ err }, "staff_cost failed");
     res.status(502).json({ error: "Could not compute staff cost" });

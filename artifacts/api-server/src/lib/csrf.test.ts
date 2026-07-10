@@ -69,6 +69,13 @@ test("same-origin browser mutation needs a matching double-submit token", () => 
   assert.equal(mismatch.passed, false);
 });
 
+test("an uppercase /API path is still CSRF-scoped (case-insensitive prefix, matching Express routing)", () => {
+  // Express routes /API/... case-insensitively to the mutation handler; the guard must not skip it.
+  const r = run({ session: true, path: "/API/issues", origin: "https://evil.example", host: "app.example.com" });
+  assert.equal(r.passed, false);
+  assert.equal(r.status, 403);
+});
+
 test("non-browser session call (no Origin/Referer/Sec-Fetch) passes — not a CSRF vector", () => {
   // e.g. curl/supertest with a cookie: cannot be tricked, so the token isn't demanded.
   assert.equal(run({ session: true }).passed, true);

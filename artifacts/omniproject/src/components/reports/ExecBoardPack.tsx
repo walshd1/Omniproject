@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
@@ -162,9 +163,9 @@ export function ExecBoardPack() {
   return (
     <DataState isLoading={loading} isError={projErr || health.isError} error={projError || health.error} onRetry={() => { void refetch(); void health.refetch(); }} className="min-h-40">
       {!hasData ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="exec-pack-empty">
+        <ReportEmpty testId="exec-pack-empty">
           No portfolio data — connect a backend so projects report RAG status, schedule and budget variance.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-5" data-testid="exec-board-pack">
           <div className="flex flex-wrap items-start justify-between gap-3">

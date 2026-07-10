@@ -1,13 +1,13 @@
 # Documentation index
 
-A map of every document in `docs/`, grouped by what it's for and who it's for. This
-page doesn't duplicate content — each entry is one line; follow the link for the
-real thing. Start with **[TECHNICAL.md](TECHNICAL.md)** if you just want the single
-technical reference; use this page when you need something more specific (an
-audit, a runbook, a design proposal).
+A map of every current document in `docs/`, grouped by what it's for and who it's for. This page
+doesn't duplicate content — each entry is one line; follow the link for the real thing. Start with
+**[TECHNICAL.md](TECHNICAL.md)** if you just want the single technical reference; use this page when
+you need something more specific (a runbook, a connector note, a design record).
 
-For the install/deploy/use guide and the three audience "doors" (small teams &
-charities / enterprises / engineers), see the **[README](../README.md)**.
+For the install/deploy/use guide and the three audience "doors" (small teams & charities /
+enterprises / engineers), see the **[README](../README.md)**. Superseded and point-in-time documents
+live under **[archive/](archive/README.md)** and are not maintained.
 
 ---
 
@@ -16,35 +16,50 @@ charities / enterprises / engineers), see the **[README](../README.md)**.
 How the system is put together, the broker seam, and the extensibility model.
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — the system overview: stateless / zero-at-rest model, the layer cake, the broker seam, the security spine, dev-mode gating (Mermaid diagrams).
-- **[SEQUENCES.md](SEQUENCES.md)** — seven traced sequence walkthroughs (auth, broker read, optimistic-concurrency write, capability resolution, snapshot sign/verify, notification dispatch, dev-mode gating).
+- **[TECHNICAL.md](TECHNICAL.md)** — the single consolidated technical reference.
+- **[SEQUENCES.md](SEQUENCES.md)** — traced sequence walkthroughs (auth, broker read, optimistic-concurrency write, capability resolution, snapshot sign/verify, notification dispatch, dev-mode gating).
 - **[READING-GUIDE.md](READING-GUIDE.md)** — subsystem → entry-point-file map, plus a glossary of the domain vocabulary.
 - **[FUNCTION-MAP.md](FUNCTION-MAP.md)** — the generated per-function index of every source file (CI-drift-guarded).
 - **[BROKER.md](BROKER.md)** — the `Broker` interface seam and its invariants (why the codebase can't know the broker is n8n).
-- **[BROKER-HTTP-BINDING.md](BROKER-HTTP-BINDING.md)** — the reference HTTP wire protocol a contract-speaking broker implements (what n8n implements today, and what a sidecar broker would implement to plug in with zero core changes).
+- **[BROKER-HTTP-BINDING.md](BROKER-HTTP-BINDING.md)** — the reference HTTP wire protocol a contract-speaking broker implements.
 - **[CONTRACT.md](CONTRACT.md)** — the published, versioned `Broker` contract (request/response shapes, control semantics), generated from source.
 - **[INTEGRATION-PLANES.md](INTEGRATION-PLANES.md)** — the seven integration planes (backends, brokers, outputs, notifications, methodologies, reports, screens) and the shared catalogue.
-- **[vendors/ORACLE-FUSION-ERP.md](vendors/ORACLE-FUSION-ERP.md)** — the Oracle Fusion Cloud ERP (Project Financial Management) connector: what's genuinely mapped, and why it's catalogued but not yet live-tenant-verified.
-- **[vendors/NETSUITE.md](vendors/NETSUITE.md)** — the Oracle NetSuite connector: capability-honest notes on the read/write mapping, catalogued but not yet live-tenant-verified.
-- **[vendors/SAP-S4HANA-PS-PPM.md](vendors/SAP-S4HANA-PS-PPM.md)** — the SAP S/4HANA (PS/PPM) financials read-only connector: catalogued, not yet verified against a live tenant.
+- **[COMPOSITION-TIER.md](COMPOSITION-TIER.md)** — the composition seam and store-adapter roles (authoritative ▸ augmenting ▸ cache) that let a self-host DB and backends coexist.
 - **[METHODOLOGIES.md](METHODOLOGIES.md)** — the methodology views (Kanban, Scrum, Gantt, PRINCE2, RAID, list) and how to add your own.
 - **[FEATURE-MODULES.md](FEATURE-MODULES.md)** — optional, lazily-loaded backend modules an operator can switch off.
 - **[FEATURE-GOVERNANCE.md](FEATURE-GOVERNANCE.md)** — how features/methodologies/reports are gated across org → programme → project.
-- **[DATA-REQUIREMENTS.md](DATA-REQUIREMENTS.md)** — what each view/report needs from the underlying backend, and how it degrades when the data isn't there.
+- **[DATA-REQUIREMENTS.md](DATA-REQUIREMENTS.md)** — what each view/report needs from the backend, and how it degrades when the data isn't there.
 - **[FIELD-CATALOGUE.md](FIELD-CATALOGUE.md)** — the cross-product field superset used to extend the canonical field registry.
-- **[vendors/DYNAMICS-365-FO.md](vendors/DYNAMICS-365-FO.md)** — the Dynamics 365 Finance & Operations (Project Management and Accounting) connector: what's mapped, from where, and what's still unverified against a live tenant.
+- **[PPM-DEPTH.md](PPM-DEPTH.md)** — the depth modules closing the gap to best-in-class PPM (portfolio optimiser, OKR cascade, skills demand/capacity, timesheets + staff-cost, stage-gate, SAFe PI board).
 - **[SELF-HOST-DB.md](SELF-HOST-DB.md)** — the optional, customer-owned stateful database for greenfield teams with nothing to connect.
+- **[RETENTION.md](RETENTION.md)** — durable time-series history (journal → snapshot → trend) and its cloud connectors (S3/DynamoDB/BigQuery via the retention-broker).
 - **[N8N-WORKFLOWS.md](N8N-WORKFLOWS.md)** — generate, wire & verify n8n workflows; open vs. licensed prebuilt integrations.
 - **[MCP.md](MCP.md)** — the read-only (write opt-in) MCP server so an AI agent can read through the broker seam.
-- **[MULTI-TENANCY-DESIGN.md](MULTI-TENANCY-DESIGN.md)** — *(design proposal, not implemented)* pooled multi-tenancy for a SaaS/MSP deployment model.
-- **[STAGE-GATES-DESIGN.md](STAGE-GATES-DESIGN.md)** — *(design, not implemented)* maker-checker governance gates for plan-affecting changes, and the zero-at-rest constraint that has to be resolved first.
+- **[adr/0001-broker-boundary.md](adr/0001-broker-boundary.md)** — ADR: the broker boundary decision.
+- **[adr/0002-language-choice.md](adr/0002-language-choice.md)** — ADR: the implementation-language decision.
 - **[PARKED-DECISIONS.md](PARKED-DECISIONS.md)** — items surfaced by review that need a maintainer decision before building, with the recommended call for each.
+
+### Connectors (vendor notes)
+
+Capability-honest notes on each catalogued connector — what's mapped and what's not yet live-tenant-verified.
+
+- **[vendors/ORACLE-FUSION-ERP.md](vendors/ORACLE-FUSION-ERP.md)** — Oracle Fusion Cloud ERP (Project Financial Management).
+- **[vendors/NETSUITE.md](vendors/NETSUITE.md)** — Oracle NetSuite.
+- **[vendors/SAP-S4HANA-PS-PPM.md](vendors/SAP-S4HANA-PS-PPM.md)** — SAP S/4HANA (PS/PPM) financials, read-only.
+- **[vendors/DYNAMICS-365-FO.md](vendors/DYNAMICS-365-FO.md)** — Dynamics 365 Finance & Operations (Project Management and Accounting).
+
+### Contributor plane guides
+
+Short how-tos for extending each integration plane (`docs/dev/`).
+
+- **[dev/PLANE-BACKENDS.md](dev/PLANE-BACKENDS.md)**, **[dev/PLANE-BROKERS.md](dev/PLANE-BROKERS.md)**, **[dev/PLANE-OUTPUTS.md](dev/PLANE-OUTPUTS.md)**, **[dev/PLANE-NOTIFICATIONS.md](dev/PLANE-NOTIFICATIONS.md)**, **[dev/PLANE-METHODOLOGIES.md](dev/PLANE-METHODOLOGIES.md)**, **[dev/PLANE-REPORTS.md](dev/PLANE-REPORTS.md)**, **[dev/PLANE-SCREENS.md](dev/PLANE-SCREENS.md)** — one per plane.
 
 ## Security & compliance
 
 Controls, audits, and the frameworks they map to.
 
 - **[SECURITY-AUDIT.md](SECURITY-AUDIT.md)** — the consolidated security posture: every control, where it's implemented, and residual risk.
-- **[SECURITY-AUDIT-2026-07.md](SECURITY-AUDIT-2026-07.md)** — a focused re-audit of the surfaces added or changed since the last pentest pass.
+- **[AUDIT-2026-07.md](AUDIT-2026-07.md)** — the 2026-07 whole-codebase deep pass (multi-agent, adversarially verified): 16 security + 31 clean-code findings, ranked.
 - **[AI-SECURITY.md](AI-SECURITY.md)** — the end-to-end AI control model: what's gated, contained, and the residual boundaries.
 - **[THREAT-MODEL.md](THREAT-MODEL.md)** — a STRIDE threat model and trust boundaries, for security review and pen-test scoping.
 - **[COMPLIANCE.md](COMPLIANCE.md)** — control mapping to SOC 2, ISO/IEC 27001:2022 and NIST CSF 2.0.
@@ -62,12 +77,20 @@ Running it in production.
 
 - **[OPERATIONS.md](OPERATIONS.md)** — scaling, high availability, disaster recovery & backup, and enabling OTLP telemetry.
 - **[SCALING.md](SCALING.md)** — how OmniProject stays fast and gentle on backend rate limits as usage grows; companion to `ops/MULTI-REPLICA.md`.
-- **[QUICKSTART.md](QUICKSTART.md)** — clone to your own real data (read-only) in about 15 minutes; the fast on-ramp before the standalone stack below.
-- **[DEPLOY-LOCAL.md](DEPLOY-LOCAL.md)** — the standalone stack (bundled Authentik IdP, Traefik, local-CA TLS) for fastest evaluation.
-- **[ops/RAILWAY-DEPLOY.md](ops/RAILWAY-DEPLOY.md)** — a hosted instance with no Docker host of your own; a manual recipe today, the basis for a future "Deploy on Railway" button.
-- **[REVERSE-PROXY.md](REVERSE-PROXY.md)** — putting `omni-shell` behind an existing Traefik / Caddy / nginx.
-- **[COMPOSE-AUDIT.md](COMPOSE-AUDIT.md)** — the Docker Compose topology correctness audit and the CI checks that keep it correct.
 - **[ENTERPRISE-OPS.md](ENTERPRISE-OPS.md)** — the data map, DSAR, retention and backup/DR answers procurement asks for.
+- **[QUICKSTART.md](QUICKSTART.md)** — clone to your own real data (read-only) in about 15 minutes; the fast on-ramp.
+- **[DEPLOY-LOCAL.md](DEPLOY-LOCAL.md)** — the standalone stack (bundled Authentik IdP, Traefik, local-CA TLS) for fastest evaluation.
+- **[CLOUD-HOSTING.md](CLOUD-HOSTING.md)** — hosting on the managed clouds (GKE/AKS/EKS) and the retention/connector options.
+- **[ops/RAILWAY-DEPLOY.md](ops/RAILWAY-DEPLOY.md)** — a hosted instance with no Docker host of your own.
+- **[REVERSE-PROXY.md](REVERSE-PROXY.md)** — putting `omni-shell` behind an existing Traefik / Caddy / nginx.
+- **[ops/MULTI-REPLICA.md](ops/MULTI-REPLICA.md)** — running multiple gateway replicas.
+- **[ops/SETUP-WIZARD.md](ops/SETUP-WIZARD.md)** — the guided first-run setup.
+- **[ops/DATABASE-BACKENDS.md](ops/DATABASE-BACKENDS.md)** — the supported self-host database backends.
+- **[ops/BUSINESS-RULES.md](ops/BUSINESS-RULES.md)** — operator-configurable business rules.
+- **[ops/IMPORT.md](ops/IMPORT.md)** — importing existing data.
+- **[ops/RAW-API.md](ops/RAW-API.md)** — the raw API surface for scripting/integration.
+- **[ops/LOAD-HARNESS.md](ops/LOAD-HARNESS.md)** — the load-test harness.
+- **[ops/PILOT-READINESS.md](ops/PILOT-READINESS.md)** — the pilot go-live readiness checklist.
 
 ## Product & buyer
 
@@ -81,20 +104,10 @@ Fit, maturity, and evaluation.
 - **[TESTING.md](TESTING.md)** — the test pillars and the CI coverage gates.
 - **[TECH-DEBT-AND-ROADMAP.md](TECH-DEBT-AND-ROADMAP.md)** — a living, honest register of known limitations, deferred work and roadmap.
 - **[RELEASE.md](RELEASE.md)** — the repeatable release-cut checklist.
-- **[RELEASE-NOTES-0.7.0-DRAFT.md](RELEASE-NOTES-0.7.0-DRAFT.md)** — draft release notes for 0.7.0 (not yet tagged/published).
+- **[launch/LAUNCH.md](launch/LAUNCH.md)** — the launch plan and checklist.
+- **[launch/DEMO-SCRIPT.md](launch/DEMO-SCRIPT.md)** — the guided demo script.
 - **[EXPLORATION.md](EXPLORATION.md)** — *(Beta)* snapshots → trends, the What-If sandbox, and cross-system dependency links by hash.
 - **[TIME-TRAVEL.md](TIME-TRAVEL.md)** — *(Experimental)* opt-in, out-of-warranty historical replay against a logging server you own.
-
-## Audit findings (quality & stress passes)
-
-Point-in-time reviews with concrete findings, run against this codebase.
-
-- **[CLEAN-CODE-AUDIT.md](CLEAN-CODE-AUDIT.md)** — a whole-codebase clean-code review (519 files, 67 findings, zero correctness/security defects).
-- **[PERF-PATTERNS-REVIEW.md](PERF-PATTERNS-REVIEW.md)** — a speed/responsiveness/design-patterns review at the 60-programme/200-project scale target.
-- **[RESILIENCE-FINDINGS.md](RESILIENCE-FINDINGS.md)** — a messy-data stress pass over every report/derivation/screen, and the hardening fixes.
-- **[LOGIC-FINDINGS.md](LOGIC-FINDINGS.md)** — a logic & collision audit (identity collisions, unstable sorts) across every report/widget/screen/view.
-- **[BUNDLED-BACKENDS-STRESS.md](BUNDLED-BACKENDS-STRESS.md)** — a stress pass over every bundled backend/broker definition in the catalogue.
-- **[I18N-COVERAGE.md](I18N-COVERAGE.md)** — the localisation coverage audit for the i18n dictionary (en/fr/de/es).
 
 ---
 
@@ -104,3 +117,6 @@ top-level **[README](../README.md)**, **[LICENSING.md](../LICENSING.md)**,
 **[CHANGELOG.md](../CHANGELOG.md)**, **[SECURITY.md](../SECURITY.md)** and
 **[AGENTS.md](../AGENTS.md)** cover install/use, the open-core model, release
 history, vulnerability disclosure, and contributor/agent notes respectively.
+
+**Archived documents** (point-in-time reviews, historical RFCs, superseded release notes) are under
+**[archive/](archive/README.md)**.

@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { useGetProjectRaid, type RaidEntry } from "@workspace/api-client-react";
 import { DataState } from "../DataState";
@@ -22,9 +23,9 @@ export function RaidRegister({ projectId }: { projectId: string }) {
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {summary.total === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="raid-register-empty">
+        <ReportEmpty testId="raid-register-empty">
           No RAID entries — log risks, assumptions, issues or dependencies to populate the register.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="raid-register">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

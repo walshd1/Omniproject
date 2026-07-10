@@ -6,12 +6,14 @@ deeper-dive companions:
 
 - [`AI-SECURITY.md`](./AI-SECURITY.md) — the end-to-end AI control model (keys, governance, kill-switch).
 - [`ops/EGRESS-INVENTORY.md`](./ops/EGRESS-INVENTORY.md) — every outbound destination the gateway can reach.
-- [`COMPOSE-AUDIT.md`](./COMPOSE-AUDIT.md) — deployment-topology hardening.
+- [`COMPOSE-AUDIT.md`](./archive/reviews/COMPOSE-AUDIT.md) — deployment-topology hardening.
 - [`ops/ROLES.md`](./ops/ROLES.md) — the RBAC model in product terms.
 - [`COMPLIANCE.md`](./COMPLIANCE.md) — control mapping to SOC 2 / ISO 27001 / NIST CSF.
 - [`THREAT-MODEL.md`](./THREAT-MODEL.md) — STRIDE threat model + trust boundaries.
 - [`PRIVACY.md`](./PRIVACY.md) — controller/processor position, ROPA template, sub-processors.
 - [`ACCESSIBILITY-CONFORMANCE.md`](./ACCESSIBILITY-CONFORMANCE.md) — WCAG 2.1 AA ACR (VPAT-style).
+- [`archive/reviews/SECURITY-AUDIT-2026-07.md`](./archive/reviews/SECURITY-AUDIT-2026-07.md) — the dated 2026-07 re-audit snapshot (archived; this doc remains the living posture).
+- [`AUDIT-2026-07.md`](./AUDIT-2026-07.md) — the 2026-07 whole-codebase deep pass (multi-agent, adversarially verified); its findings feed the fix backlog.
 
 ## Design context (what shapes the threat model)
 

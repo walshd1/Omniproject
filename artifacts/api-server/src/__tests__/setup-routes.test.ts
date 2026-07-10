@@ -17,7 +17,7 @@ before(async () => { h = await startHarness(); });
 after(() => h.close());
 afterEach(async () => {
   const { updateSettings } = await import("../lib/settings");
-  updateSettings({ screenLayouts: {}, deploymentProfile: null });
+  updateSettings({ screenLayouts: {}, deploymentProfile: null, selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: false } });
 });
 
 const admin = () => adminCookie();
@@ -39,6 +39,35 @@ test("POST /setup/profile validates the profile id", async () => {
   assert.equal(bad.status, 400);
   const ok = await h.req("/setup/profile", { method: "POST", cookie: admin(), body: { profile: "nonprofit" } });
   assert.equal(ok.status, 200);
+});
+
+test("GET /setup/self-host returns the adoption config + resolved domain gating", async () => {
+  const r = await h.req("/setup/self-host", { cookie: admin() });
+  assert.equal(r.status, 200);
+  const body = await r.json() as { config: { mode: string }; domains: unknown[]; holdsOnlyCopy: boolean };
+  assert.equal(body.config.mode, "off");
+  assert.equal(body.holdsOnlyCopy, false);
+  assert.equal(body.domains.length, 9);
+});
+
+test("POST /setup/self-host refuses a non-off adoption without the data-responsibility ack (400)", async () => {
+  const bad = await h.req("/setup/self-host", {
+    method: "POST", cookie: admin(),
+    body: { mode: "system-of-record", adopted: ["financials"], acknowledgedDataResponsibility: false },
+  });
+  assert.equal(bad.status, 400);
+});
+
+test("POST /setup/self-host persists an acknowledged adoption and enables its domains", async () => {
+  const ok = await h.req("/setup/self-host", {
+    method: "POST", cookie: admin(),
+    body: { mode: "system-of-record", adopted: ["financials"], acknowledgedDataResponsibility: true },
+  });
+  assert.equal(ok.status, 200);
+  const body = await ok.json() as { enabledDomains: string[]; holdsOnlyCopy: boolean };
+  assert.ok(body.enabledDomains.includes("issues"), "core domain always on");
+  assert.ok(body.enabledDomains.includes("financials"), "adopted domain on");
+  assert.equal(body.holdsOnlyCopy, true);
 });
 
 test("POST /setup/charity-onboarding applies the nonprofit preset", async () => {

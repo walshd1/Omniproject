@@ -649,16 +649,16 @@ purpose in **[docs/DOCUMENTATION-INDEX.md](docs/DOCUMENTATION-INDEX.md)**.
 - **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — scaling, high availability,
   disaster recovery/backup, and enabling OTLP telemetry.
 - **Quality & stress-test audits** — point-in-time findings run against this
-  codebase: **[docs/CLEAN-CODE-AUDIT.md](docs/CLEAN-CODE-AUDIT.md)** (duplication /
-  consistency), **[docs/PERF-PATTERNS-REVIEW.md](docs/PERF-PATTERNS-REVIEW.md)**
-  (speed/responsiveness at scale), **[docs/RESILIENCE-FINDINGS.md](docs/RESILIENCE-FINDINGS.md)**
-  (messy-data stress pass), **[docs/LOGIC-FINDINGS.md](docs/LOGIC-FINDINGS.md)**
+  codebase: **[docs/archive/reviews/CLEAN-CODE-AUDIT.md](docs/archive/reviews/CLEAN-CODE-AUDIT.md)** (duplication /
+  consistency), **[docs/archive/reviews/PERF-PATTERNS-REVIEW.md](docs/archive/reviews/PERF-PATTERNS-REVIEW.md)**
+  (speed/responsiveness at scale), **[docs/archive/reviews/RESILIENCE-FINDINGS.md](docs/archive/reviews/RESILIENCE-FINDINGS.md)**
+  (messy-data stress pass), **[docs/archive/reviews/LOGIC-FINDINGS.md](docs/archive/reviews/LOGIC-FINDINGS.md)**
   (identity-collision / unstable-sort audit),
-  **[docs/BUNDLED-BACKENDS-STRESS.md](docs/BUNDLED-BACKENDS-STRESS.md)** (every
+  **[docs/archive/reviews/BUNDLED-BACKENDS-STRESS.md](docs/archive/reviews/BUNDLED-BACKENDS-STRESS.md)** (every
   bundled backend/broker definition stress-tested), and
-  **[docs/SECURITY-AUDIT-2026-07.md](docs/SECURITY-AUDIT-2026-07.md)** (re-audit of
+  **[docs/archive/reviews/SECURITY-AUDIT-2026-07.md](docs/archive/reviews/SECURITY-AUDIT-2026-07.md)** (re-audit of
   the newest surfaces).
-- **[docs/I18N-COVERAGE.md](docs/I18N-COVERAGE.md)** — the localisation coverage
+- **[docs/archive/reviews/I18N-COVERAGE.md](docs/archive/reviews/I18N-COVERAGE.md)** — the localisation coverage
   audit for the i18n dictionary (en/fr/de/es).
 - **[artifacts/n8n-blueprints/](artifacts/n8n-blueprints/)** — the importable
   reference workflows (core sync + time-travel template).

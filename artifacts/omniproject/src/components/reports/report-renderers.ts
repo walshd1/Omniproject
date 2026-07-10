@@ -19,6 +19,11 @@ import { Velocity } from "./Velocity";
 import { RaidRegister } from "./RaidRegister";
 import { CrossProgrammeDependencies } from "./CrossProgrammeDependencies";
 import { FederatedPortfolio } from "./FederatedPortfolio";
+import { StrategyAlignment } from "./StrategyAlignment";
+import { ProjectHealth } from "./ProjectHealth";
+import { DemandIntake } from "./DemandIntake";
+import { Utilisation } from "./Utilisation";
+import { ValueStreamFlow } from "./ValueStreamFlow";
 
 /**
  * The report RENDERER REGISTRY — the one place a report definition's `renderer.component` is resolved to
@@ -53,6 +58,11 @@ export const REPORT_RENDERERS: Record<string, ReportRendererComponent> = {
   RaidRegister,
   CrossProgrammeDependencies,
   FederatedPortfolio,
+  StrategyAlignment,
+  ProjectHealth,
+  DemandIntake,
+  Utilisation,
+  ValueStreamFlow,
 };
 
 /** Is this component name a registered renderer? */

@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useListProjects, getGetProjectCapacityQueryOptions, type ResourceCapacity } from "@workspace/api-client-react";
@@ -75,9 +76,9 @@ export function CapacityRollup() {
   return (
     <DataState isLoading={loading} isError={projError} error={projErr} onRetry={() => refetch()} className="min-h-40">
       {!hasData ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="capacity-rollup-empty">
+        <ReportEmpty testId="capacity-rollup-empty">
           No capacity data — connect a resource-management source so projects report assigned vs available hours.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="capacity-rollup">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

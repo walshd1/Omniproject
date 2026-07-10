@@ -1,6 +1,8 @@
 import { BACKENDS, BROKERS, SCREENS } from "@workspace/backend-catalogue";
 import { getSettings, updateSettings, AI_PROVIDERS, type DeploymentState, type CapabilitySetting } from "./settings";
-import { recordAudit } from "./audit";
+import { recordAudit, createHttpSink, type HttpSink } from "./audit";
+import { sharedStateMode, sharedRingPush, sharedRingRead } from "./shared-state";
+import { logger } from "./logger";
 import { isSafeOutboundUrl } from "./url-safety";
 
 /**
@@ -281,18 +283,66 @@ export interface CapabilityLogEntry {
   actor: string | null;
 }
 
+/**
+ * The governance decision log — every capability use/block/config decision. It is a RAM-only
+ * ~200-entry ring by default (fast, per-replica, gone on restart). Two OPT-IN layers extend it
+ * without changing that default:
+ *
+ *  - DURABILITY: set CAPABILITY_LOG_HTTP_URL (+ optional CAPABILITY_LOG_HTTP_TOKEN) to POST each
+ *    decision to an external append/SIEM sink (NDJSON, batched, best-effort) — mirrors audit.ts.
+ *  - FLEET-SHARING: when REDIS_URL is set, each decision is also mirrored into a shared ring, so
+ *    `recentCapabilityLogShared()` reflects the whole fleet's decisions, not just this replica's.
+ *
+ * The RAM ring stays as the fast local cache in every mode.
+ */
 const LOG_MAX = 200;
+const SHARED_LOG_PREFIX = "cap:log:";
 const activityLog: CapabilityLogEntry[] = [];
 
-function pushLog(entry: CapabilityLogEntry): void {
-  activityLog.push(entry);
-  if (activityLog.length > LOG_MAX) activityLog.shift();
+let logSink: HttpSink<CapabilityLogEntry> | null = null;
+function ensureLogSink(): HttpSink<CapabilityLogEntry> | null {
+  const url = process.env["CAPABILITY_LOG_HTTP_URL"]?.trim();
+  if (!url) return null;
+  if (!logSink) {
+    const token = process.env["CAPABILITY_LOG_HTTP_TOKEN"]?.trim();
+    logSink = createHttpSink<CapabilityLogEntry>({ url, ...(token !== undefined ? { token } : {}), batch: Number(process.env["CAPABILITY_LOG_BATCH"]) || 50 });
+  }
+  return logSink;
 }
 
-/** Recent capability activity (uses, blocks, config changes), newest first. */
+function pushLog(entry: CapabilityLogEntry): void {
+  activityLog.push(entry); // fast local cache (unchanged default behaviour)
+  if (activityLog.length > LOG_MAX) activityLog.shift();
+  // Opt-in durability: ship to the external append sink when configured.
+  ensureLogSink()?.enqueue(entry);
+  // Opt-in fleet-sharing: mirror into the shared ring (best-effort) when Redis-backed.
+  if (sharedStateMode() === "redis") {
+    void sharedRingPush(SHARED_LOG_PREFIX, JSON.stringify(entry), LOG_MAX).catch((err) =>
+      logger.warn({ err }, "capability log: shared mirror failed"));
+  }
+}
+
+/** Recent capability activity (uses, blocks, config changes), newest first — the fast LOCAL
+ *  (per-replica) RAM ring. Unchanged; a sync fast path for callers that don't need the fleet view. */
 export function recentCapabilityLog(): CapabilityLogEntry[] {
   return [...activityLog].reverse();
 }
+
+/** Recent capability activity across the FLEET (newest first) when Redis-backed; otherwise the
+ *  local ring. Falls back to the local ring if the shared read fails, so it never throws. */
+export async function recentCapabilityLogShared(): Promise<CapabilityLogEntry[]> {
+  if (sharedStateMode() !== "redis") return recentCapabilityLog();
+  try {
+    const raw = await sharedRingRead(SHARED_LOG_PREFIX, LOG_MAX);
+    return raw.map((v) => JSON.parse(v) as CapabilityLogEntry).reverse();
+  } catch (err) {
+    logger.warn({ err }, "capability log: shared read failed — using local ring");
+    return recentCapabilityLog();
+  }
+}
+
+/** Test-only: reset the external log sink (so an env change is re-read). */
+export function __resetCapabilityLogSink(): void { logSink = null; }
 
 const actorLabel = (a?: Actor | null): string | null => a?.email ?? a?.sub ?? null;
 

@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useCallback, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -43,9 +44,9 @@ export function BenefitsRealisation({ projectId }: { projectId: string }) {
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {summary.count === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="benefits-empty">
+        <ReportEmpty testId="benefits-empty">
           No benefits to report — add planned/actual benefit values (and a benefit status) to work items to track realisation.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="benefits">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

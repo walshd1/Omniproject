@@ -344,6 +344,139 @@ Canonical value vocabularies — the cross-backend meanings the gateway reasons 
 | `financialHealthFrom` | RAG from cost performance: prefer CPI when earned value is known, else the spend ratio. |
 | `ragBuckets` | A zeroed RAG tally (e.g. for the Prometheus portfolio gauge). |
 
+### `artifacts/api-server/src/composition/combine.ts`
+
+A value counts as "present" unless it's null/undefined/empty-string (0 and false ARE present).
+
+| Function | What it does |
+| --- | --- |
+| `combine` | Combine every store's fragment into one record — the read half of the tier. |
+| `isPartial` | A record is PARTIAL when any field is `unavailable` — an owner was down, so the read is incomplete. |
+
+### `artifacts/api-server/src/composition/compositor.ts`
+
+The Compositor drives the tier over a set of south-seam `StoreAdapter`s.
+
+### `artifacts/api-server/src/composition/index.ts`
+
+Composition tier — the stateless, role-aware brain between the broker (north seam) and the store adapters (south seam).
+
+### `artifacts/api-server/src/composition/ownership.ts`
+
+Resolve, per field, who WRITES it and in what order it's READ — the pure plan the compositor drives.
+
+| Function | What it does |
+| --- | --- |
+| `resolveOwnership` | Resolve, per field, who WRITES it and in what order it's READ — the pure plan the compositor drives. |
+
+### `artifacts/api-server/src/composition/scatter.ts`
+
+Scatter a patch to each field's SINGLE writer — the write half of the tier.
+
+| Function | What it does |
+| --- | --- |
+| `scatter` | Scatter a patch to each field's SINGLE writer — the write half of the tier. |
+
+### `artifacts/api-server/src/composition/types.ts`
+
+Composition-tier types — the vocabulary of the stateless "brain" that sits between the broker (north seam) and the store adapters (south seam).
+
+### `artifacts/api-server/src/history/broker-source.ts`
+
+`BrokerRetentionSource` — the gateway's no-SDK bridge to the retention-broker service.
+
+| Function | What it does |
+| --- | --- |
+| `brokerRetentionSource` | A `RetentionSource` backed by the retention-broker HTTP service (no cloud SDK in this process). |
+| `registerBrokerRetentionFromEnv` | Register the broker retention provider from the environment. |
+
+### `artifacts/api-server/src/history/cadence.ts`
+
+Snapshot cadence — HOW OFTEN the retention source materialises a snapshot, resolved across the org → programme → project hierarchy.
+
+| Function | What it does |
+| --- | --- |
+| `isValidCadence` | Structural validity of a cadence value (used by settings validation on untrusted input). |
+| `resolveCadence` | Resolve the effective cadence for a scope: project override ▸ programme override ▸ org default. |
+| `dueForSnapshot` | Is a fresh snapshot due, given the last snapshot's time and `now`? - `onWrite` ⇒ always (the caller invokes this on a transaction boundary); - `manual` ⇒ never automatically (baseline capture forces one out-of-band); - `interval` ⇒ when at least `everyHours` have elapsed (or there's no prior snapshot). |
+
+### `artifacts/api-server/src/history/connectors/index.ts`
+
+Retention connectors — pluggable `RetentionSource` implementations for the common cloud stores, each pure logic over an injected client port (no cloud SDK above the seam).
+
+### `artifacts/api-server/src/history/connectors/object-store.ts`
+
+Object-store retention connector — a `RetentionSource` backed by an S3-compatible object store (AWS S3, GCS, Azure Blob, MinIO — they share the same put/get/list key-value model).
+
+| Function | What it does |
+| --- | --- |
+| `objectStoreRetentionSource` | Build a `RetentionSource` over an object store. |
+
+### `artifacts/api-server/src/history/connectors/table-store.ts`
+
+Table-store retention connector — a `RetentionSource` backed by a DynamoDB-style key-value table (also fits Azure Cosmos, Cassandra/Scylla, any single-table PK+SK store).
+
+| Function | What it does |
+| --- | --- |
+| `tableStoreRetentionSource` | Build a `RetentionSource` over a single DynamoDB-style table. |
+
+### `artifacts/api-server/src/history/connectors/warehouse.ts`
+
+Warehouse retention connector — a `RetentionSource` backed by a columnar analytics warehouse (BigQuery; also fits Snowflake, Redshift, ClickHouse).
+
+| Function | What it does |
+| --- | --- |
+| `warehouseRetentionSource` | Build a `RetentionSource` over a warehouse. |
+
+### `artifacts/api-server/src/history/index.ts`
+
+History retention — the durable time-series layer behind tracking + trend analysis.
+
+### `artifacts/api-server/src/history/journal.ts`
+
+The write half of retention: turn a write patch into append-only change-journal rows by diffing the new values against the prior state.
+
+| Function | What it does |
+| --- | --- |
+| `diffToJournal` | Diff `next` (the write patch) against `prev` (the entity's current stored values) into one journal entry per genuinely-changed field. |
+
+### `artifacts/api-server/src/history/retention.ts`
+
+The retention SOURCE seam — the one abstraction the gateway drives for durable history.
+
+| Function | What it does |
+| --- | --- |
+| `registerRetentionProvider` | Register the deployment's retention provider (the self-host source, in production). |
+| `resetRetentionProvider` | Reset to the default (no source) — used by tests to isolate. |
+| `retentionSourceFor` | The source for a scope, or null. |
+| `buildTrend` | Build a trend series for a scope: resolve the source, read its snapshots, compute the series. |
+| `recordWrite` | The write-path glue: on a write, append the field diffs to the journal and — if the cadence says a snapshot is due — materialise + persist one. |
+
+### `artifacts/api-server/src/history/snapshot.ts`
+
+The read half of retention: fold the append-only journal into point-in-time snapshots.
+
+| Function | What it does |
+| --- | --- |
+| `foldTo` | Apply every journal entry with `changedAt <= asOf`, in time order, over an optional base state. |
+| `materialiseSnapshot` | Materialise one entity's snapshot as of a time — the fold of its journal up to that instant. |
+| `snapshotsAtBoundaries` | Produce a snapshot at each boundary time (cadence.ts computes the boundaries), for one entity. |
+
+### `artifacts/api-server/src/history/trends.ts`
+
+Trend computation — turn a set of point-in-time snapshots into a bucketed `TrendSeries` for a metric.
+
+| Function | What it does |
+| --- | --- |
+| `bucketStart` | Truncate an ISO timestamp to the start of its bucket, in UTC. |
+| `bucketsIn` | The ordered bucket-start timestamps covering [from, to) at a grain. |
+| `computeSeries` | Compute a bucketed trend series for a metric over a window. |
+| `unavailableSeries` | An honest empty series for when no retention source can answer (history not yet retained). |
+
+### `artifacts/api-server/src/history/types.ts`
+
+History-retention vocabulary — the durable time-series layer that lets the self-host DB (or any retention source) answer "what did this look like on that date" and "how has this metric moved".
+
 ### `artifacts/api-server/src/index.ts`
 
 Server entrypoint.
@@ -456,11 +589,13 @@ Tamper-evident audit trail.
 | Function | What it does |
 | --- | --- |
 | `sealAuditEvent` | Seal an event into the chain: advances the head and returns the event with its seal. |
+| `sealAuditEventShared` | Seal an event into the FLEET-shared chain. |
 | `auditAnchorMessage` | The exact, deterministic message that is signed for an anchor — the chain TIP bound to the key version. |
 | `auditAnchor` | The current chain anchor — what an external verifier checks the tip against. |
+| `auditAnchorShared` | The anchor over the FLEET-shared tip when Redis-backed, else the local {@link auditAnchor}. |
 | `verifyAuditAnchor` | Verify an anchor's Ed25519 signature against a published public key (PEM). |
 | `verifyAuditChain` | Verify an ordered list of sealed audit events. |
-| `__resetAuditChain` | Test-only: reset the in-memory head. |
+| `__resetAuditChain` | Test-only: reset the in-memory head (and the shared head key). |
 
 ### `artifacts/api-server/src/lib/audit.ts`
 
@@ -470,10 +605,18 @@ Action audit logging.
 | --- | --- |
 | `auditLevel` | The configured audit verbosity (off | writes | all) from AUDIT_LEVEL. |
 | `shouldAudit` | Pure decision: should an event at this level be recorded? |
-| `createHttpSink` | Build a batching HTTP audit sink (buffers events + flushes to a SIEM URL). |
+| `createHttpSink` | Build a batching HTTP sink (buffers records + flushes them as NDJSON to a SIEM URL). |
 | `recordAudit` | Record one audit event: stdout (pino) + the external sink, gated by level. |
 | `actorForAudit` | The audit `actor` field for a request — the session's sub + a display role, or `null` when unauthenticated. |
 | `auditStatus` | Status for the setup/diagnostics view. |
+
+### `artifacts/api-server/src/lib/auth-config.ts`
+
+Is the gateway running in DEMO auth mode — i.e. NO real authentication method is configured at all?
+
+| Function | What it does |
+| --- | --- |
+| `isDemoAuth` | Is the gateway running in DEMO auth mode — i.e. NO real authentication method is configured at all? |
 
 ### `artifacts/api-server/src/lib/autonomous-grant.ts`
 
@@ -611,6 +754,14 @@ The single home for resolving configured broker endpoints — including the depr
 | `configuredBrokerUrls` | The single home for resolving configured broker endpoints — including the deprecated pre-0.2.0 `N8N_WEBHOOK_URL` alias. |
 | `configuredBrokerUrl` | The primary configured broker base URL (the first of {@link configuredBrokerUrls}), or undefined when none is set. |
 
+### `artifacts/api-server/src/lib/canonical-json.ts`
+
+The one canonical-JSON serializer.
+
+| Function | What it does |
+| --- | --- |
+| `canonicalJson` | The one canonical-JSON serializer. |
+
 ### `artifacts/api-server/src/lib/capabilities.ts`
 
 Capability signal — which data domains the wired backend(s) can populate, so the UI can pre-emptively label available reports/views instead of probing per request.
@@ -697,6 +848,7 @@ Config-at-rest encryption + secure export.
 | `sealConfig` | Seal a config string under the current internal key (version embedded). |
 | `openConfig` | Open an internal-format token, or null. |
 | `readMaybeSealed` | Read possibly-sealed config text: open if sealed, else return as-is (plaintext migration). |
+| `isUndecryptableSealed` | True iff `text` is a sealed token that CANNOT be opened with the current key material. |
 | `isSealedConfig` | True when `text` is a sealed (internal-format) config token — a content-based check, so callers (e.g. the debug bundle) can recognise "this file IS a secret store" without knowing every filename a `SealedFile`-backed module happens to use. |
 | `rotateInternalKey` | Rotate the internal key forward (new seals use the next version). |
 | `internalKeyFingerprint` | A non-secret fingerprint of the CURRENT internal key (confirm a match without revealing). |
@@ -747,9 +899,11 @@ Configuration environments + versioned rollback.
 
 | Function | What it does |
 | --- | --- |
+| `sharedVersionHistory` | The fleet-wide version history (newest first) when Redis-backed, else the local history. |
 | `serializeState` | The current config state as JSON (decrypted) — what an export bundle wraps. |
 | `exportConfig` | Securely export the config: re-encrypt the decrypted state under a one-time ephemeral key, then ROTATE the internal key and re-seal the on-disk store under the new version. |
 | `storeView` | The store summary for the UI: active env, env names, versions (newest first), the last known-good id, and whether it's disk-persisted. |
+| `storeViewShared` | The store summary with FLEET-wide version history when Redis-backed (else identical to {@link storeView}). |
 | `captureVersion` | Capture the current settings as a new version of the active environment. |
 | `createEnvironment` | Create a named environment, seeded by cloning the active env's current config. |
 | `activateEnvironment` | Switch the active environment and apply its config to the live settings. |
@@ -979,7 +1133,6 @@ Maker-checker (four-eyes) dual control for sensitive admin actions.
 | `requiresDualControl` | Does this action require a second approver? |
 | `propose` | Create a pending proposal for an action (the maker step). |
 | `listProposals` | Pending proposals (for the admin queue). |
-| `getProposal` | A single proposal by id. |
 | `approve` | Approve and EXECUTE a proposal (the checker step). |
 | `reject` | Reject a pending proposal (any admin, including the proposer). |
 | `__resetDualControl` | Test-only: clear the proposal queue (executors persist). |
@@ -1052,11 +1205,9 @@ A resolution scope: a project (and/or its programme).
 
 | Function | What it does |
 | --- | --- |
-| `featureGates` | The registry as pure feature-gates (id + default posture) for the hierarchical resolver. |
 | `governanceCatalogue` | The full governance catalogue: the feature modules PLUS every shipped report and methodology, so a PMO can mandate ("must use") or forbid ("must not use") any of them through the same resolver. |
 | `governanceGates` | The governance catalogue as resolver gates (id + default posture). |
 | `markFeatureLoaded` | — |
-| `disabledFeatureIds` | The full set of disabled ids: env (`DISABLED_FEATURES`) ∪ settings (`disabledFeatures`). |
 | `scopeOverrides` | Build the resolver's scope overrides from settings + the requested programme/project. |
 | `resolveScopedFeatures` | Resolve every governable item (modules + reports + methodologies) for a scope, with lock detail. |
 | `isFeatureEnabled` | True when a module id is enabled for the given scope (org by default). |
@@ -1492,21 +1643,33 @@ Conditional predicate engine — the pure "when" of the PMO rule plane.
 | `selectMatching` | From a list of conditioned items, the ones whose condition matches the context, **in declared order**. |
 | `validatePredicate` | Validate a predicate's shape (used at the rule-authoring boundary). |
 
+### `artifacts/api-server/src/lib/presence-bus.ts`
+
+Presence fan-out bus — makes live-collaboration presence (rosters + advisory editing indicators) **fleet-wide** under horizontal scale, strictly OPT-IN via `REDIS_URL`.
+
+| Function | What it does |
+| --- | --- |
+| `initPresenceBus` | Construct (idempotently) and return the presence bus. |
+| `presenceBusMode` | Which fan-out backend presence uses: in-process or Redis. |
+
 ### `artifacts/api-server/src/lib/presence-hub.ts`
 
 Live collaboration presence hub (Server-Sent Events).
 
 | Function | What it does |
 | --- | --- |
+| `registerPresencePublisher` | Register a cross-replica publisher (the presence bus). |
 | `peerColor` | A stable colour for a user, derived from their `sub` so it's the same across sessions/devices. |
 | `toPeer` | Project a connection to the public peer shape, expiring a stale editing claim against `now`. |
-| `roomSnapshot` | The current peers in a room (editing claims expired against `now`). |
+| `roomSnapshot` | The current peers in a room — LOCAL connections merged with REMOTE peers mirrored from other replicas, both with editing claims expired against `now`. |
 | `broadcastRoom` | Push the room's current snapshot to every connection in it. |
 | `joinRoom` | Add a connection to a room and announce it. |
 | `setEditing` | Update a connection's editing claim (a field id, or null to release) + heartbeat it. |
-| `presenceStats` | Diagnostics for dev mode: how many rooms / connections are live right now. |
+| `foldRemotePresence` | Fold a presence change that originated on ANOTHER replica into this replica's remote mirror, then re-fan the merged roster to our own locally-connected sockets. |
+| `localPresenceForHeartbeat` | Every live LOCAL peer as an `upsert` event — the fleet heartbeat re-publishes these on an interval (Redis mode only) so other replicas keep this node's peers alive past their {@link PEER_TTL_MS} even when nobody is actively editing. |
+| `presenceStats` | Diagnostics for dev mode: how many rooms / connections are live right now (LOCAL sockets only — the authoritative in-process view; remote mirror entries are not counted). |
 | `closeAllPresence` | Close every live presence stream and forget them — used on graceful shutdown. |
-| `_resetPresenceForTest` | Test reset hook — drop all presence state without touching connections. |
+| `_resetPresenceForTest` | Test reset hook — drop all presence state (local + remote mirror + publishers) without touching connections. |
 
 ### `artifacts/api-server/src/lib/proactive-digest.ts`
 
@@ -1864,6 +2027,14 @@ Session timeout policy — a sliding IDLE timeout plus an ABSOLUTE lifetime cap.
 | `isSessionExpired` | Has this session expired by idle or absolute age at `now`? Missing timestamps are treated as NOT expired so pre-upgrade cookies survive — they get stamped on the next request and are enforced from then on (see auth.ts slideSession). |
 | `timeoutPolicy` | Public view of the policy, for the frontend idle warning / countdown. |
 
+### `artifacts/api-server/src/lib/settings-collection-router.ts`
+
+Factory for the recurring "settings collection" route shape: a GET that reads one `SettingsState` field and a write (PUT/PATCH) that persists it, wrapped in the standard `SettingsValidationError → 400` catch and a config-version capture.
+
+| Function | What it does |
+| --- | --- |
+| `settingsCollectionRouter` | Build a `Router` exposing the GET + write pair for one settings-collection field. |
+
 ### `artifacts/api-server/src/lib/settings.ts`
 
 Gateway-local settings store.
@@ -1892,7 +2063,10 @@ Shared-state seam (roadmap §2) — an OPT-IN key/value store the per-replica re
 | Function | What it does |
 | --- | --- |
 | `sharedStateMode` | Whether shared state is per-replica ("in-process") or fleet-wide ("redis"). |
+| `sharedRingPush` | Append `value` to the shared ring under `prefix`, keeping at most ~`max` entries. |
+| `sharedRingRead` | The shared ring's entries under `prefix`, oldest→newest, capped at `max`. |
 | `__resetSharedStateForTest` | Test-only: reset to a fresh in-process backend (drops any Redis binding + data). |
+| `__setRedisKvForTest` | Test-only: bind the shared KV to a Redis-shaped double so the RedisKv backend (native INCRBY / the atomic CAS Lua / SCAN) is exercised without a live Redis server. |
 
 ### `artifacts/api-server/src/lib/shutdown.ts`
 
@@ -1923,7 +2097,6 @@ Provably-immutable snapshots.
 
 | Function | What it does |
 | --- | --- |
-| `canonicalJson` | Deterministic JSON with sorted object keys, so the hash is stable regardless of property order. |
 | `contentHash` | SHA-256 hex of the canonicalised value — the content address. |
 | `manifestAnchor` | The exact, deterministic message that is signed for a manifest — binds the content hash to its identity + time + scope, so altering any of them invalidates the signature. |
 | `buildSnapshot` | Build a signed snapshot bundle over `data`. |
@@ -1983,7 +2156,9 @@ Capability governance — one model for every "thing that can move data or be tu
 | `validEndpoint` | Validate a user-defined endpoint: a well-formed http(s) URL, or null. |
 | `screenIdForRoute` | Normalise a client-supplied surface (which may be a route path like "/reports") to a canonical screen id from the registry, so per-surface overrides always match. |
 | `checkEndpointReachable` | Probe a user-defined endpoint: any HTTP response = reachable; a network error or timeout = not. |
-| `recentCapabilityLog` | Recent capability activity (uses, blocks, config changes), newest first. |
+| `recentCapabilityLog` | Recent capability activity (uses, blocks, config changes), newest first — the fast LOCAL (per-replica) RAM ring. |
+| `recentCapabilityLogShared` | Recent capability activity across the FLEET (newest first) when Redis-backed; otherwise the local ring. |
+| `__resetCapabilityLogSink` | Test-only: reset the external log sink (so an env change is re-read). |
 | `decideCapability` | Resolve a capability-use decision for a surface AND record it — to the audit log and the live activity ring — whether allowed or denied, so there's always a trail of which AI/vendor/broker ran where and for whom. |
 | `noteCapabilityConfigured` | Record an admin turning a capability on/off (audited + shown on the dashboard). |
 | `enforceCapability` | Strong call-time gate: decide + log, and THROW CapabilityBlockedError when the capability is off for this surface. |
@@ -2335,6 +2510,10 @@ Setup-wizard + operations endpoints — backend/plane catalogues, workflow gener
 
 Provably-immutable snapshots.
 
+### `artifacts/api-server/src/routes/timesheets.ts`
+
+Timesheets API — entry + the submit/approve workflow, persisted BELOW the seam via the resolved `TimesheetStore` (self-host DB and/or backend, per docs/PPM-DEPTH.md).
+
 ### `artifacts/api-server/src/routes/tools.ts`
 
 Capability governance plane — the admin-set deployment state (off / user-defined / public, and per-surface for AI tools) of every AI tool, the MCP, AI providers and vendors (see lib/tools).
@@ -2354,6 +2533,87 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 | Function | What it does |
 | --- | --- |
 | `securityTxt` | Build the RFC 9116 security.txt body, with a rolling one-year `Expires`. |
+
+### `artifacts/api-server/src/selfhost/adapter.ts`
+
+`SelfHostDbAdapter` — the composition-tier **south-seam** façade over the optional self-host database.
+
+### `artifacts/api-server/src/selfhost/capability-gating.ts`
+
+Self-host capability gating — turns an operator's adoption choices into (a) the set of self-host *domains* that are live for a scope, and (b) the `StoreCapability` the composition tier reads when it plans ownership.
+
+| Function | What it does |
+| --- | --- |
+| `roleForMode` | The role a self-host store takes in the composition precedence, per mode. |
+| `selfHostGates` | The self-host domains as feature-gates: core ⇒ default-on, everything else opt-in with its reason. |
+| `resolveGating` | Resolve which self-host domains are live for a scope. |
+| `buildSelfHostCapability` | Build the `StoreCapability` the composition tier reads for the self-host store. |
+
+### `artifacts/api-server/src/selfhost/domains.ts`
+
+Self-host DB *domains* — the unit an operator adopts when they let OmniProject's own database become a system-of-record (or an augmenting store) for a slice of the work-item superset.
+
+| Function | What it does |
+| --- | --- |
+| `selfHostGovernanceId` | The governed catalogue id for a domain — namespaced so it never clashes with a module id. |
+| `domainById` | Look a domain up by id (throws on an unknown id — ids are a closed set). |
+
+### `artifacts/api-server/src/selfhost/index.ts`
+
+Self-host DB adoption — the optional, gated feature that lets an operator with no existing PM tool make OmniProject's own database a system-of-record (or an augmenting store) for a slice of the work-item superset.
+
+### `artifacts/api-server/src/selfhost/runtime.ts`
+
+Self-host runtime bridge — the ONE place that turns persisted settings into a composition-tier `GatingInput` for a scope.
+
+| Function | What it does |
+| --- | --- |
+| `gatingInputFromSettings` | Turn live settings into a `GatingInput` for a scope — the runtime entry to `resolveGating`. |
+| `selfHostGatingForScope` | Resolve the live self-host gating for a scope, straight from settings. |
+
+### `artifacts/api-server/src/selfhost/setup-wizard.ts`
+
+Self-host DB *setup wizard* — the pure state machine behind the wizard step that lets a first-time operator (who has no existing PM tool) adopt OmniProject's own database, and behind the admin screen that later tunes it.
+
+| Function | What it does |
+| --- | --- |
+| `wizardReducer` | Pure reducer. |
+| `guardrails` | The four guardrails, evaluated against a state. |
+| `blockers` | The active blocking guardrails — non-empty ⇒ the wizard step cannot complete. |
+| `canComplete` | True when the wizard step may finish: `off` always completes; any adoption needs the ack. |
+| `holdsOnlyCopy` | Does the self-host DB hold the ONLY copy of some data under this state? True for any non-off adoption: system-of-record holds the sole copy of the whole adopted spine; augmenting holds the sole copy of the gap fields no backend covers. |
+| `toConfig` | Project the wizard state into its persisted config. |
+| `configToOrgSelection` | Project a persisted config into the org-scope selection the capability-gating model consumes. |
+| `configToGatingInput` | Build a full `GatingInput` (org scope only) straight from a wizard config — the common case. |
+
+### `artifacts/api-server/src/timesheets/actuals.ts`
+
+Timesheet ACTUALS — turn approved timesheets into the internal staff-cost figure.
+
+| Function | What it does |
+| --- | --- |
+| `approvedHoursByResource` | Sum APPROVED timesheet hours per resource for one project (draft/submitted excluded). |
+| `approvedItemsFrom` | Synthetic internal-time work items (one per resource) so approved hours flow through `staffCost`. |
+
+### `artifacts/api-server/src/timesheets/state-machine.ts`
+
+Timesheet workflow — the AUTHORITATIVE copy of the state machine, enforced in the gateway (the SPA has an optimistic mirror in lib/timesheet.ts, but transition rules — especially segregation of duties — can't be trusted to the client).
+
+| Function | What it does |
+| --- | --- |
+| `timesheetHours` | Total logged hours on a sheet (non-finite entries ignored). |
+| `applyTimesheetAction` | Apply a workflow action, returning a NEW sheet (pure). |
+
+### `artifacts/api-server/src/timesheets/store.ts`
+
+Timesheet STORE seam — where timesheets live is BELOW the seam (the operator's choice, per docs/PPM-DEPTH.md): the self-host DB when adoption is on, and/or a 3rd-party backend when it supports timesheets and it's enabled.
+
+| Function | What it does |
+| --- | --- |
+| `registerTimesheetStore` | Register the deployment's timesheet store provider (self-host / broker), at boot. |
+| `resetTimesheetStore` | Reset to no store — used by tests to isolate. |
+| `timesheetStoreFor` | The store for a scope, or null. |
+| `describeTimesheetSources` | Report which timesheet sources a deployment COULD use, for the UI to explain availability: - self-host: adoption is on (settings.selfHost.mode !== "off"); - backend: a backend-source provider is registered. |
 
 ## Backend catalogue (`lib/backend-catalogue`)
 
@@ -2471,6 +2731,14 @@ METHODOLOGY registry — the PM methodologies OmniProject can shape itself to (S
 | `getMethodology` | One methodology definition by id, or undefined. |
 | `methodologyCatalogue` | All methodology definitions (a defensive copy). |
 
+### `lib/backend-catalogue/src/methodology-match.ts`
+
+The single predicate behind `reportsForMethodology` / `screensForMethodology` / `viewsForMethodology`: does an entry whose methodology tags are `tags` apply to methodology `id`?
+
+| Function | What it does |
+| --- | --- |
+| `matchesMethodology` | The single predicate behind `reportsForMethodology` / `screensForMethodology` / `viewsForMethodology`: does an entry whose methodology tags are `tags` apply to methodology `id`? |
+
 ### `lib/backend-catalogue/src/methodology-pack.ts`
 
 METHODOLOGY PACKS — a methodology is a DERIVED grouping, not a plane: a "pack" is the methodology's definition plus every asset that carries its methodology tag, collected from across the catalogue.
@@ -2565,6 +2833,15 @@ The PLANES meta-registry — the seven integration planes OmniProject models, al
 | --- | --- |
 | `getPlane` | Look up a single plane descriptor by its id. |
 | `planeCatalogue` | All plane descriptors (a defensive copy). |
+
+### `lib/backend-catalogue/src/proptest.ts`
+
+Tiny, dependency-free PROPERTY-TESTING harness — the structured approach to edge-case + data verification.
+
+| Function | What it does |
+| --- | --- |
+| `mulberry32` | mulberry32 — a fast, well-distributed seedable PRNG (no crypto needed here). |
+| `check` | Assert `prop` holds for `runs` generated inputs. |
 
 ### `lib/backend-catalogue/src/report-catalogue.ts`
 
@@ -2773,6 +3050,10 @@ Superset guard — enforces the invariant that every backend's field set is a st
 ### `scripts/src/guard-widget-coverage.ts`
 
 Widget-coverage guard — "every declared dashboard widget is built".
+
+### `scripts/src/guard-zero-at-rest-above-seam.ts`
+
+Zero-at-rest-above-the-seam guard.
 
 ### `scripts/src/hello.ts`
 

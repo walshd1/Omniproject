@@ -15,6 +15,7 @@ import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { fetchBackendIds } from "../lib/setup";
 import { PremiumAdmin } from "../components/PremiumAdmin";
 import { LoggingSyncSettings } from "../components/settings/LoggingSyncSettings";
+import { SelfHostCapabilitiesAdmin } from "../components/settings/SelfHostCapabilitiesAdmin";
 import { TranslationLayer } from "../components/settings/TranslationLayer";
 import { BrokerLog } from "../components/settings/BrokerLog";
 import { A11yControls } from "../components/settings/A11yControls";
@@ -354,6 +355,10 @@ export function Settings() {
 
       <div className="mt-10">
         <LoggingSyncSettings />
+      </div>
+
+      <div className="mt-10">
+        <SelfHostCapabilitiesAdmin />
       </div>
 
       <div className="mt-10">

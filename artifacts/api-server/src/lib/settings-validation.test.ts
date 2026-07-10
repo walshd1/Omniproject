@@ -127,6 +127,55 @@ test("loggingSync: object with a safe url; enabling needs url + warranty ack", (
   updateSettings({ loggingSync: { enabled: false, url: null, acknowledgedWarranty: false } });
 });
 
+test("selfHost: valid mode + string[] adopted; a non-off mode needs the data-responsibility ack", () => {
+  throws({ selfHost: "nope" });
+  throws({ selfHost: { mode: "bogus", adopted: [], acknowledgedDataResponsibility: false } }); // bad mode
+  throws({ selfHost: { mode: "off", adopted: [1], acknowledgedDataResponsibility: false } }); // non-string id
+  throws({ selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: "yes" } }); // non-boolean ack
+  throws({ selfHost: { mode: "system-of-record", adopted: ["financials"], acknowledgedDataResponsibility: false } }); // no ack
+  assert.doesNotThrow(() => updateSettings({ selfHost: { mode: "augmenting", adopted: ["quality"], acknowledgedDataResponsibility: true } }));
+  // Reset back off so it doesn't leak into other tests.
+  updateSettings({ selfHost: { mode: "off", adopted: [], acknowledgedDataResponsibility: false } });
+});
+
+test("historyRetention: valid org-default + scope cadence maps; bad cadences rejected", () => {
+  throws({ historyRetention: "nope" });
+  throws({ historyRetention: { orgDefault: { kind: "bogus" } } });
+  throws({ historyRetention: { orgDefault: { kind: "interval", everyHours: 0 } } });
+  throws({ historyRetention: { orgDefault: { kind: "onWrite" }, programme: { P1: { kind: "interval", everyHours: -1 } } } });
+  assert.doesNotThrow(() => updateSettings({ historyRetention: { orgDefault: { kind: "interval", everyHours: 12 }, programme: { P1: { kind: "onWrite" } }, project: {} } }));
+  // Reset back to the default so it doesn't leak into other tests.
+  updateSettings({ historyRetention: { orgDefault: { kind: "interval", everyHours: 24 }, programme: {}, project: {} } });
+});
+
+test("skillsPlanning: validates the matrix (proficiency 1–5, non-negative capacity) + demand", () => {
+  throws({ skillsPlanning: "nope" });
+  throws({ skillsPlanning: { matrix: [{ resourceId: "r", name: "R", skills: { react: 9 }, capacityHours: 10 }] } }); // proficiency > 5
+  throws({ skillsPlanning: { matrix: [{ resourceId: "r", name: "R", skills: { react: 3 }, capacityHours: -1 }] } }); // negative capacity
+  throws({ skillsPlanning: { demand: [{ id: "d", skill: "react", hoursNeeded: -5 }] } }); // negative hours
+  throws({ skillsPlanning: { demand: [{ id: "d", skill: "react", hoursNeeded: 10, minProficiency: 0 }] } }); // bad bar
+  assert.doesNotThrow(() => updateSettings({ skillsPlanning: { matrix: [{ resourceId: "r", name: "Ada", skills: { react: 4 }, capacityHours: 250 }], demand: [{ id: "d1", initiative: "x", skill: "react", hoursNeeded: 400, minProficiency: 3 }] } }));
+  // Reset so it doesn't leak into other tests.
+  updateSettings({ skillsPlanning: { matrix: [], demand: [] } });
+});
+
+test("governanceRules: the optional `when` predicate is validated (bad condition set rejected)", () => {
+  throws({ governanceRules: [{ id: "r", when: { all: {} } }] }); // all must be an array, not an object
+  throws({ governanceRules: [{ id: "r", when: "nope" }] }); // when must be an object
+  throws({ governanceRules: [{ id: "r", when: { all: [{ op: "gt", value: 1 }] } }] }); // predicate missing field
+  assert.doesNotThrow(() => updateSettings({ governanceRules: [{ id: "r", require: ["labels"], when: { all: [{ field: "projectType", op: "eq", value: "delivery" }] } }] }));
+  updateSettings({ governanceRules: [] });
+});
+
+test("previously-unvalidated writable keys are type-checked (aiModel / backendSource / object maps)", () => {
+  throws({ aiModel: 5 });
+  throws({ backendSource: {} }); // object where a string is required (crashed broker-command before)
+  throws({ capabilityStates: [] }); // array is not an object map
+  throws({ screenLayouts: "nope" });
+  throws({ userPrefs: 3 });
+  assert.doesNotThrow(() => updateSettings({ aiModel: null, backendSource: "all", capabilityStates: {}, screenLayouts: {}, userPrefs: {} }));
+});
+
 test("redactSettingsForRead masks webhook secrets and peer tokens", () => {
   updateSettings({
     webhooks: [{ id: "w", url: "https://example.com/h", secret: "topsecret", events: ["*"], active: true }],

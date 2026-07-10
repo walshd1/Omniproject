@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { rollupIncome } from "../../lib/portfolio-value";
 import { useT } from "../../lib/i18n";
@@ -19,9 +20,9 @@ export function PortfolioIncome() {
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {portfolio.projected === 0 && portfolio.invoiced === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="portfolio-income-empty">
+        <ReportEmpty testId="portfolio-income-empty">
           No income data — set projected income (revenue) and invoiced amounts on work items to track billing across the portfolio.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="portfolio-income">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

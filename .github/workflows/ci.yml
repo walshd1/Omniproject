@@ -30,7 +30,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 26
           cache: pnpm
 
       - name: Install dependencies
@@ -221,6 +221,9 @@ jobs:
       - name: Verify compose deployment-safety invariants (compose guard)
         run: pnpm --filter @workspace/scripts run guard-compose
 
+      - name: Verify no persistence layer is imported above the south seam (zero-at-rest guard)
+        run: pnpm --filter @workspace/scripts run guard-zero-at-rest-above-seam
+
       - name: Build gateway
         run: pnpm --filter @workspace/api-server run build
 
@@ -322,7 +325,7 @@ jobs:
           version: 11.8.0
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
@@ -337,7 +340,9 @@ jobs:
       - name: Install browser tooling (throwaway, off-lockfile)
         run: |
           mkdir -p /tmp/a11y
-          cd /tmp/a11y && npm init -y >/dev/null && npm i playwright axe-core
+          # Pin playwright to the repo's @playwright/test version (1.61.1) instead of floating to
+          # latest; axe-core bounded to its stable 4.x line. Reduces the off-lockfile drift surface.
+          cd /tmp/a11y && npm init -y >/dev/null && npm i playwright@1.61.1 axe-core@^4.10
           ./node_modules/.bin/playwright install --with-deps chromium
 
       - name: Scan
@@ -400,7 +405,7 @@ jobs:
           version: 11.8.0
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
@@ -462,7 +467,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Install Playwright Chromium
@@ -476,3 +481,27 @@ jobs:
           name: playwright-report
           path: playwright-report
           retention-days: 7
+
+  # Standalone retention-broker service (services/retention-broker) — NOT part of the pnpm workspace,
+  # so it has its own npm install + node:test. Isolated here so its cloud SDKs never touch the
+  # monorepo's install or supply-chain guard. Offline: the SDK clients are faked in the tests.
+  retention-broker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: services/retention-broker
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26
+      - name: Install (isolated npm)
+        # Strict lockfile install only — no `|| npm install` fallback (that fails open on lockfile
+        # drift, defeating integrity for the cloud-credentialed broker package).
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test (offline; SDK clients faked)
+        run: npm test

@@ -69,8 +69,10 @@ export function evaluatePredicate(p: Predicate, ctx: Context): boolean {
 /** Does this condition set match the context? (all-of `all` AND any-of `any`; empty ⇒ matches all.) */
 export function matches(cond: ConditionSet | undefined, ctx: Context): boolean {
   if (!cond) return true;
-  const all = cond.all ?? [];
-  const any = cond.any ?? [];
+  // Defensive: a malformed stored `when` (e.g. `all` as an object, not an array) must degrade to
+  // "no constraint", never throw — a thrown TypeError here 500s every feature-gated read.
+  const all = Array.isArray(cond.all) ? cond.all : [];
+  const any = Array.isArray(cond.any) ? cond.any : [];
   if (!all.every((p) => evaluatePredicate(p, ctx))) return false;
   if (any.length > 0 && !any.some((p) => evaluatePredicate(p, ctx))) return false;
   return true;

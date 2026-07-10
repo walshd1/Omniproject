@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import {
@@ -107,9 +108,9 @@ export function PortfolioRoadmap() {
   return (
     <DataState isLoading={isLoading || issuesLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {roadmap.datedProjects === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="roadmap-empty">
+        <ReportEmpty testId="roadmap-empty">
           No scheduled work to place on a timeline — add start/due dates to work items to see the portfolio roadmap.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-3" data-testid="portfolio-roadmap">
           {/* Time axis */}

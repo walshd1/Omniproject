@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo, useState } from "react";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import {
@@ -52,9 +53,9 @@ export function MonteCarloRisk({ projectId }: { projectId: string }) {
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {tasks.length === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="mc-empty">
+        <ReportEmpty testId="mc-empty">
           No estimated, open work items to simulate — add effort estimates to quantify schedule risk.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="monte-carlo">
           <div className="flex flex-wrap items-center gap-4">

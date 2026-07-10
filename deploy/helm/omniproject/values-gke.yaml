@@ -1,0 +1,38 @@
+# GCP GKE quickstart overlay for the OmniProject shell.
+#   helm upgrade --install omniproject deploy/helm/omniproject \
+#     -f deploy/helm/omniproject/values-gke.yaml \
+#     --set config.PUBLIC_URL=https://app.example.com \
+#     --set-file secret.data.SESSION_SECRET=<(openssl rand -hex 32)
+# See docs/CLOUD-HOSTING.md.
+
+# GKE ingress → a Google Cloud external HTTP(S) Load Balancer. A managed cert + static IP terminate
+# TLS at the LB (create them, then reference by name).
+ingress:
+  enabled: true
+  className: gce
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: omniproject-ip
+    networking.gke.io/managed-certificates: omniproject-cert
+  hosts:
+    - host: app.example.com
+      paths: [{ path: /, pathType: Prefix }]
+  tls: []  # TLS via a GKE ManagedCertificate; no in-cluster Secret needed.
+
+# Workload Identity: bind the KSA to a Google service account so the retention connectors' SDK-backed
+# port (GCS/BigQuery) uses keyless credentials. Create the GSA + IAM binding, then set it here.
+serviceAccount:
+  create: true
+  annotations:
+    iam.gke.io/gcp-service-account: omniproject-retention@PROJECT_ID.iam.gserviceaccount.com
+
+# Balanced PD for the (optional) config PVC.
+persistence:
+  storageClassName: standard-rwo
+
+autoscaling:
+  enabled: false  # enable AFTER setting config.REDIS_URL (e.g. Memorystore) — see values.yaml.
+
+config:
+  # BigQuery/GCS ports read the project + location from the environment.
+  GOOGLE_CLOUD_PROJECT: "PROJECT_ID"
+  BIGQUERY_LOCATION: "US"

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction, RequestHandler, IRouter } from "express";
 import { REPORTS, METHODOLOGIES } from "@workspace/backend-catalogue";
+import { SELF_HOST_DOMAINS, selfHostGovernanceId } from "../selfhost/domains";
 import { getSettings } from "./settings";
 import {
   resolveFeatures,
@@ -146,14 +147,6 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
   },
 ];
 
-/** The registry as pure feature-gates (id + default posture) for the hierarchical resolver. */
-export function featureGates(): FeatureGate[] {
-  return FEATURE_MODULES.map((m) => ({
-    id: m.id,
-    ...(m.defaultOff ? { defaultOff: true } : {}),
-    ...(m.reason ? { reason: m.reason } : {}),
-  }));
-}
 
 /** Memoize a zero-arg computation — compute it once, on first call, and cache the result. The
  *  shared shape behind `governanceCatalogue`/`governanceGates`'s "pure over static imports, so
@@ -170,8 +163,8 @@ function lazy<T>(compute: () => T): () => T {
   };
 }
 
-/** A kind of governable item: an optional module, a report, or a methodology. */
-export type GovernanceKind = "module" | "report" | "methodology";
+/** A kind of governable item: an optional module, a report, a methodology, or a self-host DB domain. */
+export type GovernanceKind = "module" | "report" | "methodology" | "selfhost";
 
 export interface GovernanceItem {
   id: string;
@@ -197,7 +190,14 @@ const computeGovernanceCatalogue = lazy((): GovernanceItem[] => {
   const methodologies: GovernanceItem[] = METHODOLOGIES.map((m) => ({
     id: `methodology:${m.id}`, kind: "methodology", label: m.label, description: `${m.kind} methodology`,
   }));
-  return [...modules, ...reports, ...methodologies];
+  // Self-host DB domains — governed like any feature so a PMO can mandate/forbid holding a domain in
+  // the operator's own database. Gated (non-core) domains carry their storage/cost `defaultOff` posture
+  // so adoption is an explicit opt-in; the core work-item domain is default-on. See selfhost/domains.
+  const selfhost: GovernanceItem[] = SELF_HOST_DOMAINS.map((d) => ({
+    id: selfHostGovernanceId(d.id), kind: "selfhost", label: `Self-host: ${d.label}`, description: d.unlocks,
+    ...(d.core ? {} : { defaultOff: true }), ...(d.gate ? { reason: d.gate } : {}),
+  }));
+  return [...modules, ...reports, ...methodologies, ...selfhost];
 });
 
 /**
@@ -229,13 +229,6 @@ export function governanceGates(): FeatureGate[] {
 const loaded = new Set<string>();
 export function markFeatureLoaded(id: string): void {
   loaded.add(id);
-}
-
-/** The full set of disabled ids: env (`DISABLED_FEATURES`) ∪ settings (`disabledFeatures`). */
-export function disabledFeatureIds(): Set<string> {
-  const out = new Set<string>();
-  for (const id of getSettings().disabledFeatures ?? []) out.add(id);
-  return out;
 }
 
 /**
