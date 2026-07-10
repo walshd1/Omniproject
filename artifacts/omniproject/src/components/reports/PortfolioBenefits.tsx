@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { rollupBenefits } from "../../lib/portfolio-value";
 import { useT } from "../../lib/i18n";
@@ -19,9 +20,9 @@ export function PortfolioBenefits() {
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {portfolio.planned === 0 && portfolio.actual === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="portfolio-benefits-empty">
+        <ReportEmpty testId="portfolio-benefits-empty">
           No benefits data — set planned and actual benefit values on work items to track realisation across the portfolio.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="portfolio-benefits">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

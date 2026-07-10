@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { num } from "../../lib/num";
 import { DAY_MS } from "../../lib/date-utils";
@@ -244,9 +245,9 @@ export function ValueStreamFlow() {
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {streams.length === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="value-stream-flow-empty">
+        <ReportEmpty testId="value-stream-flow-empty">
           No flow data — work items need a status (and ideally a value stream, start/created and updated dates) to chart WIP, aging, throughput and cycle time.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="value-stream-flow">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

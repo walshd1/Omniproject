@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { convertAmount } from "../../lib/currency";
 import { num } from "../../lib/num";
@@ -262,10 +263,10 @@ export function ProjectHealth() {
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {rows.length === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="project-health-empty">
+        <ReportEmpty testId="project-health-empty">
           No project data to score — add work items carrying delivery-risk signals (health / risk level, blocked flags, due
           dates, budget vs actual cost, benefit confidence) to see a predictive project-health ranking.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="project-health">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

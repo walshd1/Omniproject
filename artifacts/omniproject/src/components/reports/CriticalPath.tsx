@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { criticalPath, type CpmEdge, type CpmNode } from "../../lib/critical-path";
@@ -69,10 +70,10 @@ export function CriticalPath({ projectId, edges }: { projectId: string; edges?: 
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {cpmEdges.length === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="cpm-empty">
+        <ReportEmpty testId="cpm-empty">
           No precedence to analyse yet — link work items with <strong>blocks</strong> / <strong>depends&nbsp;on</strong>{" "}
           dependencies (Dependency Links report) and give them durations to compute the critical path.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="critical-path">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">

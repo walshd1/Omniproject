@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useCallback, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -35,9 +36,9 @@ export function CapexOpex({ projectId }: { projectId: string }) {
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {summary.count === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="capex-empty">
+        <ReportEmpty testId="capex-empty">
           No capitalisation data — set an expenditure type (capex/opex) and amounts on work items to see the CapEx/OpEx split.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="capex-opex">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

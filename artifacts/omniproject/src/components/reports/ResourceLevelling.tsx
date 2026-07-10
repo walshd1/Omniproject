@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useListProjects, useGetCapabilities, getGetProjectCapacityQueryOptions, type ResourceCapacity } from "@workspace/api-client-react";
@@ -130,9 +131,9 @@ export function ResourceLevelling() {
   return (
     <DataState isLoading={loading} isError={projError} error={projErr} onRetry={() => refetch()} className="min-h-40">
       {!hasData ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="levelling-empty">
+        <ReportEmpty testId="levelling-empty">
           No capacity data — connect a resource-management source so the levelling view has allocations to work with.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-6" data-testid="resource-levelling">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

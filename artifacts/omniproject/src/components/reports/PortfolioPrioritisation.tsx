@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo, useState } from "react";
 import { usePortfolioPriority } from "./use-portfolio-priority";
 import { useT } from "../../lib/i18n";
@@ -96,9 +97,9 @@ export function PortfolioPrioritisation() {
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {!hasData ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="portfolio-prioritisation-empty">
+        <ReportEmpty testId="portfolio-prioritisation-empty">
           No projects to prioritise.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="portfolio-prioritisation">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

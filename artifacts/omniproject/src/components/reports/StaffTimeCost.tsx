@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useCallback, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey } from "@workspace/api-client-react";
@@ -32,9 +33,9 @@ export function StaffTimeCost({ projectId }: { projectId: string }) {
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {!data || (data.totalCost === 0 && data.unratedHours === 0 && !data.timesheetActuals) ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="staff-cost-empty">
+        <ReportEmpty testId="staff-cost-empty">
           No costable time — log hours against work items and map assignees to rated job titles (PMO rate card) to see staff time and cost.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="staff-time-cost">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

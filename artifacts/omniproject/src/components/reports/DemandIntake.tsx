@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { num } from "../../lib/num";
 import { moscowWeight } from "../../lib/portfolio-priority";
@@ -183,10 +184,10 @@ export function DemandIntake() {
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {totals.demand === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="demand-intake-empty">
+        <ReportEmpty testId="demand-intake-empty">
           No demand to triage — set a status (and optionally requester, RICE, WSJF or MoSCoW) on work items to see the intake
           funnel and the prioritised queue of what to pull next.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="demand-intake">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import type { Issue } from "@workspace/api-client-react";
 import {
@@ -90,10 +91,10 @@ export function CrossProgrammeDependencies() {
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {map.edges.length === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="cross-programme-empty">
+        <ReportEmpty testId="cross-programme-empty">
           No cross-programme dependencies to map yet — link work items with <strong>depends&nbsp;on</strong> references
           (and give them start/due dates) to derive the dependency graph and its critical path across programmes.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="cross-programme-map">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

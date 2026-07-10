@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useCallback, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
@@ -28,9 +29,9 @@ export function FinancialSummary({ projectId }: { projectId: string }) {
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {summary.costedItems === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="financial-summary-empty">
+        <ReportEmpty testId="financial-summary-empty">
           No financial data — set a budget and actual cost on work items to see the financial summary.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="financial-summary">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
