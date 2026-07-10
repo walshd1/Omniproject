@@ -6,12 +6,11 @@
 # k8s-enterprise-manifest.yaml all deploy.
 
 # ── Builder ───────────────────────────────────────────────────────────────────
-# Toolchain: Node 26 + pnpm 11.8.0. pnpm is kept in lockstep with ci.yml (pnpm/action-setup's
-# `version:`). NODE VERSION IS A KNOWN, TRACKED DRIFT: this image ships Node 26, but CI currently
-# verifies on Node 22 because the jsdom-based SPA test suite does not yet run on Node 26 (jsdom's
-# localStorage is unavailable there — see the SPA test setup). Reconciling to a single Node version
-# (bump CI to 26 once the SPA test env supports it, or pin this image down to 22/24) is a pending
-# maintainer decision — do NOT assume the two mirror until then.
+# Mirror the CI toolchain (.github/workflows/ci.yml): Node 26 + pnpm 11.8.0 — CI now verifies on
+# Node 26 too (the SPA test env needed a localStorage polyfill, since Node 26's built-in Web Storage
+# collides with jsdom's — see artifacts/omniproject/src/test/setup.ts). Keep these in lockstep: if you
+# bump either version here, bump the matching one in ci.yml (node-version / pnpm/action-setup's
+# `version:`) so the build and CI toolchains can't silently drift apart.
 #
 # Pinned by digest, not just the `26-bookworm-slim` tag: a tag is mutable (the same tag name
 # gets repointed at a new image on every Debian/Node patch release), so pinning only by tag
