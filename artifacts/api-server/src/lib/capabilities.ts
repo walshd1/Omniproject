@@ -3,6 +3,7 @@ import { getBroker, contextFromReq } from "../broker";
 import type { BackendFieldMap, FieldSupport } from "../broker/types";
 import { brokerSupportUnion, unionSupport, BROKER_CAPABILITY_KEYS } from "@workspace/backend-catalogue";
 import { connectedBrokers } from "../broker/registry";
+import { parseCommaSet } from "./env";
 import {
   FIELD_REGISTRY,
   customFieldsFrom,
@@ -222,7 +223,7 @@ function build(
 function fromEnv(): Capabilities | null {
   const raw = process.env["CAPABILITIES"]?.trim();
   if (!raw) return null;
-  const set = new Set(raw.split(",").map((s) => s.trim().toLowerCase()));
+  const set = parseCommaSet(raw);
   const enabled = Object.fromEntries(CAPABILITY_DOMAINS.map((d) => [d, set.has(d)])) as Record<CapabilityDomain, boolean>;
   return build("env", enabled);
 }
