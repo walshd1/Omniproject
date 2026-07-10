@@ -157,8 +157,3 @@ export function buildSelfHostCapability(
   }
   return { storeId, role: roleForMode(mode), fields };
 }
-
-/** The per-domain rows for a scope — the admin/wizard read model (a thin re-export of the gating rows). */
-export function domainRowsForScope(gating: SelfHostGating): DomainRow[] {
-  return gating.rows;
-}

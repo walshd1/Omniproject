@@ -2548,7 +2548,6 @@ Self-host capability gating — turns an operator's adoption choices into (a) th
 | `selfHostGates` | The self-host domains as feature-gates: core ⇒ default-on, everything else opt-in with its reason. |
 | `resolveGating` | Resolve which self-host domains are live for a scope. |
 | `buildSelfHostCapability` | Build the `StoreCapability` the composition tier reads for the self-host store. |
-| `domainRowsForScope` | The per-domain rows for a scope — the admin/wizard read model (a thin re-export of the gating rows). |
 
 ### `artifacts/api-server/src/selfhost/domains.ts`
 

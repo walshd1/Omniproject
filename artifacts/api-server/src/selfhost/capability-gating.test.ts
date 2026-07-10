@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   resolveGating,
   buildSelfHostCapability,
-  domainRowsForScope,
   roleForMode,
   type GatingInput,
 } from "./capability-gating";
@@ -81,8 +80,8 @@ test("an augmenting store advertises the augmenting role", () => {
   assert.equal(cap.role, "augmenting");
 });
 
-test("domainRowsForScope returns one row per domain with metadata", () => {
-  const rows = domainRowsForScope(resolveGating(base));
+test("gating exposes one row per domain with metadata", () => {
+  const rows = resolveGating(base).rows;
   assert.equal(rows.length, 9);
   const issues = rows.find((r) => r.id === "issues")!;
   assert.equal(issues.core, true);
