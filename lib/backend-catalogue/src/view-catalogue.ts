@@ -10,6 +10,7 @@
  * from project membership): selecting one activates the views (and, in time,
  * reports/screens/rulesets) tagged with it. "*" means neutral / always shown.
  */
+import { matchesMethodology } from "./methodology-match";
 import { VIEWS_DATA } from "./views.generated";
 
 export type ViewKind = "board" | "timeline" | "stages" | "register" | "table";
@@ -42,7 +43,7 @@ export function getView(id: string): ViewDefinition | undefined {
 
 /** Views that apply to a methodology — those tagged with it, plus the neutral ("*") ones. */
 export function viewsForMethodology(methodology: string): ViewDefinition[] {
-  return VIEWS.filter((v) => v.methodologies.includes("*") || v.methodologies.includes(methodology));
+  return VIEWS.filter((v) => matchesMethodology(v.methodologies, methodology));
 }
 
 /** The distinct, non-neutral methodologies referenced by any view (the picker list, DERIVED). */
