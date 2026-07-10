@@ -340,7 +340,9 @@ jobs:
       - name: Install browser tooling (throwaway, off-lockfile)
         run: |
           mkdir -p /tmp/a11y
-          cd /tmp/a11y && npm init -y >/dev/null && npm i playwright axe-core
+          # Pin playwright to the repo's @playwright/test version (1.61.1) instead of floating to
+          # latest; axe-core bounded to its stable 4.x line. Reduces the off-lockfile drift surface.
+          cd /tmp/a11y && npm init -y >/dev/null && npm i playwright@1.61.1 axe-core@^4.10
           ./node_modules/.bin/playwright install --with-deps chromium
 
       - name: Scan

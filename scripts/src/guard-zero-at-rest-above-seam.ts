@@ -12,6 +12,13 @@
  * query builder, or an embedded key-value store. A self-host adapter that reached for `pg` directly
  * would put data-at-rest above the seam and silently break the stateless guarantee; here it can't.
  *
+ * It catches BOTH static/dynamic imports by literal specifier (`import`/`require`/`import("pg")`) AND
+ * the codebase's own variable-specifier indirection `loadOptionalDependency("pg", …)` — otherwise a
+ * forbidden package loaded through that wrapper (as `ioredis` is) would sail past a literal-only scan.
+ * A short, explicit ALLOWLIST records the deliberate exceptions: an EPHEMERAL coordination cache
+ * (Redis for cross-replica pub/sub + soft-TTL registries) is not durable at-rest project data, so it
+ * doesn't break the zero-at-rest guarantee — but the exception is named here, not silent.
+ *
  * Run: `pnpm --filter @workspace/scripts run guard-zero-at-rest-above-seam`
  */
 import fs from "node:fs";
@@ -53,6 +60,27 @@ function importSpecifier(line: string): string | null {
   return m ? m[1]! : null;
 }
 
+/**
+ * Deliberate, documented exceptions: a forbidden package that IS allowed at a specific site because
+ * its use is EPHEMERAL cross-replica coordination (not durable at-rest project data), keyed by
+ * `${relPath}::${packageRoot}`. Keep this list tiny and justified — every entry is a hole in the guard.
+ */
+const ALLOWLIST = new Set<string>([
+  // Redis as an OPTIONAL, runtime-loaded pub/sub + soft-TTL cache for multi-replica coordination
+  // (broker-log fan-out, shared registries, rate-limit). It holds no system-of-record data; without
+  // it the gateway simply degrades to per-replica. This is coordination state, not persistence.
+  "artifacts/api-server/src/lib/shared-state.ts::ioredis",
+]);
+
+/** Every package pulled in via the `loadOptionalDependency("pkg", …)` variable-specifier wrapper in a
+ *  file (the pkg name is the first string-literal arg; the call often spans lines, so scan whole text). */
+function optionalDependencySpecifiers(text: string): string[] {
+  const out: string[] = [];
+  const re = /\bloadOptionalDependency\s*(?:<[^>]*>)?\s*\(\s*["']([^"']+)["']/g;
+  for (let m = re.exec(text); m; m = re.exec(text)) out.push(m[1]!);
+  return out;
+}
+
 /** The package root of a specifier: `pg/lib/x` → `pg`, `@prisma/client/edge` → `@prisma/client`. */
 function packageRoot(spec: string): string {
   if (spec.startsWith("@")) return spec.split("/").slice(0, 2).join("/");
@@ -81,6 +109,13 @@ for (const dir of ABOVE_SEAM_DIRS) {
         violations.push(`${rel}:${i + 1}  [persistence] imports '${spec}' — ${line.trim().slice(0, 80)}`);
       }
     });
+    // Also catch the variable-specifier indirection: loadOptionalDependency("<forbidden>", …).
+    for (const spec of optionalDependencySpecifiers(src)) {
+      const root = packageRoot(spec);
+      if (FORBIDDEN_SET.has(root) && !ALLOWLIST.has(`${rel}::${root}`)) {
+        violations.push(`${rel}  [persistence] loadOptionalDependency('${spec}') — forbidden package via dynamic import (add to the ALLOWLIST only if it's ephemeral coordination, not at-rest data)`);
+      }
+    }
   }
 }
 
