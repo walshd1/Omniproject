@@ -10,6 +10,8 @@
  */
 import { isTruthy } from "./env-config";
 
+/** Resolve `TRUST_PROXY` to Express's `trust proxy` value: `false` (default/off), an explicit
+ *  positive hop count, or `1` for a bare truthy value — never Express's unbounded `true`. */
 export function resolveTrustProxy(raw: string | undefined): boolean | number {
   const v = raw?.trim().toLowerCase();
   if (!v || v === "0" || v === "false" || v === "off") return false;
