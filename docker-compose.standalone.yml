@@ -35,6 +35,28 @@ volumes:
   authentik_media:
 
 services:
+  # ── Filtered Docker socket for Traefik's provider ───────────────────────────
+  # Traefik needs to read container labels + Docker events for dynamic routing, but mounting the raw
+  # socket into an internet-facing proxy hands an attacker host-root on compromise. This proxy owns
+  # the socket and exposes only a read-only subset (CONTAINERS + events; POST denied by default) on an
+  # internal-only TCP port — nothing here publishes a host port.
+  dockerproxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: omni-dockerproxy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      CONTAINERS: "1"   # read container list/inspect for label discovery
+      NETWORKS: "1"     # read networks Traefik attaches routers to
+      POST: "0"         # deny all writes — read-only Docker API (no create/exec/start)
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - omni-net
+    restart: unless-stopped
+
   # ── Reverse proxy + TLS termination ─────────────────────────────────────────
   traefik:
     image: traefik:v3.7.5
@@ -45,6 +67,11 @@ services:
       - "--api.dashboard=true"          # dashboard ON but served behind auth (NOT --api.insecure)
       - "--ping=true"
       - "--providers.docker=true"
+      # Reach Docker through the filtered, read-only socket-proxy (see the dockerproxy service) rather
+      # than mounting /var/run/docker.sock into this internet-facing, TLS-terminating proxy. A Traefik
+      # compromise then yields only the proxy's read-only container/event queries, not the raw Docker
+      # API (which is effectively host-root).
+      - "--providers.docker.endpoint=tcp://dockerproxy:2375"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"
@@ -58,8 +85,10 @@ services:
       - "443:443"
       # NOTE: the :8080 dashboard port is deliberately NOT published. The
       # dashboard is reachable only via https://traefik.local behind basicauth.
+    depends_on:
+      - dockerproxy
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      # No docker.sock here — Traefik talks to the filtered dockerproxy over the internal network.
       - "./traefik/dynamic:/etc/traefik/dynamic:ro"
       - "./certs:/certs:ro"
     labels:

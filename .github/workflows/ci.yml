@@ -11,6 +11,13 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege for the workflow's GITHUB_TOKEN: every job here only reads the checked-out
+# source (build, test, lint, scan). Nothing pushes commits, comments, or publishes, so drop the
+# repo-default (potentially write) scope to read-only. Elevate per-job with a local `permissions:`
+# block if a future job needs to write (e.g. uploading code-scanning results needs security-events).
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
