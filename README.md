@@ -58,7 +58,7 @@ manual, no-terminal-once-it's-up recipe for running OmniProject on
 maintainer. Full walkthrough, written for
 non-technical readers: **[docs/SMALL-ORG-GUIDE.md](docs/SMALL-ORG-GUIDE.md)**. If
 you're wondering whether the enterprise-grade work has priced small orgs out: it
-hasn't — see the audit: **[docs/SME-CHARITY-FIT.md](docs/SME-CHARITY-FIT.md)**.
+hasn't — see the audit: **[docs/archive/reviews/SME-CHARITY-FIT.md](docs/archive/reviews/SME-CHARITY-FIT.md)**.
 
 ## 🏢 For enterprises
 

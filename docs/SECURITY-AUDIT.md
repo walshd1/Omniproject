@@ -13,7 +13,7 @@ deeper-dive companions:
 - [`PRIVACY.md`](./PRIVACY.md) — controller/processor position, ROPA template, sub-processors.
 - [`ACCESSIBILITY-CONFORMANCE.md`](./ACCESSIBILITY-CONFORMANCE.md) — WCAG 2.1 AA ACR (VPAT-style).
 - [`archive/reviews/SECURITY-AUDIT-2026-07.md`](./archive/reviews/SECURITY-AUDIT-2026-07.md) — the dated 2026-07 re-audit snapshot (archived; this doc remains the living posture).
-- [`AUDIT-2026-07.md`](./AUDIT-2026-07.md) — the 2026-07 whole-codebase deep pass (multi-agent, adversarially verified); its findings feed the fix backlog.
+- [`archive/reviews/AUDIT-2026-07.md`](./archive/reviews/AUDIT-2026-07.md) — the 2026-07 whole-codebase deep pass (multi-agent, adversarially verified), archived; its findings fed the fix backlog.
 
 ## Design context (what shapes the threat model)
 

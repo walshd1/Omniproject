@@ -59,8 +59,6 @@ Short how-tos for extending each integration plane (`docs/dev/`).
 Controls, audits, and the frameworks they map to.
 
 - **[SECURITY-AUDIT.md](SECURITY-AUDIT.md)** — the consolidated security posture: every control, where it's implemented, and residual risk.
-- **[AUDIT-2026-07.md](AUDIT-2026-07.md)** — the 2026-07 whole-codebase deep pass (multi-agent, adversarially verified): 16 security + 31 clean-code findings, ranked.
-- **[ZERO-TRUST-AUDIT-2026-07.md](ZERO-TRUST-AUDIT-2026-07.md)** — the 2026-07 zero-trust audit across five dimensions (authz, SSRF, injection, secrets/boot, data-isolation); verdict, ranked findings, and the controls that hold.
 - **[AI-SECURITY.md](AI-SECURITY.md)** — the end-to-end AI control model: what's gated, contained, and the residual boundaries.
 - **[THREAT-MODEL.md](THREAT-MODEL.md)** — a STRIDE threat model and trust boundaries, for security review and pen-test scoping.
 - **[COMPLIANCE.md](COMPLIANCE.md)** — control mapping to SOC 2, ISO/IEC 27001:2022 and NIST CSF 2.0.
@@ -99,7 +97,6 @@ Running it in production.
 Fit, maturity, and evaluation.
 
 - **[ENTERPRISE-READINESS.md](ENTERPRISE-READINESS.md)** — the buyer-panel gap analysis (CEO, Finance, Compliance, CISO, IT, Projects).
-- **[SME-CHARITY-FIT.md](SME-CHARITY-FIT.md)** — an audit of whether OmniProject still serves small orgs and charities as first-class users.
 - **[SMALL-ORG-GUIDE.md](SMALL-ORG-GUIDE.md)** — the non-technical walkthrough for small teams, charities and self-hosters.
 - **[SAFE-FIRST-RUN.md](SAFE-FIRST-RUN.md)** — the step-by-step path to evaluating against real data safely (dry-run, read-only first).
 - **[FEATURE-MATURITY.md](FEATURE-MATURITY.md)** — a feature-by-feature maturity read: stable / beta / prototype / nominal, plus the buried debt.

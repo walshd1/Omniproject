@@ -16,17 +16,17 @@ coarse global RBAC as the sole control. Everything else is hardening.
 
 | # | Sev | Area | Summary | Issue |
 |---|-----|------|---------|-------|
-| H1 | High | Data authz | SAML/OAuth2/magic-link carry a placeholder `accessToken` (`auth.ts:465/537/571`), forwarded as `Bearer saml`; backend can't scope per-user → any `contributor` can touch any project's data | [#488](../../issues/488) |
-| H2 | High | Data authz | IDOR/BOLA: `routes/projects.ts` write gates are a global role only, no ownership check on `:projectId`/`:issueId` | [#488](../../issues/488) |
-| H3 | Med | Data authz | Broker reads use `withActor:false` — no actor context forwarded for per-user read decisions | [#488](../../issues/488) |
-| M1 | Med-High | SSRF | AI (`ai.ts`) & STT (`stt.ts`) endpoints fetched raw, runtime-settable, bypassing egress allowlist + residency; residency comment falsely claimed AI covered | [#489](../../issues/489) ✅ fixed |
-| M2 | Med | SSRF | JWKS / OAuth2 token+userinfo / reachability probe use literal-only guard (no post-DNS recheck) → DNS-rebind; inconsistent with OIDC's `safeFetch` | [#490](../../issues/490) |
-| L1 | Low | Authz consistency | Dev-mode impersonation authorized via `roleFromClaims` (skips strong-auth/SCIM/deprovision) instead of `requireRole` | [#491](../../issues/491) ✅ fixed |
-| L2 | Low | Authz consistency | `views`/`dashboards` writes ungated vs `pmo`-gated siblings (documented-intentional — flagged for decision) | [#491](../../issues/491) |
-| L3 | Low | Least privilege | `snapshots/capture` signed arbitrary data at `requireAuth` only; audit mislabeled `admin` | [#491](../../issues/491) ✅ fixed |
-| L4 | Low | Secrets | No independent strength check for at-rest master keys / `BROKER_PSK` (single-secret blast radius via fallback chain) | [#491](../../issues/491) |
-| — | Low | Crypto | rate-card key derivation uses bare SHA-256 instead of HKDF `deriveKey` | [#486](../../issues/486) |
-| — | Low | SAML | No replay protection (`validateInResponseTo` / assertion-ID cache) | [#487](../../issues/487) |
+| H1 | High | Data authz | SAML/OAuth2/magic-link carry a placeholder `accessToken` (`auth.ts:465/537/571`), forwarded as `Bearer saml`; backend can't scope per-user → any `contributor` can touch any project's data | [#488](../../../../issues/488) |
+| H2 | High | Data authz | IDOR/BOLA: `routes/projects.ts` write gates are a global role only, no ownership check on `:projectId`/`:issueId` | [#488](../../../../issues/488) |
+| H3 | Med | Data authz | Broker reads use `withActor:false` — no actor context forwarded for per-user read decisions | [#488](../../../../issues/488) |
+| M1 | Med-High | SSRF | AI (`ai.ts`) & STT (`stt.ts`) endpoints fetched raw, runtime-settable, bypassing egress allowlist + residency; residency comment falsely claimed AI covered | [#489](../../../../issues/489) ✅ fixed |
+| M2 | Med | SSRF | JWKS / OAuth2 token+userinfo / reachability probe use literal-only guard (no post-DNS recheck) → DNS-rebind; inconsistent with OIDC's `safeFetch` | [#490](../../../../issues/490) |
+| L1 | Low | Authz consistency | Dev-mode impersonation authorized via `roleFromClaims` (skips strong-auth/SCIM/deprovision) instead of `requireRole` | [#491](../../../../issues/491) ✅ fixed |
+| L2 | Low | Authz consistency | `views`/`dashboards` writes ungated vs `pmo`-gated siblings (documented-intentional — flagged for decision) | [#491](../../../../issues/491) |
+| L3 | Low | Least privilege | `snapshots/capture` signed arbitrary data at `requireAuth` only; audit mislabeled `admin` | [#491](../../../../issues/491) ✅ fixed |
+| L4 | Low | Secrets | No independent strength check for at-rest master keys / `BROKER_PSK` (single-secret blast radius via fallback chain) | [#491](../../../../issues/491) |
+| — | Low | Crypto | rate-card key derivation uses bare SHA-256 instead of HKDF `deriveKey` | [#486](../../../../issues/486) |
+| — | Low | SAML | No replay protection (`validateInResponseTo` / assertion-ID cache) | [#487](../../../../issues/487) |
 
 ✅ = addressed in the accompanying hardening PR (M1, L1, L3). H1/H2 need a design decision;
 M2/L2/L4 are tracked.
