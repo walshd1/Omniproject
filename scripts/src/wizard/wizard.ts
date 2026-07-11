@@ -30,6 +30,9 @@ const rand = (bytes: number) => crypto.randomBytes(bytes).toString("base64url");
  *  from the concrete TTY (a slim wrapper of the same three primitives main() used to define inline). */
 interface Prompter {
   ask(q: string, def?: string): Promise<string>;
+  /** Like `ask`, but the typed value is NOT echoed to the terminal (for secrets — client secrets,
+   *  API keys — so they don't land in scrollback or a screen-share). */
+  secret(q: string): Promise<string>;
   confirm(q: string, def?: boolean): Promise<boolean>;
   choose<T extends string>(q: string, opts: { id: T; label: string }[], def?: T): Promise<T>;
 }
@@ -38,6 +41,25 @@ function makePrompter(rl: readline.Interface): Prompter {
   const ask = async (q: string, def?: string): Promise<string> => {
     const a = (await rl.question(`${q}${def ? dim(` [${def}]`) : ""} `)).trim();
     return a || def || "";
+  };
+  const secret = async (q: string): Promise<string> => {
+    // Mute the readline echo while the secret is typed: keep newlines (so Enter still ends the line)
+    // but drop the character echo. `_writeToOutput` is readline's documented hook for exactly this.
+    const rlInternal = rl as unknown as { _writeToOutput?: (s: string) => void };
+    const original = rlInternal._writeToOutput?.bind(rl);
+    let muted = false;
+    rlInternal._writeToOutput = (s: string): void => {
+      if (muted && !/[\r\n]/.test(s)) return; // swallow the typed characters
+      original?.(s);
+    };
+    stdout.write(`${q} `);
+    muted = true;
+    try {
+      return (await rl.question("")).trim();
+    } finally {
+      muted = false;
+      if (original) rlInternal._writeToOutput = original;
+    }
   };
   const confirm = async (q: string, def = true): Promise<boolean> => {
     const a = (await ask(`${q} ${dim(def ? "(Y/n)" : "(y/N)")}`)).toLowerCase();
@@ -54,7 +76,7 @@ function makePrompter(rl: readline.Interface): Prompter {
       console.log(err("  please enter a number from the list"));
     }
   };
-  return { ask, confirm, choose };
+  return { ask, secret, confirm, choose };
 }
 
 interface BrokerChoice {
@@ -124,13 +146,13 @@ async function promptIdp(p: Prompter): Promise<IdpChoice> {
   if (idpKind === "oidc") {
     const issuerUrl = await p.ask("  OIDC issuer URL (discovery base):", "https://idp.example.com/application/o/omniproject/");
     const clientId = await p.ask("  OIDC client id:");
-    const clientSecret = await p.ask("  OIDC client secret:");
+    const clientSecret = await p.secret("  OIDC client secret:");
     return { kind: "oidc", issuerUrl, clientId, clientSecret };
   }
   console.log(dim("  Authentik will be bundled; create the OmniProject application/provider in its UI after first boot."));
   const issuerUrl = await p.ask("  Issuer URL Authentik will expose (its external origin + provider path):", "https://authentik.example.com/application/o/omniproject/");
   const clientId = await p.ask("  OIDC client id you'll configure in Authentik:", "omniproject");
-  const clientSecret = (await p.ask("  OIDC client secret (blank = generate):")) || rand(32);
+  const clientSecret = (await p.secret("  OIDC client secret (blank = generate):")) || rand(32);
   return { kind: "authentik-bundled", issuerUrl, clientId, clientSecret, pgPassword: rand(24), secretKey: rand(48) };
 }
 
@@ -155,7 +177,7 @@ async function promptAi(p: Prompter): Promise<{ ai: DeployConfig["ai"]; bundleOl
       bundleOllama = await p.confirm("  Bundle a local Ollama service in the compose?", true);
       if (!bundleOllama) ai.ollamaUrl = await p.ask("  External Ollama URL:", "http://ollama.internal:11434");
     } else {
-      ai.apiKey = await p.ask(`  ${aiProvider} API key:`);
+      ai.apiKey = await p.secret(`  ${aiProvider} API key:`);
     }
   }
   return { ai, bundleOllama };
