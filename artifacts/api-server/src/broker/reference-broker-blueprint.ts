@@ -22,7 +22,7 @@
 import http from "node:http";
 import crypto from "node:crypto";
 import { openPayload } from "../lib/broker-psk";
-import { verifyBrokerRequest, type CanonicalRequest } from "../lib/broker-hmac";
+import { verifyBrokerRequest, signBrokerResponse, type CanonicalRequest } from "../lib/broker-hmac";
 import type { SessionBind } from "../lib/session-key";
 
 type Row = Record<string, unknown>;
@@ -177,6 +177,14 @@ const BINDING_ACTIONS: Record<string, (b: BindingCtx) => unknown> = {
 /** The canonical set of binding action names (the registry's keys). */
 export const BINDING_ACTION_NAMES: readonly string[] = Object.keys(BINDING_ACTIONS);
 
+/**
+ * The transport-security versions THIS broker supports, advertised in the `protocol` field of the
+ * `get_capabilities` reply. The gateway reads it to detect a broker that DOESN'T verify v2 request
+ * signatures (so signing would buy nothing) and warn — a safety net when an operator points the
+ * gateway at a broker that hasn't implemented the v2 seam. A broker that omits it reads as v1-only.
+ */
+export const BROKER_PROTOCOL_SUPPORT = { psk: ["p1", "p2"], sig: ["v2"], resp: ["v2"] } as const;
+
 /** Route one binding action to the backend via the registry. The backend is
  *  injected so every transport template reuses this unchanged. */
 async function dispatch(action: string, payload: Row, ctx: ActorCtx, be: BrokerBackend): Promise<unknown> {
@@ -209,6 +217,9 @@ export interface BrokerCoreResult {
   /** True when the request arrived PSK-encrypted — the transport SHOULD encrypt
    *  the response the same way (symmetric wire format). */
   encrypted: boolean;
+  /** The request's session binding (or undefined for a static-key call), echoed so the transport
+   *  can SIGN the response under the same key the request used (broker→gateway response signing). */
+  bind?: SessionBind | undefined;
 }
 
 /** Core broker call: parse (decrypting a PSK envelope), route the action, return the result. */
@@ -248,12 +259,15 @@ export async function processBrokerCall(input: BrokerCoreInput, be: BrokerBacken
     idempotencyKey: body["idempotencyKey"] as string | undefined,
     origin: body["origin"] as string | undefined,
   };
+  // The binding this request was keyed under (sealed __bind under PSK, else the cleartext headers).
+  // Reused to verify the request signature AND to sign the response under the same key.
+  const requestBind = encrypted ? sealedBind : bindFromHeaders(input.headers);
 
   // 3. `verify` short-circuit: a dry-run probe must NOT touch the backend (and is
   //    unauthenticated by design — connectivity, not authorisation), so it runs BEFORE
   //    the signature check and a readiness/verify ping needs no signature.
   if (body["verify"] === true || payload["verify"] === true) {
-    return { status: 200, body: { success: true, data: { action, verified: true }, message: "verify ok" }, encrypted };
+    return { status: 200, body: { success: true, data: { action, verified: true }, message: "verify ok" }, encrypted, bind: requestBind };
   }
 
   // 3.5. Request-signature verification (F3a). Real gateway traffic is ALWAYS signed, so a
@@ -262,7 +276,7 @@ export async function processBrokerCall(input: BrokerCoreInput, be: BrokerBacken
   //      BROKER_REQUIRE_SIG is set — the opt-in that forbids the strip-the-header downgrade.
   const sigHeader = hdr(input.headers, "x-omni-sig");
   if (sigHeader) {
-    const bind = encrypted ? sealedBind : bindFromHeaders(input.headers);
+    const bind = requestBind;
     const canonical: CanonicalRequest = {
       // Under PSK the routing fields come from the decrypted envelope; unsealed, from the
       // cleartext headers (which equal the envelope values the gateway signed).
@@ -281,7 +295,7 @@ export async function processBrokerCall(input: BrokerCoreInput, be: BrokerBacken
   // 4. Dispatch + map results/errors onto the envelope + taxonomy.
   try {
     const data = await dispatch(action, payload, ctx, be);
-    return { status: 200, body: { success: true, data, message: null }, encrypted };
+    return { status: 200, body: { success: true, data, message: null }, encrypted, bind: requestBind };
   } catch (e) {
     if (e instanceof NotImplemented) return { status: 501, body: { success: false, message: e.message }, encrypted };
     const err = e as BrokerHttpError;
@@ -310,8 +324,10 @@ export function createReferenceBrokerBlueprint(): http.Server {
         authHeader: req.headers["authorization"] as string | undefined,
         headers: req.headers,
       }).then((r) => {
-        res.writeHead(r.status, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject" });
-        res.end(JSON.stringify(r.body));
+        const wire = JSON.stringify(r.body);
+        const rs = signBrokerResponse(wire, r.bind); // sign the reply under the request's key
+        res.writeHead(r.status, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject", "X-Omni-Resp-Sig": rs.sig, "X-Omni-Resp-Ts": String(rs.ts) });
+        res.end(wire);
       });
     });
   });

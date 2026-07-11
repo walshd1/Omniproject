@@ -1,6 +1,6 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { signBrokerRequest, verifyBrokerRequest, verifyBrokerRequestShared, brokerCanonicalString, __resetBrokerHmac, type CanonicalRequest } from "./broker-hmac";
+import { signBrokerRequest, verifyBrokerRequest, verifyBrokerRequestShared, brokerCanonicalString, signBrokerResponse, verifyBrokerResponse, __resetBrokerHmac, type CanonicalRequest } from "./broker-hmac";
 
 /**
  * Gateway↔broker request HMAC (v2 canonical): a fresh signature verifies once; replays,
@@ -53,6 +53,23 @@ test("the canonical string is v2-tagged and binds the routing surface", () => {
   assert.equal(lines[1], "POST");
   assert.equal(lines[2], "list_projects"); // action
   assert.equal(lines[3], "pm");            // source
+});
+
+// ── Response (event-channel) signature ───────────────────────────────────────────
+test("a broker response signature verifies, and a tampered/stale/mis-keyed one fails", () => {
+  const body = JSON.stringify({ success: true, data: [{ id: "p1" }] });
+  const rs = signBrokerResponse(body);
+  assert.equal(verifyBrokerResponse({ body, ts: rs.ts, sig: rs.sig }), "ok");
+  assert.equal(verifyBrokerResponse({ body: JSON.stringify({ success: true, data: [{ id: "EVIL" }] }), ts: rs.ts, sig: rs.sig }), "bad-signature");
+  assert.equal(verifyBrokerResponse({ body, ts: rs.ts, sig: rs.sig }, { now: rs.ts + 10 * 60_000 }), "expired");
+});
+
+test("a response signed under a session key verifies only under that binding", () => {
+  const body = "y";
+  const rs = signBrokerResponse(body, { sub: "alice", smono: "1", salt: "aa" });
+  assert.equal(verifyBrokerResponse({ body, ts: rs.ts, sig: rs.sig, bind: { sub: "alice", smono: "1", salt: "aa" } }), "ok");
+  assert.equal(verifyBrokerResponse({ body, ts: rs.ts, sig: rs.sig, bind: { sub: "bob", smono: "2", salt: "bb" } }), "bad-signature");
+  assert.equal(verifyBrokerResponse({ body, ts: rs.ts, sig: rs.sig }), "bad-signature"); // static key ≠ session key
 });
 
 // ── Per-session signing key ────────────────────────────────────────────────────
