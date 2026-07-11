@@ -64,7 +64,9 @@ function trendUrl(q: TrendQuery): string {
 }
 
 export const trendQueryKey = (q: TrendQuery) =>
-  ["trend", q.metric, q.grain ?? "month", q.programmeId ?? null, q.projectId ?? null] as const;
+  // Must include every field `trendUrl` varies on — entity/ids/from/to too — or two queries that
+  // differ only in ids (or the date window) collide on one cache entry and render stale data.
+  ["trend", q.metric, q.grain ?? "month", q.programmeId ?? null, q.projectId ?? null, q.entity ?? null, (q.ids ?? []).join(","), q.from ?? null, q.to ?? null] as const;
 
 /** Fetch a trend series for a metric. `enabled` gates the request (e.g. only when a scope is chosen). */
 export function useTrend(q: TrendQuery, enabled = true) {

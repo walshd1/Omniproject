@@ -121,7 +121,10 @@ export function PortfolioTrends() {
       toast({ title: "IMPORT FAILED", description: "No valid snapshots in that file.", variant: "destructive" });
       return;
     }
-    setSnapshots(addSnapshots(snapshots, imported));
+    // Functional update (like capture()): addSnapshots also persists to sessionStorage, so merging
+    // against the closed-over `snapshots` would drop any snapshot the auto-capture ticker added
+    // concurrently — from both state AND storage.
+    setSnapshots((prev) => addSnapshots(prev, imported));
     toast({ title: "SNAPSHOTS IMPORTED", description: `${imported.length} point(s) added.` });
   };
 

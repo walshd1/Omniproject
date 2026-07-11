@@ -173,17 +173,19 @@ export function parseFeatureGatingCsv(text: string, opts: ParseFeatureGatingCsvO
       continue;
     }
 
-    let malformed: string | undefined;
+    const malformed: string[] = [];
     const readIds = (cell: string | undefined): string[] => {
       const ids = splitIds(cell ?? "");
-      for (const id of ids) if (!opts.validFeatureIds.has(id)) malformed = id;
+      for (const id of ids) if (!opts.validFeatureIds.has(id) && !malformed.includes(id)) malformed.push(id);
       return ids;
     };
     const disabled = readIds(cells[iDis]);
     const required = readIds(cells[iReq]);
     const forbidden = readIds(cells[iForb]);
-    if (malformed) {
-      errors.push({ line, message: `"${malformed}" is not a known catalogue item (feature/methodology/report id).` });
+    if (malformed.length) {
+      // Report ALL bad ids at once (was: only the last) so the operator fixes them in one pass.
+      const label = malformed.length === 1 ? "is not a known catalogue item" : "are not known catalogue items";
+      errors.push({ line, message: `${malformed.map((m) => `"${m}"`).join(", ")} ${label} (feature/methodology/report id).` });
       continue;
     }
     const clash = required.find((id) => forbidden.includes(id));

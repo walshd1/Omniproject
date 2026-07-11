@@ -77,10 +77,12 @@ export function MyWork() {
     return [...byStatus.entries()].sort((a, b) => order(a[0]) - order(b[0]));
   }, [mine]);
 
-  // Inbox: accumulate live notifications (newest first), client-side dismiss.
-  const [inbox, setInbox] = useState<LiveEvent[]>([]);
-  useLiveEvents((e) => setInbox((prev) => [e, ...prev].slice(0, 100)));
-  const dismiss = (idx: number) => setInbox((prev) => prev.filter((_, i) => i !== idx));
+  // Inbox: accumulate live notifications (newest first), client-side dismiss. Each event gets a
+  // stable client id at ingest so dismiss removes the right one — keying/dismissing by array index
+  // would target the wrong notification once a newer event prepends and shifts every index.
+  const [inbox, setInbox] = useState<Array<{ cid: string; event: LiveEvent }>>([]);
+  useLiveEvents((e) => setInbox((prev) => [{ cid: crypto.randomUUID(), event: e }, ...prev].slice(0, 100)));
+  const dismiss = (cid: string) => setInbox((prev) => prev.filter((x) => x.cid !== cid));
 
   if (!enabled) {
     return <div className="p-8 text-sm text-muted-foreground">The “My Work” module is not enabled.</div>;
@@ -134,13 +136,13 @@ export function MyWork() {
               <p className="text-sm text-muted-foreground">No notifications yet. New events appear here live.</p>
             ) : (
               <ul className="divide-y divide-border border-2 border-foreground">
-                {inbox.map((n, i) => (
-                  <li key={i} className="flex items-start justify-between gap-4 p-3 text-sm">
+                {inbox.map(({ cid, event: n }) => (
+                  <li key={cid} className="flex items-start justify-between gap-4 p-3 text-sm">
                     <div>
                       <span className="font-bold">{String(n.kind ?? "notification")}</span>
                       <span className="ml-2 text-muted-foreground">{String((n as Record<string, unknown>)["message"] ?? (n as Record<string, unknown>)["title"] ?? "")}</span>
                     </div>
-                    <button onClick={() => dismiss(i)} aria-label="Dismiss" className="text-xs font-bold uppercase text-muted-foreground hover:text-foreground">Dismiss</button>
+                    <button onClick={() => dismiss(cid)} aria-label="Dismiss" className="text-xs font-bold uppercase text-muted-foreground hover:text-foreground">Dismiss</button>
                   </li>
                 ))}
               </ul>

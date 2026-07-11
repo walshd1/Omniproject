@@ -184,7 +184,10 @@ function monthKey(v: unknown): string | null {
   if (v == null || v === "") return null;
   const d = v instanceof Date ? v : new Date(v as string | number);
   if (Number.isNaN(d.getTime())) return null;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  // Bucket in UTC (the rest of this file parses dates as UTC): a date-only value like "2026-07-01"
+  // is UTC midnight, so reading it in local time would land month-boundary items in the wrong month
+  // for every user west of UTC.
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

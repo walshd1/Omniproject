@@ -1,5 +1,5 @@
 import type { ProjectFinancials } from "@workspace/api-client-react";
-import { convertAmount, LocalTracker } from "./currency";
+import { convertAmount, isConvertible, LocalTracker } from "./currency";
 import { numLoose as num, round2 } from "./num";
 
 /**
@@ -46,6 +46,9 @@ export interface FinanceRollup {
   localCurrency: string | null;
   /** Un-converted totals in `localCurrency` — present only while the row is single-currency. */
   local: LocalTotals | null;
+  /** Projects excluded from the consolidated total because their currency has no rate to the
+   *  reporting currency (summing the raw foreign amount would corrupt the total). */
+  excludedForFx: number;
 }
 
 /** Distinct source currencies seen across the projects (so the UI can say "consolidated from N currencies"). */
@@ -62,7 +65,7 @@ interface WorkingRollup extends FinanceRollup {
 }
 
 function blank(key: string, label: string): WorkingRollup {
-  return { key, label, projects: 0, budget: 0, actual: 0, forecast: 0, earnedValue: 0, variance: 0, cpi: null, localCurrency: null, local: null, _tracker: new LocalTracker() };
+  return { key, label, projects: 0, budget: 0, actual: 0, forecast: 0, earnedValue: 0, variance: 0, cpi: null, localCurrency: null, local: null, excludedForFx: 0, _tracker: new LocalTracker() };
 }
 
 /** Fold one project's financials (converted to the reporting currency) into a roll-up row, tracking
@@ -79,10 +82,17 @@ function fold(acc: WorkingRollup, p: ProjectFin, target: string, rates?: Record<
   };
   const conv = (n: number) => convertAmount(n, currency, target, rates);
   acc.projects += 1;
-  acc.budget += conv(raw.budget);
-  acc.actual += conv(raw.actual);
-  acc.forecast += conv(raw.forecast);
-  acc.earnedValue += conv(raw.earnedValue);
+  // Only fold into the consolidated (target-currency) total when the row can actually be converted.
+  // convertAmount passes the amount through UNCHANGED when a rate is missing, so summing it would add
+  // a raw foreign amount to the total (the backend twin foldFinance drops these rows — keep them agreed).
+  if (isConvertible(currency, target, rates)) {
+    acc.budget += conv(raw.budget);
+    acc.actual += conv(raw.actual);
+    acc.forecast += conv(raw.forecast);
+    acc.earnedValue += conv(raw.earnedValue);
+  } else {
+    acc.excludedForFx += 1;
+  }
 
   if (acc._tracker.add(currency)) {
     const local = acc.local ?? { budget: 0, actual: 0, forecast: 0, earnedValue: 0 };
@@ -115,6 +125,7 @@ function finalise(r: WorkingRollup): FinanceRollup {
     local: r.local
       ? { budget: round2(r.local.budget), actual: round2(r.local.actual), forecast: round2(r.local.forecast), earnedValue: round2(r.local.earnedValue) }
       : null,
+    excludedForFx: r.excludedForFx,
   };
 }
 
