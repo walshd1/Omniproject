@@ -122,7 +122,8 @@ test("discover throws when required endpoints are missing", async () => {
 
 test("discover fetches the well-known document (and caches it)", async () => {
   const doc = {
-    issuer: "https://idp.test",
+    // The doc's `issuer` must match the configured issuerUrl (OIDC Discovery spec; now enforced).
+    issuer: "https://127.0.0.1",
     authorization_endpoint: "https://idp.test/auth",
     token_endpoint: "https://idp.test/token",
     jwks_uri: "https://idp.test/jwks",
@@ -136,6 +137,15 @@ test("discover fetches the well-known document (and caches it)", async () => {
   const result = await discover({ ...CONFIG, issuerUrl: "https://127.0.0.1" });
   assert.equal(result.token_endpoint, "https://idp.test/token");
   assert.match(calls[0]!, /^https:\/\/127\.0\.0\.1\/\.well-known\/openid-configuration$/);
+});
+
+test("discover rejects a document whose issuer doesn't match the configured issuer", async () => {
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ issuer: "https://evil.test", authorization_endpoint: "https://idp.test/auth", token_endpoint: "https://idp.test/token" }), { status: 200 })) as typeof fetch;
+  await assert.rejects(
+    () => discover({ ...CONFIG, issuerUrl: "https://127.0.0.5" }),
+    /issuer mismatch/,
+  );
 });
 
 // ── exchangeCode ──────────────────────────────────────────────────────────────

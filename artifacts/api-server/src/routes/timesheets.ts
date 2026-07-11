@@ -6,9 +6,12 @@
  */
 import { Router, type Request, type Response } from "express";
 import { getSession } from "./auth";
-import { hasRole } from "../lib/rbac";
+import { hasRole, requireRole } from "../lib/rbac";
 import { timesheetStoreFor, describeTimesheetSources, type TimesheetStore } from "../timesheets/store";
-import { applyTimesheetAction, TimesheetError, type Timesheet, type TimesheetAction } from "../timesheets/state-machine";
+import { applyTimesheetAction, TimesheetError, type Timesheet, type TimesheetAction, type TimesheetStatus } from "../timesheets/state-machine";
+
+const TIMESHEET_STATUSES: readonly TimesheetStatus[] = ["draft", "submitted", "approved", "rejected"];
+const isTimesheetStatus = (v: string): v is TimesheetStatus => (TIMESHEET_STATUSES as readonly string[]).includes(v);
 
 const router = Router();
 
@@ -36,7 +39,9 @@ router.get("/timesheets", async (req, res) => {
   const s = store(req, res);
   if (!s) return;
   const session = getSession(req);
-  const status = typeof req.query["status"] === "string" ? (req.query["status"] as Timesheet["status"]) : undefined;
+  // Validate the status filter against the known enum instead of casting an arbitrary query string.
+  const statusRaw = typeof req.query["status"] === "string" ? (req.query["status"] as string) : undefined;
+  const status = statusRaw && isTimesheetStatus(statusRaw) ? statusRaw : undefined;
   // Approvers (manager+) may list across resources; everyone else is scoped to themselves.
   const canApprove = hasRole(req, "manager");
   const filter: { resourceId?: string; status?: Timesheet["status"] } = {
@@ -47,7 +52,8 @@ router.get("/timesheets", async (req, res) => {
 });
 
 // POST /api/timesheets — upsert a DRAFT sheet for the caller (entry). The owner is always the caller.
-router.post("/timesheets", async (req, res) => {
+// Gate at contributor: writing a timesheet is a write, so a read-only API token (viewer) must not.
+router.post("/timesheets", requireRole("contributor"), async (req, res) => {
   const s = store(req, res);
   if (!s) return;
   const session = getSession(req);

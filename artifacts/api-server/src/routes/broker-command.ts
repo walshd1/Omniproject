@@ -16,11 +16,12 @@ import { enforceCapability, CapabilityBlockedError, getCapability } from "../lib
 const router = Router();
 
 async function handle(req: Request, res: Response): Promise<void> {
-  // This edge can invoke arbitrary backend actions, including writes
-  // (create/update/delete). The per-action REST routes gate writes behind
-  // `contributor`; without the same gate here a read-only `viewer` session
-  // could forward a `delete_issue` and bypass every write wall. So we require
-  // `contributor` for the whole edge (the SPA does not use it for reads).
+  // This edge forwards an ARBITRARY action, including the most privileged writes the typed REST
+  // routes reserve for `manager` (create/update/delete_project, RAID). It has no per-action gate
+  // and skips the PMO business ruleset, so it must be gated at its most-privileged forwardable
+  // action — `manager` — not `contributor` (which would let a contributor forward manager-only
+  // actions and bypass those write walls). The admin escape hatch remains routes/raw-api (admin +
+  // step-up + RAW_API_ENABLED).
   if (!brokerConfigured()) {
     // No backend wired (demo mode, no admin-set broker URL): there is nothing to
     // forward to. Return the normalised "demo" error instead of attempting a live
@@ -71,6 +72,6 @@ async function handle(req: Request, res: Response): Promise<void> {
   }
 }
 
-router.post("/broker/command", requireRole("contributor"), handle);
+router.post("/broker/command", requireRole("manager"), handle);
 
 export default router;

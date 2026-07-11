@@ -188,6 +188,13 @@ export async function discover(config: OidcConfig): Promise<OidcDiscovery> {
   if (!doc.authorization_endpoint || !doc.token_endpoint) {
     throw new Error("OIDC discovery document missing required endpoints");
   }
+  // Per the OIDC Discovery spec the document's `issuer` MUST match the configured issuer; otherwise a
+  // rogue/misconfigured metadata doc silently shifts the `iss` value id_tokens are validated against
+  // (verifyIdToken uses discovery.issuer). Compare trailing-slash-insensitively for real-IdP variance.
+  const normIssuer = (s: string): string => s.replace(/\/+$/, "");
+  if (doc.issuer && normIssuer(doc.issuer) !== normIssuer(config.issuerUrl)) {
+    throw new Error(`OIDC discovery issuer mismatch: document advertises "${doc.issuer}", configured issuer is "${config.issuerUrl}"`);
+  }
   discoveryCache.set(config.issuerUrl, { doc, at: Date.now() });
   return doc;
 }

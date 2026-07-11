@@ -394,9 +394,11 @@ router.get("/auth/callback", async (req, res) => {
     // trusting any of its claims.
     await verifyIdToken(tokens.id_token, provider, discovery);
 
-    // Nonce binding: the ID token MUST echo the nonce we minted for THIS login flow.
-    // Rejects a token replayed/injected from a different (or attacker-initiated) flow.
-    if (nonce && idTokenNonce(tokens.id_token) !== nonce) {
+    // Nonce binding: the ID token MUST echo the nonce we minted for THIS login flow. Fail CLOSED —
+    // an OIDC flow always mints a nonce (see the authorize step), so a missing flow nonce or a
+    // missing/mismatched id_token nonce means the callback isn't bound to our flow: reject it
+    // (rather than skip the check when either side is absent).
+    if (!nonce || idTokenNonce(tokens.id_token) !== nonce) {
       res.status(401).send("Invalid SSO callback (nonce mismatch).");
       return;
     }

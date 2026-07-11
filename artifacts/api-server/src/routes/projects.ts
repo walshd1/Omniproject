@@ -356,7 +356,9 @@ router.get("/projects/:projectId/raid", async (req, res) => {
   }, { projectId: params.projectId });
 });
 
-router.post("/projects/:projectId/raid", requireRole("contributor"), async (req, res) => {
+// RAID is a manager capability per the RBAC model (rbac.ts: "manager — contributor + RAID,
+// baselines, portfolio actions"), and this route has no compensating ruleset gate — so gate at manager.
+router.post("/projects/:projectId/raid", requireRole("manager"), async (req, res) => {
   const paramsParse = GetProjectSummaryParams.safeParse(req.params);
   const bodyParse = CreateRaidEntryBody.safeParse(req.body);
   if (!paramsParse.success || !bodyParse.success) {

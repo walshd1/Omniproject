@@ -7,6 +7,7 @@ import { recordAudit } from "../../lib/audit";
 import { INDICATIVE_FX_RATES } from "../../lib/fx-fallback";
 import { VERIFIABLE_ACTIONS } from "../verifiable-actions";
 import { poolMap } from "../../lib/concurrency-pool";
+import { actorKey } from "../cache";
 import {
   BrokerError,
   type Broker,
@@ -388,7 +389,9 @@ const CONSERVATIVE: CapabilityFlags = {
   // Superset domains default off — a backend must declare them to light up.
   quality: false, crm: false, service: false,
 };
-let capCache: { value: CapabilityFlags; at: number } | null = null;
+// Per-actor cache (was a single process-global value): capabilities are probed `withActor:true`, so
+// a scope-dependent backend response for one principal must not be served to every other principal.
+const capCache = new Map<string, { value: CapabilityFlags; at: number }>();
 const CAP_TTL_MS = 60_000;
 
 // Indicative FX fallback used when the backend FX read fails (graceful
@@ -561,12 +564,14 @@ export class ReferenceBroker implements Broker {
   }
 
   async capabilities(ctx: ActorContext): Promise<CapabilityFlags> {
-    if (capCache && Date.now() - capCache.at < CAP_TTL_MS) return capCache.value;
+    const key = actorKey(ctx);
+    const hit = capCache.get(key);
+    if (hit && Date.now() - hit.at < CAP_TTL_MS) return hit.value;
     try {
       const r = await callBroker<Partial<CapabilityFlags>>("get_capabilities", {}, { ctx, source: "capability_probe", withActor: true });
       const data = r.data;
       const value = (data && typeof data === "object" ? { ...CONSERVATIVE, ...data } : { ...CONSERVATIVE }) as CapabilityFlags;
-      capCache = { value, at: Date.now() };
+      capCache.set(key, { value, at: Date.now() });
       return value;
     } catch {
       return { ...CONSERVATIVE };
