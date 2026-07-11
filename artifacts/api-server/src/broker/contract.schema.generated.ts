@@ -37,6 +37,10 @@ export const BROKER_CONTRACT_SCHEMA = {
           "$ref": "#/$defs/ActorKind",
           "description": "What kind of principal this is (default human). Autonomous actors carry their own keyed sessionBind + RBAC role, so they're keyed and provenance-bound too."
         },
+        "scope": {
+          "$ref": "#/$defs/Scope",
+          "description": "The principal's forwarded DATA scope (user / programme / all) — the backend confirms it (it rides in the PSK-signed envelope) and enforces per-user/per-programme access."
+        },
         "issuedAt": {
           "type": "number",
           "description": "For a minted autonomous principal: the invocation time it was minted for (epoch ms), so a consumer can prove it's fresh and not a replayed/cached context."

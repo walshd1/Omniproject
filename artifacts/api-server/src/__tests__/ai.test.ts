@@ -9,7 +9,9 @@ import assert from "node:assert/strict";
  * pinned (an endpoint, not a secret) so we can assert the request URL precisely. No real
  * network calls are made: aiChat's happy/error paths run against a mocked globalThis.fetch.
  */
-process.env["OLLAMA_URL"] = "http://ollama.test:11434";
+// An IP literal (not a name) so the egress guard in safeFetch performs no DNS lookup —
+// keeps this unit test hermetic/offline while still exercising the guarded call path.
+process.env["OLLAMA_URL"] = "http://127.0.0.1:11434";
 
 const { aiStatus, aiChat, AiError } = await import("../lib/ai");
 const { updateSettings, getSettings } = await import("../lib/settings");
@@ -49,7 +51,7 @@ test("aiStatus reports ollama as configured without a key", () => {
   assert.equal(s.provider, "ollama");
   assert.equal(s.configured, true);
   assert.equal(s.model, "llama3.2"); // per-provider default
-  assert.match(s.detail, /ollama\.test:11434/);
+  assert.match(s.detail, /127\.0\.0\.1:11434/);
 });
 
 test("aiStatus reflects vault key presence for key-gated providers", async () => {
@@ -121,7 +123,7 @@ test("aiChat (ollama) shapes the request and returns content on success", async 
   assert.equal(result.model, "llama3.2");
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0]!.url, "http://ollama.test:11434/api/chat");
+  assert.equal(calls[0]!.url, "http://127.0.0.1:11434/api/chat");
   assert.equal(calls[0]!.init?.method, "POST");
   const body = JSON.parse(String(calls[0]!.init?.body));
   assert.equal(body.model, "llama3.2");

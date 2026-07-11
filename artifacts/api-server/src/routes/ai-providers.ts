@@ -4,6 +4,7 @@ import { requireStepUp } from "../lib/step-up";
 import { recordAudit } from "../lib/audit";
 import { getSession } from "./auth";
 import { assertSafeIdentifier } from "../lib/payload-guard";
+import { assertSafeOutboundUrl } from "../lib/url-safety";
 import {
   AI_PROVIDER_KINDS, AI_CAPABILITIES,
   listProviders, upsertProvider, removeProvider,
@@ -77,6 +78,16 @@ router.post("/ai/providers", requireRole("admin"), requireStepUp, (req, res) => 
     return;
   }
   const endpoint = parsed.endpoint || undefined;
+  if (endpoint) {
+    // The endpoint is fetched server-side (lib/ai, lib/stt), so a metadata/link-local URL would
+    // be an SSRF sink — reject it at the write boundary, not just at call time.
+    try {
+      assertSafeOutboundUrl(endpoint, "endpoint");
+    } catch {
+      res.status(400).json({ error: "endpoint is not a valid or safe http(s) URL." });
+      return;
+    }
+  }
   const model = parsed.model || undefined;
   upsertProvider({ id, kind, label, ...(endpoint ? { endpoint } : {}), ...(model ? { model } : {}) });
   audit(req, "ai-provider.upsert", { id, kind });

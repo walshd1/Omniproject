@@ -3,6 +3,7 @@ import { getSession } from "../routes/auth";
 import { directoryDecision } from "./scim";
 import { parseCommaSet } from "./env";
 import { isDemoAuth } from "./auth-config";
+import { resolveScope, type Scope } from "./scope";
 
 /**
  * Role-based access control.
@@ -265,6 +266,21 @@ export function grantsForReq(req: Request): Grants {
   // IdP's group→role assignment flows through without re-issuing OIDC claims.
   const claims = decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
   return grantsFromClaims(claims, { isDemo, strongAuth: hasStrongAuth(session) });
+}
+
+/**
+ * Resolve the request principal's DATA scope (user / programme / all). Forwarded to the backend
+ * in the signed `userContext` so it can enforce per-user / per-programme access — the tier RBAC
+ * gate is coarse; this is the row-level boundary. Mirrors `grantsForReq`'s claim merge (session
+ * roles + SCIM group claims). No session ⇒ the most restrictive (user-level) scope.
+ */
+export function scopeForReq(req: Request): Scope {
+  const sd = sessionDecision(req);
+  if (!sd) return { level: "user" };
+  const { session, decision } = sd;
+  const claims = decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
+  const grants = grantsFromClaims(claims, { isDemo: isDemoAuth(), strongAuth: hasStrongAuth(session) });
+  return resolveScope(grants, { sub: session.sub, groups: claims });
 }
 
 /** Is this request's principal DEPROVISIONED in the SCIM directory? (known + active=false.) */

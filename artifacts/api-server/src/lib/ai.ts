@@ -11,6 +11,7 @@ import {
   dlpEnabled, redactForEgress, modelAllowed, checkBudget, recordUsage, estimateTokens,
   type AiGovContext,
 } from "./ai-governance";
+import { safeFetch } from "./egress";
 
 /**
  * AI provider client. Providers are first-class entities (lib/ai-providers) and their API
@@ -53,7 +54,10 @@ export class AiError extends Error {
 }
 
 async function postJson(url: string, headers: Record<string, string>, body: unknown): Promise<unknown> {
-  const res = await fetch(url, {
+  // safeFetch applies the SSRF/egress guard (link-local/metadata block + post-DNS recheck,
+  // EGRESS_ALLOWLIST, and data-residency) before the call — the provider endpoint is
+  // operator/admin-settable, so it must not be a route to the metadata IP.
+  const res = await safeFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),

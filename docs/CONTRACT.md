@@ -81,6 +81,7 @@ Forwarded actor identity. A write is performed "as" this principal so the backen
 | `authHeader` | string | — |  |
 | `sessionBind` | [SessionBind](#sessionbind) | — | Binding material for the per-session broker signing key (lib/session-key). Present for authenticated calls; absent for system/unauthenticated ones (which fall back to the static broker key). |
 | `actorKind` | [ActorKind](#actorkind) | — | What kind of principal this is (default human). Autonomous actors carry their own keyed sessionBind + RBAC role, so they're keyed and provenance-bound too. |
+| `scope` | [Scope](#scope) | — | The principal's forwarded DATA scope (user / programme / all) — the backend confirms it (it rides in the PSK-signed envelope) and enforces per-user/per-programme access. |
 | `issuedAt` | number | — | For a minted autonomous principal: the invocation time it was minted for (epoch ms), so a consumer can prove it's fresh and not a replayed/cached context. |
 | `expiresAt` | number | — | For a minted autonomous principal: its (short) expiry — autonomous sessions are deliberately brief since re-keying is free. |
 
@@ -424,3 +425,4 @@ Dry-run verification of the broker contract — must never mutate a backend.
 The generator could not map these to a code type — review before relying on them:
 
 - Type `SessionBind` is referenced by the contract but has no definition in broker/{types,contract}.ts.
+- Type `Scope` is referenced by the contract but has no definition in broker/{types,contract}.ts.

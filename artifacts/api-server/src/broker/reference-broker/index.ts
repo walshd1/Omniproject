@@ -156,14 +156,25 @@ function buildEnvelope(
 ): BuiltEnvelope {
   const origin = GATEWAY_ORIGIN;
   const key = idempotencyKey(action, payload);
+  // Audit/return actor: unchanged — present only for actor'd (write) calls.
   const actor = opts.withActor
     ? { sub: opts.ctx.sub, email: opts.ctx.email, name: opts.ctx.name, role: opts.ctx.role, token: opts.ctx.token }
+    : undefined;
+
+  // Forwarded userContext: ALWAYS carry the verified identity + DATA scope so the backend can
+  // authorize BOTH reads and writes per-user/per-programme (it rides in the PSK-signed envelope,
+  // so the backend can confirm it wasn't client-forged). Include the write token only on writes.
+  const identity = opts.ctx.sub
+    ? { sub: opts.ctx.sub, email: opts.ctx.email, name: opts.ctx.name, role: opts.ctx.role, ...(opts.ctx.scope ? { scope: opts.ctx.scope } : {}) }
+    : undefined;
+  const userContext = identity
+    ? { ...identity, ...(opts.withActor ? { token: opts.ctx.token } : {}) }
     : undefined;
 
   const enrichedPayload: Record<string, unknown> = {
     ...payload,
     origin,
-    ...(actor ? { userContext: actor } : {}),
+    ...(userContext ? { userContext } : {}),
   };
 
   // Injection guard at the egress: no control characters anywhere (CRLF/NUL header &

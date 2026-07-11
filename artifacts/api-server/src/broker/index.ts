@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { getSession } from "../routes/auth";
 import { sessionBindFromSession } from "../lib/session-key";
-import { roleForReq } from "../lib/rbac";
+import { roleForReq, scopeForReq } from "../lib/rbac";
 import { ReferenceBroker, BROKER_ENV_CONFIGURED, pingBroker } from "./reference-broker";
 import { DemoBroker } from "./demo";
 import { BrokerError, type Broker, type ActorContext } from "./types";
@@ -178,7 +178,7 @@ export function contextFromReq(req: Request): ActorContext {
   // Bind the per-session broker signing key to this user + session (null for older
   // cookies that predate the scheme — those fall back to the static broker key).
   const sessionBind = sessionBindFromSession(session) ?? undefined;
-  return { sub: session.sub, email: session.email, name: session.name, role: roleForReq(req), token: session.accessToken, authHeader, sessionBind, actorKind: "human" };
+  return { sub: session.sub, email: session.email, name: session.name, role: roleForReq(req), scope: scopeForReq(req), token: session.accessToken, authHeader, sessionBind, actorKind: "human" };
 }
 
 /**
