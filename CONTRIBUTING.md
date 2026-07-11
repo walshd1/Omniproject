@@ -18,7 +18,7 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Development setup
 
-Requires **Node 22+** and **pnpm 11.8+** (`corepack enable`).
+Requires **Node 26+** and **pnpm 11.8+** (`corepack enable`).
 
 ```bash
 pnpm install
