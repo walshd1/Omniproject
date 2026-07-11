@@ -14,6 +14,7 @@
  */
 
 import type { SessionBind } from "../lib/session-key";
+import type { Scope } from "../lib/scope";
 
 /** Loosely-typed record — the normalised row shape the broker exchanges. */
 export type Row = Record<string, unknown>;
@@ -42,6 +43,9 @@ export interface ActorContext {
   /** What kind of principal this is (default human). Autonomous actors carry their
    *  own keyed sessionBind + RBAC role, so they're keyed and provenance-bound too. */
   actorKind?: ActorKind;
+  /** The principal's forwarded DATA scope (user / programme / all) — the backend confirms it
+   *  (it rides in the PSK-signed envelope) and enforces per-user/per-programme access. */
+  scope?: Scope | undefined;
   /** For a minted autonomous principal: the invocation time it was minted for (epoch ms),
    *  so a consumer can prove it's fresh and not a replayed/cached context. */
   issuedAt?: number;

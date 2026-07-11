@@ -3,6 +3,7 @@ import { getSettings } from "../lib/settings";
 import { versionConflict } from "../lib/concurrency";
 import { CAPABILITY_DOMAINS, FIELD_KEYS, ENTITY_KEYS } from "../lib/capabilities";
 import { isDone, isClosed } from "./vocabulary";
+import { inScope } from "../lib/scope";
 import {
   SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
   SAMPLE_PORTFOLIO, DEMO_FX, sampleActivity, sampleNotifications, persistDemoState,
@@ -112,8 +113,15 @@ export class DemoBroker implements Broker {
     scheduleAutoReset();
   }
 
-  async listProjects(): Promise<Project[]> {
-    return SAMPLE_PROJECTS as unknown as Project[];
+  async listProjects(ctx?: ActorContext): Promise<Project[]> {
+    // Reference enforcement: confirm the forwarded DATA scope and return only in-scope rows.
+    // Demo sessions are always scope "all" (no-op here); this demonstrates + tests the contract
+    // an external backend (n8n) mirrors off the same forwarded userContext.scope.
+    const scope = ctx?.scope ?? { level: "all" as const };
+    if (scope.level === "all") return SAMPLE_PROJECTS as unknown as Project[];
+    return (SAMPLE_PROJECTS as Row[]).filter((p) =>
+      inScope(scope, { programmeId: (p["programmeId"] as string | null | undefined) ?? null }),
+    ) as unknown as Project[];
   }
 
   async listIssues(_ctx: ActorContext, projectId: string): Promise<Issue[]> {
@@ -140,9 +148,14 @@ export class DemoBroker implements Broker {
     return project as unknown as Project;
   }
 
-  async updateProject(_ctx: ActorContext, projectId: string, input: ProjectWrite): Promise<Project> {
+  async updateProject(ctx: ActorContext, projectId: string, input: ProjectWrite): Promise<Project> {
     const proj = SAMPLE_PROJECTS.find((p) => p["id"] === projectId);
     if (!proj) throw new BrokerError("not_found", "Project not found");
+    // Reference enforcement: a principal may only mutate a project inside their scope.
+    const scope = ctx?.scope ?? { level: "all" as const };
+    if (!inScope(scope, { programmeId: (proj["programmeId"] as string | null | undefined) ?? null })) {
+      throw new BrokerError("unauthorized", "out of scope for this principal");
+    }
     if (input.name !== undefined) proj["name"] = input.name;
     if (input.description !== undefined) proj["description"] = input.description;
     if (input.programmeId !== undefined) proj["programmeId"] = input.programmeId;
