@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, safeJson, responseError } from "./api";
+import { getJson, sendJson } from "./api";
 
 /**
  * Saved-views client. A saved view is a named preset of columns + sort (+ filters/grouping) scoped
@@ -31,14 +31,7 @@ export function useSaveViews() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (views: SavedView[]) => {
-      const res = await fetch("/api/views", {
-        method: "PUT",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ views }),
-      });
-      if (!res.ok) throw responseError(res, await safeJson(res), "Failed to save views");
-      return res.json();
+      return sendJson<unknown>("/api/views", { views }, "PUT", "Failed to save views");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: savedViewsQueryKey });

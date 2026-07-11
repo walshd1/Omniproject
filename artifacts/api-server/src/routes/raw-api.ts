@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { contextFromReq, respondBrokerError, BrokerError, brokerCommand, brokerConfigured } from "../broker";
+import { contextFromReq, respondBrokerError, withBrokerErrors, BrokerError, brokerCommand, brokerConfigured } from "../broker";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { getSession } from "./auth";
@@ -79,13 +79,10 @@ async function handle(req: Request, res: Response): Promise<void> {
   });
 
   res.setHeader("X-OmniProject-Raw-Warning", "bypasses contract+capability+ruleset; admin-only last resort");
-  try {
+  await withBrokerErrors(req, res, "raw_api command failed", async () => {
     const data = await brokerCommand(contextFromReq(req), action, payload, "raw-api");
     res.json({ warning: WARNING, action, data });
-  } catch (err) {
-    req.log.error({ err, action }, "raw_api command failed");
-    respondBrokerError(res, err);
-  }
+  }, { action });
 }
 
 router.post("/admin/raw", requireRole("admin"), requireStepUp, handle);

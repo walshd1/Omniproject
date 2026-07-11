@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getJson, safeJson, responseError } from "./api";
+import { getJson, sendJson } from "./api";
 
 /**
  * AI containment client. Containment is FULL by default for every source — an admin can
@@ -53,22 +53,10 @@ export function useAutonomousGrants(enabled = true) {
 
 /** Engage/release the global AI kill switch (admin; step-up gated server-side). */
 export async function setAiKill(engage: boolean): Promise<void> {
-  const res = await fetch("/api/governance/ai-kill", {
-    method: "PUT",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ engage }),
-  });
-  if (!res.ok) throw responseError(res, await safeJson(res));
+  await sendJson("/api/governance/ai-kill", { engage }, "PUT");
 }
 
 /** Relax (or re-tighten) the containment floor (admin; step-up gated server-side). */
 export async function relaxContainment(level: AiContainment): Promise<void> {
-  const res = await fetch("/api/governance/containment", {
-    method: "PUT",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ level }),
-  });
-  if (!res.ok) throw responseError(res, await safeJson(res));
+  await sendJson("/api/governance/containment", { level }, "PUT");
 }

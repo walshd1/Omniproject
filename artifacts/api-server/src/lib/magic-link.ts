@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { seal, open } from "./session-crypto";
 import { sharedKv } from "./shared-state";
+import { isTruthy } from "./env-config";
 import { isOidcConfigured } from "./oidc";
 import { isSamlConfigured } from "./saml";
 import { sendEmail } from "./email";
@@ -25,7 +26,7 @@ import { logger } from "./logger";
  */
 
 export function magicLinkEnabled(): boolean {
-  return process.env["MAGIC_LINK_ENABLED"]?.trim().toLowerCase() === "true" && !isOidcConfigured && !isSamlConfigured();
+  return isTruthy(process.env["MAGIC_LINK_ENABLED"]) && !isOidcConfigured && !isSamlConfigured();
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

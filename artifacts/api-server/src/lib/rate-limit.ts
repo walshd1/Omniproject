@@ -2,7 +2,7 @@ import rateLimit, { type Store } from "express-rate-limit";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { getSession } from "../routes/auth";
 import { logger } from "./logger";
-import { envInt } from "./env-config";
+import { envInt, isTruthy } from "./env-config";
 
 /**
  * Rate limiting to protect n8n / OpenRouter from spam and scripting loops.
@@ -39,7 +39,7 @@ const tooMany = {
 };
 
 const WINDOW_MS = 15 * 60 * 1000;
-const DISABLED = process.env["RATE_LIMIT_DISABLED"]?.trim().toLowerCase() === "true";
+const DISABLED = isTruthy(process.env["RATE_LIMIT_DISABLED"]);
 const passThrough: RequestHandler = (_req: Request, _res: Response, next: NextFunction) => next();
 
 function buildLimiter(limit: number, store?: Store, keyGenerator: (req: Request) => string = keyFor): RequestHandler {

@@ -1,5 +1,5 @@
 import { sharedKv } from "./shared-state";
-import { envInt } from "./env-config";
+import { envInt, isTruthy } from "./env-config";
 
 /**
  * AI governance — opt-in cost control + data-loss prevention layered on the single model-egress
@@ -19,7 +19,7 @@ import { envInt } from "./env-config";
 
 // ── Prompt DLP redaction ────────────────────────────────────────────────────────
 export function dlpEnabled(): boolean {
-  return process.env["AI_DLP_REDACT"]?.trim().toLowerCase() === "true";
+  return isTruthy(process.env["AI_DLP_REDACT"]);
 }
 
 // Order matters: mask the most specific (secrets, cards) before the looser patterns.

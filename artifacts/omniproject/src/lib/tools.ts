@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getJson, safeJson, responseError } from "./api";
+import { getJson, sendJson } from "./api";
 
 /**
  * Client view of capability governance (see the gateway's lib/tools). Every AI tool,
@@ -101,23 +101,12 @@ export function useGovernance() {
 
 /** Probe a user-defined endpoint's reachability (admin). */
 export async function testCapabilityEndpoint(id: string, endpoint: string): Promise<{ reachable: boolean; status?: number; error?: string }> {
-  const res = await fetch(`/api/governance/${encodeURIComponent(id)}/test`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({ endpoint }),
-  });
-  if (!res.ok) throw responseError(res, await safeJson(res));
-  return res.json();
+  return sendJson<{ reachable: boolean; status?: number; error?: string }>(
+    `/api/governance/${encodeURIComponent(id)}/test`, { endpoint }, "POST",
+  );
 }
 
 /** Persist one capability's setting (admin only; the gateway enforces the role). */
 export async function saveCapability(id: string, setting: CapabilityWrite): Promise<void> {
-  const res = await fetch(`/api/governance/${encodeURIComponent(id)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify(setting),
-  });
-  if (!res.ok) throw responseError(res, await safeJson(res));
+  await sendJson(`/api/governance/${encodeURIComponent(id)}`, setting, "PUT");
 }

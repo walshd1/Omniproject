@@ -166,6 +166,7 @@ Broker selection + the request→domain context adapter.
 | `resetReadinessCache` | Test-only: drop the readiness cache. |
 | `contextFromReq` | Build the domain ActorContext (forwarded identity + transport auth) from a request. |
 | `callBrokerCapability` | Run a broker capability that may be UNSUPPORTED by the active broker, mapping the two failure shapes the connection routes all repeated: a null promise ⇒ 501 (the broker doesn't offer this capability), a thrown error ⇒ 502. |
+| `withBrokerErrors` | Run a route body and, on any throw, log it once (with the given message + optional context) and map the error to an HTTP response via `respondBrokerError`. |
 | `respondBrokerError` | Map a thrown broker error onto an HTTP response (status from the taxonomy). |
 
 ### `artifacts/api-server/src/broker/key-guard.ts`
@@ -1231,7 +1232,8 @@ Validated, typed environment access — the zero-trust stance applied to configu
 | `envInt` | An integer env var validated against an optional range; falls back when unset/invalid. |
 | `envEnum` | One of a fixed set; falls back when unset or not in the set. |
 | `envUrl` | An http(s) URL that passes the outbound-safety guard (no metadata/link-local), or undefined. |
-| `envBool` | Is this env var set to a truthy flag (1/true/on/yes, case-insensitive)? Unset ⇒ false. |
+| `isTruthy` | The one affirmative-flag vocabulary for the whole codebase: `1` / `true` / `on` / `yes` (case-insensitive, trimmed). |
+| `envBool` | Is this env var set to a truthy flag (per `isTruthy`)? Unset ⇒ false. |
 | `detectEnvVarTypos` | Env vars actually SET whose name looks like a near-miss on a known OmniProject var (e.g. `OIDC_ISUER_URL`) but doesn't exactly match one — a likely typo that would otherwise silently fall back to a default with zero signal, since env vars are opaque strings with no compiler to catch a misspelled key. |
 | `checkRequiredEnv` | Validate the security-critical env at boot. |
 
@@ -2258,7 +2260,7 @@ How many reverse-proxy hops in front of this process to trust `X-Forwarded-*` fr
 
 | Function | What it does |
 | --- | --- |
-| `resolveTrustProxy` | How many reverse-proxy hops in front of this process to trust `X-Forwarded-*` from (Express's `trust proxy` setting). |
+| `resolveTrustProxy` | Resolve `TRUST_PROXY` to Express's `trust proxy` value: `false` (default/off), an explicit positive hop count, or `1` for a bare truthy value — never Express's unbounded `true`. |
 | `firstForwardedValue` | The FIRST value in a comma-separated `X-Forwarded-*` header (the chain runs furthest-hop-first, so the first entry is what the nearest trusted proxy actually saw) — trimmed, or undefined when the header is absent/empty. |
 
 ### `artifacts/api-server/src/lib/undo-buffer.ts`

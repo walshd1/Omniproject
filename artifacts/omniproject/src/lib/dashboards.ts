@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, safeJson, responseError } from "./api";
+import { getJson, sendJson } from "./api";
 import {
   WIDGETS,
   widgetDef,
@@ -88,14 +88,7 @@ export function useSaveDashboards() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (dashboards: Dashboard[]) => {
-      const res = await fetch("/api/dashboards", {
-        method: "PUT",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dashboards }),
-      });
-      if (!res.ok) throw responseError(res, await safeJson(res), "Failed to save dashboards");
-      return res.json();
+      return sendJson<unknown>("/api/dashboards", { dashboards }, "PUT", "Failed to save dashboards");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: dashboardsQueryKey });

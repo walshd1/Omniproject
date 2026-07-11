@@ -8,12 +8,16 @@
  * opt in; a bare truthy value defaults to ONE hop (the common single-reverse-proxy case)
  * rather than Express's `true` (which trusts an unbounded chain of forwarded entries).
  */
+import { isTruthy } from "./env-config";
+
+/** Resolve `TRUST_PROXY` to Express's `trust proxy` value: `false` (default/off), an explicit
+ *  positive hop count, or `1` for a bare truthy value — never Express's unbounded `true`. */
 export function resolveTrustProxy(raw: string | undefined): boolean | number {
   const v = raw?.trim().toLowerCase();
   if (!v || v === "0" || v === "false" || v === "off") return false;
   const n = Number(v);
   if (Number.isInteger(n) && n > 0) return n; // an explicit hop count
-  if (v === "1" || v === "true" || v === "on" || v === "yes") return 1;
+  if (isTruthy(v)) return 1;
   return false; // unrecognised ⇒ fail closed, don't silently trust
 }
 
