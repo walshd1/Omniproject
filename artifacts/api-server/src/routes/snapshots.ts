@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { buildSnapshot, verifySnapshot, type SnapshotBundle } from "../lib/snapshot";
 import { publicKeyPem, publicKeyId, signingEnabled } from "../lib/signing";
 import { recordAudit, actorForAudit } from "../lib/audit";
+import { requireRole } from "../lib/rbac";
 
 /**
  * Provably-immutable snapshots. Capture freezes a supplied content set (a report's data / a board pack):
@@ -15,8 +16,10 @@ const router = Router();
 
 const asStr = (v: unknown, fallback = ""): string => (typeof v === "string" && v ? v : fallback);
 
-/** Capture a snapshot of the client-supplied `data`. Server sets the trusted id + time, then signs. */
-router.post("/snapshots/capture", (req, res) => {
+/** Capture a snapshot of the client-supplied `data`. Server sets the trusted id + time, then signs.
+ *  Gated at `contributor`: capture signs arbitrary caller-supplied data with the deployment key, so
+ *  a read-only viewer/API-token should not be able to mint "provably-authentic" bundles. */
+router.post("/snapshots/capture", requireRole("contributor"), (req, res) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
   if (!("data" in body)) { res.status(400).json({ error: "a `data` payload to snapshot is required" }); return; }
   const bundle = buildSnapshot({
@@ -27,7 +30,7 @@ router.post("/snapshots/capture", (req, res) => {
     data: body["data"],
   });
   recordAudit({
-    ts: new Date().toISOString(), category: "admin", action: "snapshot.capture",
+    ts: new Date().toISOString(), category: "request", action: "snapshot.capture",
     actor: actorForAudit(req),
     result: "success", status: 200,
     // Only the manifest (hashes/scope/counts) is audited — never the snapshotted content.

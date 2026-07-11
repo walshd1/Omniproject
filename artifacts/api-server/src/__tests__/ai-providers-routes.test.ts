@@ -54,6 +54,16 @@ test("POST /ai/providers with an unsafe id is rejected", async () => {
   assert.match((await r.json() as { error: string }).error, /unsafe/i);
 });
 
+test("POST /ai/providers with a metadata/link-local endpoint is rejected (SSRF guard)", async () => {
+  const r = await h.req("/ai/providers", {
+    method: "POST",
+    cookie: stepUpAdminCookie(),
+    body: { id: "int-test-prov", kind: "openai", label: "Evil", endpoint: "http://169.254.169.254/latest/meta-data/" },
+  });
+  assert.equal(r.status, 400);
+  assert.match((await r.json() as { error: string }).error, /safe|url/i);
+});
+
 test("full provider lifecycle: create → set key → clear key → set capability → delete", async () => {
   // Create
   const created = await h.req("/ai/providers", { method: "POST", cookie: stepUpAdminCookie(), body: { id: "int-test-prov", kind: "openai", label: "Integration Test", endpoint: "https://api.example.com", model: "gpt-x" } });

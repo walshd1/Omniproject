@@ -2,6 +2,7 @@ import { getSettings, type SttProvider } from "./settings";
 import { aiKillEngaged } from "./ai-kill";
 import { effectiveState } from "./tools";
 import { getProvider, resolveProviderKey } from "./ai-providers";
+import { safeFetch } from "./egress";
 
 /**
  * AI-assisted speech-to-text — provider-pluggable, governed, with Whisper as ONE provider.
@@ -50,7 +51,9 @@ export async function transcribe(audio: Buffer, mime: string): Promise<{ text: s
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(audio)], { type: mime || "audio/webm" }), "clip.webm");
   form.append("model", process.env["WHISPER_MODEL"]?.trim() || "whisper-1");
-  const res = await fetch(url, { method: "POST", headers: key ? { Authorization: `Bearer ${key}` } : {}, body: form });
+  // safeFetch applies the SSRF/egress guard before the call — the Whisper endpoint is
+  // operator/admin-settable, so it must not be coerced to the metadata IP.
+  const res = await safeFetch(url, { method: "POST", headers: key ? { Authorization: `Bearer ${key}` } : {}, body: form });
   if (!res.ok) throw new SttError(`Transcription provider returned ${res.status}`, 502);
   const data = (await res.json().catch(() => ({}))) as { text?: unknown };
   return { text: typeof data.text === "string" ? data.text : "" };

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { backendCatalogue } from "@workspace/backend-catalogue";
 import { devModeStatus, isDevMode } from "../lib/dev-mode";
-import { requireRole, roleFromClaims } from "../lib/rbac";
+import { requireRole, roleFromClaims, hasRole } from "../lib/rbac";
 import { isDemoAuth } from "../lib/auth-config";
 import { requireStepUp } from "../lib/step-up";
 import { getDevBrokerConfig, setDevBrokerConfig, DEV_DATA_SOURCES, type DevDataSource } from "../broker/dev-broker";
@@ -179,8 +179,11 @@ router.get("/dev-mode/impersonate", requireDevMode, (req, res) => {
  *  other identity), so holding an admin session alone is not enough on its own. */
 router.post("/dev-mode/impersonate", requireDevMode, requireStepUp, (req, res) => {
   const real = getRealSession(req);
-  const realRole = roleFromClaims(real?.roles ?? [], { isDemo: isDemoAuth() });
-  if (!real || realRole !== "admin") {
+  // Reuse the hardened admin gate (`hasRole`) rather than a bare role-from-claims check: it
+  // enforces the WebAuthn strong-auth step-up, merges SCIM group claims, and honours
+  // deprovision — exactly like every other admin gate. No impersonation is active yet, so
+  // getSession() (which hasRole reads) is the real session here.
+  if (!real || !hasRole(req, "admin")) {
     res.status(403).json({ error: "only a real admin may start an impersonation" });
     return;
   }
