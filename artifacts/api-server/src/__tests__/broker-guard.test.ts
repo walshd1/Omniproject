@@ -55,7 +55,7 @@ test("guard: the data-path modules contain no n8n references", () => {
   for (const rel of PRISTINE) {
     if (/n8n/i.test(read(rel))) offenders.push(rel);
   }
-  assert.deepEqual(offenders, [], `These data-path modules must be n8n-free (move n8n specifics into src/broker/n8n.ts): ${offenders.join(", ")}`);
+  assert.deepEqual(offenders, [], `These data-path modules must be n8n-free (move n8n specifics into src/broker/reference-broker/): ${offenders.join(", ")}`);
 });
 
 // ── B. The legacy n8n call API must not leak outside the adapter ────────────────

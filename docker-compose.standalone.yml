@@ -164,7 +164,7 @@ services:
       - omni-net
     restart: unless-stopped
 
-  # ── n8n (the broker) ────────────────────────────────────────────────────────
+  # ── n8n (the bundled reference broker) ──────────────────────────────────────
   n8n:
     image: n8nio/n8n:1.123.61   # pinned for reproducibility; 2.x exists but is unverified against the bundled blueprint
     container_name: omni-n8n

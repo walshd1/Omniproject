@@ -312,7 +312,7 @@ confirms/adjusts the field and service names.
 ### G1. Zero-restart activation of an admin-authored backend/vendor — **shipped**
 `CustomBackendAdmin` (`artifacts/omniproject/src/components/settings/CustomBackendAdmin.tsx` +
 `artifacts/omniproject/src/lib/backend-authoring.ts`) is a guided, admin-gated form that builds and
-validates a `BackendManifest & N8nBinding` document against the same schema the config-dir loader
+validates a `BackendManifest & BrokerBinding` document against the same schema the config-dir loader
 enforces. The originally-parked "no restart" gap is also shipped: `POST /setup/config-dir/refresh`
 (`artifacts/api-server/src/routes/setup.ts`, admin + step-up gated) re-runs `loadConfigDir()` in
 place via `refreshConfigDir()` (`lib/config-refresh.ts`), with a backup-to-`.old` and auto-revert on

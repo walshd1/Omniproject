@@ -22,7 +22,8 @@ import {
  * Outbound webhooks (premium feature `webhooks`).
  *
  * OmniProject can push events out — to a customer endpoint, a SIEM, Slack, or an
- * n8n webhook node (so n8n remains the integration backbone). Each subscription
+ * n8n webhook node (letting the reference broker act as one integration backbone
+ * among several targets). Each subscription
  * has a signing secret; deliveries carry an HMAC-SHA256 signature so the
  * receiver can verify authenticity.
  *

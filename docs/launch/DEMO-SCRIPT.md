@@ -47,7 +47,7 @@ muted autoplay) have no sound. Keep each on screen ~2–3s.
 | 0:24–0:36 | **Programmes** → a programme-wide rollup (portfolio RAG), then click into one project. | **Roll programmes up → drill into a project.** |
 | 0:36–0:50 | On that project, use the **view switcher**: Kanban → Scrum (burndown) → Gantt → PRINCE2. Pause ~2s on each. | **One dataset, your methodology — Kanban / Scrum / Gantt / PRINCE2 / RAID.** |
 | 0:50–1:02 | **Reports**: Portfolio RAG cards → Resource heatmap (an over-allocated row) → EVM chart (CPI/SPI). | **Finance (EVM), time & resources — read-through from your backends.** |
-| 1:02–1:10 | **Configurator**: show the backend list + "Generate workflow". | **n8n is the only broker — connect to anything, nothing to sync.** |
+| 1:02–1:10 | **Configurator**: show the backend list + "Generate workflow". | **One neutral broker (n8n by default) — connect to anything, nothing to sync.** |
 | 1:10–1:15 | Cut to logo + tagline on a clean background. | **Apache-2.0 · self-hostable · try it read-only → github.com/walshd1/Omniproject** |
 
 **Pacing notes:** let the Verify checklist (0:10–0:24) breathe — it's the most

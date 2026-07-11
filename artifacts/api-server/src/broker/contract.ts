@@ -3,7 +3,7 @@
  *
  * OmniProject is broker-agnostic by design: this file plus ./types.ts ARE the
  * real interface a broker must satisfy. n8n is the reference broker (see
- * ./n8n.ts); DemoBroker (./demo.ts) is the reference in-process implementation
+ * ./reference-broker/); DemoBroker (./demo.ts) is the reference in-process implementation
  * that proves the seam is generic. The human- and machine-readable contract
  * under docs/contract/ is GENERATED from these declarations
  * (scripts/src/gen-contract.ts) so the docs can never drift from the code.
