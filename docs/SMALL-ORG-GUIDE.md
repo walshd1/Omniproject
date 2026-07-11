@@ -7,9 +7,8 @@ without any of them. This guide is the small-org counterpart to `docs/AI-SECURIT
 
 ## Why this exists (for you specifically)
 
-README's "Why OmniProject exists" names three things: tool sprawl, nobody trusting a
-second copy of their data, and migration risk killing the project before it starts. For
-a charity or small team, all three show up sharper than anywhere else. You can't
+For a charity or small team, the three problems the [README](../README.md) names show up
+sharper than anywhere else. You can't
 justify a fourth subscription just to see status across the spreadsheet, the Trello
 board and whatever the last grant-funded project set up in Jira. You definitely can't
 risk a tool that quietly becomes a new place donor, volunteer or beneficiary data

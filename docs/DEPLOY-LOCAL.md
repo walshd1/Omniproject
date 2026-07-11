@@ -7,10 +7,8 @@ Ollama, a local **Authentik** IdP, and **Traefik** terminating real TLS for
 
 ## Why this stack exists
 
-README's "Why OmniProject exists" names three problems: tool sprawl, nobody
-trusting a second copy of their data, and migration risk killing the idea before
-it starts. This stack is what fully committing to answering all three, on your
-own infrastructure, actually looks like: real SSO with **your own** IdP (not a
+This stack is what fully committing to all three problems the [README](../README.md) names —
+on your own infrastructure — actually looks like: real SSO with **your own** IdP (not a
 hosted auth vendor holding staff identities), a broker you control end to end, and
 still zero project data at rest anywhere in OmniProject — self-hosting the IdP
 doesn't trade the zero-at-rest promise away, it just means the one thing that

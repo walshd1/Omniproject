@@ -14,9 +14,8 @@ with one-click rollback the whole way. Nothing here risks your production data.
 
 ## Why this exists (proof, not just a promise)
 
-README's "Why OmniProject exists" names three problems: tool sprawl, nobody
-trusting a second copy of their data, and migration risk killing the idea before
-it starts. This guide exists because the second one can't just be asserted — it's
+Of the three problems the [README](../README.md) names, this guide exists because the
+second — **trusting that we store nothing** — can't just be asserted — it's
 easy to *say* "we store nothing," hard to *trust* it enough to point a new tool at
 the real Jira/SAP/ServiceNow instance a team's whole delivery picture depends on.
 That's why this on-ramp is graduated rather than "just connect it and see": every
