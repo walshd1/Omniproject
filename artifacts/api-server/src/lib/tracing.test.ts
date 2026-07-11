@@ -71,7 +71,7 @@ test("tracingMiddleware does not export a span when no OTLP endpoint is configur
 });
 
 test("tracingMiddleware exports a span to the OTLP endpoint on response finish", async () => {
-  process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://collector:4318";
+  process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://127.0.0.1:4318";
   const calls: Array<{ url: string; body: any }> = [];
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
@@ -84,7 +84,7 @@ test("tracingMiddleware exports a span to the OTLP endpoint on response finish",
   await flush();
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0]!.url, "http://collector:4318/v1/traces");
+  assert.equal(calls[0]!.url, "http://127.0.0.1:4318/v1/traces");
   const span = calls[0]!.body.resourceSpans[0].scopeSpans[0].spans[0];
   assert.equal(span.name, "GET /api/projects");
   assert.equal(span.status.code, 1); // 200 -> OK
@@ -92,7 +92,7 @@ test("tracingMiddleware exports a span to the OTLP endpoint on response finish",
 });
 
 test("tracingMiddleware's export is best-effort — a fetch rejection never throws", async () => {
-  process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://collector:4318";
+  process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://127.0.0.1:4318";
   globalThis.fetch = (async () => { throw new Error("connection refused"); }) as unknown as typeof fetch;
 
   const { req, res, finish } = fakeReqRes();

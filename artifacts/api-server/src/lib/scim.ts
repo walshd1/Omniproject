@@ -209,7 +209,16 @@ export function patchGroup(id: string, operations: Array<{ op: string; path?: st
     if (p === "members" || p.startsWith("members")) {
       const members = Array.isArray(value) ? (value as Array<{ value: string }>) : [];
       if (op === "add") for (const m of members) { if (!group.members.some((x) => x.value === m.value)) group.members.push({ value: m.value }); }
-      else if (op === "remove") group.members = group.members.filter((x) => !members.some((m) => m.value === x.value));
+      else if (op === "remove") {
+        // Two remove encodings: Entra sends a `value` array; Okta encodes the single member in the
+        // path filter `members[value eq "<id>"]`. Handle both — otherwise Okta's deprovision-from-group
+        // is a silent no-op and the user keeps the group-derived role. (User ids are lowercase uuids,
+        // so matching against the lowercased path is safe.)
+        const removeIds = new Set<string>(members.map((m) => m.value));
+        const filtered = p.match(/members\[value eq "(.+?)"\]/);
+        if (filtered?.[1]) removeIds.add(filtered[1]);
+        group.members = group.members.filter((x) => !removeIds.has(x.value));
+      }
       else if (op === "replace") group.members = members.map((m) => ({ value: m.value }));
     } else if (p === "displayname" && (op === "replace" || op === "add")) {
       group.displayName = String(value ?? group.displayName);

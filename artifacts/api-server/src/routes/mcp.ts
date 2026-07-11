@@ -124,17 +124,25 @@ router.post("/mcp", async (req, res) => {
   const ctx = contextFromReq(req);
   const broker = getBroker();
   const exec: McpExecutor = async (tool, args) => {
-    if (req.body?.method === "tools/call") {
-      recordAudit({ ts: new Date().toISOString(), category: tool.write ? "broker" : "request", action: `mcp:${tool.name}`, actor: actorForAudit(req), projectId: (args["projectId"] as string) ?? null, write: !!tool.write, result: "success", status: 200 });
+    const audit = req.body?.method === "tools/call";
+    const auditBase = { ts: new Date().toISOString(), category: (tool.write ? "broker" : "request") as "broker" | "request", action: `mcp:${tool.name}`, actor: actorForAudit(req), projectId: (args["projectId"] as string) ?? null, write: !!tool.write };
+    try {
+      // Hard limit: only the customer's APPROVED actions can execute, whatever the agent asks.
+      // Scoped approvals are checked with the caller's role + active backend (the MCP channel
+      // has no SPA surface, so a surface-scoped approval is SPA-only and won't satisfy here).
+      if (!isActionApproved(tool.action, approvalContextFromReq(req)))
+        throw new Error(`action "${tool.action}" is not on the approved allowlist for this caller/backend`);
+      const handler = MCP_HANDLERS[tool.action];
+      if (!handler) throw new Error(`unsupported tool action: ${tool.action}`);
+      const result = await handler({ broker, ctx, req, pid: String(args["projectId"] ?? ""), args });
+      // Audit the REAL outcome: record success only after the handler resolves (was logged as
+      // success before the approval check + broker call ran, so blocked/failed writes read as OK).
+      if (audit) recordAudit({ ...auditBase, result: "success", status: 200 });
+      return result;
+    } catch (err) {
+      if (audit) recordAudit({ ...auditBase, result: "error", status: 500 });
+      throw err;
     }
-    // Hard limit: only the customer's APPROVED actions can execute, whatever the agent asks.
-    // Scoped approvals are checked with the caller's role + active backend (the MCP channel
-    // has no SPA surface, so a surface-scoped approval is SPA-only and won't satisfy here).
-    if (!isActionApproved(tool.action, approvalContextFromReq(req)))
-      throw new Error(`action "${tool.action}" is not on the approved allowlist for this caller/backend`);
-    const handler = MCP_HANDLERS[tool.action];
-    if (!handler) throw new Error(`unsupported tool action: ${tool.action}`);
-    return handler({ broker, ctx, req, pid: String(args["projectId"] ?? ""), args });
   };
 
   const response = await handleMcp(body, exec, VERSION, policy);

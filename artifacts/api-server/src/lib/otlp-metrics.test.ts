@@ -61,8 +61,8 @@ test("endpoint + export are OFF by default and derive …/v1/metrics when set", 
   assert.equal(otlpMetricsEndpoint(), null);
   assert.equal(startMetricExport(), false); // no-op without an endpoint
 
-  process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://collector:4318/";
-  assert.equal(otlpMetricsEndpoint(), "http://collector:4318/v1/metrics");
+  process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://127.0.0.1:4318/";
+  assert.equal(otlpMetricsEndpoint(), "http://127.0.0.1:4318/v1/metrics");
   assert.equal(startMetricExport(), true);
   assert.equal(startMetricExport(), false); // idempotent — already running
 });
@@ -76,7 +76,7 @@ test("exportMetricsOnce does not call fetch when no OTLP endpoint is configured"
 });
 
 test("exportMetricsOnce POSTs the core metric set to …/v1/metrics with the configured headers", async () => {
-  process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://collector:4318";
+  process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://127.0.0.1:4318";
   process.env["OTEL_EXPORTER_OTLP_HEADERS"] = "x-api-key=secret,x-team=omni";
   process.env["OTEL_SERVICE_NAME"] = "test-service";
   const calls: Array<{ url: string; init: RequestInit; body: any }> = [];
@@ -88,7 +88,7 @@ test("exportMetricsOnce POSTs the core metric set to …/v1/metrics with the con
   await exportMetricsOnce();
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0]!.url, "http://collector:4318/v1/metrics");
+  assert.equal(calls[0]!.url, "http://127.0.0.1:4318/v1/metrics");
   assert.equal(calls[0]!.init.method, "POST");
   assert.equal((calls[0]!.init.headers as Record<string, string>)["x-api-key"], "secret");
   assert.equal((calls[0]!.init.headers as Record<string, string>)["x-team"], "omni");
@@ -98,7 +98,7 @@ test("exportMetricsOnce POSTs the core metric set to …/v1/metrics with the con
 });
 
 test("exportMetricsOnce is best-effort — a fetch rejection never throws", async () => {
-  process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://collector:4318";
+  process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://127.0.0.1:4318";
   globalThis.fetch = (async () => { throw new Error("connection refused"); }) as unknown as typeof fetch;
   await assert.doesNotReject(exportMetricsOnce());
 });

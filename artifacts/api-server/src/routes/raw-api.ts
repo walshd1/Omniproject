@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { contextFromReq, respondBrokerError, withBrokerErrors, BrokerError, brokerCommand, brokerConfigured } from "../broker";
+import { contextFromReq, respondBrokerError, BrokerError, brokerCommand, brokerConfigured } from "../broker";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { getSession } from "./auth";
@@ -68,21 +68,27 @@ async function handle(req: Request, res: Response): Promise<void> {
   const raw = (body.payload ?? {}) as Record<string, unknown>;
   const { userContext: _u, origin: _o, ...payload } = raw;
 
-  recordAudit({
+  const auditBase = {
     ts: new Date().toISOString(),
-    category: "broker",
+    category: "broker" as const,
     action: `raw_api:${action}`,
     actor: getSession(req) ? { sub: getSession(req)!.sub, role: roleForReq(req) } : { role: roleForReq(req) },
     write: true, // treat as a write — it can mutate; this keeps it in the writes audit level
-    result: "success",
-    status: 200,
-  });
+  };
 
   res.setHeader("X-OmniProject-Raw-Warning", "bypasses contract+capability+ruleset; admin-only last resort");
-  await withBrokerErrors(req, res, "raw_api command failed", async () => {
+  // Audit the REAL outcome: record success only after the broker call resolves, and an explicit
+  // error otherwise — previously "success/200" was logged before the call ran, so a rejected or
+  // failed privileged passthrough left a false success in the trail.
+  try {
     const data = await brokerCommand(contextFromReq(req), action, payload, "raw-api");
+    recordAudit({ ...auditBase, result: "success", status: 200 });
     res.json({ warning: WARNING, action, data });
-  }, { action });
+  } catch (err) {
+    recordAudit({ ...auditBase, result: "error", status: err instanceof BrokerError ? err.status : 502 });
+    req.log.error({ err, action }, "raw_api command failed");
+    respondBrokerError(res, err);
+  }
 }
 
 router.post("/admin/raw", requireRole("admin"), requireStepUp, handle);
