@@ -8,6 +8,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **Uniform boolean-env vocabulary (`isTruthy`).** ~8 modules hand-rolled their own truthy check for
+  boolean env toggles with divergent accepted spellings (some `true` only, some `true`/`on`, one
+  `1`/`true`/`on`/`yes`); they now share a single `isTruthy` helper (`lib/env-config`, matching the
+  existing `envBool` vocabulary — `1`/`true`/`on`/`yes`, case-insensitive, trimmed). This uniformly
+  **broadens** which spellings count as affirmative — e.g. `RATE_LIMIT_DISABLED=on` or
+  `SAML_WANT_RESPONSE_SIGNED=yes` are now honoured where a stricter site previously ignored them. It
+  only ever *adds* accepted spellings; the documented `true` behaves identically, so a canonical
+  config is unaffected. This is the one user-visible change in the clean-code batch.
+- **Behaviour-preserving Clean Code dedup.** No wire or behaviour change: `round2` hoisted to its
+  documented home `lib/num.ts` (was redeclared in four finance modules); a shared `withBrokerErrors`
+  wrapper replaces the `try/catch → log → respondBrokerError` block repeated across the broker-backed
+  route handlers (each handler's log context preserved); `sendJson` (`lib/api`) adopted in seven SPA
+  write-path modules that hand-rolled the same fetch; a `<GatedTextField>` component collapses the
+  ~14× repeated show/label/`Input`/onChange block across the issue-dialog panels; `lib/tools.ts`
+  renamed to `lib/capability-governance.ts` (it holds the capability-governance model served at
+  `/api/governance`, and the old name collided with the unrelated `lib/capabilities.ts`); and a few
+  zero-importer dead exports were removed. Statelessness and the broker seam are untouched.
 - **SAML replay protection (Redis-gated, stateless-preserving).** When shared state is Redis-backed,
   the SAML SP now enables `validateInResponseTo` with a shared-cache-backed request-id store, binding
   each ACS response to a pending AuthnRequest and consuming it once (blocks unsolicited/replayed
@@ -45,6 +62,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Fixed
 
+- **Broker-isolation & compose CI guards had real blind spots — now closed and stricter.** The
+  broker-isolation guard stripped comments with a naive `indexOf("//")`, which truncated string
+  literals at the `//` in a URL — so a genuine vendor token in `"https://n8n.cloud"` was silently
+  dropped before the naming scan (a false negative that let a leak pass CI); it also matched only
+  static/`require` imports, missing a dynamic `import("./broker/reference-broker")`. Both seam
+  guards (isolation, zero-at-rest) now share one string-literal-aware comment stripper and one
+  `importSpecifier`, so neither can be quietly weaker than the other. Separately, the compose guard
+  **failed open** — if the gateway service was renamed away from both known names, the production
+  hardening checks (no-new-privileges, `cap_drop: [ALL]`, `read_only`) were silently skipped and the
+  guard still passed; it now fails closed. Regression tests added for each. No product code changed —
+  the guards that protect statelessness/the seam are simply harder to fool.
+- **Generated contract/function-map tables no longer render broken.** `gen-contract` and
+  `gen-function-map` emitted TypeScript types verbatim into Markdown table cells, so a union like
+  `Promise<Issue | null>` or `op: "create" | "update" | "delete"` split the row into extra columns in
+  the committed `docs/CONTRACT.md` / `docs/FUNCTION-MAP.md`; table cells are now pipe-escaped. A
+  separate `leadingComment` bug let a file-header or section-divider comment bleed into the next
+  export's one-line doc — breaking the comment run on a blank line corrected ~20 function rows in
+  `FUNCTION-MAP.md`.
 - **Portfolio finance rollup no longer silently mixes currencies.** `foldFinance` (the federated
   `GET /portfolio/summary` total) previously added a project's amount into the portfolio total *as-is*
   whenever an FX rate was missing — so a project reporting in an unrated currency (or any project when
@@ -488,6 +523,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Documentation
 
+- **Documentation reduction — archived point-in-time audits + de-duplicated prose.** Moved three
+  dated/closed review artefacts (`AUDIT-2026-07.md`, `ZERO-TRUST-AUDIT-2026-07.md`,
+  `SME-CHARITY-FIT.md`) into `docs/archive/reviews/` (joining the already-archived
+  `SECURITY-AUDIT-2026-07.md`) so the maintained tree carries only living docs, and trimmed prose in
+  `docs/TECHNICAL.md` and the onboarding guides that verbatim-duplicated `LICENSING.md` and the
+  README's "why this exists" framing. `docs/DOCUMENTATION-INDEX.md`, `docs/archive/README.md`, and
+  every inbound link (`README.md`, `docs/SECURITY-AUDIT.md`) were updated and link-integrity verified.
+  Zero information loss — content is relocated or replaced by a link, not deleted.
 - **Closed backlog #108 (multi-broker read fan-out) with a documented decision instead of
   speculative code** (`docs/PARKED-DECISIONS.md`, section D). Investigated whether the gateway
   should hold multiple distinct data-broker adapter instances of the same kind (e.g. two
