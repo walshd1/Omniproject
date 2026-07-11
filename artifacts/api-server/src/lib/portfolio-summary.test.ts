@@ -45,30 +45,50 @@ test("foldFinance: converts each project's currency into the target and sums to 
     { currency: "GBP", budgetAllocated: 100, actualBurn: 50, forecastCostAtCompletion: 90, earnedValue: 40 },
     { currency: "USD", budgetAllocated: 100, actualBurn: 50, forecastCostAtCompletion: 90, earnedValue: 40 }, // → GBP: *0.8
   ];
-  const totals = foldFinance(rows, "GBP", rates);
+  const { totals, includedRows, droppedForFx } = foldFinance(rows, "GBP", rates);
   assert.equal(totals.currency, "GBP");
   assert.equal(totals.budget, 100 + 100 * 0.8);
   assert.equal(totals.actual, 50 + 50 * 0.8);
   assert.equal(totals.variance, totals.budget - totals.forecast);
   assert.equal(totals.cpi, Math.round((totals.earnedValue / totals.actual) * 100) / 100);
+  assert.equal(includedRows, 2);
+  assert.equal(droppedForFx, 0);
 });
 
-test("foldFinance: falls back to the raw amount when a rate is missing — never throws, never NaN", () => {
-  const totals = foldFinance([{ currency: "ZZZ", budgetAllocated: 100, actualBurn: 0, forecastCostAtCompletion: 0, earnedValue: 0 }], "GBP", { GBP: 1 });
-  assert.equal(totals.budget, 100); // unconverted, not dropped
-  assert.ok(Number.isFinite(totals.budget));
+test("foldFinance: EXCLUDES a row whose currency has no FX rate — never sums a raw foreign amount", () => {
+  // ₩-style unconvertible currency must not be added into a GBP total as if it were GBP.
+  const { totals, includedRows, droppedForFx } = foldFinance(
+    [{ currency: "ZZZ", budgetAllocated: 100, actualBurn: 0, forecastCostAtCompletion: 0, earnedValue: 0 }],
+    "GBP",
+    { GBP: 1 },
+  );
+  assert.equal(totals.budget, 0); // dropped, NOT mixed in as 100 GBP
+  assert.equal(droppedForFx, 1);
+  assert.equal(includedRows, 0);
+});
+
+test("foldFinance: target-currency rows fold correctly even with no rate table at all", () => {
+  // FX fetch failed (rates undefined) — same-currency rows need no conversion and must still sum.
+  const { totals, includedRows, droppedForFx } = foldFinance(
+    [{ currency: "GBP", budgetAllocated: 100, actualBurn: 40, forecastCostAtCompletion: 90, earnedValue: 30 }],
+    "GBP",
+    undefined,
+  );
+  assert.equal(totals.budget, 100);
+  assert.equal(includedRows, 1);
+  assert.equal(droppedForFx, 0);
 });
 
 test("foldFinance: a dirty amount (string/null/NaN) coerces to 0 instead of poisoning the total", () => {
   const rows = [{ currency: "GBP", budgetAllocated: "not-a-number", actualBurn: null, forecastCostAtCompletion: undefined, earnedValue: 0 }];
-  const totals = foldFinance(rows, "GBP");
+  const { totals } = foldFinance(rows, "GBP");
   assert.equal(totals.budget, 0);
   assert.equal(totals.actual, 0);
   assert.ok(Number.isFinite(totals.variance));
 });
 
 test("foldFinance: cpi is null when there's no spend yet", () => {
-  const totals = foldFinance([{ currency: "GBP", budgetAllocated: 100, actualBurn: 0, forecastCostAtCompletion: 100, earnedValue: 0 }], "GBP");
+  const { totals } = foldFinance([{ currency: "GBP", budgetAllocated: 100, actualBurn: 0, forecastCostAtCompletion: 100, earnedValue: 0 }], "GBP");
   assert.equal(totals.cpi, null);
 });
 

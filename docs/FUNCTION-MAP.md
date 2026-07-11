@@ -697,8 +697,9 @@ Gateway↔broker request signing (security item C, folded into provenance): a de
 | Function | What it does |
 | --- | --- |
 | `signBrokerRequest` | Sign a request body for the broker (fresh timestamp + nonce). |
-| `verifyBrokerRequest` | Verify a signed broker request: signature matches, timestamp is within the freshness window, and the nonce hasn't been used (replay). |
-| `__resetBrokerHmac` | Test-only: clear the replay cache. |
+| `verifyBrokerRequest` | Verify a signed broker request: signature matches, timestamp is within the freshness window, and the nonce hasn't been used (replay), against the IN-PROCESS nonce cache. |
+| `verifyBrokerRequestShared` | Fleet-aware verify. |
+| `__resetBrokerHmac` | Test-only: clear the in-process replay cache. |
 
 ### `artifacts/api-server/src/lib/broker-log-bus.ts`
 

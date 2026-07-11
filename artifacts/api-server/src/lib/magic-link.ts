@@ -66,12 +66,17 @@ export function verifyMagicToken(token: string, now: number): MagicVerdict | nul
 }
 
 /** Enforce single-use: returns true the FIRST time a jti is seen, false on replay. Marks it
- *  consumed in the shared-state seam with a TTL covering the token's lifetime. */
+ *  consumed in the shared-state seam with a TTL covering the token's lifetime.
+ *
+ *  Atomic claim: a compare-and-set (set only if absent) collapses the check + mark into ONE
+ *  race-free step, so two concurrent redemptions of the same link can't both win. A get-then-set
+ *  had an await boundary between the read and the write — under Redis a full round-trip — during
+ *  which both callers observed "unused" and both minted a session. `cas` is the same shared-seam
+ *  primitive lib/audit-chain uses for its fleet-wide head; it is fleet-wide when Redis is
+ *  configured and per-process otherwise (the single-replica default is inherently race-free here). */
 export async function consumeMagicToken(jti: string): Promise<boolean> {
   const key = `magic:jti:${jti}`;
-  if (await sharedKv.get(key)) return false; // already used
-  await sharedKv.set(key, "1", { ttlMs: ttlMs() * 2 });
-  return true;
+  return sharedKv.cas(key, null, "1", { ttlMs: ttlMs() * 2 });
 }
 
 /** Sends via SMTP when `SMTP_URL` is set (lib/email.ts); otherwise falls back to logging the

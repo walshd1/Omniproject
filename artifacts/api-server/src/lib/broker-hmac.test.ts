@@ -1,6 +1,6 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { signBrokerRequest, verifyBrokerRequest, __resetBrokerHmac } from "./broker-hmac";
+import { signBrokerRequest, verifyBrokerRequest, verifyBrokerRequestShared, __resetBrokerHmac } from "./broker-hmac";
 
 /**
  * Gateway↔broker request HMAC: a fresh signature verifies once; replays, tampering and
@@ -62,4 +62,30 @@ test("a static-key signature does not verify when a binding is asserted (and vic
   const body = "x";
   const staticSig = signBrokerRequest(body); // no bind → static key
   assert.equal(verifyBrokerRequest({ ...staticSig, body, bind: bindA }), "bad-signature");
+});
+
+// ── Fleet-aware verify (verifyBrokerRequestShared) ───────────────────────────────
+// Without REDIS_URL the shared verifier uses the SAME in-process nonce cache as the sync one, so its
+// verdicts match verifyBrokerRequest here. The Redis-backed nonce claim (fleet-wide replay across
+// broker replicas) only runs when the shared-state seam is Redis-backed (ioredis not installed in
+// CI), so it is documented rather than exercised — same posture as the SAML replay-cache tests.
+test("shared verify: a fresh signature verifies, a replay is rejected (in-process default)", async () => {
+  const body = JSON.stringify({ action: "list_projects" });
+  const sig = signBrokerRequest(body);
+  assert.equal(await verifyBrokerRequestShared({ ...sig, body }), "ok");
+  assert.equal(await verifyBrokerRequestShared({ ...sig, body }), "replay");
+});
+
+test("shared verify: signature + freshness are checked before any replay/store step", async () => {
+  const sig = signBrokerRequest("original");
+  assert.equal(await verifyBrokerRequestShared({ ...sig, body: "tampered" }), "bad-signature");
+  const fresh = signBrokerRequest("x");
+  assert.equal(await verifyBrokerRequestShared({ ...fresh, body: "x" }, { now: fresh.ts + 10 * 60_000 }), "expired");
+});
+
+test("shared verify: shares the replay cache with the sync verifier (a nonce used by one is spent for the other)", async () => {
+  const body = "y";
+  const sig = signBrokerRequest(body);
+  assert.equal(verifyBrokerRequest({ ...sig, body }), "ok");
+  assert.equal(await verifyBrokerRequestShared({ ...sig, body }), "replay");
 });

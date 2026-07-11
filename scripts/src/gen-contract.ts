@@ -255,13 +255,19 @@ function collectBrokerMethods(node: ts.InterfaceDeclaration): void {
 }
 
 // ── Walk the canonical files ─────────────────────────────────────────────────
-// The broker contract lives in broker/{types,contract}.ts. EnumeratedField (the
-// describeFields() return shape) lives in lib/field-registry.ts among internal
-// registry types, so we pull in only that one name from there.
+// The broker contract lives in broker/{types,contract}.ts. A few types the contract
+// references are defined among internal lib/ modules; we pull in ONLY those named types
+// so the contract is self-contained (no dangling $refs) without dragging in the rest of
+// those files:
+//   - EnumeratedField — the describeFields() return shape (lib/field-registry.ts).
+//   - Scope + ScopeLevel — the forwarded data-scope on ActorContext (lib/scope.ts).
+//   - SessionBind — the per-session signing binding on ActorContext (lib/session-key.ts).
 const SOURCES: { file: string; only?: Set<string> }[] = [
   { file: "broker/types.ts" },
   { file: "broker/contract.ts" },
   { file: "lib/field-registry.ts", only: new Set(["EnumeratedField"]) },
+  { file: "lib/scope.ts", only: new Set(["Scope", "ScopeLevel"]) },
+  { file: "lib/session-key.ts", only: new Set(["SessionBind"]) },
 ];
 
 for (const { file } of SOURCES) collectConstArrays(read(file));

@@ -377,6 +377,31 @@ A backend's self-describing SCHEMA manifest — the tables, canonical fields and
 | `relationships` | object[] | yes | Foreign-key/relationship edges between entities. |
 | `populated` | string[] | — | Canonical field keys that actually hold data — a subset of `fields`. When given, the gateway surfaces only these ("populated, not just possible"); when omitted, all `fields` are surfaced. |
 
+### Scope
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `level` | [ScopeLevel](#scopelevel) | yes |  |
+| `sub` | string | — | The owning principal (used for user-level ownership/membership checks). |
+| `programmes` | string[] | — | The programmes this principal may act within (used for programme-level checks). |
+
+### ScopeLevel
+
+DATA scope — the per-principal authorization boundary the backend enforces on top of the coarse RBAC tier. The gateway resolves it from the user's grants + claim/SCIM groups and forwards it (verified, inside the PSK-signed broker envelope) as part of `userContext`, so the system of record can confirm-and-enforce it: - `all` — pmo / admin: every project and programme. - `programme` — a programme manager: only projects in their owned programmes. In a "basic" (no-IdP) deployment `programmes` is empty and the backend maps `sub → owned programmes` from its own records instead. - `user` — a standard user: only resources they own or are a member of. This module is PURE (no request/IO) so it is the shared contract: the gateway resolves + forwards it, an in-repo backend (or an external n8n one) enforces it with the same helpers.
+
+Enum: `user`, `programme`, `all`
+
+### SessionBind
+
+The non-secret material needed to re-derive a session's broker key.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `sub` | string | yes | The acting subject (username) the key is bound to. |
+| `smono` | string | yes | Monotonic-clock reading (ns string) at session creation. |
+| `salt` | string | yes | Per-session CSPRNG entropy (hex). |
+| `bkver` | number | — | Broker-key version the session key was derived under (for revocation/rotation). |
+
 ### Summary
 
 | Field | Type | Required | Description |
@@ -419,10 +444,3 @@ Dry-run verification of the broker contract — must never mutate a backend.
 | --- | --- | --- | --- |
 | `ok` | boolean | yes |  |
 | `actions` | object[] | yes |  |
-
-## ⚠️ Unmapped contract fields
-
-The generator could not map these to a code type — review before relying on them:
-
-- Type `SessionBind` is referenced by the contract but has no definition in broker/{types,contract}.ts.
-- Type `Scope` is referenced by the contract but has no definition in broker/{types,contract}.ts.

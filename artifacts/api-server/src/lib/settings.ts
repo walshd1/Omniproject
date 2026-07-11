@@ -702,6 +702,20 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "priorityWeights",
 ];
 
+// ── Compile-time drift guard ────────────────────────────────────────────────────
+// `updateSettings` only persists keys present in ALLOWED_KEYS, so a field added to SettingsState
+// (and the store) but FORGOTTEN here would be accepted by PATCH /settings, echoed back in the
+// response, and silently never written — the exact silent-persist-failure class documented at
+// `validatePatch`. ALLOWED_KEYS is already typed `(keyof SettingsState)[]`, which stops a stray key
+// that isn't a real field; this asserts the OTHER direction — that every field is covered. If a new
+// SettingsState field is not added above, `_MissingSettingsKeys` becomes that key (not `never`) and
+// the assignment below fails to type-check with the offending key named in the error.
+type _MissingSettingsKeys = Exclude<keyof SettingsState, (typeof ALLOWED_KEYS)[number]>;
+const _allSettingsKeysAreWritable: _MissingSettingsKeys extends never
+  ? true
+  : ["ALLOWED_KEYS is missing settings field(s):", _MissingSettingsKeys] = true;
+void _allSettingsKeysAreWritable;
+
 /** A snapshot copy of the current in-memory settings (never the live reference). */
 export function getSettings(): SettingsState {
   return { ...store };
