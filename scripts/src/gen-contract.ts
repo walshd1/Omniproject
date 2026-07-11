@@ -25,6 +25,7 @@ import ts from "typescript";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { escapeTableCell } from "./lib/markdown";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -330,7 +331,7 @@ function fieldRows(s: JsonSchema): string {
     const t = schemaType(v);
     const req = required.has(k) ? "yes" : "—";
     const desc = (v["description"] as string) ?? "";
-    return `| \`${k}\` | ${t} | ${req} | ${desc} |`;
+    return `| \`${k}\` | ${t} | ${req} | ${escapeTableCell(desc)} |`;
   });
   return rows.join("\n");
 }
@@ -370,8 +371,8 @@ md.push("");
 md.push("| Action | Arguments | Returns | Notes |");
 md.push("| --- | --- | --- | --- |");
 for (const m of brokerMethods) {
-  const args = m.params.length ? m.params.map((p) => `\`${p.name}: ${p.type}\``).join(", ") : "—";
-  md.push(`| \`${m.name}\`${m.optional ? " _(optional)_" : ""} | ${args} | \`${m.returns}\` | ${m.doc} |`);
+  const args = m.params.length ? m.params.map((p) => `\`${escapeTableCell(`${p.name}: ${p.type}`)}\``).join(", ") : "—";
+  md.push(`| \`${m.name}\`${m.optional ? " _(optional)_" : ""} | ${args} | \`${escapeTableCell(m.returns)}\` | ${escapeTableCell(m.doc)} |`);
 }
 md.push("");
 

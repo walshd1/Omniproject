@@ -75,6 +75,21 @@ services:
   assert.ok(issues.some((i) => /no-new-privileges/.test(i.message)));
 });
 
+test("prod hardening: fails closed when no gateway service resolves (renamed/removed)", () => {
+  // A prod compose whose gateway service is renamed away from both known names must NOT
+  // silently pass the hardening checks — the guard has to flag that it can't verify them.
+  const doc = parse(`
+services:
+  web:
+    image: omniproject-shell:0.2.0
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+`);
+  const issues = auditComposeDoc("prod.yml", doc, { prod: true });
+  assert.ok(issues.some((i) => /defines no 'omni-shell' or 'gateway' service/.test(i.message)));
+});
+
 test("prod hardening passes for a properly locked-down gateway", () => {
   const doc = parse(`
 services:

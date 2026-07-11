@@ -20,6 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { walkFiles } from "./lib/walk-files";
+import { importSpecifier, codeLines } from "./lib/ts-source";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const GATEWAY_SRC = "artifacts/api-server/src";
@@ -55,10 +56,11 @@ const NAMING_ALLOW = [
   // every other plane uses to name example vendors (Jira/SAP/Salesforce for backends, etc.)
 ];
 
+/** The adapter folder a line imports (dynamic or static), or null. Uses the shared
+ *  `importSpecifier` so a dynamic `import("…reference-broker")` is caught, not just static forms. */
 function importsAdapter(line: string): string | null {
-  const m = line.match(/(?:from|import|require\()\s*["']([^"']+)["']/);
-  if (!m) return null;
-  const spec = m[1]!;
+  const spec = importSpecifier(line);
+  if (!spec) return null;
   for (const dir of ADAPTER_DIRS) {
     const leaf = dir.split("/").pop()!;
     if (new RegExp(`(^|/)${leaf}(/|$)`).test(spec)) return dir;
@@ -71,28 +73,6 @@ function listTsFiles(relDir: string): string[] {
     extensions: [".ts", ".tsx"],
     excludeSuffixes: [".test.ts", ".spec.ts", ".test.tsx", ".spec.tsx"],
   }).map((abs) => path.relative(ROOT, abs));
-}
-
-/** Per-line CODE (line + block comments stripped), tracking block-comment state. */
-function codeLines(src: string): { line: number; text: string }[] {
-  const result: { line: number; text: string }[] = [];
-  let inBlock = false;
-  src.split("\n").forEach((raw, i) => {
-    let text = raw;
-    if (inBlock) {
-      const end = text.indexOf("*/");
-      if (end === -1) { result.push({ line: i + 1, text: "" }); return; }
-      text = text.slice(end + 2);
-      inBlock = false;
-    }
-    text = text.replace(/\/\*.*?\*\//g, "");
-    const open = text.indexOf("/*");
-    if (open !== -1) { inBlock = true; text = text.slice(0, open); }
-    const sl = text.indexOf("//");
-    if (sl !== -1) text = text.slice(0, sl);
-    result.push({ line: i + 1, text });
-  });
-  return result;
 }
 
 const violations: string[] = [];

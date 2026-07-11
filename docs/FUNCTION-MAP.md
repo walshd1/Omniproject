@@ -29,7 +29,7 @@ Deterministic fixtures for the portfolio-fold compute benchmark (run.ts).
 
 | Function | What it does |
 | --- | --- |
-| `mulberry32` | Deterministic fixtures for the portfolio-fold compute benchmark (run.ts). |
+| `mulberry32` | A tiny seeded PRNG (mulberry32) — same algorithm the SPA's monte-carlo uses, inlined so fixtures carry no cross-package dependency. |
 | `portfolioHealthRows` | Portfolio-health rows — what `summarizeHealth` folds. |
 | `financeRows` | Finance rows — what `foldFinance` folds (currency-mixed to exercise the FX conversion path). |
 | `capacityRows` | Capacity rows — what `foldCapacity` folds. |
@@ -103,7 +103,7 @@ Demo dataset — the canned data the DemoBroker serves.
 | --- | --- |
 | `sampleActivity` | Canned activity-feed rows for demo mode (no backend). |
 | `sampleNotifications` | Canned notification rows for demo mode (no backend). |
-| `getDemoState` | ── Stateful dev mode (opt-in via DEV_PERSIST_FILE; demo only) ───────────────── |
+| `getDemoState` | Current in-memory demo dataset (for the developer debug bundle). |
 | `persistDemoState` | Persist the in-memory demo dataset so it survives a restart (dev/test only). |
 | `loadDemoState` | Hydrate the demo dataset from disk on boot when stateful dev mode is enabled. |
 | `resetDemoDataToSeed` | Restore the demo dataset to what this process booted with. |
@@ -144,7 +144,7 @@ Cross-backend identity.
 
 | Function | What it does |
 | --- | --- |
-| `qualifyId` | Cross-backend identity. |
+| `qualifyId` | The globally-unique key for an entity: `source:id`. |
 | `qualifiedId` | Read the qualified key off a row (its own `source`, or a fallback when the backend omitted it). |
 | `stampSource` | Stamp `source` onto every row that lacks one, using the broker kind it was read through. |
 
@@ -158,7 +158,7 @@ Broker selection + the request→domain context adapter.
 | `resetBroker` | Drop the cached broker so the next getBroker() rebuilds it — used when the dev broker config is switched on the fly. |
 | `brokerVerifyConnection` | Test a backend connection through the active broker, or null if unsupported. |
 | `brokerStoreCredential` | Delegate a credential to the broker's vault, or null if the broker has none. |
-| `brokerKind` | Diagnostics: "n8n" | "demo". |
+| `brokerKind` | Diagnostics: "n8n" \| "demo". |
 | `isLiveBroker` | True when the active broker is backed by a real backend (not demo). |
 | `brokerConfigured` | Is there a broker endpoint to forward a command to? True when one is configured at boot (`BROKER_URL` ⇒ `isLiveBroker()`) OR set at runtime by an admin via settings. |
 | `brokerCommand` | Forward an arbitrary action + payload through the adapter's command edge. |
@@ -268,7 +268,7 @@ Replay engine — play a capture tape (capture.ts) two ways:
 
 | Function | What it does |
 | --- | --- |
-| `isWriteMethod` | Replay engine — play a capture tape (capture.ts) two ways: |
+| `isWriteMethod` | Broker methods that mutate the backend — skipped by re-drive unless allowed. |
 | `exchangeKey` | A stable key for matching a recorded call: method + args AFTER the actor ctx (arg 0 is the ActorContext, which varies per instance and is scrubbed). |
 | `buildReplayBroker` | Serve mode: a Broker backed by a tape. |
 | `redrive` | Re-drive a tape against a live broker (instance B), diffing each live result against the recording. |
@@ -337,7 +337,7 @@ Vendor profile overlay — present a broker AS a specific vendor by overlaying t
 
 | Function | What it does |
 | --- | --- |
-| `vendorCapabilities` | Vendor profile overlay — present a broker AS a specific vendor by overlaying that vendor's identity + DECLARED capability surface (from its JSON config) onto an underlying data broker. |
+| `vendorCapabilities` | A vendor's declared capabilities from its catalogue JSON, or null if unknown. |
 | `isVendorId` | Is this a real vendor id (not a neutral "all"/"none"/empty selector)? |
 | `demoVendorFor` | Decide the demo vendor to present, with the hard rule that a thin-file spoof NEVER appears over real data. |
 | `applyVendorProfile` | Overlay a vendor's identity + capability gating onto a base broker. |
@@ -517,7 +517,7 @@ AI governance — opt-in cost control + data-loss prevention layered on the sing
 
 | Function | What it does |
 | --- | --- |
-| `dlpEnabled` | AI governance — opt-in cost control + data-loss prevention layered on the single model-egress chokepoint (lib/ai `aiChat`). |
+| `dlpEnabled` | ── Prompt DLP redaction ──────────────────────────────────────────────────────── |
 | `redactText` | Mask PII/secrets in a string; returns the masked text and how many spans were redacted. |
 | `redactForEgress` | Redact every message's content before egress; returns the new messages + total redactions. |
 | `modelAllowed` | May this role use this model? True when no allowlist is configured, or the role has no entry (unlisted roles are unrestricted — restrict explicitly). |
@@ -619,7 +619,7 @@ Action audit logging.
 
 | Function | What it does |
 | --- | --- |
-| `auditLevel` | The configured audit verbosity (off | writes | all) from AUDIT_LEVEL. |
+| `auditLevel` | The configured audit verbosity (off \| writes \| all) from AUDIT_LEVEL. |
 | `shouldAudit` | Pure decision: should an event at this level be recorded? |
 | `createHttpSink` | Build a batching HTTP sink (buffers records + flushes them as NDJSON to a SIEM URL). |
 | `recordAudit` | Record one audit event: stdout (pino) + the external sink, gated by level. |
@@ -768,7 +768,7 @@ The single home for resolving configured broker endpoints — including the depr
 
 | Function | What it does |
 | --- | --- |
-| `configuredBrokerUrls` | The single home for resolving configured broker endpoints — including the deprecated pre-0.2.0 `N8N_WEBHOOK_URL` alias. |
+| `configuredBrokerUrls` | Every configured broker endpoint URL across ALL loaded brokers — the default `BROKER_URL`, any `BROKER_URLS` pool, every per-kind URL in `BROKER_ENDPOINTS` (`kind=url\|url,kind2=url`), and the deprecated `N8N_WEBHOOK_URL` alias — trimmed and de-duplicated, in that precedence order. |
 | `configuredBrokerUrl` | The primary configured broker base URL (the first of {@link configuredBrokerUrls}), or undefined when none is set. |
 
 ### `artifacts/api-server/src/lib/canonical-json.ts`
@@ -838,7 +838,7 @@ Tiny bounded-concurrency pool — the `p-limit` pattern without adding a depende
 
 | Function | What it does |
 | --- | --- |
-| `createConcurrencyLimiter` | Tiny bounded-concurrency pool — the `p-limit` pattern without adding a dependency. |
+| `createConcurrencyLimiter` | A limiter: call `run(fn)` any number of times; at most `limit` of the wrapped calls are ever in flight concurrently. |
 | `poolMap` | Map `items` through the async `fn`, keeping at most `limit` calls in flight at once. |
 
 ### `artifacts/api-server/src/lib/concurrency.ts`
@@ -855,7 +855,7 @@ Conditional (delta) reads — let a client revalidate a read and get back "nothi
 
 | Function | What it does |
 | --- | --- |
-| `hashETag` | Conditional (delta) reads — let a client revalidate a read and get back "nothing changed" instead of the whole payload, WITHOUT the gateway storing any data. |
+| `hashETag` | A weak ETag derived from a payload (used when no change token is available). |
 | `tokenETag` | A weak ETag derived from a broker-supplied change token. |
 | `ifNoneMatch` | The caller's If-None-Match value, if any. |
 | `conditionalJson` | Send a read response with delta semantics. |
@@ -866,7 +866,7 @@ Conditional (delta) reads — let a client revalidate a read and get back "nothi
 
 | Function | What it does |
 | --- | --- |
-| `buildConfigBundle` | "Lock this config" export — dump the current effective config as the EXACT folder-of-JSON the config-directory loader reads (read ≡ dump). |
+| `buildConfigBundle` | Build the config bundle as a ZIP buffer mirroring the OMNI_CONFIG_DIR layout. |
 
 ### `artifacts/api-server/src/lib/config-crypto.ts`
 
@@ -1002,7 +1002,7 @@ Content-Security-Policy for the served SPA.
 
 | Function | What it does |
 | --- | --- |
-| `cspNonce` | Content-Security-Policy for the served SPA. |
+| `cspNonce` | A fresh base64 CSP nonce (16 bytes of entropy) for a single response. |
 | `contentSecurityPolicy` | Build the CSP policy string (env override wins; else the strict default + any extras). |
 | `cspHeaderName` | The header name to use — report-only when CSP_REPORT_ONLY is set (observe without blocking). |
 
@@ -1201,7 +1201,7 @@ Validated, typed environment access — the zero-trust stance applied to configu
 
 | Function | What it does |
 | --- | --- |
-| `envStr` | Validated, typed environment access — the zero-trust stance applied to configuration: env vars are UNTRUSTED input too, so read them through typed accessors that enforce a rule (presence, type, range, format) instead of scattering `process.env[X]` casts. |
+| `envStr` | A trimmed string env var, or `fallback` (default undefined) when unset/empty. |
 | `envInt` | An integer env var validated against an optional range; falls back when unset/invalid. |
 | `envEnum` | One of a fixed set; falls back when unset or not in the set. |
 | `envUrl` | An http(s) URL that passes the outbound-safety guard (no metadata/link-local), or undefined. |
@@ -1225,7 +1225,7 @@ Central error-capture seam — the one place an unhandled route error lands.
 
 | Function | What it does |
 | --- | --- |
-| `fingerprint` | Central error-capture seam — the one place an unhandled route error lands. |
+| `fingerprint` | A short, stable id for an error so repeats group together. |
 | `errorHandler` | eslint-disable-next-line @typescript-eslint/no-unused-vars -- Express needs the 4-arg arity to treat this as an error handler. |
 
 ### `artifacts/api-server/src/lib/exec-digest.ts`
@@ -1376,7 +1376,7 @@ Correct (not string-prefix) containment checks for the link-local / cloud-metada
 
 | Function | What it does |
 | --- | --- |
-| `isLinkLocalIPv4` | Correct (not string-prefix) containment checks for the link-local / cloud-metadata ranges that the egress guards (`lib/egress.ts`, `lib/url-safety.ts`) must always reject: |
+| `isLinkLocalIPv4` | IPv4 dotted-decimal (as produced by `URL.hostname`) → true if in 169.254.0.0/16. |
 | `isLinkLocalIPv6` | IPv6 literal (as produced by `URL.hostname`, brackets stripped) → true if link-local (fe80::/10), the exact AWS IMDSv2 address, or an IPv4-mapped 169.254.0.0/16 address. |
 | `isBlockedHostLiteral` | Is `host` (already lower-cased, IPv6 brackets stripped) a blocked literal — a known metadata hostname, or an IPv4/IPv6 literal in the link-local/metadata range? Does NOT resolve a plain hostname — see the module docstring. |
 | `isBlockedIp` | Is a resolved DNS address (from `dns.lookup`) in the blocked link-local/metadata range? |
@@ -1618,7 +1618,7 @@ OTLP/HTTP metrics export — the metrics counterpart to lib/tracing's span expor
 
 | Function | What it does |
 | --- | --- |
-| `cacheMetrics` | OTLP/HTTP metrics export — the metrics counterpart to lib/tracing's span export. |
+| `cacheMetrics` | Cache hit/miss + enabled state as Prometheus-shaped metrics (folded into the core set). |
 | `coreMetrics` | The full in-process metric set (RED + broker latency + cache) — shared by the scrape route and the OTLP push. |
 | `otlpMetricsEndpoint` | The OTLP metrics endpoint (…/v1/metrics), or null when export is not configured. |
 | `toOtlpMetricsPayload` | Build the OTLP/HTTP `resourceMetrics` payload for a metric set. |
@@ -2030,7 +2030,7 @@ One home for the "durable state file, sealed at rest" pattern.
 
 | Function | What it does |
 | --- | --- |
-| `resolveConfigFile` | One home for the "durable state file, sealed at rest" pattern. |
+| `resolveConfigFile` | Resolve a config file path: an explicit env override wins; otherwise `defaultName` under OMNI_CONFIG_DIR (or null if neither is set, meaning "no persistence"). |
 
 ### `artifacts/api-server/src/lib/security-check.ts`
 
@@ -2732,7 +2732,7 @@ Compatibility predicate — the single rule deciding whether a surfaceable asset
 
 | Function | What it does |
 | --- | --- |
-| `isCapabilityMet` | Compatibility predicate — the single rule deciding whether a surfaceable asset (report, screen, view, panel, …) should appear, given the resolved SUPPORT set. |
+| `isCapabilityMet` | True when an asset's (single) capability requirement is met by the support set. |
 | `unionSupport` | OR-union several support maps into one: a key is supported if ANY map marks it `true`. |
 
 ### `lib/backend-catalogue/src/component-library.ts`
@@ -3169,7 +3169,7 @@ Backend-catalogue growth freeze.
 | Function | What it does |
 | --- | --- |
 | `checkCoverage` | Check one plane: every declared id must map to an implementation that exists, is wired into the page, and is tested — and the map must not carry stale entries for ids the catalogue no longer declares. |
-| `fsProbes` | ── fs-backed probe factory (used by the real guard; tests inject their own) ───── |
+| `fsProbes` | Build probes that read the real tree: components in `dir`, wired in `pageFile`, tested by any `*.test.tsx` under `dir`. |
 | `idsFromAssets` | List declared ids from a catalogue assets dir (one `<id>.json` per item). |
 
 ### `scripts/src/lib/demo-session.ts`
@@ -3202,6 +3202,14 @@ Load-harness core — pure, so the stats, error classification, concurrency pool
 | `verdict` | Pass/fail a report against thresholds, with human-readable reasons on failure. |
 | `runPool` | Run an array of async thunks at most `concurrency` in flight — the standard worker-pool. |
 
+### `scripts/src/lib/markdown.ts`
+
+Markdown emit helpers for the codegen scripts (`gen-contract`, `gen-function-map`).
+
+| Function | What it does |
+| --- | --- |
+| `escapeTableCell` | Make an arbitrary string safe to drop into a GitHub-flavoured Markdown *table cell*. |
+
 ### `scripts/src/lib/superset.ts`
 
 The canonical field superset = the base vocabulary (assets/fields.json) UNION every field a backend descriptor CONTRIBUTES (its optional `fields[]`).
@@ -3210,6 +3218,16 @@ The canonical field superset = the base vocabulary (assets/fields.json) UNION ev
 | --- | --- |
 | `loadSuperset` | The merged superset: base fields first, then each backend's contributed `fields[]`. |
 | `backendFieldRefs` | The canonical field keys each backend REFERENCES (its `fieldKeys[]`), per file. |
+
+### `scripts/src/lib/ts-source.ts`
+
+Small, dependency-free helpers for scanning TypeScript/JavaScript source in the guard scripts.
+
+| Function | What it does |
+| --- | --- |
+| `importSpecifier` | Extract the imported module specifier from a single line, covering the static forms (`import … from "x"`, bare `import "x"`) AND the dynamic/CommonJS forms (`import("x")`, `require("x")`). |
+| `stripComments` | Return `src` with every line and block comment removed, but with string / template-literal contents and — crucially — every newline preserved, so line numbers are unchanged. |
+| `codeLines` | Per-line CODE (comments removed, line numbers preserved) for a source string. |
 
 ### `scripts/src/lib/walk-files.ts`
 
@@ -3265,10 +3283,10 @@ Deployment config model + pure generators for the first-run setup wizard.
 | `publicHost` | The host portion of PUBLIC_URL (for the Traefik router rule). |
 | `effectiveBrokerUrl` | The effective broker URL (internal reference-broker when bundled, else the external one). |
 | `effectiveRedisUrl` | The effective Redis URL (internal when bundled, else the external one). |
-| `envMap` | ── .env rendering ──────────────────────────────────────────────────────────── |
+| `envMap` | Build the env map the gateway will see (also what we validate). |
 | `renderEnv` | Render the `.env` file (compose reads it for ${VAR} substitution). |
 | `renderCompose` | Render the full known-good docker-compose.yml for these choices. |
-| `validateDeployConfig` | ── Validation (the "guided correctness gate") ────────────────────────────────── |
+| `validateDeployConfig` | Run the gateway's own security self-check against the chosen config so the wizard can warn BEFORE writing files (e.g. demo-auth, plaintext broker). |
 
 ### `scripts/src/wizard/wizard.ts`
 

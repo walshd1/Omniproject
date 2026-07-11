@@ -16,15 +16,15 @@ Every operation a broker must (or, where marked optional, may) implement. Each t
 | `updateProject` | `projectId: string`, `input: ProjectWrite` | `Promise<Project>` | Update a project — incl. programmeId grouping (manager+, capability-gated). |
 | `projectMembers` | `projectId: string` | `Promise<ProjectMember[]>` | People on a project with their access level (capability-gated). |
 | `listIssues` | `projectId: string` | `Promise<Issue[]>` |  |
-| `getIssue` | `projectId: string`, `issueId: string` | `Promise<Issue | null>` |  |
-| `writeIssue` | `op: "create" | "update" | "delete"`, `input: IssueWrite` | `Promise<Issue | null>` |  |
+| `getIssue` | `projectId: string`, `issueId: string` | `Promise<Issue \| null>` |  |
+| `writeIssue` | `op: "create" \| "update" \| "delete"`, `input: IssueWrite` | `Promise<Issue \| null>` |  |
 | `listTaskItems` | `projectId: string`, `taskId: string` | `Promise<TaskItem[]>` | A task's child issues/notes (0..many; capability-gated). |
 | `createTaskItem` | `projectId: string`, `taskId: string`, `input: TaskItemWrite` | `Promise<TaskItem>` | Raise a child issue or note against a task (contributor+, capability-gated). |
 | `verify` | `opts: { projectId?: string }` | `Promise<VerifyReport>` |  |
 | `listActivity` | — | `Promise<Row[]>` |  |
 | `projectSummary` | `projectId: string` | `Promise<Summary>` |  |
 | `projectHistory` | `projectId: string` | `Promise<HistoryPoint[]>` |  |
-| `baseline` | `projectId: string` | `Promise<Baseline | null>` |  |
+| `baseline` | `projectId: string` | `Promise<Baseline \| null>` |  |
 | `listRaid` | `projectId: string` | `Promise<Row[]>` |  |
 | `addRaid` | `projectId: string`, `input: Record<string, unknown>` | `Promise<Row>` |  |
 | `notifications` | — | `Promise<Row[]>` |  |
@@ -32,12 +32,12 @@ Every operation a broker must (or, where marked optional, may) implement. Each t
 | `resourceCapacity` | `projectId: string` | `Promise<Row[]>` |  |
 | `projectFinancials` | `projectId: string` | `Promise<Row>` |  |
 | `capabilities` | — | `Promise<CapabilityFlags>` |  |
-| `fieldMap` _(optional)_ | — | `Promise<BackendFieldMap | null>` | Optional finer-grained field/entity support. When a broker provides it, it overrides the domain-derived defaults; when omitted, the gateway derives a map from the domain flags. Lets a backend say "storyPoints: yes, dueDate: read-only, no programme grouping" precisely. |
+| `fieldMap` _(optional)_ | — | `Promise<BackendFieldMap \| null>` | Optional finer-grained field/entity support. When a broker provides it, it overrides the domain-derived defaults; when omitted, the gateway derives a map from the domain flags. Lets a backend say "storyPoints: yes, dueDate: read-only, no programme grouping" precisely. |
 | `describeFields` _(optional)_ | — | `Promise<EnumeratedField[]>` | Optional API enumeration: report the fields this backend exposes, so wiring a new system of record can reconcile them against the canonical registry and flag fields the seam doesn't yet understand. See lib/field-registry.ts. |
-| `describeSchema` _(optional)_ | — | `Promise<SchemaManifest | null>` | Optional schema introspection: report the tables/fields/relationships this backend HOLDS and which fields are populated, so the gateway surfaces only what genuinely exists (superset ∩ manifest). Only a backend that owns its schema implements it — in practice OmniProject's own stateful self-host DB. Absent on ordinary SaaS backends, where the gateway falls back to the static capability flags. See lib/availability. |
+| `describeSchema` _(optional)_ | — | `Promise<SchemaManifest \| null>` | Optional schema introspection: report the tables/fields/relationships this backend HOLDS and which fields are populated, so the gateway surfaces only what genuinely exists (superset ∩ manifest). Only a backend that owns its schema implements it — in practice OmniProject's own stateful self-host DB. Absent on ordinary SaaS backends, where the gateway falls back to the static capability flags. See lib/availability. |
 | `fxRates` | `opts: { asOf?: string }` | `Promise<FxRates>` | Multi-currency FX rate table, read live (never cached/stored). `opts.asOf`, when given, asks for the rate as of that ISO date — the FX rate-source + as-of-date policy for consolidation (spot / period-close / budget rate; see `FxRatePolicy` in lib/settings). OPTIONAL support: a broker that can't serve a historical rate for an arbitrary past date degrades gracefully to its current live snapshot (the reference and demo brokers do this). |
 | `replay` | `opts: { from?: string; to?: string }` | `Promise<HistoryState[]>` | Time-travel: replay recorded portfolio states from the logging server. |
-| `changeToken` _(optional)_ | `resource: string` | `Promise<string | null>` | OPTIONAL — a cheap, opaque CHANGE TOKEN for a resource (e.g. `"projects"`, `"issues:proj-001"`), used for conditional/delta reads: the gateway compares it to the client's last-seen token and, on a match, returns 304 WITHOUT performing the full read — so the heavy backend call is skipped. Map it to a backend ETag, a max(updatedAt), or a sync cursor. Return null when the resource has no cheap version (the gateway falls back to hashing the full payload). Brokers that don't implement this are unaffected — conditional reads degrade to the payload hash. |
+| `changeToken` _(optional)_ | `resource: string` | `Promise<string \| null>` | OPTIONAL — a cheap, opaque CHANGE TOKEN for a resource (e.g. `"projects"`, `"issues:proj-001"`), used for conditional/delta reads: the gateway compares it to the client's last-seen token and, on a match, returns 304 WITHOUT performing the full read — so the heavy backend call is skipped. Map it to a backend ETag, a max(updatedAt), or a sync cursor. Return null when the resource has no cheap version (the gateway falls back to hashing the full payload). Brokers that don't implement this are unaffected — conditional reads degrade to the payload hash. |
 | `verifyConnection` _(optional)_ | `backend: string` | `Promise<{ ok: boolean; detail?: string }>` | OPTIONAL — verify the broker can reach a backend with its configured credentials (a "test connection"). Returns `{ ok }`. Brokers that don't implement it report "unsupported" upstream. |
 | `storeCredential` _(optional)_ | `input: { backend: string; name: string; value: string }` | `Promise<{ stored: boolean; ref?: string }>` | OPTIONAL — delegate a vendor credential to the BROKER's own encrypted credential store (e.g. n8n credentials). The secret is relayed ONCE through the gateway and never persisted here; the broker owns it thereafter. Returns a non-secret reference. Brokers without a vault report "unsupported" so the operator falls back to the env/Docker-secret scaffolding. |
 
