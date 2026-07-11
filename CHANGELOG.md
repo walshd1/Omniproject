@@ -22,6 +22,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   data (rates, title labels, identity→role assignments) will no longer resolve after upgrading and
   must be re-entered once.** Pure hardening/consistency — the master key was already high-entropy;
   no security regression.
+- **Broker contract is now self-contained (no dangling `$ref`s).** The generated broker contract
+  referenced `Scope`, `ScopeLevel` (the forwarded per-principal data scope on `ActorContext`) and
+  `SessionBind` (the per-session signing binding) without defining them, because their source lives in
+  `lib/`. `gen-contract` now pulls those named types in via the same mechanism it already uses for
+  `EnumeratedField`, so the contract schema (`docs/contract/broker.v1.schema.json`,
+  `broker/contract.schema.generated.ts`, `docs/CONTRACT.md`) defines every type it references and the
+  generator emits zero flags. Purely additive — no existing action or type shape changed.
+
 - **Broker-neutral naming, extended to the backend catalogue.** The `guard-broker-isolation` CI
   check previously only scanned `artifacts/api-server/src` and `artifacts/omniproject/src`, so a
   shared/neutral type could still quietly carry a vendor-specific name in
@@ -54,6 +62,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   configured, and inherently race-free on the stateless single-replica default.
 
 ### Security
+
+- **Fleet-wide broker-HMAC replay defence (Redis-gated, stateless default unchanged).** Added
+  `verifyBrokerRequestShared`: signature + freshness are identical to `verifyBrokerRequest`, but the
+  nonce/replay check claims the nonce with an atomic compare-and-set in the shared-state seam when
+  Redis is configured — so a replayed signed request routed to ANY broker replica is rejected
+  fleet-wide, not just within the replica that first saw it. Without Redis it falls back to the
+  in-process nonce cache, byte-identical to the synchronous verifier, so a stateless single-replica
+  deployment is unchanged. Signature + freshness are verified BEFORE any shared-store I/O, so a bad or
+  stale request never touches Redis. Same Redis-gated opt-in as session-registry / rate-limit / SAML
+  replay; both broker-seam guards (isolation, zero-at-rest) still pass.
 
 - **Real end-to-end RBAC enforcement is now under test.** Added `rbac-enforcement.test.ts`, which drives
   the live app OUT of demo auth (where every session holds all authorities) so the `requireRole` gates are

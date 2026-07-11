@@ -1030,6 +1030,65 @@
       "additionalProperties": false,
       "description": "A backend's self-describing SCHEMA manifest — the tables, canonical fields and relationships it actually holds, plus which fields are POPULATED (have data). Returned by the optional `describeSchema`. Only a backend that owns its schema can answer this — in practice OmniProject's own stateful self-host database. Ordinary SaaS backends (the stateless-overlay default) do NOT implement it; the gateway then falls back to the static capability flags. The gateway uses it to surface only what a backend genuinely has (superset ∩ manifest)."
     },
+    "Scope": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "$ref": "#/$defs/ScopeLevel"
+        },
+        "sub": {
+          "type": "string",
+          "description": "The owning principal (used for user-level ownership/membership checks)."
+        },
+        "programmes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The programmes this principal may act within (used for programme-level checks)."
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "additionalProperties": false
+    },
+    "ScopeLevel": {
+      "enum": [
+        "user",
+        "programme",
+        "all"
+      ],
+      "description": "DATA scope — the per-principal authorization boundary the backend enforces on top of the coarse RBAC tier. The gateway resolves it from the user's grants + claim/SCIM groups and forwards it (verified, inside the PSK-signed broker envelope) as part of `userContext`, so the system of record can confirm-and-enforce it: - `all` — pmo / admin: every project and programme. - `programme` — a programme manager: only projects in their owned programmes. In a \"basic\" (no-IdP) deployment `programmes` is empty and the backend maps `sub → owned programmes` from its own records instead. - `user` — a standard user: only resources they own or are a member of. This module is PURE (no request/IO) so it is the shared contract: the gateway resolves + forwards it, an in-repo backend (or an external n8n one) enforces it with the same helpers."
+    },
+    "SessionBind": {
+      "type": "object",
+      "properties": {
+        "sub": {
+          "type": "string",
+          "description": "The acting subject (username) the key is bound to."
+        },
+        "smono": {
+          "type": "string",
+          "description": "Monotonic-clock reading (ns string) at session creation."
+        },
+        "salt": {
+          "type": "string",
+          "description": "Per-session CSPRNG entropy (hex)."
+        },
+        "bkver": {
+          "type": "number",
+          "description": "Broker-key version the session key was derived under (for revocation/rotation)."
+        }
+      },
+      "required": [
+        "sub",
+        "smono",
+        "salt"
+      ],
+      "additionalProperties": false,
+      "description": "The non-secret material needed to re-derive a session's broker key."
+    },
     "Summary": {
       "type": "object",
       "properties": {
