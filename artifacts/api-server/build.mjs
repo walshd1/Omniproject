@@ -104,6 +104,10 @@ async function buildAll() {
       "electron",
     ],
     sourcemap: "linked",
+    // Keep line mappings (useful for symbolicating stack traces) but DON'T embed the original
+    // TypeScript source in the .map — otherwise a shipped dist/ leaks readable source. The runtime
+    // image already excludes .map files; this closes the leak even if a raw dist/ is distributed.
+    sourcesContent: false,
     plugins: [
       // pino relies on workers to handle logging, instead of externalizing it we use a plugin to handle it
       esbuildPluginPino({ transports: ["pino-pretty"] })

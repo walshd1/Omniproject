@@ -78,3 +78,15 @@ test("jsTypeOf distinguishes null, array and plain values", () => {
   assert.equal(jsTypeOf(3), "number");
   assert.equal(jsTypeOf({}), "object");
 });
+
+test("validate enforces minimum/maximum, minLength/maxLength, minItems/maxItems", () => {
+  assert.deepEqual(validate({ type: "integer", minimum: 1 }, 1), []);
+  assert.equal(validate({ type: "integer", minimum: 1 }, 0).length, 1);
+  assert.equal(validate({ type: "number", maximum: 10 }, 11).length, 1);
+  assert.deepEqual(validate({ type: "string", minLength: 2 }, "ab"), []);
+  assert.equal(validate({ type: "string", minLength: 2 }, "a").length, 1);
+  assert.equal(validate({ type: "string", maxLength: 3 }, "abcd").length, 1);
+  assert.deepEqual(validate({ type: "array", minItems: 1, items: { type: "string" } }, ["x"]), []);
+  assert.equal(validate({ type: "array", minItems: 1, items: { type: "string" } }, []).length, 1);
+  assert.equal(validate({ type: "array", maxItems: 1, items: { type: "string" } }, ["a", "b"]).length, 1);
+});

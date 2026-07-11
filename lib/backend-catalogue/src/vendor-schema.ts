@@ -25,6 +25,18 @@ export function validate(schema: JsonSchema, value: unknown, at = "$"): string[]
   if (typeof value === "string" && schema["pattern"] && !new RegExp(schema["pattern"] as string).test(value)) {
     errs.push(`${at}: "${value}" does not match /${schema["pattern"]}/`);
   }
+  // Numeric bounds (schemas declare e.g. refresh {minimum:1}; previously ignored, so refresh:0 passed).
+  if (typeof value === "number") {
+    const min = schema["minimum"], max = schema["maximum"];
+    if (typeof min === "number" && value < min) errs.push(`${at}: ${value} is less than minimum ${min}`);
+    if (typeof max === "number" && value > max) errs.push(`${at}: ${value} is greater than maximum ${max}`);
+  }
+  // String length bounds.
+  if (typeof value === "string") {
+    const minLen = schema["minLength"], maxLen = schema["maxLength"];
+    if (typeof minLen === "number" && value.length < minLen) errs.push(`${at}: string length ${value.length} is less than minLength ${minLen}`);
+    if (typeof maxLen === "number" && value.length > maxLen) errs.push(`${at}: string length ${value.length} is greater than maxLength ${maxLen}`);
+  }
 
   if (type === "object" && value && typeof value === "object") {
     const obj = value as Record<string, unknown>;
@@ -43,8 +55,11 @@ export function validate(schema: JsonSchema, value: unknown, at = "$"): string[]
       else if (additional && typeof additional === "object") errs.push(...validate(additional as JsonSchema, v, `${at}.${k}`));
     }
   }
-  if (type === "array" && Array.isArray(value) && schema["items"]) {
-    value.forEach((v, i) => errs.push(...validate(schema["items"] as JsonSchema, v, `${at}[${i}]`)));
+  if (type === "array" && Array.isArray(value)) {
+    const minItems = schema["minItems"], maxItems = schema["maxItems"];
+    if (typeof minItems === "number" && value.length < minItems) errs.push(`${at}: array length ${value.length} is less than minItems ${minItems}`);
+    if (typeof maxItems === "number" && value.length > maxItems) errs.push(`${at}: array length ${value.length} is greater than maxItems ${maxItems}`);
+    if (schema["items"]) value.forEach((v, i) => errs.push(...validate(schema["items"] as JsonSchema, v, `${at}[${i}]`)));
   }
   return errs;
 }
