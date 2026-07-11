@@ -212,7 +212,7 @@ test("verifyIdToken verifies a real RS256 token against a mocked JWKS", async ()
     authorization_endpoint: "a",
     token_endpoint: "t",
     issuer: "https://idp.test",
-    jwks_uri: `https://idp.test/jwks-${crypto.randomUUID()}`,
+    jwks_uri: `http://127.0.0.1/jwks-${crypto.randomUUID()}`,
   });
   assert.ok(true);
 });

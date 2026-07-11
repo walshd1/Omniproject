@@ -1,5 +1,5 @@
 import { randomToken, pkceChallenge, type SessionUser } from "./oidc";
-import { assertSafeOutboundUrl } from "./url-safety";
+import { assertEgressAllowed } from "./egress";
 
 /**
  * Generic OAuth 2.0 Authorization-Code (+ PKCE) login for **non-OIDC** providers — e.g. GitHub,
@@ -92,7 +92,7 @@ export async function exchangeCodeOAuth2(params: {
   codeVerifier: string;
   fetchImpl?: typeof fetch;
 }): Promise<OAuth2TokenResponse> {
-  assertSafeOutboundUrl(params.config.tokenUrl, "OAUTH2_TOKEN_URL");
+  await assertEgressAllowed(params.config.tokenUrl); // literal + post-DNS recheck + allowlist/residency
   const fetchImpl = params.fetchImpl ?? fetch;
   const body = new URLSearchParams({
     grant_type: "authorization_code",
@@ -126,7 +126,7 @@ export async function exchangeCodeOAuth2(params: {
 /** Fetch the provider's userinfo with the bearer token. SSRF-guarded; sends a `User-Agent`
  *  (required by some providers, e.g. GitHub) and `Accept: application/json`. */
 export async function fetchUserInfo(config: OAuth2Config, accessToken: string, fetchImpl: typeof fetch = fetch): Promise<Record<string, unknown>> {
-  assertSafeOutboundUrl(config.userInfoUrl, "OAUTH2_USERINFO_URL");
+  await assertEgressAllowed(config.userInfoUrl); // literal + post-DNS recheck + allowlist/residency
   const res = await fetchImpl(config.userInfoUrl, {
     headers: {
       Authorization: `Bearer ${accessToken}`,

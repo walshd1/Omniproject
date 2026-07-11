@@ -1905,10 +1905,12 @@ safeParseJson — native JSON.parse hardened against prototype pollution, for UN
 
 ### `artifacts/api-server/src/lib/saml.ts`
 
-SAML 2.0 SSO — an OPTIONAL identity path that sits alongside OIDC behind the same auth seam.
+How long a pending SP-initiated AuthnRequest id stays valid for InResponseTo matching.
 
 | Function | What it does |
 | --- | --- |
+| `samlCacheProvider` | A `@node-saml/node-saml` CacheProvider backed by the shared-state seam so SAML request-id / replay state is enforced FLEET-WIDE (Redis when configured; per-replica otherwise — same posture as rate-limit / session-registry). |
+| `replayProtection` | Replay-protection options for the node-saml provider — enabled ONLY when shared state is Redis-backed. |
 | `isSamlConfigured` | Is SAML SSO configured? (entry point + IdP cert + an ACS callback URL are all present.) |
 | `samlConfigStatusFrom` | Compute the SAML config status from an arbitrary env (pure — the testable core). |
 | `samlConfigStatus` | The SAML config status for the running process (diagnostics + the /auth/me surface). |
@@ -2380,7 +2382,7 @@ Bespoke report definitions (the report generator).
 
 ### `artifacts/api-server/src/routes/dashboards.ts`
 
-Custom dashboards — named, ordered collections of widget instances a user composes from the widget catalogue.
+Custom dashboards — named, ordered collections of widget instances composed from the widget catalogue.
 
 ### `artifacts/api-server/src/routes/dev-mode.ts`
 
@@ -2532,7 +2534,7 @@ Capability governance plane — the admin-set deployment state (off / user-defin
 
 ### `artifacts/api-server/src/routes/views.ts`
 
-Saved views — named filter/sort/column/grouping presets a user can switch between.
+Saved views — named filter/sort/column/grouping presets.
 
 ### `artifacts/api-server/src/routes/webhooks.ts`
 

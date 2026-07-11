@@ -34,6 +34,14 @@ test("checkRequiredEnv: clean in dev, flags weak prod config", () => {
   assert.deepEqual(checkRequiredEnv({ NODE_ENV: "production", SESSION_SECRET: "a-strong-secret-value-1234" }), []);
 });
 
+test("checkRequiredEnv: a short BROKER_PSK is flagged in production", () => {
+  assert.match(checkRequiredEnv({ NODE_ENV: "production", BROKER_PSK: "short" }).join(" "), /BROKER_PSK/);
+  // A strong PSK (and no other weak config) is clean.
+  assert.deepEqual(checkRequiredEnv({ NODE_ENV: "production", SESSION_SECRET: "a-strong-secret-value-1234", BROKER_PSK: "a-strong-broker-psk-value-1234" }), []);
+  // Dev is exempt.
+  assert.deepEqual(checkRequiredEnv({ NODE_ENV: "development", BROKER_PSK: "short" }), []);
+});
+
 test("checkRequiredEnv: OIDC_SKIP_TOKEN_VERIFY left on in production is a critical finding (auth bypass)", () => {
   const issues = checkRequiredEnv({ NODE_ENV: "production", OIDC_SKIP_TOKEN_VERIFY: "true" });
   assert.match(issues.join(" "), /OIDC_SKIP_TOKEN_VERIFY/);

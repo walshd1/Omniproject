@@ -98,7 +98,7 @@ test("validateClaims accepts an audience array containing the expected value", (
 
 test("fetchJwks fetches, caches, and returns the keys", async () => {
   let hits = 0;
-  const uniqueUri = `https://idp.test/jwks-${crypto.randomUUID()}`;
+  const uniqueUri = `http://127.0.0.1/jwks-${crypto.randomUUID()}`;
   const fakeFetch = (async () => {
     hits++;
     return new Response(JSON.stringify({ keys: [rsaJwk, ecJwk] }), {
@@ -115,10 +115,17 @@ test("fetchJwks fetches, caches, and returns the keys", async () => {
   assert.equal(hits, 1);
 });
 
+test("fetchJwks blocks a metadata/link-local jwks_uri before fetching (SSRF guard)", async () => {
+  let called = false;
+  const fakeFetch = (async () => { called = true; return new Response("{}", { status: 200 }); }) as typeof fetch;
+  await assert.rejects(() => fetchJwks("http://169.254.169.254/jwks", fakeFetch));
+  assert.equal(called, false); // the egress guard runs before any fetch
+});
+
 test("fetchJwks throws on a non-ok response", async () => {
   const fakeFetch = (async () => new Response("nope", { status: 500 })) as typeof fetch;
   await assert.rejects(
-    () => fetchJwks(`https://idp.test/jwks-${crypto.randomUUID()}`, fakeFetch),
+    () => fetchJwks(`http://127.0.0.1/jwks-${crypto.randomUUID()}`, fakeFetch),
     /JWKS fetch failed \(500\)/,
   );
 });
@@ -129,7 +136,7 @@ test("verifyIdToken end-to-end verifies an RS256 signature + claims via injected
     { sub: "u1", iss: "https://idp", aud: "client-1", exp: now + 3600 },
     rsa.privateKey,
   );
-  const uri = `https://idp.test/jwks-${crypto.randomUUID()}`;
+  const uri = `http://127.0.0.1/jwks-${crypto.randomUUID()}`;
   const fakeFetch = (async () =>
     new Response(JSON.stringify({ keys: [rsaJwk] }), { status: 200 })) as typeof fetch;
 
@@ -145,7 +152,7 @@ test("verifyIdToken end-to-end verifies an RS256 signature + claims via injected
 test("verifyIdToken end-to-end verifies an ES256 signature", async () => {
   const now = Math.floor(Date.now() / 1000);
   const token = mintEs256({ sub: "ec-user", iss: "https://idp", aud: "client-1", exp: now + 3600 }, ec.privateKey);
-  const uri = `https://idp.test/jwks-${crypto.randomUUID()}`;
+  const uri = `http://127.0.0.1/jwks-${crypto.randomUUID()}`;
   const fakeFetch = (async () =>
     new Response(JSON.stringify({ keys: [ecJwk] }), { status: 200 })) as typeof fetch;
   const claims = await verifyIdToken(token, { jwksUri: uri, issuer: "https://idp", audience: "client-1", fetchImpl: fakeFetch });
@@ -154,7 +161,7 @@ test("verifyIdToken end-to-end verifies an ES256 signature", async () => {
 
 test("verifyIdToken throws when no JWKS key matches", async () => {
   const token = mintRs256({ sub: "u1", iss: "https://idp", aud: "client-1" }, rsa.privateKey, "missing-kid");
-  const uri = `https://idp.test/jwks-${crypto.randomUUID()}`;
+  const uri = `http://127.0.0.1/jwks-${crypto.randomUUID()}`;
   const otherKey = { ...ecJwk, kid: "other" };
   const fakeFetch = (async () =>
     new Response(JSON.stringify({ keys: [otherKey] }), { status: 200 })) as typeof fetch;
@@ -167,7 +174,7 @@ test("verifyIdToken throws when no JWKS key matches", async () => {
 
 test("verifyIdToken throws on claim mismatch even with a valid signature", async () => {
   const token = mintRs256({ sub: "u1", iss: "https://other", aud: "client-1", exp: Math.floor(Date.now() / 1000) + 600 }, rsa.privateKey);
-  const uri = `https://idp.test/jwks-${crypto.randomUUID()}`;
+  const uri = `http://127.0.0.1/jwks-${crypto.randomUUID()}`;
   const fakeFetch = (async () =>
     new Response(JSON.stringify({ keys: [rsaJwk] }), { status: 200 })) as typeof fetch;
   await assert.rejects(
@@ -183,7 +190,7 @@ test("verifyIdToken rejects an HS256 alg-confusion token (asymmetric-only allowl
   const body = b64url({ sub: "attacker", iss: "https://idp", aud: "client-1" });
   const sig = crypto.createHmac("sha256", pubPem).update(`${header}.${body}`).digest("base64url");
   const forged = `${header}.${body}.${sig}`;
-  const uri = `https://idp.test/jwks-${crypto.randomUUID()}`;
+  const uri = `http://127.0.0.1/jwks-${crypto.randomUUID()}`;
   const fakeFetch = (async () =>
     new Response(JSON.stringify({ keys: [rsaJwk] }), { status: 200 })) as typeof fetch;
   await assert.rejects(
