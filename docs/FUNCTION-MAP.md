@@ -2437,6 +2437,10 @@ Admin-only live broker log.
 
 Capability + field-manifest endpoints.
 
+### `artifacts/api-server/src/routes/client-errors.ts`
+
+Client-error telemetry sink — an ADMIN-GATED, INTERNAL-only report channel.
+
 ### `artifacts/api-server/src/routes/comments.ts`
 
 Comment threads (the "comments" feature module) — lightweight collaboration on a work item.

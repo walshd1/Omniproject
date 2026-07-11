@@ -9,6 +9,7 @@ import { BrandingProvider } from "./lib/branding";
 import { A11yProvider } from "./lib/a11y-prefs";
 import { PlatformProvider } from "./lib/platform-context";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ErrorTelemetrySync } from "./components/ErrorTelemetrySync";
 import { DevModeWatermark } from "./components/DevModeWatermark";
 import { ImpossibleTravelBanner } from "./components/ImpossibleTravelBanner";
 import { DevPerfOverlay } from "./components/DevPerfOverlay";
@@ -127,6 +128,7 @@ function App() {
         <PlatformProvider>
         <TooltipProvider>
           <ThemeInitializer />
+          <ErrorTelemetrySync />
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <ErrorBoundary>
               <Suspense

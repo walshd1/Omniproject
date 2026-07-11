@@ -2145,6 +2145,13 @@ components:
             Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE
             env var takes precedence on a fresh boot (see docs/REVERSE-PROXY.md).
           enum: [enterprise, business, nonprofit, self-hosted, demo]
+        errorTelemetry:
+          type: boolean
+          description: >-
+            Admin opt-in. When true the SPA reports uncaught render errors (message +
+            component stack + page, never user/project data) to POST /client-errors, which
+            records them to the gateway's INTERNAL audit log. Off by default — the same
+            no-external-telemetry posture as the rest of the app.
         loggingSync:
           $ref: "#/components/schemas/LoggingSync"
         fieldOverrides:
@@ -2226,6 +2233,9 @@ components:
             Set the deployment profile (admin). Persisted; the infra-level
             DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs/REVERSE-PROXY.md).
           enum: [enterprise, business, nonprofit, self-hosted, demo]
+        errorTelemetry:
+          type: boolean
+          description: Admin opt-in for internal client-error reporting (see Settings.errorTelemetry).
         loggingSync:
           $ref: "#/components/schemas/LoggingSync"
         fieldOverrides:

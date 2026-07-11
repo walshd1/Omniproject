@@ -14,6 +14,7 @@ import type { GovernanceRule } from "./governance-rules";
 import { validatePredicate } from "./predicate";
 import { isValidCadence, type SnapshotCadence } from "../history/cadence";
 import { logger } from "./logger";
+import { isTruthy } from "./env-config";
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
@@ -248,6 +249,13 @@ export interface SettingsState {
    *  back to spot) when null or when `fxRatePolicy` is "spot". */
   fxRateAsOfDate: string | null;
   oidcIssuerUrl: string | null;
+  /**
+   * Admin opt-in: when true, the SPA reports uncaught render errors (message + component
+   * stack + page, never user/project data) to `POST /api/client-errors`, which records them
+   * to the INTERNAL audit log. OFF by default — the same deliberate no-external-telemetry
+   * posture as the rest of the app; nothing is auto-reported until an admin turns this on.
+   */
+  errorTelemetry: boolean;
   /** White-label branding overrides (null/empty → product defaults). */
   branding: BrandingConfig | null;
   /** Company-nomenclature label overrides, keyed by i18n key. */
@@ -653,6 +661,8 @@ const store: SettingsState = {
   fxRatePolicy: coerceFxRatePolicy(process.env["FX_RATE_POLICY"]?.trim()),
   fxRateAsOfDate: process.env["FX_RATE_AS_OF_DATE"]?.trim() || null,
   oidcIssuerUrl: process.env["OIDC_ISSUER_URL"] ?? null,
+  // Off unless an admin opts in (or the env seeds it for a fresh boot).
+  errorTelemetry: isTruthy(process.env["ERROR_TELEMETRY"]),
   branding: brandingFromEnv(),
   labelOverrides: labelsFromEnv(),
   webhooks: webhooksFromEnv(),
@@ -697,6 +707,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "fxRatePolicy",
   "fxRateAsOfDate",
   "oidcIssuerUrl",
+  "errorTelemetry",
   "branding",
   "labelOverrides",
   "webhooks",
@@ -1179,6 +1190,9 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   }
   if ("backendSource" in patch && typeof patch["backendSource"] !== "string") {
     throw new SettingsValidationError("backendSource must be a string");
+  }
+  if ("errorTelemetry" in patch && typeof patch["errorTelemetry"] !== "boolean") {
+    throw new SettingsValidationError("errorTelemetry must be a boolean");
   }
   for (const key of ["capabilityStates", "screenLayouts", "userPrefs"] as const) {
     if (key in patch && (typeof patch[key] !== "object" || patch[key] == null || Array.isArray(patch[key]))) {

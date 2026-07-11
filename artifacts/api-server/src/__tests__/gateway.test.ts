@@ -897,6 +897,7 @@ const SAMPLE_SETTINGS = {
   customReports: [],
   reportOverrides: [],
   oidcIssuerUrl: "https://idp",
+  errorTelemetry: false,
   branding: null,
   labelOverrides: {},
   webhooks: [],
