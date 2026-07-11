@@ -17,9 +17,16 @@ import { logger } from "./logger";
  * turns this on with no image rebuild required.
  */
 
+/** A file attached to an email (nodemailer's attachment shape, narrowed to what we use). */
+export interface MailAttachment {
+  filename: string;
+  content: Buffer | string;
+  contentType?: string;
+}
+
 /** The minimal shape used from a nodemailer transport, narrowed so tests can inject a fake. */
 export interface Mailer {
-  sendMail(msg: { from: string; to: string; subject: string; text: string; html?: string }): Promise<unknown>;
+  sendMail(msg: { from: string; to: string; subject: string; text: string; html?: string; attachments?: MailAttachment[] }): Promise<unknown>;
 }
 
 export interface MailMessage {
@@ -27,6 +34,7 @@ export interface MailMessage {
   subject: string;
   text: string;
   html?: string;
+  attachments?: MailAttachment[];
 }
 
 /** Is real SMTP delivery available? True once `SMTP_URL` is set. */
@@ -57,7 +65,11 @@ export async function sendEmail(msg: MailMessage, mailer?: Mailer): Promise<bool
   if (!mailer && !isEmailConfigured()) return false;
   try {
     const transport = mailer ?? defaultMailer();
-    await transport.sendMail({ from: fromAddress(), to: msg.to, subject: msg.subject, text: msg.text, ...(msg.html !== undefined ? { html: msg.html } : {}) });
+    await transport.sendMail({
+      from: fromAddress(), to: msg.to, subject: msg.subject, text: msg.text,
+      ...(msg.html !== undefined ? { html: msg.html } : {}),
+      ...(msg.attachments ? { attachments: msg.attachments } : {}),
+    });
     return true;
   } catch (err) {
     logger.warn({ err }, "email: send failed");

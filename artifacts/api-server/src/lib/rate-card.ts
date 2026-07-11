@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { deriveKey } from "./crypto-keys";
+import { deriveKey, masterSecret } from "./crypto-keys";
 
 /**
  * Rate-card domain — the pure core of staff time-and-cost.
@@ -29,11 +29,7 @@ export function hashIdentity(raw: string): string {
 }
 
 function hashKey(): Buffer {
-  const master =
-    process.env["RATE_CARD_KEY"]?.trim() ||
-    process.env["SESSION_SECRET"]?.trim() ||
-    process.env["BROKER_PSK"]?.trim() ||
-    "omni-rate-card-dev-key-not-for-production";
+  const master = masterSecret({ lead: "RATE_CARD_KEY", dev: "omni-rate-card-dev-key-not-for-production" });
   // HKDF (v2) key derivation — matches the rest of the codebase (lib/crypto-keys `deriveKey`)
   // instead of a bare SHA-256(master). NOTE: this is a one-time RE-KEY. The identity/title hashes
   // are persisted map keys (lib/rate-card-store), so an existing sealed rate card no longer

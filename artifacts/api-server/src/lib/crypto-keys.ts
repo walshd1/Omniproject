@@ -53,6 +53,30 @@ export function deriveKeyCached(secret: string): Buffer {
   return key;
 }
 
+/** Like `deriveKey` but over raw key BYTES (e.g. a KMS-unwrapped / CONFIG_KEY_RAW key) rather than a
+ *  string secret — same HKDF-SHA256 + fixed salt + domain-separating `info`. Not cached (called rarely
+ *  on the at-rest paths). */
+export function deriveKeyFromBytes(keyMaterial: crypto.BinaryLike, info: string): Buffer {
+  return Buffer.from(crypto.hkdfSync("sha256", keyMaterial, HKDF_SALT, info, 32));
+}
+
+/**
+ * The env master-secret fallback ladder shared by the at-rest crypto modules (config, vault,
+ * rate-card): an optional leading env var, then `SESSION_SECRET`, then `BROKER_PSK`, then the
+ * caller's own dev default. Each caller passes its own `dev` default and optional `lead` env, so the
+ * EFFECTIVE resolution order is unchanged for every site — this only removes the copy-paste.
+ * NOTE: `key-registry` deliberately keeps its own, differently-ordered ladder (PROVENANCE_KEY first)
+ * because reordering it would change live signing material; it does NOT use this helper.
+ */
+export function masterSecret(opts: { lead?: string; dev: string }): string {
+  return (
+    (opts.lead ? process.env[opts.lead]?.trim() : undefined) ||
+    process.env["SESSION_SECRET"]?.trim() ||
+    process.env["BROKER_PSK"]?.trim() ||
+    opts.dev
+  );
+}
+
 /** Parse a base64 key that must be exactly 32 bytes (an AES-256 key), or null if it isn't. */
 export function decodeKey32(b64: string): Buffer | null {
   const buf = Buffer.from(b64, "base64");

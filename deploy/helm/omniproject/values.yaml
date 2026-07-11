@@ -108,7 +108,37 @@ probes:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+# Left empty ⇒ the chart applies a DEFAULT soft spread across nodes (kubernetes.io/hostname,
+# ScheduleAnyway) so a node loss can't take out every replica. Set your own (e.g. add a zone key,
+# or whenUnsatisfiable: DoNotSchedule for a hard guarantee) to override.
 topologySpreadConstraints: []
+
+# Graceful shutdown: the gateway drains in-flight requests + SSE notification streams on SIGTERM, so
+# give it headroom before the kubelet SIGKILLs it. `lifecycle` is unset by default because the runtime
+# image is minimal (may lack a shell for a preStop `sleep`); the SIGTERM drain + grace period is the
+# primary path. Add a preStop hook if your image has a shell and you want to cover the LB
+# endpoint-deregistration race, e.g. lifecycle: { preStop: { exec: { command: ["/bin/sh","-c","sleep 5"] } } }.
+terminationGracePeriodSeconds: 30
+lifecycle: {}
+
+# NetworkPolicy — OFF by default (only meaningful with a CNI that enforces it). When enabled it targets
+# ONLY this gateway's pods, and the defaults are permissive-but-explicit so turning it on doesn't break
+# connectivity. Tighten in two steps: (1) set ingress.from to restrict WHO may reach the http port (e.g.
+# your ingress-controller namespace); (2) set egress.restrict=true and enumerate egress.to (the broker,
+# Redis, IdP, SMTP, OTLP destinations) for true egress segmentation. DNS egress is always allowed.
+networkPolicy:
+  enabled: false
+  dnsPort: 53
+  ingress:
+    # A list of NetworkPolicyPeer. Empty ⇒ any source may reach the http port (control at the LB/ingress).
+    # e.g. [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ingress-nginx } } }]
+    from: []
+  egress:
+    # false ⇒ all egress allowed (plus DNS). true ⇒ ONLY DNS + the destinations in `to` are allowed.
+    restrict: false
+    # A list of NetworkPolicyEgressRule (to + ports), used only when restrict=true.
+    # e.g. [{ to: [{ ipBlock: { cidr: 10.0.0.0/16 } }], ports: [{ port: 5678, protocol: TCP }] }]
+    to: []
 
 # ── Non-sensitive configuration (rendered into a ConfigMap, wired via envFrom) ────────────────
 config:

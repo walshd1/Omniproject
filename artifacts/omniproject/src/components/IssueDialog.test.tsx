@@ -3,6 +3,7 @@ import { screen, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import { getGetCapabilitiesQueryKey, type Capabilities, type Issue } from "@workspace/api-client-react";
+import { featuresQueryKey } from "../lib/features";
 import { renderWithProviders } from "../test/utils";
 import { IssueDialog } from "./IssueDialog";
 import { Toaster } from "./ui/toaster";
@@ -313,6 +314,9 @@ describe("IssueDialog mutations", () => {
     qc.setQueryData(getGetCapabilitiesQueryKey(), {} as unknown as Capabilities);
     qc.setQueryData(["branding"], {});
     qc.setQueryData(["labels"], {});
+    // Seed features with the (default-off) comments module disabled, so the comments panel doesn't
+    // render + fetch and land an extra call in the mutation-focused `calls`.
+    qc.setQueryData(featuresQueryKey(), [{ id: "comments", enabled: false }]);
     return qc;
   }
 

@@ -31,6 +31,9 @@ spec:
       {{- end }}
       serviceAccountName: {{ include "omniproject.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      # Give the SIGTERM handler time to drain in-flight requests + SSE streams before the kubelet
+      # SIGKILLs the pod (the gateway holds long-lived notification streams).
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -39,6 +42,13 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- with .Values.lifecycle }}
+          # Optional preStop hook (e.g. a short sleep to cover the LB endpoint-deregistration race).
+          # Left unset by default because the runtime image is minimal; the SIGTERM drain + grace
+          # period above is the primary graceful-shutdown path.
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
@@ -98,7 +108,17 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.topologySpreadConstraints }}
+      {{- if .Values.topologySpreadConstraints }}
       topologySpreadConstraints:
-        {{- toYaml . | nindent 8 }}
+        {{- toYaml .Values.topologySpreadConstraints | nindent 8 }}
+      {{- else }}
+      # Default soft spread across nodes so losing one node can't take out every replica (HA). Soft
+      # (ScheduleAnyway) so it never blocks scheduling; a no-op at replicaCount 1. Override to harden.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "omniproject.selectorLabels" . | nindent 14 }}
       {{- end }}

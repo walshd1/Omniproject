@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { openConfig } from "./config-crypto";
+import { openConfig, isSealedConfig } from "./config-crypto";
 import { registerVendor, type VendorPlane } from "@workspace/backend-catalogue";
 import { applySnapshot } from "./config-snapshot";
 import { updateSettings } from "./settings";
@@ -70,7 +70,7 @@ export function configDirSummary(): ConfigDirSummary {
  *  `__proto__`/`constructor` key that pollutes Object.prototype once merged into settings. */
 function readConfigJson(file: string): unknown {
   const raw = fs.readFileSync(file, "utf8");
-  if (!raw.startsWith("c1.")) return safeParseJson(raw); // plaintext
+  if (!isSealedConfig(raw)) return safeParseJson(raw); // plaintext (not a sealed c1./c2. token)
   const opened = openConfig(raw);
   if (opened === null) throw new Error(`${path.basename(file)}: could not decrypt (wrong config key?)`);
   return safeParseJson(opened);

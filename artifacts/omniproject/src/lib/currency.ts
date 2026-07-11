@@ -1,5 +1,9 @@
-import { useState } from "react";
-import { useGetFxRates, getGetFxRatesQueryKey, type FxRates, type Settings } from "@workspace/api-client-react";
+import { useState, useMemo, useCallback } from "react";
+import {
+  useGetFxRates, getGetFxRatesQueryKey, useGetProjectIssues, getGetProjectIssuesQueryKey,
+  type FxRates, type Settings,
+} from "@workspace/api-client-react";
+import { useT } from "./i18n";
 
 export type { FxRates };
 
@@ -63,6 +67,22 @@ export const DEFAULT_CURRENCY = "GBP";
 /** The first currency seen across a set of items, falling back to a default (e.g. for a report's display). */
 export function firstCurrency(items: readonly { currency?: string | null }[] | undefined, fallback = DEFAULT_CURRENCY): string {
   return (items ?? []).find((i) => i.currency)?.currency || fallback;
+}
+
+/**
+ * The shared "fetch a project's issues + derive its display currency + a money formatter" scaffold
+ * that every project-scoped financial report repeated verbatim. Returns the issues query (data +
+ * loading/error/refetch for `<DataState>`), the derived reporting currency `ccy`, and a `money(n)`
+ * formatter bound to it — so a report is just `const { issues, money } = useProjectIssuesMoney(projectId)`.
+ */
+export function useProjectIssuesMoney(projectId: string) {
+  const { formatCurrency } = useT();
+  const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId, {
+    query: { queryKey: getGetProjectIssuesQueryKey(projectId) },
+  });
+  const ccy = useMemo(() => firstCurrency(issues), [issues]);
+  const money = useCallback((n: number) => formatCurrency(n, ccy), [formatCurrency, ccy]);
+  return { issues, ccy, money, isLoading, isError, error, refetch };
 }
 
 /** Display-currency picker state for a financial panel: the operator's chosen display

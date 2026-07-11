@@ -7,7 +7,7 @@ import { aiKillEngaged, engageAiKill, releaseAiKill } from "../lib/ai-kill";
 import { listApprovedActions, listApprovedVocab, setApproved, approveAction, revokeApprovedAction, approveTerm, isActionApproved, actionScope, type ActionScope } from "../lib/approved-actions";
 import { MCP_TOOLS } from "../lib/mcp";
 import { persistSecurityState } from "../lib/security-state";
-import { recordAudit } from "../lib/audit";
+import { recordAudit, actorForAudit } from "../lib/audit";
 import { captureVersion } from "../lib/config-store";
 import { getSession } from "./auth";
 import {
@@ -86,7 +86,7 @@ router.put("/governance/approved", requireRole("admin"), requireStepUp, (req, re
   }
   const session = getSession(req);
   persistSecurityState();
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "approved.update", actor: session ? { sub: session.sub, email: session.email } : null, write: true, result: "success", meta: { actions: listApprovedActions().length, vocab: listApprovedVocab().length } });
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "approved.update", actor: actorForAudit(req), write: true, result: "success", meta: { actions: listApprovedActions().length, vocab: listApprovedVocab().length } });
   res.json({ actions: listApprovedActions(), vocab: listApprovedVocab() });
 });
 
@@ -97,7 +97,7 @@ router.put("/governance/ai-kill", requireRole("admin"), requireStepUp, (req, res
   if (engage) engageAiKill(); else releaseAiKill();
   persistSecurityState();
   const session = getSession(req);
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action: engage ? "ai-kill.engage" : "ai-kill.release", actor: session ? { sub: session.sub, email: session.email } : null, write: true, result: "success" });
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: engage ? "ai-kill.engage" : "ai-kill.release", actor: actorForAudit(req), write: true, result: "success" });
   res.json({ aiKill: aiKillEngaged() });
 });
 

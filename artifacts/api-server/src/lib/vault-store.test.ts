@@ -42,7 +42,7 @@ test("local store: seals a secret to its file and round-trips load/loadSync + de
   const store = activeVaultStore();
   await store.put("aiprovider:openai", "sk-secret");
 
-  // At rest the value is enveloped (k1.) — not stored in the clear.
+  // At rest the value is enveloped (k2., HKDF) — not stored in the clear.
   const onDisk = fs.readFileSync(process.env["VAULT_FILE"]!, "utf8");
   assert.ok(!onDisk.includes("sk-secret"));
 

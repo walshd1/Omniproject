@@ -75,6 +75,7 @@ const REGISTRY = new Map<string, Role>([
   ["exec-digest", "viewer"], //       scheduled read-only portfolio summary → notifications
   ["proactive-digest", "viewer"], //  scheduled read-only "what needs me" digest → notifications
   ["drift-canary", "viewer"], //      scheduled read-only 3rd-party API drift check → notifications
+  ["scheduled-export", "viewer"], //  scheduled read-only data export → emailed as an attachment
 ]);
 
 /** Register (or raise/lower) the max role an autonomous actor id may run as (admin/config). */

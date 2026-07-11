@@ -26,6 +26,7 @@ import {
   type PortfolioSnapshot,
 } from "../../lib/snapshots";
 import { useToast } from "@/hooks/use-toast";
+import { chartTooltipStyle, gridTheme, axisTheme } from "./chart-theme";
 
 /**
  * Portfolio trends from point-in-time snapshots — captured in the browser
@@ -248,10 +249,10 @@ export function PortfolioTrends() {
           <div className="h-56" data-testid="trend-chart">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trend} margin={{ top: 8, right: 16, bottom: 4, left: -8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border" />
-                <XAxis dataKey="date" stroke="currentColor" className="text-muted-foreground" fontSize={10} />
-                <YAxis stroke="currentColor" className="text-muted-foreground" fontSize={11} unit={metricMeta.unit} />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                <CartesianGrid {...gridTheme} />
+                <XAxis dataKey="date" {...axisTheme} fontSize={10} />
+                <YAxis {...axisTheme} fontSize={11} unit={metricMeta.unit} />
+                <Tooltip contentStyle={chartTooltipStyle} />
                 <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} name={metricMeta.label} dot />
               </LineChart>
             </ResponsiveContainer>

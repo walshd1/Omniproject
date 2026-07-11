@@ -874,7 +874,7 @@ Config-at-rest encryption + secure export.
 
 | Function | What it does |
 | --- | --- |
-| `sealConfig` | Seal a config string under the current internal key (version embedded). |
+| `sealConfig` | Seal a config string under the current internal key (HKDF, version embedded, `c2.` format). |
 | `openConfig` | Open an internal-format token, or null. |
 | `readMaybeSealed` | Read possibly-sealed config text: open if sealed, else return as-is (plaintext migration). |
 | `isUndecryptableSealed` | True iff `text` is a sealed token that CANNOT be opened with the current key material. |
@@ -990,6 +990,8 @@ Small shared key/hash primitives, so the same derivations aren't hand-rolled in 
 | --- | --- |
 | `deriveKey` | Derive a 32-byte AES key from a high-entropy secret via HKDF-SHA256, with a domain-separation `info` label so the same secret yields independent keys per use. |
 | `deriveKeyCached` | LEGACY derivation: sha256(secret) → 32-byte key, cached by secret. |
+| `deriveKeyFromBytes` | Like `deriveKey` but over raw key BYTES (e.g. a KMS-unwrapped / CONFIG_KEY_RAW key) rather than a string secret — same HKDF-SHA256 + fixed salt + domain-separating `info`. |
+| `masterSecret` | The env master-secret fallback ladder shared by the at-rest crypto modules (config, vault, rate-card): an optional leading env var, then `SESSION_SECRET`, then `BROKER_PSK`, then the caller's own dev default. |
 | `decodeKey32` | Parse a base64 key that must be exactly 32 bytes (an AES-256 key), or null if it isn't. |
 | `fingerprint` | A short hex fingerprint of a value (SHA-256, truncated). |
 | `constantTimeEqual` | Constant-time string equality: length-checked first (a length mismatch is not secret-dependent, so short-circuiting on it leaks nothing), then `crypto.timingSafeEqual` over equal-length buffers so a MATCHING prefix can't be timed out of a comparison against a secret (tokens, HMACs, CSRF doubles-submit values, SCIM bearer). |
@@ -1135,6 +1137,7 @@ Optional ABOVE-THE-SEAM email delivery of the scheduled digests (proactive + exe
 | Function | What it does |
 | --- | --- |
 | `deliverDigestEmail` | Email a built digest to the configured recipients, in addition to the notify-bus dispatch. |
+| `deliverExportEmail` | Email a rendered export as an attachment to the configured recipients — same recipient list + SMTP-gating (a no-op unless configured) + best-effort posture as `deliverDigestEmail`. |
 
 ### `artifacts/api-server/src/lib/drift-canary.ts`
 
@@ -1235,6 +1238,16 @@ Scheduled executive digest — a periodic, read-only portfolio roll-up delivered
 | `runExecDigest` | Read the portfolio under a keyed autonomous principal, build the digest, and dispatch it. |
 | `startExecDigestScheduler` | Start the in-process digest timer when EXEC_DIGEST_INTERVAL_HOURS > 0 (single-instance). |
 | `__stopExecDigestScheduler` | Test-only: stop the timer. |
+
+### `artifacts/api-server/src/lib/export-datasets.ts`
+
+Pure export rendering — the column order, cell coercion, matrix flattening and format→serialiser registry, shared by the HTTP export route (routes/export.ts) and the scheduled export job (lib/scheduled-export.ts).
+
+| Function | What it does |
+| --- | --- |
+| `cell` | Coerce a value to a flat cell (arrays joined, objects JSON-stringified, null/undefined → ""). |
+| `toMatrix` | Flatten rows to a 2-D cell matrix in `cols` order — the header-aligned body for csv/md/pdf/xlsx. |
+| `buildWorkbook` | Build the multi-sheet workbook over all three datasets (the .xlsx export). |
 
 ### `artifacts/api-server/src/lib/feature-modules.ts`
 
@@ -1955,6 +1968,17 @@ How long a pending SP-initiated AuthnRequest id stays valid for InResponseTo mat
 | `samlLoginUrl` | The IdP redirect URL to begin SP-initiated login; `relayState` round-trips the returnTo. |
 | `validateSamlResponse` | Validate a base64 SAMLResponse from the ACS POST and return canonical claims, or null (unconfigured / library absent). |
 | `samlMetadata` | The SP metadata XML (so an IdP admin can configure the integration), or null. |
+
+### `artifacts/api-server/src/lib/scheduled-export.ts`
+
+Scheduled data export — periodically renders a dataset (projects / issues / activity) in a chosen format and EMAILS it as an attachment to the configured digest recipients.
+
+| Function | What it does |
+| --- | --- |
+| `runScheduledExport` | Render + email one scheduled export. |
+| `scheduledExportIntervalHours` | The configured cadence in hours (0 = disabled, the default). |
+| `startScheduledExportScheduler` | Start the in-process export timer when SCHEDULED_EXPORT_INTERVAL_HOURS>0 (single-instance). |
+| `__stopScheduledExportScheduler` | Test-only: stop the timer. |
 
 ### `artifacts/api-server/src/lib/scheduled-job.ts`
 

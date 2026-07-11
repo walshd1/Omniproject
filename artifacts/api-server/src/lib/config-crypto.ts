@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { kmsConfigKey } from "./kms";
 import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
-import { decodeKey32, fingerprint } from "./crypto-keys";
+import { decodeKey32, fingerprint, deriveKey, deriveKeyFromBytes, masterSecret } from "./crypto-keys";
 
 /**
  * Config-at-rest encryption + secure export.
@@ -23,15 +23,17 @@ import { decodeKey32, fingerprint } from "./crypto-keys";
  * HONEST SCOPE: protects data AT REST; not against someone holding the master/process. The
  * ephemeral key is a real secret leaving the boundary, so export is admin + step-up gated.
  */
-const INT_PREFIX = "c1.";   // internal, versioned: c1.<ver>.<payload>
+const INT_PREFIX = "c1.";    // LEGACY internal (read-only): c1.<ver>.<payload> — sha256/empty-salt keys
+const INT_PREFIX_V2 = "c2."; // current internal: c2.<ver>.<payload> — HKDF (shared deriveKey) keys
 const BUNDLE_PREFIX = "e1."; // ephemeral bundle: e1.<payload>
 
+/** True for either internal-format prefix (legacy c1. or current c2.). */
+function isInternalToken(text: string): boolean {
+  return text.startsWith(INT_PREFIX) || text.startsWith(INT_PREFIX_V2);
+}
+
 function master(): string {
-  return (
-    process.env["SESSION_SECRET"]?.trim() ||
-    process.env["BROKER_PSK"]?.trim() ||
-    "omni-config-crypto-dev-master-not-for-production"
-  );
+  return masterSecret({ dev: "omni-config-crypto-dev-master-not-for-production" });
 }
 
 /** The raw override key, or null. Used directly for the internal format when present. A
@@ -67,6 +69,16 @@ function internalKey(version: number): Buffer {
   return crypto.createHash("sha256").update(`config:v${version}:${master()}`).digest();
 }
 
+/** The CURRENT (v2) internal key for a version — derived via the shared HKDF helper (deriveKey /
+ *  deriveKeyFromBytes), so config-at-rest uses the same domain-separated derivation as the rest of the
+ *  codebase instead of a bare SHA-256. Used for new `c2.` seals and to open them; existing `c1.`
+ *  tokens keep opening via `internalKey` above, so no re-key of on-disk config is needed. */
+function internalKeyV2(version: number): Buffer {
+  const raw = rawKey();
+  if (raw) return deriveKeyFromBytes(raw, `config:v${version}`);
+  return deriveKey(master(), `config:v${version}`);
+}
+
 // Current internal key version (in-memory; advanced to the highest version ever opened so
 // a rotation isn't lost across a load, and bumped on each export's rekey).
 let currentVersion = 1;
@@ -77,21 +89,24 @@ function noteVersion(v: number): void { if (v > currentVersion) currentVersion =
 const encrypt = aesGcmSeal;
 const decrypt = aesGcmOpen;
 
-/** Seal a config string under the current internal key (version embedded). */
+/** Seal a config string under the current internal key (HKDF, version embedded, `c2.` format). */
 export function sealConfig(plaintext: string): string {
-  return `${INT_PREFIX}${currentVersion}.${encrypt(plaintext, internalKey(currentVersion))}`;
+  return `${INT_PREFIX_V2}${currentVersion}.${encrypt(plaintext, internalKeyV2(currentVersion))}`;
 }
 
-/** Open an internal-format token, or null. Notes the token's version so rotations persist. */
+/** Open an internal-format token, or null. Handles both the current HKDF `c2.` format and legacy
+ *  `c1.` tokens (so config sealed before the HKDF migration still opens). Notes the version so
+ *  rotations persist. */
 export function openConfig(token: string): string | null {
-  if (!token.startsWith(INT_PREFIX)) return null;
-  const rest = token.slice(INT_PREFIX.length);
+  const v2 = token.startsWith(INT_PREFIX_V2);
+  if (!v2 && !token.startsWith(INT_PREFIX)) return null;
+  const rest = token.slice((v2 ? INT_PREFIX_V2 : INT_PREFIX).length);
   const dot = rest.indexOf(".");
   if (dot <= 0) return null;
   const version = Number(rest.slice(0, dot));
   if (!Number.isInteger(version)) return null;
   noteVersion(version);
-  return decrypt(rest.slice(dot + 1), internalKey(version));
+  return decrypt(rest.slice(dot + 1), v2 ? internalKeyV2(version) : internalKey(version));
 }
 
 /** Read possibly-sealed config text: open if sealed, else return as-is (plaintext migration).
@@ -99,7 +114,7 @@ export function openConfig(token: string): string | null {
  *  can distinguish "genuinely empty" from "can't decrypt" and refuse to overwrite valid ciphertext
  *  with default/empty state (which permanently destroyed the vault/rate-card/config stores before). */
 export function readMaybeSealed(text: string): string {
-  if (!text.startsWith(INT_PREFIX)) return text;
+  if (!isInternalToken(text)) return text;
   const opened = openConfig(text);
   if (opened === null) throw new ConfigDecryptError();
   return opened;
@@ -107,14 +122,14 @@ export function readMaybeSealed(text: string): string {
 
 /** True iff `text` is a sealed token that CANNOT be opened with the current key material. */
 export function isUndecryptableSealed(text: string): boolean {
-  return text.startsWith(INT_PREFIX) && openConfig(text) === null;
+  return isInternalToken(text) && openConfig(text) === null;
 }
 
 /** True when `text` is a sealed (internal-format) config token — a content-based check, so
  *  callers (e.g. the debug bundle) can recognise "this file IS a secret store" without knowing
  *  every filename a `SealedFile`-backed module happens to use. */
 export function isSealedConfig(text: string): boolean {
-  return text.startsWith(INT_PREFIX);
+  return isInternalToken(text);
 }
 
 /** Rotate the internal key forward (new seals use the next version). */
@@ -125,7 +140,7 @@ export function rotateInternalKey(): number {
 
 /** A non-secret fingerprint of the CURRENT internal key (confirm a match without revealing). */
 export function internalKeyFingerprint(): string {
-  return fingerprint(internalKey(currentVersion));
+  return fingerprint(internalKeyV2(currentVersion));
 }
 
 export interface ExportedBundle {

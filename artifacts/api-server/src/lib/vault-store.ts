@@ -3,7 +3,7 @@ import { awsSecretsStore } from "./vault-aws";
 import { azureKeyVaultStore } from "./vault-azure";
 import { kmsVaultKey } from "./kms";
 import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
-import { decodeKey32 } from "./crypto-keys";
+import { decodeKey32, deriveKey, masterSecret } from "./crypto-keys";
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 
@@ -40,35 +40,47 @@ export interface VaultStore {
 }
 
 // ── local: an OmniProject-owned, doubly-encrypted file ──────────────────────────
-const ENV_PREFIX = "k1."; // per-secret envelope
+const ENV_PREFIX = "k1.";    // LEGACY per-secret envelope (read-only): sha256-derived root
+const ENV_PREFIX_V2 = "k2."; // current per-secret envelope: HKDF (shared deriveKey) root
 
-function rootKey(): Buffer {
-  // A KMS-unwrapped key (BYOK envelope) wins — the plaintext key never sat in env.
+/** A raw override key — a KMS-unwrapped BYOK envelope (wins; the plaintext key never sat in env),
+ *  else base64 `VAULT_KEY`. Already strong 32-byte material, so it's used directly for BOTH envelope
+ *  versions (the legacy vs HKDF distinction only matters for the master-derived fallback). */
+function overrideKey(): Buffer | null {
   const kms = kmsVaultKey();
   if (kms) return kms;
   const raw = process.env["VAULT_KEY"]?.trim();
-  if (raw) {
-    const k = decodeKey32(raw);
-    if (k) return k;
-  }
-  const master =
-    process.env["SESSION_SECRET"]?.trim() ||
-    process.env["BROKER_PSK"]?.trim() ||
-    "omni-vault-dev-master-not-for-production";
-  return crypto.createHash("sha256").update(`vault:v1:${master}`).digest();
+  return raw ? decodeKey32(raw) : null;
 }
 
-function subKey(ref: string): Buffer {
-  return Buffer.from(crypto.hkdfSync("sha256", rootKey(), Buffer.from(ref, "utf8"), Buffer.from("omni-vault-secret"), 32));
+function vaultMaster(): string {
+  return masterSecret({ dev: "omni-vault-dev-master-not-for-production" });
+}
+
+/** LEGACY root (opens existing `k1.` secrets): the raw override, else the pre-HKDF sha256 derivation. */
+function rootKeyLegacy(): Buffer {
+  return overrideKey() ?? crypto.createHash("sha256").update(`vault:v1:${vaultMaster()}`).digest();
+}
+
+/** CURRENT root (HKDF): the raw override (unchanged — already a strong key), else the shared
+ *  deriveKey. New `k2.` secrets seal under this; existing `k1.` secrets migrate to `k2.` on next put. */
+function rootKeyHkdf(): Buffer {
+  return overrideKey() ?? deriveKey(vaultMaster(), "vault:v2");
+}
+
+function subKey(ref: string, root: Buffer): Buffer {
+  return Buffer.from(crypto.hkdfSync("sha256", root, Buffer.from(ref, "utf8"), Buffer.from("omni-vault-secret"), 32));
 }
 
 function sealSecret(ref: string, value: string): string {
-  return ENV_PREFIX + aesGcmSeal(value, subKey(ref));
+  return ENV_PREFIX_V2 + aesGcmSeal(value, subKey(ref, rootKeyHkdf()));
 }
 
 function openSecret(ref: string, env: string): string | null {
-  if (!env.startsWith(ENV_PREFIX)) return null;
-  const opened = aesGcmOpen(env.slice(ENV_PREFIX.length), subKey(ref));
+  const v2 = env.startsWith(ENV_PREFIX_V2);
+  if (!v2 && !env.startsWith(ENV_PREFIX)) return null;
+  const root = v2 ? rootKeyHkdf() : rootKeyLegacy();
+  const opened = aesGcmOpen(env.slice((v2 ? ENV_PREFIX_V2 : ENV_PREFIX).length), subKey(ref, root));
   if (opened === null) logger.warn({ ref }, "vault(local): an envelope entry exists but failed to decrypt — check VAULT_KEY/KMS config hasn't changed");
   return opened;
 }

@@ -30,7 +30,7 @@ test("the state file is written sealed (opaque at rest)", () => {
   revokeKey("broker", { by: "admin", reason: "x" });
   persistSecurityState();
   const raw = fs.readFileSync(FILE, "utf8");
-  assert.ok(raw.startsWith("c1.")); // sealed, not plaintext JSON
+  assert.ok(raw.startsWith("c2.")); // sealed, not plaintext JSON (current HKDF format)
   assert.ok(!/broker/.test(raw));
 });
 

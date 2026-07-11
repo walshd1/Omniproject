@@ -63,6 +63,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Security
 
+- **Config + vault at-rest keys now derive via HKDF (non-breaking).** `config-crypto` and `vault-store`
+  previously derived their at-rest master key with a bare `SHA-256(secret)`; both now use the shared
+  HKDF `deriveKey` (domain-separated, salted) like the rest of the codebase. The migration is
+  **versioned and non-breaking** — new writes use a new envelope prefix (`c2.` / `k2.`) while existing
+  ciphertext (`c1.` / `k1.`) keeps decrypting via the legacy path, so **no re-key of on-disk config or
+  vault data is required**; secrets migrate to the HKDF envelope on their next write. The copied
+  master-secret fallback ladder is unified into one `masterSecret()` helper (each site keeps its exact
+  order + dev default; `key-registry` deliberately keeps its own ordering so live signing material is
+  untouched). A regression test seals a token with the old derivation and asserts it still opens.
+
 - **Fleet-wide broker-HMAC replay defence (Redis-gated, stateless default unchanged).** Added
   `verifyBrokerRequestShared`: signature + freshness are identical to `verifyBrokerRequest`, but the
   nonce/replay check claims the nonce with an atomic compare-and-set in the shared-state seam when
@@ -90,6 +100,31 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   seam verify contract.
 
 ### Added
+
+- **Comments UI on the work item (SPA).** The `comments` backend module now has a front end: a
+  `CommentsPanel` on the issue dialog (gated by the feature flag) that lists the thread and posts
+  comments with `@mention` support — mentions surface in the recipient's notification bell via the
+  existing SSE stream, no new wiring. Backed by `lib/comments` react-query hooks over the
+  `/api/comments/:roomId` endpoint (room id `issue:<projectId>:<issueId>`).
+
+- **Scheduled file-export delivery.** A new opt-in scheduled job renders a dataset (projects / issues /
+  activity, `SCHEDULED_EXPORT_DATASET`) in a chosen format (`SCHEDULED_EXPORT_FORMAT` = csv/json/md/pdf)
+  and **emails it as an attachment** to the configured `digestDelivery.emailRecipients`. Read-only and
+  stateless-safe: it mints the same keyed, viewer-roled autonomous principal the digests use, reads the
+  data DIRECTLY through the neutral broker seam (not the req-bound getters), renders via the shared
+  `lib/export-datasets` serialisers, and delivers above the seam via SMTP. Off by default
+  (`SCHEDULED_EXPORT_INTERVAL_HOURS=0`); a fleet drives `POST /api/admin/scheduled-export/run` from an
+  external scheduler. A no-op unless SMTP + recipients are set. (`email.ts` gained attachment support;
+  the export serialisers were extracted from the route into `lib/export-datasets` and are now shared.)
+
+- **Helm chart hardening — NetworkPolicy, graceful shutdown, default HA spread.** The chart
+  (`deploy/helm/omniproject`) gains an opt-in `NetworkPolicy` (targets only the gateway pods; DNS
+  egress always allowed; tighten ingress source + strict egress via values) so the recommended Helm
+  path matches the network segmentation the standalone manifest already had; a
+  `terminationGracePeriodSeconds` (+ optional container `lifecycle`) so the SIGTERM handler can drain
+  in-flight requests and SSE streams before SIGKILL; and a **default soft topology spread** across
+  nodes (`kubernetes.io/hostname`, `ScheduleAnyway`) so losing one node can't take out every replica.
+  The `helm-guard` CI test now asserts all three so they can't rot.
 
 - **Comments & @mentions (new opt-in `comments` feature module).** Lightweight collaboration on a
   work item: a comment thread keyed by the same room-id convention presence uses

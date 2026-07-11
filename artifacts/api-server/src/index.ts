@@ -13,6 +13,7 @@ import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
 import { initPresenceBus, presenceBusMode } from "./lib/presence-bus";
 import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
 import { startProactiveDigestScheduler, runProactiveDigest } from "./lib/proactive-digest";
+import { startScheduledExportScheduler, runScheduledExport } from "./lib/scheduled-export";
 import { startDriftCanaryScheduler, runDriftCanary } from "./lib/drift-canary";
 import { loadConfigDir } from "./lib/config-dir";
 import { readCacheEnabled, readCacheTtlMs } from "./broker/cache";
@@ -74,6 +75,7 @@ async function start(): Promise<void> {
   // for a fleet, set it to 0 and drive POST /api/admin/proactive-digest/run from external cron so
   // it fires once. A healthy portfolio yields an empty digest that is skipped, so "on" ≠ "noisy".
   startProactiveDigestScheduler(() => runProactiveDigest({ now: Date.now(), broker: getBroker() }));
+  startScheduledExportScheduler(() => runScheduledExport({ now: Date.now(), broker: getBroker() }));
 
   // Third-party API drift canary — ON by a safe 6-hourly default (opt-out): set
   // DRIFT_CANARY_INTERVAL_HOURS=0 to disable, or to a custom cadence. Diffs the broker's

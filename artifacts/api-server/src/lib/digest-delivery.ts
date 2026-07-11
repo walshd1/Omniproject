@@ -1,4 +1,4 @@
-import { sendEmail, isEmailConfigured, type Mailer } from "./email";
+import { sendEmail, isEmailConfigured, type Mailer, type MailAttachment } from "./email";
 import { getSettings } from "./settings";
 import { logger } from "./logger";
 
@@ -39,5 +39,22 @@ export async function deliverDigestEmail(
     if (ok) emailed += 1;
   }
   if (emailed > 0) logger.info({ emailed, recipients: recipients.length }, "digest: emailed to configured recipients");
+  return { emailed };
+}
+
+/** Email a rendered export as an attachment to the configured recipients — same recipient list +
+ *  SMTP-gating (a no-op unless configured) + best-effort posture as `deliverDigestEmail`. */
+export async function deliverExportEmail(
+  opts: { subject: string; body: string; attachment: MailAttachment; recipients?: string[]; mailer?: Mailer },
+): Promise<{ emailed: number }> {
+  const recipients = (opts.recipients ?? getSettings().digestDelivery.emailRecipients).map((r) => r.trim()).filter(Boolean);
+  if ((!opts.mailer && !isEmailConfigured()) || recipients.length === 0) return { emailed: 0 };
+
+  let emailed = 0;
+  for (const to of recipients) {
+    const ok = await sendEmail({ to, subject: opts.subject, text: opts.body, attachments: [opts.attachment] }, opts.mailer);
+    if (ok) emailed += 1;
+  }
+  if (emailed > 0) logger.info({ emailed, file: opts.attachment.filename }, "export: emailed to configured recipients");
   return { emailed };
 }

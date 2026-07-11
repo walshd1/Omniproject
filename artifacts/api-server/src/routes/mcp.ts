@@ -8,7 +8,7 @@ import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
 import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../lib/approved-actions";
 import { answerCopilot } from "../lib/copilot";
 import { aiChat } from "../lib/ai";
-import { recordAudit } from "../lib/audit";
+import { recordAudit, actorForAudit } from "../lib/audit";
 import { enforceCapability, CapabilityBlockedError } from "../lib/tools";
 import { resolveSupport } from "../lib/capabilities";
 import { availableReports, availableScreens } from "@workspace/backend-catalogue";
@@ -122,7 +122,7 @@ router.post("/mcp", async (req, res) => {
   const broker = getBroker();
   const exec: McpExecutor = async (tool, args) => {
     if (req.body?.method === "tools/call") {
-      recordAudit({ ts: new Date().toISOString(), category: tool.write ? "broker" : "request", action: `mcp:${tool.name}`, actor: getSession(req) ? { sub: getSession(req)!.sub } : null, projectId: (args["projectId"] as string) ?? null, write: !!tool.write, result: "success", status: 200 });
+      recordAudit({ ts: new Date().toISOString(), category: tool.write ? "broker" : "request", action: `mcp:${tool.name}`, actor: actorForAudit(req), projectId: (args["projectId"] as string) ?? null, write: !!tool.write, result: "success", status: 200 });
     }
     // Hard limit: only the customer's APPROVED actions can execute, whatever the agent asks.
     // Scoped approvals are checked with the caller's role + active backend (the MCP channel

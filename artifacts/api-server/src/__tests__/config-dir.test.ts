@@ -97,7 +97,7 @@ test("a SEALED config.json is decrypted at boot (encrypted snapshots at rest)", 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "omni-config-sealed-"));
   // Write the snapshot SEALED (as the bundle does) — opaque on disk.
   const sealed = sealConfig(JSON.stringify(buildSnapshot(getSettings())));
-  assert.ok(sealed.startsWith("c1.")); // not plaintext on disk
+  assert.ok(sealed.startsWith("c2.")); // not plaintext on disk (current HKDF format)
   fs.writeFileSync(path.join(root, "config.json"), sealed);
   const summary = loadConfigDir(root);
   assert.equal(summary.configApplied, true); // decrypted + applied

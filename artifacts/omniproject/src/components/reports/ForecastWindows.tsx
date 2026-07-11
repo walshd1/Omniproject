@@ -11,6 +11,7 @@ import {
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { chartTooltipStyle, gridTheme, axisTheme } from "./chart-theme";
 
 /**
  * Forecasting windows — the time-phased budget S-curve a head of projects needs alongside the
@@ -76,10 +77,10 @@ export function ForecastWindows({ projectId, now }: { projectId: string; now?: n
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border" />
-                <XAxis dataKey="label" stroke="currentColor" className="text-muted-foreground" fontSize={11} />
-                <YAxis stroke="currentColor" className="text-muted-foreground" fontSize={11} tickFormatter={(v) => money(v as number)} width={84} />
-                <Tooltip formatter={(v) => money(v as number)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                <CartesianGrid {...gridTheme} />
+                <XAxis dataKey="label" {...axisTheme} fontSize={11} />
+                <YAxis {...axisTheme} fontSize={11} tickFormatter={(v) => money(v as number)} width={84} />
+                <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
                 <Legend />
                 <ReferenceLine y={curve.bac} stroke="#a1a1aa" strokeDasharray="4 4" />
                 {nowLabel && <ReferenceLine x={nowLabel} stroke="#6366f1" strokeDasharray="2 2" label={{ value: "now", fontSize: 10, fill: "#6366f1" }} />}
