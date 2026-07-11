@@ -6,7 +6,7 @@ import {
   recentCapabilityLogShared,
   setCapabilityState,
   __resetCapabilityLogSink,
-} from "./tools";
+} from "./capability-governance";
 import { sharedKv, __resetSharedStateForTest, __setRedisKvForTest } from "./shared-state";
 import { FakeRedis } from "../__tests__/fake-redis";
 

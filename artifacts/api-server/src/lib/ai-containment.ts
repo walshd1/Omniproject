@@ -1,5 +1,5 @@
 import { getSettings } from "./settings";
-import { effectiveState } from "./tools";
+import { effectiveState } from "./capability-governance";
 
 /**
  * AI exposure → containment level.

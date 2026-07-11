@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
+import { type ReportDefinition } from "@workspace/backend-catalogue";
 import { getJson, sendJson } from "./api";
 
 /**
@@ -36,11 +36,6 @@ export function mergeReportOverrides(
       };
     })
     .sort((a, b) => a.order - b.order);
-}
-
-/** The catalogue with overrides applied and hidden reports dropped — what a picker should show. */
-export function visibleReports(overrides: readonly ReportOverride[]): MergedReport[] {
-  return mergeReportOverrides(reportCatalogue(), overrides).filter((r) => !r.hidden);
 }
 
 export const reportOverridesQueryKey = ["report-overrides"] as const;

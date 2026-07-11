@@ -790,6 +790,32 @@ Capability signal — which data domains the wired backend(s) can populate, so t
 | `resolveSupport` | The unified SUPPORT set the compatibility predicate gates on: the backend capability domains (already unioned across connected backends by `resolveCapabilities`) PLUS the connected broker(s)' capability keys — one flat map spanning BOTH planes. |
 | `resolveFieldManifest` | Resolve the field manifest: reconcile the backend's enumerated fields against the canonical registry (known vs new/custom). |
 
+### `artifacts/api-server/src/lib/capability-governance.ts`
+
+Capability governance — one model for every "thing that can move data or be turned on/off": AI tools, the MCP, AI providers and vendors.
+
+| Function | What it does |
+| --- | --- |
+| `listCapabilities` | Every governed capability across all kinds. |
+| `getCapability` | Look up a capability by id. |
+| `offeredStates` | The states the UI should offer for a capability: "off" plus whatever it supports. |
+| `resolveState` | The effective state of a capability — optionally on a given surface. |
+| `resolveCapability` | Resolve one capability against the stored settings (no surface applied). |
+| `listResolvedCapabilities` | Every capability resolved against the current settings. |
+| `effectiveState` | Resolve a single capability's effective state for a surface (the runtime check). |
+| `listSurfaces` | Governable surfaces (screens) from the registry — drives the admin override picker. |
+| `validEndpoint` | Validate a user-defined endpoint: a well-formed http(s) URL, or null. |
+| `screenIdForRoute` | Normalise a client-supplied surface (which may be a route path like "/reports") to a canonical screen id from the registry, so per-surface overrides always match. |
+| `checkEndpointReachable` | Probe a user-defined endpoint: any HTTP response = reachable; a network error or timeout = not. |
+| `recentCapabilityLog` | Recent capability activity (uses, blocks, config changes), newest first — the fast LOCAL (per-replica) RAM ring. |
+| `recentCapabilityLogShared` | Recent capability activity across the FLEET (newest first) when Redis-backed; otherwise the local ring. |
+| `__resetCapabilityLogSink` | Test-only: reset the external log sink (so an env change is re-read). |
+| `decideCapability` | Resolve a capability-use decision for a surface AND record it — to the audit log and the live activity ring — whether allowed or denied, so there's always a trail of which AI/vendor/broker ran where and for whom. |
+| `noteCapabilityConfigured` | Record an admin turning a capability on/off (audited + shown on the dashboard). |
+| `enforceCapability` | Strong call-time gate: decide + log, and THROW CapabilityBlockedError when the capability is off for this surface. |
+| `sanitizeCapabilitySetting` | Coerce an admin's input for one capability to a valid, supportable setting. |
+| `setCapabilityState` | Persist an admin's setting for one capability; returns the stored setting. |
+
 ### `artifacts/api-server/src/lib/charity-onboarding.ts`
 
 "We're a charity" one-click onboarding preset — the small-org counterpart to picking a deployment profile by hand.
@@ -2213,32 +2239,6 @@ Shared predicate for "did this fetch/abort as a timeout?".
 | Function | What it does |
 | --- | --- |
 | `isTimeoutError` | Shared predicate for "did this fetch/abort as a timeout?". |
-
-### `artifacts/api-server/src/lib/tools.ts`
-
-Capability governance — one model for every "thing that can move data or be turned on/off": AI tools, the MCP, AI providers and vendors.
-
-| Function | What it does |
-| --- | --- |
-| `listCapabilities` | Every governed capability across all kinds. |
-| `getCapability` | Look up a capability by id. |
-| `offeredStates` | The states the UI should offer for a capability: "off" plus whatever it supports. |
-| `resolveState` | The effective state of a capability — optionally on a given surface. |
-| `resolveCapability` | Resolve one capability against the stored settings (no surface applied). |
-| `listResolvedCapabilities` | Every capability resolved against the current settings. |
-| `effectiveState` | Resolve a single capability's effective state for a surface (the runtime check). |
-| `listSurfaces` | Governable surfaces (screens) from the registry — drives the admin override picker. |
-| `validEndpoint` | Validate a user-defined endpoint: a well-formed http(s) URL, or null. |
-| `screenIdForRoute` | Normalise a client-supplied surface (which may be a route path like "/reports") to a canonical screen id from the registry, so per-surface overrides always match. |
-| `checkEndpointReachable` | Probe a user-defined endpoint: any HTTP response = reachable; a network error or timeout = not. |
-| `recentCapabilityLog` | Recent capability activity (uses, blocks, config changes), newest first — the fast LOCAL (per-replica) RAM ring. |
-| `recentCapabilityLogShared` | Recent capability activity across the FLEET (newest first) when Redis-backed; otherwise the local ring. |
-| `__resetCapabilityLogSink` | Test-only: reset the external log sink (so an env change is re-read). |
-| `decideCapability` | Resolve a capability-use decision for a surface AND record it — to the audit log and the live activity ring — whether allowed or denied, so there's always a trail of which AI/vendor/broker ran where and for whom. |
-| `noteCapabilityConfigured` | Record an admin turning a capability on/off (audited + shown on the dashboard). |
-| `enforceCapability` | Strong call-time gate: decide + log, and THROW CapabilityBlockedError when the capability is off for this surface. |
-| `sanitizeCapabilitySetting` | Coerce an admin's input for one capability to a valid, supportable setting. |
-| `setCapabilityState` | Persist an admin's setting for one capability; returns the stored setting. |
 
 ### `artifacts/api-server/src/lib/tracing.ts`
 

@@ -3,7 +3,7 @@
  * item, with the unbilled gap and purchase-order references. Pure and derive-only: reads the canonical
  * `revenue` / `invoicedAmount` / `purchaseOrder` fields the backend surfaces; OmniProject stores nothing.
  */
-import { num } from "./num";
+import { num, round2 } from "./num";
 
 export interface IncomeInput {
   id: string;
@@ -57,15 +57,15 @@ export function summariseIncome(items: readonly IncomeInput[]): IncomeSummary {
       title: i.title ?? i.id,
       revenue,
       invoiced: inv,
-      unbilled: Math.round((revenue - inv) * 100) / 100,
+      unbilled: round2(revenue - inv),
       purchaseOrder: i.purchaseOrder ?? null,
     });
   }
   rows.sort((a, b) => b.unbilled - a.unbilled);
   return {
-    projected: Math.round(projected * 100) / 100,
-    invoiced: Math.round(invoiced * 100) / 100,
-    unbilled: Math.round(Math.max(0, projected - invoiced) * 100) / 100,
+    projected: round2(projected),
+    invoiced: round2(invoiced),
+    unbilled: round2(Math.max(0, projected - invoiced)),
     billedPct: projected > 0 ? Math.round((invoiced / projected) * 1000) / 10 : 0,
     count: rows.length,
     rows,

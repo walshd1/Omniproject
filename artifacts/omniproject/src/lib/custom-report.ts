@@ -1,3 +1,4 @@
+import { round2 } from "./num";
 import type { ConditionSet, Predicate } from "./rate-card";
 
 /**
@@ -114,7 +115,6 @@ export interface CustomReportResult {
   matched: number;
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 const GROUP_NONE = "—";
 
 /** Aggregate every metric in `def` over one bucket of rows — shared by the group-by and trend paths. */

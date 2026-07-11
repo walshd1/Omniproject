@@ -11,7 +11,7 @@ import { contextFromReq, respondBrokerError, BrokerError, brokerCommand, brokerC
 import { getSettings } from "../lib/settings";
 import { requireRole } from "../lib/rbac";
 import { getSession } from "./auth";
-import { enforceCapability, CapabilityBlockedError, getCapability } from "../lib/tools";
+import { enforceCapability, CapabilityBlockedError, getCapability } from "../lib/capability-governance";
 
 const router = Router();
 

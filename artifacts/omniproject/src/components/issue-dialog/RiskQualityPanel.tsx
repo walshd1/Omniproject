@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Input } from "@/components/ui/input";
 import type { IssueForm, FieldPredicate } from "./use-issue-form";
+import { GatedTextField } from "./GatedTextField";
 
 interface RiskQualityPanelProps {
   form: IssueForm;
@@ -15,50 +15,16 @@ export function RiskQualityPanel({ form, setForm, showF, editF }: RiskQualityPan
   ) {
     return null;
   }
+  const field = { form, setForm, showF, editF };
   return (
     <div className="border-t border-border pt-4 space-y-3">
       <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Risk &amp; quality</h3>
       <div className="grid grid-cols-2 gap-4">
-        {showF("healthStatus") && (
-          <div className="space-y-1">
-            <label htmlFor="issue-health" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Health (RAG)</label>
-            <Input id="issue-health" value={form.healthStatus} disabled={!editF("healthStatus")}
-              onChange={(e) => setForm((p) => ({ ...p, healthStatus: e.target.value }))}
-              placeholder="green / amber / red" className="rounded-none border-border font-mono disabled:opacity-60" />
-          </div>
-        )}
-        {showF("riskLevel") && (
-          <div className="space-y-1">
-            <label htmlFor="issue-risk-level" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Risk level</label>
-            <Input id="issue-risk-level" value={form.riskLevel} disabled={!editF("riskLevel")}
-              onChange={(e) => setForm((p) => ({ ...p, riskLevel: e.target.value }))}
-              placeholder="low / medium / high" className="rounded-none border-border font-mono disabled:opacity-60" />
-          </div>
-        )}
-        {showF("impact") && (
-          <div className="space-y-1">
-            <label htmlFor="issue-impact" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Impact</label>
-            <Input id="issue-impact" value={form.impact} disabled={!editF("impact")}
-              onChange={(e) => setForm((p) => ({ ...p, impact: e.target.value }))}
-              placeholder="low / medium / high" className="rounded-none border-border font-mono disabled:opacity-60" />
-          </div>
-        )}
-        {showF("urgency") && (
-          <div className="space-y-1">
-            <label htmlFor="issue-urgency" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Urgency</label>
-            <Input id="issue-urgency" value={form.urgency} disabled={!editF("urgency")}
-              onChange={(e) => setForm((p) => ({ ...p, urgency: e.target.value }))}
-              placeholder="low / medium / high" className="rounded-none border-border font-mono disabled:opacity-60" />
-          </div>
-        )}
-        {showF("defectCount") && (
-          <div className="space-y-1">
-            <label htmlFor="issue-defect-count" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Defect count</label>
-            <Input id="issue-defect-count" type="number" inputMode="numeric" value={form.defectCount} disabled={!editF("defectCount")}
-              onChange={(e) => setForm((p) => ({ ...p, defectCount: e.target.value }))}
-              placeholder="0" className="rounded-none border-border font-mono disabled:opacity-60" />
-          </div>
-        )}
+        <GatedTextField {...field} name="healthStatus" id="issue-health" label="Health (RAG)" placeholder="green / amber / red" />
+        <GatedTextField {...field} name="riskLevel" id="issue-risk-level" label="Risk level" placeholder="low / medium / high" />
+        <GatedTextField {...field} name="impact" id="issue-impact" label="Impact" placeholder="low / medium / high" />
+        <GatedTextField {...field} name="urgency" id="issue-urgency" label="Urgency" placeholder="low / medium / high" />
+        <GatedTextField {...field} name="defectCount" id="issue-defect-count" label="Defect count" type="number" inputMode="numeric" placeholder="0" />
       </div>
       {showF("blocked") && (
         <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -68,14 +34,7 @@ export function RiskQualityPanel({ form, setForm, showF, editF }: RiskQualityPan
           Blocked
         </label>
       )}
-      {showF("blockedReason") && (
-        <div className="space-y-1">
-          <label htmlFor="issue-blocked-reason" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Blocked reason</label>
-          <Input id="issue-blocked-reason" value={form.blockedReason} disabled={!editF("blockedReason")}
-            onChange={(e) => setForm((p) => ({ ...p, blockedReason: e.target.value }))}
-            placeholder="What's blocking it?" className="rounded-none border-border font-mono disabled:opacity-60" />
-        </div>
-      )}
+      <GatedTextField {...field} name="blockedReason" id="issue-blocked-reason" label="Blocked reason" placeholder="What's blocking it?" />
       {showF("mitigation") && (
         <div className="space-y-1">
           <label htmlFor="issue-mitigation" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mitigation</label>

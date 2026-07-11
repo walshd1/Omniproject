@@ -1,4 +1,5 @@
 import { convertAmount } from "./currency";
+import { round2 } from "./num";
 import { summariseBenefits, type BenefitBucket } from "./benefits";
 import type { ProjectItems } from "./portfolio-value";
 
@@ -32,7 +33,6 @@ export interface RealisationPipeline {
   realisationPct: number;
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);
 
 /** Consolidate every project's benefits into the portfolio pipeline (planned + actual value per bucket). */

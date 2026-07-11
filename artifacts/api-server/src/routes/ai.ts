@@ -7,7 +7,7 @@ import { Router, type Request, type Response } from "express";
 import { aiStatus, aiChat, AiError, type ChatMessage } from "../lib/ai";
 import { getSettings } from "../lib/settings";
 import { getSession } from "./auth";
-import { enforceCapability, CapabilityBlockedError, screenIdForRoute } from "../lib/tools";
+import { enforceCapability, CapabilityBlockedError, screenIdForRoute } from "../lib/capability-governance";
 import { planAction } from "../lib/nl-action";
 import { MCP_TOOLS } from "../lib/mcp";
 import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../lib/approved-actions";

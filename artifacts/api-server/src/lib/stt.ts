@@ -1,6 +1,6 @@
 import { getSettings, type SttProvider } from "./settings";
 import { aiKillEngaged } from "./ai-kill";
-import { effectiveState } from "./tools";
+import { effectiveState } from "./capability-governance";
 import { getProvider, resolveProviderKey } from "./ai-providers";
 import { safeFetch } from "./egress";
 

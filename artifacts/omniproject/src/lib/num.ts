@@ -10,3 +10,7 @@ export const numLoose = (v: unknown): number => {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
 };
+
+/** Round to 2 decimal places — the shared home for the money/percentage roll-ups that each used to
+ *  re-declare `Math.round(n * 100) / 100` locally (portfolio-value, portfolio-finance, benefits, custom-report). */
+export const round2 = (n: number): number => Math.round(n * 100) / 100;
