@@ -108,6 +108,7 @@ async function resolveAndValidate(rawUrl: string, lookup: LookupFn): Promise<{ u
   return { url: u, addresses };
 }
 
+/** Validate a URL is allowed for server-side egress; throws EgressError if not. */
 export async function assertEgressAllowed(rawUrl: string, lookup: LookupFn = dns.lookup): Promise<URL> {
   return (await resolveAndValidate(rawUrl, lookup)).url;
 }
@@ -125,6 +126,13 @@ function pinnedLookup(addresses: ResolvedAddr[]) {
   };
 }
 
+/** TEST-ONLY seam: safeFetch uses undici's own fetch (a custom Agent isn't accepted by global fetch),
+ *  so a test that stubs `globalThis.fetch` wouldn't intercept it. Tests set this to their mock instead
+ *  (it still runs AFTER the egress validation, so the guard is exercised). Null = real transport. */
+let egressTransportForTest: typeof fetch | null = null;
+/** Install (or clear, with null) the TEST-ONLY transport seam used by safeFetch. */
+export function __setEgressTransportForTest(fn: typeof fetch | null): void { egressTransportForTest = fn; }
+
 /**
  * fetch() with the egress guard applied first — throws EgressError before any network call when the
  * target is disallowed. For a hostname target it also PINS the connection to the exact addresses it
@@ -132,12 +140,6 @@ function pinnedLookup(addresses: ResolvedAddr[]) {
  * link-local/metadata IP between the check and the connect (DNS-rebinding TOCTOU). `lookup` is
  * injectable purely for tests. Uses undici's own fetch (a custom Agent isn't accepted by global fetch).
  */
-/** TEST-ONLY seam: safeFetch uses undici's own fetch (a custom Agent isn't accepted by global fetch),
- *  so a test that stubs `globalThis.fetch` wouldn't intercept it. Tests set this to their mock instead
- *  (it still runs AFTER the egress validation, so the guard is exercised). Null = real transport. */
-let egressTransportForTest: typeof fetch | null = null;
-export function __setEgressTransportForTest(fn: typeof fetch | null): void { egressTransportForTest = fn; }
-
 export async function safeFetch(url: string, init?: RequestInit, lookup: LookupFn = dns.lookup): Promise<Response> {
   const { addresses } = await resolveAndValidate(url, lookup);
   // Test seam: validation has run; hand off to the injected mock instead of the real network.

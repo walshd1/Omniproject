@@ -50,6 +50,21 @@ describe("GlobalSearch", () => {
     await waitFor(() => expect(screen.getByText("Apollo")).toBeInTheDocument());
   });
 
+  it("exposes combobox/listbox semantics and tracks the active option via aria-activedescendant", async () => {
+    renderWithProviders(<GlobalSearch />, { client: seed() });
+    act(() => useGlobalSearch.getState().setOpen(true));
+    const input = await screen.findByRole("combobox");
+    expect(input).toHaveAttribute("aria-controls", "global-search-listbox");
+    fireEvent.change(input, { target: { value: "apollo" } });
+    const option = await screen.findByRole("option");
+    expect(option).toHaveAttribute("id", "search-opt-0");
+    expect(option).toHaveAttribute("aria-selected", "true");
+    // The input's active descendant points at the highlighted option.
+    expect(input).toHaveAttribute("aria-activedescendant", "search-opt-0");
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("global-search-results")).toHaveAttribute("role", "listbox");
+  });
+
   it("shows an empty state when nothing matches", async () => {
     renderWithProviders(<GlobalSearch />, { client: seed() });
     act(() => useGlobalSearch.getState().setOpen(true));

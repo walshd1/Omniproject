@@ -1,8 +1,10 @@
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useRateCard, useSaveRateCard, type RateCardConfig, type ProjectType, type ValueColumn } from "../../lib/rate-card";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
+import { useRowKeys } from "../../hooks/use-row-keys";
 import { PercentInput } from "./PercentInput";
 
 /**
@@ -17,6 +19,10 @@ export function RateCardAdmin() {
   const { data: server } = useRateCard();
   const save = useSaveRateCard();
   const { draft, setDraft, dirty, reset } = useDraftAdmin<RateCardConfig, RateCardConfig>(server, structuredClone);
+  // Stable keys held ALONGSIDE the draft (never inside it — see use-row-keys): the outer type list,
+  // and a per-type list of value-column keys addressed by the type's own stable key.
+  const typeKeys = useRowKeys(draft?.projectTypes.length ?? 0);
+  const colKeys = useRef<Map<string, string[]>>(new Map());
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
   if (!draft) return null;
@@ -24,6 +30,20 @@ export function RateCardAdmin() {
   const types = draft.projectTypes;
   const setTypes = (next: ProjectType[]) => setDraft({ ...draft, projectTypes: next });
   const patchType = (i: number, patch: Partial<ProjectType>) => setTypes(types.map((t, j) => (j === i ? { ...t, ...patch } : t)));
+
+  // Grow/trim (and lazily create) the value-column key list for one type, keyed by its stable key.
+  function columnKeys(typeKey: string, length: number): string[] {
+    let arr = colKeys.current.get(typeKey);
+    if (!arr) { arr = []; colKeys.current.set(typeKey, arr); }
+    while (arr.length < length) arr.push(crypto.randomUUID());
+    if (arr.length > length) arr.length = length;
+    return arr;
+  }
+  function removeType(i: number) {
+    colKeys.current.delete(typeKeys.keyAt(i)); // drop the removed type's column keys before the list shifts
+    typeKeys.removeAt(i);
+    setTypes(types.filter((_, j) => j !== i));
+  }
 
   function addType() {
     const n = types.length + 1;
@@ -38,6 +58,7 @@ export function RateCardAdmin() {
     patchType(ti, { values: cols });
   }
   function removeColumn(ti: number, ci: number) {
+    colKeys.current.get(typeKeys.keyAt(ti))?.splice(ci, 1); // keep column keys aligned with the row removal
     patchType(ti, { values: (types[ti]!.values ?? []).filter((_, j) => j !== ci) });
   }
   // Set/clear one field of a charge column's optional uplift, omitting cleared fields entirely
@@ -89,21 +110,25 @@ export function RateCardAdmin() {
             No project types yet. Add one — rates and value columns are keyed by type.
           </p>
         )}
-        {types.map((t, i) => (
-          <div key={i} className="border-2 border-foreground p-3 space-y-2" data-testid={`rate-card-type-${i}`}>
+        {types.map((t, i) => {
+          const typeKey = typeKeys.keyAt(i);
+          const cols = t.values ?? [];
+          const cKeys = columnKeys(typeKey, cols.length);
+          return (
+          <div key={typeKey} className="border-2 border-foreground p-3 space-y-2" data-testid={`rate-card-type-${i}`}>
             <div className="flex flex-wrap items-center gap-2">
               <Input aria-label={`Project type ${i + 1} id`} placeholder="id" className="w-32 rounded-none border-2 border-foreground font-mono text-xs"
                 value={t.id} onChange={(e) => patchType(i, { id: e.target.value })} />
               <Input aria-label={`Project type ${i + 1} label`} placeholder="Label" className="flex-1 min-w-40 rounded-none border-2 border-foreground"
                 value={t.label} onChange={(e) => patchType(i, { label: e.target.value })} />
               <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs"
-                onClick={() => setTypes(types.filter((_, j) => j !== i))}>Remove type</Button>
+                onClick={() => removeType(i)}>Remove type</Button>
             </div>
 
             <div className="pl-2 border-l-2 border-border space-y-1.5">
               <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Value columns {t.values?.length ? "" : "(default: true cost + cost to customer)"}</p>
-              {(t.values ?? []).map((c, ci) => (
-                <div key={ci} className="flex flex-wrap items-center gap-2" data-testid={`rate-card-col-${i}-${ci}`}>
+              {cols.map((c, ci) => (
+                <div key={cKeys[ci]} className="flex flex-wrap items-center gap-2" data-testid={`rate-card-col-${i}-${ci}`}>
                   <Input aria-label={`Type ${i + 1} column ${ci + 1} id`} placeholder="id" className="w-24 rounded-none border border-border font-mono text-xs"
                     value={c.id} onChange={(e) => patchColumn(i, ci, { id: e.target.value })} />
                   <Input aria-label={`Type ${i + 1} column ${ci + 1} label`} placeholder="Label" className="w-40 rounded-none border border-border"
@@ -131,7 +156,8 @@ export function RateCardAdmin() {
               <Button variant="outline" className="rounded-none border border-border text-xs" onClick={() => addColumn(i)}>+ value column</Button>
             </div>
           </div>
-        ))}
+          );
+        })}
         <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" onClick={addType}>+ project type</Button>
       </div>
 

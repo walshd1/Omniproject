@@ -3,10 +3,13 @@
  * BOTH mouse and keyboard. The common way to break it is putting an `onClick` on a non-interactive
  * element (a `<div>` / `<span>` / `<li>` / `<td>`) with no keyboard path: a mouse user can click it
  * but a keyboard user can't reach or fire it. Real buttons/links/inputs are keyboard-operable for
- * free, so they're allowed; a non-interactive element is allowed only if it also wires a keyboard
- * handler (`onKeyDown`/`onKeyUp`/`onKeyPress`), OR it carries an explicit `data-a11y-mouse-ok`
- * opt-out — for mouse-only conveniences whose action IS reachable by keyboard another way (a
- * click-outside dismiss scrim closed by Escape; an input-focus addon reached by Tab).
+ * free, so they're allowed; a non-interactive element is allowed only if it is genuinely reachable
+ * AND fireable by keyboard — that means BOTH a keyboard handler (`onKeyDown`/`onKeyUp`/`onKeyPress`)
+ * to fire it AND a `tabIndex` to focus it (a handler with no `tabIndex` never receives the key —
+ * the element can't take focus), plus a `role` so assistive tech announces it as the control it is.
+ * The alternative is an explicit `data-a11y-mouse-ok` opt-out — for mouse-only conveniences whose
+ * action IS reachable by keyboard another way (a click-outside dismiss scrim closed by Escape; an
+ * input-focus addon reached by Tab).
  *
  * This is a static, heuristic lint over the SPA's .tsx — it can't prove behaviour (that's what the
  * Playwright keyboard-only specs are for), but it catches the easy regressions in the fast lane.
@@ -63,15 +66,26 @@ for (const file of files) {
       const isCustomComponent = /^[A-Z]/.test(owner.tag); // <Button/> etc. — own their semantics
       const isNativeInteractive = INTERACTIVE.has(tagLc);
       if (!isCustomComponent && !isNativeInteractive) {
-        // Non-interactive native element: allowed if a keyboard handler or the opt-out marker
-        // appears in ITS OWN attribute region. Bound the scan to the opening tag's `>` (tracking
-        // brace depth + strings so `=>`, JSX exprs and quoted `>` don't end it early) — a fixed
-        // byte window spilled into children, so a CHILD's onKeyDown falsely cleared the parent.
+        // Non-interactive native element: allowed only if it is BOTH fireable (a keyboard handler)
+        // and focusable (a `tabIndex`) and announced (`role`) by keyboard — or it carries the
+        // `data-a11y-mouse-ok` opt-out. All of these must appear in ITS OWN attribute region: the
+        // scan is bounded to the opening tag's `>` (tracking brace depth + strings so `=>`, JSX
+        // exprs and quoted `>` don't end it early) — a fixed byte window spilled into children, so a
+        // CHILD's onKeyDown/tabIndex falsely cleared the parent.
         const tagText = src.slice(owner.open, openingTagEnd(src, owner.open));
-        const ok = /on(KeyDown|KeyUp|KeyPress)=/.test(tagText) || /data-a11y-mouse-ok/.test(tagText);
+        const optOut = /data-a11y-mouse-ok/.test(tagText);
+        const hasKeyHandler = /on(KeyDown|KeyUp|KeyPress)=/.test(tagText);
+        const isFocusable = /\btabIndex[=\s]/.test(tagText);
+        const hasRole = /\brole=/.test(tagText);
+        const ok = optOut || (hasKeyHandler && isFocusable && hasRole);
         if (!ok) {
           const line = src.slice(0, i).split("\n").length;
-          violations.push(`${path.relative(ROOT, file)}:${line} — <${owner.tag}> has onClick but no keyboard handler (use <button>, or add onKeyDown + role/tabIndex)`);
+          const missing = [
+            hasKeyHandler ? null : "a keyboard handler (onKeyDown)",
+            isFocusable ? null : "tabIndex (to receive focus)",
+            hasRole ? null : "role (to be announced)",
+          ].filter(Boolean).join(", ");
+          violations.push(`${path.relative(ROOT, file)}:${line} — <${owner.tag}> has onClick but isn't keyboard-operable — missing ${missing} (use <button>, or add onKeyDown + tabIndex + role)`);
         }
       }
     }

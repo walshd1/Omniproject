@@ -14,11 +14,16 @@ import { useRateCard, useIdentities, useSaveIdentities, type IdentityAssignment 
 
 type Level = "central" | "programme" | "project";
 
-/** One staged assignment row in the editor (assignee plaintext + the chosen role's title hash). */
+/** One staged assignment row in the editor (assignee plaintext + the chosen role's title hash).
+ *  `id` is a client-only stable key so removing a middle row doesn't shift the others' input state;
+ *  it never leaves the component (onSave maps rows to plaintext assignments). */
 interface Row {
+  id: string;
   assignee: string;
   titleHash: string;
 }
+
+const emptyRow = (): Row => ({ id: crypto.randomUUID(), assignee: "", titleHash: "" });
 
 export function IdentityMapAdmin() {
   const { data: auth } = useAuth();
@@ -27,7 +32,7 @@ export function IdentityMapAdmin() {
   const saveIdentities = useSaveIdentities();
   const [level, setLevel] = useState<Level>("central");
   const [scopeId, setScopeId] = useState("");
-  const [rows, setRows] = useState<Row[]>([{ assignee: "", titleHash: "" }]);
+  const [rows, setRows] = useState<Row[]>([emptyRow()]);
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
   if (!card) return null;
@@ -50,7 +55,7 @@ export function IdentityMapAdmin() {
       .map((r) => ({ assignee: r.assignee.trim(), titleHash: r.titleHash }));
     saveIdentities.mutate(
       { level, ...(scopeNeedsId ? { scopeId } : {}), assignments },
-      { onSuccess: () => setRows([{ assignee: "", titleHash: "" }]) },
+      { onSuccess: () => setRows([emptyRow()]) },
     );
   }
 
@@ -91,22 +96,22 @@ export function IdentityMapAdmin() {
 
           <div className="space-y-1.5">
             {rows.map((r, i) => (
-              <div key={i} className="flex flex-wrap items-center gap-2" data-testid={`identity-row-${i}`}>
+              <div key={r.id} className="flex flex-wrap items-center gap-2" data-testid={`identity-row-${i}`}>
                 <Input aria-label={`Assignee ${i + 1}`} placeholder="Assignee (name / email / id)" className="w-56 rounded-none border border-border"
-                  value={r.assignee} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, assignee: e.target.value } : x)))} />
+                  value={r.assignee} onChange={(e) => setRows(rows.map((x) => (x.id === r.id ? { ...x, assignee: e.target.value } : x)))} />
                 <label className="text-xs flex items-center gap-1">
                   <span className="sr-only">{`Assignee ${i + 1} role`}</span>
                   <select aria-label={`Assignee ${i + 1} role`} className="rounded-none border border-border bg-background px-2 py-1 text-xs"
-                    value={r.titleHash} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, titleHash: e.target.value } : x)))}>
+                    value={r.titleHash} onChange={(e) => setRows(rows.map((x) => (x.id === r.id ? { ...x, titleHash: e.target.value } : x)))}>
                     <option value="">— clear mapping —</option>
                     {titles.map(([hash, label]) => <option key={hash} value={hash}>{label}</option>)}
                   </select>
                 </label>
                 <Button variant="ghost" className="rounded-none text-xs px-2" aria-label={`Remove assignment row ${i + 1}`}
-                  onClick={() => setRows(rows.length > 1 ? rows.filter((_, j) => j !== i) : [{ assignee: "", titleHash: "" }])}>✕</Button>
+                  onClick={() => setRows(rows.length > 1 ? rows.filter((x) => x.id !== r.id) : [emptyRow()])}>✕</Button>
               </div>
             ))}
-            <Button variant="outline" className="rounded-none border border-border text-xs" onClick={() => setRows([...rows, { assignee: "", titleHash: "" }])}>+ assignee</Button>
+            <Button variant="outline" className="rounded-none border border-border text-xs" onClick={() => setRows([...rows, emptyRow()])}>+ assignee</Button>
           </div>
 
           <div className="flex items-center gap-3">

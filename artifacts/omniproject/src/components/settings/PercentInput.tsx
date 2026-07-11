@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 
 /**
@@ -18,6 +18,12 @@ export function PercentInput({ value, onChange, label, ariaLabel }: {
 }) {
   const canonical = value === undefined ? "" : String(Math.round(value * 1000) / 10);
   const [buffer, setBuffer] = useState<string | null>(null);
+  // If the parent changes `value` out from under an active buffer (e.g. a Reset that reverts the
+  // field to its saved fraction), drop the stale buffer so the input reflects the new canonical
+  // value instead of the text the user had typed before the reset.
+  useEffect(() => {
+    setBuffer((b) => (b !== null && Number(b) / 100 !== value ? null : b));
+  }, [value]);
   return (
     <label className="flex items-center gap-1 text-xs">
       {label && <span className="text-muted-foreground">{label}</span>}
@@ -32,9 +38,15 @@ export function PercentInput({ value, onChange, label, ariaLabel }: {
           const raw = e.target.value;
           // Only digits + a single decimal point while typing (keeps "7." valid mid-entry).
           if (!/^\d*\.?\d*$/.test(raw)) return;
-          setBuffer(raw);
           const trimmed = raw.trim();
-          if (trimmed === "" || trimmed === ".") { onChange(undefined); return; }
+          if (trimmed === "" || trimmed === ".") {
+            // Cleared: drop the buffer so the field reflects the canonical value (e.g. a non-optional
+            // field the parent resets to 0), rather than holding an empty string until blur.
+            setBuffer(null);
+            onChange(undefined);
+            return;
+          }
+          setBuffer(raw); // keep the raw text (incl. a trailing ".") while mid-entry
           const n = Number(trimmed);
           if (isFinite(n) && n >= 0) onChange(n / 100);
         }}

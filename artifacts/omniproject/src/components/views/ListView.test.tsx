@@ -78,7 +78,7 @@ describe("ListView", () => {
     qc.setQueryData(getGetProjectIssuesQueryKey(PROJECT), ISSUES);
     renderWithProviders(<ListView projectId={PROJECT} />, { client: qc });
 
-    await user.click(screen.getByRole("row", { name: /Open work item: Alpha task/i }));
+    await user.click(screen.getByRole("button", { name: /Open work item: Alpha task/i }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 

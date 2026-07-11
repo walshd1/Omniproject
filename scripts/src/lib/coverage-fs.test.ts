@@ -17,7 +17,8 @@ test("fsProbes wires component existence, page wiring, and test presence to the 
   const pageFile = path.join(tmp("cov-page-"), "Page.tsx");
   try {
     fs.writeFileSync(path.join(dir, "WidgetA.tsx"), "export const WidgetA = () => null;");
-    fs.writeFileSync(path.join(dir, "WidgetA.test.tsx"), "import { WidgetA } from './WidgetA';");
+    // A real test: imports AND renders the component inside a render/expect call.
+    fs.writeFileSync(path.join(dir, "WidgetA.test.tsx"), "import { WidgetA } from './WidgetA';\nrender(<WidgetA />);\nexpect(screen.getByTestId('a')).toBeTruthy();");
     fs.writeFileSync(pageFile, "import { WidgetA } from './WidgetA';\n<WidgetA />");
 
     const probes = fsProbes(dir, pageFile);
@@ -27,6 +28,25 @@ test("fsProbes wires component existence, page wiring, and test presence to the 
     assert.equal(probes.wiredInPage("Nope"), false);
     assert.equal(probes.hasTest("WidgetA"), true);
     assert.equal(probes.hasTest("Untested"), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(path.dirname(pageFile), { recursive: true, force: true });
+  }
+});
+
+test("fsProbes does NOT count a name that only appears in an import or a comment", () => {
+  const dir = tmp("cov-imp-");
+  const pageFile = path.join(tmp("cov-imp-page-"), "Page.tsx");
+  try {
+    fs.writeFileSync(path.join(dir, "Ghost.tsx"), "export const Ghost = () => null;");
+    // Imported and mentioned in a comment, but never rendered/registered → not wired.
+    fs.writeFileSync(pageFile, "import { Ghost } from './Ghost';\n// TODO: wire up Ghost here\nexport const Page = () => null;");
+    // A test that imports the component but never renders/asserts on it → not a real test.
+    fs.writeFileSync(path.join(dir, "Ghost.test.tsx"), "import { Ghost } from './Ghost';\n// Ghost is a placeholder\nit('todo', () => {});");
+
+    const probes = fsProbes(dir, pageFile);
+    assert.equal(probes.wiredInPage("Ghost"), false);
+    assert.equal(probes.hasTest("Ghost"), false);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
     fs.rmSync(path.dirname(pageFile), { recursive: true, force: true });

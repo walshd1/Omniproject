@@ -32,7 +32,7 @@ describe("RateCardAdmin", () => {
   it("seeds the central uplift and project types from the server", () => {
     renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config()) });
     expect(screen.getByTestId("rate-card-admin")).toBeInTheDocument();
-    expect(screen.getByLabelText("Central margin %")).toHaveValue(20); // 0.2 → 20%
+    expect(screen.getByLabelText("Central margin %")).toHaveValue("20"); // 0.2 → 20%
     expect(screen.getByTestId("rate-card-type-0")).toBeInTheDocument();
     expect(screen.getByTestId("rate-card-col-0-0")).toBeInTheDocument();
   });
@@ -64,7 +64,7 @@ describe("RateCardAdmin", () => {
   it("edits the central overhead percentage in the draft", () => {
     renderWithProviders(<RateCardAdmin />, { client: seed("pmo", config()) });
     fireEvent.change(screen.getByLabelText("Central overhead %"), { target: { value: "15" } });
-    expect(screen.getByLabelText("Central overhead %")).toHaveValue(15);
+    expect(screen.getByLabelText("Central overhead %")).toHaveValue("15");
   });
 
   it("clearing the central margin/overhead falls back to 0 rather than leaving them unset", () => {
@@ -73,8 +73,8 @@ describe("RateCardAdmin", () => {
     fireEvent.change(screen.getByLabelText("Central overhead %"), { target: { value: "" } });
     // Central margin/overhead are non-optional (unlike a per-column uplift), so clearing
     // the input resets the underlying value to 0 rather than leaving it undefined.
-    expect(screen.getByLabelText("Central margin %")).toHaveValue(0);
-    expect(screen.getByLabelText("Central overhead %")).toHaveValue(0);
+    expect(screen.getByLabelText("Central margin %")).toHaveValue("0");
+    expect(screen.getByLabelText("Central overhead %")).toHaveValue("0");
   });
 
   it("shows an empty-state hint and no type cards when there are no project types", () => {
@@ -119,18 +119,18 @@ describe("RateCardAdmin", () => {
     expect(screen.queryByLabelText("Type 1 column 1 margin %")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Type 1 column 1 kind"), { target: { value: "charge" } });
-    expect(screen.getByLabelText("Type 1 column 1 margin %")).toHaveValue(null);
-    expect(screen.getByLabelText("Type 1 column 1 overhead %")).toHaveValue(null);
+    expect(screen.getByLabelText("Type 1 column 1 margin %")).toHaveValue("");
+    expect(screen.getByLabelText("Type 1 column 1 overhead %")).toHaveValue("");
 
     fireEvent.change(screen.getByLabelText("Type 1 column 1 margin %"), { target: { value: "10" } });
     fireEvent.change(screen.getByLabelText("Type 1 column 1 overhead %"), { target: { value: "5" } });
-    expect(screen.getByLabelText("Type 1 column 1 margin %")).toHaveValue(10);
-    expect(screen.getByLabelText("Type 1 column 1 overhead %")).toHaveValue(5);
+    expect(screen.getByLabelText("Type 1 column 1 margin %")).toHaveValue("10");
+    expect(screen.getByLabelText("Type 1 column 1 overhead %")).toHaveValue("5");
 
     // Clearing margin leaves the already-set overhead untouched (setColumnUplift preserves the other field).
     fireEvent.change(screen.getByLabelText("Type 1 column 1 margin %"), { target: { value: "" } });
-    expect(screen.getByLabelText("Type 1 column 1 margin %")).toHaveValue(null);
-    expect(screen.getByLabelText("Type 1 column 1 overhead %")).toHaveValue(5);
+    expect(screen.getByLabelText("Type 1 column 1 margin %")).toHaveValue("");
+    expect(screen.getByLabelText("Type 1 column 1 overhead %")).toHaveValue("5");
   });
 
   it("shows Reset once dirty, and reverts the draft to the server value on click", () => {
@@ -142,7 +142,7 @@ describe("RateCardAdmin", () => {
     expect(screen.getByText("Save rate card")).toBeEnabled();
     fireEvent.click(screen.getByText("Reset"));
 
-    expect(screen.getByLabelText("Central margin %")).toHaveValue(20); // back to the server's 0.2
+    expect(screen.getByLabelText("Central margin %")).toHaveValue("20"); // back to the server's 0.2
     expect(screen.queryByText("Reset")).not.toBeInTheDocument();
   });
 

@@ -75,6 +75,7 @@ export function ListView({ projectId }: { projectId: string }) {
                   }
                 }}
                 tabIndex={0}
+                role="button"
                 aria-label={`Open work item: ${issue.title}`}
                 className="border-b border-border hover:bg-muted/30 cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset"
               >
