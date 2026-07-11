@@ -7,7 +7,7 @@ for later. If you want the fuller safety walkthrough (verify, sandbox, adding
 writes, rollback) once you're past this, that's [docs/SAFE-FIRST-RUN.md](SAFE-FIRST-RUN.md).
 This page is just the shortest path to *your own data on screen*.
 
-**You'll need:** Node.js 22+, pnpm (`corepack enable`), and an
+**You'll need:** Node.js 26+, pnpm (`corepack enable`), and an
 [n8n](https://n8n.io) instance you can import a workflow into (n8n Cloud's free
 tier works fine, or `docker run -p 5678:5678 n8nio/n8n`).
 

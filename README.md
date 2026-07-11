@@ -406,7 +406,7 @@ interaction-tested — see [docs/TESTING.md](docs/TESTING.md).)
 
 ## Quick start (local, demo mode)
 
-**Prerequisites:** Node.js 22+ and pnpm (`corepack enable`).
+**Prerequisites:** Node.js 26+ and pnpm (`corepack enable`).
 
 > Want to go straight to your own real data (read-only) instead of stopping at
 > sample data? **[docs/QUICKSTART.md](docs/QUICKSTART.md)** is the same steps

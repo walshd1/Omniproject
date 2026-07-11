@@ -22,7 +22,7 @@ free-form routing hint (default `all`).
 
 ## Stack
 
-- pnpm workspaces, Node.js 22+, TypeScript 5.9
+- pnpm workspaces, Node.js 26, TypeScript 6.0
 - Frontend: Vite + React 19, wouter (routing), Zustand (UI state), TanStack Query, Tailwind v4, shadcn/Radix UI, cmdk, lucide-react
 - API/Gateway: Express 5, pino (logs redact auth/cookie headers)
 - Validation: Zod (`@workspace/api-zod`), generated from the OpenAPI spec
