@@ -1,9 +1,15 @@
-import { test } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { fetchPeerSummary } from "./federation";
 import type { PeerInstance } from "./settings";
+import { __setEgressTransportForTest } from "./egress";
+
+// fetchPeerSummary → safeFetch uses undici's own fetch; bridge the egress transport to globalThis.fetch
+// so the real-server tests hit the live server and the timeout test's global mock is still honoured.
+beforeEach(() => __setEgressTransportForTest((url, init) => globalThis.fetch(url as string, init)));
+afterEach(() => __setEgressTransportForTest(null));
 
 /** Spin up a tiny HTTP server standing in for a peer's `GET /api/portfolio/summary`, so the fan-out
  *  is tested against real network behaviour (not a stubbed fetch) — same style as the reference

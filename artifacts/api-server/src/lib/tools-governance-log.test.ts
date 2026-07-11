@@ -35,7 +35,7 @@ test("durability: each decision is POSTed to the external append sink as NDJSON 
     return new Response("", { status: 200 });
   }) as typeof fetch;
 
-  process.env["CAPABILITY_LOG_HTTP_URL"] = "https://siem.acme.io/ingest";
+  process.env["CAPABILITY_LOG_HTTP_URL"] = "https://127.0.0.1/ingest";
   process.env["CAPABILITY_LOG_HTTP_TOKEN"] = "s3cret";
   process.env["CAPABILITY_LOG_BATCH"] = "1"; // auto-flush on every enqueue
 
@@ -44,7 +44,7 @@ test("durability: each decision is POSTed to the external append sink as NDJSON 
   await new Promise((r) => setTimeout(r, 10)); // let the best-effort flush run
 
   assert.equal(posts.length, 1);
-  assert.equal(posts[0]!.url, "https://siem.acme.io/ingest");
+  assert.equal(posts[0]!.url, "https://127.0.0.1/ingest");
   assert.equal(posts[0]!.auth, "Bearer s3cret");
   const entry = JSON.parse(posts[0]!.body) as { action: string; capability: string };
   assert.equal(entry.capability, "provider:openai");

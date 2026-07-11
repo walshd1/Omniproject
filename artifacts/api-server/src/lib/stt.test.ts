@@ -1,18 +1,23 @@
-import { test, afterEach } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { sttStatus, sttCapabilityId, transcribe, SttError } from "./stt";
 import { updateSettings } from "./settings";
 import { engageAiKill, releaseAiKill } from "./ai-kill";
+import { __setEgressTransportForTest } from "./egress";
 
 /**
  * STT lib: provider-pluggable, governed, kill-switch-aware. The browser engine is local
  * (the server never transcribes it); whisper is off-device and AI-assisted.
  */
 const realFetch = globalThis.fetch;
+// safeFetch uses undici's own fetch, so bridge the egress transport to whatever globalThis.fetch is
+// (the per-test global mocks keep working, and the egress validation still runs before the mock).
+beforeEach(() => __setEgressTransportForTest((url, init) => globalThis.fetch(url as string, init)));
 afterEach(() => {
   releaseAiKill();
   updateSettings({ sttProvider: "none" });
   globalThis.fetch = realFetch;
+  __setEgressTransportForTest(null);
   delete process.env["WHISPER_URL"];
   delete process.env["WHISPER_MODEL"];
 });
