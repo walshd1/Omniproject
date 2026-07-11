@@ -1,6 +1,7 @@
 import { logger } from "./logger";
 import { loadOptionalDependency } from "./optional-dependency";
 import { decodePemOrBase64 } from "./pem";
+import { isTruthy } from "./env-config";
 import { sharedKv, sharedStateMode } from "./shared-state";
 
 /** How long a pending SP-initiated AuthnRequest id stays valid for InResponseTo matching. */
@@ -135,7 +136,7 @@ function readConfig(): SamlConfig | null {
     nameAttr: process.env["SAML_NAME_ATTR"]?.trim() || "displayName",
     groupsAttr: process.env["SAML_GROUPS_ATTR"]?.trim() || "groups",
     acrAttr: process.env["SAML_ACR_ATTR"]?.trim() || undefined,
-    wantResponseSigned: process.env["SAML_WANT_RESPONSE_SIGNED"]?.trim().toLowerCase() === "true",
+    wantResponseSigned: isTruthy(process.env["SAML_WANT_RESPONSE_SIGNED"]),
   };
 }
 

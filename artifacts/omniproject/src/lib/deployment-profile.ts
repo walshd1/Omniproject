@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getJson, safeJson, responseError } from "./api";
+import { getJson, sendJson } from "./api";
 
 /**
  * Deployment-profile client. Reports the chosen profile (enterprise … self-hosted), what's
@@ -45,15 +45,7 @@ export function useDeploymentProfile() {
 
 /** Choose the deployment profile in the setup wizard (admin). Persists it. */
 export async function setDeploymentProfile(profile: string): Promise<void> {
-  const res = await fetch("/api/setup/profile", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ profile }),
-  });
-  if (!res.ok) {
-    throw responseError(res, await safeJson(res));
-  }
+  await sendJson("/api/setup/profile", { profile }, "POST");
 }
 
 /** The result of applying the "We're a charity" one-click preset — what changed, so the
@@ -69,11 +61,7 @@ export interface CharityOnboardingResult {
  *  deployment profile, mints the trustee-report + funder-report dashboards, and best-effort
  *  adopts the active backend's nomenclature preset. Idempotent — safe to click again. */
 export async function applyCharityOnboarding(): Promise<CharityOnboardingResult> {
-  const res = await fetch("/api/setup/charity-onboarding", { method: "POST", credentials: "same-origin" });
-  if (!res.ok) {
-    throw responseError(res, await safeJson(res));
-  }
-  return res.json();
+  return sendJson<CharityOnboardingResult>("/api/setup/charity-onboarding", undefined, "POST");
 }
 
 /** Display order for the picker (strict → relaxed). */

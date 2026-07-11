@@ -43,8 +43,18 @@ export function envUrl(name: string): string | undefined {
 /** Is this env var set to a truthy flag (1/true/on/yes, case-insensitive)? Unset ⇒ false.
  *  Takes an explicit env map (defaulting to `process.env`) so callers like `checkRequiredEnv`
  *  can evaluate an arbitrary env object, not just the live process. */
+/**
+ * The one affirmative-flag vocabulary for the whole codebase: `1` / `true` / `on` / `yes`
+ * (case-insensitive, trimmed). Use this for an already-extracted string value; use `envBool`
+ * (which shares it) when reading straight from an env var by name. Consolidating on one parser
+ * means a toggle like `X=on` behaves identically everywhere instead of per-site guesswork.
+ */
+export function isTruthy(value: string | undefined): boolean {
+  return /^(1|true|on|yes)$/i.test(value?.trim() ?? "");
+}
+
 export function envBool(name: string, env: NodeJS.ProcessEnv = process.env): boolean {
-  return /^(1|true|on|yes)$/i.test(env[name]?.trim() ?? "");
+  return isTruthy(env[name]);
 }
 
 /**

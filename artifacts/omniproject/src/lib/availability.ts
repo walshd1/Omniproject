@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getJson, safeJson, responseError } from "./api";
+import { getJson, sendJson } from "./api";
 
 /**
  * Availability client — what the connected backend ACTUALLY surfaces (superset ∩ the backend's
@@ -38,14 +38,7 @@ export function useSetHiddenFields() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (hiddenFields: string[]) => {
-      const res = await fetch("/api/availability/curation", {
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hiddenFields }),
-      });
-      if (!res.ok) throw responseError(res, await safeJson(res), "Failed to update field visibility");
-      return res.json();
+      return sendJson<unknown>("/api/availability/curation", { hiddenFields }, "PATCH", "Failed to update field visibility");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: availabilityQueryKey });

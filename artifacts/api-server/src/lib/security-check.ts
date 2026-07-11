@@ -14,7 +14,7 @@
  */
 import { demoAuthSeverity } from "./deployment-profile";
 import { configuredBrokerUrls } from "./broker-url";
-import { checkRequiredEnv, detectEnvVarTypos } from "./env-config";
+import { checkRequiredEnv, detectEnvVarTypos, isTruthy } from "./env-config";
 import { isProductionLike } from "./dev-mode-guard";
 
 export type Severity = "critical" | "warn" | "info";
@@ -26,7 +26,6 @@ export interface SecurityFinding {
 }
 
 type Env = Record<string, string | undefined>;
-const on = (v: string | undefined) => v?.trim().toLowerCase() === "true" || v?.trim().toLowerCase() === "on";
 const set = (v: string | undefined) => !!v?.trim();
 const explicitlyOff = (v: string | undefined) => {
   const t = v?.trim().toLowerCase();
@@ -112,7 +111,7 @@ export function securityFindings(env: Env): SecurityFinding[] {
     });
   }
   // Abuse protection disabled.
-  if (on(env["RATE_LIMIT_DISABLED"])) {
+  if (isTruthy(env["RATE_LIMIT_DISABLED"])) {
     out.push({
       id: "rate-limit-off",
       severity: "warn",
@@ -122,7 +121,7 @@ export function securityFindings(env: Env): SecurityFinding[] {
   // mTLS deliberately downgraded to accept an unverified broker certificate — the same class
   // of "explicit insecure escape hatch left on in prod" as the checks above, so it gets the
   // same CRITICAL treatment (refuses to boot by default) rather than a log-only warning.
-  if (on(env["BROKER_MTLS_INSECURE"])) {
+  if (isTruthy(env["BROKER_MTLS_INSECURE"])) {
     out.push({
       id: "broker-mtls-insecure",
       severity: "critical",
@@ -135,7 +134,7 @@ export function securityFindings(env: Env): SecurityFinding[] {
   // is a relaxation rather than the full authentication bypass OIDC_SKIP_TOKEN_VERIFY is, but a
   // deployment that quietly disabled it (e.g. to work around a legacy reverse proxy) should
   // still see that surfaced at every boot, not just once when it was set.
-  if (on(env["CSRF_DISABLED"])) {
+  if (isTruthy(env["CSRF_DISABLED"])) {
     out.push({
       id: "csrf-disabled",
       severity: "warn",

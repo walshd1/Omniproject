@@ -205,6 +205,26 @@ export async function callBrokerCapability<T>(
   }
 }
 
+/**
+ * Run a route body and, on any throw, log it once (with the given message + optional context) and
+ * map the error to an HTTP response via `respondBrokerError`. The single home for the
+ * try/catch/log/respond block that every broker-backed route handler otherwise repeats verbatim.
+ */
+export async function withBrokerErrors(
+  req: Request,
+  res: Response,
+  message: string,
+  body: () => void | Promise<void>,
+  ctx: Record<string, unknown> = {},
+): Promise<void> {
+  try {
+    await body();
+  } catch (err) {
+    req.log.error({ err, ...ctx }, message);
+    respondBrokerError(res, err);
+  }
+}
+
 /** Map a thrown broker error onto an HTTP response (status from the taxonomy). */
 export function respondBrokerError(res: Response, err: unknown): void {
   if (err instanceof DataResidencyError) {

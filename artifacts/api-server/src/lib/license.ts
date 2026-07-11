@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { applyDevEntitlementOverrides } from "./dev-entitlements";
 import { decodePemOrBase64 } from "./pem";
 import { parseCommaSet } from "./env";
+import { isTruthy } from "./env-config";
 
 /**
  * Licensing / entitlements — the paywall for premium overlay features.
@@ -167,7 +168,7 @@ function sanitizeFeatures(input: unknown): LicenseFeature[] {
  * LICENSING.md.
  */
 export function premiumEnforced(): boolean {
-  return process.env["PREMIUM_ENFORCEMENT"]?.trim().toLowerCase() === "on";
+  return isTruthy(process.env["PREMIUM_ENFORCEMENT"]);
 }
 
 /** Resolve current entitlements from env/config, then apply any DEV-mode overrides

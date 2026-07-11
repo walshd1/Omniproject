@@ -11,6 +11,7 @@ import { connectedBrokerKinds } from "../broker/registry";
 import { contextFromReq, brokerVerifyConnection, brokerStoreCredential, callBrokerCapability, probeVerifiableActions } from "../broker";
 import { v, parseOr400 } from "../lib/validate";
 import { assertEgressAllowed, EgressError } from "../lib/egress";
+import { isTruthy } from "../lib/env-config";
 
 // Typed + bounded bodies for the broker-credential routes (untrusted admin input).
 const CONNECTION_TEST_BODY = v.object({ backend: v.string({ trim: true, min: 1, max: 100 }) });
@@ -60,8 +61,6 @@ import { isTimeoutError } from "../lib/timeout-error";
 
 const router = Router();
 
-const isOn = (v: string | undefined): boolean => v?.trim().toLowerCase() === "true" || v?.trim().toLowerCase() === "on";
-
 /** Governance gate for the report/methodology planes: a PMO `forbid report:x` / `forbid methodology:x`
  *  (or a `require` elsewhere) actually withholds the item from what's offered, not just the admin table.
  *  Resolved at org scope — the surface here is the global catalogue, so org-level mandates apply. */
@@ -109,7 +108,7 @@ router.get("/setup/profile", requireRole("admin"), (_req, res) => {
       kms: (process.env["KMS_PROVIDER"]?.trim() || "none") !== "none",
       makerChecker: !!process.env["DUAL_CONTROL_ACTIONS"]?.trim(),
       securityStrict: bootRefusalActive(process.env),
-      rateLimit: !isOn(process.env["RATE_LIMIT_DISABLED"]),
+      rateLimit: !isTruthy(process.env["RATE_LIMIT_DISABLED"]),
       // Tamper-resistant MFA (hardware-bound amr/acr) gates pmo/admin authority whenever
       // real SSO is configured — it's unconditional enforcement, not a separate toggle.
       // Demo mode has no real identity to gate, so this reads false there (already
