@@ -10,10 +10,8 @@
 
 import http from "http";
 import { URL } from "url";
-import { createAsserter, green, red, bold } from "./lib/assert";
-
-// ── ANSI helpers ─────────────────────────────────────────────────────────────
-const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
+import { createAsserter } from "./lib/assert";
+import { green, red, bold, dim } from "./lib/ansi";
 
 // ── Test state ────────────────────────────────────────────────────────────────
 const t = createAsserter();
@@ -30,6 +28,9 @@ interface MockRequest {
 const capturedRequests: MockRequest[] = [];
 
 const MOCK_BROKER_PORT = 19_678;
+
+/** Per-socket timeout for the login + request HTTP helpers below. */
+const REQUEST_TIMEOUT_MS = 8_000;
 
 const BROKER_INBOUND_RESPONSE = {
   success: true,
@@ -152,7 +153,7 @@ function login(apiBase: string): Promise<void> {
       },
     );
     req.on("error", reject);
-    req.setTimeout(8_000, () => {
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
       req.destroy();
       reject(new Error("Login request timeout"));
     });
@@ -195,7 +196,7 @@ function request(
       },
     );
     req.on("error", reject);
-    req.setTimeout(8_000, () => {
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
       req.destroy();
       reject(new Error("Request timeout"));
     });

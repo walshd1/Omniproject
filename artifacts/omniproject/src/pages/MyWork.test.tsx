@@ -1,10 +1,25 @@
-import { describe, it, expect } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { screen, fireEvent, act } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { getListProjectsQueryKey, type Project, type Issue } from "@workspace/api-client-react";
-import { renderWithProviders } from "../test/utils";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../test/utils";
 import { isAssignedToMe, MyWork } from "./MyWork";
 import { featuresQueryKey, type FeatureStatus } from "../lib/features";
+import { vi } from "vitest";
+
+// Control the shared SSE stream: capture the subscriber MyWork registers so a test can push
+// a live event synchronously (jsdom has no EventSource, so nothing arrives otherwise).
+const live = vi.hoisted(() => ({ handler: null as null | ((e: Record<string, unknown>) => void) }));
+vi.mock("../lib/live-events", () => ({
+  useLiveEvents: (h: (e: Record<string, unknown>) => void) => {
+    live.handler = h;
+  },
+}));
+
+afterEach(() => {
+  live.handler = null;
+  resetFetchMock();
+});
 
 function project(over: Partial<Project> = {}): Project {
   return {
@@ -57,6 +72,38 @@ describe("MyWork page", () => {
       client: seed({ projects: [project()], issuesByProject: { "proj-1": [issue({ assignee: "someone-else" })] } }),
     });
     expect(screen.getByTestId("my-work-empty")).toBeInTheDocument();
+  });
+
+  it("fetches per-project issues through the broker when the cache is cold", async () => {
+    // No issuesByProject seed → the useQueries queryFn actually runs and hits the API.
+    mockFetchRouter({ "/api/projects/proj-1/issues": { ok: true, body: [issue({ title: "Broker-fetched task" })] } });
+    renderWithProviders(<MyWork />, { client: seed({ projects: [project()] }) });
+    expect(await screen.findByText("Broker-fetched task")).toBeInTheDocument();
+  });
+
+  it("accumulates live inbox notifications and dismisses them", () => {
+    renderWithProviders(<MyWork />, { client: seed({ projects: [project()], issuesByProject: { "proj-1": [] } }) });
+    fireEvent.click(screen.getByRole("tab", { name: /inbox/i }));
+    expect(screen.getByText(/No notifications yet/i)).toBeInTheDocument();
+
+    // Push a live event through the captured subscriber.
+    act(() => live.handler?.({ kind: "issue_assigned", message: "You were assigned PLT-1" }));
+    expect(screen.getByText("issue_assigned")).toBeInTheDocument();
+    expect(screen.getByText("You were assigned PLT-1")).toBeInTheDocument();
+    // The tab label reflects the unread count.
+    expect(screen.getByRole("tab", { name: /inbox \(1\)/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    expect(screen.queryByText("issue_assigned")).not.toBeInTheDocument();
+    expect(screen.getByText(/No notifications yet/i)).toBeInTheDocument();
+  });
+
+  it("renders a live event that carries only a title and no kind", () => {
+    renderWithProviders(<MyWork />, { client: seed({ projects: [project()], issuesByProject: { "proj-1": [] } }) });
+    fireEvent.click(screen.getByRole("tab", { name: /inbox/i }));
+    act(() => live.handler?.({ title: "Fallback title only" }));
+    expect(screen.getByText("notification")).toBeInTheDocument();
+    expect(screen.getByText("Fallback title only")).toBeInTheDocument();
   });
 });
 

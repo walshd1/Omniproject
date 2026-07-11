@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "../test/utils";
 import { ErrorBoundary } from "./ErrorBoundary";
 
@@ -43,5 +43,32 @@ describe("ErrorBoundary", () => {
       </ErrorBoundary>,
     );
     expect(screen.getByText("custom fallback")).toBeInTheDocument();
+  });
+
+  it("clicking 'Report this' opens the report-problem dialog, and Escape closes it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    renderWithProviders(
+      <ErrorBoundary>
+        <Boom />
+      </ErrorBoundary>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /report this/i }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: /report a problem/i })).toBeInTheDocument();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("clicking 'Reload' reloads the page", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", { value: { ...window.location, reload }, writable: true });
+    renderWithProviders(
+      <ErrorBoundary>
+        <Boom />
+      </ErrorBoundary>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /reload/i }));
+    expect(reload).toHaveBeenCalled();
   });
 });

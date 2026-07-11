@@ -29,6 +29,9 @@ function actionLabel(action: string): string {
   return action.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
+/** The node-transport action kind (ACTION_KINDS[1], the non-HTTP transport); node-only fields gate on it. */
+const NODE_KIND = ACTION_KINDS[1];
+
 /** One contract action's inline editor — collapsed to a checkbox until enabled. */
 function ActionEditor({ action, value, onChange }: { action: string; value: ActionDraft; onChange: (next: ActionDraft) => void }) {
   const patch = (p: Partial<ActionDraft>) => onChange({ ...value, ...p });
@@ -49,7 +52,7 @@ function ActionEditor({ action, value, onChange }: { action: string; value: Acti
                 {ACTION_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
               </select>
             </label>
-            {value.kind !== ACTION_KINDS[1] && (
+            {value.kind !== NODE_KIND && (
               <label className="text-xs flex items-center gap-1">
                 <span className="text-muted-foreground">Method</span>
                 <select aria-label={`${actionLabel(action)} method`} className="rounded-none border border-border bg-background px-2 py-1 text-xs"
@@ -60,7 +63,7 @@ function ActionEditor({ action, value, onChange }: { action: string; value: Acti
               </label>
             )}
           </div>
-          {value.kind !== ACTION_KINDS[1] && (
+          {value.kind !== NODE_KIND && (
             <>
               <Input aria-label={`${actionLabel(action)} URL`} placeholder="broker expression for the request URL, e.g. ={{ $env.MY_API_URL }}/issues"
                 className="w-full rounded-none border border-border font-mono text-xs" value={value.url} onChange={(e) => patch({ url: e.target.value })} />
@@ -69,7 +72,7 @@ function ActionEditor({ action, value, onChange }: { action: string; value: Acti
                 value={value.body} onChange={(e) => patch({ body: e.target.value })} />
             </>
           )}
-          {value.kind === ACTION_KINDS[1] && (
+          {value.kind === NODE_KIND && (
             <>
               <Input aria-label={`${actionLabel(action)} node type`} placeholder="broker node type, e.g. (base package).asana"
                 className="w-full rounded-none border border-border font-mono text-xs" value={value.node} onChange={(e) => patch({ node: e.target.value })} />

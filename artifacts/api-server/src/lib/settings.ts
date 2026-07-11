@@ -11,6 +11,8 @@ import { assertSafeOutboundUrl, isSafeOutboundUrl, UnsafeUrlError } from "./url-
 import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "./deployment-profile";
 import type { BackendFieldMap } from "../broker/types";
 import type { GovernanceRule } from "./governance-rules";
+import { validatePredicate } from "./predicate";
+import { isValidCadence, type SnapshotCadence } from "../history/cadence";
 import { logger } from "./logger";
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
@@ -130,6 +132,73 @@ export interface LoggingSyncConfig {
 const DEFAULT_LOGGING_SYNC: LoggingSyncConfig = { enabled: false, url: null, acknowledgedWarranty: false };
 
 /**
+ * Self-host DB adoption — the operator's choice to let OmniProject's OWN database become a
+ * system-of-record (or an augmenting store) for a slice of the work-item superset. Same "disclose,
+ * don't insure" trust class as `loggingSync`: adopting it moves the only copy of some data into
+ * infrastructure OmniProject neither operates nor backs up nor warrants, so it can only be turned on
+ * with an explicit data-responsibility acknowledgement. `adopted` is the org-level opt-in set of
+ * gated `selfhost:<domain>` domains (core domains are implicit). See selfhost/setup-wizard.
+ */
+export interface SelfHostConfig {
+  mode: "off" | "augmenting" | "system-of-record";
+  /** Gated domain ids opted into at org level (e.g. "financials", "quality"). Core is implicit. */
+  adopted: string[];
+  /** The admin acknowledged that self-host data is theirs to own, secure and back up. */
+  acknowledgedDataResponsibility: boolean;
+}
+
+const SELF_HOST_MODES = ["off", "augmenting", "system-of-record"] as const;
+const DEFAULT_SELF_HOST: SelfHostConfig = { mode: "off", adopted: [], acknowledgedDataResponsibility: false };
+
+/**
+ * History-retention config — the snapshot cadence for the durable time-series behind trend analysis.
+ * Operator-confirmed posture: **infinite snapshot retention** (never pruned) and a **variable cadence
+ * gated by admin (the org default) + PMO (per-programme/project overrides)** — see history/cadence.
+ * Config only (cadence policy), never project data; rides the snapshot/export bundle.
+ */
+export interface HistoryRetentionSettings {
+  /** Admin: org-wide default cadence. */
+  orgDefault: SnapshotCadence;
+  /** PMO: per-programme cadence overrides, keyed by programmeId. */
+  programme: Record<string, SnapshotCadence>;
+  /** PMO/PM: per-project cadence overrides, keyed by projectId. */
+  project: Record<string, SnapshotCadence>;
+}
+
+const DEFAULT_HISTORY_RETENTION: HistoryRetentionSettings = {
+  orgDefault: { kind: "interval", everyHours: 24 },
+  programme: {},
+  project: {},
+};
+
+/**
+ * Skills matrix + demand — PLANNING CONFIG (like rate cards / cost rules / priority weights): the
+ * resource→skill proficiencies and the role/skill demand requests the skills-capacity report matches.
+ * Config, not project data — rides the snapshot/export bundle, admin/PMO edited. Skills aren't a
+ * canonical work-item field, so this is the deployment's source of truth for them.
+ */
+export interface SkillResource {
+  resourceId: string;
+  name: string;
+  role?: string;
+  /** skill → proficiency 1–5. */
+  skills: Record<string, number>;
+  capacityHours: number;
+}
+export interface SkillDemandItem {
+  id: string;
+  initiative: string;
+  skill: string;
+  hoursNeeded: number;
+  minProficiency?: number;
+}
+export interface SkillsPlanningSettings {
+  matrix: SkillResource[];
+  demand: SkillDemandItem[];
+}
+const DEFAULT_SKILLS: SkillsPlanningSettings = { matrix: [], demand: [] };
+
+/**
  * A programme's or project's feature policy in the org→programme→project gating model. Disable-only
  * for the everyday narrowing, plus `required`/`forbidden` for PMO governance mandates ("must use" /
  * "must not use") — all resolved by lib/feature-resolution. Lists of catalogue ids (features ∪
@@ -176,6 +245,12 @@ export interface SettingsState {
   federatedPeers: PeerInstance[];
   /** Opt-in state-history egress to an operator-owned logging server (off by default). */
   loggingSync: LoggingSyncConfig;
+  /** Opt-in self-host DB adoption (off by default; needs a data-responsibility ack to enable). */
+  selfHost: SelfHostConfig;
+  /** Snapshot cadence for durable history retention (admin org default + PMO scope overrides). */
+  historyRetention: HistoryRetentionSettings;
+  /** Skills matrix + demand for the skills-capacity report (planning config, admin/PMO edited). */
+  skillsPlanning: SkillsPlanningSettings;
   /**
    * Admin translation-layer overrides: per-field / per-entity surface+store that
    * REPLACE the broker-derived/declared capability map. Lets an admin correct a
@@ -562,6 +637,9 @@ const store: SettingsState = {
   webhooks: webhooksFromEnv(),
   federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
+  selfHost: { ...DEFAULT_SELF_HOST },
+  historyRetention: { ...DEFAULT_HISTORY_RETENTION },
+  skillsPlanning: { matrix: [], demand: [] },
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
   userPrefs: {},
@@ -602,6 +680,9 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "webhooks",
   "federatedPeers",
   "loggingSync",
+  "selfHost",
+  "historyRetention",
+  "skillsPlanning",
   "fieldOverrides",
   "screenLayouts",
   "userPrefs",
@@ -705,6 +786,25 @@ function validateGovernanceRules(value: unknown, label: string): void {
     for (const k of ["require", "forbid", "disable"]) if (k in o && !isStringArray(o[k])) {
       throw new SettingsValidationError(`${label} "${String(o["id"])}".${k} must be an array of strings`);
     }
+    // Validate the optional `when` predicate too — an unvalidated malformed condition set (e.g.
+    // `all` as an object) is persisted here and then throws in predicate.matches(), 500-ing every
+    // feature-gated read for all users. (matches() is also hardened, but reject bad input on write.)
+    if ("when" in o && o["when"] != null) {
+      const when = o["when"];
+      if (typeof when !== "object" || Array.isArray(when)) {
+        throw new SettingsValidationError(`${label} "${String(o["id"])}".when must be an object`);
+      }
+      for (const key of ["all", "any"] as const) {
+        if (key in (when as Record<string, unknown>)) {
+          const arr = (when as Record<string, unknown>)[key];
+          if (!Array.isArray(arr)) throw new SettingsValidationError(`${label} "${String(o["id"])}".when.${key} must be an array`);
+          for (const p of arr) {
+            const err = validatePredicate(p);
+            if (err) throw new SettingsValidationError(`${label} "${String(o["id"])}".when.${key}: ${err}`);
+          }
+        }
+      }
+    }
   }
 }
 
@@ -772,6 +872,167 @@ function validateContentPages(value: unknown): void {
   }
 }
 
+/** Shape-validate the outbound webhook list: an array whose every entry is an object with a
+ *  string, safe-outbound `url`. */
+function validateWebhooks(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("webhooks must be an array");
+  for (const w of value) {
+    if (!w || typeof w !== "object") throw new SettingsValidationError("each webhook must be an object");
+    const url = (w as Record<string, unknown>)["url"];
+    if (typeof url !== "string") throw new SettingsValidationError("each webhook needs a url string");
+    try {
+      assertSafeOutboundUrl(url, "webhook url");
+    } catch (err) {
+      throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "webhook url is invalid");
+    }
+  }
+}
+
+/** Shape-validate the federated-peer list: id/label required, a safe-outbound `baseUrl`, a token
+ *  string, and optional typed region/active. */
+function validateFederatedPeers(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("federatedPeers must be an array");
+  for (const p of value) {
+    if (!p || typeof p !== "object") throw new SettingsValidationError("each federated peer must be an object");
+    const o = p as Record<string, unknown>;
+    if (typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each federated peer needs a string id");
+    if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a label`);
+    const baseUrl = o["baseUrl"];
+    if (typeof baseUrl !== "string" || !baseUrl) throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a baseUrl`);
+    try {
+      assertSafeOutboundUrl(baseUrl, "federated peer baseUrl");
+    } catch (err) {
+      throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "federated peer baseUrl is invalid");
+    }
+    if (typeof o["token"] !== "string") throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a token string`);
+    if (o["region"] != null && typeof o["region"] !== "string") throw new SettingsValidationError(`federated peer "${String(o["id"])}" region must be a string or null`);
+    if ("active" in o && typeof o["active"] !== "boolean") throw new SettingsValidationError(`federated peer "${String(o["id"])}" active must be a boolean`);
+  }
+}
+
+/** Shape-validate the saved-view list: an array whose every entry is an object with a string id + name. */
+function validateSavedViews(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("savedViews must be an array");
+  for (const view of value) {
+    if (!view || typeof view !== "object") throw new SettingsValidationError("each saved view must be an object");
+    const { id, name } = view as Record<string, unknown>;
+    if (typeof id !== "string" || !id) throw new SettingsValidationError("each saved view needs a string id");
+    if (typeof name !== "string" || !name) throw new SettingsValidationError("each saved view needs a name");
+  }
+}
+
+/** Shape-validate the dashboard list: id/name required, optional non-negative refreshMs, and a
+ *  widgets array whose entries each carry a string id + type. */
+function validateDashboards(value: unknown): void {
+  if (!Array.isArray(value)) throw new SettingsValidationError("dashboards must be an array");
+  for (const dash of value) {
+    if (!dash || typeof dash !== "object") throw new SettingsValidationError("each dashboard must be an object");
+    const { id, name, widgets } = dash as Record<string, unknown>;
+    if (typeof id !== "string" || !id) throw new SettingsValidationError("each dashboard needs a string id");
+    if (typeof name !== "string" || !name) throw new SettingsValidationError("each dashboard needs a name");
+    const { refreshMs } = dash as Record<string, unknown>;
+    if (refreshMs != null && (typeof refreshMs !== "number" || refreshMs < 0)) throw new SettingsValidationError("each dashboard refreshMs must be a non-negative number");
+    if (!Array.isArray(widgets)) throw new SettingsValidationError("each dashboard needs a widgets array");
+    for (const w of widgets) {
+      if (!w || typeof w !== "object") throw new SettingsValidationError("each dashboard widget must be an object");
+      const { id: wid, type } = w as Record<string, unknown>;
+      if (typeof wid !== "string" || !wid) throw new SettingsValidationError("each dashboard widget needs a string id");
+      if (typeof type !== "string" || !type) throw new SettingsValidationError("each dashboard widget needs a type");
+    }
+  }
+}
+
+/** Validate the opt-in logging-sync egress config: an object with an optional safe-outbound `url`;
+ *  turning it on requires both a url and an explicit warranty acknowledgement. */
+function validateLoggingSync(value: unknown): void {
+  if (!value || typeof value !== "object") throw new SettingsValidationError("loggingSync must be an object");
+  const { enabled, url, acknowledgedWarranty } = value as Record<string, unknown>;
+  if (url != null) {
+    if (typeof url !== "string") throw new SettingsValidationError("loggingSync.url must be a string or null");
+    try {
+      assertSafeOutboundUrl(url, "loggingSync.url");
+    } catch (err) {
+      throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "loggingSync.url is invalid");
+    }
+  }
+  if (enabled === true) {
+    // Egress is the one out-of-warranty relaxation: it can only be turned on
+    // with a destination AND an explicit acknowledgement of the warranty boundary.
+    if (typeof url !== "string" || !url) throw new SettingsValidationError("enable the logging sync requires a url");
+    if (acknowledgedWarranty !== true) {
+      throw new SettingsValidationError("enabling the logging sync requires acknowledging that egressed data is outside OmniProject's warranty");
+    }
+  }
+}
+
+/** Validate the opt-in self-host adoption config: a valid mode, a string[] of adopted domain ids,
+ *  and — the "disclose, don't insure" gate — an explicit acknowledgement whenever the mode isn't
+ *  `off`. A non-off mode without the acknowledgement is rejected, mirroring `validateLoggingSync`. */
+function validateSelfHost(value: unknown): void {
+  if (!value || typeof value !== "object") throw new SettingsValidationError("selfHost must be an object");
+  const { mode, adopted, acknowledgedDataResponsibility } = value as Record<string, unknown>;
+  if (!(SELF_HOST_MODES as readonly string[]).includes(mode as string)) {
+    throw new SettingsValidationError(`selfHost.mode must be one of: ${SELF_HOST_MODES.join(", ")}`);
+  }
+  if (!Array.isArray(adopted) || adopted.some((x) => typeof x !== "string")) {
+    throw new SettingsValidationError("selfHost.adopted must be an array of strings");
+  }
+  if (typeof acknowledgedDataResponsibility !== "boolean") {
+    throw new SettingsValidationError("selfHost.acknowledgedDataResponsibility must be a boolean");
+  }
+  if (mode !== "off" && acknowledgedDataResponsibility !== true) {
+    throw new SettingsValidationError(
+      "enabling self-host storage requires acknowledging that the data is yours to own, secure and back up (outside OmniProject's warranty)",
+    );
+  }
+}
+
+/** Validate the history-retention config: a valid org-default cadence plus per-scope override maps of
+ *  valid cadences. Retention is infinite by policy, so there's no window to validate — only cadence. */
+function validateHistoryRetention(value: unknown): void {
+  if (!value || typeof value !== "object") throw new SettingsValidationError("historyRetention must be an object");
+  const { orgDefault, programme, project } = value as Record<string, unknown>;
+  if (!isValidCadence(orgDefault)) {
+    throw new SettingsValidationError("historyRetention.orgDefault must be a valid cadence (onWrite | manual | interval{everyHours})");
+  }
+  for (const [name, map] of [["programme", programme], ["project", project]] as const) {
+    if (map === undefined) continue;
+    if (!map || typeof map !== "object") throw new SettingsValidationError(`historyRetention.${name} must be an object`);
+    for (const [key, cadence] of Object.entries(map as Record<string, unknown>)) {
+      if (!isValidCadence(cadence)) throw new SettingsValidationError(`historyRetention.${name}.${key} must be a valid cadence`);
+    }
+  }
+}
+
+/** Validate the skills-planning config: a matrix of resources (skills 1–5, non-negative capacity) and
+ *  a list of demand requests (positive hours, optional proficiency bar). Config, so kept light. */
+function validateSkillsPlanning(value: unknown): void {
+  if (!value || typeof value !== "object") throw new SettingsValidationError("skillsPlanning must be an object");
+  const { matrix, demand } = value as Record<string, unknown>;
+  if (matrix !== undefined) {
+    if (!Array.isArray(matrix)) throw new SettingsValidationError("skillsPlanning.matrix must be an array");
+    for (const r of matrix) {
+      const res = r as Record<string, unknown>;
+      if (typeof res?.["resourceId"] !== "string" || typeof res?.["name"] !== "string") throw new SettingsValidationError("each skills matrix row needs resourceId + name");
+      if (typeof res["capacityHours"] !== "number" || !Number.isFinite(res["capacityHours"]) || res["capacityHours"] < 0) throw new SettingsValidationError("skills matrix capacityHours must be a non-negative number");
+      const skills = res["skills"];
+      if (!skills || typeof skills !== "object") throw new SettingsValidationError("skills matrix row needs a skills object");
+      for (const [, prof] of Object.entries(skills as Record<string, unknown>)) {
+        if (typeof prof !== "number" || prof < 1 || prof > 5) throw new SettingsValidationError("skill proficiency must be 1–5");
+      }
+    }
+  }
+  if (demand !== undefined) {
+    if (!Array.isArray(demand)) throw new SettingsValidationError("skillsPlanning.demand must be an array");
+    for (const d of demand) {
+      const req = d as Record<string, unknown>;
+      if (typeof req?.["id"] !== "string" || typeof req?.["skill"] !== "string") throw new SettingsValidationError("each demand row needs id + skill");
+      if (typeof req["hoursNeeded"] !== "number" || !Number.isFinite(req["hoursNeeded"]) || req["hoursNeeded"] < 0) throw new SettingsValidationError("demand hoursNeeded must be a non-negative number");
+      if (req["minProficiency"] !== undefined && (typeof req["minProficiency"] !== "number" || req["minProficiency"] < 1 || req["minProficiency"] > 5)) throw new SettingsValidationError("demand minProficiency must be 1–5");
+    }
+  }
+}
+
 /** Validate a settings patch and return a NORMALIZED copy (reportingCurrency upper-cased,
  *  fxRateAsOfDate/reportingCurrency empty-string coerced to null, …) — pure, never mutates the
  *  caller's `patch` object. Throws SettingsValidationError on bad input. */
@@ -813,40 +1074,8 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
       }
     }
   }
-  if ("webhooks" in patch) {
-    const webhooks = patch["webhooks"];
-    if (!Array.isArray(webhooks)) throw new SettingsValidationError("webhooks must be an array");
-    for (const w of webhooks) {
-      if (!w || typeof w !== "object") throw new SettingsValidationError("each webhook must be an object");
-      const url = (w as Record<string, unknown>)["url"];
-      if (typeof url !== "string") throw new SettingsValidationError("each webhook needs a url string");
-      try {
-        assertSafeOutboundUrl(url, "webhook url");
-      } catch (err) {
-        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "webhook url is invalid");
-      }
-    }
-  }
-  if ("federatedPeers" in patch) {
-    const peers = patch["federatedPeers"];
-    if (!Array.isArray(peers)) throw new SettingsValidationError("federatedPeers must be an array");
-    for (const p of peers) {
-      if (!p || typeof p !== "object") throw new SettingsValidationError("each federated peer must be an object");
-      const o = p as Record<string, unknown>;
-      if (typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each federated peer needs a string id");
-      if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a label`);
-      const baseUrl = o["baseUrl"];
-      if (typeof baseUrl !== "string" || !baseUrl) throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a baseUrl`);
-      try {
-        assertSafeOutboundUrl(baseUrl, "federated peer baseUrl");
-      } catch (err) {
-        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "federated peer baseUrl is invalid");
-      }
-      if (typeof o["token"] !== "string") throw new SettingsValidationError(`federated peer "${String(o["id"])}" needs a token string`);
-      if (o["region"] != null && typeof o["region"] !== "string") throw new SettingsValidationError(`federated peer "${String(o["id"])}" region must be a string or null`);
-      if ("active" in o && typeof o["active"] !== "boolean") throw new SettingsValidationError(`federated peer "${String(o["id"])}" active must be a boolean`);
-    }
-  }
+  if ("webhooks" in patch) validateWebhooks(patch["webhooks"]);
+  if ("federatedPeers" in patch) validateFederatedPeers(patch["federatedPeers"]);
   if ("branding" in patch && patch["branding"] != null && typeof patch["branding"] !== "object") {
     throw new SettingsValidationError("branding must be an object or null");
   }
@@ -875,59 +1104,28 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
       throw new SettingsValidationError("hiddenFields must be an array of strings");
     }
   }
-  if ("savedViews" in patch) {
-    const v = patch["savedViews"];
-    if (!Array.isArray(v)) throw new SettingsValidationError("savedViews must be an array");
-    for (const view of v) {
-      if (!view || typeof view !== "object") throw new SettingsValidationError("each saved view must be an object");
-      const { id, name } = view as Record<string, unknown>;
-      if (typeof id !== "string" || !id) throw new SettingsValidationError("each saved view needs a string id");
-      if (typeof name !== "string" || !name) throw new SettingsValidationError("each saved view needs a name");
-    }
-  }
+  if ("savedViews" in patch) validateSavedViews(patch["savedViews"]);
   if ("customReports" in patch) validateCustomReports(patch["customReports"]);
   if ("reportOverrides" in patch) validateReportOverrides(patch["reportOverrides"]);
   if ("contentPages" in patch) validateContentPages(patch["contentPages"]);
   if ("priorityWeights" in patch) validatePriorityWeights(patch["priorityWeights"]);
-  if ("dashboards" in patch) {
-    const v = patch["dashboards"];
-    if (!Array.isArray(v)) throw new SettingsValidationError("dashboards must be an array");
-    for (const dash of v) {
-      if (!dash || typeof dash !== "object") throw new SettingsValidationError("each dashboard must be an object");
-      const { id, name, widgets } = dash as Record<string, unknown>;
-      if (typeof id !== "string" || !id) throw new SettingsValidationError("each dashboard needs a string id");
-      if (typeof name !== "string" || !name) throw new SettingsValidationError("each dashboard needs a name");
-      const { refreshMs } = dash as Record<string, unknown>;
-      if (refreshMs != null && (typeof refreshMs !== "number" || refreshMs < 0)) throw new SettingsValidationError("each dashboard refreshMs must be a non-negative number");
-      if (!Array.isArray(widgets)) throw new SettingsValidationError("each dashboard needs a widgets array");
-      for (const w of widgets) {
-        if (!w || typeof w !== "object") throw new SettingsValidationError("each dashboard widget must be an object");
-        const { id: wid, type } = w as Record<string, unknown>;
-        if (typeof wid !== "string" || !wid) throw new SettingsValidationError("each dashboard widget needs a string id");
-        if (typeof type !== "string" || !type) throw new SettingsValidationError("each dashboard widget needs a type");
-      }
-    }
-  }
+  if ("dashboards" in patch) validateDashboards(patch["dashboards"]);
   if ("fieldOverrides" in patch) validateFieldOverrides(patch["fieldOverrides"]);
-  if ("loggingSync" in patch) {
-    const sync = patch["loggingSync"];
-    if (!sync || typeof sync !== "object") throw new SettingsValidationError("loggingSync must be an object");
-    const { enabled, url, acknowledgedWarranty } = sync as Record<string, unknown>;
-    if (url != null) {
-      if (typeof url !== "string") throw new SettingsValidationError("loggingSync.url must be a string or null");
-      try {
-        assertSafeOutboundUrl(url, "loggingSync.url");
-      } catch (err) {
-        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : "loggingSync.url is invalid");
-      }
-    }
-    if (enabled === true) {
-      // Egress is the one out-of-warranty relaxation: it can only be turned on
-      // with a destination AND an explicit acknowledgement of the warranty boundary.
-      if (typeof url !== "string" || !url) throw new SettingsValidationError("enable the logging sync requires a url");
-      if (acknowledgedWarranty !== true) {
-        throw new SettingsValidationError("enabling the logging sync requires acknowledging that egressed data is outside OmniProject's warranty");
-      }
+  if ("loggingSync" in patch) validateLoggingSync(patch["loggingSync"]);
+  if ("selfHost" in patch) validateSelfHost(patch["selfHost"]);
+  if ("historyRetention" in patch) validateHistoryRetention(patch["historyRetention"]);
+  if ("skillsPlanning" in patch) validateSkillsPlanning(patch["skillsPlanning"]);
+  // Remaining writable keys that previously had no validator: a wrong-typed value was persisted and
+  // then crashed a downstream sink (e.g. backendSource:{} → broker-command TypeError, 500 for all).
+  if ("aiModel" in patch && patch["aiModel"] != null && typeof patch["aiModel"] !== "string") {
+    throw new SettingsValidationError("aiModel must be a string or null");
+  }
+  if ("backendSource" in patch && typeof patch["backendSource"] !== "string") {
+    throw new SettingsValidationError("backendSource must be a string");
+  }
+  for (const key of ["capabilityStates", "screenLayouts", "userPrefs"] as const) {
+    if (key in patch && (typeof patch[key] !== "object" || patch[key] == null || Array.isArray(patch[key]))) {
+      throw new SettingsValidationError(`${key} must be an object`);
     }
   }
   return normalized;

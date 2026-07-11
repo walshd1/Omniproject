@@ -35,6 +35,7 @@ after(() => server?.close());
 
 const post = (path: string, body: unknown) =>
   fetch(`${base}/api${path}`, { method: "POST", headers: { cookie: USER, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const get = (path: string) => fetch(`${base}/api${path}`, { headers: { cookie: USER } });
 
 test("capture returns a signed-or-hashed bundle; verify confirms it intact, and detects tampering", async () => {
   const data = [{ programme: "Platform", budget: 1000 }, { programme: "Mobile", budget: 500 }];
@@ -55,4 +56,25 @@ test("capture returns a signed-or-hashed bundle; verify confirms it intact, and 
 
 test("capture without a data payload is a 400", async () => {
   assert.equal((await post("/snapshots/capture", { scope: "x" })).status, 400);
+});
+
+test("capture defaults scope/label when only data is supplied", async () => {
+  const cap = await post("/snapshots/capture", { data: [{ a: 1 }] });
+  assert.equal(cap.status, 200);
+  const bundle = (await cap.json()) as SnapshotBundle;
+  assert.equal(bundle.manifest.scope, "snapshot");
+  assert.equal(bundle.manifest.label, "Snapshot");
+});
+
+test("verify rejects a body that is not a { manifest, data } bundle → 400", async () => {
+  assert.equal((await post("/snapshots/verify", { data: [] })).status, 400); // missing manifest
+  assert.equal((await post("/snapshots/verify", { manifest: {} })).status, 400); // missing data
+});
+
+test("GET /snapshots/key exposes the offline-verification public key material", async () => {
+  const r = await get("/snapshots/key");
+  assert.equal(r.status, 200);
+  const body = (await r.json()) as { signingEnabled: boolean; publicKeyId: string | null; publicKeyPem: string | null };
+  assert.equal(typeof body.signingEnabled, "boolean");
+  assert.ok("publicKeyId" in body && "publicKeyPem" in body);
 });

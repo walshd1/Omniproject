@@ -148,7 +148,7 @@ repo setting, not something a CI job can do — no tool available here can toggl
 
 ### B3. Signed release tags + the 0.7.0 release itself
 **Why parked:** releasing is maintainer-owned (you tag/publish). Draft is ready in
-[`RELEASE-NOTES-0.7.0-DRAFT.md`](./RELEASE-NOTES-0.7.0-DRAFT.md).
+[`RELEASE-NOTES-0.7.0-DRAFT.md`](./archive/releases/RELEASE-NOTES-0.7.0-DRAFT.md).
 
 ---
 

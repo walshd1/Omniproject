@@ -3,6 +3,8 @@ import { getSettings, type PeerInstance } from "./settings";
 import { allowedRegions } from "./data-residency";
 import { computeLocalPortfolioSummary, type PortfolioSummary } from "./portfolio-summary";
 import { logger } from "./logger";
+import { isTimeoutError } from "./timeout-error";
+import { safeFetch } from "./egress";
 
 /**
  * Cross-instance portfolio federation (backlog #135) — a minimal, stateless fan-out that lets a
@@ -49,7 +51,9 @@ export async function fetchPeerSummary(peer: PeerInstance): Promise<PeerPortfoli
   const url = `${peer.baseUrl.replace(/\/+$/, "")}/api/portfolio/summary`;
   const started = Date.now();
   try {
-    const res = await fetch(url, {
+    // safeFetch resolves DNS and blocks link-local/metadata/private targets (SSRF) and enforces the
+    // residency egress gate — a peer host that resolves to 169.254.169.254 is rejected, not fetched.
+    const res = await safeFetch(url, {
       headers: { Authorization: `Bearer ${peer.token}`, Accept: "application/json" },
       signal: AbortSignal.timeout(PEER_TIMEOUT_MS),
     });
@@ -64,7 +68,7 @@ export async function fetchPeerSummary(peer: PeerInstance): Promise<PeerPortfoli
     return { ...base, status: "ok", summary, ms };
   } catch (err) {
     const ms = Date.now() - started;
-    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+    const isTimeout = isTimeoutError(err);
     return { ...base, status: "unreachable", summary: null, error: isTimeout ? "timed out" : "unreachable", ms };
   }
 }

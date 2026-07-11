@@ -1,0 +1,28 @@
+{
+  "id": "utilisation",
+  "label": "Utilisation",
+  "docsUrl": "",
+  "kind": "resource",
+  "renderer": {
+    "engine": "builtin",
+    "component": "Utilisation"
+  },
+  "capabilities": {
+    "requiresCapability": "resources",
+    "timeSeries": false,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "assignee",
+    "loggedHours",
+    "estimateHours",
+    "remainingHours",
+    "billable"
+  ],
+  "notes": "Per-assignee utilisation from timesheets: rolls work items up by assignee and shows logged vs estimate vs remaining effort, a billable/non-billable split, and a utilisation % (logged vs a nominal period capacity) with overload / under-utilised flags. Resource utilisation roll-up, derived live.",
+  "order": 74
+}

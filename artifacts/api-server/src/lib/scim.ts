@@ -242,7 +242,10 @@ export function listGroups(filter?: string): ScimGroup[] {
 
 /** Recompute each user's `groups` display-name list from current group membership. */
 function syncGroupMembership(): void {
-  const byUser: Record<string, string[]> = {};
+  // Null-prototype map: a member `value` of "__proto__"/"constructor"/"toString" etc. would
+  // otherwise read an inherited Object.prototype member, so `??=` never assigns and `.push`
+  // throws — a SCIM client could crash every group write. Object.create(null) has no such keys.
+  const byUser: Record<string, string[]> = Object.create(null);
   for (const g of Object.values(dir.groups)) {
     for (const m of g.members) (byUser[m.value] ??= []).push(g.displayName);
   }

@@ -68,7 +68,9 @@ describe("IssueSidePanel", () => {
     renderWithProviders(<IssueSidePanel />, { client: seed() });
     act(() => useSidePanel.getState().openIssue("p1", "i1"));
     const status = (await screen.findByLabelText("Status")) as HTMLSelectElement;
+    fireEvent.focus(status);
     fireEvent.change(status, { target: { value: "done" } });
+    fireEvent.blur(status);
     await waitFor(() => expect(mutatingCalls().length).toBeGreaterThan(0));
     const body = String((mutatingCalls().at(-1)![1] as RequestInit).body);
     expect(body).toContain("\"status\":\"done\"");
@@ -130,6 +132,83 @@ describe("IssueSidePanel", () => {
 
     expect(await screen.findByTestId("presence-avatars")).toBeInTheDocument();
     expect(screen.getByTestId("lock-Status")).toHaveTextContent(/Bo Diddley editing/);
+  });
+
+  it("edits the priority field via its select", async () => {
+    renderWithProviders(<IssueSidePanel />, { client: seed() });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    const priority = (await screen.findByLabelText("Priority")) as HTMLSelectElement;
+    fireEvent.focus(priority);
+    fireEvent.change(priority, { target: { value: "low" } });
+    fireEvent.blur(priority);
+    await waitFor(() => expect(mutatingCalls().length).toBeGreaterThan(0));
+    const body = String((mutatingCalls().at(-1)![1] as RequestInit).body);
+    expect(body).toContain("\"priority\":\"low\"");
+  });
+
+  it("edits the assignee text field on blur", async () => {
+    renderWithProviders(<IssueSidePanel />, { client: seed() });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    const assignee = await screen.findByLabelText("Assignee");
+    fireEvent.focus(assignee);
+    fireEvent.change(assignee, { target: { value: "bob" } });
+    fireEvent.blur(assignee);
+    await waitFor(() => expect(mutatingCalls().length).toBeGreaterThan(0));
+    expect(String((mutatingCalls().at(-1)![1] as RequestInit).body)).toContain("\"assignee\":\"bob\"");
+  });
+
+  it("clearing the assignee field commits null (trimmed empty ⇒ unassigned)", async () => {
+    renderWithProviders(<IssueSidePanel />, { client: seed() });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    const assignee = await screen.findByLabelText("Assignee");
+    fireEvent.change(assignee, { target: { value: "  " } });
+    fireEvent.blur(assignee);
+    await waitFor(() => expect(mutatingCalls().length).toBeGreaterThan(0));
+    expect(String((mutatingCalls().at(-1)![1] as RequestInit).body)).toContain("\"assignee\":null");
+  });
+
+  it("commits the due-date field on Enter", async () => {
+    renderWithProviders(<IssueSidePanel />, { client: seed({ issues: [issue({ dueDate: "2026-01-01T00:00:00.000Z" })] }) });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    const due = (await screen.findByLabelText("Due")) as HTMLInputElement;
+    expect(due.value).toBe("2026-01-01");
+    fireEvent.focus(due);
+    fireEvent.change(due, { target: { value: "2026-02-02" } });
+    fireEvent.keyDown(due, { key: "Enter" });
+    await waitFor(() => expect(mutatingCalls().length).toBeGreaterThan(0));
+    expect(String((mutatingCalls().at(-1)![1] as RequestInit).body)).toContain("\"dueDate\":\"2026-02-02\"");
+  });
+
+  it("clearing the due-date field on blur commits null", async () => {
+    renderWithProviders(<IssueSidePanel />, { client: seed({ issues: [issue({ dueDate: "2026-01-01T00:00:00.000Z" })] }) });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    const due = (await screen.findByLabelText("Due")) as HTMLInputElement;
+    fireEvent.change(due, { target: { value: "" } });
+    fireEvent.blur(due);
+    await waitFor(() => expect(mutatingCalls().length).toBeGreaterThan(0));
+    expect(String((mutatingCalls().at(-1)![1] as RequestInit).body)).toContain("\"dueDate\":null");
+  });
+
+  it("pressing Escape closes the panel", async () => {
+    renderWithProviders(<IssueSidePanel />, { client: seed() });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    await screen.findByText("Wire the broker");
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(useSidePanel.getState().open).toBe(false));
+  });
+
+  it("shows the loading placeholder when open but the work item hasn't arrived yet", () => {
+    const qc = seed({ issues: [] });
+    renderWithProviders(<IssueSidePanel />, { client: qc });
+    act(() => useSidePanel.getState().openIssue("p1", "does-not-exist"));
+    expect(screen.getByTestId("side-panel-empty")).toHaveTextContent(/loading work item/i);
+  });
+
+  it("shows 'No recent activity' when there is none for this item", async () => {
+    renderWithProviders(<IssueSidePanel />, { client: seed({ activity: [] }) });
+    act(() => useSidePanel.getState().openIssue("p1", "i1"));
+    await screen.findByText("Wire the broker");
+    expect(screen.getByTestId("side-panel-no-activity")).toBeInTheDocument();
   });
 
   it("lists only this item's activity", async () => {

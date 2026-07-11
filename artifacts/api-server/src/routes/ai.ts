@@ -78,6 +78,15 @@ function enforceOr403(req: Request, res: Response, capabilityId: string, opts: {
   }
 }
 
+/** Send the standard AI/STT error response: an AiError/SttError carries its own HTTP status, anything
+ *  else is a 502; the error is logged with `logMsg` and `fallback` is the body when it has no message.
+ *  Collapses the identical catch block every AI/STT route repeated. */
+function respondAiError(req: Request, res: Response, err: unknown, fallback: string, logMsg: string): void {
+  const status = err instanceof AiError || err instanceof SttError ? err.status : 502;
+  req.log.error({ err }, logMsg);
+  res.status(status).json({ error: err instanceof Error ? err.message : fallback });
+}
+
 // ── GET /api/ai/status — which provider/model is active and ready ─────────────
 router.get("/ai/status", (_req, res) => {
   res.json(aiStatus());
@@ -112,9 +121,7 @@ router.post("/ai/chat", async (req, res) => {
     const result = await aiChat(messages, govCtx(req));
     res.json(result);
   } catch (err) {
-    const status = err instanceof AiError ? err.status : 502;
-    req.log.error({ err }, "AI chat failed");
-    res.status(status).json({ error: err instanceof Error ? err.message : "AI request failed" });
+    respondAiError(req, res, err, "AI request failed", "AI chat failed");
   }
 });
 
@@ -147,9 +154,7 @@ router.post("/ai/nl-action", async (req, res) => {
     const plan = await planAction({ text, tools, allowWrites, complete: async (prompt) => (await aiChat([{ role: "user", content: prompt }], govCtx(req))).content });
     res.json({ plan });
   } catch (err) {
-    const status = err instanceof AiError ? err.status : 502;
-    req.log.error({ err }, "nl-action planning failed");
-    res.status(status).json({ error: err instanceof Error ? err.message : "planning failed" });
+    respondAiError(req, res, err, "planning failed", "nl-action planning failed");
   }
 });
 
@@ -181,9 +186,7 @@ router.post("/ai/copilot", async (req, res) => {
     });
     res.json(result);
   } catch (err) {
-    const status = err instanceof AiError ? err.status : 502;
-    req.log.error({ err }, "copilot failed");
-    res.status(status).json({ error: err instanceof Error ? err.message : "copilot failed" });
+    respondAiError(req, res, err, "copilot failed", "copilot failed");
   }
 });
 
@@ -208,9 +211,7 @@ router.post("/ai/transcribe", async (req, res) => {
     const result = await transcribe(audio, parsed.mime ?? "audio/webm");
     res.json(result);
   } catch (err) {
-    const status = err instanceof SttError ? err.status : 502;
-    req.log.error({ err }, "transcription failed");
-    res.status(status).json({ error: err instanceof Error ? err.message : "transcription failed" });
+    respondAiError(req, res, err, "transcription failed", "transcription failed");
   }
 });
 
@@ -245,9 +246,7 @@ router.post("/ai/suggest-backend", requireRole("admin"), async (req, res) => {
     res.json({ manifest });
   } catch (err) {
     if (err instanceof SuggestParseError) { res.status(502).json({ error: err.message }); return; }
-    const status = err instanceof AiError ? err.status : 502;
-    req.log.error({ err }, "backend-draft suggestion failed");
-    res.status(status).json({ error: err instanceof Error ? err.message : "suggestion failed" });
+    respondAiError(req, res, err, "suggestion failed", "backend-draft suggestion failed");
   }
 });
 

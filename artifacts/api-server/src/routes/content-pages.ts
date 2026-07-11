@@ -1,7 +1,5 @@
-import { Router } from "express";
-import { getSettings, updateSettings, SettingsValidationError } from "../lib/settings";
-import { captureVersion } from "../lib/config-store";
 import { requireRole } from "../lib/rbac";
+import { settingsCollectionRouter } from "../lib/settings-collection-router";
 
 /**
  * Content pages — named, ordered lists of unified-library component ids (reports + widgets, see
@@ -11,22 +9,9 @@ import { requireRole } from "../lib/rbac";
  * READ them (so a saved page renders for everyone); authoring is PMO-gated, since a content page is
  * shared org config. Same persistence shape as routes/custom-reports. Validated in updateSettings.
  */
-const router = Router();
-
-router.get("/content-pages", (_req, res) => {
-  res.json({ contentPages: getSettings().contentPages ?? [] });
+export default settingsCollectionRouter({
+  path: "/content-pages",
+  settingsKey: "contentPages",
+  versionLabel: "content pages updated",
+  writeGuards: [requireRole("pmo")],
 });
-
-router.put("/content-pages", requireRole("pmo"), (req, res) => {
-  const contentPages = (req.body as { contentPages?: unknown })?.contentPages;
-  try {
-    const settings = updateSettings({ contentPages });
-    captureVersion("content pages updated");
-    res.json({ contentPages: settings.contentPages });
-  } catch (err) {
-    if (err instanceof SettingsValidationError) { res.status(400).json({ error: err.message }); return; }
-    throw err;
-  }
-});
-
-export default router;

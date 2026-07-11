@@ -35,6 +35,7 @@ import { recordAudit } from "../lib/audit";
 import { getSession, baseUrl } from "./auth";
 import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus, buildPublicSetupStatus } from "../lib/setup-status";
+import { selfHostGatingForScope } from "../selfhost";
 import { deploymentProfile, profilePosture, requireTls, acceptDemoAuth, demoAuthSeverity, profileCatalogue, DEPLOYMENT_PROFILES } from "../lib/deployment-profile";
 import { bootRefusalActive } from "../lib/security-check";
 import { brokerMtlsConfigured } from "../lib/broker-transport";
@@ -45,6 +46,7 @@ import { isOidcConfigured } from "../lib/oidc";
 import { isSamlConfigured } from "../lib/saml";
 import {
   storeView,
+  storeViewShared,
   captureVersion,
   createEnvironment,
   activateEnvironment,
@@ -54,6 +56,7 @@ import {
   promote,
 } from "../lib/config-store";
 import { isFeatureEnabled } from "../lib/feature-modules";
+import { isTimeoutError } from "../lib/timeout-error";
 
 const router = Router();
 
@@ -160,6 +163,43 @@ router.post("/setup/profile", requireRole("admin"), (req, res) => {
   res.json({ profile: deploymentProfile(), posture: profilePosture(), tls: { servedOverTls: requireTls() } });
 });
 
+// GET /api/setup/self-host — the current self-host DB adoption + its resolved domain gating for a
+// scope (admin/PMO). Programme/project narrowing reuses the existing governance maps, so the admin
+// screen sees the same resolution the composition tier runs. Read-only; never project data.
+router.get("/setup/self-host", requireAnyRole("admin", "pmo"), (req, res) => {
+  const config = getSettings().selfHost;
+  const programmeId = (req.query["programmeId"] as string | undefined)?.trim() || null;
+  const projectId = (req.query["projectId"] as string | undefined)?.trim() || null;
+  const gating = selfHostGatingForScope({ programmeId, projectId });
+  res.json({
+    config,
+    mode: gating.mode,
+    holdsOnlyCopy: config.mode !== "off",
+    domains: gating.rows,
+    enabledDomains: [...gating.enabledDomainIds],
+  });
+});
+
+// POST /api/setup/self-host — adopt (or turn off) the self-host DB from the wizard/admin (admin).
+// The "disclose, don't insure" gate lives in `updateSettings` → `validateSelfHost`: a non-off mode
+// without the data-responsibility acknowledgement is rejected (400), so this can never persist an
+// un-acknowledged adoption. Persisting rides the config bundle like any other setting.
+router.post("/setup/self-host", requireRole("admin"), (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const mode = typeof body["mode"] === "string" ? body["mode"] : "off";
+  const adopted = Array.isArray(body["adopted"]) ? body["adopted"].filter((x): x is string => typeof x === "string") : [];
+  const ack = body["acknowledgedDataResponsibility"] === true;
+  try {
+    updateSettings({ selfHost: { mode, adopted, acknowledgedDataResponsibility: ack } });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "invalid self-host config" });
+    return;
+  }
+  const config = getSettings().selfHost;
+  const gating = selfHostGatingForScope();
+  res.json({ config, domains: gating.rows, enabledDomains: [...gating.enabledDomainIds], holdsOnlyCopy: config.mode !== "off" });
+});
+
 // POST /api/setup/charity-onboarding — the "We're a charity" one-click preset (admin). Selects
 // the nonprofit deployment profile, mints the trustee-report + funder-report dashboard presets
 // (existing widgets only), and best-effort adopts the active backend's nomenclature preset if
@@ -210,7 +250,7 @@ router.post("/setup/test-broker", requireRole("admin"), async (req, res) => {
       res.json({ reachable: false, error: err.message });
       return;
     }
-    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+    const isTimeout = isTimeoutError(err);
     res.json({ reachable: false, error: isTimeout ? "Connection timed out" : "Could not reach the webhook URL" });
   }
 });
@@ -571,9 +611,10 @@ function handle(res: Response, fn: () => unknown): void {
   }
 }
 
-// GET /api/setup/environments — environments, active env, version history.
-router.get("/setup/environments", requireRole("admin"), (_req, res) => {
-  res.json(storeView());
+// GET /api/setup/environments — environments, active env, version history (fleet-wide when
+// Redis-backed, else this replica's local history).
+router.get("/setup/environments", requireRole("admin"), async (_req, res) => {
+  res.json(await storeViewShared());
 });
 
 // POST /api/setup/environments { name } — create a sandbox (clone of active).

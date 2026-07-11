@@ -1,12 +1,10 @@
-import { useMemo, useState } from "react";
-import { useQueries } from "@tanstack/react-query";
-import { useListProjects, useGetSettings, getGetProjectFinancialsQueryOptions, type ProjectFinancials } from "@workspace/api-client-react";
-import { useFxRates, resolveFxAsOf, currencyList } from "../../lib/currency";
-import { consolidateFinancials, type ProjectFin, type FinanceRollup } from "../../lib/portfolio-finance";
+import { ReportEmpty } from "./ReportEmpty";
+import { type FinanceRollup } from "../../lib/portfolio-finance";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { SnapshotButton } from "./SnapshotControls";
+import { usePortfolioFinancials } from "./use-portfolio-financials";
 
 /** Human label for the org's FX as-of-date policy, for the footnote. */
 const FX_POLICY_LABEL: Record<string, string> = {
@@ -54,36 +52,19 @@ function Row({ r, money, target, formatCurrency }: { r: FinanceRollup; money: (n
 
 export function PortfolioFinancials() {
   const { formatCurrency } = useT();
-  const { data: projects, isLoading: projLoading, isError, error, refetch } = useListProjects();
-  const { data: settings } = useGetSettings();
-  const { data: fx } = useFxRates(resolveFxAsOf(settings));
-  const [reporting, setReporting] = useState<string>("");
+  const { consolidated, target, setReporting, options, projLoading, finLoading, isError, error, refetch, settings, fx } = usePortfolioFinancials();
 
-  const ids = useMemo(() => (projects ?? []).map((p) => p.id), [projects]);
-  const finQueries = useQueries({ queries: ids.map((id) => getGetProjectFinancialsQueryOptions(id)) });
-
-  // View override → the org default reporting currency → the FX base.
-  const target = reporting || settings?.reportingCurrency || fx?.base || "GBP";
-  const loading = projLoading || finQueries.some((q) => q.isLoading);
-
-  const consolidated = useMemo(() => {
-    const withFin: ProjectFin[] = (projects ?? [])
-      .map((p, i) => ({ p, fin: finQueries[i]?.data as ProjectFinancials | undefined }))
-      .filter((x): x is { p: typeof x.p; fin: ProjectFinancials } => !!x.fin)
-      .map(({ p, fin }) => ({ projectId: p.id, projectName: p.name, programmeId: p.programmeId ?? null, programmeName: p.programmeName ?? null, fin }));
-    return consolidateFinancials(withFin, target, fx?.rates);
-  }, [projects, finQueries, target, fx]);
+  const loading = projLoading || finLoading;
 
   const money = (n: number) => formatCurrency(n, target);
-  const options = currencyList(fx?.rates);
   const hasData = consolidated.portfolio.projects > 0;
 
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {!hasData ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="portfolio-fin-empty">
+        <ReportEmpty testId="portfolio-fin-empty">
           No financials — connect a cost / ERP source so projects report budget, actual and forecast.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="portfolio-financials">
           <div className="flex flex-wrap items-center justify-between gap-3">

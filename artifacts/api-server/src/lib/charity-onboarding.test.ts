@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { applyCharityOnboarding } from "./charity-onboarding";
 import { updateSettings, getSettings } from "./settings";
 import { setRuntimeProfile } from "./deployment-profile";
+import { nomenclaturePresets } from "./nomenclature";
 
 /**
  * "We're a charity" one-click onboarding preset — selects the nonprofit deployment profile,
@@ -10,8 +11,9 @@ import { setRuntimeProfile } from "./deployment-profile";
  * preset. Additive + idempotent, so these tests reset the shared settings store afterwards.
  */
 afterEach(() => {
-  updateSettings({ deploymentProfile: "business", dashboards: [] });
+  updateSettings({ deploymentProfile: "business", dashboards: [], backendSource: "" });
   setRuntimeProfile(null);
+  delete process.env["PREMIUM_ENFORCEMENT"];
 });
 
 test("selects the nonprofit deployment profile", () => {
@@ -60,4 +62,29 @@ test("nomenclature is best-effort and degrades gracefully when no preset matches
   const result = applyCharityOnboarding();
   assert.equal(result.nomenclature.applied, false);
   assert.ok(result.nomenclature.reason.length > 0);
+});
+
+test("nomenclature: not entitled to labels → skipped with a clear reason", () => {
+  process.env["PREMIUM_ENFORCEMENT"] = "on"; // paywall labels (no licence configured)
+  const result = applyCharityOnboarding();
+  assert.equal(result.nomenclature.applied, false);
+  assert.match(result.nomenclature.reason, /not entitled/);
+});
+
+test("nomenclature: entitled + a backend with a preset → the preset is adopted", () => {
+  const presets = nomenclaturePresets();
+  if (presets.length === 0) return; // no vendor ships a nomenclature preset in this build
+  const backendId = presets[0]!.backendId;
+  updateSettings({ backendSource: backendId }); // pre-community entitles `labels` by default
+  const result = applyCharityOnboarding();
+  assert.equal(result.nomenclature.applied, true);
+  assert.equal(result.nomenclature.backendId, backendId);
+  assert.match(result.nomenclature.reason, new RegExp(`adopted the ${backendId}`));
+});
+
+test("nomenclature: entitled but backend has no preset → reason names the backend", () => {
+  updateSettings({ backendSource: "definitely-not-a-real-backend-xyz" });
+  const result = applyCharityOnboarding();
+  assert.equal(result.nomenclature.applied, false);
+  assert.match(result.nomenclature.reason, /no nomenclature preset for backend/);
 });

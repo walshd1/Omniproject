@@ -1,0 +1,29 @@
+{
+  "id": "demand-intake",
+  "label": "Demand Intake",
+  "docsUrl": "",
+  "kind": "portfolio",
+  "renderer": {
+    "engine": "builtin",
+    "component": "DemandIntake"
+  },
+  "capabilities": {
+    "requiresCapability": "portfolio",
+    "timeSeries": false,
+    "exports": [
+      "csv",
+      "pdf",
+      "png"
+    ]
+  },
+  "tools": [
+    "status",
+    "requester",
+    "riceScore",
+    "wsjf",
+    "moscow",
+    "strategicContribution"
+  ],
+  "notes": "Demand / intake funnel with prioritisation: treats every work item as a unit of demand and flows it through the intake funnel derived from status (backlog / idea → triaged → approved → in delivery → done), then ranks the top live requests by RICE / WSJF / MoSCoW with requester + strategic contribution — answering what is asking for the portfolio's capacity, where it sits in the pipeline, and what to pull next. Portfolio demand roll-up, derived live.",
+  "order": 73
+}

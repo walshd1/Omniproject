@@ -16,6 +16,7 @@ import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
 import { wrapWithSingleFlight } from "./single-flight";
 import { messyDataArmed, wrapWithMessy } from "./messy-broker";
 import { getSettings } from "../lib/settings";
+import { isTimeoutError } from "../lib/timeout-error";
 
 /**
  * Broker selection + the request→domain context adapter.
@@ -217,7 +218,7 @@ export function respondBrokerError(res: Response, err: unknown): void {
     res.status(err.status).json(body);
     return;
   }
-  const isTimeout = err instanceof Error && err.name === "TimeoutError";
+  const isTimeout = isTimeoutError(err);
   res.status(502).json({ error: isTimeout ? "backend request timed out" : "backend unreachable" });
 }
 

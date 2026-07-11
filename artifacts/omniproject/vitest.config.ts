@@ -24,6 +24,13 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     restoreMocks: true,
+    // Interaction-heavy RTL tests (userEvent typing, findBy* polling) run comfortably under ~2s
+    // in isolation but can approach the old 5s default when the machine is saturated — e.g. the
+    // root `pnpm -r test:coverage` used to fan every package's suite out at once. The aggregate is
+    // now serial (--workspace-concurrency=1), and this generous ceiling removes the last of the
+    // load-induced timeout flakiness so a busy CI runner can't tip a slow test over the edge.
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

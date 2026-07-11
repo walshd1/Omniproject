@@ -3,6 +3,7 @@ import path from "node:path";
 import { backendCatalogue, brokerCatalogue } from "@workspace/backend-catalogue";
 import { buildZip, type ZipEntry } from "./zip";
 import { buildSnapshot } from "./config-snapshot";
+import { isSealedConfig } from "./config-crypto";
 import { getSettings } from "./settings";
 import { configDirSummary } from "./config-dir";
 import { getDemoState } from "./data";
@@ -23,7 +24,11 @@ import { licenseSummary } from "./license";
  * another instance. It gathers, for a point in time:
  *
  *  - `config.json`       — the gateway configuration snapshot (no secrets).
- *  - `config-dir/*.json` — the loaded JSON config files (OMNI_CONFIG_DIR), if any.
+ *  - `config-dir/*.json` — the loaded JSON config files (OMNI_CONFIG_DIR), if any — EXCLUDING
+ *                          any file that's sealed (secret) at rest (vault, rate-card, SCIM,
+ *                          security-state, …), so the bundle never carries even a ciphertext
+ *                          copy of a secret store. `manifest.json`'s `skippedSealedConfigFiles`
+ *                          names what was left out.
  *  - `vendors.json`      — the loaded backend + broker catalogues (the definitions
  *                          the engines are running, so a mismatch is visible).
  *  - `feature-modules.json` — the optional feature-module status (which modules are
@@ -53,23 +58,33 @@ export interface DebugBundleManifest {
   env: string;
   surfaces: ReturnType<typeof devModeStatus>["surfaces"];
   contents: string[];
+  /** config-dir files left out because they're sealed (secret) at rest — see configDirEntries. */
+  skippedSealedConfigFiles: string[];
 }
 
-/** Read every *.json file in OMNI_CONFIG_DIR as bundle entries (empty if unset/absent). */
-function configDirEntries(): ZipEntry[] {
+/** Read every *.json file in OMNI_CONFIG_DIR as bundle entries (empty if unset/absent). Sealed
+ *  files (vault, rate-card, SCIM, security-state, …) are recognised by content — not by
+ *  filename — and excluded: the bundle is a non-secret repro dump, not a secret-store copy,
+ *  even when that copy would only be ciphertext. `skipped` names what was left out so the
+ *  omission is visible rather than a silent, confusing gap in the dump. */
+function configDirEntries(): { entries: ZipEntry[]; skipped: string[] } {
   const dir = process.env["OMNI_CONFIG_DIR"]?.trim();
-  if (!dir || !fs.existsSync(dir)) return [];
-  const out: ZipEntry[] = [];
+  if (!dir || !fs.existsSync(dir)) return { entries: [], skipped: [] };
+  const entries: ZipEntry[] = [];
+  const skipped: string[] = [];
   const walk = (d: string, prefix: string) => {
     for (const name of fs.readdirSync(d)) {
       const full = path.join(d, name);
       const stat = fs.statSync(full);
-      if (stat.isDirectory()) walk(full, `${prefix}${name}/`);
-      else if (name.endsWith(".json")) out.push({ name: `config-dir/${prefix}${name}`, data: fs.readFileSync(full) });
+      if (stat.isDirectory()) { walk(full, `${prefix}${name}/`); continue; }
+      if (!name.endsWith(".json")) continue;
+      const data = fs.readFileSync(full);
+      if (isSealedConfig(data.toString("utf8"))) { skipped.push(`${prefix}${name}`); continue; }
+      entries.push({ name: `config-dir/${prefix}${name}`, data });
     }
   };
   walk(dir, "");
-  return out;
+  return { entries, skipped };
 }
 
 /** The capture tape as a bundle entry, when armed and present. */
@@ -84,13 +99,18 @@ function jsonEntry(name: string, value: unknown): ZipEntry {
   return { name, data: Buffer.from(JSON.stringify(value, null, 2), "utf8") };
 }
 
-const README = (now: string): string =>
+const README = (now: string, skippedSealedConfigFiles: string[]): string =>
   "# OmniProject debug bundle\n\n" +
   `Generated ${now}.\n\n` +
   "A reproducible dump for sharing on a GitHub issue / replaying on another instance.\n\n" +
   "## Contents\n" +
   "- `config.json` — gateway configuration snapshot (no secrets; those live in env).\n" +
-  "- `config-dir/*.json` — the loaded JSON config files (OMNI_CONFIG_DIR), if any.\n" +
+  "- `config-dir/*.json` — the loaded JSON config files (OMNI_CONFIG_DIR), if any — excluding\n" +
+  "  any file sealed (secret) at rest (vault, rate-card, SCIM, security-state, …); never even a\n" +
+  "  ciphertext copy of a secret store. See `manifest.json`'s `skippedSealedConfigFiles`.\n" +
+  (skippedSealedConfigFiles.length > 0
+    ? `  Excluded this run: ${skippedSealedConfigFiles.map((f) => `\`${f}\``).join(", ")}.\n`
+    : "") +
   "- `vendors.json` — the loaded backend + broker catalogues (the running definitions).\n" +
   "- `feature-modules.json` — optional feature-module status (enabled / loaded / needs restart).\n" +
   "- `runtime-posture.json` — non-secret governance posture (AI/guardrails/audit/STT/licence/capabilities).\n" +
@@ -121,6 +141,7 @@ interface DebugBundleData {
   };
   state: ReturnType<typeof getDemoState>;
   dirEntries: ZipEntry[];
+  skippedSealedConfigFiles: string[];
   tapeEntries: ZipEntry[];
 }
 
@@ -130,7 +151,7 @@ function gatherDebugData(): DebugBundleData {
   const config = buildSnapshot(getSettings());
   const vendors = { backends: backendCatalogue(), brokers: brokerCatalogue(), configDir: configDirSummary() };
   const state = getDemoState();
-  const dirEntries = configDirEntries();
+  const { entries: dirEntries, skipped: skippedSealedConfigFiles } = configDirEntries();
   const tapeEntries = captureEntry();
 
   const features = featureStatus();
@@ -153,7 +174,7 @@ function gatherDebugData(): DebugBundleData {
     brokerReads: { singleFlight: singleFlightStats(), cache: readCacheStats() },
   };
 
-  return { config, vendors, features, posture, state, dirEntries, tapeEntries };
+  return { config, vendors, features, posture, state, dirEntries, skippedSealedConfigFiles, tapeEntries };
 }
 
 /** Serialize gathered data to the bundle's ZIP entries (excluding manifest/README, added by the
@@ -172,7 +193,7 @@ function toZipEntries(data: DebugBundleData): ZipEntry[] {
 
 /** Build the manifest from the final entry list (so `contents` lists everything the bundle
  *  actually carries) plus the generation time + dev-mode surfaces. */
-function buildManifest(now: string, entries: ZipEntry[]): DebugBundleManifest {
+function buildManifest(now: string, entries: ZipEntry[], skippedSealedConfigFiles: string[]): DebugBundleManifest {
   return {
     schema: "omniproject/debug-bundle",
     version: 1,
@@ -180,6 +201,7 @@ function buildManifest(now: string, entries: ZipEntry[]): DebugBundleManifest {
     env: process.env["NODE_ENV"] ?? "development",
     surfaces: devModeStatus().surfaces,
     contents: entries.map((e) => e.name),
+    skippedSealedConfigFiles,
   };
 }
 
@@ -187,10 +209,10 @@ function buildManifest(now: string, entries: ZipEntry[]): DebugBundleManifest {
 export function buildDebugBundleEntries(now: string): { manifest: DebugBundleManifest; entries: ZipEntry[] } {
   const data = gatherDebugData();
   const entries = toZipEntries(data);
-  const manifest = buildManifest(now, entries);
+  const manifest = buildManifest(now, entries, data.skippedSealedConfigFiles);
 
   entries.unshift(jsonEntry("manifest.json", manifest));
-  entries.unshift({ name: "README.md", data: Buffer.from(README(now), "utf8") });
+  entries.unshift({ name: "README.md", data: Buffer.from(README(now, data.skippedSealedConfigFiles), "utf8") });
   return { manifest, entries };
 }
 

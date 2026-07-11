@@ -112,4 +112,24 @@ describe("PortfolioPrioritisation", () => {
     expect(screen.getByLabelText("Funding decision for A")).toHaveValue("fund");
     expect(screen.getByLabelText("Funding decision for B")).toHaveValue("defer");
   });
+
+  it("Optimise (max value) picks a mix under the budget cap and reports the result vs greedy", () => {
+    renderWithProviders(<PortfolioPrioritisation />, {
+      client: seed({
+        projects: [project({ id: "a", name: "A" }), project({ id: "b", name: "B" })],
+        issues: {
+          a: [issue({ id: "1", projectId: "a", riceScore: 90 })],
+          b: [issue({ id: "2", projectId: "b", riceScore: 40 })],
+        },
+        financials: { a: fin({ budgetAllocated: 1000 }), b: fin({ budgetAllocated: 1000 }) },
+      }),
+    });
+    fireEvent.change(screen.getByLabelText("Budget cap (GBP)"), { target: { value: "1000" } });
+    fireEvent.click(screen.getByTestId("priority-optimise"));
+    // Only one project fits the cap; the higher-scored A is funded, B deferred.
+    expect(screen.getByLabelText("Funding decision for A")).toHaveValue("fund");
+    expect(screen.getByLabelText("Funding decision for B")).toHaveValue("defer");
+    // The optimiser reports what it did (exact method + the value it bought).
+    expect(screen.getByTestId("priority-optimise-note")).toHaveTextContent(/Optimised \(exact\)/);
+  });
 });

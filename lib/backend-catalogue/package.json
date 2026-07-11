@@ -9,10 +9,12 @@
   },
   "scripts": {
     "test": "tsx --test \"src/**/*.test.ts\"",
+    "test:coverage": "c8 tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "c8": "^11.0.0",
     "tsx": "catalog:"
   }
 }

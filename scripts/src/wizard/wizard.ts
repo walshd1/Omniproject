@@ -12,6 +12,7 @@ import {
   isCustomBackend, renderSkeletonWorkflow, renderKnownWorkflow, renderBindingGuide,
   renderManifestSource, renderFieldMap,
 } from "./custom-backend";
+import { bold as b, dim, green as ok, yellow as warn, red as err } from "../lib/ansi";
 
 /**
  * First-run setup wizard (TUI). Interviews the operator — broker backend, IdP,
@@ -23,11 +24,6 @@ import {
  * Pure logic lives in lib/deploy-config.ts; this file is just the readline shell.
  */
 
-const b = (s: string) => `\x1b[1m${s}\x1b[0m`;
-const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
-const ok = (s: string) => `\x1b[32m${s}\x1b[0m`;
-const warn = (s: string) => `\x1b[33m${s}\x1b[0m`;
-const err = (s: string) => `\x1b[31m${s}\x1b[0m`;
 const rand = (bytes: number) => crypto.randomBytes(bytes).toString("base64url");
 
 /** The readline question shapes every prompt* step is handed, so each is testable in isolation

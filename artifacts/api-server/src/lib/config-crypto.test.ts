@@ -2,7 +2,8 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   sealConfig, openConfig, readMaybeSealed, exportConfigBundle, openBundle,
-  rotateInternalKey, internalKeyFingerprint, __resetConfigCrypto,
+  rotateInternalKey, internalKeyFingerprint, isSealedConfig, __resetConfigCrypto,
+  ConfigDecryptError, isUndecryptableSealed,
 } from "./config-crypto";
 
 /**
@@ -27,6 +28,12 @@ test("a tampered token fails authentication (returns null)", () => {
 test("readMaybeSealed opens sealed text and passes plaintext through (migration)", () => {
   assert.equal(readMaybeSealed(sealConfig("hello")), "hello");
   assert.equal(readMaybeSealed('{"plain":true}'), '{"plain":true}');
+});
+
+test("isSealedConfig recognises sealed tokens by content, not plaintext", () => {
+  assert.equal(isSealedConfig(sealConfig("anything")), true);
+  assert.equal(isSealedConfig('{"plain":true}'), false);
+  assert.equal(isSealedConfig(""), false);
 });
 
 test("a rotated internal key still opens OLD tokens (version embedded) + seals new ones", () => {
@@ -60,4 +67,50 @@ test("CONFIG_KEY_RAW is used directly (restore a specific key on a target)", () 
   const token = sealConfig("restored");
   __resetConfigCrypto(); // simulate a fresh process with the same CONFIG_KEY_RAW
   assert.equal(openConfig(token), "restored");
+});
+
+test("openConfig rejects non-internal, dot-less, and non-integer-version tokens", () => {
+  assert.equal(openConfig("e1.something"), null); // wrong prefix
+  assert.equal(openConfig("c1."), null); // nothing after prefix (dot at index <= 0)
+  assert.equal(openConfig("c1.payload-no-version-dot"), null); // no dot inside the rest
+  assert.equal(openConfig("c1.abc.payload"), null); // version "abc" is not an integer
+});
+
+test("opening an OLDER version token doesn't lower the current version (noteVersion guard)", () => {
+  rotateInternalKey(); // currentVersion → 2
+  rotateInternalKey(); // → 3
+  const v3token = sealConfig("at v3");
+  // A v1 token opens fine but must not pull currentVersion back down to 1.
+  assert.equal(openConfig("c1.1.not-a-real-payload"), null); // decrypt fails but version noted
+  assert.equal(openConfig(v3token), "at v3", "current version unchanged, v3 still opens");
+});
+
+test("readMaybeSealed passes plaintext through and THROWS on an unopenable sealed token (never silent '')", () => {
+  assert.equal(readMaybeSealed("just plaintext"), "just plaintext");
+  // An undecryptable sealed token must NOT read as empty — that let a wrong/rotated key seal
+  // default state over valid ciphertext and destroy the store. It now throws so callers can refuse.
+  assert.throws(() => readMaybeSealed("c1.1.garbage-that-cannot-decrypt"), ConfigDecryptError);
+  assert.equal(isUndecryptableSealed("c1.1.garbage-that-cannot-decrypt"), true);
+  assert.equal(isUndecryptableSealed("just plaintext"), false);
+});
+
+test("with CONFIG_KEY_RAW, a post-export rekey genuinely rotates the at-rest key (v1 still opens, v2 differs)", () => {
+  process.env["CONFIG_KEY_RAW"] = Buffer.alloc(32, 7).toString("base64");
+  __resetConfigCrypto();
+  const v1 = sealConfig("secret");
+  assert.ok(v1.startsWith("c1.1."));
+  const fp1 = internalKeyFingerprint();
+  rotateInternalKey(); // the post-export rekey — was a silent no-op under a raw key before
+  const v2 = sealConfig("secret");
+  assert.ok(v2.startsWith("c1.2."));
+  assert.notEqual(internalKeyFingerprint(), fp1); // key actually changed
+  assert.equal(openConfig(v1), "secret"); // v1 still opens (backward-compatible: v1 = raw key)
+  assert.equal(openConfig(v2), "secret");
+});
+
+test("openBundle rejects a wrong prefix and a wrong-length key", () => {
+  const { bundle, exportKey } = exportConfigBundle("payload");
+  assert.equal(openBundle("nope.payload", exportKey), null); // wrong prefix
+  assert.equal(openBundle(bundle, Buffer.alloc(16).toString("base64")), null); // 16-byte key
+  assert.equal(openBundle(bundle, exportKey), "payload"); // sanity: correct key opens it
 });

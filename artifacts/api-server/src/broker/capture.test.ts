@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { captureEnabled, capturePath, recordExchange, readTape, resetCaptureSeq, type Exchange } from "./capture";
@@ -115,6 +115,34 @@ test("redrive skips writes by default, runs reads, and flags divergence", async 
 
   assert.equal(isWriteMethod("createProject"), true);
   assert.equal(isWriteMethod("listProjects"), false);
+});
+
+// --- recordExchange swallows a write failure (never breaks the request) --------
+
+test("recordExchange never throws when the tape path can't be written", () => {
+  const dir = mkdtempSync(join(tmpdir(), "omni-tape-badpath-"));
+  // Point the tape at the DIRECTORY itself: appendFileSync throws EISDIR, which
+  // recordExchange must swallow (a capture failure is a dev aid, not a fault).
+  withEnv({ NODE_ENV: "development", BROKER_CAPTURE: dir }, () => {
+    resetCaptureSeq();
+    assert.doesNotThrow(() =>
+      recordExchange({ plane: "broker", method: "listProjects", args: [{ sub: "u" }], result: [], ms: 1, ok: true }),
+    );
+  });
+});
+
+// --- readTape tolerates blank and corrupt lines --------------------------------
+
+test("readTape skips blank and corrupt lines and returns the valid ones in seq order", () => {
+  const dir = mkdtempSync(join(tmpdir(), "omni-tape-corrupt-"));
+  const tape = join(dir, "t.jsonl");
+  const valid1: Exchange = { seq: 1, ts: "t", plane: "broker", method: "b", args: [], ms: 1, ok: true };
+  const valid0: Exchange = { seq: 0, ts: "t", plane: "broker", method: "a", args: [], ms: 1, ok: true };
+  // Out-of-order valid lines, a blank line, and a non-JSON corrupt line.
+  writeFileSync(tape, `${JSON.stringify(valid1)}\n\n{not valid json\n${JSON.stringify(valid0)}\n`);
+  const rows = readTape(tape);
+  assert.equal(rows.length, 2, "corrupt + blank lines dropped");
+  assert.deepEqual(rows.map((r) => r.seq), [0, 1], "sorted by seq");
 });
 
 // --- A non-broker plane still records (notify/export generalisation) ------------

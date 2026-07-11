@@ -21,6 +21,12 @@ import { LanguageSwitcher } from "../LanguageSwitcher";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
+/** True when focus is in a text-entry surface, so a global keyboard shortcut should stand down. */
+function isTypingInField(): boolean {
+  const el = document.activeElement as HTMLElement | null;
+  return el?.tagName === "INPUT" || el?.tagName === "TEXTAREA" || !!el?.isContentEditable;
+}
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const { activeProjectId, isNewIssueOpen, setNewIssueOpen, isShortcutsOpen, setShortcutsOpen } = useStore();
@@ -73,7 +79,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     const CHORD_WINDOW_MS = 1000;
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore shortcuts while typing in a field.
-      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
+      if (isTypingInField()) return;
 
       if (e.key === "g") {
         const nextKey = (ev: KeyboardEvent) => {
@@ -99,8 +105,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     const handleHelpKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-      if ((document.activeElement as HTMLElement | null)?.isContentEditable) return;
+      if (isTypingInField()) return;
       if (e.key === "?") {
         e.preventDefault();
         setShortcutsOpen(true);

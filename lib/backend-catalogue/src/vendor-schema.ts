@@ -30,11 +30,15 @@ export function validate(schema: JsonSchema, value: unknown, at = "$"): string[]
     const obj = value as Record<string, unknown>;
     const props = (schema["properties"] as Record<string, JsonSchema>) ?? {};
     for (const req of (schema["required"] as string[]) ?? []) {
-      if (!(req in obj)) errs.push(`${at}: missing required property "${req}"`);
+      // Object.hasOwn, not `in`: a required prop named "constructor"/"toString" must NOT be
+      // satisfied by an inherited Object.prototype member on an untrusted `obj`.
+      if (!Object.hasOwn(obj, req)) errs.push(`${at}: missing required property "${req}"`);
     }
     const additional = schema["additionalProperties"];
     for (const [k, v] of Object.entries(obj)) {
-      if (props[k]) errs.push(...validate(props[k], v, `${at}.${k}`));
+      // Object.hasOwn, not truthy index: a key named "constructor"/"toString" on `obj` must not
+      // resolve to an inherited member of `props` and thereby bypass additionalProperties:false.
+      if (Object.hasOwn(props, k)) errs.push(...validate(props[k] as JsonSchema, v, `${at}.${k}`));
       else if (additional === false) errs.push(`${at}: unexpected property "${k}"`);
       else if (additional && typeof additional === "object") errs.push(...validate(additional as JsonSchema, v, `${at}.${k}`));
     }

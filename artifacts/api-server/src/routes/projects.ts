@@ -71,6 +71,29 @@ function passesBusinessRules(req: Request, res: Response, action: string, projec
   return true;
 }
 
+/** Minimal structural view of a zod schema's `safeParse` — lets the path-param
+ *  helper stay generic without a direct zod dependency (api-server gets zod only
+ *  transitively via @workspace/api-zod). */
+interface ParamSchema<T> {
+  safeParse(input: unknown): { success: true; data: T } | { success: false };
+}
+
+/**
+ * Parse the route's path params (`:projectId`, and any sibling like `:issueId`)
+ * through its zod contract. On the failure path — unreachable in practice, since
+ * the params coerce to strings — it sends the same `400 { error: message }` the
+ * handlers used to inline and returns null so the caller early-returns. On success
+ * it returns the parsed params.
+ */
+function parseRouteParams<T>(schema: ParamSchema<T>, req: Request, res: Response, message: string): T | null {
+  const parse = schema.safeParse(req.params);
+  if (!parse.success) {
+    res.status(400).json({ error: message });
+    return null;
+  }
+  return parse.data;
+}
+
 // ── Reads (served by the active broker — live backend or demo) ────────────────
 
 router.get("/projects", async (req, res) => {
@@ -86,15 +109,12 @@ router.get("/projects", async (req, res) => {
 });
 
 router.get("/projects/:projectId/issues", async (req, res) => {
-  const parse = GetProjectIssuesParams.safeParse(req.params);
-  if (!parse.success) {
-    res.status(400).json({ error: "Invalid project id" });
-    return;
-  }
+  const params = parseRouteParams(GetProjectIssuesParams, req, res, "Invalid project id");
+  if (!params) return;
   try {
     await conditionalJson(req, res, {
-      token: await brokerChangeToken(req, `issues:${parse.data.projectId}`),
-      read: () => getIssues(req, parse.data.projectId),
+      token: await brokerChangeToken(req, `issues:${params.projectId}`),
+      read: () => getIssues(req, params.projectId),
     });
   } catch (err) {
     req.log.error({ err }, "list_issues failed");
@@ -103,13 +123,10 @@ router.get("/projects/:projectId/issues", async (req, res) => {
 });
 
 router.get("/projects/:projectId/summary", async (req, res) => {
-  const parse = GetProjectSummaryParams.safeParse(req.params);
-  if (!parse.success) {
-    res.status(400).json({ error: "Invalid project id" });
-    return;
-  }
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
   try {
-    res.json(await getSummary(req, parse.data.projectId));
+    res.json(await getSummary(req, params.projectId));
   } catch (err) {
     req.log.error({ err }, "project_summary failed");
     respondBrokerError(res, err);
@@ -209,11 +226,8 @@ router.get("/resources", async (req, res) => {
 });
 
 router.get("/projects/:projectId/members", async (req, res) => {
-  const parse = ListProjectMembersParams.safeParse(req.params);
-  if (!parse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
+  const params = parseRouteParams(ListProjectMembersParams, req, res, "Invalid request");
+  if (!params) return;
   // Degrade gracefully: a backend that can't surface members returns an empty
   // roster (the UI falls back to a free-text assignee).
   const caps = await resolveCapabilities(req);
@@ -222,7 +236,7 @@ router.get("/projects/:projectId/members", async (req, res) => {
     return;
   }
   try {
-    res.json(await getBroker().projectMembers(contextFromReq(req), parse.data.projectId));
+    res.json(await getBroker().projectMembers(contextFromReq(req), params.projectId));
   } catch (err) {
     req.log.error({ err }, "list_project_members failed");
     respondBrokerError(res, err);
@@ -232,13 +246,10 @@ router.get("/projects/:projectId/members", async (req, res) => {
 // ── Task children: issues & notes raised against a task ───────────────────────
 
 router.get("/projects/:projectId/issues/:issueId/items", async (req, res) => {
-  const parse = ListTaskItemsParams.safeParse(req.params);
-  if (!parse.success) {
-    res.status(400).json({ error: "Invalid request" });
-    return;
-  }
+  const params = parseRouteParams(ListTaskItemsParams, req, res, "Invalid request");
+  if (!params) return;
   try {
-    res.json(await getBroker().listTaskItems(contextFromReq(req), parse.data.projectId, parse.data.issueId));
+    res.json(await getBroker().listTaskItems(contextFromReq(req), params.projectId, params.issueId));
   } catch (err) {
     req.log.error({ err }, "list_task_items failed");
     respondBrokerError(res, err);
@@ -322,12 +333,9 @@ router.patch("/projects/:projectId/issues/:issueId", requireRole("contributor"),
 });
 
 router.delete("/projects/:projectId/issues/:issueId", requireRole("contributor"), async (req, res) => {
-  const paramsParse = DeleteIssueParams.safeParse(req.params);
-  if (!paramsParse.success) {
-    res.status(400).json({ error: "Invalid params" });
-    return;
-  }
-  const { projectId, issueId } = paramsParse.data;
+  const params = parseRouteParams(DeleteIssueParams, req, res, "Invalid params");
+  if (!params) return;
+  const { projectId, issueId } = params;
   if (!passesBusinessRules(req, res, "delete_issue", projectId)) return;
 
   try {
@@ -342,12 +350,9 @@ router.delete("/projects/:projectId/issues/:issueId", requireRole("contributor")
 // ── Analytics: capacity + financials (strict rate limit) ──────────────────────
 
 router.get("/projects/:projectId/capacity", analyticsLimiter, async (req, res) => {
-  const parse = GetProjectSummaryParams.safeParse(req.params);
-  if (!parse.success) {
-    res.status(400).json({ error: "Invalid project id" });
-    return;
-  }
-  const { projectId } = parse.data;
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
   try {
     res.json(await getBroker().resourceCapacity(contextFromReq(req), projectId));
   } catch (err) {
@@ -357,12 +362,9 @@ router.get("/projects/:projectId/capacity", analyticsLimiter, async (req, res) =
 });
 
 router.get("/projects/:projectId/financials", analyticsLimiter, async (req, res) => {
-  const parse = GetProjectSummaryParams.safeParse(req.params);
-  if (!parse.success) {
-    res.status(400).json({ error: "Invalid project id" });
-    return;
-  }
-  const { projectId } = parse.data;
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
+  const { projectId } = params;
   try {
     res.json(await getBroker().projectFinancials(contextFromReq(req), projectId));
   } catch (err) {
@@ -374,29 +376,23 @@ router.get("/projects/:projectId/financials", analyticsLimiter, async (req, res)
 // ── History + baseline (sourced from the system of record via the broker) ─────
 
 router.get("/projects/:projectId/history", analyticsLimiter, async (req, res) => {
-  const parse = GetProjectSummaryParams.safeParse(req.params);
-  if (!parse.success) {
-    res.status(400).json({ error: "Invalid project id" });
-    return;
-  }
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
   try {
-    res.json(await getHistory(req, parse.data.projectId));
+    res.json(await getHistory(req, params.projectId));
   } catch (err) {
-    req.log.error({ err, projectId: parse.data.projectId }, "get_project_history failed");
+    req.log.error({ err, projectId: params.projectId }, "get_project_history failed");
     respondBrokerError(res, err);
   }
 });
 
 router.get("/projects/:projectId/baseline", analyticsLimiter, async (req, res) => {
-  const parse = GetProjectSummaryParams.safeParse(req.params);
-  if (!parse.success) {
-    res.status(400).json({ error: "Invalid project id" });
-    return;
-  }
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
   try {
-    res.json(await getBaseline(req, parse.data.projectId));
+    res.json(await getBaseline(req, params.projectId));
   } catch (err) {
-    req.log.error({ err, projectId: parse.data.projectId }, "get_baseline failed");
+    req.log.error({ err, projectId: params.projectId }, "get_baseline failed");
     respondBrokerError(res, err);
   }
 });
@@ -404,15 +400,12 @@ router.get("/projects/:projectId/baseline", analyticsLimiter, async (req, res) =
 // ── RAID log ──────────────────────────────────────────────────────────────────
 
 router.get("/projects/:projectId/raid", async (req, res) => {
-  const parse = GetProjectSummaryParams.safeParse(req.params);
-  if (!parse.success) {
-    res.status(400).json({ error: "Invalid project id" });
-    return;
-  }
+  const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
+  if (!params) return;
   try {
-    res.json(await getRaid(req, parse.data.projectId));
+    res.json(await getRaid(req, params.projectId));
   } catch (err) {
-    req.log.error({ err, projectId: parse.data.projectId }, "get_raid failed");
+    req.log.error({ err, projectId: params.projectId }, "get_raid failed");
     respondBrokerError(res, err);
   }
 });

@@ -3,6 +3,7 @@ import { currentVersion, derivedKey, isActive } from "./key-registry";
 import { signMessage, publicKeyId, verifySignature } from "./signing";
 import type { SessionBind } from "./session-key";
 import { constantTimeEqual } from "./crypto-keys";
+import { canonicalJson } from "./canonical-json";
 
 /**
  * Provenance chain — a keyed-MAC, hash-chained record of every broker call, holding
@@ -62,19 +63,12 @@ function hmac(input: string, version: number): string {
   return createHmac("sha256", derivedKey("provenance", version)).update(input).digest("hex");
 }
 
-/** Deterministic JSON: object keys sorted recursively, so the MAC is stable. */
+/** Deterministic JSON: object keys sorted recursively, so the MAC is stable. The single shared
+ *  serializer (lib/canonical-json) — must produce the exact same bytes as snapshot's content hash,
+ *  which was a separate copy until they were consolidated. Kept as a named export so the MAC/anchor
+ *  call sites (and audit-chain) read as `canonical(...)`. */
 export function canonical(value: unknown): string {
-  return JSON.stringify(sortDeep(value));
-}
-
-function sortDeep(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortDeep);
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const k of Object.keys(value as Record<string, unknown>).sort()) out[k] = sortDeep((value as Record<string, unknown>)[k]);
-    return out;
-  }
-  return value;
+  return canonicalJson(value);
 }
 
 /** The fingerprint of some content, bound to the actor + sequence position. */

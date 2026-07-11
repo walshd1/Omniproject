@@ -1,3 +1,5 @@
+import { ReportEmpty } from "./ReportEmpty";
+import { DEFAULT_CURRENCY } from "../../lib/currency";
 import { useMemo, useState } from "react";
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
@@ -24,7 +26,7 @@ export function ForecastWindows({ projectId, now }: { projectId: string; now?: n
 
   const f = fin.data;
   const asOf = now ?? Date.now();
-  const ccy = f?.currency || "GBP";
+  const ccy = f?.currency || DEFAULT_CURRENCY;
   const money = (n: number) => formatCurrency(n, ccy);
 
   const curve = useMemo(() => {
@@ -50,9 +52,9 @@ export function ForecastWindows({ projectId, now }: { projectId: string; now?: n
   return (
     <DataState isLoading={loading} isError={isError} error={fin.error || iss.error} onRetry={() => { void fin.refetch(); void iss.refetch(); }} className="min-h-40">
       {!curve ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="forecast-empty">
+        <ReportEmpty testId="forecast-empty">
           No time-phased forecast — needs a budget from a cost / ERP source and start / due dates on work items to spread it across.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="forecast-windows">
           <div className="flex flex-wrap items-center justify-between gap-3">

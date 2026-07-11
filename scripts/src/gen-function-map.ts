@@ -165,7 +165,10 @@ const sections = ROOTS.map((root) => {
   const exempt = new Set(root.exempt);
   const files = walkFiles(path.join(ROOT, root.dir), { extensions: [".ts"], excludeSuffixes: [".test.ts"] })
     .map((abs) => ({ abs, rel: path.relative(ROOT, abs) }))
-    .filter(({ rel }) => !exempt.has(rel))
+    // Skip test scaffolding: `*.test.ts` is handled by excludeSuffixes above, but non-test
+    // helpers under a `__tests__/` dir (e.g. the shared HTTP harness) are test infrastructure,
+    // not production architecture, so they don't belong in the function map.
+    .filter(({ rel }) => !exempt.has(rel) && !rel.includes("/__tests__/"))
     .sort((a, b) => a.rel.localeCompare(b.rel))
     .map(({ abs, rel }) => readFile(abs, rel));
   return { root, files };

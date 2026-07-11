@@ -6,16 +6,18 @@
 # k8s-enterprise-manifest.yaml all deploy.
 
 # ── Builder ───────────────────────────────────────────────────────────────────
-# Mirror the CI toolchain (.github/workflows/ci.yml): Node 26 + pnpm 11.8.0 — if you bump
-# either version here, bump the matching one in ci.yml (node-version / pnpm/action-setup's
-# `version:`) too, so the build and CI toolchains can't silently drift apart.
+# Mirror the CI toolchain (.github/workflows/ci.yml): Node 26 + pnpm 11.8.0 — CI now verifies on
+# Node 26 too (the SPA test env needed a localStorage polyfill, since Node 26's built-in Web Storage
+# collides with jsdom's — see artifacts/omniproject/src/test/setup.ts). Keep these in lockstep: if you
+# bump either version here, bump the matching one in ci.yml (node-version / pnpm/action-setup's
+# `version:`) so the build and CI toolchains can't silently drift apart.
 #
 # Pinned by digest, not just the `26-bookworm-slim` tag: a tag is mutable (the same tag name
 # gets repointed at a new image on every Debian/Node patch release), so pinning only by tag
 # means every build silently pulls whatever the tag currently resolves to — not reproducible,
 # and a compromised/tampered upstream tag would go unnoticed. Refresh the digest deliberately
 # (e.g. `docker buildx imagetools inspect node:26-bookworm-slim`) alongside a real version bump.
-FROM node:26-bookworm-slim@sha256:b16ca7b4dcfb20184e1c70f9ee30c6a75ed1da669cfafd6d2add4761b123d79f AS builder
+FROM node:26-bookworm-slim@sha256:e999d087492c7227c85adc70574cf9d3cce774c3e6d7b8dfe473ee6b142c8f2c AS builder
 
 # Node no longer bundles corepack, so install the pinned pnpm directly via npm.
 RUN npm install -g pnpm@11.8.0
@@ -36,7 +38,7 @@ RUN PORT=3000 BASE_PATH=/ pnpm --filter @workspace/omniproject run build \
  && pnpm --filter @workspace/api-server run build
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
-FROM node:26-bookworm-slim@sha256:b16ca7b4dcfb20184e1c70f9ee30c6a75ed1da669cfafd6d2add4761b123d79f AS runtime
+FROM node:26-bookworm-slim@sha256:e999d087492c7227c85adc70574cf9d3cce774c3e6d7b8dfe473ee6b142c8f2c AS runtime
 
 ENV NODE_ENV=production
 ENV PORT=3000

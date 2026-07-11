@@ -14,6 +14,40 @@ deliberate, documented limitation (not a defect) · **[idea]** worth doing, unsc
 These are the items most likely to bite in production, because they're verified against
 **mocks**, not the real third parties.
 
+- **[gap] The entire n8n contract has never executed inside real n8n.** CI's "n8n contract
+  verification (bidirectional)" step (`.github/workflows/ci.yml`) and `verify-broker-contract.ts`
+  both run the gateway against a hand-rolled Node HTTP server standing in for "whatever the broker
+  webhook returns" — n8n itself (its Webhook trigger, IF/Switch semantics, Code-node execution,
+  `responseNode` wiring, the exact node `typeVersion`s the generator emits) has never imported or
+  run a single workflow `generateWorkflow()` produces. The CI step's own name overclaims what it
+  checks. This is the single highest-value missing test in the repo, because it's the one thing
+  every deployment depends on and nothing catches a generator regression (bad Switch rule, wrong
+  `outputKey`, a Code-node template-string bug, a node `typeVersion` the pinned n8n release
+  doesn't support) before a real operator's import does.
+  **Scope (not yet started):**
+  1. **Spike first, unscoped work after:** prove n8n can be driven headlessly in CI at all —
+     creating an owner account + API key (or working via the internal `/rest/` session API) without
+     the setup wizard, importing a workflow, activating it, and hitting its real (not `-test`)
+     webhook — against the pinned `n8nio/n8n:1.123.61` image, in a throwaway script before any CI
+     wiring. This is the one unknown that could reshape the whole approach.
+  2. **No live vendor account needed for phase 1.** Generate the workflow for
+     `REFERENCE_BACKEND` (`artifacts/api-server/src/broker/reference-backend-blueprint.ts`) — it's
+     plain HTTP, forwards the caller's bearer token via an expression (no n8n-managed credential to
+     provision), and its one env var (`YOUR_API_BASE`) can point at a second mock HTTP server also
+     started in CI. That server plays "the vendor API," not n8n — so real n8n only proves out ITS
+     OWN execution of the generated JSON, which is exactly the gap. Round-trip: gateway/CI
+     generates the workflow → import into n8n → activate → POST a synthetic `BrokerRequest` at the
+     real webhook → assert the `BrokerActionResult` shape n8n returns.
+  3. **Native-node transport (Asana-shaped: `kind: "n8nNode"`) is a separate, smaller check.**
+     Executing it against a live vendor hits the same "can't hold real credentials in CI" wall as
+     the verification-freeze backends below — descope to import + activate only (proves the
+     generator's native-node output is structurally valid n8n JSON), not a live call.
+  4. New CI job/step, `services:`-style n8n container (no existing precedent in this workflow to
+     copy) + the mock backend; budget ~30–90s added wall time; main flakiness risks are container
+     boot ordering and webhook-activation timing, both bounded with the same
+     poll-until-healthy pattern the gateway step already uses.
+  **Action:** do the spike (item 1) as its own throwaway/scratch exercise first; only write it up
+  as a committed task once headless n8n automation is proven to work against the pinned version.
 - **[caveat] External secret/KMS adapters are mock-verified only.** The native AWS Secrets
   Manager (SigV4), Azure Key Vault (AAD), HashiCorp/HCP, and the KMS/BYOK unwrap paths
   (`lib/vault-aws`, `lib/vault-azure`, `lib/vault-store`, `lib/kms`, `lib/aws-sigv4`) are
@@ -83,7 +117,7 @@ These are documented in `docs/AI-SECURITY.md §6`; restated here so they're not 
 
 ## 4. Not built yet (designed or deferred)
 
-- **[gap] Multi-tenancy.** Designed end-to-end in `docs/MULTI-TENANCY-DESIGN.md` (tenant context
+- **[gap] Multi-tenancy.** Designed end-to-end in `docs/archive/design/MULTI-TENANCY-DESIGN.md` (tenant context
   via AsyncLocalStorage, per-tenant config/vault/keys, fail-closed broker scoping, isolation test
   matrix) but **not implemented**. Single-tenant today. Needs the 5 open decisions in that doc
   answered before Phase 1 (tenant-context plumbing).

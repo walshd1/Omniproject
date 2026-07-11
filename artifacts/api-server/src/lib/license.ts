@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { applyDevEntitlementOverrides } from "./dev-entitlements";
 import { decodePemOrBase64 } from "./pem";
+import { parseCommaSet } from "./env";
 
 /**
  * Licensing / entitlements — the paywall for premium overlay features.
@@ -145,7 +146,7 @@ function devFeatures(): LicenseFeature[] {
   if (isProd()) return [];
   const raw = process.env["LICENSE_DEV_FEATURES"]?.trim();
   if (!raw) return [];
-  const set = new Set(raw.split(",").map((s) => s.trim().toLowerCase()));
+  const set = parseCommaSet(raw);
   if (set.has("all") || set.has("*")) return [...LICENSE_FEATURES];
   return LICENSE_FEATURES.filter((f) => set.has(f));
 }

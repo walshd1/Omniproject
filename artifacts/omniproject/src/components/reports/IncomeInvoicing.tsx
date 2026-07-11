@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useCallback, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
@@ -30,9 +31,9 @@ export function IncomeInvoicing({ projectId }: { projectId: string }) {
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {summary.count === 0 ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="income-empty">
+        <ReportEmpty testId="income-empty">
           No income data — set projected income (revenue) and invoiced amounts on work items to track billing.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="income-invoicing">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

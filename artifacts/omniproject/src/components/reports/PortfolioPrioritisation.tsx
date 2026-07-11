@@ -1,3 +1,4 @@
+import { ReportEmpty } from "./ReportEmpty";
 import { useMemo, useState } from "react";
 import { usePortfolioPriority } from "./use-portfolio-priority";
 import { useT } from "../../lib/i18n";
@@ -12,6 +13,7 @@ import {
   type FundingDecisions,
   type FundingDecision,
 } from "../../lib/funding-scenario";
+import { optimisePortfolio, type OptItem } from "../../lib/portfolio-optimiser";
 
 /**
  * Portfolio Prioritisation & Funding Funnel (backlog #98) — ranks every project on a composite of its
@@ -67,16 +69,37 @@ export function PortfolioPrioritisation() {
   const money = (n: number) => formatCurrency(n, target);
   const setDecision = (id: string, d: FundingDecision) => setDecisions((prev) => ({ ...prev, [id]: d }));
   const autoFund = () => setDecisions(autoFundByRank(scored, budgetCapNum, capacityCapNum, decisions));
-  const resetDecisions = () => setDecisions({});
+  const resetDecisions = () => { setDecisions({}); setOptNote(null); };
+
+  // Auto-OPTIMISE: pick the value-maximising project mix under the caps (0/1 knapsack), which beats
+  // rank-greedy when a cheaper mid-rank project buys more value than a costly top-rank one. Existing
+  // "cut" decisions are honoured as forbids; everything else is set fund/defer from the optimum.
+  const [optNote, setOptNote] = useState<string | null>(null);
+  const optimise = () => {
+    const items: OptItem[] = scored.map((s) => ({
+      id: s.projectId, name: s.projectName, value: s.compositeScore ?? 0, cost: s.cost, capacityHours: s.capacityHours,
+    }));
+    const forbid = scored.filter((s) => decisions[s.projectId] === "cut").map((s) => s.projectId);
+    const res = optimisePortfolio(items, { budgetCap: budgetCapNum, capacityCap: capacityCapNum, forbid });
+    const sel = new Set(res.selected);
+    const next: FundingDecisions = { ...decisions };
+    for (const s of scored) {
+      if (decisions[s.projectId] === "cut") continue;
+      next[s.projectId] = sel.has(s.projectId) ? "fund" : "defer";
+    }
+    setDecisions(next);
+    const uplift = res.greedyValue > 0 ? Math.round(((res.totalValue - res.greedyValue) / res.greedyValue) * 1000) / 10 : 0;
+    setOptNote(`Optimised (${res.method}): value ${res.totalValue} vs ${res.greedyValue} rank-greedy${uplift > 0 ? ` — +${uplift}% more value for the same budget` : ""}.`);
+  };
   const dirty = Object.keys(decisions).length > 0;
   const hasData = scored.length > 0;
 
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
       {!hasData ? (
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground" data-testid="portfolio-prioritisation-empty">
+        <ReportEmpty testId="portfolio-prioritisation-empty">
           No projects to prioritise.
-        </div>
+        </ReportEmpty>
       ) : (
         <div className="space-y-4" data-testid="portfolio-prioritisation">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -121,9 +144,18 @@ export function PortfolioPrioritisation() {
               type="button"
               data-testid="priority-auto-fund"
               onClick={autoFund}
-              className="inline-flex items-center gap-2 border border-primary bg-primary text-primary-foreground px-3 py-2 text-xs font-black uppercase tracking-widest hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring"
+              className="inline-flex items-center gap-2 border border-border bg-background px-3 py-2 text-xs font-black uppercase tracking-widest hover:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
             >
               Auto-fund by rank
+            </button>
+            <button
+              type="button"
+              data-testid="priority-optimise"
+              onClick={optimise}
+              title="Pick the value-maximising project mix under the caps (0/1 knapsack — beats rank-greedy)"
+              className="inline-flex items-center gap-2 border border-primary bg-primary text-primary-foreground px-3 py-2 text-xs font-black uppercase tracking-widest hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              Optimise (max value)
             </button>
             {dirty && (
               <button
@@ -140,6 +172,12 @@ export function PortfolioPrioritisation() {
               {" "}(PMO-configurable in Settings → Portfolio prioritisation)
             </span>
           </div>
+
+          {optNote && (
+            <p className="text-xs text-primary font-medium border border-primary/40 bg-primary/5 px-3 py-2" data-testid="priority-optimise-note">
+              {optNote}
+            </p>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">

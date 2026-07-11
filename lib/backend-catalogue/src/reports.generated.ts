@@ -155,6 +155,35 @@ export const REPORTS_DATA: ReportDefinition[] = [
     ]
   },
   {
+    "id": "demand-intake",
+    "label": "Demand Intake",
+    "docsUrl": "",
+    "kind": "portfolio",
+    "renderer": {
+      "engine": "builtin",
+      "component": "DemandIntake"
+    },
+    "capabilities": {
+      "requiresCapability": "portfolio",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "status",
+      "requester",
+      "riceScore",
+      "wsjf",
+      "moscow",
+      "strategicContribution"
+    ],
+    "notes": "Demand / intake funnel with prioritisation: treats every work item as a unit of demand and flows it through the intake funnel derived from status (backlog / idea → triaged → approved → in delivery → done), then ranks the top live requests by RICE / WSJF / MoSCoW with requester + strategic contribution — answering what is asking for the portfolio's capacity, where it sits in the pipeline, and what to pull next. Portfolio demand roll-up, derived live.",
+    "order": 73
+  },
+  {
     "id": "evm",
     "label": "Earned Value (EVM)",
     "docsUrl": "",
@@ -445,6 +474,38 @@ export const REPORTS_DATA: ReportDefinition[] = [
     "order": 90
   },
   {
+    "id": "project-health",
+    "label": "Project Health",
+    "docsUrl": "",
+    "kind": "portfolio",
+    "renderer": {
+      "engine": "builtin",
+      "component": "ProjectHealth"
+    },
+    "capabilities": {
+      "requiresCapability": "portfolio",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "status",
+      "dueDate",
+      "healthStatus",
+      "riskLevel",
+      "blocked",
+      "blockedReason",
+      "budget",
+      "actualCost",
+      "benefitConfidence"
+    ],
+    "notes": "Predictive project-health / risk scoring: derives a composite 0-100 health score and RAG band per project from the delivery-risk signals its work items carry — RAG health status, risk level, blocked flags, schedule slip (overdue open items), budget burn running ahead of delivery, benefit confidence and the open-vs-done ratio. Shows a RAG heatmap distribution, an at-risk ranking (worst first, with the driving factors) and portfolio red/amber/green + mean-health StatCards. Portfolio risk roll-up, derived live; nothing is stored.",
+    "order": 72
+  },
+  {
     "id": "raid-register",
     "label": "RAID register",
     "docsUrl": "",
@@ -553,6 +614,97 @@ export const REPORTS_DATA: ReportDefinition[] = [
       "overhead"
     ],
     "notes": "Server-side staff time-and-cost roll-up (PMO-gated). Rates resolve in-memory from the hashed rate card and never reach the client; returns aggregated true cost, cost-to-customer and gross margin.",
+    "order": 75
+  },
+  {
+    "id": "strategy-alignment",
+    "label": "Strategy Alignment",
+    "docsUrl": "",
+    "kind": "portfolio",
+    "renderer": {
+      "engine": "builtin",
+      "component": "StrategyAlignment"
+    },
+    "capabilities": {
+      "requiresCapability": "portfolio",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "strategicTheme",
+      "strategicGoals",
+      "strategicContribution",
+      "objectives",
+      "kpis",
+      "plannedBenefitValue",
+      "actualBenefitValue",
+      "benefitStatus",
+      "healthStatus"
+    ],
+    "notes": "Strategy-to-execution / OKR alignment roll-up: groups every work item by its strategic theme (or strategic goal), and shows per theme the average strategic contribution, planned vs realised benefit value, and a RAG health rollup — answering which strategic objectives the portfolio is investing in and how they are tracking. Portfolio strategy roll-up, derived live.",
+    "order": 71
+  },
+  {
+    "id": "utilisation",
+    "label": "Utilisation",
+    "docsUrl": "",
+    "kind": "resource",
+    "renderer": {
+      "engine": "builtin",
+      "component": "Utilisation"
+    },
+    "capabilities": {
+      "requiresCapability": "resources",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "assignee",
+      "loggedHours",
+      "estimateHours",
+      "remainingHours",
+      "billable"
+    ],
+    "notes": "Per-assignee utilisation from timesheets: rolls work items up by assignee and shows logged vs estimate vs remaining effort, a billable/non-billable split, and a utilisation % (logged vs a nominal period capacity) with overload / under-utilised flags. Resource utilisation roll-up, derived live.",
+    "order": 74
+  },
+  {
+    "id": "value-stream",
+    "label": "Value Stream Flow",
+    "docsUrl": "",
+    "kind": "portfolio",
+    "renderer": {
+      "engine": "builtin",
+      "component": "ValueStreamFlow"
+    },
+    "capabilities": {
+      "requiresCapability": "portfolio",
+      "timeSeries": false,
+      "exports": [
+        "csv",
+        "pdf",
+        "png"
+      ]
+    },
+    "tools": [
+      "valueStream",
+      "status",
+      "labels",
+      "startDate",
+      "dueDate",
+      "createdAt",
+      "updatedAt",
+      "storyPoints"
+    ],
+    "notes": "Value-stream / flow-metrics roll-up: groups every work item by its value stream (or first label), and shows per stream the WIP (in-progress count), flow load (story points in flight), aging of in-progress work, throughput (items finished in the recent window) and mean cycle time — answering where work is piling up, how old the in-flight work is, and how fast each value stream is finishing. Portfolio flow roll-up, derived live.",
     "order": 75
   },
   {

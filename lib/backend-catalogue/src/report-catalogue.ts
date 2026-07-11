@@ -9,6 +9,7 @@
  * linked — no neutering, no false promises.
  */
 import { isCapabilityMet } from "./compatibility";
+import { matchesMethodology } from "./methodology-match";
 import { REPORTS_DATA } from "./reports.generated";
 import type { DrillTo } from "./drill-to";
 
@@ -95,5 +96,5 @@ export function availableReports(caps: Record<string, boolean>): ReportDefinitio
 /** Reports tagged with a methodology — those carrying its tag, plus the neutral
  *  ("*"/untagged) ones. The report-plane analogue of `viewsForMethodology`. */
 export function reportsForMethodology(methodology: string): ReportDefinition[] {
-  return REPORTS.filter((r) => !r.methodologies || r.methodologies.includes("*") || r.methodologies.includes(methodology));
+  return REPORTS.filter((r) => matchesMethodology(r.methodologies, methodology));
 }

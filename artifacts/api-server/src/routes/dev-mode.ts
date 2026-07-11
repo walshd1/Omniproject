@@ -2,6 +2,7 @@ import { Router } from "express";
 import { backendCatalogue } from "@workspace/backend-catalogue";
 import { devModeStatus, isDevMode } from "../lib/dev-mode";
 import { requireRole, roleFromClaims } from "../lib/rbac";
+import { isDemoAuth } from "../lib/auth-config";
 import { requireStepUp } from "../lib/step-up";
 import { getDevBrokerConfig, setDevBrokerConfig, DEV_DATA_SOURCES, type DevDataSource } from "../broker/dev-broker";
 import { resetBroker } from "../broker";
@@ -142,12 +143,19 @@ router.post("/dev-mode/messy", requireDevMode, requireRole("admin"), (req, res) 
 // REAL caller must be admin; a reason is required (the UI approval dialog); and it
 // expires (IMPERSONATION_TTL_MS). Every start/stop is audited with the reason.
 
-const isDemoAuth = () => !process.env["OIDC_ISSUER_URL"]?.trim();
-
 /** Is the REAL caller (ignoring impersonation) an admin? */
 function isRealAdmin(req: import("express").Request): boolean {
   const real = getRealSession(req);
   return roleFromClaims(real?.roles ?? [], { isDemo: isDemoAuth() }) === "admin";
+}
+
+/** Middleware: only the REAL admin may mutate entitlement overrides (403 otherwise). */
+function requireRealAdmin(req: import("express").Request, res: import("express").Response, next: import("express").NextFunction): void {
+  if (!isRealAdmin(req)) {
+    res.status(403).json({ error: "only a real admin may override entitlements" });
+    return;
+  }
+  next();
 }
 
 /** GET — the current impersonation (for the UI banner), or null. Zero trust: being
@@ -244,11 +252,7 @@ router.get("/dev-mode/entitlements", requireDevMode, requireRole("admin"), (req,
 });
 
 /** POST — force a feature: { feature, enabled: true|false|null(clear) }. */
-router.post("/dev-mode/entitlements", requireDevMode, (req, res) => {
-  if (!isRealAdmin(req)) {
-    res.status(403).json({ error: "only a real admin may override entitlements" });
-    return;
-  }
+router.post("/dev-mode/entitlements", requireDevMode, requireRealAdmin, (req, res) => {
   const body = (req.body ?? {}) as { feature?: unknown; enabled?: unknown };
   const feature = typeof body.feature === "string" ? body.feature : "";
   if (!LICENSE_FEATURES.includes(feature as LicenseFeature)) {
@@ -273,11 +277,7 @@ router.post("/dev-mode/entitlements", requireDevMode, (req, res) => {
 });
 
 /** DELETE — clear all overrides. */
-router.delete("/dev-mode/entitlements", requireDevMode, (req, res) => {
-  if (!isRealAdmin(req)) {
-    res.status(403).json({ error: "only a real admin may override entitlements" });
-    return;
-  }
+router.delete("/dev-mode/entitlements", requireDevMode, requireRealAdmin, (req, res) => {
   clearDevEntitlementOverrides();
   recordAudit({
     ts: new Date().toISOString(),

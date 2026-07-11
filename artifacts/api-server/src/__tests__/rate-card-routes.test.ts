@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
+import { registerTimesheetStore, resetTimesheetStore } from "../timesheets/store";
+import type { Timesheet } from "../timesheets/state-machine";
 
 /**
  * Rate card + hashed identities + project types + the server-side staff-cost roll-up, over the REAL
@@ -41,7 +43,19 @@ after(() => server?.close());
 afterEach(async () => {
   const { __resetRateCardCache } = await import("../lib/rate-card-store");
   __resetRateCardCache();
+  resetTimesheetStore();
 });
+
+/** A one-sheet in-memory timesheet store for the staff-cost actuals test. */
+function approvedSheetStore(sheet: Timesheet) {
+  return {
+    source: "self-host" as const,
+    list: async (f: { resourceId?: string; status?: Timesheet["status"] }) =>
+      [sheet].filter((s) => (!f.resourceId || s.resourceId === f.resourceId) && (!f.status || s.status === f.status)),
+    get: async (id: string) => (sheet.id === id ? sheet : null),
+    save: async () => {},
+  };
+}
 
 const put = (path: string, body: unknown) =>
   fetch(`${base}/api${path}`, { method: "PUT", headers: { cookie: PMO, "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -103,6 +117,43 @@ test("staff-cost rolls up client vs internal from logged hours × resolved rate,
   assert.equal(cost.margin, 0);
   assert.equal(cost.byTitle[0]!.titleLabel, "Senior Engineer");
   assert.ok(cost.unratedHours > 0); // bob/others aren't mapped → not silently zero-costed
+});
+
+test("staff-cost carries timesheetActuals (approved hours × rate card) when a timesheet store is configured", async () => {
+  const senior = hashIdentity("Senior Engineer");
+  await put("/rate-card", { titles: { [senior]: "Senior Engineer" }, rates: { [senior]: { "*": { client: 100, internal: 60 } } }, projectTypes: [] });
+  await put("/rate-card/identities", { level: "central", assignments: [{ assignee: "alice", titleHash: senior }] });
+
+  // Inject a timesheet store with one APPROVED sheet: alice logged 10h against proj-001.
+  registerTimesheetStore(() =>
+    approvedSheetStore({
+      id: "ts1", resourceId: "alice", weekStart: "2026-01-05", status: "approved",
+      entries: [
+        { id: "e1", projectId: "proj-001", date: "2026-01-05", hours: 6 },
+        { id: "e2", projectId: "proj-001", date: "2026-01-06", hours: 4 },
+        { id: "e3", projectId: "proj-999", date: "2026-01-07", hours: 5 }, // other project — excluded
+      ],
+    }),
+  );
+
+  const cost = (await get("/projects/proj-001/staff-cost").then((x) => x.json())) as {
+    timesheetActuals?: { internalCost: number; totalCost: number; clientCost: number; byTitle: { titleLabel: string; hours: number }[] };
+  };
+  assert.ok(cost.timesheetActuals, "timesheetActuals present when a store is configured");
+  // Approved internal time = 10h @ internal rate 60 → 600; the other project's 5h is excluded.
+  assert.equal(cost.timesheetActuals!.internalCost, 600);
+  assert.equal(cost.timesheetActuals!.totalCost, 600);
+  assert.equal(cost.timesheetActuals!.clientCost, 0); // synthetic items are internal-facing
+  assert.equal(cost.timesheetActuals!.byTitle[0]!.titleLabel, "Senior Engineer");
+  assert.equal(cost.timesheetActuals!.byTitle[0]!.hours, 10);
+});
+
+test("staff-cost omits timesheetActuals when no timesheet store is configured", async () => {
+  const senior = hashIdentity("Senior Engineer");
+  await put("/rate-card", { titles: { [senior]: "Senior Engineer" }, rates: { [senior]: { "*": { client: 100, internal: 60 } } }, projectTypes: [] });
+  await put("/rate-card/identities", { level: "central", assignments: [{ assignee: "alice", titleHash: senior }] });
+  const cost = (await get("/projects/proj-001/staff-cost").then((x) => x.json())) as { timesheetActuals?: unknown };
+  assert.equal(cost.timesheetActuals, undefined);
 });
 
 test("margin + overhead uplift the charge (cost-to-customer); a project override beats the central default", async () => {
@@ -178,6 +229,66 @@ test("cost-rules PUT validates predicates and round-trips", async () => {
   assert.deepEqual(((await get("/rate-card/cost-rules").then((x) => x.json())) as { costRules: { id: string }[] }).costRules.map((c) => c.id), ["ok"]);
   const bad = await put("/rate-card/cost-rules", { costRules: [{ id: "bad", when: { all: [{ field: "x", op: "between" }] }, effect: {} }] });
   assert.equal(bad.status, 400); // a malformed predicate is rejected
+});
+
+test("PUT /rate-card/uplift with an invalid level → 400 (scope-uplift guard)", async () => {
+  const r = await put("/rate-card/uplift/not-a-level/scope-1", { margin: 0.1 });
+  assert.equal(r.status, 400);
+});
+
+test("a scope-uplift override is stored and reflected in the uplift config", async () => {
+  const r = await put("/rate-card/uplift/programme/prog-platform", { margin: 0.25, overhead: 0.05 });
+  assert.equal(r.status, 200);
+  const cfg = (await r.json()) as { uplift: { programme: Record<string, unknown> } };
+  assert.ok("prog-platform" in cfg.uplift.programme);
+});
+
+test("PUT /rate-card/identities rejects a bad level and a programme scope with no scopeId → 400", async () => {
+  assert.equal((await put("/rate-card/identities", { level: "nope", assignments: [] })).status, 400);
+  assert.equal((await put("/rate-card/identities", { level: "programme", assignments: [] })).status, 400); // scopeId missing
+});
+
+test("PUT /rate-card tolerates malformed role cells, empty roles, and invalid project types", async () => {
+  const senior = hashIdentity("Senior Engineer");
+  const r = await put("/rate-card", {
+    // an empty-title role is skipped; the good role has one bad cell (negative + non-number) that's dropped
+    roles: [
+      { title: "", rates: { delivery: { client: 100 } } },
+      { title: "Senior Engineer", rates: { delivery: { client: -5, internal: "oops" }, discovery: { client: 80 } } },
+    ],
+    // a project type missing its label is skipped; the valid one carries value columns incl. a bad one
+    projectTypes: [
+      { id: "no-label" },
+      { id: "delivery", label: "Delivery", values: [
+        { id: "c", label: "Cost", kind: "cost" },
+        { id: "bad", label: "Bad", kind: "not-a-kind" },
+        { id: "ch", label: "Charge", kind: "charge", uplift: { margin: 0.1 } },
+      ] },
+    ],
+  });
+  assert.equal(r.status, 200);
+  const body = (await get("/rate-card").then((x) => x.json())) as { titles: Record<string, string>; rates: Record<string, Record<string, unknown>>; projectTypes: { id: string }[] };
+  assert.deepEqual(body.projectTypes.map((t) => t.id), ["delivery"]); // no-label dropped
+  assert.equal(body.titles[senior], "Senior Engineer");
+  assert.equal("delivery" in body.rates[senior]!, false); // the all-invalid delivery cell was dropped
+  assert.deepEqual(body.rates[senior]!["discovery"], { client: 80 }); // the valid cell survived
+});
+
+test("cost rules accept a label and an `any` predicate set", async () => {
+  const r = await put("/rate-card/cost-rules", {
+    costRules: [{ id: "labelled", label: "Intra only", when: { any: [{ field: "projectType", op: "eq", value: "internal" }] }, effect: { margin: 0.1, overhead: 0.2 } }],
+  });
+  assert.equal(r.status, 200);
+  const rules = ((await get("/rate-card/cost-rules").then((x) => x.json())) as { costRules: { id: string; label?: string; when?: unknown }[] }).costRules;
+  assert.equal(rules[0]!.label, "Intra only");
+  assert.ok(rules[0]!.when);
+});
+
+test("a central uplift PUT carrying only a margin defaults overhead to 0", async () => {
+  await put("/rate-card", { titles: {}, rates: {}, projectTypes: [], uplift: { margin: 0.15 } });
+  const cfg = (await get("/rate-card").then((x) => x.json())) as { uplift: { central: { margin: number; overhead: number } } };
+  assert.equal(cfg.uplift.central.margin, 0.15);
+  assert.equal(cfg.uplift.central.overhead, 0);
 });
 
 test("the staff-cost endpoint never leaks raw rates — only aggregated cost", async () => {

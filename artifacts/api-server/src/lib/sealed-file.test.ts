@@ -63,3 +63,16 @@ test("loadOnce swallows a parse error (keeps defaults)", () => {
 test("write is a no-op when persistence is off", () => {
   assert.doesNotThrow(() => new SealedFile(() => null, "off").write("{}"));
 });
+
+test("write REFUSES to overwrite an existing sealed file that can't be decrypted (no data-loss clobber)", () => {
+  const p = tmpPath();
+  // Simulate a store sealed under a key we no longer have (wrong/rotated key).
+  fs.writeFileSync(p, "c1.1.garbage-that-cannot-decrypt");
+  const before = fs.readFileSync(p, "utf8");
+  const sf = new SealedFile(() => p, "test");
+  // read() surfaces it as null (can't load), but must NOT be treated as empty…
+  assert.equal(sf.read(), null);
+  // …and a subsequent write must leave the undecryptable ciphertext intact, not seal defaults over it.
+  sf.write(JSON.stringify({ n: 1 }));
+  assert.equal(fs.readFileSync(p, "utf8"), before);
+});

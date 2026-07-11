@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { parseServerTiming, toApiSample, quantile, summarise, pushCapped } from "./perf";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { parseServerTiming, toApiSample, quantile, summarise, pushCapped, readNavigationTiming } from "./perf";
 
 /**
  * Pure perf helpers: parse the gateway's Server-Timing split, turn resource entries
@@ -54,5 +54,42 @@ describe("pushCapped", () => {
     let buf: number[] = [];
     for (let i = 1; i <= 5; i++) buf = pushCapped(buf, i, 3);
     expect(buf).toEqual([3, 4, 5]);
+  });
+});
+
+describe("readNavigationTiming", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("returns null when the Performance API is unavailable", () => {
+    vi.stubGlobal("performance", undefined);
+    expect(readNavigationTiming()).toBeNull();
+  });
+
+  it("returns null when getEntriesByType is not a function", () => {
+    vi.stubGlobal("performance", {});
+    expect(readNavigationTiming()).toBeNull();
+  });
+
+  it("returns null when there is no navigation entry", () => {
+    vi.stubGlobal("performance", { getEntriesByType: () => [] });
+    expect(readNavigationTiming()).toBeNull();
+  });
+
+  it("reads and rounds the document navigation timing", () => {
+    vi.stubGlobal("performance", {
+      getEntriesByType: (t: string) =>
+        t === "navigation"
+          ? [{ responseStart: 12.4, domContentLoadedEventEnd: 88.6, loadEventEnd: 150.2, duration: 999 }]
+          : [],
+    });
+    expect(readNavigationTiming()).toEqual({ ttfbMs: 12, domContentLoadedMs: 89, loadMs: 150 });
+  });
+
+  it("falls back to duration when loadEventEnd is zero", () => {
+    vi.stubGlobal("performance", {
+      getEntriesByType: (t: string) =>
+        t === "navigation" ? [{ responseStart: 1, domContentLoadedEventEnd: 2, loadEventEnd: 0, duration: 42.7 }] : [],
+    });
+    expect(readNavigationTiming()).toEqual({ ttfbMs: 1, domContentLoadedMs: 2, loadMs: 43 });
   });
 });
