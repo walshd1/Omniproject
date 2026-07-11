@@ -62,6 +62,8 @@ Controls, audits, and the frameworks they map to.
 - **[AI-SECURITY.md](AI-SECURITY.md)** — the end-to-end AI control model: what's gated, contained, and the residual boundaries.
 - **[THREAT-MODEL.md](THREAT-MODEL.md)** — a STRIDE threat model and trust boundaries, for security review and pen-test scoping.
 - **[COMPLIANCE.md](COMPLIANCE.md)** — control mapping to SOC 2, ISO/IEC 27001:2022 and NIST CSF 2.0.
+- **[CONTROL-EVIDENCE.md](CONTROL-EVIDENCE.md)** — the auditor evidence index: each control mapped to the exact code that implements it and the test/command that proves it.
+- **[SECURITY-QUESTIONNAIRE.md](SECURITY-QUESTIONNAIRE.md)** — a pre-filled vendor-security questionnaire (CAIQ / SIG Lite / VSA), each row question → answer → evidence pointer.
 - **[PRIVACY.md](PRIVACY.md)** — controller/processor position, GDPR Article 30 records of processing, and the DPA position.
 - **[SUPPLY-CHAIN.md](SUPPLY-CHAIN.md)** — SBOM generation, dependency advisories, and open supply-chain items.
 - **[DATA-RESIDENCY.md](DATA-RESIDENCY.md)** — the fail-closed per-region routing control for the broker egress hop.
@@ -97,6 +99,7 @@ Running it in production.
 Fit, maturity, and evaluation.
 
 - **[ENTERPRISE-READINESS.md](ENTERPRISE-READINESS.md)** — the buyer-panel gap analysis (CEO, Finance, Compliance, CISO, IT, Projects).
+- **[POV-SUCCESS-CRITERIA.md](POV-SUCCESS-CRITERIA.md)** — the time-boxed Proof-of-Value plan: entry gates, measurable success criteria, and the five go/no-go gates.
 - **[SMALL-ORG-GUIDE.md](SMALL-ORG-GUIDE.md)** — the non-technical walkthrough for small teams, charities and self-hosters.
 - **[SAFE-FIRST-RUN.md](SAFE-FIRST-RUN.md)** — the step-by-step path to evaluating against real data safely (dry-run, read-only first).
 - **[FEATURE-MATURITY.md](FEATURE-MATURITY.md)** — a feature-by-feature maturity read: stable / beta / prototype / nominal, plus the buried debt.
