@@ -5,6 +5,7 @@ import { computeLocalPortfolioSummary, type PortfolioSummary } from "./portfolio
 import { logger } from "./logger";
 import { isTimeoutError } from "./timeout-error";
 import { safeFetch } from "./egress";
+import { poolMap } from "./concurrency-pool";
 
 /**
  * Cross-instance portfolio federation (backlog #135) — a minimal, stateless fan-out that lets a
@@ -92,7 +93,8 @@ export async function buildFederatedPortfolio(req: Request): Promise<FederatedPo
   const peers = (getSettings().federatedPeers ?? []).filter((p) => p.active);
   const [summary, peerResults] = await Promise.all([
     computeLocalPortfolioSummary(req),
-    Promise.all(peers.map((p) => fetchPeerSummary(p))),
+    // Bound the peer fan-out (each peer call in turn triggers that peer's local summary).
+    poolMap(peers, 8, (p) => fetchPeerSummary(p)),
   ]);
   for (const r of peerResults) {
     if (r.status !== "ok") {

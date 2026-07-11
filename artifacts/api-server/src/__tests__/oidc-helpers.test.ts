@@ -226,3 +226,12 @@ test("verifyIdToken verifies a real RS256 token against a mocked JWKS", async ()
   });
   assert.ok(true);
 });
+
+test("idTokenAuthTime reads the numeric auth_time claim (null when absent/non-numeric)", () => {
+  const withAt = `${b64url({ alg: "RS256" })}.${b64url({ sub: "u", auth_time: 1_700_000_000 })}.sig`;
+  assert.equal(oidc.idTokenAuthTime(withAt), 1_700_000_000);
+  const without = `${b64url({ alg: "RS256" })}.${b64url({ sub: "u" })}.sig`;
+  assert.equal(oidc.idTokenAuthTime(without), null);
+  const nonNumeric = `${b64url({ alg: "RS256" })}.${b64url({ sub: "u", auth_time: "nope" })}.sig`;
+  assert.equal(oidc.idTokenAuthTime(nonNumeric), null);
+});

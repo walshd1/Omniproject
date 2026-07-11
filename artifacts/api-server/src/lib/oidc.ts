@@ -364,6 +364,16 @@ export function idTokenNonce(idToken: string): string | null {
   return typeof payload["nonce"] === "string" ? (payload["nonce"] as string) : null;
 }
 
+/** The `auth_time` claim (seconds since epoch — when the END USER actually authenticated at the IdP),
+ *  or null if absent/malformed. Used to confirm a step-up flow triggered a REAL re-authentication
+ *  rather than the IdP silently reusing an existing SSO session. Present whenever `max_age` is sent. */
+export function idTokenAuthTime(idToken: string): number | null {
+  const payload = decodeJwtPayload(idToken);
+  if (!payload) return null;
+  const at = payload["auth_time"];
+  return typeof at === "number" && Number.isFinite(at) ? at : null;
+}
+
 /**
  * Collect role/group claims from the common places IdPs put them: a flat
  * `roles`/`groups` array, Keycloak's `realm_access.roles`, or a space-delimited
