@@ -23,6 +23,22 @@ Express application assembly — wires the middleware chain (security headers, b
 | --- | --- |
 | `bootstrap` | Async boot side-effects that must run BEFORE the server serves AND before any sealed config/state is read. |
 
+### `artifacts/api-server/src/bench/fixtures.ts`
+
+Deterministic fixtures for the portfolio-fold compute benchmark (run.ts).
+
+| Function | What it does |
+| --- | --- |
+| `mulberry32` | Deterministic fixtures for the portfolio-fold compute benchmark (run.ts). |
+| `portfolioHealthRows` | Portfolio-health rows — what `summarizeHealth` folds. |
+| `financeRows` | Finance rows — what `foldFinance` folds (currency-mixed to exercise the FX conversion path). |
+| `capacityRows` | Capacity rows — what `foldCapacity` folds. |
+| `projectRows` | Project rows with programme membership + denormalised finance — what `groupProgrammes` and `aggregateFinancials` roll up. |
+
+### `artifacts/api-server/src/bench/run.ts`
+
+Compute benchmark harness — measures the CPU cost of the pure PORTFOLIO-SCALE fold/rollup functions the gateway derives on every `GET /portfolio/summary` (and programme) request, at configurable scale, with NO server boot and NO network.
+
 ### `artifacts/api-server/src/broker/adaptive-ttl.ts`
 
 Latency-aware adaptive TTL for the opt-in read cache.
@@ -1099,6 +1115,14 @@ Stateful developer mode (opt-in).
 | --- | --- |
 | `saveState` | Dev-only: persist the in-memory demo state to disk (off in prod). |
 | `loadState` | Dev-only: load a previously persisted demo state, or null if none. |
+
+### `artifacts/api-server/src/lib/digest-delivery.ts`
+
+Optional ABOVE-THE-SEAM email delivery of the scheduled digests (proactive + exec).
+
+| Function | What it does |
+| --- | --- |
+| `deliverDigestEmail` | Email a built digest to the configured recipients, in addition to the notify-bus dispatch. |
 
 ### `artifacts/api-server/src/lib/drift-canary.ts`
 

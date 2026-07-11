@@ -1,6 +1,8 @@
 import type { ActorContext, Broker, PortfolioRow } from "../broker/types";
 import { mintAutonomousContext } from "./autonomous";
 import { getNotifyBus } from "./notify-bus";
+import { deliverDigestEmail } from "./digest-delivery";
+import type { Mailer } from "./email";
 import { recordAudit } from "./audit";
 import { logger } from "./logger";
 
@@ -55,6 +57,8 @@ export interface RunDigestOptions {
   now: number;
   /** Deliver the digest (defaults to the notify bus); injectable for tests. */
   publish?: (notification: { kind: string; title: string; body: string }) => Promise<unknown> | unknown;
+  /** Inject the SMTP mailer for the optional email-delivery step (tests). Production reads SMTP env. */
+  mailer?: Mailer;
 }
 
 /** Read the portfolio under a keyed autonomous principal, build the digest, and dispatch it. */
@@ -66,6 +70,12 @@ export async function runExecDigest(opts: RunDigestOptions): Promise<ExecDigest>
 
   const publish = opts.publish ?? ((n) => getNotifyBus().publish({ notification: { ...n, id: `digest-${opts.now}`, body: n.body, read: false, timestamp: at } as never }));
   await publish({ kind: digest.kind, title: digest.title, body: digest.body });
+
+  // Optional above-seam email delivery — best-effort, a no-op unless SMTP + recipients are configured.
+  await deliverDigestEmail(
+    { title: digest.title, body: digest.body },
+    opts.mailer ? { mailer: opts.mailer } : {},
+  ).catch((err) => logger.warn({ err }, "exec-digest: email delivery failed"));
 
   recordAudit({
     ts: at, category: "autonomous", action: "exec-digest.run",

@@ -150,6 +150,23 @@ export interface SelfHostConfig {
 const SELF_HOST_MODES = ["off", "augmenting", "system-of-record"] as const;
 const DEFAULT_SELF_HOST: SelfHostConfig = { mode: "off", adopted: [], acknowledgedDataResponsibility: false };
 
+/** Optional above-the-seam email delivery for the scheduled digests. */
+export interface DigestDeliveryConfig {
+  /** Email addresses that receive the proactive/exec digest (in addition to the notify-bus dispatch).
+   *  Empty ⇒ no email delivery (the default). */
+  emailRecipients: string[];
+}
+
+const MAX_DIGEST_RECIPIENTS = 100;
+/** Seed recipients from `DIGEST_EMAIL_RECIPIENTS` (comma-separated) so an operator can wire it via env. */
+function digestDeliveryFromEnv(): DigestDeliveryConfig {
+  const raw = process.env["DIGEST_EMAIL_RECIPIENTS"]?.trim();
+  const emailRecipients = raw
+    ? raw.split(",").map((s) => s.trim()).filter(Boolean).slice(0, MAX_DIGEST_RECIPIENTS)
+    : [];
+  return { emailRecipients };
+}
+
 /**
  * History-retention config — the snapshot cadence for the durable time-series behind trend analysis.
  * Operator-confirmed posture: **infinite snapshot retention** (never pruned) and a **variable cadence
@@ -249,6 +266,10 @@ export interface SettingsState {
   selfHost: SelfHostConfig;
   /** Snapshot cadence for durable history retention (admin org default + PMO scope overrides). */
   historyRetention: HistoryRetentionSettings;
+  /** Optional above-the-seam email delivery of the scheduled digests (proactive + exec), to a fixed
+   *  operator-configured recipient list, IN ADDITION to the notify-bus dispatch. Off unless SMTP is
+   *  configured AND at least one recipient is set. Config only — addresses, never project data. */
+  digestDelivery: DigestDeliveryConfig;
   /** Skills matrix + demand for the skills-capacity report (planning config, admin/PMO edited). */
   skillsPlanning: SkillsPlanningSettings;
   /**
@@ -639,6 +660,7 @@ const store: SettingsState = {
   loggingSync: loggingSyncFromEnv(),
   selfHost: { ...DEFAULT_SELF_HOST },
   historyRetention: { ...DEFAULT_HISTORY_RETENTION },
+  digestDelivery: digestDeliveryFromEnv(),
   skillsPlanning: { matrix: [], demand: [] },
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
@@ -682,6 +704,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "loggingSync",
   "selfHost",
   "historyRetention",
+  "digestDelivery",
   "skillsPlanning",
   "fieldOverrides",
   "screenLayouts",
@@ -1001,6 +1024,25 @@ function validateSelfHost(value: unknown): void {
   }
 }
 
+/** Validate the digest email-delivery config: `emailRecipients` must be a bounded array of non-empty
+ *  strings that look like email addresses (a light `x@y` shape check — the SMTP layer is the real
+ *  arbiter). Empty is valid (delivery off). */
+function validateDigestDelivery(value: unknown): void {
+  if (!value || typeof value !== "object") throw new SettingsValidationError("digestDelivery must be an object");
+  const { emailRecipients } = value as Record<string, unknown>;
+  if (!Array.isArray(emailRecipients) || emailRecipients.some((x) => typeof x !== "string")) {
+    throw new SettingsValidationError("digestDelivery.emailRecipients must be an array of strings");
+  }
+  if (emailRecipients.length > MAX_DIGEST_RECIPIENTS) {
+    throw new SettingsValidationError(`digestDelivery.emailRecipients must have at most ${MAX_DIGEST_RECIPIENTS} entries`);
+  }
+  for (const r of emailRecipients as string[]) {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.trim())) {
+      throw new SettingsValidationError(`digestDelivery.emailRecipients contains an invalid email address: ${r}`);
+    }
+  }
+}
+
 /** Validate the history-retention config: a valid org-default cadence plus per-scope override maps of
  *  valid cadences. Retention is infinite by policy, so there's no window to validate — only cadence. */
 function validateHistoryRetention(value: unknown): void {
@@ -1128,6 +1170,7 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   if ("loggingSync" in patch) validateLoggingSync(patch["loggingSync"]);
   if ("selfHost" in patch) validateSelfHost(patch["selfHost"]);
   if ("historyRetention" in patch) validateHistoryRetention(patch["historyRetention"]);
+  if ("digestDelivery" in patch) validateDigestDelivery(patch["digestDelivery"]);
   if ("skillsPlanning" in patch) validateSkillsPlanning(patch["skillsPlanning"]);
   // Remaining writable keys that previously had no validator: a wrong-typed value was persisted and
   // then crashed a downstream sink (e.g. backendSource:{} → broker-command TypeError, 500 for all).

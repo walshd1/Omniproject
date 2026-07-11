@@ -12,11 +12,14 @@ import {
   digestIntervalHours,
 } from "./proactive-digest";
 import type { Broker, PortfolioRow } from "../broker/types";
+import type { Mailer } from "./email";
+import { updateSettings } from "./settings";
 
 afterEach(() => {
   delete process.env["PROACTIVE_DIGEST_INTERVAL_HOURS"];
   __stopProactiveDigestScheduler();
   __resetDigestThresholds();
+  updateSettings({ digestDelivery: { emailRecipients: [] } });
 });
 
 const rows: PortfolioRow[] = [
@@ -115,6 +118,32 @@ test("runProactiveDigest reads under a viewer principal and dispatches ONE targe
   assert.equal(published[0]!.kind, "digest");
   assert.equal(published[0]!.target?.role, "manager");
   assert.equal(digest.stats.atRisk, 2);
+});
+
+test("runProactiveDigest ALSO emails the digest to configured recipients when it dispatches", async () => {
+  updateSettings({ digestDelivery: { emailRecipients: ["pm@x.io", "pgm@x.io"] } });
+  const mailed: { to: string; subject: string }[] = [];
+  const mailer: Mailer = { sendMail: async (m) => { mailed.push({ to: m.to, subject: m.subject }); } };
+  const broker = { portfolioHealth: async () => rows } as unknown as Broker;
+
+  const { dispatched, digest } = await runProactiveDigest({ broker, now: 1, publish: () => {}, mailer });
+  assert.equal(dispatched, true);
+  assert.deepEqual(mailed.map((m) => m.to), ["pm@x.io", "pgm@x.io"]); // both recipients emailed
+  assert.equal(mailed[0]!.subject, digest.title); // the digest headline is the email subject
+});
+
+test("runProactiveDigest does NOT email a skipped (healthy) digest even with recipients configured", async () => {
+  updateSettings({ digestDelivery: { emailRecipients: ["pm@x.io"] } });
+  const mailed: unknown[] = [];
+  const mailer: Mailer = { sendMail: async () => { mailed.push(1); } };
+  const healthy: PortfolioRow[] = [
+    { projectId: "p1", projectName: "Alpha", ragStatus: "green", scheduleVarianceDays: 0, budgetVariancePercentage: 0, activeBlockersCount: 0 },
+  ];
+  const broker = { portfolioHealth: async () => healthy } as unknown as Broker;
+
+  const { dispatched } = await runProactiveDigest({ broker, now: 1, publish: () => {}, mailer });
+  assert.equal(dispatched, false);
+  assert.equal(mailed.length, 0); // silence stays silent on the email channel too
 });
 
 test("runProactiveDigest SKIPS delivery for a healthy portfolio unless sendWhenEmpty", async () => {

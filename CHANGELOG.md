@@ -91,6 +91,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Optional email delivery for the scheduled digests.** The proactive "what needs me" and executive
+  digests can now also be emailed to a fixed, operator-configured recipient list (`digestDelivery.
+  emailRecipients` in settings, or the `DIGEST_EMAIL_RECIPIENTS` env), IN ADDITION to the existing
+  notify-bus dispatch — for operators who don't route notifications through their broker. It's an
+  above-the-seam SMTP delivery channel (like any egress, not persistence, so the zero-at-rest rule is
+  untouched), best-effort and a strict no-op unless SMTP is configured AND at least one recipient is
+  set. A skipped (healthy, empty) digest stays silent on the email channel too.
+- **Compute benchmark harness (`bench`).** Runnable, deterministic micro-benchmarks for the pure
+  fold/analytics functions the product derives every portfolio/report from — the per-function latency
+  + throughput evidence the HTTP stress test can't give in isolation. `pnpm --filter
+  @workspace/api-server run bench` covers the portfolio-scale gateway folds (seeded fixtures, JIT
+  warmup, inner-batch calibration, p50/p90/p99 + ops/sec, `BENCH_REPORT` JSON, and `BENCH_MAX_P99_MS`
+  as an optional regression gate); `pnpm --filter @workspace/omniproject run bench` covers the heaviest
+  SPA analytics (Monte-Carlo, critical path) via `vitest bench`. Neither needs a network or server
+  boot. Documented in `docs/ops/BENCHMARKS.md`.
+
 - **ERP connector: Oracle Fusion Cloud ERP read-only broker adapter (backlog #139).**
   A new catalogued, capability-declared backend —
   `lib/backend-catalogue/vendors/backends/oracle-fusion-erp.json` — for Oracle
