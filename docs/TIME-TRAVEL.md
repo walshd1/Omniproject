@@ -153,7 +153,7 @@ The Replay branch must return an array of:
 `GET /api/history/replay?from=<ISO>&to=<ISO>` brokers the **`replay`** action with
 payload `{ from?, to? }` (both optional) and expects this array back. See
 [N8N-WORKFLOWS.md](N8N-WORKFLOWS.md) for the action-envelope and
-`N8nActionResult` conventions the broker uses underneath.
+`BrokerEnvelope` conventions the broker uses underneath.
 
 ## The blueprint — import & wire
 

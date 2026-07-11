@@ -300,7 +300,7 @@ spec:
                 name: omni-shell
                 port:
                   number: 3000
-    # n8n is intentionally NOT exposed via Ingress — it is the data broker and
+    # n8n is intentionally NOT exposed via Ingress — it is the bundled data broker and
     # has only owner-account auth. Keep it ClusterIP-only (the shell reaches it at
     # http://n8n:5678). If you must expose the n8n editor, add an authenticated
     # host with an ingress auth annotation (e.g. oauth2-proxy), not a bare rule.
@@ -308,7 +308,7 @@ spec:
 ---
 # ── NetworkPolicy: default-deny ingress for the namespace ─────────────────────
 # Nothing can reach pods in this namespace unless a policy below allows it. This
-# is what keeps n8n (the broker) from being reachable by arbitrary cluster pods.
+# is what keeps n8n (the bundled reference broker) from being reachable by arbitrary cluster pods.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

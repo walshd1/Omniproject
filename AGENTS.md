@@ -1,14 +1,15 @@
 # OmniProject
 
 A stateless **program-management overlay** — a single pane of glass over whatever
-project backend(s) an organization already runs, with **n8n as the exclusive
-middleware/API hub**. It is **backend-agnostic**: any system n8n can reach (Jira,
-Azure DevOps, ServiceNow, GitHub, Plane, OpenProject, …) can be federated
-underneath — no specific backend is required. The brutalist, keyboard-driven shell
-renders a dual-lens view (Agile board + Gantt timeline) and brokers every read and
-write through the n8n gateway; the API server's sample data stands in for
-n8n-federated state until workflows are wired. The `backendSource` setting is a
-free-form routing hint (default `all`).
+project backend(s) an organization already runs, with **n8n as the reference
+broker/middleware hub** (the default; any contract-speaking broker works). It is
+**backend-agnostic**: any system the broker can reach (Jira, Azure DevOps,
+ServiceNow, GitHub, Plane, OpenProject, …) can be federated underneath — no specific
+backend is required. The brutalist, keyboard-driven shell renders a dual-lens view
+(Agile board + Gantt timeline) and brokers every read and write through the broker
+(n8n by default); the API server's sample data stands in for broker-federated state
+until workflows are wired. The `backendSource` setting is a free-form routing hint
+(default `all`).
 
 ## Run & Operate
 
@@ -32,7 +33,7 @@ free-form routing hint (default `all`).
 ## Where things live
 
 - **Frontend app:** `artifacts/omniproject/src` — pages in `pages/`, board views in `components/board/` (`AgileBoard`, `GanttChart`), `IssueDialog`, `CommandPalette`, `layout/AppLayout`, Zustand store in `store/useStore.ts`, auth client in `lib/auth.ts`.
-- **API/Gateway:** `artifacts/api-server/src` — `routes/` (`health`, `auth`, `broker-command`, `projects`), the `Broker` seam in `broker/` (`types`, `index`, `n8n`, `demo` — see [docs/BROKER.md](docs/BROKER.md)), OIDC helper in `lib/oidc.ts`, app wiring in `app.ts`.
+- **API/Gateway:** `artifacts/api-server/src` — `routes/` (`health`, `auth`, `broker-command`, `projects`), the `Broker` seam in `broker/` (`types`, `index`, `reference-broker`, `demo` — see [docs/BROKER.md](docs/BROKER.md)), OIDC helper in `lib/oidc.ts`, app wiring in `app.ts`.
 - **API contract (source of truth):** `lib/api-spec/openapi.yaml` → regenerates `lib/api-zod` and `lib/api-client-react`.
 - **Deployment:** `Dockerfile` (builds the single `omni-shell` image), `docker-compose.standalone.yml`, `docker-compose.enterprise.yml` (lean BYO profile), `k8s-enterprise-manifest.yaml`.
 - **n8n blueprints:** `artifacts/n8n-blueprints/omniproject-core-sync.json` — importable workflow implementing the gateway contract (routing, loop guard, per-user impersonation, normalization).
@@ -40,9 +41,9 @@ free-form routing hint (default `all`).
 ## Architecture decisions
 
 - **Single-container "omni-shell".** All three deploy artifacts run one image on port 3000. The Express server serves both `/api/*` and the built SPA (`STATIC_DIR`) with a history fallback, so the SPA and gateway share an origin in production. In dev they're split (Vite proxies `/api`).
-- **A single `Broker` seam — n8n is the only live implementation.** Everything above the seam calls the `Broker` interface (`getBroker()`) in OmniProject's own vocabulary; it is structurally unable to know the broker is n8n (a CI arch-guard test enforces this — see [docs/BROKER.md](docs/BROKER.md)). `N8nBroker` is the only n8n-aware code: it attaches the session's OIDC bearer token, forwards to `BROKER_URL`, and normalizes n8n's `{ success, data, message }` result. `DemoBroker` serves canned data offline. Generic commands go via `POST /api/broker/command`.
+- **A single `Broker` seam — n8n is the reference implementation.** Everything above the seam calls the `Broker` interface (`getBroker()`) in OmniProject's own vocabulary; it is structurally unable to know which concrete broker is behind it (a CI arch-guard test enforces this — see [docs/BROKER.md](docs/BROKER.md)). `ReferenceBroker` is the only broker-aware code: it attaches the session's OIDC bearer token, forwards to `BROKER_URL`, and normalizes the broker's `{ success, data, message }` envelope. `DemoBroker` serves canned data offline (a second live implementation, proving the seam is generic). Generic commands go via `POST /api/broker/command`.
 - **Env-gated OIDC.** When `OIDC_ISSUER_URL`/`OIDC_CLIENT_ID`/`OIDC_CLIENT_SECRET` are set, the gateway runs a real Authorization-Code + PKCE flow (`/api/auth/login`→`/callback`) and stores a signed, httpOnly session cookie. Unset → demo mode (local session) so the app still runs without an IdP. Protected API routes return 401 without a session; the SPA's `AppLayout` guard redirects to `/login`.
-- **Idempotency & loop guard.** Inside `N8nBroker`, the adapter appends `X-OmniProject-Idempotency-Key` = `sha256(action+projectId+issueId+second)` and an `origin` tag (`omniproject`). n8n drops echoes where `origin === lastUpdatedBy`, preventing circular Plane↔OpenProject webhook storms.
+- **Idempotency & loop guard.** Inside `ReferenceBroker`, the adapter appends `X-OmniProject-Idempotency-Key` = `sha256(action+projectId+issueId+second)` and an `origin` tag (`omniproject`). The broker drops echoes where `origin === lastUpdatedBy`, preventing circular Plane↔OpenProject webhook storms.
 - **Per-user impersonation.** The outbound payload carries `userContext = { sub, email, name, token }` from the session so n8n writes downstream **as the active user** (`{{ $json.body.payload.userContext.token }}`), not a shared admin key.
 - **Generated client.** Never hand-edit `lib/api-zod/src/generated` or `lib/api-client-react/src/generated`; change `openapi.yaml` and run codegen.
 
@@ -51,7 +52,7 @@ free-form routing hint (default `all`).
 - **Dashboard (dual-lens):** Agile Kanban with native drag-to-move (PATCHes issue status) and a Gantt timeline driven by start/due dates; live activity feed; project switcher.
 - **Issues:** create / edit / delete via a single dialog (status, priority, assignee, labels, dates); reachable from board columns, the "New Issue" button, or `Cmd+K`.
 - **Projects index** with per-project summary (totals, completion %, overdue).
-- **Settings:** n8n webhook URL, backend (free-form routing hint, default `all`), AI provider, OIDC issuer.
+- **Settings:** broker URL (n8n by default), backend (free-form routing hint, default `all`), AI provider, OIDC issuer.
 - **Command palette (`Cmd+K`)** + `g d/p/s` navigation; gateway health pill (CONNECTED/OFFLINE).
 
 ## Gotchas

@@ -23,7 +23,7 @@ The gateway brokers every data action to a single n8n webhook as:
 }
 ```
 
-The workflow must reply with `{ success, data, message }` (the `N8nActionResult`).
+The workflow must reply with `{ success, data, message }` (the `BrokerEnvelope`).
 
 ## Backend library
 

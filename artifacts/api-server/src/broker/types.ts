@@ -8,7 +8,7 @@
  * default implementation happens to be n8n may appear here — see docs/BROKER.md
  * for the boundary invariants the arch-guard test enforces.
  *
- * n8n is the reference implementation (see ./n8n.ts); DemoBroker (./demo.ts) is
+ * n8n is the reference implementation (see ./reference-broker/); DemoBroker (./demo.ts) is
  * the reference in-process implementation that proves the seam is generic. The
  * published, versioned contract these types generate lives in docs/CONTRACT.md.
  */

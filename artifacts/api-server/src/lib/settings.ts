@@ -1,8 +1,8 @@
 /**
  * Gateway-local settings store.
  *
- * These configure the gateway itself (which n8n webhook to call, which AI
- * provider to use, etc.) and so are NOT brokered through n8n. In a multi-replica
+ * These configure the gateway itself (which broker URL to call, which AI
+ * provider to use, etc.) and so are NOT brokered through the broker. In a multi-replica
  * deployment back this with a shared store (Redis/Postgres); the in-memory store
  * is sufficient for single-instance and demo use.
  */
@@ -67,8 +67,8 @@ export class SettingsValidationError extends Error {
     this.name = "SettingsValidationError";
   }
 }
-// Free-form backend routing hint passed to n8n. "all" = no filter (whatever
-// n8n is wired to). No specific backend (Plane/OpenProject/…) is required.
+// Free-form backend routing hint passed to the broker. "all" = no filter (whatever
+// the broker is wired to). No specific backend (Plane/OpenProject/…) is required.
 export type BackendSource = string;
 
 /** White-label branding (premium: gated by the `branding` entitlement). */

@@ -161,9 +161,9 @@ export function resetReadinessCache(): void {
 }
 
 /**
- * The n8n adapter's verify probe, exposed through the seam for `/setup/verify-workflow`
+ * The reference adapter's verify probe, exposed through the seam for `/setup/verify-workflow`
  * (which points at an admin-supplied candidate URL, not necessarily the active broker) —
- * see broker/n8n for what "probe" means (PSK-aware, bounded fan-out, dry-run).
+ * see broker/reference-broker for what "probe" means (PSK-aware, bounded fan-out, dry-run).
  */
 export { probeVerifiableActions } from "./reference-broker";
 

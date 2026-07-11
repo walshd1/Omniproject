@@ -89,8 +89,8 @@ artifacts/
     src/store/         # Zustand UI state
   api-server/         # Express gateway
     src/routes/        # health, auth, broker-command, projects, portfolio, ai, export
-    src/broker/        # the Broker seam — types.ts, index.ts, n8n/index.ts (only n8n-aware
-                       # code), demo.ts (see docs/BROKER.md)
+    src/broker/        # the Broker seam — types.ts, index.ts, reference-broker/ (the only
+                       # broker-aware code), demo.ts (see docs/BROKER.md)
     src/lib/           # oidc.ts, settings.ts, data.ts (broker facade), ai.ts,
                        # api-token.ts, rate-limit.ts, csv.ts, xlsx.ts, logger.ts
   n8n-blueprints/     # omniproject-core-sync.json (importable reference workflow)
@@ -233,7 +233,7 @@ Arbitrary actions can also be sent via `POST /api/broker/command`.
 
 ### Response
 
-n8n must return a normalized `N8nActionResult`, forwarded to the UI as-is:
+The broker must return a normalized `BrokerEnvelope`, forwarded to the UI as-is:
 
 ```jsonc
 { "success": true, "data": { /* matches the schemas in §6 */ }, "message": "…" }
