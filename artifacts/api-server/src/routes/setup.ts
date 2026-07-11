@@ -31,7 +31,7 @@ import { buildSnapshot, applySnapshot } from "../lib/config-snapshot";
 import { configDirSummary } from "../lib/config-dir";
 import { refreshConfigDir, configBackupInfo, clearConfigBackup } from "../lib/config-refresh";
 import { requireStepUp } from "../lib/step-up";
-import { recordAudit } from "../lib/audit";
+import { recordAudit, actorForAudit } from "../lib/audit";
 import { getSession, baseUrl } from "./auth";
 import { buildConfigBundle } from "../lib/config-bundle";
 import { buildSetupStatus, buildPublicSetupStatus } from "../lib/setup-status";
@@ -287,12 +287,11 @@ router.get("/setup/config-dir", requireRole("admin"), (_req, res) => {
 // disk). Backs the current directory up to `.old` first and auto-reverts to it if the
 // new load reports any file error, so a bad hand-edit can never leave the gateway
 // running on a half-applied broken config.
-router.post("/setup/config-dir/refresh", requireRole("admin"), requireStepUp, (_req, res) => {
+router.post("/setup/config-dir/refresh", requireRole("admin"), requireStepUp, (req, res) => {
   const result = refreshConfigDir();
-  const session = getSession(_req);
   recordAudit({
     ts: new Date().toISOString(), category: "admin", action: "config-dir.refresh",
-    actor: session ? { sub: session.sub, email: session.email } : null, write: true,
+    actor: actorForAudit(req), write: true,
     result: result.ok ? "success" : "error",
     meta: { errors: result.summary.errors.length, warnings: result.summary.warnings.length, reverted: result.reverted, backedUp: result.backedUp },
   });
@@ -307,12 +306,11 @@ router.post("/setup/config-dir/refresh", requireRole("admin"), requireStepUp, (_
 // cleanup nudge's action). Not step-up gated — the backup carries no more privilege than
 // the live config already does, and this is a routine housekeeping action, not a change
 // to live behaviour.
-router.post("/setup/config-dir/clear-backup", requireRole("admin"), (_req, res) => {
+router.post("/setup/config-dir/clear-backup", requireRole("admin"), (req, res) => {
   const cleared = clearConfigBackup();
-  const session = getSession(_req);
   recordAudit({
     ts: new Date().toISOString(), category: "admin", action: "config-dir.clear-backup",
-    actor: session ? { sub: session.sub, email: session.email } : null, write: true,
+    actor: actorForAudit(req), write: true,
     result: cleared ? "success" : "error",
   });
   res.json({ cleared });

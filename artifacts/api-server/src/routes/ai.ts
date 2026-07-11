@@ -15,7 +15,7 @@ import { answerCopilot } from "../lib/copilot";
 import { suggestBackendPrompt, parseSuggestedManifest, SuggestParseError } from "../lib/backend-suggest";
 import { getBroker, contextFromReq } from "../broker";
 import { hasRole, roleForReq, requireRole } from "../lib/rbac";
-import { recordAudit } from "../lib/audit";
+import { recordAudit, actorForAudit } from "../lib/audit";
 import { aiGovernanceStatus, aiUsageReport, type AiGovContext } from "../lib/ai-governance";
 import { aiContainmentLevel, aiSourceLevel } from "../lib/ai-containment";
 import { transcribe, sttStatus, sttCapabilityId, SttError } from "../lib/stt";
@@ -227,7 +227,6 @@ router.post("/ai/suggest-backend", requireRole("admin"), async (req, res) => {
 
   const provider = getSettings().aiProvider;
   const surface = surfaceFromBody(req);
-  const actor = actorFromSession(req);
   if (!enforceOr403(req, res, `provider:${provider}`, { surface, label: "AI is unavailable here" })) return;
   if (!enforceOr403(req, res, "backend-draft", { surface, label: "AI backend drafting is unavailable here" })) return;
 
@@ -239,7 +238,7 @@ router.post("/ai/suggest-backend", requireRole("admin"), async (req, res) => {
       ts: new Date().toISOString(),
       category: "admin",
       action: "ai.backend_draft_suggested",
-      actor,
+      actor: actorForAudit(req),
       write: false,
       meta: { vendorName: parsed.vendorName },
     });

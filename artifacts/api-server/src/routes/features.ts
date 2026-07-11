@@ -8,7 +8,7 @@ import { manageableAtProgramme, manageableAtProject } from "../lib/feature-resol
 import { getSettings, updateSettings, SettingsValidationError, type ScopeFeatureConfig } from "../lib/settings";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { getSession } from "./auth";
-import { recordAudit } from "../lib/audit";
+import { recordAudit, actorForAudit } from "../lib/audit";
 import { getProjects } from "../lib/data";
 import { programmeIdOf } from "../lib/programmes";
 import { validatePredicate, type ConditionSet } from "../lib/predicate";
@@ -103,7 +103,7 @@ function auditGovernance(req: Parameters<typeof getSession>[0], action: string, 
     ts: new Date().toISOString(),
     category: "admin",
     action,
-    actor: getSession(req) ? { sub: getSession(req)!.sub, role: roleForReq(req) } : null,
+    actor: actorForAudit(req),
     result: status < 400 ? "success" : "error",
     status,
     meta,
@@ -159,7 +159,7 @@ router.put("/features/governance-rules", requireRole("pmo"), (req, res) => {
   try {
     const governanceRules = readGovernanceRules((req.body as Record<string, unknown>)?.["governanceRules"]);
     updateSettings({ governanceRules });
-    recordAudit({ ts: new Date().toISOString(), category: "admin", action: "governance.rules.update", actor: getSession(req) ? { sub: getSession(req)!.sub, role: roleForReq(req) } : null, result: "success", status: 200, meta: { count: governanceRules.length } });
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: "governance.rules.update", actor: actorForAudit(req), result: "success", status: 200, meta: { count: governanceRules.length } });
     res.json({ governanceRules: getSettings().governanceRules });
   } catch (err) {
     if (err instanceof SettingsValidationError) { res.status(400).json({ error: err.message }); return; }
