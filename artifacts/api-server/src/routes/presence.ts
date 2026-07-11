@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getSession } from "./auth";
 import { isDeprovisioned } from "../lib/rbac";
-import { joinRoom, setEditing, roomSnapshot, type PresencePeer } from "../lib/presence-hub";
+import { joinRoom, setEditing, roomSnapshot, presenceConnectionCount, MAX_PRESENCE_STREAMS_PER_SUB, type PresencePeer } from "../lib/presence-hub";
 import { openSse, keepAlive } from "../lib/sse";
 
 /**
@@ -34,6 +34,12 @@ router.get("/presence/rooms/:roomId/stream", (req: Request, res: Response) => {
   const session = getSession(req);
   const sub = session?.sub ?? "anonymous";
   const label = session?.name || session?.email || sub;
+
+  // Cap concurrent presence streams per principal before opening the SSE response.
+  if (sub !== "anonymous" && presenceConnectionCount(sub) >= MAX_PRESENCE_STREAMS_PER_SUB) {
+    res.status(429).json({ error: "too many concurrent presence streams for this account" });
+    return;
+  }
 
   const stream = openSse(res, { ok: true });
   const leave = joinRoom({ roomId, cid, sub, label, send: stream.send, close: stream.close }, Date.now());

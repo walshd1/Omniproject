@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import crypto from "node:crypto";
 import { getSession } from "./auth";
 import { roleForReq, isDeprovisioned, ROLES } from "../lib/rbac";
-import { addClient, clientCount } from "../lib/notify-hub";
+import { addClient, clientCount, canAddClient } from "../lib/notify-hub";
 import { openSse } from "../lib/sse";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
 import { emitWebhookEvent } from "../lib/webhooks";
@@ -28,6 +28,13 @@ export const ingestRouter: Router = Router();
 // GET /api/notifications/stream — live channel for the in-app bell.
 streamRouter.get("/notifications/stream", (req: Request, res: Response) => {
   const session = getSession(req);
+
+  // Cap concurrent streams per principal BEFORE opening the SSE response (a held connection isn't
+  // counted by the request rate-limiter). Reject with 429 rather than opening an uncapped stream.
+  if (!canAddClient(session?.sub)) {
+    res.status(429).json({ error: "too many concurrent notification streams for this account" });
+    return;
+  }
 
   const stream = openSse(res, { ok: true });
   const remove = addClient({

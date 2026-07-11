@@ -184,6 +184,17 @@ export interface JoinArgs {
   close?: () => void;
 }
 
+/** Max concurrent presence streams one principal may hold across all rooms — bounds a held-socket
+ *  exhaustion the request rate-limiter (which counts opens, not held connections) can't. */
+export const MAX_PRESENCE_STREAMS_PER_SUB = 20;
+
+/** How many live presence connections this principal currently holds across every room. */
+export function presenceConnectionCount(sub: string): number {
+  let n = 0;
+  for (const room of rooms.values()) for (const c of room.values()) if (c.sub === sub) n++;
+  return n;
+}
+
 /** Add a connection to a room and announce it. Returns a leave fn that removes + re-announces. */
 export function joinRoom(args: JoinArgs, now: number): () => void {
   const { roomId, cid } = args;

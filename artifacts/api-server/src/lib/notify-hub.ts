@@ -31,6 +31,20 @@ export interface NotifyClient {
 
 const clients = new Set<NotifyClient>();
 
+/** Max concurrent SSE streams a single principal (sub) may hold open — a long-lived stream consumes
+ *  a socket + heap, and the request rate-limiter counts opens, not held connections, so without a
+ *  ceiling one principal could hold hundreds of streams and exhaust file descriptors/memory. */
+export const MAX_STREAMS_PER_SUB = 10;
+
+/** Whether another SSE stream may be opened for this principal (under the per-sub ceiling). An
+ *  anonymous/subless connection isn't capped here (it has no stable identity to key on). */
+export function canAddClient(sub: string | undefined): boolean {
+  if (!sub) return true;
+  let count = 0;
+  for (const c of clients) if (c.sub === sub) count++;
+  return count < MAX_STREAMS_PER_SUB;
+}
+
 /** Does a target address this client? An empty/absent target is a broadcast. */
 export function clientMatches(client: { sub?: string | undefined; email?: string | undefined; roles: string[] }, target?: NotifyTarget): boolean {
   if (!target || (!target.sub && !target.email && !target.role)) return true;
