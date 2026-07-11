@@ -36,3 +36,14 @@ test("replayProtection is disabled without Redis (preserves stateless single-rep
   // is NOT enabled, so SP-initiated login can't break on a stateless/multi-replica-no-Redis deploy.
   assert.deepEqual(replayProtection(), {});
 });
+
+test("SAML_STRICT_REPLAY opts a single-replica deploy into validateInResponseTo (in-memory cache)", () => {
+  process.env["SAML_STRICT_REPLAY"] = "1";
+  try {
+    const opts = replayProtection();
+    assert.equal(opts["validateInResponseTo"], "always");
+    assert.ok(opts["cacheProvider"], "an (in-memory) cache provider is supplied");
+  } finally {
+    delete process.env["SAML_STRICT_REPLAY"];
+  }
+});

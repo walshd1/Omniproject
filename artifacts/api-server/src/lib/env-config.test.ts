@@ -40,6 +40,12 @@ test("checkRequiredEnv: a short BROKER_PSK is flagged in production", () => {
   assert.deepEqual(checkRequiredEnv({ NODE_ENV: "production", SESSION_SECRET: "a-strong-secret-value-1234", BROKER_PSK: "a-strong-broker-psk-value-1234" }), []);
   // Dev is exempt.
   assert.deepEqual(checkRequiredEnv({ NODE_ENV: "development", BROKER_PSK: "short" }), []);
+  // Reusing one secret across the two key domains is refused (cross-decryptable).
+  const shared = "the-very-same-strong-secret-1234";
+  assert.match(
+    checkRequiredEnv({ NODE_ENV: "production", SESSION_SECRET: shared, BROKER_PSK: shared }).join(" "),
+    /BROKER_PSK must not equal SESSION_SECRET/,
+  );
 });
 
 test("checkRequiredEnv: OIDC_SKIP_TOKEN_VERIFY left on in production is a critical finding (auth bypass)", () => {

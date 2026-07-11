@@ -51,13 +51,20 @@ export function samlCacheProvider(kv = sharedKv, ttlMs = SAML_REQUEST_TTL_MS) {
  * audience checks (a short, bounded replay window) and never breaks login — preserving the
  * stateless single-replica default. When Redis is present, the shared cache makes replay/
  * request-id state correct across replicas and the strict check is turned on.
+ *
+ * OPT-IN: a SINGLE-replica operator with no Redis can set `SAML_STRICT_REPLAY=1` to turn on
+ * `validateInResponseTo` + assertion-id dedup using the in-memory `sharedKv` (redirect and ACS hit
+ * the same process, so it's correct). Off by default — do NOT set it on a multi-replica-no-Redis
+ * deployment, where a redirect and its ACS callback can land on different replicas and SP-initiated
+ * login would then fail closed. Redis mode enables the strict check automatically (fleet-correct).
  */
 export function replayProtection(): Record<string, unknown> {
-  if (sharedStateMode() !== "redis") return {};
+  const strict = sharedStateMode() === "redis" || isTruthy(process.env["SAML_STRICT_REPLAY"]);
+  if (!strict) return {};
   return {
     validateInResponseTo: "always",
     requestIdExpirationPeriodMs: SAML_REQUEST_TTL_MS,
-    cacheProvider: samlCacheProvider(),
+    cacheProvider: samlCacheProvider(), // Redis-backed when REDIS_URL is set, else per-replica in-memory
   };
 }
 
