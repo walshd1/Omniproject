@@ -709,11 +709,12 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 
 ### `artifacts/api-server/src/lib/broker-hmac.ts`
 
-Gateway↔broker request signing (security item C, folded into provenance): a detached HMAC over the request body plus a timestamp and a single-use nonce, so the broker can prove the request came from the gateway and refuse REPLAYS and STALE traffic across untrusted networks.
+Gateway↔broker request signing (security item C, folded into provenance): a detached HMAC over a CANONICAL request string plus a timestamp and a single-use nonce, so the broker can prove the request came from the gateway and refuse REPLAYS and STALE traffic across untrusted networks.
 
 | Function | What it does |
 | --- | --- |
-| `signBrokerRequest` | Sign a request body for the broker (fresh timestamp + nonce). |
+| `brokerCanonicalString` | The v2 canonical string the HMAC is taken over. |
+| `signBrokerRequest` | Sign a request for the broker (fresh timestamp + nonce). |
 | `verifyBrokerRequest` | Verify a signed broker request: signature matches, timestamp is within the freshness window, and the nonce hasn't been used (replay), against the IN-PROCESS nonce cache. |
 | `verifyBrokerRequestShared` | Fleet-aware verify. |
 | `__resetBrokerHmac` | Test-only: clear the in-process replay cache. |

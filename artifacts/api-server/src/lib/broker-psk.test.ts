@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { pskEnabled, sealPayload, openPayload, PSK_PREFIX } from "./broker-psk";
 
 function withPsk<T>(secret: string | undefined, fn: () => T): T {
@@ -20,12 +21,37 @@ test("pskEnabled reflects BROKER_PSK presence (off by default)", () => {
   withPsk("a-shared-key", () => assert.equal(pskEnabled(), true));
 });
 
-test("seal → open round-trips the exact plaintext", () => {
+test("seal → open round-trips the exact plaintext (current p2. format)", () => {
   withPsk("a-shared-broker-key", () => {
     const msg = JSON.stringify({ action: "create_issue", payload: { title: "secret work" }, auth: "Bearer tok" });
     const token = sealPayload(msg);
     assert.ok(token.startsWith(PSK_PREFIX));
+    assert.equal(PSK_PREFIX, "p2."); // domain-separated HKDF key (audit finding F1)
     assert.equal(openPayload(token), msg);
+  });
+});
+
+test("openPayload still accepts a legacy p1. token (bare-SHA-256 key), for back-compat", () => {
+  withPsk("a-shared-broker-key", () => {
+    // Hand-build a p1. token exactly as the pre-migration sealer did: key = SHA-256(secret).
+    const key = crypto.createHash("sha256").update("a-shared-broker-key").digest();
+    const iv = crypto.randomBytes(12);
+    const c = crypto.createCipheriv("aes-256-gcm", key, iv);
+    const ct = Buffer.concat([c.update("legacy plaintext", "utf8"), c.final()]);
+    const token = "p1." + Buffer.concat([iv, c.getAuthTag(), ct]).toString("base64url");
+    assert.equal(openPayload(token), "legacy plaintext");
+  });
+});
+
+test("a p2. token does NOT open under the legacy key, and vice-versa (domains are separate)", () => {
+  withPsk("a-shared-broker-key", () => {
+    // A current token is HKDF-keyed; the bare-SHA-256 legacy key can't open it.
+    const legacyKey = crypto.createHash("sha256").update("a-shared-broker-key").digest();
+    const p2 = sealPayload("x");
+    const raw = Buffer.from(p2.slice(3), "base64url");
+    const d = crypto.createDecipheriv("aes-256-gcm", legacyKey, raw.subarray(0, 12));
+    d.setAuthTag(raw.subarray(12, 28));
+    assert.throws(() => Buffer.concat([d.update(raw.subarray(28)), d.final()])); // tag fails under the wrong key
   });
 });
 

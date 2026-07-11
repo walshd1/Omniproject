@@ -21,6 +21,9 @@
  */
 import http from "node:http";
 import crypto from "node:crypto";
+import { openPayload } from "../lib/broker-psk";
+import { verifyBrokerRequest, type CanonicalRequest } from "../lib/broker-hmac";
+import type { SessionBind } from "../lib/session-key";
 
 type Row = Record<string, unknown>;
 
@@ -94,23 +97,32 @@ export const backend = {
 // CONTRACT PLUMBING — complete; you shouldn't need to change anything below.
 // ════════════════════════════════════════════════════════════════════════════
 
-const PSK_PREFIX = "p1.";
-
-/** Optional PSK: decrypt a sealed envelope (mirror of the gateway's sealer). When
- *  BROKER_PSK is set and the body is `{ v, enc }`, return the decrypted JSON. */
+/** Optional PSK: decrypt a sealed envelope. Delegates to the shared opener, which accepts
+ *  the current `p2.` (HKDF domain-separated key) and legacy `p1.` (bare SHA-256) tokens.
+ *  Returns null when PSK is off or the token isn't ours. A real out-of-process broker
+ *  vendors an equivalent opener — see docs/BROKER-HTTP-BINDING.md §2a. */
 function openPsk(token: string): string | null {
-  const secret = process.env["BROKER_PSK"]?.trim();
-  if (!secret || !token.startsWith(PSK_PREFIX)) return null;
+  if (!process.env["BROKER_PSK"]?.trim()) return null;
   try {
-    const key = crypto.createHash("sha256").update(secret).digest();
-    const buf = Buffer.from(token.slice(PSK_PREFIX.length), "base64url");
-    const iv = buf.subarray(0, 12), tag = buf.subarray(12, 28), ct = buf.subarray(28);
-    const d = crypto.createDecipheriv("aes-256-gcm", key, iv);
-    d.setAuthTag(tag);
-    return Buffer.concat([d.update(ct), d.final()]).toString("utf8");
+    return openPayload(token);
   } catch {
     return null;
   }
+}
+
+/** A single header value (Node lower-cases header names; a repeated header is an array). */
+function hdr(headers: Record<string, string | string[] | undefined> | undefined, name: string): string | undefined {
+  const v = headers?.[name];
+  return Array.isArray(v) ? v[0] : v;
+}
+
+/** Reconstruct the session binding from the cleartext `X-Omni-Bind-*` headers (used only on
+ *  an UNSEALED hop; under PSK the binding rides inside the ciphertext instead). */
+function bindFromHeaders(headers: Record<string, string | string[] | undefined> | undefined): SessionBind | undefined {
+  const sub = hdr(headers, "x-omni-bind-sub");
+  if (!sub) return undefined;
+  const kver = hdr(headers, "x-omni-bind-kver");
+  return { sub, smono: hdr(headers, "x-omni-bind-mono") ?? "", salt: hdr(headers, "x-omni-bind-salt") ?? "", bkver: kver ? Number(kver) : undefined };
 }
 
 /** The backend interface a broker implements (the stub above is one). Templates
@@ -187,6 +199,9 @@ export interface BrokerCoreInput {
   actionHeader?: string | undefined;
   /** Optional `Authorization` header value (per-user impersonation). */
   authHeader?: string | undefined;
+  /** All request headers (lower-cased) — the core reads the `X-Omni-*` signature +
+   *  routing headers from here to VERIFY the request. Omit to skip verification. */
+  headers?: Record<string, string | string[] | undefined> | undefined;
 }
 export interface BrokerCoreResult {
   status: number;
@@ -201,6 +216,9 @@ export async function processBrokerCall(input: BrokerCoreInput, be: BrokerBacken
   // 1. Parse the body (decrypting a PSK envelope first if present).
   let body: Row;
   let encrypted = false;
+  // The session binding lifted out of a sealed envelope (F2) — present only when PSK is on
+  // and the caller was session-bound; used to re-key the signature check below.
+  let sealedBind: SessionBind | undefined;
   try {
     let json: Row = input.rawBody ? (JSON.parse(input.rawBody) as Row) : {};
     if (typeof json["enc"] === "string") {
@@ -208,6 +226,8 @@ export async function processBrokerCall(input: BrokerCoreInput, be: BrokerBacken
       if (opened === null) return { status: 400, body: { success: false, message: "bad PSK envelope" }, encrypted: false };
       json = JSON.parse(opened) as Row;
       encrypted = true;
+      if (json["__bind"] && typeof json["__bind"] === "object") sealedBind = json["__bind"] as SessionBind;
+      delete json["__bind"]; // internal transport field — never surface it to the backend
     }
     body = json;
   } catch {
@@ -229,9 +249,33 @@ export async function processBrokerCall(input: BrokerCoreInput, be: BrokerBacken
     origin: body["origin"] as string | undefined,
   };
 
-  // 3. `verify` short-circuit: a dry-run probe must NOT touch the backend.
+  // 3. `verify` short-circuit: a dry-run probe must NOT touch the backend (and is
+  //    unauthenticated by design — connectivity, not authorisation), so it runs BEFORE
+  //    the signature check and a readiness/verify ping needs no signature.
   if (body["verify"] === true || payload["verify"] === true) {
     return { status: 200, body: { success: true, data: { action, verified: true }, message: "verify ok" }, encrypted };
+  }
+
+  // 3.5. Request-signature verification (F3a). Real gateway traffic is ALWAYS signed, so a
+  //      tampered routing header, a replayed nonce, a stale timestamp or a forged signature is
+  //      rejected here (401). An ABSENT signature is allowed (unsigned tooling) unless
+  //      BROKER_REQUIRE_SIG is set — the opt-in that forbids the strip-the-header downgrade.
+  const sigHeader = hdr(input.headers, "x-omni-sig");
+  if (sigHeader) {
+    const bind = encrypted ? sealedBind : bindFromHeaders(input.headers);
+    const canonical: CanonicalRequest = {
+      // Under PSK the routing fields come from the decrypted envelope; unsealed, from the
+      // cleartext headers (which equal the envelope values the gateway signed).
+      action: encrypted ? String(body["action"] ?? "") : (hdr(input.headers, "x-omniproject-action") ?? String(body["action"] ?? "")),
+      source: encrypted ? String(body["source"] ?? "") : (hdr(input.headers, "x-omniproject-source") ?? ""),
+      idempotencyKey: encrypted ? String(body["idempotencyKey"] ?? "") : (hdr(input.headers, "x-omniproject-idempotency-key") ?? ""),
+      origin: encrypted ? String(body["origin"] ?? "") : (hdr(input.headers, "x-omniproject-origin") ?? ""),
+      body: input.rawBody,
+    };
+    const verdict = verifyBrokerRequest({ ts: Number(hdr(input.headers, "x-omni-ts")), nonce: hdr(input.headers, "x-omni-nonce") ?? "", sig: sigHeader, req: canonical, bind });
+    if (verdict !== "ok") return { status: 401, body: { success: false, message: `signature ${verdict}` }, encrypted };
+  } else if (process.env["BROKER_REQUIRE_SIG"] === "true" || process.env["BROKER_REQUIRE_SIG"] === "1") {
+    return { status: 401, body: { success: false, message: "missing request signature" }, encrypted };
   }
 
   // 4. Dispatch + map results/errors onto the envelope + taxonomy.
@@ -264,6 +308,7 @@ export function createReferenceBrokerBlueprint(): http.Server {
         rawBody: raw,
         actionHeader: req.headers["x-omniproject-action"] as string | undefined,
         authHeader: req.headers["authorization"] as string | undefined,
+        headers: req.headers,
       }).then((r) => {
         res.writeHead(r.status, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject" });
         res.end(JSON.stringify(r.body));

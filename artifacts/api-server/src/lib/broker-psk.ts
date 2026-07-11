@@ -1,5 +1,5 @@
 import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
-import { deriveKeyCached } from "./crypto-keys";
+import { deriveKey, deriveKeyCached } from "./crypto-keys";
 
 /**
  * Opt-in pre-shared-key (PSK) encryption for the broker hop — a *fallback below
@@ -25,14 +25,23 @@ import { deriveKeyCached } from "./crypto-keys";
  *   - **The broker MUST implement the matching crypto** (the reference sidecar
  *     does — see broker/reference-sidecar.ts — so it is real and tested).
  *
- * Crypto: AES-256-GCM (authenticated — tampering fails the tag), key =
- * SHA-256(BROKER_PSK), random 96-bit IV per message, versioned `p1.` token.
- * Identical to the session-cookie sealing (lib/session-crypto.ts); a separate
- * key and prefix keep the two domains independent. Read lazily so a key change
- * takes effect without a restart.
+ * Crypto: AES-256-GCM (authenticated — tampering fails the tag), random 96-bit
+ * IV per message, versioned token. Read lazily so a key change takes effect
+ * without a restart.
+ *
+ * KEY DERIVATION — two versions on the wire:
+ *   - `p2.` (current) derives the key with HKDF-SHA256 and a domain-separation
+ *     label (`deriveKey(BROKER_PSK, "broker-psk/v2")`), so the broker key can
+ *     never collide with a key minted from the same secret for another use.
+ *   - `p1.` (legacy) derived the key as a bare `SHA-256(BROKER_PSK)`. Still
+ *     OPENED for backward compatibility, but nothing SEALS `p1.` any more.
+ * A `tcpdump` on a PSK'd hop therefore sees only opaque ciphertext + a version
+ * marker either way; v2 just closes the key-collision gap (audit finding F1).
  */
 
-const PREFIX = "p1."; // version marker so the wire format can evolve / migrate
+const PREFIX = "p2."; // current version — HKDF domain-separated key
+const LEGACY_PREFIX = "p1."; // openable-only: bare SHA-256(secret) key
+const PSK_INFO = "broker-psk/v2"; // HKDF domain-separation label for the broker seam
 
 /** The raw shared key from the environment, or undefined when PSK is off. */
 function rawPsk(): string | undefined {
@@ -44,22 +53,34 @@ export function pskEnabled(): boolean {
   return !!rawPsk();
 }
 
+/** The v2 (HKDF, domain-separated) key. */
 function key(): Buffer {
+  const secret = rawPsk();
+  if (!secret) throw new Error("BROKER_PSK is not set");
+  return deriveKey(secret, PSK_INFO);
+}
+
+/** The legacy v1 key (bare SHA-256) — only to OPEN pre-migration `p1.` tokens. */
+function legacyKey(): Buffer {
   const secret = rawPsk();
   if (!secret) throw new Error("BROKER_PSK is not set");
   return deriveKeyCached(secret);
 }
 
-/** Encrypt + authenticate a string. Returns a versioned base64url token. */
+/** Encrypt + authenticate a string. Returns a versioned base64url token (`p2.`). */
 export function sealPayload(plaintext: string): string {
   return PREFIX + aesGcmSeal(plaintext, key());
 }
 
-/** Decrypt + verify. Returns null on a non-sealed value, tamper, or wrong key —
- *  never throws, so the broker/gateway can treat any failure as a bad request. */
+/** Decrypt + verify. Accepts the current `p2.` token and the legacy `p1.` token
+ *  (opened under the old bare-SHA-256 key). Returns null on a non-sealed value,
+ *  tamper, or wrong key — never throws, so a caller can treat any failure as a
+ *  bad request. */
 export function openPayload(token: string): string | null {
-  if (typeof token !== "string" || !token.startsWith(PREFIX)) return null;
-  return aesGcmOpen(token.slice(PREFIX.length), key());
+  if (typeof token !== "string") return null;
+  if (token.startsWith(PREFIX)) return aesGcmOpen(token.slice(PREFIX.length), key());
+  if (token.startsWith(LEGACY_PREFIX)) return aesGcmOpen(token.slice(LEGACY_PREFIX.length), legacyKey());
+  return null;
 }
 
 /** The marker header set on an encrypted request so a broker can route/detect it

@@ -1,6 +1,17 @@
 # Broker Protocol v2 — rollout spec
 
-Status: **Proposed** · Supersedes parts of `docs/BROKER-HTTP-BINDING.md` (v1) · Owner: platform-security
+Status: **Implemented** (F1/F2/F3/F3a landed) · Updates `docs/BROKER-HTTP-BINDING.md` §2a/§2b · Owner: platform-security
+
+> **Rollout note.** This deployment has no external v1 brokers, so v2 was rolled out
+> directly as the live protocol rather than through the phased dual-accept negotiation in
+> §3–§4 below: the gateway always seals `p2.` and signs the v2 canonical string, and the
+> reference broker verifies it. Legacy `p1.` PSK tokens are still *accepted* on decrypt as
+> cheap back-compat, but nothing emits them. The capability-negotiation machinery (§3) and
+> phases 1–4 (§4) were therefore not built — they remain the plan for a heterogeneous fleet.
+> Strict enforcement is available now via `BROKER_REQUIRE_SIG` (the Phase-4 knob).
+> Implementation: `lib/broker-psk.ts`, `lib/broker-hmac.ts`,
+> `broker/reference-broker/index.ts`, `broker/reference-broker-blueprint.ts`; proven by
+> `broker/v2-protocol.test.ts`, `lib/broker-hmac.test.ts`, `lib/broker-psk.test.ts`.
 
 This spec closes three residual findings from the 2026-07 audit that were deliberately deferred
 because each one changes the **gateway↔broker wire format** and would break any external broker built
