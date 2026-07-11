@@ -22,7 +22,7 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../.
 const CHART = "deploy/helm/omniproject";
 const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), "utf8");
 
-const TEMPLATES = ["deployment", "service", "ingress", "hpa", "configmap", "secret"];
+const TEMPLATES = ["deployment", "service", "ingress", "hpa", "configmap", "secret", "networkpolicy", "pdb"];
 
 // ── A. Expected files exist ────────────────────────────────────────────────────
 test("helm guard: chart + core templates exist", () => {
@@ -76,4 +76,25 @@ test("helm guard: SESSION_SECRET ships empty and the pod is hardened", () => {
   assert.match(values, /readOnlyRootFilesystem:\s*true/, "container must run with a read-only root filesystem");
   assert.match(values, /runAsNonRoot:\s*true/, "pod must run as non-root");
   assert.match(values, /drop:\s*\n\s*-\s*ALL/, "container must drop ALL capabilities");
+});
+
+// ── F. NetworkPolicy, graceful shutdown, and default HA spread ──────────────────
+test("helm guard: NetworkPolicy is shipped (opt-in) and DNS egress is always allowed", () => {
+  const np = read(`${CHART}/templates/networkpolicy.yaml`);
+  assert.match(np, /kind:\s*NetworkPolicy/, "networkpolicy.yaml must declare a NetworkPolicy");
+  assert.match(np, /if\s+\.Values\.networkPolicy\.enabled/, "the NetworkPolicy must be gated on networkPolicy.enabled");
+  assert.match(np, /policyTypes:\s*\n\s*-\s*Ingress\s*\n\s*-\s*Egress/, "must set both Ingress and Egress policy types");
+  assert.match(np, /protocol:\s*UDP/, "DNS egress (UDP/53) must always be permitted so hostnames resolve");
+  const values = read(`${CHART}/values.yaml`);
+  assert.match(values, /networkPolicy:\s*\n(?:.*\n)*?\s*enabled:\s*false/, "networkPolicy.enabled must default to false");
+});
+
+test("helm guard: graceful shutdown + default anti-co-location spread are wired", () => {
+  const values = read(`${CHART}/values.yaml`);
+  const dep = read(`${CHART}/templates/deployment.yaml`);
+  assert.match(values, /terminationGracePeriodSeconds:\s*\d+/, "values must set a termination grace period for SSE drain");
+  assert.match(dep, /terminationGracePeriodSeconds:\s*\{\{\s*\.Values\.terminationGracePeriodSeconds/, "deployment must honour terminationGracePeriodSeconds");
+  // A default soft topology spread when the operator hasn't set their own.
+  assert.match(dep, /topologyKey:\s*kubernetes\.io\/hostname/, "deployment must ship a default node spread");
+  assert.match(dep, /whenUnsatisfiable:\s*ScheduleAnyway/, "the default spread must be soft (never blocks scheduling)");
 });

@@ -91,6 +91,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Helm chart hardening — NetworkPolicy, graceful shutdown, default HA spread.** The chart
+  (`deploy/helm/omniproject`) gains an opt-in `NetworkPolicy` (targets only the gateway pods; DNS
+  egress always allowed; tighten ingress source + strict egress via values) so the recommended Helm
+  path matches the network segmentation the standalone manifest already had; a
+  `terminationGracePeriodSeconds` (+ optional container `lifecycle`) so the SIGTERM handler can drain
+  in-flight requests and SSE streams before SIGKILL; and a **default soft topology spread** across
+  nodes (`kubernetes.io/hostname`, `ScheduleAnyway`) so losing one node can't take out every replica.
+  The `helm-guard` CI test now asserts all three so they can't rot.
+
 - **Comments & @mentions (new opt-in `comments` feature module).** Lightweight collaboration on a
   work item: a comment thread keyed by the same room-id convention presence uses
   (`issue:<projectId>:<issueId>` / `project:<projectId>`), with `@mention` parsing that dispatches a
