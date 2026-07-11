@@ -33,7 +33,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { t } = useT();
   const brand = useBranding();
-  const { data: auth, isLoading: authLoading } = useAuth();
+  const { data: auth, isLoading: authLoading, isError: authError } = useAuth();
   const { data: setup } = usePublicSetupStatus();
   const { data: projects } = useListProjects();
   // Progressive disclosure: plain PMs keep the Advanced (governance/config) shelf
@@ -65,12 +65,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }, [location, brand.appName]);
 
   // Auth guard: wait for auth to resolve (so we don't bounce mid-load), then send
-  // an authenticated-but-not-logged-in user to the login screen.
+  // an unauthenticated user to the login screen. Fail CLOSED — `/api/auth/me` throws on
+  // any non-OK (401/500/network) with retry:false, so an error must be treated as "not logged
+  // in" and bounce to login, not left as undefined (which would render the full shell fail-open).
   useEffect(() => {
-    if (!authLoading && auth && !auth.authenticated) {
+    if (!authLoading && (authError || (auth && !auth.authenticated))) {
       setLocation("/login");
     }
-  }, [auth, authLoading, setLocation]);
+  }, [auth, authLoading, authError, setLocation]);
 
   // Two-key "chord" navigation (g then d/p/r/s, like Gmail/GitHub): pressing 'g'
   // arms a one-shot listener for the destination key; it auto-disarms after the
@@ -123,7 +125,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  if (auth && !auth.authenticated) return null;
+  // Don't render the authenticated shell for an unauthenticated OR errored auth state (the effect
+  // above redirects to /login; returning null here prevents a fail-open flash of the app).
+  if (authError || (auth && !auth.authenticated)) return null;
 
   const initials = (auth?.user?.name || auth?.user?.email || "ME")
     .split(/[\s@.]+/)

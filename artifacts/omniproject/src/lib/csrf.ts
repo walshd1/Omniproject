@@ -21,7 +21,9 @@ export function readCookie(name: string): string | null {
 
 /** Is this request URL same-origin (so our cookie/token should ride along)? */
 function isSameOrigin(url: string): boolean {
-  if (url.startsWith("/")) return true; // relative → same origin
+  // A protocol-relative URL ("//evil.com/x") also starts with "/" but resolves cross-origin, so it
+  // must NOT take the relative fast-path — fall through to the origin check below, which handles it.
+  if (url.startsWith("/") && !url.startsWith("//")) return true; // root-relative → same origin
   try { return new URL(url, window.location.href).origin === window.location.origin; }
   catch { return false; }
 }

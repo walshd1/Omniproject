@@ -67,11 +67,15 @@ export function useFeatures(scope: FeatureScope = {}) {
   });
 }
 
-/** True when a feature module is enabled (for lazily gating optional UI). Defaults to true while
- *  the list is still loading, so core UI never flickers off. */
+/** True when a feature module is enabled (for lazily gating optional UI). Defaults to true while the
+ *  list is still loading / for an unknown id, so core UI never flickers off (the gateway is the real
+ *  gate on the data behind each module). A resolved item under a hard governance FORBID is never
+ *  enabled — checked explicitly so a forbidden surface can't slip through even if `enabled` drifts. */
 export function featureEnabled(features: FeatureStatus[] | undefined, id: string): boolean {
   const f = features?.find((x) => x.id === id);
-  return f ? f.enabled : true;
+  if (!f) return true;
+  if (f.policy === "forbid") return false;
+  return f.enabled;
 }
 
 export const scopeFeatureMapsQueryKey = ["scope-feature-maps"] as const;
