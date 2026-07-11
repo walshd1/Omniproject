@@ -174,6 +174,46 @@ export async function verifyBrokerRequestShared(
   return recordNonceLocal(input.nonce, now, maxAgeMs) ? "ok" : "replay";
 }
 
+// ── Response (event-channel) signature ───────────────────────────────────────────
+// The broker signs its REPLY the same way the gateway signs its request, so the gateway can
+// prove the response came from a master-holder and wasn't tampered on the hop (defence in depth
+// on top of TLS / the PSK GCM tag). Keyed by the SAME per-session/static key the request used —
+// the broker knows it from verifying the request. No nonce/replay cache: a response is bound to
+// its request, so replay isn't meaningful; the timestamp bounds a captured-response injection.
+
+export interface ResponseSignature {
+  ts: number;
+  sig: string;
+}
+
+/** The canonical string a response signature is taken over: a `v2resp` domain tag (distinct from
+ *  the request's `v2`, so a request sig can never be replayed as a response sig), the timestamp,
+ *  and a hash of the wire response body. */
+export function brokerResponseCanonical(body: string, ts: number): string {
+  const bodyHash = createHash("sha256").update(body).digest("hex");
+  return ["v2resp", String(ts), bodyHash].join("\n");
+}
+
+/** Sign a broker response body under the request's key (session-bound when `bind` is given). */
+export function signBrokerResponse(body: string, bind?: SessionBind): ResponseSignature {
+  const ts = Date.now();
+  const sig = createHmac("sha256", keyFor(bind)).update(brokerResponseCanonical(body, ts)).digest("hex");
+  return { ts, sig };
+}
+
+/** Verify a broker response signature + freshness (no replay check — see the note above). */
+export function verifyBrokerResponse(
+  input: { body: string; ts: number; sig: string; bind?: SessionBind | undefined },
+  opts: { maxAgeMs?: number; now?: number } = {},
+): VerifyResult {
+  const maxAgeMs = opts.maxAgeMs ?? DEFAULT_MAX_AGE_MS;
+  const now = opts.now ?? Date.now();
+  const expected = createHmac("sha256", keyFor(input.bind)).update(brokerResponseCanonical(input.body, input.ts)).digest("hex");
+  if (!constantTimeEqual(expected, input.sig)) return "bad-signature";
+  if (Math.abs(now - input.ts) > maxAgeMs) return "expired";
+  return "ok";
+}
+
 /** Test-only: clear the in-process replay cache. */
 export function __resetBrokerHmac(): void {
   seen.clear();

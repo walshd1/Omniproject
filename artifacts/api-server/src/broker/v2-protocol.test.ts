@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { processBrokerCall, backend, type BrokerBackend } from "./reference-broker-blueprint";
-import { signBrokerRequest, __resetBrokerHmac, type CanonicalRequest } from "../lib/broker-hmac";
+import { signBrokerRequest, signBrokerResponse, __resetBrokerHmac, type CanonicalRequest } from "../lib/broker-hmac";
 import { updateSettings } from "../lib/settings";
 import type { ActorContext } from "./types";
 
@@ -136,4 +136,82 @@ test("F2: with PSK on, a session-bound request carries no identity/bind in clear
     pointBroker(null);
     await new Promise<void>((r) => record.close(() => r()));
   }
+});
+
+// ── Response signing: the gateway rejects a tampered / (in strict mode) unsigned reply ──────
+function pointBrokerUrl(url: string | null): void { updateSettings({ brokerUrl: url }); }
+
+/** Stand up a broker that returns `body` with the given response-signature headers, run the
+ *  gateway's ReferenceBroker.listProjects against it, and return the promise. */
+async function withBrokerReturning(
+  respHeaders: (wire: string) => Record<string, string>,
+  run: (broker: { listProjects: (ctx: ActorContext) => Promise<unknown> }) => Promise<void>,
+): Promise<void> {
+  const server = http.createServer((req, res) => {
+    let raw = ""; req.on("data", (c) => { raw += c; }); req.on("end", () => {
+      const wire = JSON.stringify({ success: true, data: [{ id: "p1", name: "P" }], message: null });
+      res.writeHead(200, { "Content-Type": "application/json", ...respHeaders(wire) });
+      res.end(wire);
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, () => r()));
+  const port = (server.address() as AddressInfo).port;
+  const prevUrl = process.env["BROKER_URL"];
+  process.env["BROKER_URL"] = `http://127.0.0.1:${port}`;
+  pointBrokerUrl(`http://127.0.0.1:${port}`);
+  try {
+    const { ReferenceBroker } = await import("./reference-broker");
+    await run(new ReferenceBroker());
+  } finally {
+    if (prevUrl === undefined) delete process.env["BROKER_URL"]; else process.env["BROKER_URL"] = prevUrl;
+    pointBrokerUrl(null);
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+}
+
+const ctx: ActorContext = { sub: "tester", email: "t@example.test", role: "admin", authHeader: "Bearer t" };
+
+test("response signing: a correctly signed reply is accepted", async () => {
+  await withBrokerReturning(
+    (wire) => { const rs = signBrokerResponse(wire); return { "X-Omni-Resp-Sig": rs.sig, "X-Omni-Resp-Ts": String(rs.ts) }; },
+    async (broker) => { assert.deepEqual(await broker.listProjects(ctx), [{ id: "p1", name: "P" }]); },
+  );
+});
+
+test("response signing: a reply with a BAD signature is rejected (not surfaced as data)", async () => {
+  const { BrokerError } = await import("./types");
+  await withBrokerReturning(
+    () => ({ "X-Omni-Resp-Sig": "deadbeef", "X-Omni-Resp-Ts": String(Date.now()) }),
+    async (broker) => { await assert.rejects(() => broker.listProjects(ctx), (e: unknown) => e instanceof BrokerError); },
+  );
+});
+
+test("response signing: an UNSIGNED reply is accepted by default but rejected under BROKER_REQUIRE_RESP_SIG", async () => {
+  const { BrokerError } = await import("./types");
+  // Default: verify-when-present → an unsigned reply still works.
+  await withBrokerReturning(() => ({}), async (broker) => {
+    assert.deepEqual(await broker.listProjects(ctx), [{ id: "p1", name: "P" }]);
+  });
+  // Strict: an unsigned reply is refused.
+  process.env["BROKER_REQUIRE_RESP_SIG"] = "1";
+  try {
+    await withBrokerReturning(() => ({}), async (broker) => {
+      await assert.rejects(() => broker.listProjects(ctx), (e: unknown) => e instanceof BrokerError);
+    });
+  } finally {
+    delete process.env["BROKER_REQUIRE_RESP_SIG"];
+  }
+});
+
+// ── Capability protocol advertisement + detection ───────────────────────────────────────
+test("protocol detection: warns for a broker lacking v2 sig support, silent when advertised", async () => {
+  const { brokerProtocolWarning } = await import("./reference-broker");
+  const { BROKER_PROTOCOL_SUPPORT } = await import("./reference-broker-blueprint");
+  // The reference broker advertises v2 → no warning.
+  assert.equal(BROKER_PROTOCOL_SUPPORT.sig.includes("v2"), true);
+  assert.equal(brokerProtocolWarning({ issues: true, protocol: BROKER_PROTOCOL_SUPPORT }), null);
+  // A v1-only broker, or one that omits `protocol`, warns.
+  assert.match(String(brokerProtocolWarning({ protocol: { sig: ["v1"] } })), /does not advertise v2/);
+  assert.match(String(brokerProtocolWarning({ issues: true })), /does not advertise v2/);
+  assert.match(String(brokerProtocolWarning(undefined)), /does not advertise v2/);
 });

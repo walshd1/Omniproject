@@ -229,6 +229,8 @@ n8n broker — THE one place that knows the broker is n8n.
 | `orderedTargets` | The pool rotated by a round-robin offset, so consecutive calls spread load and a failed instance is followed by the next one. |
 | `idempotencyKey` | Deterministic idempotency key: sha256(action + projectId + issueId + timestamp_rounded_to_nearest_minute) Identical actions on the same entity within the same minute collapse to the same key, letting n8n drop duplicate triggers / webhook storms. |
 | `pingBroker` | Lightweight readiness probe: is the broker reachable RIGHT NOW? One bounded POST to the first pool endpoint — any HTTP response counts as reachable (we are checking connectivity, not authorisation); only a connection error/timeout is "not ready". |
+| `brokerProtocolWarning` | PURE: the warning message when a broker's advertised `protocol` doesn't include v2 request-signature verification (or omits `protocol`, reading as v1-only), else null. |
+| `__resetProtocolWarnings` | Test-only: forget which brokers have been warned about. |
 | `probeVerifiableActions` | The one probe both the adapter's `verify()` (VerifyReport, the live broker's self-check) and `POST /setup/verify-workflow` (an admin pointing at a candidate/not-yet-wired webhook URL) run: POST every `VERIFIABLE_ACTIONS` entry as a dry-run (`verify: true`) probe with an 8s timeout, bounded fan-out, and report `{ action, ok, status, ms, verifyAware, message }` for each. |
 
 ### `artifacts/api-server/src/broker/reference-output-blueprint.ts`
@@ -717,6 +719,9 @@ Gateway↔broker request signing (security item C, folded into provenance): a de
 | `signBrokerRequest` | Sign a request for the broker (fresh timestamp + nonce). |
 | `verifyBrokerRequest` | Verify a signed broker request: signature matches, timestamp is within the freshness window, and the nonce hasn't been used (replay), against the IN-PROCESS nonce cache. |
 | `verifyBrokerRequestShared` | Fleet-aware verify. |
+| `brokerResponseCanonical` | The canonical string a response signature is taken over: a `v2resp` domain tag (distinct from the request's `v2`, so a request sig can never be replayed as a response sig), the timestamp, and a hash of the wire response body. |
+| `signBrokerResponse` | Sign a broker response body under the request's key (session-bound when `bind` is given). |
+| `verifyBrokerResponse` | Verify a broker response signature + freshness (no replay check — see the note above). |
 | `__resetBrokerHmac` | Test-only: clear the in-process replay cache. |
 
 ### `artifacts/api-server/src/lib/broker-log-bus.ts`

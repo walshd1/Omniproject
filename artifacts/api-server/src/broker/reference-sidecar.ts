@@ -13,8 +13,9 @@
  */
 import http from "node:http";
 import { sealPayload } from "../lib/broker-psk";
+import { signBrokerResponse } from "../lib/broker-hmac";
 import { isDone } from "./vocabulary";
-import { processBrokerCall, BrokerHttpError, type BrokerBackend } from "./reference-broker-blueprint";
+import { processBrokerCall, BrokerHttpError, BROKER_PROTOCOL_SUPPORT, type BrokerBackend } from "./reference-broker-blueprint";
 
 type Row = Record<string, unknown>;
 
@@ -66,7 +67,7 @@ function inMemoryBackend(store: Store): BrokerBackend {
     async portfolioHealth() { return []; },
     async resourceCapacity() { return []; },
     async projectFinancials(_ctx, projectId) { return { projectId, currency: "GBP", budget: null, actualCost: null, earnedValue: null, committed: null }; },
-    async capabilities() { return CAPABILITIES; },
+    async capabilities() { return { ...CAPABILITIES, protocol: BROKER_PROTOCOL_SUPPORT }; },
     async fxRates() { return { base: "GBP", rates: { GBP: 1, USD: 1.27, EUR: 1.17 } }; },
     async replay() { return []; },
     async activity() { return []; },
@@ -125,8 +126,11 @@ export function createReferenceSidecar(): http.Server {
       ).then((r) => {
         const text = JSON.stringify(r.body);
         // Reply encrypted when the request was (so the wire stays opaque both ways).
-        const wire = r.encrypted ? JSON.stringify({ v: 1, enc: sealPayload(text) }) : text;
-        res.writeHead(r.status, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject" });
+        const wire = r.encrypted ? JSON.stringify({ v: 2, enc: sealPayload(text) }) : text;
+        // Sign the reply under the same key the request used, so the gateway can prove the
+        // response came from a master-holder and wasn't tampered on the hop.
+        const rs = signBrokerResponse(wire, r.bind);
+        res.writeHead(r.status, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject", "X-Omni-Resp-Sig": rs.sig, "X-Omni-Resp-Ts": String(rs.ts) });
         res.end(wire);
       });
     });

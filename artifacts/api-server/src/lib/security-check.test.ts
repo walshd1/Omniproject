@@ -59,6 +59,19 @@ test("flags a plain-http broker URL to a remote host (encrypt the broker hop)", 
   assert.ok(!local.some((x) => x.id === "broker-plaintext"));
 });
 
+test("the plaintext-broker warning notes PSK is not a TLS substitute (no forward secrecy / peer auth)", () => {
+  // With PSK set on a plaintext remote hop, the warning must spell out that PSK ≠ TLS: no forward
+  // secrecy, no peer authentication — mTLS/TLS is the answer.
+  const withPsk = securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm", BROKER_URL: "http://n8n.internal:5678/webhook", BROKER_PSK: "a-strong-broker-psk-value-1234" });
+  const finding = withPsk.find((x) => x.id === "broker-plaintext");
+  assert.ok(finding);
+  assert.match(finding!.message, /forward secrecy/i);
+  assert.match(finding!.message, /peer auth/i);
+  // Without PSK the base warning stands but doesn't carry the PSK caveat.
+  const noPsk = securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm", BROKER_URL: "http://n8n.internal:5678/webhook" });
+  assert.doesNotMatch(noPsk.find((x) => x.id === "broker-plaintext")!.message, /forward secrecy/i);
+});
+
 test("checks EVERY loaded broker, not just the primary (per-kind BROKER_ENDPOINTS)", () => {
   // Primary is TLS, but a per-kind secondary broker is plain http to a remote host → still flagged.
   const findings = securityFindings({

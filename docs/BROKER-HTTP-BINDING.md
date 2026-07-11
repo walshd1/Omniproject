@@ -210,6 +210,34 @@ proven by `broker/v2-protocol.test.ts`.
 
 ---
 
+## 2c. Response signature (`X-Omni-Resp-Sig`) + protocol advertisement
+
+**Sign your reply.** Symmetric to §2b, so the gateway can prove the response came from a
+master-holder and wasn't tampered on the hop. Under the SAME key the request used (the session
+key when the request was bound, else the static broker key), set:
+
+| Response header | Meaning |
+|---|---|
+| `X-Omni-Resp-Sig` | `HMAC-SHA256(key, "v2resp\n<ts>\n<sha256(wire body)>")`, hex. The `v2resp` tag keeps it distinct from a request signature. `<wire body>` is the exact bytes you send — the sealed `{v,enc}` string under PSK, else the JSON reply. |
+| `X-Omni-Resp-Ts` | Signing time (epoch ms); the gateway rejects outside its freshness window. No nonce — a response is bound to its request, so replay isn't meaningful. |
+
+The gateway **verifies-when-present** and rejects a bad/stale signature as a broker error; an
+unsigned reply is accepted unless `BROKER_REQUIRE_RESP_SIG` is set on the gateway. Reference:
+`signBrokerResponse` / `verifyBrokerResponse` in `lib/broker-hmac.ts`.
+
+**Advertise your protocol support.** Include a `protocol` block in your `get_capabilities` reply so
+the gateway can detect a broker that doesn't verify signatures and warn the operator:
+
+```jsonc
+{ "success": true, "data": { "issues": true, /* … */ "protocol": { "psk": ["p1","p2"], "sig": ["v2"], "resp": ["v2"] } } }
+```
+
+A broker that omits `protocol`, or whose `sig` doesn't include `"v2"`, triggers a one-time gateway
+warning (the gateway still signs; that broker simply isn't checking it). Reference:
+`BROKER_PROTOCOL_SUPPORT` + `brokerProtocolWarning`.
+
+---
+
 ## 3. Action catalogue
 
 Every action, the broker method it backs, whether the user context is forwarded

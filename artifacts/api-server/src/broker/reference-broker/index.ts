@@ -33,8 +33,11 @@ import { GATEWAY_ORIGIN, REQUEST_HEADERS, type BrokerEnvelope } from "../contrac
 import { addUpstreamMs } from "../../lib/request-timing";
 import { assertEgressAllowed } from "../../lib/egress";
 import { pskEnabled, sealPayload, openPayload, PSK_HEADER, PSK_PREFIX } from "../../lib/broker-psk";
-import { signBrokerRequest, type CanonicalRequest } from "../../lib/broker-hmac";
+import { signBrokerRequest, verifyBrokerResponse, type CanonicalRequest } from "../../lib/broker-hmac";
 import { currentVersion } from "../../lib/key-registry";
+import { isTruthy } from "../../lib/env-config";
+import { logger } from "../../lib/logger";
+import type { SessionBind } from "../../lib/session-key";
 import { assertSafeBrokerPayload, assertSafeAuthHeader } from "../../lib/payload-guard";
 import { currentTraceparent } from "../../lib/tracing";
 import { brokerFetch } from "../../lib/broker-transport";
@@ -292,6 +295,7 @@ async function sendWithFailover(init: BrokerRequestInit): Promise<{ res: BrokerR
 async function unwrapResponse<T>(
   res: BrokerResponse,
   psk: boolean,
+  bind: SessionBind | undefined,
   audit: (result: "success" | "error", status: number, extra?: Record<string, unknown>) => void,
 ): Promise<AdapterResult<T>> {
   try {
@@ -305,7 +309,26 @@ async function unwrapResponse<T>(
       throw BrokerError.fromStatus(res.status);
     }
 
-    let json = (await res.json().catch(() => ({}))) as unknown;
+    // Read the raw wire bytes (so a response signature can be checked over the exact body the
+    // broker signed) before parsing / decrypting.
+    const text = await res.text().catch(() => "");
+    // Response-signature verification (broker→gateway): when the broker signed its reply, prove it
+    // came from a master-holder and wasn't tampered on the hop. Verify-when-present; a missing
+    // signature is allowed unless BROKER_REQUIRE_RESP_SIG is set (the strict opt-in).
+    const respSig = res.headers.get("x-omni-resp-sig");
+    if (respSig) {
+      const verdict = verifyBrokerResponse({ body: text, ts: Number(res.headers.get("x-omni-resp-ts")), sig: respSig, bind });
+      if (verdict !== "ok") {
+        audit("error", res.status, { responseSignature: verdict });
+        throw new BrokerError("unavailable", "broker response failed signature verification");
+      }
+    } else if (isTruthy(process.env["BROKER_REQUIRE_RESP_SIG"])) {
+      audit("error", res.status, { responseSignature: "missing" });
+      throw new BrokerError("unavailable", "broker response was not signed");
+    }
+
+    let json: unknown = {};
+    try { json = text ? JSON.parse(text) : {}; } catch { json = {}; }
     // When PSK is on, a conformant broker encrypts its reply the same way; unwrap
     // the `{ v, enc }` envelope back to the plaintext result. A non-encrypted body
     // is left as-is (a broker that doesn't speak PSK simply won't decrypt anyway).
@@ -368,7 +391,7 @@ async function callBroker<T = unknown>(
     throw new BrokerError("unavailable", isTimeout ? "all broker instances timed out" : "all broker instances unreachable");
   }
 
-  return unwrapResponse<T>(res, psk, audit);
+  return unwrapResponse<T>(res, psk, opts.ctx.sessionBind, audit);
 }
 
 /**
@@ -410,6 +433,36 @@ const CAP_TTL_MS = 60_000;
 // Indicative FX fallback used when the backend FX read fails (graceful
 // degradation in the n8n path). Shared with the demo adapter — single source.
 const FALLBACK_FX: FxRates = INDICATIVE_FX_RATES;
+
+// Brokers we've already warned about (by URL) for missing v2 signature support — warn once, not
+// every capability probe.
+const protocolWarned = new Set<string>();
+
+/** PURE: the warning message when a broker's advertised `protocol` doesn't include v2
+ *  request-signature verification (or omits `protocol`, reading as v1-only), else null. The gateway
+ *  signs every request; a broker that doesn't verify it silently ignores the signature. */
+export function brokerProtocolWarning(data: unknown): string | null {
+  const proto = (data && typeof data === "object" ? (data as Record<string, unknown>)["protocol"] : undefined) as { sig?: unknown } | undefined;
+  const sigVersions = Array.isArray(proto?.sig) ? proto!.sig.map(String) : [];
+  if (sigVersions.includes("v2")) return null;
+  return "broker does not advertise v2 request-signature verification — signed requests may not be checked by this broker";
+}
+
+/** Warn ONCE per broker URL when `brokerProtocolWarning` fires. Observational only — the gateway
+ *  still speaks v2 regardless (a v1-only broker simply won't verify). */
+function detectBrokerProtocol(data: unknown): void {
+  const msg = brokerProtocolWarning(data);
+  if (!msg) return;
+  const url = webhookPool()[0] ?? "broker";
+  if (protocolWarned.has(url)) return;
+  protocolWarned.add(url);
+  logger.warn({ broker: url, advertisedProtocol: (data as { protocol?: unknown })?.protocol ?? null }, msg);
+}
+
+/** Test-only: forget which brokers have been warned about. */
+export function __resetProtocolWarnings(): void {
+  protocolWarned.clear();
+}
 
 /**
  * The one probe both the adapter's `verify()` (VerifyReport, the live broker's
@@ -583,6 +636,9 @@ export class ReferenceBroker implements Broker {
     try {
       const r = await callBroker<Partial<CapabilityFlags>>("get_capabilities", {}, { ctx, source: "capability_probe", withActor: true });
       const data = r.data;
+      // Detect (and warn once about) a broker that doesn't advertise v2 request-signature
+      // verification — signing then protects nothing on the request leg.
+      detectBrokerProtocol(data);
       const value = (data && typeof data === "object" ? { ...CONSERVATIVE, ...data } : { ...CONSERVATIVE }) as CapabilityFlags;
       capCache.set(key, { value, at: Date.now() });
       return value;

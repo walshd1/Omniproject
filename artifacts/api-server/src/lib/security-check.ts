@@ -89,13 +89,19 @@ export function securityFindings(env: Env): SecurityFinding[] {
     try { host = new URL(brokerUrl).hostname.toLowerCase(); } catch { continue; }
     const loopback = host === "localhost" || host === "127.0.0.1" || host === "::1";
     if (host && !loopback) {
+      const pskOn = set(env["BROKER_PSK"]);
       out.push({
         id: "broker-plaintext",
         severity: "warn",
         message:
           `Broker endpoint ${brokerUrl} uses plain http:// to a remote host — gateway↔broker data crosses the wire ` +
           "unencrypted. Use https:// for the broker endpoint (with NODE_EXTRA_CA_CERTS for a private CA), or front the " +
-          "broker with a TLS sidecar / service-mesh mTLS.",
+          "broker with a TLS sidecar / service-mesh mTLS." +
+          (pskOn
+            ? " BROKER_PSK is set, so the payload is sealed — but PSK is a below-TLS fallback: it gives NO forward " +
+              "secrecy (one static key; a leak decrypts past captures) and NO peer authentication (anyone with the key " +
+              "is 'the broker'). Only TLS + mTLS (BROKER_MTLS_CERT/KEY) provide those."
+            : ""),
       });
     }
   }

@@ -1,6 +1,6 @@
 # Broker Protocol v2 — rollout spec
 
-Status: **Implemented** (F1/F2/F3/F3a landed) · Updates `docs/BROKER-HTTP-BINDING.md` §2a/§2b · Owner: platform-security
+Status: **Implemented** (F1/F2/F3/F3a landed; §9 followups dispositioned — response signing + protocol detection done, PSK-FS→mTLS, non-repudiation a non-goal) · Updates `docs/BROKER-HTTP-BINDING.md` §2a/§2b/§2c · Owner: platform-security
 
 > **Rollout note.** This deployment has no external v1 brokers, so v2 was rolled out
 > directly as the live protocol rather than through the phased dual-accept negotiation in
@@ -178,8 +178,42 @@ so the pool can be upgraded one instance at a time.
 - Phases 0–2 are reversible by config alone: set `BROKER_PROTOCOL=v1` fleet-wide and the gateway emits v1 to everyone; the v2 accept path is dormant. No data migration exists to unwind (the protocol is stateless per request), so rollback is a config change + redeploy, not a schema revert.
 - `p2.` tokens are never persisted (broker requests are transient), so there is no at-rest artifact that a rollback would strand.
 
-## 9. Out of scope
-- **Forward secrecy / peer auth on the PSK hop** — still "use TLS." v2 does not turn PSK into a key-exchange protocol; the honest hierarchy in `lib/broker-psk.ts` stands.
-- **Non-repudiation against the gateway** — v2 remains a shared-secret MAC to a master-holding broker, same trust boundary as v1.
-- **Event-channel signature** (`X-OmniProject-Signature` on broker→gateway events, §4 of the binding) — separate surface; can adopt the same canonical-string approach in a follow-up.
+## 9. Followup dispositions (was "out of scope")
+
+The originally-deferred followups, and where each now stands:
+
+- **Response / event-channel signature — DONE.** The broker signs its reply the same way the gateway
+  signs its request: `X-Omni-Resp-Sig` = `HMAC(key, "v2resp\n<ts>\n<sha256(wire body)>")` under the
+  SAME per-session/static key the request used (a distinct `v2resp` domain tag, so a request sig can
+  never be replayed as a response sig). The gateway verifies-when-present and rejects a tampered reply
+  (`BrokerError`); `BROKER_REQUIRE_RESP_SIG` makes a signature mandatory. No nonce/replay cache — a
+  response is bound to its request. Impl: `signBrokerResponse`/`verifyBrokerResponse` in
+  `lib/broker-hmac.ts`, reference broker in `reference-sidecar.ts` / `reference-broker-blueprint.ts`,
+  gateway in `broker/reference-broker/index.ts` (`unwrapResponse`). Tests: `v2-protocol.test.ts`,
+  `broker-hmac.test.ts`.
+
+- **Capability protocol advertisement + detection — DONE (the useful slice).** The reference broker
+  advertises `protocol: { psk, sig, resp }` on the `get_capabilities` reply
+  (`BROKER_PROTOCOL_SUPPORT`); the gateway reads it on its capability probe and logs a one-time
+  warning (`brokerProtocolWarning`) if a connected broker doesn't advertise v2 signature verification
+  — so an operator who points the gateway at a broker that silently ignores signatures finds out. The
+  full dual-accept **down-negotiation** machinery (§3–§4) is intentionally NOT built: this deployment
+  has a single homogeneous broker and the gateway always speaks v2, so there is no v1 broker to
+  negotiate down to. The `protocol` block is the forward-compatible hook if a heterogeneous fleet
+  ever exists.
+
+- **Forward secrecy / peer auth on the PSK hop — DISPOSITIONED (use TLS/mTLS; now warned).** This is
+  not a PSK-layer fix — real FS + peer auth require TLS (ephemeral key exchange + certificate
+  identity), which the app already supports: `https://` broker URLs and `BROKER_MTLS_CERT/KEY(/CA)`.
+  `security-check.ts` now spells this out: a plaintext broker hop **with `BROKER_PSK` set** warns that
+  PSK is a below-TLS fallback with no forward secrecy and no peer authentication, and points at mTLS.
+  Turning PSK itself into a key-exchange protocol (reinventing TLS) remains explicitly out of scope.
+
+- **Non-repudiation against the gateway — DELIBERATE NON-GOAL.** v2 is a shared-secret MAC to a
+  master-holding broker: it proves "a master-holder sent this," not "THIS party and no other," because
+  both sides hold the same master by design. True non-repudiation needs asymmetric signatures (the
+  gateway signs with a private key the broker only verifies) — the app has Ed25519 primitives
+  (`lib/signing`) that could back it, but it is a distinct feature (keypair generation, public-key
+  distribution to brokers, opt-in) with value only when you don't trust the gateway operator. Left as
+  a documented non-goal; open a separate proposal if an enterprise requires it.
 ```
