@@ -18,6 +18,12 @@ already merged; the files remain as a record of what was checked and found.
 - `I18N-COVERAGE.md` — localisation coverage audit (en/fr/de/es).
 - `SECURITY-AUDIT-2026-07.md` — dated re-audit of surfaces changed since the prior pentest pass;
   the living posture is [../SECURITY-AUDIT.md](../SECURITY-AUDIT.md).
+- `AUDIT-2026-07.md` — dated 2026-07 whole-codebase deep pass (security + clean-code); its findings
+  are merged. The living posture is [../SECURITY-AUDIT.md](../SECURITY-AUDIT.md).
+- `ZERO-TRUST-AUDIT-2026-07.md` — dated 2026-07 zero-trust audit of the gateway across five
+  dimensions; the findings it raised are resolved.
+- `SME-CHARITY-FIT.md` — closed small-org/charity fit audit (gaps fixed additively); the living
+  how-to is [../SMALL-ORG-GUIDE.md](../SMALL-ORG-GUIDE.md).
 
 ## `design/` — historical design proposals
 
