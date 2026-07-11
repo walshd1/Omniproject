@@ -1,6 +1,64 @@
 import { logger } from "./logger";
 import { loadOptionalDependency } from "./optional-dependency";
 import { decodePemOrBase64 } from "./pem";
+import { sharedKv, sharedStateMode } from "./shared-state";
+
+/** How long a pending SP-initiated AuthnRequest id stays valid for InResponseTo matching. */
+const SAML_REQUEST_TTL_MS = 8 * 60_000;
+
+/**
+ * A `@node-saml/node-saml` CacheProvider backed by the shared-state seam so SAML request-id /
+ * replay state is enforced FLEET-WIDE (Redis when configured; per-replica otherwise — same
+ * posture as rate-limit / session-registry). node-saml calls this to store each outgoing
+ * AuthnRequest id and to validate + consume it on the ACS callback (`validateInResponseTo`),
+ * which also blocks unsolicited/replayed responses.
+ *
+ * Interface (node-saml): `getAsync(key) → value | null`, `saveAsync(key, value) → {createdAt,
+ * value} | null` (null when the key already exists — never overwrite), `removeAsync(key) → key`.
+ *
+ * NOTE: node-saml is a runtime-optional dependency not installed in this repo, so this adapter's
+ * integration with the library is UNTESTED here (the adapter itself is unit-tested in isolation).
+ * Verify the CacheProvider shape against the pinned node-saml version before relying on it.
+ */
+export function samlCacheProvider(kv = sharedKv, ttlMs = SAML_REQUEST_TTL_MS) {
+  const k = (key: string): string => `saml:req:${key}`;
+  return {
+    async getAsync(key: string): Promise<string | null> {
+      const raw = await kv.get(k(key));
+      if (!raw) return null;
+      try { return (JSON.parse(raw) as { value: string }).value; } catch { return null; }
+    },
+    async saveAsync(key: string, value: string): Promise<{ createdAt: number; value: string } | null> {
+      if (await kv.get(k(key))) return null; // already present ⇒ node-saml expects null (no overwrite)
+      const item = { createdAt: Date.now(), value };
+      await kv.set(k(key), JSON.stringify(item), { ttlMs });
+      return item;
+    },
+    async removeAsync(key: string): Promise<string | null> {
+      await kv.del(k(key));
+      return key;
+    },
+  };
+}
+
+/**
+ * Replay-protection options for the node-saml provider — enabled ONLY when shared state is
+ * Redis-backed. `validateInResponseTo` fails CLOSED (a missing/unknown request id ⇒ the login is
+ * refused), so requiring it without a fleet-wide cache would break SP-initiated login on a
+ * multi-replica, no-Redis deployment (the redirect and the ACS callback can land on different
+ * replicas). In-memory mode therefore falls back to the always-on signature + `NotOnOrAfter` +
+ * audience checks (a short, bounded replay window) and never breaks login — preserving the
+ * stateless single-replica default. When Redis is present, the shared cache makes replay/
+ * request-id state correct across replicas and the strict check is turned on.
+ */
+export function replayProtection(): Record<string, unknown> {
+  if (sharedStateMode() !== "redis") return {};
+  return {
+    validateInResponseTo: "always",
+    requestIdExpirationPeriodMs: SAML_REQUEST_TTL_MS,
+    cacheProvider: samlCacheProvider(),
+  };
+}
 
 /**
  * SAML 2.0 SSO — an OPTIONAL identity path that sits alongside OIDC behind the same auth
@@ -230,6 +288,10 @@ async function getProvider(): Promise<SamlProvider | null> {
       disableRequestedAuthnContext: true,
       signatureAlgorithm: "sha256",
       digestAlgorithm: "sha256",
+      // Replay protection (Redis-gated — see replayProtection): blocks unsolicited/replayed
+      // SAMLResponses via validateInResponseTo, but only when shared state is fleet-wide, so the
+      // stateless single-replica default and multi-replica-without-Redis never break SP login.
+      ...replayProtection(),
     });
   })();
   return providerPromise;

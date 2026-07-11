@@ -1,6 +1,6 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { startHarness, adminCookie, type Harness } from "./_harness";
+import { startHarness, adminCookie, memberCookie, type Harness } from "./_harness";
 
 /**
  * routes/dashboards.ts over the REAL app. Dashboards are benign, customer-level presentation
@@ -44,4 +44,19 @@ test("PUT /dashboards with a non-array payload → 400 (settings validation)", a
   assert.equal(r.status, 400);
   const body = (await r.json()) as { error: string };
   assert.ok(/array/.test(body.error));
+});
+
+test("dashboards write is gated to pmo (reads stay open) under real RBAC", async () => {
+  // The harness runs in demo mode (no auth configured), where every session holds all grants.
+  // Flip out of demo (isDemoAuth checks OIDC_ISSUER_URL live) so the RBAC gate is actually enforced.
+  const prev = process.env["OIDC_ISSUER_URL"];
+  process.env["OIDC_ISSUER_URL"] = "https://idp.example";
+  try {
+    const write = await h.req("/dashboards", { cookie: memberCookie(), method: "PUT", body: { dashboards: [] } });
+    assert.equal(write.status, 403); // a non-pmo member cannot overwrite shared dashboards
+    const read = await h.req("/dashboards", { cookie: memberCookie() });
+    assert.equal(read.status, 200); // …but reads remain open
+  } finally {
+    if (prev === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev;
+  }
 });

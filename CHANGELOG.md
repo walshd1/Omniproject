@@ -8,6 +8,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Changed
 
+- **SAML replay protection (Redis-gated, stateless-preserving).** When shared state is Redis-backed,
+  the SAML SP now enables `validateInResponseTo` with a shared-cache-backed request-id store, binding
+  each ACS response to a pending AuthnRequest and consuming it once (blocks unsolicited/replayed
+  `SAMLResponse`s fleet-wide). Because that check fails closed, it is enabled ONLY with Redis — a
+  stateless single-replica (or multi-replica-without-Redis) deployment keeps the always-on signature
+  + `NotOnOrAfter` + audience checks and never risks breaking SP-initiated login. No domain data is
+  stored; the request-id is ephemeral (8-min TTL) in the existing shared-state seam.
+- **Rate-card identity hashing re-keyed to HKDF (one-time re-entry required).** The rate card's
+  identity/title keyed hashes (`hashIdentity`) now derive their key via HKDF (`lib/crypto-keys`
+  `deriveKey`, tag `rate-card:v2`) instead of a bare `SHA-256(master)`, matching the rest of the
+  codebase. Because the rate-card store persists these hashes as its map keys, **existing rate-card
+  data (rates, title labels, identity→role assignments) will no longer resolve after upgrading and
+  must be re-entered once.** Pure hardening/consistency — the master key was already high-entropy;
+  no security regression.
 - **Broker-neutral naming, extended to the backend catalogue.** The `guard-broker-isolation` CI
   check previously only scanned `artifacts/api-server/src` and `artifacts/omniproject/src`, so a
   shared/neutral type could still quietly carry a vendor-specific name in
