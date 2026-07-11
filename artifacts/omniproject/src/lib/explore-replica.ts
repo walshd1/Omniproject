@@ -23,6 +23,7 @@ import {
 } from "@workspace/api-client-react";
 import { triggerBlobDownload } from "./setup";
 import { poolMap } from "./concurrency-pool";
+import { markExplorationClean } from "./exploration";
 
 /**
  * Explore replica — a captured, deep snapshot of the LIVE read-model that the
@@ -217,4 +218,7 @@ export function exportReplica(replica: ExploreReplica): void {
     new Blob([JSON.stringify(replica)], { type: "application/json" }),
     `omniproject-replica-${replica.capturedAt.slice(0, 10)}.json`,
   );
+  // Downloading is "saving" the exploration — clear the unsaved-work warning, as exportSnapshots/
+  // exportEdges do (previously only replica export left the leave-warning stuck on after saving).
+  markExplorationClean();
 }

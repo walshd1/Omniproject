@@ -64,11 +64,31 @@ describe("SavedViewsBar", () => {
     expect(viewPuts().length).toBe(0); // no write to /api/views
   });
 
-  it("deletes a view via the delete picker", async () => {
-    renderWithProviders(<SavedViewsBar scope="grid" current={{ columns: ["title"], sort: null }} onApply={() => {}} />, { client: seed(VIEWS) });
-    fireEvent.change(screen.getByLabelText("Delete saved view"), { target: { value: "v1" } });
-    await waitFor(() => expect(viewPuts().length).toBeGreaterThan(0));
-    // The remaining list sent back excludes the deleted id.
-    expect(String(viewPuts().at(-1)![1].body)).not.toContain("Triage");
+  it("deletes a view via the delete picker (after confirming the destructive action)", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      renderWithProviders(<SavedViewsBar scope="grid" current={{ columns: ["title"], sort: null }} onApply={() => {}} />, { client: seed(VIEWS) });
+      fireEvent.change(screen.getByLabelText("Delete saved view"), { target: { value: "v1" } });
+      expect(confirmSpy).toHaveBeenCalled();
+      await waitFor(() => expect(viewPuts().length).toBeGreaterThan(0));
+      // The remaining list sent back excludes the deleted id.
+      expect(String(viewPuts().at(-1)![1].body)).not.toContain("Triage");
+    } finally {
+      confirmSpy.mockRestore();
+    }
+  });
+
+  it("does NOT delete when the confirm is declined", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      renderWithProviders(<SavedViewsBar scope="grid" current={{ columns: ["title"], sort: null }} onApply={() => {}} />, { client: seed(VIEWS) });
+      fireEvent.change(screen.getByLabelText("Delete saved view"), { target: { value: "v1" } });
+      expect(confirmSpy).toHaveBeenCalled();
+      // No PUT fired — the deletion was cancelled.
+      await new Promise((r) => setTimeout(r, 20));
+      expect(viewPuts().length).toBe(0);
+    } finally {
+      confirmSpy.mockRestore();
+    }
   });
 });

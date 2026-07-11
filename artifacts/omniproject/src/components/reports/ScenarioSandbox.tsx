@@ -89,7 +89,7 @@ export function ScenarioSandbox() {
 
   const [adjustments, setAdjustments] = useState<ScenarioAdjustments>({});
   const [baseId, setBaseId] = useState<string>("live");
-  const [snapshots] = useState<PortfolioSnapshot[]>(() => loadSnapshots());
+  const [snapshots, setSnapshots] = useState<PortfolioSnapshot[]>(() => loadSnapshots());
 
   // The baseline can be LIVE or any captured snapshot (reproducible what-if).
   const base = useMemo(() => {
@@ -126,6 +126,8 @@ export function ScenarioSandbox() {
       label: `What-if: ${describeScenario(scenario)}`,
     });
     addSnapshots(loadSnapshots(), [snap]);
+    // Refresh local state so the just-captured what-if appears in the Base selector without a remount.
+    setSnapshots(loadSnapshots());
     toast({
       title: "SCENARIO CAPTURED",
       description: "Saved into this session's snapshots — nothing stored server-side.",

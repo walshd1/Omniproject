@@ -15,11 +15,14 @@ const LIVE_PREF = "omni.notify.live";
 
 export function NotificationsBell() {
   const [open, setOpen] = useState(false);
-  const [live, setLive] = useState<boolean>(() => localStorage.getItem(LIVE_PREF) !== "off");
+  const [live, setLive] = useState<boolean>(() => { try { return localStorage.getItem(LIVE_PREF) !== "off"; } catch { return true; } });
   const [connected, setConnected] = useState(false);
   // Notifications pushed over SSE (newest first), merged ahead of the polled list.
   const [pushed, setPushed] = useState<Notification[]>([]);
   const esRef = useRef<EventSource | null>(null);
+  // Bound EventSource's built-in auto-reconnect: on a deployment without the stream endpoint it would
+  // otherwise reconnect forever. After a few consecutive failures, stop until the pref is re-toggled.
+  const failuresRef = useRef(0);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -29,16 +32,17 @@ export function NotificationsBell() {
   });
 
   useEffect(() => {
-    localStorage.setItem(LIVE_PREF, live ? "on" : "off");
+    try { localStorage.setItem(LIVE_PREF, live ? "on" : "off"); } catch { /* storage blocked */ }
     if (!live) {
       esRef.current?.close();
       esRef.current = null;
       setConnected(false);
       return;
     }
+    failuresRef.current = 0;
     const es = new EventSource("/api/notifications/stream", { withCredentials: true });
     esRef.current = es;
-    es.addEventListener("ready", () => setConnected(true));
+    es.addEventListener("ready", () => { failuresRef.current = 0; setConnected(true); });
     es.addEventListener("notification", (e) => {
       try {
         const n = JSON.parse((e as MessageEvent).data) as Notification;
@@ -47,7 +51,15 @@ export function NotificationsBell() {
         /* ignore malformed event */
       }
     });
-    es.onerror = () => setConnected(false);
+    es.onerror = () => {
+      setConnected(false);
+      failuresRef.current += 1;
+      if (failuresRef.current >= 5) {
+        // The stream looks unavailable (or rejected, e.g. 429/absent endpoint) — stop reconnecting.
+        es.close();
+        esRef.current = null;
+      }
+    };
     return () => {
       es.close();
       esRef.current = null;
