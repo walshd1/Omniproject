@@ -6,7 +6,7 @@ export interface OmniStore {
   currentView: ViewId
   setCurrentView: (view: ViewId) => void
   isCommandOpen: boolean
-  setCommandOpen: (open: boolean) => void
+  setCommandOpen: (open: boolean | ((open: boolean) => boolean)) => void
   isSettingsOpen: boolean
   setSettingsOpen: (open: boolean) => void
   isNewIssueOpen: boolean
@@ -57,7 +57,7 @@ export const useStore = create<OmniStore>((set) => ({
     set({ currentView: view })
   },
   isCommandOpen: false,
-  setCommandOpen: (open) => set({ isCommandOpen: open }),
+  setCommandOpen: (open) => set((state) => ({ isCommandOpen: typeof open === 'function' ? open(state.isCommandOpen) : open })),
   isSettingsOpen: false,
   setSettingsOpen: (open) => set({ isSettingsOpen: open }),
   isNewIssueOpen: false,

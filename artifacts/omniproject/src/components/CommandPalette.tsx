@@ -28,13 +28,13 @@ export function CommandPalette() {
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setCommandOpen(!isCommandOpen);
+        setCommandOpen((v) => !v);
       }
     };
 
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, [isCommandOpen, setCommandOpen]);
+  }, [setCommandOpen]);
 
   return (
     <Dialog.Root open={isCommandOpen} onOpenChange={setCommandOpen}>
@@ -73,7 +73,7 @@ export function CommandPalette() {
           <Command.Group heading="Actions" className="px-2 py-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-4">
             <Command.Item
               onSelect={() => { setNewIssueOpen(true); setCommandOpen(false); }}
-              className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2 data-[disabled=true]:opacity-40 data-[disabled=true]:cursor-not-allowed"
+              className="px-2 py-2 text-sm text-foreground hover:bg-accent cursor-pointer flex items-center gap-2"
             >
               New Task
             </Command.Item>
