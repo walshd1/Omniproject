@@ -91,6 +91,7 @@ Running it in production.
 - **[ops/IMPORT.md](ops/IMPORT.md)** — importing existing data.
 - **[ops/RAW-API.md](ops/RAW-API.md)** — the raw API surface for scripting/integration.
 - **[ops/LOAD-HARNESS.md](ops/LOAD-HARNESS.md)** — the load-test harness.
+- **[ops/BENCHMARKS.md](ops/BENCHMARKS.md)** — the compute benchmarks (per-function derivation cost, no network).
 - **[ops/PILOT-READINESS.md](ops/PILOT-READINESS.md)** — the pilot go-live readiness checklist.
 
 ## Product & buyer
