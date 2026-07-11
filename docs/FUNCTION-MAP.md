@@ -1807,6 +1807,7 @@ Role-based access control.
 | `grantsFromClaims` | Pure mapping from a user's raw claim groups to their GRANTS (base rung + the set of authorities), using the configured role lists. |
 | `roleFromClaims` | Back-compat single-role view of a user's claims (the representative label). |
 | `grantsForReq` | Resolve a request's session (or API token) to its grants. |
+| `scopeForReq` | Resolve the request principal's DATA scope (user / programme / all). |
 | `isDeprovisioned` | Is this request's principal DEPROVISIONED in the SCIM directory? (known + active=false.) |
 | `roleForReq` | A representative role label for the request (display/audit only). |
 | `grantsForRole` | The canonical grants for a single named role (the inverse of `displayRole`) — so a non-request principal (an autonomous actor) can be assigned grants from one role. |
@@ -1948,6 +1949,17 @@ SCIM 2.0 directory (RFC 7643/7644).
 | `directoryDecision` | ── Login overlay (consumed by rbac + the auth gate) ──────────────────────────── |
 | `scimStats` | Directory counts for diagnostics. |
 | `__resetScim` | Test-only: wipe the directory. |
+
+### `artifacts/api-server/src/lib/scope.ts`
+
+DATA scope — the per-principal authorization boundary the backend enforces on top of the coarse RBAC tier.
+
+| Function | What it does |
+| --- | --- |
+| `programmesFromGroups` | Extract owned programme ids from a principal's claim/SCIM groups (case-insensitive). |
+| `resolveScope` | Resolve a principal's data scope from their grants + claim groups. |
+| `inScope` | Does `scope` permit access to resource `r`? Fail-closed for non-`all` scopes. |
+| `filterInScope` | Filter a row set to those in scope (`all` ⇒ unchanged). |
 
 ### `artifacts/api-server/src/lib/sealed-file.ts`
 
