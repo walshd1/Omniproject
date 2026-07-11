@@ -1,4 +1,6 @@
 import { TaskItemsPanel } from "./TaskItemsPanel";
+import { CommentsPanel } from "./issue-dialog/CommentsPanel";
+import { useFeatures, featureEnabled } from "../lib/features";
 import { canSurfaceEntity } from "../lib/capabilities-fields";
 import { useIssueForm } from "./issue-dialog/use-issue-form";
 import { FinancialsPanel } from "./issue-dialog/FinancialsPanel";
@@ -88,6 +90,8 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
   const deleteIssue = useDeleteIssue();
   const isEdit = !!issue;
   const { data: caps } = useGetCapabilities();
+  const { data: features } = useFeatures();
+  const commentsEnabled = featureEnabled(features, "comments");
   // Field gating: hide a field the backend can't surface; make it read-only when
   // it can surface but not store (a read-only source field).
   const { form, setForm, buildPayload, titleError, setTitleError, showF, editF } = useIssueForm(
@@ -384,6 +388,8 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
           )}
 
           {isEdit && issue && <TaskItemsPanel projectId={projectId} taskId={issue.id} />}
+
+          {isEdit && issue && commentsEnabled && <CommentsPanel projectId={projectId} issueId={issue.id} />}
 
           <DialogFooter className="gap-2 sm:justify-between">
             {isEdit ? (

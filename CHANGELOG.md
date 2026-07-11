@@ -101,6 +101,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Comments UI on the work item (SPA).** The `comments` backend module now has a front end: a
+  `CommentsPanel` on the issue dialog (gated by the feature flag) that lists the thread and posts
+  comments with `@mention` support — mentions surface in the recipient's notification bell via the
+  existing SSE stream, no new wiring. Backed by `lib/comments` react-query hooks over the
+  `/api/comments/:roomId` endpoint (room id `issue:<projectId>:<issueId>`).
+
 - **Scheduled file-export delivery.** A new opt-in scheduled job renders a dataset (projects / issues /
   activity, `SCHEDULED_EXPORT_DATASET`) in a chosen format (`SCHEDULED_EXPORT_FORMAT` = csv/json/md/pdf)
   and **emails it as an attachment** to the configured `digestDelivery.emailRecipients`. Read-only and
