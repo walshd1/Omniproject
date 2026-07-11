@@ -45,14 +45,14 @@ catalog:
   drizzle-orm: ^0.45.2
   framer-motion: ^12.23.24
   lucide-react: ^0.545.0
-  # Must be this exact version because expo requires it
-  react: 19.1.0
-  # Must be this exact version because expo requires it
+  # react and react-dom must be kept at the exact same version (React enforces
+  # an exact version match between the two packages at runtime).
+  react: 19.2.7
   react-dom: 19.2.7
   tailwind-merge: ^3.3.1
   tailwindcss: ^4.1.14
   tsx: ^4.22.4
-  vite: ^7.3.2
+  vite: ^8.1.4
   wouter: ^3.3.5
   zod: ^4.4.3
 
