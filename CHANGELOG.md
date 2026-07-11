@@ -91,6 +91,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Comments & @mentions (new opt-in `comments` feature module).** Lightweight collaboration on a
+  work item: a comment thread keyed by the same room-id convention presence uses
+  (`issue:<projectId>:<issueId>` / `project:<projectId>`), with `@mention` parsing that dispatches a
+  real-time notification (kind `mention`) to the mentioned user over the existing notify bus. Comments
+  live in the **ephemeral shared-state seam** — in memory by default, fleet-wide when Redis is
+  configured — so the zero-at-rest-above-the-seam rule holds (it's coordination state, not
+  system-of-record data). Durability is an **opt-in write-through**: with `COMMENT_PERSISTENCE=backend`
+  an issue-scoped comment is also written to the backend as a `note` TaskItem through the neutral
+  broker seam (the store itself never imports a database or the broker). Default-off (reason:
+  storage); reads are open to any authenticated user, posting requires `contributor`, deletion is the
+  author or a PMO/admin. `GET/POST /api/comments/:roomId`, `DELETE /api/comments/:roomId/:commentId`.
+
 - **Optional email delivery for the scheduled digests.** The proactive "what needs me" and executive
   digests can now also be emailed to a fixed, operator-configured recipient list (`digestDelivery.
   emailRecipients` in settings, or the `DIGEST_EMAIL_RECIPIENTS` env), IN ADDITION to the existing

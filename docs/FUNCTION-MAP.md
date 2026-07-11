@@ -810,6 +810,18 @@ Column → canonical-field mapper.
 | `applyColumnMapping` | Apply a confirmed mapping to raw rows, producing canonical payloads. |
 | `mappingFromSuggestions` | Derive the confirmed-mapping list from suggestions (drops the unmapped ones). |
 
+### `artifacts/api-server/src/lib/comments.ts`
+
+Comment threads — lightweight collaboration on a work item, stored in the EPHEMERAL shared-state seam (in-process by default, fleet-wide when Redis is configured), keyed by the same room-id convention presence uses (`issue:<projectId>:<issueId>` / `project:<projectId>`).
+
+| Function | What it does |
+| --- | --- |
+| `parseMentions` | Extract @mentions from a body: `@token` where token is `[A-Za-z0-9._-]` (1–64 chars), at a word boundary. |
+| `addComment` | Add a comment to a room's thread. |
+| `listComments` | The room's thread, oldest first (stable — ties broken by id). |
+| `getComment` | Read a single comment (for the authorization check on delete). |
+| `deleteComment` | Delete a comment. |
+
 ### `artifacts/api-server/src/lib/compression.ts`
 
 Dependency-free response compression (gzip/brotli) for the gateway.
@@ -2392,6 +2404,10 @@ Admin-only live broker log.
 ### `artifacts/api-server/src/routes/capabilities.ts`
 
 Capability + field-manifest endpoints.
+
+### `artifacts/api-server/src/routes/comments.ts`
+
+Comment threads (the "comments" feature module) — lightweight collaboration on a work item.
 
 ### `artifacts/api-server/src/routes/content-pages.ts`
 
