@@ -22,14 +22,26 @@ export interface ObjectStorePort {
 
 const enc = encodeURIComponent;
 
+/**
+ * `changedAt`/`asOf` are embedded verbatim in the key (they must stay lexically sortable, so they are
+ * NOT percent-encoded). Guard them: a `/` or `#` would inject extra key segments and corrupt the
+ * "lexical order = time order" layout. Valid ISO-8601 timestamps never contain either character.
+ */
+function safeTimestamp(t: string, field: string): string {
+  if (t.includes("/") || t.includes("#") || Number.isNaN(Date.parse(t))) {
+    throw new Error(`object-store: unsafe ${field} timestamp ${JSON.stringify(t)}`);
+  }
+  return t;
+}
+
 function journalKey(e: HistoryEntry): string {
-  return `journal/${enc(e.entity)}/${enc(e.id)}/${e.changedAt}#${enc(e.txnId)}#${enc(e.field)}.json`;
+  return `journal/${enc(e.entity)}/${enc(e.id)}/${safeTimestamp(e.changedAt, "changedAt")}#${enc(e.txnId)}#${enc(e.field)}.json`;
 }
 function journalPrefix(entity: string, id: string): string {
   return `journal/${enc(entity)}/${enc(id)}/`;
 }
 function snapshotKey(s: EntitySnapshot): string {
-  return `snapshot/${enc(s.entity)}/${enc(s.id)}/${s.asOf}.json`;
+  return `snapshot/${enc(s.entity)}/${enc(s.id)}/${safeTimestamp(s.asOf, "asOf")}.json`;
 }
 function snapshotPrefix(entity: string, id: string): string {
   return `snapshot/${enc(entity)}/${enc(id)}/`;

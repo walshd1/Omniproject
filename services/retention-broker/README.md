@@ -42,8 +42,11 @@ Then point the gateway at it: `RETENTION_BROKER_URL=http://retention-broker:8090
 | AWS DynamoDB | `dynamodb` | `RETENTION_DDB_TABLE`, `AWS_REGION` | IRSA / instance role / `DYNAMODB_ENDPOINT` for Local |
 | GCP BigQuery | `bigquery` | `RETENTION_BQ_DATASET`, `GOOGLE_CLOUD_PROJECT` | Workload Identity / ADC |
 
-`RETENTION_BROKER_TOKEN` (optional) gates the `/retention/*` ops with a bearer token. `PORT` defaults
-to 8090.
+`RETENTION_BROKER_TOKEN` gates the `/retention/*` ops with a bearer token and is **required**: the
+service refuses to boot without it, because those ops read/purge the entire durable history store. For
+a loopback-only local run you can set `RETENTION_BROKER_ALLOW_ANON=1` to accept **unauthenticated**
+requests (never in production; the service logs a warning). `HOST` defaults to `0.0.0.0` (set it to
+`127.0.0.1` to bind loopback only) and `PORT` defaults to 8090.
 
 ## Test
 

@@ -25,17 +25,18 @@ test("OPS/isOp define the wire contract", () => {
 
 test("read-snapshots maps entity/ids/window to readSnapshots", async () => {
   const s = recordingSource();
-  const out = await dispatch(s, "read-snapshots", { entity: "issue", ids: ["1", "2"], window: { from: "a", to: "b" } });
-  assert.deepEqual(s.calls[0], { op: "readSnapshots", args: ["issue", ["1", "2"], { from: "a", to: "b" }] });
+  const window = { from: "2026-01-01T00:00:00Z", to: "2026-02-01T00:00:00Z" };
+  const out = await dispatch(s, "read-snapshots", { entity: "issue", ids: ["1", "2"], window });
+  assert.deepEqual(s.calls[0], { op: "readSnapshots", args: ["issue", ["1", "2"], window] });
   assert.equal((out as EntitySnapshot[]).length, 1);
 });
 
 test("append-journal + write-snapshot return {ok:true} and pass the payload through", async () => {
   const s = recordingSource();
-  const entries: HistoryEntry[] = [{ entity: "issue", id: "1", field: "status", oldValue: null, newValue: "todo", changedAt: "t", changedBy: null, txnId: "x" }];
+  const entries: HistoryEntry[] = [{ entity: "issue", id: "1", field: "status", oldValue: null, newValue: "todo", changedAt: "2026-01-05T09:30:00Z", changedBy: null, txnId: "x" }];
   assert.deepEqual(await dispatch(s, "append-journal", { entries }), { ok: true });
   assert.deepEqual(s.calls[0]!.args[0], entries);
-  assert.deepEqual(await dispatch(s, "write-snapshot", { snapshot: { entity: "issue", id: "1", asOf: "t", values: {}, provenance: "replayed" } }), { ok: true });
+  assert.deepEqual(await dispatch(s, "write-snapshot", { snapshot: { entity: "issue", id: "1", asOf: "2026-01-10T00:00:00Z", values: {}, provenance: "replayed" } }), { ok: true });
 });
 
 test("last-snapshot-at wraps the result as {asOf}", async () => {

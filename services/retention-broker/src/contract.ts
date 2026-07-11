@@ -11,4 +11,4 @@ export { tableStoreRetentionSource } from "../../../artifacts/api-server/src/his
 export type { WarehousePort, WarehouseQuery } from "../../../artifacts/api-server/src/history/connectors/warehouse";
 export { warehouseRetentionSource } from "../../../artifacts/api-server/src/history/connectors/warehouse";
 export type { RetentionSource } from "../../../artifacts/api-server/src/history/retention";
-export type { EntitySnapshot, HistoryEntry, TimeWindow } from "../../../artifacts/api-server/src/history/types";
+export type { EntitySnapshot, HistoryEntry, TimeWindow, Provenance } from "../../../artifacts/api-server/src/history/types";
