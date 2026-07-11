@@ -16,6 +16,7 @@ import {
   exchangeCode,
   decodeIdTokenClaims,
   idTokenNonce,
+  idTokenAuthTime,
   verifyIdToken,
   type Session,
   type Impersonation,
@@ -43,7 +44,7 @@ import { productionSignals } from "../lib/dev-mode-guard";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
 import { checkLogin } from "../lib/impossible-travel";
 import { recordAudit } from "../lib/audit";
-import { stepUpFresh } from "../lib/step-up";
+import { stepUpFresh, stepUpWindowMs } from "../lib/step-up";
 
 const router = Router();
 
@@ -394,14 +395,30 @@ router.get("/auth/callback", async (req, res) => {
     // trusting any of its claims.
     await verifyIdToken(tokens.id_token, provider, discovery);
 
-    // Nonce binding: the ID token MUST echo the nonce we minted for THIS login flow.
-    // Rejects a token replayed/injected from a different (or attacker-initiated) flow.
-    if (nonce && idTokenNonce(tokens.id_token) !== nonce) {
+    // Nonce binding: the ID token MUST echo the nonce we minted for THIS login flow. Fail CLOSED —
+    // an OIDC flow always mints a nonce (see the authorize step), so a missing flow nonce or a
+    // missing/mismatched id_token nonce means the callback isn't bound to our flow: reject it
+    // (rather than skip the check when either side is absent).
+    if (!nonce || idTokenNonce(tokens.id_token) !== nonce) {
       res.status(401).send("Invalid SSO callback (nonce mismatch).");
       return;
     }
 
     const claims = decodeIdTokenClaims(tokens.id_token);
+
+    // Step-up freshness: only grant it if the id_token proves a REAL re-authentication just happened.
+    // The step-up authorize request sends prompt=login + max_age=0, so a compliant IdP returns an
+    // `auth_time` within the step-up window. If it's absent or stale (the IdP silently reused an SSO
+    // session), do NOT stamp stepUpAt — otherwise "step-up" would be a re-auth in name only.
+    let stepUpFreshGranted = false;
+    if (stepup) {
+      const authTime = idTokenAuthTime(tokens.id_token);
+      stepUpFreshGranted = authTime != null && Date.now() - authTime * 1000 < stepUpWindowMs();
+      if (!stepUpFreshGranted) {
+        req.log.warn({ sub: claims.sub, authTime }, "step-up completed without a fresh auth_time — not granting step-up freshness (IdP may have reused an existing session)");
+      }
+    }
+
     const travel = await travelCheck(claims.sub || "unknown", claims.email, req.ip);
 
     setSession(res, {
@@ -413,8 +430,9 @@ router.get("/auth/callback", async (req, res) => {
       acr: claims.acr,
       accessToken: tokens.access_token,
       idToken: tokens.id_token,
-      // A step-up re-auth (prompt=login) stamps freshness so a sensitive action proceeds.
-      ...(stepup ? { stepUpAt: Date.now() } : {}),
+      // A step-up re-auth (prompt=login) stamps freshness so a sensitive action proceeds — but only
+      // when auth_time confirmed a genuine re-authentication (see above).
+      ...(stepUpFreshGranted ? { stepUpAt: Date.now() } : {}),
       ...travel,
     });
     setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)

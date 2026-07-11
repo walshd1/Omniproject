@@ -21,6 +21,11 @@ import { createConcurrencyLimiter } from "../../lib/concurrency-pool";
 
 const TYPE_LABEL: Record<SearchHit["type"], string> = { project: "Project", issue: "Issue", programme: "Programme" };
 
+// Combobox/listbox wiring: the input owns the listbox and points aria-activedescendant at the
+// active option, each of which carries a stable id derived from its index in the on-screen list.
+const LISTBOX_ID = "global-search-listbox";
+const optionId = (i: number) => `search-opt-${i}`;
+
 // Bounds actual in-flight issue fetches when the overlay opens (one useQueries entry per project,
 // up to 200-wide at the target scale). See docs/PERF-PATTERNS-REVIEW.md, Theme A.
 const issuesFetchPool = createConcurrencyLimiter(8);
@@ -59,7 +64,7 @@ export function GlobalSearch() {
   const issues = useQueries({
     queries: (open ? projects ?? [] : []).map((p) => ({
       queryKey: ["global-search-issues", p.id] as const,
-      queryFn: () => issuesFetchPool(() => getJson<Issue[]>(`/api/projects/${p.id}/issues`)),
+      queryFn: () => issuesFetchPool(() => getJson<Issue[]>(`/api/projects/${encodeURIComponent(p.id)}/issues`)),
       staleTime: 30_000,
     })),
     combine: (results) =>
@@ -82,6 +87,11 @@ export function GlobalSearch() {
   const list = isEmptyQuery ? recents : hits;
 
   useEffect(() => setActive(0), [query]);
+
+  // Keep the active option visible as arrow-key navigation moves it past the scroll viewport.
+  useEffect(() => {
+    document.getElementById(optionId(active))?.scrollIntoView({ block: "nearest" });
+  }, [active]);
 
   function go(hit: SearchHit) {
     setOpen(false);
@@ -115,14 +125,18 @@ export function GlobalSearch() {
           <Dialog.Title className="sr-only">Search</Dialog.Title>
           <input
             autoFocus
+            role="combobox"
             aria-label="Search projects, issues and programmes"
+            aria-expanded={list.length > 0}
+            aria-controls={LISTBOX_ID}
+            aria-activedescendant={list[active] ? optionId(active) : undefined}
             placeholder="Search projects, issues, programmes…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKey}
             className="w-full px-4 py-3 text-lg bg-transparent border-b border-border outline-none text-foreground placeholder:text-muted-foreground font-mono"
           />
-          <ul className="max-h-[320px] overflow-y-auto p-2" data-testid="global-search-results">
+          <ul id={LISTBOX_ID} role="listbox" className="max-h-[320px] overflow-y-auto p-2" data-testid="global-search-results">
             {isEmptyQuery && list.length === 0 ? (
               <li className="p-4 text-sm text-center text-muted-foreground">Type to search.</li>
             ) : !isEmptyQuery && list.length === 0 ? (
@@ -138,6 +152,8 @@ export function GlobalSearch() {
                   <li key={`${hit.type}:${hit.id}`}>
                     <button
                       type="button"
+                      id={optionId(i)}
+                      role="option"
                       onClick={() => go(hit)}
                       aria-selected={i === active}
                       className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm ${i === active ? "bg-foreground text-background" : "hover:bg-muted"}`}

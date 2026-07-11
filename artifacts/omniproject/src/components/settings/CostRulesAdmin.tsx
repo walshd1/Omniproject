@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useCostRules, useSaveCostRules, type CostRule, type Predicate } from "../../lib/rate-card";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
+import { useRowKeys } from "../../hooks/use-row-keys";
 import { PercentInput } from "./PercentInput";
 import { PredicateEditor } from "./PredicateEditor";
 
@@ -27,11 +28,15 @@ export function CostRulesAdmin() {
   const { data: server } = useCostRules();
   const save = useSaveCostRules();
   const { draft, setDraft, dirty, reset } = useDraftAdmin<CostRule[], CostRule[]>(server, structuredClone);
+  // Stable keys held alongside the draft (never inside it — see use-row-keys); called before the
+  // early returns to keep the hook order stable.
+  const rowKeys = useRowKeys(draft?.length ?? 0);
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
   if (!draft) return null;
 
   const patch = (i: number, r: CostRule) => setDraft(draft.map((x, j) => (j === i ? r : x)));
+  const removeRule = (i: number) => { rowKeys.removeAt(i); setDraft(draft.filter((_, j) => j !== i)); };
 
   // Set or clear one effect field, omitting a cleared field entirely (exactOptionalPropertyTypes).
   function setEffect(i: number, field: "margin" | "overhead", v: number | undefined) {
@@ -62,14 +67,14 @@ export function CostRulesAdmin() {
       )}
 
       {draft.map((r, i) => (
-        <div key={i} className="border-2 border-foreground p-3 space-y-2" data-testid={`cost-rule-${i}`}>
+        <div key={rowKeys.keyAt(i)} className="border-2 border-foreground p-3 space-y-2" data-testid={`cost-rule-${i}`}>
           <div className="flex flex-wrap items-center gap-2">
             <Input aria-label={`Cost rule ${i + 1} id`} placeholder="id" className="w-36 rounded-none border-2 border-foreground font-mono text-xs"
               value={r.id} onChange={(e) => patch(i, { ...r, id: e.target.value })} />
             <Input aria-label={`Cost rule ${i + 1} label`} placeholder="Label (optional)" className="flex-1 min-w-40 rounded-none border-2 border-foreground"
               value={r.label ?? ""} onChange={(e) => patch(i, { ...r, label: e.target.value })} />
             <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs"
-              onClick={() => setDraft(draft.filter((_, j) => j !== i))}>Remove</Button>
+              onClick={() => removeRule(i)}>Remove</Button>
           </div>
 
           <div className="pl-2 border-l-2 border-border">

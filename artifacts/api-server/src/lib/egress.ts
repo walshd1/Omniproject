@@ -32,6 +32,7 @@
  */
 import dns from "node:dns/promises";
 import net from "node:net";
+import { Agent, fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
 import { assertEgressResidency } from "./data-residency";
 import { isBlockedHostLiteral, isBlockedIp } from "./ip-ranges";
 import { parseCsvEnv } from "./env";
@@ -58,7 +59,15 @@ export type LookupFn = (hostname: string, options: { all: true; verbatim: true }
  * `lookup` is injectable (defaults to `dns.lookup`) purely so tests can supply a
  * deterministic resolver instead of depending on real network/DNS.
  */
-export async function assertEgressAllowed(rawUrl: string, lookup: LookupFn = dns.lookup): Promise<URL> {
+type ResolvedAddr = { address: string; family: number };
+
+/**
+ * The shared validation body. Returns the parsed URL AND — when the host is a plain (non-literal-IP)
+ * name — the exact set of addresses it resolved to and that we validated, so a caller can PIN the
+ * connection to them (closing the DNS-rebinding TOCTOU where `fetch` re-resolves after the check).
+ * `addresses` is null when the host is already an IP literal (nothing to pin / no rebinding window).
+ */
+async function resolveAndValidate(rawUrl: string, lookup: LookupFn): Promise<{ url: URL; addresses: ResolvedAddr[] | null }> {
   let u: URL;
   try {
     u = new URL(rawUrl);
@@ -74,8 +83,8 @@ export async function assertEgressAllowed(rawUrl: string, lookup: LookupFn = dns
   }
   // A plain hostname (not already a literal IP) must also be checked by what it actually
   // resolves to — the DNS-rebinding-adjacent bypass this guard previously missed entirely.
+  let addresses: ResolvedAddr[] | null = null;
   if (net.isIP(host) === 0) {
-    let addresses: { address: string; family: number }[];
     try {
       addresses = await lookup(host, { all: true, verbatim: true });
     } catch (err) {
@@ -96,12 +105,52 @@ export async function assertEgressAllowed(rawUrl: string, lookup: LookupFn = dns
   // Per-country residency: when a JSON policy is active, the host must sit in an allowed region's
   // egress allowlist. Throws a fail-closed DataResidencyError (451); a no-op when no policy is set.
   assertEgressResidency(rawUrl);
-  return u;
+  return { url: u, addresses };
 }
 
-/** fetch() with the egress guard applied first. Throws EgressError before any
- *  network call when the target is disallowed. */
-export async function safeFetch(url: string, init?: RequestInit): Promise<Response> {
-  await assertEgressAllowed(url);
-  return fetch(url, init);
+/** Validate a URL is allowed for server-side egress; throws EgressError if not. */
+export async function assertEgressAllowed(rawUrl: string, lookup: LookupFn = dns.lookup): Promise<URL> {
+  return (await resolveAndValidate(rawUrl, lookup)).url;
+}
+
+/** A dns.lookup-shaped function that ALWAYS returns the pre-validated addresses, ignoring the real
+ *  resolver — handed to undici's connector so the socket connects only to the IPs we checked, not
+ *  whatever the hostname re-resolves to at connect time. Handles undici/net's `all` + single forms. */
+type LookupCallback = (err: Error | null, address: string | ResolvedAddr[], family?: number) => void;
+function pinnedLookup(addresses: ResolvedAddr[]) {
+  return (_hostname: string, options: unknown, callback?: LookupCallback): void => {
+    const cb = (typeof options === "function" ? options : callback) as LookupCallback;
+    const all = typeof options === "object" && options !== null && (options as { all?: boolean }).all;
+    if (all) cb(null, addresses.map((a) => ({ address: a.address, family: a.family })));
+    else cb(null, addresses[0]!.address, addresses[0]!.family);
+  };
+}
+
+/** TEST-ONLY seam: safeFetch uses undici's own fetch (a custom Agent isn't accepted by global fetch),
+ *  so a test that stubs `globalThis.fetch` wouldn't intercept it. Tests set this to their mock instead
+ *  (it still runs AFTER the egress validation, so the guard is exercised). Null = real transport. */
+let egressTransportForTest: typeof fetch | null = null;
+/** Install (or clear, with null) the TEST-ONLY transport seam used by safeFetch. */
+export function __setEgressTransportForTest(fn: typeof fetch | null): void { egressTransportForTest = fn; }
+
+/**
+ * fetch() with the egress guard applied first — throws EgressError before any network call when the
+ * target is disallowed. For a hostname target it also PINS the connection to the exact addresses it
+ * validated (via a dedicated undici dispatcher), so the hostname cannot be re-resolved to a
+ * link-local/metadata IP between the check and the connect (DNS-rebinding TOCTOU). `lookup` is
+ * injectable purely for tests. Uses undici's own fetch (a custom Agent isn't accepted by global fetch).
+ */
+export async function safeFetch(url: string, init?: RequestInit, lookup: LookupFn = dns.lookup): Promise<Response> {
+  const { addresses } = await resolveAndValidate(url, lookup);
+  // Test seam: validation has run; hand off to the injected mock instead of the real network.
+  if (egressTransportForTest) return egressTransportForTest(url, init);
+  // IP-literal target: already validated, no hostname to re-resolve → no rebinding window.
+  if (!addresses || addresses.length === 0) {
+    return undiciFetch(url, init as unknown as UndiciRequestInit) as unknown as Promise<Response>;
+  }
+  // Pin the vetted IPs into a per-call dispatcher. Not explicitly closed: its idle sockets close on
+  // the keep-alive timeout and it is then GC'd (the response body stream keeps the socket alive until
+  // the caller consumes it, so closing here would abort the body).
+  const dispatcher = new Agent({ connect: { lookup: pinnedLookup(addresses) }, keepAliveTimeout: 1_000, keepAliveMaxTimeout: 1_000 });
+  return undiciFetch(url, { ...(init as unknown as UndiciRequestInit), dispatcher }) as unknown as Promise<Response>;
 }

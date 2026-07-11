@@ -22,6 +22,18 @@ describe("useStore active-project persistence", () => {
   });
 });
 
+describe("useStore command palette open state", () => {
+  it("accepts a boolean and a functional updater", () => {
+    useStore.setState({ isCommandOpen: false });
+    useStore.getState().setCommandOpen(true);
+    expect(useStore.getState().isCommandOpen).toBe(true);
+    useStore.getState().setCommandOpen((v) => !v);
+    expect(useStore.getState().isCommandOpen).toBe(false);
+    useStore.getState().setCommandOpen((v) => !v);
+    expect(useStore.getState().isCommandOpen).toBe(true);
+  });
+});
+
 describe("useStore theme persistence", () => {
   it("toggles the theme and persists the choice", () => {
     expect(useStore.getState().theme).toBe("dark");

@@ -64,3 +64,57 @@ test("a bearer token gates the retention ops", async () => {
     assert.deepEqual(await ok.json(), { asOf: "2026-01-10T00:00:00Z" });
   });
 });
+
+test("a wrong bearer token is rejected", async () => {
+  await withServer("s3cr3t", async (base) => {
+    const r = await fetch(`${base}/retention/last-snapshot-at`, {
+      method: "POST", headers: { authorization: "Bearer wrong" }, body: JSON.stringify({ entity: "issue", id: "1" }),
+    });
+    assert.equal(r.status, 401);
+  });
+});
+
+test("a malformed body is 400 with a validation message, not 500", async () => {
+  await withServer(undefined, async (base) => {
+    // ids must be an array of strings; a number is a shape violation.
+    const r = await fetch(`${base}/retention/read-snapshots`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ entity: "issue", ids: 5, window: { from: "2026-01-01T00:00:00Z", to: "2026-02-01T00:00:00Z" } }),
+    });
+    assert.equal(r.status, 400);
+    const body = (await r.json()) as { error: string };
+    assert.match(body.error, /ids must be an array/);
+  });
+});
+
+test("a non-ISO timestamp is rejected (key-injection guard)", async () => {
+  await withServer(undefined, async (base) => {
+    const r = await fetch(`${base}/retention/write-snapshot`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ snapshot: { entity: "issue", id: "1", asOf: "2026/01/10#evil", values: {}, provenance: "replayed" } }),
+    });
+    assert.equal(r.status, 400);
+    const body = (await r.json()) as { error: string };
+    assert.match(body.error, /asOf must be an ISO-8601 timestamp/);
+  });
+});
+
+test("a backend failure is a generic 500, not a leaked message", async () => {
+  const boom: RetentionSource = { ...stubSource(), lastSnapshotAt: async () => { throw new Error("s3 bucket acme-secrets denied req-abc123"); } };
+  const handler = createHandler(boom, undefined);
+  const server = createServer((req, res) => void handler(req, res));
+  await new Promise<void>((r) => server.listen(0, r));
+  const addr = server.address();
+  const port = typeof addr === "object" && addr ? addr.port : 0;
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/retention/last-snapshot-at`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ entity: "issue", id: "1" }),
+    });
+    assert.equal(r.status, 500);
+    const body = (await r.json()) as { error: string };
+    assert.equal(body.error, "internal error");
+    assert.doesNotMatch(body.error, /acme-secrets/);
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});

@@ -20,18 +20,25 @@ export interface BigQueryPortConfig {
   tables?: { journal?: string; snapshot?: string };
 }
 
+/** BigQuery identifiers are spliced into backticked table refs, so restrict them to a safe charset. */
+function safeIdent(id: string, what: string): string {
+  if (!/^[A-Za-z0-9_]+$/.test(id)) throw new Error(`bigquery: invalid ${what} ${JSON.stringify(id)}`);
+  return id;
+}
+
 export function bigQueryWarehousePort(cfg: BigQueryPortConfig): WarehousePort {
-  const journalTable = cfg.tables?.journal ?? "journal";
-  const snapshotTable = cfg.tables?.snapshot ?? "snapshot";
+  const dataset = safeIdent(cfg.dataset, "dataset");
+  const journalTable = safeIdent(cfg.tables?.journal ?? "journal", "journal table");
+  const snapshotTable = safeIdent(cfg.tables?.snapshot ?? "snapshot", "snapshot table");
   const qualify = (sql: string): string =>
     sql
-      .replace(/\bFROM\s+snapshot\b/g, `FROM \`${cfg.dataset}.${snapshotTable}\``)
-      .replace(/\bFROM\s+journal\b/g, `FROM \`${cfg.dataset}.${journalTable}\``);
+      .replace(/\bFROM\s+snapshot\b/g, `FROM \`${dataset}.${snapshotTable}\``)
+      .replace(/\bFROM\s+journal\b/g, `FROM \`${dataset}.${journalTable}\``);
 
   return {
     async insertRows(table, rows) {
       const name = table === "journal" ? journalTable : snapshotTable;
-      await cfg.bq.dataset(cfg.dataset).table(name).insert(rows);
+      await cfg.bq.dataset(dataset).table(name).insert(rows);
     },
     async query(q: WarehouseQuery) {
       const [rows] = await cfg.bq.query({ query: qualify(q.sql), params: q.params });

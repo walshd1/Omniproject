@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { createHmac, createHash, randomUUID } from "node:crypto";
 import { currentVersion, derivedKey } from "./key-registry";
 import { deriveSessionBrokerKey, type SessionBind } from "./session-key";
 import { constantTimeEqual } from "./crypto-keys";
@@ -6,11 +6,18 @@ import { sharedKv, sharedStateMode } from "./shared-state";
 
 /**
  * Gateway↔broker request signing (security item C, folded into provenance): a detached
- * HMAC over the request body plus a timestamp and a single-use nonce, so the broker can
- * prove the request came from the gateway and refuse REPLAYS and STALE traffic across
- * untrusted networks. The PSK seal (lib/broker-psk) already gives in-transit
+ * HMAC over a CANONICAL request string plus a timestamp and a single-use nonce, so the
+ * broker can prove the request came from the gateway and refuse REPLAYS and STALE traffic
+ * across untrusted networks. The PSK seal (lib/broker-psk) already gives in-transit
  * confidentiality + integrity; this adds replay defence and a verifiable, persistable
  * signature that doubles as the provenance MAC (same shared key).
+ *
+ * WHAT THE SIGNATURE COVERS (v2, audit finding F3): not just the body but the whole
+ * routing-relevant surface — action, backend `source`, idempotency key, origin, the
+ * timestamp, the nonce, the session binding, and a hash of the wire body. So an on-path
+ * attacker can't swap `X-OmniProject-Source` to reroute a write, or strip the binding to
+ * force a static-key downgrade, without invalidating the signature. A leading `v2` domain
+ * tag means a signature can never be confused with any other HMAC over the same fields.
  *
  * The signing key is PER SESSION when binding material is supplied (an authenticated
  * call): `deriveSessionBrokerKey(bind)` ties the signature to one user + one session,
@@ -18,6 +25,34 @@ import { sharedKv, sharedStateMode } from "./shared-state";
  * — and a captured signature can't be reused under another identity. System/
  * unauthenticated calls (readiness pings) sign under the static broker key.
  */
+
+/** The routing-relevant fields the signature binds, alongside the wire body. */
+export interface CanonicalRequest {
+  action: string;
+  source: string;
+  idempotencyKey: string;
+  origin: string;
+  /** The exact bytes on the wire (the sealed `{v,enc}` string under PSK, else the
+   *  plaintext envelope JSON) — hashed into the canonical string. */
+  body: string;
+}
+
+/** Unit separator — unambiguous field boundary inside the bind sub-string (cannot
+ *  appear in a `sub`/UUID/hex value). */
+const US = "\x1f";
+
+/** The (non-secret) binding rendered as a canonical sub-string, or "" for static-key
+ *  calls. Bound INTO the signature so it can't be stripped/swapped on the wire. */
+function bindCanonical(bind?: SessionBind): string {
+  return bind ? [bind.sub, bind.smono, bind.salt, String(bind.bkver ?? "")].join(US) : "";
+}
+
+/** The v2 canonical string the HMAC is taken over. Newline-joined, `v2`-tagged, with a
+ *  hash of the wire body so the string stays small and constant-size regardless of payload. */
+export function brokerCanonicalString(req: CanonicalRequest, ts: number, nonce: string, bind?: SessionBind): string {
+  const bodyHash = createHash("sha256").update(req.body).digest("hex");
+  return ["v2", "POST", req.action, req.source, req.idempotencyKey, req.origin, String(ts), nonce, bindCanonical(bind), bodyHash].join("\n");
+}
 
 /** The signing key: per-session when bound, else the static (revocable) broker key. */
 function keyFor(bind?: SessionBind): string {
@@ -33,18 +68,18 @@ export interface RequestSignature {
   bind?: SessionBind;
 }
 
-function sign(ts: number, nonce: string, body: string, bind?: SessionBind): string {
-  return createHmac("sha256", keyFor(bind)).update(`${ts}.${nonce}.${body}`).digest("hex");
+function sign(req: CanonicalRequest, ts: number, nonce: string, bind?: SessionBind): string {
+  return createHmac("sha256", keyFor(bind)).update(brokerCanonicalString(req, ts, nonce, bind)).digest("hex");
 }
 
-/** Sign a request body for the broker (fresh timestamp + nonce). When `bind` is given
- *  the signature uses that session's derived key and the binding is echoed back. */
-export function signBrokerRequest(body: string, bind?: SessionBind): RequestSignature {
+/** Sign a request for the broker (fresh timestamp + nonce). When `bind` is given the
+ *  signature uses that session's derived key and the binding is echoed back. */
+export function signBrokerRequest(req: CanonicalRequest, bind?: SessionBind): RequestSignature {
   const ts = Date.now();
   const nonce = randomUUID();
   // Stamp the broker-key version so the binding survives a later key rotation.
   const bound = bind ? { ...bind, bkver: bind.bkver ?? currentVersion("broker") } : undefined;
-  const sig = sign(ts, nonce, body, bound);
+  const sig = sign(req, ts, nonce, bound);
   return bound ? { ts, nonce, sig, bind: bound } : { ts, nonce, sig };
 }
 
@@ -82,14 +117,16 @@ function recordNonceLocal(nonce: string, now: number, maxAgeMs: number): boolean
 /** Signature + freshness (the pure, I/O-free half of verification). Returns "ok" when both hold,
  *  else the failing verdict — the caller then applies its replay check. */
 function verifySigAndFreshness(
-  input: { ts: number; nonce: string; sig: string; body: string; bind?: SessionBind },
+  input: { ts: number; nonce: string; sig: string; req: CanonicalRequest; bind?: SessionBind | undefined },
   maxAgeMs: number,
   now: number,
 ): VerifyResult {
   // Re-derive under the SAME key: the per-session key when bound (proving this user's
   // session signed it), else the static broker key. A binding for a different user /
   // session / broker-key version yields a different key, so the signature won't match.
-  const expected = sign(input.ts, input.nonce, input.body, input.bind);
+  // The canonical string also binds action/source/idempotency/origin/body-hash, so a
+  // swapped routing header or tampered body fails here too.
+  const expected = sign(input.req, input.ts, input.nonce, input.bind);
   if (!constantTimeEqual(expected, input.sig)) return "bad-signature";
   if (Math.abs(now - input.ts) > maxAgeMs) return "expired";
   return "ok";
@@ -102,7 +139,7 @@ function verifySigAndFreshness(
  * `verifyBrokerRequestShared`. The broker calls this; we test it.
  */
 export function verifyBrokerRequest(
-  input: { ts: number; nonce: string; sig: string; body: string; bind?: SessionBind },
+  input: { ts: number; nonce: string; sig: string; req: CanonicalRequest; bind?: SessionBind | undefined },
   opts: { maxAgeMs?: number; now?: number } = {},
 ): VerifyResult {
   const maxAgeMs = opts.maxAgeMs ?? DEFAULT_MAX_AGE_MS;
@@ -121,7 +158,7 @@ export function verifyBrokerRequest(
  * freshness are checked BEFORE any shared-store I/O, so a bad/stale request never touches Redis.
  */
 export async function verifyBrokerRequestShared(
-  input: { ts: number; nonce: string; sig: string; body: string; bind?: SessionBind },
+  input: { ts: number; nonce: string; sig: string; req: CanonicalRequest; bind?: SessionBind | undefined },
   opts: { maxAgeMs?: number; now?: number } = {},
 ): Promise<VerifyResult> {
   const maxAgeMs = opts.maxAgeMs ?? DEFAULT_MAX_AGE_MS;

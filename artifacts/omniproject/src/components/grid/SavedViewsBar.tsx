@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSavedViews, useSaveViews, type SavedView } from "../../lib/saved-views";
 
 /**
@@ -17,6 +18,7 @@ export function SavedViewsBar({
   const { data: all } = useSavedViews();
   const save = useSaveViews();
   const views = (all ?? []).filter((v) => !v.scope || v.scope === scope);
+  const [delSel, setDelSel] = useState("");
 
   function apply(id: string) {
     const view = views.find((v) => v.id === id);
@@ -56,8 +58,16 @@ export function SavedViewsBar({
       {views.length > 0 && (
         <select
           aria-label="Delete saved view"
-          onChange={(e) => e.target.value && remove(e.target.value)}
-          defaultValue=""
+          value={delSel}
+          onChange={(e) => {
+            const id = e.target.value;
+            setDelSel(""); // controlled + reset so re-picking the same view re-fires
+            if (!id) return;
+            const v = views.find((x) => x.id === id);
+            // Shared, customer-level config — confirm before deleting for everyone.
+            if (typeof window !== "undefined" && !window.confirm(`Delete the shared saved view "${v?.name ?? id}"? This removes it for everyone.`)) return;
+            remove(id);
+          }}
           className="border border-foreground bg-background px-1 py-0.5"
         >
           <option value="">delete…</option>

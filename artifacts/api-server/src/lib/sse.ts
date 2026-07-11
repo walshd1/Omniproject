@@ -40,9 +40,16 @@ export function openSse(res: Response, ready: unknown = {}): SseStream {
 }
 
 /** Keep the stream alive with a comment ping every `ms`, and run `onClose` (e.g. unsubscribe) when
- *  the request ends. Returns the interval handle so a caller can clear it earlier. */
-export function keepAlive(stream: SseStream, req: Request, onClose: () => void, ms = 25_000): ReturnType<typeof setInterval> {
-  const ping = setInterval(() => stream.comment("ping"), ms);
+ *  the request ends. Returns the interval handle so a caller can clear it earlier.
+ *
+ *  `onTick` is an optional per-tick guard: when it returns true (e.g. the streaming principal was
+ *  just deprovisioned), the stream is closed mid-flight — the `req.on("close")` handler then runs
+ *  `onClose` once, so a long-lived SSE can't outlive a SCIM `active=false` until the client reconnects. */
+export function keepAlive(stream: SseStream, req: Request, onClose: () => void, ms = 25_000, onTick?: () => boolean): ReturnType<typeof setInterval> {
+  const ping = setInterval(() => {
+    if (onTick && onTick()) { clearInterval(ping); stream.close(); return; }
+    stream.comment("ping");
+  }, ms);
   req.on("close", () => { clearInterval(ping); onClose(); });
   return ping;
 }

@@ -212,11 +212,10 @@ export function IssueGrid({ projectId }: { projectId: string }) {
           <tr className="border-b-2 border-foreground text-xs uppercase tracking-wider">
             <th className="w-8 py-1" />
             {columns.map((c) => (
-              <th key={c.field} className="py-1 pr-4">
+              <th key={c.field} className="py-1 pr-4" aria-sort={sort?.field === c.field ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
                 <button
                   type="button"
                   onClick={() => toggleSort(c.field)}
-                  aria-sort={sort?.field === c.field ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                   className="font-bold uppercase tracking-wider hover:underline"
                 >
                   {c.label}{sort?.field === c.field ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}

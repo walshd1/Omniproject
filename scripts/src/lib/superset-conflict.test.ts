@@ -57,7 +57,21 @@ test("loadSuperset throws on a conflicting field redefinition", () => {
     { "acme.json": { fields: [{ key: "status", type: "number", group: "core" }] } },
   );
   try {
-    assert.throws(() => loadSuperset(root), /field "status" is redefined with a conflicting type\/group by backends\/acme\.json/);
+    assert.throws(() => loadSuperset(root), /field "status" is redefined with a conflicting descriptor by backends\/acme\.json/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("loadSuperset throws on a redefinition differing only in a non-type/group attribute (e.g. entity)", () => {
+  // Same key/type/group but a different `entity` — previously silently dropped ("first wins"),
+  // which sent the schema generator to the wrong table. Must now be a hard conflict.
+  const root = makeRoot(
+    [{ key: "owner", type: "user", group: "people", entity: "issue" }],
+    { "acme.json": { fields: [{ key: "owner", type: "user", group: "people", entity: "project" }] } },
+  );
+  try {
+    assert.throws(() => loadSuperset(root), /field "owner" is redefined with a conflicting descriptor/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

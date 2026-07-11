@@ -108,3 +108,16 @@ test("entitySetEnvelope wraps rows and includes @odata.count only when provided"
   const withoutCount = entitySetEnvelope("https://x/odata/", "Projects", rows);
   assert.ok(!("@odata.count" in withoutCount));
 });
+
+test("projection strips un-modeled fields (allowed list) and $select can't pull them back", () => {
+  const dirty = [{ id: "1", title: "A", secretInternal: "x", assigneeEmailPII: "a@b.c" }];
+  const allowed = ["id", "title", "status"];
+  // Default (no $select): only modeled props survive.
+  const def = applyODataQuery(dirty, {}, allowed).rows[0]!;
+  assert.deepEqual(Object.keys(def).sort(), ["id", "status", "title"]);
+  assert.equal("secretInternal" in def, false);
+  assert.equal("assigneeEmailPII" in def, false);
+  // $select an un-modeled field: it is intersected with the model, so the leak field is dropped.
+  const sel = applyODataQuery(dirty, { $select: "id,secretInternal" }, allowed).rows[0]!;
+  assert.deepEqual(Object.keys(sel), ["id"]);
+});

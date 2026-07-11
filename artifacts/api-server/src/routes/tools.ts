@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireRole } from "../lib/rbac";
+import { requireRole, hasRole } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { aiContainmentLevel, aiSourceLevel, getContainmentRelax, setContainmentRelax, type AiContainment } from "../lib/ai-containment";
 import { listAutonomousGrants } from "../lib/autonomous-grant";
@@ -29,8 +29,13 @@ import { v, parseOr400 } from "../lib/validate";
  */
 const router = Router();
 
-router.get("/governance", (_req, res) => {
-  res.json({ capabilities: listResolvedCapabilities(), surfaces: listSurfaces() });
+router.get("/governance", (req, res) => {
+  // The capability STATES must stay readable by any authenticated session (the UI honours them), but
+  // the configured `endpoint` — an operator-set URL that can embed internal hostnames or `user:pass@`
+  // userinfo — must not leak to non-admins (incl. read-only API/BI tokens). Strip it for non-admins.
+  const caps = listResolvedCapabilities();
+  const capabilities = hasRole(req, "admin") ? caps : caps.map(({ endpoint: _endpoint, ...rest }) => rest);
+  res.json({ capabilities, surfaces: listSurfaces() });
 });
 
 // Live activity for the admin governance dashboard (uses, blocks, config changes). Fleet-wide

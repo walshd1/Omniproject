@@ -10,6 +10,12 @@
  */
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
+/** True when `key` is a prototype-pollution-dangerous property name. Use before assigning a
+ *  caller-supplied string as an object KEY (`obj[key] = …`), where the JSON reviver doesn't help. */
+export function isForbiddenKey(key: string): boolean {
+  return FORBIDDEN_KEYS.has(key);
+}
+
 /** The stripping reviver itself — exported so it can also be handed straight to a JSON.parse-
  *  compatible option elsewhere (e.g. body-parser's `reviver` option for express.json()). */
 export function stripDangerousKeys(key: string, value: unknown): unknown {

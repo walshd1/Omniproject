@@ -22,7 +22,10 @@ async function runJob(res: Response, label: string, fn: () => Promise<unknown>):
   try {
     res.json(await fn());
   } catch (err) {
-    res.status(502).json({ error: err instanceof Error ? err.message : `${label} run failed` });
+    // These jobs reach the broker/SMTP; a raw error message can carry upstream/infra detail. Log it
+    // server-side and return a generic message (matching respondBrokerError's posture).
+    (res.req as { log?: { error: (o: unknown, m: string) => void } }).log?.error({ err, label }, `${label} run failed`);
+    res.status(502).json({ error: `${label} run failed` });
   }
 }
 

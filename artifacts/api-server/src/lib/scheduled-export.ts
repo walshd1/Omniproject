@@ -8,6 +8,7 @@ import type { Mailer } from "./email";
 import { createIntervalScheduler } from "./scheduled-job";
 import { recordAudit } from "./audit";
 import { logger } from "./logger";
+import { poolMap } from "./concurrency-pool";
 
 /**
  * Scheduled data export — periodically renders a dataset (projects / issues / activity) in a chosen
@@ -41,7 +42,8 @@ async function readDataset(broker: Broker, ctx: ActorContext, dataset: ExportDat
   if (dataset === "activity") return broker.listActivity(ctx);
   if (dataset === "issues") {
     const projects = await broker.listProjects(ctx);
-    const lists = await Promise.all(projects.map((p) => broker.listIssues(ctx, String(p.id))));
+    // Bound the per-project fan-out (portfolio-scale herd + memory spike on every interval fire).
+    const lists = await poolMap(projects, 10, (p) => broker.listIssues(ctx, String(p.id)));
     return stampSource(lists.flat() as Row[], broker.kind);
   }
   return stampSource((await broker.listProjects(ctx)) as Row[], broker.kind);

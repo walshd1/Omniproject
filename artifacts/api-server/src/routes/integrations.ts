@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { baseUrl } from "./auth";
 import { getProjects, type Row } from "../lib/data";
 import { getPortfolioHealth } from "./portfolio";
 import { formatPrometheus, type AnyMetric } from "../lib/metrics";
@@ -77,7 +78,10 @@ router.get("/metrics", async (req, res) => {
 });
 
 router.get("/bi/feeds", (req, res) => {
-  const origin = `${(req.headers["x-forwarded-proto"] as string)?.split(",")[0] || req.protocol}://${req.headers["x-forwarded-host"] || req.get("host")}`;
+  // Derive the feed origin from the canonical base URL (PUBLIC_URL authoritative; forwarded headers
+  // trusted only behind a configured proxy) — NOT raw client-supplied X-Forwarded-Host, which would
+  // let a caller poison the manifest URLs BI connectors are told to fetch with a bearer token.
+  const origin = baseUrl(req);
   res.json({
     note: "Connect with a read-only API token (Authorization: Bearer <token> or X-API-Key). All feeds are GET-only.",
     feeds: [

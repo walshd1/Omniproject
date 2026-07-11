@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getSession } from "./auth";
-import { joinRoom, setEditing, roomSnapshot, type PresencePeer } from "../lib/presence-hub";
+import { isDeprovisioned } from "../lib/rbac";
+import { joinRoom, setEditing, roomSnapshot, presenceConnectionCount, MAX_PRESENCE_STREAMS_PER_SUB, type PresencePeer } from "../lib/presence-hub";
 import { openSse, keepAlive } from "../lib/sse";
 
 /**
@@ -34,10 +35,22 @@ router.get("/presence/rooms/:roomId/stream", (req: Request, res: Response) => {
   const sub = session?.sub ?? "anonymous";
   const label = session?.name || session?.email || sub;
 
+  // Cap concurrent presence streams per principal before opening the SSE response.
+  if (sub !== "anonymous" && presenceConnectionCount(sub) >= MAX_PRESENCE_STREAMS_PER_SUB) {
+    res.status(429).json({ error: "too many concurrent presence streams for this account" });
+    return;
+  }
+
   const stream = openSse(res, { ok: true });
   const leave = joinRoom({ roomId, cid, sub, label, send: stream.send, close: stream.close }, Date.now());
-  // Keepalive under the usual proxy idle timeout so a quiet room's stream isn't dropped.
-  keepAlive(stream, req, leave);
+  // Keepalive under the usual proxy idle timeout so a quiet room's stream isn't dropped — and on each
+  // tick re-check the principal hasn't been deprovisioned mid-stream (tear it down at once if so, so a
+  // deactivated user stops appearing in rooms / receiving peer rosters without waiting to reconnect).
+  keepAlive(stream, req, leave, 25_000, () => {
+    if (!isDeprovisioned(req)) return false;
+    stream.send("revoked", { reason: "deprovisioned" });
+    return true;
+  });
 });
 
 // POST /api/presence/rooms/:roomId — set/refresh the field this tab is editing (advisory lock).

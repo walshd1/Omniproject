@@ -2,6 +2,7 @@ import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { createUndoBuffer } from "./undo-buffer";
 import { emptyRateCard, emptyIdentityMap, emptyUplift, hashIdentity, resolveScoped, DEFAULT_VALUE_MODEL, type RateCard, type IdentityMap, type RoleRates, type Uplift, type RateScope, type ValueColumn } from "./rate-card";
 import type { CostRule } from "./cost-rules";
+import { isForbiddenKey } from "./safe-json";
 
 /**
  * Sealed at-rest store for the rate card, the hashed identity→role map, and the PMO's project-type
@@ -166,6 +167,9 @@ export function setCentralUplift(uplift: Uplift): void {
 
 /** Override (or clear, with an empty object) the uplift for one programme/project scope. */
 export function setScopeUplift(level: "programme" | "project", scopeId: string, override: Partial<Uplift>): void {
+  // A caller-supplied scopeId is used as an object key below; refuse reserved names so it can't
+  // pollute the map's prototype (consistent with the reviver guard used on parsed bodies).
+  if (isForbiddenKey(scopeId)) throw new Error(`invalid scopeId: ${scopeId}`);
   const cur = ensureLoaded();
   const map = { ...cur.uplift[level] };
   if (override.margin === undefined && override.overhead === undefined) delete map[scopeId];
@@ -190,6 +194,7 @@ export function setCostRules(rules: CostRule[]): void {
 
 /** Assign a project to a project type (chosen at setup). `""`/unknown clears it. */
 export function setProjectType(projectId: string, typeId: string): void {
+  if (isForbiddenKey(projectId)) throw new Error(`invalid projectId: ${projectId}`);
   const cur = ensureLoaded();
   const next = { ...cur.projectTypeOf };
   if (typeId) next[projectId] = typeId;
@@ -206,6 +211,7 @@ export function setIdentityAssignments(
   scopeId: string | null,
   pairs: ReadonlyArray<{ assignee: string; titleHash: string }>,
 ): void {
+  if (scopeId != null && isForbiddenKey(scopeId)) throw new Error(`invalid scopeId: ${scopeId}`);
   const cur = ensureLoaded();
   const identities: IdentityMap = {
     central: { ...cur.identities.central },

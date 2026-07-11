@@ -32,7 +32,7 @@ Browser ──TLS──> omni-shell gateway ──TLS──> n8n ──> backend
 | Area | Control | Where |
 | ---- | ------- | ----- |
 | AuthN | OIDC (Auth Code + PKCE), relying-party only; **ID token signature + iss/aud/exp verified against the issuer JWKS**; signed httpOnly cookies; demo mode only when OIDC is unset | `lib/oidc.ts`, `lib/jwks.ts`, `routes/auth.ts` |
-| AuthZ (coarse) | RBAC: viewer / contributor / manager / admin, mapped from IdP role/group claims; mutations require ≥ contributor, settings require admin | `lib/rbac.ts`, `routes/projects.ts` |
+| AuthZ (coarse) | RBAC: viewer / contributor / manager / pmo / admin, mapped from IdP role/group claims; mutations require ≥ contributor, settings require admin. `pmo` (business governance) and `admin` (technical config) are ORTHOGONAL authorities — neither implies the other, and the highest-risk actions are step-up gated. See `docs/ops/ROLES.md`. | `lib/rbac.ts`, `routes/projects.ts` |
 | AuthZ (authoritative) | Backends re-check every brokered write using the forwarded user token | n8n workflow |
 | API tokens | Bearer/X-API-Key are **read-only** (GET only → mutations 403); a leaked BI token can't write | `routes/index.ts`, `lib/api-token.ts` |
 | Identity spoofing | Client-supplied `userContext`/`origin` are stripped; identity is injected from the validated session | `routes/broker-command.ts`, `broker/reference-broker/` |

@@ -7,6 +7,7 @@ import { recordAudit } from "../../lib/audit";
 import { INDICATIVE_FX_RATES } from "../../lib/fx-fallback";
 import { VERIFIABLE_ACTIONS } from "../verifiable-actions";
 import { poolMap } from "../../lib/concurrency-pool";
+import { actorKey } from "../cache";
 import {
   BrokerError,
   type Broker,
@@ -32,7 +33,8 @@ import { GATEWAY_ORIGIN, REQUEST_HEADERS, type BrokerEnvelope } from "../contrac
 import { addUpstreamMs } from "../../lib/request-timing";
 import { assertEgressAllowed } from "../../lib/egress";
 import { pskEnabled, sealPayload, openPayload, PSK_HEADER, PSK_PREFIX } from "../../lib/broker-psk";
-import { signBrokerRequest } from "../../lib/broker-hmac";
+import { signBrokerRequest, type CanonicalRequest } from "../../lib/broker-hmac";
+import { currentVersion } from "../../lib/key-registry";
 import { assertSafeBrokerPayload, assertSafeAuthHeader } from "../../lib/payload-guard";
 import { currentTraceparent } from "../../lib/tracing";
 import { brokerFetch } from "../../lib/broker-transport";
@@ -199,15 +201,20 @@ function buildEnvelope(
  * `unwrapResponse` always agree, even though `pskEnabled()` is just an env read.
  */
 function signAndEncrypt(envelope: BuiltEnvelope["envelope"], ctx: ActorContext, psk: boolean): BrokerRequestInit {
-  // When PSK is ON, encrypt the WHOLE envelope including the forwarded auth token
-  // and send only an opaque ciphertext + a version marker. Nothing sensitive —
-  // not the action, the backend source, nor the bearer token — appears in
-  // cleartext on the wire, so a packet capture sees ciphertext, not a breach.
+  // Stamp the broker-key version onto the binding up-front so the SAME bound value is
+  // sealed into the envelope (F2, PSK path) and used to key the signature (F3).
+  const bind = ctx.sessionBind ? { ...ctx.sessionBind, bkver: ctx.sessionBind.bkver ?? currentVersion("broker") } : undefined;
+
+  // When PSK is ON, encrypt the WHOLE envelope including the forwarded auth token AND the
+  // session binding (F2), and send only an opaque ciphertext + a version marker. Nothing
+  // sensitive — not the action, the backend source, the bearer token, nor the acting
+  // user's identity (the binding `sub`) — appears in cleartext on the wire, so a packet
+  // capture on a plaintext hop sees ciphertext, not a breach.
   const init: BrokerRequestInit = psk
     ? {
         method: "POST",
         headers: { "Content-Type": "application/json", [PSK_HEADER]: PSK_PREFIX.replace(/\.$/, "") },
-        body: JSON.stringify({ v: 1, enc: sealPayload(JSON.stringify({ ...envelope, auth: ctx.authHeader ?? null })) }),
+        body: JSON.stringify({ v: 2, enc: sealPayload(JSON.stringify({ ...envelope, auth: ctx.authHeader ?? null, ...(bind ? { __bind: bind } : {}) })) }),
       }
     : {
         method: "POST",
@@ -222,17 +229,24 @@ function signAndEncrypt(envelope: BuiltEnvelope["envelope"], ctx: ActorContext, 
         body: JSON.stringify(envelope),
       };
 
-  // Detached request signature (+ timestamp + nonce): lets a PSK-aware broker refuse
-  // REPLAYED or forged requests across untrusted networks. The same keyed MAC underpins
-  // the provenance chain. The PSK seal already covers confidentiality + integrity; this
-  // adds replay defence and a verifiable signature. Additive headers — a broker that
-  // doesn't check them simply ignores them.
-  const sig = signBrokerRequest(typeof init.body === "string" ? init.body : "", ctx.sessionBind);
+  // Detached request signature (+ timestamp + nonce) over the CANONICAL request (F3): the
+  // action, source, idempotency key, origin, binding and a hash of the wire body — so a
+  // PSK-aware broker can refuse REPLAYED, STALE or header-tampered requests. The same keyed
+  // MAC underpins the provenance chain. The PSK seal already covers confidentiality +
+  // integrity; this adds replay/tamper defence and a verifiable signature.
+  const canonical: CanonicalRequest = {
+    action: envelope.action,
+    source: envelope.source,
+    idempotencyKey: envelope.idempotencyKey,
+    origin: envelope.origin,
+    body: typeof init.body === "string" ? init.body : "",
+  };
+  const sig = signBrokerRequest(canonical, bind);
   init.headers = { ...(init.headers as Record<string, string>), "X-Omni-Sig": sig.sig, "X-Omni-Ts": String(sig.ts), "X-Omni-Nonce": sig.nonce };
-  // When the signature used a per-session key, ship the (non-secret) binding so the
-  // broker re-derives that key from its master and confirms the request came from THIS
-  // user's valid session. No binding ⇒ the broker verifies under the static key.
-  if (sig.bind) {
+  // The binding travels as cleartext headers ONLY when the hop is NOT sealed (TLS then
+  // covers them); under PSK it already rides inside the ciphertext above (F2), so a
+  // plaintext-hop capture never sees the acting user.
+  if (sig.bind && !psk) {
     init.headers = {
       ...(init.headers as Record<string, string>),
       "X-Omni-Bind-Sub": sig.bind.sub,
@@ -388,7 +402,9 @@ const CONSERVATIVE: CapabilityFlags = {
   // Superset domains default off — a backend must declare them to light up.
   quality: false, crm: false, service: false,
 };
-let capCache: { value: CapabilityFlags; at: number } | null = null;
+// Per-actor cache (was a single process-global value): capabilities are probed `withActor:true`, so
+// a scope-dependent backend response for one principal must not be served to every other principal.
+const capCache = new Map<string, { value: CapabilityFlags; at: number }>();
 const CAP_TTL_MS = 60_000;
 
 // Indicative FX fallback used when the backend FX read fails (graceful
@@ -561,12 +577,14 @@ export class ReferenceBroker implements Broker {
   }
 
   async capabilities(ctx: ActorContext): Promise<CapabilityFlags> {
-    if (capCache && Date.now() - capCache.at < CAP_TTL_MS) return capCache.value;
+    const key = actorKey(ctx);
+    const hit = capCache.get(key);
+    if (hit && Date.now() - hit.at < CAP_TTL_MS) return hit.value;
     try {
       const r = await callBroker<Partial<CapabilityFlags>>("get_capabilities", {}, { ctx, source: "capability_probe", withActor: true });
       const data = r.data;
       const value = (data && typeof data === "object" ? { ...CONSERVATIVE, ...data } : { ...CONSERVATIVE }) as CapabilityFlags;
-      capCache = { value, at: Date.now() };
+      capCache.set(key, { value, at: Date.now() });
       return value;
     } catch {
       return { ...CONSERVATIVE };

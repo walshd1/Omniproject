@@ -47,10 +47,18 @@ function readDicts(file: string): LocaleDict[] {
   for (const stmt of sf.statements) {
     if (!ts.isVariableStatement(stmt)) continue;
     for (const decl of stmt.declarationList.declarations) {
-      if (!ts.isIdentifier(decl.name) || !decl.type || !decl.initializer) continue;
-      if (decl.type.getText(sf) !== "Dict" || !ts.isObjectLiteralExpression(decl.initializer)) continue;
+      if (!ts.isIdentifier(decl.name) || !decl.initializer) continue;
+      // Accept both `const FR: Dict = {…}` and `const FR = {…} satisfies Dict` — otherwise a locale
+      // authored with `satisfies Dict` is silently skipped and its coverage is never audited.
+      let init: ts.Expression = decl.initializer;
+      let isDict = decl.type?.getText(sf) === "Dict";
+      if (ts.isSatisfiesExpression(init)) {
+        if (init.type.getText(sf) === "Dict") isDict = true;
+        init = init.expression;
+      }
+      if (!isDict || !ts.isObjectLiteralExpression(init)) continue;
       const keys = new Map<string, string>();
-      for (const prop of decl.initializer.properties) {
+      for (const prop of init.properties) {
         if (!ts.isPropertyAssignment(prop)) continue;
         const key = ts.isStringLiteralLike(prop.name) ? prop.name.text : prop.name.getText(sf);
         const value =

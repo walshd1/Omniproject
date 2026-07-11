@@ -30,7 +30,27 @@ describe("CostRulesAdmin", () => {
     renderWithProviders(<CostRulesAdmin />, { client: seed("pmo", [rule]) });
     expect(screen.getByTestId("cost-rule-0")).toBeInTheDocument();
     expect(screen.getByLabelText("cost-0 condition 1 field")).toHaveValue("intraCompany");
-    expect(screen.getByLabelText("Cost rule 1 margin %")).toHaveValue(0);
+    expect(screen.getByLabelText("Cost rule 1 margin %")).toHaveValue("0");
+  });
+
+  it("removing a middle rule keeps the survivors (stable row keys, not index)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ costRules: [] }) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    const rules: CostRule[] = [
+      { id: "a", effect: { margin: 0.1 } },
+      { id: "b", effect: { margin: 0.2 } },
+      { id: "c", effect: { margin: 0.3 } },
+    ];
+    renderWithProviders(<CostRulesAdmin />, { client: seed("pmo", rules) });
+
+    // Remove the middle rule (b) via its Remove button.
+    fireEvent.click(screen.getAllByText("Remove")[1]!);
+    fireEvent.click(screen.getByText("Save cost rules"));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/rate-card/cost-rules")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/rate-card/cost-rules")!;
+    const body = JSON.parse(init.body as string);
+    expect(body.costRules.map((r: CostRule) => r.id)).toEqual(["a", "c"]);
   });
 
   it("builds and saves a new rule with a numeric predicate value", async () => {

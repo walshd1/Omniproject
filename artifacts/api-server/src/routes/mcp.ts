@@ -1,7 +1,7 @@
 import { Router, type Request } from "express";
 import { getSession } from "./auth";
 import { hasValidApiToken } from "../lib/api-token";
-import { hasRole, isDeprovisioned } from "../lib/rbac";
+import { hasRole, isDeprovisioned, roleForReq } from "../lib/rbac";
 import { envFlag } from "../lib/env";
 import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
@@ -68,13 +68,16 @@ const MCP_HANDLERS: Record<string, (d: McpCtx) => Promise<unknown> | unknown> = 
   // Portfolio copilot as an action — read-only NL Q&A. Runs THROUGH the same scoped,
   // injection-hardened path as the SPA copilot (lib/copilot): only the minimal aggregated
   // snapshot reaches the model, and no further action surface is exposed.
-  portfolio_copilot: async ({ broker, ctx, args }) => answerCopilot({
+  portfolio_copilot: async ({ broker, ctx, req, args }) => answerCopilot({
     question: String(args["question"] ?? ""),
     broker, ctx,
     vocab: listApprovedVocab(),
     mode: args["mode"] === "freeform" ? "freeform" : "rag",
     ...(typeof args["methodology"] === "string" ? { methodology: args["methodology"] } : {}),
-    complete: async (messages) => (await aiChat(messages)).content,
+    // Carry the same AI-governance context the SPA path supplies (routes/ai.ts govCtx), so the
+    // per-role model allowlist and per-scope token budget apply on the MCP channel too — otherwise
+    // an MCP client / read-only API token would evade AI_MODEL_ALLOWLIST + AI_TOKEN_BUDGET entirely.
+    complete: async (messages) => (await aiChat(messages, { scope: getSession(req)?.sub, role: roleForReq(req) })).content,
   }),
   // Gated writes (the policy check in handleMcp already refused unauthorised callers).
   create_issue: ({ broker, ctx, pid, args }) => broker.writeIssue(ctx, "create", { projectId: pid, title: String(args["title"] ?? ""), ...(args["description"] ? { description: String(args["description"]) } : {}), ...(args["status"] ? { status: String(args["status"]) } : {}) }),
@@ -121,17 +124,25 @@ router.post("/mcp", async (req, res) => {
   const ctx = contextFromReq(req);
   const broker = getBroker();
   const exec: McpExecutor = async (tool, args) => {
-    if (req.body?.method === "tools/call") {
-      recordAudit({ ts: new Date().toISOString(), category: tool.write ? "broker" : "request", action: `mcp:${tool.name}`, actor: actorForAudit(req), projectId: (args["projectId"] as string) ?? null, write: !!tool.write, result: "success", status: 200 });
+    const audit = req.body?.method === "tools/call";
+    const auditBase = { ts: new Date().toISOString(), category: (tool.write ? "broker" : "request") as "broker" | "request", action: `mcp:${tool.name}`, actor: actorForAudit(req), projectId: (args["projectId"] as string) ?? null, write: !!tool.write };
+    try {
+      // Hard limit: only the customer's APPROVED actions can execute, whatever the agent asks.
+      // Scoped approvals are checked with the caller's role + active backend (the MCP channel
+      // has no SPA surface, so a surface-scoped approval is SPA-only and won't satisfy here).
+      if (!isActionApproved(tool.action, approvalContextFromReq(req)))
+        throw new Error(`action "${tool.action}" is not on the approved allowlist for this caller/backend`);
+      const handler = MCP_HANDLERS[tool.action];
+      if (!handler) throw new Error(`unsupported tool action: ${tool.action}`);
+      const result = await handler({ broker, ctx, req, pid: String(args["projectId"] ?? ""), args });
+      // Audit the REAL outcome: record success only after the handler resolves (was logged as
+      // success before the approval check + broker call ran, so blocked/failed writes read as OK).
+      if (audit) recordAudit({ ...auditBase, result: "success", status: 200 });
+      return result;
+    } catch (err) {
+      if (audit) recordAudit({ ...auditBase, result: "error", status: 500 });
+      throw err;
     }
-    // Hard limit: only the customer's APPROVED actions can execute, whatever the agent asks.
-    // Scoped approvals are checked with the caller's role + active backend (the MCP channel
-    // has no SPA surface, so a surface-scoped approval is SPA-only and won't satisfy here).
-    if (!isActionApproved(tool.action, approvalContextFromReq(req)))
-      throw new Error(`action "${tool.action}" is not on the approved allowlist for this caller/backend`);
-    const handler = MCP_HANDLERS[tool.action];
-    if (!handler) throw new Error(`unsupported tool action: ${tool.action}`);
-    return handler({ broker, ctx, req, pid: String(args["projectId"] ?? ""), args });
   };
 
   const response = await handleMcp(body, exec, VERSION, policy);

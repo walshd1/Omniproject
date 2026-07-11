@@ -40,16 +40,21 @@ export function loadSuperset(root: string): { fields: FieldRow[]; keys: Set<stri
 
   const byKey = new Map<string, FieldRow>();
   const out: FieldRow[] = [];
+  // Canonical form for deep-comparing two definitions of the same key (stable across attribute order).
+  const canon = (f: FieldRow): string => JSON.stringify(Object.entries(f as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
   const add = (f: FieldRow, src: string) => {
     const existing = byKey.get(f.key);
     if (existing) {
-      if (existing.type !== f.type || existing.group !== f.group) {
+      // ANY disagreement between two definitions of the same canonical key is a hard error — the old
+      // check only compared type/group, so a redefinition differing in `entity`/`references`/`required`
+      // was silently dropped ("first wins"), sending the DB-schema generator to the wrong table.
+      if (canon(existing) !== canon(f)) {
         throw new Error(
-          `field "${f.key}" is redefined with a conflicting type/group by ${src} ` +
-            `(existing: ${existing.type}/${existing.group ?? "—"}, new: ${f.type}/${f.group ?? "—"})`,
+          `field "${f.key}" is redefined with a conflicting descriptor by ${src} ` +
+            `(existing: ${canon(existing)}, new: ${canon(f)})`,
         );
       }
-      return; // dedup — first definition wins
+      return; // identical redefinition — dedup
     }
     byKey.set(f.key, f);
     out.push(f);

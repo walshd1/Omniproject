@@ -40,6 +40,17 @@ export function convertAmount(amount: number, from: string, to: string, rates?: 
   return (amount * (rFrom as number)) / (rTo as number);
 }
 
+/** Whether `from` can actually be converted to `to` with these rates. `convertAmount` passes the
+ *  amount through unchanged when a rate is missing (to avoid NaN in the UI) — callers that SUM across
+ *  currencies must use this to exclude unconvertible rows, or a raw foreign amount corrupts the total. */
+export function isConvertible(from: string, to: string, rates?: Record<string, number>): boolean {
+  if (from === to) return true;
+  if (!rates) return false;
+  const rFrom = Object.hasOwn(rates, from) ? rates[from] : undefined;
+  const rTo = Object.hasOwn(rates, to) ? rates[to] : undefined;
+  return Number.isFinite(rFrom) && Number.isFinite(rTo) && rTo !== 0;
+}
+
 export function currencyList(rates?: Record<string, number>): string[] {
   return rates ? Object.keys(rates).sort() : [];
 }

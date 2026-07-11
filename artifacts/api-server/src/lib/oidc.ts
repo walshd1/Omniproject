@@ -188,6 +188,13 @@ export async function discover(config: OidcConfig): Promise<OidcDiscovery> {
   if (!doc.authorization_endpoint || !doc.token_endpoint) {
     throw new Error("OIDC discovery document missing required endpoints");
   }
+  // Per the OIDC Discovery spec the document's `issuer` MUST match the configured issuer; otherwise a
+  // rogue/misconfigured metadata doc silently shifts the `iss` value id_tokens are validated against
+  // (verifyIdToken uses discovery.issuer). Compare trailing-slash-insensitively for real-IdP variance.
+  const normIssuer = (s: string): string => s.replace(/\/+$/, "");
+  if (doc.issuer && normIssuer(doc.issuer) !== normIssuer(config.issuerUrl)) {
+    throw new Error(`OIDC discovery issuer mismatch: document advertises "${doc.issuer}", configured issuer is "${config.issuerUrl}"`);
+  }
   discoveryCache.set(config.issuerUrl, { doc, at: Date.now() });
   return doc;
 }
@@ -355,6 +362,16 @@ export function idTokenNonce(idToken: string): string | null {
   const payload = decodeJwtPayload(idToken);
   if (!payload) return null;
   return typeof payload["nonce"] === "string" ? (payload["nonce"] as string) : null;
+}
+
+/** The `auth_time` claim (seconds since epoch — when the END USER actually authenticated at the IdP),
+ *  or null if absent/malformed. Used to confirm a step-up flow triggered a REAL re-authentication
+ *  rather than the IdP silently reusing an existing SSO session. Present whenever `max_age` is sent. */
+export function idTokenAuthTime(idToken: string): number | null {
+  const payload = decodeJwtPayload(idToken);
+  if (!payload) return null;
+  const at = payload["auth_time"];
+  return typeof at === "number" && Number.isFinite(at) ? at : null;
 }
 
 /**

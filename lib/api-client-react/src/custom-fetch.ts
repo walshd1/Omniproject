@@ -106,6 +106,24 @@ function resolveUrl(input: RequestInfo | URL): string {
   return input.url;
 }
 
+/** Whether the bearer token may ride on a request to this URL: relative paths and same-origin /
+ *  configured-baseUrl absolute URLs only. A cross-origin absolute URL must not receive the token. */
+function isTokenAttachTarget(url: string): boolean {
+  if (url.startsWith("/") && !url.startsWith("//")) return true; // root-relative → our origin
+  const pageOrigin = typeof location !== "undefined" ? location.origin : null;
+  try {
+    const target = new URL(url, pageOrigin ?? undefined);
+    if (pageOrigin && target.origin === pageOrigin) return true;
+    if (_baseUrl) {
+      try { if (target.origin === new URL(_baseUrl, pageOrigin ?? undefined).origin) return true; } catch { /* _baseUrl not absolute */ }
+    }
+    return false;
+  } catch {
+    // Unparseable against no base (SSR/test with a bare relative path) — treat as same-origin.
+    return !/^[a-z][a-z0-9+.-]*:/i.test(url);
+  }
+}
+
 function mergeHeaders(...sources: Array<HeadersInit | undefined>): Headers {
   const headers = new Headers();
 
@@ -377,9 +395,10 @@ export async function customFetch<T = unknown>(
     headers.set("accept", DEFAULT_JSON_ACCEPT);
   }
 
-  // Attach bearer token when an auth getter is configured and no
-  // Authorization header has been explicitly provided.
-  if (_authTokenGetter && !headers.has("authorization")) {
+  // Attach bearer token when an auth getter is configured and no Authorization header has been
+  // explicitly provided — but ONLY for same-origin / baseUrl-relative targets. An absolute
+  // cross-origin URL passed through customFetch must not leak the token to a third party.
+  if (_authTokenGetter && !headers.has("authorization") && isTokenAttachTarget(resolveUrl(input))) {
     const token = await _authTokenGetter();
     if (token) {
       headers.set("authorization", `Bearer ${token}`);

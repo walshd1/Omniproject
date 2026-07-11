@@ -6,7 +6,7 @@ export interface OmniStore {
   currentView: ViewId
   setCurrentView: (view: ViewId) => void
   isCommandOpen: boolean
-  setCommandOpen: (open: boolean) => void
+  setCommandOpen: (open: boolean | ((open: boolean) => boolean)) => void
   isSettingsOpen: boolean
   setSettingsOpen: (open: boolean) => void
   isNewIssueOpen: boolean
@@ -21,40 +21,43 @@ export interface OmniStore {
   toggleTheme: () => void
 }
 
+// localStorage access is wrapped: reading/writing it throws (not returns null) in storage-blocked
+// contexts — Safari private mode, locked-down enterprise browsers, some webviews. This module runs
+// at store-init time, so an unguarded throw here white-screens the whole app before React mounts.
+// (The sibling persistence modules — recent-items, prefetch, a11y-prefs — all guard the same way.)
+const readLs = (key: string): string | null => {
+  try { return typeof window !== 'undefined' ? localStorage.getItem(key) : null } catch { return null }
+}
+const writeLs = (key: string, value: string): void => {
+  try { if (typeof window !== 'undefined') localStorage.setItem(key, value) } catch { /* storage blocked — won't persist */ }
+}
+const removeLs = (key: string): void => {
+  try { if (typeof window !== 'undefined') localStorage.removeItem(key) } catch { /* storage blocked */ }
+}
+
 const getInitialTheme = (): 'dark' | 'light' => {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('omniproject-theme')
-    if (stored === 'light') return 'light'
-  }
-  return 'dark' // default to dark
+  return readLs('omniproject-theme') === 'light' ? 'light' : 'dark' // default to dark
 }
 
 const getInitialView = (): ViewId => {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('omniproject-view')
-    if (stored && isViewId(stored)) return stored
-  }
-  return DEFAULT_VIEW
+  const stored = readLs('omniproject-view')
+  return stored && isViewId(stored) ? stored : DEFAULT_VIEW
 }
 
 const ACTIVE_PROJECT_KEY = 'omniproject-active-project'
 
 const getInitialActiveProjectId = (): string | null => {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem(ACTIVE_PROJECT_KEY)
-    if (stored) return stored
-  }
-  return null
+  return readLs(ACTIVE_PROJECT_KEY) || null
 }
 
 export const useStore = create<OmniStore>((set) => ({
   currentView: getInitialView(),
   setCurrentView: (view) => {
-    if (typeof window !== 'undefined') localStorage.setItem('omniproject-view', view)
+    writeLs('omniproject-view', view)
     set({ currentView: view })
   },
   isCommandOpen: false,
-  setCommandOpen: (open) => set({ isCommandOpen: open }),
+  setCommandOpen: (open) => set((state) => ({ isCommandOpen: typeof open === 'function' ? open(state.isCommandOpen) : open })),
   isSettingsOpen: false,
   setSettingsOpen: (open) => set({ isSettingsOpen: open }),
   isNewIssueOpen: false,
@@ -63,10 +66,8 @@ export const useStore = create<OmniStore>((set) => ({
   setShortcutsOpen: (open) => set({ isShortcutsOpen: open }),
   activeProjectId: getInitialActiveProjectId(),
   setActiveProjectId: (id) => {
-    if (typeof window !== 'undefined') {
-      if (id) localStorage.setItem(ACTIVE_PROJECT_KEY, id)
-      else localStorage.removeItem(ACTIVE_PROJECT_KEY)
-    }
+    if (id) writeLs(ACTIVE_PROJECT_KEY, id)
+    else removeLs(ACTIVE_PROJECT_KEY)
     set({ activeProjectId: id })
   },
   aiProvider: 'none',
@@ -74,8 +75,8 @@ export const useStore = create<OmniStore>((set) => ({
   theme: getInitialTheme(),
   toggleTheme: () => set((state) => {
     const newTheme = state.theme === 'dark' ? 'light' : 'dark'
+    writeLs('omniproject-theme', newTheme)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('omniproject-theme', newTheme)
       if (newTheme === 'dark') {
         document.documentElement.classList.add('dark')
       } else {

@@ -60,8 +60,19 @@ function load(): StoreState | null {
   try {
     // Tolerate a legacy plaintext file so existing stores migrate.
     const parsed = JSON.parse(raw) as StoreState & { counter?: number };
+    // Validate the invariant `ensure()`/`record()` rely on (activeEnv names an existing environment).
+    // A partial/corrupt-but-valid-JSON file would otherwise pass through here and later crash on
+    // `environments[activeEnv]!`, taking config versioning/rollback down instead of starting fresh.
+    if (
+      typeof parsed !== "object" || parsed === null ||
+      typeof parsed.environments !== "object" || parsed.environments === null ||
+      typeof parsed.activeEnv !== "string" || !Object.hasOwn(parsed.environments, parsed.activeEnv)
+    ) {
+      logger.warn({ activeEnv: parsed?.activeEnv }, "config store: file shape invalid (activeEnv not in environments) — starting fresh");
+      return null;
+    }
     if (typeof parsed.counter === "number") counter = parsed.counter;
-    return { activeEnv: parsed.activeEnv, environments: parsed.environments, versions: parsed.versions ?? [] };
+    return { activeEnv: parsed.activeEnv, environments: parsed.environments, versions: Array.isArray(parsed.versions) ? parsed.versions : [] };
   } catch (err) {
     logger.warn({ err }, "config store: failed to load — starting fresh");
     return null;

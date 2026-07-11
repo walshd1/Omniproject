@@ -21,6 +21,16 @@ describe("stepUp", () => {
     expect(loc.href).toContain("/api/auth/step-up");
   });
 
+  it("does NOT navigate to a cross-origin / non-same-origin step-up url (open-redirect guard)", async () => {
+    for (const url of ["//evil.com/x", "https://evil.com/x", "javascript:alert(1)"]) {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({ url }), { status: 409 }))));
+      const loc = { href: "unchanged", origin: "https://app.local" };
+      Object.defineProperty(window, "location", { value: loc, writable: true });
+      expect(await stepUp("/")).toBe(false);
+      expect(loc.href).toBe("unchanged");
+    }
+  });
+
   it("resolves false without navigating on a 409 that carries no redirect url", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({}), { status: 409 }))));
     const loc = { href: "unchanged" };

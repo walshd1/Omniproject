@@ -14,7 +14,11 @@ const router = Router();
 
 function send(res: Response, filename: string, type: string, body: Buffer | string) {
   res.setHeader("Content-Type", type);
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  // Sanitize the filename before embedding it in the quoted header value: the dataset exporters
+  // build it from the caller-supplied `projectId`, so a `"` would break out of filename="..." and
+  // inject extra Content-Disposition parameters. Restrict to a filename-safe charset.
+  const safe = filename.replace(/[^A-Za-z0-9._-]/g, "_");
+  res.setHeader("Content-Disposition", `attachment; filename="${safe}"`);
   res.send(body);
 }
 

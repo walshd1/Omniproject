@@ -50,7 +50,10 @@ export function useIssueFieldWrite() {
       {
         onSuccess: () => { invalidate(projectId); onSaved?.(); },
         onError: (err) => {
-          if (prevCache) qc.setQueryData(key, prevCache);
+          // Roll back ONLY this issue's field (not the whole list) so a concurrent in-flight edit of
+          // a different row isn't clobbered by a whole-list restore; the invalidate below refetches.
+          const prevIssue = prevCache?.find((i) => i.id === issue.id) as Record<string, unknown> | undefined;
+          if (prevIssue) qc.setQueryData<Issue[]>(key, (old) => (old ?? []).map((i) => (i.id === issue.id ? { ...i, [field]: prevIssue[field] } : i)));
           const conflict = (err as { status?: number }).status === 409;
           invalidate(projectId);
           toast({

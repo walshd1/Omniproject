@@ -67,8 +67,10 @@ services:
       # (recent n8n releases have gated it) — if the imported workflow's HTTP Request
       # nodes come back with an unresolved/empty URL, that's the first thing to check.
       OPENPROJECT_INSTANCE_URL: http://openproject:80
+    # Bind to loopback only: this rig runs with fixed non-secret credentials, so it must never be
+    # reachable from the LAN when brought up on a shared/cloud host. The harness hits localhost.
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:5678/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 10s
@@ -104,7 +106,7 @@ services:
     volumes:
       - openproject:/var/openproject/assets
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
 
   # ── The OmniProject gateway under test (stateless; points at n8n) ────────────
   gateway:
@@ -123,7 +125,7 @@ services:
       #   BROKER_URLS: http://n8n:5678/webhook/omniproject
       RATE_LIMIT_DISABLED: "true"   # measure the gateway, not the limiter
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     # So the rig can be brought up with `--wait` and the harness only starts once the
     # gateway is actually serving (liveness is dependency-free on the broker).
     healthcheck:

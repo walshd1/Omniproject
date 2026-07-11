@@ -44,8 +44,12 @@ function disabled(): boolean {
  *  CORS allowlist — see lib/origin-allowlist.ts), plus the request's own derived origin. */
 function allowedOrigins(req: Request): Set<string> {
   const out = configuredCorsOrigins();
-  const proto = firstForwardedValue(req, "x-forwarded-proto") || req.protocol;
-  const host = firstForwardedValue(req, "x-forwarded-host") || req.get("host");
+  // Only fold X-Forwarded-* into the allowed origin when a trusted proxy is configured — otherwise a
+  // client-supplied X-Forwarded-Host would add itself to the CSRF Origin allowlist (the primary
+  // allowlist is PUBLIC_URL / CORS_ALLOWED_ORIGINS, so a correctly-configured deploy is unaffected).
+  const trustProxy = !!req.app?.get("trust proxy"); // absent app ⇒ safe default: don't trust forwarded headers
+  const proto = (trustProxy ? firstForwardedValue(req, "x-forwarded-proto") : "") || req.protocol;
+  const host = (trustProxy ? firstForwardedValue(req, "x-forwarded-host") : "") || req.get("host");
   if (host) out.add(`${proto}://${host}`.toLowerCase());
   return out;
 }

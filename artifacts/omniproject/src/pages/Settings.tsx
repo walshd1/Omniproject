@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { fetchBackendIds } from "../lib/setup";
 import { PremiumAdmin } from "../components/PremiumAdmin";
+import { LazyMount } from "../components/LazyMount";
 import { LoggingSyncSettings } from "../components/settings/LoggingSyncSettings";
 import { SelfHostCapabilitiesAdmin } from "../components/settings/SelfHostCapabilitiesAdmin";
 import { TranslationLayer } from "../components/settings/TranslationLayer";
@@ -353,51 +354,51 @@ export function Settings() {
         </Button>
       </form>
 
-      <div className="mt-10">
+      <LazyMount>
         <LoggingSyncSettings />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <SelfHostCapabilitiesAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <TranslationLayer />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <BrokerLog />
-      </div>
+      </LazyMount>
 
       <PremiumAdmin />
 
-      <div className="mt-10">
+      <LazyMount>
         <SecurityKeys />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <NlCommand />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <HealthWatch />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <Copilot />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <ProvenanceDashboard />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <DeploymentProfile />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <FeatureModulesAdmin />
-      </div>
+      </LazyMount>
 
       <div className="mt-10">
         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Feature governance (org · programme · project)</h2>
@@ -407,75 +408,75 @@ export function Settings() {
         </div>
       </div>
 
-      <div className="mt-10">
+      <LazyMount>
         <RateCardAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <ScopeUpliftAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <RateGridAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <IdentityMapAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <CostRulesAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <CustomReportsAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <CustomBackendAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <ContentPagesAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <PriorityWeightsAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <FederatedPeersAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <GovernanceRulesAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <FieldVisibilityAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <GovernanceDashboard />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <GovernanceAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <AiProvidersAdmin />
-      </div>
+      </LazyMount>
 
-      <div className="mt-10">
+      <LazyMount>
         <ActionCatalogue />
-      </div>
+      </LazyMount>
 
       <A11yControls />
 
-      <div className="mt-10">
+      <LazyMount>
         <PerformanceSettings />
-      </div>
+      </LazyMount>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { __setEgressTransportForTest } from "../lib/egress";
 
 /**
  * Direct unit tests for the AI provider client.
@@ -99,8 +100,10 @@ test("aiChat throws AiError 400 when a key-gated provider has no vault key", asy
 const realFetch = globalThis.fetch;
 let calls: Array<{ url: string; init: RequestInit | undefined }>;
 
-before(() => { calls = []; });
-after(() => { globalThis.fetch = realFetch; });
+// safeFetch uses undici's own fetch (a custom Agent isn't accepted by global fetch), so bridge the
+// egress transport to whatever globalThis.fetch is set to — the per-test global mocks keep working.
+before(() => { calls = []; __setEgressTransportForTest((url, init) => globalThis.fetch(url as string, init)); });
+after(() => { globalThis.fetch = realFetch; __setEgressTransportForTest(null); });
 
 test("aiChat (ollama) shapes the request and returns content on success", async () => {
   updateSettings({ aiProvider: "ollama", aiModel: "llama3.2" });

@@ -32,6 +32,20 @@ router.get("/history/replay", async (req, res) => {
 
 const GRAINS: readonly TrendGrain[] = ["day", "week", "month", "quarter"];
 
+/** Cap the id fan-out: `readSnapshots` fires one paginated cloud query (S3 list / Dynamo Query) per
+ *  id, so an unbounded `ids` turns a single request into thousands of concurrent backend calls. */
+const MAX_TREND_IDS = 200;
+/** Cap the number of buckets a single trend request can span (cheap span/grain estimate), so a
+ *  far-past `from` can't silently truncate the series (the builder caps internally) or drive large
+ *  O(buckets × snapshots) compute. */
+const MAX_TREND_BUCKETS = 10_000;
+const GRAIN_MS: Record<TrendGrain, number> = {
+  day: 86_400_000,
+  week: 7 * 86_400_000,
+  month: 30 * 86_400_000,
+  quarter: 91 * 86_400_000,
+};
+
 /**
  * GET /history/trends/:metric — a bucketed trend series for a metric over a window. Gated on the
  * self-host `history` domain being enabled for the scope (that's what retains the time-series). When
@@ -50,8 +64,26 @@ router.get("/history/trends/:metric", (req, res) => {
   const projectId = (req.query["projectId"] as string | undefined)?.trim() || null;
   const entity = (req.query["entity"] as string | undefined)?.trim() || "issue";
   const ids = typeof req.query["ids"] === "string" && req.query["ids"] ? (req.query["ids"] as string).split(",").filter(Boolean) : [];
+  if (ids.length > MAX_TREND_IDS) {
+    res.status(400).json({ error: `too many ids (max ${MAX_TREND_IDS})` });
+    return;
+  }
   const from = typeof req.query["from"] === "string" ? (req.query["from"] as string) : "1970-01-01T00:00:00Z";
   const to = typeof req.query["to"] === "string" ? (req.query["to"] as string) : new Date().toISOString();
+  const fromMs = Date.parse(from);
+  const toMs = Date.parse(to);
+  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) {
+    res.status(400).json({ error: "from/to must be ISO-8601 timestamps" });
+    return;
+  }
+  if (fromMs >= toMs) {
+    res.status(400).json({ error: "from must be before to" });
+    return;
+  }
+  if ((toMs - fromMs) / GRAIN_MS[grain] > MAX_TREND_BUCKETS) {
+    res.status(400).json({ error: `window too large for grain "${grain}" (max ${MAX_TREND_BUCKETS} buckets)` });
+    return;
+  }
 
   const scope = { programmeId, projectId };
   const historyEnabled = isFeatureEnabled(selfHostGovernanceId("history"), scope);

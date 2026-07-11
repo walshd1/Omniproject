@@ -110,3 +110,25 @@ test("per-country residency policy gates egress at the seam (fail-closed on a fo
   // The metadata/link-local block still fires first (defence in depth).
   await assert.rejects(assertEgressAllowed("http://169.254.169.254/"), EgressError);
 });
+
+test("safeFetch pins the connection to the VALIDATED address (reaches the vetted IP, not live DNS)", async () => {
+  const http = await import("node:http");
+  const { safeFetch } = await import("./egress");
+  const server = http.createServer((_req, res) => { res.writeHead(200); res.end("pinned-ok"); });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+  const addr = server.address();
+  const port = typeof addr === "object" && addr ? addr.port : 0;
+  try {
+    // "vetted.internal" is not a real DNS name — only the injected lookup resolves it (to loopback).
+    // If safeFetch re-resolved via live DNS it would ENOTFOUND; reaching the server proves it pinned.
+    const lookup: LookupFn = async (h) => {
+      if (h === "vetted.internal") return [{ address: "127.0.0.1", family: 4 }];
+      throw Object.assign(new Error("ENOTFOUND"), { code: "ENOTFOUND" });
+    };
+    const res = await safeFetch(`http://vetted.internal:${port}/`, {}, lookup);
+    assert.equal(res.status, 200);
+    assert.equal(await res.text(), "pinned-ok");
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});

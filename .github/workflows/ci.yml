@@ -11,6 +11,13 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege for the workflow's GITHUB_TOKEN: every job here only reads the checked-out
+# source (build, test, lint, scan). Nothing pushes commits, comments, or publishes, so drop the
+# repo-default (potentially write) scope to read-only. Elevate per-job with a local `permissions:`
+# block if a future job needs to write (e.g. uploading code-scanning results needs security-events).
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -392,9 +399,8 @@ jobs:
         if: always()
         run: docker rm -f omni || true
 
-  # Supply-chain hygiene: fail on a CRITICAL advisory, surface the rest, and emit
-  # a dependency/licence SBOM inventory artefact. Pre-community we gate only on
-  # critical (lower severities are reported, not blocking) — tighten when shipping.
+  # Supply-chain hygiene: fail on a HIGH or CRITICAL advisory, surface the rest, and emit
+  # a dependency/licence SBOM inventory artefact. Low/moderate are reported (non-blocking).
   dependency-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -409,8 +415,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Audit (block on critical)
-        run: pnpm audit --audit-level critical
+      - name: Audit (block on high or critical)
+        run: pnpm audit --audit-level high
 
       - name: Report all advisories (non-blocking)
         if: always()

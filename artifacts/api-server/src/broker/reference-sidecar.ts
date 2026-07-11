@@ -120,7 +120,7 @@ export function createReferenceSidecar(): http.Server {
     req.on("data", (c) => { raw += c; });
     req.on("end", () => {
       void processBrokerCall(
-        { rawBody: raw, actionHeader: req.headers["x-omniproject-action"] as string | undefined, authHeader: req.headers["authorization"] as string | undefined },
+        { rawBody: raw, actionHeader: req.headers["x-omniproject-action"] as string | undefined, authHeader: req.headers["authorization"] as string | undefined, headers: req.headers },
         backend,
       ).then((r) => {
         const text = JSON.stringify(r.body);

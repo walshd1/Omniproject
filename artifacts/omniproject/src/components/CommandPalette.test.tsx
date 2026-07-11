@@ -65,6 +65,15 @@ describe("CommandPalette", () => {
     expect(useStore.getState().isCommandOpen).toBe(true);
   });
 
+  it("toggles closed again on a second Cmd/Ctrl+K", async () => {
+    const user = userEvent.setup();
+    useStore.setState({ isCommandOpen: true });
+    renderWithProviders(<CommandPalette />, { client: seeded([]) });
+    expect(screen.getByLabelText("Command palette")).toBeInTheDocument();
+    await user.keyboard("{Control>}k{/Control}");
+    expect(useStore.getState().isCommandOpen).toBe(false);
+  });
+
   it("shows the Jump-to-project group when projects exist", () => {
     useStore.setState({ isCommandOpen: true });
     renderWithProviders(<CommandPalette />, {

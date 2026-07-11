@@ -32,11 +32,16 @@ import { ValueStreamFlow } from "./ValueStreamFlow";
  * engine/editor. The coverage guard checks that every `engine:"builtin"` report's component is registered
  * here, keeping the JSON↔code binding honest.
  *
- * Renderers have heterogeneous props (some are project-scoped, taking `projectId`; some are portfolio-wide,
- * taking none), so the registry value type is intentionally loose — the caller supplies the right props.
+ * Renderers have heterogeneous props: project-scoped ones read `projectId`; portfolio-wide ones take
+ * no props and simply ignore it. A single shared prop shape keeps the registry uniformly typed — every
+ * renderer is assignable to it, and the caller passes the right props for the surface it renders on.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ReportRendererComponent = ComponentType<any>;
+export interface ReportRendererProps {
+  /** Set for project-scoped renderers (e.g. the EVM chart); ignored by portfolio-wide renderers. */
+  projectId: string;
+}
+
+export type ReportRendererComponent = ComponentType<ReportRendererProps>;
 
 export const REPORT_RENDERERS: Record<string, ReportRendererComponent> = {
   PortfolioKpi,

@@ -3,6 +3,7 @@ import { getBroker, contextFromReq, type PortfolioRow, type Row, type Project } 
 import { getSettings } from "./settings";
 import { getFxRates } from "./currency";
 import { resolveCapabilities } from "./capabilities";
+import { poolMap } from "./concurrency-pool";
 
 /**
  * Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance boundary for
@@ -13,6 +14,11 @@ import { resolveCapabilities } from "./capabilities";
  * reduced to their portfolio-total row. Computed live from the broker on every request — nothing is
  * cached or stored beyond the peer config itself (see lib/settings.ts PeerInstance).
  */
+
+// Bound the per-project broker fan-out (financials + capacity) the same way the other portfolio
+// reads do — an unbounded Promise.all is ~1 broker call per project, so 200 projects = a 200-way
+// thundering herd per request against the backend.
+const PORTFOLIO_FANOUT_LIMIT = 10;
 
 /** RAG (red/amber/green) distribution across the portfolio's projects. */
 export interface RagCounts {
@@ -208,7 +214,7 @@ export async function computeLocalPortfolioSummary(req: Request): Promise<Portfo
 
   let finance: FinanceTotals | null = null;
   if ((!caps || caps.financials) && projects.length) {
-    const rows = await Promise.all(projects.map((p) => broker.projectFinancials(ctx, p.id).catch(() => null)));
+    const rows = await poolMap(projects, PORTFOLIO_FANOUT_LIMIT, (p) => broker.projectFinancials(ctx, p.id).catch(() => null));
     const valid = rows.filter((r): r is Row => !!r);
     const droppedCalls = projects.length - valid.length; // projects whose financials call failed/timed out
     if (valid.length) {
@@ -235,7 +241,7 @@ export async function computeLocalPortfolioSummary(req: Request): Promise<Portfo
 
   let capacity: CapacityTotals | null = null;
   if ((!caps || caps.resources) && projects.length) {
-    const lists = await Promise.all(projects.map((p) => broker.resourceCapacity(ctx, p.id).catch(() => [] as Row[])));
+    const lists = await poolMap(projects, PORTFOLIO_FANOUT_LIMIT, (p) => broker.resourceCapacity(ctx, p.id).catch(() => [] as Row[]));
     const all = lists.flat();
     if (all.length) capacity = foldCapacity(all);
   }

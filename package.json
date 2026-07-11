@@ -8,7 +8,7 @@
     "test": "pnpm -r --workspace-concurrency=1 --if-present run test",
     "test:coverage": "pnpm -r --workspace-concurrency=1 --if-present run test:coverage",
     "test:regression": "bash scripts/run-regression.sh",
-    "audit": "pnpm audit --audit-level critical",
+    "audit": "pnpm audit --audit-level high",
     "sbom": "pnpm licenses list --json > sbom-licences.json",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",

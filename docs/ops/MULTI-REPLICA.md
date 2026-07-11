@@ -32,6 +32,22 @@ horizontal scale is free — but a few in-process working sets need a shared
 All three degrade **gracefully**: if `REDIS_URL` is unset, or the optional client
 isn't installed, they log once and fall back to per-replica. Nothing crashes.
 
+> **⚠️ NOT yet fleet-shared — per-replica even with `REDIS_URL`.** These security/lifecycle controls
+> are held in each replica's memory (sealed to a local state file on the replica that served the admin
+> call) and are **not** fanned out across the fleet, so a change on replica A does not take effect on
+> B…N until those replicas reload:
+>
+> - **Break-glass controls** — the AI kill-switch, key/session revocation, and maintenance lockdown
+>   (`lib/security-state.ts`, `lib/ai-kill.ts`, `lib/key-registry.ts`): engaging the kill-switch or
+>   revoking a credential on one replica leaves the others running the prior state.
+> - **SCIM deprovisioning** (`active=false`) — the SCIM directory (`lib/scim.ts`) is loaded once per
+>   replica; an IdP deactivation lands on one replica, so the user can still pass the gate on the others.
+>
+> Until these are routed through the shared bus, enforce them fleet-wide with a **rolling restart**
+> after the change (or run a single admin replica for these actions). This gap is deliberately called
+> out because `docs/THREAT-MODEL.md`/`ENTERPRISE-OPS.md` describe these controls as taking effect
+> "immediately" — that holds on a single replica, not yet across an HA fleet.
+
 ## 3. Enabling it
 
 ```bash

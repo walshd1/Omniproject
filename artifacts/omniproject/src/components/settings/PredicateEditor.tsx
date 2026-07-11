@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ALL_OPS, UNARY_OPS, ARRAY_OPS, type Predicate, type Op } from "../../lib/rate-card";
+import { useRowKeys } from "../../hooks/use-row-keys";
 
 /**
  * Reusable "when" builder — edits the `all` (AND) predicates of a condition set. Shared by the cost-rule
@@ -40,12 +41,14 @@ export function PredicateEditor({
   idPrefix: string;
 }) {
   const patch = (i: number, p: Partial<Predicate>) => onChange(value.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const rowKeys = useRowKeys(value.length);
+  const removeAt = (i: number) => { rowKeys.removeAt(i); onChange(value.filter((_, j) => j !== i)); };
 
   return (
     <div className="space-y-1.5" data-testid={`${idPrefix}-predicates`}>
       {value.length === 0 && <p className="text-[11px] text-muted-foreground">No conditions — this rule always applies.</p>}
       {value.map((p, i) => (
-        <div key={i} className="flex flex-wrap items-center gap-2" data-testid={`${idPrefix}-pred-${i}`}>
+        <div key={rowKeys.keyAt(i)} className="flex flex-wrap items-center gap-2" data-testid={`${idPrefix}-pred-${i}`}>
           {fieldOptions ? (
             <select aria-label={`${idPrefix} condition ${i + 1} field`} className="rounded-none border border-border bg-background px-2 py-1 text-xs"
               value={p.field} onChange={(e) => patch(i, { field: e.target.value })}>
@@ -70,7 +73,7 @@ export function PredicateEditor({
               value={valueToText(p)} onChange={(e) => patch(i, { value: parseValue(p.op, e.target.value) })} />
           )}
           <Button variant="ghost" className="rounded-none text-xs px-2" aria-label={`${idPrefix} remove condition ${i + 1}`}
-            onClick={() => onChange(value.filter((_, j) => j !== i))}>✕</Button>
+            onClick={() => removeAt(i)}>✕</Button>
         </div>
       ))}
       <Button variant="outline" className="rounded-none border border-border text-xs"

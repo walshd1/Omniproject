@@ -129,8 +129,15 @@ export interface ODataQuery {
   $count?: string;
 }
 
-/** Apply $filter/$select/$top/$skip/$orderby/$count to a row set (in-memory OData query). */
-export function applyODataQuery(rows: Row[], q: ODataQuery): { rows: Row[]; count?: number } {
+/**
+ * Apply $filter/$select/$top/$skip/$orderby/$count to a row set (in-memory OData query).
+ *
+ * `allowed` is the entity's DECLARED property names (from the EDM model). When supplied, every row is
+ * projected down to those props before serialising — so a backend that returns extra internal fields
+ * can't leak them through the feed — and `$select` is intersected with the model (a caller can't
+ * `$select` an un-modeled field to pull it back). Omit `allowed` only for un-modeled/raw callers.
+ */
+export function applyODataQuery(rows: Row[], q: ODataQuery, allowed?: readonly string[]): { rows: Row[]; count?: number } {
   let out = rows;
 
   if (q.$filter) out = out.filter((r) => matchesFilter(r, q.$filter!));
@@ -158,9 +165,16 @@ export function applyODataQuery(rows: Row[], q: ODataQuery): { rows: Row[]; coun
   const top = Number(q.$top);
   if (Number.isFinite(top) && top >= 0) out = out.slice(0, top);
 
+  // Projection: start from the declared model props (if given), then narrow to $select — both
+  // restricted to the model so no un-modeled backend field is ever serialised into the feed.
+  let fields: string[] | null = allowed ? [...allowed] : null;
   if (q.$select) {
-    const fields = q.$select.split(",").map((s) => s.trim()).filter(Boolean);
-    out = out.map((r) => Object.fromEntries(fields.map((f) => [f, r[f]])) as Row);
+    const requested = q.$select.split(",").map((s) => s.trim()).filter(Boolean);
+    fields = fields ? requested.filter((f) => fields!.includes(f)) : requested;
+  }
+  if (fields) {
+    const proj = fields;
+    out = out.map((r) => Object.fromEntries(proj.map((f) => [f, r[f]])) as Row);
   }
 
   const wantCount = String(q.$count).toLowerCase() === "true";

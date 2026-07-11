@@ -69,9 +69,12 @@ router.get("/odata/$metadata", (_req, res) => {
 });
 
 function entitySet(set: string, load: (req: Request) => Promise<Row[]>) {
+  // The declared property allowlist for this set — rows are projected to exactly these before
+  // serialising, so a backend's internal fields never ride out through the feed.
+  const allowed = Object.keys(ENTITIES.find((e) => e.set === set)?.props ?? {});
   router.get(`/odata/${set}`, async (req, res) => {
     try {
-      const { rows, count } = applyODataQuery(await load(req), req.query as ODataQuery);
+      const { rows, count } = applyODataQuery(await load(req), req.query as ODataQuery, allowed);
       res.json(entitySetEnvelope(baseUrl(req), set, rows, count));
     } catch (err) {
       req.log.error({ err, set }, "odata query failed");

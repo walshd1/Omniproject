@@ -4,6 +4,9 @@ export type CsvValue = string | number | boolean | null | undefined;
 
 function escapeCell(value: CsvValue): string {
   if (value === null || value === undefined) return "";
+  // Only string-derived cells can carry a formula-injection payload. A numeric/boolean cell (e.g.
+  // -42 or true) must NOT get the guard prefix — that would turn a real number into a text literal.
+  const stringLike = typeof value === "string" || typeof value === "object";
   let s = typeof value === "string" ? value : String(value);
   // Arrays/objects that slip through become JSON.
   if (typeof value === "object") s = JSON.stringify(value);
@@ -11,7 +14,7 @@ function escapeCell(value: CsvValue): string {
   // leading tab/CR) executes when the file is opened in Excel/Sheets. Backend
   // field values are attacker-influenceable, so neutralise them with a leading
   // apostrophe before the RFC-4180 quoting.
-  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  if (stringLike && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
   if (/[",\n\r]/.test(s)) {
     return `"${s.replace(/"/g, '""')}"`;
   }

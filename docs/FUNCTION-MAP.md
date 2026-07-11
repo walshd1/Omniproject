@@ -709,11 +709,12 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 
 ### `artifacts/api-server/src/lib/broker-hmac.ts`
 
-Gateway↔broker request signing (security item C, folded into provenance): a detached HMAC over the request body plus a timestamp and a single-use nonce, so the broker can prove the request came from the gateway and refuse REPLAYS and STALE traffic across untrusted networks.
+Gateway↔broker request signing (security item C, folded into provenance): a detached HMAC over a CANONICAL request string plus a timestamp and a single-use nonce, so the broker can prove the request came from the gateway and refuse REPLAYS and STALE traffic across untrusted networks.
 
 | Function | What it does |
 | --- | --- |
-| `signBrokerRequest` | Sign a request body for the broker (fresh timestamp + nonce). |
+| `brokerCanonicalString` | The v2 canonical string the HMAC is taken over. |
+| `signBrokerRequest` | Sign a request for the broker (fresh timestamp + nonce). |
 | `verifyBrokerRequest` | Verify a signed broker request: signature matches, timestamp is within the freshness window, and the nonce hasn't been used (replay), against the IN-PROCESS nonce cache. |
 | `verifyBrokerRequestShared` | Fleet-aware verify. |
 | `__resetBrokerHmac` | Test-only: clear the in-process replay cache. |
@@ -1211,7 +1212,8 @@ Egress / SSRF guard for the gateway's outbound HTTP.
 | Function | What it does |
 | --- | --- |
 | `assertEgressAllowed` | Validate a URL is allowed for server-side egress; throws EgressError if not. |
-| `safeFetch` | fetch() with the egress guard applied first. |
+| `__setEgressTransportForTest` | Install (or clear, with null) the TEST-ONLY transport seam used by safeFetch. |
+| `safeFetch` | fetch() with the egress guard applied first — throws EgressError before any network call when the target is disallowed. |
 
 ### `artifacts/api-server/src/lib/email.ts`
 
@@ -1578,6 +1580,7 @@ Real-time notification hub (Server-Sent Events).
 
 | Function | What it does |
 | --- | --- |
+| `canAddClient` | Whether another SSE stream may be opened for this principal (under the per-sub ceiling). |
 | `clientMatches` | Does a target address this client? An empty/absent target is a broadcast. |
 | `addClient` | Register an SSE client; returns an unsubscribe fn that drops it. |
 | `clientCount` | How many SSE clients are currently connected (for diagnostics). |
@@ -1623,6 +1626,7 @@ Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
 | `verifyIdToken` | Cryptographically verify the ID token against the issuer's JWKS and validate iss/aud/exp/nbf. |
 | `decodeIdTokenClaims` | Decode the JWT id_token to extract user claims. |
 | `idTokenNonce` | Read the `nonce` claim from an ID token's payload (or null if absent/malformed). |
+| `idTokenAuthTime` | The `auth_time` claim (seconds since epoch — when the END USER actually authenticated at the IdP), or null if absent/malformed. |
 
 ### `artifacts/api-server/src/lib/optional-dependency.ts`
 
@@ -1741,6 +1745,7 @@ Live collaboration presence hub (Server-Sent Events).
 | `toPeer` | Project a connection to the public peer shape, expiring a stale editing claim against `now`. |
 | `roomSnapshot` | The current peers in a room — LOCAL connections merged with REMOTE peers mirrored from other replicas, both with editing claims expired against `now`. |
 | `broadcastRoom` | Push the room's current snapshot to every connection in it. |
+| `presenceConnectionCount` | How many live presence connections this principal currently holds across every room. |
 | `joinRoom` | Add a connection to a room and announce it. |
 | `setEditing` | Update a connection's editing claim (a field id, or null to release) + heartbeat it. |
 | `foldRemotePresence` | Fold a presence change that originated on ANOTHER replica into this replica's remote mirror, then re-fan the merged roster to our own locally-connected sockets. |
@@ -1978,6 +1983,7 @@ safeParseJson — native JSON.parse hardened against prototype pollution, for UN
 
 | Function | What it does |
 | --- | --- |
+| `isForbiddenKey` | True when `key` is a prototype-pollution-dangerous property name. |
 | `stripDangerousKeys` | The stripping reviver itself — exported so it can also be handed straight to a JSON.parse- compatible option elsewhere (e.g. body-parser's `reviver` option for express.json()). |
 | `safeParseJson` | — |
 
@@ -3171,7 +3177,7 @@ Backend-catalogue growth freeze.
 | Function | What it does |
 | --- | --- |
 | `checkCoverage` | Check one plane: every declared id must map to an implementation that exists, is wired into the page, and is tested — and the map must not carry stale entries for ids the catalogue no longer declares. |
-| `fsProbes` | Build probes that read the real tree: components in `dir`, wired in `pageFile`, tested by any `*.test.tsx` under `dir`. |
+| `fsProbes` | Build probes that read the real tree. |
 | `idsFromAssets` | List declared ids from a catalogue assets dir (one `<id>.json` per item). |
 
 ### `scripts/src/lib/demo-session.ts`

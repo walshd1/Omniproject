@@ -19,9 +19,18 @@ const MANIFEST = path.join(ROOT, "artifacts/omniproject/e2e/routes.ts");
 /** Pull every distinct `path="…"` literal out of a file. */
 function routesFrom(file: string, attr: "path" | "pattern"): Set<string> {
   const src = fs.readFileSync(file, "utf8");
-  const re = attr === "path" ? /<Route\s+path="([^"]+)"/g : /pattern:\s*"([^"]+)"/g;
   const out = new Set<string>();
-  for (const m of src.matchAll(re)) out.add(m[1]!);
+  if (attr === "pattern") {
+    for (const m of src.matchAll(/pattern:\s*"([^"]+)"/g)) out.add(m[1]!);
+    return out;
+  }
+  // Match `path="…"` ANYWHERE in the <Route …> open tag, not only as the first attribute — otherwise
+  // `<Route element={<X/>} path="/new">` (path not first) escapes the required-route net entirely.
+  for (const m of src.matchAll(/<Route\b/g)) {
+    const window = src.slice(m.index!, m.index! + 400);
+    const pm = window.match(/\bpath="([^"]+)"/);
+    if (pm) out.add(pm[1]!);
+  }
   return out;
 }
 

@@ -13,9 +13,13 @@ machine-readable [contract schema](contract/broker.v1.schema.json) and
 [CONTRACT.md](CONTRACT.md); this document defines the **transport** that carries
 them.
 
-> Contract version: **v1**. Additive payload fields are non-breaking. The
-> conformance suite (`broker/conformance.ts`) is the acceptance test — a broker
-> that passes it is conformant.
+> Contract version: **v1** (payload/action shapes). The transport security layer
+> is **v2** — PSK seal `p2.` (HKDF), a canonical-string request signature that the
+> broker verifies, and the session binding sealed rather than sent in cleartext
+> (§2a/§2b). Legacy `p1.`/`v1` signature callers are still *accepted* on decrypt.
+> Additive payload fields are non-breaking. The conformance suite
+> (`broker/conformance.ts`) is the acceptance test — a broker that passes it is
+> conformant.
 
 > **Start here: the reference sidecar.** `artifacts/api-server/src/broker/reference-sidecar.ts`
 > is a minimal, in-memory implementation of this whole binding — both a working
@@ -114,17 +118,22 @@ envelope** instead of the plaintext one, and the routing headers + `Authorizatio
 are dropped (so nothing sensitive is on the wire in cleartext):
 
 ```jsonc
-// Headers: Content-Type: application/json,  X-OmniProject-Enc: p1
-{ "v": 1, "enc": "p1.<base64url(iv|tag|ciphertext)>" }
+// Headers: Content-Type: application/json,  X-OmniProject-Enc: p2
+{ "v": 2, "enc": "p2.<base64url(iv|tag|ciphertext)>" }
 ```
 
-- `enc` decrypts (AES-256-GCM, key = `SHA-256(BROKER_PSK)`, 96-bit random IV,
-  16-byte tag, all base64url after the `p1.` version prefix) to the **normal
-  plaintext envelope** — `{ action, payload, source, origin, idempotencyKey, auth }`
-  — where `auth` is the forwarded `Authorization` value (the token is *inside* the
-  ciphertext, not in a header).
+- `enc` decrypts (AES-256-GCM, 96-bit random IV, 16-byte tag, all base64url after
+  the version prefix) to the **plaintext envelope** — `{ action, payload, source,
+  origin, idempotencyKey, auth, __bind? }` — where `auth` is the forwarded
+  `Authorization` value (the token is *inside* the ciphertext, not in a header) and
+  `__bind` (when present) carries the per-session binding (see §2b — under PSK it is
+  sealed here, **not** sent as `X-Omni-Bind-*` headers, so the acting user's identity
+  never appears in cleartext on a plaintext hop).
+- **Key derivation — two on-wire versions:**
+  - `p2.` (current): `key = HKDF-SHA256(BROKER_PSK, salt="omniproject/hkdf/v1", info="broker-psk/v2")` — a domain-separated key that can't collide with any other use of the same secret.
+  - `p1.` (legacy): `key = SHA-256(BROKER_PSK)`. Still **accepted** for decrypt; nothing seals `p1.` any more.
 - **Reply the same way:** encrypt your `{ success, data, message }` response with
-  the same scheme and return `{ "v": 1, "enc": "p1.…" }`. A bad/missing key MUST
+  the current scheme and return `{ "v": 2, "enc": "p2.…" }`. A bad/missing key MUST
   fail the GCM auth tag → return **400** (never a silent plaintext passthrough).
 - The reference sidecar implements both ends (`broker/reference-sidecar.ts`,
   helpers in `lib/broker-psk.ts`), proven by `broker/psk-wire.test.ts`.
@@ -133,14 +142,32 @@ are dropped (so nothing sensitive is on the wire in cleartext):
 
 ## 2b. Request signature + per-session key (`X-Omni-Sig`)
 
-Every request carries a **detached HMAC** so you can refuse forged, replayed or
-stale traffic — additive headers; a broker that ignores them still works.
+Every request carries a **detached HMAC** so you can refuse forged, replayed,
+stale or header-tampered traffic. The reference broker **verifies it** (`p2`): a
+present-but-invalid signature is **401**; an absent signature is allowed unless
+`BROKER_REQUIRE_SIG` is set, which makes a signature mandatory (closing the
+strip-the-header downgrade). Dry-run `verify:true` probes are exempt (they touch
+no backend).
 
 | Header | Meaning |
 |---|---|
-| `X-Omni-Sig` | `HMAC-SHA256(key, "<ts>.<nonce>.<rawBody>")`, hex. |
+| `X-Omni-Sig` | `HMAC-SHA256(key, canonical)`, hex — see the canonical string below. |
 | `X-Omni-Ts` | Signing time (epoch ms). Reject outside a freshness window (default 5 min). |
 | `X-Omni-Nonce` | Single-use; cache and reject repeats (replay defence). |
+
+**The canonical string the HMAC covers** binds the whole routing surface, not just
+the body — so a swapped `source`/`action` or a stripped binding invalidates the
+signature:
+
+```
+v2 \n POST \n <action> \n <source> \n <idempotencyKey> \n <origin> \n <ts> \n <nonce> \n <bindCanon> \n <sha256(rawBody) hex>
+```
+
+where `bindCanon` is `""` for static-key calls, else `sub \x1f smono \x1f salt \x1f bkver`.
+Under PSK the `<action>/<source>/<idempotencyKey>/<origin>` and the binding come from
+the **decrypted** envelope (`__bind`); unsealed, from the cleartext headers below
+(which equal those envelope fields). `sha256(rawBody)` is over the **wire** body —
+the sealed `{v,enc}` string under PSK, else the plaintext envelope JSON.
 
 **The signing `key` is per session, not the static PSK.** For an authenticated
 call it is derived as:
@@ -156,23 +183,30 @@ key = HMAC-SHA256( HMAC-SHA256(BROKER_PSK, "broker:v<bkver>"),  sub + "\n" + smo
   captured signature can't be reused under another identity, and a leaked
   session key dies with the session.
 
-The binding material rides in headers (non-secret — security is the master, which
-never travels):
+The binding material is non-secret (security is the master, which never travels).
+**Where it rides depends on whether the hop is sealed:**
 
-| Header | Meaning |
+- **Unsealed** (no PSK — TLS covers the headers): in the `X-Omni-Bind-*` headers below.
+- **Sealed** (PSK on): **inside** the encrypted envelope as `__bind` (§2a), so the
+  acting user's `sub` is never in cleartext (audit finding F2).
+
+| Header (unsealed only) | Meaning |
 |---|---|
 | `X-Omni-Bind-Sub` | The acting subject (`sub`) the key is bound to. |
 | `X-Omni-Bind-Mono` | `smono` — monotonic-clock reading at session start. |
 | `X-Omni-Bind-Salt` | `salt` — per-session CSPRNG entropy. |
 | `X-Omni-Bind-Kver` | `bkver` — broker-key version to derive under. |
 
-**To verify:** re-derive `key` from your copy of `BROKER_PSK` and the four
-`X-Omni-Bind-*` values, recompute `X-Omni-Sig` over `"<ts>.<nonce>.<rawBody>"`,
-and compare in constant time; then check the timestamp window and nonce. When the
-`X-Omni-Bind-*` headers are **absent** (system/unauthenticated calls such as the
-readiness ping), verify under the static key `HMAC(BROKER_PSK, "broker:v<bkver>")`
-with the current version. Reference: `signBrokerRequest` / `verifyBrokerRequest`
-in `lib/broker-hmac.ts` and `deriveSessionBrokerKey` in `lib/session-key.ts`.
+**To verify:** re-derive `key` from your copy of `BROKER_PSK` and the binding
+(`__bind` when sealed, else the `X-Omni-Bind-*` headers), recompute `X-Omni-Sig`
+over the **canonical string** above, and compare in constant time; then check the
+timestamp window and nonce. When there is no binding (system/unauthenticated calls
+such as the readiness ping), verify under the static key
+`HMAC(BROKER_PSK, "broker:v<bkver>")` with the current version. Reference:
+`signBrokerRequest` / `verifyBrokerRequest` / `brokerCanonicalString` in
+`lib/broker-hmac.ts` and `deriveSessionBrokerKey` in `lib/session-key.ts`; the
+broker-side verification lives in `processBrokerCall` (`broker/reference-broker-blueprint.ts`),
+proven by `broker/v2-protocol.test.ts`.
 
 ---
 

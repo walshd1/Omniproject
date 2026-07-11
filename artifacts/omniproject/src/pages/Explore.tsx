@@ -10,6 +10,7 @@ import { TimeTravel } from "../components/reports/TimeTravel";
 import { loadSnapshots, exportSnapshots } from "../lib/snapshots";
 import { loadEdges, exportEdges } from "../lib/dependencies";
 import { isExplorationDirty, subscribeExploration, markExplorationClean } from "../lib/exploration";
+import { useAuth } from "../lib/auth";
 
 /**
  * Exploration mode — a deliberately, obviously-different surface for snapshots,
@@ -22,6 +23,13 @@ import { isExplorationDirty, subscribeExploration, markExplorationClean } from "
 export function Explore() {
   const [, setLocation] = useLocation();
   const [dirty, setDirty] = useState<boolean>(isExplorationDirty());
+  // Explore is mounted OUTSIDE AppLayout (the app's only client auth guard), so it must guard
+  // itself — otherwise an unauthenticated visitor gets the full Explore surface. Fail closed on
+  // any auth error, same as AppLayout.
+  const { data: auth, isLoading: authLoading, isError: authError } = useAuth();
+  useEffect(() => {
+    if (!authLoading && (authError || (auth && !auth.authenticated))) setLocation("/login");
+  }, [auth, authLoading, authError, setLocation]);
 
   // Reflect the session's undownloaded-work state.
   useEffect(() => subscribeExploration(() => setDirty(isExplorationDirty())), []);
@@ -48,6 +56,17 @@ export function Explore() {
   const popOut = () => {
     window.open(window.location.href, "omni-explore", "width=1280,height=900,noopener");
   };
+
+  // Gate rendering until auth resolves; render nothing for an unauthenticated/errored state
+  // (the effect above redirects to /login) so the surface never flashes for a logged-out visitor.
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-background text-muted-foreground font-bold tracking-widest animate-pulse">
+        AUTHENTICATING…
+      </div>
+    );
+  }
+  if (authError || (auth && !auth.authenticated)) return null;
 
   return (
     <div

@@ -6,6 +6,7 @@ import { sealAuditEvent, sealAuditEventShared } from "./audit-chain";
 import { sharedStateMode } from "./shared-state";
 import { getSession } from "../routes/auth";
 import { roleForReq } from "./rbac";
+import { assertEgressAllowed } from "./egress";
 
 /**
  * Action audit logging.
@@ -101,6 +102,10 @@ export function createHttpSink<T = AuditEvent>(opts: {
     const events = buffer.splice(0, buffer.length);
     const body = events.map((e) => JSON.stringify(e)).join("\n"); // NDJSON
     try {
+      // Audit events carry actor email + IP, so the sink egress must honour the residency/SSRF
+      // guard like every other outbound hop (docs/DATA-RESIDENCY.md). Guard the real-fetch path;
+      // an injected fetchImpl is the integrator's/test's own controlled transport.
+      if (!opts.fetchImpl) await assertEgressAllowed(opts.url);
       const res = await doFetch(opts.url, {
         method: "POST",
         headers: {

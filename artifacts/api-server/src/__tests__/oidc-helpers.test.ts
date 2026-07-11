@@ -1,6 +1,7 @@
-import { test, afterEach } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { __setEgressTransportForTest } from "../lib/egress";
 
 /**
  * Unit tests for the OIDC relying-party helpers (lib/oidc). These exercise the
@@ -28,8 +29,12 @@ const {
 } = oidc;
 
 const realFetch = globalThis.fetch;
+// discover/exchangeCode call safeFetch, which uses undici's own fetch — bridge the egress transport
+// to whatever globalThis.fetch is stubbed to (the loopback-IP mocks keep working; guard still runs).
+beforeEach(() => __setEgressTransportForTest((url, init) => globalThis.fetch(url as string, init)));
 afterEach(() => {
   globalThis.fetch = realFetch;
+  __setEgressTransportForTest(null);
 });
 
 function b64url(obj: unknown): string {
@@ -122,7 +127,8 @@ test("discover throws when required endpoints are missing", async () => {
 
 test("discover fetches the well-known document (and caches it)", async () => {
   const doc = {
-    issuer: "https://idp.test",
+    // The doc's `issuer` must match the configured issuerUrl (OIDC Discovery spec; now enforced).
+    issuer: "https://127.0.0.1",
     authorization_endpoint: "https://idp.test/auth",
     token_endpoint: "https://idp.test/token",
     jwks_uri: "https://idp.test/jwks",
@@ -136,6 +142,15 @@ test("discover fetches the well-known document (and caches it)", async () => {
   const result = await discover({ ...CONFIG, issuerUrl: "https://127.0.0.1" });
   assert.equal(result.token_endpoint, "https://idp.test/token");
   assert.match(calls[0]!, /^https:\/\/127\.0\.0\.1\/\.well-known\/openid-configuration$/);
+});
+
+test("discover rejects a document whose issuer doesn't match the configured issuer", async () => {
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ issuer: "https://evil.test", authorization_endpoint: "https://idp.test/auth", token_endpoint: "https://idp.test/token" }), { status: 200 })) as typeof fetch;
+  await assert.rejects(
+    () => discover({ ...CONFIG, issuerUrl: "https://127.0.0.5" }),
+    /issuer mismatch/,
+  );
 });
 
 // ── exchangeCode ──────────────────────────────────────────────────────────────
@@ -215,4 +230,13 @@ test("verifyIdToken verifies a real RS256 token against a mocked JWKS", async ()
     jwks_uri: `http://127.0.0.1/jwks-${crypto.randomUUID()}`,
   });
   assert.ok(true);
+});
+
+test("idTokenAuthTime reads the numeric auth_time claim (null when absent/non-numeric)", () => {
+  const withAt = `${b64url({ alg: "RS256" })}.${b64url({ sub: "u", auth_time: 1_700_000_000 })}.sig`;
+  assert.equal(oidc.idTokenAuthTime(withAt), 1_700_000_000);
+  const without = `${b64url({ alg: "RS256" })}.${b64url({ sub: "u" })}.sig`;
+  assert.equal(oidc.idTokenAuthTime(without), null);
+  const nonNumeric = `${b64url({ alg: "RS256" })}.${b64url({ sub: "u", auth_time: "nope" })}.sig`;
+  assert.equal(oidc.idTokenAuthTime(nonNumeric), null);
 });

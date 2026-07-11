@@ -170,6 +170,27 @@ export function checkRequiredEnv(env: NodeJS.ProcessEnv = process.env): string[]
   const brokerPsk = env["BROKER_PSK"]?.trim();
   if (brokerPsk !== undefined && brokerPsk.length < 24) issues.push("BROKER_PSK must be at least 24 characters");
 
+  // BROKER_PSK and SESSION_SECRET seed independent key domains, but the broker-PSK envelope derives
+  // its key as SHA-256(secret) (un-labelled) just like the legacy session codec — so reusing ONE
+  // secret for both makes a broker-PSK ciphertext and a session cookie cross-decryptable. Refuse it.
+  const sessionSecret = env["SESSION_SECRET"]?.trim();
+  if (brokerPsk && sessionSecret && brokerPsk === sessionSecret) {
+    issues.push("BROKER_PSK must not equal SESSION_SECRET (they key separate crypto domains; sharing one secret makes broker ciphertext and session cookies cross-decryptable)");
+  }
+
+  // API bearer tokens can pull the WHOLE portfolio (OData / export / /portfolio/summary), so a weak
+  // one is a data-exfiltration vector. Each comma-separated token must meet the same strength bar.
+  const apiTokens = env["API_TOKENS"]?.trim();
+  if (apiTokens) {
+    const weak = apiTokens.split(",").map((t) => t.trim()).filter((t) => t.length > 0 && t.length < 24);
+    if (weak.length) issues.push("every API_TOKENS entry must be at least 24 characters");
+  }
+
+  // The notification ingest secret lets a caller fan messages into every user's stream + webhooks;
+  // require the same strength as the other shared secrets.
+  const notifyIngest = env["NOTIFY_INGEST_SECRET"]?.trim();
+  if (notifyIngest !== undefined && notifyIngest.length < 24) issues.push("NOTIFY_INGEST_SECRET must be at least 24 characters");
+
   // Disabling rate limiting in production removes a key DoS/brute-force control.
   if (envBool("RATE_LIMIT_DISABLED", env)) issues.push("RATE_LIMIT_DISABLED must not be set in production");
 

@@ -40,6 +40,22 @@ describe("IdentityMapAdmin", () => {
     expect(screen.getByTestId("identity-count")).toHaveTextContent("1 mapping(s)");
   });
 
+  it("removing a middle assignee row keeps the other rows' entered names (stable row keys)", () => {
+    renderWithProviders(<IdentityMapAdmin />, { client: seed("pmo", card()) });
+
+    fireEvent.change(screen.getByLabelText("Assignee 1"), { target: { value: "alice" } });
+    fireEvent.click(screen.getByText("+ assignee"));
+    fireEvent.change(screen.getByLabelText("Assignee 2"), { target: { value: "bob" } });
+    fireEvent.click(screen.getByText("+ assignee"));
+    fireEvent.change(screen.getByLabelText("Assignee 3"), { target: { value: "carol" } });
+
+    // Remove the middle row (bob) — alice and carol must remain.
+    fireEvent.click(screen.getByLabelText("Remove assignment row 2"));
+
+    const inputs = screen.getAllByLabelText(/^Assignee \d+$/);
+    expect(inputs.map((el) => (el as HTMLInputElement).value)).toEqual(["alice", "carol"]);
+  });
+
   it("saves a plaintext assignee → role; the server hashes the name", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) } as Response);
     vi.stubGlobal("fetch", fetchMock);
