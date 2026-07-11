@@ -33,6 +33,23 @@ function owningTag(src: string, clickIdx: number): { tag: string; open: number }
   return m ? { tag: m[1]!, open } : null;
 }
 
+/** Index just past the opening tag's closing `>` — tracks `{}` depth and string literals so a `>`
+ *  inside a JSX expression (`=>`, generics, nested JSX) or a quoted attribute value doesn't end it
+ *  early. Falls back to a bounded window if no clean terminator is found. */
+function openingTagEnd(src: string, start: number): number {
+  let depth = 0;
+  let quote = "";
+  for (let j = start + 1; j < src.length && j < start + 4000; j++) {
+    const c = src[j]!;
+    if (quote) { if (c === quote && src[j - 1] !== "\\") quote = ""; continue; }
+    if (c === '"' || c === "'" || c === "`") { quote = c; continue; }
+    if (c === "{") depth++;
+    else if (c === "}") depth--;
+    else if (c === ">" && depth === 0 && src[j - 1] !== "=") return j;
+  }
+  return Math.min(start + 800, src.length);
+}
+
 const violations: string[] = [];
 const files = walkFiles(SPA_SRC, { extensions: [".tsx"], excludeSuffixes: [".test.tsx"] });
 
@@ -47,9 +64,10 @@ for (const file of files) {
       const isNativeInteractive = INTERACTIVE.has(tagLc);
       if (!isCustomComponent && !isNativeInteractive) {
         // Non-interactive native element: allowed if a keyboard handler or the opt-out marker
-        // appears in its attribute region. We can't reliably find the tag's closing ">" (JSX
-        // attributes contain "=>" and ">"), so scan a window over the element's props.
-        const tagText = src.slice(owner.open, owner.open + 800);
+        // appears in ITS OWN attribute region. Bound the scan to the opening tag's `>` (tracking
+        // brace depth + strings so `=>`, JSX exprs and quoted `>` don't end it early) — a fixed
+        // byte window spilled into children, so a CHILD's onKeyDown falsely cleared the parent.
+        const tagText = src.slice(owner.open, openingTagEnd(src, owner.open));
         const ok = /on(KeyDown|KeyUp|KeyPress)=/.test(tagText) || /data-a11y-mouse-ok/.test(tagText);
         if (!ok) {
           const line = src.slice(0, i).split("\n").length;

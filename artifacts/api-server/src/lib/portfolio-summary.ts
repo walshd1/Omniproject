@@ -5,11 +5,6 @@ import { getFxRates } from "./currency";
 import { resolveCapabilities } from "./capabilities";
 import { poolMap } from "./concurrency-pool";
 
-/** Bound the per-project broker fan-out (financials + capacity) the same way the other portfolio
- *  reads do — an unbounded Promise.all is ~1 broker call per project, so 200 projects = a 200-way
- *  thundering herd per request against the backend. */
-const PORTFOLIO_FANOUT_LIMIT = 10;
-
 /**
  * Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance boundary for
  * federation (backlog #135, see docs/DATA-RESIDENCY.md). Every field here is a portfolio-level total
@@ -19,6 +14,11 @@ const PORTFOLIO_FANOUT_LIMIT = 10;
  * reduced to their portfolio-total row. Computed live from the broker on every request — nothing is
  * cached or stored beyond the peer config itself (see lib/settings.ts PeerInstance).
  */
+
+// Bound the per-project broker fan-out (financials + capacity) the same way the other portfolio
+// reads do — an unbounded Promise.all is ~1 broker call per project, so 200 projects = a 200-way
+// thundering herd per request against the backend.
+const PORTFOLIO_FANOUT_LIMIT = 10;
 
 /** RAG (red/amber/green) distribution across the portfolio's projects. */
 export interface RagCounts {

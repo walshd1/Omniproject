@@ -34,5 +34,6 @@ try {
   process.exit(1);
 }
 
-if (outFile) { writeFileSync(outFile, plaintext); console.error(`wrote ${outFile}`); }
+// 0o600: the decrypted plaintext is the cleartext config (secrets) — don't leave it world-readable.
+if (outFile) { writeFileSync(outFile, plaintext, { mode: 0o600 }); console.error(`wrote ${outFile} (mode 0600)`); }
 else process.stdout.write(plaintext);
