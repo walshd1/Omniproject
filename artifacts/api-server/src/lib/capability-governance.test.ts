@@ -5,7 +5,7 @@ import {
   sanitizeCapabilitySetting, setCapabilityState, effectiveState,
   listSurfaces, decideCapability, enforceCapability, CapabilityBlockedError, recentCapabilityLog, noteCapabilityConfigured,
   validEndpoint, screenIdForRoute, checkEndpointReachable,
-} from "./tools";
+} from "./capability-governance";
 import { SCREENS } from "@workspace/backend-catalogue";
 import { updateSettings } from "./settings";
 import type { CapabilitySetting } from "./settings";

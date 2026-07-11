@@ -61,8 +61,3 @@ export function nextView(id: ViewId): ViewId {
 export function viewMeta(id: ViewId): ViewMeta {
   return VIEWS.find((v) => v.id === id) ?? VIEWS[0]!; // VIEWS is non-empty
 }
-
-/** Views that apply to a methodology — those tagged with it, plus the neutral ("*") ones. */
-export function viewsForMethodology(methodology: string): ViewMeta[] {
-  return VIEWS.filter((v) => v.methodologies.includes("*") || v.methodologies.includes(methodology));
-}

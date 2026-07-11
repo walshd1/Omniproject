@@ -9,7 +9,7 @@ import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../
 import { answerCopilot } from "../lib/copilot";
 import { aiChat } from "../lib/ai";
 import { recordAudit, actorForAudit } from "../lib/audit";
-import { enforceCapability, CapabilityBlockedError } from "../lib/tools";
+import { enforceCapability, CapabilityBlockedError } from "../lib/capability-governance";
 import { resolveSupport } from "../lib/capabilities";
 import { availableReports, availableScreens } from "@workspace/backend-catalogue";
 import type { Role } from "../lib/rbac";

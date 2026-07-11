@@ -1,6 +1,6 @@
 import type { ProjectFinancials } from "@workspace/api-client-react";
 import { convertAmount, LocalTracker } from "./currency";
-import { numLoose as num } from "./num";
+import { numLoose as num, round2 } from "./num";
 
 /**
  * Portfolio financial consolidation — convert each project's budget / actual / forecast into ONE
@@ -54,7 +54,6 @@ export interface CurrencyMix {
   projects: number;
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** A roll-up row mid-fold: carries the tracker of source currencies seen so far, so `fold` can tell
  *  whether the row is still single-currency (and so can show a `local` figure) or has gone mixed. */

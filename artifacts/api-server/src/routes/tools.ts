@@ -13,7 +13,7 @@ import { getSession } from "./auth";
 import {
   listResolvedCapabilities, listSurfaces, setCapabilityState, noteCapabilityConfigured,
   recentCapabilityLogShared, checkEndpointReachable, getCapability, UnknownCapabilityError,
-} from "../lib/tools";
+} from "../lib/capability-governance";
 import { getSettings } from "../lib/settings";
 import { v, parseOr400 } from "../lib/validate";
 

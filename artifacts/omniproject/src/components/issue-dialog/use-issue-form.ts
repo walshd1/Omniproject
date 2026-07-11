@@ -88,8 +88,6 @@ export function useIssueForm(
     }
   }, [open, issue, defaultStatus]);
 
-  const numOrNull = parseNumberOrNull;
-
   const buildPayload = (): IssueInput => ({
     title: form.title.trim(),
     ...(form.description.trim() ? { description: form.description.trim() } : {}),
@@ -103,16 +101,16 @@ export function useIssueForm(
     startDate: form.startDate || null,
     dueDate: form.dueDate || null,
     // Per-task financials — only sent for fields the backend can store.
-    ...(editF("budget") ? { budget: numOrNull(form.budget) } : {}),
-    ...(editF("actualCost") ? { actualCost: numOrNull(form.actualCost) } : {}),
+    ...(editF("budget") ? { budget: parseNumberOrNull(form.budget) } : {}),
+    ...(editF("actualCost") ? { actualCost: parseNumberOrNull(form.actualCost) } : {}),
     ...(editF("billable") ? { billable: form.billable } : {}),
     ...(editF("costCenter") ? { costCenter: form.costCenter.trim() || null } : {}),
     ...(editF("currency") ? { currency: form.currency.trim() || null } : {}),
     // Per-task effort / time-tracking — only sent for storable fields.
-    ...(editF("estimateHours") ? { estimateHours: numOrNull(form.estimateHours) } : {}),
-    ...(editF("loggedHours") ? { loggedHours: numOrNull(form.loggedHours) } : {}),
-    ...(editF("remainingHours") ? { remainingHours: numOrNull(form.remainingHours) } : {}),
-    ...(editF("storyPoints") ? { storyPoints: numOrNull(form.storyPoints) } : {}),
+    ...(editF("estimateHours") ? { estimateHours: parseNumberOrNull(form.estimateHours) } : {}),
+    ...(editF("loggedHours") ? { loggedHours: parseNumberOrNull(form.loggedHours) } : {}),
+    ...(editF("remainingHours") ? { remainingHours: parseNumberOrNull(form.remainingHours) } : {}),
+    ...(editF("storyPoints") ? { storyPoints: parseNumberOrNull(form.storyPoints) } : {}),
     // Per-task risk & quality — only sent for storable fields.
     ...(editF("healthStatus") ? { healthStatus: form.healthStatus.trim() || null } : {}),
     ...(editF("riskLevel") ? { riskLevel: form.riskLevel.trim() || null } : {}),
@@ -121,7 +119,7 @@ export function useIssueForm(
     ...(editF("blocked") ? { blocked: form.blocked } : {}),
     ...(editF("blockedReason") ? { blockedReason: form.blockedReason.trim() || null } : {}),
     ...(editF("mitigation") ? { mitigation: form.mitigation.trim() || null } : {}),
-    ...(editF("defectCount") ? { defectCount: numOrNull(form.defectCount) } : {}),
+    ...(editF("defectCount") ? { defectCount: parseNumberOrNull(form.defectCount) } : {}),
   });
 
   return { form, setForm, buildPayload, titleError, setTitleError, showF, editF };

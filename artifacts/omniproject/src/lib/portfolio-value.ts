@@ -1,4 +1,5 @@
 import { convertAmount, LocalTracker } from "./currency";
+import { round2 } from "./num";
 import { summariseIncome, type IncomeInput } from "./income";
 import { summariseBenefits, type BenefitInput } from "./benefits";
 
@@ -19,7 +20,6 @@ export interface ProjectItems {
   items: (IncomeInput & BenefitInput)[];
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 const STANDALONE = "__standalone__";
 
 function groupKeyLabel(p: ProjectItems): { key: string; label: string } {
