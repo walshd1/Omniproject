@@ -35,6 +35,42 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
   `*.generated.ts` files are now skipped everywhere the guard scans — they're vendor JSON embedded
   verbatim, the same "data, not code" exception already carved out for the JSON itself.
 
+### Fixed
+
+- **Portfolio finance rollup no longer silently mixes currencies.** `foldFinance` (the federated
+  `GET /portfolio/summary` total) previously added a project's amount into the portfolio total *as-is*
+  whenever an FX rate was missing — so a project reporting in an unrated currency (or any project when
+  the FX fetch failed) corrupted the total by its exchange-rate factor (e.g. a ₩ amount summed straight
+  into a GBP total). Unconvertible rows are now EXCLUDED from the total rather than mixed in, the
+  section reports `null` (honestly "unavailable") instead of a misleading £0 when nothing folds, and any
+  incompleteness (an unconvertible currency or a failed per-project financials call) is logged with the
+  covered-vs-total project counts instead of being presented as a complete number. Same-currency rows
+  still fold with no rate table needed, so a single-currency org is unaffected. Pure/stateless — no wire
+  contract or broker-seam change.
+- **Magic-link single-use is now race-free.** `consumeMagicToken` used a get-then-set with an `await`
+  boundary between the check and the mark, so two concurrent redemptions of the same one-time link could
+  both observe "unused" and both mint a session. It now claims the `jti` with an atomic compare-and-set
+  (`sharedKv.cas`, the same shared-seam primitive `audit-chain` uses) — fleet-wide when Redis is
+  configured, and inherently race-free on the stateless single-replica default.
+
+### Security
+
+- **Real end-to-end RBAC enforcement is now under test.** Added `rbac-enforcement.test.ts`, which drives
+  the live app OUT of demo auth (where every session holds all authorities) so the `requireRole` gates are
+  genuinely exercised: it proves an admin-gated route admits admin and rejects member/pmo, a pmo-gated
+  write admits pmo and rejects member/admin, and reads stay open — pinning down that `pmo` and `admin` are
+  orthogonal authorities and that both require strong auth (WebAuthn `amr`). Closes the coverage gap where
+  demo-mode made those route assertions tautological.
+- **Compile-time drift guard on the settings allowlist.** `PATCH /settings` only persists keys in
+  `ALLOWED_KEYS`, so a `SettingsState` field added to the interface/store but forgotten there was accepted,
+  echoed back, and silently never written. A type-level exhaustiveness assertion now fails the build if any
+  settings field is missing from the writable allowlist, closing that silent-persist-failure class.
+- **Honest replay-scope note on the broker HMAC verifier.** Documented that the seen-nonce cache lives in
+  the verifier's own process (per-broker-replica), so operators scaling the broker horizontally without a
+  shared nonce store understand where replay defence is exact vs weakened — matching the honesty of the
+  session-registry/rate-limit scope comments. No functional change to the synchronous, dependency-free
+  seam verify contract.
+
 ### Added
 
 - **ERP connector: Oracle Fusion Cloud ERP read-only broker adapter (backlog #139).**

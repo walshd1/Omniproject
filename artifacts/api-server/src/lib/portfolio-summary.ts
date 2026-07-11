@@ -74,15 +74,30 @@ function num(v: unknown): number {
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Convert an amount between currencies, falling back to the original amount when a rate is missing
- *  — the SAME graceful-degradation idiom as the frontend's `convertAmount` (never throws, never
- *  poisons a total with NaN), so one project's odd currency can't blank the whole rollup. */
-function convertSafe(amount: number, from: string, to: string, rates: Record<string, number> | undefined): number {
-  if (!rates || !from || from === to) return amount;
+/** The multiplicative factor to convert `from`→`to` via a base-anchored rate table, or `null` when
+ *  the conversion is impossible (a foreign currency with no rate). Returns 1 for a same-currency
+ *  row (no rate table needed), so target-currency projects always fold correctly even when the FX
+ *  fetch failed. A `null` here means "cannot faithfully convert" — the caller EXCLUDES the row
+ *  rather than summing a raw foreign amount as if it were the target currency, which would silently
+ *  corrupt the portfolio total (e.g. ₩1,000,000,000 added straight into a GBP rollup). */
+function conversionFactor(from: string, to: string, rates: Record<string, number> | undefined): number | null {
+  if (!from || from === to) return 1;
+  if (!rates) return null;
   const rFrom = rates[from];
   const rTo = rates[to];
-  if (!rFrom || !rTo) return amount;
-  return (amount * rFrom) / rTo;
+  if (!rFrom || !rTo) return null;
+  return rFrom / rTo;
+}
+
+/** The result of folding per-project financials: the portfolio-total wire row plus how the fold was
+ *  composed, so the caller can tell a complete total from a partial one. */
+export interface FinanceFold {
+  totals: FinanceTotals;
+  /** Rows summed into the total (their currency converted to the target). */
+  includedRows: number;
+  /** Rows EXCLUDED because their currency had no FX rate to the target — omitted, never summed raw.
+   *  A non-zero value means the total is currency-consistent but covers only a subset of projects. */
+  droppedForFx: number;
 }
 
 /** Summarise portfolio-health rows (the existing `GET /portfolio/health` aggregate) into portfolio-wide
@@ -113,24 +128,34 @@ export function summarizeHealth(rows: PortfolioRow[]): HealthTotals {
 }
 
 /** Fold per-project financials (the existing `GET /projects/:id/financials` rows) into ONE portfolio
- *  total in `target` currency — the portfolio-only reduction of `consolidateFinancials`. Pure. */
-export function foldFinance(rows: Row[], target: string, rates?: Record<string, number>): FinanceTotals {
+ *  total in `target` currency — the portfolio-only reduction of `consolidateFinancials`. Pure.
+ *  A row whose currency can't be converted to the target is EXCLUDED (counted in `droppedForFx`),
+ *  never summed as-is — mixing currencies would silently produce a wildly wrong total. */
+export function foldFinance(rows: Row[], target: string, rates?: Record<string, number>): FinanceFold {
   let budget = 0, actual = 0, forecast = 0, earnedValue = 0;
+  let includedRows = 0, droppedForFx = 0;
   for (const p of rows) {
     const currency = String(p["currency"] ?? target);
-    budget += convertSafe(num(p["budgetAllocated"]), currency, target, rates);
-    actual += convertSafe(num(p["actualBurn"]), currency, target, rates);
-    forecast += convertSafe(num(p["forecastCostAtCompletion"]), currency, target, rates);
-    earnedValue += convertSafe(num(p["earnedValue"]), currency, target, rates);
+    const factor = conversionFactor(currency, target, rates);
+    if (factor === null) { droppedForFx++; continue; }
+    includedRows++;
+    budget += num(p["budgetAllocated"]) * factor;
+    actual += num(p["actualBurn"]) * factor;
+    forecast += num(p["forecastCostAtCompletion"]) * factor;
+    earnedValue += num(p["earnedValue"]) * factor;
   }
   return {
-    currency: target,
-    budget: round2(budget),
-    actual: round2(actual),
-    forecast: round2(forecast),
-    earnedValue: round2(earnedValue),
-    variance: round2(budget - forecast),
-    cpi: actual > 0 ? round2(earnedValue / actual) : null,
+    totals: {
+      currency: target,
+      budget: round2(budget),
+      actual: round2(actual),
+      forecast: round2(forecast),
+      earnedValue: round2(earnedValue),
+      variance: round2(budget - forecast),
+      cpi: actual > 0 ? round2(earnedValue / actual) : null,
+    },
+    includedRows,
+    droppedForFx,
   };
 }
 
@@ -185,11 +210,26 @@ export async function computeLocalPortfolioSummary(req: Request): Promise<Portfo
   if ((!caps || caps.financials) && projects.length) {
     const rows = await Promise.all(projects.map((p) => broker.projectFinancials(ctx, p.id).catch(() => null)));
     const valid = rows.filter((r): r is Row => !!r);
+    const droppedCalls = projects.length - valid.length; // projects whose financials call failed/timed out
     if (valid.length) {
       const settings = getSettings();
       const fx = await getFxRates(req, resolveFxAsOf(settings)).catch(() => null);
       const target = settings.reportingCurrency || fx?.base || "GBP";
-      finance = foldFinance(valid, target, fx?.rates);
+      const fold = foldFinance(valid, target, fx?.rates);
+      // Only surface a total when at least one project actually folded in — an all-dropped fold
+      // (every project in a currency we can't convert) would otherwise report a misleading £0.
+      finance = fold.includedRows > 0 ? fold.totals : null;
+      // Never silent: if the total covers fewer projects than exist (a failed financials call or an
+      // unconvertible currency), log it so an operator can see the rollup is partial rather than
+      // trusting an understated number presented as complete.
+      if (droppedCalls > 0 || fold.droppedForFx > 0) {
+        req.log.warn(
+          { projects: projects.length, withFinancials: valid.length, folded: fold.includedRows, droppedForFx: fold.droppedForFx, droppedCalls, target },
+          "portfolio finance rollup is incomplete — total covers a subset of projects",
+        );
+      }
+    } else if (droppedCalls > 0) {
+      req.log.warn({ projects: projects.length, droppedCalls }, "portfolio finance rollup unavailable — every project's financials call failed");
     }
   }
 

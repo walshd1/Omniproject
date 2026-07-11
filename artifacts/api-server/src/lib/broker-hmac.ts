@@ -50,6 +50,16 @@ export function signBrokerRequest(body: string, bind?: SessionBind): RequestSign
 export type VerifyResult = "ok" | "expired" | "replay" | "bad-signature";
 
 // Seen-nonce cache (in-memory, RAM-only). Entries expire with the freshness window.
+//
+// SCOPE (honest): this cache lives in the process that RUNS the verifier — the out-of-process
+// broker/backend, not the gateway (the gateway only signs). It is therefore per-verifier-process:
+// under a single broker instance replay defence is exact (the has→set critical section is fully
+// synchronous — no await between check and mark — so concurrent verifies can't both miss). Under a
+// horizontally-scaled broker WITHOUT sticky routing, a replay routed to a different broker replica
+// than the original finds no nonce and is accepted; the signature + freshness-window checks still
+// hold, so this weakens replay defence, it does not remove authentication. A fleet-wide nonce store
+// belongs in the broker's own shared cache, not here — this gateway module deliberately keeps the
+// seam's verify contract synchronous and dependency-free rather than reaching across it.
 const seen = new Map<string, number>();
 const DEFAULT_MAX_AGE_MS = 5 * 60_000;
 
