@@ -92,8 +92,16 @@ export async function sendMagicLink(email: string, link: string): Promise<boolea
   if (sent) {
     logger.info({ email }, "magic-link: sent via SMTP");
   } else {
-    logger.info({ email }, "magic-link: issued (no relay configured — link logged for the operator/dev only)");
-    logger.debug({ email, link }, "magic-link: link");
+    // No SMTP relay: the operator must hand off the link. The link CONTAINS the single-use auth
+    // token, so logging it verbatim is an account-takeover primitive for anyone who can read logs.
+    // Default to NOT logging it; a no-SMTP operator who genuinely relies on log-relay opts in with
+    // MAGIC_LINK_LOG_URL=1 (documented as sensitive). `link` is never added to the logger redact
+    // list precisely because this opt-in path needs it verbatim.
+    if (isTruthy(process.env["MAGIC_LINK_LOG_URL"])) {
+      logger.warn({ email, link }, "magic-link: link (MAGIC_LINK_LOG_URL — token-bearing, sensitive)");
+    } else {
+      logger.info({ email }, "magic-link: issued (no relay configured; set MAGIC_LINK_LOG_URL=1 to log the link)");
+    }
   }
   return sent;
 }

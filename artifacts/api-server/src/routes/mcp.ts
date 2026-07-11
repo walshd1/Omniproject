@@ -1,7 +1,7 @@
 import { Router, type Request } from "express";
 import { getSession } from "./auth";
 import { hasValidApiToken } from "../lib/api-token";
-import { hasRole, isDeprovisioned } from "../lib/rbac";
+import { hasRole, isDeprovisioned, roleForReq } from "../lib/rbac";
 import { envFlag } from "../lib/env";
 import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
@@ -68,13 +68,16 @@ const MCP_HANDLERS: Record<string, (d: McpCtx) => Promise<unknown> | unknown> = 
   // Portfolio copilot as an action — read-only NL Q&A. Runs THROUGH the same scoped,
   // injection-hardened path as the SPA copilot (lib/copilot): only the minimal aggregated
   // snapshot reaches the model, and no further action surface is exposed.
-  portfolio_copilot: async ({ broker, ctx, args }) => answerCopilot({
+  portfolio_copilot: async ({ broker, ctx, req, args }) => answerCopilot({
     question: String(args["question"] ?? ""),
     broker, ctx,
     vocab: listApprovedVocab(),
     mode: args["mode"] === "freeform" ? "freeform" : "rag",
     ...(typeof args["methodology"] === "string" ? { methodology: args["methodology"] } : {}),
-    complete: async (messages) => (await aiChat(messages)).content,
+    // Carry the same AI-governance context the SPA path supplies (routes/ai.ts govCtx), so the
+    // per-role model allowlist and per-scope token budget apply on the MCP channel too — otherwise
+    // an MCP client / read-only API token would evade AI_MODEL_ALLOWLIST + AI_TOKEN_BUDGET entirely.
+    complete: async (messages) => (await aiChat(messages, { scope: getSession(req)?.sub, role: roleForReq(req) })).content,
   }),
   // Gated writes (the policy check in handleMcp already refused unauthorised callers).
   create_issue: ({ broker, ctx, pid, args }) => broker.writeIssue(ctx, "create", { projectId: pid, title: String(args["title"] ?? ""), ...(args["description"] ? { description: String(args["description"]) } : {}), ...(args["status"] ? { status: String(args["status"]) } : {}) }),

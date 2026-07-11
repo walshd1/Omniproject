@@ -19,6 +19,12 @@ export const logger = pino({
     "userContext.token",
     "payload.userContext.token",
     "*.userContext.token",
+    // The IdP bearer/id tokens are stored on the session under these names (routes/auth.ts), so a
+    // serialized session object would leak a live credential without these paths.
+    "accessToken",
+    "*.accessToken",
+    "idToken",
+    "*.idToken",
   ],
   ...(isProduction
     ? {}
