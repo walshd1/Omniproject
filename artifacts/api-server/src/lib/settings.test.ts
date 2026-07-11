@@ -6,6 +6,13 @@ afterEach(() => {
   updateSettings({ savedViews: [], hiddenFields: [], disabledFeatures: [], dashboards: [], reportingCurrency: null, fxRatePolicy: "spot", fxRateAsOfDate: null, customReports: [], reportOverrides: [], contentPages: [], priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS }, federatedPeers: [] }); // reset shared store
 });
 
+test("errorTelemetry: accepts a boolean, rejects a non-boolean, defaults off", () => {
+  assert.equal(getSettings().errorTelemetry, false); // off by default
+  assert.equal(updateSettings({ errorTelemetry: true }).errorTelemetry, true);
+  assert.equal(updateSettings({ errorTelemetry: false }).errorTelemetry, false);
+  assert.throws(() => updateSettings({ errorTelemetry: "yes" as unknown as boolean }), SettingsValidationError);
+});
+
 test("reportOverrides: accepts partial metadata overrides and rejects bad shape", () => {
   const ok = updateSettings({ reportOverrides: [{ id: "evm", label: "Earned value", order: 5, hidden: true }, { id: "burndown" }] });
   assert.equal(ok.reportOverrides.length, 2);

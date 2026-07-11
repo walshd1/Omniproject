@@ -1055,6 +1055,7 @@ export const GetSettingsResponse = zod.object({
   "fxRateAsOfDate": zod.string().nullish().describe('ISO 8601 date the \"as of\" rate is read for when fxRatePolicy isn\'t \"spot\". Ignored (falls back to spot) when null.'),
   "oidcIssuerUrl": zod.string().nullish(),
   "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity\/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs\/REVERSE-PROXY.md).'),
+  "errorTelemetry": zod.boolean().optional().describe('Admin opt-in. When true the SPA reports uncaught render errors (message + component stack + page, never user\/project data) to POST \/client-errors, which records them to the gateway\'s INTERNAL audit log. Off by default — the same no-external-telemetry posture as the rest of the app.'),
   "loggingSync": zod.object({
   "enabled": zod.boolean(),
   "url": zod.string().nullish(),
@@ -1087,6 +1088,7 @@ export const UpdateSettingsBody = zod.object({
   "fxRateAsOfDate": zod.string().nullish().describe('Set the \"as of\" date used when fxRatePolicy isn\'t \"spot\" (see Settings.fxRateAsOfDate).'),
   "oidcIssuerUrl": zod.string().nullish(),
   "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Set the deployment profile (admin). Persisted; the infra-level DEPLOYMENT_PROFILE env var still wins on a fresh boot (see docs\/REVERSE-PROXY.md).'),
+  "errorTelemetry": zod.boolean().optional().describe('Admin opt-in for internal client-error reporting (see Settings.errorTelemetry).'),
   "loggingSync": zod.object({
   "enabled": zod.boolean(),
   "url": zod.string().nullish(),
@@ -1115,6 +1117,7 @@ export const UpdateSettingsResponse = zod.object({
   "fxRateAsOfDate": zod.string().nullish().describe('ISO 8601 date the \"as of\" rate is read for when fxRatePolicy isn\'t \"spot\". Ignored (falls back to spot) when null.'),
   "oidcIssuerUrl": zod.string().nullish(),
   "deploymentProfile": zod.enum(['enterprise', 'business', 'nonprofit', 'self-hosted', 'demo']).optional().describe('Deployment context chosen in the setup wizard, which relaxes enterprise couplings by choice (e.g. a charity\/self-hosted instance on a plain-HTTP LAN). Optional; absent until an admin selects one. The infra-level DEPLOYMENT_PROFILE env var takes precedence on a fresh boot (see docs\/REVERSE-PROXY.md).'),
+  "errorTelemetry": zod.boolean().optional().describe('Admin opt-in. When true the SPA reports uncaught render errors (message + component stack + page, never user\/project data) to POST \/client-errors, which records them to the gateway\'s INTERNAL audit log. Off by default — the same no-external-telemetry posture as the rest of the app.'),
   "loggingSync": zod.object({
   "enabled": zod.boolean(),
   "url": zod.string().nullish(),

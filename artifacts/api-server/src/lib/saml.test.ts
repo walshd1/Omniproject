@@ -7,7 +7,7 @@ process.env["SAML_IDP_ENTRY_POINT"] = "https://idp.example.com/sso";
 process.env["SAML_IDP_CERT"] = "-----BEGIN CERTIFICATE-----\nMIIBfake\n-----END CERTIFICATE-----";
 process.env["SAML_CALLBACK_URL"] = "https://omni.example.com/api/auth/saml/callback";
 
-const { isSamlConfigured, samlLoginUrl, validateSamlResponse, samlMetadata, profileToClaims, samlConfigStatus, samlConfigStatusFrom } = await import("./saml");
+const { isSamlConfigured, samlLoginUrl, validateSamlResponse, samlMetadata, profileToClaims, samlConfigStatus, samlConfigStatusFrom, replayProtection } = await import("./saml");
 
 const cfg = {
   entryPoint: "", idpCert: "", issuer: "", callbackUrl: "", audience: "",
@@ -119,4 +119,20 @@ test("the ACR attribute is surfaced only when SAML_ACR_ATTR is configured", () =
   // No acrAttr configured → no acr claim, even if a matching attribute is present.
   const withoutAcr = profileToClaims({ nameID: "u8", attributes: { authnContext: "x" } }, cfg);
   assert.equal("acr" in withoutAcr, false);
+});
+
+test("replay protection: OFF by default (in-memory, no Redis), ON via the opt-in flag", () => {
+  // No Redis and no opt-in ⇒ strict InResponseTo/assertion-id checks are off (a redirect and its
+  // ACS callback can land on different replicas without a shared cache), so no strict options.
+  delete process.env["SAML_STRICT_REPLAY"];
+  assert.deepEqual(replayProtection(), {});
+
+  // The single-replica opt-in turns the strict checks on (redirect + ACS hit the same process).
+  process.env["SAML_STRICT_REPLAY"] = "1";
+  const strict = replayProtection();
+  assert.equal(strict["validateInResponseTo"], "always");
+  assert.ok(strict["cacheProvider"]);
+  delete process.env["SAML_STRICT_REPLAY"];
+  // Redis mode enables the SAME strict options automatically (fleet-correct across replicas) —
+  // exercised where a Redis-backed shared-state seam is present (ioredis is not installed in CI).
 });

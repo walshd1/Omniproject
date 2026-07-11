@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { ReportProblemDialog } from "./ReportProblemDialog";
+import { reportClientError } from "../lib/error-telemetry";
 
 interface Props {
   children: ReactNode;
@@ -33,6 +34,9 @@ export class ErrorBoundary extends Component<Props, State> {
   override componentDidCatch(error: Error, info: ErrorInfo) {
     // Surface for diagnostics; the panel handles the user-facing recovery.
     console.error("Uncaught render error:", error, info.componentStack);
+    // Report to the internal telemetry sink — a no-op unless an admin opted in (the flag is
+    // enforced both here and server-side). Never user data: message + component stack + page.
+    reportClientError({ message: error.message, componentStack: info.componentStack ?? undefined });
   }
 
   private handleReload = () => {
