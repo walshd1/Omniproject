@@ -3,25 +3,21 @@ import { useCallback, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { summariseIncome } from "../../lib/income";
-import { firstCurrency } from "../../lib/currency";
+import { useProjectIssuesMoney } from "../../lib/currency";
 import { truncateLabel } from "../../lib/utils";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { chartTooltipStyle } from "./chart-theme";
 
 /**
  * Income & Invoicing report. STATELESS: projected income (`revenue`) vs what's actually been invoiced
  * (`invoicedAmount`) per work item, with the unbilled gap and purchase-order references. Nothing stored.
  */
 export function IncomeInvoicing({ projectId }: { projectId: string }) {
-  const { formatCurrency } = useT();
-  const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId, {
-    query: { queryKey: getGetProjectIssuesQueryKey(projectId) },
-  });
+  const { issues, ccy, money, isLoading, isError, error, refetch } = useProjectIssuesMoney(projectId);
 
-  const ccy = useMemo(() => firstCurrency(issues), [issues]);
   const summary = useMemo(() => summariseIncome((issues ?? []) as Issue[]), [issues]);
-  const money = useCallback((n: number) => formatCurrency(n, ccy), [formatCurrency, ccy]);
 
   const chart = useMemo(
     () => summary.rows.slice(0, 8).map((r) => ({ name: truncateLabel(r.title), invoiced: r.invoiced, unbilled: Math.max(0, r.unbilled) })),
@@ -50,7 +46,7 @@ export function IncomeInvoicing({ projectId }: { projectId: string }) {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => money(v as number)} />
                 <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v) => money(v as number)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="invoiced" name="Invoiced" stackId="s" fill="#16a34a" />
                 <Bar dataKey="unbilled" name="Unbilled" stackId="s" fill="#d97706" />

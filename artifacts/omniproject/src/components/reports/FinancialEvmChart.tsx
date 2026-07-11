@@ -4,6 +4,7 @@ import { useT } from "../../lib/i18n";
 import { useDisplayCurrency } from "../../lib/currency";
 import { RAG_TEXT as HEALTH } from "../../lib/methodology";
 import { DataState } from "../DataState";
+import { chartTooltipStyle, gridTheme, axisTheme } from "./chart-theme";
 
 // The financials endpoint returns point-in-time EVM scalars. Derive an
 // indicative cumulative trend (linear) so Actual Cost can be plotted against
@@ -86,10 +87,10 @@ export function FinancialEvmChart({ projectId }: { projectId: string }) {
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trend(f)} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border" />
-                  <XAxis dataKey="period" stroke="currentColor" className="text-muted-foreground" fontSize={12} />
-                  <YAxis stroke="currentColor" className="text-muted-foreground" fontSize={12} tickFormatter={(v) => money(v as number)} width={80} />
-                  <Tooltip formatter={(v) => money(v as number)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                  <CartesianGrid {...gridTheme} />
+                  <XAxis dataKey="period" {...axisTheme} fontSize={12} />
+                  <YAxis {...axisTheme} fontSize={12} tickFormatter={(v) => money(v as number)} width={80} />
+                  <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
                   <Legend />
                   <ReferenceLine y={f.budgetAllocated} stroke="#a1a1aa" strokeDasharray="4 4" />
                   <Line type="monotone" dataKey="Planned (Budget)" stroke="#a1a1aa" strokeWidth={1.5} dot={false} />

@@ -3,24 +3,20 @@ import { useCallback, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { summariseFinancials } from "../../lib/financial-summary";
-import { firstCurrency } from "../../lib/currency";
+import { useProjectIssuesMoney } from "../../lib/currency";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { chartTooltipStyle } from "./chart-theme";
 
 /**
  * Financial summary — budget vs actual vs variance, rolled up from the work items the backend carries
  * (the `financial` field group). Derive-only; OmniProject stores nothing.
  */
 export function FinancialSummary({ projectId }: { projectId: string }) {
-  const { formatCurrency } = useT();
-  const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId, {
-    query: { queryKey: getGetProjectIssuesQueryKey(projectId) },
-  });
+  const { issues, ccy, money, isLoading, isError, error, refetch } = useProjectIssuesMoney(projectId);
 
-  const ccy = useMemo(() => firstCurrency(issues), [issues]);
   const summary = useMemo(() => summariseFinancials((issues ?? []) as Issue[]), [issues]);
-  const money = useCallback((n: number) => formatCurrency(n, ccy), [formatCurrency, ccy]);
   const chart = useMemo(
     () => [{ name: "Budget", value: summary.budget }, { name: "Actual", value: summary.actual }],
     [summary],
@@ -47,7 +43,7 @@ export function FinancialSummary({ projectId }: { projectId: string }) {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => money(v as number)} width={70} />
-                <Tooltip formatter={(v) => money(v as number)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
                 <Bar dataKey="value" name="Amount" fill="#2563eb" />
               </BarChart>
             </ResponsiveContainer>

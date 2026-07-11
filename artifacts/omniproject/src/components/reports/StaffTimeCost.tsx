@@ -3,11 +3,12 @@ import { useCallback, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey } from "@workspace/api-client-react";
 import { useStaffCost } from "../../lib/rate-card";
-import { firstCurrency } from "../../lib/currency";
+import { useProjectIssuesMoney } from "../../lib/currency";
 import { truncateLabel } from "../../lib/utils";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { chartTooltipStyle } from "./chart-theme";
 
 /**
  * Staff Time & Cost report. The roll-up is computed SERVER-SIDE (rates never reach the browser): the
@@ -17,12 +18,9 @@ import { StatCard } from "./StatCard";
  * financial reports. Nothing is stored.
  */
 export function StaffTimeCost({ projectId }: { projectId: string }) {
-  const { formatCurrency } = useT();
   const { data, isLoading, isError, error, refetch } = useStaffCost(projectId);
   // Currency comes from the work items (the roll-up is currency-agnostic); falls back to the locale default.
-  const { data: issues } = useGetProjectIssues(projectId, { query: { queryKey: getGetProjectIssuesQueryKey(projectId) } });
-  const ccy = useMemo(() => firstCurrency(issues), [issues]);
-  const money = useCallback((n: number) => formatCurrency(n, ccy), [formatCurrency, ccy]);
+  const { issues, ccy, money } = useProjectIssuesMoney(projectId);
 
   const chart = useMemo(
     () => (data?.byTitle ?? []).slice(0, 8).map((r) => ({ name: truncateLabel(r.titleLabel), cost: r.cost, charge: r.charge })),
@@ -78,7 +76,7 @@ export function StaffTimeCost({ projectId }: { projectId: string }) {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => money(v as number)} />
                   <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={(v) => money(v as number)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                  <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
                   <Bar dataKey="cost" name="True cost" fill="#2563eb" />
                   <Bar dataKey="charge" name="Charge" fill="#16a34a" />
                 </BarChart>

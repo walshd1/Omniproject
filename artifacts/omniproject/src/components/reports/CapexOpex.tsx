@@ -5,11 +5,12 @@ import {
 } from "recharts";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { summariseCapex } from "../../lib/capex";
-import { firstCurrency } from "../../lib/currency";
+import { useProjectIssuesMoney } from "../../lib/currency";
 import { truncateLabel } from "../../lib/utils";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { chartTooltipStyle } from "./chart-theme";
 
 /**
  * CapEx / OpEx report. STATELESS: it splits the project's spend into capital vs operating from the
@@ -19,14 +20,9 @@ import { StatCard } from "./StatCard";
  */
 
 export function CapexOpex({ projectId }: { projectId: string }) {
-  const { formatCurrency } = useT();
-  const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId, {
-    query: { queryKey: getGetProjectIssuesQueryKey(projectId) },
-  });
+  const { issues, ccy, money, isLoading, isError, error, refetch } = useProjectIssuesMoney(projectId);
 
-  const ccy = useMemo(() => firstCurrency(issues), [issues]);
   const summary = useMemo(() => summariseCapex((issues ?? []) as Issue[]), [issues]);
-  const money = useCallback((n: number) => formatCurrency(n, ccy), [formatCurrency, ccy]);
 
   const catData = useMemo(
     () => summary.byCategory.slice(0, 8).map((c) => ({ name: truncateLabel(c.category), capex: c.capex, opex: c.opex })),
@@ -55,7 +51,7 @@ export function CapexOpex({ projectId }: { projectId: string }) {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => money(v as number)} />
                 <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v) => money(v as number)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="capex" name="CapEx" stackId="s" fill="#2563eb" />
                 <Bar dataKey="opex" name="OpEx" stackId="s" fill="#d97706" />

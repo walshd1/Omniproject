@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { runCustomReport, runCustomReportTrend, metricLabel, type CustomReportDef, type Row } from "../../lib/custom-report";
 import { truncateLabel } from "../../lib/utils";
+import { chartTooltipStyle } from "./chart-theme";
 
 /**
  * Generic renderer for a bespoke report definition — runs the definition over the supplied rows and
@@ -39,7 +40,7 @@ function TrendReport({ def, rows }: { def: CustomReportDef; rows: readonly Row[]
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
           <XAxis dataKey="name" tick={{ fontSize: 11 }} />
           <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => fmt(v as number)} />
-          <Tooltip formatter={(v) => fmt(v as number)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+          <Tooltip formatter={(v) => fmt(v as number)} contentStyle={chartTooltipStyle} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {def.metrics.map((m, i) => (
             <Line key={m.id} type="monotone" dataKey={m.id} name={metricLabel(m)} stroke={PALETTE[i % PALETTE.length]!} strokeWidth={2} dot={{ r: 3 }} />
@@ -111,7 +112,7 @@ function GroupedReport({ def, rows }: { def: CustomReportDef; rows: readonly Row
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => fmt(v as number)} />
             <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 10 }} />
-            <Tooltip formatter={(v) => fmt(v as number)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+            <Tooltip formatter={(v) => fmt(v as number)} contentStyle={chartTooltipStyle} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             {def.metrics.map((m, i) => <Bar key={m.id} dataKey={m.id} name={metricLabel(m)} fill={PALETTE[i % PALETTE.length]!} />)}
           </BarChart>

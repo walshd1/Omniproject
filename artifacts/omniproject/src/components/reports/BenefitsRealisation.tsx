@@ -5,11 +5,12 @@ import {
 } from "recharts";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { summariseBenefits, type BenefitBucket } from "../../lib/benefits";
-import { firstCurrency } from "../../lib/currency";
+import { useProjectIssuesMoney } from "../../lib/currency";
 import { truncateLabel } from "../../lib/utils";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { chartTooltipStyle } from "./chart-theme";
 
 /**
  * Benefits Realisation report. STATELESS: it rolls up the canonical `benefit*` fields already on
@@ -27,14 +28,9 @@ const BUCKET_META: Record<BenefitBucket, { label: string; colour: string }> = {
 const BUCKET_ORDER: BenefitBucket[] = ["realised", "on_track", "at_risk", "missed", "not_started"];
 
 export function BenefitsRealisation({ projectId }: { projectId: string }) {
-  const { formatCurrency } = useT();
-  const { data: issues, isLoading, isError, error, refetch } = useGetProjectIssues(projectId, {
-    query: { queryKey: getGetProjectIssuesQueryKey(projectId) },
-  });
+  const { issues, ccy, money, isLoading, isError, error, refetch } = useProjectIssuesMoney(projectId);
 
-  const ccy = useMemo(() => firstCurrency(issues), [issues]);
   const summary = useMemo(() => summariseBenefits((issues ?? []) as Issue[]), [issues]);
-  const money = useCallback((n: number) => formatCurrency(n, ccy), [formatCurrency, ccy]);
 
   const chartData = useMemo(
     () => summary.rows.slice(0, 8).map((r) => ({ name: truncateLabel(r.title), planned: r.planned, actual: r.actual })),
@@ -74,7 +70,7 @@ export function BenefitsRealisation({ projectId }: { projectId: string }) {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => money(v as number)} />
                 <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v) => money(v as number)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="planned" name="Planned" fill="#94a3b8" />
                 <Bar dataKey="actual" name="Realised" fill="#2563eb" />
