@@ -7,9 +7,8 @@ obligations land on your **systems of record** (reached through the broker), not
 
 ## Why this document exists (the buyer's actual question)
 
-README's "Why OmniProject exists" names three problems: tool sprawl, nobody trusting a
-second copy of their data, and migration risk killing the idea before it starts. For an
-enterprise buyer, the middle one **is** the security review: *"if we adopt this, does our
+Of the three problems the [README](../README.md) names, the middle one — **a second copy of
+your data** — **is** the security review for an enterprise buyer: *"if we adopt this, does our
 attack surface grow, and do we now carry DSAR/retention/backup obligations for a new store
 of our own data?"* The honest answer — backed by the data map below rather than asserted —
 is no, because there genuinely isn't a second copy to have obligations about. That's the

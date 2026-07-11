@@ -13,9 +13,8 @@ tier works fine, or `docker run -p 5678:5678 n8nio/n8n`).
 
 ## Why this is the fast path (and why read-only first)
 
-README's "Why OmniProject exists" comes down to three things: tool sprawl, nobody
-trusting a second copy of their data, and migration risk killing the idea before it
-starts. This guide is built to answer the third one in 15 minutes flat, not just
+Of the three problems the [README](../README.md) names, this guide is built to answer the
+third — **migration risk** — in 15 minutes flat, not just
 claim it: you connect one real backend, **read-only**, and OmniProject renders it
 live — nothing is copied out of it, nothing new is written to it, and disconnecting
 when you're done undoes exactly nothing, because nothing was ever moved. Read-only

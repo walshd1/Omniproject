@@ -509,20 +509,9 @@ snapshots** (no secrets); webhook subscriptions carry signing secrets and are
 **configured per-environment** (`WEBHOOKS` env or the admin UI), excluded from
 snapshots.
 
-**Licence lifecycle (vendor side):**
-
-```
-# 1. Generate an issuing keypair once; keep the private key offline.
-pnpm --filter @workspace/scripts exec tsx src/mint-license.ts keygen
-#    → set the printed public key as LICENSE_PUBLIC_KEY in deployments.
-
-# 2. Mint a customer licence:
-LICENSE_PRIVATE_KEY="$(cat issuer.key)" \
-  pnpm --filter @workspace/scripts exec tsx src/mint-license.ts mint \
-    --customer "Acme Corp" --tier enterprise \
-    --features branding,labels,webhooks --days 365
-#    → set the printed token as LICENSE_KEY in the customer's deployment.
-```
+The vendor-side lifecycle — generate an offline issuing keypair, then mint a signed,
+time-limited `LICENSE_KEY` per customer — is driven by `scripts/src/mint-license.ts`; the
+full keygen/mint workflow and the open-core model live in [LICENSING.md](../LICENSING.md).
 
 Config env: `BRAND_APP_NAME`, `BRAND_SHORT_NAME`, `BRAND_LOGO_URL`,
 `BRAND_PRIMARY_COLOR`, `BRAND_LOGIN_HEADING`, `BRAND_FOOTER_TEXT`,
@@ -531,15 +520,9 @@ Config env: `BRAND_APP_NAME`, `BRAND_SHORT_NAME`, `BRAND_LOGO_URL`,
 non-production, `LICENSE_DEV_FEATURES=all` unlocks premium for development
 (ignored in production).
 
-### Automated sales → licence fulfilment
-
-> **Removed during the pre-community period.** Premium is free to run, so there is
-> nothing to sell yet and the payment-provider plumbing (Stripe/Gumroad checkout
-> webhooks → automatic minting/fulfilment) has been taken out of the runtime — no
-> dead storefront code. Licences are minted directly with `mint-license.ts` (see
-> the lifecycle block above). When enforcement returns, fulfilment can be
-> re-introduced as a thin route over the same minting machinery. Full model +
-> the open-core deployment story: [LICENSING.md](../LICENSING.md).
+> **Automated sales fulfilment** (payment-provider checkout → automatic minting) was removed
+> for the pre-community period — premium is free to run, so there's no storefront code in the
+> runtime; licences are minted directly with `mint-license.ts`. See [LICENSING.md](../LICENSING.md).
 
 ## Environments & rollback (config change management)
 
