@@ -59,7 +59,7 @@ export function GlobalSearch() {
   const issues = useQueries({
     queries: (open ? projects ?? [] : []).map((p) => ({
       queryKey: ["global-search-issues", p.id] as const,
-      queryFn: () => issuesFetchPool(() => getJson<Issue[]>(`/api/projects/${p.id}/issues`)),
+      queryFn: () => issuesFetchPool(() => getJson<Issue[]>(`/api/projects/${encodeURIComponent(p.id)}/issues`)),
       staleTime: 30_000,
     })),
     combine: (results) =>

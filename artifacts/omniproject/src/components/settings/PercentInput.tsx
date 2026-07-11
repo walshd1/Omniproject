@@ -1,8 +1,14 @@
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 
 /**
  * A percentage <input> bound to a 0–1 fraction (so 20 ↔ 0.2). Shared by the rate-card / cost-rule
  * editors. Empty ⇒ `undefined`, for optional margin/overhead fields that fall back to a default.
+ *
+ * While focused it renders a local string buffer of exactly what the user typed, so a partial
+ * decimal ("7." on the way to "7.5") isn't rounded back to a whole percent on each keystroke — the
+ * controlled value only re-derives from the fraction when the field is NOT being edited. (A
+ * `type="number"` input also drops the trailing "." mid-entry, so this uses a decimal text input.)
  */
 export function PercentInput({ value, onChange, label, ariaLabel }: {
   value: number | undefined;
@@ -10,18 +16,26 @@ export function PercentInput({ value, onChange, label, ariaLabel }: {
   label?: string;
   ariaLabel: string;
 }) {
+  const canonical = value === undefined ? "" : String(Math.round(value * 1000) / 10);
+  const [buffer, setBuffer] = useState<string | null>(null);
   return (
     <label className="flex items-center gap-1 text-xs">
       {label && <span className="text-muted-foreground">{label}</span>}
       <Input
-        type="number" min={0} step={1} inputMode="decimal"
+        type="text" inputMode="decimal"
         aria-label={ariaLabel}
         className="w-20 rounded-none border-2 border-foreground tabular-nums"
-        value={value === undefined ? "" : Math.round(value * 1000) / 10}
+        value={buffer ?? canonical}
+        onFocus={() => setBuffer(canonical)}
+        onBlur={() => setBuffer(null)}
         onChange={(e) => {
-          const t = e.target.value.trim();
-          if (t === "") { onChange(undefined); return; }
-          const n = Number(t);
+          const raw = e.target.value;
+          // Only digits + a single decimal point while typing (keeps "7." valid mid-entry).
+          if (!/^\d*\.?\d*$/.test(raw)) return;
+          setBuffer(raw);
+          const trimmed = raw.trim();
+          if (trimmed === "" || trimmed === ".") { onChange(undefined); return; }
+          const n = Number(trimmed);
           if (isFinite(n) && n >= 0) onChange(n / 100);
         }}
       />

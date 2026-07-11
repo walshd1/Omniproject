@@ -66,11 +66,16 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     if (typeof document === "undefined") return;
     document.title = value.appName;
     const root = document.documentElement;
-    const setOrClear = (prop: string, v: string) => (v ? root.style.setProperty(prop, v) : root.style.removeProperty(prop));
-    setOrClear("--brand-primary", value.primaryColor);
+    const setOrClear = (prop: string, v: string | undefined) => (v ? root.style.setProperty(prop, v) : root.style.removeProperty(prop));
+    // Validate the server/licence-supplied brand tokens before injecting them as CSS custom
+    // properties: a colour must look like a colour, and a font-family must be a plain list of
+    // font-name tokens — so a value like `url(...)`/expression can't ride in via the branding feed.
+    const COLOUR = /^(#[0-9a-fA-F]{3,8}|rgb\(|rgba\(|hsl\(|hsla\(|[a-zA-Z]+)$/;
+    const FONT_FAMILY = /^[\w\s,'"-]+$/;
+    setOrClear("--brand-primary", COLOUR.test(value.primaryColor ?? "") ? value.primaryColor : undefined);
     // Customer brand FONT FAMILY (applied on all screens). Font SIZE + background
     // COLOUR are per-user (lib/a11y-prefs), not part of the company branding.
-    setOrClear("--brand-font-family", value.fontFamily);
+    setOrClear("--brand-font-family", FONT_FAMILY.test(value.fontFamily ?? "") ? value.fontFamily : undefined);
   }, [value.appName, value.primaryColor, value.fontFamily]);
 
   return (

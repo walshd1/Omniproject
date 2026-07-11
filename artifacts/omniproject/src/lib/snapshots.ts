@@ -61,7 +61,9 @@ export function createSnapshot(
 ): PortfolioSnapshot {
   return {
     schema: SNAPSHOT_SCHEMA,
-    id: `snap-${capturedAt}-${Math.round((input.projects?.length ?? 0))}-${(input.portfolio?.length ?? 0)}`,
+    // Include a random suffix: two captures in the same millisecond with the same counts would
+    // otherwise share an id and one gets silently dropped by addSnapshots' id-dedup.
+    id: `snap-${capturedAt}-${Math.round((input.projects?.length ?? 0))}-${(input.portfolio?.length ?? 0)}-${Math.random().toString(36).slice(2, 8)}`,
     capturedAt,
     label: input.label?.trim() || undefined,
     mode: input.mode,

@@ -149,10 +149,12 @@ describe("IssueGrid component", () => {
 
   it("toggles sort direction on a column header", () => {
     renderWithProviders(<IssueGrid projectId="p1" />, { client: seed([issue({ title: "B" }), issue({ id: "i2", title: "A" })]) });
-    const header = screen.getByRole("button", { name: /^Title/ });
-    fireEvent.click(header); // asc
+    const button = screen.getByRole("button", { name: /^Title/ });
+    // aria-sort belongs on the columnheader (<th>), not the activator button (WCAG/ARIA).
+    const header = button.closest("th")!;
+    fireEvent.click(button); // asc
     expect(header).toHaveAttribute("aria-sort", "ascending");
-    fireEvent.click(header); // desc
+    fireEvent.click(button); // desc
     expect(header).toHaveAttribute("aria-sort", "descending");
   });
 

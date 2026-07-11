@@ -97,7 +97,9 @@ export function AgileBoard({ projectId }: { projectId: string }) {
       (old ?? []).map((i) => (i.id === issue.id ? { ...i, status } : i)),
     );
     updateIssue.mutate(
-      { projectId, issueId: issue.id, data: { status } },
+      // Bind the optimistic-concurrency token like every other write surface (Gantt/grid/inline):
+      // without expectedVersion a drag is last-write-wins and silently clobbers a concurrent edit.
+      { projectId, issueId: issue.id, data: { status, ...(issue.version != null ? { expectedVersion: issue.version } : {}) } },
       {
         onSuccess: () => {
           invalidate();
@@ -120,13 +122,19 @@ export function AgileBoard({ projectId }: { projectId: string }) {
                 }),
           });
         },
-        onError: () => {
+        onError: (err) => {
           // Roll back ONLY the affected issue to its fromStatus, so a concurrent
           // in-flight move of a different card isn't clobbered by a whole-list restore.
           queryClient.setQueryData<Issue[]>(key, (old) =>
             (old ?? []).map((i) => (i.id === issue.id ? { ...i, status: fromStatus } : i)),
           );
-          toast({ title: "ERROR", description: "Failed to move issue.", variant: "destructive" });
+          const conflict = (err as { status?: number }).status === 409;
+          if (conflict) invalidate(); // pull the winning state the same way the other surfaces do
+          toast({
+            title: conflict ? "EDIT CONFLICT" : "ERROR",
+            description: conflict ? "This card changed elsewhere — refreshed instead of overwriting." : "Failed to move issue.",
+            variant: "destructive",
+          });
         },
       },
     );
