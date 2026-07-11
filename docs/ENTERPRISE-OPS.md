@@ -33,6 +33,7 @@ persist their data.
 | Deployment config (settings, vendor maps, rulesets) | **Encrypted at rest** (AES-256-GCM) | `OMNI_CONFIG_DIR` (operator-owned) |
 | SCIM directory (lifecycle overlay) | Small, **sealed** users/groups file | `SCIM_STATE_FILE` |
 | Security state (revocations, grants, kill switches) | **Sealed** state file | `SECURITY_STATE_FILE` |
+| Audit-chain head (tamper-evidence anchor) | Sealed head file; resets to genesis if unset/not restored | `AUDIT_CHAIN_FILE` (place under `OMNI_CONFIG_DIR`) |
 | Audit log | **Not retained locally** — emitted to stdout / your SIEM | Your SIEM (operator-owned) |
 | Optional read cache | RAM only, per-replica, TTL-bounded (off by default) | — |
 | Optional state-history (time-travel) | **Egressed to an operator logging server** if `LOGGING_SYNC` is enabled (off by default; out of warranty) | Your logging server |
@@ -107,6 +108,9 @@ directory** (`OMNI_CONFIG_DIR`) plus the secrets vault / external secrets manage
    the vault root key (`VAULT_KEY` / KMS `VAULT_KEY_ENC`).
 4. **SCIM / security state:** back up `SCIM_STATE_FILE` and `SECURITY_STATE_FILE` (both sealed)
    if you rely on their durability; otherwise they rebuild (SCIM re-syncs from the IdP).
+5. **Audit-chain head:** back up `AUDIT_CHAIN_FILE` (place it under `OMNI_CONFIG_DIR`). If it is unset
+   or not restored, the tamper-evident chain resets to genesis (`seq 0`) on boot, so the restored
+   `/api/security/audit/anchor` step below starts a NEW chain rather than continuing the prior one.
 
 **Restore:** decrypt the bundle (or mount the volume), drop the JSON into the target's
 `OMNI_CONFIG_DIR`, supply the keys, and boot — the target re-seals under its own key. No HTTP

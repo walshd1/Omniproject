@@ -25,6 +25,13 @@ describes are enforced in code and CI.
 
 ## Conformance summary (WCAG 2.1 AA)
 
+> **Scope of the "Supports" claims below.** The automated axe-core evidence covers **4 top-level
+> static routes** (`/`, `/projects`, `/reports`, `/settings`); the setup wizard, dialogs/modals, and
+> the board/Gantt drag-drop surfaces are **not** separately machine-scanned, and the keyboard-parity
+> guard is a static source check, not a full WCAG audit of dynamic content. Read the ratings as
+> **"Supports" on the scanned routes, "Partially Supports" pending scan coverage** for wizard/modal/
+> drag-drop surfaces.
+
 | Principle | Level | Conformance | Notes |
 | --- | --- | --- | --- |
 | **1. Perceivable** | A/AA | Supports | Text alternatives on icons/controls; semantic landmarks/headings; colour is never the sole signal (status carries text/shape); contrast meets AA (tokens documented WCAG-AA in `index.css`); honours `prefers-reduced-motion` **and** an explicit per-user toggle; content reflows + respects user text scaling (0.85–1.5×). |
