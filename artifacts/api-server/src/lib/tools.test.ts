@@ -163,9 +163,10 @@ test("checkEndpointReachable: HTTP response ⇒ reachable, network error ⇒ not
   assert.deepEqual(await checkEndpointReachable("nonsense"), { reachable: false, error: "not a valid http(s) URL" });
   const original = globalThis.fetch;
   globalThis.fetch = (async () => ({ status: 200 })) as unknown as typeof fetch;
-  assert.deepEqual(await checkEndpointReachable("http://up.local"), { reachable: true, status: 200 });
+  // IP literal ⇒ the egress guard does no DNS lookup, so the mocked fetch decides the outcome.
+  assert.deepEqual(await checkEndpointReachable("http://127.0.0.1/"), { reachable: true, status: 200 });
   globalThis.fetch = (async () => { throw new Error("ECONNREFUSED"); }) as unknown as typeof fetch;
-  const down = await checkEndpointReachable("http://down.local");
+  const down = await checkEndpointReachable("http://127.0.0.1/");
   assert.equal(down.reachable, false);
   globalThis.fetch = original;
 });

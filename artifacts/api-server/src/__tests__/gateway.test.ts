@@ -227,7 +227,7 @@ test("validateClaims: throws on wrong audience, wrong issuer, and expiry", () =>
 
 test("verifyIdToken: end-to-end with a stubbed JWKS endpoint", async () => {
   const fetchStub = (async () => new Response(JSON.stringify({ keys: [TEST_JWK] }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
-  const claims = await verifyIdToken(mintRs256(GOOD_CLAIMS), { jwksUri: "https://idp.test/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub });
+  const claims = await verifyIdToken(mintRs256(GOOD_CLAIMS), { jwksUri: "http://127.0.0.1/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub });
   assert.equal(claims.sub, "user-1");
 });
 
@@ -238,7 +238,7 @@ test("verifyIdToken: throws on a forged signature", async () => {
   const sig = crypto.sign("sha256", Buffer.from(`${header}.${body}`), otherKey).toString("base64url");
   const forged = `${header}.${body}.${sig}`;
   const fetchStub = (async () => new Response(JSON.stringify({ keys: [TEST_JWK] }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
-  await assert.rejects(verifyIdToken(forged, { jwksUri: "https://idp.test/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }), /signature/);
+  await assert.rejects(verifyIdToken(forged, { jwksUri: "http://127.0.0.1/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }), /signature/);
 });
 
 test("verifyIdToken: rejects an alg-confusion (HS256) token signed with the public key", async () => {
@@ -250,19 +250,19 @@ test("verifyIdToken: rejects an alg-confusion (HS256) token signed with the publ
   const sig = crypto.createHmac("sha256", pubPem).update(`${header}.${body}`).digest("base64url");
   const forged = `${header}.${body}.${sig}`;
   const fetchStub = (async () => new Response(JSON.stringify({ keys: [TEST_JWK] }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
-  await assert.rejects(verifyIdToken(forged, { jwksUri: "https://idp.test/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }));
+  await assert.rejects(verifyIdToken(forged, { jwksUri: "http://127.0.0.1/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }));
 });
 
 test("verifyIdToken: rejects an expired token", async () => {
   const expired = mintRs256({ ...GOOD_CLAIMS, exp: NOW - 3600, iat: NOW - 7200 });
   const fetchStub = (async () => new Response(JSON.stringify({ keys: [TEST_JWK] }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
-  await assert.rejects(verifyIdToken(expired, { jwksUri: "https://idp.test/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }), /exp|expired|verification/i);
+  await assert.rejects(verifyIdToken(expired, { jwksUri: "http://127.0.0.1/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }), /exp|expired|verification/i);
 });
 
 test("verifyIdToken: rejects a wrong-audience token", async () => {
   const wrongAud = mintRs256({ ...GOOD_CLAIMS, aud: "someone-else" });
   const fetchStub = (async () => new Response(JSON.stringify({ keys: [TEST_JWK] }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
-  await assert.rejects(verifyIdToken(wrongAud, { jwksUri: "https://idp.test/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }), /aud|audience|verification/i);
+  await assert.rejects(verifyIdToken(wrongAud, { jwksUri: "http://127.0.0.1/jwks", issuer: "https://idp.test", audience: "omni-client", fetchImpl: fetchStub }), /aud|audience|verification/i);
 });
 
 // ── Notification hub targeting ─────────────────────────────────────────────────

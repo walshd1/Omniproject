@@ -3,7 +3,7 @@ import { getSettings, updateSettings, AI_PROVIDERS, type DeploymentState, type C
 import { recordAudit, createHttpSink, type HttpSink } from "./audit";
 import { sharedStateMode, sharedRingPush, sharedRingRead } from "./shared-state";
 import { logger } from "./logger";
-import { isSafeOutboundUrl } from "./url-safety";
+import { assertEgressAllowed } from "./egress";
 
 /**
  * Capability governance — one model for every "thing that can move data or be turned
@@ -229,8 +229,13 @@ export interface EndpointCheck {
 export async function checkEndpointReachable(url: string, timeoutMs = 3000): Promise<EndpointCheck> {
   const valid = validEndpoint(url);
   if (!valid) return { reachable: false, error: "not a valid http(s) URL" };
-  // Don't let the admin reachability-tester be turned into an SSRF probe of cloud metadata.
-  if (!isSafeOutboundUrl(valid)) return { reachable: false, error: "blocked: link-local/metadata address" };
+  // Full egress guard (literal block + post-DNS-resolution recheck + allowlist/residency) so the
+  // admin reachability-tester can't be turned into an SSRF/DNS-rebind probe of cloud metadata.
+  try {
+    await assertEgressAllowed(valid);
+  } catch {
+    return { reachable: false, error: "blocked: egress not allowed (link-local/metadata or policy)" };
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {

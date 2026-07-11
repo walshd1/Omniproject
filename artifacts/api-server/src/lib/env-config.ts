@@ -154,6 +154,12 @@ export function checkRequiredEnv(env: NodeJS.ProcessEnv = process.env): string[]
   const scimToken = env["SCIM_TOKEN"]?.trim();
   if (scimToken !== undefined && scimToken.length < 24) issues.push("SCIM_TOKEN must be at least 24 characters when SCIM is enabled");
 
+  // The broker pre-shared key authenticates the gateway↔backend channel (HMAC + envelope seal)
+  // AND seeds at-rest key derivation via the master fallback chain — a weak/short one undermines
+  // both. When set, require the same strength as the SCIM bearer.
+  const brokerPsk = env["BROKER_PSK"]?.trim();
+  if (brokerPsk !== undefined && brokerPsk.length < 24) issues.push("BROKER_PSK must be at least 24 characters");
+
   // Disabling rate limiting in production removes a key DoS/brute-force control.
   if (envBool("RATE_LIMIT_DISABLED", env)) issues.push("RATE_LIMIT_DISABLED must not be set in production");
 

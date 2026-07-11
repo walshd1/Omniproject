@@ -14,8 +14,11 @@ import {
 
 const CONFIG: OAuth2Config = {
   authUrl: "https://github.com/login/oauth/authorize",
-  tokenUrl: "https://github.com/login/oauth/access_token",
-  userInfoUrl: "https://api.github.com/user",
+  // token/userinfo are fetched server-side (now egress-guarded) — use IP literals so the guard
+  // performs no DNS lookup and the unit test stays hermetic/offline. authUrl is only redirected
+  // to (not fetched), so it keeps its real value for the buildAuthUrl assertion.
+  tokenUrl: "http://127.0.0.1:9999/access_token",
+  userInfoUrl: "http://127.0.0.1:9999/user",
   clientId: "client-123",
   clientSecret: "secret-xyz",
   scope: "read:user user:email",

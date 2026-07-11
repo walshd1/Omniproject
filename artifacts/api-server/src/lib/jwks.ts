@@ -1,5 +1,5 @@
 import { jwtVerify, createLocalJWKSet, type JSONWebKeySet } from "jose";
-import { assertSafeOutboundUrl } from "./url-safety";
+import { assertEgressAllowed } from "./egress";
 
 /**
  * JWKS / ID-token verification.
@@ -91,7 +91,10 @@ const JWKS_TTL_MS = 10 * 60 * 1000;
 export async function fetchJwks(jwksUri: string, fetchImpl: typeof fetch = fetch): Promise<Jwk[]> {
   const cached = jwksCache.get(jwksUri);
   if (cached && Date.now() - cached.at < JWKS_TTL_MS) return cached.keys;
-  assertSafeOutboundUrl(jwksUri, "jwks_uri");
+  // Full egress guard (literal block + post-DNS-resolution recheck + allowlist/residency): the
+  // jwks_uri comes from the IdP discovery doc, so a name that RESOLVES to the metadata IP must be
+  // blocked too — a literal-only check would miss it (DNS-rebind).
+  await assertEgressAllowed(jwksUri);
   const res = await fetchImpl(jwksUri, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new Error(`JWKS fetch failed (${res.status})`);
   const doc = (await res.json()) as { keys?: Jwk[] };
