@@ -1,10 +1,12 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import {
   sealConfig, openConfig, readMaybeSealed, exportConfigBundle, openBundle,
   rotateInternalKey, internalKeyFingerprint, isSealedConfig, __resetConfigCrypto,
   ConfigDecryptError, isUndecryptableSealed,
 } from "./config-crypto";
+import { aesGcmSeal } from "./crypto-aes-gcm";
 
 /**
  * Config-at-rest encryption + secure export: AES-256-GCM, tamper-evident, versioned
@@ -15,7 +17,7 @@ afterEach(() => { __resetConfigCrypto(); delete process.env["CONFIG_KEY_RAW"]; }
 test("seal → open round-trips and is opaque at rest", () => {
   const plain = JSON.stringify({ capabilityStates: { "provider:openai": { state: "off" } } });
   const token = sealConfig(plain);
-  assert.ok(token.startsWith("c1.1.")); // internal format, version 1
+  assert.ok(token.startsWith("c2.1.")); // current internal format (HKDF), version 1
   assert.ok(!/provider:openai/.test(token));
   assert.equal(openConfig(token), plain);
 });
@@ -40,7 +42,7 @@ test("a rotated internal key still opens OLD tokens (version embedded) + seals n
   const oldToken = sealConfig("v1 data"); // sealed at v1
   rotateInternalKey();
   const newToken = sealConfig("v2 data"); // sealed at v2
-  assert.ok(newToken.startsWith("c1.2."));
+  assert.ok(newToken.startsWith("c2.2."));
   assert.equal(openConfig(oldToken), "v1 data"); // old still readable
   assert.equal(openConfig(newToken), "v2 data");
 });
@@ -98,14 +100,31 @@ test("with CONFIG_KEY_RAW, a post-export rekey genuinely rotates the at-rest key
   process.env["CONFIG_KEY_RAW"] = Buffer.alloc(32, 7).toString("base64");
   __resetConfigCrypto();
   const v1 = sealConfig("secret");
-  assert.ok(v1.startsWith("c1.1."));
+  assert.ok(v1.startsWith("c2.1."));
   const fp1 = internalKeyFingerprint();
   rotateInternalKey(); // the post-export rekey — was a silent no-op under a raw key before
   const v2 = sealConfig("secret");
-  assert.ok(v2.startsWith("c1.2."));
+  assert.ok(v2.startsWith("c2.2."));
   assert.notEqual(internalKeyFingerprint(), fp1); // key actually changed
   assert.equal(openConfig(v1), "secret"); // v1 still opens (backward-compatible: v1 = raw key)
   assert.equal(openConfig(v2), "secret");
+});
+
+test("LEGACY c1. tokens (pre-HKDF sha256 derivation) still decrypt after the HKDF migration", () => {
+  // Reconstruct a token EXACTLY as the pre-migration code sealed it: a master-derived SHA-256 key,
+  // AES-GCM, c1.1. framing. It MUST still open now that fresh writes are c2. (HKDF) — proving
+  // existing at-rest config survives the upgrade with no re-key.
+  const prev = process.env["SESSION_SECRET"];
+  process.env["SESSION_SECRET"] = "legacy-master-secret-value";
+  try {
+    const legacyKey = crypto.createHash("sha256").update("config:v1:legacy-master-secret-value").digest();
+    const legacyToken = "c1.1." + aesGcmSeal("legacy-plaintext", legacyKey);
+    assert.equal(openConfig(legacyToken), "legacy-plaintext"); // legacy c1. still opens
+    assert.ok(isSealedConfig(legacyToken));
+    assert.ok(sealConfig("x").startsWith("c2.1.")); // …while new writes are the HKDF c2. format
+  } finally {
+    if (prev === undefined) delete process.env["SESSION_SECRET"]; else process.env["SESSION_SECRET"] = prev;
+  }
 });
 
 test("openBundle rejects a wrong prefix and a wrong-length key", () => {

@@ -874,7 +874,7 @@ Config-at-rest encryption + secure export.
 
 | Function | What it does |
 | --- | --- |
-| `sealConfig` | Seal a config string under the current internal key (version embedded). |
+| `sealConfig` | Seal a config string under the current internal key (HKDF, version embedded, `c2.` format). |
 | `openConfig` | Open an internal-format token, or null. |
 | `readMaybeSealed` | Read possibly-sealed config text: open if sealed, else return as-is (plaintext migration). |
 | `isUndecryptableSealed` | True iff `text` is a sealed token that CANNOT be opened with the current key material. |
@@ -990,6 +990,8 @@ Small shared key/hash primitives, so the same derivations aren't hand-rolled in 
 | --- | --- |
 | `deriveKey` | Derive a 32-byte AES key from a high-entropy secret via HKDF-SHA256, with a domain-separation `info` label so the same secret yields independent keys per use. |
 | `deriveKeyCached` | LEGACY derivation: sha256(secret) → 32-byte key, cached by secret. |
+| `deriveKeyFromBytes` | Like `deriveKey` but over raw key BYTES (e.g. a KMS-unwrapped / CONFIG_KEY_RAW key) rather than a string secret — same HKDF-SHA256 + fixed salt + domain-separating `info`. |
+| `masterSecret` | The env master-secret fallback ladder shared by the at-rest crypto modules (config, vault, rate-card): an optional leading env var, then `SESSION_SECRET`, then `BROKER_PSK`, then the caller's own dev default. |
 | `decodeKey32` | Parse a base64 key that must be exactly 32 bytes (an AES-256 key), or null if it isn't. |
 | `fingerprint` | A short hex fingerprint of a value (SHA-256, truncated). |
 | `constantTimeEqual` | Constant-time string equality: length-checked first (a length mismatch is not secret-dependent, so short-circuiting on it leaks nothing), then `crypto.timingSafeEqual` over equal-length buffers so a MATCHING prefix can't be timed out of a comparison against a secret (tokens, HMACs, CSRF doubles-submit values, SCIM bearer). |

@@ -262,7 +262,7 @@ test("fuzz: sealConfig/openConfig round-trips ANY payload; readMaybeSealed + isS
     (r) => payload(r),
     (x) => {
       const sealed = sealConfig(x);
-      assert.ok(sealed.startsWith("c1."));
+      assert.ok(sealed.startsWith("c2.")); // current HKDF internal format
       assert.equal(isSealedConfig(sealed), true);
       assert.equal(openConfig(sealed), x);
       assert.equal(readMaybeSealed(sealed), x);
@@ -300,8 +300,8 @@ test("fuzz: openConfig / readMaybeSealed on arbitrary non-tokens never throw", (
       assert.doesNotThrow(() => { a = openConfig(s); });
       assert.doesNotThrow(() => { b = readMaybeSealed(s); });
       assert.ok(a === null || typeof a === "string");
-      // A non-"c1." string passes through readMaybeSealed unchanged.
-      if (!s.startsWith("c1.")) assert.equal(b, s);
+      // A non-sealed string (neither c1. nor c2.) passes through readMaybeSealed unchanged.
+      if (!isSealedConfig(s)) assert.equal(b, s);
     },
     { runs: 300 },
   );

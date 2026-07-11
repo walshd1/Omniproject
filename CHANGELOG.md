@@ -63,6 +63,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Security
 
+- **Config + vault at-rest keys now derive via HKDF (non-breaking).** `config-crypto` and `vault-store`
+  previously derived their at-rest master key with a bare `SHA-256(secret)`; both now use the shared
+  HKDF `deriveKey` (domain-separated, salted) like the rest of the codebase. The migration is
+  **versioned and non-breaking** — new writes use a new envelope prefix (`c2.` / `k2.`) while existing
+  ciphertext (`c1.` / `k1.`) keeps decrypting via the legacy path, so **no re-key of on-disk config or
+  vault data is required**; secrets migrate to the HKDF envelope on their next write. The copied
+  master-secret fallback ladder is unified into one `masterSecret()` helper (each site keeps its exact
+  order + dev default; `key-registry` deliberately keeps its own ordering so live signing material is
+  untouched). A regression test seals a token with the old derivation and asserts it still opens.
+
 - **Fleet-wide broker-HMAC replay defence (Redis-gated, stateless default unchanged).** Added
   `verifyBrokerRequestShared`: signature + freshness are identical to `verifyBrokerRequest`, but the
   nonce/replay check claims the nonce with an atomic compare-and-set in the shared-state seam when
