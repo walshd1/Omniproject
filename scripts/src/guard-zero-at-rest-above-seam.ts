@@ -25,6 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { walkFiles } from "./lib/walk-files";
+import { importSpecifier } from "./lib/ts-source";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -53,12 +54,6 @@ const FORBIDDEN = [
   "@azure/storage-blob", "@azure/cosmos", "@azure/data-tables",
   "@snowflake/sdk", "snowflake-sdk",
 ];
-
-/** Extract the imported module specifier from an import/require/dynamic-import line. */
-function importSpecifier(line: string): string | null {
-  const m = line.match(/(?:\bfrom|\bimport|\brequire\s*\(|\bimport\s*\()\s*["']([^"']+)["']/);
-  return m ? m[1]! : null;
-}
 
 /**
  * Deliberate, documented exceptions: a forbidden package that IS allowed at a specific site because

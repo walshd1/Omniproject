@@ -92,6 +92,10 @@ export function auditComposeDoc(file: string, doc: ComposeDoc, opts: { prod: boo
       if (gateway.read_only !== true) {
         issues.push({ file, service: gwName, message: "gateway is not read_only in a production compose (stateless posture)" });
       }
+    } else {
+      // Neither known gateway service name resolved: the hardening checks above would silently
+      // pass. Fail instead — a renamed/removed gateway must not slip prod hardening unchecked.
+      issues.push({ file, message: "production compose defines no 'omni-shell' or 'gateway' service — cannot verify gateway hardening (rename the service or update the compose guard)" });
     }
   }
   return issues;

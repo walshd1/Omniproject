@@ -19,6 +19,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { walkFiles } from "./lib/walk-files";
+import { escapeTableCell } from "./lib/markdown";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -115,10 +116,13 @@ function joinRun(fullText: string, ranges: Range[]): string {
 function leadingComment(fullText: string, node: ts.Node): string {
   const ranges = ts.getLeadingCommentRanges(fullText, node.getFullStart()) ?? [];
   if (!ranges.length) return "";
-  // Take the run that ENDS at the last range (the comment closest to the node).
+  // Take the run that ENDS at the last range (the comment closest to the node). Stop at a gap
+  // that holds any code OR a blank line — a blank line separates distinct comment blocks (e.g. the
+  // file-header comment above the first export), so it must not be pulled into the node's own doc.
   const tail: Range[] = [ranges[ranges.length - 1]!];
   for (let i = ranges.length - 2; i >= 0; i--) {
-    if (fullText.slice(ranges[i]!.end, tail[0]!.pos).trim() !== "") break;
+    const gap = fullText.slice(ranges[i]!.end, tail[0]!.pos);
+    if (gap.trim() !== "" || /\n[ \t]*\r?\n/.test(gap)) break;
     tail.unshift(ranges[i]!);
   }
   return joinRun(fullText, tail);
@@ -221,7 +225,7 @@ for (const { root, files } of sections) {
     if (f.fns.length) {
       md.push("| Function | What it does |");
       md.push("| --- | --- |");
-      for (const fn of f.fns) md.push(`| \`${fn.name}\` | ${fn.doc || "—"} |`);
+      for (const fn of f.fns) md.push(`| \`${fn.name}\` | ${fn.doc ? escapeTableCell(fn.doc) : "—"} |`);
       md.push("");
     }
   }
