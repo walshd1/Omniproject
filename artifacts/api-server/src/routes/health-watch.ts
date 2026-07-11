@@ -5,6 +5,7 @@ import { deliverLocal } from "../lib/notify-hub";
 import { runHealthWatch, recentFindings, type HealthFinding } from "../lib/health-watch";
 import { runExecDigest } from "../lib/exec-digest";
 import { runProactiveDigest } from "../lib/proactive-digest";
+import { runScheduledExport } from "../lib/scheduled-export";
 import { runDriftCanary, recentDriftFindings } from "../lib/drift-canary";
 
 /**
@@ -65,6 +66,13 @@ router.post("/admin/proactive-digest/run", requireRole("admin"), async (req, res
   const role = requested as Role | undefined;
   await runJob(res, "proactive-digest", () => runProactiveDigest({ now: Date.now(), broker: getBroker(), role }));
 });
+
+// Trigger a scheduled data export now (admin). Renders the configured dataset/format and emails it as
+// an attachment to the digest recipients. Like the digests, an external scheduler calls this so it
+// fires once for the fleet. A no-op delivery unless SMTP + recipients are configured.
+router.post("/admin/scheduled-export/run", requireRole("admin"), (_req, res) =>
+  runJob(res, "scheduled-export", () => runScheduledExport({ now: Date.now(), broker: getBroker() })),
+);
 
 // Trigger the third-party API drift canary now (admin). Like the digests, an external scheduler
 // / the broker cron calls this so it fires once for the fleet; the in-process timer is for

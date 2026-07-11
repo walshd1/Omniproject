@@ -101,6 +101,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Added
 
+- **Scheduled file-export delivery.** A new opt-in scheduled job renders a dataset (projects / issues /
+  activity, `SCHEDULED_EXPORT_DATASET`) in a chosen format (`SCHEDULED_EXPORT_FORMAT` = csv/json/md/pdf)
+  and **emails it as an attachment** to the configured `digestDelivery.emailRecipients`. Read-only and
+  stateless-safe: it mints the same keyed, viewer-roled autonomous principal the digests use, reads the
+  data DIRECTLY through the neutral broker seam (not the req-bound getters), renders via the shared
+  `lib/export-datasets` serialisers, and delivers above the seam via SMTP. Off by default
+  (`SCHEDULED_EXPORT_INTERVAL_HOURS=0`); a fleet drives `POST /api/admin/scheduled-export/run` from an
+  external scheduler. A no-op unless SMTP + recipients are set. (`email.ts` gained attachment support;
+  the export serialisers were extracted from the route into `lib/export-datasets` and are now shared.)
+
 - **Helm chart hardening — NetworkPolicy, graceful shutdown, default HA spread.** The chart
   (`deploy/helm/omniproject`) gains an opt-in `NetworkPolicy` (targets only the gateway pods; DNS
   egress always allowed; tighten ingress source + strict egress via values) so the recommended Helm
