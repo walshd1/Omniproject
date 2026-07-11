@@ -15,8 +15,21 @@ afterEach(() => {
   updateSettings({
     webhooks: [], federatedPeers: [], disabledFeatures: [], enabledFeatures: [], hiddenFields: [],
     savedViews: [], labelOverrides: {}, branding: null, reportingCurrency: null, fxRateAsOfDate: null,
-    fxRatePolicy: "spot", fieldOverrides: { fields: {}, entities: {} },
+    fxRatePolicy: "spot", fieldOverrides: { fields: {}, entities: {} }, digestDelivery: { emailRecipients: [] },
   });
+});
+
+test("digestDelivery.emailRecipients must be a bounded array of valid email addresses", () => {
+  throws({ digestDelivery: "nope" });
+  throws({ digestDelivery: { emailRecipients: "a@x.io" } }); // string, not array
+  throws({ digestDelivery: { emailRecipients: [123] } }); // non-string entry
+  throws({ digestDelivery: { emailRecipients: ["not-an-email"] } }); // fails the x@y.z shape check
+  throws({ digestDelivery: { emailRecipients: Array.from({ length: 101 }, (_, i) => `u${i}@x.io`) } }); // over the cap
+  assert.deepEqual(
+    updateSettings({ digestDelivery: { emailRecipients: ["pm@x.io", "pgm@team.example"] } }).digestDelivery.emailRecipients,
+    ["pm@x.io", "pgm@team.example"],
+  );
+  assert.doesNotThrow(() => updateSettings({ digestDelivery: { emailRecipients: [] } })); // empty = delivery off
 });
 
 test("scalar enums: aiProvider / sttProvider / deploymentProfile / fxRatePolicy", () => {

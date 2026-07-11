@@ -1,6 +1,8 @@
 import type { Broker, PortfolioRow } from "../broker/types";
 import { ROLES, type Role } from "./rbac";
 import { runScheduledAutonomousJob, createIntervalScheduler } from "./scheduled-job";
+import { deliverDigestEmail } from "./digest-delivery";
+import type { Mailer } from "./email";
 import { logger } from "./logger";
 
 /**
@@ -209,6 +211,8 @@ export interface RunDigestOptions {
   sendWhenEmpty?: boolean;
   /** Deliver the digest (defaults to the notify bus); injectable for tests. */
   publish?: (notification: { kind: string; title: string; body: string; target?: { role?: Role } }) => Promise<unknown> | unknown;
+  /** Inject the SMTP mailer for the optional email-delivery step (tests). Production reads SMTP env. */
+  mailer?: Mailer;
 }
 
 export interface RunDigestResult {
@@ -245,6 +249,14 @@ export async function runProactiveDigest(opts: RunDigestOptions): Promise<RunDig
       };
     },
   });
+  // Optional above-seam email delivery — only when the digest was actually dispatched (an empty,
+  // healthy digest stays silent on every channel). Best-effort; a no-op unless SMTP + recipients set.
+  if (result.dispatched) {
+    await deliverDigestEmail(
+      { title: result.digest.title, body: result.digest.body },
+      opts.mailer ? { mailer: opts.mailer } : {},
+    ).catch((err) => logger.warn({ err }, "proactive-digest: email delivery failed"));
+  }
   return result;
 }
 

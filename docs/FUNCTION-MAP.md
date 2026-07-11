@@ -23,6 +23,22 @@ Express application assembly — wires the middleware chain (security headers, b
 | --- | --- |
 | `bootstrap` | Async boot side-effects that must run BEFORE the server serves AND before any sealed config/state is read. |
 
+### `artifacts/api-server/src/bench/fixtures.ts`
+
+Deterministic fixtures for the portfolio-fold compute benchmark (run.ts).
+
+| Function | What it does |
+| --- | --- |
+| `mulberry32` | Deterministic fixtures for the portfolio-fold compute benchmark (run.ts). |
+| `portfolioHealthRows` | Portfolio-health rows — what `summarizeHealth` folds. |
+| `financeRows` | Finance rows — what `foldFinance` folds (currency-mixed to exercise the FX conversion path). |
+| `capacityRows` | Capacity rows — what `foldCapacity` folds. |
+| `projectRows` | Project rows with programme membership + denormalised finance — what `groupProgrammes` and `aggregateFinancials` roll up. |
+
+### `artifacts/api-server/src/bench/run.ts`
+
+Compute benchmark harness — measures the CPU cost of the pure PORTFOLIO-SCALE fold/rollup functions the gateway derives on every `GET /portfolio/summary` (and programme) request, at configurable scale, with NO server boot and NO network.
+
 ### `artifacts/api-server/src/broker/adaptive-ttl.ts`
 
 Latency-aware adaptive TTL for the opt-in read cache.
@@ -794,6 +810,18 @@ Column → canonical-field mapper.
 | `applyColumnMapping` | Apply a confirmed mapping to raw rows, producing canonical payloads. |
 | `mappingFromSuggestions` | Derive the confirmed-mapping list from suggestions (drops the unmapped ones). |
 
+### `artifacts/api-server/src/lib/comments.ts`
+
+Comment threads — lightweight collaboration on a work item, stored in the EPHEMERAL shared-state seam (in-process by default, fleet-wide when Redis is configured), keyed by the same room-id convention presence uses (`issue:<projectId>:<issueId>` / `project:<projectId>`).
+
+| Function | What it does |
+| --- | --- |
+| `parseMentions` | Extract @mentions from a body: `@token` where token is `[A-Za-z0-9._-]` (1–64 chars), at a word boundary. |
+| `addComment` | Add a comment to a room's thread. |
+| `listComments` | The room's thread, oldest first (stable — ties broken by id). |
+| `getComment` | Read a single comment (for the authorization check on delete). |
+| `deleteComment` | Delete a comment. |
+
 ### `artifacts/api-server/src/lib/compression.ts`
 
 Dependency-free response compression (gzip/brotli) for the gateway.
@@ -1099,6 +1127,14 @@ Stateful developer mode (opt-in).
 | --- | --- |
 | `saveState` | Dev-only: persist the in-memory demo state to disk (off in prod). |
 | `loadState` | Dev-only: load a previously persisted demo state, or null if none. |
+
+### `artifacts/api-server/src/lib/digest-delivery.ts`
+
+Optional ABOVE-THE-SEAM email delivery of the scheduled digests (proactive + exec).
+
+| Function | What it does |
+| --- | --- |
+| `deliverDigestEmail` | Email a built digest to the configured recipients, in addition to the notify-bus dispatch. |
 
 ### `artifacts/api-server/src/lib/drift-canary.ts`
 
@@ -2368,6 +2404,10 @@ Admin-only live broker log.
 ### `artifacts/api-server/src/routes/capabilities.ts`
 
 Capability + field-manifest endpoints.
+
+### `artifacts/api-server/src/routes/comments.ts`
+
+Comment threads (the "comments" feature module) — lightweight collaboration on a work item.
 
 ### `artifacts/api-server/src/routes/content-pages.ts`
 

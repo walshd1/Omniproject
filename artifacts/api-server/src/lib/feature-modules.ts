@@ -135,6 +135,18 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "cost", // holds an SSE stream per viewer; per-replica in-memory rooms
   },
   {
+    // Collaboration: comment threads + @mentions on a work item. Comments live in the ephemeral
+    // shared-state seam (in memory by default, fleet-wide with Redis); durability is an opt-in
+    // write-through to the backend (COMMENT_PERSISTENCE=backend). Has a backend route, so it loads
+    // lazily; the SPA gates it via useFeatures.
+    id: "comments",
+    label: "Comments & @mentions",
+    description: "Discuss a work item in a thread and @mention teammates (real-time notification).",
+    load: () => import("../routes/comments"),
+    defaultOff: true,
+    reason: "storage", // holds comment state in the shared-state seam (soft, opt-in write-through)
+  },
+  {
     // UI-only: makes the per-user PREDICTIVE (speculative) prefetch toggle AVAILABLE (off by default
     // per user). Deterministic prefetch-on-intent (hover/focus) is always on and ungated; this only
     // governs the heavier "warm data you haven't asked for" tier, which multiplies broker calls — so
