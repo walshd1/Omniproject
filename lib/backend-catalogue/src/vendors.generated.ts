@@ -297,7 +297,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "issues": true,
       "portfolio": false,
       "raid": false,
-      "resources": false,
+      "resources": true,
       "scheduling": true
     },
     "credentialType": "clickUpApi",
@@ -2553,7 +2553,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "portfolio": false,
       "raid": false,
       "resources": false,
-      "scheduling": false
+      "scheduling": true
     },
     "credentialType": "trelloApi",
     "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.trello/",
@@ -2648,7 +2648,7 @@ export const BACKENDS_DATA: BackendDefinition[] = [
       "issues": true,
       "portfolio": false,
       "raid": false,
-      "resources": false,
+      "resources": true,
       "scheduling": true
     },
     "credentialType": "wrikeOAuth2Api",

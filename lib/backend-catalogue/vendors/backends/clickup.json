@@ -68,7 +68,7 @@
     "issues": true,
     "portfolio": false,
     "raid": false,
-    "resources": false,
+    "resources": true,
     "scheduling": true
   },
   "credentialType": "clickUpApi",

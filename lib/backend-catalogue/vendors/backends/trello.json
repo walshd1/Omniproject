@@ -68,7 +68,7 @@
     "portfolio": false,
     "raid": false,
     "resources": false,
-    "scheduling": false
+    "scheduling": true
   },
   "credentialType": "trelloApi",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.trello/",
