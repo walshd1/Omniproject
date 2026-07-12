@@ -45,6 +45,28 @@ describe("CustomReportsAdmin", () => {
     expect(body.customReports[0].metrics[0]).toMatchObject({ agg: "count" });
   });
 
+  it("a tasks-scoped report sources its fields from the task descriptor and saves", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ customReports: [] }) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+
+    fireEvent.click(screen.getByText("+ report"));
+    fireEvent.change(screen.getByLabelText("Report 1 label"), { target: { value: "Tasks by context" } });
+    fireEvent.change(screen.getByLabelText("Report 1 scope"), { target: { value: "tasks" } });
+    // The group-by options now come from the task field catalog (e.g. "context"), not the issue superset.
+    const groupBy = screen.getByLabelText("Report 1 group by") as HTMLSelectElement;
+    const opts = within(groupBy).getAllByRole("option").map((o) => (o as HTMLOptionElement).value);
+    expect(opts).toContain("context");
+    expect(opts).not.toContain("budget");
+    fireEvent.change(groupBy, { target: { value: "context" } });
+    fireEvent.click(screen.getByText("Save reports"));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
+    const body = JSON.parse(init.body as string);
+    expect(body.customReports[0]).toMatchObject({ label: "Tasks by context", scope: "tasks", groupBy: "context" });
+  });
+
   it("shows the second group-by select only once a first group-by is chosen, and saves the pivot", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ customReports: [] }) } as Response);
     vi.stubGlobal("fetch", fetchMock);

@@ -5,6 +5,7 @@ import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useAvailability } from "../../lib/availability";
 import { reportCatalogue, type ReportDefinition } from "@workspace/backend-catalogue";
 import { useCustomReports, useSaveCustomReports } from "../../lib/custom-reports-api";
+import { taskDescriptor } from "../../lib/view-engine/task-descriptor";
 import type { CustomReportDef, CustomReportMetric, CustomReportAgg } from "../../lib/custom-report";
 import { downloadReportDef, downloadJson, readReportDefFile, uniqueReportId } from "../../lib/custom-report-file";
 import { resolveReportRenderer } from "../reports/report-renderers";
@@ -103,6 +104,10 @@ export function CustomReportsAdmin() {
   if (!draft) return null;
 
   const fields = availability?.available ?? [];
+  // Task reports report over the GTD task entity, so their field options come from the task
+  // descriptor (same field catalog the view builder uses) rather than the issue/project superset.
+  const taskFields = taskDescriptor.fields.map((f) => f.key);
+  const fieldsForScope = (scope: CustomReportDef["scope"]) => (scope === "tasks" ? taskFields : fields);
   const patch = (i: number, r: CustomReportDef) => setDraft(draft.map((x, j) => (j === i ? r : x)));
 
   function addReport() {
@@ -143,7 +148,9 @@ export function CustomReportsAdmin() {
         <p className="text-xs text-muted-foreground border border-dashed border-border p-4" data-testid="custom-reports-empty">No bespoke reports yet — add one.</p>
       )}
 
-      {draft.map((r, i) => (
+      {draft.map((r, i) => {
+        const rf = fieldsForScope(r.scope);
+        return (
         <div key={i} className="border-2 border-foreground p-3 space-y-3" data-testid={`custom-report-edit-${i}`}>
           <div className="flex flex-wrap items-center gap-2">
             <Input aria-label={`Report ${i + 1} label`} placeholder="Report name" className="flex-1 min-w-44 rounded-none border-2 border-foreground"
@@ -154,6 +161,7 @@ export function CustomReportsAdmin() {
                 value={r.scope} onChange={(e) => patch(i, { ...r, scope: e.target.value as CustomReportDef["scope"] })}>
                 <option value="project">Project</option>
                 <option value="portfolio">Portfolio</option>
+                <option value="tasks">Tasks</option>
               </select>
             </label>
             <label className="text-xs flex items-center gap-1">
@@ -176,7 +184,7 @@ export function CustomReportsAdmin() {
               <select aria-label={`Report ${i + 1} date field`} className="rounded-none border border-border bg-background px-2 py-1 text-xs"
                 value={r.dateField ?? ""} onChange={(e) => { const { dateField: _d, ...rest } = r; patch(i, e.target.value ? { ...rest, dateField: e.target.value } : rest); }}>
                 <option value="">(choose a date field)</option>
-                {fields.map((f) => <option key={f} value={f}>{f}</option>)}
+                {rf.map((f) => <option key={f} value={f}>{f}</option>)}
               </select>
             </label>
           ) : (
@@ -186,7 +194,7 @@ export function CustomReportsAdmin() {
                 <select aria-label={`Report ${i + 1} group by`} className="rounded-none border border-border bg-background px-2 py-1 text-xs"
                   value={r.groupBy ?? ""} onChange={(e) => { const { groupBy: _d, groupBy2: _d2, ...rest } = r; patch(i, e.target.value ? { ...rest, groupBy: e.target.value } : rest); }}>
                   <option value="">(no grouping — single total)</option>
-                  {fields.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {rf.map((f) => <option key={f} value={f}>{f}</option>)}
                 </select>
               </label>
               {r.groupBy && (
@@ -195,7 +203,7 @@ export function CustomReportsAdmin() {
                   <select aria-label={`Report ${i + 1} group by 2`} className="rounded-none border border-border bg-background px-2 py-1 text-xs"
                     value={r.groupBy2 ?? ""} onChange={(e) => { const { groupBy2: _d, ...rest } = r; patch(i, e.target.value ? { ...rest, groupBy2: e.target.value } : rest); }}>
                     <option value="">(single level)</option>
-                    {fields.filter((f) => f !== r.groupBy).map((f) => <option key={f} value={f}>{f}</option>)}
+                    {rf.filter((f) => f !== r.groupBy).map((f) => <option key={f} value={f}>{f}</option>)}
                   </select>
                 </label>
               )}
@@ -213,7 +221,7 @@ export function CustomReportsAdmin() {
                 <span className="text-[10px] text-muted-foreground">of</span>
                 <select aria-label={`Report ${i + 1} metric ${mi + 1} field`} className="rounded-none border border-border bg-background px-2 py-1 text-xs" disabled={m.agg === "count"}
                   value={m.field} onChange={(e) => patchMetric(i, mi, { field: e.target.value })}>
-                  {fields.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {rf.map((f) => <option key={f} value={f}>{f}</option>)}
                 </select>
                 <Input aria-label={`Report ${i + 1} metric ${mi + 1} label`} placeholder="label (optional)" className="w-40 rounded-none border border-border text-xs"
                   value={m.label ?? ""} onChange={(e) => patchMetric(i, mi, { label: e.target.value })} />
@@ -222,17 +230,18 @@ export function CustomReportsAdmin() {
               </div>
             ))}
             <Button variant="outline" className="rounded-none border border-border text-xs"
-              onClick={() => patch(i, { ...r, metrics: [...r.metrics, { id: `m${r.metrics.length + 1}`, field: fields[0] ?? "budget", agg: "sum" }] })}>+ metric</Button>
+              onClick={() => patch(i, { ...r, metrics: [...r.metrics, { id: `m${r.metrics.length + 1}`, field: rf[0] ?? "budget", agg: "sum" }] })}>+ metric</Button>
           </div>
 
           <div className="pl-2 border-l-2 border-border">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Filter (all of) — optional</p>
-            <PredicateEditor idPrefix={`creport-${i}`} fieldOptions={fields}
+            <PredicateEditor idPrefix={`creport-${i}`} fieldOptions={rf}
               value={r.filter?.all ?? []}
               onChange={(preds: Predicate[]) => { const { filter: _d, ...rest } = r; const filter: ConditionSet = { all: preds }; patch(i, preds.length ? { ...rest, filter } : rest); }} />
           </div>
         </div>
-      ))}
+        );
+      })}
 
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" onClick={addReport}>+ report</Button>

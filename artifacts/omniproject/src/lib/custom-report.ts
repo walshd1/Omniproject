@@ -20,7 +20,7 @@ export interface CustomReportMetric {
 export interface CustomReportDef {
   id: string;
   label: string;
-  scope: "project" | "portfolio";
+  scope: "project" | "portfolio" | "tasks";
   groupBy?: string;
   /** Second group-by level — turns the report into a cross-tab (pivot): `groupBy` gives the rows,
    *  `groupBy2` the columns, each cell the first metric aggregated over that (row, column) pair.

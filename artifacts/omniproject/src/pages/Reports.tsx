@@ -28,7 +28,7 @@ import { DemandIntake } from "../components/reports/DemandIntake";
 import { Utilisation } from "../components/reports/Utilisation";
 import { ValueStreamFlow } from "../components/reports/ValueStreamFlow";
 import { BenefitsRealisationRollup } from "../components/reports/BenefitsRealisationRollup";
-import { CustomReportsProject, CustomReportsPortfolio } from "../components/reports/CustomReportsPanel";
+import { CustomReportsProject, CustomReportsPortfolio, CustomReportsTasks } from "../components/reports/CustomReportsPanel";
 import { SnapshotVerifyPanel } from "../components/reports/SnapshotControls";
 import { ProjectTrend } from "../components/reports/ProjectTrend";
 import { Burndown } from "../components/reports/Burndown";
@@ -199,6 +199,9 @@ export function Reports() {
 
         {/* Customer-built portfolio reports (the report generator). Render nothing unless any are defined. */}
         <CustomReportsPortfolio />
+
+        {/* Customer-built task reports (report generator, tasks scope). Renders nothing unless any exist. */}
+        <CustomReportsTasks />
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
           {projectId && (

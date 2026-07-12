@@ -496,8 +496,9 @@ export interface CustomReportMetric {
 export interface CustomReportDef {
   id: string;
   label: string;
-  /** "project" renders per selected project; "portfolio" rolls up across all projects. */
-  scope: "project" | "portfolio";
+  /** "project" renders per selected project; "portfolio" rolls up across all projects' issues;
+   *  "tasks" reports over the GTD task entity (portfolio-wide). */
+  scope: "project" | "portfolio" | "tasks";
   groupBy?: string;
   /** Second group-by level (pivot columns) — ignored without `groupBy`, and for `viz: "line"`. */
   groupBy2?: string;
@@ -945,7 +946,7 @@ function validateCustomReports(value: unknown): void {
     const o = r as Record<string, unknown>;
     if (!o || typeof o !== "object" || typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each custom report needs a string id");
     if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" needs a label`);
-    if (o["scope"] !== "project" && o["scope"] !== "portfolio") throw new SettingsValidationError(`custom report "${String(o["id"])}" scope must be project | portfolio`);
+    if (o["scope"] !== "project" && o["scope"] !== "portfolio" && o["scope"] !== "tasks") throw new SettingsValidationError(`custom report "${String(o["id"])}" scope must be project | portfolio | tasks`);
     if (o["viz"] !== "table" && o["viz"] !== "bar" && o["viz"] !== "line") throw new SettingsValidationError(`custom report "${String(o["id"])}" viz must be table | bar | line`);
     if (o["groupBy"] != null && typeof o["groupBy"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy must be a string`);
     if (o["groupBy2"] != null && typeof o["groupBy2"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy2 must be a string`);

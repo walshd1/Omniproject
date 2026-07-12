@@ -35,6 +35,11 @@ test("customReports: accepts a well-formed bespoke report and rejects bad shape"
   assert.throws(() => updateSettings({ customReports: [{ id: "r4", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "median" }], viz: "table" }] }), SettingsValidationError); // bad agg
 });
 
+test("customReports: accepts the tasks scope (report over the GTD task entity)", () => {
+  const ok = updateSettings({ customReports: [{ id: "rt", label: "Tasks by context", scope: "tasks", groupBy: "context", metrics: [{ id: "m1", field: "id", agg: "count" }], viz: "bar" }] });
+  assert.equal(ok.customReports[0]!.scope, "tasks");
+});
+
 test("customReports: accepts groupBy2 (pivot) and viz:line + dateField (trend), rejects bad shapes for both", () => {
   const pivot = updateSettings({ customReports: [{ id: "r5", label: "Pivot", scope: "project", groupBy: "status", groupBy2: "region", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "table" }] });
   assert.equal(pivot.customReports[0]!.groupBy2, "region");
