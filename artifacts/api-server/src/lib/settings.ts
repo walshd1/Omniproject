@@ -10,6 +10,7 @@
 import { assertSafeOutboundUrl, isSafeOutboundUrl, UnsafeUrlError } from "./url-safety";
 import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "./deployment-profile";
 import type { BackendFieldMap } from "../broker/types";
+import { CANONICAL_PRIORITY } from "../broker/vocabulary";
 import type { GovernanceRule } from "./governance-rules";
 import { validatePredicate } from "./predicate";
 import { isValidCadence, type SnapshotCadence } from "../history/cadence";
@@ -267,6 +268,9 @@ export interface SettingsState {
   branding: BrandingConfig | null;
   /** Company-nomenclature label overrides, keyed by i18n key. */
   labelOverrides: Record<string, string>;
+  /** Admin/PMO custom display names for the canonical priority levels (canonical → label). Empty
+   *  ⇒ the canonical names. Distinct from labelOverrides (which is premium company-nomenclature). */
+  priorityLabels: Record<string, string>;
   /** The field-routing matrix: which source (vendor·broker·sourceField) feeds which UI element.
    *  One-to-one at both ends (anti-collision) — see lib/field-routing. */
   fieldRouting: FieldRoute[];
@@ -717,6 +721,7 @@ const store: SettingsState = {
   errorTelemetry: isTruthy(process.env["ERROR_TELEMETRY"]),
   branding: brandingFromEnv(),
   labelOverrides: labelsFromEnv(),
+  priorityLabels: {},
   fieldRouting: [],
   customFields: [],
   fieldValidation: [],
@@ -771,6 +776,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "errorTelemetry",
   "branding",
   "labelOverrides",
+  "priorityLabels",
   "fieldRouting",
   "customFields",
   "fieldValidation",
@@ -1218,6 +1224,20 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   }
   if ("labelOverrides" in patch && (typeof patch["labelOverrides"] !== "object" || patch["labelOverrides"] == null)) {
     throw new SettingsValidationError("labelOverrides must be an object");
+  }
+  if ("priorityLabels" in patch) {
+    const v = patch["priorityLabels"];
+    if (typeof v !== "object" || v == null || Array.isArray(v)) throw new SettingsValidationError("priorityLabels must be an object");
+    const clean: Record<string, string> = {};
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (!(CANONICAL_PRIORITY as readonly string[]).includes(k)) throw new SettingsValidationError(`priorityLabels key "${k}" is not a canonical priority`);
+      if (val === undefined || val === null || val === "") continue; // empty ⇒ use the canonical name
+      if (typeof val !== "string") throw new SettingsValidationError(`priorityLabels["${k}"] must be a string`);
+      const t = val.trim();
+      if (t.length > 40) throw new SettingsValidationError(`priorityLabels["${k}"] is too long (max 40)`);
+      if (t) clean[k] = t;
+    }
+    normalized["priorityLabels"] = clean;
   }
   if ("disabledFeatures" in patch) {
     const v = patch["disabledFeatures"];

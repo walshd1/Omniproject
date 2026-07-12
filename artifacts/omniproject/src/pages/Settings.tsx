@@ -29,6 +29,7 @@ import { TranslationLayer } from "../components/settings/TranslationLayer";
 import { BrokerLog } from "../components/settings/BrokerLog";
 import { A11yControls } from "../components/settings/A11yControls";
 import { CalendarPushConsent } from "../components/settings/CalendarPushConsent";
+import { PriorityLabelsAdmin } from "../components/settings/PriorityLabelsAdmin";
 import { PerformanceSettings } from "../components/settings/PerformanceSettings";
 import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
 import { ActionCatalogue } from "../components/settings/ActionCatalogue";
@@ -516,6 +517,8 @@ export function Settings() {
       <A11yControls />
 
       <CalendarPushConsent />
+
+      <PriorityLabelsAdmin />
 
       <LazyMount>
         <PerformanceSettings />

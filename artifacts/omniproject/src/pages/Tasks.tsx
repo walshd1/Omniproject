@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useTasks, useTaskSummary, useCreateTask, useUpdateTask, PRIORITIES, type Task, type Priority } from "../lib/tasks";
 import { TaskDetailDialog } from "../components/TaskDetailDialog";
 import { TaskBoard } from "../components/board/TaskBoard";
+import { usePriorityLabels } from "../lib/priority-labels";
 import { Button } from "@/components/ui/button";
 
 const STATUS_FILTERS = ["all", "next", "waiting", "scheduled", "someday", "done"] as const;
@@ -26,6 +27,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 export function Tasks() {
   const { data: tasks = [], isLoading, error } = useTasks();
   const { data: summary } = useTaskSummary();
+  const { labelFor } = usePriorityLabels();
   const create = useCreateTask();
   const update = useUpdateTask();
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -106,7 +108,7 @@ export function Tasks() {
             value={priority}
             onChange={(e) => setPriority(e.target.value as (typeof PRIORITIES)[number])}
           >
-            {PRIORITIES.map((p) => <option key={p} value={p}>{p === "none" ? "priority…" : p}</option>)}
+            {PRIORITIES.map((p) => <option key={p} value={p}>{p === "none" ? "priority…" : labelFor(p)}</option>)}
           </select>
           <Button className="rounded-none" onClick={add} disabled={!title.trim() || create.isPending}>Add</Button>
         </div>
@@ -158,7 +160,7 @@ export function Tasks() {
                   </div>
                 </div>
                 {t.priority && t.priority !== "none" && (
-                  <span className="text-[10px] uppercase tracking-widest border border-border px-1.5 py-0.5">{t.priority}</span>
+                  <span className="text-[10px] uppercase tracking-widest border border-border px-1.5 py-0.5">{labelFor(t.priority)}</span>
                 )}
               </li>
             ))}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useUpdateTask, type Task } from "../../lib/tasks";
+import { usePriorityLabels } from "../../lib/priority-labels";
 
 /**
  * A GTD board — the task analogue of the issue Kanban, but with the classic Getting-Things-Done
@@ -17,6 +18,7 @@ export const GTD_COLUMNS: { status: string; label: string }[] = [
 
 export function TaskBoard({ tasks, onOpen }: { tasks: Task[]; onOpen: (t: Task) => void }) {
   const update = useUpdateTask();
+  const { labelFor } = usePriorityLabels();
   const [dragId, setDragId] = useState<string | null>(null);
 
   const columns = useMemo(() => {
@@ -57,7 +59,7 @@ export function TaskBoard({ tasks, onOpen }: { tasks: Task[]; onOpen: (t: Task) 
                     {t.context && <span className="font-mono">{t.context}</span>}
                     {t.assignee && <span>· {t.assignee}</span>}
                     {t.dueDate && <span>· due {t.dueDate}</span>}
-                    {t.priority && t.priority !== "none" && <span className="uppercase border border-border px-1">{t.priority}</span>}
+                    {t.priority && t.priority !== "none" && <span className="uppercase border border-border px-1">{labelFor(t.priority)}</span>}
                   </div>
                   <label className="sr-only" htmlFor={`move-${t.id}`}>Move {t.title}</label>
                   <select
