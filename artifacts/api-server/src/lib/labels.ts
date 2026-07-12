@@ -35,6 +35,8 @@ export const LABEL_CATALOG: LabelTerm[] = [
   { key: "term.project", default: "Project" },
   { key: "term.issue", default: "Issue" },
   { key: "term.issues", default: "Issues" },
+  { key: "term.task", default: "Task" },
+  { key: "term.tasks", default: "Tasks" },
   { key: "term.portfolio", default: "Portfolio" },
   { key: "term.member", default: "Member" },
   { key: "term.milestone", default: "Milestone" },

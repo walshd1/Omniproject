@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "../test/utils";
-import { NextActions } from "./NextActions";
+import { Tasks } from "./Tasks";
+import type { Task } from "../lib/tasks";
 
 const SUMMARY = { total: 3, byClass: { actionable: 1, waiting: 1, deferred: 0, done: 1, dropped: 0 }, open: 2, actionable: 1, overdue: 1, dueSoon: 0, unassigned: 1, byAssignee: {}, byTag: {}, byContext: {} };
-let tasks = [
+let tasks: Task[] = [
   { id: "task-1", title: "Call the auditor", status: "next", context: "@calls", assignee: "pat@demo", dueDate: "2026-08-01" },
   { id: "task-2", title: "Chase the DPA", status: "waiting", waitingOn: "Legal" },
 ];
@@ -24,16 +25,16 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe("NextActions", () => {
+describe("Tasks", () => {
   it("shows the summary strip and the task list", async () => {
-    renderWithProviders(<NextActions />);
+    renderWithProviders(<Tasks />);
     expect(await screen.findByText("Call the auditor")).toBeInTheDocument();
     expect(screen.getByText("Chase the DPA")).toBeInTheDocument();
     expect(screen.getByText("Actionable")).toBeInTheDocument();
   });
 
   it("filtering by status narrows the list", async () => {
-    renderWithProviders(<NextActions />);
+    renderWithProviders(<Tasks />);
     await screen.findByText("Call the auditor");
     fireEvent.click(screen.getByRole("tab", { name: "waiting" }));
     expect(screen.queryByText("Call the auditor")).not.toBeInTheDocument();
@@ -41,7 +42,7 @@ describe("NextActions", () => {
   });
 
   it("quick-add posts a new next action", async () => {
-    renderWithProviders(<NextActions />);
+    renderWithProviders(<Tasks />);
     await screen.findByText("Call the auditor");
     fireEvent.change(screen.getByPlaceholderText("Add a next action…"), { target: { value: "Book the review" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));

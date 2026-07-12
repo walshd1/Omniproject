@@ -17,11 +17,11 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 /**
- * Next actions — the GTD TASK entity (`/api/tasks`), the "what can I do now" list. Named to avoid the
+ * Tasks — the GTD TASK entity (`/api/tasks`), the "what can I do now" list. Named to avoid the
  * app's nomenclature where an issue/work-item is already a "Task". A summary strip, a GTD-status
  * filter, the list, and a quick-add. Degrades to an empty state when the backend models no tasks.
  */
-export function NextActions() {
+export function Tasks() {
   const { data: tasks = [], isLoading, error } = useTasks();
   const { data: summary } = useTaskSummary();
   const create = useCreateTask();
@@ -44,8 +44,8 @@ export function NextActions() {
   return (
     <div className="h-full flex flex-col">
       <div className="px-8 py-4 border-b border-border bg-card shrink-0">
-        <h1 className="text-xl font-black uppercase tracking-tighter">Next actions</h1>
-        <p className="text-xs text-muted-foreground mt-1">Actionable next-actions (GTD), distinct from issues.</p>
+        <h1 className="text-xl font-black uppercase tracking-tighter">Tasks</h1>
+        <p className="text-xs text-muted-foreground mt-1">Actionable next-actions (GTD) — distinct from issues.</p>
         {summary && (
           <div className="mt-3 grid grid-cols-3 sm:grid-cols-6 gap-2">
             <Stat label="Open" value={summary.open} />

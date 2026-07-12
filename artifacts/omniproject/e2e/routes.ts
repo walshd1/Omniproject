@@ -18,6 +18,7 @@ export interface RouteCase {
 export const ROUTES: RouteCase[] = [
   { pattern: "/", path: "/" },
   { pattern: "/my-work", path: "/my-work" },
+  { pattern: "/tasks", path: "/tasks" },
   { pattern: "/dashboards", path: "/dashboards" },
   { pattern: "/content", path: "/content" },
   { pattern: "/programmes", path: "/programmes" },

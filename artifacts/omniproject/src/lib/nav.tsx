@@ -52,7 +52,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", i18nKey: "nav.dashboard", label: "Dashboard", icon: Layers, chord: "G+D", match: (l) => l === "/", group: "primary" },
   { href: "/my-work", i18nKey: "nav.myWork", label: "My Work", icon: Inbox, match: (l) => l.startsWith("/my-work"), requiresFeature: "myWork", group: "primary" },
-  { href: "/next-actions", i18nKey: "nav.nextActions", label: "Next Actions", icon: ListChecks, match: (l) => l.startsWith("/next-actions"), group: "primary" },
+  { href: "/tasks", i18nKey: "nav.tasks", label: "Tasks", icon: ListChecks, match: (l) => l.startsWith("/tasks"), group: "primary" },
   { href: "/dashboards", i18nKey: "nav.dashboards", label: "Dashboards", icon: LayoutDashboard, match: (l) => l.startsWith("/dashboards"), requiresFeature: "dashboards", group: "primary" },
   { href: "/content", i18nKey: "nav.content", label: "Content", icon: FileText, match: (l) => l.startsWith("/content"), requiresFeature: "contentPages", group: "primary" },
   { href: "/programmes", i18nKey: "nav.programmes", label: "Programmes", icon: Boxes, match: (l) => l.startsWith("/programmes"), requiresEntity: "programme", group: "primary" },
