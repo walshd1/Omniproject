@@ -247,14 +247,14 @@ function RagChips({ rag }: { rag: { green: number; amber: number; red: number } 
 function DistributionBar({ red, amber, green }: { red: number; amber: number; green: number }) {
   return (
     <ProportionBar
-      height="h-2.5"
+      height={10}
       className="rounded-sm border border-border"
       testId="health-distribution"
       testIdPrefix="health-dist"
       segments={[
-        { key: "red", value: red, className: "bg-red-500" },
-        { key: "amber", value: amber, className: "bg-amber-500" },
-        { key: "green", value: green, className: "bg-green-500" },
+        { key: "red", value: red, className: "text-red-500" },
+        { key: "amber", value: amber, className: "text-amber-500" },
+        { key: "green", value: green, className: "text-green-500" },
       ]}
     />
   );
