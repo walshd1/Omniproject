@@ -21,7 +21,8 @@ export function FieldSetupStep({ n, isAdmin, backendId }: { n: number; isAdmin: 
   const save = useSaveFieldRouting();
   const { toast } = useToast();
   const [vendor, setVendor] = useState(backendId ?? "");
-  const [broker, setBroker] = useState("n8n");
+  // Broker-neutral: the admin names the broker they wired (the seed stays disabled until they do).
+  const [broker, setBroker] = useState("");
 
   if (!isAdmin) return null;
 

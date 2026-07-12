@@ -314,6 +314,7 @@ A normalised project row.
 | --- | --- | --- | --- |
 | `id` | string | yes |  |
 | `name` | string | yes |  |
+| `omniInstanceId` | string | — | OmniProject instance ID — a GUID minted by the gateway when the project is created, echoed and stored by every backend. It is the backend-INDEPENDENT correlation key: the same project seen through two backends carries the same `omniInstanceId`, so records assemble across backends by it (whereas `source:id` is unique per backend). Optional because pre-existing rows may lack one. |
 | _(other)_ | any | — | Open row — backend-specific fields pass through. |
 
 ### ProjectMember
@@ -341,6 +342,7 @@ A normalised project create/update. `name` is required on create.
 | `identifier` | string \| null | — |  |
 | `description` | string \| null | — |  |
 | `programmeId` | string \| null | — | Set/clear to group the project under a programme (derived-programme model). |
+| `omniInstanceId` | string | — | The gateway-minted correlation GUID, passed to the backend to store on create (never sent by a client). See `Project.omniInstanceId`. |
 
 ### Provenance
 
