@@ -12,10 +12,12 @@ export interface SavedView {
   scope?: string;
   /** Which entity this view is for (view-engine views); omitted for legacy grid views. */
   entity?: "task" | "issue";
-  /** How the view engine renders it: list, status board, sortable table, or date timeline. Omitted = list. */
-  viewKind?: "list" | "board" | "table" | "timeline";
+  /** How the view engine renders it: list, board, table, timeline or chart. Omitted = list. */
+  viewKind?: "list" | "board" | "table" | "timeline" | "chart";
   /** For `viewKind: "timeline"`: the date field whose month buckets the records. */
   dateField?: string;
+  /** For `viewKind: "chart"`: how the chart draws the records. */
+  chart?: { type: "bar" | "pie" | "donut" | "wbs" | "gantt"; groupField?: string; startField?: string; endField?: string };
   columns?: string[];
   sort?: { field: string; dir: "asc" | "desc" };
   filters?: { field: string; value: string }[];

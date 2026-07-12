@@ -130,6 +130,13 @@ test("savedViews: accepts the table viewKind with columns", () => {
   assert.equal(s.savedViews[0]!.viewKind, "table");
 });
 
+test("savedViews: accepts the chart viewKind with a chart spec, rejects a bad chart type", () => {
+  const s = updateSettings({ savedViews: [{ id: "cv1", name: "By status", entity: "task", viewKind: "chart", chart: { type: "gantt", startField: "startDate", endField: "dueDate" } }] });
+  assert.equal(s.savedViews[0]!.viewKind, "chart");
+  assert.equal(s.savedViews[0]!.chart!.type, "gantt");
+  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", viewKind: "chart", chart: { type: "sunburst" } }] }), SettingsValidationError);
+});
+
 test("savedViews: accepts the timeline viewKind with a dateField", () => {
   const s = updateSettings({ savedViews: [{ id: "tl1", name: "Timeline", entity: "issue", viewKind: "timeline", dateField: "dueDate" }] });
   assert.equal(s.savedViews[0]!.viewKind, "timeline");

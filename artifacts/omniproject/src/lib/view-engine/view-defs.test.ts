@@ -21,11 +21,12 @@ const descriptor = {
 } as unknown as EntityDescriptor;
 
 describe("builtinViewsFor", () => {
-  it("derives read-only list, table, timeline and one board per preset", () => {
+  it("derives read-only list, table, timeline, chart and one board per preset", () => {
     const defs = builtinViewsFor(descriptor);
-    expect(defs.map((d) => d.name)).toEqual(["List", "Table", "Timeline", "Board"]);
+    expect(defs.map((d) => d.name)).toEqual(["List", "Table", "Timeline", "Chart", "Board"]);
     expect(defs.every((d) => d.builtin)).toBe(true);
     expect(defs.find((d) => d.kind === "list")!.statusFilter).toBe(true);
+    expect(defs.find((d) => d.kind === "chart")!.chart).toMatchObject({ type: "bar", groupField: "status" });
   });
 
   it("omits the timeline built-in when the entity has no date field", () => {

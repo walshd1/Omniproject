@@ -72,6 +72,17 @@ describe("ViewBuilder", () => {
     expect(saved).toMatchObject({ name: "Task timeline", viewKind: "timeline", dateField: "dueDate" });
   });
 
+  it("saves a chart view with its chart spec (bar count-by-field)", () => {
+    renderWithProviders(<ViewBuilder />);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Tasks by priority" } });
+    fireEvent.change(screen.getByLabelText("View kind"), { target: { value: "chart" } });
+    fireEvent.change(screen.getByLabelText("Group by field"), { target: { value: "priority" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save view" }));
+
+    const saved = (mutate.mock.calls[0]![0] as unknown[]).at(-1);
+    expect(saved).toMatchObject({ name: "Tasks by priority", viewKind: "chart", chart: { type: "bar", groupField: "priority" } });
+  });
+
   it("won't save without a name", () => {
     renderWithProviders(<ViewBuilder />);
     // Save button is disabled with an empty name.

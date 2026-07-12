@@ -31,7 +31,7 @@ export function ViewBuilder() {
   const { toast } = useToast();
 
   const [entity, setEntity] = useState<Entity>("task");
-  const [viewKind, setViewKind] = useState<"list" | "board" | "table" | "timeline">("list");
+  const [viewKind, setViewKind] = useState<"list" | "board" | "table" | "timeline" | "chart">("list");
   const [name, setName] = useState("");
   const [filters, setFilters] = useState<FilterRow[]>([]);
   const [sortField, setSortField] = useState("");
@@ -39,6 +39,10 @@ export function ViewBuilder() {
   const [groupBy, setGroupBy] = useState("");
   const [columns, setColumns] = useState<string[]>([]);
   const [dateField, setDateField] = useState("");
+  const [chartType, setChartType] = useState<"bar" | "pie" | "donut" | "wbs" | "gantt">("bar");
+  const [chartGroupField, setChartGroupField] = useState("status");
+  const [chartStartField, setChartStartField] = useState("");
+  const [chartEndField, setChartEndField] = useState("");
 
   const fields = DESCRIPTORS[entity].fields;
   const dateFields = fields.filter((f) => f.isDate);
@@ -63,6 +67,11 @@ export function ViewBuilder() {
       ...(groupBy ? { groupBy } : {}),
       ...(viewKind === "table" && columns.length ? { columns } : {}),
       ...(viewKind === "timeline" && dateField ? { dateField } : {}),
+      ...(viewKind === "chart" ? {
+        chart: chartType === "gantt"
+          ? { type: chartType, ...(chartStartField ? { startField: chartStartField } : {}), ...(chartEndField ? { endField: chartEndField } : {}) }
+          : { type: chartType, ...(chartGroupField ? { groupField: chartGroupField } : {}) },
+      } : {}),
     };
     save.mutate([...(all ?? []), view], {
       onSuccess: () => { toast({ title: "VIEW SAVED", description: `“${view.name}” is now available in the ${entity} views.` }); reset(); },
@@ -87,7 +96,7 @@ export function ViewBuilder() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor="vb-entity" className="text-xs uppercase tracking-widest text-muted-foreground">Entity</Label>
-            <select id="vb-entity" className={inputCls} value={entity} onChange={(e) => { setEntity(e.target.value as Entity); setSortField(""); setGroupBy(""); setFilters([]); setColumns([]); setDateField(""); }}>
+            <select id="vb-entity" className={inputCls} value={entity} onChange={(e) => { setEntity(e.target.value as Entity); setSortField(""); setGroupBy(""); setFilters([]); setColumns([]); setDateField(""); setChartGroupField("status"); setChartStartField(""); setChartEndField(""); }}>
               <option value="task">Tasks</option>
               <option value="issue">Issues</option>
             </select>
@@ -99,6 +108,7 @@ export function ViewBuilder() {
               <option value="board">Board</option>
               <option value="table">Table</option>
               {dateFields.length > 0 && <option value="timeline">Timeline</option>}
+              <option value="chart">Chart</option>
             </select>
           </div>
         </div>
@@ -107,6 +117,47 @@ export function ViewBuilder() {
           <Label htmlFor="vb-name" className="text-xs uppercase tracking-widest text-muted-foreground">Name</Label>
           <input id="vb-name" className={inputCls} placeholder="e.g. My high-priority actions" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
         </div>
+
+        {/* Chart config (chart kind only) */}
+        {viewKind === "chart" && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="vb-charttype" className="text-xs uppercase tracking-widest text-muted-foreground">Chart type</Label>
+              <select id="vb-charttype" className={inputCls} value={chartType} onChange={(e) => setChartType(e.target.value as typeof chartType)}>
+                <option value="bar">Bar (count by field)</option>
+                <option value="pie">Pie (share)</option>
+                <option value="donut">Donut (share)</option>
+                <option value="wbs">Work breakdown (treemap)</option>
+                {dateFields.length > 0 && <option value="gantt">Gantt (timeline)</option>}
+              </select>
+            </div>
+            {chartType === "gantt" ? (
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor="vb-chartstart" className="text-xs uppercase tracking-widest text-muted-foreground">Start date field</Label>
+                  <select id="vb-chartstart" className={inputCls} value={chartStartField} onChange={(e) => setChartStartField(e.target.value)}>
+                    <option value="">(choose)</option>
+                    {dateFields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="vb-chartend" className="text-xs uppercase tracking-widest text-muted-foreground">End date field</Label>
+                  <select id="vb-chartend" className={inputCls} value={chartEndField} onChange={(e) => setChartEndField(e.target.value)}>
+                    <option value="">(choose)</option>
+                    {dateFields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                  </select>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-1">
+                <Label htmlFor="vb-chartgroup" className="text-xs uppercase tracking-widest text-muted-foreground">Group by field</Label>
+                <select id="vb-chartgroup" className={inputCls} value={chartGroupField} onChange={(e) => setChartGroupField(e.target.value)}>
+                  {fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Date field (timeline kind only) */}
         {viewKind === "timeline" && (

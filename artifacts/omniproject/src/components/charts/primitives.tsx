@@ -1,4 +1,4 @@
-import { BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, ScatterChart, Scatter, Treemap, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { gridTheme, axisTheme, chartTooltipStyle } from "../reports/chart-theme";
 import { truncateLabel } from "../../lib/utils";
 
@@ -114,11 +114,13 @@ export function SeriesAreaChart({ data, series, stacked = false, legend = true, 
 /** A part-to-whole pie. Caps to the palette's fixed slots (never cycling categorical hues) with the
  *  remainder aggregated into a neutral "Other" slice, and direct % labels so identity isn't
  *  colour-alone. Takes any `{ name, value }[]`. */
-export function SharePieChart({ data, legend = true, height = 260, maxSlices = CHART_PALETTE.length }: {
+export function SharePieChart({ data, legend = true, height = 260, maxSlices = CHART_PALETTE.length, donut = false }: {
   data: { name: string; value: number }[];
   legend?: boolean;
   height?: number;
   maxSlices?: number;
+  /** Render as a donut (a hole in the middle) rather than a solid pie. */
+  donut?: boolean;
 }) {
   const sorted = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
   const slices = sorted.length <= maxSlices
@@ -132,13 +134,75 @@ export function SharePieChart({ data, legend = true, height = 260, maxSlices = C
   return (
     <ResponsiveContainer width="100%" height={height}>
       <PieChart>
-        <Pie data={slices} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={92} labelLine={false}
+        <Pie data={slices} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={92} innerRadius={donut ? 52 : 0} labelLine={false}
           label={(e: { name?: string; percent?: number }) => `${truncateLabel(e.name ?? "")} ${Math.round((e.percent ?? 0) * 100)}%`}>
           {slices.map((d, i) => <Cell key={d.name} fill={d.name === "Other" ? OTHER_COLOR : color(i)} />)}
         </Pie>
         <Tooltip formatter={(v) => formatChartNumber(v as number)} contentStyle={chartTooltipStyle} />
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
       </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** A scatter plot of x/y points — e.g. effort vs. value, or two metrics against each other. */
+export interface ScatterPoint {
+  x: number;
+  y: number;
+  name?: string;
+}
+export function ScatterPlotChart({ points, xLabel, yLabel, height = 280 }: {
+  points: ScatterPoint[];
+  xLabel?: string;
+  yLabel?: string;
+  height?: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
+        <CartesianGrid {...gridTheme} />
+        <XAxis type="number" dataKey="x" {...(xLabel ? { name: xLabel } : {})} {...axisTheme} tick={{ fontSize: 11 }} tickFormatter={(v) => formatChartNumber(v as number)} {...(xLabel ? { label: { value: xLabel, position: "bottom", fontSize: 11 } } : {})} />
+        <YAxis type="number" dataKey="y" {...(yLabel ? { name: yLabel } : {})} {...axisTheme} tick={{ fontSize: 11 }} tickFormatter={(v) => formatChartNumber(v as number)} />
+        <Tooltip cursor={{ strokeDasharray: "3 3" }} formatter={(v) => formatChartNumber(v as number)} contentStyle={chartTooltipStyle} />
+        <Scatter data={points} fill={color(0)} />
+      </ScatterChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** A node in a work-breakdown / treemap hierarchy: a leaf carries a `value`; a branch carries
+ *  `children` (its size is the sum of its leaves). */
+export interface TreeNode {
+  name: string;
+  value?: number;
+  children?: TreeNode[];
+  /** Recharts' Treemap indexes data by string key; this keeps TreeNode assignable to its data type. */
+  [key: string]: unknown;
+}
+interface TreemapCellProps {
+  x?: number; y?: number; width?: number; height?: number; index?: number; depth?: number; name?: string;
+}
+/** Treemap cell — top-level branches take a palette colour; deeper cells are transparent with a
+ *  surface-coloured gap so the hierarchy reads. Labels show when the cell is big enough. */
+function TreemapCell({ x = 0, y = 0, width = 0, height = 0, index = 0, depth = 0, name = "" }: TreemapCellProps) {
+  const fill = depth === 1 ? color(index) : "transparent";
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} fill={fill} stroke="hsl(var(--card))" strokeWidth={2} />
+      {depth === 1 && width > 56 && height > 18 && (
+        <text x={x + 6} y={y + 16} fontSize={11} fill="#ffffff" className="pointer-events-none">{truncateLabel(name, 18)}</text>
+      )}
+    </g>
+  );
+}
+/** A work-breakdown structure as a treemap — area ∝ value, nested by `children`. */
+export function TreemapChart({ data, height = 280 }: { data: TreeNode[]; height?: number }) {
+  if (data.length === 0) return null;
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <Treemap data={data} dataKey="value" nameKey="name" content={<TreemapCell />} isAnimationActive={false}>
+        <Tooltip formatter={(v) => formatChartNumber(v as number)} contentStyle={chartTooltipStyle} />
+      </Treemap>
     </ResponsiveContainer>
   );
 }
