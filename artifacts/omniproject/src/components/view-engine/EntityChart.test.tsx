@@ -24,4 +24,10 @@ describe("EntityChart", () => {
       expect(() => render(<EntityChart records={records} fields={fields} spec={{ type, groupField: "status" }} noun="widget" />)).not.toThrow();
     }
   });
+
+  it("applies a view's style to the chart (title frame)", () => {
+    render(<EntityChart records={records} fields={fields} spec={{ type: "gantt", startField: "start", endField: "end" }} noun="widget" style={{ title: "Delivery" }} />);
+    expect(screen.getByTestId("gantt-chart")).toBeInTheDocument();
+    expect(screen.getByText("Delivery")).toBeInTheDocument();
+  });
 });
