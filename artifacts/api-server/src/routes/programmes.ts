@@ -1,19 +1,22 @@
 /**
  * Programme endpoints — GET /api/programmes (the derived programme roll-up across
  * projects) and /api/programmes/:id (one programme's detail). Programmes are
- * DERIVED from projects' programmeId, not stored; the grouping maths is in
- * lib/programmes, this is the read-only shell.
+ * DERIVED from projects' programmeId UNIONED with the admin-managed GUID-list
+ * membership (programmeMembership), not stored as an entity; the grouping maths is
+ * in lib/programmes, this is the read-only shell. Runs over the already scope-filtered
+ * project list, so RBAC still bounds what a caller sees.
  */
 import { Router } from "express";
 import { getProjects } from "../lib/data";
 import { groupProgrammes, programmeDetail } from "../lib/programmes";
+import { getSettings } from "../lib/settings";
 
 const router = Router();
 
 // GET /api/programmes — programmes derived from project membership, rolled up.
 router.get("/programmes", async (req, res) => {
   try {
-    res.json(groupProgrammes(await getProjects(req)));
+    res.json(groupProgrammes(await getProjects(req), getSettings().programmeRegistry));
   } catch (err) {
     req.log.error({ err }, "list_programmes failed");
     res.status(502).json({ error: "Failed to load programmes" });
@@ -23,7 +26,7 @@ router.get("/programmes", async (req, res) => {
 // GET /api/programmes/:programmeId — programme-wide view + member projects.
 router.get("/programmes/:programmeId", async (req, res) => {
   try {
-    const detail = programmeDetail(await getProjects(req), String(req.params["programmeId"]));
+    const detail = programmeDetail(await getProjects(req), String(req.params["programmeId"]), getSettings().programmeRegistry);
     if (!detail) {
       res.status(404).json({ error: "No such programme" });
       return;

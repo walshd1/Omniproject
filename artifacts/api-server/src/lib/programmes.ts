@@ -154,36 +154,96 @@ function summarise(id: string, projects: Row[]): ProgrammeRollup {
   };
 }
 
-/** A project's programme link (the backend-owned `programmeId`), or null when it's standalone
- *  (directly under the PMO root). Single-sourced here so governance scope-ownership and the
- *  programme rollups read it the same way. */
+/** A project's backend-owned `programmeId`, if any. Retained for governance scope-ownership; programme
+ *  MEMBERSHIP no longer derives from it (see the registry below). */
 export function programmeIdOf(p: Row): string | null {
   const v = p["programmeId"];
   return typeof v === "string" && v ? v : null;
 }
 
-/** Group projects into programmes (standalone projects are excluded). */
-export function groupProgrammes(projects: Row[]): ProgrammeRollup[] {
+/**
+ * The PROGRAMME REGISTRY — the admin/PMO-managed source of truth for programmes. Each programme has a
+ * human-readable `name` chosen by an admin/PMO, and a list of project correlation GUIDs (`omniInstanceId`)
+ * that belong to it. Membership is defined ENTIRELY by GUID: a project is in a programme iff its GUID is
+ * in that programme's list. Backend-independent (works across backends, and even for backends that know
+ * nothing of programmes), because the GUID is OmniProject's own correlation key.
+ */
+export interface ProgrammeDef {
+  /** The admin/PMO-chosen display name. */
+  name: string;
+  /** Project correlation GUIDs (`omniInstanceId`) that belong to this programme. */
+  instanceIds: string[];
+}
+export type ProgrammeRegistry = Record<string, ProgrammeDef>;
+
+export class ProgrammeRegistryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProgrammeRegistryError";
+  }
+}
+
+/** Validate + normalise the programme registry (trims, defaults name to the id, dedupes GUIDs). */
+export function validateProgrammeRegistry(value: unknown): ProgrammeRegistry {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ProgrammeRegistryError("programmeRegistry must be an object of programmeId → { name, instanceIds }");
+  }
+  const out: ProgrammeRegistry = {};
+  for (const [rawId, def] of Object.entries(value)) {
+    const id = rawId.trim();
+    if (!id) throw new ProgrammeRegistryError("programme id must be non-empty");
+    if (!def || typeof def !== "object" || Array.isArray(def)) throw new ProgrammeRegistryError(`programme "${id}" must be an object { name, instanceIds }`);
+    const d = def as Record<string, unknown>;
+    const rawName = typeof d["name"] === "string" ? (d["name"] as string).trim() : "";
+    const rawIds = d["instanceIds"];
+    if (!Array.isArray(rawIds)) throw new ProgrammeRegistryError(`programme "${id}" needs an instanceIds array`);
+    out[id] = {
+      name: rawName || id,
+      instanceIds: [...new Set(rawIds.map((g) => (typeof g === "string" ? g.trim() : "")).filter(Boolean))],
+    };
+  }
+  return out;
+}
+
+/** The correlation GUID of a project row, or "" when absent. */
+function instanceIdOf(p: Row): string {
+  return typeof p["omniInstanceId"] === "string" ? (p["omniInstanceId"] as string) : "";
+}
+
+/**
+ * Every programme id a project belongs to — determined SOLELY by its correlation GUID against the
+ * registry's lists. A project can belong to more than one programme (its GUID may appear in several).
+ */
+export function programmeIdsOf(p: Row, registry: ProgrammeRegistry = {}): string[] {
+  const guid = instanceIdOf(p);
+  if (!guid) return [];
+  return Object.entries(registry).filter(([, def]) => def.instanceIds.includes(guid)).map(([id]) => id);
+}
+
+/** Group projects into programmes by the registry (standalone projects are excluded). Programme names
+ *  come from the registry (admin/PMO-chosen), not from any backend field. */
+export function groupProgrammes(projects: Row[], registry: ProgrammeRegistry = {}): ProgrammeRollup[] {
   const groups = new Map<string, Row[]>();
   for (const p of projects) {
-    const id = programmeIdOf(p);
-    if (!id) continue;
-    const list = groups.get(id) ?? [];
-    list.push(p);
-    groups.set(id, list);
+    for (const id of programmeIdsOf(p, registry)) {
+      const list = groups.get(id) ?? [];
+      list.push(p);
+      groups.set(id, list);
+    }
   }
-  // id (the programmeId) is unique per group ⇒ deterministic order when two programmes share a name.
-  return [...groups.entries()].map(([id, ps]) => summarise(id, ps)).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  return [...groups.entries()]
+    .map(([id, ps]) => ({ ...summarise(id, ps), name: registry[id]?.name || id }))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
 /** A programme's roll-up + its member projects, or null if it has none. */
-export function programmeDetail(projects: Row[], id: string): ProgrammeDetail | null {
-  const members = projects.filter((p) => programmeIdOf(p) === id);
+export function programmeDetail(projects: Row[], id: string, registry: ProgrammeRegistry = {}): ProgrammeDetail | null {
+  const members = projects.filter((p) => programmeIdsOf(p, registry).includes(id));
   if (members.length === 0) return null;
-  return { ...summarise(id, members), projects: members };
+  return { ...summarise(id, members), name: registry[id]?.name || id, projects: members };
 }
 
 /** Count of projects not in any programme (for the UI's "standalone" section). */
-export function standaloneCount(projects: Row[]): number {
-  return projects.filter((p) => !programmeIdOf(p)).length;
+export function standaloneCount(projects: Row[], registry: ProgrammeRegistry = {}): number {
+  return projects.filter((p) => programmeIdsOf(p, registry).length === 0).length;
 }

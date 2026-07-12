@@ -1855,8 +1855,10 @@ Programmes are a grouping of related projects, **derived** from each project's o
 | Function | What it does |
 | --- | --- |
 | `aggregateFinancials` | Sum member projects' denormalised financial fields. |
-| `programmeIdOf` | A project's programme link (the backend-owned `programmeId`), or null when it's standalone (directly under the PMO root). |
-| `groupProgrammes` | Group projects into programmes (standalone projects are excluded). |
+| `programmeIdOf` | A project's backend-owned `programmeId`, if any. |
+| `validateProgrammeRegistry` | Validate + normalise the programme registry (trims, defaults name to the id, dedupes GUIDs). |
+| `programmeIdsOf` | Every programme id a project belongs to — determined SOLELY by its correlation GUID against the registry's lists. |
+| `groupProgrammes` | Group projects into programmes by the registry (standalone projects are excluded). |
 | `programmeDetail` | A programme's roll-up + its member projects, or null if it has none. |
 | `standaloneCount` | Count of projects not in any programme (for the UI's "standalone" section). |
 
@@ -2644,6 +2646,10 @@ Portfolio analytics endpoints — portfolio-wide RAG/health and resource-capacit
 ### `artifacts/api-server/src/routes/presence.ts`
 
 Live-collaboration presence routes (the "presence" feature module).
+
+### `artifacts/api-server/src/routes/programme-registry.ts`
+
+The admin/PMO-managed programme registry: programmeId → { name, instanceIds }.
 
 ### `artifacts/api-server/src/routes/programmes.ts`
 
