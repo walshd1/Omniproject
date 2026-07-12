@@ -69,7 +69,8 @@ honouring **409** (optimistic-concurrency conflict, with the current `version`) 
 
 **Self-managed archive** (`ARCHIVE_STORE=sidecar`, reusing `SQL_SIDECAR_URL`): when a project is
 closed with the `archive` disposition, OmniProject captures a snapshot (the project row, its issues,
-and OmniProject's own project settings — programme memberships, relink aliases, closed/retired status)
+its GTD tasks, and OmniProject's own project settings — programme memberships, relink aliases,
+closed/retired status)
 and POSTs `archive_save`; reports retrieve it later via `archive_get` (`{ guid }` → snapshot, 404 if
 absent) and `archive_list` (→ `[{ guid, archivedAt }]`). Implement those three to hold closed-project
 data outside the SOR. Unset ⇒ a non-persistent in-memory archive (with a warning).

@@ -22,6 +22,8 @@ export interface ArchivedProject {
   project: Row;
   /** Its issues at archive time (empty if none / unavailable). */
   issues: Row[];
+  /** Its GTD tasks at archive time (empty when the backend models none). */
+  tasks: Row[];
   /** OmniProject's own settings/references for the project — programme memberships, relink aliases,
    *  closed/retired status — captured so the project's configuration is archived alongside its data. */
   settings?: ProjectReferences | undefined;
