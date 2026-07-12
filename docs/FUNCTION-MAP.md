@@ -1438,6 +1438,15 @@ Conditional governance rules — a PMO mandate that applies only WHEN its predic
 | `governanceOverridesFor` | Collect the effects of every rule whose condition matches the context (deduped, declared order). |
 | `firedGovernanceRuleIds` | The ids of the governance rules that fired for a context — for explainability + audit. |
 
+### `artifacts/api-server/src/lib/guid-aliases.ts`
+
+GUID TRANSLATION — the alias table that lets an admin RELINK a project to a new correlation GUID without losing the history that referenced the old one.
+
+| Function | What it does |
+| --- | --- |
+| `validateGuidAliases` | Validate + normalise the alias table (trim, drop blanks, reject self-aliases and direct cycles). |
+| `resolveGuid` | Resolve a GUID to its current identity by following the alias chain (`old → … → current`). |
+
 ### `artifacts/api-server/src/lib/health-watch.ts`
 
 Health / anomaly watch.
@@ -1882,6 +1891,14 @@ Programmes are a grouping of related projects, **derived** from each project's o
 | `groupProgrammes` | Group projects into programmes by the registry (standalone projects are excluded). |
 | `programmeDetail` | A programme's roll-up + its member projects, or null if it has none. |
 | `standaloneCount` | Count of projects not in any programme (for the UI's "standalone" section). |
+
+### `artifacts/api-server/src/lib/project-forget.ts`
+
+"Delete a project" in OmniProject = FORGET its correlation GUID from every list that references it.
+
+| Function | What it does |
+| --- | --- |
+| `forgetProjectGuid` | Compute + apply the removal of `guid` from all OmniProject reference lists, atomically via `updateSettings`. |
 
 ### `artifacts/api-server/src/lib/proptest.ts`
 
@@ -2607,6 +2624,10 @@ GET /api/federated-portfolio — this instance's own portfolio summary PLUS ever
 ### `artifacts/api-server/src/routes/field-validation.ts`
 
 Admin-declared per-field DATA VALIDATION RULES (min/max, pattern, allowed set, required).
+
+### `artifacts/api-server/src/routes/guid-aliases.ts`
+
+The GUID translation table: oldGuid → newGuid, for relinking a project to a new correlation GUID.
 
 ### `artifacts/api-server/src/routes/health-watch.ts`
 

@@ -42,7 +42,8 @@ import {
 } from "../lib/data";
 import { conditionalJson } from "../lib/conditional";
 import { analyticsLimiter } from "../lib/rate-limit";
-import { requireRole, roleForReq } from "../lib/rbac";
+import { requireRole, requireAnyRole, roleForReq } from "../lib/rbac";
+import { forgetProjectGuid } from "../lib/project-forget";
 import { getFxRates } from "../lib/currency";
 import { evaluateRuleset } from "../lib/ruleset";
 import { recordAudit } from "../lib/audit";
@@ -183,6 +184,17 @@ router.post("/projects", requireRole("manager"), async (req, res) => {
     const project = await getBroker().createProject(contextFromReq(req), { ...bodyParse.data, omniInstanceId: randomUUID() });
     res.status(201).json(project);
   });
+});
+
+// DELETE /projects/:projectGuid/links — "delete" a project from OmniProject's point of view: FORGET its
+// correlation GUID from every reference list (the closed-project index, programme memberships, GUID
+// aliases). OmniProject holds no project data — it lives in the backend SOR or the self-managed archive —
+// so nothing there is touched; only the references are unlinked. Admin/PMO only.
+router.delete("/projects/:projectGuid/links", requireAnyRole("pmo", "admin"), (req, res) => {
+  const guid = String(req.params["projectGuid"]);
+  const result = forgetProjectGuid(guid);
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "project_forget", result: "success", status: 200 });
+  res.json(result);
 });
 
 router.patch("/projects/:projectId", requireRole("manager"), async (req, res) => {

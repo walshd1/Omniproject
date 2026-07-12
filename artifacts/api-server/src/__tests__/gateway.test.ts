@@ -908,6 +908,7 @@ const SAMPLE_SETTINGS = {
   programmeRegistry: {},
   brokerKinds: [],
   closedProjects: {},
+  guidAliases: {},
   branding: null,
   labelOverrides: {},
   webhooks: [],

@@ -21,6 +21,7 @@ import { validateFieldValidation, FieldValidationError, type FieldValidationRule
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
 import { validateBrokerKinds, brokerKindsFromEnv, BrokerKindsError } from "./broker-kinds";
 import { validateClosedProjects, ClosedProjectError, type ClosedProjectRegistry } from "./closed-projects";
+import { validateGuidAliases, GuidAliasError, type GuidAliases } from "./guid-aliases";
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
@@ -285,6 +286,9 @@ export interface SettingsState {
    *  projects be retained + retrieved without re-pulling them through the live broker. See
    *  lib/closed-projects. */
   closedProjects: ClosedProjectRegistry;
+  /** GUID translation for relinked projects: oldGuid → newGuid, so references to a superseded GUID
+   *  resolve to the project's current identity. See lib/guid-aliases. */
+  guidAliases: GuidAliases;
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
   /**
@@ -696,6 +700,7 @@ const store: SettingsState = {
   programmeRegistry: {},
   brokerKinds: brokerKindsFromEnv(), // env SEEDS the default; the setting owns it thereafter
   closedProjects: {},
+  guidAliases: {},
   webhooks: webhooksFromEnv(),
   federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
@@ -747,6 +752,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "programmeRegistry",
   "brokerKinds",
   "closedProjects",
+  "guidAliases",
   "webhooks",
   "federatedPeers",
   "loggingSync",
@@ -1290,6 +1296,14 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
       normalized["closedProjects"] = validateClosedProjects(patch["closedProjects"]);
     } catch (e) {
       if (e instanceof ClosedProjectError) throw new SettingsValidationError(e.message);
+      throw e;
+    }
+  }
+  if ("guidAliases" in patch) {
+    try {
+      normalized["guidAliases"] = validateGuidAliases(patch["guidAliases"]);
+    } catch (e) {
+      if (e instanceof GuidAliasError) throw new SettingsValidationError(e.message);
       throw e;
     }
   }

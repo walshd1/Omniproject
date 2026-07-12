@@ -12,6 +12,8 @@
  * pulling from wherever that GUID's data actually rests. Sealed at rest with the rest of settings.
  */
 
+import { resolveGuid, type GuidAliases } from "./guid-aliases";
+
 export const PROJECT_DISPOSITIONS = ["sor", "archive"] as const;
 export type ProjectDisposition = (typeof PROJECT_DISPOSITIONS)[number];
 
@@ -78,11 +80,12 @@ export interface SourcePlan {
   archive: string[];
 }
 
-export function planProjectSources(guids: Iterable<string>, registry: ClosedProjectRegistry): SourcePlan {
+export function planProjectSources(guids: Iterable<string>, registry: ClosedProjectRegistry, aliases: GuidAliases = {}): SourcePlan {
   const plan: SourcePlan = { live: [], sor: [], archive: [] };
   const seen = new Set<string>();
   for (const raw of guids) {
-    const guid = str(raw);
+    // Follow any relink first, so a reference to a superseded GUID resolves to the current one.
+    const guid = resolveGuid(str(raw), aliases);
     if (!guid || seen.has(guid)) continue;
     seen.add(guid);
     const rec = registry[guid];
