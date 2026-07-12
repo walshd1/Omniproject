@@ -834,6 +834,14 @@ The single home for resolving configured broker endpoints — including the depr
 | `configuredBrokerUrls` | Every configured broker endpoint URL across ALL loaded brokers — the default `BROKER_URL`, any `BROKER_URLS` pool, every per-kind URL in `BROKER_ENDPOINTS` (`kind=url\|url,kind2=url`), and the deprecated `N8N_WEBHOOK_URL` alias — trimmed and de-duplicated, in that precedence order. |
 | `configuredBrokerUrl` | The primary configured broker base URL (the first of {@link configuredBrokerUrls}), or undefined when none is set. |
 
+### `artifacts/api-server/src/lib/calendar-feed.ts`
+
+Build the calendar events for a user's dated work — the pure core of the `.ics` feed.
+
+| Function | What it does |
+| --- | --- |
+| `tasksToIcsEvents` | Map a task set to all-day due-date events, filtering out closed/undated (and non-mine) tasks. |
+
 ### `artifacts/api-server/src/lib/canonical-json.ts`
 
 The one canonical-JSON serializer.
@@ -1472,6 +1480,18 @@ Health / anomaly watch.
 | `recentFindings` | The most recent findings (newest last). |
 | `__resetHealthWatch` | Test-only: clear the findings ring + restore default thresholds. |
 | `runHealthWatch` | Run the watch: mint the keyed actor, read the portfolio THROUGH the broker as that actor, evaluate the rules, notify per finding, and record the run. |
+
+### `artifacts/api-server/src/lib/ical.ts`
+
+Minimal RFC 5545 (iCalendar) serialiser — pure + deterministic, so any dated OmniProject data can be rendered as a `.ics` a user imports into Google/Outlook/Apple Calendar.
+
+| Function | What it does |
+| --- | --- |
+| `escapeText` | RFC 5545 TEXT escaping: backslash, semicolon, comma and newlines. |
+| `foldLine` | Fold a content line to ≤75 octets, continuation lines prefixed with a space (RFC 5545 §3.1). |
+| `formatDateUtc` | A `Date` → `YYYYMMDD` in UTC (all-day form). |
+| `formatDateTimeUtc` | A `Date` → `YYYYMMDDTHHMMSSZ` in UTC (timed form). |
+| `buildIcs` | Serialise a set of events into a complete VCALENDAR document (CRLF line endings, folded). |
 
 ### `artifacts/api-server/src/lib/idp-presets.ts`
 
@@ -2586,6 +2606,10 @@ The admin-managed connected-broker list: extra broker kinds wired below the seam
 ### `artifacts/api-server/src/routes/broker-log.ts`
 
 Admin-only live broker log.
+
+### `artifacts/api-server/src/routes/calendar.ts`
+
+Personal calendar feed — GET /api/calendar.ics renders the signed-in user's OPEN, due-dated work as an iCalendar file to download and import (or host as a subscription) in Google/Outlook/Apple Calendar.
 
 ### `artifacts/api-server/src/routes/capabilities.ts`
 

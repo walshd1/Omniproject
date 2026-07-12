@@ -1,13 +1,13 @@
 {
   "capabilities": {
-    "auth": "api-token",
+    "auth": "user-action",
     "readOnly": true,
     "streaming": false
   },
   "id": "ical",
   "kind": "calendar",
   "label": "iCalendar feed",
-  "notes": "A read-only RFC 5545 (.ics) subscription feed OmniProject serves — milestones, deadlines and task due/scheduled dates as VEVENTs — for any calendar app (Google/Outlook/Apple) to subscribe to over webcal://. The tokenised feed URL is the credential; the feed reads through the broker seam + RBAC (no at-rest scope).",
+  "notes": "A read-only RFC 5545 (.ics) file of the signed-in user's OPEN, due-dated work — task due dates (and, later, milestones/deadlines) as VEVENTs — to import into Google/Outlook/Apple Calendar. Session-authenticated: the read runs as the caller through the broker seam with their own scope + backend credential, so it never exposes another user's data (which is why it's a user-action export, not an unauthenticated subscription URL). `?scope=all` widens it from the caller's own tasks to every dated task in their scope.",
   "route": "GET /api/calendar.ics",
   "tools": [
     "milestone",
