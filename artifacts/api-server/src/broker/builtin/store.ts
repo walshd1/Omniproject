@@ -1,5 +1,5 @@
-import type { Project, Issue, ProjectWrite, IssueWrite, Row } from "../types";
-import { isDone } from "../vocabulary";
+import type { Project, Issue, ProjectWrite, IssueWrite, Row, Task, TaskWrite } from "../types";
+import { isDone, isTaskClosed } from "../vocabulary";
 
 /**
  * The BUILT-IN BROKER's storage seam.
@@ -30,6 +30,12 @@ export interface BuiltinStore {
   deleteIssue(projectId: string, issueId: string): Promise<boolean>;
   listRaid(projectId: string): Promise<Row[]>;
   addRaid(projectId: string, entry: Record<string, unknown>): Promise<Row>;
+  // GTD tasks — actionable next-actions, distinct from issues. Optional on the Broker, but the
+  // built-in store models them fully so a self-host deployment is a first-class task backend.
+  listTasks(opts: { projectId?: string }): Promise<Task[]>;
+  getTask(taskId: string): Promise<Task | null>;
+  createTask(input: TaskWrite): Promise<Task>;
+  updateTask(taskId: string, input: TaskWrite): Promise<Task | null>;
 }
 
 /** Monotonic id helper — deterministic per store instance (no Date.now/random, which are unavailable
@@ -54,9 +60,11 @@ export class MemoryStore implements BuiltinStore {
   private projects: Project[] = [];
   private issues = new Map<string, Issue[]>();
   private raid = new Map<string, Row[]>();
+  private tasks: Task[] = [];
   private nextProjectId = makeIdGen("proj");
   private nextIssueId = makeIdGen("issue");
   private nextRaidId = makeIdGen("raid");
+  private nextTaskId = makeIdGen("task");
 
   async listProjects(): Promise<Project[]> {
     return this.projects.map((p) => ({ ...p }));
@@ -141,6 +149,54 @@ export class MemoryStore implements BuiltinStore {
     list.push(row);
     this.raid.set(projectId, list);
     return { ...row };
+  }
+
+  async listTasks(opts: { projectId?: string }): Promise<Task[]> {
+    const all = this.tasks.map((t) => ({ ...t }));
+    return opts.projectId ? all.filter((t) => t.projectId === opts.projectId) : all;
+  }
+  async getTask(taskId: string): Promise<Task | null> {
+    const t = this.tasks.find((x) => x.id === taskId);
+    return t ? { ...t } : null;
+  }
+  async createTask(input: TaskWrite): Promise<Task> {
+    const task: Task = {
+      id: this.nextTaskId(),
+      title: input.title ?? "Untitled task",
+      status: input.status ?? "next",
+      projectId: input.projectId ?? null,
+      context: input.context ?? null,
+      waitingOn: input.waitingOn ?? null,
+      assignee: input.assignee ?? null,
+      description: input.description ?? null,
+      priority: input.priority ?? "none",
+      tags: input.tags ?? [],
+      startDate: input.startDate ?? null,
+      dueDate: input.dueDate ?? null,
+      recurrence: input.recurrence ?? null,
+      estimateHours: input.estimateHours ?? null,
+      parentTaskId: input.parentTaskId ?? null,
+      url: input.url ?? null,
+      completedAt: input.completedAt ?? null,
+      reminderAt: input.reminderAt ?? null,
+      energy: input.energy ?? null,
+      section: input.section ?? null,
+      sortOrder: input.sortOrder ?? null,
+      collaborators: input.collaborators ?? [],
+      source: "builtin",
+    };
+    this.tasks.push(task);
+    return { ...task };
+  }
+  async updateTask(taskId: string, input: TaskWrite): Promise<Task | null> {
+    const t = this.tasks.find((x) => x.id === taskId);
+    if (!t) return null;
+    Object.assign(t, definedOnly(input as object));
+    // Stamp/clear completion when status crosses the done line, unless the caller set it explicitly.
+    if (input.status !== undefined && input.completedAt === undefined) {
+      t.completedAt = isTaskClosed(input.status) ? new Date().toISOString() : null;
+    }
+    return { ...t };
   }
 
   /** Keep the project's denormalised issue/complete counts in step with its issues. */

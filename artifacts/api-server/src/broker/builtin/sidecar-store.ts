@@ -1,5 +1,5 @@
 import { safeFetch } from "../../lib/egress";
-import type { Project, Issue, ProjectWrite, IssueWrite, Row } from "../types";
+import type { Project, Issue, ProjectWrite, IssueWrite, Row, Task, TaskWrite } from "../types";
 import type { BuiltinStore } from "./store";
 
 /**
@@ -101,5 +101,24 @@ export class SidecarStore implements BuiltinStore {
   }
   async addRaid(projectId: string, entry: Record<string, unknown>): Promise<Row> {
     return this.ok<Row>("add_raid", { projectId, ...entry });
+  }
+
+  async listTasks(opts: { projectId?: string }): Promise<Task[]> {
+    const rows = await this.ok<Task[]>("list_tasks", opts.projectId ? { projectId: opts.projectId } : {});
+    return Array.isArray(rows) ? rows : [];
+  }
+  async getTask(taskId: string): Promise<Task | null> {
+    const { status, body } = await this.call("get_task", { taskId });
+    if (status === 404) return null;
+    return (body as Task) ?? null;
+  }
+  async createTask(input: TaskWrite): Promise<Task> {
+    return this.ok<Task>("create_task", input);
+  }
+  async updateTask(taskId: string, input: TaskWrite): Promise<Task | null> {
+    const { status, body } = await this.call("update_task", { taskId, ...input });
+    if (status === 404) return null;
+    if (status < 200 || status >= 300) throw new Error(`sidecar update_task failed (${status})`);
+    return body as Task;
   }
 }
