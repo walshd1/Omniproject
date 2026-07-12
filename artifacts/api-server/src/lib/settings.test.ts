@@ -40,6 +40,14 @@ test("customReports: accepts the tasks scope (report over the GTD task entity)",
   assert.equal(ok.customReports[0]!.scope, "tasks");
 });
 
+test("customReports: accepts area/pie viz + chart options, rejects bad chart", () => {
+  const ok = updateSettings({ customReports: [{ id: "rc", label: "Share", scope: "project", groupBy: "status", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "pie", chart: { legend: false, stacked: true } }] });
+  assert.equal(ok.customReports[0]!.viz, "pie");
+  assert.equal(ok.customReports[0]!.chart!.legend, false);
+  assert.throws(() => updateSettings({ customReports: [{ id: "x", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "donut" }] }), SettingsValidationError); // bad viz
+  assert.throws(() => updateSettings({ customReports: [{ id: "x", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "bar", chart: { stacked: "yes" } }] }), SettingsValidationError); // bad chart.stacked
+});
+
 test("customReports: accepts groupBy2 (pivot) and viz:line + dateField (trend), rejects bad shapes for both", () => {
   const pivot = updateSettings({ customReports: [{ id: "r5", label: "Pivot", scope: "project", groupBy: "status", groupBy2: "region", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "table" }] });
   assert.equal(pivot.customReports[0]!.groupBy2, "region");
@@ -47,7 +55,7 @@ test("customReports: accepts groupBy2 (pivot) and viz:line + dateField (trend), 
   assert.equal(trend.customReports[0]!.viz, "line");
   assert.throws(() => updateSettings({ customReports: [{ id: "r7", label: "x", scope: "project", groupBy2: 5, metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "table" }] as never }), SettingsValidationError); // bad groupBy2
   assert.throws(() => updateSettings({ customReports: [{ id: "r8", label: "x", scope: "project", dateField: 5, metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "line" }] as never }), SettingsValidationError); // bad dateField
-  assert.throws(() => updateSettings({ customReports: [{ id: "r9", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "pie" }] as never }), SettingsValidationError); // bad viz
+  assert.throws(() => updateSettings({ customReports: [{ id: "r9", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "sum" }], viz: "donut" }] as never }), SettingsValidationError); // bad viz
 });
 
 test("contentPages: accepts a well-formed page and persists the component-id order", () => {

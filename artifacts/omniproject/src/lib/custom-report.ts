@@ -28,10 +28,17 @@ export interface CustomReportDef {
   groupBy2?: string;
   metrics: CustomReportMetric[];
   filter?: ConditionSet;
-  viz: "table" | "bar" | "line";
-  /** Required for `viz: "line"`: a date field whose values are bucketed by month to build a time
-   *  trend of the metrics, in place of the categorical `groupBy`. */
+  viz: "table" | "bar" | "line" | "area" | "pie";
+  /** Required for `viz: "line" | "area"`: a date field whose values are bucketed by month to build a
+   *  time trend of the metrics, in place of the categorical `groupBy`. */
   dateField?: string;
+  /** Chart options (the chart editor). Ignored by `viz: "table"`. */
+  chart?: {
+    /** Stack the metric series instead of grouping them side-by-side (bar/area). */
+    stacked?: boolean;
+    /** Show the series legend (default true). The data table below always names the series too. */
+    legend?: boolean;
+  };
 }
 
 export type Row = Record<string, unknown>;

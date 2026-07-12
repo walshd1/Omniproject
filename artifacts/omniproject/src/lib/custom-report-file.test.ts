@@ -30,7 +30,7 @@ describe("parseReportDef", () => {
 
   it("rejects a bad scope, viz, agg or empty metrics", () => {
     expect(() => parseReportDef({ label: "x", scope: "nope", viz: "table", metrics: [{ field: "a", agg: "sum" }] })).toThrow(/scope/);
-    expect(() => parseReportDef({ label: "x", scope: "project", viz: "pie", metrics: [{ field: "a", agg: "sum" }] })).toThrow(/viz/);
+    expect(() => parseReportDef({ label: "x", scope: "project", viz: "donut", metrics: [{ field: "a", agg: "sum" }] })).toThrow(/viz/);
     expect(() => parseReportDef({ label: "x", scope: "project", viz: "bar", metrics: [{ field: "a", agg: "median" }] })).toThrow(/agg/);
     expect(() => parseReportDef({ label: "x", scope: "project", viz: "bar", metrics: [] })).toThrow(/metric/);
     expect(() => parseReportDef({ scope: "project", viz: "bar", metrics: [{ field: "a", agg: "sum" }] })).toThrow(/label/);
