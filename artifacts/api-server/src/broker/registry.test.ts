@@ -8,8 +8,10 @@ import { getBrokerDef } from "@workspace/backend-catalogue";
 // (kind "demo", live false), which is always the PRIMARY connected broker.
 const ACTIVE = getBroker().kind;
 
-afterEach(() => {
+afterEach(async () => {
   delete process.env["BROKER_KINDS"];
+  const { updateSettings } = await import("../lib/settings");
+  updateSettings({ brokerKinds: [] });
 });
 
 test("connectedBrokers: the active broker is the sole, primary connection by default", () => {
@@ -39,6 +41,16 @@ test("BROKER_KINDS declares extra connected kinds; unknown ids are dropped, acti
   assert.equal(new Set(kinds).size, kinds.length);
   // Exactly one primary.
   assert.equal(connectedBrokers().filter((b) => b.primary).length, 1);
+});
+
+test("the admin brokerKinds SETTING adds connected kinds too, unioned with the env", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  process.env["BROKER_KINDS"] = "n8n";
+  updateSettings({ brokerKinds: ["node-red"] });
+  const kinds = connectedBrokerKinds();
+  assert.ok(kinds.includes("n8n"), "env-declared kind still loads");
+  assert.ok(kinds.includes("node-red"), "settings-declared kind loads too");
+  assert.equal(new Set(kinds).size, kinds.length, "no duplicates across the two sources");
 });
 
 test("brokersSupporting: which connected kinds can serve a broker capability", () => {

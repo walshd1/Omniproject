@@ -19,6 +19,7 @@ import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./fiel
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
+import { validateBrokerKinds, BrokerKindsError } from "./broker-kinds";
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
@@ -276,6 +277,9 @@ export interface SettingsState {
   /** Admin/PMO-managed programme registry: programmeId → { name, instanceIds } — the source of truth
    *  for programme membership (a project belongs by its `omniInstanceId`). See lib/programmes. */
   programmeRegistry: ProgrammeRegistry;
+  /** Admin-managed extra connected broker kinds (beyond the active data hop), unioned with the
+   *  BROKER_KINDS env in the registry. See lib/broker-kinds + broker/registry. */
+  brokerKinds: string[];
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
   /**
@@ -685,6 +689,7 @@ const store: SettingsState = {
   customFields: [],
   fieldValidation: [],
   programmeRegistry: {},
+  brokerKinds: [],
   webhooks: webhooksFromEnv(),
   federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
@@ -734,6 +739,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "customFields",
   "fieldValidation",
   "programmeRegistry",
+  "brokerKinds",
   "webhooks",
   "federatedPeers",
   "loggingSync",
@@ -1261,6 +1267,14 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
       normalized["programmeRegistry"] = validateProgrammeRegistry(patch["programmeRegistry"]);
     } catch (e) {
       if (e instanceof ProgrammeRegistryError) throw new SettingsValidationError(e.message);
+      throw e;
+    }
+  }
+  if ("brokerKinds" in patch) {
+    try {
+      normalized["brokerKinds"] = validateBrokerKinds(patch["brokerKinds"]);
+    } catch (e) {
+      if (e instanceof BrokerKindsError) throw new SettingsValidationError(e.message);
       throw e;
     }
   }
