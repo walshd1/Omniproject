@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { EntityDescriptor, ViewRecord, ViewScope } from "../../lib/view-engine/types";
 import { applyFiltersSort, groupRecords } from "../../lib/view-engine/apply";
 import { builtinViewsFor, savedViewToDefinition, type ViewDefinition } from "../../lib/view-engine/view-defs";
+import { builtinArtifactViewsFor } from "../../definitions/artifact-views";
 import { useSavedViews } from "../../lib/saved-views";
 import { RecordBoard } from "./RecordBoard";
 import { RecordList } from "./RecordList";
@@ -31,6 +32,7 @@ export function EntityViews<T>({
 
   const views = useMemo<ViewDefinition[]>(() => [
     ...builtinViewsFor(descriptor),
+    ...builtinArtifactViewsFor(descriptor.entity),
     ...(savedAll ?? []).filter((v) => v.entity === descriptor.entity).map(savedViewToDefinition),
   ], [descriptor, savedAll]);
 
