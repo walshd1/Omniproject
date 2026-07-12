@@ -447,8 +447,10 @@ export interface SavedView {
   scope?: string;
   /** Which entity a view-engine view targets ("task" | "issue"); omitted for legacy grid views. */
   entity?: string;
-  /** How the view engine renders it ("list" | "board"); omitted = list. */
+  /** How the view engine renders it ("list" | "board" | "table" | "timeline"); omitted = list. */
   viewKind?: string;
+  /** For a timeline view: the date field that buckets records. */
+  dateField?: string;
   /** Visible canonical field keys, in display order. */
   columns?: string[];
   sort?: { field: string; dir: "asc" | "desc" };
@@ -1049,8 +1051,9 @@ function validateSavedViews(value: unknown): void {
     if (typeof name !== "string" || !name) throw new SettingsValidationError("each saved view needs a name");
     // Optional view-engine fields — harden them since saved views are shared, customer-level config.
     if (entity != null && entity !== "task" && entity !== "issue") throw new SettingsValidationError("saved view entity must be 'task' or 'issue'");
-    if (viewKind != null && viewKind !== "list" && viewKind !== "board" && viewKind !== "table") throw new SettingsValidationError("saved view viewKind must be 'list', 'board' or 'table'");
+    if (viewKind != null && viewKind !== "list" && viewKind !== "board" && viewKind !== "table" && viewKind !== "timeline") throw new SettingsValidationError("saved view viewKind must be 'list', 'board', 'table' or 'timeline'");
     if (groupBy != null && typeof groupBy !== "string") throw new SettingsValidationError("saved view groupBy must be a string");
+    if ((view as Record<string, unknown>)["dateField"] != null && typeof (view as Record<string, unknown>)["dateField"] !== "string") throw new SettingsValidationError("saved view dateField must be a string");
     if (columns != null && (!Array.isArray(columns) || columns.some((c) => typeof c !== "string"))) throw new SettingsValidationError("saved view columns must be an array of strings");
     if (sort != null) {
       if (typeof sort !== "object") throw new SettingsValidationError("saved view sort must be an object");

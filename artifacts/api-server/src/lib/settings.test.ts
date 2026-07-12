@@ -122,6 +122,13 @@ test("savedViews: accepts the table viewKind with columns", () => {
   assert.equal(s.savedViews[0]!.viewKind, "table");
 });
 
+test("savedViews: accepts the timeline viewKind with a dateField", () => {
+  const s = updateSettings({ savedViews: [{ id: "tl1", name: "Timeline", entity: "issue", viewKind: "timeline", dateField: "dueDate" }] });
+  assert.equal(s.savedViews[0]!.viewKind, "timeline");
+  assert.equal(s.savedViews[0]!.dateField, "dueDate");
+  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", dateField: 5 }] }), SettingsValidationError);
+});
+
 test("savedViews: rejects malformed view-engine fields", () => {
   assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", entity: "widget" }] }), SettingsValidationError);
   assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", viewKind: "grid" }] }), SettingsValidationError);

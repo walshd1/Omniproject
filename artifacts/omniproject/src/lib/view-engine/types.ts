@@ -44,6 +44,8 @@ export interface EntityField<T = unknown> {
   key: string;
   label: string;
   get: (raw: T) => string | null | undefined;
+  /** A date-valued field (ISO string). Timeline views bucket records by one of these. */
+  isDate?: boolean;
 }
 
 /** Where the records come from — a project scope for issues, or portfolio-wide (no projectId). */

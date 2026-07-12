@@ -30,20 +30,22 @@ export function ViewBuilder() {
   const { toast } = useToast();
 
   const [entity, setEntity] = useState<Entity>("task");
-  const [viewKind, setViewKind] = useState<"list" | "board" | "table">("list");
+  const [viewKind, setViewKind] = useState<"list" | "board" | "table" | "timeline">("list");
   const [name, setName] = useState("");
   const [filters, setFilters] = useState<FilterRow[]>([]);
   const [sortField, setSortField] = useState("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [groupBy, setGroupBy] = useState("");
   const [columns, setColumns] = useState<string[]>([]);
+  const [dateField, setDateField] = useState("");
 
   const fields = DESCRIPTORS[entity].fields;
+  const dateFields = fields.filter((f) => f.isDate);
   const existing = useMemo(() => (all ?? []).filter((v) => v.entity === "task" || v.entity === "issue"), [all]);
 
   if (!isPmoOrAdmin(auth?.role)) return null;
 
-  const reset = () => { setName(""); setFilters([]); setSortField(""); setSortDir("asc"); setGroupBy(""); setColumns([]); };
+  const reset = () => { setName(""); setFilters([]); setSortField(""); setSortDir("asc"); setGroupBy(""); setColumns([]); setDateField(""); };
   const toggleColumn = (k: string) => setColumns((c) => (c.includes(k) ? c.filter((x) => x !== k) : [...c, k]));
 
   const submit = () => {
@@ -58,6 +60,7 @@ export function ViewBuilder() {
       ...(sortField ? { sort: { field: sortField, dir: sortDir } } : {}),
       ...(groupBy ? { groupBy } : {}),
       ...(viewKind === "table" && columns.length ? { columns } : {}),
+      ...(viewKind === "timeline" && dateField ? { dateField } : {}),
     };
     save.mutate([...(all ?? []), view], {
       onSuccess: () => { toast({ title: "VIEW SAVED", description: `“${view.name}” is now available in the ${entity} views.` }); reset(); },
@@ -82,17 +85,18 @@ export function ViewBuilder() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor="vb-entity" className="text-xs uppercase tracking-widest text-muted-foreground">Entity</Label>
-            <select id="vb-entity" className={inputCls} value={entity} onChange={(e) => { setEntity(e.target.value as Entity); setSortField(""); setGroupBy(""); setFilters([]); setColumns([]); }}>
+            <select id="vb-entity" className={inputCls} value={entity} onChange={(e) => { setEntity(e.target.value as Entity); setSortField(""); setGroupBy(""); setFilters([]); setColumns([]); setDateField(""); }}>
               <option value="task">Tasks</option>
               <option value="issue">Issues</option>
             </select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="vb-kind" className="text-xs uppercase tracking-widest text-muted-foreground">View kind</Label>
-            <select id="vb-kind" className={inputCls} value={viewKind} onChange={(e) => setViewKind(e.target.value as "list" | "board" | "table")}>
+            <select id="vb-kind" className={inputCls} value={viewKind} onChange={(e) => setViewKind(e.target.value as "list" | "board" | "table" | "timeline")}>
               <option value="list">List</option>
               <option value="board">Board</option>
               <option value="table">Table</option>
+              {dateFields.length > 0 && <option value="timeline">Timeline</option>}
             </select>
           </div>
         </div>
@@ -101,6 +105,17 @@ export function ViewBuilder() {
           <Label htmlFor="vb-name" className="text-xs uppercase tracking-widest text-muted-foreground">Name</Label>
           <input id="vb-name" className={inputCls} placeholder="e.g. My high-priority actions" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
         </div>
+
+        {/* Date field (timeline kind only) */}
+        {viewKind === "timeline" && (
+          <div className="space-y-1">
+            <Label htmlFor="vb-datefield" className="text-xs uppercase tracking-widest text-muted-foreground">Date field (timeline axis)</Label>
+            <select id="vb-datefield" className={inputCls} value={dateField} onChange={(e) => setDateField(e.target.value)}>
+              <option value="">(first date field)</option>
+              {dateFields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+            </select>
+          </div>
+        )}
 
         {/* Columns (table kind only) */}
         {viewKind === "table" && (

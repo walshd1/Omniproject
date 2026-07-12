@@ -61,6 +61,17 @@ describe("ViewBuilder", () => {
     expect(saved).toMatchObject({ name: "Task table", viewKind: "table", columns: ["status", "assignee"] });
   });
 
+  it("saves a timeline view with its date field", () => {
+    renderWithProviders(<ViewBuilder />);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Task timeline" } });
+    fireEvent.change(screen.getByLabelText("View kind"), { target: { value: "timeline" } });
+    fireEvent.change(screen.getByLabelText("Date field (timeline axis)"), { target: { value: "dueDate" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save view" }));
+
+    const saved = (mutate.mock.calls[0]![0] as unknown[]).at(-1);
+    expect(saved).toMatchObject({ name: "Task timeline", viewKind: "timeline", dateField: "dueDate" });
+  });
+
   it("won't save without a name", () => {
     renderWithProviders(<ViewBuilder />);
     // Save button is disabled with an empty name.

@@ -14,10 +14,10 @@ vi.mock("../../lib/saved-views", () => ({ useSavedViews: () => ({ data: savedDat
  * list is the default, every board column-preset is selectable (GTD has no special status — it's
  * just one preset), the list status-filter narrows, and the complete checkbox moves status.
  */
-interface Widget { id: string; title: string; status: string }
+interface Widget { id: string; title: string; status: string; due?: string }
 const WIDGETS: Widget[] = [
-  { id: "w1", title: "Alpha", status: "next" },
-  { id: "w2", title: "Bravo", status: "waiting" },
+  { id: "w1", title: "Alpha", status: "next", due: "2026-07-10" },
+  { id: "w2", title: "Bravo", status: "waiting", due: "2026-08-10" },
 ];
 function toRecord(w: Widget): ViewRecord<Widget> {
   return { id: w.id, title: w.title, status: w.status, priority: null, chips: [], raw: w };
@@ -32,7 +32,10 @@ function makeDescriptor(): EntityDescriptor<Widget> {
       { id: "gtd", label: "GTD Board", columns: [{ status: "next", label: "Next Actions" }, { status: "waiting", label: "Waiting For" }] },
       { id: "flow", label: "Flow", columns: [{ status: "next", label: "To do" }, { status: "done", label: "Done" }] },
     ],
-    fields: [{ key: "status", label: "Status", get: (w) => w.status }],
+    fields: [
+      { key: "status", label: "Status", get: (w) => w.status },
+      { key: "due", label: "Due", get: (w) => w.due, isDate: true },
+    ],
     filterStatuses: ["next", "waiting", "done"],
     closedStatuses: ["done"],
     doneStatus: "done",
@@ -94,6 +97,14 @@ describe("EntityViews (generic engine)", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Table" }));
     expect(screen.getByTestId("record-table")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: /status/i })).toBeInTheDocument();
+  });
+
+  it("renders the built-in Timeline view, bucketing records by their date field", () => {
+    renderWithProviders(<EntityViews descriptor={makeDescriptor()} onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Timeline" }));
+    expect(screen.getByTestId("record-timeline")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Jul 2026")).getByText("Alpha")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Aug 2026")).getByText("Bravo")).toBeInTheDocument();
   });
 
   it("renders a saved table view limited to its chosen columns", () => {
