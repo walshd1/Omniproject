@@ -6,6 +6,7 @@ import { useT } from "../../lib/i18n";
 import type { ProjectItems } from "../../lib/portfolio-value";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { Badge } from "../tiles/Badge";
 import { usePortfolioItems } from "./use-portfolio-items";
 
 /**
@@ -281,7 +282,7 @@ export function ValueStreamFlow() {
                     <td className={`py-2 px-2 text-right tabular-nums ${ageTone(s.meanAge, config.agingThresholdDays)}`}>{days(s.meanAge)}</td>
                     <td className={`py-2 px-2 text-right tabular-nums ${ageTone(s.maxAge, config.agingThresholdDays)}`}>{days(s.maxAge)}</td>
                     <td className="py-2 px-2 text-right tabular-nums" data-testid={`value-stream-flow-row-${s.key}-aging`}>
-                      {s.agingOver > 0 ? <span className="px-1.5 py-0.5 text-[10px] font-black tabular-nums rounded-sm bg-red-500/15 text-red-500">{s.agingOver}</span> : <span className="text-[11px] text-muted-foreground">—</span>}
+                      {s.agingOver > 0 ? <Badge tone="bad" className="tabular-nums">{s.agingOver}</Badge> : <span className="text-[11px] text-muted-foreground">—</span>}
                     </td>
                     <td className="py-2 px-2 text-right tabular-nums">{s.throughput}</td>
                     <td className="py-2 px-2 text-right tabular-nums">{days(s.meanCycle)}</td>

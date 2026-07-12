@@ -6,6 +6,7 @@ import type { ProjectItems } from "../../lib/portfolio-value";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { usePortfolioItems } from "./use-portfolio-items";
+import { Badge } from "../tiles/Badge";
 import { SkillsCapacity } from "./SkillsCapacity";
 import { useSkillsPlanning } from "../../lib/skills";
 
@@ -178,10 +179,9 @@ function flagTone(flag: UtilFlag): string {
 
 function FlagChip({ flag }: { flag: UtilFlag }) {
   if (flag === "ok") return <span className="text-[11px] text-muted-foreground">—</span>;
-  const cls = flag === "overloaded" ? "bg-red-500/15 text-red-500" : "bg-amber-500/15 text-amber-600";
   const text = flag === "overloaded" ? "Overloaded" : "Under-utilised";
   return (
-    <span data-testid={`util-flag-${flag}`} className={`px-1.5 py-0.5 text-[10px] font-black rounded-sm ${cls}`}>{text}</span>
+    <Badge tone={flag === "overloaded" ? "bad" : "warn"} testId={`util-flag-${flag}`}>{text}</Badge>
   );
 }
 

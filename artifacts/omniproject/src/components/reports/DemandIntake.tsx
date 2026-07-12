@@ -5,6 +5,7 @@ import { moscowWeight } from "../../lib/portfolio-priority";
 import type { ProjectItems } from "../../lib/portfolio-value";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { Badge } from "../tiles/Badge";
 import { usePortfolioItems } from "./use-portfolio-items";
 
 /**
@@ -171,9 +172,8 @@ const STAGE_TONE: Record<IntakeStage, string> = {
 
 function MoscowChip({ label }: { label: string }) {
   const w = moscowWeight(label);
-  const cls =
-    w === 100 ? "bg-red-500/15 text-red-500" : w === 66 ? "bg-amber-500/15 text-amber-600" : w === 33 ? "bg-sky-500/15 text-sky-600" : "bg-muted text-muted-foreground";
-  return <span className={`px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide rounded-sm ${cls}`}>{label}</span>;
+  const tone = w === 100 ? "bad" : w === 66 ? "warn" : w === 33 ? "info" : "neutral";
+  return <Badge tone={tone} className="uppercase tracking-wide">{label}</Badge>;
 }
 
 export function DemandIntake() {

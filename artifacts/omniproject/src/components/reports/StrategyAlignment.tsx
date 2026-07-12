@@ -8,6 +8,7 @@ import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { usePortfolioItems } from "./use-portfolio-items";
 import { StrategyCascade } from "./StrategyCascade";
+import { Badge } from "../tiles/Badge";
 import type { CascadeItem } from "../../lib/strategy-cascade";
 
 /**
@@ -153,17 +154,17 @@ function themeTone(rag: { green: number; amber: number; red: number }): string {
 }
 
 function RagChips({ rag }: { rag: { green: number; amber: number; red: number } }) {
-  const parts: { k: "green" | "amber" | "red"; n: number; cls: string }[] = [
-    { k: "green", n: rag.green, cls: "bg-green-500/15 text-green-600" },
-    { k: "amber", n: rag.amber, cls: "bg-amber-500/15 text-amber-600" },
-    { k: "red", n: rag.red, cls: "bg-red-500/15 text-red-500" },
+  const parts: { k: "green" | "amber" | "red"; n: number; tone: "good" | "warn" | "bad" }[] = [
+    { k: "green", n: rag.green, tone: "good" },
+    { k: "amber", n: rag.amber, tone: "warn" },
+    { k: "red", n: rag.red, tone: "bad" },
   ];
   const any = rag.green + rag.amber + rag.red > 0;
   if (!any) return <span className="text-[11px] text-muted-foreground">—</span>;
   return (
     <span className="inline-flex gap-1">
       {parts.filter((p) => p.n > 0).map((p) => (
-        <span key={p.k} data-testid={`rag-${p.k}`} className={`px-1.5 py-0.5 text-[10px] font-black tabular-nums rounded-sm ${p.cls}`}>{p.n}</span>
+        <Badge key={p.k} tone={p.tone} testId={`rag-${p.k}`} className="tabular-nums">{p.n}</Badge>
       ))}
     </span>
   );
