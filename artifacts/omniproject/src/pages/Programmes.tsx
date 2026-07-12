@@ -5,6 +5,7 @@ import { useT } from "../lib/i18n";
 import { RAG_DOT, RAG_TEXT } from "../lib/methodology";
 import { LoadingState } from "../components/LoadingState";
 import { DataProvenance } from "../components/DataProvenance";
+import { useProgrammeRegistry, memberInstanceIds } from "../lib/programme-registry";
 
 const PROGRAMME_FIELDS = [
   { key: "ragStatus", label: "RAG status" },
@@ -42,7 +43,11 @@ export function Programmes() {
   const { data: programmes, isLoading, dataUpdatedAt } = useListProgrammes();
   const { data: projects } = useListProjects();
   const { data: caps } = useGetCapabilities();
-  const standalone = (projects ?? []).filter((p: Project) => !p.programmeId);
+  const { data: registry } = useProgrammeRegistry();
+  // Standalone = not a member of any programme. Membership is by the project's correlation GUID
+  // against the registry (the source of truth), not the backend programmeId.
+  const members = memberInstanceIds(registry);
+  const standalone = (projects ?? []).filter((p: Project) => !members.has((p as { omniInstanceId?: string }).omniInstanceId ?? ""));
 
   if (isLoading) return <LoadingState />;
 

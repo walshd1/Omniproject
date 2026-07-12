@@ -8,6 +8,7 @@ import {
   type Project,
 } from "@workspace/api-client-react";
 import { renderWithProviders } from "../test/utils";
+import { programmeRegistryQueryKey, type ProgrammeRegistry } from "../lib/programme-registry";
 import { Programmes } from "./Programmes";
 
 function programme(over: Partial<Programme> = {}): Programme {
@@ -38,10 +39,11 @@ function project(over: Partial<Project> = {}): Project {
   };
 }
 
-function seed(programmes: Programme[], projects: Project[]): QueryClient {
+function seed(programmes: Programme[], projects: Project[], registry: ProgrammeRegistry = {}): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(getListProgrammesQueryKey(), programmes);
   qc.setQueryData(getListProjectsQueryKey(), projects);
+  qc.setQueryData(programmeRegistryQueryKey, registry);
   return qc;
 }
 
@@ -73,9 +75,10 @@ describe("Programmes index", () => {
     expect(screen.getByTestId("data-provenance")).toBeInTheDocument();
   });
 
-  it("excludes projects that already belong to a programme from the standalone list", () => {
+  it("excludes projects that already belong to a programme (by GUID) from the standalone list", () => {
+    const grouped = { ...project({ id: "p2", name: "Grouped Beta" }), omniInstanceId: "g-beta" } as Project;
     renderWithProviders(<Programmes />, {
-      client: seed([programme()], [project({ id: "p2", name: "Grouped Beta", programmeId: "prog-1" })]),
+      client: seed([programme()], [grouped], { "prog-1": { name: "Platform Programme", instanceIds: ["g-beta"] } }),
     });
     expect(screen.queryByText(/standalone projects/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Grouped Beta")).not.toBeInTheDocument();
