@@ -92,4 +92,12 @@ describe("CustomReport", () => {
     // …now under the user's title.
     expect(screen.getByText("Budget by status")).toBeInTheDocument();
   });
+
+  it("offers chart export for a chart viz, but not for a plain table", () => {
+    const { rerender } = render(<CustomReport def={def({ viz: "bar" })} rows={rows} />);
+    expect(screen.getByTestId("export-svg")).toBeInTheDocument();
+    expect(screen.getByTestId("export-png")).toBeInTheDocument();
+    rerender(<CustomReport def={def({ viz: "table" })} rows={rows} />);
+    expect(screen.queryByTestId("export-svg")).toBeNull();
+  });
 });
