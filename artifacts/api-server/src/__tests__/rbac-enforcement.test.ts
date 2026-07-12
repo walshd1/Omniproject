@@ -70,3 +70,25 @@ test("reads stay open to any authenticated principal even under real RBAC (GET /
     assert.equal((await h.req("/views", { cookie: memberCookie() })).status, 200);
   });
 });
+
+// ── IDOR fix: GET /history/trends is scope-checked (P0) ───────────────────────
+// Before the fix any authenticated principal could read any project's retained history by naming its
+// id. A scoped (user-level) principal must not read cross-scope history; a PMO (all scope) still can.
+test("history trends: a scoped principal can't read portfolio-wide or out-of-scope history", async () => {
+  await withRealRbac(async () => {
+    // A user-level principal (member) has no portfolio scope → portfolio-wide trend is refused.
+    const wide = await h.req("/history/trends/completionPct", { cookie: memberCookie() });
+    assert.equal(wide.status, 403);
+    // Naming a specific project they can't see is refused too (fail-closed on an unknown/out-of-scope id).
+    const proj = await h.req("/history/trends/completionPct?projectId=some-other-teams-project", { cookie: memberCookie() });
+    assert.equal(proj.status, 403);
+  });
+});
+
+test("history trends: a portfolio-scoped principal (PMO) is not blocked by the scope guard", async () => {
+  await withRealRbac(async () => {
+    // all-scope ⇒ the guard passes; the response is the honest trend/availability payload, never a 403.
+    const r = await h.req("/history/trends/completionPct?projectId=any-project", { cookie: pmoCookie() });
+    assert.notEqual(r.status, 403);
+  });
+});

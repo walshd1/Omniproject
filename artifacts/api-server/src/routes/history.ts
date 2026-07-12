@@ -1,8 +1,12 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { getBroker, contextFromReq, respondBrokerError } from "../broker";
 import { isTimeTravelEnabled, getSettings, updateSettings, SettingsValidationError } from "../lib/settings";
-import { requireAnyRole, hasRole } from "../lib/rbac";
+import { requireAnyRole, hasRole, scopeForReq } from "../lib/rbac";
+import { inScope } from "../lib/scope";
 import { isFeatureEnabled } from "../lib/feature-modules";
+import { getProjects } from "../lib/data";
+import { programmeIdsOf, programmeIdOf } from "../lib/programmes";
+import { qualifiedId } from "../broker/identity";
 import { selfHostGovernanceId } from "../selfhost";
 import { buildTrend, resolveCadence, TREND_METRICS, type TrendGrain, type TrendMetric } from "../history";
 
@@ -47,12 +51,49 @@ const GRAIN_MS: Record<TrendGrain, number> = {
 };
 
 /**
+ * Enforce the caller's DATA scope on a trend request, closing the IDOR where any authenticated principal
+ * could read any project's retained history by naming its id. `all` scope (PMO/admin) sees everything;
+ * a scoped principal (manager / user) may only read trends for a project it can already see (the same
+ * broker-enforced visible set every other read uses) or a programme it owns. A portfolio-wide request
+ * (no project/programme filter) requires portfolio scope, since the retention read isn't per-tenant.
+ * Fail-closed: an unresolvable target is refused, not leaked.
+ */
+async function trendScopeAllowed(req: Request, projectId: string | null, programmeId: string | null): Promise<{ ok: true } | { ok: false; error: string }> {
+  const scope = scopeForReq(req);
+  if (scope.level === "all") return { ok: true };
+  if (!projectId && !programmeId) {
+    return { ok: false, error: "portfolio-wide trends require portfolio (PMO/admin) scope — specify a projectId or programmeId within your scope" };
+  }
+  const registry = getSettings().programmeRegistry;
+  const visible = await getProjects(req, { includeClosed: true });
+
+  // A named programme must be one the principal owns (registry-resolvable at the gateway, so this holds
+  // even for a broker that doesn't scope-filter its own project list).
+  if (programmeId && !inScope(scope, { programmeId })) {
+    return { ok: false, error: "programme not in your scope" };
+  }
+  if (projectId) {
+    const project = visible.find((p) => String(p["id"]) === projectId || qualifiedId(p) === projectId);
+    // Not even in the broker-visible set ⇒ out of scope (fail-closed on an unknown id).
+    if (!project) return { ok: false, error: "project not in your scope" };
+    // Defence-in-depth: for a programme-scoped principal, re-check the project's programme membership at
+    // the gateway (the built-in broker doesn't scope-filter its list, so presence alone isn't enough).
+    if (scope.level === "programme"
+      && !inScope(scope, { programmeId: programmeIdOf(project), programmeIds: programmeIdsOf(project, registry) })) {
+      return { ok: false, error: "project not in your scope" };
+    }
+  }
+  return { ok: true };
+}
+
+/**
  * GET /history/trends/:metric — a bucketed trend series for a metric over a window. Gated on the
  * self-host `history` domain being enabled for the scope (that's what retains the time-series). When
  * it isn't enabled, or no retention source is configured, the series comes back `available: false`
- * with a reason — an honest "history not yet retained", not a 404 or fabricated zeroes.
+ * with a reason — an honest "history not yet retained", not a 404 or fabricated zeroes. Access is
+ * scope-checked (`trendScopeAllowed`) so a principal can't read history for a project outside its scope.
  */
-router.get("/history/trends/:metric", (req, res) => {
+router.get("/history/trends/:metric", async (req, res) => {
   const metric = String(req.params["metric"]) as TrendMetric;
   if (!TREND_METRICS.includes(metric)) {
     res.status(400).json({ error: `unknown trend metric; one of: ${TREND_METRICS.join(", ")}` });
@@ -82,6 +123,12 @@ router.get("/history/trends/:metric", (req, res) => {
   }
   if ((toMs - fromMs) / GRAIN_MS[grain] > MAX_TREND_BUCKETS) {
     res.status(400).json({ error: `window too large for grain "${grain}" (max ${MAX_TREND_BUCKETS} buckets)` });
+    return;
+  }
+
+  const authz = await trendScopeAllowed(req, projectId, programmeId);
+  if (!authz.ok) {
+    res.status(403).json({ error: authz.error });
     return;
   }
 
