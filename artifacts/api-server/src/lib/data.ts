@@ -3,7 +3,7 @@ import { getBroker, contextFromReq } from "../broker";
 import { stampSource } from "../broker/identity";
 import { isProjectLive } from "../broker/vocabulary";
 import { getSettings } from "./settings";
-import type { Row } from "../broker/types";
+import type { Row, Task, TaskWrite } from "../broker/types";
 
 /**
  * Data accessor facade. Historically this branched on backend-vs-demo inline; that
@@ -55,6 +55,33 @@ export const getIssues = (req: Request, projectId: string) => {
 };
 /** The cross-project activity feed, via the active broker. */
 export const getActivity = (req: Request) => getBroker().listActivity(contextFromReq(req));
+
+/** Actionable tasks (GTD), optionally scoped to a project, via the active broker. A backend that doesn't
+ *  model tasks (no `listTasks`) degrades to an empty list — tasks are an optional broker capability. */
+export const getTasks = (req: Request, opts: { projectId?: string } = {}): Promise<Task[]> => {
+  const b = getBroker();
+  if (!b.listTasks) return Promise.resolve([]);
+  return b.listTasks(contextFromReq(req), opts).then((rows) => stampSource(rows, b.kind));
+};
+/** One task by id, or null (also null when the broker doesn't model tasks). */
+export const getTask = (req: Request, taskId: string): Promise<Task | null> => {
+  const b = getBroker();
+  return b.getTask ? b.getTask(contextFromReq(req), taskId) : Promise.resolve(null);
+};
+/** Create a task (throws if the broker doesn't model tasks — the route guards on capability first). */
+export const createTask = (req: Request, input: TaskWrite): Promise<Task> => {
+  const b = getBroker();
+  if (!b.createTask) throw new Error("this backend does not support tasks");
+  return b.createTask(contextFromReq(req), input);
+};
+/** Update a task (throws if unsupported — the route guards first). */
+export const updateTask = (req: Request, taskId: string, input: TaskWrite): Promise<Task> => {
+  const b = getBroker();
+  if (!b.updateTask) throw new Error("this backend does not support tasks");
+  return b.updateTask(contextFromReq(req), taskId, input);
+};
+/** Whether the active broker models tasks at all. */
+export const brokerHasTasks = (): boolean => !!getBroker().listTasks;
 /** One project's roll-up summary (health/variance), via the active broker. */
 export const getSummary = (req: Request, projectId: string) => getBroker().projectSummary(contextFromReq(req), projectId);
 /** One project's historical points (for trends), via the active broker. */

@@ -101,6 +101,39 @@ export interface Issue extends Row {
   defectCount?: number | null;
 }
 
+/**
+ * A TASK — an ACTIONABLE next-action (GTD), distinct from an Issue (a problem/blocker from a helpdesk
+ * or project). A task may belong to a project, or stand alone (a personal/portfolio next-action). Its
+ * `status` is a GTD state (see broker/vocabulary `CANONICAL_TASK_STATUS`).
+ */
+export interface Task extends Row {
+  id: string;
+  title: string;
+  /** GTD status (backend-native string; classified by `normaliseTaskStatus`/`isActionable`). */
+  status: string;
+  /** The project this task advances, or null for a standalone next-action. */
+  projectId?: string | null;
+  /** GTD context (@calls, @computer, @errands, …) — where/how the action can be done. */
+  context?: string | null;
+  /** For a `waiting` task: who/what it's waiting on. */
+  waitingOn?: string | null;
+  /** Optional due/defer date (ISO 8601). */
+  dueDate?: string | null;
+  /** Who owns the next action. */
+  assignee?: string | null;
+}
+
+/** A normalised task create/update. `title` is required on create. */
+export interface TaskWrite {
+  title?: string | undefined;
+  status?: string | undefined;
+  projectId?: string | null | undefined;
+  context?: string | null | undefined;
+  waitingOn?: string | null | undefined;
+  dueDate?: string | null | undefined;
+  assignee?: string | null | undefined;
+}
+
 /** A child issue/note raised against a task (the work-item). */
 export interface TaskItem extends Row {
   id: string;
@@ -360,6 +393,14 @@ export interface Broker {
   /** Raise a child issue or note against a task (contributor+, capability-gated). */
   createTaskItem(ctx: ActorContext, projectId: string, taskId: string, input: TaskItemWrite): Promise<TaskItem>;
   verify(ctx: ActorContext, opts?: { projectId?: string }): Promise<VerifyReport>;
+
+  // ── Tasks (GTD actionable next-actions) — OPTIONAL, so a backend that doesn't model tasks simply
+  //    omits them (the gateway degrades to an empty task list). Distinct from issues.
+  /** Actionable tasks, optionally scoped to a project. */
+  listTasks?(ctx: ActorContext, opts?: { projectId?: string }): Promise<Task[]>;
+  getTask?(ctx: ActorContext, taskId: string): Promise<Task | null>;
+  createTask?(ctx: ActorContext, input: TaskWrite): Promise<Task>;
+  updateTask?(ctx: ActorContext, taskId: string, input: TaskWrite): Promise<Task>;
 
   // Read-model long tail (explicit methods — no action strings leak upward)
   listActivity(ctx: ActorContext): Promise<Row[]>;

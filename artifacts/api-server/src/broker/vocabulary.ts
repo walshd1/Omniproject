@@ -121,6 +121,60 @@ export function isProjectLive(native: string | null | undefined): boolean {
   return canon === null || PROJECT_STATUS_CLASS[canon] === "live";
 }
 
+// ── Task lifecycle (GTD) ─────────────────────────────────────────────────────
+// A TASK is an ACTIONABLE next-action (David Allen's GTD), distinct from an ISSUE (a problem/blocker
+// from a helpdesk or a project). Its lifecycle is the GTD workflow, not the issue board.
+
+/** Canonical GTD task states a backend's native task status normalises into.
+ *  next = actionable now · waiting = delegated/blocked on someone · scheduled = deferred to a time ·
+ *  someday = someday/maybe (incubating) · done · dropped (decided not to do). */
+export const CANONICAL_TASK_STATUS = ["next", "waiting", "scheduled", "someday", "done", "dropped"] as const;
+export type CanonicalTaskStatus = (typeof CANONICAL_TASK_STATUS)[number];
+
+/** The workflow class a task status falls in. */
+export type TaskStatusClass = "actionable" | "waiting" | "deferred" | "done" | "dropped";
+
+/** Canonical task status → workflow class. */
+export const TASK_STATUS_CLASS: Record<CanonicalTaskStatus, TaskStatusClass> = {
+  next: "actionable",
+  waiting: "waiting",
+  scheduled: "deferred",
+  someday: "deferred",
+  done: "done",
+  dropped: "dropped",
+};
+
+// Native synonyms across tools, folded onto a canonical GTD status.
+const TASK_STATUS_SYNONYMS: Record<string, CanonicalTaskStatus> = {
+  next: "next", "next action": "next", "next_action": "next", todo: "next", "to do": "next", actionable: "next", active: "next", doing: "next", "in progress": "next", in_progress: "next", started: "next",
+  waiting: "waiting", "waiting for": "waiting", waiting_for: "waiting", waitingon: "waiting", blocked: "waiting", delegated: "waiting", "on hold": "waiting",
+  scheduled: "scheduled", calendar: "scheduled", deferred: "scheduled", snoozed: "scheduled", tickler: "scheduled",
+  someday: "someday", "someday/maybe": "someday", "someday maybe": "someday", maybe: "someday", incubate: "someday", incubating: "someday", backlog: "someday",
+  done: "done", complete: "done", completed: "done", finished: "done", closed: "done",
+  dropped: "dropped", cancelled: "dropped", canceled: "dropped", abandoned: "dropped", wontdo: "dropped", "won't do": "dropped", trashed: "dropped",
+};
+
+/** Resolve a native task status to a canonical GTD one (via synonyms), or null if unclassifiable. */
+export function normaliseTaskStatus(native: string | null | undefined): CanonicalTaskStatus | null {
+  if (!native) return null;
+  return TASK_STATUS_SYNONYMS[native.trim().toLowerCase()] ?? null;
+}
+
+/** Is this task an ACTIONABLE next-action right now? (the GTD "what can I do next" filter). A task with
+ *  no/unknown status defaults to actionable — an uncategorised captured task is a candidate next-action. */
+export function isActionable(native: string | null | undefined): boolean {
+  const canon = normaliseTaskStatus(native);
+  return canon === null || TASK_STATUS_CLASS[canon] === "actionable";
+}
+
+/** Is a task finished OR dropped (terminal)? — e.g. excluded from an active GTD list. */
+export function isTaskClosed(native: string | null | undefined): boolean {
+  const canon = normaliseTaskStatus(native);
+  if (!canon) return false;
+  const cls = TASK_STATUS_CLASS[canon];
+  return cls === "done" || cls === "dropped";
+}
+
 // ── Priority ─────────────────────────────────────────────────────────────────
 
 /** Canonical work-item priorities, lowest → highest. */

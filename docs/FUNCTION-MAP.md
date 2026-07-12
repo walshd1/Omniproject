@@ -403,6 +403,9 @@ Canonical value vocabularies — the cross-backend meanings the gateway reasons 
 | `isClosed` | True when a status is terminal (done OR cancelled) — e.g. excluded from "overdue". |
 | `normaliseProjectStatus` | Resolve a native project status to a canonical one (via synonyms), or null if unclassifiable. |
 | `isProjectLive` | Is a project LIVE (still active)? A project with NO status — or one whose status can't be classified — is treated as LIVE: we never hide a project just because its lifecycle is unknown (default-safe). |
+| `normaliseTaskStatus` | Resolve a native task status to a canonical GTD one (via synonyms), or null if unclassifiable. |
+| `isActionable` | Is this task an ACTIONABLE next-action right now? (the GTD "what can I do next" filter). |
+| `isTaskClosed` | Is a task finished OR dropped (terminal)? — e.g. excluded from an active GTD list. |
 | `ragFor` | RAG from a completion percentage (≥60 green, ≥25 amber, else red). |
 | `financialHealthFrom` | RAG from cost performance: prefer CPI when earned value is known, else the spend ratio. |
 | `ragBuckets` | A zeroed RAG tally (e.g. for the Prometheus portfolio gauge). |
@@ -1165,6 +1168,11 @@ Data accessor facade.
 | `getProjects` | List the projects the actor can see, via the active broker. |
 | `getIssues` | List the issues of one project, via the active broker (source-stamped, as for projects). |
 | `getActivity` | The cross-project activity feed, via the active broker. |
+| `getTasks` | Actionable tasks (GTD), optionally scoped to a project, via the active broker. |
+| `getTask` | One task by id, or null (also null when the broker doesn't model tasks). |
+| `createTask` | Create a task (throws if the broker doesn't model tasks — the route guards on capability first). |
+| `updateTask` | Update a task (throws if unsupported — the route guards first). |
+| `brokerHasTasks` | Whether the active broker models tasks at all. |
 | `getSummary` | One project's roll-up summary (health/variance), via the active broker. |
 | `getHistory` | One project's historical points (for trends), via the active broker. |
 | `getBaseline` | One project's baseline snapshot, via the active broker. |
@@ -2757,6 +2765,10 @@ Setup-wizard + operations endpoints — backend/plane catalogues, workflow gener
 ### `artifacts/api-server/src/routes/snapshots.ts`
 
 Provably-immutable snapshots.
+
+### `artifacts/api-server/src/routes/tasks.ts`
+
+Task endpoints — GTD actionable next-actions, DISTINCT from issues (problems/blockers).
 
 ### `artifacts/api-server/src/routes/timesheets.ts`
 
