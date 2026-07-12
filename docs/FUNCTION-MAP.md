@@ -175,7 +175,8 @@ Cross-backend identity.
 | --- | --- |
 | `qualifyId` | The globally-unique key for an entity: `source:id`. |
 | `qualifiedId` | Read the qualified key off a row (its own `source`, or a fallback when the backend omitted it). |
-| `fieldIdentity` | The FIELD-IDENTITY HASH: a stable, backend-independent id for one field of one project instance, derived from the project's correlation GUID (`omniInstanceId`), the `broker` it was reached through, and the native `sourceField` name. |
+| `fieldIdentity` | The FIELD-IDENTITY TOKEN: a stable, backend-independent id for one field of one project instance, encoding the project's correlation GUID (`omniInstanceId`), the `broker` it was reached through, and the native `sourceField` name. |
+| `parseFieldIdentity` | Reverse of {@link fieldIdentity}: recover the three components from a token, or `null` if the string isn't a well-formed field-identity token (wrong shape, or it doesn't round-trip). |
 | `stampSource` | Stamp `source` onto every row that lacks one, using the broker kind it was read through. |
 
 ### `artifacts/api-server/src/broker/index.ts`

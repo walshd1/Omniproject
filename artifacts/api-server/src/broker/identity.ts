@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { Row } from "./types";
 
 /**
@@ -10,11 +9,13 @@ import type { Row } from "./types";
  *     never silently merge two distinct projects (or misroute a write).
  * Pure + stateless; nothing is stored.
  *
- * It also holds the FIELD-IDENTITY HASH (`fieldIdentity`) — the stable identity of a single field value
- * that is INDEPENDENT of which backend served it, built from the project's correlation GUID
+ * It also holds the FIELD-IDENTITY TOKEN (`fieldIdentity`) — the stable identity of a single field value
+ * that is INDEPENDENT of which backend served it, encoding the project's correlation GUID
  * (`omniInstanceId`), the broker it came through, and the source field name. Two backends feeding the
- * same field of the same project produce the same hash, which is what lets records assemble by project
- * across backends. This lives below the broker seam by design (the gateway never assembles).
+ * same field of the same project produce the same token, which is what lets records assemble by project
+ * across backends. The encoding is REVERSIBLE — every component can be recovered from the token alone
+ * (`parseFieldIdentity`), with no lookup table. This lives below the broker seam by design (the gateway
+ * never assembles).
  */
 
 /** The globally-unique key for an entity: `source:id`. */
@@ -29,16 +30,39 @@ export function qualifiedId(row: Row, fallbackSource?: string): string {
   return qualifyId(source, String(row["id"]));
 }
 
+/** The three components a field-identity token encodes. */
+export interface FieldIdentity {
+  omniInstanceId: string;
+  broker: string;
+  sourceField: string;
+}
+
 /**
- * The FIELD-IDENTITY HASH: a stable, backend-independent id for one field of one project instance,
- * derived from the project's correlation GUID (`omniInstanceId`), the `broker` it was reached through,
- * and the native `sourceField` name. Combining "project clarity" (the GUID) with "which value" (broker
- * · sourceField) in one hash means the same logical value has the same identity no matter which backend
- * served it — the key on which cross-backend assembly turns. Uses a space separator (which can't occur
- * in a broker kind or GUID) and SHA-256 for a fixed-width, collision-resistant key.
+ * The FIELD-IDENTITY TOKEN: a stable, backend-independent id for one field of one project instance,
+ * encoding the project's correlation GUID (`omniInstanceId`), the `broker` it was reached through, and
+ * the native `sourceField` name. Combining "project clarity" (the GUID) with "which value" (broker ·
+ * sourceField) means the same logical value has the same token no matter which backend served it — the
+ * key on which cross-backend assembly turns.
+ *
+ * The encoding is REVERSIBLE (see `parseFieldIdentity`): each component is base64url-encoded (alphabet
+ * A-Za-z0-9-_) and the three are joined with "." — which never occurs in base64url, so the split is
+ * unambiguous and any character (dots, colons, spaces) is safe inside a component. No hashing, no lookup
+ * table: every part is recoverable from the token alone.
  */
 export function fieldIdentity(omniInstanceId: string, broker: string, sourceField: string): string {
-  return createHash("sha256").update([omniInstanceId, broker, sourceField].join(" ")).digest("hex");
+  return [omniInstanceId, broker, sourceField].map((p) => Buffer.from(p, "utf8").toString("base64url")).join(".");
+}
+
+/** Reverse of {@link fieldIdentity}: recover the three components from a token, or `null` if the string
+ *  isn't a well-formed field-identity token (wrong shape, or it doesn't round-trip). */
+export function parseFieldIdentity(token: string): FieldIdentity | null {
+  if (typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [omniInstanceId, broker, sourceField] = parts.map((p) => Buffer.from(p, "base64url").toString("utf8")) as [string, string, string];
+  // Validate by re-encoding: base64url decoding is lenient, so a token only counts if it round-trips.
+  if (fieldIdentity(omniInstanceId, broker, sourceField) !== token) return null;
+  return { omniInstanceId, broker, sourceField };
 }
 
 /**
