@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
-import { SeriesBarChart, SeriesLineChart, SeriesAreaChart, SharePieChart, formatChartNumber, CHART_PALETTE, type ChartRow, type ChartSeries } from "./primitives";
+import { SeriesBarChart, SeriesLineChart, SeriesAreaChart, SharePieChart, ScatterPlotChart, TreemapChart, formatChartNumber, CHART_PALETTE, type ChartRow, type ChartSeries } from "./primitives";
 
 /**
  * The chart primitives are data-agnostic — they take plain series + rows from ANY source. jsdom gives
@@ -19,6 +19,13 @@ describe("chart primitives", () => {
     expect(() => render(<SeriesBarChart data={data} series={series} orientation="vertical" stacked legend={false} />)).not.toThrow();
     expect(() => render(<SeriesLineChart data={data} series={series} />)).not.toThrow();
     expect(() => render(<SeriesAreaChart data={data} series={series} stacked />)).not.toThrow();
+  });
+
+  it("render the scatter, treemap and donut primitives without throwing", () => {
+    expect(() => render(<ScatterPlotChart points={[{ x: 1, y: 2, name: "p" }, { x: 3, y: 1 }]} xLabel="Effort" yLabel="Value" />)).not.toThrow();
+    expect(() => render(<TreemapChart data={[{ name: "A", value: 5 }, { name: "B", children: [{ name: "B1", value: 3 }] }]} />)).not.toThrow();
+    expect(() => render(<SharePieChart data={[{ name: "a", value: 3 }, { name: "b", value: 2 }]} donut />)).not.toThrow();
+    expect(render(<TreemapChart data={[]} />).container).toBeEmptyDOMElement();
   });
 
   it("SharePieChart caps to the palette + Other and drops empty data", () => {

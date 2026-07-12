@@ -447,10 +447,12 @@ export interface SavedView {
   scope?: string;
   /** Which entity a view-engine view targets ("task" | "issue"); omitted for legacy grid views. */
   entity?: string;
-  /** How the view engine renders it ("list" | "board" | "table" | "timeline"); omitted = list. */
+  /** How the view engine renders it ("list" | "board" | "table" | "timeline" | "chart"); omitted = list. */
   viewKind?: string;
   /** For a timeline view: the date field that buckets records. */
   dateField?: string;
+  /** For a chart view: how the chart draws the records. */
+  chart?: { type?: string; groupField?: string; startField?: string; endField?: string };
   /** Visible canonical field keys, in display order. */
   columns?: string[];
   sort?: { field: string; dir: "asc" | "desc" };
@@ -1059,7 +1061,17 @@ function validateSavedViews(value: unknown): void {
     if (typeof name !== "string" || !name) throw new SettingsValidationError("each saved view needs a name");
     // Optional view-engine fields — harden them since saved views are shared, customer-level config.
     if (entity != null && entity !== "task" && entity !== "issue") throw new SettingsValidationError("saved view entity must be 'task' or 'issue'");
-    if (viewKind != null && viewKind !== "list" && viewKind !== "board" && viewKind !== "table" && viewKind !== "timeline") throw new SettingsValidationError("saved view viewKind must be 'list', 'board', 'table' or 'timeline'");
+    if (viewKind != null && !["list", "board", "table", "timeline", "chart"].includes(viewKind as string)) throw new SettingsValidationError("saved view viewKind must be 'list', 'board', 'table', 'timeline' or 'chart'");
+    const chart = (view as Record<string, unknown>)["chart"];
+    if (chart != null) {
+      if (typeof chart !== "object") throw new SettingsValidationError("saved view chart must be an object");
+      const ct = (chart as Record<string, unknown>)["type"];
+      if (!["bar", "pie", "donut", "wbs", "gantt"].includes(ct as string)) throw new SettingsValidationError("saved view chart.type must be bar | pie | donut | wbs | gantt");
+      for (const k of ["groupField", "startField", "endField"]) {
+        const v = (chart as Record<string, unknown>)[k];
+        if (v != null && typeof v !== "string") throw new SettingsValidationError(`saved view chart.${k} must be a string`);
+      }
+    }
     if (groupBy != null && typeof groupBy !== "string") throw new SettingsValidationError("saved view groupBy must be a string");
     if ((view as Record<string, unknown>)["dateField"] != null && typeof (view as Record<string, unknown>)["dateField"] !== "string") throw new SettingsValidationError("saved view dateField must be a string");
     if (columns != null && (!Array.isArray(columns) || columns.some((c) => typeof c !== "string"))) throw new SettingsValidationError("saved view columns must be an array of strings");

@@ -99,6 +99,11 @@ describe("EntityViews (generic engine)", () => {
     expect(screen.getByRole("columnheader", { name: /status/i })).toBeInTheDocument();
   });
 
+  it("offers a built-in Chart view", () => {
+    renderWithProviders(<EntityViews descriptor={makeDescriptor()} onOpen={() => {}} />);
+    expect(screen.getByRole("tab", { name: "Chart" })).toBeInTheDocument();
+  });
+
   it("renders the built-in Timeline view, bucketing records by their date field", () => {
     renderWithProviders(<EntityViews descriptor={makeDescriptor()} onOpen={() => {}} />);
     fireEvent.click(screen.getByRole("tab", { name: "Timeline" }));

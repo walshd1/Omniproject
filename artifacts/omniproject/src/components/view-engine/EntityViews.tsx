@@ -7,6 +7,7 @@ import { RecordBoard } from "./RecordBoard";
 import { RecordList } from "./RecordList";
 import { RecordTable } from "./RecordTable";
 import { RecordTimeline } from "./RecordTimeline";
+import { EntityChart } from "./EntityChart";
 
 /**
  * The view engine's entry point. A view is a JSON definition (list / table / board / timeline);
@@ -85,6 +86,9 @@ export function EntityViews<T>({
           onOpen={onOpen}
         />
       );
+    }
+    if (current.kind === "chart") {
+      return <EntityChart records={shaped} fields={descriptor.fields} spec={current.chart ?? { type: "bar" }} noun={descriptor.noun} />;
     }
     // list
     if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;

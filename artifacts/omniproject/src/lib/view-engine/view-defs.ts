@@ -9,7 +9,16 @@ import type { SavedView } from "../saved-views";
  */
 /** Kinds the generic engine renders directly from a definition. Specialized built-in views
  *  (gantt/prince2/raid/scrum) instead carry a `renderer` binding to a registered component. */
-export type EngineViewKind = "list" | "table" | "board" | "timeline";
+export type EngineViewKind = "list" | "table" | "board" | "timeline" | "chart";
+
+/** How a `chart` view draws the entity's records. Count/share charts group by `groupField`; a gantt
+ *  spans each record between `startField` and `endField`. */
+export interface ViewChartSpec {
+  type: "bar" | "pie" | "donut" | "wbs" | "gantt";
+  groupField?: string;
+  startField?: string;
+  endField?: string;
+}
 
 export interface ViewDefinition {
   id: string;
@@ -27,6 +36,8 @@ export interface ViewDefinition {
   columns?: string[];
   /** timeline: the date field that buckets records. */
   dateField?: string;
+  /** chart: how the chart draws the records. */
+  chart?: ViewChartSpec;
   /** list/table: equality filters and a sort. */
   filters?: { field: string; value: string }[];
   sort?: { field: string; dir: "asc" | "desc" };
@@ -46,6 +57,8 @@ export function builtinViewsFor<T>(d: EntityDescriptor<T>): ViewDefinition[] {
   if (d.fields.some((f) => f.isDate)) {
     defs.push({ id: `${d.entity}:timeline`, name: "Timeline", entity: d.entity, kind: "timeline", builtin: true });
   }
+  // A default chart view so every entity is chartable out of the box — records counted by status.
+  defs.push({ id: `${d.entity}:chart`, name: "Chart", entity: d.entity, kind: "chart", builtin: true, chart: { type: "bar", groupField: "status" } });
   for (const p of d.presets) {
     defs.push({ id: `${d.entity}:${p.id}`, name: p.label, entity: d.entity, kind: "board", builtin: true, boardColumns: p.columns });
   }
@@ -62,6 +75,7 @@ export function savedViewToDefinition(v: SavedView): ViewDefinition {
     builtin: false,
     ...(v.columns ? { columns: v.columns } : {}),
     ...(v.dateField ? { dateField: v.dateField } : {}),
+    ...(v.chart ? { chart: v.chart } : {}),
     ...(v.filters ? { filters: v.filters } : {}),
     ...(v.sort ? { sort: v.sort } : {}),
     ...(v.groupBy ? { groupBy: v.groupBy } : {}),
