@@ -1,14 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Waypoints } from "lucide-react";
-import { CANONICAL_FIELD_KEYS } from "@workspace/backend-catalogue";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
 import { useFieldRouting, useSaveFieldRouting, routingCollisions, type FieldRoute } from "../../lib/routing";
-import { useCustomFields } from "../../lib/custom-fields";
+import { usePickableFields } from "../../lib/pickable-fields";
 
-const CANONICAL_ELEMENTS = [...CANONICAL_FIELD_KEYS].sort();
 const empty = (): FieldRoute => ({ uiElement: "", vendor: "", broker: "", sourceField: "" });
 
 /**
@@ -20,7 +18,7 @@ const empty = (): FieldRoute => ({ uiElement: "", vendor: "", broker: "", source
 export function RoutingMatrix() {
   const { data: auth } = useAuth();
   const { data: server } = useFieldRouting();
-  const { data: customFields } = useCustomFields();
+  const pickable = usePickableFields();
   const save = useSaveFieldRouting();
   const { toast } = useToast();
   const { draft, setDraft, dirty, reset } = useDraftAdmin<FieldRoute[], FieldRoute[]>(server, structuredClone);
@@ -28,8 +26,9 @@ export function RoutingMatrix() {
   // Admin-only: routing decides where every value comes from.
   if (!roleAtLeast(auth?.role, "admin")) return null;
 
-  // UI elements you can route: the reference superset PLUS any admin-defined custom fields.
-  const uiElements = [...CANONICAL_ELEMENTS, ...(customFields ?? []).map((f) => f.key)];
+  // UI elements you can route: what wired backends advertise (∪ already-mapped ∪ custom), not the raw
+  // superset. Going beyond the advertised set is a deliberate act (wire a backend/broker, or Postgres).
+  const uiElements = pickable.fields;
   const rows = draft ?? [];
   const collisions = routingCollisions(rows);
   const setRow = (i: number, patch: Partial<FieldRoute>) => setDraft(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -52,6 +51,19 @@ export function RoutingMatrix() {
           Map each <strong>UI element</strong> to exactly one source — a <strong>vendor · broker · source field</strong>.
           One source may feed one UI element at a time (both directions); a collision is blocked.
         </p>
+
+        {pickable.restricted ? (
+          <p className="text-xs text-muted-foreground" data-testid="routing-state">
+            Showing the <strong>{pickable.advertised.length}</strong> field(s) your wired backends advertise
+            {pickable.custom.length > 0 && <> plus <strong>{pickable.custom.length}</strong> custom field(s)</>}.
+            To go beyond, wire up another backend/broker — or enable the Postgres sidecar (a deliberate extension).
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground" data-testid="routing-state">
+            No live backend is advertising fields yet, so the full reference superset is offered. Wire a backend
+            through a broker to narrow this to what's actually available.
+          </p>
+        )}
 
         <datalist id="routing-ui-elements">
           {uiElements.map((k) => <option key={k} value={k} />)}

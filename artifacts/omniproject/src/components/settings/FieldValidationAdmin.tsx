@@ -1,15 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ShieldCheck } from "lucide-react";
-import { CANONICAL_FIELD_KEYS } from "@workspace/backend-catalogue";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
-import { useCustomFields } from "../../lib/custom-fields";
+import { usePickableFields } from "../../lib/pickable-fields";
 import { useFieldValidation, useSaveFieldValidation, type FieldValidationRule } from "../../lib/field-validation";
 import { isSafePattern } from "../../lib/safe-regex";
 
-const CANONICAL_ELEMENTS = [...CANONICAL_FIELD_KEYS].sort();
 const empty = (): FieldValidationRule => ({ field: "" });
 
 /** A blank pattern is fine; otherwise it must pass the shared safe-regex guard. */
@@ -31,15 +29,16 @@ function dateOk(d: string | undefined): boolean {
 export function FieldValidationAdmin() {
   const { data: auth } = useAuth();
   const { data: server } = useFieldValidation();
-  const { data: customFields } = useCustomFields();
+  const pickable = usePickableFields();
   const save = useSaveFieldValidation();
   const { toast } = useToast();
   const { draft, setDraft, dirty, reset } = useDraftAdmin<FieldValidationRule[], FieldValidationRule[]>(server, structuredClone);
 
   if (!roleAtLeast(auth?.role, "admin")) return null;
 
-  // The fields you can constrain: the reference superset plus any admin-defined custom fields.
-  const fields = [...CANONICAL_ELEMENTS, ...(customFields ?? []).map((f) => f.key)];
+  // The fields you can constrain: the same surfaced set the routing matrix offers (advertised ∪
+  // mapped ∪ custom) — not the raw superset.
+  const fields = pickable.fields;
   const rows = draft ?? [];
   const set = (i: number, patch: Partial<FieldValidationRule>) => setDraft(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 
