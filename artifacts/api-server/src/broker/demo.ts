@@ -4,6 +4,7 @@ import { versionConflict } from "../lib/concurrency";
 import { CAPABILITY_DOMAINS, FIELD_KEYS, ENTITY_KEYS } from "../lib/capabilities";
 import { isDone, isClosed, isTaskClosed } from "./vocabulary";
 import { inScope } from "../lib/scope";
+import { programmeIdsOf } from "../lib/programmes";
 import {
   SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
   SAMPLE_PORTFOLIO, DEMO_FX, sampleActivity, sampleNotifications, persistDemoState,
@@ -138,8 +139,9 @@ export class DemoBroker implements Broker {
     // an external backend (n8n) mirrors off the same forwarded userContext.scope.
     const scope = ctx?.scope ?? { level: "all" as const };
     if (scope.level === "all") return SAMPLE_PROJECTS as unknown as Project[];
+    const registry = getSettings().programmeRegistry;
     return (SAMPLE_PROJECTS as Row[]).filter((p) =>
-      inScope(scope, { programmeId: (p["programmeId"] as string | null | undefined) ?? null }),
+      inScope(scope, { programmeId: (p["programmeId"] as string | null | undefined) ?? null, programmeIds: programmeIdsOf(p, registry) }),
     ) as unknown as Project[];
   }
 
@@ -175,7 +177,7 @@ export class DemoBroker implements Broker {
     if (!proj) throw new BrokerError("not_found", "Project not found");
     // Reference enforcement: a principal may only mutate a project inside their scope.
     const scope = ctx?.scope ?? { level: "all" as const };
-    if (!inScope(scope, { programmeId: (proj["programmeId"] as string | null | undefined) ?? null })) {
+    if (!inScope(scope, { programmeId: (proj["programmeId"] as string | null | undefined) ?? null, programmeIds: programmeIdsOf(proj as Row, getSettings().programmeRegistry) })) {
       throw new BrokerError("unauthorized", "out of scope for this principal");
     }
     if (input.name !== undefined) proj["name"] = input.name;

@@ -59,7 +59,11 @@ export function resolveScope(grants: Grants, opts: { sub?: string | undefined; g
  *  whatever it has; a non-`all` scope treats an unattributable resource as OUT of scope
  *  (fail-closed) rather than leaking it. */
 export interface ScopedResource {
+  /** Legacy backend-owned programme field — retained for transition. */
   programmeId?: string | null | undefined;
+  /** The GUID-registry programme membership (every programme id the resource belongs to). This is the
+   *  source of truth for membership (see programmeIdsOf); the gateway resolves it before scope-checking. */
+  programmeIds?: readonly string[] | undefined;
   ownerSub?: string | null | undefined;
   memberSubs?: readonly string[] | undefined;
 }
@@ -68,7 +72,13 @@ export interface ScopedResource {
 export function inScope(scope: Scope, r: ScopedResource): boolean {
   if (scope.level === "all") return true;
   if (scope.level === "programme") {
-    return r.programmeId != null && (scope.programmes ?? []).includes(String(r.programmeId));
+    // Membership is GUID-registry-based (programmeIds); the legacy programmeId is unioned in for a
+    // clean transition. A manager sees a project iff any of its programmes is one they own.
+    const owned = scope.programmes ?? [];
+    if (!owned.length) return false;
+    const memberOf = new Set<string>(r.programmeIds ?? []);
+    if (r.programmeId != null) memberOf.add(String(r.programmeId));
+    return owned.some((pg) => memberOf.has(pg));
   }
   // user-level: owned or a member.
   if (!scope.sub) return false;

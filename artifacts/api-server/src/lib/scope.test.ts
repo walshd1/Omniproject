@@ -47,6 +47,18 @@ test("inScope: programme-level admits only owned programmes, fail-closed on unat
   assert.ok(!inScope(s, {}));
 });
 
+test("inScope: GUID-registry membership (programmeIds) is honoured, not just the legacy field", () => {
+  const s: Scope = { level: "programme", programmes: ["alpha"] };
+  // Member of alpha purely via GUID registry (no legacy programmeId) ⇒ in scope.
+  assert.ok(inScope(s, { programmeIds: ["alpha"] }));
+  // A project in multiple programmes, one of them owned ⇒ in scope.
+  assert.ok(inScope(s, { programmeIds: ["gamma", "alpha"] }));
+  // GUID membership elsewhere + no owned programme ⇒ out.
+  assert.ok(!inScope(s, { programmeIds: ["beta"] }));
+  // Legacy field and GUID membership are unioned.
+  assert.ok(inScope(s, { programmeId: "alpha", programmeIds: ["beta"] }));
+});
+
 test("inScope: user-level admits owned or member resources, fail-closed otherwise", () => {
   const s: Scope = { level: "user", sub: "u-1" };
   assert.ok(inScope(s, { ownerSub: "u-1" }));
