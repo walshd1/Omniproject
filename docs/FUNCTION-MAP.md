@@ -2045,14 +2045,14 @@ safeParseJson — native JSON.parse hardened against prototype pollution, for UN
 
 ### `artifacts/api-server/src/lib/safe-regex.ts`
 
-The ONE place we turn a (usually admin-supplied) pattern string into a RegExp.
+The ONE place we turn a (usually admin-supplied) pattern string into a matchable regex.
 
 | Function | What it does |
 | --- | --- |
-| `assertSafePattern` | Throw {@link UnsafeRegexError} if `source` is over-long, structurally risky, or not a valid regex. |
-| `isSafePattern` | Is `source` safe to compile? (non-throwing form of {@link assertSafePattern}). |
-| `compileSafe` | Compile a guarded RegExp. |
-| `safeSearch` | Case-insensitive "does `value` match `source`?" for search-style use. |
+| `assertSafePattern` | Throw {@link UnsafeRegexError} if `source` is over-long or not a valid RE2 pattern. |
+| `isSafePattern` | Is `source` a valid, compilable RE2 pattern within the length cap? (non-throwing). |
+| `patternMatches` | Does `value` contain a match of `source`? Search semantics (like `RegExp.test`), linear-time. |
+| `safeSearch` | Case-insensitive "does `value` match `source`?" for search boxes. |
 
 ### `artifacts/api-server/src/lib/saml.ts`
 

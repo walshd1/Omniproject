@@ -1,6 +1,6 @@
 import { v, ValidationError } from "./validate";
 import { FIELD_REGISTRY } from "./field-registry";
-import { assertSafePattern, compileSafe, UnsafeRegexError } from "./safe-regex";
+import { assertSafePattern, patternMatches, UnsafeRegexError } from "./safe-regex";
 
 /**
  * Per-field DATA VALIDATION RULES — the admin-declared constraints a field's value must satisfy.
@@ -157,11 +157,14 @@ export function checkFieldValue(rule: FieldValidationRule, value: unknown, type:
       if (rule.before !== undefined) opts.before = rule.before;
       v.date(opts)(value, rule.field);
     } else {
-      const opts: { min?: number; max?: number; pattern?: RegExp } = {};
+      const opts: { min?: number; max?: number } = {};
       if (rule.min !== undefined) opts.min = rule.min;
       if (rule.max !== undefined) opts.max = rule.max;
-      if (rule.pattern) opts.pattern = compileSafe(rule.pattern); // shared guarded compile
-      v.string(opts)(value, rule.field);
+      v.string(opts)(value, rule.field); // length bounds
+      // Pattern match runs through the shared RE2 engine (linear-time), not a native RegExp.
+      if (rule.pattern && !patternMatches(rule.pattern, String(value))) {
+        return `${rule.field} has an invalid format`;
+      }
     }
   } catch (e) {
     if (e instanceof ValidationError) return e.issues.join("; ");
