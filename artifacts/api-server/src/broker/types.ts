@@ -117,10 +117,29 @@ export interface Task extends Row {
   context?: string | null;
   /** For a `waiting` task: who/what it's waiting on. */
   waitingOn?: string | null;
-  /** Optional due/defer date (ISO 8601). */
-  dueDate?: string | null;
-  /** Who owns the next action. */
+  /** Who owns the next action (a person). */
   assignee?: string | null;
+  // ── Common fields across leading task apps (Todoist / Asana / Things / Linear / ClickUp / To Do) ──
+  /** Free-text notes / description. */
+  description?: string | null;
+  /** Importance — reuses the canonical priority (none/low/medium/high/urgent). */
+  priority?: string | null;
+  /** Metadata tags/labels for filtering + grouping. */
+  tags?: string[];
+  /** When the action becomes available (GTD defer / start date, ISO 8601). */
+  startDate?: string | null;
+  /** Due date (ISO 8601). */
+  dueDate?: string | null;
+  /** Recurrence rule (e.g. "every weekday", an RRULE) — null for a one-off. */
+  recurrence?: string | null;
+  /** Estimated effort in hours. */
+  estimateHours?: number | null;
+  /** Parent task, for subtasks/checklists. */
+  parentTaskId?: string | null;
+  /** External link (a doc, ticket, PR). */
+  url?: string | null;
+  /** When it was completed (ISO 8601), if done. */
+  completedAt?: string | null;
 }
 
 /** A normalised task create/update. `title` is required on create. */
@@ -130,8 +149,17 @@ export interface TaskWrite {
   projectId?: string | null | undefined;
   context?: string | null | undefined;
   waitingOn?: string | null | undefined;
-  dueDate?: string | null | undefined;
   assignee?: string | null | undefined;
+  description?: string | null | undefined;
+  priority?: string | null | undefined;
+  tags?: string[] | undefined;
+  startDate?: string | null | undefined;
+  dueDate?: string | null | undefined;
+  recurrence?: string | null | undefined;
+  estimateHours?: number | null | undefined;
+  parentTaskId?: string | null | undefined;
+  url?: string | null | undefined;
+  completedAt?: string | null | undefined;
 }
 
 /** A child issue/note raised against a task (the work-item). */

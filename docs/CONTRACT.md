@@ -433,8 +433,17 @@ A TASK — an ACTIONABLE next-action (GTD), distinct from an Issue (a problem/bl
 | `projectId` | string \| null | — | The project this task advances, or null for a standalone next-action. |
 | `context` | string \| null | — | GTD context (@calls, |
 | `waitingOn` | string \| null | — | For a `waiting` task: who/what it's waiting on. |
-| `dueDate` | string \| null | — | Optional due/defer date (ISO 8601). |
-| `assignee` | string \| null | — | Who owns the next action. |
+| `assignee` | string \| null | — | Who owns the next action (a person). |
+| `description` | string \| null | — | Free-text notes / description. |
+| `priority` | string \| null | — | Importance — reuses the canonical priority (none/low/medium/high/urgent). |
+| `tags` | string[] | — | Metadata tags/labels for filtering + grouping. |
+| `startDate` | string \| null | — | When the action becomes available (GTD defer / start date, ISO 8601). |
+| `dueDate` | string \| null | — | Due date (ISO 8601). |
+| `recurrence` | string \| null | — | Recurrence rule (e.g. "every weekday", an RRULE) — null for a one-off. |
+| `estimateHours` | number \| null | — | Estimated effort in hours. |
+| `parentTaskId` | string \| null | — | Parent task, for subtasks/checklists. |
+| `url` | string \| null | — | External link (a doc, ticket, PR). |
+| `completedAt` | string \| null | — | When it was completed (ISO 8601), if done. |
 | _(other)_ | any | — | Open row — backend-specific fields pass through. |
 
 ### TaskItem
@@ -471,8 +480,17 @@ A normalised task create/update. `title` is required on create.
 | `projectId` | string \| null | — |  |
 | `context` | string \| null | — |  |
 | `waitingOn` | string \| null | — |  |
-| `dueDate` | string \| null | — |  |
 | `assignee` | string \| null | — |  |
+| `description` | string \| null | — |  |
+| `priority` | string \| null | — |  |
+| `tags` | string[] | — |  |
+| `startDate` | string \| null | — |  |
+| `dueDate` | string \| null | — |  |
+| `recurrence` | string \| null | — |  |
+| `estimateHours` | number \| null | — |  |
+| `parentTaskId` | string \| null | — |  |
+| `url` | string \| null | — |  |
+| `completedAt` | string \| null | — |  |
 
 ### VerifyReport
 

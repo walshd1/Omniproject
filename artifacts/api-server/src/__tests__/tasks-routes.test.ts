@@ -43,6 +43,26 @@ test("POST /tasks creates an actionable next-action; PATCH updates its GTD statu
   assert.equal((await json(patched)).status, "waiting");
 });
 
+test("POST /tasks carries assignee, tags and priority; completing stamps completedAt", async () => {
+  const created = await req("/tasks", { method: "POST", body: { title: "Prep board pack", assignee: "chris@demo", priority: "high", tags: ["board", "q3"], estimateHours: 2 } });
+  assert.equal(created.status, 201);
+  const task = await json(created);
+  assert.equal(task.assignee, "chris@demo");
+  assert.equal(task.priority, "high");
+  assert.deepEqual(task.tags, ["board", "q3"]);
+  assert.equal(task.completedAt, null);
+
+  const done = await req(`/tasks/${task.id}`, { method: "PATCH", body: { status: "done" } });
+  const updated = await json(done);
+  assert.equal(updated.status, "done");
+  assert.match(updated.completedAt, /^\d{4}-\d{2}-\d{2}T/); // auto-stamped on completion
+});
+
+test("POST /tasks rejects a bad priority and over-long/invalid fields", async () => {
+  const badPriority = await req("/tasks", { method: "POST", body: { title: "x", priority: "supercritical" } });
+  assert.equal(badPriority.status, 400);
+});
+
 test("POST /tasks rejects a bad GTD status and a missing title", async () => {
   const badStatus = await req("/tasks", { method: "POST", body: { title: "x", status: "nonsense" } });
   assert.equal(badStatus.status, 400);

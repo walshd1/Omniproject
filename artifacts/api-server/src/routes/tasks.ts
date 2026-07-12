@@ -3,7 +3,7 @@ import { withBrokerErrors } from "../broker";
 import { getTasks, getTask, createTask, updateTask, brokerHasTasks } from "../lib/data";
 import { requireRole } from "../lib/rbac";
 import { parseOr400, v } from "../lib/validate";
-import { CANONICAL_TASK_STATUS } from "../broker/vocabulary";
+import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY } from "../broker/vocabulary";
 
 /**
  * Task endpoints — GTD actionable next-actions, DISTINCT from issues (problems/blockers). Reads degrade
@@ -18,8 +18,17 @@ const TaskBody = v.object({
   projectId: v.optional(v.nullable(v.string({ max: 200 }))),
   context: v.optional(v.nullable(v.string({ max: 200 }))),
   waitingOn: v.optional(v.nullable(v.string({ max: 500 }))),
-  dueDate: v.optional(v.nullable(v.string({ max: 40 }))),
   assignee: v.optional(v.nullable(v.string({ max: 200 }))),
+  description: v.optional(v.nullable(v.string({ max: 10_000 }))),
+  priority: v.optional(v.nullable(v.enum(CANONICAL_PRIORITY))),
+  tags: v.optional(v.array(v.string({ min: 1, max: 100, trim: true }), { max: 50 })),
+  startDate: v.optional(v.nullable(v.string({ max: 40 }))),
+  dueDate: v.optional(v.nullable(v.string({ max: 40 }))),
+  recurrence: v.optional(v.nullable(v.string({ max: 200 }))),
+  estimateHours: v.optional(v.nullable(v.number({ min: 0 }))),
+  parentTaskId: v.optional(v.nullable(v.string({ max: 200 }))),
+  url: v.optional(v.nullable(v.string({ max: 2000 }))),
+  completedAt: v.optional(v.nullable(v.string({ max: 40 }))),
 });
 
 // GET /api/tasks?projectId= — actionable tasks, optionally scoped to a project.
