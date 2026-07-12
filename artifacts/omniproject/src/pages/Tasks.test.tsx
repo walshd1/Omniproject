@@ -51,4 +51,16 @@ describe("Tasks", () => {
       expect(JSON.parse(String(post![1].body)).title).toBe("Book the review");
     });
   });
+
+  it("quick-add carries an optional priority when chosen", async () => {
+    renderWithProviders(<Tasks />);
+    await screen.findByText("Call the auditor");
+    fireEvent.change(screen.getByPlaceholderText("Add a next action…"), { target: { value: "Prep board pack" } });
+    fireEvent.change(screen.getByLabelText("Priority"), { target: { value: "high" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find((c) => c[0] === "/api/tasks" && c[1]?.method === "POST");
+      expect(JSON.parse(String(post![1].body)).priority).toBe("high");
+    });
+  });
 });

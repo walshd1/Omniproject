@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { useTaskComments, useAddComment, useTaskAttachments, useAddAttachment, type Task } from "../lib/tasks";
+import { useTaskComments, useAddComment, useTaskAttachments, useAddAttachment, useUpdateTask, PRIORITIES, type Task } from "../lib/tasks";
 
 /**
  * Task detail — the fields plus the discussion thread and file attachment REFERENCES for one task,
@@ -16,6 +16,7 @@ export function TaskDetailDialog({ task, open, onOpenChange }: { task: Task | nu
   const addComment = useAddComment(id);
   const { data: attachments = [] } = useTaskAttachments(id, open && !!id);
   const addAttachment = useAddAttachment(id);
+  const updateTask = useUpdateTask();
   const [comment, setComment] = useState("");
   const [fname, setFname] = useState("");
   const [furl, setFurl] = useState("");
@@ -40,12 +41,22 @@ export function TaskDetailDialog({ task, open, onOpenChange }: { task: Task | nu
         <DialogHeader><DialogTitle className="uppercase tracking-tight">{task.title}</DialogTitle></DialogHeader>
         <div className="space-y-4 max-h-[70vh] overflow-auto">
           {/* Fields */}
-          <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             <span className="uppercase tracking-wider border border-border px-1.5 py-0.5">{task.status}</span>
             {task.context && <span className="font-mono border border-border px-1.5 py-0.5">{task.context}</span>}
             {task.assignee && <span className="border border-border px-1.5 py-0.5">{task.assignee}</span>}
             {task.dueDate && <span className="border border-border px-1.5 py-0.5">due {task.dueDate}</span>}
-            {task.priority && task.priority !== "none" && <span className="border border-border px-1.5 py-0.5 uppercase">{task.priority}</span>}
+            <label className="flex items-center gap-1">
+              <span className="uppercase tracking-widest">Priority</span>
+              <select
+                aria-label="Priority"
+                className="rounded-none border border-border bg-card px-1.5 py-0.5 text-[11px]"
+                value={(task.priority as string) || "none"}
+                onChange={(e) => updateTask.mutate({ id: task.id, patch: { priority: e.target.value } })}
+              >
+                {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </label>
           </div>
           {task.description && <p className="text-sm whitespace-pre-wrap">{task.description}</p>}
 
