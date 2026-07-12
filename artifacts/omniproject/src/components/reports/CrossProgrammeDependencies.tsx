@@ -8,6 +8,7 @@ import {
   type DepRef,
 } from "../../lib/cross-programme-dependencies";
 import { DataState } from "../DataState";
+import { PathChain } from "../charts/PathChain";
 import { usePortfolioItems } from "./use-portfolio-items";
 
 /**
@@ -152,14 +153,7 @@ export function CrossProgrammeDependencies() {
 
           <div>
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Critical path across programmes</div>
-            <ol className="flex flex-wrap items-center gap-1 text-xs font-bold" data-testid="cross-programme-chain">
-              {map.criticalPath.map((id, i) => (
-                <li key={id} className="flex items-center gap-1">
-                  <span className="border border-red-500/60 bg-red-500/10 text-red-600 px-2 py-1">{titleOf[id] ?? id}</span>
-                  {i < map.criticalPath.length - 1 && <span className="text-muted-foreground">→</span>}
-                </li>
-              ))}
-            </ol>
+            <PathChain nodes={map.criticalPath.map((id) => titleOf[id] ?? id)} testId="cross-programme-chain" />
           </div>
 
           {map.crossProgrammeEdges.length > 0 && (
