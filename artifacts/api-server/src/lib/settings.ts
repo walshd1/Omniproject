@@ -17,6 +17,7 @@ import { logger } from "./logger";
 import { isTruthy } from "./env-config";
 import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
+import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
@@ -268,6 +269,9 @@ export interface SettingsState {
   /** Admin-defined fields extending the reference superset. Each must be mapped in `fieldRouting`
    *  (route it to the Postgres backend if there's no external source) — see lib/custom-fields. */
   customFields: CustomField[];
+  /** Per-field data validation rules (min/max, pattern, allowed set, required) — see
+   *  lib/field-validation. Definitions here; enforced against values on the write path. */
+  fieldValidation: FieldValidationRule[];
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
   /**
@@ -675,6 +679,7 @@ const store: SettingsState = {
   labelOverrides: labelsFromEnv(),
   fieldRouting: [],
   customFields: [],
+  fieldValidation: [],
   webhooks: webhooksFromEnv(),
   federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
@@ -722,6 +727,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "labelOverrides",
   "fieldRouting",
   "customFields",
+  "fieldValidation",
   "webhooks",
   "federatedPeers",
   "loggingSync",
@@ -1232,6 +1238,15 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
       validateCustomFieldSources(effCustom, effRouting);
     } catch (e) {
       if (e instanceof CustomFieldError) throw new SettingsValidationError(e.message);
+      throw e;
+    }
+  }
+  if ("fieldValidation" in patch) {
+    // Validate the rule DEFINITIONS (shape + patterns compile); values are enforced on the write path.
+    try {
+      normalized["fieldValidation"] = validateFieldValidation(patch["fieldValidation"]);
+    } catch (e) {
+      if (e instanceof FieldValidationError) throw new SettingsValidationError(e.message);
       throw e;
     }
   }

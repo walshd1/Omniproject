@@ -53,6 +53,25 @@ export const v = {
       return n;
     };
   },
+  /** A date string (anything `Date.parse` accepts), optionally bounded by `after`/`before`. Bounds are
+   *  compared as calendar INSTANTS, so "between X and Y" is a real date comparison — never a regex.
+   *  Returns the input string unchanged. */
+  date(opts: { after?: string; before?: string } = {}): Validator<string> {
+    return (value, path = "value") => {
+      if (typeof value !== "string") return fail(path, "must be a date");
+      const t = Date.parse(value);
+      if (!Number.isFinite(t)) return fail(path, "must be a valid date");
+      if (opts.after !== undefined) {
+        const a = Date.parse(opts.after);
+        if (Number.isFinite(a) && t < a) return fail(path, `must be on or after ${opts.after}`);
+      }
+      if (opts.before !== undefined) {
+        const b = Date.parse(opts.before);
+        if (Number.isFinite(b) && t > b) return fail(path, `must be on or before ${opts.before}`);
+      }
+      return value;
+    };
+  },
   /** A boolean. Accepts the strings "true"/"false" (query/form params). */
   boolean(): Validator<boolean> {
     return (value, path = "value") => {

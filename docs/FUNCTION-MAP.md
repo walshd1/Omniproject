@@ -1371,6 +1371,18 @@ Field-routing matrix — the admin-declared map of **which source feeds which UI
 | `routeSourceKey` | The composite SOURCE key (`vendor·broker·sourceField`) — the "identifying key" that must be unique across the map. |
 | `validateFieldRouting` | Validate + normalise a field-routing map, enforcing the anti-collision invariant. |
 
+### `artifacts/api-server/src/lib/field-validation.ts`
+
+Per-field DATA VALIDATION RULES — the admin-declared constraints a field's value must satisfy.
+
+| Function | What it does |
+| --- | --- |
+| `fieldKind` | — |
+| `resolveFieldType` | Resolve a field's type: canonical catalogue first, then a custom-field definition, else "string". |
+| `validateFieldValidation` | Validate + normalise the rule DEFINITIONS (shape only — not values). |
+| `checkFieldValue` | Enforce ONE rule against a value, given the field's type. |
+| `checkFieldValues` | Enforce a set of rules over a record, returning every violation message. |
+
 ### `artifacts/api-server/src/lib/fx-fallback.ts`
 
 Indicative, GBP-based FX table used as a sample/fallback only — NOT live market data (note the epoch `asOf` and `provenance: "sample"`).
@@ -2031,6 +2043,17 @@ safeParseJson — native JSON.parse hardened against prototype pollution, for UN
 | `stripDangerousKeys` | The stripping reviver itself — exported so it can also be handed straight to a JSON.parse- compatible option elsewhere (e.g. body-parser's `reviver` option for express.json()). |
 | `safeParseJson` | — |
 
+### `artifacts/api-server/src/lib/safe-regex.ts`
+
+The ONE place we turn a (usually admin-supplied) pattern string into a RegExp.
+
+| Function | What it does |
+| --- | --- |
+| `assertSafePattern` | Throw {@link UnsafeRegexError} if `source` is over-long, structurally risky, or not a valid regex. |
+| `isSafePattern` | Is `source` safe to compile? (non-throwing form of {@link assertSafePattern}). |
+| `compileSafe` | Compile a guarded RegExp. |
+| `safeSearch` | Case-insensitive "does `value` match `source`?" for search-style use. |
+
 ### `artifacts/api-server/src/lib/saml.ts`
 
 How long a pending SP-initiated AuthnRequest id stays valid for InResponseTo matching.
@@ -2528,6 +2551,10 @@ Federated-peer registry (backlog #135) — the other OmniProject instances (typi
 ### `artifacts/api-server/src/routes/federated-portfolio.ts`
 
 GET /api/federated-portfolio — this instance's own portfolio summary PLUS every configured peer's (backlog #135), fanned out live and merged into one response, each contribution clearly labeled by peer/region and never silently blended into a single number.
+
+### `artifacts/api-server/src/routes/field-validation.ts`
+
+Admin-declared per-field DATA VALIDATION RULES (min/max, pattern, allowed set, required).
 
 ### `artifacts/api-server/src/routes/health-watch.ts`
 

@@ -900,6 +900,7 @@ const SAMPLE_SETTINGS = {
   errorTelemetry: false,
   fieldRouting: [],
   customFields: [],
+  fieldValidation: [],
   branding: null,
   labelOverrides: {},
   webhooks: [],
