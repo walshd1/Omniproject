@@ -32,6 +32,7 @@ import { CalendarPushConsent } from "../components/settings/CalendarPushConsent"
 import { LabelsAdmin } from "../components/premium/LabelsAdmin";
 import { PriorityLabelsAdmin } from "../components/settings/PriorityLabelsAdmin";
 import { ViewBuilder } from "../components/settings/ViewBuilder";
+import { MethodologyComposer } from "../components/settings/MethodologyComposer";
 import { PerformanceSettings } from "../components/settings/PerformanceSettings";
 import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
 import { ActionCatalogue } from "../components/settings/ActionCatalogue";
@@ -528,6 +529,10 @@ export function Settings() {
 
       <div className="mt-8">
         <ViewBuilder />
+      </div>
+
+      <div className="mt-8">
+        <MethodologyComposer />
       </div>
 
       <LazyMount>
