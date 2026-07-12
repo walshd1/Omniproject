@@ -7,11 +7,18 @@ import type { SavedView } from "../saved-views";
  * custom views come from the saved-views store and are editable in the view builder. The engine
  * dispatches on `kind`, so any new view is just a new definition, never new bespoke code.
  */
+/** Kinds the generic engine renders directly from a definition. Specialized built-in views
+ *  (gantt/prince2/raid/scrum) instead carry a `renderer` binding to a registered component. */
+export type EngineViewKind = "list" | "table" | "board" | "timeline";
+
 export interface ViewDefinition {
   id: string;
   name: string;
   entity: string;
-  kind: "list" | "table" | "board" | "timeline";
+  kind: EngineViewKind;
+  /** For specialized built-in views the engine can't produce generically: the id of a registered
+   *  view renderer (see components/views/view-renderers). Omitted for engine-native kinds. */
+  renderer?: string;
   /** Read-only shipped definition (can't be edited/deleted) vs. a user's custom view. */
   builtin: boolean;
   /** board: the status→column layout. */

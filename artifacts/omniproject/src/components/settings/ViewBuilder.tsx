@@ -7,7 +7,8 @@ import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useSavedViews, useSaveViews, type SavedView } from "../../lib/saved-views";
 import { taskDescriptor } from "../../lib/view-engine/task-descriptor";
 import { issueDescriptor } from "../../lib/view-engine/issue-descriptor";
-import type { EntityField } from "../../lib/view-engine/types";
+import { builtinViewsFor } from "../../lib/view-engine/view-defs";
+import type { EntityDescriptor, EntityField } from "../../lib/view-engine/types";
 
 /**
  * View builder (PMO/admin) — author named, shared custom views for the generic view engine. Pick the
@@ -41,6 +42,7 @@ export function ViewBuilder() {
 
   const fields = DESCRIPTORS[entity].fields;
   const dateFields = fields.filter((f) => f.isDate);
+  const builtins = builtinViewsFor((entity === "task" ? taskDescriptor : issueDescriptor) as EntityDescriptor);
   const existing = useMemo(() => (all ?? []).filter((v) => v.entity === "task" || v.entity === "issue"), [all]);
 
   if (!isPmoOrAdmin(auth?.role)) return null;
@@ -177,9 +179,22 @@ export function ViewBuilder() {
 
         <Button className="rounded-none" onClick={submit} disabled={save.isPending || !name.trim()}>Save view</Button>
 
+        {/* Built-in views ship read-only — shown for reference; they can't be edited or deleted. */}
+        <div className="pt-2 border-t border-border space-y-2" data-testid="builtin-views">
+          <span className="text-xs uppercase tracking-widest text-muted-foreground">Built-in {entity} views (read-only)</span>
+          <ul className="divide-y divide-border border border-border">
+            {builtins.map((v) => (
+              <li key={v.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                <span><span className="font-semibold">{v.name}</span> <span className="text-[11px] uppercase tracking-wider text-muted-foreground">· {v.kind}</span></span>
+                <span className="text-[11px] uppercase tracking-widest text-muted-foreground" title="Built-in — read-only">🔒 built-in</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
         {existing.length > 0 && (
           <div className="pt-2 border-t border-border space-y-2">
-            <span className="text-xs uppercase tracking-widest text-muted-foreground">Existing custom views</span>
+            <span className="text-xs uppercase tracking-widest text-muted-foreground">Custom views (editable)</span>
             <ul className="divide-y divide-border border border-border">
               {existing.map((v) => (
                 <li key={v.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">

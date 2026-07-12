@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, within } from "@testing-library/react";
 import { renderWithProviders } from "../../test/utils";
 import { ViewBuilder } from "./ViewBuilder";
 
@@ -76,5 +76,13 @@ describe("ViewBuilder", () => {
     renderWithProviders(<ViewBuilder />);
     // Save button is disabled with an empty name.
     expect(screen.getByRole("button", { name: "Save view" })).toBeDisabled();
+  });
+
+  it("lists the built-in views as read-only (not editable/deletable)", () => {
+    renderWithProviders(<ViewBuilder />);
+    const builtin = screen.getByTestId("builtin-views");
+    // The task built-ins (List/Table/GTD Board/…) show with a read-only marker and no Delete button.
+    expect(within(builtin).getByText("GTD Board")).toBeInTheDocument();
+    expect(within(builtin).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 });

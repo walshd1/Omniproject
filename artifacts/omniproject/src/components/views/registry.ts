@@ -1,21 +1,11 @@
 import type { ComponentType } from "react";
 import type { ViewId } from "../../lib/views";
-import { AgileBoard } from "../board/AgileBoard";
-import { GanttChart } from "../board/GanttChart";
-import { ScrumView } from "./ScrumView";
-import { Prince2View } from "./Prince2View";
-import { RaidView } from "./RaidView";
-import { ListView } from "./ListView";
-import { IssueEngineView } from "./IssueEngineView";
+import { VIEW_RENDERERS } from "./view-renderers";
 
-/** Maps each registered view to its renderer. Kanban/Gantt reuse the existing board components;
- *  `flow` renders issues through the shared generic view engine (the same views tasks use). */
-export const VIEW_COMPONENTS: Record<ViewId, ComponentType<{ projectId: string }>> = {
-  kanban: AgileBoard,
-  scrum: ScrumView,
-  gantt: GanttChart,
-  prince2: Prince2View,
-  raid: RaidView,
-  list: ListView,
-  flow: IssueEngineView,
-};
+/**
+ * Maps each registered methodology view id to its renderer. Derived from the VIEW_RENDERERS registry
+ * (the view-analogue of REPORT_RENDERERS) so there's a single renderer binding: built-in views are
+ * read-only JSON definitions in the catalogue, each bound to a registered renderer here. `flow`
+ * renders issues through the generic view engine; the rest are the specialized methodology renderers.
+ */
+export const VIEW_COMPONENTS: Record<ViewId, ComponentType<{ projectId: string }>> = VIEW_RENDERERS;
