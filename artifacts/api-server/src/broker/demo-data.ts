@@ -1,5 +1,4 @@
-import { DEV_PERSIST_FILE, saveState, loadState, builtinBackendEnabled, builtinBackendFile } from "../lib/dev-persist";
-import { logger } from "../lib/logger";
+import { DEV_PERSIST_FILE, saveState, loadState } from "../lib/dev-persist";
 import { INDICATIVE_FX_RATES } from "../lib/fx-fallback";
 import { configuredBrokerUrl } from "../lib/broker-url";
 import { CANONICAL_STATUS, CANONICAL_PRIORITY, isDone } from "./vocabulary";
@@ -16,17 +15,6 @@ import type { Row, FxRates } from "./types";
 // meaningless when a real backend is the source of record. The broker-URL resolution (incl.
 // the legacy alias) lives in lib/broker-url, so no vendor-named env key appears here.
 const BACKEND_CONFIGURED = !!configuredBrokerUrl();
-
-// The built-in backend (A1): an opt-in, ENCRYPTED, production-capable first-party store. Active
-// only when the operator sets BUILTIN_BACKEND and no real backend is wired (a real BROKER_URL always
-// wins). When active, this same in-memory engine becomes durable + encrypted at rest, seeded EMPTY
-// (a real system of record, not demo samples) and never auto-reset. Off by default ⇒ everything
-// below is a no-op and the default stateless/zero-at-rest posture is byte-identical.
-const BUILTIN_ACTIVE = builtinBackendEnabled() && !BACKEND_CONFIGURED;
-// The active persistence target: the encrypted built-in file when opted in, else the plaintext
-// dev-mode file (dev/test only), else none.
-const PERSIST_FILE = BUILTIN_ACTIVE ? builtinBackendFile() : DEV_PERSIST_FILE;
-const PERSIST_ENCRYPT = BUILTIN_ACTIVE;
 
 // Demo project rows carry denormalised financial fields (budget/actualCost/…) so
 // the programme roll-up and per-project financials have something to surface. A
@@ -215,16 +203,13 @@ export function getDemoState(): { projects: Row[]; issues: Record<string, Row[]>
   return { projects: SAMPLE_PROJECTS, issues: SAMPLE_ISSUES, raid: SAMPLE_RAID };
 }
 
-/** Persist the in-memory dataset so it survives a restart — the encrypted built-in backend when
- *  opted in, else the plaintext dev-mode file. No-op when neither is active. */
+/** Persist the in-memory demo dataset so it survives a restart (dev/test only). */
 export function persistDemoState(): void {
-  if (!PERSIST_FILE) return;
+  if (!DEV_PERSIST_FILE) return;
   try {
-    saveState(PERSIST_FILE, { projects: SAMPLE_PROJECTS, issues: SAMPLE_ISSUES, raid: SAMPLE_RAID }, { encrypt: PERSIST_ENCRYPT });
-  } catch (err) {
-    // Built-in backend: a failed save means the write isn't durable — surface it (still non-fatal so a
-    // transient disk error can't take the gateway down). Dev mode stays silent (convenience only).
-    if (BUILTIN_ACTIVE) logger.warn({ err }, "built-in backend: failed to persist state to disk");
+    saveState(DEV_PERSIST_FILE, { projects: SAMPLE_PROJECTS, issues: SAMPLE_ISSUES, raid: SAMPLE_RAID });
+  } catch {
+    /* best-effort; dev convenience only */
   }
 }
 
@@ -243,12 +228,9 @@ export function loadDemoState(state: { projects: unknown[]; issues: Record<strin
   Object.assign(SAMPLE_RAID, state.raid as Record<string, Row[]>);
 }
 
-if (PERSIST_FILE && !BACKEND_CONFIGURED) {
-  const saved = loadState(PERSIST_FILE, { encrypt: PERSIST_ENCRYPT });
+if (DEV_PERSIST_FILE && !BACKEND_CONFIGURED) {
+  const saved = loadState(DEV_PERSIST_FILE);
   if (saved) loadDemoState(saved);
-  // Built-in backend first boot (no saved file yet): start EMPTY — a real first-party store, not the
-  // demo sample data. (Dev-persist mode keeps the samples so a developer has something to work with.)
-  else if (BUILTIN_ACTIVE) loadDemoState({ projects: [], issues: {}, raid: {} });
 }
 
 // ── Periodic reset (public demo isolation) ────────────────────────────────────
@@ -274,11 +256,11 @@ export function resetDemoDataToSeed(): void {
   loadDemoState(structuredClone(PRISTINE_SEED));
 }
 
-/** Whether the periodic reset should run: only in genuine demo mode (no real backend) and only when
- *  the operator hasn't opted into durable persistence — dev-mode (DEV_PERSIST_FILE) or the built-in
- *  backend (BUILTIN_BACKEND) — both of which are a deliberate request for state to accumulate. */
+/** Whether the periodic reset should run: only in genuine demo mode (no real
+ *  backend) and only when the operator hasn't opted into durable dev persistence
+ *  (DEV_PERSIST_FILE), which is a deliberate request for state to accumulate. */
 export function shouldAutoResetDemo(): boolean {
-  return !BACKEND_CONFIGURED && !DEV_PERSIST_FILE && !BUILTIN_ACTIVE;
+  return !BACKEND_CONFIGURED && !DEV_PERSIST_FILE;
 }
 
 /** How often to reset (minutes). `DEMO_RESET_MINUTES=0` disables it entirely. */
