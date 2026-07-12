@@ -48,11 +48,15 @@ store. So the core is unchanged (per RFC-003), and the store is **pluggable**:
   REAL backend (`live = true`, `kind = "builtin:<store>"`): starts **empty** (no demo samples), and
   reports as a connected source (no demo banner) because `live` is true — no special-casing. The
   in-memory store is genuinely useful on its own for **tests / ephemeral runs**.
-- **Phase 2 (next):** a `PostgresStore` implementing the SAME `BuiltinStore` seam over the existing
-  optional `@workspace/db` (pg + drizzle) — a durable, customer-owned system of record. Data lives
-  in *your* Postgres (you own backup/retention/encryption at the DB layer); OmniProject stays the
-  courier. Selected by `BUILTIN_BROKER=postgres`; until it ships, that value falls back to the
-  memory store **with a loud warning** so it can never silently pretend to persist.
+- **Phase 2 (shipped):** rather than an in-process DB connection (which would make the gateway hold
+  DB credentials, breaking the stateless-gateway posture, AND duplicate the existing `sql` sidecar
+  vendor), the durable store reuses that vendor: `SidecarStore` implements the same `BuiltinStore`
+  seam by talking to the DB **sidecar** over HTTP (`SQL_SIDECAR_URL`/`SQL_SIDECAR_TOKEN`, per-action
+  endpoints). Selected by `BUILTIN_BROKER=sql` (aliases `sidecar`/`postgres`/`mysql`/`mssql`). The
+  gateway stays STATELESS (the sidecar holds the DB creds); it needs no n8n; there's no duplicated
+  SQL. Falls back to memory + a loud warning if `SQL_SIDECAR_URL` is unset. See
+  `docs/ops/DATABASE-BACKENDS.md`. Live PostgreSQL verification is "against your instance"; CI
+  exercises the contract against a mock sidecar.
 
 *(NB: an earlier attempt (#510) wrongly persisted the in-memory demo engine to a file and made the
 dev-only `dev-persist` debug tool production-capable — reverted in #511. Dev-persist stays a

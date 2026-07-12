@@ -67,7 +67,11 @@ The built-in broker — selection + store wiring.
 | Function | What it does |
 | --- | --- |
 | `builtinBrokerEnabled` | The built-in broker — selection + store wiring. |
-| `makeBuiltinBroker` | Build the built-in broker for the configured store (memory today; Postgres next), warning if an as-yet-unavailable store was requested so it can never silently pretend to persist. |
+| `makeBuiltinBroker` | Build the built-in broker for the configured store. |
+
+### `artifacts/api-server/src/broker/builtin/sidecar-store.ts`
+
+SidecarStore — backs the built-in broker with the existing DB **sidecar** vendor (the `sql` backend: PostgreSQL / MySQL / SQL Server), talking to it DIRECTLY over HTTP.
 
 ### `artifacts/api-server/src/broker/builtin/store.ts`
 

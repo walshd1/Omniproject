@@ -48,6 +48,27 @@ The per-action query and field mapping are **reference** — confirm them agains
 your real schema/collection before going live. Capabilities (scheduling,
 financials, …) light up only for the fields your mapping actually populates.
 
+## No n8n? Point the built-in broker straight at the sidecar
+
+The wiring above forwards through the broker (n8n). A small org with **no n8n** can instead use the
+**built-in broker** to talk to the same sidecar directly — the gateway still holds no DB
+credentials (the sidecar does), so the stateless posture is unchanged:
+
+```
+BUILTIN_BROKER=sql          # (aliases: sidecar | postgres | mysql | mssql)
+SQL_SIDECAR_URL=https://sidecar.internal:8443
+SQL_SIDECAR_TOKEN=…         # optional bearer
+```
+
+The built-in broker (`broker/builtin/SidecarStore`) POSTs one action per operation to
+`$SQL_SIDECAR_URL/<action>` with `{ "payload": { … } }`, unwrapping a `{ success, data }` reply and
+honouring **409** (optimistic-concurrency conflict, with the current `version`) and **404**
+(not found). Beyond the five actions above it also calls `get_project`, `create_project`,
+`update_project`, `get_issue`, `list_raid`, and `add_raid`, so implement those in your sidecar too.
+If `SQL_SIDECAR_URL` is unset it falls back to a **non-persistent** in-memory store with a loud
+warning (never a silent "persist into nowhere"). Live verification against a real PostgreSQL sidecar
+is still yours to do — the contract is exercised in CI against a mock sidecar.
+
 ## Bulk loading from a sheet first?
 
 If the legacy system can export a spreadsheet, you can also use the Excel/CSV
