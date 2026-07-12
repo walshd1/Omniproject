@@ -5,6 +5,7 @@ import { num } from "../../lib/num";
 import type { ProjectItems } from "../../lib/portfolio-value";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { ProportionBar } from "../charts/bars";
 import { usePortfolioItems } from "./use-portfolio-items";
 import { useTrend } from "../../lib/trends";
 import { TrendChart } from "./TrendChart";
@@ -241,18 +242,21 @@ function RagChips({ rag }: { rag: { green: number; amber: number; red: number } 
   );
 }
 
-/** A single stacked bar showing the red/amber/green split of scored projects — the RAG heatmap. */
+/** A single stacked bar showing the red/amber/green split of scored projects — the RAG heatmap.
+ *  Rendered through the shared ProportionBar primitive. */
 function DistributionBar({ red, amber, green }: { red: number; amber: number; green: number }) {
-  const total = red + amber + green;
-  if (total === 0) return null;
-  const seg = (n: number, cls: string, k: string) =>
-    n > 0 ? <div key={k} data-testid={`health-dist-${k}`} className={cls} style={{ width: `${(n / total) * 100}%` }} title={`${n} ${k}`} /> : null;
   return (
-    <div className="flex h-2.5 w-full overflow-hidden rounded-sm border border-border" data-testid="health-distribution">
-      {seg(red, "bg-red-500", "red")}
-      {seg(amber, "bg-amber-500", "amber")}
-      {seg(green, "bg-green-500", "green")}
-    </div>
+    <ProportionBar
+      height="h-2.5"
+      className="rounded-sm border border-border"
+      testId="health-distribution"
+      testIdPrefix="health-dist"
+      segments={[
+        { key: "red", value: red, className: "bg-red-500" },
+        { key: "amber", value: amber, className: "bg-amber-500" },
+        { key: "green", value: green, className: "bg-green-500" },
+      ]}
+    />
   );
 }
 
