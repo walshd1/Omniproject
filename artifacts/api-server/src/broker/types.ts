@@ -140,6 +140,17 @@ export interface Task extends Row {
   url?: string | null;
   /** When it was completed (ISO 8601), if done. */
   completedAt?: string | null;
+  // ── Best-of-breed task-app fields (Todoist / MS To Do / Asana / ClickUp / Things) ──
+  /** A notify-me time, distinct from the due date (ISO 8601). */
+  reminderAt?: string | null;
+  /** GTD energy/effort level (low/medium/high) — orthogonal to the hour estimate. */
+  energy?: string | null;
+  /** Section/list this task groups under within its project (Asana section, Todoist section, ClickUp list). */
+  section?: string | null;
+  /** Manual sort position within a list/section (Todoist order, Google Tasks position). */
+  sortOrder?: number | null;
+  /** Followers/collaborators kept in the loop (people), beyond the single assignee. */
+  collaborators?: string[];
 }
 
 /** A normalised task create/update. `title` is required on create. */
@@ -160,6 +171,11 @@ export interface TaskWrite {
   parentTaskId?: string | null | undefined;
   url?: string | null | undefined;
   completedAt?: string | null | undefined;
+  reminderAt?: string | null | undefined;
+  energy?: string | null | undefined;
+  section?: string | null | undefined;
+  sortOrder?: number | null | undefined;
+  collaborators?: string[] | undefined;
 }
 
 /** A comment on a task (a discussion note). */

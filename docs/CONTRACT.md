@@ -448,6 +448,11 @@ A TASK — an ACTIONABLE next-action (GTD), distinct from an Issue (a problem/bl
 | `parentTaskId` | string \| null | — | Parent task, for subtasks/checklists. |
 | `url` | string \| null | — | External link (a doc, ticket, PR). |
 | `completedAt` | string \| null | — | When it was completed (ISO 8601), if done. |
+| `reminderAt` | string \| null | — | A notify-me time, distinct from the due date (ISO 8601). |
+| `energy` | string \| null | — | GTD energy/effort level (low/medium/high) — orthogonal to the hour estimate. |
+| `section` | string \| null | — | Section/list this task groups under within its project (Asana section, Todoist section, ClickUp list). |
+| `sortOrder` | number \| null | — | Manual sort position within a list/section (Todoist order, Google Tasks position). |
+| `collaborators` | string[] | — | Followers/collaborators kept in the loop (people), beyond the single assignee. |
 | _(other)_ | any | — | Open row — backend-specific fields pass through. |
 
 ### TaskAttachment
@@ -539,6 +544,11 @@ A normalised task create/update. `title` is required on create.
 | `parentTaskId` | string \| null | — |  |
 | `url` | string \| null | — |  |
 | `completedAt` | string \| null | — |  |
+| `reminderAt` | string \| null | — |  |
+| `energy` | string \| null | — |  |
+| `section` | string \| null | — |  |
+| `sortOrder` | number \| null | — |  |
+| `collaborators` | string[] | — |  |
 
 ### VerifyReport
 

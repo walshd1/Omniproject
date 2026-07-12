@@ -97,6 +97,19 @@ test("deriveFieldMap: risk-register fields extend RAID (ride the raid domain, no
   assert.equal(off.fields.responseStrategy!.surface, false);
 });
 
+test("deriveFieldMap: task fields + entity ride the issues domain (task apps declare it)", () => {
+  const on = deriveFieldMap({ ...ALL, issues: true });
+  assert.equal(on.fields.context!.surface, true);
+  assert.equal(on.fields.energy!.surface, true);
+  assert.equal(on.fields.reminderAt!.store, true);
+  assert.equal(on.fields.collaborators!.surface, true);
+  assert.equal(on.entities.task!.surface, true);
+  // …and go dark for a backend with no work-item (issues) domain at all.
+  const off = deriveFieldMap({ ...ALL, issues: false });
+  assert.equal(off.fields.energy!.surface, false);
+  assert.equal(off.entities.task!.surface, false);
+});
+
 test("deriveFieldMap: CapEx/OpEx split + cost category ride the financials domain", () => {
   const on = deriveFieldMap({ ...ALL, financials: true });
   assert.equal(on.fields.expenditureType!.surface, true);

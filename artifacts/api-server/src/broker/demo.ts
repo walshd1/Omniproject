@@ -59,7 +59,7 @@ const SAMPLE_TASK_ATTACHMENTS: Record<string, TaskAttachment[]> = {};
 const SAMPLE_TASK_ITEMS: Record<string, TaskItem[]> = {};
 /** Demo GTD tasks — actionable next-actions across the portfolio, distinct from issues. */
 const SAMPLE_TASKS: Task[] = [
-  { id: "task-1", title: "Draft the migration cutover plan", status: "next", projectId: "proj-001", context: "@computer", assignee: "pat@demo", priority: "high", tags: ["migration", "planning"], estimateHours: 4, dueDate: null, waitingOn: null, source: "plane" },
+  { id: "task-1", title: "Draft the migration cutover plan", status: "next", projectId: "proj-001", context: "@computer", assignee: "pat@demo", priority: "high", tags: ["migration", "planning"], estimateHours: 4, dueDate: null, waitingOn: null, energy: "high", section: "Cutover", sortOrder: 1, collaborators: ["sam@demo"], reminderAt: null, source: "plane" },
   { id: "task-2", title: "Chase vendor for the signed DPA", status: "waiting", projectId: "proj-001", context: "@waiting", waitingOn: "Acme Legal", assignee: "sam@demo", priority: "medium", tags: ["legal", "vendor"], dueDate: null, source: "plane" },
   { id: "task-3", title: "Book the quarterly steering review", status: "scheduled", projectId: null, context: "@calendar", dueDate: "2026-09-01", assignee: "sam@demo", priority: "medium", tags: ["governance"], recurrence: "every 3 months", waitingOn: null, source: "plane" },
   { id: "task-4", title: "Evaluate a second data-residency region", status: "someday", projectId: null, context: "@computer", assignee: null, priority: "low", tags: ["research"], dueDate: null, waitingOn: null, source: "plane" },
@@ -324,6 +324,11 @@ export class DemoBroker implements Broker {
       parentTaskId: input.parentTaskId ?? null,
       url: input.url ?? null,
       completedAt: input.completedAt ?? null,
+      reminderAt: input.reminderAt ?? null,
+      energy: input.energy ?? null,
+      section: input.section ?? null,
+      sortOrder: input.sortOrder ?? null,
+      collaborators: input.collaborators ?? [],
       source: getSettings().backendSource || "plane",
     };
     SAMPLE_TASKS.push(task);
@@ -334,7 +339,7 @@ export class DemoBroker implements Broker {
   async updateTask(_ctx: ActorContext, taskId: string, input: TaskWrite): Promise<Task> {
     const t = SAMPLE_TASKS.find((x) => x.id === taskId);
     if (!t) throw new BrokerError("not_found", "Task not found");
-    for (const k of ["title", "status", "projectId", "context", "waitingOn", "assignee", "description", "priority", "tags", "startDate", "dueDate", "recurrence", "estimateHours", "parentTaskId", "url", "completedAt"] as const) {
+    for (const k of ["title", "status", "projectId", "context", "waitingOn", "assignee", "description", "priority", "tags", "startDate", "dueDate", "recurrence", "estimateHours", "parentTaskId", "url", "completedAt", "reminderAt", "energy", "section", "sortOrder", "collaborators"] as const) {
       if (input[k] !== undefined) (t as Task)[k] = input[k] as never;
     }
     // Stamp/clear completion when the status crosses the done line, if the caller didn't set it.

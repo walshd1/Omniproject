@@ -48,7 +48,8 @@ export type FieldGroup =
   | "raci" // RACI assignment (deliverable → Responsible/Accountable/Consulted/Informed)
   | "risk" // risk register — extends RAID (probability, exposure score, response strategy)
   | "relationship"
-  | "derived";
+  | "derived"
+  | "task"; // GTD next-action fields (context, waiting-on, reminder, energy, section, …) on the task entity
 
 export interface FieldDescriptor {
   key: string;

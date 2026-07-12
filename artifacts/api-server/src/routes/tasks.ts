@@ -3,7 +3,7 @@ import { withBrokerErrors } from "../broker";
 import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComments, addTaskComment, getTaskAttachments, addTaskAttachment, brokerHasTaskAttachments } from "../lib/data";
 import { requireRole } from "../lib/rbac";
 import { parseOr400, v } from "../lib/validate";
-import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY } from "../broker/vocabulary";
+import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY, CANONICAL_ENERGY } from "../broker/vocabulary";
 import { summariseTasks } from "../lib/task-summary";
 
 /**
@@ -30,6 +30,11 @@ const TaskBody = v.object({
   parentTaskId: v.optional(v.nullable(v.string({ max: 200 }))),
   url: v.optional(v.nullable(v.string({ max: 2000 }))),
   completedAt: v.optional(v.nullable(v.string({ max: 40 }))),
+  reminderAt: v.optional(v.nullable(v.string({ max: 40 }))),
+  energy: v.optional(v.nullable(v.enum(CANONICAL_ENERGY))),
+  section: v.optional(v.nullable(v.string({ max: 200 }))),
+  sortOrder: v.optional(v.nullable(v.number())),
+  collaborators: v.optional(v.array(v.string({ min: 1, max: 200, trim: true }), { max: 100 })),
 });
 
 // GET /api/tasks?projectId= — actionable tasks, optionally scoped to a project.

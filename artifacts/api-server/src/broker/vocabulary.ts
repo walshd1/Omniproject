@@ -181,6 +181,13 @@ export function isTaskClosed(native: string | null | undefined): boolean {
 export const CANONICAL_PRIORITY = ["none", "low", "medium", "high", "urgent"] as const;
 export type CanonicalPriority = (typeof CANONICAL_PRIORITY)[number];
 
+// ── Energy (GTD) ─────────────────────────────────────────────────────────────
+
+/** Canonical GTD energy/effort level — the "how much have I got in the tank" filter,
+ *  distinct from an hour estimate (mirrors the light effort tag in leading task apps). */
+export const CANONICAL_ENERGY = ["low", "medium", "high"] as const;
+export type CanonicalEnergy = (typeof CANONICAL_ENERGY)[number];
+
 // ── RAG (red/amber/green) ────────────────────────────────────────────────────
 
 /** Canonical RAG reporting statuses. */
