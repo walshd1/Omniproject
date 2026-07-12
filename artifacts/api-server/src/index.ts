@@ -11,6 +11,7 @@ import { getSettings } from "./lib/settings";
 import { installShutdownHandlers } from "./lib/shutdown";
 import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
 import { initPresenceBus, presenceBusMode } from "./lib/presence-bus";
+import { startAiKillFleetSync } from "./lib/ai-kill";
 import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
 import { startProactiveDigestScheduler, runProactiveDigest } from "./lib/proactive-digest";
 import { startScheduledExportScheduler, runScheduledExport } from "./lib/scheduled-export";
@@ -60,6 +61,10 @@ async function start(): Promise<void> {
   // Start the presence fan-out so this replica begins RECEIVING the fleet's presence changes
   // (rosters + editing indicators). In-process unless REDIS_URL is set — see lib/presence-bus.ts.
   initPresenceBus();
+
+  // Converge the AI kill-switch with shared state on an interval, so engaging the break-glass control on
+  // ANY replica takes effect here — fleet-wide when REDIS_URL is set, per-replica otherwise (unref'd).
+  startAiKillFleetSync();
 
   // Optional single-instance scheduled executive digest (off unless EXEC_DIGEST_INTERVAL_HOURS>0;
   // for a fleet, use the trigger endpoint + an external scheduler so it fires once).

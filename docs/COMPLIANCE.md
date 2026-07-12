@@ -30,7 +30,7 @@ So responsibility splits:
 | --- | --- | --- | --- | --- |
 | Authentication | OIDC / OAuth2-PKCE / SAML / magic-link; read-only API tokens | CC6.1 | A.5.16, A.8.5 | PR.AA-01/02 |
 | Authorization (RBAC) | Role ladder + admin/PMO authorities; backend re-authorizes every write | CC6.1, CC6.3 | A.5.15, A.8.3 | PR.AA-05 |
-| Joiner-mover-leaver | SCIM 2.0 lifecycle; `active=false` denies at the gate immediately | CC6.2, CC6.3 | A.5.16, A.5.18 | PR.AA-01 |
+| Joiner-mover-leaver | SCIM 2.0 lifecycle; `active=false` denies at the gate (immediate on the handling replica; fleet-wide on directory reload / rolling restart — see `docs/ops/MULTI-REPLICA.md`) | CC6.2, CC6.3 | A.5.16, A.5.18 | PR.AA-01 |
 | Session management | Sealed cookie; sliding idle + absolute cap; step-up re-auth | CC6.1 | A.8.5 | PR.AA-03 |
 | Least privilege / step-up | Re-auth required for key revocation, egress/governance, raw escape hatch | CC6.3 | A.8.2 | PR.AA-05 |
 | Secrets management | Pluggable vault (local AES-GCM **or** HashiCorp/AWS/Azure KMS); BYOK envelope | CC6.1 | A.8.24 | PR.DS-01 |

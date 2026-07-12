@@ -69,7 +69,8 @@ network, and (per zero-trust) the broker plane and backends across boundary 3.
   feature still reachable; a deprovisioned user retaining access; an autonomous actor exceeding scope.
 - **Defences:** RBAC ladder + **backend re-authorizes every write** (gateway gate is defence-in-depth);
   **step-up** re-auth for the highest-risk actions; `requireFeature` 404s a disabled module at request
-  time; **SCIM `active=false`** denies at the gate immediately (even mid-stream on an SSE); the
+  time; **SCIM `active=false`** denies at the gate immediately on the handling replica (even mid-stream
+  on an SSE) — fleet-wide needs a directory reload / rolling restart, see `docs/ops/MULTI-REPLICA.md`; the
   approved-actions matrix + vocab allowlist bound what any principal (incl. AI) may do.
 
 ## Key assumptions & residual risk

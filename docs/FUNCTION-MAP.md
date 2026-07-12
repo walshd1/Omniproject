@@ -584,10 +584,13 @@ Global AI kill switch.
 
 | Function | What it does |
 | --- | --- |
-| `engageAiKill` | Engage the kill switch — all AI calls and autonomous writes stop immediately. |
+| `engageAiKill` | Engage the kill switch — all AI calls and autonomous writes stop immediately on this replica, and fleet-wide within the sync interval when shared state is configured. |
 | `releaseAiKill` | Release the kill switch — the prior governance + grant posture resumes. |
-| `aiKillEngaged` | Is the AI kill switch currently engaged? |
-| `__resetAiKill` | Test-only: reset to the default (released). |
+| `aiKillEngaged` | Is the AI kill switch currently engaged? (synchronous — the local view, kept converged by the sync.) |
+| `refreshAiKillFromShared` | Converge this replica's flag with the shared value once (the fleet-sync tick, also directly testable). |
+| `startAiKillFleetSync` | Start periodic fleet convergence so the switch flipped on ANY replica takes effect here. |
+| `stopAiKillFleetSync` | — |
+| `__resetAiKill` | Test-only: reset to the default (released), local flag only. |
 
 ### `artifacts/api-server/src/lib/ai-providers.ts`
 
@@ -2810,7 +2813,7 @@ The field-routing matrix: which source (vendor·broker·sourceField) feeds which
 
 ### `artifacts/api-server/src/routes/ruleset.ts`
 
-`methodology` is an untrusted id used to look up a curated bundle — type + bound it.
+Whether a methodology's reference ruleset is enabled by the methodology composition.
 
 ### `artifacts/api-server/src/routes/scim.ts`
 

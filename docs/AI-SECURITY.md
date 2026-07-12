@@ -199,7 +199,7 @@ enterprise IdP (Okta / Entra) drives:
 - **Provisioning** — `POST/PUT/PATCH/DELETE /api/scim/v2/Users` and `/Groups`, bearer-authed
   with `SCIM_TOKEN` (separate from user sessions; off → 404). All mutations audited.
 - **Deprovisioning** — a `PATCH active=false` (or `DELETE`) means the user is **denied at the
-  gate even with a valid OIDC token**, so an IdP disabling an account takes effect immediately.
+  gate even with a valid OIDC token**, so an IdP disabling an account takes effect immediately on the handling replica (fleet-wide on directory reload / rolling restart — see `docs/ops/MULTI-REPLICA.md`).
 - **Group → role** — a user's SCIM group memberships are merged into their OIDC role claims at
   request time, so the IdP's group assignment drives RBAC without re-issuing claims.
 - The directory is small and persisted **sealed** (`SCIM_STATE_FILE` / `<OMNI_CONFIG_DIR>/scim.json`).
