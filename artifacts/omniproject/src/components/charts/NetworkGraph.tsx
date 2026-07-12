@@ -23,7 +23,7 @@ export interface GraphEdge {
   dashed?: boolean;
 }
 
-export function NetworkGraph({ nodes, edges, ariaLabel, testId, className = "w-full max-h-80" }: {
+export function NetworkGraph({ nodes, edges, ariaLabel, testId, className = "w-full max-h-80 border border-border bg-background" }: {
   nodes: GraphNode[];
   edges: GraphEdge[];
   ariaLabel: string;
@@ -34,7 +34,7 @@ export function NetworkGraph({ nodes, edges, ariaLabel, testId, className = "w-f
   return (
     <svg
       viewBox="0 0 100 100"
-      className={`${className} border border-border bg-background`}
+      className={className}
       role="img"
       aria-label={ariaLabel}
       {...(testId ? { "data-testid": testId } : {})}
