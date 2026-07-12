@@ -5,20 +5,13 @@ import { useListProjects, getGetProjectCapacityQueryOptions, type ResourceCapaci
 import { rollupByProgramme, type ProjectCapacity, type CapacityRollup as Rollup } from "../../lib/capacity-rollup";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { AllocationBar } from "../charts/bars";
 
 /**
  * Capacity roll-up — programme and portfolio resource utilisation, aggregated across every project's
  * capacity (the per-project ResourceHeatmap, summed). STATELESS: it fetches each project's capacity and
  * derives the totals on the fly. For programme managers (their programmes) and the PMO (the portfolio).
  */
-
-/** Colour the utilisation bar by band: >100 over (red), 80–100 healthy (green), else under (zinc). */
-function barColor(util: number | null): string {
-  if (util === null) return "bg-zinc-400";
-  if (util > 100) return "bg-red-500";
-  if (util >= 80) return "bg-green-500";
-  return "bg-zinc-500";
-}
 
 function RollupRow({ r }: { r: Rollup }) {
   const util = r.utilisation;
@@ -30,10 +23,7 @@ function RollupRow({ r }: { r: Rollup }) {
       <td className="py-2 px-2 text-right tabular-nums">{r.assignedHours.toLocaleString()}h / {r.availableHours.toLocaleString()}h</td>
       <td className="py-2 px-2">
         <div className="flex items-center gap-2">
-          <div className="h-2 w-28 bg-muted relative overflow-hidden">
-            <div className={`h-full ${barColor(util)}`} style={{ width: `${util === null ? 0 : Math.min(util, 150) / 1.5}%` }} />
-            <div className="absolute top-0 bottom-0 w-px bg-foreground/60" style={{ left: `${100 / 1.5}%` }} />
-          </div>
+          <AllocationBar value={util} className="w-28" />
           <span className="text-xs font-black tabular-nums w-12 text-right">{util === null ? "—" : `${util}%`}</span>
         </div>
       </td>
