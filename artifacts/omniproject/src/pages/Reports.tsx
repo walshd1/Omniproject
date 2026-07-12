@@ -71,14 +71,16 @@ function Gated({
   requires: string;
   section?: boolean;
   heading?: ReactNode;
-  /** Catalogue report id (e.g. "strategy-alignment"); when the methodology composition curates it out,
-   *  the whole section is hidden. Omitted = never composition-gated. */
-  reportId?: string;
+  /** Catalogue report id(s) (e.g. "strategy-alignment"); when the methodology composition curates out
+   *  ALL of them, the whole section is hidden. A section bundling two reports passes both, so it stays
+   *  while either is on. Omitted = never composition-gated. */
+  reportId?: string | string[];
   children: ReactNode;
 }) {
   const { data: composition } = useMethodologyComposition();
-  // A curated composition that excludes this report hides it entirely (uncurated ⇒ always shown).
-  if (reportId && !isItemVisible(composition ?? null, "report", reportId)) return null;
+  // A curated composition that excludes every listed report hides the section (uncurated ⇒ always shown).
+  const ids = reportId === undefined ? [] : Array.isArray(reportId) ? reportId : [reportId];
+  if (ids.length > 0 && !ids.some((id) => isItemVisible(composition ?? null, "report", id))) return null;
   // Render until capabilities load; only block when explicitly unavailable.
   if (caps && caps[domain] === false) {
     return (
@@ -99,6 +101,13 @@ function Gated({
     );
   }
   return <>{children}</>;
+}
+
+/** Show a single report only when the methodology composition includes it (uncurated ⇒ always shown).
+ *  Used to gate the individual charts inside a section that bundles two reports. */
+function IfComposed({ reportId, children }: { reportId: string; children: ReactNode }) {
+  const { data: composition } = useMethodologyComposition();
+  return isItemVisible(composition ?? null, "report", reportId) ? <>{children}</> : null;
 }
 
 export function Reports() {
@@ -142,7 +151,7 @@ export function Reports() {
           <ExecBoardPack />
         </Gated>
 
-        <Gated caps={caps} domain="portfolio" title="Portfolio Health" requires="a portfolio rollup (get_portfolio_health)">
+        <Gated caps={caps} domain="portfolio" title="Portfolio Health" reportId="portfolio-rag" requires="a portfolio rollup (get_portfolio_health)">
           <PortfolioKpi />
         </Gated>
 
@@ -174,7 +183,7 @@ export function Reports() {
           <Utilisation />
         </Gated>
 
-        <Gated caps={caps} domain="scheduling" title="Portfolio Roadmap" requires="start / due dates on work items" section>
+        <Gated caps={caps} domain="scheduling" title="Portfolio Roadmap" reportId="gantt" requires="start / due dates on work items" section>
           <PortfolioRoadmap />
         </Gated>
 
@@ -214,12 +223,12 @@ export function Reports() {
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
           {projectId && (
-            <Gated caps={caps} domain="resources" title="Resource Allocation" requires="a resource-management source">
+            <Gated caps={caps} domain="resources" title="Resource Allocation" reportId="resource-histogram" requires="a resource-management source">
               <ResourceHeatmap projectId={projectId} />
             </Gated>
           )}
           {projectId && (
-            <Gated caps={caps} domain="financials" title="Earned Value (EVM)" requires="a cost / ERP source">
+            <Gated caps={caps} domain="financials" title="Earned Value (EVM)" reportId="evm" requires="a cost / ERP source">
               <FinancialEvmChart projectId={projectId} />
             </Gated>
           )}
@@ -250,7 +259,7 @@ export function Reports() {
         )}
 
         {projectId && (
-          <Gated caps={caps} domain="financials" title="Income & Invoicing" requires="revenue / invoiced amounts on work items" section heading="Income &amp; Invoicing">
+          <Gated caps={caps} domain="financials" title="Income & Invoicing" reportId="income-invoicing" requires="revenue / invoiced amounts on work items" section heading="Income &amp; Invoicing">
             <IncomeInvoicing projectId={projectId} />
           </Gated>
         )}
@@ -268,37 +277,37 @@ export function Reports() {
         )}
 
         {projectId && (
-          <Gated caps={caps} domain="history" title="Sprint Burndown" requires="backend history (get_project_history)">
+          <Gated caps={caps} domain="history" title="Sprint Burndown" reportId={["burndown", "burnup"]} requires="backend history (get_project_history)">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-              <Burndown projectId={projectId} />
-              <Burnup projectId={projectId} />
+              <IfComposed reportId="burndown"><Burndown projectId={projectId} /></IfComposed>
+              <IfComposed reportId="burnup"><Burnup projectId={projectId} /></IfComposed>
             </div>
           </Gated>
         )}
 
         {projectId && (
-          <Gated caps={caps} domain="history" title="Flow & Velocity" requires="backend history (get_project_history)">
+          <Gated caps={caps} domain="history" title="Flow & Velocity" reportId={["cumulative-flow", "velocity"]} requires="backend history (get_project_history)">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-              <CumulativeFlow projectId={projectId} />
-              <Velocity projectId={projectId} />
+              <IfComposed reportId="cumulative-flow"><CumulativeFlow projectId={projectId} /></IfComposed>
+              <IfComposed reportId="velocity"><Velocity projectId={projectId} /></IfComposed>
             </div>
           </Gated>
         )}
 
         {projectId && (
-          <Gated caps={caps} domain="financials" title="Financial Summary" requires="a cost / ERP source" section>
+          <Gated caps={caps} domain="financials" title="Financial Summary" reportId="financial-summary" requires="a cost / ERP source" section>
             <FinancialSummary projectId={projectId} />
           </Gated>
         )}
 
         {projectId && roleAtLeast(auth?.role, "pmo") && (
-          <Gated caps={caps} domain="financials" title="Staff Time & Cost" requires="a cost / ERP source + a PMO rate card" section heading="Staff Time &amp; Cost">
+          <Gated caps={caps} domain="financials" title="Staff Time & Cost" reportId="staff-cost" requires="a cost / ERP source + a PMO rate card" section heading="Staff Time &amp; Cost">
             <StaffTimeCost projectId={projectId} />
           </Gated>
         )}
 
         {projectId && (
-          <Gated caps={caps} domain="raid" title="RAID Register" requires="a RAID log (get_project_raid)" section>
+          <Gated caps={caps} domain="raid" title="RAID Register" reportId="raid-register" requires="a RAID log (get_project_raid)" section>
             <RaidRegister projectId={projectId} />
           </Gated>
         )}
