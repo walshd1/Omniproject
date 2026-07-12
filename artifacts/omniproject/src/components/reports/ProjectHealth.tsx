@@ -9,6 +9,7 @@ import { ProportionBar } from "../charts/bars";
 import { usePortfolioItems } from "./use-portfolio-items";
 import { useTrend } from "../../lib/trends";
 import { TrendChart } from "./TrendChart";
+import { Badge } from "../tiles/Badge";
 
 /**
  * Project Health (predictive project-health / risk scoring) — derives a composite 0–100 HEALTH SCORE and a
@@ -236,7 +237,7 @@ function RagChips({ rag }: { rag: { green: number; amber: number; red: number } 
   return (
     <span className="inline-flex gap-1">
       {parts.filter((p) => p.n > 0).map((p) => (
-        <span key={p.k} data-testid={`rag-${p.k}`} className={`px-1.5 py-0.5 text-[10px] font-black tabular-nums rounded-sm ${BAND_CLS[p.k]}`}>{p.n}</span>
+        <Badge key={p.k} tone={p.k === "green" ? "good" : p.k === "amber" ? "warn" : "bad"} testId={`rag-${p.k}`} className="tabular-nums">{p.n}</Badge>
       ))}
     </span>
   );
