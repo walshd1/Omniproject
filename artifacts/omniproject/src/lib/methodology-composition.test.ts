@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  derivePresets, isEnabled, visibleItems, applyPreset, removePreset, toggleItem, itemInMethodology,
+  derivePresets, isEnabled, isItemVisible, visibleItems, applyPreset, removePreset, toggleItem, itemInMethodology,
   type CompositionItem,
 } from "./methodology-composition";
 
@@ -72,6 +72,16 @@ describe("presets compose (some Scrum + some PRINCE2)", () => {
     expect(enabled).not.toContain("stage-gate");
     expect(enabled).toContain("burndown");
     expect(enabled.length).toBe(items.length - 1);
+  });
+});
+
+describe("isItemVisible", () => {
+  it("builds the kind-namespaced id and reads the composition (null = all visible)", () => {
+    expect(isItemVisible(null, "report", "evm")).toBe(true);
+    expect(isItemVisible(["report:evm"], "report", "evm")).toBe(true);
+    expect(isItemVisible(["report:evm"], "report", "burndown")).toBe(false);
+    // Namespacing keeps a report and a view with the same raw id distinct.
+    expect(isItemVisible(["view:raid"], "report", "raid")).toBe(false);
   });
 });
 
