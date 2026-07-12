@@ -31,7 +31,8 @@ test("rejects bad shapes", () => {
   assert.throws(() => validateFieldValidation([{ field: "a", min: "x" }]), /min must be a number/);
   assert.throws(() => validateFieldValidation([{ field: "a", min: 10, max: 1 }]), /min must be <= max/);
   assert.throws(() => validateFieldValidation([{ field: "a", pattern: "[" }]), /not a valid regular expression/);
-  assert.throws(() => validateFieldValidation([{ field: "a", pattern: "(x+)+" }]), /nested quantifiers/); // ReDoS guard
+  // A pattern that would ReDoS a backtracking engine is ACCEPTED — RE2 runs it in linear time, safely.
+  assert.equal(validateFieldValidation([{ field: "a", pattern: "(x+)+" }])[0]!.pattern, "(x+)+");
   assert.throws(() => validateFieldValidation([{ field: "a", after: "not-a-date" }]), /after must be a valid date/);
   assert.throws(() => validateFieldValidation([{ field: "a", after: "2025-12-31", before: "2025-01-01" }]), /after must be on or before before/);
   assert.throws(() => validateFieldValidation([{ field: "a", options: "x" }]), /options must be an array/);

@@ -1,38 +1,38 @@
+import { RE2JS } from "re2js";
+
 /**
  * Client mirror of the server's lib/safe-regex.ts — the ONE place the SPA turns a pattern string into
- * a RegExp, shared by field-validation feedback and (record/UI) search. Keep in step with the server
- * module; the server stays authoritative for enforcement.
+ * a matchable regex, shared by field-validation feedback and (record/UI) search. Keep in step with the
+ * server module; the server stays authoritative for enforcement.
  *
- * Guards: a hard length cap and a conservative nested-quantifier check for the classic
- * catastrophic-backtracking shape (`(a+)+`, `(.*)*`). A single quantified char-class/atom is linear
- * and NOT flagged. Structured checks (date ranges, number bounds) are typed, never regex.
+ * Backed by RE2 (via the pure-JS `re2js` port): matching is LINEAR in the input, with no backtracking,
+ * so no pattern can trigger catastrophic backtracking (ReDoS). RE2 is a subset of PCRE — backreferences
+ * and lookaround aren't supported and such a pattern simply reports as invalid. Structured checks (date
+ * ranges, number bounds) are typed, never regex.
  */
 
-export const MAX_PATTERN_LENGTH = 200;
+/** Resource-sanity cap (RE2 is linear-time, so this is not a ReDoS control). */
+export const MAX_PATTERN_LENGTH = 1000;
 
-const NESTED_QUANTIFIER = /\([^)]*[+*][^)]*\)[+*]/;
-
-/** Is `source` safe to compile? */
+/** Is `source` a valid, compilable RE2 pattern within the length cap? */
 export function isSafePattern(source: string): boolean {
   if (typeof source !== "string" || source.length > MAX_PATTERN_LENGTH) return false;
-  if (NESTED_QUANTIFIER.test(source)) return false;
   try {
-    new RegExp(source);
+    RE2JS.compile(source);
     return true;
   } catch {
     return false;
   }
 }
 
-/** Compile a guarded RegExp, or null when the pattern is unsafe/invalid. */
-export function compileSafe(source: string, flags?: string): RegExp | null {
-  if (!isSafePattern(source)) return null;
-  return flags === undefined ? new RegExp(source) : new RegExp(source, flags);
+/** Search-semantics (`RegExp.test`-like) match, linear-time. Unsafe/invalid ⇒ false, no throw. */
+export function patternMatches(source: string, value: string): boolean {
+  if (!isSafePattern(source)) return false;
+  return RE2JS.compile(source).matcher(value).find();
 }
 
-/** Case-insensitive "does `value` match `source`?" for search boxes. An unsafe/invalid pattern never
- *  matches (returns false) rather than throwing. */
+/** Case-insensitive "does `value` match `source`?" for search boxes. Unsafe/invalid ⇒ false, no throw. */
 export function safeSearch(source: string, value: string): boolean {
-  const re = compileSafe(source, "i");
-  return re ? re.test(value) : false;
+  if (!isSafePattern(source)) return false;
+  return RE2JS.compile(source, RE2JS.CASE_INSENSITIVE).matcher(value).find();
 }
