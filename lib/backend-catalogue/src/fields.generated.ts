@@ -904,5 +904,81 @@ export const FIELDS_DATA: FieldDescriptor[] = [
     "type": "enum",
     "group": "risk",
     "entity": "raid"
+  },
+  {
+    "key": "tags",
+    "label": "Tags",
+    "type": "labels",
+    "group": "classification"
+  },
+  {
+    "key": "context",
+    "label": "Context",
+    "type": "string",
+    "group": "task",
+    "entity": "task"
+  },
+  {
+    "key": "waitingOn",
+    "label": "Waiting on",
+    "type": "string",
+    "group": "task",
+    "entity": "task"
+  },
+  {
+    "key": "recurrence",
+    "label": "Recurrence",
+    "type": "string",
+    "group": "task",
+    "entity": "task"
+  },
+  {
+    "key": "reminderAt",
+    "label": "Reminder at",
+    "type": "date",
+    "group": "task",
+    "entity": "task"
+  },
+  {
+    "key": "energy",
+    "label": "Energy",
+    "type": "enum",
+    "group": "task",
+    "entity": "task"
+  },
+  {
+    "key": "section",
+    "label": "Section",
+    "type": "string",
+    "group": "task",
+    "entity": "task"
+  },
+  {
+    "key": "sortOrder",
+    "label": "Sort order",
+    "type": "number",
+    "group": "task",
+    "entity": "task"
+  },
+  {
+    "key": "collaborators",
+    "label": "Collaborators",
+    "type": "labels",
+    "group": "task",
+    "entity": "task"
+  },
+  {
+    "key": "completedAt",
+    "label": "Completed at",
+    "type": "date",
+    "group": "task",
+    "entity": "task"
+  },
+  {
+    "key": "url",
+    "label": "Link",
+    "type": "string",
+    "group": "task",
+    "entity": "task"
   }
 ];

@@ -63,6 +63,25 @@ test("POST /tasks rejects a bad priority and over-long/invalid fields", async ()
   assert.equal(badPriority.status, 400);
 });
 
+test("POST /tasks carries the best-of-breed task fields (reminder/energy/section/order/collaborators)", async () => {
+  const created = await req("/tasks", { method: "POST", body: {
+    title: "Prep the release notes", energy: "low", section: "Launch", sortOrder: 3,
+    reminderAt: "2026-08-01T09:00:00Z", collaborators: ["dana@demo", "sam@demo"],
+  } });
+  assert.equal(created.status, 201);
+  const task = await json(created);
+  assert.equal(task.energy, "low");
+  assert.equal(task.section, "Launch");
+  assert.equal(task.sortOrder, 3);
+  assert.equal(task.reminderAt, "2026-08-01T09:00:00Z");
+  assert.deepEqual(task.collaborators, ["dana@demo", "sam@demo"]);
+});
+
+test("POST /tasks rejects an unknown energy level", async () => {
+  const bad = await req("/tasks", { method: "POST", body: { title: "x", energy: "turbo" } });
+  assert.equal(bad.status, 400);
+});
+
 test("POST /tasks rejects a bad GTD status and a missing title", async () => {
   const badStatus = await req("/tasks", { method: "POST", body: { title: "x", status: "nonsense" } });
   assert.equal(badStatus.status, 400);

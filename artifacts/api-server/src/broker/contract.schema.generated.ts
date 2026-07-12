@@ -1262,6 +1262,41 @@ export const BROKER_CONTRACT_SCHEMA = {
             "null"
           ],
           "description": "When it was completed (ISO 8601), if done."
+        },
+        "reminderAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "A notify-me time, distinct from the due date (ISO 8601)."
+        },
+        "energy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "GTD energy/effort level (low/medium/high) — orthogonal to the hour estimate."
+        },
+        "section": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Section/list this task groups under within its project (Asana section, Todoist section, ClickUp list)."
+        },
+        "sortOrder": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Manual sort position within a list/section (Todoist order, Google Tasks position)."
+        },
+        "collaborators": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Followers/collaborators kept in the loop (people), beyond the single assignee."
         }
       },
       "required": [
@@ -1546,6 +1581,36 @@ export const BROKER_CONTRACT_SCHEMA = {
             "string",
             "null"
           ]
+        },
+        "reminderAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "energy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "section": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sortOrder": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "collaborators": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false,

@@ -29,7 +29,7 @@ test("synonyms map common spreadsheet headers", () => {
   assert.equal(by("Owner").suggestedField, "assignee");
   assert.equal(by("Deadline").suggestedField, "dueDate");
   assert.equal(by("Points").suggestedField, "storyPoints");
-  assert.equal(by("Tags").suggestedField, "labels");
+  assert.equal(by("Tags").suggestedField, "tags"); // now a canonical field (exact match), not a labels synonym
   assert.ok(m.every((s) => s.basis !== "synonym" || s.confidence === 0.9));
 });
 

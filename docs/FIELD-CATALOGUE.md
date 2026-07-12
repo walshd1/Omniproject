@@ -269,6 +269,36 @@ duplicate register): they ride the `raid` domain and flow through `/raid`.
 | `riskExposure` | number | probability × impact score | ★ |
 | `responseStrategy` | enum | avoid/reduce/transfer/accept/exploit | |
 
+## task (entity `task`, domain `issues`) — GTD next-actions
+The catalogue previously modelled a *task* only via relationship references
+(`parentTask`/`dependsOn`/…) — it had **no fields of its own**. These are the
+distinctive fields the leading to-do/task apps capture on an actionable
+next-action, drawn from a best-of-breed sweep across the task-app vendors in the
+catalogue (Todoist, Microsoft To Do, Google Tasks, Asana, ClickUp, Monday,
+Linear, Trello, Wrike, Plane, Things). They ride the **`issues`** domain — every
+task app declares it — while *whether a backend can actually store tasks* stays
+broker-gated (`listTasks`/`createTask`). Shared work-item fields (`title`,
+`status`, `assignee`, `priority`, `description`, `startDate`, `dueDate`,
+`estimateHours`) are reused from the issue entity and not re-declared here.
+| key | type | products | ★ |
+| --- | --- | --- | --- |
+| `context` | string | GTD (@calls/@computer/…), Things (tags-as-contexts) | |
+| `waitingOn` | string | GTD delegated/waiting; Todoist, Asana (blocked-by note) | |
+| `recurrence` | string | Todoist (recurring due), MS To Do, Google Tasks | ★ |
+| `reminderAt` | date | Todoist, MS To Do (`reminderDateTime`), Things | ★ |
+| `energy` | enum | GTD energy filter (low/medium/high) — a light effort tag | ★ |
+| `section` | string | Asana sections, Todoist sections, ClickUp Lists | |
+| `sortOrder` | number | Todoist `order`, Google Tasks `position`, Trello `pos` | |
+| `collaborators` | labels | Asana followers, Todoist collaborators | |
+| `completedAt` | date | Google Tasks `completed`, Todoist `completed_at` | |
+| `url` | string | Todoist, Things (a task's external link) | |
+
+Plus one generic classification field these apps all carry that the registry was
+missing (`entity: issue`, so both tasks and issues use it):
+| key | type | products | ★ |
+| --- | --- | --- | --- |
+| `tags` | labels | most (distinct from `labels` where both exist) | |
+
 ---
 
 ## New capability domains implied

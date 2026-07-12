@@ -41,7 +41,8 @@ const SYNONYMS: Record<string, string> = {
   points: "storyPoints",
   storypoints: "storyPoints",
   sp: "storyPoints",
-  tags: "labels",
+  // `tags` is now a canonical field in its own right (exact-matches ahead of this table);
+  // `category` still folds onto labels for backends that don't separate the two.
   category: "labels",
   cost: "actualCost",
   spend: "actualCost",

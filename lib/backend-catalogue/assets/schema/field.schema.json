@@ -48,7 +48,8 @@
         "raci",
         "risk",
         "relationship",
-        "derived"
+        "derived",
+        "task"
       ]
     },
     "core": {

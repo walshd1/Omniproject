@@ -74,6 +74,8 @@ export const ENTITY_KEYS = [
   "account", "contact", "deal", "pipeline", "service",
   // Governance entities — stakeholder register + RACI matrix, each gated by its domain.
   "stakeholder", "raci",
+  // Task — GTD actionable next-actions (broker-gated by listTasks); carries the task field group.
+  "task",
 ] as const;
 
 export interface Capabilities extends Record<CapabilityDomain, boolean> {
@@ -137,6 +139,10 @@ const GROUP_DOMAIN: Record<FieldGroup, CapabilityDomain> = {
   // Risk register extends RAID — its quantitative fields ride the existing raid domain
   // rather than a duplicate one.
   risk: "raid",
+  // GTD task fields (context, waiting-on, reminder, energy, section, …) are work-item
+  // data — they ride the issues domain, so a backend that can carry work items lights
+  // them up (task apps all declare issues). Task presence itself is broker-gated (listTasks).
+  task: "issues",
 };
 
 /** Build the per-domain field manifest a backend exposes from its enabled capability domains. */
@@ -181,6 +187,9 @@ export function deriveFieldMap(enabled: Partial<Record<CapabilityDomain, boolean
       // its own domain (a backend can carry one without the other).
       stakeholder: sup(stakeholders),
       raci: sup(raci),
+      // Task entity — actionable next-actions ride the issues domain (task apps declare it);
+      // whether a backend can actually store tasks is broker-gated (listTasks/createTask).
+      task: sup(issues),
     },
   };
 }
