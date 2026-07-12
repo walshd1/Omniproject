@@ -12,7 +12,7 @@ before(async () => { h = await startHarness(); });
 after(() => h?.close());
 afterEach(async () => {
   const { updateSettings } = await import("../lib/settings");
-  updateSettings({ closedProjects: {} });
+  updateSettings({ closedProjects: {}, retiredGuids: [] });
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

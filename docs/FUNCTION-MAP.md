@@ -1161,7 +1161,7 @@ Data accessor facade.
 | Function | What it does |
 | --- | --- |
 | `brokerChangeToken` | A cheap change token for a resource (for conditional/delta reads), or null when the active broker can't supply one (the caller falls back to a payload hash). |
-| `liveProjectsOnly` | Keep only LIVE projects — drop those whose status is a closed lifecycle (completed/archived/ cancelled). |
+| `liveProjectsOnly` | Keep only LIVE projects — drop those whose status is a closed lifecycle (completed/archived/ cancelled), AND drop any RETIRED GUID (a deleted project can't silently reactivate even if a backend re-serves it). |
 | `getProjects` | List the projects the actor can see, via the active broker. |
 | `getIssues` | List the issues of one project, via the active broker (source-stamped, as for projects). |
 | `getActivity` | The cross-project activity feed, via the active broker. |
@@ -1894,11 +1894,12 @@ Programmes are a grouping of related projects, **derived** from each project's o
 
 ### `artifacts/api-server/src/lib/project-forget.ts`
 
-"Delete a project" in OmniProject = FORGET its correlation GUID from every list that references it.
+"Delete a project" in OmniProject = FORGET its correlation GUID from every list that references it, and RETIRE the GUID.
 
 | Function | What it does |
 | --- | --- |
-| `forgetProjectGuid` | Compute + apply the removal of `guid` from all OmniProject reference lists, atomically via `updateSettings`. |
+| `collectProjectReferences` | Gather (without mutating) everything OmniProject holds about a project GUID — for export before a delete. |
+| `forgetProjectGuid` | Compute + apply the removal of `guid` from all OmniProject reference lists AND retire it, atomically via `updateSettings`. |
 
 ### `artifacts/api-server/src/lib/proptest.ts`
 
