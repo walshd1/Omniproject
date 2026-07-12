@@ -101,9 +101,13 @@ function parseRouteParams<T>(schema: ParamSchema<T>, req: Request, res: Response
 
 router.get("/projects", (req, res) =>
   withBrokerErrors(req, res, "list_projects failed", async () => {
+    // Default-live: closed (completed/archived/cancelled) projects are excluded unless the caller opts
+    // in with ?includeClosed=1. Vary the ETag by the flag so the two result sets never share a cache.
+    const includeClosed = ["1", "true", "yes"].includes(String(req.query["includeClosed"] ?? "").toLowerCase());
+    const base = await brokerChangeToken(req, "projects");
     await conditionalJson(req, res, {
-      token: await brokerChangeToken(req, "projects"),
-      read: () => getProjects(req),
+      token: base && includeClosed ? `${base}:all` : base,
+      read: () => getProjects(req, { includeClosed }),
     });
   }),
 );

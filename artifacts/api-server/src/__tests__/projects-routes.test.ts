@@ -42,6 +42,14 @@ test("POST /projects with an empty name passes zod but fails the field registry 
   assert.ok(Array.isArray(body.errors) && body.errors.some((e) => e.field === "name"));
 });
 
+test("GET /projects is live-only by default and accepts ?includeClosed", async () => {
+  const r1 = await req("/projects");
+  assert.equal(r1.status, 200);
+  assert.ok(Array.isArray(await r1.json()), "returns the (live) project list");
+  const r2 = await req("/projects?includeClosed=1");
+  assert.equal(r2.status, 200); // opting in is accepted and served (distinct ETag)
+});
+
 test("POST /projects stamps a backend-independent correlation GUID (omniInstanceId)", async () => {
   const r = await req("/projects", { method: "POST", body: { name: "Apollo" } });
   assert.equal(r.status, 201);

@@ -401,6 +401,8 @@ Canonical value vocabularies — the cross-backend meanings the gateway reasons 
 | `statusClassOf` | The lifecycle class of a native status; "open" when it can't be classified. |
 | `isDone` | True when a native status means the work is finished (the completion test). |
 | `isClosed` | True when a status is terminal (done OR cancelled) — e.g. excluded from "overdue". |
+| `normaliseProjectStatus` | Resolve a native project status to a canonical one (via synonyms), or null if unclassifiable. |
+| `isProjectLive` | Is a project LIVE (still active)? A project with NO status — or one whose status can't be classified — is treated as LIVE: we never hide a project just because its lifecycle is unknown (default-safe). |
 | `ragFor` | RAG from a completion percentage (≥60 green, ≥25 amber, else red). |
 | `financialHealthFrom` | RAG from cost performance: prefer CPI when earned value is known, else the spend ratio. |
 | `ragBuckets` | A zeroed RAG tally (e.g. for the Prometheus portfolio gauge). |
@@ -1150,7 +1152,8 @@ Data accessor facade.
 | Function | What it does |
 | --- | --- |
 | `brokerChangeToken` | A cheap change token for a resource (for conditional/delta reads), or null when the active broker can't supply one (the caller falls back to a payload hash). |
-| `getProjects` | List all projects the actor can see, via the active broker. |
+| `liveProjectsOnly` | Keep only LIVE projects — drop those whose status is a closed lifecycle (completed/archived/ cancelled). |
+| `getProjects` | List the projects the actor can see, via the active broker. |
 | `getIssues` | List the issues of one project, via the active broker (source-stamped, as for projects). |
 | `getActivity` | The cross-project activity feed, via the active broker. |
 | `getSummary` | One project's roll-up summary (health/variance), via the active broker. |

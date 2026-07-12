@@ -75,6 +75,7 @@ export class MemoryStore implements BuiltinStore {
       source: "builtin",
       // Store the gateway-minted correlation GUID so it echoes back on reads (see Project.omniInstanceId).
       ...(input.omniInstanceId ? { omniInstanceId: input.omniInstanceId } : {}),
+      ...(input.status != null ? { status: input.status } : {}),
       issueCount: 0,
       completedCount: 0,
     };
@@ -85,7 +86,7 @@ export class MemoryStore implements BuiltinStore {
   async updateProject(id: string, input: ProjectWrite): Promise<Project | null> {
     const p = this.projects.find((x) => x.id === id);
     if (!p) return null;
-    Object.assign(p, definedOnly({ name: input.name, identifier: input.identifier, description: input.description, programmeId: input.programmeId }));
+    Object.assign(p, definedOnly({ name: input.name, identifier: input.identifier, description: input.description, programmeId: input.programmeId, status: input.status }));
     return { ...p };
   }
 
