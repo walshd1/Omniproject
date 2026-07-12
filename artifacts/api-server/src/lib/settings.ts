@@ -458,6 +458,22 @@ export interface SavedView {
   sort?: { field: string; dir: "asc" | "desc" };
   filters?: { field: string; value: string }[];
   groupBy?: string;
+  /** Optional presentation styling for the rendered view (title/font/colours/background). */
+  style?: ArtifactStyle;
+}
+
+/**
+ * Presentation styling a user attaches to a rendered artifact (view/report/chart). Mirrors the SPA's
+ * StyleSpec (no shared package between the two apps). Fonts are a fixed named set; colours are plain CSS
+ * strings, length-capped so a shared, customer-level definition can't carry an unbounded payload.
+ */
+export interface ArtifactStyle {
+  title?: string;
+  subtitle?: string;
+  fontFamily?: "sans" | "serif" | "mono";
+  textColor?: string;
+  background?: string;
+  align?: "left" | "center";
 }
 
 /** One placed widget on a custom dashboard. `type` keys into the SPA widget catalogue; `span` is
@@ -513,6 +529,8 @@ export interface CustomReportDef {
   dateField?: string;
   /** Chart options (the chart editor): stacked series and legend visibility. */
   chart?: { stacked?: boolean; legend?: boolean };
+  /** Optional presentation styling for the rendered report (title/font/colours/background). */
+  style?: ArtifactStyle;
 }
 
 /**
@@ -946,6 +964,31 @@ function validateGovernanceRules(value: unknown, label: string): void {
 const CUSTOM_REPORT_AGGS = new Set(["sum", "avg", "count", "min", "max"]);
 
 /** Shape-validate the bespoke report list: id/label/scope/viz + metric shape (field + known agg). */
+const STYLE_FONTS = new Set(["sans", "serif", "mono"]);
+const STYLE_ALIGNS = new Set(["left", "center"]);
+
+/**
+ * Shape-validate an optional ArtifactStyle. Saved views and custom reports are shared, customer-level
+ * config, so a rogue value must not smuggle in an oversized payload or an unknown font. Colours are plain
+ * CSS strings (the browser ignores an invalid one) but are length-capped; the font/align choices are the
+ * fixed enums the SPA renders.
+ */
+function validateArtifactStyle(value: unknown, context: string): void {
+  if (value == null) return;
+  if (typeof value !== "object") throw new SettingsValidationError(`${context} style must be an object`);
+  const s = value as Record<string, unknown>;
+  for (const k of ["title", "subtitle"]) {
+    const v = s[k];
+    if (v != null && (typeof v !== "string" || v.length > 200)) throw new SettingsValidationError(`${context} style.${k} must be a string ≤200 chars`);
+  }
+  for (const k of ["textColor", "background"]) {
+    const v = s[k];
+    if (v != null && (typeof v !== "string" || v.length > 64)) throw new SettingsValidationError(`${context} style.${k} must be a CSS colour string ≤64 chars`);
+  }
+  if (s["fontFamily"] != null && !STYLE_FONTS.has(s["fontFamily"] as string)) throw new SettingsValidationError(`${context} style.fontFamily must be sans | serif | mono`);
+  if (s["align"] != null && !STYLE_ALIGNS.has(s["align"] as string)) throw new SettingsValidationError(`${context} style.align must be left | center`);
+}
+
 function validateCustomReports(value: unknown): void {
   if (!Array.isArray(value)) throw new SettingsValidationError("customReports must be an array");
   for (const r of value) {
@@ -970,6 +1013,7 @@ function validateCustomReports(value: unknown): void {
       if (typeof mm["field"] !== "string" || !mm["field"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" metric needs a field`);
       if (typeof mm["agg"] !== "string" || !CUSTOM_REPORT_AGGS.has(mm["agg"])) throw new SettingsValidationError(`custom report "${String(o["id"])}" metric agg must be one of ${[...CUSTOM_REPORT_AGGS].join(", ")}`);
     }
+    validateArtifactStyle(o["style"], `custom report "${String(o["id"])}"`);
   }
 }
 
@@ -1090,6 +1134,7 @@ function validateSavedViews(value: unknown): void {
         if (typeof fv !== "string") throw new SettingsValidationError("each saved view filter needs a string value");
       }
     }
+    validateArtifactStyle((view as Record<string, unknown>)["style"], `saved view "${String(id)}"`);
   }
 }
 
