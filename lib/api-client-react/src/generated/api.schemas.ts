@@ -104,6 +104,16 @@ export interface Project {
   programmeId?: string | null;
   /** @nullable */
   programmeName?: string | null;
+  /**
+     * OmniProject's backend-independent correlation GUID for this project (minted at creation). Drives programme membership, the closed-project registry and the on-close disposition flow.
+     * @nullable
+     */
+  omniInstanceId?: string | null;
+  /**
+     * Lifecycle status (backend-native); live reads exclude closed/archived.
+     * @nullable
+     */
+  status?: string | null;
   issueCount: number;
   completedCount: number;
   memberCount: number;

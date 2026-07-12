@@ -39,3 +39,24 @@ test("a bad disposition is rejected → 400", async () => {
   assert.equal(r.status, 400);
   assert.match((await json(r)).error, /disposition of sor or archive/);
 });
+
+test("POST /projects/:guid/close records the disposition and stickily retires the GUID", async () => {
+  const close = await h.req("/projects/guid-close-1/close", { method: "POST", cookie: adminCookie(), body: { disposition: "archive", source: "jira", note: "Q3 decommission" } });
+  assert.equal(close.status, 200);
+  const rec = await json(close);
+  assert.equal(rec.disposition, "archive");
+  assert.equal(rec.source, "jira");
+  assert.match(rec.closedAt, /^\d{4}-\d{2}-\d{2}T/);
+
+  // The closed-project index now carries it…
+  const reg = await json(await h.req("/closed-projects", { cookie: adminCookie() }));
+  assert.equal(reg.closedProjects["guid-close-1"].disposition, "archive");
+  // …and closing retired the GUID (sticky — no silent reactivation).
+  const settings = await import("../lib/settings");
+  assert.ok(settings.getSettings().retiredGuids.includes("guid-close-1"));
+});
+
+test("POST /projects/:guid/close rejects a bad disposition → 400", async () => {
+  const r = await h.req("/projects/guid-x/close", { method: "POST", cookie: adminCookie(), body: { disposition: "nowhere" } });
+  assert.equal(r.status, 400);
+});
