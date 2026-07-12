@@ -23,7 +23,7 @@ function RollupRow({ r }: { r: Rollup }) {
       <td className="py-2 px-2 text-right tabular-nums">{r.assignedHours.toLocaleString()}h / {r.availableHours.toLocaleString()}h</td>
       <td className="py-2 px-2">
         <div className="flex items-center gap-2">
-          <AllocationBar value={util} className="w-28" />
+          <AllocationBar value={util} width="7rem" />
           <span className="text-xs font-black tabular-nums w-12 text-right">{util === null ? "—" : `${util}%`}</span>
         </div>
       </td>

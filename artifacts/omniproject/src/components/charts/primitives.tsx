@@ -44,11 +44,11 @@ export interface ChartSeries {
  *  numeric value per series key. */
 export type ChartRow = Record<string, string | number>;
 
-const color = (i: number) => CHART_PALETTE[i % CHART_PALETTE.length]!;
+const color = (i: number, palette: string[] = CHART_PALETTE) => palette[i % palette.length]!;
 
 /** Grouped or stacked bars. Horizontal (category axis on the left) by default; `orientation:
  *  "vertical"` draws upright columns. Bars get rounded data-ends per the mark spec. */
-export function SeriesBarChart({ data, series, stacked = false, legend = true, orientation = "horizontal", height, referenceLines, valueFormatter = formatChartNumber }: {
+export function SeriesBarChart({ data, series, stacked = false, legend = true, orientation = "horizontal", height, referenceLines, valueFormatter = formatChartNumber, palette = CHART_PALETTE }: {
   data: ChartRow[];
   series: ChartSeries[];
   stacked?: boolean;
@@ -58,6 +58,8 @@ export function SeriesBarChart({ data, series, stacked = false, legend = true, o
   referenceLines?: ReferenceMark[];
   /** Format the measure axis + tooltip values (e.g. as currency). Defaults to a compact number. */
   valueFormatter?: (n: number) => string;
+  /** Categorical colours (recolourable); defaults to the validated CHART_PALETTE. */
+  palette?: string[];
 }) {
   const horizontal = orientation === "horizontal";
   const h = height ?? (horizontal ? Math.max(180, data.length * 34) : 260);
@@ -80,7 +82,7 @@ export function SeriesBarChart({ data, series, stacked = false, legend = true, o
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
         {renderReferenceLines(referenceLines)}
         {series.map((s, i) => (
-          <Bar key={s.key} dataKey={s.key} name={s.label} {...(stacked ? { stackId: "1" } : {})} fill={color(i)} radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]} />
+          <Bar key={s.key} dataKey={s.key} name={s.label} {...(stacked ? { stackId: "1" } : {})} fill={color(i, palette)} radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]} />
         ))}
       </BarChart>
     </ResponsiveContainer>
@@ -88,7 +90,7 @@ export function SeriesBarChart({ data, series, stacked = false, legend = true, o
 }
 
 /** A multi-series line chart (e.g. a time trend). `xKey` names the category field (default "name"). */
-export function SeriesLineChart({ data, series, legend = true, height = 240, xKey = "name", referenceLines, valueFormatter = formatChartNumber, yDomain }: {
+export function SeriesLineChart({ data, series, legend = true, height = 240, xKey = "name", referenceLines, valueFormatter = formatChartNumber, yDomain, palette = CHART_PALETTE }: {
   data: ChartRow[];
   series: ChartSeries[];
   legend?: boolean;
@@ -97,6 +99,7 @@ export function SeriesLineChart({ data, series, legend = true, height = 240, xKe
   referenceLines?: ReferenceMark[];
   valueFormatter?: (n: number) => string;
   yDomain?: [number, number];
+  palette?: string[];
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -108,7 +111,7 @@ export function SeriesLineChart({ data, series, legend = true, height = 240, xKe
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
         {renderReferenceLines(referenceLines)}
         {series.map((s, i) => (
-          <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={color(i)} strokeWidth={2} dot={{ r: 3 }} />
+          <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={color(i, palette)} strokeWidth={2} dot={{ r: 3 }} />
         ))}
       </LineChart>
     </ResponsiveContainer>
@@ -116,7 +119,7 @@ export function SeriesLineChart({ data, series, legend = true, height = 240, xKe
 }
 
 /** A multi-series area chart, optionally stacked. `xKey` names the category field (default "name"). */
-export function SeriesAreaChart({ data, series, stacked = false, legend = true, height = 240, xKey = "name", referenceLines, valueFormatter = formatChartNumber, yDomain }: {
+export function SeriesAreaChart({ data, series, stacked = false, legend = true, height = 240, xKey = "name", referenceLines, valueFormatter = formatChartNumber, yDomain, palette = CHART_PALETTE }: {
   data: ChartRow[];
   series: ChartSeries[];
   stacked?: boolean;
@@ -126,6 +129,7 @@ export function SeriesAreaChart({ data, series, stacked = false, legend = true, 
   referenceLines?: ReferenceMark[];
   valueFormatter?: (n: number) => string;
   yDomain?: [number, number];
+  palette?: string[];
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -137,7 +141,7 @@ export function SeriesAreaChart({ data, series, stacked = false, legend = true, 
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
         {renderReferenceLines(referenceLines)}
         {series.map((s, i) => (
-          <Area key={s.key} type="monotone" dataKey={s.key} name={s.label} {...(stacked ? { stackId: "1" } : {})} stroke={color(i)} fill={color(i)} fillOpacity={0.25} strokeWidth={2} />
+          <Area key={s.key} type="monotone" dataKey={s.key} name={s.label} {...(stacked ? { stackId: "1" } : {})} stroke={color(i, palette)} fill={color(i, palette)} fillOpacity={0.25} strokeWidth={2} />
         ))}
       </AreaChart>
     </ResponsiveContainer>
@@ -147,13 +151,14 @@ export function SeriesAreaChart({ data, series, stacked = false, legend = true, 
 /** A part-to-whole pie. Caps to the palette's fixed slots (never cycling categorical hues) with the
  *  remainder aggregated into a neutral "Other" slice, and direct % labels so identity isn't
  *  colour-alone. Takes any `{ name, value }[]`. */
-export function SharePieChart({ data, legend = true, height = 260, maxSlices = CHART_PALETTE.length, donut = false }: {
+export function SharePieChart({ data, legend = true, height = 260, maxSlices = CHART_PALETTE.length, donut = false, palette = CHART_PALETTE }: {
   data: { name: string; value: number }[];
   legend?: boolean;
   height?: ChartHeight;
   maxSlices?: number;
   /** Render as a donut (a hole in the middle) rather than a solid pie. */
   donut?: boolean;
+  palette?: string[];
 }) {
   const sorted = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
   const slices = sorted.length <= maxSlices
@@ -169,7 +174,7 @@ export function SharePieChart({ data, legend = true, height = 260, maxSlices = C
       <PieChart>
         <Pie data={slices} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={92} innerRadius={donut ? 52 : 0} labelLine={false}
           label={(e: { name?: string; percent?: number }) => `${truncateLabel(e.name ?? "")} ${Math.round((e.percent ?? 0) * 100)}%`}>
-          {slices.map((d, i) => <Cell key={d.name} fill={d.name === "Other" ? OTHER_COLOR : color(i)} />)}
+          {slices.map((d, i) => <Cell key={d.name} fill={d.name === "Other" ? OTHER_COLOR : color(i, palette)} />)}
         </Pie>
         <Tooltip formatter={(v) => formatChartNumber(v as number)} contentStyle={chartTooltipStyle} />
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}

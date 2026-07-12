@@ -1,9 +1,10 @@
 import { CHART_PALETTE } from "./primitives";
 
 /**
- * A data-agnostic Gantt primitive — one horizontal bar per item, positioned by its start/end dates
- * on a shared time axis, with an optional progress overlay. Div-based (not Recharts) so date
- * positioning is exact and it renders anywhere. Takes any `{ label, start, end, progress? }[]`.
+ * A data-agnostic Gantt primitive — one bar per item, positioned by its start/end dates on a shared
+ * time axis, with an optional progress overlay. Each bar is a vector (SVG) rect that stretches to the
+ * row width (`viewBox` + `preserveAspectRatio="none"`), so it scales crisply and recolours by fill;
+ * row labels stay as text. Takes any `{ label, start, end, progress? }[]`.
  */
 export interface GanttItem {
   label: string;
@@ -19,7 +20,7 @@ const ms = (d: string): number | null => {
 };
 const day = (t: number): string => new Date(t).toISOString().slice(0, 10);
 
-export function GanttChart({ items, height = 20 }: { items: GanttItem[]; height?: number }) {
+export function GanttChart({ items, height = 18, palette = CHART_PALETTE }: { items: GanttItem[]; height?: number; palette?: string[] }) {
   const rows = items
     .map((it) => ({ it, s: ms(it.start), e: ms(it.end) }))
     .filter((r): r is { it: GanttItem; s: number; e: number } => r.s !== null && r.e !== null && r.e >= r.s);
@@ -46,20 +47,19 @@ export function GanttChart({ items, height = 20 }: { items: GanttItem[]; height?
       {rows.map((r, i) => {
         const left = ((r.s - min) / span) * 100;
         const width = Math.max(1, ((r.e - r.s) / span) * 100);
+        const fill = palette[i % palette.length]!;
         return (
           <div key={`${r.it.label}-${i}`} className="flex items-center gap-2">
             <div className="w-36 shrink-0 truncate text-xs" title={r.it.label}>{r.it.label}</div>
-            <div className="relative flex-1 bg-muted/40 border border-border" style={{ height }}>
-              <div
-                className="absolute top-0 bottom-0 border border-border overflow-hidden"
-                style={{ left: `${left}%`, width: `${width}%`, background: CHART_PALETTE[i % CHART_PALETTE.length] }}
-                aria-label={`${r.it.label}: ${day(r.s)} to ${day(r.e)}`}
-              >
-                {r.it.progress != null && (
-                  <div className="absolute inset-y-0 left-0 bg-black/30" style={{ width: `${Math.min(100, Math.max(0, r.it.progress))}%` }} />
-                )}
-              </div>
-            </div>
+            <svg className="block flex-1" style={{ height }} viewBox="0 0 100 10" preserveAspectRatio="none">
+              <rect x="0" y="0" width="100" height="10" className="fill-[hsl(var(--muted))]" fillOpacity={0.4} />
+              <rect x={left} y="0" width={width} height="10" fill={fill} aria-label={`${r.it.label}: ${day(r.s)} to ${day(r.e)}`}>
+                <title>{`${r.it.label}: ${day(r.s)} to ${day(r.e)}`}</title>
+              </rect>
+              {r.it.progress != null && (
+                <rect x={left} y="0" width={(width * Math.min(100, Math.max(0, r.it.progress))) / 100} height="10" fill="#000000" fillOpacity={0.3} />
+              )}
+            </svg>
           </div>
         );
       })}

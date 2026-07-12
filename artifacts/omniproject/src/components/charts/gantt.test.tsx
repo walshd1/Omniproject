@@ -18,11 +18,12 @@ describe("GanttChart", () => {
     expect(screen.queryByLabelText(/No dates/)).not.toBeInTheDocument();
   });
 
-  it("positions the first bar at the domain start (left 0%)", () => {
+  it("positions the first bar (a vector rect) at the domain start (x 0)", () => {
     render(<GanttChart items={items} />);
     const design = screen.getByLabelText("Design: 2026-01-01 to 2026-01-31");
-    expect(design.style.left).toBe("0%");
-    expect(parseFloat(design.style.width)).toBeGreaterThan(0);
+    expect(design.tagName.toLowerCase()).toBe("rect"); // vector, not a div
+    expect(design.getAttribute("x")).toBe("0");
+    expect(parseFloat(design.getAttribute("width")!)).toBeGreaterThan(0);
   });
 
   it("shows an empty state when no item has usable dates", () => {
