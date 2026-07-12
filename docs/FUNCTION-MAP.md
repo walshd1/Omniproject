@@ -2382,6 +2382,14 @@ AI-assisted speech-to-text — provider-pluggable, governed, with Whisper as ONE
 | `transcribe` | Transcribe an audio clip with the configured AI-assisted provider. |
 | `sttCapabilityId` | The governance capability id for the active STT provider (for the enforce gate). |
 
+### `artifacts/api-server/src/lib/task-summary.ts`
+
+Task roll-up — the report/rollup INPUT for tasks (GTD next-actions), the analogue of the issue/project roll-ups.
+
+| Function | What it does |
+| --- | --- |
+| `summariseTasks` | Summarise a set of tasks for reporting. |
+
 ### `artifacts/api-server/src/lib/timeout-error.ts`
 
 Shared predicate for "did this fetch/abort as a timeout?".

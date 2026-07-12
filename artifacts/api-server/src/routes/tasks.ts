@@ -4,6 +4,7 @@ import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComme
 import { requireRole } from "../lib/rbac";
 import { parseOr400, v } from "../lib/validate";
 import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY } from "../broker/vocabulary";
+import { summariseTasks } from "../lib/task-summary";
 
 /**
  * Task endpoints — GTD actionable next-actions, DISTINCT from issues (problems/blockers). Reads degrade
@@ -36,6 +37,15 @@ router.get("/tasks", (req, res) =>
   withBrokerErrors(req, res, "list_tasks failed", async () => {
     const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
     res.json(await getTasks(req, projectId ? { projectId } : {}));
+  }),
+);
+
+// GET /api/tasks/summary(?projectId=) — the task roll-up for reports (GTD breakdown, overdue, by
+// assignee/tag/context). Declared before /tasks/:taskId so "summary" isn't read as a task id.
+router.get("/tasks/summary", (req, res) =>
+  withBrokerErrors(req, res, "task_summary failed", async () => {
+    const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
+    res.json(summariseTasks(await getTasks(req, projectId ? { projectId } : {})));
   }),
 );
 

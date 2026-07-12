@@ -75,6 +75,16 @@ test("GET /tasks/:id 404s for an unknown id", async () => {
   assert.equal(r.status, 404);
 });
 
+test("GET /tasks/summary returns the report roll-up (not read as a task id)", async () => {
+  const r = await req("/tasks/summary");
+  assert.equal(r.status, 200);
+  const s = await json(r);
+  assert.equal(typeof s.total, "number");
+  assert.ok(s.byClass && typeof s.byClass.actionable === "number");
+  assert.equal(typeof s.open, "number");
+  assert.equal(typeof s.overdue, "number");
+});
+
 test("task comments: post + list a discussion thread", async () => {
   const task = await json(await req("/tasks", { method: "POST", body: { title: "Review the SOW" } }));
   const posted = await req(`/tasks/${task.id}/comments`, { method: "POST", body: { body: "Flagged clause 7 with legal." } });
