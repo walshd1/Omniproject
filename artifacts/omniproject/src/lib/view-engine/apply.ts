@@ -1,13 +1,18 @@
 import type { EntityField, ViewRecord } from "./types";
-import type { SavedView } from "../saved-views";
+
+/** The slice of a view definition the engine needs to filter + sort a record list. */
+export interface FilterSortSpec {
+  filters?: { field: string; value: string }[];
+  sort?: { field: string; dir: "asc" | "desc" };
+}
 
 /** Index an entity's fields by key for quick lookup. */
 export function fieldMap<T>(fields: EntityField<T>[]): Record<string, EntityField<T>> {
   return Object.fromEntries(fields.map((f) => [f.key, f]));
 }
 
-/** Apply a saved view's filters (AND-combined equality) and sort to a record list. */
-export function applyFiltersSort<T>(records: ViewRecord<T>[], view: SavedView, fields: EntityField<T>[]): ViewRecord<T>[] {
+/** Apply a view's filters (AND-combined equality) and sort to a record list. */
+export function applyFiltersSort<T>(records: ViewRecord<T>[], view: FilterSortSpec, fields: EntityField<T>[]): ViewRecord<T>[] {
   const fm = fieldMap(fields);
   let out = records;
   for (const f of view.filters ?? []) {
