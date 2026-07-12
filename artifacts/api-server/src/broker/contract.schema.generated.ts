@@ -1272,6 +1272,130 @@ export const BROKER_CONTRACT_SCHEMA = {
       "additionalProperties": true,
       "description": "A TASK — an ACTIONABLE next-action (GTD), distinct from an Issue (a problem/blocker from a helpdesk or project). A task may belong to a project, or stand alone (a personal/portfolio next-action). Its `status` is a GTD state (see broker/vocabulary `CANONICAL_TASK_STATUS`)."
     },
+    "TaskAttachment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "taskId": {
+          "type": "string"
+        },
+        "filename": {
+          "type": "string"
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Where the file actually lives (a backend/download URL)."
+        },
+        "contentType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "size": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Size in bytes, if the backend reports it."
+        },
+        "addedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "addedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "taskId",
+        "filename",
+        "addedAt"
+      ],
+      "additionalProperties": true,
+      "description": "A file ATTACHED to a task — a REFERENCE to a file that lives in the backend / an external store, not the bytes (OmniProject is zero-at-rest). Only backends that support attachments expose these."
+    },
+    "TaskAttachmentWrite": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contentType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "size": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "filename"
+      ],
+      "additionalProperties": false
+    },
+    "TaskComment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "taskId": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "taskId",
+        "body",
+        "createdAt"
+      ],
+      "additionalProperties": true,
+      "description": "A comment on a task (a discussion note)."
+    },
+    "TaskCommentWrite": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "additionalProperties": false
+    },
     "TaskItem": {
       "type": "object",
       "properties": {

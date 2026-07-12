@@ -25,6 +25,10 @@ Every operation a broker must (or, where marked optional, may) implement. Each t
 | `getTask` _(optional)_ | `taskId: string` | `Promise<Task \| null>` |  |
 | `createTask` _(optional)_ | `input: TaskWrite` | `Promise<Task>` |  |
 | `updateTask` _(optional)_ | `taskId: string`, `input: TaskWrite` | `Promise<Task>` |  |
+| `listTaskComments` _(optional)_ | `taskId: string` | `Promise<TaskComment[]>` | Task comments — a discussion thread on a task. |
+| `addTaskComment` _(optional)_ | `taskId: string`, `input: TaskCommentWrite` | `Promise<TaskComment>` |  |
+| `listTaskAttachments` _(optional)_ | `taskId: string` | `Promise<TaskAttachment[]>` | Task attachments — file REFERENCES, only when the backend supports them (capability-gated). |
+| `addTaskAttachment` _(optional)_ | `taskId: string`, `input: TaskAttachmentWrite` | `Promise<TaskAttachment>` |  |
 | `listActivity` | — | `Promise<Row[]>` |  |
 | `projectSummary` | `projectId: string` | `Promise<Summary>` |  |
 | `projectHistory` | `projectId: string` | `Promise<HistoryPoint[]>` |  |
@@ -445,6 +449,50 @@ A TASK — an ACTIONABLE next-action (GTD), distinct from an Issue (a problem/bl
 | `url` | string \| null | — | External link (a doc, ticket, PR). |
 | `completedAt` | string \| null | — | When it was completed (ISO 8601), if done. |
 | _(other)_ | any | — | Open row — backend-specific fields pass through. |
+
+### TaskAttachment
+
+A file ATTACHED to a task — a REFERENCE to a file that lives in the backend / an external store, not the bytes (OmniProject is zero-at-rest). Only backends that support attachments expose these.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes |  |
+| `taskId` | string | yes |  |
+| `filename` | string | yes |  |
+| `url` | string \| null | — | Where the file actually lives (a backend/download URL). |
+| `contentType` | string \| null | — |  |
+| `size` | number \| null | — | Size in bytes, if the backend reports it. |
+| `addedBy` | string \| null | — |  |
+| `addedAt` | string | yes |  |
+| _(other)_ | any | — | Open row — backend-specific fields pass through. |
+
+### TaskAttachmentWrite
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `filename` | string | yes |  |
+| `url` | string \| null | — |  |
+| `contentType` | string \| null | — |  |
+| `size` | number \| null | — |  |
+
+### TaskComment
+
+A comment on a task (a discussion note).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes |  |
+| `taskId` | string | yes |  |
+| `body` | string | yes |  |
+| `author` | string \| null | — |  |
+| `createdAt` | string | yes |  |
+| _(other)_ | any | — | Open row — backend-specific fields pass through. |
+
+### TaskCommentWrite
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `body` | string | yes |  |
 
 ### TaskItem
 

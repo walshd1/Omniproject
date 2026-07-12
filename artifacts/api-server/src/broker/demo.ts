@@ -22,6 +22,10 @@ import {
   type TaskItemWrite,
   type Task,
   type TaskWrite,
+  type TaskComment,
+  type TaskCommentWrite,
+  type TaskAttachment,
+  type TaskAttachmentWrite,
   type Summary,
   type HistoryPoint,
   type HistoryState,
@@ -46,6 +50,11 @@ let raidCounter = 100;
 let projectCounter = 100;
 let taskItemCounter = 100;
 let taskCounter = 100;
+let taskCommentCounter = 100;
+let taskAttachmentCounter = 100;
+/** In-memory task comments + attachments per task (demo only). */
+const SAMPLE_TASK_COMMENTS: Record<string, TaskComment[]> = {};
+const SAMPLE_TASK_ATTACHMENTS: Record<string, TaskAttachment[]> = {};
 /** In-memory child issues/notes per task (demo only). */
 const SAMPLE_TASK_ITEMS: Record<string, TaskItem[]> = {};
 /** Demo GTD tasks — actionable next-actions across the portfolio, distinct from issues. */
@@ -334,6 +343,45 @@ export class DemoBroker implements Broker {
     }
     persistDemoState();
     return { ...t };
+  }
+
+  async listTaskComments(_ctx: ActorContext, taskId: string): Promise<TaskComment[]> {
+    return (SAMPLE_TASK_COMMENTS[taskId] ?? []).map((c) => ({ ...c }));
+  }
+
+  async addTaskComment(ctx: ActorContext, taskId: string, input: TaskCommentWrite): Promise<TaskComment> {
+    if (!SAMPLE_TASKS.some((t) => t.id === taskId)) throw new BrokerError("not_found", "Task not found");
+    const comment: TaskComment = {
+      id: `tc-${++taskCommentCounter}`,
+      taskId,
+      body: input.body,
+      author: ctx.email ?? ctx.name ?? "demo@local",
+      createdAt: new Date().toISOString(),
+    };
+    (SAMPLE_TASK_COMMENTS[taskId] ??= []).push(comment);
+    persistDemoState();
+    return { ...comment };
+  }
+
+  async listTaskAttachments(_ctx: ActorContext, taskId: string): Promise<TaskAttachment[]> {
+    return (SAMPLE_TASK_ATTACHMENTS[taskId] ?? []).map((a) => ({ ...a }));
+  }
+
+  async addTaskAttachment(ctx: ActorContext, taskId: string, input: TaskAttachmentWrite): Promise<TaskAttachment> {
+    if (!SAMPLE_TASKS.some((t) => t.id === taskId)) throw new BrokerError("not_found", "Task not found");
+    const attachment: TaskAttachment = {
+      id: `ta-${++taskAttachmentCounter}`,
+      taskId,
+      filename: input.filename,
+      url: input.url ?? null,
+      contentType: input.contentType ?? null,
+      size: input.size ?? null,
+      addedBy: ctx.email ?? ctx.name ?? "demo@local",
+      addedAt: new Date().toISOString(),
+    };
+    (SAMPLE_TASK_ATTACHMENTS[taskId] ??= []).push(attachment);
+    persistDemoState();
+    return { ...attachment };
   }
 
   async listActivity(): Promise<Row[]> {

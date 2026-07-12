@@ -3,7 +3,7 @@ import { getBroker, contextFromReq } from "../broker";
 import { stampSource } from "../broker/identity";
 import { isProjectLive } from "../broker/vocabulary";
 import { getSettings } from "./settings";
-import type { Row, Task, TaskWrite } from "../broker/types";
+import type { Row, Task, TaskWrite, TaskComment, TaskCommentWrite, TaskAttachment, TaskAttachmentWrite } from "../broker/types";
 
 /**
  * Data accessor facade. Historically this branched on backend-vs-demo inline; that
@@ -82,6 +82,31 @@ export const updateTask = (req: Request, taskId: string, input: TaskWrite): Prom
 };
 /** Whether the active broker models tasks at all. */
 export const brokerHasTasks = (): boolean => !!getBroker().listTasks;
+
+/** A task's comments (empty when the broker doesn't model them). */
+export const getTaskComments = (req: Request, taskId: string): Promise<TaskComment[]> => {
+  const b = getBroker();
+  return b.listTaskComments ? b.listTaskComments(contextFromReq(req), taskId) : Promise.resolve([]);
+};
+/** Add a comment to a task (throws if unsupported — the route guards first). */
+export const addTaskComment = (req: Request, taskId: string, input: TaskCommentWrite): Promise<TaskComment> => {
+  const b = getBroker();
+  if (!b.addTaskComment) throw new Error("this backend does not support task comments");
+  return b.addTaskComment(contextFromReq(req), taskId, input);
+};
+/** A task's file attachments — references only (empty when unsupported). */
+export const getTaskAttachments = (req: Request, taskId: string): Promise<TaskAttachment[]> => {
+  const b = getBroker();
+  return b.listTaskAttachments ? b.listTaskAttachments(contextFromReq(req), taskId) : Promise.resolve([]);
+};
+/** Attach a file reference to a task (throws if unsupported — the route guards first). */
+export const addTaskAttachment = (req: Request, taskId: string, input: TaskAttachmentWrite): Promise<TaskAttachment> => {
+  const b = getBroker();
+  if (!b.addTaskAttachment) throw new Error("this backend does not support task attachments");
+  return b.addTaskAttachment(contextFromReq(req), taskId, input);
+};
+/** Whether the active broker supports task ATTACHMENTS ("if supported by the backend"). */
+export const brokerHasTaskAttachments = (): boolean => !!getBroker().addTaskAttachment;
 /** One project's roll-up summary (health/variance), via the active broker. */
 export const getSummary = (req: Request, projectId: string) => getBroker().projectSummary(contextFromReq(req), projectId);
 /** One project's historical points (for trends), via the active broker. */

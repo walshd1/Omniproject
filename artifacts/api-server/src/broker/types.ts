@@ -162,6 +162,41 @@ export interface TaskWrite {
   completedAt?: string | null | undefined;
 }
 
+/** A comment on a task (a discussion note). */
+export interface TaskComment extends Row {
+  id: string;
+  taskId: string;
+  body: string;
+  author?: string | null;
+  createdAt: string;
+}
+export interface TaskCommentWrite {
+  body: string;
+}
+
+/**
+ * A file ATTACHED to a task — a REFERENCE to a file that lives in the backend / an external store, not
+ * the bytes (OmniProject is zero-at-rest). Only backends that support attachments expose these.
+ */
+export interface TaskAttachment extends Row {
+  id: string;
+  taskId: string;
+  filename: string;
+  /** Where the file actually lives (a backend/download URL). */
+  url?: string | null;
+  contentType?: string | null;
+  /** Size in bytes, if the backend reports it. */
+  size?: number | null;
+  addedBy?: string | null;
+  addedAt: string;
+}
+export interface TaskAttachmentWrite {
+  filename: string;
+  url?: string | null | undefined;
+  contentType?: string | null | undefined;
+  size?: number | null | undefined;
+}
+
 /** A child issue/note raised against a task (the work-item). */
 export interface TaskItem extends Row {
   id: string;
@@ -429,6 +464,12 @@ export interface Broker {
   getTask?(ctx: ActorContext, taskId: string): Promise<Task | null>;
   createTask?(ctx: ActorContext, input: TaskWrite): Promise<Task>;
   updateTask?(ctx: ActorContext, taskId: string, input: TaskWrite): Promise<Task>;
+  /** Task comments — a discussion thread on a task. */
+  listTaskComments?(ctx: ActorContext, taskId: string): Promise<TaskComment[]>;
+  addTaskComment?(ctx: ActorContext, taskId: string, input: TaskCommentWrite): Promise<TaskComment>;
+  /** Task attachments — file REFERENCES, only when the backend supports them (capability-gated). */
+  listTaskAttachments?(ctx: ActorContext, taskId: string): Promise<TaskAttachment[]>;
+  addTaskAttachment?(ctx: ActorContext, taskId: string, input: TaskAttachmentWrite): Promise<TaskAttachment>;
 
   // Read-model long tail (explicit methods — no action strings leak upward)
   listActivity(ctx: ActorContext): Promise<Row[]>;
