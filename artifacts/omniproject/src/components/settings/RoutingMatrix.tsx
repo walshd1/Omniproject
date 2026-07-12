@@ -6,8 +6,9 @@ import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
 import { useFieldRouting, useSaveFieldRouting, routingCollisions, type FieldRoute } from "../../lib/routing";
+import { useCustomFields } from "../../lib/custom-fields";
 
-const UI_ELEMENTS = [...CANONICAL_FIELD_KEYS].sort();
+const CANONICAL_ELEMENTS = [...CANONICAL_FIELD_KEYS].sort();
 const empty = (): FieldRoute => ({ uiElement: "", vendor: "", broker: "", sourceField: "" });
 
 /**
@@ -19,6 +20,7 @@ const empty = (): FieldRoute => ({ uiElement: "", vendor: "", broker: "", source
 export function RoutingMatrix() {
   const { data: auth } = useAuth();
   const { data: server } = useFieldRouting();
+  const { data: customFields } = useCustomFields();
   const save = useSaveFieldRouting();
   const { toast } = useToast();
   const { draft, setDraft, dirty, reset } = useDraftAdmin<FieldRoute[], FieldRoute[]>(server, structuredClone);
@@ -26,6 +28,8 @@ export function RoutingMatrix() {
   // Admin-only: routing decides where every value comes from.
   if (!roleAtLeast(auth?.role, "admin")) return null;
 
+  // UI elements you can route: the reference superset PLUS any admin-defined custom fields.
+  const uiElements = [...CANONICAL_ELEMENTS, ...(customFields ?? []).map((f) => f.key)];
   const rows = draft ?? [];
   const collisions = routingCollisions(rows);
   const setRow = (i: number, patch: Partial<FieldRoute>) => setDraft(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -50,7 +54,7 @@ export function RoutingMatrix() {
         </p>
 
         <datalist id="routing-ui-elements">
-          {UI_ELEMENTS.map((k) => <option key={k} value={k} />)}
+          {uiElements.map((k) => <option key={k} value={k} />)}
         </datalist>
 
         <div className="overflow-x-auto">

@@ -899,6 +899,7 @@ const SAMPLE_SETTINGS = {
   oidcIssuerUrl: "https://idp",
   errorTelemetry: false,
   fieldRouting: [],
+  customFields: [],
   branding: null,
   labelOverrides: {},
   webhooks: [],

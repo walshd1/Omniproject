@@ -1089,6 +1089,15 @@ Multi-currency support.
 | `supportedCurrencies` | List the currencies the rate table can convert between. |
 | `getFxRates` | Read FX rates through the active broker (demo serves indicative rates). |
 
+### `artifacts/api-server/src/lib/custom-fields.ts`
+
+Admin-defined CUSTOM FIELDS — extend the reference superset when a field an org needs isn't in the catalogue.
+
+| Function | What it does |
+| --- | --- |
+| `validateCustomFields` | Validate + normalise the custom-field definitions (shape only; the source rule is separate so it can be re-checked whenever EITHER customFields or the routing map changes). |
+| `validateCustomFieldSources` | The SOURCE RULE: every custom field must be reachable — mapped in the routing matrix, or held by the built-in backend. |
+
 ### `artifacts/api-server/src/lib/data-residency.ts`
 
 Data-residency / region routing — a fail-closed guard at the broker seam AND the egress hop.
@@ -2487,6 +2496,10 @@ Content pages — named, ordered lists of unified-library component ids (reports
 ### `artifacts/api-server/src/routes/contract.ts`
 
 GET /api/contract — serve the published, versioned SOUTHBOUND broker contract (the interface a broker must implement) + its JSON Schema.
+
+### `artifacts/api-server/src/routes/custom-fields.ts`
+
+Admin-defined custom fields that EXTEND the reference superset.
 
 ### `artifacts/api-server/src/routes/custom-reports.ts`
 
