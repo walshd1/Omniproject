@@ -931,6 +931,15 @@ components:
             least one project references it.
         programmeName:
           type: ["string", "null"]
+        omniInstanceId:
+          type: ["string", "null"]
+          description: >-
+            OmniProject's backend-independent correlation GUID for this project
+            (minted at creation). Drives programme membership, the closed-project
+            registry and the on-close disposition flow.
+        status:
+          type: ["string", "null"]
+          description: Lifecycle status (backend-native); live reads exclude closed/archived.
         issueCount:
           type: integer
         completedCount:

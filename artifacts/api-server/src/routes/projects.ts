@@ -24,7 +24,8 @@ import {
 import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
 import { resolveCapabilities } from "../lib/capabilities";
 import { validateEntityInput, type FieldDescriptor } from "../lib/field-registry";
-import { getSettings } from "../lib/settings";
+import { getSettings, updateSettings } from "../lib/settings";
+import { PROJECT_DISPOSITIONS, type ProjectDisposition } from "../lib/closed-projects";
 import { checkFieldValues, resolveFieldType } from "../lib/field-validation";
 import { randomUUID } from "node:crypto";
 import { aggregateResourcePool } from "../lib/resource-pool";
@@ -202,6 +203,31 @@ router.delete("/projects/:projectGuid/links", requireAnyRole("pmo", "admin"), (r
   const result = forgetProjectGuid(guid);
   recordAudit({ ts: new Date().toISOString(), category: "admin", action: "project_forget", result: "success", status: 200 });
   res.json(result);
+});
+
+// POST /projects/:projectGuid/close — record a project's closure with a data DISPOSITION (leave it in
+// the current SOR, or migrate to the self-managed archive). Writes the closed-project index entry;
+// closing STICKILY retires the GUID (the settings cross-rule) so it drops out of live reads and can't
+// be silently reactivated. Admin/PMO only — the governance decision the summary calls for.
+router.post("/projects/:projectGuid/close", requireAnyRole("pmo", "admin"), (req, res) => {
+  const guid = String(req.params["projectGuid"]).trim();
+  if (!guid) { res.status(400).json({ error: "project GUID required" }); return; }
+  const body = (req.body ?? {}) as { disposition?: unknown; source?: unknown; note?: unknown };
+  const disposition = String(body.disposition ?? "") as ProjectDisposition;
+  if (!(PROJECT_DISPOSITIONS as readonly string[]).includes(disposition)) {
+    res.status(400).json({ error: `disposition must be one of: ${PROJECT_DISPOSITIONS.join(", ")}` });
+    return;
+  }
+  const record = {
+    disposition,
+    ...(typeof body.source === "string" && body.source.trim() ? { source: body.source.trim() } : {}),
+    closedAt: new Date().toISOString(),
+    ...(typeof body.note === "string" && body.note.trim() ? { note: body.note.trim() } : {}),
+  };
+  // Merge into the registry; validatePatch's cross-rule retires the GUID on write.
+  updateSettings({ closedProjects: { ...getSettings().closedProjects, [guid]: record } });
+  recordAudit({ ts: new Date().toISOString(), category: "admin", action: `project_close:${disposition}`, result: "success", status: 200 });
+  res.json({ guid, ...record });
 });
 
 router.patch("/projects/:projectId", requireRole("manager"), async (req, res) => {

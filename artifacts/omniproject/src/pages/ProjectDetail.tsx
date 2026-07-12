@@ -6,6 +6,7 @@ import { IssueGrid } from "../components/grid/IssueGrid";
 import { useFeatures, featureEnabled } from "../lib/features";
 import { useRecentItems } from "../lib/recent-items";
 import { ExportMenu } from "../components/ExportMenu";
+import { CloseProjectDialog } from "../components/CloseProjectDialog";
 import { DataProvenance } from "../components/DataProvenance";
 import { ProjectFinancialsStrip } from "../components/ProjectFinancialsStrip";
 
@@ -84,6 +85,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
                 filename={`issues-${projectId}`} fieldSources={caps?.fieldSources} polledAt={dataUpdatedAt} />
             )}
             <ExportMenu projectId={projectId} />
+            {project?.omniInstanceId && (
+              <CloseProjectDialog projectGuid={project.omniInstanceId} projectName={project.name} source={project.source} />
+            )}
           </div>
         </div>
       </div>
