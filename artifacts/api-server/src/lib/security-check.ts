@@ -60,6 +60,21 @@ export function securityFindings(env: Env): SecurityFinding[] {
   // environment (not gated on `prod`, below), since a typo is just as silent in dev/staging.
   for (const issue of detectEnvVarTypos(env)) out.push({ id: "env-var-typo", severity: "warn", message: issue });
 
+  // Disclosure (every environment): the built-in backend turns OmniProject from a stateless overlay
+  // into a first-party system of record — project data is now stored ENCRYPTED at rest. Surface it so
+  // the operator is never surprised that data is persisting, and knows they own its backup/retention.
+  if (isTruthy(env["BUILTIN_BACKEND"])) {
+    out.push({
+      id: "builtin-backend",
+      severity: "info",
+      message:
+        "BUILTIN_BACKEND is on — OmniProject is acting as a first-party system of record: project data " +
+        "is persisted ENCRYPTED at rest (AES-256-GCM), not held only in memory. This is a deliberate, " +
+        "opt-in relaxation of the stateless posture. The data and its encryption key are YOURS: back the " +
+        "store up, set your own retention, and note OmniProject makes no warranty over data it persists.",
+    });
+  }
+
   const prod = isProductionLike(env);
   if (!prod) return out; // dev/test deployments (no production signals either) are expected to be relaxed
 

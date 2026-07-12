@@ -36,17 +36,24 @@ encrypted, short-lived, hash-abstracted local record. Default off, customer-owne
 
 ## A. Architecture / positioning
 
-### A1. First-party lightweight backend ("built-in projects")  ⚑ biggest market lever
+### A1. First-party lightweight backend ("built-in projects")  ⚑ biggest market lever — **PHASE 1 SHIPPED**
 **What:** a small, first-party store so a tiny org with **no** existing PM tool (and no Jira/n8n) can
-use OmniProject standalone. Today the demo broker is sample-data-only; durable persistence exists in
-*dev* mode but there is no real standalone backend.
-**Why parked:** it directly tensions with the core **"stateless, zero-at-rest overlay"** identity — a
-first-party backend *does* store customer data at rest. That's a positioning decision, not a coding
-one.
-**Recommendation:** build it, but framed honestly as **"OmniProject can also *be* a (small) system of
-record"** — a separate, clearly-labelled backend module that stores its own data (encrypted at rest
-like config), distinct from the stateless *overlay* role. It's the single biggest unlock for the
-SME/charity segment. Needs your yes/no on shipping a first-party data store.
+use OmniProject standalone.
+**The positioning call (made):** ship it **opt-in and off by default**, so the stateless zero-at-rest
+overlay stays the default identity and turning on persistence is a deliberate, disclosed choice —
+"OmniProject can *also be* a small system of record."
+**Phase 1 (shipped):** `BUILTIN_BACKEND=1` promotes the existing in-memory engine (the full `Broker`
+interface — projects/issues/RAID/summaries/…) into a durable store that is **encrypted at rest**
+(AES-256-GCM via `config-crypto`), **production-capable**, **seeded empty** (a real backend, not demo
+samples), and **never auto-reset**. Off by default ⇒ the stateless path is byte-identical. It reports
+as a real source (no "demo/sample" banner) and boot surfaces an `info` disclosure that data now
+persists (customer-owned, back-it-up, no warranty). Files: `lib/dev-persist.ts` (encrypted `saveState`/
+`loadState` + `builtinBackendEnabled`), `broker/demo-data.ts` (wiring, empty seed, no reset),
+`lib/setup-status.ts` (real-source labelling), `lib/security-check.ts` (disclosure). Tests:
+`broker/builtin-backend.test.ts`, `lib/dev-persist.test.ts`.
+**Phase 2 (next, deliberate):** its own encrypted store separate from the demo engine + a
+first-run/import UX + backup/export; a distinct `builtin` broker `kind` end-to-end (rather than
+reusing the demo engine relabelled). Left for a focused follow-up.
 
 ### A2. Managed / hosted offering (or one-click deploy)
 **What:** a hosted tier or marketplace one-click deploys (Render/Railway/Fly/DO), since self-host is a
