@@ -84,3 +84,30 @@ test("POST /admin/ruleset/apply-reference: a real methodology applies its bundle
   assert.ok(Array.isArray(body.rules));
   assert.ok(Array.isArray(body.fieldRules));
 });
+
+test("methodology composition gates the reference rulesets (list filtered + apply 403 when disabled)", async () => {
+  const { referenceRulesetCatalogue } = await import("@workspace/backend-catalogue");
+  const { updateSettings } = await import("../lib/settings");
+  const bundles = referenceRulesetCatalogue();
+  assert.ok(bundles.length >= 2, "need at least two reference rulesets for this test");
+  const kept = bundles[0]!.methodology;
+  const disabled = bundles[1]!.methodology;
+
+  // Curate the composition to enable only the first ruleset.
+  updateSettings({ methodologyComposition: [`ruleset:${kept}`] });
+  try {
+    const list = await json(await h.req("/admin/ruleset/reference", { cookie: adminCookie() }));
+    const ids = (list as { methodology: string }[]).map((b) => b.methodology);
+    assert.ok(ids.includes(kept), "the enabled ruleset is listed");
+    assert.ok(!ids.includes(disabled), "the disabled ruleset is filtered out");
+
+    // Applying the enabled one still works…
+    assert.equal((await h.req("/admin/ruleset/apply-reference", { method: "POST", cookie: adminCookie(), body: { methodology: kept } })).status, 200);
+    // …applying the curated-out one is refused.
+    const blocked = await h.req("/admin/ruleset/apply-reference", { method: "POST", cookie: adminCookie(), body: { methodology: disabled } });
+    assert.equal(blocked.status, 403);
+    assert.match((await json(blocked)).error, /disabled by the methodology composition/i);
+  } finally {
+    updateSettings({ methodologyComposition: null });
+  }
+});
