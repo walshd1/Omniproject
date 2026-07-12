@@ -22,22 +22,25 @@ test("sanitizeLabels rejects non-objects, non-string values and over-long values
   assert.throws(() => sanitizeLabels({ "nav.projects": "x".repeat(61) }), /too long/);
 });
 
-test("saveLabels persists and effectiveLabels reflects them (entitled in pre-community)", () => {
+test("saveLabels persists and effectiveLabels reflects them", () => {
   saveLabels({ "term.project": "Engagement" });
   const eff = effectiveLabels();
-  assert.equal(eff.entitled, true); // premium free-to-run while enforcement is off
+  assert.equal(eff.entitled, true); // nomenclature is always on (no premium gate)
   assert.equal(eff.locked, false);
   assert.equal(eff.overrides["term.project"], "Engagement");
   assert.ok(eff.catalog.length > 0);
 });
 
-test("effectiveLabels locks (hides overrides) when premium is enforced without a licence", () => {
+test("effectiveLabels stays applied even under premium enforcement (labels premium gate is disabled)", () => {
   saveLabels({ "term.project": "Engagement" });
   process.env["PREMIUM_ENFORCEMENT"] = "on";
   const eff = effectiveLabels();
-  assert.equal(eff.entitled, false);
-  assert.equal(eff.locked, true);
-  assert.deepEqual(eff.overrides, {}); // not applied while locked
+  // The `labels` premium gate is DISABLED (lib/labels.ts LABELS_PREMIUM_GATE = false): nomenclature
+  // is a standard PMO/admin governance knob, so enforcing premium must NOT hide or lock the
+  // overrides. Flipping the flag back on would restore the lock (that path is retained, not removed).
+  assert.equal(eff.entitled, true);
+  assert.equal(eff.locked, false);
+  assert.equal(eff.overrides["term.project"], "Engagement");
 });
 
 // ── branding ────────────────────────────────────────────────────────────────

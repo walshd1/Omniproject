@@ -19,10 +19,6 @@ function makeClient(license: LicenseStatus): QueryClient {
     footerText: "",
     supportUrl: "",
   });
-  qc.setQueryData(["labels", "admin"], {
-    overrides: { "nav.projects": "Engagements" },
-    catalog: [{ key: "nav.projects", default: "Projects" }],
-  });
   qc.setQueryData(["webhooks"], {
     entitled: true,
     events: ["notification", "audit"],
@@ -68,12 +64,13 @@ describe("PremiumAdmin", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it("renders all three premium panels and the unlicensed badge", () => {
-    const { getByRole, getByText } = renderWithProviders(<PremiumAdmin />, { client: makeClient(unlicensed) });
+  it("renders both premium panels and the unlicensed badge", () => {
+    const { getByRole, getByText, queryByRole } = renderWithProviders(<PremiumAdmin />, { client: makeClient(unlicensed) });
     expect(getByRole("heading", { name: "Premium overlay" })).toBeInTheDocument();
     expect(getByRole("heading", { name: "White-label branding" })).toBeInTheDocument();
-    expect(getByRole("heading", { name: "Company nomenclature" })).toBeInTheDocument();
     expect(getByRole("heading", { name: "Outbound webhooks" })).toBeInTheDocument();
+    // Company nomenclature is a PMO/admin governance knob now — no longer part of the premium overlay.
+    expect(queryByRole("heading", { name: "Company nomenclature" })).toBeNull();
     expect(getByText("Unlicensed")).toBeInTheDocument();
   });
 
@@ -81,7 +78,7 @@ describe("PremiumAdmin", () => {
     const { getAllByText, getByPlaceholderText } = renderWithProviders(<PremiumAdmin />, {
       client: makeClient(unlicensed),
     });
-    expect(getAllByText(/Licensed feature/).length).toBeGreaterThanOrEqual(3);
+    expect(getAllByText(/Licensed feature/).length).toBeGreaterThanOrEqual(2);
     // App name input is inside a disabled fieldset.
     expect(getByPlaceholderText("OmniProject")).toBeDisabled();
   });
@@ -95,11 +92,10 @@ describe("PremiumAdmin", () => {
     expect(getByPlaceholderText("OmniProject")).toBeEnabled();
   });
 
-  it("renders seeded label overrides and webhook rows when licensed", () => {
-    const { getByDisplayValue, getByText } = renderWithProviders(<PremiumAdmin />, {
+  it("renders seeded webhook rows when licensed", () => {
+    const { getByText } = renderWithProviders(<PremiumAdmin />, {
       client: makeClient(licensed),
     });
-    expect(getByDisplayValue("Engagements")).toBeInTheDocument();
     expect(getByText("https://hooks.acme.com/op")).toBeInTheDocument();
   });
 

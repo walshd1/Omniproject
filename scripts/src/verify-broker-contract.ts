@@ -869,15 +869,16 @@ async function testPremium(apiBase: string) {
     assert("Unlicensed: PUT /api/branding is 402 (paywall)", set.status === 402, `got ${set.status}`);
   }
 
-  if (has("labels")) {
+  // The `labels` premium gate is DISABLED (see lib/labels.ts LABELS_PREMIUM_GATE): nomenclature is a
+  // standard PMO/admin governance knob now, so a PMO/admin write succeeds regardless of licence. The
+  // has("labels") branch is kept so this contract still tracks the entitlement should the gate return.
+  {
+    void has("labels"); // entitlement is informational only while the gate is disabled
     const set = await put(`${apiBase}/api/labels`, { overrides: { "nav.projects": "Engagements" } });
-    assert("Licensed: PUT /api/labels is 200", set.status === 200, `got ${set.status}`);
+    assert("PUT /api/labels is 200 (premium gate disabled — PMO/admin knob)", set.status === 200, `got ${set.status}`);
     const after = await get(`${apiBase}/api/labels`);
-    assert("Licensed: label override is applied", (after.data as { overrides?: Record<string, string> }).overrides?.["nav.projects"] === "Engagements");
+    assert("label override is applied", (after.data as { overrides?: Record<string, string> }).overrides?.["nav.projects"] === "Engagements");
     await put(`${apiBase}/api/labels`, { overrides: {} }); // clean up
-  } else {
-    const set = await put(`${apiBase}/api/labels`, { overrides: { "nav.projects": "Engagements" } });
-    assert("Unlicensed: PUT /api/labels is 402 (paywall)", set.status === 402, `got ${set.status}`);
   }
 
   if (has("webhooks")) {

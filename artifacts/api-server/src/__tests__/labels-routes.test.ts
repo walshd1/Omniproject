@@ -1,14 +1,29 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { startHarness, adminCookie, type Harness } from "./_harness";
+import { startHarness, adminCookie, cookie, memberCookie, type Harness } from "./_harness";
 
 /**
- * HTTP coverage for the company-nomenclature label overrides (routes/labels.ts, premium `labels`).
- * GET /labels + GET /labels/presets are public (mounted before requireAuth); PUT /labels and
- * POST /labels/apply-preset are admin + entitlement gated. During the pre-community period every
- * premium feature is entitled, so the entitlement gate passes and the save/apply + error branches
- * (bad overrides → 400, unknown preset → 404, a real preset → 200) are all reachable.
+ * HTTP coverage for the company-nomenclature label overrides (routes/labels.ts). Nomenclature is a
+ * standard PMO/admin governance knob, not a premium gate. GET /labels + GET /labels/presets are
+ * public (mounted before requireAuth); PUT /labels and POST /labels/apply-preset are PMO-or-admin.
+ * Covers: both PMO and admin can write, a non-authority member is refused (403), and the
+ * save/apply + error branches (bad overrides → 400, unknown preset → 404, a real preset → 200).
  */
+// Strong-auth PMO (amr: hwk) so the pmo authority is actually granted under real RBAC, not withheld.
+const STRONG = { amr: ["hwk"] };
+const pmoCookie = () => cookie({ sub: "u-pmo", name: "Pat PMO", email: "pat@x.io", roles: ["omni-pmo"], ...STRONG });
+
+/** Run `fn` with real RBAC in force (leave demo mode, pin the claim→role mapping), then restore. */
+async function withRealRbac(fn: () => Promise<void>): Promise<void> {
+  const keys = ["OIDC_ISSUER_URL", "OIDC_ADMIN_ROLES", "OIDC_PMO_ROLES"] as const;
+  const prev = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  process.env["OIDC_ISSUER_URL"] = "https://idp.example";
+  process.env["OIDC_ADMIN_ROLES"] = "omni-admins";
+  process.env["OIDC_PMO_ROLES"] = "omni-pmo";
+  try { await fn(); } finally {
+    for (const k of keys) { if (prev[k] === undefined) delete process.env[k]; else process.env[k] = prev[k]; }
+  }
+}
 let h: Harness;
 before(async () => { h = await startHarness(); });
 after(() => h.close());
@@ -38,6 +53,18 @@ test("PUT /labels: a valid override saves and takes effect", async () => {
   // Reflected on the public read.
   const back = await json(await h.req("/labels"));
   assert.equal(back.overrides["term.project"], "Engagement");
+});
+
+test("PUT /labels: under real RBAC both PMO and admin can write; a plain member is refused (403)", async () => {
+  await withRealRbac(async () => {
+    // Nomenclature is a PMO-OR-admin union gate — either authority clears it, a member does not.
+    const pmo = await h.req("/labels", { method: "PUT", cookie: pmoCookie(), body: { overrides: { "term.project": "Engagement" } } });
+    assert.equal(pmo.status, 200);
+    const admin = await h.req("/labels", { method: "PUT", cookie: adminCookie(STRONG), body: { overrides: { "term.project": "Engagement" } } });
+    assert.equal(admin.status, 200);
+    const member = await h.req("/labels", { method: "PUT", cookie: memberCookie(), body: { overrides: { "term.project": "Engagement" } } });
+    assert.equal(member.status, 403);
+  });
 });
 
 test("PUT /labels: a non-string override value → 400", async () => {

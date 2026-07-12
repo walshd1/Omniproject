@@ -7,7 +7,7 @@ import { getSettings, updateSettings } from "./settings";
 import { isEntitled } from "./license";
 
 /**
- * Field / term label overrides (premium feature `labels`).
+ * Field / term label overrides (historically the premium `labels` feature).
  *
  * Companies use their own nomenclature — "Engagements" instead of "Projects",
  * "Portfolios" instead of "Programmes", "Tickets" instead of "Issues". This lets
@@ -61,20 +61,30 @@ export function sanitizeLabels(input: unknown): Record<string, string> {
   return out;
 }
 
-/** The label overrides the UI should apply right now ({} unless entitled). */
+/**
+ * Premium entitlement gate for company nomenclature — DISABLED, not removed.
+ *
+ * Product decision: nomenclature is a standard PMO/admin governance knob, so the `labels` premium
+ * gate is switched off — stored overrides always take effect and any PMO/admin can edit them. The
+ * entitlement scaffolding (the `labels` licence feature, `isEntitled`, the lock code path below) is
+ * deliberately retained so the gate can be re-enabled by flipping this single flag back to `true`.
+ */
+const LABELS_PREMIUM_GATE = false;
+
+/** The label overrides the UI should apply right now. With the premium gate disabled (the default)
+ *  overrides always apply and `entitled`/`locked` report on/unlocked. If the gate is re-enabled, an
+ *  unlicensed instance under premium enforcement is locked and its overrides are withheld. */
 export function effectiveLabels(): { entitled: boolean; locked: boolean; overrides: Record<string, string>; catalog: LabelTerm[] } {
-  const entitled = isEntitled("labels");
-  const stored = getSettings().labelOverrides ?? {};
-  const hasOverride = Object.keys(stored).length > 0;
+  const locked = LABELS_PREMIUM_GATE && !isEntitled("labels");
   return {
-    entitled,
-    locked: hasOverride && !entitled,
-    overrides: entitled ? stored : {},
+    entitled: !locked,
+    locked,
+    overrides: locked ? {} : getSettings().labelOverrides ?? {},
     catalog: LABEL_CATALOG,
   };
 }
 
-/** Persist label overrides (callers must enforce the entitlement). */
+/** Persist label overrides (callers enforce the PMO/admin role). */
 export function saveLabels(input: unknown): Record<string, string> {
   const overrides = sanitizeLabels(input);
   updateSettings({ labelOverrides: overrides });
