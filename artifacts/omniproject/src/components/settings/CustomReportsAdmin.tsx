@@ -171,14 +171,30 @@ export function CustomReportsAdmin() {
                 <option value="table">Table</option>
                 <option value="bar">Bar</option>
                 <option value="line">Line (trend)</option>
+                <option value="area">Area (trend)</option>
+                <option value="pie">Pie (share)</option>
               </select>
             </label>
+            {r.viz !== "table" && (
+              <>
+                <label className="text-xs flex items-center gap-1">
+                  <input type="checkbox" checked={r.chart?.legend !== false} onChange={(e) => patch(i, { ...r, chart: { ...r.chart, legend: e.target.checked } })} aria-label={`Report ${i + 1} show legend`} />
+                  <span className="text-muted-foreground">Legend</span>
+                </label>
+                {(r.viz === "bar" || r.viz === "area") && (
+                  <label className="text-xs flex items-center gap-1">
+                    <input type="checkbox" checked={r.chart?.stacked === true} onChange={(e) => patch(i, { ...r, chart: { ...r.chart, stacked: e.target.checked } })} aria-label={`Report ${i + 1} stacked`} />
+                    <span className="text-muted-foreground">Stacked</span>
+                  </label>
+                )}
+              </>
+            )}
             <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" aria-label={`Export report ${i + 1}`}
               onClick={() => downloadReportDef({ ...r, id: r.id || uniqueReportId(r, []) })}>Export</Button>
             <Button variant="outline" className="rounded-none border-2 border-foreground font-bold uppercase text-xs" onClick={() => setDraft(draft.filter((_, j) => j !== i))}>Remove</Button>
           </div>
 
-          {r.viz === "line" ? (
+          {r.viz === "line" || r.viz === "area" ? (
             <label className="text-xs flex items-center gap-2">
               <span className="text-muted-foreground uppercase tracking-widest text-[10px]">Date field (bucketed by month)</span>
               <select aria-label={`Report ${i + 1} date field`} className="rounded-none border border-border bg-background px-2 py-1 text-xs"

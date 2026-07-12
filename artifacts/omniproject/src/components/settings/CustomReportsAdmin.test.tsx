@@ -67,6 +67,25 @@ describe("CustomReportsAdmin", () => {
     expect(body.customReports[0]).toMatchObject({ label: "Tasks by context", scope: "tasks", groupBy: "context" });
   });
 
+  it("saves chart type + options (pie / stacked / legend) from the chart editor", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ customReports: [] }) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+
+    fireEvent.click(screen.getByText("+ report"));
+    fireEvent.change(screen.getByLabelText("Report 1 label"), { target: { value: "Spend share" } });
+    fireEvent.change(screen.getByLabelText("Report 1 viz"), { target: { value: "bar" } });
+    // Chart options appear for a chart viz: turn the legend off and stack the series.
+    fireEvent.click(screen.getByLabelText("Report 1 show legend"));
+    fireEvent.click(screen.getByLabelText("Report 1 stacked"));
+    fireEvent.click(screen.getByText("Save reports"));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
+    const body = JSON.parse(init.body as string);
+    expect(body.customReports[0]).toMatchObject({ viz: "bar", chart: { legend: false, stacked: true } });
+  });
+
   it("shows the second group-by select only once a first group-by is chosen, and saves the pivot", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ customReports: [] }) } as Response);
     vi.stubGlobal("fetch", fetchMock);

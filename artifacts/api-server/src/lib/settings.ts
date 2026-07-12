@@ -506,9 +506,11 @@ export interface CustomReportDef {
   groupBy2?: string;
   metrics: CustomReportMetric[];
   filter?: { all?: unknown[]; any?: unknown[] };
-  viz: "table" | "bar" | "line";
-  /** Required for `viz: "line"`: a date field bucketed by month to build a time trend. */
+  viz: "table" | "bar" | "line" | "area" | "pie";
+  /** Required for `viz: "line" | "area"`: a date field bucketed by month to build a time trend. */
   dateField?: string;
+  /** Chart options (the chart editor): stacked series and legend visibility. */
+  chart?: { stacked?: boolean; legend?: boolean };
 }
 
 /**
@@ -949,7 +951,13 @@ function validateCustomReports(value: unknown): void {
     if (!o || typeof o !== "object" || typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each custom report needs a string id");
     if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" needs a label`);
     if (o["scope"] !== "project" && o["scope"] !== "portfolio" && o["scope"] !== "tasks") throw new SettingsValidationError(`custom report "${String(o["id"])}" scope must be project | portfolio | tasks`);
-    if (o["viz"] !== "table" && o["viz"] !== "bar" && o["viz"] !== "line") throw new SettingsValidationError(`custom report "${String(o["id"])}" viz must be table | bar | line`);
+    if (!["table", "bar", "line", "area", "pie"].includes(o["viz"] as string)) throw new SettingsValidationError(`custom report "${String(o["id"])}" viz must be table | bar | line | area | pie`);
+    if (o["chart"] != null) {
+      if (typeof o["chart"] !== "object") throw new SettingsValidationError(`custom report "${String(o["id"])}" chart must be an object`);
+      const c = o["chart"] as Record<string, unknown>;
+      if (c["stacked"] != null && typeof c["stacked"] !== "boolean") throw new SettingsValidationError(`custom report "${String(o["id"])}" chart.stacked must be a boolean`);
+      if (c["legend"] != null && typeof c["legend"] !== "boolean") throw new SettingsValidationError(`custom report "${String(o["id"])}" chart.legend must be a boolean`);
+    }
     if (o["groupBy"] != null && typeof o["groupBy"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy must be a string`);
     if (o["groupBy2"] != null && typeof o["groupBy2"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy2 must be a string`);
     if (o["dateField"] != null && typeof o["dateField"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" dateField must be a string`);

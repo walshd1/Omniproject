@@ -61,6 +61,25 @@ describe("CustomReport", () => {
     expect(screen.getByTestId("custom-report-empty-r")).toHaveTextContent(/needs a date field/);
   });
 
+  it("renders the trend path (table + points) for viz: area", () => {
+    const trendRows: Row[] = [
+      { budget: 100, closedAt: "2026-01-10" },
+      { budget: 200, closedAt: "2026-02-05" },
+    ];
+    render(<CustomReport def={trendDef({ viz: "area", dateField: "closedAt" })} rows={trendRows} />);
+    expect(screen.getByTestId("custom-report-r")).toBeInTheDocument();
+    expect(screen.getByText("Jan 2026")).toBeInTheDocument();
+    expect(screen.getByText("Feb 2026")).toBeInTheDocument();
+  });
+
+  it("renders the grouped path (share table) for viz: pie", () => {
+    render(<CustomReport def={def({ viz: "pie" })} rows={rows} />);
+    expect(screen.getByTestId("custom-report-r")).toBeInTheDocument();
+    // The share table still lists each group.
+    expect(screen.getByTestId("custom-report-row-r-done")).toBeInTheDocument();
+    expect(screen.getByTestId("custom-report-row-r-todo")).toBeInTheDocument();
+  });
+
   it("shows a friendly empty state when nothing matches", () => {
     render(<CustomReport def={def({ filter: { all: [{ field: "status", op: "eq", value: "nope" }] } })} rows={rows} />);
     expect(screen.getByTestId("custom-report-empty-r")).toBeInTheDocument();
