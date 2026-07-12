@@ -26,6 +26,7 @@ import { resolveCapabilities } from "../lib/capabilities";
 import { validateEntityInput, type FieldDescriptor } from "../lib/field-registry";
 import { getSettings } from "../lib/settings";
 import { checkFieldValues, resolveFieldType } from "../lib/field-validation";
+import { randomUUID } from "node:crypto";
 import { aggregateResourcePool } from "../lib/resource-pool";
 import { poolMap } from "../lib/concurrency-pool";
 import {
@@ -173,7 +174,9 @@ router.post("/projects", requireRole("manager"), async (req, res) => {
     return;
   }
   await withBrokerErrors(req, res, "create_project failed", async () => {
-    const project = await getBroker().createProject(contextFromReq(req), bodyParse.data);
+    // Mint the backend-independent correlation GUID here (once, in the gateway) and pass it to the
+    // backend to store + echo. It's server-minted, never from the client body — see Project.omniInstanceId.
+    const project = await getBroker().createProject(contextFromReq(req), { ...bodyParse.data, omniInstanceId: randomUUID() });
     res.status(201).json(project);
   });
 });

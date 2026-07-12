@@ -811,6 +811,10 @@
         },
         "name": {
           "type": "string"
+        },
+        "omniInstanceId": {
+          "type": "string",
+          "description": "OmniProject instance ID — a GUID minted by the gateway when the project is created, echoed and stored by every backend. It is the backend-INDEPENDENT correlation key: the same project seen through two backends carries the same `omniInstanceId`, so records assemble across backends by it (whereas `source:id` is unique per backend). Optional because pre-existing rows may lack one."
         }
       },
       "required": [
@@ -898,6 +902,10 @@
             "null"
           ],
           "description": "Set/clear to group the project under a programme (derived-programme model)."
+        },
+        "omniInstanceId": {
+          "type": "string",
+          "description": "The gateway-minted correlation GUID, passed to the backend to store on create (never sent by a client). See `Project.omniInstanceId`."
         }
       },
       "additionalProperties": false,

@@ -56,6 +56,14 @@ Latency-aware adaptive TTL for the opt-in read cache.
 | `adaptiveStats` | Diagnostics for dev mode: config + per-method measured latency and the TTL it currently chooses. |
 | `resetAdaptive` | Test-only: forget all measured latencies. |
 
+### `artifacts/api-server/src/broker/assemble.ts`
+
+Assemble project rows that came from DIFFERENT backends into one record per real project, keyed by the backend-independent correlation GUID (`omniInstanceId`).
+
+| Function | What it does |
+| --- | --- |
+| `assembleByInstance` | Assemble project rows that came from DIFFERENT backends into one record per real project, keyed by the backend-independent correlation GUID (`omniInstanceId`). |
+
 ### `artifacts/api-server/src/broker/builtin/builtin-broker.ts`
 
 BUILT-IN BROKER — an in-process implementation of the `Broker` interface backed by a pluggable store (`BuiltinStore`): `MemoryStore` for tests/ephemeral use, a Postgres store for a durable, customer-owned system of record.
@@ -167,6 +175,7 @@ Cross-backend identity.
 | --- | --- |
 | `qualifyId` | The globally-unique key for an entity: `source:id`. |
 | `qualifiedId` | Read the qualified key off a row (its own `source`, or a fallback when the backend omitted it). |
+| `fieldIdentity` | The FIELD-IDENTITY HASH: a stable, backend-independent id for one field of one project instance, derived from the project's correlation GUID (`omniInstanceId`), the `broker` it was reached through, and the native `sourceField` name. |
 | `stampSource` | Stamp `source` onto every row that lacks one, using the broker kind it was read through. |
 
 ### `artifacts/api-server/src/broker/index.ts`

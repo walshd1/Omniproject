@@ -58,6 +58,11 @@ export interface ActorContext {
 export interface Project extends Row {
   id: string;
   name: string;
+  /** OmniProject instance ID — a GUID minted by the gateway when the project is created, echoed and
+   *  stored by every backend. It is the backend-INDEPENDENT correlation key: the same project seen
+   *  through two backends carries the same `omniInstanceId`, so records assemble across backends by it
+   *  (whereas `source:id` is unique per backend). Optional because pre-existing rows may lack one. */
+  omniInstanceId?: string;
 }
 
 /** A normalised issue/work-item row. `version` is the concurrency token. */
@@ -180,6 +185,9 @@ export interface ProjectWrite {
   description?: string | null | undefined;
   /** Set/clear to group the project under a programme (derived-programme model). */
   programmeId?: string | null | undefined;
+  /** The gateway-minted correlation GUID, passed to the backend to store on create (never sent by a
+   *  client). See `Project.omniInstanceId`. */
+  omniInstanceId?: string | undefined;
 }
 
 export interface Summary {

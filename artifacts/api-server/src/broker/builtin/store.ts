@@ -73,6 +73,8 @@ export class MemoryStore implements BuiltinStore {
       description: input.description ?? null,
       programmeId: input.programmeId ?? null,
       source: "builtin",
+      // Store the gateway-minted correlation GUID so it echoes back on reads (see Project.omniInstanceId).
+      ...(input.omniInstanceId ? { omniInstanceId: input.omniInstanceId } : {}),
       issueCount: 0,
       completedCount: 0,
     };

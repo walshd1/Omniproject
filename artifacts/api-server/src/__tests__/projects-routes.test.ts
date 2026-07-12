@@ -42,6 +42,13 @@ test("POST /projects with an empty name passes zod but fails the field registry 
   assert.ok(Array.isArray(body.errors) && body.errors.some((e) => e.field === "name"));
 });
 
+test("POST /projects stamps a backend-independent correlation GUID (omniInstanceId)", async () => {
+  const r = await req("/projects", { method: "POST", body: { name: "Apollo" } });
+  assert.equal(r.status, 201);
+  const body = (await r.json()) as { omniInstanceId?: string };
+  assert.match(body.omniInstanceId ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+});
+
 test("PATCH /projects/:id with an invalid body → 400", async () => {
   const r = await req("/projects/proj-001", { method: "PATCH", body: { name: 123 } });
   assert.equal(r.status, 400);
