@@ -5,6 +5,19 @@ import type { ViewDefinition } from "./view-catalogue";
 
 export const VIEWS_DATA: ViewDefinition[] = [
   {
+    "description": "Unified list/board powered by the shared view engine — the same views tasks use.",
+    "group": "General",
+    "id": "flow",
+    "kind": "board",
+    "label": "Flow (unified)",
+    "methodologies": [
+      "*"
+    ],
+    "methodology": "Methodology-neutral",
+    "order": 7,
+    "short": "Flow"
+  },
+  {
     "description": "Time-phased schedule from start / due dates.",
     "group": "Traditional",
     "id": "gantt",

@@ -7,7 +7,7 @@
  */
 import { VIEWS as CATALOGUE_VIEWS } from "@workspace/backend-catalogue/views";
 
-export type ViewId = "kanban" | "scrum" | "gantt" | "prince2" | "raid" | "list";
+export type ViewId = "kanban" | "scrum" | "gantt" | "prince2" | "raid" | "list" | "flow";
 
 export type CapabilityDomain =
   | "issues"
