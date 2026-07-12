@@ -1621,8 +1621,8 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 | Function | What it does |
 | --- | --- |
 | `sanitizeLabels` | Validate + normalise an overrides map. |
-| `effectiveLabels` | The label overrides the UI should apply right now ({} unless entitled). |
-| `saveLabels` | Persist label overrides (callers must enforce the entitlement). |
+| `effectiveLabels` | The label overrides the UI should apply right now. |
+| `saveLabels` | Persist label overrides (callers enforce the PMO/admin role). |
 
 ### `artifacts/api-server/src/lib/license.ts`
 

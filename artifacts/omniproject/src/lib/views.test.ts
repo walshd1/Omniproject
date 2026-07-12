@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { VIEWS, DEFAULT_VIEW, isViewId, nextView, viewMeta, type ViewId } from "./views";
 
-const ALL_IDS: ViewId[] = ["kanban", "scrum", "gantt", "prince2", "raid", "list"];
+const ALL_IDS: ViewId[] = ["kanban", "scrum", "gantt", "prince2", "raid", "list", "flow"];
 
 describe("VIEWS registry", () => {
-  it("lists all six views with unique ids", () => {
+  it("lists all views with unique ids", () => {
     expect(VIEWS.map((v) => v.id)).toEqual(ALL_IDS);
     expect(new Set(VIEWS.map((v) => v.id)).size).toBe(VIEWS.length);
   });
@@ -45,7 +45,8 @@ describe("nextView", () => {
   it("cycles forward through the registry order", () => {
     expect(nextView("kanban")).toBe("scrum");
     expect(nextView("scrum")).toBe("gantt");
-    expect(nextView("list")).toBe("kanban"); // wraps
+    expect(nextView("list")).toBe("flow");
+    expect(nextView("flow")).toBe("kanban"); // wraps
   });
 });
 

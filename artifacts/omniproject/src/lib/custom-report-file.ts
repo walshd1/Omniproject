@@ -11,7 +11,7 @@ import { triggerBlobDownload } from "./setup";
 
 const AGGS: readonly CustomReportAgg[] = ["sum", "avg", "count", "min", "max"];
 const VIZ = ["table", "bar", "line"] as const;
-const SCOPES = ["project", "portfolio"] as const;
+const SCOPES = ["project", "portfolio", "tasks"] as const;
 
 function isStr(v: unknown): v is string {
   return typeof v === "string" && v.trim().length > 0;
@@ -32,7 +32,7 @@ export function parseReportDef(value: unknown): CustomReportDef {
   if (!value || typeof value !== "object") throw new Error("not a report definition (expected a JSON object).");
   const o = value as Record<string, unknown>;
   if (!isStr(o["label"])) throw new Error('report definition needs a "label".');
-  if (!SCOPES.includes(o["scope"] as (typeof SCOPES)[number])) throw new Error('report "scope" must be "project" or "portfolio".');
+  if (!SCOPES.includes(o["scope"] as (typeof SCOPES)[number])) throw new Error('report "scope" must be "project", "portfolio" or "tasks".');
   if (!VIZ.includes(o["viz"] as (typeof VIZ)[number])) throw new Error('report "viz" must be "table", "bar" or "line".');
   if (!Array.isArray(o["metrics"]) || o["metrics"].length === 0) throw new Error("report needs at least one metric.");
 

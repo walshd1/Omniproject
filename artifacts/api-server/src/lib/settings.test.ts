@@ -35,6 +35,11 @@ test("customReports: accepts a well-formed bespoke report and rejects bad shape"
   assert.throws(() => updateSettings({ customReports: [{ id: "r4", label: "x", scope: "project", metrics: [{ id: "m", field: "b", agg: "median" }], viz: "table" }] }), SettingsValidationError); // bad agg
 });
 
+test("customReports: accepts the tasks scope (report over the GTD task entity)", () => {
+  const ok = updateSettings({ customReports: [{ id: "rt", label: "Tasks by context", scope: "tasks", groupBy: "context", metrics: [{ id: "m1", field: "id", agg: "count" }], viz: "bar" }] });
+  assert.equal(ok.customReports[0]!.scope, "tasks");
+});
+
 test("customReports: accepts groupBy2 (pivot) and viz:line + dateField (trend), rejects bad shapes for both", () => {
   const pivot = updateSettings({ customReports: [{ id: "r5", label: "Pivot", scope: "project", groupBy: "status", groupBy2: "region", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "table" }] });
   assert.equal(pivot.customReports[0]!.groupBy2, "region");
@@ -102,6 +107,33 @@ test("savedViews: rejects a non-array and a view missing id/name", () => {
   assert.throws(() => updateSettings({ savedViews: "nope" }), SettingsValidationError);
   assert.throws(() => updateSettings({ savedViews: [{ name: "no id" }] }), SettingsValidationError);
   assert.throws(() => updateSettings({ savedViews: [{ id: "x" }] }), SettingsValidationError);
+});
+
+test("savedViews: accepts view-engine fields (entity/viewKind/filters/groupBy)", () => {
+  const s = updateSettings({ savedViews: [
+    { id: "e1", name: "Blocked", entity: "issue", viewKind: "board", filters: [{ field: "status", value: "in_progress" }], groupBy: "assignee", sort: { field: "priority", dir: "desc" as const } },
+  ] });
+  assert.equal(s.savedViews[0]!.entity, "issue");
+  assert.equal(s.savedViews[0]!.viewKind, "board");
+});
+
+test("savedViews: accepts the table viewKind with columns", () => {
+  const s = updateSettings({ savedViews: [{ id: "t1", name: "Table", entity: "task", viewKind: "table", columns: ["status", "assignee"] }] });
+  assert.equal(s.savedViews[0]!.viewKind, "table");
+});
+
+test("savedViews: accepts the timeline viewKind with a dateField", () => {
+  const s = updateSettings({ savedViews: [{ id: "tl1", name: "Timeline", entity: "issue", viewKind: "timeline", dateField: "dueDate" }] });
+  assert.equal(s.savedViews[0]!.viewKind, "timeline");
+  assert.equal(s.savedViews[0]!.dateField, "dueDate");
+  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", dateField: 5 }] }), SettingsValidationError);
+});
+
+test("savedViews: rejects malformed view-engine fields", () => {
+  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", entity: "widget" }] }), SettingsValidationError);
+  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", viewKind: "grid" }] }), SettingsValidationError);
+  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", sort: { field: "s", dir: "up" } }] }), SettingsValidationError);
+  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", filters: [{ field: "s" }] }] }), SettingsValidationError);
 });
 
 test("hiddenFields: rejects a non-string-array", () => {

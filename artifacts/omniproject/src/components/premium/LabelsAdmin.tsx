@@ -3,16 +3,19 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Section, LockNotice } from "./shared";
+import { useAuth, isPmoOrAdmin } from "../../lib/auth";
+import { Section } from "./shared";
 
 /**
  * Company nomenclature panel — override the terms the UI shows (e.g. "Projects" → "Engagements")
- * to match house style. Gated by the `labels` licence entitlement. Part of the premium overlay.
+ * to match house style. Nomenclature is a standard governance knob, not a premium gate: any PMO or
+ * admin can edit it (the server enforces the same role), and it is always on.
  */
 
 interface LabelCatalogItem { key: string; default: string; }
 
-export function LabelsAdmin({ entitled }: { entitled: boolean }) {
+export function LabelsAdmin() {
+  const { data: auth } = useAuth();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -25,6 +28,8 @@ export function LabelsAdmin({ entitled }: { entitled: boolean }) {
   });
   useEffect(() => { if (data?.overrides) setOverrides(data.overrides); }, [data]);
   const catalog = data?.catalog ?? [];
+
+  if (!isPmoOrAdmin(auth?.role)) return null;
 
   const save = async () => {
     setSaving(true);
@@ -45,9 +50,8 @@ export function LabelsAdmin({ entitled }: { entitled: boolean }) {
 
   return (
     <Section title="Company nomenclature">
-      {!entitled && <LockNotice feature="labels" />}
       <p className="text-xs text-muted-foreground">Rename the terms the UI shows to match your house style — e.g. “Projects” → “Engagements”. Leave blank to keep the default.</p>
-      <fieldset disabled={!entitled} className="space-y-4 disabled:opacity-50">
+      <fieldset className="space-y-4">
         {catalog.map((t) => (
           <div key={t.key} className="grid grid-cols-[1fr_2fr] items-center gap-3">
             <code className="text-xs text-muted-foreground">{t.key}</code>

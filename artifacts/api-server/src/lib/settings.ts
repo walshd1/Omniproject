@@ -445,6 +445,12 @@ export interface SavedView {
   id: string;
   name: string;
   scope?: string;
+  /** Which entity a view-engine view targets ("task" | "issue"); omitted for legacy grid views. */
+  entity?: string;
+  /** How the view engine renders it ("list" | "board" | "table" | "timeline"); omitted = list. */
+  viewKind?: string;
+  /** For a timeline view: the date field that buckets records. */
+  dateField?: string;
   /** Visible canonical field keys, in display order. */
   columns?: string[];
   sort?: { field: string; dir: "asc" | "desc" };
@@ -492,8 +498,9 @@ export interface CustomReportMetric {
 export interface CustomReportDef {
   id: string;
   label: string;
-  /** "project" renders per selected project; "portfolio" rolls up across all projects. */
-  scope: "project" | "portfolio";
+  /** "project" renders per selected project; "portfolio" rolls up across all projects' issues;
+   *  "tasks" reports over the GTD task entity (portfolio-wide). */
+  scope: "project" | "portfolio" | "tasks";
   groupBy?: string;
   /** Second group-by level (pivot columns) — ignored without `groupBy`, and for `viz: "line"`. */
   groupBy2?: string;
@@ -941,7 +948,7 @@ function validateCustomReports(value: unknown): void {
     const o = r as Record<string, unknown>;
     if (!o || typeof o !== "object" || typeof o["id"] !== "string" || !o["id"]) throw new SettingsValidationError("each custom report needs a string id");
     if (typeof o["label"] !== "string" || !o["label"]) throw new SettingsValidationError(`custom report "${String(o["id"])}" needs a label`);
-    if (o["scope"] !== "project" && o["scope"] !== "portfolio") throw new SettingsValidationError(`custom report "${String(o["id"])}" scope must be project | portfolio`);
+    if (o["scope"] !== "project" && o["scope"] !== "portfolio" && o["scope"] !== "tasks") throw new SettingsValidationError(`custom report "${String(o["id"])}" scope must be project | portfolio | tasks`);
     if (o["viz"] !== "table" && o["viz"] !== "bar" && o["viz"] !== "line") throw new SettingsValidationError(`custom report "${String(o["id"])}" viz must be table | bar | line`);
     if (o["groupBy"] != null && typeof o["groupBy"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy must be a string`);
     if (o["groupBy2"] != null && typeof o["groupBy2"] !== "string") throw new SettingsValidationError(`custom report "${String(o["id"])}" groupBy2 must be a string`);
@@ -1039,9 +1046,30 @@ function validateSavedViews(value: unknown): void {
   if (!Array.isArray(value)) throw new SettingsValidationError("savedViews must be an array");
   for (const view of value) {
     if (!view || typeof view !== "object") throw new SettingsValidationError("each saved view must be an object");
-    const { id, name } = view as Record<string, unknown>;
+    const { id, name, entity, viewKind, sort, filters, groupBy, columns } = view as Record<string, unknown>;
     if (typeof id !== "string" || !id) throw new SettingsValidationError("each saved view needs a string id");
     if (typeof name !== "string" || !name) throw new SettingsValidationError("each saved view needs a name");
+    // Optional view-engine fields — harden them since saved views are shared, customer-level config.
+    if (entity != null && entity !== "task" && entity !== "issue") throw new SettingsValidationError("saved view entity must be 'task' or 'issue'");
+    if (viewKind != null && viewKind !== "list" && viewKind !== "board" && viewKind !== "table" && viewKind !== "timeline") throw new SettingsValidationError("saved view viewKind must be 'list', 'board', 'table' or 'timeline'");
+    if (groupBy != null && typeof groupBy !== "string") throw new SettingsValidationError("saved view groupBy must be a string");
+    if ((view as Record<string, unknown>)["dateField"] != null && typeof (view as Record<string, unknown>)["dateField"] !== "string") throw new SettingsValidationError("saved view dateField must be a string");
+    if (columns != null && (!Array.isArray(columns) || columns.some((c) => typeof c !== "string"))) throw new SettingsValidationError("saved view columns must be an array of strings");
+    if (sort != null) {
+      if (typeof sort !== "object") throw new SettingsValidationError("saved view sort must be an object");
+      const { field, dir } = sort as Record<string, unknown>;
+      if (typeof field !== "string" || !field) throw new SettingsValidationError("saved view sort.field must be a string");
+      if (dir !== "asc" && dir !== "desc") throw new SettingsValidationError("saved view sort.dir must be 'asc' or 'desc'");
+    }
+    if (filters != null) {
+      if (!Array.isArray(filters)) throw new SettingsValidationError("saved view filters must be an array");
+      for (const f of filters) {
+        if (!f || typeof f !== "object") throw new SettingsValidationError("each saved view filter must be an object");
+        const { field, value: fv } = f as Record<string, unknown>;
+        if (typeof field !== "string" || !field) throw new SettingsValidationError("each saved view filter needs a string field");
+        if (typeof fv !== "string") throw new SettingsValidationError("each saved view filter needs a string value");
+      }
+    }
   }
 }
 

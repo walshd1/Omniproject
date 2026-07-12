@@ -1,13 +1,14 @@
 import { useMemo } from "react";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { useCustomReports } from "../../lib/custom-reports-api";
+import { useTasks, type Task } from "../../lib/tasks";
 import type { Row } from "../../lib/custom-report";
 import { DataState } from "../DataState";
 import { CustomReport } from "./CustomReport";
 import { usePortfolioItems } from "./use-portfolio-items";
 
 /** Render a list of bespoke reports of one scope over the supplied rows (each its own titled section). */
-function CustomReportList({ scope, rows }: { scope: "project" | "portfolio"; rows: readonly Row[] }) {
+function CustomReportList({ scope, rows }: { scope: "project" | "portfolio" | "tasks"; rows: readonly Row[] }) {
   const { data: defs } = useCustomReports();
   const mine = (defs ?? []).filter((d) => d.scope === scope);
   if (mine.length === 0) return null;
@@ -41,6 +42,18 @@ export function CustomReportsPortfolio() {
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-0">
       <CustomReportList scope="portfolio" rows={rows} />
+    </DataState>
+  );
+}
+
+/** Task-scoped bespoke reports over the GTD task entity (portfolio-wide) — the report analogue of the
+ *  view engine's task views, using the same task field catalog. */
+export function CustomReportsTasks() {
+  const { data: tasks, isLoading, isError, error, refetch } = useTasks();
+  const rows = (tasks ?? []) as Task[] as unknown as Row[];
+  return (
+    <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-0">
+      <CustomReportList scope="tasks" rows={rows} />
     </DataState>
   );
 }

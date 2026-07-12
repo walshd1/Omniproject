@@ -1,12 +1,12 @@
 import { useLicense } from "../lib/branding";
 import { BrandingAdmin } from "./premium/BrandingAdmin";
-import { LabelsAdmin } from "./premium/LabelsAdmin";
 import { WebhooksAdmin } from "./premium/WebhooksAdmin";
 
 /**
- * Premium overlay admin — a thin container that gates three independent, self-contained panels
- * (white-label branding, company nomenclature, outbound webhooks) on their licence entitlement
- * from /api/license. Each panel lives in its own file under ./premium.
+ * Premium overlay admin — a thin container that gates two independent, self-contained panels
+ * (white-label branding, outbound webhooks) on their licence entitlement from /api/license.
+ * Each panel lives in its own file under ./premium. (Company nomenclature used to live here too,
+ * but it's a standard PMO/admin governance knob now, so it's mounted directly on the settings page.)
  */
 export function PremiumAdmin() {
   const { data: license } = useLicense();
@@ -23,7 +23,6 @@ export function PremiumAdmin() {
         )}
       </div>
       <BrandingAdmin entitled={has("branding")} />
-      <LabelsAdmin entitled={has("labels")} />
       <WebhooksAdmin entitled={has("webhooks")} />
     </div>
   );
