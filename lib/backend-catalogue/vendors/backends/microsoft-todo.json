@@ -73,6 +73,18 @@
   },
   "credentialType": "microsoftToDoOAuth2Api",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.microsofttodo/",
+  "fieldKeys": [
+    "title",
+    "status",
+    "description",
+    "priority",
+    "dueDate",
+    "reminderAt",
+    "completedAt",
+    "recurrence",
+    "labels",
+    "url"
+  ],
   "id": "microsoft-todo",
   "label": "Microsoft To Do",
   "notes": "Personal task manager: task lists → projects, tasks → issues. Updates/deletes need both the list id (projectId) and the task id (issueId).",

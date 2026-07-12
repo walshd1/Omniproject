@@ -7,6 +7,7 @@ import {
   resolveAvailability,
   __resetAvailabilityCacheForTest,
 } from "./availability";
+import { getSettings, updateSettings } from "./settings";
 
 test("availabilityFromManifest: intersects with the superset and honours `populated`", () => {
   const b = availabilityFromManifest({
@@ -64,4 +65,28 @@ test("resolveAvailability: a backend WITHOUT describeSchema falls back to capabi
   assert.ok(a.fields.includes("title"), "core fields surface under the capability fallback");
   assert.ok(a.available.includes("title"), "the available set is reported alongside the net set");
   assert.ok(a.tables.length > 0, "entities surface under the capability fallback");
+});
+
+test("resolveAvailability: one configured vendor narrows to its declared fieldKeys (not the whole domain)", async () => {
+  delete process.env["CAPABILITIES"];
+  const prev = getSettings().backendSource;
+  try {
+    // Point the gateway at a single vendor that declares its fields.
+    updateSettings({ backendSource: "todoist" });
+    __resetAvailabilityCacheForTest();
+    const a = await resolveAvailability({} as Request);
+    assert.equal(a.source, "capabilities");
+    // Todoist declares these next-action fields…
+    assert.ok(a.available.includes("recurrence"), "declared task field surfaces");
+    assert.ok(a.available.includes("dueDate"));
+    assert.ok(a.available.includes("title"), "core stays present");
+    // …but NOT issue-domain fields it doesn't carry — the whole-domain default would have shown them.
+    assert.ok(!a.available.includes("storyPoints"), "undeclared field is narrowed out");
+    assert.ok(!a.available.includes("epic"));
+    // A relationship edge on an undeclared field is dropped too.
+    assert.ok(!a.relationships.some((r) => r.field === "dependsOn"));
+  } finally {
+    updateSettings({ backendSource: prev });
+    __resetAvailabilityCacheForTest();
+  }
 });

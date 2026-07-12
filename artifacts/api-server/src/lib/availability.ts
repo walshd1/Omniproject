@@ -1,8 +1,9 @@
 import type { Request } from "express";
+import { getBackend } from "@workspace/backend-catalogue";
 import { getBroker, contextFromReq } from "../broker";
 import type { SchemaManifest } from "../broker/types";
 import { FIELD_KEYS, ENTITY_KEYS, resolveCapabilities } from "./capabilities";
-import { relationships as registryRelationships } from "./field-registry";
+import { relationships as registryRelationships, FIELD_REGISTRY } from "./field-registry";
 import { getSettings } from "./settings";
 
 /**
@@ -44,6 +45,22 @@ interface BackendAvailability {
 
 const SUPERSET = new Set(FIELD_KEYS);
 const ENTITIES = ENTITY_KEYS as readonly string[];
+const CORE_KEYS = FIELD_REGISTRY.filter((f) => f.core).map((f) => f.key);
+
+/**
+ * When the gateway is pointed at ONE catalogued vendor (settings.backendSource is a backend id, not
+ * "all") that DECLARES its supported `fieldKeys`, that declaration is authoritative: the picker lights
+ * up exactly the fields that backend carries (core ∪ its fieldKeys) instead of the whole capability
+ * domain. Returns null for "all"/unknown backends or a vendor that declares nothing — the caller then
+ * falls back to the coarse domain-derived set (unchanged behaviour).
+ */
+function declaredVendorFields(): Set<string> | null {
+  const src = getSettings().backendSource;
+  if (!src || src === "all") return null;
+  const keys = getBackend(src)?.fieldKeys;
+  if (!keys || keys.length === 0) return null;
+  return new Set([...CORE_KEYS, ...keys.filter((k) => SUPERSET.has(k))]);
+}
 const TTL_MS = 30_000;
 // The BACKEND layer is a backend-level property (not per-user), so cache by broker kind with a
 // short TTL. Curation (settings.hiddenFields) is applied fresh on every call so it takes effect at
@@ -67,15 +84,20 @@ export function availabilityFromManifest(m: SchemaManifest): BackendAvailability
   };
 }
 
-/** Fallback path: derive the surfaced set from the static capability flags. */
+/** Fallback path: derive the surfaced set from the static capability flags — or, when the gateway is
+ *  pointed at a single vendor that declares its own fieldKeys, from that authoritative declaration. */
 async function availabilityFromCapabilities(req: Request): Promise<BackendAvailability> {
   const caps = await resolveCapabilities(req);
+  const declared = declaredVendorFields();
+  const surfaced = (k: string): boolean => (declared ? declared.has(k) : !!caps.fields[k]?.surface);
+  const available = FIELD_KEYS.filter(surfaced);
+  const availableSet = new Set(available);
   return {
     source: "capabilities",
-    available: FIELD_KEYS.filter((k) => caps.fields[k]?.surface),
+    available,
     tables: ENTITIES.filter((e) => caps.entities[e]?.surface),
     relationships: registryRelationships()
-      .filter((r) => caps.fields[r.field]?.surface)
+      .filter((r) => availableSet.has(r.field))
       .map((r) => ({ from: "issue", field: r.field, to: r.references })),
   };
 }
@@ -101,13 +123,16 @@ export function applyCuration(backend: BackendAvailability, hiddenFields: string
  */
 export async function resolveAvailability(req: Request): Promise<Availability> {
   const broker = getBroker();
-  let backend = cache.get(broker.kind);
+  // The capability path now also depends on which single vendor (if any) is configured, so the
+  // backendSource is part of the cache identity — otherwise switching backends would serve a stale set.
+  const key = `${broker.kind}::${getSettings().backendSource ?? "all"}`;
+  let backend = cache.get(key);
   if (!backend || Date.now() - backend.at >= TTL_MS) {
     const ctx = contextFromReq(req);
     const manifest = (await broker.describeSchema?.(ctx).catch(() => null)) ?? null;
     const value = manifest ? availabilityFromManifest(manifest) : await availabilityFromCapabilities(req);
     backend = { at: Date.now(), value };
-    cache.set(broker.kind, backend);
+    cache.set(key, backend);
   }
   return applyCuration(backend.value, getSettings().hiddenFields ?? []);
 }

@@ -69,6 +69,16 @@
   },
   "credentialType": "mondayComApi",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.mondaycom/",
+  "fieldKeys": [
+    "title",
+    "status",
+    "assignee",
+    "priority",
+    "startDate",
+    "dueDate",
+    "tags",
+    "parentTask"
+  ],
   "id": "monday",
   "label": "Monday.com",
   "nomenclature": {

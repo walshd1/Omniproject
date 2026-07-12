@@ -347,3 +347,10 @@ not just by convention:
 - **`entity` tag.** Each field may declare the canonical `entity` (table) it belongs to (default
   `issue`) — the grouping key the superset-native self-host-DB schema generator uses to place a
   field as a column on the right table.
+- **A vendor can declare what it carries.** A backend's `fieldKeys[]` is its advertised set. The
+  task-app backends (Todoist, MS To Do, Google Tasks, Asana, ClickUp, Monday, Linear, Trello, Wrike,
+  Plane, Celoxis) now each declare theirs. When the gateway is pointed at a **single** such vendor
+  (`settings.backendSource` is its id, not `all`), that declaration becomes authoritative for the
+  field picker — `/api/availability` returns `core ∪ fieldKeys` instead of the whole capability
+  domain, so an admin sees exactly the fields that backend has (see `lib/availability.ts`). A live
+  broker that reports its own `fieldMap` still overrides this at runtime.
