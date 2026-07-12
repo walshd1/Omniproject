@@ -912,6 +912,7 @@ const SAMPLE_SETTINGS = {
   retiredGuids: [],
   branding: null,
   labelOverrides: {},
+  priorityLabels: {},
   webhooks: [],
   federatedPeers: [],
   loggingSync: { enabled: false, url: null, acknowledgedWarranty: false },

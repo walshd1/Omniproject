@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useTaskComments, useAddComment, useTaskAttachments, useAddAttachment, useUpdateTask, PRIORITIES, type Task } from "../lib/tasks";
+import { usePriorityLabels } from "../lib/priority-labels";
 
 /**
  * Task detail — the fields plus the discussion thread and file attachment REFERENCES for one task,
@@ -17,6 +18,7 @@ export function TaskDetailDialog({ task, open, onOpenChange }: { task: Task | nu
   const { data: attachments = [] } = useTaskAttachments(id, open && !!id);
   const addAttachment = useAddAttachment(id);
   const updateTask = useUpdateTask();
+  const { labelFor } = usePriorityLabels();
   const [comment, setComment] = useState("");
   const [fname, setFname] = useState("");
   const [furl, setFurl] = useState("");
@@ -54,7 +56,7 @@ export function TaskDetailDialog({ task, open, onOpenChange }: { task: Task | nu
                 value={(task.priority as string) || "none"}
                 onChange={(e) => updateTask.mutate({ id: task.id, patch: { priority: e.target.value } })}
               >
-                {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                {PRIORITIES.map((p) => <option key={p} value={p}>{p === "none" ? "none" : labelFor(p)}</option>)}
               </select>
             </label>
           </div>

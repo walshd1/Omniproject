@@ -2768,6 +2768,10 @@ Portfolio analytics endpoints — portfolio-wide RAG/health and resource-capacit
 
 Live-collaboration presence routes (the "presence" feature module).
 
+### `artifacts/api-server/src/routes/priority-labels.ts`
+
+Custom display names for the canonical priority levels.
+
 ### `artifacts/api-server/src/routes/programme-registry.ts`
 
 The admin/PMO-managed programme registry: programmeId → { name, instanceIds }.
