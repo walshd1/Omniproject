@@ -18,6 +18,7 @@ import { isTruthy } from "./env-config";
 import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
+import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
@@ -272,6 +273,9 @@ export interface SettingsState {
   /** Per-field data validation rules (min/max, pattern, allowed set, required) — see
    *  lib/field-validation. Definitions here; enforced against values on the write path. */
   fieldValidation: FieldValidationRule[];
+  /** Admin/PMO-managed programme registry: programmeId → { name, instanceIds } — the source of truth
+   *  for programme membership (a project belongs by its `omniInstanceId`). See lib/programmes. */
+  programmeRegistry: ProgrammeRegistry;
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
   /**
@@ -680,6 +684,7 @@ const store: SettingsState = {
   fieldRouting: [],
   customFields: [],
   fieldValidation: [],
+  programmeRegistry: {},
   webhooks: webhooksFromEnv(),
   federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
@@ -728,6 +733,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "fieldRouting",
   "customFields",
   "fieldValidation",
+  "programmeRegistry",
   "webhooks",
   "federatedPeers",
   "loggingSync",
@@ -1247,6 +1253,14 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
       normalized["fieldValidation"] = validateFieldValidation(patch["fieldValidation"]);
     } catch (e) {
       if (e instanceof FieldValidationError) throw new SettingsValidationError(e.message);
+      throw e;
+    }
+  }
+  if ("programmeRegistry" in patch) {
+    try {
+      normalized["programmeRegistry"] = validateProgrammeRegistry(patch["programmeRegistry"]);
+    } catch (e) {
+      if (e instanceof ProgrammeRegistryError) throw new SettingsValidationError(e.message);
       throw e;
     }
   }

@@ -374,19 +374,23 @@ test("buildZip: produces a valid STORED zip containing the entries", () => {
   assert.ok(zip.subarray(-22).readUInt32LE(0) === 0x06054b50);
 });
 
-// ── Programmes (derived grouping of projects) ──────────────────────────────────
+// ── Programmes (grouping of projects by the admin/PMO registry, keyed on the correlation GUID) ────
 const PROG_PROJECTS = [
-  { id: "p1", programmeId: "prog-a", programmeName: "Alpha", issueCount: 10, completedCount: 8, updatedAt: "2026-06-01" },
-  { id: "p2", programmeId: "prog-a", programmeName: "Alpha", issueCount: 10, completedCount: 4, updatedAt: "2026-06-03" },
-  { id: "p3", programmeId: "prog-b", programmeName: "Beta", issueCount: 4, completedCount: 0, updatedAt: "2026-06-02" },
-  { id: "p4", programmeId: null, issueCount: 5, completedCount: 5, updatedAt: "2026-06-04" }, // standalone
+  { id: "p1", omniInstanceId: "g1", issueCount: 10, completedCount: 8, updatedAt: "2026-06-01" },
+  { id: "p2", omniInstanceId: "g2", issueCount: 10, completedCount: 4, updatedAt: "2026-06-03" },
+  { id: "p3", omniInstanceId: "g3", issueCount: 4, completedCount: 0, updatedAt: "2026-06-02" },
+  { id: "p4", omniInstanceId: "g4", issueCount: 5, completedCount: 5, updatedAt: "2026-06-04" }, // standalone (not in registry)
 ];
+const PROG_REGISTRY = {
+  "prog-a": { name: "Alpha", instanceIds: ["g1", "g2"] },
+  "prog-b": { name: "Beta", instanceIds: ["g3"] },
+};
 
-test("groupProgrammes: groups by programmeId and rolls up stats", () => {
-  const progs = groupProgrammes(PROG_PROJECTS);
-  assert.equal(progs.length, 2); // standalone p4 excluded
+test("groupProgrammes: groups by the registry (GUID membership) and rolls up stats", () => {
+  const progs = groupProgrammes(PROG_PROJECTS, PROG_REGISTRY);
+  assert.equal(progs.length, 2); // standalone p4 excluded (its GUID is in no programme)
   const a = progs.find((p) => p.id === "prog-a")!;
-  assert.equal(a.name, "Alpha");
+  assert.equal(a.name, "Alpha"); // admin/PMO-chosen name from the registry
   assert.equal(a.projectCount, 2);
   assert.equal(a.issueCount, 20);
   assert.equal(a.completedCount, 12);
@@ -396,26 +400,26 @@ test("groupProgrammes: groups by programmeId and rolls up stats", () => {
 });
 
 test("groupProgrammes: a programme is RED when little is complete", () => {
-  const b = groupProgrammes(PROG_PROJECTS).find((p) => p.id === "prog-b")!;
+  const b = groupProgrammes(PROG_PROJECTS, PROG_REGISTRY).find((p) => p.id === "prog-b")!;
   assert.equal(b.completionRate, 0);
   assert.equal(b.ragStatus, "RED");
 });
 
-test("invariant: a derived programme always has >= 1 project; standalone are separate", () => {
-  for (const p of groupProgrammes(PROG_PROJECTS)) assert.ok(p.projectCount >= 1);
-  assert.equal(standaloneCount(PROG_PROJECTS), 1);
+test("invariant: a programme always has >= 1 member; standalone are separate", () => {
+  for (const p of groupProgrammes(PROG_PROJECTS, PROG_REGISTRY)) assert.ok(p.projectCount >= 1);
+  assert.equal(standaloneCount(PROG_PROJECTS, PROG_REGISTRY), 1);
 });
 
 test("programmeDetail: returns the member projects, or null for an unknown id", () => {
-  const d = programmeDetail(PROG_PROJECTS, "prog-a");
+  const d = programmeDetail(PROG_PROJECTS, "prog-a", PROG_REGISTRY);
   assert.ok(d);
   assert.equal(d!.projects.length, 2);
-  assert.equal(programmeDetail(PROG_PROJECTS, "nope"), null);
+  assert.equal(programmeDetail(PROG_PROJECTS, "nope", PROG_REGISTRY), null);
 });
 
 test("programme rollup: financials are null when no member carries them", () => {
   // PROG_PROJECTS has no budget/actualCost → financials stays hidden.
-  for (const p of groupProgrammes(PROG_PROJECTS)) assert.equal(p.financials, null);
+  for (const p of groupProgrammes(PROG_PROJECTS, PROG_REGISTRY)) assert.equal(p.financials, null);
 });
 
 test("aggregateFinancials: sums budgets/actuals, derives CPI, variance and health", () => {
@@ -901,6 +905,7 @@ const SAMPLE_SETTINGS = {
   fieldRouting: [],
   customFields: [],
   fieldValidation: [],
+  programmeRegistry: {},
   branding: null,
   labelOverrides: {},
   webhooks: [],
