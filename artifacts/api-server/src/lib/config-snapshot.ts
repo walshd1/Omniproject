@@ -29,7 +29,7 @@ const SNAPSHOT_KEYS = [
   "brokerUrl", "aiProvider", "aiModel", "backendSource", "oidcIssuerUrl",
   "branding", "labelOverrides", "screenLayouts", "userPrefs",
   "disabledFeatures", "hiddenFields", "savedViews", "dashboards",
-  "customReports", "reportOverrides", "contentPages",
+  "customReports", "reportOverrides", "contentPages", "methodologyComposition",
 ] as const;
 type SnapshotKey = (typeof SNAPSHOT_KEYS)[number];
 

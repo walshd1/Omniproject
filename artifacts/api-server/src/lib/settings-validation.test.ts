@@ -120,6 +120,14 @@ test("savedViews entries need string id + name", () => {
   assert.doesNotThrow(() => updateSettings({ savedViews: [{ id: "v", name: "My view" }] }));
 });
 
+test("methodologyComposition: null or an array of strings", () => {
+  throws({ methodologyComposition: "scrum" }); // not an array
+  throws({ methodologyComposition: [1, 2] }); // non-string entries
+  assert.doesNotThrow(() => updateSettings({ methodologyComposition: null })); // uncurated
+  assert.deepEqual(updateSettings({ methodologyComposition: ["report:burndown", "view:raid"] }).methodologyComposition, ["report:burndown", "view:raid"]);
+  updateSettings({ methodologyComposition: null });
+});
+
 test("artifact style: enums for font/align, capped colour + title strings", () => {
   const view = (style: unknown) => ({ savedViews: [{ id: "v", name: "V", style }] });
   throws(view("nope")); // not an object
