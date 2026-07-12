@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import { getSettings, type SettingsState } from "./settings";
 import { isLiveBroker } from "../broker";
+import { builtinBackendEnabled } from "./dev-persist";
 import { isOidcConfigured } from "./oidc";
 import { resolveCapabilities } from "./capabilities";
 import { roleForReq } from "./rbac";
@@ -28,10 +29,12 @@ interface StatusContext {
 /** A subsystem's contribution to the status report (merged into the response). */
 type StatusSection = (ctx: StatusContext) => Record<string, unknown>;
 
-/** Whether a broker is wired at all — the ONE fact the public/outer surface needs
- *  (e.g. every session's demo-mode banner), independent of the caller's role. */
+/** Whether a REAL source of record is wired — the ONE fact the public/outer surface needs (e.g.
+ *  every session's demo-mode banner), independent of the caller's role. True for a live broker, a
+ *  configured broker URL, OR the opt-in built-in backend (a real, encrypted first-party store — so
+ *  its data must never be mislabelled as throwaway "demo/sample" data). */
 export function brokerConfigured(): boolean {
-  return isLiveBroker() || !!getSettings().brokerUrl;
+  return isLiveBroker() || !!getSettings().brokerUrl || builtinBackendEnabled();
 }
 
 const SECTIONS: StatusSection[] = [

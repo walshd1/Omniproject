@@ -59,6 +59,18 @@ test("flags a plain-http broker URL to a remote host (encrypt the broker hop)", 
   assert.ok(!local.some((x) => x.id === "broker-plaintext"));
 });
 
+test("the built-in backend is disclosed (info) — data is persisted encrypted at rest, in any environment", () => {
+  // Fires even without other production signals: it's a disclosure the operator has opted into state.
+  const dev = securityFindings({ BUILTIN_BACKEND: "1" });
+  const finding = dev.find((x) => x.id === "builtin-backend");
+  assert.ok(finding);
+  assert.equal(finding!.severity, "info");
+  assert.match(finding!.message, /encrypted/i);
+  assert.match(finding!.message, /system of record/i);
+  // Off by default ⇒ no finding.
+  assert.ok(!securityFindings({ NODE_ENV: "development" }).some((x) => x.id === "builtin-backend"));
+});
+
 test("the plaintext-broker warning notes PSK is not a TLS substitute (no forward secrecy / peer auth)", () => {
   // With PSK set on a plaintext remote hop, the warning must spell out that PSK ≠ TLS: no forward
   // secrecy, no peer authentication — mTLS/TLS is the answer.
