@@ -1,10 +1,9 @@
 import { useGetProjectFinancials, type ProjectFinancials } from "@workspace/api-client-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
+import { ChartView } from "../charts/ChartView";
 import { useT } from "../../lib/i18n";
 import { useDisplayCurrency } from "../../lib/currency";
 import { RAG_TEXT as HEALTH } from "../../lib/methodology";
 import { DataState } from "../DataState";
-import { chartTooltipStyle, gridTheme, axisTheme } from "./chart-theme";
 
 // The financials endpoint returns point-in-time EVM scalars. Derive an
 // indicative cumulative trend (linear) so Actual Cost can be plotted against
@@ -85,19 +84,19 @@ export function FinancialEvmChart({ projectId }: { projectId: string }) {
               <Stat label="SPI" value={f.spi.toFixed(2)} accent={f.spi < 1 ? "text-red-500" : "text-green-500"} />
             </div>
             <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trend(f)} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
-                  <CartesianGrid {...gridTheme} />
-                  <XAxis dataKey="period" {...axisTheme} fontSize={12} />
-                  <YAxis {...axisTheme} fontSize={12} tickFormatter={(v) => money(v as number)} width={80} />
-                  <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
-                  <Legend />
-                  <ReferenceLine y={f.budgetAllocated} stroke="#a1a1aa" strokeDasharray="4 4" />
-                  <Line type="monotone" dataKey="Planned (Budget)" stroke="#a1a1aa" strokeWidth={1.5} dot={false} />
-                  <Line type="monotone" dataKey="Actual Cost" stroke="#ef4444" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="Earned Value" stroke="#22c55e" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
+              <ChartView
+                type="line"
+                height="100%"
+                xKey="period"
+                data={trend(f)}
+                valueFormatter={money}
+                referenceLines={[{ value: f.budgetAllocated, label: "Budget" }]}
+                series={[
+                  { key: "Planned (Budget)", label: "Planned (Budget)" },
+                  { key: "Actual Cost", label: "Actual Cost" },
+                  { key: "Earned Value", label: "Earned Value" },
+                ]}
+              />
             </div>
             <p className="text-[11px] text-muted-foreground mt-3 font-mono">
               Cumulative trend derived from point-in-time EVM scalars (indicative). CPI = EV/AC, SPI = EV/PV.
