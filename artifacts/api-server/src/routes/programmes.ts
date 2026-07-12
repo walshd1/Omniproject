@@ -7,8 +7,9 @@
  * project list, so RBAC still bounds what a caller sees.
  */
 import { Router } from "express";
-import { getProjects } from "../lib/data";
+import { getProjects, getTasks, brokerHasTasks } from "../lib/data";
 import { groupProgrammes, programmeDetail } from "../lib/programmes";
+import { summariseTasks } from "../lib/task-summary";
 import { getSettings } from "../lib/settings";
 
 const router = Router();
@@ -30,6 +31,12 @@ router.get("/programmes/:programmeId", async (req, res) => {
     if (!detail) {
       res.status(404).json({ error: "No such programme" });
       return;
+    }
+    // Fold a task roll-up across this programme's member projects, when the backend models tasks.
+    if (brokerHasTasks()) {
+      const projIds = new Set(detail.projects.map((p) => String(p["id"])));
+      const tasks = (await getTasks(req)).filter((t) => t.projectId && projIds.has(t.projectId));
+      detail.tasks = summariseTasks(tasks);
     }
     res.json(detail);
   } catch (err) {
