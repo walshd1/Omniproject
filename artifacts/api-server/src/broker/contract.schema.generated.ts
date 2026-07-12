@@ -815,6 +815,13 @@ export const BROKER_CONTRACT_SCHEMA = {
         "name": {
           "type": "string"
         },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The backend's native project lifecycle status (kept verbatim, like `Issue.status`). Classified into live/closed by `isProjectLive` (broker/vocabulary); reads are default-live. Absent ⇒ live."
+        },
         "omniInstanceId": {
           "type": "string",
           "description": "OmniProject instance ID — a GUID minted by the gateway when the project is created, echoed and stored by every backend. It is the backend-INDEPENDENT correlation key: the same project seen through two backends carries the same `omniInstanceId`, so records assemble across backends by it (whereas `source:id` is unique per backend). Optional because pre-existing rows may lack one."
@@ -909,6 +916,13 @@ export const BROKER_CONTRACT_SCHEMA = {
         "omniInstanceId": {
           "type": "string",
           "description": "The gateway-minted correlation GUID, passed to the backend to store on create (never sent by a client). See `Project.omniInstanceId`."
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The project's lifecycle status (backend-native string). Set/clear to move a project between live and closed. See `Project.status`."
         }
       },
       "additionalProperties": false,

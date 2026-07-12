@@ -75,6 +75,52 @@ export function isClosed(native: string | null | undefined, vocab?: StatusVocabu
   return cls === "done" || cls === "cancelled";
 }
 
+// ── Project lifecycle ────────────────────────────────────────────────────────
+// A PROJECT's lifecycle is distinct from an issue's status: a project is LIVE (still being delivered)
+// or CLOSED (completed / archived / cancelled). This is the axis reads default-filter on so a backend's
+// archived projects don't silently inflate portfolio, programme and financial roll-ups.
+
+/** Canonical project lifecycle states a backend's native project status normalises into. */
+export const CANONICAL_PROJECT_STATUS = ["active", "on_hold", "completed", "archived", "cancelled"] as const;
+export type CanonicalProjectStatus = (typeof CANONICAL_PROJECT_STATUS)[number];
+
+/** Whether a project is still being delivered (live) or finished/shelved/dropped (closed). */
+export type ProjectLifecycleClass = "live" | "closed";
+
+/** Canonical project status → lifecycle class. `active`/`on_hold` are live; the rest are closed. */
+export const PROJECT_STATUS_CLASS: Record<CanonicalProjectStatus, ProjectLifecycleClass> = {
+  active: "live",
+  on_hold: "live",
+  completed: "closed",
+  archived: "closed",
+  cancelled: "closed",
+};
+
+// Native synonyms seen across backends, folded onto a canonical project status.
+const PROJECT_STATUS_SYNONYMS: Record<string, CanonicalProjectStatus> = {
+  active: "active", open: "active", "in progress": "active", in_progress: "active", live: "active", ongoing: "active", current: "active",
+  on_hold: "on_hold", "on hold": "on_hold", hold: "on_hold", paused: "on_hold", suspended: "on_hold",
+  completed: "completed", complete: "completed", done: "completed", finished: "completed", closed: "completed", delivered: "completed",
+  archived: "archived", archive: "archived", inactive: "archived",
+  cancelled: "cancelled", canceled: "cancelled", abandoned: "cancelled", dropped: "cancelled", terminated: "cancelled",
+};
+
+/** Resolve a native project status to a canonical one (via synonyms), or null if unclassifiable. */
+export function normaliseProjectStatus(native: string | null | undefined): CanonicalProjectStatus | null {
+  if (!native) return null;
+  return PROJECT_STATUS_SYNONYMS[native.trim().toLowerCase()] ?? null;
+}
+
+/**
+ * Is a project LIVE (still active)? A project with NO status — or one whose status can't be classified —
+ * is treated as LIVE: we never hide a project just because its lifecycle is unknown (default-safe). Only
+ * an explicit closed status (completed / archived / cancelled) is filtered out.
+ */
+export function isProjectLive(native: string | null | undefined): boolean {
+  const canon = normaliseProjectStatus(native);
+  return canon === null || PROJECT_STATUS_CLASS[canon] === "live";
+}
+
 // ── Priority ─────────────────────────────────────────────────────────────────
 
 /** Canonical work-item priorities, lowest → highest. */

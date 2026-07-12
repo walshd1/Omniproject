@@ -1,6 +1,8 @@
 import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
 import { stampSource } from "../broker/identity";
+import { isProjectLive } from "../broker/vocabulary";
+import type { Row } from "../broker/types";
 
 /**
  * Data accessor facade. Historically this branched on backend-vs-demo inline; that
@@ -19,11 +21,22 @@ export const brokerChangeToken = (req: Request, resource: string): Promise<strin
   return typeof b.changeToken === "function" ? b.changeToken(contextFromReq(req), resource) : Promise.resolve(null);
 };
 
-/** List all projects the actor can see, via the active broker. Each row is stamped with the broker's
- *  `source` if the backend omitted one, so the qualified identity (`source:id`) is always available. */
-export const getProjects = (req: Request) => {
+/** Keep only LIVE projects — drop those whose status is a closed lifecycle (completed/archived/
+ *  cancelled). A project with no/unknown status stays (live-safe). See `isProjectLive`. */
+export function liveProjectsOnly(rows: Row[]): Row[] {
+  return rows.filter((r) => isProjectLive(typeof r["status"] === "string" ? (r["status"] as string) : undefined));
+}
+
+/** List the projects the actor can see, via the active broker. Each row is stamped with the broker's
+ *  `source` if the backend omitted one, so the qualified identity (`source:id`) is always available.
+ *  DEFAULT-LIVE: closed projects are filtered out unless `includeClosed` is set, so archived work never
+ *  silently inflates portfolio / programme / financial roll-ups. */
+export const getProjects = (req: Request, opts: { includeClosed?: boolean } = {}) => {
   const b = getBroker();
-  return b.listProjects(contextFromReq(req)).then((rows) => stampSource(rows, b.kind));
+  return b.listProjects(contextFromReq(req)).then((rows) => {
+    const stamped = stampSource(rows, b.kind);
+    return opts.includeClosed ? stamped : liveProjectsOnly(stamped);
+  });
 };
 /** List the issues of one project, via the active broker (source-stamped, as for projects). */
 export const getIssues = (req: Request, projectId: string) => {

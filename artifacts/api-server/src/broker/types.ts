@@ -58,6 +58,9 @@ export interface ActorContext {
 export interface Project extends Row {
   id: string;
   name: string;
+  /** The backend's native project lifecycle status (kept verbatim, like `Issue.status`). Classified
+   *  into live/closed by `isProjectLive` (broker/vocabulary); reads are default-live. Absent ⇒ live. */
+  status?: string | null;
   /** OmniProject instance ID — a GUID minted by the gateway when the project is created, echoed and
    *  stored by every backend. It is the backend-INDEPENDENT correlation key: the same project seen
    *  through two backends carries the same `omniInstanceId`, so records assemble across backends by it
@@ -188,6 +191,9 @@ export interface ProjectWrite {
   /** The gateway-minted correlation GUID, passed to the backend to store on create (never sent by a
    *  client). See `Project.omniInstanceId`. */
   omniInstanceId?: string | undefined;
+  /** The project's lifecycle status (backend-native string). Set/clear to move a project between live
+   *  and closed. See `Project.status`. */
+  status?: string | null | undefined;
 }
 
 export interface Summary {

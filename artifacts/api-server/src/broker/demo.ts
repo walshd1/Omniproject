@@ -138,6 +138,7 @@ export class DemoBroker implements Broker {
       source: getSettings().backendSource || "plane",
       // Store the gateway-minted correlation GUID so it echoes back on reads (see Project.omniInstanceId).
       ...(input.omniInstanceId ? { omniInstanceId: input.omniInstanceId } : {}),
+      status: input.status ?? "active",
       programmeId: input.programmeId ?? null,
       programmeName: null,
       issueCount: 0,
@@ -161,6 +162,7 @@ export class DemoBroker implements Broker {
     if (input.name !== undefined) proj["name"] = input.name;
     if (input.description !== undefined) proj["description"] = input.description;
     if (input.programmeId !== undefined) proj["programmeId"] = input.programmeId;
+    if (input.status !== undefined) proj["status"] = input.status;
     proj["updatedAt"] = new Date().toISOString();
     persistDemoState();
     return proj as unknown as Project;
