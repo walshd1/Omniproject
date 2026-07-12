@@ -66,6 +66,12 @@ honouring **409** (optimistic-concurrency conflict, with the current `version`) 
 (not found). Beyond the five actions above it also calls `get_project`, `create_project`,
 `update_project`, `get_issue`, `list_raid`, and `add_raid`, plus the GTD-task actions
 `list_tasks`, `get_task`, `create_task`, and `update_task`, so implement those in your sidecar too.
+
+**Self-managed archive** (`ARCHIVE_STORE=sidecar`, reusing `SQL_SIDECAR_URL`): when a project is
+closed with the `archive` disposition, OmniProject captures a snapshot (the project row + its issues)
+and POSTs `archive_save`; reports retrieve it later via `archive_get` (`{ guid }` → snapshot, 404 if
+absent) and `archive_list` (→ `[{ guid, archivedAt }]`). Implement those three to hold closed-project
+data outside the SOR. Unset ⇒ a non-persistent in-memory archive (with a warning).
 If `SQL_SIDECAR_URL` is unset it falls back to a **non-persistent** in-memory store with a loud
 warning (never a silent "persist into nowhere"). Live verification against a real PostgreSQL sidecar
 is still yours to do — the contract is exercised in CI against a mock sidecar.

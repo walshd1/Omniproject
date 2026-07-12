@@ -648,6 +648,16 @@ Customer-wide APPROVED vocabulary + actions.
 | `setApproved` | Replace the whole allowlist (an admin applies the customer-wide file). |
 | `__resetApproved` | Test-only: restore the default-safe allowlist (reads approved globally, no vocab). |
 
+### `artifacts/api-server/src/lib/archive/archive-store.ts`
+
+The self-managed ARCHIVE store — where a CLOSED project's data goes when the admin/PMO chose the `archive` disposition (vs leaving it in the originating SOR).
+
+| Function | What it does |
+| --- | --- |
+| `selectArchiveStore` | Build the configured archive store. |
+| `getArchiveStore` | The process archive store (singleton). |
+| `__setArchiveStoreForTest` | Test seam: reset the singleton (and optionally inject a store). |
+
 ### `artifacts/api-server/src/lib/audit-chain.ts`
 
 Tamper-evident audit trail.
@@ -2578,6 +2588,10 @@ AI-assist endpoints — GET /api/ai/status (which provider is wired) and POST /a
 ### `artifacts/api-server/src/routes/api-spec.ts`
 
 The consumer (northbound) API spec — exposed at runtime, broker-agnostic.
+
+### `artifacts/api-server/src/routes/archive.ts`
+
+Read the self-managed ARCHIVE — the closed projects whose data was migrated out of the SOR (the `archive` disposition).
 
 ### `artifacts/api-server/src/routes/audit-middleware.ts`
 
