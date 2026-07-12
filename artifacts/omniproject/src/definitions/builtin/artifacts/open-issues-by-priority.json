@@ -1,0 +1,12 @@
+{
+  "id": "builtin.open-issues-by-priority",
+  "kind": "report",
+  "label": "Open issues by priority",
+  "builtin": true,
+  "spec": {
+    "scope": "portfolio",
+    "viz": "bar",
+    "groupBy": "priority",
+    "metrics": [{ "id": "count", "field": "id", "agg": "count" }]
+  }
+}
