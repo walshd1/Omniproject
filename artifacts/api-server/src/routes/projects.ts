@@ -35,6 +35,7 @@ import {
   type Row,
   getProjects,
   getIssues,
+  getTasks,
   getActivity,
   getSummary,
   getHistory,
@@ -234,11 +235,15 @@ router.post("/projects/:projectGuid/close", requireAnyRole("pmo", "admin"), (req
     if (disposition === "archive") {
       const project = (await getProjects(req)).find((p) => String((p as Row)["omniInstanceId"] ?? "") === guid);
       if (project) {
-        const issues = await getIssues(req, String((project as Row)["id"])).catch(() => [] as Row[]);
+        const projectId = String((project as Row)["id"]);
+        const [issues, tasks] = await Promise.all([
+          getIssues(req, projectId).catch(() => [] as Row[]),
+          getTasks(req, { projectId }).then((t) => t as unknown as Row[]).catch(() => [] as Row[]),
+        ]);
         // Also archive OmniProject's own settings for the project (programme memberships, relinks, …),
         // so its configuration is preserved alongside its data.
         const settings = collectProjectReferences(guid);
-        await getArchiveStore().save({ guid, archivedAt: record.closedAt, project: project as Row, issues, settings, note });
+        await getArchiveStore().save({ guid, archivedAt: record.closedAt, project: project as Row, issues, tasks, settings, note });
       }
     }
     // Merge into the registry; validatePatch's cross-rule retires the GUID on write.

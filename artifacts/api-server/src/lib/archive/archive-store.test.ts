@@ -6,6 +6,7 @@ const SNAP: ArchivedProject = {
   guid: "guid-1", archivedAt: "2026-07-12T00:00:00Z",
   project: { id: "proj-9", name: "Apollo", omniInstanceId: "guid-1" },
   issues: [{ id: "iss-1", projectId: "proj-9", title: "Cutover", status: "done" }],
+  tasks: [{ id: "task-1", projectId: "proj-9", title: "Sign off", status: "done" }],
   note: "Q3 decommission",
 };
 
