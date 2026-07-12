@@ -98,7 +98,8 @@ export const CreateProjectBody = zod.object({
   "name": zod.string(),
   "identifier": zod.string().nullish(),
   "description": zod.string().nullish(),
-  "programmeId": zod.string().nullish().describe('Optional programme to join on creation.')
+  "programmeId": zod.string().nullish().describe('Optional programme to join on creation.'),
+  "status": zod.string().nullish().describe('Optional lifecycle status (backend-native string). Conventional buckets are live\/active, closed and archived; live reads exclude closed\/archived. Set\/clear to move a project between live and closed.\n')
 }).describe('Fields to create a project (brokered to the backend).')
 
 export const CreateProjectResponse = zod.object({
@@ -127,8 +128,9 @@ export const UpdateProjectParams = zod.object({
 export const UpdateProjectBody = zod.object({
   "name": zod.string().optional(),
   "description": zod.string().nullish(),
-  "programmeId": zod.string().nullish()
-}).describe('Project fields to update (all optional). programmeId groups it.')
+  "programmeId": zod.string().nullish(),
+  "status": zod.string().nullish().describe('Lifecycle status (backend-native string). Conventional buckets are live\/active, closed and archived; live reads exclude closed\/archived. Set\/clear to move a project between live and closed.\n')
+}).describe('Project fields to update (all optional). programmeId groups it; status moves it between live and closed.')
 
 export const UpdateProjectResponse = zod.object({
   "id": zod.string(),
