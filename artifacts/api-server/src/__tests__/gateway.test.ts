@@ -909,6 +909,7 @@ const SAMPLE_SETTINGS = {
   brokerKinds: [],
   closedProjects: {},
   guidAliases: {},
+  retiredGuids: [],
   branding: null,
   labelOverrides: {},
   webhooks: [],

@@ -43,7 +43,7 @@ import {
 import { conditionalJson } from "../lib/conditional";
 import { analyticsLimiter } from "../lib/rate-limit";
 import { requireRole, requireAnyRole, roleForReq } from "../lib/rbac";
-import { forgetProjectGuid } from "../lib/project-forget";
+import { forgetProjectGuid, collectProjectReferences } from "../lib/project-forget";
 import { getFxRates } from "../lib/currency";
 import { evaluateRuleset } from "../lib/ruleset";
 import { recordAudit } from "../lib/audit";
@@ -184,6 +184,13 @@ router.post("/projects", requireRole("manager"), async (req, res) => {
     const project = await getBroker().createProject(contextFromReq(req), { ...bodyParse.data, omniInstanceId: randomUUID() });
     res.status(201).json(project);
   });
+});
+
+// GET /projects/:projectGuid/references — export everything OmniProject holds about a project GUID
+// (closed record, programme memberships, relinks, retired status) so an admin can save it BEFORE
+// deleting. No project data — only OmniProject's own references. Admin/PMO only.
+router.get("/projects/:projectGuid/references", requireAnyRole("pmo", "admin"), (req, res) => {
+  res.json(collectProjectReferences(String(req.params["projectGuid"])));
 });
 
 // DELETE /projects/:projectGuid/links — "delete" a project from OmniProject's point of view: FORGET its

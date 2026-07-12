@@ -289,6 +289,10 @@ export interface SettingsState {
   /** GUID translation for relinked projects: oldGuid → newGuid, so references to a superseded GUID
    *  resolve to the project's current identity. See lib/guid-aliases. */
   guidAliases: GuidAliases;
+  /** RETIRED project GUIDs — a deleted/forgotten project's GUID, tombstoned so it can never silently
+   *  reactivate (suppressed from live reads). Reactivation requires an explicit re-link to a NEW GUID.
+   *  See lib/project-forget. */
+  retiredGuids: string[];
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
   /**
@@ -701,6 +705,7 @@ const store: SettingsState = {
   brokerKinds: brokerKindsFromEnv(), // env SEEDS the default; the setting owns it thereafter
   closedProjects: {},
   guidAliases: {},
+  retiredGuids: [],
   webhooks: webhooksFromEnv(),
   federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
@@ -753,6 +758,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "brokerKinds",
   "closedProjects",
   "guidAliases",
+  "retiredGuids",
   "webhooks",
   "federatedPeers",
   "loggingSync",
@@ -1306,6 +1312,18 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
       if (e instanceof GuidAliasError) throw new SettingsValidationError(e.message);
       throw e;
     }
+  }
+  if ("retiredGuids" in patch) {
+    if (!isStringArray(patch["retiredGuids"])) throw new SettingsValidationError("retiredGuids must be an array of strings");
+    normalized["retiredGuids"] = [...new Set((patch["retiredGuids"] as string[]).map((g) => g.trim()).filter(Boolean))];
+  }
+  // Retirement is STICKY: CLOSING a project (a closedProjects entry) retires its GUID, exactly like
+  // deleting it — so moving it back live requires a re-link to a NEW GUID, never a silent reactivation.
+  // Union the effective closed GUIDs into retiredGuids on any write that touches either.
+  if ("closedProjects" in normalized || "retiredGuids" in normalized) {
+    const effClosed = ("closedProjects" in normalized ? normalized["closedProjects"] : store.closedProjects) as ClosedProjectRegistry;
+    const effRetired = ("retiredGuids" in normalized ? normalized["retiredGuids"] : store.retiredGuids) as string[];
+    normalized["retiredGuids"] = [...new Set([...effRetired, ...Object.keys(effClosed)])];
   }
   if ("errorTelemetry" in patch && typeof patch["errorTelemetry"] !== "boolean") {
     throw new SettingsValidationError("errorTelemetry must be a boolean");

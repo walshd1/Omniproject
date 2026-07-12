@@ -10,7 +10,7 @@ before(async () => { h = await startHarness(); });
 after(() => h?.close());
 afterEach(async () => {
   const { updateSettings } = await import("../lib/settings");
-  updateSettings({ guidAliases: {}, closedProjects: {}, programmeRegistry: {} });
+  updateSettings({ guidAliases: {}, closedProjects: {}, programmeRegistry: {}, retiredGuids: [] });
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,7 +41,19 @@ test("DELETE /projects/:guid/links forgets the GUID from every list", async () =
   const body = await json(r);
   assert.equal(body.removedFromClosed, true);
   assert.deepEqual(body.removedFromProgrammes, ["prog-a"]);
+  assert.equal(body.retired, true); // tombstoned
   // And it's actually gone.
   const closed = await json(await h.req("/closed-projects", { cookie: adminCookie() }));
   assert.equal("g1" in closed.closedProjects, false);
+});
+
+test("GET /projects/:guid/references exports what OmniProject holds (for export before delete)", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  updateSettings({ closedProjects: { "g9": { disposition: "sor", source: "jira" } }, programmeRegistry: { "prog-x": { name: "X", instanceIds: ["g9"] } } });
+  const r = await h.req("/projects/g9/references", { cookie: adminCookie() });
+  assert.equal(r.status, 200);
+  const refs = await json(r);
+  assert.equal(refs.guid, "g9");
+  assert.deepEqual(refs.closed, { disposition: "sor", source: "jira" });
+  assert.deepEqual(refs.programmes, ["prog-x"]);
 });

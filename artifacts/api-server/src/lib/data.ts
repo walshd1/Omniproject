@@ -2,6 +2,7 @@ import type { Request } from "express";
 import { getBroker, contextFromReq } from "../broker";
 import { stampSource } from "../broker/identity";
 import { isProjectLive } from "../broker/vocabulary";
+import { getSettings } from "./settings";
 import type { Row } from "../broker/types";
 
 /**
@@ -22,20 +23,29 @@ export const brokerChangeToken = (req: Request, resource: string): Promise<strin
 };
 
 /** Keep only LIVE projects — drop those whose status is a closed lifecycle (completed/archived/
- *  cancelled). A project with no/unknown status stays (live-safe). See `isProjectLive`. */
-export function liveProjectsOnly(rows: Row[]): Row[] {
-  return rows.filter((r) => isProjectLive(typeof r["status"] === "string" ? (r["status"] as string) : undefined));
+ *  cancelled), AND drop any RETIRED GUID (a deleted project can't silently reactivate even if a backend
+ *  re-serves it). A project with no/unknown status stays (live-safe). See `isProjectLive`. */
+export function liveProjectsOnly(rows: Row[], retired: ReadonlySet<string> = new Set()): Row[] {
+  return rows.filter((r) => {
+    const guid = typeof r["omniInstanceId"] === "string" ? (r["omniInstanceId"] as string) : "";
+    if (guid && retired.has(guid)) return false;
+    return isProjectLive(typeof r["status"] === "string" ? (r["status"] as string) : undefined);
+  });
 }
 
 /** List the projects the actor can see, via the active broker. Each row is stamped with the broker's
  *  `source` if the backend omitted one, so the qualified identity (`source:id`) is always available.
  *  DEFAULT-LIVE: closed projects are filtered out unless `includeClosed` is set, so archived work never
- *  silently inflates portfolio / programme / financial roll-ups. */
+ *  silently inflates portfolio / programme / financial roll-ups. Retired (deleted) GUIDs are ALWAYS
+ *  suppressed — even with `includeClosed` — so a forgotten project can't come back without a re-link. */
 export const getProjects = (req: Request, opts: { includeClosed?: boolean } = {}) => {
   const b = getBroker();
   return b.listProjects(contextFromReq(req)).then((rows) => {
     const stamped = stampSource(rows, b.kind);
-    return opts.includeClosed ? stamped : liveProjectsOnly(stamped);
+    // includeClosed shows everything — closed and retired projects are still viewable there. The default
+    // LIVE view excludes both closed-status projects AND retired GUIDs: a retired project (closed OR
+    // deleted) can't silently reactivate even if the backend re-serves it as active.
+    return opts.includeClosed ? stamped : liveProjectsOnly(stamped, new Set(getSettings().retiredGuids));
   });
 };
 /** List the issues of one project, via the active broker (source-stamped, as for projects). */

@@ -5,7 +5,7 @@ import { Shuffle } from "lucide-react";
 import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
-import { useGuidAliases, useSaveGuidAliases, useForgetProject, type GuidAliases } from "../../lib/guid-aliases";
+import { useGuidAliases, useSaveGuidAliases, useForgetProject, exportProjectReferences, type GuidAliases } from "../../lib/guid-aliases";
 
 interface Row { oldGuid: string; newGuid: string }
 const empty = (): Row => ({ oldGuid: "", newGuid: "" });
@@ -54,11 +54,26 @@ export function GuidAliasesAdmin() {
     });
   };
 
+  const [exporting, setExporting] = useState(false);
+  const onExport = async () => {
+    const g = forgetGuid.trim();
+    if (!g) return;
+    setExporting(true);
+    try {
+      await exportProjectReferences(g);
+      toast({ title: "EXPORTED", description: "Project references downloaded — safe to forget." });
+    } catch (e) {
+      toast({ title: "COULD NOT EXPORT", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const onForget = () => {
     const g = forgetGuid.trim();
     if (!g) return;
     forget.mutate(g, {
-      onSuccess: (r) => { setForgetGuid(""); toast({ title: "PROJECT FORGOTTEN", description: `Unlinked from ${r.removedFromProgrammes.length} programme(s)${r.removedFromClosed ? ", closed index" : ""}.` }); },
+      onSuccess: (r) => { setForgetGuid(""); toast({ title: "PROJECT FORGOTTEN", description: `Unlinked from ${r.removedFromProgrammes.length} programme(s)${r.removedFromClosed ? ", closed index" : ""}; GUID retired.` }); },
       onError: (e) => toast({ title: "COULD NOT FORGET", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
     });
   };
@@ -110,10 +125,15 @@ export function GuidAliasesAdmin() {
         <div className="border-t border-border pt-3 space-y-2">
           <p className="text-xs text-muted-foreground">
             <strong>Forget a project</strong> — unlink a GUID from every OmniProject list (closed index,
-            programmes, relinks). The project's data in its backend or the archive is <strong>not</strong> touched.
+            programmes, relinks) and <strong>retire</strong> it so it can't silently reactivate. The
+            project's data in its backend or the archive is <strong>not</strong> touched. Export first if
+            you want a record.
           </p>
           <div className="flex items-center gap-2">
             <Input aria-label="Forget project GUID" placeholder="project GUID" value={forgetGuid} onChange={(e) => setForgetGuid(e.target.value)} className="h-8 font-mono max-w-xs" data-testid="guid-forget-input" />
+            <Button type="button" variant="outline" size="sm" onClick={onExport} disabled={!forgetGuid.trim() || exporting} data-testid="guid-export-btn">
+              {exporting ? "…" : "Export"}
+            </Button>
             <Button type="button" variant="destructive" size="sm" onClick={onForget} disabled={!forgetGuid.trim() || forget.isPending} data-testid="guid-forget-btn">
               {forget.isPending ? "…" : "Forget"}
             </Button>
