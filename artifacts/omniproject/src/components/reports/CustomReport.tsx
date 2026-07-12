@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { runCustomReport, runCustomReportTrend, metricLabel, type CustomReportDef, type Row } from "../../lib/custom-report";
 import { ChartView } from "../charts/ChartView";
 import { ArtifactFrame } from "../artifact/ArtifactFrame";
+import { ExportButtons } from "../artifact/ExportButtons";
 import { formatChartNumber, type ChartRow, type ChartSeries } from "../charts/primitives";
 
 /**
@@ -73,10 +74,20 @@ function TrendReport({ def, rows }: { def: CustomReportDef; rows: readonly Row[]
 }
 
 export function CustomReport({ def, rows }: { def: CustomReportDef; rows: readonly Row[] }) {
+  const ref = useRef<HTMLDivElement>(null);
   const inner = def.viz === "line" || def.viz === "area"
     ? <TrendReport def={def} rows={rows} />
     : <GroupedReport def={def} rows={rows} />;
-  return def.style ? <ArtifactFrame style={def.style}>{inner}</ArtifactFrame> : inner;
+  // Chart vizzes draw a single SVG the export util can serialise; a table has nothing to export.
+  const body = def.viz === "table" ? inner : (
+    <div ref={ref} className="space-y-2">
+      <div className="flex justify-end">
+        <ExportButtons targetRef={ref} title={def.style?.title || def.label} />
+      </div>
+      {inner}
+    </div>
+  );
+  return def.style ? <ArtifactFrame style={def.style}>{body}</ArtifactFrame> : body;
 }
 
 /** The `viz: "table" | "bar" | "pie"` path: single-level grouping (optionally a second level for a pivot). */
