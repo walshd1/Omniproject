@@ -71,6 +71,13 @@ export function ExportMenu({ projectId, label = "Export" }: { projectId?: string
             </>
           );
         })()}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => start("/api/calendar.ics")}>
+          My due dates → calendar (.ics)
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => start("/api/calendar.ics?scope=all")}>
+          All due dates → calendar (.ics)
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

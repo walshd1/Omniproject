@@ -66,6 +66,12 @@ describe("ExportMenu", () => {
     expect(hrefs.some((h) => h.includes("/api/export.json?dataset=issues"))).toBe(true);
   });
 
+  it("offers a calendar (.ics) download of the user's due dates", async () => {
+    const user = await open();
+    await user.click(await screen.findByText("My due dates → calendar (.ics)"));
+    expect(hrefs.some((h) => h.endsWith("/api/calendar.ics"))).toBe(true);
+  });
+
   it("with a projectId, the issues CSV is scoped to that project", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ExportMenu projectId="proj-1" />);
