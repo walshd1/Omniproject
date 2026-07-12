@@ -333,6 +333,8 @@ export interface SettingsState {
    * dyslexia / visual impairment. Personal config, never project data.
    */
   userPrefs: Record<string, UserPrefs>;
+  /** Per-user calendar-push consent (keyed by `sub`); default not-granted. */
+  calendarPush: Record<string, CalendarPushGrant>;
   /**
    * Admin data-governance for the governed capabilities (AI tools, the MCP, AI
    * providers and vendors), keyed by capability id. Off by default; the admin sets
@@ -546,6 +548,23 @@ export interface UserPrefs {
 }
 
 /**
+ * A user's EXPLICIT permission for their schedule to be pushed to an external calendar. Default is
+ * NOT granted — nothing is ever pushed until the user turns this on. The gateway holds only this
+ * consent flag + target choice; it never holds an OAuth credential. The actual event upsert is
+ * performed by the calendar connection/MCP the user authorises, which consumes the grant-gated feed.
+ */
+export interface CalendarPushGrant {
+  /** The user has explicitly authorised calendar push. */
+  granted: boolean;
+  /** Where to push (the catalogued calendar output id), or null. */
+  target: "google-calendar" | "outlook-calendar" | null;
+  /** Which items: the user's own assignments ("mine") or everything in their scope ("all"). */
+  scope: "mine" | "all";
+  /** When consent was last granted (ISO), or null. */
+  grantedAt: string | null;
+}
+
+/**
  * The deployment state of a governed capability (an AI tool, the MCP, an AI provider
  * or a vendor):
  *   - "off"          — not used.
@@ -716,6 +735,7 @@ const store: SettingsState = {
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
   userPrefs: {},
+  calendarPush: {},
   capabilityStates: {},
   disabledFeatures: disabledFeaturesFromEnv(),
   enabledFeatures: enabledFeaturesFromEnv(),
@@ -769,6 +789,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "fieldOverrides",
   "screenLayouts",
   "userPrefs",
+  "calendarPush",
   "capabilityStates",
   "disabledFeatures",
   "enabledFeatures",
@@ -1328,7 +1349,7 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   if ("errorTelemetry" in patch && typeof patch["errorTelemetry"] !== "boolean") {
     throw new SettingsValidationError("errorTelemetry must be a boolean");
   }
-  for (const key of ["capabilityStates", "screenLayouts", "userPrefs"] as const) {
+  for (const key of ["capabilityStates", "screenLayouts", "userPrefs", "calendarPush"] as const) {
     if (key in patch && (typeof patch[key] !== "object" || patch[key] == null || Array.isArray(patch[key]))) {
       throw new SettingsValidationError(`${key} must be an object`);
     }
