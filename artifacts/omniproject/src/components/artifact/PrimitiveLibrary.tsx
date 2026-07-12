@@ -1,10 +1,12 @@
-import { PRIMITIVE_CATALOGUE, type PrimitiveCategory, type PrimitiveDef } from "../charts/catalogue";
+import { type PrimitiveCategory, type PrimitiveDef } from "../charts/catalogue";
+import { PRIMITIVE_LIBRARY } from "../../definitions/primitives";
 
 /**
- * PrimitiveLibrary — a browsable palette of every rendering primitive the app ships, rendered straight
- * off the data-only catalogue. It's the visible "library of primitives users can build their own charts
- * from": each entry shows what it draws, the data it needs and the options it takes. Read-only reference;
- * an optional `onPick` lets a builder use it as an insert palette.
+ * PrimitiveLibrary — a browsable palette of every rendering primitive available, rendered straight off
+ * the resolved library (the shipped code catalogue plus any drop-in primitive JSON). It's the visible
+ * "library of primitives users can build their own charts from": each entry shows what it draws, the data
+ * it needs and the options it takes. Read-only reference; an optional `onPick` lets a builder use it as an
+ * insert palette. Pass `primitives` to render a specific set.
  */
 const CATEGORY_LABEL: Record<PrimitiveCategory, string> = {
   chart: "Charts",
@@ -15,14 +17,15 @@ const CATEGORY_LABEL: Record<PrimitiveCategory, string> = {
 
 const CATEGORY_ORDER: PrimitiveCategory[] = ["chart", "graphic", "table", "tile"];
 
-export function PrimitiveLibrary({ onPick, testId = "primitive-library" }: {
+export function PrimitiveLibrary({ onPick, primitives = PRIMITIVE_LIBRARY, testId = "primitive-library" }: {
   onPick?: (primitive: PrimitiveDef) => void;
+  primitives?: PrimitiveDef[];
   testId?: string;
 }) {
   return (
     <div className="space-y-4" data-testid={testId}>
       {CATEGORY_ORDER.map((category) => {
-        const items = PRIMITIVE_CATALOGUE.filter((p) => p.category === category);
+        const items = primitives.filter((p) => p.category === category);
         if (items.length === 0) return null;
         return (
           <section key={category} data-testid={`${testId}-${category}`}>

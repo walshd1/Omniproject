@@ -1,0 +1,14 @@
+{
+  "id": "column",
+  "label": "Column chart",
+  "category": "chart",
+  "chartType": "bar",
+  "description": "A vertical bar chart — categories along the x-axis, value up the y-axis. Drop-in preset that draws through the shared bar renderer with a vertical orientation.",
+  "params": [
+    { "key": "data", "label": "Rows", "type": "rows", "required": true, "description": "One object per category; keys are the plotted fields." },
+    { "key": "series", "label": "Series", "type": "series", "required": true, "description": "Which row keys to plot and their labels." },
+    { "key": "orientation", "label": "Orientation", "type": "enum", "required": false, "description": "Fixed to vertical for a column chart.", "options": ["vertical"] },
+    { "key": "legend", "label": "Legend", "type": "boolean", "required": false, "description": "Show the series legend." },
+    { "key": "palette", "label": "Palette", "type": "palette", "required": false, "description": "Ordered hex colours." }
+  ]
+}
