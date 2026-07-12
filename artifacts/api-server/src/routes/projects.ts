@@ -26,11 +26,13 @@ import { resolveCapabilities } from "../lib/capabilities";
 import { validateEntityInput, type FieldDescriptor } from "../lib/field-registry";
 import { getSettings, updateSettings } from "../lib/settings";
 import { PROJECT_DISPOSITIONS, type ProjectDisposition } from "../lib/closed-projects";
+import { getArchiveStore } from "../lib/archive/archive-store";
 import { checkFieldValues, resolveFieldType } from "../lib/field-validation";
 import { randomUUID } from "node:crypto";
 import { aggregateResourcePool } from "../lib/resource-pool";
 import { poolMap } from "../lib/concurrency-pool";
 import {
+  type Row,
   getProjects,
   getIssues,
   getActivity,
@@ -218,16 +220,29 @@ router.post("/projects/:projectGuid/close", requireAnyRole("pmo", "admin"), (req
     res.status(400).json({ error: `disposition must be one of: ${PROJECT_DISPOSITIONS.join(", ")}` });
     return;
   }
+  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined;
   const record = {
     disposition,
     ...(typeof body.source === "string" && body.source.trim() ? { source: body.source.trim() } : {}),
     closedAt: new Date().toISOString(),
-    ...(typeof body.note === "string" && body.note.trim() ? { note: body.note.trim() } : {}),
+    ...(note ? { note } : {}),
   };
-  // Merge into the registry; validatePatch's cross-rule retires the GUID on write.
-  updateSettings({ closedProjects: { ...getSettings().closedProjects, [guid]: record } });
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action: `project_close:${disposition}`, result: "success", status: 200 });
-  res.json({ guid, ...record });
+  void withBrokerErrors(req, res, "project_close failed", async () => {
+    // For the `archive` disposition, MIGRATE the data first — capture a snapshot (the project row +
+    // its issues, while still live) into the self-managed archive. If that fails, DON'T record the
+    // closure: never claim a project is archived when its data wasn't actually captured.
+    if (disposition === "archive") {
+      const project = (await getProjects(req)).find((p) => String((p as Row)["omniInstanceId"] ?? "") === guid);
+      if (project) {
+        const issues = await getIssues(req, String((project as Row)["id"])).catch(() => [] as Row[]);
+        await getArchiveStore().save({ guid, archivedAt: record.closedAt, project: project as Row, issues, note });
+      }
+    }
+    // Merge into the registry; validatePatch's cross-rule retires the GUID on write.
+    updateSettings({ closedProjects: { ...getSettings().closedProjects, [guid]: record } });
+    recordAudit({ ts: new Date().toISOString(), category: "admin", action: `project_close:${disposition}`, result: "success", status: 200 });
+    res.json({ guid, ...record });
+  });
 });
 
 router.patch("/projects/:projectId", requireRole("manager"), async (req, res) => {

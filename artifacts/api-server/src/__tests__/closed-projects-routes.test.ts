@@ -60,3 +60,26 @@ test("POST /projects/:guid/close rejects a bad disposition → 400", async () =>
   const r = await h.req("/projects/guid-x/close", { method: "POST", cookie: adminCookie(), body: { disposition: "nowhere" } });
   assert.equal(r.status, 400);
 });
+
+test("closing with the archive disposition captures a snapshot readable from the archive", async () => {
+  const { __setArchiveStoreForTest, MemoryArchiveStore } = await import("../lib/archive/archive-store");
+  __setArchiveStoreForTest(new MemoryArchiveStore());
+  try {
+    // A freshly-created project carries an omniInstanceId (the correlation GUID) to close by.
+    const created = await json(await h.req("/projects", { method: "POST", cookie: adminCookie(), body: { name: "To archive" } }));
+    const guid = created.omniInstanceId as string;
+    assert.ok(guid, "created project has a correlation GUID");
+
+    const close = await h.req(`/projects/${encodeURIComponent(guid)}/close`, { method: "POST", cookie: adminCookie(), body: { disposition: "archive", note: "decommissioned" } });
+    assert.equal(close.status, 200);
+
+    // The archive index + snapshot now hold it.
+    const index = await json(await h.req("/archive/projects", { cookie: adminCookie() }));
+    assert.ok(index.some((e: { guid: string }) => e.guid === guid));
+    const snap = await json(await h.req(`/archive/projects/${encodeURIComponent(guid)}`, { cookie: adminCookie() }));
+    assert.equal(snap.project.name, "To archive");
+    assert.ok(Array.isArray(snap.issues));
+  } finally {
+    __setArchiveStoreForTest(null);
+  }
+});
