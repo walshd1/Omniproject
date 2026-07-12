@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTasks, useTaskSummary, useCreateTask, useUpdateTask, PRIORITIES, type Task, type Priority } from "../lib/tasks";
 import { TaskDetailDialog } from "../components/TaskDetailDialog";
+import { TaskBoard } from "../components/board/TaskBoard";
 import { Button } from "@/components/ui/button";
 
 const STATUS_FILTERS = ["all", "next", "waiting", "scheduled", "someday", "done"] as const;
@@ -32,6 +33,7 @@ export function Tasks() {
   const [context, setContext] = useState("");
   const [priority, setPriority] = useState<Priority>("none");
   const [detail, setDetail] = useState<Task | null>(null);
+  const [view, setView] = useState<"list" | "board">("list");
 
   const shown = useMemo(
     () => tasks.filter((t) => (filter === "all" ? true : t.status === filter)),
@@ -50,8 +52,25 @@ export function Tasks() {
   return (
     <div className="h-full flex flex-col">
       <div className="px-8 py-4 border-b border-border bg-card shrink-0">
-        <h1 className="text-xl font-black uppercase tracking-tighter">Tasks</h1>
-        <p className="text-xs text-muted-foreground mt-1">Actionable next-actions (GTD) — distinct from issues.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-black uppercase tracking-tighter">Tasks</h1>
+            <p className="text-xs text-muted-foreground mt-1">Actionable next-actions (GTD) — distinct from issues.</p>
+          </div>
+          <div className="inline-flex border border-border shrink-0" role="tablist" aria-label="View">
+            {(["list", "board"] as const).map((v) => (
+              <button
+                key={v}
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1.5 text-xs uppercase tracking-wider font-semibold border-r border-border last:border-r-0 ${view === v ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {v === "board" ? "GTD Board" : "List"}
+              </button>
+            ))}
+          </div>
+        </div>
         {summary && (
           <div className="mt-3 grid grid-cols-3 sm:grid-cols-6 gap-2">
             <Stat label="Open" value={summary.open} />
@@ -93,6 +112,10 @@ export function Tasks() {
         </div>
 
         {/* Status filter */}
+        {view === "board" ? (
+          <TaskBoard tasks={tasks} onOpen={setDetail} />
+        ) : (
+        <>
         <div className="inline-flex flex-wrap border border-border" role="tablist" aria-label="Filter by status">
           {STATUS_FILTERS.map((s) => (
             <button
@@ -140,6 +163,8 @@ export function Tasks() {
               </li>
             ))}
           </ul>
+        )}
+        </>
         )}
       </div>
 
