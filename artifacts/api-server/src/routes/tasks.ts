@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { withBrokerErrors } from "../broker";
-import { getTasks, getTask, createTask, updateTask, brokerHasTasks } from "../lib/data";
+import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComments, addTaskComment, getTaskAttachments, addTaskAttachment, brokerHasTaskAttachments } from "../lib/data";
 import { requireRole } from "../lib/rbac";
 import { parseOr400, v } from "../lib/validate";
 import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY } from "../broker/vocabulary";
@@ -66,6 +66,47 @@ router.patch("/tasks/:taskId", requireRole("manager"), (req, res) => {
   if (!body) return;
   return withBrokerErrors(req, res, "update_task failed", async () => {
     res.json(await updateTask(req, String(req.params["taskId"]), body));
+  });
+});
+
+// ── Comments ─────────────────────────────────────────────────────────────────
+const CommentBody = v.object({ body: v.string({ min: 1, max: 10_000, trim: true }) });
+
+router.get("/tasks/:taskId/comments", (req, res) =>
+  withBrokerErrors(req, res, "list_task_comments failed", async () => {
+    res.json(await getTaskComments(req, String(req.params["taskId"])));
+  }),
+);
+
+router.post("/tasks/:taskId/comments", requireRole("contributor"), (req, res) => {
+  const body = parseOr400(req, res, CommentBody);
+  if (!body) return;
+  return withBrokerErrors(req, res, "add_task_comment failed", async () => {
+    res.status(201).json(await addTaskComment(req, String(req.params["taskId"]), body));
+  });
+});
+
+// ── Attachments (file REFERENCES; only when the backend supports them) ────────
+const AttachmentBody = v.object({
+  filename: v.string({ min: 1, max: 500, trim: true }),
+  url: v.optional(v.nullable(v.string({ max: 2000 }))),
+  contentType: v.optional(v.nullable(v.string({ max: 200 }))),
+  size: v.optional(v.nullable(v.number({ min: 0, int: true }))),
+});
+
+router.get("/tasks/:taskId/attachments", (req, res) =>
+  withBrokerErrors(req, res, "list_task_attachments failed", async () => {
+    res.json(await getTaskAttachments(req, String(req.params["taskId"])));
+  }),
+);
+
+router.post("/tasks/:taskId/attachments", requireRole("contributor"), (req, res) => {
+  // "If supported by the backend" — 501 when the active broker can't store attachments.
+  if (!brokerHasTaskAttachments()) { res.status(501).json({ error: "this backend does not support task attachments" }); return; }
+  const body = parseOr400(req, res, AttachmentBody);
+  if (!body) return;
+  return withBrokerErrors(req, res, "add_task_attachment failed", async () => {
+    res.status(201).json(await addTaskAttachment(req, String(req.params["taskId"]), body));
   });
 });
 

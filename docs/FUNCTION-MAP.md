@@ -1173,6 +1173,11 @@ Data accessor facade.
 | `createTask` | Create a task (throws if the broker doesn't model tasks — the route guards on capability first). |
 | `updateTask` | Update a task (throws if unsupported — the route guards first). |
 | `brokerHasTasks` | Whether the active broker models tasks at all. |
+| `getTaskComments` | A task's comments (empty when the broker doesn't model them). |
+| `addTaskComment` | Add a comment to a task (throws if unsupported — the route guards first). |
+| `getTaskAttachments` | A task's file attachments — references only (empty when unsupported). |
+| `addTaskAttachment` | Attach a file reference to a task (throws if unsupported — the route guards first). |
+| `brokerHasTaskAttachments` | Whether the active broker supports task ATTACHMENTS ("if supported by the backend"). |
 | `getSummary` | One project's roll-up summary (health/variance), via the active broker. |
 | `getHistory` | One project's historical points (for trends), via the active broker. |
 | `getBaseline` | One project's baseline snapshot, via the active broker. |

@@ -74,3 +74,30 @@ test("GET /tasks/:id 404s for an unknown id", async () => {
   const r = await req("/tasks/task-does-not-exist");
   assert.equal(r.status, 404);
 });
+
+test("task comments: post + list a discussion thread", async () => {
+  const task = await json(await req("/tasks", { method: "POST", body: { title: "Review the SOW" } }));
+  const posted = await req(`/tasks/${task.id}/comments`, { method: "POST", body: { body: "Flagged clause 7 with legal." } });
+  assert.equal(posted.status, 201);
+  assert.equal((await json(posted)).body, "Flagged clause 7 with legal.");
+  const list = await json(await req(`/tasks/${task.id}/comments`));
+  assert.equal(list.length, 1);
+  assert.ok(list[0].author);
+});
+
+test("task attachments: reference a backend file (the demo supports it)", async () => {
+  const task = await json(await req("/tasks", { method: "POST", body: { title: "Attach the report" } }));
+  const posted = await req(`/tasks/${task.id}/attachments`, { method: "POST", body: { filename: "q3-report.pdf", url: "https://backend.example/f/123", contentType: "application/pdf", size: 20480 } });
+  assert.equal(posted.status, 201);
+  const att = await json(posted);
+  assert.equal(att.filename, "q3-report.pdf");
+  assert.equal(att.url, "https://backend.example/f/123");
+  const list = await json(await req(`/tasks/${task.id}/attachments`));
+  assert.equal(list.length, 1);
+});
+
+test("attachment upload requires a filename", async () => {
+  const task = await json(await req("/tasks", { method: "POST", body: { title: "x" } }));
+  const bad = await req(`/tasks/${task.id}/attachments`, { method: "POST", body: { url: "https://x/y" } });
+  assert.equal(bad.status, 400);
+});
