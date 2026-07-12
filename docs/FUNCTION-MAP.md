@@ -1096,7 +1096,7 @@ Admin-defined CUSTOM FIELDS — extend the reference superset when a field an or
 | Function | What it does |
 | --- | --- |
 | `validateCustomFields` | Validate + normalise the custom-field definitions (shape only; the source rule is separate so it can be re-checked whenever EITHER customFields or the routing map changes). |
-| `validateCustomFieldSources` | The SOURCE RULE: every custom field must be reachable — mapped in the routing matrix, or held by the built-in backend. |
+| `validateCustomFieldSources` | The SOURCE RULE: every custom field must be reachable — its key must be mapped to a real source in the routing matrix (a fully-populated vendor·broker·sourceField route). |
 
 ### `artifacts/api-server/src/lib/data-residency.ts`
 

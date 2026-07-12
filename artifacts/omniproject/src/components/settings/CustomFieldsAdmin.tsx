@@ -13,8 +13,8 @@ const CANONICAL = new Set<string>([...CANONICAL_FIELD_KEYS]);
 /**
  * Custom fields — EXTEND the reference superset with fields an org needs that aren't in the catalogue.
  * Definitions persist in settings (sealed at rest). Each field must have a source: map it in the
- * Routing Matrix, or run the built-in backend (which stores it) — the server enforces this, so a
- * field with no source can't be saved. Renaming a field's UI label is a separate concern (Labels).
+ * Routing Matrix — route it to the Postgres backend if there's no external source. The server enforces
+ * this, so a field with no route can't be saved. Renaming a field's UI label is a separate concern (Labels).
  */
 export function CustomFieldsAdmin() {
   const { data: auth } = useAuth();
@@ -40,7 +40,7 @@ export function CustomFieldsAdmin() {
   const onSave = () => {
     save.mutate(rows.map((r) => ({ ...r, key: r.key.trim(), label: r.label.trim() })), {
       onSuccess: () => toast({ title: "CUSTOM FIELDS SAVED", description: "The superset was extended." }),
-      onError: (e) => toast({ title: "COULD NOT SAVE", description: e instanceof Error ? e.message : "Map each field or enable the built-in backend.", variant: "destructive" }),
+      onError: (e) => toast({ title: "COULD NOT SAVE", description: e instanceof Error ? e.message : "Map each field in the routing matrix (route it to Postgres if there's no external source).", variant: "destructive" }),
     });
   };
 
@@ -52,8 +52,9 @@ export function CustomFieldsAdmin() {
       </div>
       <div className="bg-card border border-border p-4 space-y-3">
         <p className="text-xs text-muted-foreground">
-          Add a field the catalogue doesn't have. Each must have a source: <strong>map it in the Routing Matrix</strong>,
-          or run the <strong>built-in backend</strong> (it stores unmapped fields). A field with no source can't be saved.
+          Add a field the catalogue doesn't have. Each must have a source: <strong>map it in the Routing Matrix</strong>.
+          If no external system carries it, route it to the <strong>Postgres backend</strong> (a backend like any other).
+          A field with no route can't be saved.
         </p>
 
         <div className="overflow-x-auto">

@@ -6,12 +6,12 @@ import type { FieldRoute } from "./field-routing";
  * catalogue. Definitions live in settings (sealed at rest via config-store → the encrypted JSON).
  *
  * THE SOURCE RULE (the thing that keeps a custom field from being a dangling label): a custom field
- * MUST have somewhere to get its value —
- *   · it is MAPPED in the routing matrix (its key is a `uiElement` → a vendor·broker·sourceField), OR
- *   · it falls to the BUILT-IN backend (BUILTIN_BROKER), whose Row/JSON store holds arbitrary fields,
- *     so the "schema" simply grows to carry it.
- * A custom field that is neither mapped nor built-in-backed is rejected — you can't add a field with
- * no data source. Enforced in `updateSettings` (a bad PUT is a 400, nothing persists).
+ * MUST be MAPPED in the routing matrix — its key is a `uiElement` routed to a vendor·broker·sourceField.
+ * If the org has no external system that carries the field, they route it to the Postgres backend (the
+ * `sql` sidecar vendor below the seam, a backend like any other): its Row/JSON store holds arbitrary
+ * fields, so the "schema" simply grows to carry it. Either way it's a routing entry — there is no
+ * special "built-in backend" bypass. A custom field with no route is rejected (you can't add a field
+ * with no data source). Enforced in `updateSettings` (a bad PUT is a 400, nothing persists).
  */
 
 export const CUSTOM_FIELD_TYPES = ["string", "number", "boolean", "date"] as const;
@@ -60,15 +60,18 @@ export function validateCustomFields(value: unknown): CustomField[] {
 }
 
 /**
- * The SOURCE RULE: every custom field must be reachable — mapped in the routing matrix, or held by the
- * built-in backend. Throws `CustomFieldError` (→ 400) naming the first offender.
+ * The SOURCE RULE: every custom field must be reachable — its key must be mapped to a real source in
+ * the routing matrix (a fully-populated vendor·broker·sourceField route). Routing it to the Postgres
+ * backend counts like any other backend. Throws `CustomFieldError` (→ 400) naming the first offender.
  */
-export function validateCustomFieldSources(customFields: CustomField[], routing: FieldRoute[], builtinActive: boolean): void {
-  const routed = new Set(routing.map((r) => r.uiElement));
+export function validateCustomFieldSources(customFields: CustomField[], routing: FieldRoute[]): void {
+  const routed = new Set(
+    routing.filter((r) => r.uiElement && r.vendor && r.broker && r.sourceField).map((r) => r.uiElement),
+  );
   for (const f of customFields) {
-    if (!routed.has(f.key) && !builtinActive) {
+    if (!routed.has(f.key)) {
       throw new CustomFieldError(
-        `custom field "${f.key}" has no data source — map it in the routing matrix, or enable the built-in backend (BUILTIN_BROKER) to store it`,
+        `custom field "${f.key}" has no data source — map it in the routing matrix (route it to the Postgres backend if it has no external source)`,
       );
     }
   }

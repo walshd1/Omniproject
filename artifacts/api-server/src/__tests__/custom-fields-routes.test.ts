@@ -4,7 +4,8 @@ import { startHarness, adminCookie, type Harness } from "./_harness";
 
 /**
  * HTTP coverage for admin-defined custom fields + the source rule: a custom field must be mapped in
- * the routing matrix OR held by the built-in backend, else the PUT is a 400 (no data source).
+ * the routing matrix (route it to the Postgres backend if there's no external source), else the PUT is
+ * a 400 (no data source).
  */
 let h: Harness;
 before(async () => { h = await startHarness(); });
@@ -12,7 +13,6 @@ after(() => h.close());
 afterEach(async () => {
   const { updateSettings } = await import("../lib/settings");
   updateSettings({ customFields: [], fieldRouting: [] });
-  delete process.env["BUILTIN_BROKER"];
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,13 +25,13 @@ test("GET /custom-fields defaults to []", async () => {
   assert.deepEqual((await json(r)).customFields, []);
 });
 
-test("an unmapped custom field with no built-in backend is a 400 (no data source)", async () => {
+test("an unmapped custom field is a 400 (no data source)", async () => {
   const r = await h.req("/custom-fields", { method: "PUT", cookie: adminCookie(), body: { customFields: [field] } });
   assert.equal(r.status, 400);
   assert.match((await json(r)).error, /no data source/i);
 });
 
-test("a MAPPED custom field is accepted", async () => {
+test("a custom field mapped to an external backend is accepted", async () => {
   // First map riskAppetite in the routing matrix, then add the custom field.
   await h.req("/routing", { method: "PUT", cookie: adminCookie(), body: { fieldRouting: [{ uiElement: "riskAppetite", vendor: "jira", broker: "n8n", sourceField: "cf_1" }] } });
   const r = await h.req("/custom-fields", { method: "PUT", cookie: adminCookie(), body: { customFields: [field] } });
@@ -39,8 +39,9 @@ test("a MAPPED custom field is accepted", async () => {
   assert.deepEqual((await json(r)).customFields, [field]);
 });
 
-test("an UNMAPPED custom field is accepted when the built-in backend is enabled (it holds it)", async () => {
-  process.env["BUILTIN_BROKER"] = "1";
+test("a custom field routed to the Postgres backend is accepted (no external source needed)", async () => {
+  // No external system carries it — route it to the sql/postgres backend, a backend like any other.
+  await h.req("/routing", { method: "PUT", cookie: adminCookie(), body: { fieldRouting: [{ uiElement: "riskAppetite", vendor: "sql", broker: "builtin", sourceField: "riskAppetite" }] } });
   const r = await h.req("/custom-fields", { method: "PUT", cookie: adminCookie(), body: { customFields: [field] } });
   assert.equal(r.status, 200);
 });

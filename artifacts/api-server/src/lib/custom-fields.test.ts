@@ -21,19 +21,27 @@ test("rejects a key that shadows a superset field, a bad key, a dup, a bad type,
 });
 
 // ── The source rule ──────────────────────────────────────────────────────────────
-const route = (uiElement: string): FieldRoute => ({ uiElement, vendor: "jira", broker: "n8n", sourceField: "cf_1" });
+const route = (uiElement: string, vendor = "jira"): FieldRoute => ({ uiElement, vendor, broker: "n8n", sourceField: "cf_1" });
 
-test("source rule: a MAPPED custom field is fine even with no built-in backend", () => {
-  validateCustomFieldSources([cf()], [route("riskAppetite")], /* builtinActive */ false); // does not throw
+test("source rule: a field mapped to an external backend is fine", () => {
+  validateCustomFieldSources([cf()], [route("riskAppetite")]); // does not throw
 });
 
-test("source rule: an UNMAPPED custom field is fine when the built-in backend holds it", () => {
-  validateCustomFieldSources([cf()], [], /* builtinActive */ true); // does not throw
+test("source rule: routing a field to the Postgres backend is a valid source", () => {
+  // No external system carries it — the org routes it to the sql/postgres backend (a backend like any other).
+  validateCustomFieldSources([cf()], [route("riskAppetite", "sql")]); // does not throw
 });
 
-test("source rule: an unmapped field with NO built-in backend is rejected (no data source)", () => {
+test("source rule: an unmapped custom field is rejected (no data source)", () => {
   assert.throws(
-    () => validateCustomFieldSources([cf()], [], false),
+    () => validateCustomFieldSources([cf()], []),
     (e: unknown) => e instanceof CustomFieldError && /no data source/.test((e as Error).message),
+  );
+});
+
+test("source rule: a half-populated route is NOT a source", () => {
+  assert.throws(
+    () => validateCustomFieldSources([cf()], [{ uiElement: "riskAppetite", vendor: "", broker: "", sourceField: "" }]),
+    CustomFieldError,
   );
 });

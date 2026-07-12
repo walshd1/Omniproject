@@ -18,13 +18,6 @@ import { isTruthy } from "./env-config";
 import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 
-/** Whether the built-in backend is active — mirrors broker/builtin.builtinBrokerEnabled without
- *  importing the broker graph into settings (it's a pure env read). Kept in sync by intent. */
-function builtinBackendActive(): boolean {
-  const raw = process.env["BUILTIN_BROKER"]?.trim().toLowerCase();
-  return !!raw && raw !== "0" && raw !== "false" && raw !== "off";
-}
-
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
   return (DEPLOYMENT_PROFILES as readonly string[]).includes(v) ? (v as DeploymentProfile) : undefined;
@@ -273,7 +266,7 @@ export interface SettingsState {
    *  One-to-one at both ends (anti-collision) — see lib/field-routing. */
   fieldRouting: FieldRoute[];
   /** Admin-defined fields extending the reference superset. Each must be mapped in `fieldRouting`
-   *  or held by the built-in backend — see lib/custom-fields. */
+   *  (route it to the Postgres backend if there's no external source) — see lib/custom-fields. */
   customFields: CustomField[];
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
@@ -1228,14 +1221,15 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
       throw e;
     }
   }
-  // Cross-rule: whenever custom fields OR the routing map changes, every custom field must still have
-  // a source — mapped in the matrix, or held by the built-in backend. Checked over the EFFECTIVE
-  // (patch-merged) values so you can't drop a route out from under a field that depended on it.
+  // Cross-rule: whenever custom fields OR the routing map changes, every custom field must still be
+  // mapped to a source in the matrix (route it to the Postgres backend if there's no external one).
+  // Checked over the EFFECTIVE (patch-merged) values so you can't drop a route out from under a field
+  // that depended on it.
   if ("customFields" in patch || "fieldRouting" in patch) {
     const effCustom = ("customFields" in normalized ? normalized["customFields"] : store.customFields) as CustomField[];
     const effRouting = ("fieldRouting" in normalized ? normalized["fieldRouting"] : store.fieldRouting) as FieldRoute[];
     try {
-      validateCustomFieldSources(effCustom, effRouting, builtinBackendActive());
+      validateCustomFieldSources(effCustom, effRouting);
     } catch (e) {
       if (e instanceof CustomFieldError) throw new SettingsValidationError(e.message);
       throw e;
