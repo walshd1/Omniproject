@@ -166,7 +166,7 @@ A user the directory has **never seen** yields *no opinion* — access falls bac
 
 1. In the IdP, **unassign** the user from the OmniProject app (or disable/offboard them).
 2. The IdP sends `PATCH /Users/:id` with `active:false` (Okta/Entra do this on unassignment).
-3. OmniProject immediately: denies the user at the gate (even with an unexpired session/token),
+3. OmniProject (on the handling replica; fleet-wide on directory reload / rolling restart — see `docs/ops/MULTI-REPLICA.md`) denies the user at the gate (even with an unexpired session/token),
    closes their live streams, and audits `scim.user.patch` with `active:false`.
 4. **Verify:** `GET /api/scim/v2/Users?filter=userName eq "user@corp.com"` → the user shows
    `active:false`. (Optionally confirm a `403`/redirect on their next app request.)

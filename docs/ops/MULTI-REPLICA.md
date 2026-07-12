@@ -37,16 +37,21 @@ isn't installed, they log once and fall back to per-replica. Nothing crashes.
 > call) and are **not** fanned out across the fleet, so a change on replica A does not take effect on
 > B…N until those replicas reload:
 >
-> - **Break-glass controls** — the AI kill-switch, key/session revocation, and maintenance lockdown
->   (`lib/security-state.ts`, `lib/ai-kill.ts`, `lib/key-registry.ts`): engaging the kill-switch or
->   revoking a credential on one replica leaves the others running the prior state.
+> - **AI kill-switch** (`lib/ai-kill.ts`) — engaging/releasing writes through to shared state and every
+>   replica converges on its fleet-sync tick (a few seconds), so with `REDIS_URL` set the break-glass
+>   control is **fleet-wide**. In-process mode (no shared state) it is per-replica.
+> - **Key/session revocation and maintenance lockdown** (`lib/security-state.ts`, `lib/key-registry.ts`)
+>   — still per-replica: revoking a credential on one replica leaves the others running the prior state
+>   until they reload.
 > - **SCIM deprovisioning** (`active=false`) — the SCIM directory (`lib/scim.ts`) is loaded once per
->   replica; an IdP deactivation lands on one replica, so the user can still pass the gate on the others.
+>   replica; an IdP deactivation lands on one replica, so the user can still pass the gate on the others
+>   until each reloads its directory.
 >
-> Until these are routed through the shared bus, enforce them fleet-wide with a **rolling restart**
+> For the controls not yet routed through shared state, enforce them fleet-wide with a **rolling restart**
 > after the change (or run a single admin replica for these actions). This gap is deliberately called
-> out because `docs/THREAT-MODEL.md`/`ENTERPRISE-OPS.md` describe these controls as taking effect
-> "immediately" — that holds on a single replica, not yet across an HA fleet.
+> out because `docs/COMPLIANCE.md`/`THREAT-MODEL.md`/`ENTERPRISE-OPS.md` describe these controls as taking
+> effect "immediately" — that holds on the handling replica; fleet-wide immediacy needs shared state (AI
+> kill-switch) or a rolling restart (the rest).
 
 ## 3. Enabling it
 

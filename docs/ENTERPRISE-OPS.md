@@ -53,7 +53,7 @@ or **right-to-erasure** is satisfied at the systems of record, not here:
   ServiceNow, …). OmniProject's read API can help *locate* it but is not the system of record.
 - **Erasure:** delete/anonymise in the backend(s). OmniProject holds no copy to erase.
 - **Identity:** a subject's identity record lives in your IdP; deprovision via SCIM
-  (`active=false`) or the IdP directly — that immediately denies access here too.
+  (`active=false`) or the IdP directly — that denies access here too (immediate on the handling replica; fleet-wide on directory reload / rolling restart — see `docs/ops/MULTI-REPLICA.md`).
 - **Residual personal data in OmniProject:** only (a) the subject's *session cookie* (self-
   expires; `MAX_SESSIONS_PER_USER` / key revocation forces it), (b) their email/sub inside
   **audit events** in your SIEM (subject to your SIEM's retention), and (c) their SCIM
@@ -149,7 +149,7 @@ OmniProject — it processes in-region and persists nothing cross-region.
 | Need | Control |
 |---|---|
 | Tamper-evident audit | hash-chained audit + `tools/verify-audit-chain.mjs` (`docs/AI-SECURITY.md` §4) |
-| Deprovision a user | SCIM `active=false` / IdP (denies login immediately) |
+| Deprovision a user | SCIM `active=false` / IdP (denies login immediately on the handling replica; fleet-wide on reload / rolling restart) |
 | Freeze the system | maintenance lockdown (`PUT /api/admin/maintenance`) |
 | Move/restore config | secure export bundle + offline decrypt |
 | Keys in HSM/KMS | `KMS_PROVIDER` + `*_KEY_ENC` (BYOK envelope) |
