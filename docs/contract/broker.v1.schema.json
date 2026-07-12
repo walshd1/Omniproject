@@ -1149,6 +1149,63 @@
       ],
       "additionalProperties": false
     },
+    "Task": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "description": "GTD status (backend-native string; classified by `normaliseTaskStatus`/`isActionable`)."
+        },
+        "projectId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The project this task advances, or null for a standalone next-action."
+        },
+        "context": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "GTD context (@calls,"
+        },
+        "waitingOn": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "For a `waiting` task: who/what it's waiting on."
+        },
+        "dueDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Optional due/defer date (ISO 8601)."
+        },
+        "assignee": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Who owns the next action."
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status"
+      ],
+      "additionalProperties": true,
+      "description": "A TASK — an ACTIONABLE next-action (GTD), distinct from an Issue (a problem/blocker from a helpdesk or project). A task may belong to a project, or stand alone (a personal/portfolio next-action). Its `status` is a GTD state (see broker/vocabulary `CANONICAL_TASK_STATUS`)."
+    },
     "TaskItem": {
       "type": "object",
       "properties": {
@@ -1206,6 +1263,49 @@
       ],
       "additionalProperties": false,
       "description": "Create a child issue/note on a task."
+    },
+    "TaskWrite": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "context": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "waitingOn": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dueDate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "assignee": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "A normalised task create/update. `title` is required on create."
     },
     "VerifyReport": {
       "type": "object",

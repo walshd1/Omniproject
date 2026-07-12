@@ -21,6 +21,10 @@ Every operation a broker must (or, where marked optional, may) implement. Each t
 | `listTaskItems` | `projectId: string`, `taskId: string` | `Promise<TaskItem[]>` | A task's child issues/notes (0..many; capability-gated). |
 | `createTaskItem` | `projectId: string`, `taskId: string`, `input: TaskItemWrite` | `Promise<TaskItem>` | Raise a child issue or note against a task (contributor+, capability-gated). |
 | `verify` | `opts: { projectId?: string }` | `Promise<VerifyReport>` |  |
+| `listTasks` _(optional)_ | `opts: { projectId?: string }` | `Promise<Task[]>` | Actionable tasks, optionally scoped to a project. |
+| `getTask` _(optional)_ | `taskId: string` | `Promise<Task \| null>` |  |
+| `createTask` _(optional)_ | `input: TaskWrite` | `Promise<Task>` |  |
+| `updateTask` _(optional)_ | `taskId: string`, `input: TaskWrite` | `Promise<Task>` |  |
 | `listActivity` | — | `Promise<Row[]>` |  |
 | `projectSummary` | `projectId: string` | `Promise<Summary>` |  |
 | `projectHistory` | `projectId: string` | `Promise<HistoryPoint[]>` |  |
@@ -417,6 +421,22 @@ The non-secret material needed to re-derive a session's broker key.
 | `completionRate` | number | yes |  |
 | `overdue` | number | yes |  |
 
+### Task
+
+A TASK — an ACTIONABLE next-action (GTD), distinct from an Issue (a problem/blocker from a helpdesk or project). A task may belong to a project, or stand alone (a personal/portfolio next-action). Its `status` is a GTD state (see broker/vocabulary `CANONICAL_TASK_STATUS`).
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | string | yes |  |
+| `title` | string | yes |  |
+| `status` | string | yes | GTD status (backend-native string; classified by `normaliseTaskStatus`/`isActionable`). |
+| `projectId` | string \| null | — | The project this task advances, or null for a standalone next-action. |
+| `context` | string \| null | — | GTD context (@calls, |
+| `waitingOn` | string \| null | — | For a `waiting` task: who/what it's waiting on. |
+| `dueDate` | string \| null | — | Optional due/defer date (ISO 8601). |
+| `assignee` | string \| null | — | Who owns the next action. |
+| _(other)_ | any | — | Open row — backend-specific fields pass through. |
+
 ### TaskItem
 
 A child issue/note raised against a task (the work-item).
@@ -439,6 +459,20 @@ Create a child issue/note on a task.
 | --- | --- | --- | --- |
 | `kind` | `issue` \| `note` | yes |  |
 | `content` | string | yes |  |
+
+### TaskWrite
+
+A normalised task create/update. `title` is required on create.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `title` | string | — |  |
+| `status` | string | — |  |
+| `projectId` | string \| null | — |  |
+| `context` | string \| null | — |  |
+| `waitingOn` | string \| null | — |  |
+| `dueDate` | string \| null | — |  |
+| `assignee` | string \| null | — |  |
 
 ### VerifyReport
 
