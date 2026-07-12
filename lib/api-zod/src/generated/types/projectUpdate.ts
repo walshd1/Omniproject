@@ -7,7 +7,7 @@
  */
 
 /**
- * Project fields to update (all optional). programmeId groups it.
+ * Project fields to update (all optional). programmeId groups it; status moves it between live and closed.
  */
 export interface ProjectUpdate {
   name?: string;
@@ -15,4 +15,9 @@ export interface ProjectUpdate {
   description?: string | null;
   /** @nullable */
   programmeId?: string | null;
+  /**
+     * Lifecycle status (backend-native string). Conventional buckets are live/active, closed and archived; live reads exclude closed/archived. Set/clear to move a project between live and closed.
+     * @nullable
+     */
+  status?: string | null;
 }

@@ -20,4 +20,9 @@ export interface ProjectInput {
      * @nullable
      */
   programmeId?: string | null;
+  /**
+     * Optional lifecycle status (backend-native string). Conventional buckets are live/active, closed and archived; live reads exclude closed/archived. Set/clear to move a project between live and closed.
+     * @nullable
+     */
+  status?: string | null;
 }

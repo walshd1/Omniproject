@@ -67,6 +67,17 @@ test("PATCH /projects/:id setting programmeId takes the programme-gated branch �
   assert.equal(r.status, 200);
 });
 
+test("PATCH /projects/:id can write lifecycle status (write-side project status via the contract)", async () => {
+  // The OpenAPI ProjectUpdate now carries `status`, so an admin can move a project's lifecycle.
+  // Use a freshly-created project so we don't leave a demo fixture closed for other tests.
+  const created = await req("/projects", { method: "POST", body: { name: "Lifecycle test" } });
+  assert.equal(created.status, 201);
+  const id = ((await created.json()) as { id: string }).id;
+  const r = await req(`/projects/${id}`, { method: "PATCH", body: { status: "closed" } });
+  assert.equal(r.status, 200);
+  assert.equal(((await r.json()) as { status?: string }).status, "closed");
+});
+
 test("PATCH /projects/:id for an unknown project → broker not_found → 404", async () => {
   const r = await req("/projects/no-such-project", { method: "PATCH", body: { name: "Renamed" } });
   assert.equal(r.status, 404);
