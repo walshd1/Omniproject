@@ -117,6 +117,11 @@ test("savedViews: accepts view-engine fields (entity/viewKind/filters/groupBy)",
   assert.equal(s.savedViews[0]!.viewKind, "board");
 });
 
+test("savedViews: accepts the table viewKind with columns", () => {
+  const s = updateSettings({ savedViews: [{ id: "t1", name: "Table", entity: "task", viewKind: "table", columns: ["status", "assignee"] }] });
+  assert.equal(s.savedViews[0]!.viewKind, "table");
+});
+
 test("savedViews: rejects malformed view-engine fields", () => {
   assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", entity: "widget" }] }), SettingsValidationError);
   assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", viewKind: "grid" }] }), SettingsValidationError);

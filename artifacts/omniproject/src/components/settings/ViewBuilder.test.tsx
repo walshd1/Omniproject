@@ -48,6 +48,19 @@ describe("ViewBuilder", () => {
     });
   });
 
+  it("saves a table view with the selected columns", () => {
+    renderWithProviders(<ViewBuilder />);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Task table" } });
+    fireEvent.change(screen.getByLabelText("View kind"), { target: { value: "table" } });
+    // The column checklist appears for table kind; pick two task columns.
+    fireEvent.click(screen.getByLabelText("Column Status"));
+    fireEvent.click(screen.getByLabelText("Column Assignee"));
+    fireEvent.click(screen.getByRole("button", { name: "Save view" }));
+
+    const saved = (mutate.mock.calls[0]![0] as unknown[]).at(-1);
+    expect(saved).toMatchObject({ name: "Task table", viewKind: "table", columns: ["status", "assignee"] });
+  });
+
   it("won't save without a name", () => {
     renderWithProviders(<ViewBuilder />);
     // Save button is disabled with an empty name.

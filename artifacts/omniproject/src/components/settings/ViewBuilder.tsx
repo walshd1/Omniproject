@@ -30,19 +30,21 @@ export function ViewBuilder() {
   const { toast } = useToast();
 
   const [entity, setEntity] = useState<Entity>("task");
-  const [viewKind, setViewKind] = useState<"list" | "board">("list");
+  const [viewKind, setViewKind] = useState<"list" | "board" | "table">("list");
   const [name, setName] = useState("");
   const [filters, setFilters] = useState<FilterRow[]>([]);
   const [sortField, setSortField] = useState("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [groupBy, setGroupBy] = useState("");
+  const [columns, setColumns] = useState<string[]>([]);
 
   const fields = DESCRIPTORS[entity].fields;
   const existing = useMemo(() => (all ?? []).filter((v) => v.entity === "task" || v.entity === "issue"), [all]);
 
   if (!isPmoOrAdmin(auth?.role)) return null;
 
-  const reset = () => { setName(""); setFilters([]); setSortField(""); setSortDir("asc"); setGroupBy(""); };
+  const reset = () => { setName(""); setFilters([]); setSortField(""); setSortDir("asc"); setGroupBy(""); setColumns([]); };
+  const toggleColumn = (k: string) => setColumns((c) => (c.includes(k) ? c.filter((x) => x !== k) : [...c, k]));
 
   const submit = () => {
     if (!name.trim()) { toast({ title: "NAME REQUIRED", description: "Give the view a name.", variant: "destructive" }); return; }
@@ -55,6 +57,7 @@ export function ViewBuilder() {
       ...(filters.filter((f) => f.field && f.value).length ? { filters: filters.filter((f) => f.field && f.value) } : {}),
       ...(sortField ? { sort: { field: sortField, dir: sortDir } } : {}),
       ...(groupBy ? { groupBy } : {}),
+      ...(viewKind === "table" && columns.length ? { columns } : {}),
     };
     save.mutate([...(all ?? []), view], {
       onSuccess: () => { toast({ title: "VIEW SAVED", description: `“${view.name}” is now available in the ${entity} views.` }); reset(); },
@@ -79,16 +82,17 @@ export function ViewBuilder() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor="vb-entity" className="text-xs uppercase tracking-widest text-muted-foreground">Entity</Label>
-            <select id="vb-entity" className={inputCls} value={entity} onChange={(e) => { setEntity(e.target.value as Entity); setSortField(""); setGroupBy(""); setFilters([]); }}>
+            <select id="vb-entity" className={inputCls} value={entity} onChange={(e) => { setEntity(e.target.value as Entity); setSortField(""); setGroupBy(""); setFilters([]); setColumns([]); }}>
               <option value="task">Tasks</option>
               <option value="issue">Issues</option>
             </select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="vb-kind" className="text-xs uppercase tracking-widest text-muted-foreground">View kind</Label>
-            <select id="vb-kind" className={inputCls} value={viewKind} onChange={(e) => setViewKind(e.target.value as "list" | "board")}>
+            <select id="vb-kind" className={inputCls} value={viewKind} onChange={(e) => setViewKind(e.target.value as "list" | "board" | "table")}>
               <option value="list">List</option>
               <option value="board">Board</option>
+              <option value="table">Table</option>
             </select>
           </div>
         </div>
@@ -97,6 +101,22 @@ export function ViewBuilder() {
           <Label htmlFor="vb-name" className="text-xs uppercase tracking-widest text-muted-foreground">Name</Label>
           <input id="vb-name" className={inputCls} placeholder="e.g. My high-priority actions" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
         </div>
+
+        {/* Columns (table kind only) */}
+        {viewKind === "table" && (
+          <div className="space-y-1">
+            <span className="text-xs uppercase tracking-widest text-muted-foreground">Columns</span>
+            <div className="flex flex-wrap gap-3">
+              {fields.map((f) => (
+                <label key={f.key} className="flex items-center gap-1.5 text-xs">
+                  <input type="checkbox" checked={columns.includes(f.key)} onChange={() => toggleColumn(f.key)} aria-label={`Column ${f.label}`} />
+                  {f.label}
+                </label>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">None selected = show every field.</p>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="space-y-2">
@@ -133,7 +153,7 @@ export function ViewBuilder() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="vb-group" className="text-xs uppercase tracking-widest text-muted-foreground">Group by</Label>
-            <select id="vb-group" className={inputCls} value={groupBy} onChange={(e) => setGroupBy(e.target.value)} disabled={viewKind === "board"}>
+            <select id="vb-group" className={inputCls} value={groupBy} onChange={(e) => setGroupBy(e.target.value)} disabled={viewKind !== "list"}>
               <option value="">—</option>
               {fields.map((fl) => <option key={fl.key} value={fl.key}>{fl.label}</option>)}
             </select>

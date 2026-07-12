@@ -12,8 +12,8 @@ export interface SavedView {
   scope?: string;
   /** Which entity this view is for (view-engine views); omitted for legacy grid views. */
   entity?: "task" | "issue";
-  /** How the view engine renders it: a list or a status board. Omitted = list. */
-  viewKind?: "list" | "board";
+  /** How the view engine renders it: a list, a status board, or a sortable table. Omitted = list. */
+  viewKind?: "list" | "board" | "table";
   columns?: string[];
   sort?: { field: string; dir: "asc" | "desc" };
   filters?: { field: string; value: string }[];

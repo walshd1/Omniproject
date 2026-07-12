@@ -89,6 +89,25 @@ describe("EntityViews (generic engine)", () => {
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ raw: expect.objectContaining({ id: "w1" }) }));
   });
 
+  it("renders the built-in Table view with sortable field columns", () => {
+    renderWithProviders(<EntityViews descriptor={makeDescriptor()} onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Table" }));
+    expect(screen.getByTestId("record-table")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /status/i })).toBeInTheDocument();
+  });
+
+  it("renders a saved table view limited to its chosen columns", () => {
+    savedData = [{ id: "sv2", name: "Widget table", entity: "widget", viewKind: "table", columns: ["status"] }];
+    try {
+      renderWithProviders(<EntityViews descriptor={makeDescriptor()} onOpen={() => {}} />);
+      fireEvent.click(screen.getByRole("tab", { name: "Widget table" }));
+      expect(screen.getByTestId("record-table")).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: /status/i })).toBeInTheDocument();
+    } finally {
+      savedData = [];
+    }
+  });
+
   it("surfaces a custom saved view as a tab and applies its filter", () => {
     savedData = [{ id: "sv1", name: "Only waiting", entity: "widget", viewKind: "list", filters: [{ field: "status", value: "waiting" }] }];
     try {

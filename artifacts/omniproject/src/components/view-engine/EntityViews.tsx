@@ -4,6 +4,7 @@ import { applyFiltersSort, groupRecords } from "../../lib/view-engine/apply";
 import { useSavedViews } from "../../lib/saved-views";
 import { RecordBoard } from "./RecordBoard";
 import { RecordList } from "./RecordList";
+import { RecordTable } from "./RecordTable";
 
 /**
  * The view engine's entry point: given an entity descriptor, render its records through whichever
@@ -70,12 +71,16 @@ export function EntityViews<T>({
       emptyMessage={emptyMessage}
     />
   );
+  const table = (records: ViewRecord<T>[], columns?: string[]) => (
+    <RecordTable records={records} fields={descriptor.fields} {...(columns ? { columns } : {})} noun={descriptor.noun} onOpen={onOpen} />
+  );
 
   return (
     <div className="space-y-4">
       {/* View switcher — List, board presets, and any custom saved views for this entity. */}
       <div className="inline-flex flex-wrap border border-border" role="tablist" aria-label="View">
         <button role="tab" aria-selected={view === "list"} onClick={() => setView("list")} className={tabClass(view === "list")}>List</button>
+        <button role="tab" aria-selected={view === "table"} onClick={() => setView("table")} className={tabClass(view === "table")}>Table</button>
         {descriptor.presets.map((p) => (
           <button key={p.id} role="tab" aria-selected={view === p.id} onClick={() => setView(p.id)} className={tabClass(view === p.id)}>{p.label}</button>
         ))}
@@ -86,8 +91,9 @@ export function EntityViews<T>({
       </div>
 
       {savedView ? (
-        // A custom saved view: board or list, with its filters/sort/grouping already applied.
-        savedView.viewKind === "board" ? board(savedRecords) : (
+        // A custom saved view: board, table, or list, with its filters/sort/grouping already applied.
+        savedView.viewKind === "board" ? board(savedRecords) :
+        savedView.viewKind === "table" ? table(savedRecords, savedView.columns) : (
           <div className="space-y-4">
             {savedGroups.map((g) => (
               <div key={g.key || "_"} className="space-y-2">
@@ -97,6 +103,8 @@ export function EntityViews<T>({
             ))}
           </div>
         )
+      ) : view === "table" ? (
+        table(records)
       ) : preset ? (
         board(records)
       ) : (
