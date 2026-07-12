@@ -73,6 +73,8 @@ test("GET /api/portfolio/summary: THIS instance's own pre-aggregated totals — 
   // The demo broker models tasks, so the aggregate folds in a GTD task roll-up.
   assert.ok(json.tasks && typeof json.tasks.total === "number");
   assert.equal(typeof json.tasks.overdue, "number");
+  // The roll-up accounts for where projects live (live / closed-in-SOR / archived) via the source plan.
+  assert.ok(json.sources && Array.isArray(json.sources.live) && Array.isArray(json.sources.sor) && Array.isArray(json.sources.archive));
   // No per-project identifiers ever appear in the aggregate.
   assert.equal(JSON.stringify(json).includes("projectId"), false);
   assert.equal(JSON.stringify(json).includes("projectName"), false);
