@@ -409,6 +409,13 @@ export interface SettingsState {
    */
   reportOverrides: ReportOverride[];
   /**
+   * Methodology composition — the PMO/admin's curated set of visible artifact / output / ruleset ids,
+   * assembled from one-click methodology presets and refined per item (so "some Scrum + some PRINCE2" is
+   * just a curated list). `null` = uncurated: everything the catalogues offer stays visible (the default).
+   * Customer-level presentation config; rides the snapshot/export, never project data.
+   */
+  methodologyComposition: string[] | null;
+  /**
    * Named content pages: an ordered, flat list of unified-library component ids (reports + widgets,
    * see @workspace/backend-catalogue componentsFor("content")) a customer composes into free-form
    * content, rendered through the generic content-page renderer. Same shared-config shape as
@@ -781,6 +788,7 @@ const store: SettingsState = {
   savedViews: [],
   customReports: [],
   reportOverrides: [],
+  methodologyComposition: null,
   dashboards: [],
   contentPages: [],
   priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS },
@@ -836,6 +844,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "savedViews",
   "customReports",
   "reportOverrides",
+  "methodologyComposition",
   "dashboards",
   "contentPages",
   "priorityWeights",
@@ -1336,6 +1345,12 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
     const v = patch["disabledFeatures"];
     if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
       throw new SettingsValidationError("disabledFeatures must be an array of strings");
+    }
+  }
+  if ("methodologyComposition" in patch) {
+    const v = patch["methodologyComposition"];
+    if (v !== null && (!Array.isArray(v) || v.some((x) => typeof x !== "string"))) {
+      throw new SettingsValidationError("methodologyComposition must be null or an array of strings");
     }
   }
   if ("enabledFeatures" in patch) {
