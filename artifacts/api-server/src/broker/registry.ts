@@ -16,10 +16,9 @@ import { getSettings } from "../lib/settings";
  * This registry is the single place that knows the set.
  *
  * The connected set is: the ACTIVE broker's kind (the live data/command hop —
- * `getBroker()`, always present and PRIMARY) PLUS any extra kinds declared either in
- * the `BROKER_KINDS` env (a comma list of catalogue broker ids) OR the admin-managed
- * `brokerKinds` setting — the two UNION, so a deployment env keeps working and an admin
- * can add more at runtime. Unknown ids are dropped, so a typo can never surface phantom
+ * `getBroker()`, always present and PRIMARY) PLUS the admin-managed `brokerKinds`
+ * setting (the single source of truth; the `BROKER_KINDS` env only seeds its initial
+ * default at first boot). Unknown ids are dropped, so a typo can never surface phantom
  * capabilities — the same discipline the incompatibility guard enforces on the asset side.
  */
 
@@ -31,15 +30,12 @@ export interface ConnectedBroker {
   primary: boolean;
 }
 
-/** Extra connected broker kinds — the UNION of the `BROKER_KINDS` env and the admin-managed
- *  `brokerKinds` setting, validated against the catalogue (an id with no definition is dropped) and
- *  de-duplicated. */
+/** Extra connected broker kinds — the admin-managed `brokerKinds` setting (the single source of truth),
+ *  validated against the catalogue (an id with no definition is dropped) and de-duplicated. */
 function declaredKinds(): string[] {
-  const fromEnv = (process.env["BROKER_KINDS"]?.trim() || "").split(",");
-  const fromSettings = getSettings().brokerKinds ?? [];
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const s of [...fromEnv, ...fromSettings]) {
+  for (const s of getSettings().brokerKinds ?? []) {
     const k = s.trim().toLowerCase();
     if (!k || seen.has(k) || !getBrokerDef(k)) continue;
     seen.add(k);

@@ -768,11 +768,12 @@ Gateway↔broker request signing (security item C, folded into provenance): a de
 
 ### `artifacts/api-server/src/lib/broker-kinds.ts`
 
-Admin-managed connected-broker kinds.
+Admin-managed connected-broker kinds — the broker platforms wired below the seam beyond the active data hop.
 
 | Function | What it does |
 | --- | --- |
 | `validateBrokerKinds` | Validate + normalise (trim, lowercase, dedupe) the admin broker-kind list against the catalogue. |
+| `brokerKindsFromEnv` | The SEED default from the `BROKER_KINDS` env (comma list), for first-boot only. |
 
 ### `artifacts/api-server/src/lib/broker-log-bus.ts`
 

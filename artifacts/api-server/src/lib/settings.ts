@@ -19,7 +19,7 @@ import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./fiel
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
-import { validateBrokerKinds, BrokerKindsError } from "./broker-kinds";
+import { validateBrokerKinds, brokerKindsFromEnv, BrokerKindsError } from "./broker-kinds";
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
@@ -689,7 +689,7 @@ const store: SettingsState = {
   customFields: [],
   fieldValidation: [],
   programmeRegistry: {},
-  brokerKinds: [],
+  brokerKinds: brokerKindsFromEnv(), // env SEEDS the default; the setting owns it thereafter
   webhooks: webhooksFromEnv(),
   federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
