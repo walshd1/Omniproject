@@ -1,6 +1,5 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { ProjectHistoryChart } from "./ProjectHistoryChart";
-import { axisTheme, gridTheme, chartTooltipStyle } from "./chart-theme";
+import { ChartView } from "../charts/ChartView";
 import { velocitySeries, meanVelocity } from "../../lib/progress-charts";
 
 /**
@@ -22,16 +21,15 @@ export function Velocity({ projectId }: { projectId: string }) {
       )}
     >
       {(series) => (
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={series} margin={{ top: 8, right: 16, bottom: 4, left: -8 }}>
-            <CartesianGrid {...gridTheme} />
-            <XAxis dataKey="period" {...axisTheme} fontSize={10} />
-            <YAxis {...axisTheme} fontSize={11} allowDecimals={false} />
-            <Tooltip contentStyle={chartTooltipStyle} />
-            <ReferenceLine y={meanVelocity(series)} stroke="#6366f1" strokeDasharray="5 4" />
-            <Bar dataKey="completed" fill="#6366f1" name="Completed" />
-          </BarChart>
-        </ResponsiveContainer>
+        <ChartView
+          type="bar"
+          orientation="vertical"
+          height="100%"
+          legend={false}
+          data={series.map((p) => ({ name: p.period, completed: p.completed }))}
+          series={[{ key: "completed", label: "Completed" }]}
+          referenceLines={[{ value: meanVelocity(series) }]}
+        />
       )}
     </ProjectHistoryChart>
   );
