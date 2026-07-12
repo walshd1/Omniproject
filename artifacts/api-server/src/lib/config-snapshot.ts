@@ -19,12 +19,17 @@ export const SNAPSHOT_VERSION = 1;
 // Branding, label overrides, screen layouts, the optional-module opt-out, the
 // admin/PMO field-visibility curation, saved views and custom dashboards are all
 // portable presentation config (no secrets), so they ride along in snapshots —
-// "save custom screens to the bundle". Webhook subscriptions are deliberately
-// excluded — they carry signing secrets and are environment-specific (WEBHOOKS env).
+// "save custom screens to the bundle". The bespoke artifact definitions a user
+// authors — custom reports, built-in report overrides and content pages — are
+// their own customisations too, so they belong in the backup alongside saved
+// views (the shipped baseline defs are never here: they live in code, not
+// settings). Webhook subscriptions are deliberately excluded — they carry signing
+// secrets and are environment-specific (WEBHOOKS env).
 const SNAPSHOT_KEYS = [
   "brokerUrl", "aiProvider", "aiModel", "backendSource", "oidcIssuerUrl",
   "branding", "labelOverrides", "screenLayouts", "userPrefs",
   "disabledFeatures", "hiddenFields", "savedViews", "dashboards",
+  "customReports", "reportOverrides", "contentPages",
 ] as const;
 type SnapshotKey = (typeof SNAPSHOT_KEYS)[number];
 
