@@ -35,3 +35,11 @@ test("planProjectSources: an empty registry means everything is live", () => {
   assert.deepEqual(plan.sor, []);
   assert.deepEqual(plan.archive, []);
 });
+
+test("planProjectSources resolves relinked GUIDs before bucketing", () => {
+  // old-guid was relinked to new-guid, which is archived → a reference to old-guid resolves to archive.
+  const registry: ClosedProjectRegistry = { "new-guid": { disposition: "archive" } };
+  const plan = planProjectSources(["old-guid"], registry, { "old-guid": "new-guid" });
+  assert.deepEqual(plan.archive, ["new-guid"]);
+  assert.deepEqual(plan.live, []);
+});
