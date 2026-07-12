@@ -4,6 +4,7 @@ import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@w
 import { criticalPath, type CpmEdge, type CpmNode } from "../../lib/critical-path";
 import { loadEdges, type DependencyEdge } from "../../lib/dependencies";
 import { DataState } from "../DataState";
+import { PathChain } from "../charts/PathChain";
 
 /**
  * Critical Path (CPM) report. STATELESS: activity durations are derived from the live
@@ -100,14 +101,7 @@ export function CriticalPath({ projectId, edges }: { projectId: string; edges?: 
 
           <div>
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Critical chain</div>
-            <ol className="flex flex-wrap items-center gap-1 text-xs font-bold" data-testid="cpm-chain">
-              {result.criticalPath.map((id, i) => (
-                <li key={id} className="flex items-center gap-1">
-                  <span className="border border-red-500/60 bg-red-500/10 text-red-600 px-2 py-1">{titleOf[id] ?? id}</span>
-                  {i < result.criticalPath.length - 1 && <span className="text-muted-foreground">→</span>}
-                </li>
-              ))}
-            </ol>
+            <PathChain nodes={result.criticalPath.map((id) => titleOf[id] ?? id)} testId="cpm-chain" />
           </div>
 
           <div className="overflow-x-auto">
