@@ -15,6 +15,7 @@ import { VerifyStep } from "../components/setup/VerifyStep";
 import { BackupStep } from "../components/setup/BackupStep";
 import { EnvironmentsStep } from "../components/setup/EnvironmentsStep";
 import { GovernanceStep } from "../components/setup/GovernanceStep";
+import { FieldSetupStep } from "../components/setup/FieldSetupStep";
 import { SelfHostDbStep } from "../components/setup/SelfHostDbStep";
 
 export function Configurator() {
@@ -134,6 +135,7 @@ export function Configurator() {
           {showAdvanced && <PersistStep brokerUrlSet={status?.broker.urlSet} />}
           <GenerateStep url={url} isAdmin={isAdmin} status={status} backendId={backendId} setBackendId={setBackendId} />
           <VerifyStep isAdmin={isAdmin} status={status} />
+          <FieldSetupStep n={6} isAdmin={isAdmin} backendId={backendId} />
           {showAdvanced && <BackupStep isAdmin={isAdmin} status={status} />}
           {showAdvanced && <EnvironmentsStep isAdmin={isAdmin} />}
           {showAdvanced && <GovernanceStep isAdmin={isAdmin} />}
