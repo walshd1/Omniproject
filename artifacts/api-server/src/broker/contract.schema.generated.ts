@@ -1186,19 +1186,82 @@ export const BROKER_CONTRACT_SCHEMA = {
           ],
           "description": "For a `waiting` task: who/what it's waiting on."
         },
-        "dueDate": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "description": "Optional due/defer date (ISO 8601)."
-        },
         "assignee": {
           "type": [
             "string",
             "null"
           ],
-          "description": "Who owns the next action."
+          "description": "Who owns the next action (a person)."
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Free-text notes / description."
+        },
+        "priority": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Importance — reuses the canonical priority (none/low/medium/high/urgent)."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Metadata tags/labels for filtering + grouping."
+        },
+        "startDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "When the action becomes available (GTD defer / start date, ISO 8601)."
+        },
+        "dueDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Due date (ISO 8601)."
+        },
+        "recurrence": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Recurrence rule (e.g. \"every weekday\", an RRULE) — null for a one-off."
+        },
+        "estimateHours": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Estimated effort in hours."
+        },
+        "parentTaskId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Parent task, for subtasks/checklists."
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "External link (a doc, ticket, PR)."
+        },
+        "completedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "When it was completed (ISO 8601), if done."
         }
       },
       "required": [
@@ -1294,13 +1357,67 @@ export const BROKER_CONTRACT_SCHEMA = {
             "null"
           ]
         },
+        "assignee": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "startDate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "dueDate": {
           "type": [
             "string",
             "null"
           ]
         },
-        "assignee": {
+        "recurrence": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "estimateHours": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "parentTaskId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "completedAt": {
           "type": [
             "string",
             "null"

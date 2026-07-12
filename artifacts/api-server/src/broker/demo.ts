@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { getSettings } from "../lib/settings";
 import { versionConflict } from "../lib/concurrency";
 import { CAPABILITY_DOMAINS, FIELD_KEYS, ENTITY_KEYS } from "../lib/capabilities";
-import { isDone, isClosed } from "./vocabulary";
+import { isDone, isClosed, isTaskClosed } from "./vocabulary";
 import { inScope } from "../lib/scope";
 import {
   SAMPLE_PROJECTS, SAMPLE_ISSUES, SAMPLE_RAID, SAMPLE_CAPACITY, SAMPLE_FINANCIALS,
@@ -50,10 +50,10 @@ let taskCounter = 100;
 const SAMPLE_TASK_ITEMS: Record<string, TaskItem[]> = {};
 /** Demo GTD tasks — actionable next-actions across the portfolio, distinct from issues. */
 const SAMPLE_TASKS: Task[] = [
-  { id: "task-1", title: "Draft the migration cutover plan", status: "next", projectId: "proj-001", context: "@computer", assignee: "pat@demo", dueDate: null, waitingOn: null, source: "plane" },
-  { id: "task-2", title: "Chase vendor for the signed DPA", status: "waiting", projectId: "proj-001", context: "@waiting", waitingOn: "Acme Legal", assignee: "sam@demo", dueDate: null, source: "plane" },
-  { id: "task-3", title: "Book the quarterly steering review", status: "scheduled", projectId: null, context: "@calendar", dueDate: "2026-09-01", assignee: "sam@demo", waitingOn: null, source: "plane" },
-  { id: "task-4", title: "Evaluate a second data-residency region", status: "someday", projectId: null, context: "@computer", assignee: null, dueDate: null, waitingOn: null, source: "plane" },
+  { id: "task-1", title: "Draft the migration cutover plan", status: "next", projectId: "proj-001", context: "@computer", assignee: "pat@demo", priority: "high", tags: ["migration", "planning"], estimateHours: 4, dueDate: null, waitingOn: null, source: "plane" },
+  { id: "task-2", title: "Chase vendor for the signed DPA", status: "waiting", projectId: "proj-001", context: "@waiting", waitingOn: "Acme Legal", assignee: "sam@demo", priority: "medium", tags: ["legal", "vendor"], dueDate: null, source: "plane" },
+  { id: "task-3", title: "Book the quarterly steering review", status: "scheduled", projectId: null, context: "@calendar", dueDate: "2026-09-01", assignee: "sam@demo", priority: "medium", tags: ["governance"], recurrence: "every 3 months", waitingOn: null, source: "plane" },
+  { id: "task-4", title: "Evaluate a second data-residency region", status: "someday", projectId: null, context: "@computer", assignee: null, priority: "low", tags: ["research"], dueDate: null, waitingOn: null, source: "plane" },
 ];
 
 /** Restore everything DemoBroker can mutate (projects/issues/raid via demo-data,
@@ -304,8 +304,17 @@ export class DemoBroker implements Broker {
       projectId: input.projectId ?? null,
       context: input.context ?? null,
       waitingOn: input.waitingOn ?? null,
-      dueDate: input.dueDate ?? null,
       assignee: input.assignee ?? ctx.email ?? ctx.name ?? null,
+      description: input.description ?? null,
+      priority: input.priority ?? "none",
+      tags: input.tags ?? [],
+      startDate: input.startDate ?? null,
+      dueDate: input.dueDate ?? null,
+      recurrence: input.recurrence ?? null,
+      estimateHours: input.estimateHours ?? null,
+      parentTaskId: input.parentTaskId ?? null,
+      url: input.url ?? null,
+      completedAt: input.completedAt ?? null,
       source: getSettings().backendSource || "plane",
     };
     SAMPLE_TASKS.push(task);
@@ -316,8 +325,12 @@ export class DemoBroker implements Broker {
   async updateTask(_ctx: ActorContext, taskId: string, input: TaskWrite): Promise<Task> {
     const t = SAMPLE_TASKS.find((x) => x.id === taskId);
     if (!t) throw new BrokerError("not_found", "Task not found");
-    for (const k of ["title", "status", "projectId", "context", "waitingOn", "dueDate", "assignee"] as const) {
-      if (input[k] !== undefined) (t as Task)[k] = input[k]!;
+    for (const k of ["title", "status", "projectId", "context", "waitingOn", "assignee", "description", "priority", "tags", "startDate", "dueDate", "recurrence", "estimateHours", "parentTaskId", "url", "completedAt"] as const) {
+      if (input[k] !== undefined) (t as Task)[k] = input[k] as never;
+    }
+    // Stamp/clear completion when the status crosses the done line, if the caller didn't set it.
+    if (input.status !== undefined && input.completedAt === undefined) {
+      t.completedAt = isTaskClosed(input.status) ? new Date().toISOString() : null;
     }
     persistDemoState();
     return { ...t };
