@@ -3,6 +3,7 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "../../test/utils";
 import { fieldRoutingQueryKey, type FieldRoute } from "../../lib/routing";
+import { availabilityQueryKey } from "../../lib/availability";
 import { RoutingMatrix } from "./RoutingMatrix";
 
 function seed(role: string | undefined, routes: FieldRoute[]): QueryClient {
@@ -37,6 +38,20 @@ describe("RoutingMatrix", () => {
 
     expect(screen.getByTestId("routing-collision")).toBeInTheDocument();
     expect(screen.getByTestId("routing-save")).toBeDisabled();
+  });
+
+  it("restricts the field list to advertised ∪ mapped when a live broker is wired", () => {
+    const qc = seed("admin", [{ uiElement: "dueDate", vendor: "jira", broker: "n8n", sourceField: "duedate" }]);
+    qc.setQueryData(availabilityQueryKey, { source: "capabilities", fields: ["budget"], available: ["budget"], hidden: [], tables: [], relationships: [] });
+    qc.setQueryData(["setup", "status"], { broker: { configured: true } });
+    renderWithProviders(<RoutingMatrix />, { client: qc });
+
+    expect(screen.getByTestId("routing-state").textContent).toMatch(/1 field/); // advertised count
+    const opts = Array.from(document.querySelectorAll("#routing-ui-elements option")).map((o) => o.getAttribute("value"));
+    expect(opts).toContain("budget"); // advertised
+    expect(opts).toContain("dueDate"); // already-mapped stays selectable
+    expect(opts).not.toContain("status"); // a superset field the backend doesn't advertise is hidden
+    expect(opts.length).toBeLessThan(5); // narrowed, not the whole superset
   });
 
   it("PUTs the map to /api/routing on save", async () => {
