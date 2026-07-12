@@ -52,7 +52,7 @@ describe("NAV_ITEMS", () => {
     expect(NAV_ITEMS.map((n) => n.href)).toEqual([
       "/",
       "/my-work",
-      "/next-actions",
+      "/tasks",
       "/dashboards",
       "/content",
       "/programmes",
@@ -162,7 +162,7 @@ describe("useVisibleNavItems — role gating (hard gate)", () => {
 
 describe("nav grouping — progressive disclosure", () => {
   const ADMIN_HREFS = ["/explore", "/settings", "/configurator"];
-  const PRIMARY_HREFS = ["/", "/my-work", "/next-actions", "/dashboards", "/content", "/programmes", "/projects", "/reports", "/resources"];
+  const PRIMARY_HREFS = ["/", "/my-work", "/tasks", "/dashboards", "/content", "/programmes", "/projects", "/reports", "/resources"];
 
   it("classifies the everyday surfaces as primary and the governance/config surfaces as admin", () => {
     for (const item of NAV_ITEMS) {
