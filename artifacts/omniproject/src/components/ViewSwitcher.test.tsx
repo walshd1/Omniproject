@@ -87,6 +87,19 @@ describe("ViewSwitcher", () => {
     expect(screen.queryByText(/limited/)).not.toBeInTheDocument();
   });
 
+  it("hides views the methodology composition curates out (current view still listed)", async () => {
+    const user = userEvent.setup();
+    useStore.setState({ currentView: "kanban" });
+    const qc = seeded(caps());
+    // Curate to just the kanban view — RAID and Gantt are excluded.
+    qc.setQueryData(["methodology-composition"], ["view:kanban"]);
+    renderWithProviders(<ViewSwitcher />, { client: qc });
+    await user.click(screen.getByTestId("view-switcher"));
+    expect(await screen.findByText("Kanban Board")).toBeInTheDocument(); // current, kept
+    expect(screen.queryByText("RAID Log")).not.toBeInTheDocument(); // curated out
+    expect(screen.queryByText("Gantt Timeline")).not.toBeInTheDocument();
+  });
+
   it("marks the current view with a check", async () => {
     const user = userEvent.setup();
     useStore.setState({ currentView: "list" });

@@ -3,6 +3,8 @@ import type { EntityDescriptor, ViewRecord, ViewScope } from "../../lib/view-eng
 import { applyFiltersSort, groupRecords } from "../../lib/view-engine/apply";
 import { builtinViewsFor, savedViewToDefinition, type ViewDefinition } from "../../lib/view-engine/view-defs";
 import { builtinArtifactViewsFor } from "../../definitions/artifact-views";
+import { useMethodologyComposition } from "../../lib/methodology-composition-api";
+import { isEnabled } from "../../lib/methodology-composition";
 import { useSavedViews } from "../../lib/saved-views";
 import { RecordBoard } from "./RecordBoard";
 import { RecordList } from "./RecordList";
@@ -29,12 +31,14 @@ export function EntityViews<T>({
   const move = descriptor.useMove();
   const labelForPriority = descriptor.usePriorityLabel();
   const { data: savedAll } = useSavedViews();
+  const { data: composition } = useMethodologyComposition();
 
   const views = useMemo<ViewDefinition[]>(() => [
     ...builtinViewsFor(descriptor),
-    ...builtinArtifactViewsFor(descriptor.entity),
+    // Shipped baseline view artifacts respect the composition (their id is "artifact:<id>").
+    ...builtinArtifactViewsFor(descriptor.entity).filter((v) => isEnabled(composition ?? null, `artifact:${v.id}`)),
     ...(savedAll ?? []).filter((v) => v.entity === descriptor.entity).map(savedViewToDefinition),
-  ], [descriptor, savedAll]);
+  ], [descriptor, savedAll, composition]);
 
   const [viewId, setViewId] = useState<string | null>(null);
   const current = views.find((v) => v.id === viewId) ?? views[0]!;
