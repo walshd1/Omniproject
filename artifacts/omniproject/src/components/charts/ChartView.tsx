@@ -1,5 +1,7 @@
 import { SeriesBarChart, SeriesLineChart, SeriesAreaChart, SharePieChart, ScatterPlotChart, TreemapChart, type ChartRow, type ChartSeries, type ScatterPoint, type TreeNode, type ReferenceMark, type ChartHeight } from "./primitives";
 import { GanttChart, type GanttItem } from "./gantt";
+import { ArtifactFrame } from "../artifact/ArtifactFrame";
+import type { StyleSpec } from "../../lib/artifact-style";
 
 /**
  * The ONE common chart renderer. A chart is a `{ type, data, …options }` spec rendered on top of the
@@ -17,7 +19,17 @@ export type ChartViewSpec =
   | { type: "treemap"; data: TreeNode[]; height?: ChartHeight }
   | { type: "gantt"; items: GanttItem[]; height?: number; palette?: string[] };
 
-export function ChartView(spec: ChartViewSpec) {
+/**
+ * A ChartViewSpec plus an optional artifact StyleSpec. The user's title/font/colours/background are
+ * applied by wrapping the drawn chart in an ArtifactFrame — so the same theming reaches a built-in and a
+ * bespoke chart identically, without any primitive needing to know about styling.
+ */
+export function ChartView(spec: ChartViewSpec & { style?: StyleSpec }) {
+  const chart = renderChart(spec);
+  return spec.style ? <ArtifactFrame style={spec.style}>{chart}</ArtifactFrame> : chart;
+}
+
+function renderChart(spec: ChartViewSpec) {
   switch (spec.type) {
     case "bar":
       return <SeriesBarChart data={spec.data} series={spec.series} stacked={spec.stacked ?? false} legend={spec.legend ?? true} orientation={spec.orientation ?? "horizontal"} {...(spec.height ? { height: spec.height } : {})} {...(spec.referenceLines ? { referenceLines: spec.referenceLines } : {})} {...(spec.valueFormatter ? { valueFormatter: spec.valueFormatter } : {})} {...(spec.palette ? { palette: spec.palette } : {})} />;

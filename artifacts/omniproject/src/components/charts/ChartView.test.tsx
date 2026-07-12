@@ -30,4 +30,23 @@ describe("ChartView", () => {
   it("accepts a percentage height (cards that own their height)", () => {
     expect(() => render(<ChartView type="line" data={rows} series={series} height="100%" />)).not.toThrow();
   });
+
+  it("wraps the chart in a styled frame when a style spec is given", () => {
+    render(
+      <ChartView
+        type="gantt"
+        items={[{ label: "Task", start: "2026-01-01", end: "2026-02-01" }]}
+        style={{ title: "Delivery plan", background: "#f5f5f5" }}
+      />,
+    );
+    // The chart still draws…
+    expect(screen.getByTestId("gantt-chart")).toBeInTheDocument();
+    // …now inside a frame carrying the user's title.
+    expect(screen.getByText("Delivery plan")).toBeInTheDocument();
+  });
+
+  it("does not add a frame when no style is given", () => {
+    render(<ChartView type="gantt" items={[{ label: "Task", start: "2026-01-01", end: "2026-02-01" }]} />);
+    expect(screen.getByTestId("gantt-chart").closest("figure")).toBeNull();
+  });
 });
