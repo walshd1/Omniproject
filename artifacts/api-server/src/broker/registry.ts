@@ -2,6 +2,7 @@ import { getBroker } from "./index";
 import { getBrokerDef, brokerSupport, BROKER_CAPABILITY_KEYS } from "@workspace/backend-catalogue";
 import type { TransportMethod } from "@workspace/backend-catalogue";
 import { logger } from "../lib/logger";
+import { getSettings } from "../lib/settings";
 
 /**
  * The broker router / registry — which broker KINDS are connected to this
@@ -15,10 +16,10 @@ import { logger } from "../lib/logger";
  * This registry is the single place that knows the set.
  *
  * The connected set is: the ACTIVE broker's kind (the live data/command hop —
- * `getBroker()`, always present and PRIMARY) PLUS any extra kinds declared in
- * `BROKER_KINDS` (a comma list of catalogue broker ids). Unknown ids are dropped,
- * so a typo can never surface phantom capabilities — the same discipline the
- * incompatibility guard enforces on the asset side.
+ * `getBroker()`, always present and PRIMARY) PLUS the admin-managed `brokerKinds`
+ * setting (the single source of truth; the `BROKER_KINDS` env only seeds its initial
+ * default at first boot). Unknown ids are dropped, so a typo can never surface phantom
+ * capabilities — the same discipline the incompatibility guard enforces on the asset side.
  */
 
 export interface ConnectedBroker {
@@ -29,15 +30,18 @@ export interface ConnectedBroker {
   primary: boolean;
 }
 
-/** Extra connected broker kinds declared in the environment, validated against the
- *  catalogue (an id with no definition is dropped). */
+/** Extra connected broker kinds — the admin-managed `brokerKinds` setting (the single source of truth),
+ *  validated against the catalogue (an id with no definition is dropped) and de-duplicated. */
 function declaredKinds(): string[] {
-  const raw = process.env["BROKER_KINDS"]?.trim();
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter((k) => k && !!getBrokerDef(k));
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const s of getSettings().brokerKinds ?? []) {
+    const k = s.trim().toLowerCase();
+    if (!k || seen.has(k) || !getBrokerDef(k)) continue;
+    seen.add(k);
+    out.push(k);
+  }
+  return out;
 }
 
 /** A broker kind's purpose = the number of capabilities it maps. The rule: a broker maps to at least 1,

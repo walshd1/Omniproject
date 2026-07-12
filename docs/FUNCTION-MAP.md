@@ -766,6 +766,15 @@ Gateway↔broker request signing (security item C, folded into provenance): a de
 | `verifyBrokerResponse` | Verify a broker response signature + freshness (no replay check — see the note above). |
 | `__resetBrokerHmac` | Test-only: clear the in-process replay cache. |
 
+### `artifacts/api-server/src/lib/broker-kinds.ts`
+
+Admin-managed connected-broker kinds — the broker platforms wired below the seam beyond the active data hop.
+
+| Function | What it does |
+| --- | --- |
+| `validateBrokerKinds` | Validate + normalise (trim, lowercase, dedupe) the admin broker-kind list against the catalogue. |
+| `brokerKindsFromEnv` | The SEED default from the `BROKER_KINDS` env (comma list), for first-boot only. |
+
 ### `artifacts/api-server/src/lib/broker-log-bus.ts`
 
 Broker-log fan-out bus — makes the admin live broker log **fleet-wide** under horizontal scale.
@@ -2518,6 +2527,10 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 ### `artifacts/api-server/src/routes/broker-command.ts`
 
 Generic broker command passthrough (the command-palette edge).
+
+### `artifacts/api-server/src/routes/broker-kinds.ts`
+
+The admin-managed connected-broker list: extra broker kinds wired below the seam, beyond the active data hop.
 
 ### `artifacts/api-server/src/routes/broker-log.ts`
 

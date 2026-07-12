@@ -21,6 +21,7 @@ import { RoutingMatrix } from "../components/settings/RoutingMatrix";
 import { CustomFieldsAdmin } from "../components/settings/CustomFieldsAdmin";
 import { FieldValidationAdmin } from "../components/settings/FieldValidationAdmin";
 import { ProgrammeRegistryAdmin } from "../components/settings/ProgrammeRegistryAdmin";
+import { BrokerKindsAdmin } from "../components/settings/BrokerKindsAdmin";
 import { SelfHostCapabilitiesAdmin } from "../components/settings/SelfHostCapabilitiesAdmin";
 import { TranslationLayer } from "../components/settings/TranslationLayer";
 import { BrokerLog } from "../components/settings/BrokerLog";
@@ -381,6 +382,10 @@ export function Settings() {
 
       <LazyMount>
         <ProgrammeRegistryAdmin />
+      </LazyMount>
+
+      <LazyMount>
+        <BrokerKindsAdmin />
       </LazyMount>
 
       <LazyMount>

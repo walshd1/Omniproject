@@ -906,6 +906,7 @@ const SAMPLE_SETTINGS = {
   customFields: [],
   fieldValidation: [],
   programmeRegistry: {},
+  brokerKinds: [],
   branding: null,
   labelOverrides: {},
   webhooks: [],
