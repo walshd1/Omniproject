@@ -7,6 +7,8 @@ import {
   type IssueWrite,
   type ProjectWrite,
   type ProjectMember,
+  type Task,
+  type TaskWrite,
   type TaskItem,
   type TaskItemWrite,
   type Summary,
@@ -117,6 +119,22 @@ export class BuiltinBroker implements Broker {
         scheduleVarianceDays: 0, budgetVariancePercentage: 0, activeBlockersCount: 0,
       };
     });
+  }
+
+  // ── GTD tasks — the built-in store models them, so the self-host broker is a first-class task backend ──
+  async listTasks(_ctx: ActorContext, opts: { projectId?: string } = {}): Promise<Task[]> {
+    return this.store.listTasks(opts);
+  }
+  async getTask(_ctx: ActorContext, taskId: string): Promise<Task | null> {
+    return this.store.getTask(taskId);
+  }
+  async createTask(_ctx: ActorContext, input: TaskWrite): Promise<Task> {
+    return this.store.createTask(input);
+  }
+  async updateTask(_ctx: ActorContext, taskId: string, input: TaskWrite): Promise<Task> {
+    const updated = await this.store.updateTask(taskId, input);
+    if (!updated) throw new BrokerError("not_found", "Task not found");
+    return updated;
   }
 
   // ── Honest empties: a small first-party store carries none of these (capability-gated off) ──────

@@ -64,7 +64,8 @@ The built-in broker (`broker/builtin/SidecarStore`) POSTs one action per operati
 `$SQL_SIDECAR_URL/<action>` with `{ "payload": { … } }`, unwrapping a `{ success, data }` reply and
 honouring **409** (optimistic-concurrency conflict, with the current `version`) and **404**
 (not found). Beyond the five actions above it also calls `get_project`, `create_project`,
-`update_project`, `get_issue`, `list_raid`, and `add_raid`, so implement those in your sidecar too.
+`update_project`, `get_issue`, `list_raid`, and `add_raid`, plus the GTD-task actions
+`list_tasks`, `get_task`, `create_task`, and `update_task`, so implement those in your sidecar too.
 If `SQL_SIDECAR_URL` is unset it falls back to a **non-persistent** in-memory store with a loud
 warning (never a silent "persist into nowhere"). Live verification against a real PostgreSQL sidecar
 is still yours to do — the contract is exercised in CI against a mock sidecar.

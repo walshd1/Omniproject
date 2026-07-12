@@ -80,6 +80,33 @@ test("RAID round-trips through the store", async () => {
   assert.equal(raid[0]!["title"], "Funding gap");
 });
 
+test("tasks round-trip through the store: create defaults, list/scope, update stamps completion", async () => {
+  const b = fresh();
+  const project = await b.createProject(ctx, { name: "P" });
+  const t = await b.createTask!(ctx, { title: "Call the auditor", projectId: project.id, context: "@calls" });
+  assert.match(t.id, /^task-/);
+  assert.equal(t.status, "next");        // default GTD status
+  assert.equal(t.priority, "none");      // default
+  assert.deepEqual(t.tags, []);
+  assert.equal(t.completedAt, null);
+  assert.equal(t.source, "builtin");
+
+  // A standalone task (no project) + project scoping.
+  await b.createTask!(ctx, { title: "Standalone" });
+  assert.equal((await b.listTasks!(ctx)).length, 2);
+  assert.equal((await b.listTasks!(ctx, { projectId: project.id })).length, 1);
+
+  // Completing stamps completedAt; a fetch reflects it.
+  const done = await b.updateTask!(ctx, t.id, { status: "done" });
+  assert.equal(done.status, "done");
+  assert.match(done.completedAt!, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal((await b.getTask!(ctx, t.id))!.completedAt, done.completedAt);
+});
+
+test("updateTask on a missing task is not_found", async () => {
+  await assert.rejects(() => fresh().updateTask!(ctx, "task-nope", { title: "x" }), (e: unknown) => e instanceof BrokerError && e.code === "not_found");
+});
+
 test("getBroker() selects the built-in broker when BUILTIN_BROKER is set", async () => {
   const { getBroker } = await import("../index");
   const b = getBroker();
