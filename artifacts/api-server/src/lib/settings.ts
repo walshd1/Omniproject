@@ -16,6 +16,14 @@ import { isValidCadence, type SnapshotCadence } from "../history/cadence";
 import { logger } from "./logger";
 import { isTruthy } from "./env-config";
 import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
+import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
+
+/** Whether the built-in backend is active — mirrors broker/builtin.builtinBrokerEnabled without
+ *  importing the broker graph into settings (it's a pure env read). Kept in sync by intent. */
+function builtinBackendActive(): boolean {
+  const raw = process.env["BUILTIN_BROKER"]?.trim().toLowerCase();
+  return !!raw && raw !== "0" && raw !== "false" && raw !== "off";
+}
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
@@ -264,6 +272,9 @@ export interface SettingsState {
   /** The field-routing matrix: which source (vendor·broker·sourceField) feeds which UI element.
    *  One-to-one at both ends (anti-collision) — see lib/field-routing. */
   fieldRouting: FieldRoute[];
+  /** Admin-defined fields extending the reference superset. Each must be mapped in `fieldRouting`
+   *  or held by the built-in backend — see lib/custom-fields. */
+  customFields: CustomField[];
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
   /**
@@ -670,6 +681,7 @@ const store: SettingsState = {
   branding: brandingFromEnv(),
   labelOverrides: labelsFromEnv(),
   fieldRouting: [],
+  customFields: [],
   webhooks: webhooksFromEnv(),
   federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
@@ -716,6 +728,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "branding",
   "labelOverrides",
   "fieldRouting",
+  "customFields",
   "webhooks",
   "federatedPeers",
   "loggingSync",
@@ -1204,6 +1217,27 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
       normalized["fieldRouting"] = validateFieldRouting(patch["fieldRouting"]);
     } catch (e) {
       if (e instanceof FieldRoutingError) throw new SettingsValidationError(e.message);
+      throw e;
+    }
+  }
+  if ("customFields" in patch) {
+    try {
+      normalized["customFields"] = validateCustomFields(patch["customFields"]);
+    } catch (e) {
+      if (e instanceof CustomFieldError) throw new SettingsValidationError(e.message);
+      throw e;
+    }
+  }
+  // Cross-rule: whenever custom fields OR the routing map changes, every custom field must still have
+  // a source — mapped in the matrix, or held by the built-in backend. Checked over the EFFECTIVE
+  // (patch-merged) values so you can't drop a route out from under a field that depended on it.
+  if ("customFields" in patch || "fieldRouting" in patch) {
+    const effCustom = ("customFields" in normalized ? normalized["customFields"] : store.customFields) as CustomField[];
+    const effRouting = ("fieldRouting" in normalized ? normalized["fieldRouting"] : store.fieldRouting) as FieldRoute[];
+    try {
+      validateCustomFieldSources(effCustom, effRouting, builtinBackendActive());
+    } catch (e) {
+      if (e instanceof CustomFieldError) throw new SettingsValidationError(e.message);
       throw e;
     }
   }
