@@ -58,6 +58,13 @@ export function isEnabled(enabled: Composition, id: string): boolean {
   return enabled === null || enabled.includes(id);
 }
 
+/** Is a catalogue item (identified by its kind + raw id) visible under a composition? Builds the
+ *  kind-namespaced id the composition stores (e.g. "report:evm") so surfaces can filter without knowing
+ *  the id convention. `null` = all visible. */
+export function isItemVisible(enabled: Composition, kind: CompositionKind, rawId: string): boolean {
+  return isEnabled(enabled, `${kind}:${rawId}`);
+}
+
 /** The visible items under a composition. */
 export function visibleItems(items: readonly CompositionItem[], enabled: Composition): CompositionItem[] {
   return enabled === null ? [...items] : items.filter((i) => enabled.includes(i.id));

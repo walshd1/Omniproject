@@ -37,6 +37,8 @@ import { CumulativeFlow } from "../components/reports/CumulativeFlow";
 import { Velocity } from "../components/reports/Velocity";
 import { RaidRegister } from "../components/reports/RaidRegister";
 import { useAuth, roleAtLeast } from "../lib/auth";
+import { useMethodologyComposition } from "../lib/methodology-composition-api";
+import { isItemVisible } from "../lib/methodology-composition";
 import { ProvenanceBadge } from "../components/ProvenanceBadge";
 import { DataProvenance } from "../components/DataProvenance";
 import { useT } from "../lib/i18n";
@@ -60,6 +62,7 @@ function Gated({
   requires,
   section = false,
   heading,
+  reportId,
   children,
 }: {
   caps?: Capabilities | undefined;
@@ -68,8 +71,14 @@ function Gated({
   requires: string;
   section?: boolean;
   heading?: ReactNode;
+  /** Catalogue report id (e.g. "strategy-alignment"); when the methodology composition curates it out,
+   *  the whole section is hidden. Omitted = never composition-gated. */
+  reportId?: string;
   children: ReactNode;
 }) {
+  const { data: composition } = useMethodologyComposition();
+  // A curated composition that excludes this report hides it entirely (uncurated ⇒ always shown).
+  if (reportId && !isItemVisible(composition ?? null, "report", reportId)) return null;
   // Render until capabilities load; only block when explicitly unavailable.
   if (caps && caps[domain] === false) {
     return (
@@ -137,31 +146,31 @@ export function Reports() {
           <PortfolioKpi />
         </Gated>
 
-        <Gated caps={caps} domain="portfolio" title="Federated Portfolio" requires="a portfolio rollup (get_portfolio_health)" section heading="Federated Portfolio (cross-instance)">
+        <Gated caps={caps} domain="portfolio" title="Federated Portfolio" reportId="federated-portfolio" requires="a portfolio rollup (get_portfolio_health)" section heading="Federated Portfolio (cross-instance)">
           <FederatedPortfolio />
         </Gated>
 
-        <Gated caps={caps} domain="portfolio" title="Portfolio Prioritisation" requires="a portfolio rollup (get_portfolio_health)" section heading="Portfolio Prioritisation & Funding Funnel">
+        <Gated caps={caps} domain="portfolio" title="Portfolio Prioritisation" reportId="portfolio-prioritisation" requires="a portfolio rollup (get_portfolio_health)" section heading="Portfolio Prioritisation & Funding Funnel">
           <PortfolioPrioritisation />
         </Gated>
 
-        <Gated caps={caps} domain="portfolio" title="Strategy Alignment" requires="a portfolio rollup (get_portfolio_health)" section heading="Strategy Alignment (strategy-to-execution / OKRs)">
+        <Gated caps={caps} domain="portfolio" title="Strategy Alignment" reportId="strategy-alignment" requires="a portfolio rollup (get_portfolio_health)" section heading="Strategy Alignment (strategy-to-execution / OKRs)">
           <StrategyAlignment />
         </Gated>
 
-        <Gated caps={caps} domain="portfolio" title="Project Health" requires="a portfolio rollup (get_portfolio_health)" section heading="Project Health (predictive risk scoring)">
+        <Gated caps={caps} domain="portfolio" title="Project Health" reportId="project-health" requires="a portfolio rollup (get_portfolio_health)" section heading="Project Health (predictive risk scoring)">
           <ProjectHealth />
         </Gated>
 
-        <Gated caps={caps} domain="portfolio" title="Demand Intake" requires="a portfolio rollup (get_portfolio_health)" section heading="Demand Intake (intake funnel & prioritisation)">
+        <Gated caps={caps} domain="portfolio" title="Demand Intake" reportId="demand-intake" requires="a portfolio rollup (get_portfolio_health)" section heading="Demand Intake (intake funnel & prioritisation)">
           <DemandIntake />
         </Gated>
 
-        <Gated caps={caps} domain="portfolio" title="Value Stream Flow" requires="a portfolio rollup (get_portfolio_health)" section heading="Value Stream Flow (WIP, aging, throughput & cycle time)">
+        <Gated caps={caps} domain="portfolio" title="Value Stream Flow" reportId="value-stream" requires="a portfolio rollup (get_portfolio_health)" section heading="Value Stream Flow (WIP, aging, throughput & cycle time)">
           <ValueStreamFlow />
         </Gated>
 
-        <Gated caps={caps} domain="resources" title="Utilisation" requires="a resource-management source" section heading="Utilisation (timesheets & capacity)">
+        <Gated caps={caps} domain="resources" title="Utilisation" reportId="utilisation" requires="a resource-management source" section heading="Utilisation (timesheets & capacity)">
           <Utilisation />
         </Gated>
 
@@ -169,27 +178,27 @@ export function Reports() {
           <PortfolioRoadmap />
         </Gated>
 
-        <Gated caps={caps} domain="scheduling" title="Cross-programme Dependencies" requires="depends-on links + start / due dates on work items" section heading="Cross-programme Dependency & Critical-Path Map">
+        <Gated caps={caps} domain="scheduling" title="Cross-programme Dependencies" reportId="cross-programme-dependencies" requires="depends-on links + start / due dates on work items" section heading="Cross-programme Dependency & Critical-Path Map">
           <CrossProgrammeDependencies />
         </Gated>
 
-        <Gated caps={caps} domain="resources" title="Capacity Roll-up" requires="a resource-management source" section heading="Capacity Roll-up (programme & portfolio)">
+        <Gated caps={caps} domain="resources" title="Capacity Roll-up" reportId="capacity-rollup" requires="a resource-management source" section heading="Capacity Roll-up (programme & portfolio)">
           <CapacityRollup />
         </Gated>
 
-        <Gated caps={caps} domain="resources" title="Cross-programme Resource Levelling" requires="a resource-management source" section>
+        <Gated caps={caps} domain="resources" title="Cross-programme Resource Levelling" reportId="resource-levelling" requires="a resource-management source" section>
           <ResourceLevelling />
         </Gated>
 
-        <Gated caps={caps} domain="financials" title="Portfolio Financials" requires="a cost / ERP source" section heading="Portfolio Financials (consolidated)">
+        <Gated caps={caps} domain="financials" title="Portfolio Financials" reportId="portfolio-financials" requires="a cost / ERP source" section heading="Portfolio Financials (consolidated)">
           <PortfolioFinancials />
         </Gated>
 
-        <Gated caps={caps} domain="financials" title="Portfolio Income" requires="revenue / invoiced amounts on work items" section heading="Portfolio Income (consolidated)">
+        <Gated caps={caps} domain="financials" title="Portfolio Income" reportId="portfolio-income" requires="revenue / invoiced amounts on work items" section heading="Portfolio Income (consolidated)">
           <PortfolioIncome />
         </Gated>
 
-        <Gated caps={caps} domain="benefits" title="Portfolio Benefits" requires="benefit value/status fields on work items" section heading="Portfolio Benefits (consolidated)">
+        <Gated caps={caps} domain="benefits" title="Portfolio Benefits" reportId="portfolio-benefits" requires="benefit value/status fields on work items" section heading="Portfolio Benefits (consolidated)">
           <PortfolioBenefits />
         </Gated>
 
