@@ -20,6 +20,7 @@ import { validateCustomFields, validateCustomFieldSources, CustomFieldError, typ
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
 import { validateBrokerKinds, brokerKindsFromEnv, BrokerKindsError } from "./broker-kinds";
+import { validateClosedProjects, ClosedProjectError, type ClosedProjectRegistry } from "./closed-projects";
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
@@ -280,6 +281,10 @@ export interface SettingsState {
   /** Admin-managed extra connected broker kinds (beyond the active data hop), unioned with the
    *  BROKER_KINDS env in the registry. See lib/broker-kinds + broker/registry. */
   brokerKinds: string[];
+  /** Closed-project LOCATION index: projectGuid → where its data now lives (sor | archive). Lets closed
+   *  projects be retained + retrieved without re-pulling them through the live broker. See
+   *  lib/closed-projects. */
+  closedProjects: ClosedProjectRegistry;
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
   /**
@@ -690,6 +695,7 @@ const store: SettingsState = {
   fieldValidation: [],
   programmeRegistry: {},
   brokerKinds: brokerKindsFromEnv(), // env SEEDS the default; the setting owns it thereafter
+  closedProjects: {},
   webhooks: webhooksFromEnv(),
   federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
@@ -740,6 +746,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "fieldValidation",
   "programmeRegistry",
   "brokerKinds",
+  "closedProjects",
   "webhooks",
   "federatedPeers",
   "loggingSync",
@@ -1275,6 +1282,14 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
       normalized["brokerKinds"] = validateBrokerKinds(patch["brokerKinds"]);
     } catch (e) {
       if (e instanceof BrokerKindsError) throw new SettingsValidationError(e.message);
+      throw e;
+    }
+  }
+  if ("closedProjects" in patch) {
+    try {
+      normalized["closedProjects"] = validateClosedProjects(patch["closedProjects"]);
+    } catch (e) {
+      if (e instanceof ClosedProjectError) throw new SettingsValidationError(e.message);
       throw e;
     }
   }

@@ -22,6 +22,7 @@ import { CustomFieldsAdmin } from "../components/settings/CustomFieldsAdmin";
 import { FieldValidationAdmin } from "../components/settings/FieldValidationAdmin";
 import { ProgrammeRegistryAdmin } from "../components/settings/ProgrammeRegistryAdmin";
 import { BrokerKindsAdmin } from "../components/settings/BrokerKindsAdmin";
+import { ClosedProjectsAdmin } from "../components/settings/ClosedProjectsAdmin";
 import { SelfHostCapabilitiesAdmin } from "../components/settings/SelfHostCapabilitiesAdmin";
 import { TranslationLayer } from "../components/settings/TranslationLayer";
 import { BrokerLog } from "../components/settings/BrokerLog";
@@ -386,6 +387,10 @@ export function Settings() {
 
       <LazyMount>
         <BrokerKindsAdmin />
+      </LazyMount>
+
+      <LazyMount>
+        <ClosedProjectsAdmin />
       </LazyMount>
 
       <LazyMount>
