@@ -840,7 +840,8 @@ Build the calendar events for a user's dated work — the pure core of the `.ics
 
 | Function | What it does |
 | --- | --- |
-| `tasksToIcsEvents` | Map a task set to all-day due-date events, filtering out closed/undated (and non-mine) tasks. |
+| `tasksToIcsEvents` | Map a task set to all-day due-date events (with a reminder VALARM when the task carries `reminderAt`), filtering out closed/undated (and non-mine) tasks. |
+| `issuesToIcsEvents` | Map issue/deliverable rows to all-day DEADLINE events (milestones flagged), for the same feed. |
 
 ### `artifacts/api-server/src/lib/canonical-json.ts`
 

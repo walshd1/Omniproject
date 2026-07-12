@@ -1,5 +1,5 @@
-import type { Task } from "../broker/types";
-import { isTaskClosed, normaliseTaskStatus } from "../broker/vocabulary";
+import type { Task, Row } from "../broker/types";
+import { isTaskClosed, isClosed, normaliseTaskStatus } from "../broker/vocabulary";
 import type { IcsEvent } from "./ical";
 
 /**
@@ -34,7 +34,8 @@ function describe(task: Task): string {
   return bits.join(" · ");
 }
 
-/** Map a task set to all-day due-date events, filtering out closed/undated (and non-mine) tasks. */
+/** Map a task set to all-day due-date events (with a reminder VALARM when the task carries
+ *  `reminderAt`), filtering out closed/undated (and non-mine) tasks. */
 export function tasksToIcsEvents(tasks: Task[], opts: TaskFeedOptions = {}): IcsEvent[] {
   const events: IcsEvent[] = [];
   for (const t of tasks) {
@@ -49,6 +50,39 @@ export function tasksToIcsEvents(tasks: Task[], opts: TaskFeedOptions = {}): Ics
       allDay: true,
       description: desc || undefined,
       url: t.url ?? undefined,
+      alarm: t.reminderAt ? { at: t.reminderAt, description: t.title || undefined } : undefined,
+    });
+  }
+  return events;
+}
+
+const str = (v: unknown): string => (typeof v === "string" ? v : "");
+
+/** True when an issue row looks like a milestone (a distinct calendar marker vs an ordinary deadline). */
+function isMilestone(row: Row): boolean {
+  return str(row["type"]).toLowerCase() === "milestone" || !!str(row["milestone"]);
+}
+
+/** Map issue/deliverable rows to all-day DEADLINE events (milestones flagged), for the same feed.
+ *  Issues carry `dueDate` as a canonical field; closed/undated (and non-mine) rows are skipped. */
+export function issuesToIcsEvents(rows: Row[], opts: TaskFeedOptions = {}): IcsEvent[] {
+  const events: IcsEvent[] = [];
+  for (const row of rows) {
+    const dueDate = str(row["dueDate"]);
+    if (!dueDate) continue;
+    if (isClosed(str(row["status"]))) continue;
+    if (opts.mineFor) {
+      const a = norm(str(row["assignee"]));
+      if (!a || !opts.mineFor.some((w) => w && norm(w) === a)) continue;
+    }
+    const milestone = isMilestone(row);
+    const title = str(row["title"]) || "(untitled)";
+    events.push({
+      uid: `issue-${str(row["id"])}@omniproject`,
+      summary: `${milestone ? "◆ " : ""}${title}`,
+      start: dueDate,
+      allDay: true,
+      description: [milestone ? "Milestone" : "Deadline", str(row["status"]) && `Status: ${str(row["status"])}`].filter(Boolean).join(" · ") || undefined,
     });
   }
   return events;

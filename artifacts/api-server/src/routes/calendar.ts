@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { getTasks } from "../lib/data";
+import { allIssues } from "../lib/portfolio-reads";
 import { getSession } from "./auth";
 import { withBrokerErrors } from "../broker";
-import { tasksToIcsEvents } from "../lib/calendar-feed";
+import { tasksToIcsEvents, issuesToIcsEvents } from "../lib/calendar-feed";
 import { buildIcs } from "../lib/ical";
 
 /**
@@ -13,8 +14,9 @@ import { buildIcs } from "../lib/ical";
  * which is also why this is a user-action export, not an unauthenticated subscription URL. Read-only;
  * degrades to an empty (valid) calendar when the backend models no tasks.
  *
- * `?scope=mine` (default) keeps only tasks assigned to the caller; `?scope=all` includes every dated
- * task in their scope (a PM's portfolio deadlines).
+ * Includes task due dates (with a reminder VALARM when the task carries `reminderAt`) plus
+ * issue/milestone deadlines. `?scope=mine` (default) keeps only work assigned to the caller;
+ * `?scope=all` includes every dated item in their scope (a PM's portfolio deadlines).
  */
 const router = Router();
 
@@ -23,9 +25,10 @@ router.get("/calendar.ics", (req, res) =>
     const session = getSession(req);
     const scopeAll = req.query["scope"] === "all";
     const whoami = [session?.email, session?.name, session?.sub].filter((x): x is string => typeof x === "string" && !!x);
-    const tasks = await getTasks(req);
-    const events = tasksToIcsEvents(tasks, scopeAll ? {} : { mineFor: whoami });
-    const ics = buildIcs({ name: scopeAll ? "OmniProject — schedule" : "OmniProject — my tasks", events });
+    const opts = scopeAll ? {} : { mineFor: whoami };
+    const [tasks, issues] = await Promise.all([getTasks(req), allIssues(req)]);
+    const events = [...tasksToIcsEvents(tasks, opts), ...issuesToIcsEvents(issues, opts)];
+    const ics = buildIcs({ name: scopeAll ? "OmniProject — schedule" : "OmniProject — my work", events });
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
     res.setHeader("Content-Disposition", 'attachment; filename="omniproject.ics"');
     res.send(ics);

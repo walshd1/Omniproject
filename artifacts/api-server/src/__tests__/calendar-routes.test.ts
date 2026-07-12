@@ -20,8 +20,13 @@ test("GET /calendar.ics?scope=all returns a text/calendar VCALENDAR of dated tas
   const body = await r.text();
   assert.ok(body.startsWith("BEGIN:VCALENDAR"));
   assert.ok(body.includes("BEGIN:VEVENT"));
+  // Tasks carry their due dates…
   assert.ok(body.includes("Book the quarterly steering review"), "the demo's dated task is on the calendar");
+  assert.ok(body.includes("task-task-3@omniproject"));
   assert.ok(body.includes("DTSTART;VALUE=DATE:20260901"));
+  // …and issue deadlines land in the same feed.
+  assert.ok(body.includes("Migrate auth service to OIDC"), "an open issue deadline is on the calendar");
+  assert.ok(body.includes("issue-iss-001@omniproject"));
   assert.ok(body.trimEnd().endsWith("END:VCALENDAR"));
 });
 

@@ -38,6 +38,18 @@ test("buildIcs emits a VCALENDAR with all-day VEVENTs (DTEND is the exclusive ne
   assert.ok(ics.includes("\r\n"), "CRLF line endings");
 });
 
+test("buildIcs emits a VALARM for an event that carries an absolute reminder", () => {
+  const ics = buildIcs({
+    name: "x",
+    events: [{ uid: "u", summary: "Call", start: "2026-09-01", allDay: true, alarm: { at: "2026-08-31T13:00:00Z" } }],
+    now: NOW,
+  });
+  assert.ok(ics.includes("BEGIN:VALARM"));
+  assert.ok(ics.includes("ACTION:DISPLAY"));
+  assert.ok(ics.includes("TRIGGER;VALUE=DATE-TIME:20260831T130000Z"));
+  assert.ok(ics.includes("END:VALARM"));
+});
+
 test("buildIcs skips an event whose date can't be parsed rather than emitting an invalid VEVENT", () => {
   const ics = buildIcs({ name: "x", events: [{ uid: "u", summary: "s", start: "not-a-date", allDay: true }], now: NOW });
   assert.ok(!ics.includes("BEGIN:VEVENT"));

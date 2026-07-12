@@ -15,6 +15,8 @@ export interface IcsEvent {
   allDay: boolean;
   description?: string | undefined;
   url?: string | undefined;
+  /** An absolute display reminder (VALARM) — `at` is an ISO datetime; ignored if unparseable. */
+  alarm?: { at: string; description?: string | undefined } | undefined;
 }
 
 /** RFC 5545 TEXT escaping: backslash, semicolon, comma and newlines. */
@@ -76,6 +78,18 @@ function renderEvent(ev: IcsEvent, dtstamp: string): string[] {
   lines.push(`SUMMARY:${escapeText(ev.summary)}`);
   if (ev.description) lines.push(`DESCRIPTION:${escapeText(ev.description)}`);
   if (ev.url) lines.push(`URL:${escapeText(ev.url)}`);
+  if (ev.alarm) {
+    const at = new Date(ev.alarm.at);
+    if (Number.isFinite(at.getTime())) {
+      lines.push(
+        "BEGIN:VALARM",
+        "ACTION:DISPLAY",
+        `DESCRIPTION:${escapeText(ev.alarm.description || ev.summary)}`,
+        `TRIGGER;VALUE=DATE-TIME:${formatDateTimeUtc(at)}`,
+        "END:VALARM",
+      );
+    }
+  }
   lines.push("END:VEVENT");
   return lines;
 }
