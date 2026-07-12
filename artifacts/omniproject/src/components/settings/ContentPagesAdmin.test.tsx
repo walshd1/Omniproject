@@ -58,6 +58,16 @@ describe("ContentPagesAdmin", () => {
     expect(body.contentPages).toEqual([{ id: expect.any(String), name: "Exec view", componentIds: ["widget:portfolioHealth"] }]);
   });
 
+  it("hides a report component the methodology composition curates out (widgets stay)", () => {
+    const qc = seed("pmo", [{ id: "p1", name: "Exec view", componentIds: [] }]);
+    // Curate to a set that excludes report:evm; widgets aren't composition items, so they remain.
+    qc.setQueryData(["methodology-composition"], ["report:portfolio-rag"]);
+    renderWithProviders(<ContentPagesAdmin />, { client: qc });
+    const options = Array.from(screen.getByLabelText("Add component to Exec view").querySelectorAll("option")).map((o) => o.textContent);
+    expect(options.some((o) => o?.includes("Earned Value (EVM)"))).toBe(false); // curated out
+    expect(options.some((o) => o?.includes("Portfolio health"))).toBe(true); // widget, always pickable
+  });
+
   it("removes a page", () => {
     renderWithProviders(<ContentPagesAdmin />, {
       client: seed("pmo", [{ id: "p1", name: "Exec view", componentIds: [] }]),

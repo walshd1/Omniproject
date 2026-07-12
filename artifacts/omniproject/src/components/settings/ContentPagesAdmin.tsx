@@ -3,6 +3,8 @@ import { Input } from "@/components/ui/input";
 import { componentsFor } from "@workspace/backend-catalogue";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useContentPages, useSaveContentPages, type ContentPageDef } from "../../lib/content-pages";
+import { useMethodologyComposition } from "../../lib/methodology-composition-api";
+import { isEnabled } from "../../lib/methodology-composition";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 
 /**
@@ -18,11 +20,15 @@ export function ContentPagesAdmin() {
   const { data: server } = useContentPages();
   const save = useSaveContentPages();
   const { draft, setDraft, dirty, reset } = useDraftAdmin<ContentPageDef[], ContentPageDef[]>(server, structuredClone);
+  const { data: composition } = useMethodologyComposition();
 
   if (!roleAtLeast(auth?.role, "pmo")) return null;
   if (!draft) return null;
 
-  const catalogue = componentsFor("content");
+  // The unified library ids are namespaced (report:evm, widget:…). Report components are methodology
+  // composition items, so a curated composition hides those the PMO turned off; widgets and other kinds
+  // aren't composition items and always stay pickable. Uncurated (default) shows everything.
+  const catalogue = componentsFor("content").filter((c) => !c.id.startsWith("report:") || isEnabled(composition ?? null, c.id));
 
   const patch = (i: number, p: ContentPageDef) => setDraft(draft.map((x, j) => (j === i ? p : x)));
 

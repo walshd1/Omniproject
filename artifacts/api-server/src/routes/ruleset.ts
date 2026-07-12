@@ -3,7 +3,15 @@ import { requireRole } from "../lib/rbac";
 import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules, applyRuleset } from "../lib/ruleset";
 import { referenceRulesetCatalogue, getReferenceRuleset } from "@workspace/backend-catalogue";
 import { recordAudit, actorForAudit } from "../lib/audit";
+import { getSettings } from "../lib/settings";
 import { v, parseOr400 } from "../lib/validate";
+
+/** Whether a methodology's reference ruleset is enabled by the methodology composition. The composition
+ *  stores enabled item ids as `ruleset:<methodology>`; `null` = uncurated (everything enabled). */
+function rulesetInComposition(methodology: string): boolean {
+  const composition = getSettings().methodologyComposition;
+  return composition === null || composition.includes(`ruleset:${methodology}`);
+}
 
 // `methodology` is an untrusted id used to look up a curated bundle — type + bound it.
 const APPLY_REFERENCE_BODY = v.object({ methodology: v.string({ trim: true, min: 1, max: 100 }) });
@@ -59,9 +67,10 @@ router.put("/admin/ruleset/fields", requireRole("pmo"), (req, res) => {
 });
 
 // ── Reference rulesets — curated, named bundles per methodology ───────────────
-// List the reference rulesets (compliance/completeness baselines) a PMO can apply.
+// List the reference rulesets (compliance/completeness baselines) a PMO can apply — filtered to the ones
+// the methodology composition enables (uncurated ⇒ all).
 router.get("/admin/ruleset/reference", requireRole("pmo"), (_req, res) => {
-  res.json(referenceRulesetCatalogue());
+  res.json(referenceRulesetCatalogue().filter((r) => rulesetInComposition(r.id)));
 });
 
 // Apply one reference ruleset by methodology id. Deterministic + restrict-only
@@ -73,6 +82,11 @@ router.post("/admin/ruleset/apply-reference", requireRole("pmo"), (req, res) => 
   const bundle = getReferenceRuleset(methodology);
   if (!bundle) {
     res.status(404).json({ error: `No reference ruleset for methodology '${methodology}'` });
+    return;
+  }
+  // The methodology composition can curate this ruleset out — don't let it be applied when it's disabled.
+  if (!rulesetInComposition(methodology)) {
+    res.status(403).json({ error: `Reference ruleset '${methodology}' is disabled by the methodology composition` });
     return;
   }
   const applied = applyRuleset({ modes: bundle.modes, fieldRules: bundle.fieldRules });
