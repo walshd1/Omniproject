@@ -29,9 +29,12 @@ test("GET /programmes/:id returns one programme's detail when it exists", async 
   const id = list[0]!.id;
   const r = await req(`/programmes/${encodeURIComponent(id)}`);
   assert.equal(r.status, 200);
-  const detail = (await r.json()) as { projects?: unknown[] };
+  const detail = (await r.json()) as { projects?: unknown[]; tasks?: { total: number; byClass: unknown } | null };
   assert.ok(detail && typeof detail === "object", "detail should be an object");
   assert.ok(Array.isArray(detail.projects), "detail should carry its member projects");
+  // The demo broker models tasks, so a programme detail folds in a task roll-up.
+  assert.ok(detail.tasks && typeof detail.tasks.total === "number", "detail folds in a task roll-up");
+  assert.ok(detail.tasks!.byClass, "the task roll-up carries the GTD breakdown");
 });
 
 test("GET /programmes/:id 404s for an id that is not a programme", async () => {

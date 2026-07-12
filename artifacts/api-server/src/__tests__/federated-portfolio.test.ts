@@ -70,6 +70,9 @@ test("GET /api/portfolio/summary: THIS instance's own pre-aggregated totals — 
   assert.ok(json.projects > 0);
   assert.ok(json.health); // demo broker declares the portfolio capability
   assert.equal(typeof json.health.projects, "number");
+  // The demo broker models tasks, so the aggregate folds in a GTD task roll-up.
+  assert.ok(json.tasks && typeof json.tasks.total === "number");
+  assert.equal(typeof json.tasks.overdue, "number");
   // No per-project identifiers ever appear in the aggregate.
   assert.equal(JSON.stringify(json).includes("projectId"), false);
   assert.equal(JSON.stringify(json).includes("projectName"), false);

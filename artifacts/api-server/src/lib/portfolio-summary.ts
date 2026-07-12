@@ -4,6 +4,7 @@ import { getSettings } from "./settings";
 import { getFxRates } from "./currency";
 import { resolveCapabilities } from "./capabilities";
 import { poolMap } from "./concurrency-pool";
+import { summariseTasks, type TaskSummary } from "./task-summary";
 
 /**
  * Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance boundary for
@@ -68,6 +69,8 @@ export interface PortfolioSummary {
   finance: FinanceTotals | null;
   /** null when the connected backend doesn't declare the `resources` capability (or has no data). */
   capacity: CapacityTotals | null;
+  /** GTD task roll-up (open/actionable/overdue/…), or null when the backend models no tasks. */
+  tasks: TaskSummary | null;
 }
 
 /** Coerce a possibly-dirty number (string, null, NaN, Infinity) to a finite number, else 0. Same
@@ -246,5 +249,12 @@ export async function computeLocalPortfolioSummary(req: Request): Promise<Portfo
     if (all.length) capacity = foldCapacity(all);
   }
 
-  return { projects: projects.length, health, finance, capacity };
+  // Task roll-up — only when the active backend actually models tasks (an optional broker capability).
+  let tasks: TaskSummary | null = null;
+  if (broker.listTasks) {
+    const rows = await broker.listTasks(ctx, {}).catch(() => null);
+    if (rows) tasks = summariseTasks(rows);
+  }
+
+  return { projects: projects.length, health, finance, capacity, tasks };
 }

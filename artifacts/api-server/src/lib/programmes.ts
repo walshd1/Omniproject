@@ -1,4 +1,5 @@
 import type { Row } from "./data";
+import type { TaskSummary } from "./task-summary";
 import { type RagStatus, ragFor, financialHealthFrom } from "../broker/vocabulary";
 
 /**
@@ -67,6 +68,9 @@ export interface ProgrammeRollup {
 
 export interface ProgrammeDetail extends ProgrammeRollup {
   projects: Row[];
+  /** GTD task roll-up across this programme's projects, or null when the backend models no tasks.
+   *  Folded in by the route (the pure rollup stays over project rows only). */
+  tasks?: TaskSummary | null;
 }
 
 function num(v: unknown): number {
