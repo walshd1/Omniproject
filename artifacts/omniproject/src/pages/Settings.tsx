@@ -20,6 +20,7 @@ import { ErrorTelemetrySettings } from "../components/settings/ErrorTelemetrySet
 import { RoutingMatrix } from "../components/settings/RoutingMatrix";
 import { CustomFieldsAdmin } from "../components/settings/CustomFieldsAdmin";
 import { FieldValidationAdmin } from "../components/settings/FieldValidationAdmin";
+import { ProgrammeRegistryAdmin } from "../components/settings/ProgrammeRegistryAdmin";
 import { SelfHostCapabilitiesAdmin } from "../components/settings/SelfHostCapabilitiesAdmin";
 import { TranslationLayer } from "../components/settings/TranslationLayer";
 import { BrokerLog } from "../components/settings/BrokerLog";
@@ -376,6 +377,10 @@ export function Settings() {
 
       <LazyMount>
         <FieldValidationAdmin />
+      </LazyMount>
+
+      <LazyMount>
+        <ProgrammeRegistryAdmin />
       </LazyMount>
 
       <LazyMount>
