@@ -167,6 +167,16 @@ Per-call broker endpoint override.
 | `currentEndpointOverride` | The endpoints in scope for the current async call, if a kind was routed to. |
 | `withEndpoints` | Run `fn` with the broker adapter bound to `endpoints` (the routed kind's URL[s]). |
 
+### `artifacts/api-server/src/broker/field-cipher.ts`
+
+DETERMINISTIC component cipher for correlation identities.
+
+| Function | What it does |
+| --- | --- |
+| `encComponent` | Encrypt one component into a ciphertext piece: base64url of `nonce(12) \|\| tag(16) \|\| ciphertext`. |
+| `decComponent` | Reverse of {@link encComponent}: recover the value from a piece, or `null` if it isn't a valid piece for this `label` (wrong label, tampered, or malformed — GCM auth fails). |
+| `matchComponent` | Does `piece` encode `value` for this `label`? Matches by re-encrypting the candidate (deterministic) and comparing — the "match a component against a lookup" primitive. |
+
 ### `artifacts/api-server/src/broker/identity.ts`
 
 Cross-backend identity.
@@ -175,8 +185,9 @@ Cross-backend identity.
 | --- | --- |
 | `qualifyId` | The globally-unique key for an entity: `source:id`. |
 | `qualifiedId` | Read the qualified key off a row (its own `source`, or a fallback when the backend omitted it). |
-| `fieldIdentity` | The FIELD-IDENTITY TOKEN: a stable, backend-independent id for one field of one project instance, encoding the project's correlation GUID (`omniInstanceId`), the `broker` it was reached through, and the native `sourceField` name. |
-| `parseFieldIdentity` | Reverse of {@link fieldIdentity}: recover the three components from a token, or `null` if the string isn't a well-formed field-identity token (wrong shape, or it doesn't round-trip). |
+| `fieldIdentity` | Build a field identity from its plaintext components: a set of deterministic ciphertext pieces, one per component. |
+| `parseFieldIdentity` | Reverse of {@link fieldIdentity}: decrypt every piece back to its plaintext component, or `null` if any piece is missing/tampered/for the wrong component. |
+| `matchIdentityComponent` | Match one component piece against a candidate plaintext value — the "match against a lookup" primitive (e.g. does this identity's `project` piece belong to a given GUID?). |
 | `stampSource` | Stamp `source` onto every row that lacks one, using the broker kind it was read through. |
 
 ### `artifacts/api-server/src/broker/index.ts`
