@@ -18,6 +18,10 @@ export interface BuiltinArtifactDef {
   builtin: true;
   /** The kind-specific definition body (a SavedView / CustomReportDef / chart spec), validated at use. */
   spec: Record<string, unknown>;
+  /** Methodology ids this artifact belongs to — so a methodology pack can ship its own artifact defs and
+   *  they collect with the pack (mirrors the backend catalogue's methodology tags). Absent/empty = neutral
+   *  (ships regardless of the active methodology). */
+  methodologies?: string[];
 }
 
 const KINDS = new Set<BuiltinArtifactKind>(["report", "view", "chart"]);
@@ -25,10 +29,13 @@ const KINDS = new Set<BuiltinArtifactKind>(["report", "view", "chart"]);
 function isValid(value: unknown): value is Omit<BuiltinArtifactDef, "builtin"> {
   if (!value || typeof value !== "object") return false;
   const o = value as Record<string, unknown>;
+  const methodologiesOk = o["methodologies"] == null
+    || (Array.isArray(o["methodologies"]) && o["methodologies"].every((m) => typeof m === "string"));
   return typeof o["id"] === "string" && o["id"].length > 0
     && typeof o["label"] === "string" && o["label"].length > 0
     && KINDS.has(o["kind"] as BuiltinArtifactKind)
-    && !!o["spec"] && typeof o["spec"] === "object";
+    && !!o["spec"] && typeof o["spec"] === "object"
+    && methodologiesOk;
 }
 
 /**
@@ -42,7 +49,14 @@ export function parseBuiltinArtifacts(modules: Record<string, unknown>): Builtin
   for (const raw of Object.values(modules)) {
     if (!isValid(raw)) continue;
     const def: BuiltinArtifactDef = { id: raw.id, kind: raw.kind, label: raw.label, builtin: true, spec: raw.spec };
+    if (raw.methodologies && raw.methodologies.length) def.methodologies = raw.methodologies;
     if (!byId.has(def.id)) byId.set(def.id, def);
   }
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** Baseline artifacts that belong to a methodology — its own tag, or neutral (untagged) artifacts that
+ *  ship regardless. Lets a methodology pack's shipped artifact defs collect with the pack. */
+export function artifactsForMethodology(defs: readonly BuiltinArtifactDef[], methodology: string): BuiltinArtifactDef[] {
+  return defs.filter((d) => !d.methodologies || d.methodologies.length === 0 || d.methodologies.includes(methodology));
 }
