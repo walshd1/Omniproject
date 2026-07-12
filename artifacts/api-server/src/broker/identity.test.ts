@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { qualifyId, qualifiedId, stampSource, fieldIdentity } from "./identity";
+import { qualifyId, qualifiedId, stampSource, fieldIdentity, parseFieldIdentity } from "./identity";
 import type { Row } from "./types";
 
 test("qualifyId builds a source-qualified key, falling back to the raw id when no source", () => {
@@ -37,6 +37,23 @@ test("fieldIdentity is the SAME across backends for one project's field, but dif
   assert.notEqual(fieldIdentity(guid, "n8n", "duedate"), fieldIdentity(guid, "n8n", "startdate"));
   assert.notEqual(fieldIdentity(guid, "n8n", "duedate"), fieldIdentity(guid, "builtin", "duedate"));
   assert.notEqual(fieldIdentity(guid, "n8n", "duedate"), fieldIdentity("22222222-2222-2222-2222-222222222222", "n8n", "duedate"));
-  // Fixed-width hex digest.
-  assert.match(fieldIdentity(guid, "n8n", "duedate"), /^[0-9a-f]{64}$/);
+});
+
+test("fieldIdentity is REVERSIBLE — every component is recoverable from the token", () => {
+  const guid = "11111111-1111-1111-1111-111111111111";
+  // Awkward source field (dots, colons, spaces) must survive the round-trip.
+  const sourceField = "custom.field:Due Date / target";
+  const token = fieldIdentity(guid, "n8n", sourceField);
+  assert.deepEqual(parseFieldIdentity(token), { omniInstanceId: guid, broker: "n8n", sourceField });
+  // Round-trips both ways.
+  const parsed = parseFieldIdentity(token)!;
+  assert.equal(fieldIdentity(parsed.omniInstanceId, parsed.broker, parsed.sourceField), token);
+});
+
+test("parseFieldIdentity rejects anything that isn't a well-formed token", () => {
+  assert.equal(parseFieldIdentity("not-a-token"), null); // no dots
+  assert.equal(parseFieldIdentity("a.b"), null); // only two parts
+  assert.equal(parseFieldIdentity("a.b.c.d"), null); // too many parts
+  assert.equal(parseFieldIdentity("!!!.!!!.!!!"), null); // non-base64url ⇒ doesn't round-trip
+  assert.equal(parseFieldIdentity(123 as unknown as string), null);
 });
