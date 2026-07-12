@@ -1353,6 +1353,15 @@ Field registry (gateway view) — the reconcile / validate behaviour over the ca
 | `inferRelationshipCandidates` | Best-effort discovery of relationships among *unknown* (newly enumerated) fields. |
 | `validateEntityInput` | Validate an entity input against the registry: required fields present, and reference fields point at an entity id that actually exists (referential integrity). |
 
+### `artifacts/api-server/src/lib/field-routing.ts`
+
+Field-routing matrix — the admin-declared map of **which source feeds which UI element**.
+
+| Function | What it does |
+| --- | --- |
+| `routeSourceKey` | The composite SOURCE key (`vendor·broker·sourceField`) — the "identifying key" that must be unique across the map. |
+| `validateFieldRouting` | Validate + normalise a field-routing map, enforcing the anti-collision invariant. |
+
 ### `artifacts/api-server/src/lib/fx-fallback.ts`
 
 Indicative, GBP-based FX table used as a sample/fallback only — NOT live market data (note the epoch `asOf` and `provenance: "sample"`).
@@ -2602,6 +2611,10 @@ Metadata overrides for the built-in (catalogue) reports.
 ### `artifacts/api-server/src/routes/role-map.ts`
 
 Role-mapping editor — ADMIN-only, audited.
+
+### `artifacts/api-server/src/routes/routing.ts`
+
+The field-routing matrix: which source (vendor·broker·sourceField) feeds which UI element.
 
 ### `artifacts/api-server/src/routes/ruleset.ts`
 
