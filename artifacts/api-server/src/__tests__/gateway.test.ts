@@ -922,6 +922,7 @@ const SAMPLE_SETTINGS = {
   fieldOverrides: { fields: {}, entities: {} },
   screenLayouts: {},
   userPrefs: {},
+  calendarPush: {},
   capabilityStates: {},
   disabledFeatures: [],
   enabledFeatures: [],

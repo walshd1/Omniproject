@@ -843,6 +843,16 @@ Build the calendar events for a user's dated work — the pure core of the `.ics
 | `tasksToIcsEvents` | Map a task set to all-day due-date events (with a reminder VALARM when the task carries `reminderAt`), filtering out closed/undated (and non-mine) tasks. |
 | `issuesToIcsEvents` | Map issue/deliverable rows to all-day DEADLINE events (milestones flagged), for the same feed. |
 
+### `artifacts/api-server/src/lib/calendar-push.ts`
+
+Per-user calendar-push CONSENT.
+
+| Function | What it does |
+| --- | --- |
+| `getCalendarPush` | A user's push grant, or the not-granted default. |
+| `sanitizeGrant` | Coerce arbitrary input to a valid grant. |
+| `setCalendarPush` | Persist a user's grant; returns what was stored. |
+
 ### `artifacts/api-server/src/lib/canonical-json.ts`
 
 The one canonical-JSON serializer.
