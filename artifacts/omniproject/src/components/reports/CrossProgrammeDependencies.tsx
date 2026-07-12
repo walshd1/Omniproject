@@ -9,6 +9,7 @@ import {
 } from "../../lib/cross-programme-dependencies";
 import { DataState } from "../DataState";
 import { PathChain } from "../charts/PathChain";
+import { NetworkGraph } from "../charts/NetworkGraph";
 import { usePortfolioItems } from "./use-portfolio-items";
 
 /**
@@ -125,30 +126,12 @@ export function CrossProgrammeDependencies() {
           )}
 
           {graphIds.length > 0 && (
-            <svg viewBox="0 0 100 100" className="w-full max-h-80 border border-border bg-background" role="img"
-              aria-label={`Cross-programme dependency graph: ${graphIds.length} items, ${map.edges.length} dependencies`} data-testid="cross-programme-graph">
-              {map.edges.map((e, i) => {
-                const a = pos[e.from], b = pos[e.to];
-                if (!a || !b) return null;
-                const onCritical = criticalSet.has(e.from) && criticalSet.has(e.to);
-                return (
-                  <line key={`e${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                    stroke="currentColor" strokeWidth={onCritical ? 0.9 : 0.5}
-                    strokeDasharray={e.crossProgramme ? "1.5 1" : undefined}
-                    className={onCritical ? "text-red-500" : e.crossProgramme ? "text-amber-500" : "text-muted-foreground"} />
-                );
-              })}
-              {graphIds.map((id) => {
-                const p = pos[id]!;
-                const crit = criticalSet.has(id);
-                return (
-                  <g key={id}>
-                    <circle cx={p.x} cy={p.y} r={crit ? 2.6 : 2.2} fill="currentColor" className={crit ? "text-red-500" : "text-primary"} />
-                    <text x={p.x} y={p.y - 3.5} textAnchor="middle" fontSize={3} fill="currentColor" className="text-foreground">{titleOf[id] ?? id}</text>
-                  </g>
-                );
-              })}
-            </svg>
+            <NetworkGraph
+              testId="cross-programme-graph"
+              ariaLabel={`Cross-programme dependency graph: ${graphIds.length} items, ${map.edges.length} dependencies`}
+              nodes={graphIds.map((id) => ({ id, x: pos[id]!.x, y: pos[id]!.y, label: titleOf[id] ?? id, emphasis: criticalSet.has(id) }))}
+              edges={map.edges.map((e) => ({ from: e.from, to: e.to, emphasis: criticalSet.has(e.from) && criticalSet.has(e.to), dashed: !!e.crossProgramme }))}
+            />
           )}
 
           <div>
