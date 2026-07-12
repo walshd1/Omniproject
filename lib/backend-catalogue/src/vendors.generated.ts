@@ -3257,6 +3257,49 @@ export const OUTPUTS_DATA: OutputDefinition[] = [
   },
   {
     "capabilities": {
+      "auth": "oauth2",
+      "readOnly": false,
+      "streaming": false
+    },
+    "id": "google-calendar",
+    "kind": "calendar",
+    "label": "Google Calendar",
+    "notes": "Publishes scheduled work — milestones, deadlines and task due/scheduled dates — outbound as calendar events, through the same broker seam + RBAC + audit (no at-rest scope, never ingests events). Connect via the Google Calendar API (events.insert/patch, OAuth2 consent) or an MCP calendar server.",
+    "route": "publish → Google Calendar API / MCP",
+    "tools": [
+      "milestone",
+      "task-due",
+      "task-scheduled",
+      "deadline"
+    ],
+    "transports": [
+      "api",
+      "mcp"
+    ]
+  },
+  {
+    "capabilities": {
+      "auth": "api-token",
+      "readOnly": true,
+      "streaming": false
+    },
+    "id": "ical",
+    "kind": "calendar",
+    "label": "iCalendar feed",
+    "notes": "A read-only RFC 5545 (.ics) subscription feed OmniProject serves — milestones, deadlines and task due/scheduled dates as VEVENTs — for any calendar app (Google/Outlook/Apple) to subscribe to over webcal://. The tokenised feed URL is the credential; the feed reads through the broker seam + RBAC (no at-rest scope).",
+    "route": "GET /api/calendar.ics",
+    "tools": [
+      "milestone",
+      "task-due",
+      "task-scheduled",
+      "deadline"
+    ],
+    "transports": [
+      "ical-feed"
+    ]
+  },
+  {
+    "capabilities": {
       "auth": "session-or-token",
       "readOnly": true,
       "streaming": false
@@ -3336,6 +3379,28 @@ export const OUTPUTS_DATA: OutputDefinition[] = [
       "Projects",
       "Issues",
       "Portfolio"
+    ]
+  },
+  {
+    "capabilities": {
+      "auth": "oauth2",
+      "readOnly": false,
+      "streaming": false
+    },
+    "id": "outlook-calendar",
+    "kind": "calendar",
+    "label": "Outlook Calendar",
+    "notes": "Publishes scheduled work — milestones, deadlines and task due/scheduled dates — outbound as calendar events, through the same broker seam + RBAC + audit (no at-rest scope, never ingests events). Connect via the Microsoft Graph calendar API (/me/events, OAuth2 consent) or an MCP calendar server.",
+    "route": "publish → Microsoft Graph calendar API / MCP",
+    "tools": [
+      "milestone",
+      "task-due",
+      "task-scheduled",
+      "deadline"
+    ],
+    "transports": [
+      "api",
+      "mcp"
     ]
   },
   {

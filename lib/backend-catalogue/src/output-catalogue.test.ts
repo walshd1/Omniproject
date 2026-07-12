@@ -27,3 +27,23 @@ test("most outputs are read-only; outbound/inbound events are the writes", () =>
   assert.equal(cat.find((o) => o.id === "webhooks")?.capabilities.readOnly, false);
   assert.equal(cat.find((o) => o.id === "webhooks")?.kind, "events-out");
 });
+
+test("calendar outputs publish scheduled work over the connection method(s) they declare", () => {
+  const cat = outputCatalogue();
+  const calendars = cat.filter((o) => o.kind === "calendar");
+  assert.deepEqual(calendars.map((o) => o.id).sort(), ["google-calendar", "ical", "outlook-calendar"]);
+
+  // Google/Outlook are OAuth2 outbound pushes offered over BOTH the REST API and an MCP server.
+  for (const id of ["google-calendar", "outlook-calendar"]) {
+    const c = getOutput(id)!;
+    assert.equal(c.capabilities.auth, "oauth2");
+    assert.equal(c.capabilities.readOnly, false, `${id} writes events out`);
+    assert.deepEqual(c.transports, ["api", "mcp"]);
+  }
+
+  // iCal is a read-only subscription feed OmniProject serves (its own route), not an outbound push.
+  const ics = getOutput("ical")!;
+  assert.equal(ics.capabilities.readOnly, true);
+  assert.deepEqual(ics.transports, ["ical-feed"]);
+  assert.match(ics.route, /\.ics$/);
+});

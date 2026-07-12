@@ -13,6 +13,13 @@ const OUTPUT_LABELS: Record<string, string> = {
   "events-out": "Events pushed out to you",
   "events-in": "Events pushed in to us",
   "batch-egress": "A scheduled data hand-off",
+  calendar: "Published to your calendar",
+};
+
+const TRANSPORT_LABELS: Record<string, string> = {
+  api: "REST API",
+  mcp: "MCP server",
+  "ical-feed": "iCal feed",
 };
 
 /**
@@ -54,6 +61,11 @@ export function OutputPicker() {
             <span className="flex items-center gap-1.5"><Dot on={selected.capabilities.readOnly} /> read-only</span>
             <span className="flex items-center gap-1.5"><Dot on={selected.capabilities.streaming} /> streaming/long-lived</span>
             <span className="text-muted-foreground">auth: <span className="font-mono">{selected.capabilities.auth}</span></span>
+            {selected.transports && selected.transports.length > 0 && (
+              <span className="text-muted-foreground">
+                connect via: <span className="font-mono">{selected.transports.map((t) => TRANSPORT_LABELS[t] ?? t).join(" · ")}</span>
+              </span>
+            )}
           </div>
           {selected.notes && <p className="text-muted-foreground">{selected.notes}</p>}
           <p className="font-mono text-muted-foreground">{selected.route}</p>

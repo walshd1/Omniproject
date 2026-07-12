@@ -142,6 +142,8 @@ export interface OutputInfo {
   route: string;
   kind: string;
   capabilities: { readOnly: boolean; streaming: boolean; auth: string };
+  /** The connection methods offered (e.g. `["api","mcp"]` for a calendar). */
+  transports?: string[];
   notes?: string;
 }
 
