@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTasks, useTaskSummary, useCreateTask, useUpdateTask, type Task } from "../lib/tasks";
+import { TaskDetailDialog } from "../components/TaskDetailDialog";
 import { Button } from "@/components/ui/button";
 
 const STATUS_FILTERS = ["all", "next", "waiting", "scheduled", "someday", "done"] as const;
@@ -29,6 +30,7 @@ export function Tasks() {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [title, setTitle] = useState("");
   const [context, setContext] = useState("");
+  const [detail, setDetail] = useState<Task | null>(null);
 
   const shown = useMemo(
     () => tasks.filter((t) => (filter === "all" ? true : t.status === filter)),
@@ -111,7 +113,7 @@ export function Tasks() {
                   onChange={() => toggleDone(t)}
                 />
                 <div className="min-w-0 flex-1">
-                  <div className={`text-sm ${CLOSED.has(t.status) ? "line-through text-muted-foreground" : ""}`}>{t.title}</div>
+                  <button type="button" onClick={() => setDetail(t)} className={`text-sm text-left hover:underline ${CLOSED.has(t.status) ? "line-through text-muted-foreground" : ""}`}>{t.title}</button>
                   <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground mt-0.5">
                     <span className="uppercase tracking-wider">{t.status}</span>
                     {t.context && <span className="font-mono">{t.context}</span>}
@@ -128,6 +130,8 @@ export function Tasks() {
           </ul>
         )}
       </div>
+
+      <TaskDetailDialog task={detail} open={!!detail} onOpenChange={(o) => { if (!o) setDetail(null); }} />
     </div>
   );
 }

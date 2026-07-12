@@ -67,3 +67,32 @@ export function useUpdateTask() {
     onSuccess: () => qc.invalidateQueries({ queryKey: TASKS_KEY }),
   });
 }
+
+// ── Comments + attachments ────────────────────────────────────────────────────
+
+export interface TaskComment { id: string; taskId: string; body: string; author?: string | null; createdAt: string }
+export interface TaskAttachment { id: string; taskId: string; filename: string; url?: string | null; contentType?: string | null; size?: number | null; addedBy?: string | null; addedAt: string }
+
+const enc = encodeURIComponent;
+
+export function useTaskComments(id: string, enabled = true) {
+  return useQuery({ queryKey: [...TASKS_KEY, id, "comments"], enabled, queryFn: () => getJson<TaskComment[]>(`/api/tasks/${enc(id)}/comments`) });
+}
+export function useAddComment(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) => sendJson<TaskComment>(`/api/tasks/${enc(id)}/comments`, { body }, "POST", "Could not add the comment"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [...TASKS_KEY, id, "comments"] }),
+  });
+}
+
+export function useTaskAttachments(id: string, enabled = true) {
+  return useQuery({ queryKey: [...TASKS_KEY, id, "attachments"], enabled, queryFn: () => getJson<TaskAttachment[]>(`/api/tasks/${enc(id)}/attachments`) });
+}
+export function useAddAttachment(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (att: { filename: string; url?: string; contentType?: string; size?: number }) => sendJson<TaskAttachment>(`/api/tasks/${enc(id)}/attachments`, att, "POST", "Could not attach the file"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [...TASKS_KEY, id, "attachments"] }),
+  });
+}
