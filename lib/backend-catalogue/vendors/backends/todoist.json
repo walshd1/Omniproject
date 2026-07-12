@@ -37,6 +37,23 @@
     "scheduling": true
   },
   "docsUrl": "https://developer.todoist.com/rest/v2/",
+  "fieldKeys": [
+    "title",
+    "status",
+    "description",
+    "priority",
+    "labels",
+    "dueDate",
+    "recurrence",
+    "reminderAt",
+    "section",
+    "parentTask",
+    "sortOrder",
+    "assignee",
+    "collaborators",
+    "completedAt",
+    "url"
+  ],
   "id": "todoist",
   "label": "Todoist",
   "notes": "Projects → projects, tasks → issues. issueId = task id. TODOIST_TOKEN is a per-account Todoist API token.",

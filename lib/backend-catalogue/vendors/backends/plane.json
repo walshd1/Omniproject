@@ -36,6 +36,20 @@
     "scheduling": true
   },
   "docsUrl": "https://docs.plane.so/api-reference/introduction",
+  "fieldKeys": [
+    "title",
+    "status",
+    "description",
+    "priority",
+    "assignee",
+    "labels",
+    "startDate",
+    "dueDate",
+    "storyPoints",
+    "parentTask",
+    "sprint",
+    "url"
+  ],
   "id": "plane",
   "label": "Plane",
   "notes": "Plane uses an X-API-Key header in many deployments; swap the Authorization header for X-API-Key if you use a service token instead of per-user OIDC.",

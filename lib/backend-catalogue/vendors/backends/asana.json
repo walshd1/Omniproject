@@ -76,6 +76,21 @@
   },
   "credentialType": "asanaApi",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.asana/",
+  "fieldKeys": [
+    "title",
+    "status",
+    "description",
+    "assignee",
+    "startDate",
+    "dueDate",
+    "tags",
+    "collaborators",
+    "section",
+    "parentTask",
+    "dependsOn",
+    "blocks",
+    "completedAt"
+  ],
   "id": "asana",
   "label": "Asana",
   "nomenclature": {

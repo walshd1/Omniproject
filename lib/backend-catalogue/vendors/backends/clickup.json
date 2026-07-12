@@ -73,6 +73,22 @@
   },
   "credentialType": "clickUpApi",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.clickup/",
+  "fieldKeys": [
+    "title",
+    "status",
+    "description",
+    "priority",
+    "assignee",
+    "collaborators",
+    "startDate",
+    "dueDate",
+    "estimateHours",
+    "tags",
+    "parentTask",
+    "dependsOn",
+    "blocks",
+    "section"
+  ],
   "id": "clickup",
   "label": "ClickUp",
   "nomenclature": {

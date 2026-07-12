@@ -72,6 +72,19 @@
   },
   "credentialType": "trelloApi",
   "docsUrl": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.trello/",
+  "fieldKeys": [
+    "title",
+    "status",
+    "description",
+    "dueDate",
+    "completedAt",
+    "assignee",
+    "collaborators",
+    "labels",
+    "sortOrder",
+    "section",
+    "url"
+  ],
   "id": "trello",
   "label": "Trello",
   "nomenclature": {

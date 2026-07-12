@@ -38,6 +38,15 @@
   },
   "credentialType": "googleTasksOAuth2Api",
   "docsUrl": "https://developers.google.com/tasks/reference/rest",
+  "fieldKeys": [
+    "title",
+    "status",
+    "description",
+    "dueDate",
+    "completedAt",
+    "parentTask",
+    "sortOrder"
+  ],
   "id": "google-tasks",
   "label": "Google Tasks",
   "notes": "Task lists → projects, tasks → issues. Auth via an n8n Google OAuth2 credential scoped to Tasks.",

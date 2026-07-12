@@ -36,6 +36,20 @@
     "scheduling": true
   },
   "docsUrl": "https://www.celoxis.com/cw/api/v3",
+  "fieldKeys": [
+    "title",
+    "status",
+    "description",
+    "priority",
+    "assignee",
+    "startDate",
+    "dueDate",
+    "estimateHours",
+    "loggedHours",
+    "completionPct",
+    "parentTask",
+    "dependsOn"
+  ],
   "id": "celoxis",
   "label": "Celoxis",
   "notes": "Mid-market PPM: projects → projects, tasks → issues; schedules, resources + financials supported. Celoxis API v3 uses a per-user token (forwarded for real per-user audit). Confirm the v3 paths/field names against your instance — these are reference mappings.",
