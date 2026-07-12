@@ -1,6 +1,6 @@
 import { ReportEmpty } from "./ReportEmpty";
 import { useCallback, useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { ChartView } from "../charts/ChartView";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey } from "@workspace/api-client-react";
 import { useStaffCost } from "../../lib/rate-card";
 import { useProjectIssuesMoney } from "../../lib/currency";
@@ -8,7 +8,6 @@ import { truncateLabel } from "../../lib/utils";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
-import { chartTooltipStyle } from "./chart-theme";
 
 /**
  * Staff Time & Cost report. The roll-up is computed SERVER-SIDE (rates never reach the browser): the
@@ -71,16 +70,8 @@ export function StaffTimeCost({ projectId }: { projectId: string }) {
           {chart.length > 0 && (
             <div>
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Cost vs charge by role</div>
-              <ResponsiveContainer width="100%" height={Math.max(160, chart.length * 38)}>
-                <BarChart data={chart} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => money(v as number)} />
-                  <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
-                  <Bar dataKey="cost" name="True cost" fill="#2563eb" />
-                  <Bar dataKey="charge" name="Charge" fill="#16a34a" />
-                </BarChart>
-              </ResponsiveContainer>
+              <ChartView type="bar" height={Math.max(160, chart.length * 38)} data={chart} valueFormatter={money}
+                series={[{ key: "cost", label: "True cost" }, { key: "charge", label: "Charge" }]} />
             </div>
           )}
 

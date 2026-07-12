@@ -9,9 +9,9 @@ import { GanttChart, type GanttItem } from "./gantt";
  * a primitive. Data is supplied already-shaped by the caller; ChartView never fetches or computes.
  */
 export type ChartViewSpec =
-  | { type: "bar"; data: ChartRow[]; series: ChartSeries[]; stacked?: boolean; legend?: boolean; orientation?: "horizontal" | "vertical"; height?: ChartHeight; referenceLines?: ReferenceMark[] }
-  | { type: "line"; data: ChartRow[]; series: ChartSeries[]; legend?: boolean; height?: ChartHeight; xKey?: string; referenceLines?: ReferenceMark[] }
-  | { type: "area"; data: ChartRow[]; series: ChartSeries[]; stacked?: boolean; legend?: boolean; height?: ChartHeight; xKey?: string; referenceLines?: ReferenceMark[] }
+  | { type: "bar"; data: ChartRow[]; series: ChartSeries[]; stacked?: boolean; legend?: boolean; orientation?: "horizontal" | "vertical"; height?: ChartHeight; referenceLines?: ReferenceMark[]; valueFormatter?: (n: number) => string }
+  | { type: "line"; data: ChartRow[]; series: ChartSeries[]; legend?: boolean; height?: ChartHeight; xKey?: string; referenceLines?: ReferenceMark[]; valueFormatter?: (n: number) => string; yDomain?: [number, number] }
+  | { type: "area"; data: ChartRow[]; series: ChartSeries[]; stacked?: boolean; legend?: boolean; height?: ChartHeight; xKey?: string; referenceLines?: ReferenceMark[]; valueFormatter?: (n: number) => string; yDomain?: [number, number] }
   | { type: "pie" | "donut"; data: { name: string; value: number }[]; legend?: boolean; height?: ChartHeight }
   | { type: "scatter"; points: ScatterPoint[]; xLabel?: string; yLabel?: string; height?: ChartHeight }
   | { type: "treemap"; data: TreeNode[]; height?: ChartHeight }
@@ -20,11 +20,11 @@ export type ChartViewSpec =
 export function ChartView(spec: ChartViewSpec) {
   switch (spec.type) {
     case "bar":
-      return <SeriesBarChart data={spec.data} series={spec.series} stacked={spec.stacked ?? false} legend={spec.legend ?? true} orientation={spec.orientation ?? "horizontal"} {...(spec.height ? { height: spec.height } : {})} {...(spec.referenceLines ? { referenceLines: spec.referenceLines } : {})} />;
+      return <SeriesBarChart data={spec.data} series={spec.series} stacked={spec.stacked ?? false} legend={spec.legend ?? true} orientation={spec.orientation ?? "horizontal"} {...(spec.height ? { height: spec.height } : {})} {...(spec.referenceLines ? { referenceLines: spec.referenceLines } : {})} {...(spec.valueFormatter ? { valueFormatter: spec.valueFormatter } : {})} />;
     case "line":
-      return <SeriesLineChart data={spec.data} series={spec.series} legend={spec.legend ?? true} {...(spec.height ? { height: spec.height } : {})} {...(spec.xKey ? { xKey: spec.xKey } : {})} {...(spec.referenceLines ? { referenceLines: spec.referenceLines } : {})} />;
+      return <SeriesLineChart data={spec.data} series={spec.series} legend={spec.legend ?? true} {...(spec.height ? { height: spec.height } : {})} {...(spec.xKey ? { xKey: spec.xKey } : {})} {...(spec.referenceLines ? { referenceLines: spec.referenceLines } : {})} {...(spec.valueFormatter ? { valueFormatter: spec.valueFormatter } : {})} {...(spec.yDomain ? { yDomain: spec.yDomain } : {})} />;
     case "area":
-      return <SeriesAreaChart data={spec.data} series={spec.series} stacked={spec.stacked ?? false} legend={spec.legend ?? true} {...(spec.height ? { height: spec.height } : {})} {...(spec.xKey ? { xKey: spec.xKey } : {})} {...(spec.referenceLines ? { referenceLines: spec.referenceLines } : {})} />;
+      return <SeriesAreaChart data={spec.data} series={spec.series} stacked={spec.stacked ?? false} legend={spec.legend ?? true} {...(spec.height ? { height: spec.height } : {})} {...(spec.xKey ? { xKey: spec.xKey } : {})} {...(spec.referenceLines ? { referenceLines: spec.referenceLines } : {})} {...(spec.valueFormatter ? { valueFormatter: spec.valueFormatter } : {})} {...(spec.yDomain ? { yDomain: spec.yDomain } : {})} />;
     case "pie":
     case "donut":
       return <SharePieChart data={spec.data} donut={spec.type === "donut"} legend={spec.legend ?? true} {...(spec.height ? { height: spec.height } : {})} />;

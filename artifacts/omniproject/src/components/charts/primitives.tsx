@@ -40,14 +40,15 @@ export interface ChartSeries {
   key: string;
   label: string;
 }
-/** One row of chart data: a category/point `name` plus a numeric value per series key. */
-export type ChartRow = { name: string } & Record<string, string | number>;
+/** One row of chart data: a category/point key (default "name", or the chart's `xKey`) plus a
+ *  numeric value per series key. */
+export type ChartRow = Record<string, string | number>;
 
 const color = (i: number) => CHART_PALETTE[i % CHART_PALETTE.length]!;
 
 /** Grouped or stacked bars. Horizontal (category axis on the left) by default; `orientation:
  *  "vertical"` draws upright columns. Bars get rounded data-ends per the mark spec. */
-export function SeriesBarChart({ data, series, stacked = false, legend = true, orientation = "horizontal", height, referenceLines }: {
+export function SeriesBarChart({ data, series, stacked = false, legend = true, orientation = "horizontal", height, referenceLines, valueFormatter = formatChartNumber }: {
   data: ChartRow[];
   series: ChartSeries[];
   stacked?: boolean;
@@ -55,6 +56,8 @@ export function SeriesBarChart({ data, series, stacked = false, legend = true, o
   orientation?: "horizontal" | "vertical";
   height?: ChartHeight;
   referenceLines?: ReferenceMark[];
+  /** Format the measure axis + tooltip values (e.g. as currency). Defaults to a compact number. */
+  valueFormatter?: (n: number) => string;
 }) {
   const horizontal = orientation === "horizontal";
   const h = height ?? (horizontal ? Math.max(180, data.length * 34) : 260);
@@ -64,16 +67,16 @@ export function SeriesBarChart({ data, series, stacked = false, legend = true, o
         <CartesianGrid {...gridTheme} />
         {horizontal ? (
           <>
-            <XAxis type="number" {...axisTheme} tick={{ fontSize: 11 }} tickFormatter={(v) => formatChartNumber(v as number)} />
+            <XAxis type="number" {...axisTheme} tick={{ fontSize: 11 }} tickFormatter={(v) => valueFormatter(v as number)} />
             <YAxis type="category" dataKey="name" {...axisTheme} width={150} tick={{ fontSize: 10 }} />
           </>
         ) : (
           <>
             <XAxis type="category" dataKey="name" {...axisTheme} tick={{ fontSize: 10 }} />
-            <YAxis type="number" {...axisTheme} tick={{ fontSize: 11 }} tickFormatter={(v) => formatChartNumber(v as number)} />
+            <YAxis type="number" {...axisTheme} tick={{ fontSize: 11 }} tickFormatter={(v) => valueFormatter(v as number)} />
           </>
         )}
-        <Tooltip formatter={(v) => formatChartNumber(v as number)} contentStyle={chartTooltipStyle} />
+        <Tooltip formatter={(v) => valueFormatter(v as number)} contentStyle={chartTooltipStyle} />
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
         {renderReferenceLines(referenceLines)}
         {series.map((s, i) => (
@@ -85,21 +88,23 @@ export function SeriesBarChart({ data, series, stacked = false, legend = true, o
 }
 
 /** A multi-series line chart (e.g. a time trend). `xKey` names the category field (default "name"). */
-export function SeriesLineChart({ data, series, legend = true, height = 240, xKey = "name", referenceLines }: {
+export function SeriesLineChart({ data, series, legend = true, height = 240, xKey = "name", referenceLines, valueFormatter = formatChartNumber, yDomain }: {
   data: ChartRow[];
   series: ChartSeries[];
   legend?: boolean;
   height?: ChartHeight;
   xKey?: string;
   referenceLines?: ReferenceMark[];
+  valueFormatter?: (n: number) => string;
+  yDomain?: [number, number];
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
         <CartesianGrid {...gridTheme} />
         <XAxis dataKey={xKey} {...axisTheme} tick={{ fontSize: 11 }} />
-        <YAxis {...axisTheme} tick={{ fontSize: 11 }} tickFormatter={(v) => formatChartNumber(v as number)} />
-        <Tooltip formatter={(v) => formatChartNumber(v as number)} contentStyle={chartTooltipStyle} />
+        <YAxis {...axisTheme} tick={{ fontSize: 11 }} tickFormatter={(v) => valueFormatter(v as number)} {...(yDomain ? { domain: yDomain } : {})} />
+        <Tooltip formatter={(v) => valueFormatter(v as number)} contentStyle={chartTooltipStyle} />
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
         {renderReferenceLines(referenceLines)}
         {series.map((s, i) => (
@@ -111,7 +116,7 @@ export function SeriesLineChart({ data, series, legend = true, height = 240, xKe
 }
 
 /** A multi-series area chart, optionally stacked. `xKey` names the category field (default "name"). */
-export function SeriesAreaChart({ data, series, stacked = false, legend = true, height = 240, xKey = "name", referenceLines }: {
+export function SeriesAreaChart({ data, series, stacked = false, legend = true, height = 240, xKey = "name", referenceLines, valueFormatter = formatChartNumber, yDomain }: {
   data: ChartRow[];
   series: ChartSeries[];
   stacked?: boolean;
@@ -119,14 +124,16 @@ export function SeriesAreaChart({ data, series, stacked = false, legend = true, 
   height?: ChartHeight;
   xKey?: string;
   referenceLines?: ReferenceMark[];
+  valueFormatter?: (n: number) => string;
+  yDomain?: [number, number];
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
         <CartesianGrid {...gridTheme} />
         <XAxis dataKey={xKey} {...axisTheme} tick={{ fontSize: 11 }} />
-        <YAxis {...axisTheme} tick={{ fontSize: 11 }} tickFormatter={(v) => formatChartNumber(v as number)} />
-        <Tooltip formatter={(v) => formatChartNumber(v as number)} contentStyle={chartTooltipStyle} />
+        <YAxis {...axisTheme} tick={{ fontSize: 11 }} tickFormatter={(v) => valueFormatter(v as number)} {...(yDomain ? { domain: yDomain } : {})} />
+        <Tooltip formatter={(v) => valueFormatter(v as number)} contentStyle={chartTooltipStyle} />
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
         {renderReferenceLines(referenceLines)}
         {series.map((s, i) => (

@@ -1,13 +1,12 @@
 import { ReportEmpty } from "./ReportEmpty";
 import { useCallback, useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { ChartView } from "../charts/ChartView";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { summariseFinancials } from "../../lib/financial-summary";
 import { useProjectIssuesMoney } from "../../lib/currency";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
-import { chartTooltipStyle } from "./chart-theme";
 
 /**
  * Financial summary — budget vs actual vs variance, rolled up from the work items the backend carries
@@ -38,15 +37,7 @@ export function FinancialSummary({ projectId }: { projectId: string }) {
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Budget vs actual</div>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={chart} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => money(v as number)} width={70} />
-                <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
-                <Bar dataKey="value" name="Amount" fill="#2563eb" />
-              </BarChart>
-            </ResponsiveContainer>
+            <ChartView type="bar" orientation="vertical" height={180} legend={false} data={chart} series={[{ key: "value", label: "Amount" }]} valueFormatter={money} />
           </div>
         </div>
       )}

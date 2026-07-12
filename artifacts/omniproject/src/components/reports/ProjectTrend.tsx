@@ -1,7 +1,6 @@
 import { useGetProjectBaseline } from "@workspace/api-client-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ProjectHistoryChart } from "./ProjectHistoryChart";
-import { axisTheme, gridTheme, chartTooltipStyle } from "./chart-theme";
+import { ChartView } from "../charts/ChartView";
 
 /**
  * Progress trend, sourced from the system of record via the broker (get_project_history).
@@ -33,21 +32,16 @@ export function ProjectTrend({ projectId }: { projectId: string }) {
       )}
     >
       {(points) => (
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={points} margin={{ top: 8, right: 16, bottom: 4, left: -8 }}>
-            <defs>
-              <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#22c55e" stopOpacity={0.4} />
-                <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid {...gridTheme} />
-            <XAxis dataKey="date" {...axisTheme} fontSize={10} />
-            <YAxis {...axisTheme} fontSize={11} domain={[0, 100]} unit="%" />
-            <Tooltip contentStyle={chartTooltipStyle} />
-            <Area type="monotone" dataKey="completionRate" stroke="#22c55e" strokeWidth={2} fill="url(#trendFill)" name="Completion %" />
-          </AreaChart>
-        </ResponsiveContainer>
+        <ChartView
+          type="area"
+          height="100%"
+          xKey="date"
+          legend={false}
+          yDomain={[0, 100]}
+          valueFormatter={(v) => `${v}%`}
+          data={points as unknown as { name: string }[]}
+          series={[{ key: "completionRate", label: "Completion %" }]}
+        />
       )}
     </ProjectHistoryChart>
   );

@@ -1,6 +1,6 @@
 import { ReportEmpty } from "./ReportEmpty";
 import { useCallback, useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { ChartView } from "../charts/ChartView";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { summariseIncome } from "../../lib/income";
 import { useProjectIssuesMoney } from "../../lib/currency";
@@ -8,7 +8,6 @@ import { truncateLabel } from "../../lib/utils";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
-import { chartTooltipStyle } from "./chart-theme";
 
 /**
  * Income & Invoicing report. STATELESS: projected income (`revenue`) vs what's actually been invoiced
@@ -41,17 +40,8 @@ export function IncomeInvoicing({ projectId }: { projectId: string }) {
 
           <div>
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Invoiced vs unbilled by item</div>
-            <ResponsiveContainer width="100%" height={Math.max(160, chart.length * 38)}>
-              <BarChart data={chart} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => money(v as number)} />
-                <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="invoiced" name="Invoiced" stackId="s" fill="#16a34a" />
-                <Bar dataKey="unbilled" name="Unbilled" stackId="s" fill="#d97706" />
-              </BarChart>
-            </ResponsiveContainer>
+            <ChartView type="bar" stacked height={Math.max(160, chart.length * 38)} data={chart} valueFormatter={money}
+              series={[{ key: "invoiced", label: "Invoiced" }, { key: "unbilled", label: "Unbilled" }]} />
           </div>
 
           <div className="overflow-x-auto">
