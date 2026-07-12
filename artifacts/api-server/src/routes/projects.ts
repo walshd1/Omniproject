@@ -235,7 +235,10 @@ router.post("/projects/:projectGuid/close", requireAnyRole("pmo", "admin"), (req
       const project = (await getProjects(req)).find((p) => String((p as Row)["omniInstanceId"] ?? "") === guid);
       if (project) {
         const issues = await getIssues(req, String((project as Row)["id"])).catch(() => [] as Row[]);
-        await getArchiveStore().save({ guid, archivedAt: record.closedAt, project: project as Row, issues, note });
+        // Also archive OmniProject's own settings for the project (programme memberships, relinks, …),
+        // so its configuration is preserved alongside its data.
+        const settings = collectProjectReferences(guid);
+        await getArchiveStore().save({ guid, archivedAt: record.closedAt, project: project as Row, issues, settings, note });
       }
     }
     // Merge into the registry; validatePatch's cross-rule retires the GUID on write.

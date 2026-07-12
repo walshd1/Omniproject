@@ -1,6 +1,7 @@
 import { safeFetch } from "../egress";
 import { logger } from "../logger";
 import type { Row } from "../../broker/types";
+import type { ProjectReferences } from "../project-forget";
 
 /**
  * The self-managed ARCHIVE store — where a CLOSED project's data goes when the admin/PMO chose the
@@ -21,6 +22,9 @@ export interface ArchivedProject {
   project: Row;
   /** Its issues at archive time (empty if none / unavailable). */
   issues: Row[];
+  /** OmniProject's own settings/references for the project — programme memberships, relink aliases,
+   *  closed/retired status — captured so the project's configuration is archived alongside its data. */
+  settings?: ProjectReferences | undefined;
   note?: string | undefined;
 }
 

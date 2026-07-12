@@ -79,6 +79,9 @@ test("closing with the archive disposition captures a snapshot readable from the
     const snap = await json(await h.req(`/archive/projects/${encodeURIComponent(guid)}`, { cookie: adminCookie() }));
     assert.equal(snap.project.name, "To archive");
     assert.ok(Array.isArray(snap.issues));
+    // OmniProject's own settings/references for the project are archived alongside its data.
+    assert.equal(snap.settings.guid, guid);
+    assert.ok(Array.isArray(snap.settings.programmes));
   } finally {
     __setArchiveStoreForTest(null);
   }
