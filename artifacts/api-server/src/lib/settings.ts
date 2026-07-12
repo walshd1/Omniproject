@@ -15,6 +15,7 @@ import { validatePredicate } from "./predicate";
 import { isValidCadence, type SnapshotCadence } from "../history/cadence";
 import { logger } from "./logger";
 import { isTruthy } from "./env-config";
+import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
 
 function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
@@ -260,6 +261,9 @@ export interface SettingsState {
   branding: BrandingConfig | null;
   /** Company-nomenclature label overrides, keyed by i18n key. */
   labelOverrides: Record<string, string>;
+  /** The field-routing matrix: which source (vendor·broker·sourceField) feeds which UI element.
+   *  One-to-one at both ends (anti-collision) — see lib/field-routing. */
+  fieldRouting: FieldRoute[];
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
   /**
@@ -665,6 +669,7 @@ const store: SettingsState = {
   errorTelemetry: isTruthy(process.env["ERROR_TELEMETRY"]),
   branding: brandingFromEnv(),
   labelOverrides: labelsFromEnv(),
+  fieldRouting: [],
   webhooks: webhooksFromEnv(),
   federatedPeers: peersFromEnv(),
   loggingSync: loggingSyncFromEnv(),
@@ -710,6 +715,7 @@ const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "errorTelemetry",
   "branding",
   "labelOverrides",
+  "fieldRouting",
   "webhooks",
   "federatedPeers",
   "loggingSync",
@@ -1190,6 +1196,16 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   }
   if ("backendSource" in patch && typeof patch["backendSource"] !== "string") {
     throw new SettingsValidationError("backendSource must be a string");
+  }
+  if ("fieldRouting" in patch) {
+    // Anti-collision (one source → one UI element, both ways) lives in field-routing; surface its
+    // error as the standard settings 400, and persist the normalised (trimmed) map.
+    try {
+      normalized["fieldRouting"] = validateFieldRouting(patch["fieldRouting"]);
+    } catch (e) {
+      if (e instanceof FieldRoutingError) throw new SettingsValidationError(e.message);
+      throw e;
+    }
   }
   if ("errorTelemetry" in patch && typeof patch["errorTelemetry"] !== "boolean") {
     throw new SettingsValidationError("errorTelemetry must be a boolean");
