@@ -5,6 +5,7 @@ import { getFxRates } from "./currency";
 import { resolveCapabilities } from "./capabilities";
 import { poolMap } from "./concurrency-pool";
 import { summariseTasks, type TaskSummary } from "./task-summary";
+import { planProjectSources, type SourcePlan } from "./closed-projects";
 
 /**
  * Portfolio-wide AGGREGATE summary — the one shape allowed to cross an instance boundary for
@@ -71,6 +72,10 @@ export interface PortfolioSummary {
   capacity: CapacityTotals | null;
   /** GTD task roll-up (open/actionable/overdue/…), or null when the backend models no tasks. */
   tasks: TaskSummary | null;
+  /** Where this portfolio's projects live — live in the backend, closed-in-SOR, or migrated to the
+   *  self-managed archive (resolved via planProjectSources from the closed-project registry + relinks).
+   *  So a roll-up ACCOUNTS for closed/archived projects by GUID rather than silently dropping them. */
+  sources: SourcePlan;
 }
 
 /** Coerce a possibly-dirty number (string, null, NaN, Infinity) to a finite number, else 0. Same
@@ -256,5 +261,12 @@ export async function computeLocalPortfolioSummary(req: Request): Promise<Portfo
     if (rows) tasks = summariseTasks(rows);
   }
 
-  return { projects: projects.length, health, finance, capacity, tasks };
+  // Source plan — the live projects' GUIDs ∪ every closed-project GUID, bucketed live/sor/archive
+  // (relinks followed). Threads the closed-project registry through the roll-up so archived/closed
+  // sources are accounted for, not dropped; the actual archived-data fetch is a follow-up.
+  const settings = getSettings();
+  const liveGuids = (projects as Row[]).map((p) => String(p["omniInstanceId"] ?? "")).filter(Boolean);
+  const sources = planProjectSources([...liveGuids, ...Object.keys(settings.closedProjects)], settings.closedProjects, settings.guidAliases);
+
+  return { projects: projects.length, health, finance, capacity, tasks, sources };
 }
