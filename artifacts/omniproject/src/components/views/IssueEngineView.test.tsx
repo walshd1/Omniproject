@@ -20,6 +20,8 @@ vi.mock("@workspace/api-client-react", () => ({
 }));
 // IssueDialog pulls in heavy generated hooks; stub it — this test is about the engine, not the dialog.
 vi.mock("../IssueDialog", () => ({ IssueDialog: () => null }));
+// The engine loads shared saved views over /api/views; stub it so this test stays network-free.
+vi.mock("../../lib/saved-views", () => ({ useSavedViews: () => ({ data: [] }) }));
 
 describe("IssueEngineView (issues through the generic engine)", () => {
   it("defaults to a list of the project's issues", () => {

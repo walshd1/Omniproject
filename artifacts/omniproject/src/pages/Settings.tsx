@@ -31,6 +31,7 @@ import { A11yControls } from "../components/settings/A11yControls";
 import { CalendarPushConsent } from "../components/settings/CalendarPushConsent";
 import { LabelsAdmin } from "../components/premium/LabelsAdmin";
 import { PriorityLabelsAdmin } from "../components/settings/PriorityLabelsAdmin";
+import { ViewBuilder } from "../components/settings/ViewBuilder";
 import { PerformanceSettings } from "../components/settings/PerformanceSettings";
 import { GovernanceAdmin } from "../components/settings/GovernanceAdmin";
 import { ActionCatalogue } from "../components/settings/ActionCatalogue";
@@ -524,6 +525,10 @@ export function Settings() {
       </div>
 
       <PriorityLabelsAdmin />
+
+      <div className="mt-8">
+        <ViewBuilder />
+      </div>
 
       <LazyMount>
         <PerformanceSettings />

@@ -24,6 +24,13 @@ export const issueDescriptor: EntityDescriptor<Issue> = {
   entity: "issue",
   noun: "issue",
   presets: [{ id: "board", label: "Board", columns: ISSUE_COLUMNS }],
+  fields: [
+    { key: "status", label: "Status", get: (i) => i.status },
+    { key: "priority", label: "Priority", get: (i) => i.priority },
+    { key: "assignee", label: "Assignee", get: (i) => i.assignee },
+    { key: "dueDate", label: "Due date", get: (i) => i.dueDate },
+    { key: "source", label: "Source", get: (i) => i.source },
+  ],
   filterStatuses: [...STATUS_ORDER],
   closedStatuses: ["done", "cancelled"],
   doneStatus: "done",

@@ -38,6 +38,14 @@ export interface ColumnPreset {
   columns: BoardColumn[];
 }
 
+/** A field on the entity that can be filtered / sorted / grouped by in the view builder. `get`
+ *  extracts the comparable string value from the raw record (null/undefined = unset). */
+export interface EntityField<T = unknown> {
+  key: string;
+  label: string;
+  get: (raw: T) => string | null | undefined;
+}
+
 /** Where the records come from — a project scope for issues, or portfolio-wide (no projectId). */
 export interface ViewScope {
   projectId?: string;
@@ -59,6 +67,8 @@ export interface EntityDescriptor<T = unknown> {
   noun: string;
   /** Board column presets. The first is the default board view; GTD is one of these. */
   presets: ColumnPreset[];
+  /** Fields exposed to the view builder for filter / sort / group-by. */
+  fields: EntityField<T>[];
   /** Statuses offered as list filter tabs, in display order. */
   filterStatuses: string[];
   /** Statuses that count as closed/done (list checkbox ticked, title struck through). */

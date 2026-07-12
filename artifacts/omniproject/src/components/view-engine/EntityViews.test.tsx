@@ -4,6 +4,10 @@ import { renderWithProviders } from "../../test/utils";
 import { EntityViews } from "./EntityViews";
 import type { EntityDescriptor, ViewRecord } from "../../lib/view-engine/types";
 
+// The engine loads shared saved views over /api/views; stub it so these tests stay network-free.
+let savedData: unknown[] = [];
+vi.mock("../../lib/saved-views", () => ({ useSavedViews: () => ({ data: savedData }) }));
+
 /**
  * The generic view engine is entity-agnostic — it renders whatever an EntityDescriptor supplies.
  * These tests drive it with a synthetic "widget" descriptor (no network) to prove the engine itself:
@@ -28,6 +32,7 @@ function makeDescriptor(): EntityDescriptor<Widget> {
       { id: "gtd", label: "GTD Board", columns: [{ status: "next", label: "Next Actions" }, { status: "waiting", label: "Waiting For" }] },
       { id: "flow", label: "Flow", columns: [{ status: "next", label: "To do" }, { status: "done", label: "Done" }] },
     ],
+    fields: [{ key: "status", label: "Status", get: (w) => w.status }],
     filterStatuses: ["next", "waiting", "done"],
     closedStatuses: ["done"],
     doneStatus: "done",
@@ -82,5 +87,18 @@ describe("EntityViews (generic engine)", () => {
     renderWithProviders(<EntityViews descriptor={makeDescriptor()} onOpen={onOpen} />);
     fireEvent.click(screen.getByText("Alpha"));
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ raw: expect.objectContaining({ id: "w1" }) }));
+  });
+
+  it("surfaces a custom saved view as a tab and applies its filter", () => {
+    savedData = [{ id: "sv1", name: "Only waiting", entity: "widget", viewKind: "list", filters: [{ field: "status", value: "waiting" }] }];
+    try {
+      renderWithProviders(<EntityViews descriptor={makeDescriptor()} onOpen={() => {}} />);
+      fireEvent.click(screen.getByRole("tab", { name: "Only waiting" }));
+      // The saved view filters to status=waiting: Bravo shows, Alpha doesn't.
+      expect(screen.getByText("Bravo")).toBeInTheDocument();
+      expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
+    } finally {
+      savedData = [];
+    }
   });
 });

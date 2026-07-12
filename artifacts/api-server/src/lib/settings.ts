@@ -445,6 +445,10 @@ export interface SavedView {
   id: string;
   name: string;
   scope?: string;
+  /** Which entity a view-engine view targets ("task" | "issue"); omitted for legacy grid views. */
+  entity?: string;
+  /** How the view engine renders it ("list" | "board"); omitted = list. */
+  viewKind?: string;
   /** Visible canonical field keys, in display order. */
   columns?: string[];
   sort?: { field: string; dir: "asc" | "desc" };
@@ -1039,9 +1043,29 @@ function validateSavedViews(value: unknown): void {
   if (!Array.isArray(value)) throw new SettingsValidationError("savedViews must be an array");
   for (const view of value) {
     if (!view || typeof view !== "object") throw new SettingsValidationError("each saved view must be an object");
-    const { id, name } = view as Record<string, unknown>;
+    const { id, name, entity, viewKind, sort, filters, groupBy, columns } = view as Record<string, unknown>;
     if (typeof id !== "string" || !id) throw new SettingsValidationError("each saved view needs a string id");
     if (typeof name !== "string" || !name) throw new SettingsValidationError("each saved view needs a name");
+    // Optional view-engine fields — harden them since saved views are shared, customer-level config.
+    if (entity != null && entity !== "task" && entity !== "issue") throw new SettingsValidationError("saved view entity must be 'task' or 'issue'");
+    if (viewKind != null && viewKind !== "list" && viewKind !== "board") throw new SettingsValidationError("saved view viewKind must be 'list' or 'board'");
+    if (groupBy != null && typeof groupBy !== "string") throw new SettingsValidationError("saved view groupBy must be a string");
+    if (columns != null && (!Array.isArray(columns) || columns.some((c) => typeof c !== "string"))) throw new SettingsValidationError("saved view columns must be an array of strings");
+    if (sort != null) {
+      if (typeof sort !== "object") throw new SettingsValidationError("saved view sort must be an object");
+      const { field, dir } = sort as Record<string, unknown>;
+      if (typeof field !== "string" || !field) throw new SettingsValidationError("saved view sort.field must be a string");
+      if (dir !== "asc" && dir !== "desc") throw new SettingsValidationError("saved view sort.dir must be 'asc' or 'desc'");
+    }
+    if (filters != null) {
+      if (!Array.isArray(filters)) throw new SettingsValidationError("saved view filters must be an array");
+      for (const f of filters) {
+        if (!f || typeof f !== "object") throw new SettingsValidationError("each saved view filter must be an object");
+        const { field, value: fv } = f as Record<string, unknown>;
+        if (typeof field !== "string" || !field) throw new SettingsValidationError("each saved view filter needs a string field");
+        if (typeof fv !== "string") throw new SettingsValidationError("each saved view filter needs a string value");
+      }
+    }
   }
 }
 

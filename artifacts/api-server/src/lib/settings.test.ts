@@ -104,6 +104,21 @@ test("savedViews: rejects a non-array and a view missing id/name", () => {
   assert.throws(() => updateSettings({ savedViews: [{ id: "x" }] }), SettingsValidationError);
 });
 
+test("savedViews: accepts view-engine fields (entity/viewKind/filters/groupBy)", () => {
+  const s = updateSettings({ savedViews: [
+    { id: "e1", name: "Blocked", entity: "issue", viewKind: "board", filters: [{ field: "status", value: "in_progress" }], groupBy: "assignee", sort: { field: "priority", dir: "desc" as const } },
+  ] });
+  assert.equal(s.savedViews[0]!.entity, "issue");
+  assert.equal(s.savedViews[0]!.viewKind, "board");
+});
+
+test("savedViews: rejects malformed view-engine fields", () => {
+  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", entity: "widget" }] }), SettingsValidationError);
+  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", viewKind: "grid" }] }), SettingsValidationError);
+  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", sort: { field: "s", dir: "up" } }] }), SettingsValidationError);
+  assert.throws(() => updateSettings({ savedViews: [{ id: "x", name: "n", filters: [{ field: "s" }] }] }), SettingsValidationError);
+});
+
 test("hiddenFields: rejects a non-string-array", () => {
   assert.throws(() => updateSettings({ hiddenFields: [1, 2] as unknown as string[] }), SettingsValidationError);
   assert.deepEqual(updateSettings({ hiddenFields: ["dueDate"] }).hiddenFields, ["dueDate"]);
