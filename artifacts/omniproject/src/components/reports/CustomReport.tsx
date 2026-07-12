@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { runCustomReport, runCustomReportTrend, metricLabel, type CustomReportDef, type Row } from "../../lib/custom-report";
-import { SeriesBarChart, SeriesLineChart, SeriesAreaChart, SharePieChart, formatChartNumber, type ChartRow, type ChartSeries } from "../charts/primitives";
+import { ChartView } from "../charts/ChartView";
+import { formatChartNumber, type ChartRow, type ChartSeries } from "../charts/primitives";
 
 /**
  * Generic renderer for a bespoke report definition — runs the definition over the supplied rows and
@@ -38,8 +39,8 @@ function TrendReport({ def, rows }: { def: CustomReportDef; rows: readonly Row[]
   return (
     <div className="space-y-3" data-testid={`custom-report-${def.id}`}>
       {def.viz === "area"
-        ? <SeriesAreaChart data={chartData} series={seriesOf(def)} stacked={stacked} legend={legend} />
-        : <SeriesLineChart data={chartData} series={seriesOf(def)} legend={legend} />}
+        ? <ChartView type="area" data={chartData} series={seriesOf(def)} stacked={stacked} legend={legend} />
+        : <ChartView type="line" data={chartData} series={seriesOf(def)} legend={legend} />}
 
       <div className="overflow-x-auto">
         <table className="w-full text-xs border-collapse">
@@ -103,8 +104,8 @@ function GroupedReport({ def, rows }: { def: CustomReportDef; rows: readonly Row
 
   return (
     <div className="space-y-3" data-testid={`custom-report-${def.id}`}>
-      {def.viz === "bar" && <SeriesBarChart data={chartData} series={seriesOf(def)} stacked={stacked} legend={legend} />}
-      {def.viz === "pie" && pivotMetric && <SharePieChart data={pieData} legend={legend} />}
+      {def.viz === "bar" && <ChartView type="bar" data={chartData} series={seriesOf(def)} stacked={stacked} legend={legend} />}
+      {def.viz === "pie" && pivotMetric && <ChartView type="pie" data={pieData} legend={legend} />}
 
       <div className="overflow-x-auto">
         <table className="w-full text-xs border-collapse">

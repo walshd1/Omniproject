@@ -1,13 +1,14 @@
 import { useMemo } from "react";
 import type { EntityField, ViewRecord } from "../../lib/view-engine/types";
 import type { ViewChartSpec } from "../../lib/view-engine/view-defs";
-import { SeriesBarChart, SharePieChart, TreemapChart } from "../charts/primitives";
-import { GanttChart, type GanttItem } from "../charts/gantt";
+import { ChartView } from "../charts/ChartView";
+import type { GanttItem } from "../charts/gantt";
 
 /**
  * Renders an entity's records as a chart, per a `ViewChartSpec` — the bridge between the view engine
- * and the data-agnostic chart primitives. Count/share charts group records by a field and count them;
- * a gantt spans each record between two date fields. Works for tasks and issues alike.
+ * and the common {@link ChartView} renderer. Count/share charts group records by a field and count
+ * them; a gantt spans each record between two date fields. Works for tasks and issues alike; the
+ * actual drawing is delegated to ChartView (data over the shared primitives).
  */
 export function EntityChart<T>({ records, fields, spec, noun }: {
   records: ViewRecord<T>[];
@@ -31,14 +32,13 @@ export function EntityChart<T>({ records, fields, spec, noun }: {
     const sf = fm[spec.startField ?? ""];
     const ef = fm[spec.endField ?? ""];
     const items: GanttItem[] = records.map((r) => ({ label: r.title, start: sf?.get(r.raw) ?? "", end: ef?.get(r.raw) ?? "" }));
-    return <GanttChart items={items} />;
+    return <ChartView type="gantt" items={items} />;
   }
   if (spec.type === "pie" || spec.type === "donut") {
-    return <SharePieChart data={counts.map(([name, value]) => ({ name, value }))} donut={spec.type === "donut"} />;
+    return <ChartView type={spec.type} data={counts.map(([name, value]) => ({ name, value }))} />;
   }
   if (spec.type === "wbs") {
-    return <TreemapChart data={counts.map(([name, value]) => ({ name, value }))} />;
+    return <ChartView type="treemap" data={counts.map(([name, value]) => ({ name, value }))} />;
   }
-  // bar — count of records per group
-  return <SeriesBarChart data={counts.map(([name, value]) => ({ name, count: value }))} series={[{ key: "count", label: `${noun}s` }]} legend={false} />;
+  return <ChartView type="bar" data={counts.map(([name, value]) => ({ name, count: value }))} series={[{ key: "count", label: `${noun}s` }]} legend={false} />;
 }

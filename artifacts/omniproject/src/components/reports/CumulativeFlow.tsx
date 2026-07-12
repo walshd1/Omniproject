@@ -1,11 +1,11 @@
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ProjectHistoryChart } from "./ProjectHistoryChart";
-import { axisTheme, gridTheme, chartTooltipStyle } from "./chart-theme";
+import { ChartView } from "../charts/ChartView";
 import { cumulativeFlowSeries } from "../../lib/progress-charts";
 
 /**
  * Cumulative flow — completed vs still-remaining work stacked over time (the two-band CFD a
  * total/completed history supports). Derived from the backend's project history; nothing stored.
+ * Drawn through the common ChartView renderer.
  */
 export function CumulativeFlow({ projectId }: { projectId: string }) {
   return (
@@ -17,16 +17,14 @@ export function CumulativeFlow({ projectId }: { projectId: string }) {
       select={(points) => cumulativeFlowSeries(points)}
     >
       {(series) => (
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={series} margin={{ top: 8, right: 16, bottom: 4, left: -8 }}>
-            <CartesianGrid {...gridTheme} />
-            <XAxis dataKey="date" {...axisTheme} fontSize={10} />
-            <YAxis {...axisTheme} fontSize={11} allowDecimals={false} />
-            <Tooltip contentStyle={chartTooltipStyle} />
-            <Area type="monotone" stackId="1" dataKey="completed" stroke="#22c55e" fill="#22c55e" fillOpacity={0.5} name="Completed" />
-            <Area type="monotone" stackId="1" dataKey="remaining" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.3} name="Remaining" />
-          </AreaChart>
-        </ResponsiveContainer>
+        <ChartView
+          type="area"
+          stacked
+          height="100%"
+          xKey="date"
+          data={series as unknown as { name: string }[]}
+          series={[{ key: "completed", label: "Completed" }, { key: "remaining", label: "Remaining" }]}
+        />
       )}
     </ProjectHistoryChart>
   );

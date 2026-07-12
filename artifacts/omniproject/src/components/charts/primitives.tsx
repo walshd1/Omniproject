@@ -1,6 +1,21 @@
-import { BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, ScatterChart, Scatter, Treemap, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, ScatterChart, Scatter, Treemap, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer } from "recharts";
 import { gridTheme, axisTheme, chartTooltipStyle } from "../reports/chart-theme";
 import { truncateLabel } from "../../lib/utils";
+
+/** A horizontal annotation line at a y-value (e.g. a mean, a target, an ideal line). Recessive by
+ *  default (dashed, muted); pass a `color` to emphasise. */
+export interface ReferenceMark {
+  value: number;
+  label?: string;
+  color?: string;
+}
+function renderReferenceLines(marks: ReferenceMark[] | undefined) {
+  return (marks ?? []).map((m, i) => (
+    <ReferenceLine key={i} y={m.value} stroke={m.color ?? "currentColor"} strokeDasharray="5 4"
+      {...(m.color ? {} : { className: "text-muted-foreground" })}
+      {...(m.label ? { label: { value: m.label, fontSize: 10, position: "right" as const } } : {})} />
+  ));
+}
 
 /**
  * Data-agnostic chart primitives — reusable Recharts wrappers that take plain `series` + `data`, so
@@ -12,6 +27,9 @@ import { truncateLabel } from "../../lib/utils";
 // Categorical palette — validated colourblind-safe in light + dark (see the dataviz validator).
 export const CHART_PALETTE = ["#2563eb", "#16a34a", "#d97706", "#9333ea", "#dc2626", "#0891b2"];
 const OTHER_COLOR = "#6b7280"; // neutral gray for an aggregated "Other" slice
+
+/** A chart height — pixels or a `"NN%"` of the parent (for cards that own their height). */
+export type ChartHeight = number | `${number}%`;
 
 /** Compact number format shared by every primitive's axes/tooltips. */
 export const formatChartNumber = (n: number): string =>
@@ -29,13 +47,14 @@ const color = (i: number) => CHART_PALETTE[i % CHART_PALETTE.length]!;
 
 /** Grouped or stacked bars. Horizontal (category axis on the left) by default; `orientation:
  *  "vertical"` draws upright columns. Bars get rounded data-ends per the mark spec. */
-export function SeriesBarChart({ data, series, stacked = false, legend = true, orientation = "horizontal", height }: {
+export function SeriesBarChart({ data, series, stacked = false, legend = true, orientation = "horizontal", height, referenceLines }: {
   data: ChartRow[];
   series: ChartSeries[];
   stacked?: boolean;
   legend?: boolean;
   orientation?: "horizontal" | "vertical";
-  height?: number;
+  height?: ChartHeight;
+  referenceLines?: ReferenceMark[];
 }) {
   const horizontal = orientation === "horizontal";
   const h = height ?? (horizontal ? Math.max(180, data.length * 34) : 260);
@@ -56,6 +75,7 @@ export function SeriesBarChart({ data, series, stacked = false, legend = true, o
         )}
         <Tooltip formatter={(v) => formatChartNumber(v as number)} contentStyle={chartTooltipStyle} />
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
+        {renderReferenceLines(referenceLines)}
         {series.map((s, i) => (
           <Bar key={s.key} dataKey={s.key} name={s.label} {...(stacked ? { stackId: "1" } : {})} fill={color(i)} radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]} />
         ))}
@@ -64,21 +84,24 @@ export function SeriesBarChart({ data, series, stacked = false, legend = true, o
   );
 }
 
-/** A multi-series line chart (e.g. a time trend). */
-export function SeriesLineChart({ data, series, legend = true, height = 240 }: {
+/** A multi-series line chart (e.g. a time trend). `xKey` names the category field (default "name"). */
+export function SeriesLineChart({ data, series, legend = true, height = 240, xKey = "name", referenceLines }: {
   data: ChartRow[];
   series: ChartSeries[];
   legend?: boolean;
-  height?: number;
+  height?: ChartHeight;
+  xKey?: string;
+  referenceLines?: ReferenceMark[];
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
         <CartesianGrid {...gridTheme} />
-        <XAxis dataKey="name" {...axisTheme} tick={{ fontSize: 11 }} />
+        <XAxis dataKey={xKey} {...axisTheme} tick={{ fontSize: 11 }} />
         <YAxis {...axisTheme} tick={{ fontSize: 11 }} tickFormatter={(v) => formatChartNumber(v as number)} />
         <Tooltip formatter={(v) => formatChartNumber(v as number)} contentStyle={chartTooltipStyle} />
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
+        {renderReferenceLines(referenceLines)}
         {series.map((s, i) => (
           <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={color(i)} strokeWidth={2} dot={{ r: 3 }} />
         ))}
@@ -87,22 +110,25 @@ export function SeriesLineChart({ data, series, legend = true, height = 240 }: {
   );
 }
 
-/** A multi-series area chart, optionally stacked. */
-export function SeriesAreaChart({ data, series, stacked = false, legend = true, height = 240 }: {
+/** A multi-series area chart, optionally stacked. `xKey` names the category field (default "name"). */
+export function SeriesAreaChart({ data, series, stacked = false, legend = true, height = 240, xKey = "name", referenceLines }: {
   data: ChartRow[];
   series: ChartSeries[];
   stacked?: boolean;
   legend?: boolean;
-  height?: number;
+  height?: ChartHeight;
+  xKey?: string;
+  referenceLines?: ReferenceMark[];
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
         <CartesianGrid {...gridTheme} />
-        <XAxis dataKey="name" {...axisTheme} tick={{ fontSize: 11 }} />
+        <XAxis dataKey={xKey} {...axisTheme} tick={{ fontSize: 11 }} />
         <YAxis {...axisTheme} tick={{ fontSize: 11 }} tickFormatter={(v) => formatChartNumber(v as number)} />
         <Tooltip formatter={(v) => formatChartNumber(v as number)} contentStyle={chartTooltipStyle} />
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
+        {renderReferenceLines(referenceLines)}
         {series.map((s, i) => (
           <Area key={s.key} type="monotone" dataKey={s.key} name={s.label} {...(stacked ? { stackId: "1" } : {})} stroke={color(i)} fill={color(i)} fillOpacity={0.25} strokeWidth={2} />
         ))}
@@ -117,7 +143,7 @@ export function SeriesAreaChart({ data, series, stacked = false, legend = true, 
 export function SharePieChart({ data, legend = true, height = 260, maxSlices = CHART_PALETTE.length, donut = false }: {
   data: { name: string; value: number }[];
   legend?: boolean;
-  height?: number;
+  height?: ChartHeight;
   maxSlices?: number;
   /** Render as a donut (a hole in the middle) rather than a solid pie. */
   donut?: boolean;
@@ -155,7 +181,7 @@ export function ScatterPlotChart({ points, xLabel, yLabel, height = 280 }: {
   points: ScatterPoint[];
   xLabel?: string;
   yLabel?: string;
-  height?: number;
+  height?: ChartHeight;
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -196,7 +222,7 @@ function TreemapCell({ x = 0, y = 0, width = 0, height = 0, index = 0, depth = 0
   );
 }
 /** A work-breakdown structure as a treemap — area ∝ value, nested by `children`. */
-export function TreemapChart({ data, height = 280 }: { data: TreeNode[]; height?: number }) {
+export function TreemapChart({ data, height = 280 }: { data: TreeNode[]; height?: ChartHeight }) {
   if (data.length === 0) return null;
   return (
     <ResponsiveContainer width="100%" height={height}>
