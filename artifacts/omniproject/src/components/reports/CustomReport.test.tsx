@@ -84,4 +84,12 @@ describe("CustomReport", () => {
     render(<CustomReport def={def({ filter: { all: [{ field: "status", op: "eq", value: "nope" }] } })} rows={rows} />);
     expect(screen.getByTestId("custom-report-empty-r")).toBeInTheDocument();
   });
+
+  it("wraps the report in a styled frame when the definition carries a style", () => {
+    render(<CustomReport def={def({ style: { title: "Budget by status", background: "#f0f0f0" } })} rows={rows} />);
+    // The report still renders…
+    expect(screen.getByTestId("custom-report-r")).toBeInTheDocument();
+    // …now under the user's title.
+    expect(screen.getByText("Budget by status")).toBeInTheDocument();
+  });
 });

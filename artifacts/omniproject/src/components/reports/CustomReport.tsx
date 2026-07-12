@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { runCustomReport, runCustomReportTrend, metricLabel, type CustomReportDef, type Row } from "../../lib/custom-report";
 import { ChartView } from "../charts/ChartView";
+import { ArtifactFrame } from "../artifact/ArtifactFrame";
 import { formatChartNumber, type ChartRow, type ChartSeries } from "../charts/primitives";
 
 /**
@@ -72,8 +73,10 @@ function TrendReport({ def, rows }: { def: CustomReportDef; rows: readonly Row[]
 }
 
 export function CustomReport({ def, rows }: { def: CustomReportDef; rows: readonly Row[] }) {
-  if (def.viz === "line" || def.viz === "area") return <TrendReport def={def} rows={rows} />;
-  return <GroupedReport def={def} rows={rows} />;
+  const inner = def.viz === "line" || def.viz === "area"
+    ? <TrendReport def={def} rows={rows} />
+    : <GroupedReport def={def} rows={rows} />;
+  return def.style ? <ArtifactFrame style={def.style}>{inner}</ArtifactFrame> : inner;
 }
 
 /** The `viz: "table" | "bar" | "pie"` path: single-level grouping (optionally a second level for a pivot). */
