@@ -19,6 +19,7 @@ import { LoggingSyncSettings } from "../components/settings/LoggingSyncSettings"
 import { ErrorTelemetrySettings } from "../components/settings/ErrorTelemetrySettings";
 import { RoutingMatrix } from "../components/settings/RoutingMatrix";
 import { CustomFieldsAdmin } from "../components/settings/CustomFieldsAdmin";
+import { FieldValidationAdmin } from "../components/settings/FieldValidationAdmin";
 import { SelfHostCapabilitiesAdmin } from "../components/settings/SelfHostCapabilitiesAdmin";
 import { TranslationLayer } from "../components/settings/TranslationLayer";
 import { BrokerLog } from "../components/settings/BrokerLog";
@@ -371,6 +372,10 @@ export function Settings() {
 
       <LazyMount>
         <RoutingMatrix />
+      </LazyMount>
+
+      <LazyMount>
+        <FieldValidationAdmin />
       </LazyMount>
 
       <LazyMount>

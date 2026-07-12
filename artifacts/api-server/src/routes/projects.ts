@@ -24,6 +24,8 @@ import {
 import { getBroker, contextFromReq, withBrokerErrors } from "../broker";
 import { resolveCapabilities } from "../lib/capabilities";
 import { validateEntityInput, type FieldDescriptor } from "../lib/field-registry";
+import { getSettings } from "../lib/settings";
+import { checkFieldValues, resolveFieldType } from "../lib/field-validation";
 import { aggregateResourcePool } from "../lib/resource-pool";
 import { poolMap } from "../lib/concurrency-pool";
 import {
@@ -139,6 +141,16 @@ const PROJECT_DESCRIPTORS: FieldDescriptor[] = [
   { key: "programmeId", label: "Programme", type: "reference", references: "programme" },
 ];
 
+/** Enforce the admin-configured field-validation rules over the fields PRESENT in a write body. Only
+ *  rules whose field is in the body are considered, so a rule for a field this entity doesn't carry
+ *  never blocks the write. Returns violation messages (empty ⇒ ok). */
+function fieldRuleErrors(data: Record<string, unknown>): string[] {
+  const settings = getSettings();
+  const rules = (settings.fieldValidation ?? []).filter((r) => Object.prototype.hasOwnProperty.call(data, r.field));
+  if (!rules.length) return [];
+  return checkFieldValues(rules, data, (f) => resolveFieldType(f, settings.customFields));
+}
+
 router.post("/projects", requireRole("manager"), async (req, res) => {
   const bodyParse = CreateProjectBody.safeParse(req.body);
   if (!bodyParse.success) {
@@ -153,6 +165,11 @@ router.post("/projects", requireRole("manager"), async (req, res) => {
   const errors = validateEntityInput(bodyParse.data as Record<string, unknown>, PROJECT_DESCRIPTORS);
   if (errors.length) {
     res.status(400).json({ error: errors[0]!.message, errors }); // errors.length checked above
+    return;
+  }
+  const ruleErrors = fieldRuleErrors(bodyParse.data as Record<string, unknown>);
+  if (ruleErrors.length) {
+    res.status(400).json({ error: ruleErrors[0], errors: ruleErrors });
     return;
   }
   await withBrokerErrors(req, res, "create_project failed", async () => {
@@ -178,6 +195,11 @@ router.patch("/projects/:projectId", requireRole("manager"), async (req, res) =>
   }
   if (!settingProgramme && !caps.entities["project"]?.store) {
     res.status(403).json({ error: "This backend can't update projects" });
+    return;
+  }
+  const ruleErrors = fieldRuleErrors(data as Record<string, unknown>);
+  if (ruleErrors.length) {
+    res.status(400).json({ error: ruleErrors[0], errors: ruleErrors });
     return;
   }
   await withBrokerErrors(req, res, "update_project failed", async () => {
