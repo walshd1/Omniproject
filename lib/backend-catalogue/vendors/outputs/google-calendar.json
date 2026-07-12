@@ -1,0 +1,22 @@
+{
+  "capabilities": {
+    "auth": "oauth2",
+    "readOnly": false,
+    "streaming": false
+  },
+  "id": "google-calendar",
+  "kind": "calendar",
+  "label": "Google Calendar",
+  "notes": "Publishes scheduled work — milestones, deadlines and task due/scheduled dates — outbound as calendar events, through the same broker seam + RBAC + audit (no at-rest scope, never ingests events). Connect via the Google Calendar API (events.insert/patch, OAuth2 consent) or an MCP calendar server.",
+  "route": "publish → Google Calendar API / MCP",
+  "tools": [
+    "milestone",
+    "task-due",
+    "task-scheduled",
+    "deadline"
+  ],
+  "transports": [
+    "api",
+    "mcp"
+  ]
+}

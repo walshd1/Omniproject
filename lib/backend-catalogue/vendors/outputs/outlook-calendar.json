@@ -1,0 +1,22 @@
+{
+  "capabilities": {
+    "auth": "oauth2",
+    "readOnly": false,
+    "streaming": false
+  },
+  "id": "outlook-calendar",
+  "kind": "calendar",
+  "label": "Outlook Calendar",
+  "notes": "Publishes scheduled work — milestones, deadlines and task due/scheduled dates — outbound as calendar events, through the same broker seam + RBAC + audit (no at-rest scope, never ingests events). Connect via the Microsoft Graph calendar API (/me/events, OAuth2 consent) or an MCP calendar server.",
+  "route": "publish → Microsoft Graph calendar API / MCP",
+  "tools": [
+    "milestone",
+    "task-due",
+    "task-scheduled",
+    "deadline"
+  ],
+  "transports": [
+    "api",
+    "mcp"
+  ]
+}

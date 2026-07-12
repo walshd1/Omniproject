@@ -475,7 +475,8 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
           "metrics",
           "events-out",
           "events-in",
-          "batch-egress"
+          "batch-egress",
+          "calendar"
         ]
       },
       "capabilities": {
@@ -499,9 +500,21 @@ export const VENDOR_SCHEMAS: Record<string, JsonSchema> = {
               "api-token",
               "session-or-token",
               "hmac",
-              "user-action"
+              "user-action",
+              "oauth2"
             ]
           }
+        }
+      },
+      "transports": {
+        "type": "array",
+        "description": "Which connection methods OmniProject offers for this output (e.g. a calendar reachable via its REST API or an MCP server). Omitted when the output has a single implicit transport (its route).",
+        "items": {
+          "enum": [
+            "api",
+            "mcp",
+            "ical-feed"
+          ]
         }
       },
       "tools": {

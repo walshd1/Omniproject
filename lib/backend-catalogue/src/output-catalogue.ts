@@ -20,7 +20,13 @@ export type OutputKind =
   | "metrics" // observability scrape
   | "events-out" // outbound signed events
   | "events-in" // inbound event ingest
-  | "batch-egress"; // scheduled/batch data egress (async orchestrators — Airflow, etc.)
+  | "batch-egress" // scheduled/batch data egress (async orchestrators — Airflow, etc.)
+  | "calendar"; // publish scheduled work (milestones/deadlines/task dates) to an external calendar
+
+/** How OmniProject connects to an output — e.g. a calendar reached over its REST API vs an MCP
+ *  server, or served as an iCalendar subscription feed. Most outputs have a single implicit
+ *  transport (their route) and omit this. */
+export type OutputTransport = "api" | "mcp" | "ical-feed";
 
 export interface OutputCapabilities {
   /** Read-only (never mutates a backend through this surface)? */
@@ -28,7 +34,7 @@ export interface OutputCapabilities {
   /** Long-lived stream / scrape vs one-shot? */
   streaming: boolean;
   /** How a caller authenticates to it. */
-  auth: "session" | "api-token" | "session-or-token" | "hmac" | "user-action";
+  auth: "session" | "api-token" | "session-or-token" | "hmac" | "user-action" | "oauth2";
 }
 
 export interface OutputManifest {
@@ -38,6 +44,8 @@ export interface OutputManifest {
   route: string;
   kind: OutputKind;
   capabilities: OutputCapabilities;
+  /** The connection methods offered for this output (e.g. `["api","mcp"]` for a calendar). */
+  transports?: OutputTransport[];
   notes?: string;
 }
 

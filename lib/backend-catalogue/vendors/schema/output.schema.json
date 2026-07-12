@@ -10,7 +10,7 @@
     "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
     "label": { "type": "string" },
     "route": { "type": "string" },
-    "kind": { "enum": ["read-api", "bi-feed", "agent-api", "export", "metrics", "events-out", "events-in", "batch-egress"] },
+    "kind": { "enum": ["read-api", "bi-feed", "agent-api", "export", "metrics", "events-out", "events-in", "batch-egress", "calendar"] },
     "capabilities": {
       "type": "object",
       "additionalProperties": false,
@@ -18,8 +18,13 @@
       "properties": {
         "readOnly": { "type": "boolean" },
         "streaming": { "type": "boolean" },
-        "auth": { "enum": ["session", "api-token", "session-or-token", "hmac", "user-action"] }
+        "auth": { "enum": ["session", "api-token", "session-or-token", "hmac", "user-action", "oauth2"] }
       }
+    },
+    "transports": {
+      "type": "array",
+      "description": "Which connection methods OmniProject offers for this output (e.g. a calendar reachable via its REST API or an MCP server). Omitted when the output has a single implicit transport (its route).",
+      "items": { "enum": ["api", "mcp", "ical-feed"] }
     },
     "tools": { "type": "array", "items": { "type": "string" } },
     "notes": { "type": "string" }
