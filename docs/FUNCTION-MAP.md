@@ -104,10 +104,10 @@ Demo dataset — the canned data the DemoBroker serves.
 | `sampleActivity` | Canned activity-feed rows for demo mode (no backend). |
 | `sampleNotifications` | Canned notification rows for demo mode (no backend). |
 | `getDemoState` | Current in-memory demo dataset (for the developer debug bundle). |
-| `persistDemoState` | Persist the in-memory dataset so it survives a restart — the encrypted built-in backend when opted in, else the plaintext dev-mode file. |
+| `persistDemoState` | Persist the in-memory demo dataset so it survives a restart (dev/test only). |
 | `loadDemoState` | Hydrate the demo dataset from disk on boot when stateful dev mode is enabled. |
 | `resetDemoDataToSeed` | Restore the demo dataset to what this process booted with. |
-| `shouldAutoResetDemo` | Whether the periodic reset should run: only in genuine demo mode (no real backend) and only when the operator hasn't opted into durable persistence — dev-mode (DEV_PERSIST_FILE) or the built-in backend (BUILTIN_BACKEND) — both of which are a deliberate request for state to accumulate. |
+| `shouldAutoResetDemo` | Whether the periodic reset should run: only in genuine demo mode (no real backend) and only when the operator hasn't opted into durable dev persistence (DEV_PERSIST_FILE), which is a deliberate request for state to accumulate. |
 | `demoResetIntervalMinutes` | How often to reset (minutes). |
 
 ### `artifacts/api-server/src/broker/demo.ts`
@@ -1156,14 +1156,12 @@ Dev mode — the single source of truth for "is this a developer/debug instance?
 
 ### `artifacts/api-server/src/lib/dev-persist.ts`
 
-On-disk persistence for the in-memory project dataset — TWO opt-in modes, both off by default (the default posture stays a stateless, zero-at-rest overlay):
+Stateful developer mode (opt-in).
 
 | Function | What it does |
 | --- | --- |
-| `builtinBackendEnabled` | True when the operator has opted into the encrypted, production-capable built-in backend. |
-| `builtinBackendFile` | Where the encrypted built-in dataset lives (a single sealed file). |
-| `saveState` | Persist the in-memory dataset to disk. |
-| `loadState` | Load a previously persisted dataset, or null if none / unreadable / (when `encrypt`) undecryptable — a bad file degrades to "start empty", never a crash. |
+| `saveState` | Dev-only: persist the in-memory demo state to disk (off in prod). |
+| `loadState` | Dev-only: load a previously persisted demo state, or null if none. |
 
 ### `artifacts/api-server/src/lib/digest-delivery.ts`
 
@@ -2168,7 +2166,7 @@ Setup-status report — a registry of SECTIONS, each contributing a slice of the
 
 | Function | What it does |
 | --- | --- |
-| `brokerConfigured` | Whether a REAL source of record is wired — the ONE fact the public/outer surface needs (e.g. every session's demo-mode banner), independent of the caller's role. |
+| `brokerConfigured` | Whether a broker is wired at all — the ONE fact the public/outer surface needs (e.g. every session's demo-mode banner), independent of the caller's role. |
 | `buildSetupStatus` | Assemble the setup/status report from the registered sections. |
 | `buildPublicSetupStatus` | The "outer surface" of setup status — the one fact every authenticated session needs regardless of role (e.g. the demo-mode banner in the global chrome). |
 
