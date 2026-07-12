@@ -41,6 +41,10 @@ export interface TaskSummary {
   byContext: Record<string, number>;
 }
 
+/** GTD priority, optional — "none" is the unset default (mirrors the server's CANONICAL_PRIORITY). */
+export const PRIORITIES = ["none", "low", "medium", "high", "urgent"] as const;
+export type Priority = (typeof PRIORITIES)[number];
+
 export const TASKS_KEY = ["tasks"] as const;
 
 export function useTasks(projectId?: string) {

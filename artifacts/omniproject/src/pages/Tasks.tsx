@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useTasks, useTaskSummary, useCreateTask, useUpdateTask, type Task } from "../lib/tasks";
+import { useTasks, useTaskSummary, useCreateTask, useUpdateTask, PRIORITIES, type Task, type Priority } from "../lib/tasks";
 import { TaskDetailDialog } from "../components/TaskDetailDialog";
 import { Button } from "@/components/ui/button";
 
@@ -30,6 +30,7 @@ export function Tasks() {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [title, setTitle] = useState("");
   const [context, setContext] = useState("");
+  const [priority, setPriority] = useState<Priority>("none");
   const [detail, setDetail] = useState<Task | null>(null);
 
   const shown = useMemo(
@@ -39,7 +40,10 @@ export function Tasks() {
 
   const add = () => {
     if (!title.trim()) return;
-    create.mutate({ title: title.trim(), ...(context.trim() ? { context: context.trim() } : {}) }, { onSuccess: () => { setTitle(""); setContext(""); } });
+    create.mutate(
+      { title: title.trim(), ...(context.trim() ? { context: context.trim() } : {}), ...(priority !== "none" ? { priority } : {}) },
+      { onSuccess: () => { setTitle(""); setContext(""); setPriority("none"); } },
+    );
   };
   const toggleDone = (t: Task) => update.mutate({ id: t.id, patch: { status: CLOSED.has(t.status) ? "next" : "done" } });
 
@@ -77,6 +81,14 @@ export function Tasks() {
             onChange={(e) => setContext(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") add(); }}
           />
+          <select
+            aria-label="Priority"
+            className="w-32 rounded-none border border-border bg-card px-2 py-2 text-sm"
+            value={priority}
+            onChange={(e) => setPriority(e.target.value as (typeof PRIORITIES)[number])}
+          >
+            {PRIORITIES.map((p) => <option key={p} value={p}>{p === "none" ? "priority…" : p}</option>)}
+          </select>
           <Button className="rounded-none" onClick={add} disabled={!title.trim() || create.isPending}>Add</Button>
         </div>
 
