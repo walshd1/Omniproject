@@ -36,17 +36,28 @@ encrypted, short-lived, hash-abstracted local record. Default off, customer-owne
 
 ## A. Architecture / positioning
 
-### A1. First-party lightweight backend ("built-in projects")  ⚑ biggest market lever
+### A1. First-party lightweight backend ("built-in projects")  ⚑ biggest market lever — **BUILT-IN BROKER, PHASE 1 SHIPPED**
 **What:** a small, first-party store so a tiny org with **no** existing PM tool (and no Jira/n8n) can
-use OmniProject standalone. Today the demo broker is sample-data-only; durable persistence exists in
-*dev* mode but there is no real standalone backend.
-**Why parked:** it directly tensions with the core **"stateless, zero-at-rest overlay"** identity — a
-first-party backend *does* store customer data at rest. That's a positioning decision, not a coding
-one.
-**Recommendation:** build it, but framed honestly as **"OmniProject can also *be* a (small) system of
-record"** — a separate, clearly-labelled backend module that stores its own data (encrypted at rest
-like config), distinct from the stateless *overlay* role. It's the single biggest unlock for the
-SME/charity segment. Needs your yes/no on shipping a first-party data store.
+use OmniProject standalone.
+**The design (correct approach):** it's just **another broker** — everything still goes through the
+`Broker` seam; the broker simply happens to be a **built-in, in-process** one talking to a local
+store. So the core is unchanged (per RFC-003), and the store is **pluggable**:
+- **Phase 1 (shipped):** `broker/builtin/` — a `BuiltinStore` seam + `MemoryStore` + `BuiltinBroker`
+  (implements the full `Broker` interface, passes `broker/conformance.ts`). Opt-in via
+  `BUILTIN_BROKER`, **off by default** (the stateless overlay / demo stays the default). It's a
+  REAL backend (`live = true`, `kind = "builtin:<store>"`): starts **empty** (no demo samples), and
+  reports as a connected source (no demo banner) because `live` is true — no special-casing. The
+  in-memory store is genuinely useful on its own for **tests / ephemeral runs**.
+- **Phase 2 (next):** a `PostgresStore` implementing the SAME `BuiltinStore` seam over the existing
+  optional `@workspace/db` (pg + drizzle) — a durable, customer-owned system of record. Data lives
+  in *your* Postgres (you own backup/retention/encryption at the DB layer); OmniProject stays the
+  courier. Selected by `BUILTIN_BROKER=postgres`; until it ships, that value falls back to the
+  memory store **with a loud warning** so it can never silently pretend to persist.
+
+*(NB: an earlier attempt (#510) wrongly persisted the in-memory demo engine to a file and made the
+dev-only `dev-persist` debug tool production-capable — reverted in #511. Dev-persist stays a
+permissive debugging aid, refused in production; the built-in broker is the correct, seam-respecting
+path.)*
 
 ### A2. Managed / hosted offering (or one-click deploy)
 **What:** a hosted tier or marketplace one-click deploys (Render/Railway/Fly/DO), since self-host is a

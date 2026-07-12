@@ -3,6 +3,7 @@ import { getSession } from "../routes/auth";
 import { sessionBindFromSession } from "../lib/session-key";
 import { roleForReq, scopeForReq } from "../lib/rbac";
 import { ReferenceBroker, BROKER_ENV_CONFIGURED, pingBroker } from "./reference-broker";
+import { builtinBrokerEnabled, makeBuiltinBroker } from "./builtin";
 import { DemoBroker } from "./demo";
 import { BrokerError, type Broker, type ActorContext } from "./types";
 import { instrumented, wrapWithTrace } from "./trace";
@@ -37,18 +38,25 @@ export function getBroker(): Broker {
     // source (demo/bundle/cassette) for testing without a real backend. Null
     // outside dev mode, so production is unaffected.
     const dev = devBrokerFromEnv();
-    let base: Broker = dev ?? (BROKER_ENV_CONFIGURED ? new ReferenceBroker() : new DemoBroker());
+    // The built-in broker (opt-in, off by default): an in-process broker over a pluggable store
+    // (memory / Postgres) — a real first-party backend for an org with no external system. A real
+    // BROKER_URL and the dev broker both take precedence; when neither is set and BUILTIN_BROKER is
+    // on, it replaces the sample-data demo with a real (empty) store.
+    const builtinActive = !dev && !BROKER_ENV_CONFIGURED && builtinBrokerEnabled();
+    let base: Broker = dev ?? (BROKER_ENV_CONFIGURED ? new ReferenceBroker() : builtinActive ? makeBuiltinBroker() : new DemoBroker());
     // Keyed-access posture: a LIVE broker is hard-gated behind a configured key
     // (BROKER_PSK) outside dev mode — no keyless request reaches a real vendor/broker.
     // Innermost so a cache hit (which reaches no broker) isn't blocked. Demo/dev brokers
-    // serve sample data and reach no vendor, so they're exempt.
+    // serve sample data and reach no vendor, so they're exempt; the built-in broker reaches no
+    // external vendor either (its store is local), so it's exempt too.
     if (BROKER_ENV_CONFIGURED && !dev && !isDevMode()) base = wrapWithKeyGuard(base);
     // Demonstration flavour: present the demo AS the vendor named by `backendSource`,
     // gated to its declared capabilities, so a prospect previews the product on THEIR
     // stack over sample data. `demoVendorFor` enforces the hard rule that a thin-file
     // spoof NEVER appears over real data — it returns null when a real backend is
-    // connected (prod) or the dev broker is active, so only real vendors show in prod.
-    const demoVendor = demoVendorFor({ devActive: !!dev, realBackend: BROKER_ENV_CONFIGURED, source: getSettings().backendSource });
+    // connected (prod) or the dev broker is active; the built-in broker holds REAL data, so a
+    // vendor spoof must never wrap it either.
+    const demoVendor = builtinActive ? null : demoVendorFor({ devActive: !!dev, realBackend: BROKER_ENV_CONFIGURED, source: getSettings().backendSource });
     if (demoVendor) base = applyVendorProfile(base, demoVendor);
     // ALWAYS ON: coalesce concurrent identical reads into one upstream call (single-flight).
     // Introduces no staleness — coalesced callers all get the one live result — so it's safe to
