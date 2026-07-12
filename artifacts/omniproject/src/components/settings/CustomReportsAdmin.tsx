@@ -13,6 +13,7 @@ import { useReportOverrides, useSaveReportOverrides, type ReportOverride } from 
 import type { Predicate, ConditionSet } from "../../lib/rate-card";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { PredicateEditor } from "./PredicateEditor";
+import { StyleEditor } from "../artifact/StyleEditor";
 
 /** A one-line description of how a report is realised, from its `renderer`. */
 function rendererLabel(def: ReportDefinition): string {
@@ -254,6 +255,12 @@ export function CustomReportsAdmin() {
             <PredicateEditor idPrefix={`creport-${i}`} fieldOptions={rf}
               value={r.filter?.all ?? []}
               onChange={(preds: Predicate[]) => { const { filter: _d, ...rest } = r; const filter: ConditionSet = { all: preds }; patch(i, preds.length ? { ...rest, filter } : rest); }} />
+          </div>
+
+          <div className="pl-2 border-l-2 border-border">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Style — optional</p>
+            <StyleEditor idPrefix={`creport-${i}-style`} value={r.style}
+              onChange={(style) => { const { style: _d, ...rest } = r; patch(i, style ? { ...rest, style } : rest); }} />
           </div>
         </div>
         );
