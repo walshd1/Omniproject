@@ -39,6 +39,18 @@ describe("parseReportDef", () => {
   it("rejects a non-object", () => {
     expect(() => parseReportDef(42)).toThrow(/report definition/);
   });
+
+  it("round-trips a presentation style, keeping only known safe fields", () => {
+    const styled: CustomReportDef = { ...valid, style: { title: "Budget", fontFamily: "serif", textColor: "#123456", background: "#eee", align: "center" } };
+    expect(parseReportDef(JSON.parse(reportDefToJson(styled)))).toEqual(styled);
+
+    // Unknown font / stray fields are dropped; a title-only style survives.
+    const cleaned = parseReportDef({ ...valid, style: { title: "Just a title", fontFamily: "comic-sans", evil: "x" } });
+    expect(cleaned.style).toEqual({ title: "Just a title" });
+
+    // An empty/garbage style becomes no style at all.
+    expect(parseReportDef({ ...valid, style: {} }).style).toBeUndefined();
+  });
 });
 
 describe("uniqueReportId", () => {

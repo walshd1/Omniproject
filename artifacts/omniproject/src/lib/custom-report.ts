@@ -1,5 +1,6 @@
 import { round2 } from "./num";
 import type { ConditionSet, Predicate } from "./rate-card";
+import type { StyleSpec } from "./artifact-style";
 
 /**
  * Bespoke report engine (the report generator) — runs a customer-authored definition over a set of rows:
@@ -39,6 +40,8 @@ export interface CustomReportDef {
     /** Show the series legend (default true). The data table below always names the series too. */
     legend?: boolean;
   };
+  /** Optional presentation styling (title/font/colours/background) applied by ArtifactFrame at render. */
+  style?: StyleSpec;
 }
 
 export type Row = Record<string, unknown>;

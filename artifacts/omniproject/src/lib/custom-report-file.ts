@@ -1,5 +1,6 @@
 import type { CustomReportDef, CustomReportAgg, CustomReportMetric } from "./custom-report";
 import type { ConditionSet } from "./rate-card";
+import { type StyleSpec, FONT_CHOICES } from "./artifact-style";
 import { safeParseJson } from "./safe-json";
 import { triggerBlobDownload } from "./setup";
 
@@ -25,6 +26,20 @@ function parseMetric(v: unknown, i: number): CustomReportMetric {
   const metric: CustomReportMetric = { id: isStr(m["id"]) ? m["id"] : `m${i + 1}`, field: m["field"], agg: m["agg"] as CustomReportAgg };
   if (isStr(m["label"])) metric.label = m["label"];
   return metric;
+}
+
+/** Parse an optional presentation style off a definition file — only known, safe fields survive. */
+function parseStyle(value: unknown): StyleSpec | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const s = value as Record<string, unknown>;
+  const style: StyleSpec = {};
+  if (isStr(s["title"])) style.title = s["title"].slice(0, 200);
+  if (isStr(s["subtitle"])) style.subtitle = s["subtitle"].slice(0, 200);
+  if (FONT_CHOICES.includes(s["fontFamily"] as (typeof FONT_CHOICES)[number])) style.fontFamily = s["fontFamily"] as (typeof FONT_CHOICES)[number];
+  if (isStr(s["textColor"])) style.textColor = s["textColor"].slice(0, 64);
+  if (isStr(s["background"])) style.background = s["background"].slice(0, 64);
+  if (s["align"] === "left" || s["align"] === "center") style.align = s["align"];
+  return Object.keys(style).length ? style : undefined;
 }
 
 /** Validate + normalise an unknown value into a CustomReportDef, throwing a friendly error if it isn't one. */
@@ -56,6 +71,8 @@ export function parseReportDef(value: unknown): CustomReportDef {
   }
   const filter = o["filter"];
   if (filter && typeof filter === "object") def.filter = filter as ConditionSet;
+  const style = parseStyle(o["style"]);
+  if (style) def.style = style;
   return def;
 }
 
