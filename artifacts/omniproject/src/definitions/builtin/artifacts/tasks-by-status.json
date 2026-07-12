@@ -1,0 +1,11 @@
+{
+  "id": "builtin.tasks-by-status",
+  "kind": "view",
+  "label": "Tasks by status",
+  "builtin": true,
+  "spec": {
+    "entity": "task",
+    "viewKind": "chart",
+    "chart": { "type": "bar", "groupField": "status" }
+  }
+}
