@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseBuiltinArtifacts } from "./builtin-defs";
+import { parseBuiltinArtifacts, artifactsForMethodology, type BuiltinArtifactDef } from "./builtin-defs";
 import { BUILTIN_ARTIFACTS } from "./index";
 
 describe("parseBuiltinArtifacts", () => {
@@ -20,9 +20,30 @@ describe("parseBuiltinArtifacts", () => {
       "no-id.json": { kind: "view", label: "x", spec: {} },
       "bad-kind.json": { id: "x", kind: "nope", label: "x", spec: {} },
       "no-spec.json": { id: "y", kind: "view", label: "y" },
+      "bad-methodologies.json": { id: "z", kind: "view", label: "z", spec: {}, methodologies: [1, 2] },
       "not-object.json": 42,
     });
     expect(out.map((d) => d.id)).toEqual(["ok"]);
+  });
+
+  it("carries a valid methodologies tag through", () => {
+    const out = parseBuiltinArtifacts({ "s.json": { id: "s", kind: "report", label: "S", spec: {}, methodologies: ["scrum"] } });
+    expect(out[0]!.methodologies).toEqual(["scrum"]);
+  });
+});
+
+describe("artifactsForMethodology", () => {
+  const defs: BuiltinArtifactDef[] = [
+    { id: "neutral", kind: "report", label: "N", builtin: true, spec: {} },
+    { id: "scrum-only", kind: "report", label: "S", builtin: true, spec: {}, methodologies: ["scrum"] },
+    { id: "kanban-only", kind: "view", label: "K", builtin: true, spec: {}, methodologies: ["kanban"] },
+  ];
+
+  it("returns neutral artifacts plus those tagged with the methodology", () => {
+    expect(artifactsForMethodology(defs, "scrum").map((d) => d.id)).toEqual(["neutral", "scrum-only"]);
+    expect(artifactsForMethodology(defs, "kanban").map((d) => d.id)).toEqual(["neutral", "kanban-only"]);
+    // An unknown methodology still gets the neutral (always-ship) artifacts.
+    expect(artifactsForMethodology(defs, "waterfall").map((d) => d.id)).toEqual(["neutral"]);
   });
 });
 
