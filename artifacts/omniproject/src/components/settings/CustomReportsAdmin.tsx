@@ -14,6 +14,7 @@ import type { Predicate, ConditionSet } from "../../lib/rate-card";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { PredicateEditor } from "./PredicateEditor";
 import { StyleEditor } from "../artifact/StyleEditor";
+import { PrimitiveLibrary } from "../artifact/PrimitiveLibrary";
 
 /** A one-line description of how a report is realised, from its `renderer`. */
 function rendererLabel(def: ReportDefinition): string {
@@ -144,6 +145,13 @@ export function CustomReportsAdmin() {
       </div>
 
       <BuiltInReportFiles />
+
+      <details className="border border-border rounded-md p-2">
+        <summary className="text-[10px] uppercase tracking-widest text-muted-foreground cursor-pointer">Primitive library — what you can build from</summary>
+        <div className="mt-3">
+          <PrimitiveLibrary />
+        </div>
+      </details>
 
       {draft.length === 0 && (
         <p className="text-xs text-muted-foreground border border-dashed border-border p-4" data-testid="custom-reports-empty">No bespoke reports yet — add one.</p>
