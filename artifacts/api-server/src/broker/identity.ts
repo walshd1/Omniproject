@@ -1,3 +1,4 @@
+import { encComponent, decComponent, matchComponent } from "./field-cipher";
 import type { Row } from "./types";
 
 /**
@@ -9,14 +10,38 @@ import type { Row } from "./types";
  *     never silently merge two distinct projects (or misroute a write).
  * Pure + stateless; nothing is stored.
  *
- * It also holds the FIELD-IDENTITY TOKEN (`fieldIdentity`) — the stable identity of a single field value
- * that is INDEPENDENT of which backend served it, encoding the project's correlation GUID
- * (`omniInstanceId`), the broker it came through, and the source field name. Two backends feeding the
- * same field of the same project produce the same token, which is what lets records assemble by project
- * across backends. The encoding is REVERSIBLE — every component can be recovered from the token alone
- * (`parseFieldIdentity`), with no lookup table. This lives below the broker seam by design (the gateway
- * never assembles).
+ * It also builds the FIELD IDENTITY — the backend-independent identity of one wired field. It is built
+ * from the WIRING, not from any backend echo: the moment an admin routes a field (vendor · broker ·
+ * sourceField) it has an identity; routing it to a project folds the project's correlation GUID in. So
+ * OmniProject computes the whole identity from its own config + the project GUID — nothing needs storing
+ * or returning by Jira/etc.
+ *
+ * The identity is a SET of ciphertext PIECES, one per component (project, vendor, broker, field), each a
+ * deterministic cipher (see field-cipher). That gives multiple pieces to match against a lookup — group
+ * by the `project` piece to collect a project's fields across backends, by the `field` piece to find the
+ * same field everywhere — and it is reversible (`parseFieldIdentity` decrypts every piece back). Lives
+ * below the broker seam by design (the gateway never assembles).
  */
+
+/** The plaintext components of a wired field's identity. */
+export interface FieldIdentityParts {
+  /** The project's correlation GUID (added when the field is wired to a project). */
+  omniInstanceId: string;
+  /** The backend/vendor the field is wired to (e.g. the routing `vendor`). */
+  vendor: string;
+  /** The broker it is reached through. */
+  broker: string;
+  /** The vendor's native field/column name. */
+  sourceField: string;
+}
+
+/** The field identity as ciphertext pieces — one opaque, matchable piece per component. */
+export interface FieldIdentity {
+  project: string;
+  vendor: string;
+  broker: string;
+  field: string;
+}
 
 /** The globally-unique key for an entity: `source:id`. */
 export function qualifyId(source: string | null | undefined, id: string): string {
@@ -30,39 +55,40 @@ export function qualifiedId(row: Row, fallbackSource?: string): string {
   return qualifyId(source, String(row["id"]));
 }
 
-/** The three components a field-identity token encodes. */
-export interface FieldIdentity {
-  omniInstanceId: string;
-  broker: string;
-  sourceField: string;
-}
+/** Component labels — domain-separate the pieces so a `project` piece never matches a `vendor` piece. */
+const LABELS = { project: "project", vendor: "vendor", broker: "broker", field: "field" } as const;
 
 /**
- * The FIELD-IDENTITY TOKEN: a stable, backend-independent id for one field of one project instance,
- * encoding the project's correlation GUID (`omniInstanceId`), the `broker` it was reached through, and
- * the native `sourceField` name. Combining "project clarity" (the GUID) with "which value" (broker ·
- * sourceField) means the same logical value has the same token no matter which backend served it — the
- * key on which cross-backend assembly turns.
- *
- * The encoding is REVERSIBLE (see `parseFieldIdentity`): each component is base64url-encoded (alphabet
- * A-Za-z0-9-_) and the three are joined with "." — which never occurs in base64url, so the split is
- * unambiguous and any character (dots, colons, spaces) is safe inside a component. No hashing, no lookup
- * table: every part is recoverable from the token alone.
+ * Build a field identity from its plaintext components: a set of deterministic ciphertext pieces, one
+ * per component. The same wiring + project always produces the same pieces (matchable); every piece is
+ * reversible via {@link parseFieldIdentity}. Computed entirely from OmniProject's own wiring + the
+ * project GUID — no backend has to store or echo anything.
  */
-export function fieldIdentity(omniInstanceId: string, broker: string, sourceField: string): string {
-  return [omniInstanceId, broker, sourceField].map((p) => Buffer.from(p, "utf8").toString("base64url")).join(".");
+export function fieldIdentity(parts: FieldIdentityParts): FieldIdentity {
+  return {
+    project: encComponent(LABELS.project, parts.omniInstanceId),
+    vendor: encComponent(LABELS.vendor, parts.vendor),
+    broker: encComponent(LABELS.broker, parts.broker),
+    field: encComponent(LABELS.field, parts.sourceField),
+  };
 }
 
-/** Reverse of {@link fieldIdentity}: recover the three components from a token, or `null` if the string
- *  isn't a well-formed field-identity token (wrong shape, or it doesn't round-trip). */
-export function parseFieldIdentity(token: string): FieldIdentity | null {
-  if (typeof token !== "string") return null;
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [omniInstanceId, broker, sourceField] = parts.map((p) => Buffer.from(p, "base64url").toString("utf8")) as [string, string, string];
-  // Validate by re-encoding: base64url decoding is lenient, so a token only counts if it round-trips.
-  if (fieldIdentity(omniInstanceId, broker, sourceField) !== token) return null;
-  return { omniInstanceId, broker, sourceField };
+/** Reverse of {@link fieldIdentity}: decrypt every piece back to its plaintext component, or `null` if
+ *  any piece is missing/tampered/for the wrong component. */
+export function parseFieldIdentity(id: FieldIdentity | null | undefined): FieldIdentityParts | null {
+  if (!id) return null;
+  const omniInstanceId = decComponent(LABELS.project, id.project);
+  const vendor = decComponent(LABELS.vendor, id.vendor);
+  const broker = decComponent(LABELS.broker, id.broker);
+  const sourceField = decComponent(LABELS.field, id.field);
+  if (omniInstanceId === null || vendor === null || broker === null || sourceField === null) return null;
+  return { omniInstanceId, vendor, broker, sourceField };
+}
+
+/** Match one component piece against a candidate plaintext value — the "match against a lookup"
+ *  primitive (e.g. does this identity's `project` piece belong to a given GUID?). */
+export function matchIdentityComponent(piece: string, component: keyof typeof LABELS, value: string): boolean {
+  return matchComponent(piece, LABELS[component], value);
 }
 
 /**
