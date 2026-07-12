@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getJson, sendJson } from "./api";
+import type { StyleSpec } from "./artifact-style";
 
 /**
  * Saved-views client. A saved view is a named preset of columns + sort (+ filters/grouping) scoped
@@ -22,6 +23,8 @@ export interface SavedView {
   sort?: { field: string; dir: "asc" | "desc" };
   filters?: { field: string; value: string }[];
   groupBy?: string;
+  /** Optional presentation styling (title/font/colours/background) applied by ArtifactFrame at render. */
+  style?: StyleSpec;
 }
 
 export const savedViewsQueryKey = ["saved-views"] as const;

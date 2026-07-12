@@ -1,5 +1,6 @@
 import type { BoardColumn, EntityDescriptor } from "./types";
 import type { SavedView } from "../saved-views";
+import type { StyleSpec } from "../artifact-style";
 
 /**
  * A view is a JSON definition rendered by the engine — one schema for both the shipped built-ins and
@@ -45,6 +46,8 @@ export interface ViewDefinition {
   groupBy?: string;
   /** The plain built-in list carries the status-filter tabs; custom list views don't. */
   statusFilter?: boolean;
+  /** chart: optional presentation styling (title/font/colours/background). */
+  style?: StyleSpec;
 }
 
 /** The read-only built-in views for an entity, derived from its descriptor (list, table, timeline
@@ -79,5 +82,6 @@ export function savedViewToDefinition(v: SavedView): ViewDefinition {
     ...(v.filters ? { filters: v.filters } : {}),
     ...(v.sort ? { sort: v.sort } : {}),
     ...(v.groupBy ? { groupBy: v.groupBy } : {}),
+    ...(v.style ? { style: v.style } : {}),
   };
 }

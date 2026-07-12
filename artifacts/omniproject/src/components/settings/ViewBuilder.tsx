@@ -9,6 +9,8 @@ import { taskDescriptor } from "../../lib/view-engine/task-descriptor";
 import { issueDescriptor } from "../../lib/view-engine/issue-descriptor";
 import { builtinViewsFor } from "../../lib/view-engine/view-defs";
 import type { EntityDescriptor, EntityField } from "../../lib/view-engine/types";
+import type { StyleSpec } from "../../lib/artifact-style";
+import { StyleEditor } from "../artifact/StyleEditor";
 
 /**
  * View builder (PMO/admin) — author named, shared custom views for the generic view engine. Pick the
@@ -43,6 +45,7 @@ export function ViewBuilder() {
   const [chartGroupField, setChartGroupField] = useState("status");
   const [chartStartField, setChartStartField] = useState("");
   const [chartEndField, setChartEndField] = useState("");
+  const [style, setStyle] = useState<StyleSpec | undefined>(undefined);
 
   const fields = DESCRIPTORS[entity].fields;
   const dateFields = fields.filter((f) => f.isDate);
@@ -51,7 +54,7 @@ export function ViewBuilder() {
 
   if (!isPmoOrAdmin(auth?.role)) return null;
 
-  const reset = () => { setName(""); setFilters([]); setSortField(""); setSortDir("asc"); setGroupBy(""); setColumns([]); setDateField(""); };
+  const reset = () => { setName(""); setFilters([]); setSortField(""); setSortDir("asc"); setGroupBy(""); setColumns([]); setDateField(""); setStyle(undefined); };
   const toggleColumn = (k: string) => setColumns((c) => (c.includes(k) ? c.filter((x) => x !== k) : [...c, k]));
 
   const submit = () => {
@@ -72,6 +75,7 @@ export function ViewBuilder() {
           ? { type: chartType, ...(chartStartField ? { startField: chartStartField } : {}), ...(chartEndField ? { endField: chartEndField } : {}) }
           : { type: chartType, ...(chartGroupField ? { groupField: chartGroupField } : {}) },
       } : {}),
+      ...(viewKind === "chart" && style ? { style } : {}),
     };
     save.mutate([...(all ?? []), view], {
       onSuccess: () => { toast({ title: "VIEW SAVED", description: `“${view.name}” is now available in the ${entity} views.` }); reset(); },
@@ -156,6 +160,10 @@ export function ViewBuilder() {
                 </select>
               </div>
             )}
+            <div className="sm:col-span-2 space-y-1">
+              <Label className="text-xs uppercase tracking-widest text-muted-foreground">Style — optional</Label>
+              <StyleEditor idPrefix="vb-style" value={style} onChange={setStyle} />
+            </div>
           </div>
         )}
 

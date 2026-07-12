@@ -88,7 +88,7 @@ export function EntityViews<T>({
       );
     }
     if (current.kind === "chart") {
-      return <EntityChart records={shaped} fields={descriptor.fields} spec={current.chart ?? { type: "bar" }} noun={descriptor.noun} />;
+      return <EntityChart records={shaped} fields={descriptor.fields} spec={current.chart ?? { type: "bar" }} noun={descriptor.noun} {...(current.style ? { style: current.style } : {})} />;
     }
     // list
     if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
