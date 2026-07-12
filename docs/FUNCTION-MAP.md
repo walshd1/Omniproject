@@ -56,6 +56,23 @@ Latency-aware adaptive TTL for the opt-in read cache.
 | `adaptiveStats` | Diagnostics for dev mode: config + per-method measured latency and the TTL it currently chooses. |
 | `resetAdaptive` | Test-only: forget all measured latencies. |
 
+### `artifacts/api-server/src/broker/builtin/builtin-broker.ts`
+
+BUILT-IN BROKER — an in-process implementation of the `Broker` interface backed by a pluggable store (`BuiltinStore`): `MemoryStore` for tests/ephemeral use, a Postgres store for a durable, customer-owned system of record.
+
+### `artifacts/api-server/src/broker/builtin/index.ts`
+
+The built-in broker — selection + store wiring.
+
+| Function | What it does |
+| --- | --- |
+| `builtinBrokerEnabled` | The built-in broker — selection + store wiring. |
+| `makeBuiltinBroker` | Build the built-in broker for the configured store (memory today; Postgres next), warning if an as-yet-unavailable store was requested so it can never silently pretend to persist. |
+
+### `artifacts/api-server/src/broker/builtin/store.ts`
+
+The BUILT-IN BROKER's storage seam.
+
 ### `artifacts/api-server/src/broker/cache.ts`
 
 OPT-IN server-side read cache — a short-TTL, in-memory cache of broker reads.
