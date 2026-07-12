@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useStore } from "../store/useStore";
 import { VIEWS, viewMeta, type CapabilityDomain } from "../lib/views";
+import { useMethodologyComposition } from "../lib/methodology-composition-api";
+import { isItemVisible } from "../lib/methodology-composition";
 import { useGetCapabilities, type Capabilities } from "@workspace/api-client-react";
 
 /** Methodology view switcher — generalizes the old Agile/Gantt lens toggle. */
@@ -16,10 +18,13 @@ export function ViewSwitcher() {
   const { currentView, setCurrentView } = useStore();
   const active = viewMeta(currentView);
   const { data: caps } = useGetCapabilities();
+  const { data: composition } = useMethodologyComposition();
   const missing = (d?: CapabilityDomain) => !!d && !!caps && caps[d as keyof Capabilities] === false;
 
-  // Preserve declaration order while grouping by methodology family.
-  const groups = VIEWS.reduce<Record<string, typeof VIEWS>>((acc, v) => {
+  // The methodology composition curates which views a PMO exposes; the current view stays selectable even
+  // if curated out. Preserve declaration order while grouping by methodology family.
+  const visible = VIEWS.filter((v) => v.id === currentView || isItemVisible(composition ?? null, "view", v.id));
+  const groups = visible.reduce<Record<string, typeof VIEWS>>((acc, v) => {
     (acc[v.group] ??= []).push(v);
     return acc;
   }, {});

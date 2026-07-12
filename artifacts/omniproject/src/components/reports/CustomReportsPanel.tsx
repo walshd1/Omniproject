@@ -7,6 +7,8 @@ import { DataState } from "../DataState";
 import { CustomReport } from "./CustomReport";
 import { ArtifactRenderer } from "../artifact/ArtifactRenderer";
 import { BUILTIN_ARTIFACTS, type BuiltinArtifactDef } from "../../definitions";
+import { useMethodologyComposition } from "../../lib/methodology-composition-api";
+import { isEnabled } from "../../lib/methodology-composition";
 import { usePortfolioItems } from "./use-portfolio-items";
 
 /** The shipped baseline report artifacts whose spec targets a given scope — the read-only JSON defs from
@@ -20,8 +22,10 @@ export function baselineReportsForScope(scope: "project" | "portfolio" | "tasks"
  *  code. */
 function CustomReportList({ scope, rows }: { scope: "project" | "portfolio" | "tasks"; rows: readonly Row[] }) {
   const { data: defs } = useCustomReports();
+  const { data: composition } = useMethodologyComposition();
   const mine = (defs ?? []).filter((d) => d.scope === scope);
-  const baseline = baselineReportsForScope(scope);
+  // Shipped baseline reports respect the methodology composition (their composition id is "artifact:<id>").
+  const baseline = baselineReportsForScope(scope).filter((a) => isEnabled(composition ?? null, `artifact:${a.id}`));
   if (mine.length === 0 && baseline.length === 0) return null;
   return (
     <div className="space-y-8" data-testid={`custom-reports-${scope}`}>
