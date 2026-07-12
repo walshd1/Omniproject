@@ -120,6 +120,21 @@ test("savedViews entries need string id + name", () => {
   assert.doesNotThrow(() => updateSettings({ savedViews: [{ id: "v", name: "My view" }] }));
 });
 
+test("artifact style: enums for font/align, capped colour + title strings", () => {
+  const view = (style: unknown) => ({ savedViews: [{ id: "v", name: "V", style }] });
+  throws(view("nope")); // not an object
+  throws(view({ fontFamily: "comic-sans" })); // unknown font
+  throws(view({ align: "justify" })); // unknown align
+  throws(view({ textColor: "x".repeat(65) })); // over the colour cap
+  throws(view({ title: "t".repeat(201) })); // over the title cap
+  assert.doesNotThrow(() => updateSettings(view({ title: "Velocity", fontFamily: "serif", textColor: "#123456", background: "rgba(0,0,0,0.1)", align: "center" })));
+  // The same guard applies to custom reports.
+  const okReport = { id: "r", label: "R", scope: "tasks" as const, viz: "bar" as const, metrics: [{ id: "m", field: "count", agg: "count" as const }] };
+  throws({ customReports: [{ ...okReport, style: { fontFamily: "papyrus" } }] });
+  assert.doesNotThrow(() => updateSettings({ customReports: [{ ...okReport, style: { title: "By status" } }] }));
+  updateSettings({ customReports: [] });
+});
+
 test("fieldOverrides support-map validation", () => {
   throws({ fieldOverrides: "nope" });
   throws({ fieldOverrides: { fields: "nope" } });
