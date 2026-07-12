@@ -884,6 +884,15 @@ Capability governance — one model for every "thing that can move data or be tu
 | --- | --- |
 | `applyCharityOnboarding` | Apply the full "We're a charity" preset in one step. |
 
+### `artifacts/api-server/src/lib/closed-projects.ts`
+
+CLOSED-PROJECT LOCATION REGISTRY — the small, durable index that lets OmniProject keep serving closed projects' data without pulling every project that ever existed through the live broker forever.
+
+| Function | What it does |
+| --- | --- |
+| `validateClosedProjects` | Validate + normalise the closed-project registry (trims, defaults, checks disposition). |
+| `planProjectSources` | — |
+
 ### `artifacts/api-server/src/lib/column-mapper.ts`
 
 Column → canonical-field mapper.
@@ -2546,6 +2555,10 @@ Capability + field-manifest endpoints.
 ### `artifacts/api-server/src/routes/client-errors.ts`
 
 Client-error telemetry sink — an ADMIN-GATED, INTERNAL-only report channel.
+
+### `artifacts/api-server/src/routes/closed-projects.ts`
+
+The closed-project location registry: projectGuid → where its data now lives (sor | archive).
 
 ### `artifacts/api-server/src/routes/comments.ts`
 

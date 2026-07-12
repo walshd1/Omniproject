@@ -907,6 +907,7 @@ const SAMPLE_SETTINGS = {
   fieldValidation: [],
   programmeRegistry: {},
   brokerKinds: [],
+  closedProjects: {},
   branding: null,
   labelOverrides: {},
   webhooks: [],
