@@ -136,6 +136,8 @@ export class DemoBroker implements Broker {
       identifier: input.identifier ?? id.toUpperCase(),
       description: input.description ?? null,
       source: getSettings().backendSource || "plane",
+      // Store the gateway-minted correlation GUID so it echoes back on reads (see Project.omniInstanceId).
+      ...(input.omniInstanceId ? { omniInstanceId: input.omniInstanceId } : {}),
       programmeId: input.programmeId ?? null,
       programmeName: null,
       issueCount: 0,
