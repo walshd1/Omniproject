@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { getSession } from "./auth";
 import { roleForReq, isDeprovisioned, ROLES } from "../lib/rbac";
 import { addClient, clientCount, canAddClient } from "../lib/notify-hub";
-import { openSse } from "../lib/sse";
+import { openSse, keepAlive, type SseStream } from "../lib/sse";
 import { getNotifyBus, busMode } from "../lib/notify-bus";
 import { emitWebhookEvent } from "../lib/webhooks";
 import { routeNotification, getNotificationChannel, notificationSeverity } from "@workspace/backend-catalogue";
@@ -47,34 +47,25 @@ streamRouter.get("/notifications/stream", (req: Request, res: Response) => {
     close: stream.close,
   });
 
-  // SSE keepalive + live revocation: every 25s (under the common 30–60s proxy idle
-  // timeout) emit a comment frame so reverse proxies don't drop an otherwise-quiet
-  // stream — but first re-check the principal hasn't been deprovisioned mid-stream,
-  // and tear the connection down at once if so (a long-lived SSE would otherwise
-  // outlive a SCIM `active=false` until the client reconnects).
-  const ping = setInterval(() => {
-    if (sseKeepaliveTick(req, res)) clearInterval(ping);
-  }, 25_000);
-
-  req.on("close", () => {
-    clearInterval(ping);
-    remove();
-  });
+  // SSE keepalive + live revocation via the shared helper: every 25s (under the common 30–60s proxy
+  // idle timeout) it emits a comment ping so reverse proxies don't drop an otherwise-quiet stream, and
+  // the onTick re-checks the principal hasn't been deprovisioned mid-stream — tearing the connection
+  // down at once if so (a long-lived SSE would otherwise outlive a SCIM `active=false`). keepAlive runs
+  // `remove` (the notify-hub unsubscribe) EXACTLY ONCE whichever path fires — client disconnect OR the
+  // onTick self-close — so the deprovision path can't leak a zombie client into the per-sub cap.
+  keepAlive(stream, req, remove, 25_000, () => revokedIfDeprovisioned(req, stream));
 });
 
 /**
- * One SSE keepalive tick. If the streaming principal is now deprovisioned, notify the
- * client and end the response (its `close` handler then runs the per-connection
- * cleanup); otherwise write a comment ping. Returns true when the stream was closed.
+ * keepAlive onTick for the notify stream: if the streaming principal was deprovisioned mid-connection,
+ * emit a `revoked` frame and return true so the helper tears the stream down (and runs the addClient
+ * unsubscribe once); otherwise return false and the helper writes its keepalive ping. Pure w.r.t. the
+ * socket — closing + cleanup are the helper's job, which is what makes the unsubscribe leak-free.
  */
-export function sseKeepaliveTick(req: Request, res: Response): boolean {
-  if (isDeprovisioned(req)) {
-    try { res.write(`event: revoked\ndata: ${JSON.stringify({ reason: "deprovisioned" })}\n\n`); } catch { /* gone */ }
-    try { res.end(); } catch { /* already closed */ }
-    return true;
-  }
-  try { res.write(`: ping\n\n`); } catch { /* gone */ }
-  return false;
+export function revokedIfDeprovisioned(req: Request, stream: SseStream): boolean {
+  if (!isDeprovisioned(req)) return false;
+  stream.send("revoked", { reason: "deprovisioned" });
+  return true;
 }
 
 const INGEST_SECRET = process.env["NOTIFY_INGEST_SECRET"]?.trim();
