@@ -16,6 +16,7 @@ after(() => h?.close());
 
 const req = (path: string, opts: Parameters<Harness["req"]>[1] = {}) => h.req(path, { cookie: ADMIN, ...opts });
 const commit = (body: unknown) => req("/import/commit", { method: "POST", body });
+const preview = (body: unknown) => req("/import/preview", { method: "POST", body });
 const setRule = (body: unknown) => req("/admin/ruleset", { method: "PUT", body });
 
 afterEach(() => setRule({ "require-description": "off" }));
@@ -30,6 +31,13 @@ test("commit with an empty rows array → 400", async () => {
   const r = await commit({ projectId: "proj-1", rows: [] });
   assert.equal(r.status, 400);
   assert.match(((await r.json()) as { error: string }).error, /non-empty/);
+});
+
+test("preview caps the rows array (CPU-amplification guard) → 413", async () => {
+  const rows = Array.from({ length: 5_001 }, (_, i) => ({ Summary: `row ${i}` }));
+  const r = await preview({ rows });
+  assert.equal(r.status, 413);
+  assert.match(((await r.json()) as { error: string }).error, /Too many rows/);
 });
 
 test("commit honours a caller-supplied explicit mapping", async () => {
