@@ -1,37 +1,41 @@
-import { test } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { spawnNode } from "../broker/spawn-helper.test";
+import { __setEgressTransportForTest } from "./egress";
 import {
   isOAuth2Configured,
   buildAuthUrl,
-  exchangeCodeOAuth2,
+  completeOAuth2Login,
   fetchUserInfo,
   mapUserInfo,
   newOAuth2Flow,
+  __clearOAuth2ConfigCache,
   type OAuth2Config,
 } from "./oauth2";
 
 const CONFIG: OAuth2Config = {
   authUrl: "https://github.com/login/oauth/authorize",
-  // token/userinfo are fetched server-side (now egress-guarded) — use IP literals so the guard
-  // performs no DNS lookup and the unit test stays hermetic/offline. authUrl is only redirected
-  // to (not fetched), so it keeps its real value for the buildAuthUrl assertion.
-  tokenUrl: "http://127.0.0.1:9999/access_token",
-  userInfoUrl: "http://127.0.0.1:9999/user",
+  // openid-client requires https endpoints; server-side hops go through safeFetch. Loopback IPs keep
+  // the egress guard DNS-free and hermetic, and the mocked transport below returns canned responses.
+  tokenUrl: "https://127.0.0.1/access_token",
+  userInfoUrl: "https://127.0.0.1/user",
   clientId: "client-123",
   clientSecret: "secret-xyz",
   scope: "read:user user:email",
   fields: { sub: "id", name: "name", email: "email", roles: "roles" },
 };
 
+beforeEach(() => __clearOAuth2ConfigCache());
+afterEach(() => { __setEgressTransportForTest(null); __clearOAuth2ConfigCache(); });
+
 test("isOAuth2Configured is false with no OAUTH2_* env", () => {
   // No env set in the test process → the module's lazy config is null.
   assert.equal(isOAuth2Configured, false);
 });
 
-test("buildAuthUrl includes code, state, scope and S256 PKCE challenge", () => {
-  const url = new URL(buildAuthUrl({ config: CONFIG, redirectUri: "https://app.test/api/auth/oauth2/callback", state: "st-1", codeVerifier: "verifier-abc" }));
+test("buildAuthUrl includes code, state, scope and S256 PKCE challenge (via openid-client)", async () => {
+  const url = new URL(await buildAuthUrl({ config: CONFIG, redirectUri: "https://app.test/api/auth/oauth2/callback", state: "st-1", codeVerifier: "verifier-abc-1234567890" }));
   assert.equal(url.origin + url.pathname, "https://github.com/login/oauth/authorize");
   assert.equal(url.searchParams.get("response_type"), "code");
   assert.equal(url.searchParams.get("client_id"), "client-123");
@@ -40,13 +44,12 @@ test("buildAuthUrl includes code, state, scope and S256 PKCE challenge", () => {
   assert.equal(url.searchParams.get("state"), "st-1");
   assert.equal(url.searchParams.get("code_challenge_method"), "S256");
   assert.ok((url.searchParams.get("code_challenge") || "").length > 0);
-  // No re-auth by default — a normal login must not force a re-prompt.
-  assert.equal(url.searchParams.get("prompt"), null);
+  assert.equal(url.searchParams.get("prompt"), null); // no re-auth by default
   assert.equal(url.searchParams.get("max_age"), null);
 });
 
-test("buildAuthUrl with reauth forces a fresh re-authentication (prompt=login + max_age=0)", () => {
-  const url = new URL(buildAuthUrl({ config: CONFIG, redirectUri: "https://app.test/api/auth/oauth2/callback", state: "st-2", codeVerifier: "v", reauth: true }));
+test("buildAuthUrl with reauth forces a fresh re-authentication (prompt=login + max_age=0)", async () => {
+  const url = new URL(await buildAuthUrl({ config: CONFIG, redirectUri: "https://app.test/api/auth/oauth2/callback", state: "st-2", codeVerifier: "v-1234567890", reauth: true }));
   assert.equal(url.searchParams.get("prompt"), "login");
   assert.equal(url.searchParams.get("max_age"), "0");
 });
@@ -59,35 +62,20 @@ test("newOAuth2Flow mints a distinct state and verifier", () => {
   assert.notEqual(a.state, b.state); // CSPRNG → different each call
 });
 
-test("exchangeCodeOAuth2 posts the grant and returns the access token (injected fetch)", async () => {
-  let seenUrl = "", seenBody = "";
-  const fetchImpl = (async (url: string, init: RequestInit) => {
-    seenUrl = String(url);
-    seenBody = String(init.body);
-    return new Response(JSON.stringify({ access_token: "tok-789", token_type: "bearer" }), { status: 200 });
-  }) as unknown as typeof fetch;
-
-  const tokens = await exchangeCodeOAuth2({ config: CONFIG, code: "code-1", redirectUri: "https://app.test/cb", codeVerifier: "ver-1", fetchImpl });
-  assert.equal(tokens.access_token, "tok-789");
-  assert.equal(seenUrl, CONFIG.tokenUrl);
-  assert.match(seenBody, /grant_type=authorization_code/);
-  assert.match(seenBody, /code_verifier=ver-1/);
+test("completeOAuth2Login validates state + exchanges the code for the access token (no id_token)", async () => {
+  __setEgressTransportForTest(async (url) => {
+    if (String(url).endsWith("/access_token")) return new Response(JSON.stringify({ access_token: "tok-789", token_type: "bearer", scope: "read:user" }), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response("nf", { status: 404 });
+  });
+  const currentUrl = new URL("https://127.0.0.1/api/auth/oauth2/callback?code=code-1&state=ST");
+  const r = await completeOAuth2Login({ config: CONFIG, currentUrl, expectedState: "ST", codeVerifier: "verifier-abc-1234567890" });
+  assert.equal(r.accessToken, "tok-789");
 });
 
-test("exchangeCodeOAuth2 throws when the token endpoint returns an error payload", async () => {
-  const fetchImpl = (async () => new Response(JSON.stringify({ error: "bad_verification_code" }), { status: 200 })) as unknown as typeof fetch;
-  await assert.rejects(
-    () => exchangeCodeOAuth2({ config: CONFIG, code: "x", redirectUri: "https://app.test/cb", codeVerifier: "v", fetchImpl }),
-    /no access token|bad_verification_code/,
-  );
-});
-
-test("exchangeCodeOAuth2 throws on a non-ok response", async () => {
-  const fetchImpl = (async () => new Response("nope", { status: 401 })) as unknown as typeof fetch;
-  await assert.rejects(
-    () => exchangeCodeOAuth2({ config: CONFIG, code: "x", redirectUri: "https://app.test/cb", codeVerifier: "v", fetchImpl }),
-    /token exchange failed \(401\)/,
-  );
+test("completeOAuth2Login rejects a state mismatch (openid-client enforces the binding)", async () => {
+  __setEgressTransportForTest(async () => new Response(JSON.stringify({ access_token: "x", token_type: "bearer" }), { status: 200, headers: { "content-type": "application/json" } }));
+  const currentUrl = new URL("https://127.0.0.1/api/auth/oauth2/callback?code=c&state=WRONG");
+  await assert.rejects(() => completeOAuth2Login({ config: CONFIG, currentUrl, expectedState: "ST", codeVerifier: "v" }));
 });
 
 test("fetchUserInfo sends the bearer token and returns the profile JSON (injected fetch)", async () => {

@@ -1,4 +1,5 @@
-import { randomToken, pkceChallenge, type SessionUser } from "./oidc";
+import * as client from "openid-client";
+import { randomToken, type SessionUser } from "./oidc";
 import { assertEgressAllowed, safeFetch } from "./egress";
 
 /**
@@ -7,15 +8,14 @@ import { assertEgressAllowed, safeFetch } from "./egress";
  * signed ID token. OmniProject already speaks OIDC (lib/oidc); this is the sibling path for
  * providers that don't.
  *
- * The flow: authorize → exchange code for an access token → call the provider's userinfo endpoint
- * with that token → map the JSON fields onto a session user → mint the SAME signed+sealed session
- * cookie every other auth path uses (routes/auth.ts `setSession`). No tokens or profile data are
- * persisted; the gateway stays stateless.
+ * The Authorization-Code protocol (authorize URL, PKCE, `state`, code→token exchange) runs through
+ * `openid-client` — the same vetted library the OIDC path uses — over a non-OIDC Configuration built
+ * from the explicit endpoints (these providers have no discovery document). Every hop goes through
+ * `safeFetch` (SSRF/residency guarded). The USERINFO step stays app-specific: openid-client's
+ * `fetchUserInfo` assumes an OIDC `sub`, which non-OIDC providers (GitHub's `id`/`login`) don't have,
+ * so identity is fetched + mapped here.
  *
  * **Off by default.** Enabled only when the five OAUTH2_* endpoint/credential vars are all set.
- * Because there is no ID token to verify cryptographically, trust rests on (a) the
- * Authorization-Code grant over TLS, (b) the `state` + PKCE binding to this browser flow, and
- * (c) fetching identity from the provider's own userinfo endpoint with the freshly issued token.
  */
 
 export interface OAuth2Config {
@@ -56,83 +56,74 @@ export const oauth2Config: OAuth2Config | null =
 
 export const isOAuth2Configured = oauth2Config !== null;
 
-/** Build the provider authorization URL the browser is redirected to (Authorization-Code + S256
- *  PKCE). The user's browser navigates here, so it is not a server-side fetch — but we still
- *  require a well-formed absolute http(s) URL. */
-export function buildAuthUrl(params: {
+/** Route every openid-client HTTP hop through safeFetch (SSRF/residency guarded). */
+function oauth2Fetch(url: string, options: unknown): Promise<Response> {
+  return safeFetch(url, options as RequestInit);
+}
+
+/** Build a non-OIDC openid-client Configuration from the explicit endpoints (these providers have no
+ *  discovery). The `issuer` is synthesised from the authorize URL's origin — it isn't used to validate
+ *  any token (there's no ID token), only to satisfy the Configuration's server-metadata shape. Cached. */
+let cachedConfig: client.Configuration | null = null;
+function oauth2ClientConfig(cfg: OAuth2Config): client.Configuration {
+  if (cachedConfig) return cachedConfig;
+  const server: client.ServerMetadata = {
+    issuer: new URL(cfg.authUrl).origin,
+    authorization_endpoint: cfg.authUrl,
+    token_endpoint: cfg.tokenUrl,
+  };
+  const config = new client.Configuration(server, cfg.clientId, cfg.clientSecret);
+  config[client.customFetch] = oauth2Fetch;
+  cachedConfig = config;
+  return config;
+}
+
+/** Test seam / config-change: drop the cached Configuration. */
+export function __clearOAuth2ConfigCache(): void {
+  cachedConfig = null;
+}
+
+/** Build the provider authorization URL the browser is redirected to (Authorization-Code + S256 PKCE),
+ *  via openid-client. `reauth` forces a fresh prompt for step-up (best-effort per provider). */
+export async function buildAuthUrl(params: {
   config: OAuth2Config;
   redirectUri: string;
   state: string;
   codeVerifier: string;
-  /** Step-up: ask the provider to force a fresh re-authentication (prompt=login + max_age=0).
-   *  Best-effort — generic OAuth2 providers vary in support — but the full login round-trip it
-   *  triggers already prevents a mere session holder from self-granting step-up. */
   reauth?: boolean;
-}): string {
-  const url = new URL(params.config.authUrl);
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("client_id", params.config.clientId);
-  url.searchParams.set("redirect_uri", params.redirectUri);
-  if (params.config.scope) url.searchParams.set("scope", params.config.scope);
-  url.searchParams.set("state", params.state);
-  url.searchParams.set("code_challenge", pkceChallenge(params.codeVerifier));
-  url.searchParams.set("code_challenge_method", "S256");
-  if (params.reauth) { url.searchParams.set("prompt", "login"); url.searchParams.set("max_age", "0"); }
-  return url.toString();
-}
-
-interface OAuth2TokenResponse {
-  access_token: string;
-  token_type?: string;
-  scope?: string;
-}
-
-/** Exchange the authorization code (+ PKCE verifier) for an access token. SSRF-guarded; sends
- *  `Accept: application/json` so providers that default to form-encoded responses (GitHub) return
- *  JSON. Providers that don't implement PKCE simply ignore the `code_verifier`. */
-export async function exchangeCodeOAuth2(params: {
-  config: OAuth2Config;
-  code: string;
-  redirectUri: string;
-  codeVerifier: string;
-  fetchImpl?: typeof fetch;
-}): Promise<OAuth2TokenResponse> {
-  await assertEgressAllowed(params.config.tokenUrl); // literal + post-DNS recheck + allowlist/residency
-  // safeFetch (not plain fetch) so the token POST — which carries client_secret — pins the vetted IPs
-  // and re-validates every redirect hop; a token endpoint that 302s to an internal host can neither be
-  // reached nor be sent the secret.
-  const fetchImpl = params.fetchImpl ?? (safeFetch as unknown as typeof fetch);
-  const body = new URLSearchParams({
-    grant_type: "authorization_code",
-    code: params.code,
+}): Promise<string> {
+  const config = oauth2ClientConfig(params.config);
+  const p: Record<string, string> = {
     redirect_uri: params.redirectUri,
-    client_id: params.config.clientId,
-    client_secret: params.config.clientSecret,
-    code_verifier: params.codeVerifier,
+    scope: params.config.scope,
+    state: params.state,
+    code_challenge: await client.calculatePKCECodeChallenge(params.codeVerifier),
+    code_challenge_method: "S256",
+  };
+  if (params.reauth) { p["prompt"] = "login"; p["max_age"] = "0"; }
+  return client.buildAuthorizationUrl(config, p).href;
+}
+
+/** Complete the callback: openid-client validates `state` and exchanges the code (+ PKCE verifier) for
+ *  the access token. No ID token is expected (non-OIDC). Returns the opaque access token. */
+export async function completeOAuth2Login(params: {
+  config: OAuth2Config;
+  currentUrl: URL;
+  expectedState: string;
+  codeVerifier: string;
+}): Promise<{ accessToken: string }> {
+  const config = oauth2ClientConfig(params.config);
+  const tokens = await client.authorizationCodeGrant(config, params.currentUrl, {
+    expectedState: params.expectedState,
+    pkceCodeVerifier: params.codeVerifier,
   });
-  const res = await fetchImpl(params.config.tokenUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json",
-      "User-Agent": "OmniProject",
-    },
-    body,
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`OAuth2 token exchange failed (${res.status}): ${detail.slice(0, 200)}`);
-  }
-  const json = (await res.json()) as OAuth2TokenResponse & { error?: string };
-  if (json.error || !json.access_token) {
-    throw new Error(`OAuth2 token endpoint returned no access token${json.error ? ` (${json.error})` : ""}`);
-  }
-  return json;
+  if (!tokens.access_token) throw new Error("OAuth2 token endpoint returned no access token");
+  return { accessToken: tokens.access_token };
 }
 
 /** Fetch the provider's userinfo with the bearer token. SSRF-guarded; sends a `User-Agent`
- *  (required by some providers, e.g. GitHub) and `Accept: application/json`. */
+ *  (required by some providers, e.g. GitHub) and `Accept: application/json`. Non-OIDC, so this is
+ *  NOT openid-client's fetchUserInfo (which assumes an OIDC `sub`). */
 export async function fetchUserInfo(config: OAuth2Config, accessToken: string, fetchImpl: typeof fetch = safeFetch as unknown as typeof fetch): Promise<Record<string, unknown>> {
   await assertEgressAllowed(config.userInfoUrl); // literal + post-DNS recheck + allowlist/residency
   const res = await fetchImpl(config.userInfoUrl, {
@@ -166,11 +157,7 @@ function pickString(info: Record<string, unknown>, primary: string, fallbacks: s
   return undefined;
 }
 
-/** Map a provider's userinfo JSON onto a session user via the configured field mapping. The
- *  `sub` is required (we fall back across sub/id/login so GitHub works out of the box); roles are
- *  handed to the RBAC layer, which maps them onto OmniProject roles exactly as for OIDC. Throws
- *  when no usable identifier is present — matching the sibling OAuth2 functions in this file,
- *  which throw for their equivalent failures rather than returning a sentinel. */
+/** Map a provider's userinfo JSON onto a session user via the configured field mapping. */
 export function mapUserInfo(config: OAuth2Config, info: Record<string, unknown>): SessionUser {
   const sub = pickString(info, config.fields.sub, ["sub", "id", "login"]);
   if (!sub) throw new Error("OAuth2 userinfo response has no subject identifier");

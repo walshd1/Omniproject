@@ -23,7 +23,7 @@ import {
   isOAuth2Configured,
   oauth2Config,
   buildAuthUrl,
-  exchangeCodeOAuth2,
+  completeOAuth2Login,
   fetchUserInfo,
   mapUserInfo,
   newOAuth2Flow,
@@ -491,7 +491,7 @@ router.get("/auth/saml/metadata", async (_req, res) => {
 // ── Generic OAuth 2.0 (Authorization Code + PKCE) for NON-OIDC providers (e.g. GitHub) ───
 // Off unless the OAUTH2_* env is configured. A strict per-IP loginLimiter is applied at the
 // router mount in routes/index.ts.
-router.get("/auth/oauth2/login", (req, res) => {
+router.get("/auth/oauth2/login", async (req, res) => {
   if (!oauth2Config) { res.status(404).send("OAuth2 sign-in is not configured."); return; }
   const returnTo = safeLocalPath(req.query["returnTo"]);
   const { state, verifier } = newOAuth2Flow();
@@ -500,7 +500,7 @@ router.get("/auth/oauth2/login", (req, res) => {
     maxAge: FLOW_COOKIE_TTL_MS,
   });
   const redirectUri = `${baseUrl(req)}/api/auth/oauth2/callback`;
-  res.redirect(buildAuthUrl({ config: oauth2Config, redirectUri, state, codeVerifier: verifier }));
+  res.redirect(await buildAuthUrl({ config: oauth2Config, redirectUri, state, codeVerifier: verifier }));
 });
 
 // Callback: validate state, exchange the code (with the PKCE verifier) for an access token,
@@ -520,19 +520,16 @@ router.get("/auth/oauth2/callback", async (req, res) => {
     res.status(401).send(`OAuth2 error: ${String(req.query["error"])}`);
     return;
   }
-  if (typeof req.query["code"] !== "string" || req.query["state"] !== state) {
-    res.status(400).send("Invalid OAuth2 callback (state mismatch).");
+  if (typeof req.query["code"] !== "string") {
+    res.status(400).send("Invalid OAuth2 callback (no code).");
     return;
   }
 
   try {
-    const tokens = await exchangeCodeOAuth2({
-      config: oauth2Config,
-      code: req.query["code"],
-      redirectUri: `${baseUrl(req)}/api/auth/oauth2/callback`,
-      codeVerifier: verifier,
-    });
-    const info = await fetchUserInfo(oauth2Config, tokens.access_token);
+    // openid-client validates `state` against the flow cookie and exchanges the code (+ PKCE).
+    const currentUrl = new URL(`${baseUrl(req)}/api/auth/oauth2/callback${req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : ""}`);
+    const tokens = await completeOAuth2Login({ config: oauth2Config, currentUrl, expectedState: state, codeVerifier: verifier });
+    const info = await fetchUserInfo(oauth2Config, tokens.accessToken);
     const user = mapUserInfo(oauth2Config, info);
     // Step-up: grant freshness only when this prompt=login re-auth is the same principal that began
     // the step-up flow (bound to `sub` inside the signed flow cookie).
@@ -695,7 +692,7 @@ router.get("/auth/step-up", async (req, res) => {
     const { state, verifier } = newOAuth2Flow();
     res.cookie(OAUTH2_FLOW_COOKIE, JSON.stringify({ state, verifier, returnTo, stepup: true, sub: session.sub }), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
     const redirectUri = `${baseUrl(req)}/api/auth/oauth2/callback`;
-    res.redirect(buildAuthUrl({ config: oauth2Config, redirectUri, state, codeVerifier: verifier, reauth: true }));
+    res.redirect(await buildAuthUrl({ config: oauth2Config, redirectUri, state, codeVerifier: verifier, reauth: true }));
     return;
   }
 
