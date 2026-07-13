@@ -161,6 +161,39 @@ function login(apiBase: string): Promise<void> {
   });
 }
 
+// Stamp a fresh step-up on the session. The highest-risk, secret-bearing writes (webhooks, key/session
+// revocation) require a recent re-auth (requireStepUp, #629). In demo mode GET /api/auth/step-up confirms
+// in place and re-issues the session cookie with `stepUpAt` set — capture that refreshed cookie so the
+// step-up-gated assertions below run against a stepped-up session (mirrors login()).
+function stepUp(apiBase: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(`${apiBase}/api/auth/step-up`);
+    const req = http.request(
+      {
+        hostname: parsed.hostname,
+        port: Number(parsed.port),
+        path: parsed.pathname,
+        method: "GET",
+        headers: { ...(sessionCookie ? { Cookie: sessionCookie } : {}) },
+      },
+      (res) => {
+        const setCookie = res.headers["set-cookie"];
+        if (setCookie && setCookie.length > 0) {
+          sessionCookie = setCookie.map((c) => c.split(";")[0]).join("; ");
+        }
+        res.resume();
+        res.on("end", () => resolve());
+      },
+    );
+    req.on("error", reject);
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy();
+      reject(new Error("Step-up request timeout"));
+    });
+    req.end();
+  });
+}
+
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 function request(
   verb: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
@@ -882,6 +915,9 @@ async function testPremium(apiBase: string) {
   }
 
   if (has("webhooks")) {
+    // POST + DELETE /api/webhooks are secret-bearing writes gated by requireStepUp (#629); refresh the
+    // session's step-up before exercising them, else these return 403.
+    await stepUp(apiBase);
     const created = await post(`${apiBase}/api/webhooks`, { url: "https://127.0.0.1:9/never", events: ["notification"] });
     assert("Licensed: POST /api/webhooks is 201", created.status === 201, `got ${created.status}`);
     const id = (created.data as { webhook?: { id?: string; secret?: string } }).webhook?.id;
