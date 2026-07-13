@@ -5,14 +5,16 @@ import {
   coreMetrics, cacheMetrics, toOtlpMetricsPayload, otlpMetricsEndpoint,
   metricExportIntervalMs, startMetricExport, stopMetricExport, exportMetricsOnce,
 } from "./otlp-metrics";
+import { __setEgressTransportForTest } from "./egress";
 
+// The exporter uses lib/egress safeFetch (undici, not global fetch), so intercept via the egress
+// transport seam. The endpoint below is a loopback IP literal, so no DNS/lookup seam is needed.
 const ENV_KEYS = ["OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_METRIC_EXPORT_INTERVAL", "OTEL_EXPORTER_OTLP_HEADERS", "OTEL_SERVICE_NAME"] as const;
 const saved: Record<string, string | undefined> = {};
-const realFetch = globalThis.fetch;
 beforeEach(() => { for (const k of ENV_KEYS) saved[k] = process.env[k]; });
 afterEach(() => {
   stopMetricExport();
-  globalThis.fetch = realFetch;
+  __setEgressTransportForTest(null);
   for (const k of ENV_KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]!; }
 });
 
@@ -70,7 +72,7 @@ test("endpoint + export are OFF by default and derive …/v1/metrics when set", 
 test("exportMetricsOnce does not call fetch when no OTLP endpoint is configured", async () => {
   delete process.env["OTEL_EXPORTER_OTLP_ENDPOINT"];
   let called = false;
-  globalThis.fetch = (async () => { called = true; return new Response(null, { status: 200 }); }) as unknown as typeof fetch;
+  __setEgressTransportForTest((async () => { called = true; return new Response(null, { status: 200 }); }) as unknown as typeof fetch);
   await exportMetricsOnce();
   assert.equal(called, false);
 });
@@ -80,10 +82,10 @@ test("exportMetricsOnce POSTs the core metric set to …/v1/metrics with the con
   process.env["OTEL_EXPORTER_OTLP_HEADERS"] = "x-api-key=secret,x-team=omni";
   process.env["OTEL_SERVICE_NAME"] = "test-service";
   const calls: Array<{ url: string; init: RequestInit; body: any }> = [];
-  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+  __setEgressTransportForTest((async (url: string | URL | Request, init?: RequestInit) => {
     calls.push({ url: String(url), init: init!, body: JSON.parse(String(init?.body)) });
     return new Response(null, { status: 200 });
-  }) as unknown as typeof fetch;
+  }) as unknown as typeof fetch);
 
   await exportMetricsOnce();
 
@@ -99,7 +101,7 @@ test("exportMetricsOnce POSTs the core metric set to …/v1/metrics with the con
 
 test("exportMetricsOnce is best-effort — a fetch rejection never throws", async () => {
   process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://127.0.0.1:4318";
-  globalThis.fetch = (async () => { throw new Error("connection refused"); }) as unknown as typeof fetch;
+  __setEgressTransportForTest((async () => { throw new Error("connection refused"); }) as unknown as typeof fetch);
   await assert.doesNotReject(exportMetricsOnce());
 });
 

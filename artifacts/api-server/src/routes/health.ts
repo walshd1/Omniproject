@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { HealthCheckResponse } from "@workspace/api-zod";
 import { brokerReadiness } from "../broker";
+import { fleetReadiness } from "../lib/fleet-readiness";
 
 /**
  * Liveness vs readiness — deliberately two different probes (the k8s distinction):
@@ -10,8 +11,11 @@ import { brokerReadiness } from "../broker";
  *    kill-and-restart every replica (an outage amplifier). Always 200 if we can
  *    answer at all.
  *  - GET /readyz   (READINESS) — "can this replica actually serve, i.e. reach its
- *    backend?" Returns 503 when the broker is unreachable so the load balancer
- *    stops routing traffic here until it recovers — without restarting the pod.
+ *    backend AND (when a fleet is declared) actually have Redis-backed shared
+ *    state?" Returns 503 when the broker is unreachable OR when REDIS_URL is set
+ *    but shared state/rate-limiting silently fell back to per-replica — so the
+ *    load balancer stops routing here (fail-closed) rather than serving degraded
+ *    security, without restarting the pod. See lib/fleet-readiness.ts.
  *
  * Both are public + un-rate-limited (mounted before auth/limiter) so the
  * orchestrator can always probe them.
@@ -24,8 +28,13 @@ router.get("/healthz", (_req, res) => {
 });
 
 router.get("/readyz", async (_req, res) => {
-  const r = await brokerReadiness();
-  res.status(r.ready ? 200 : 503).json(r);
+  const broker = await brokerReadiness();
+  // Fleet-safety gate: a replica that declared shared state (REDIS_URL) but didn't achieve it must
+  // not take traffic — its per-replica security controls would silently serve a fleet. No-op when
+  // REDIS_URL is unset (single-replica is per-process by design).
+  const fleet = fleetReadiness();
+  const ready = broker.ready && fleet.ready;
+  res.status(ready ? 200 : 503).json({ ...broker, ready, fleet });
 });
 
 export default router;

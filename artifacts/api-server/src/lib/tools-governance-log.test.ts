@@ -9,6 +9,9 @@ import {
 } from "./capability-governance";
 import { sharedKv, __resetSharedStateForTest, __setRedisKvForTest } from "./shared-state";
 import { __setEgressTransportForTest } from "./egress";
+// Pre-warm the residency module so egress's first-call lazy import of it (added to break a module-init
+// cycle) resolves from cache — otherwise the best-effort sink flush can outrun the wait below.
+import "./data-residency";
 import { FakeRedis } from "../__tests__/fake-redis";
 
 /**
@@ -43,7 +46,7 @@ test("durability: each decision is POSTed to the external append sink as NDJSON 
 
   setCapabilityState("provider:openai", { state: "public" });
   decideCapability("provider:openai", { actor: { sub: "u1" } }); // a governance "use" decision
-  await new Promise((r) => setTimeout(r, 10)); // let the best-effort flush run
+  await new Promise((r) => setTimeout(r, 50)); // let the best-effort flush run
 
   assert.equal(posts.length, 1);
   assert.equal(posts[0]!.url, "https://127.0.0.1/ingest");
@@ -57,7 +60,7 @@ test("no sink env: nothing is POSTed (default RAM-only behaviour preserved)", as
   let called = false;
   __setEgressTransportForTest((async () => { called = true; return new Response("", { status: 200 }); }) as typeof fetch);
   decideCapability("provider:anthropic"); // off ⇒ a "blocked" decision, still RAM-only
-  await new Promise((r) => setTimeout(r, 10));
+  await new Promise((r) => setTimeout(r, 50));
   assert.equal(called, false);
   assert.ok(recentCapabilityLog().some((e) => e.capability === "provider:anthropic"));
 });

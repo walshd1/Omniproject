@@ -160,6 +160,41 @@ export function resetRoleMap(): void {
   previousRoleMapOverride = null;
 }
 
+/** Serialise the current admin override as `{ role: [groups] }` (only overridden roles) — for durable
+ *  persistence in the security-state file AND cross-replica fleet-sync, so a role-map edit (crucially
+ *  REVOKING a compromised IdP group's admin/pmo authority) survives a restart and propagates fleet-wide
+ *  instead of living only in the RAM of the replica that served the edit. */
+export function snapshotRoleMap(): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const role of ROLES) if (roleMapOverride[role]) out[role] = [...roleMapOverride[role]!];
+  return out;
+}
+
+/**
+ * Apply a role-map override snapshot from a restore / fleet converge — the ZERO-TRUST twin of
+ * `setRoleMap`: it runs the SAME validation (only the five fixed roles, values must be string arrays,
+ * normalised lower-case; unknown keys / wrong types dropped) so a corrupt or hostile blob can never
+ * invent a role or inject a non-string group. Unlike `setRoleMap` it does NOT touch the one-shot undo
+ * buffer (a converge tick is not an operator edit) and it REPLACES the whole override set, so a role
+ * whose override was cleared elsewhere is cleared here too (a revocation converges, not just additions).
+ */
+export function applyRoleMapSnapshot(next: unknown): void {
+  const parsed: Partial<Record<Role, Set<string>>> = {};
+  if (next && typeof next === "object" && !Array.isArray(next)) {
+    const obj = next as Record<string, unknown>;
+    for (const role of ROLES) {
+      const v = obj[role];
+      if (Array.isArray(v)) {
+        parsed[role] = new Set(
+          v.filter((x): x is string => typeof x === "string").map((s) => s.trim().toLowerCase()).filter(Boolean),
+        );
+      }
+    }
+  }
+  for (const role of ROLES) delete roleMapOverride[role]; // replace wholesale so a cleared role converges
+  for (const role of ROLES) if (parsed[role]) roleMapOverride[role] = parsed[role]!;
+}
+
 /** The default BASE rung for an authenticated user with no matching claim. */
 function defaultBaseRole(): BaseRole {
   const d = process.env["OIDC_DEFAULT_ROLE"]?.trim().toLowerCase();

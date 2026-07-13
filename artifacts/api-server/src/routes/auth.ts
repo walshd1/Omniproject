@@ -33,9 +33,9 @@ import { isDevMode } from "../lib/dev-mode";
 import { isDemoAuth } from "../lib/auth-config";
 import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
-import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
-import { currentVersion, isActive, userSessionsRevokedAt } from "../lib/key-registry";
-import { registerSession } from "../lib/session-registry";
+import { isSessionExpired, timeoutPolicy, sessionCookieMaxAgeMs } from "../lib/session-timeout";
+import { currentVersion, isActive, userSessionsRevokedAt, revokeUserSessions } from "../lib/key-registry";
+import { registerSession, issueSequence, checkSequence } from "../lib/session-registry";
 import { requireTls } from "../lib/deployment-profile";
 import { productionSignals } from "../lib/dev-mode-guard";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
@@ -81,8 +81,10 @@ const OAUTH2_FLOW_COOKIE = "omni_oauth2_flow";
 const STEPUP_COOKIE = "omni_stepup_flow";
 // Re-seal an active session at most this often (don't re-sign on every request).
 const SLIDE_THROTTLE_MS = 60_000;
-/** Session cookie lifetime (8h). NOTE: the CSRF cookie in lib/csrf.ts hand-mirrors this value. */
-const SESSION_TTL_MS = 1000 * 60 * 60 * 8;
+// Session cookie lifetime tracks the ABSOLUTE session cap (lib/session-timeout.sessionCookieMaxAgeMs),
+// so shortening SESSION_ABSOLUTE_HOURS also shortens the browser cookie — the server-side idle/absolute
+// enforcement is authoritative regardless, but keeping them in lock-step means the cookie disappears
+// when the session dies. lib/csrf.ts uses the SAME helper.
 /** OAuth/magic-link flow-cookie lifetime (10 min) — the in-flight auth handshake window. */
 const FLOW_COOKIE_TTL_MS = 1000 * 60 * 10;
 
@@ -186,6 +188,16 @@ function readSession(req: Request): Session | null {
     // once the user signs in beyond the limit) reads as signed-out. No-op when the cap is unset
     // or the session predates salting. Keyed by the stable per-session salt.
     if (session.sub && session.salt && !registerSession(session.sub, session.salt, Date.now())) return null;
+    // Rotating-token replay/reuse detection: a cookie presented well behind this session's sequence
+    // high-water mark is a superseded copy ⇒ the session forked ⇒ it's killed for every holder (both
+    // must re-auth). Grace absorbs normal concurrency; a session predating sequencing is grandfathered.
+    if (session.salt && checkSequence(session.salt, session.seq ?? 0, Date.now()) === "fork") {
+      // Escalate the local detection to a FLEET-WIDE ejection: revoke this principal's sessions so the
+      // kill propagates to every replica via the key-registry sync (monotonic userRevokedAt), not just
+      // the replica that caught the replay. Assume-breach: a detected fork burns the whole family.
+      if (session.sub) revokeUserSessions(session.sub);
+      return null;
+    }
     return session;
   } catch {
     return null;
@@ -200,17 +212,21 @@ function setSession(res: Response, session: Session): void {
   // so the per-session broker key (lib/session-key) is fresh on each login but stable
   // for the life of the session: the monotonic reading is the non-rewindable session
   // start time; the salt is CSPRNG entropy that survives a process-clock reset.
+  const salt = session.salt ?? randomBytes(16).toString("hex");
   const stamped: Session = {
     ...session,
     iat: session.iat ?? now,
     seen: now,
     kver: session.kver ?? currentVersion("session"),
     smono: session.smono ?? process.hrtime.bigint().toString(),
-    salt: session.salt ?? randomBytes(16).toString("hex"),
+    salt,
+    // Rotating-token sequence: advance the high-water mark on every (re)seal so a superseded copy of
+    // this cookie becomes detectably out-of-sequence (lib/session-registry).
+    seq: issueSequence(salt, now),
   };
   res.cookie(SESSION_COOKIE, seal(JSON.stringify(stamped)), {
     ...cookieBase(), // secure is evaluated here, so a wizard profile change applies to new sessions
-    maxAge: SESSION_TTL_MS,
+    maxAge: sessionCookieMaxAgeMs(),
   });
 }
 

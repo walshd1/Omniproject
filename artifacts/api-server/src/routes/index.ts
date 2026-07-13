@@ -62,6 +62,7 @@ import provenanceRouter from "./provenance";
 import securityRouter from "./security";
 import healthWatchRouter from "./health-watch";
 import scimRouter from "./scim";
+import breakGlassRouter from "./break-glass";
 import { isDeprovisioned } from "../lib/rbac";
 import { hasValidApiToken } from "../lib/api-token";
 import { apiLimiter, loginLimiter } from "../lib/rate-limit";
@@ -127,8 +128,13 @@ router.use(scimRouter);
 
 // Strict, per-IP throttle on login / step-up initiation (brute-force / flow-cookie
 // spam) — tighter than the general apiLimiter and applied just to these endpoints.
-router.use(["/auth/login", "/auth/step-up", "/auth/saml/login", "/auth/oauth2/login", "/auth/magic/request"], loginLimiter);
+router.use(["/auth/login", "/auth/step-up", "/auth/saml/login", "/auth/oauth2/login", "/auth/magic/request", "/break-glass/lockdown", "/break-glass/release", "/break-glass/status"], loginLimiter);
 router.use(authRouter);
+
+// Break-glass containment — the IdP-INDEPENDENT panic button for admin impersonation. Self-authed by
+// BREAK_GLASS_TOKEN (a local secret, NOT a user session), so it works when the admin identity can't be
+// trusted. Outside requireAuth; the strict per-IP loginLimiter above covers its paths (brute-force guard).
+router.use(breakGlassRouter);
 
 // Public presentation config: branding + label overrides are needed pre-login
 // (the login screen is white-labelled), so they are not auth-gated. Their write

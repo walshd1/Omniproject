@@ -14,9 +14,9 @@ afterEach(() => {
   delete process.env["SESSION_ABSOLUTE_HOURS"];
 });
 
-test("defaults are 30m idle and 8h absolute", () => {
-  assert.equal(idleMs(), 30 * 60_000);
-  assert.equal(absoluteMs(), 8 * 60 * 60_000);
+test("defaults are short: 15m idle and 4h absolute (bounds a live-session-piggyback window)", () => {
+  assert.equal(idleMs(), 15 * 60_000);
+  assert.equal(absoluteMs(), 4 * 60 * 60_000);
 });
 
 test("a fresh session is not expired", () => {
@@ -24,15 +24,16 @@ test("a fresh session is not expired", () => {
   assert.equal(isSessionExpired({ ...base, iat: now, seen: now }, now), false);
 });
 
-test("idle timeout expires a session inactive past the limit", () => {
+test("idle timeout expires a session inactive past the 15m limit", () => {
   const now = Date.now();
-  assert.equal(isSessionExpired({ ...base, iat: now, seen: now - 31 * 60_000 }, now), true);
-  assert.equal(isSessionExpired({ ...base, iat: now, seen: now - 29 * 60_000 }, now), false);
+  assert.equal(isSessionExpired({ ...base, iat: now, seen: now - 16 * 60_000 }, now), true);
+  assert.equal(isSessionExpired({ ...base, iat: now, seen: now - 14 * 60_000 }, now), false);
 });
 
-test("absolute cap expires an old session even if recently active", () => {
+test("absolute cap expires an old session even if recently active (past 4h)", () => {
   const now = Date.now();
-  assert.equal(isSessionExpired({ ...base, iat: now - 9 * 60 * 60_000, seen: now }, now), true);
+  assert.equal(isSessionExpired({ ...base, iat: now - 5 * 60 * 60_000, seen: now }, now), true);
+  assert.equal(isSessionExpired({ ...base, iat: now - 3 * 60 * 60_000, seen: now }, now), false);
 });
 
 test("missing timestamps are lenient (pre-upgrade cookies survive)", () => {

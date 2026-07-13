@@ -1,10 +1,13 @@
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { snapshotKeys, restoreKeys, type KeyRegistrySnapshot } from "./key-registry";
 import { listAutonomousGrants, setAutonomousGrants, type AutonomousWriteGrant } from "./autonomous-grant";
-import { getContainmentRelax, setContainmentRelax, type AiContainment } from "./ai-containment";
+import { getContainmentRelax, setContainmentRelax, isContainmentLevel, type AiContainment } from "./ai-containment";
 import { listApprovedActions, listApprovedActionRules, listApprovedVocab, setApproved, type ActionApproval } from "./approved-actions";
 import { aiKillEngaged, engageAiKill, releaseAiKill } from "./ai-kill";
 import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "./maintenance";
+import { snapshotRoleMap, applyRoleMapSnapshot } from "./rbac";
+import { sharedKv, sharedStateMode } from "./shared-state";
+import { safeParseJson } from "./safe-json";
 import { logger } from "./logger";
 
 /**
@@ -31,6 +34,9 @@ interface SecuritySnapshot {
   approved: { actions: string[]; vocab: string[]; rules?: ActionApproval[] };
   aiKill: boolean;
   maintenance?: { engaged: boolean; reason: string };
+  /** Admin override of the IdP claim→role mapping (only overridden roles). Durable so a REVOCATION of
+   *  a compromised group's admin/pmo authority survives a restart instead of reverting to the env. */
+  roleMap?: Record<string, string[]>;
 }
 
 /** Gather the current security state into one serialisable object. */
@@ -42,6 +48,7 @@ export function collectSecurityState(): SecuritySnapshot {
     approved: { actions: listApprovedActions(), vocab: listApprovedVocab(), rules: listApprovedActionRules() },
     aiKill: aiKillEngaged(),
     maintenance: { engaged: maintenanceEngaged(), reason: maintenanceReason() },
+    roleMap: snapshotRoleMap(),
   };
 }
 
@@ -53,11 +60,92 @@ export function applySecurityState(s: SecuritySnapshot): void {
   if (s.approved) setApproved(s.approved); // rules wins when present, else falls back to actions ids
   if (s.aiKill) engageAiKill(); else releaseAiKill();
   if (s.maintenance?.engaged) engageMaintenance(s.maintenance.reason); else releaseMaintenance();
+  if (s.roleMap !== undefined) applyRoleMapSnapshot(s.roleMap); // validated; replaces the override set
 }
 
-/** Persist the current security state (sealed) — no-op unless SECURITY_STATE_FILE is set. */
+/** Persist the current security state (sealed) — no-op unless SECURITY_STATE_FILE is set — AND fan the
+ *  AI-authorization controls out to the fleet so a change (crucially a REVOCATION) propagates to every
+ *  replica, not just the one that served it. The local sealed file remains the single-replica durable
+ *  store; the shared publish is best-effort and additive. */
 export function persistSecurityState(): void {
   store.write(JSON.stringify(collectSecurityState()));
+  void publishAiAuthzToShared();
+}
+
+// ── AI-authorization fleet-sync ─────────────────────────────────────────────────────
+// The autonomous write-grants, the containment relax-floor, and the approved-actions allowlist are
+// ELEVATION controls (they decide what an autonomous/AI actor may do). Like the key-revocation, AI
+// kill-switch, SCIM, and maintenance controls, they must be fleet-consistent — otherwise a grant
+// revoked (or containment tightened, or an action un-approved) on one replica stays effective on the
+// other N-1, a lateral-privilege gap. This mirrors the AI kill-switch / maintenance pattern: publish
+// on change, converge on a Redis-backed poll; single-replica (in-process) keeps its durable local file.
+const AI_AUTHZ_KEY = "security:fleet:ai-authz";
+
+interface AiAuthzSnapshot {
+  grants: AutonomousWriteGrant[];
+  containment: AiContainment;
+  approved: { actions: string[]; vocab: string[]; rules?: ActionApproval[] };
+  /** The RBAC role-map override travels on the SAME fleet channel — it is an elevation control too, so
+   *  a compromised-group revocation must propagate fleet-wide, not just persist locally. */
+  roleMap: Record<string, string[]>;
+}
+
+function collectAiAuthz(): AiAuthzSnapshot {
+  return {
+    grants: listAutonomousGrants(),
+    containment: getContainmentRelax(),
+    approved: { actions: listApprovedActions(), vocab: listApprovedVocab(), rules: listApprovedActionRules() },
+    roleMap: snapshotRoleMap(),
+  };
+}
+
+/** Fan this replica's AI-authz controls out to shared state. Best-effort — the local state is already
+ *  set, so a shared-state blip never blocks the operator's change on the handling replica. */
+export async function publishAiAuthzToShared(): Promise<void> {
+  try { await sharedKv.set(AI_AUTHZ_KEY, JSON.stringify(collectAiAuthz())); }
+  catch { /* best-effort fan-out */ }
+}
+
+/**
+ * Converge this replica's AI-authz controls with the fleet's shared value. Redis-only (a single-replica
+ * deployment is per-process and its durable local file is authoritative). The shared blob is treated as
+ * UNTRUSTED cross-replica input — it is safe-parsed (prototype-pollution-stripped) and applied ONLY
+ * through the VALIDATING setters, each of which drops malformed entries and fails toward the strict/
+ * current posture. So a corrupt or hostile fleet message can never WIDEN authorization here.
+ */
+export async function refreshAiAuthzFromShared(): Promise<void> {
+  if (sharedStateMode() !== "redis") return;
+  let raw: string | null;
+  try { raw = await sharedKv.get(AI_AUTHZ_KEY); } catch { return; }
+  if (raw === null) return; // nothing published yet — keep local
+  let parsed: unknown;
+  try { parsed = safeParseJson(raw); } catch { return; } // malformed → keep current posture (fail safe)
+  if (!parsed || typeof parsed !== "object") return;
+  const obj = parsed as Record<string, unknown>;
+  if (Array.isArray(obj["grants"])) setAutonomousGrants(obj["grants"]);
+  if (isContainmentLevel(obj["containment"])) setContainmentRelax(obj["containment"]);
+  const approved = obj["approved"];
+  if (approved && typeof approved === "object") {
+    setApproved(approved as { actions?: string[]; rules?: ActionApproval[]; vocab?: string[] });
+  }
+  // Role-map override: applyRoleMapSnapshot re-validates (only the five fixed roles, string groups),
+  // so a hostile blob can't invent a role or inject a non-string group. Only when present, so an older
+  // publisher that omits it doesn't wipe the local override.
+  if (obj["roleMap"] !== undefined) applyRoleMapSnapshot(obj["roleMap"]);
+}
+
+let aiAuthzTimer: ReturnType<typeof setInterval> | null = null;
+/** Start periodic AI-authz fleet convergence (idempotent, unref'd). Returns a stop handle. */
+export function startAiAuthzFleetSync(intervalMs = 3000): () => void {
+  if (!aiAuthzTimer) {
+    aiAuthzTimer = setInterval(() => { void refreshAiAuthzFromShared(); }, intervalMs);
+    aiAuthzTimer.unref?.();
+  }
+  return stopAiAuthzFleetSync;
+}
+/** Stop the AI-authz fleet-sync poll (idempotent) — shutdown / tests. */
+export function stopAiAuthzFleetSync(): void {
+  if (aiAuthzTimer) { clearInterval(aiAuthzTimer); aiAuthzTimer = null; }
 }
 
 /** Restore the security state at boot (sealed file; plaintext tolerated for migration). */

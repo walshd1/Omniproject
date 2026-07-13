@@ -1,4 +1,5 @@
 import { awsSignedHeaders, awsCredsFromEnv } from "./aws-sigv4";
+import { safeFetch } from "./egress";
 import { logger } from "./logger";
 
 /**
@@ -43,7 +44,7 @@ async function awsUnwrap(ciphertextB64: string): Promise<Buffer> {
   const host = `kms.${region}.amazonaws.com`;
   const body = JSON.stringify({ CiphertextBlob: ciphertextB64 });
   const headers = awsSignedHeaders({ host, region, service: "kms", target: "TrentService.Decrypt", body, creds });
-  const res = await fetch(`https://${host}/`, { method: "POST", headers, body, signal: AbortSignal.timeout(15_000) });
+  const res = await safeFetch(`https://${host}/`, { method: "POST", headers, body, signal: AbortSignal.timeout(15_000) });
   if (!res.ok) throw new Error(`AWS KMS Decrypt ${res.status}`);
   const json = (await res.json()) as { Plaintext?: string };
   if (!json.Plaintext) throw new Error("AWS KMS Decrypt returned no plaintext");
@@ -56,7 +57,7 @@ async function azureUnwrap(ciphertextB64: string): Promise<Buffer> {
   const tenant = process.env["AZURE_TENANT_ID"]?.trim() || "";
   const clientId = process.env["AZURE_CLIENT_ID"]?.trim() || "";
   const clientSecret = process.env["AZURE_CLIENT_SECRET"]?.trim() || "";
-  const tokenRes = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+  const tokenRes = await safeFetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: "client_credentials", scope: "https://vault.azure.net/.default" }),
@@ -66,7 +67,7 @@ async function azureUnwrap(ciphertextB64: string): Promise<Buffer> {
   const token = ((await tokenRes.json()) as { access_token?: string }).access_token ?? "";
   // Key Vault uses base64url for the ciphertext value.
   const value = Buffer.from(ciphertextB64, "base64").toString("base64url");
-  const res = await fetch(`${keyUrl}/decrypt?api-version=7.4`, {
+  const res = await safeFetch(`${keyUrl}/decrypt?api-version=7.4`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ alg: "RSA-OAEP-256", value }),

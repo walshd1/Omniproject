@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireRole } from "../lib/rbac";
+import { requireRole, setRoleMap } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { getSession } from "./auth";
 import { recordRequestAudit } from "../lib/audit";
@@ -13,7 +13,7 @@ import { residencyStatus } from "../lib/data-residency";
 import { validateResidencyPolicy } from "../lib/residency-policy";
 import { ValidationError } from "../lib/validate";
 import { buildDsarReport, dsarSummaryText } from "../lib/dsar";
-import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "../lib/maintenance";
+import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance, publishMaintenanceToShared } from "../lib/maintenance";
 import { requiresDualControl, propose, approve, reject, listProposals, registerExecutor, type Actor } from "../lib/dual-control";
 import type { Request, Response } from "express";
 import { v, parseOr400 } from "../lib/validate";
@@ -39,7 +39,7 @@ function actorOf(req: Request): Actor { const s = getSession(req); return { sub:
  * return true so the caller stops. The registered executor applies it once a second admin
  * approves. Returns false (proceed normally) when dual control is off for this action.
  */
-async function heldForDualControl(action: string, params: unknown, req: Request, res: Response): Promise<boolean> {
+export async function heldForDualControl(action: string, params: unknown, req: Request, res: Response): Promise<boolean> {
   if (!requiresDualControl(action)) return false;
   const p = await propose(action, params, actorOf(req), new Date().toISOString());
   recordRequestAudit(req, { category: "admin", action: `${action}.proposed`, write: true, result: "success", meta: { proposalId: p.id } });
@@ -51,6 +51,13 @@ async function heldForDualControl(action: string, params: unknown, req: Request,
 // the queue). Adding an action to DUAL_CONTROL_ACTIONS without an executor here is rejected.
 registerExecutor("maintenance.engage", (params) => {
   engageMaintenance((params as { reason?: string })?.reason ?? "");
+  persistSecurityState();
+  void publishMaintenanceToShared(); // fan the freeze out to the fleet (approved via four-eyes)
+});
+registerExecutor("role_map.update", (params) => {
+  // Applied on second-admin approval. setRoleMap re-validates (only the five fixed roles, string
+  // groups), so the queued params can't invent a role. persist ⇒ durable + fanned out to the fleet.
+  setRoleMap(params);
   persistSecurityState();
 });
 registerExecutor("key.revoke", (params) => {
@@ -127,6 +134,7 @@ router.put("/admin/maintenance", requireRole("admin"), requireStepUp, async (req
   if (engage && await heldForDualControl("maintenance.engage", { reason }, req, res)) return;
   if (engage) engageMaintenance(reason); else releaseMaintenance();
   persistSecurityState();
+  await publishMaintenanceToShared(); // fan the freeze/release out to the fleet (not just this replica)
   const session = getSession(req);
   recordRequestAudit(req, { category: "admin", action: engage ? "maintenance.engage" : "maintenance.release", write: true, result: "success", meta: { reason } });
   res.json({ engaged: maintenanceEngaged(), reason: maintenanceReason() });

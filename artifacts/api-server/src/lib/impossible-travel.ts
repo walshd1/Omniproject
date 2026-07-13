@@ -111,7 +111,29 @@ export function evaluateTravel(prev: GeoPoint | undefined, next: GeoPoint): Impo
   };
 }
 
+// Bounded LRU of last-known login locations. Keyed by principal `sub`; without a cap this map grows
+// once per distinct identity ever seen (and `sub` can be an attacker-chosen email on the magic-link
+// path), an unbounded slow leak. The cap is generous — impossible-travel only needs a RECENT prior
+// location — and Map preserves insertion order, so evicting the oldest key on overflow is a cheap LRU.
 const lastLogin = new Map<string, GeoPoint>();
+/** Max distinct principals whose last location is tracked (read live so it's test-overridable). */
+function maxTracked(): number {
+  return envInt("IMPOSSIBLE_TRAVEL_MAX_TRACKED", 50_000, { min: 1 });
+}
+
+/** Record `sub`'s latest location, re-inserting so it becomes most-recent, and evict the oldest
+ *  entries once the map exceeds the cap (bounded memory; a missed comparison for an evicted, long-
+ *  idle principal is only a false negative — the safe failure mode this module already accepts). */
+function rememberLocation(sub: string, point: GeoPoint): void {
+  lastLogin.delete(sub); // re-insert at the end so recency == insertion order
+  lastLogin.set(sub, point);
+  const cap = maxTracked();
+  while (lastLogin.size > cap) {
+    const oldest = lastLogin.keys().next().value;
+    if (oldest === undefined) break;
+    lastLogin.delete(oldest);
+  }
+}
 
 /** Record a login for `sub` from `ip` and check it against their last known location in
  *  this process. Always resolves (never throws) — a missing/unresolvable IP or absent
@@ -125,7 +147,7 @@ export async function checkLogin(sub: string, ip: string | undefined): Promise<I
   const next: GeoPoint = { lat: geo.ll[0], lon: geo.ll[1], country: geo.country, at: Date.now() };
   const prev = lastLogin.get(sub);
   const result = evaluateTravel(prev, next);
-  lastLogin.set(sub, next);
+  rememberLocation(sub, next);
   return result;
 }
 
@@ -133,3 +155,10 @@ export async function checkLogin(sub: string, ip: string | undefined): Promise<I
 export function __resetImpossibleTravelState(): void {
   lastLogin.clear();
 }
+
+/** Test-only: drive the bounded location map directly (geoip-lite isn't installed in unit tests, so
+ *  checkLogin can't populate it) and read its size, to exercise the LRU eviction. */
+export function __rememberLocationForTest(sub: string): void {
+  rememberLocation(sub, { lat: 0, lon: 0, country: "XX", at: Date.now() });
+}
+export function __trackedCountForTest(): number { return lastLogin.size; }

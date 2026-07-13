@@ -33,9 +33,21 @@
 import dns from "node:dns/promises";
 import net from "node:net";
 import { Agent, fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
-import { assertEgressResidency } from "./data-residency";
 import { isBlockedHostLiteral, isBlockedIp } from "./ip-ranges";
 import { parseCsvEnv } from "./env";
+
+// `data-residency` is loaded LAZILY (dynamic import in resolveAndValidate) rather than statically.
+// egress is a very low-level guard that secret-at-rest modules (kms, vault-*) now route through, and
+// data-residency transitively pulls in the audit chain / sealed-file — a static edge here closes a
+// module-INIT cycle (sealed-file → config-crypto → kms → egress → data-residency → … → sealed-file)
+// that throws a temporal-dead-zone error when the graph is entered via sealed-file. The residency
+// check is per-request (already async) so a cached dynamic import costs nothing measurable.
+type AssertEgressResidency = (rawUrl: string) => void;
+let residencyFn: AssertEgressResidency | null = null;
+async function assertEgressResidencyLazy(rawUrl: string): Promise<void> {
+  residencyFn ??= (await import("./data-residency")).assertEgressResidency;
+  residencyFn(rawUrl);
+}
 
 export class EgressError extends Error {
   constructor(message: string) {
@@ -104,13 +116,13 @@ async function resolveAndValidate(rawUrl: string, lookup: LookupFn): Promise<{ u
   }
   // Per-country residency: when a JSON policy is active, the host must sit in an allowed region's
   // egress allowlist. Throws a fail-closed DataResidencyError (451); a no-op when no policy is set.
-  assertEgressResidency(rawUrl);
+  await assertEgressResidencyLazy(rawUrl);
   return { url: u, addresses };
 }
 
 /** Validate a URL is allowed for server-side egress; throws EgressError if not. */
-export async function assertEgressAllowed(rawUrl: string, lookup: LookupFn = dns.lookup): Promise<URL> {
-  return (await resolveAndValidate(rawUrl, lookup)).url;
+export async function assertEgressAllowed(rawUrl: string, lookup?: LookupFn): Promise<URL> {
+  return (await resolveAndValidate(rawUrl, effectiveLookup(lookup))).url;
 }
 
 /** A dns.lookup-shaped function that ALWAYS returns the pre-validated addresses, ignoring the real
@@ -132,6 +144,19 @@ function pinnedLookup(addresses: ResolvedAddr[]) {
 let egressTransportForTest: typeof fetch | null = null;
 /** Install (or clear, with null) the TEST-ONLY transport seam used by safeFetch. */
 export function __setEgressTransportForTest(fn: typeof fetch | null): void { egressTransportForTest = fn; }
+
+/** TEST-ONLY seam: a deterministic resolver so a unit test can exercise safeFetch/assertEgressAllowed
+ *  without real DNS (the guard still runs against these addresses). Pair it with the transport seam
+ *  above when the code under test calls safeFetch/assertEgressAllowed with no injectable lookup of its
+ *  own (e.g. the vault/KMS stores). Null = use the real dns.lookup. */
+let egressLookupForTest: LookupFn | null = null;
+/** Install (or clear, with null) the TEST-ONLY resolver seam used by safeFetch/assertEgressAllowed. */
+export function __setEgressLookupForTest(fn: LookupFn | null): void { egressLookupForTest = fn; }
+
+/** Resolve the effective lookup: an explicit per-call arg wins, else the test seam, else real DNS. */
+function effectiveLookup(explicit: LookupFn | undefined): LookupFn {
+  return explicit ?? egressLookupForTest ?? dns.lookup;
+}
 
 /** Max redirects safeFetch will follow before refusing — matches the WHATWG fetch limit of 20. */
 const MAX_EGRESS_REDIRECTS = 20;
@@ -177,11 +202,12 @@ function initForRedirect(init: UndiciRequestInit | undefined, status: number): U
  * each hop closes that SSRF-redirect bypass. `lookup` is injectable purely for tests. Uses undici's own
  * fetch (a custom Agent isn't accepted by global fetch).
  */
-export async function safeFetch(url: string, init?: RequestInit, lookup: LookupFn = dns.lookup): Promise<Response> {
+export async function safeFetch(url: string, init?: RequestInit, lookup?: LookupFn): Promise<Response> {
+  const lk = effectiveLookup(lookup);
   let currentUrl = url;
   let currentInit = init as UndiciRequestInit | undefined;
   for (let hop = 0; ; hop++) {
-    const { addresses } = await resolveAndValidate(currentUrl, lookup);
+    const { addresses } = await resolveAndValidate(currentUrl, lk);
     const resp = await dispatchOne(currentUrl, currentInit, addresses);
     const location = resp.headers.get("location");
     if (!REDIRECT_STATUSES.has(resp.status) || !location) return resp;

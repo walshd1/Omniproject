@@ -1,9 +1,14 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { engageMaintenance, releaseMaintenance, maintenanceEngaged, maintenanceReason, maintenanceGuard, isMaintenanceExempt, __resetMaintenance } from "./maintenance";
+import {
+  engageMaintenance, releaseMaintenance, maintenanceEngaged, maintenanceReason, maintenanceGuard,
+  isMaintenanceExempt, publishMaintenanceToShared, refreshMaintenanceFromShared, __resetMaintenance,
+} from "./maintenance";
+import { __setRedisKvForTest, __resetSharedStateForTest } from "./shared-state";
+import { FakeRedis } from "../__tests__/fake-redis";
 import type { Request, Response } from "express";
 
-afterEach(() => __resetMaintenance());
+afterEach(() => { __resetMaintenance(); __resetSharedStateForTest(); });
 
 function run(method: string, path: string): { status: number | null; passed: boolean } {
   let status: number | null = null;
@@ -41,4 +46,44 @@ test("release restores writes", () => {
   engageMaintenance();
   releaseMaintenance();
   assert.equal(run("POST", "/api/projects").passed, true);
+});
+
+// ── Fleet convergence (the P0 fix: a freeze must propagate beyond the handling replica) ──────────
+
+test("in-process mode: refresh is a no-op so the durable local file is never clobbered", async () => {
+  // No REDIS_URL / shared state stays in-process. A locally-restored freeze must survive a converge
+  // tick reading an empty shared store — otherwise a single-replica restart would silently un-freeze.
+  engageMaintenance("local freeze");
+  await refreshMaintenanceFromShared();
+  assert.equal(maintenanceEngaged(), true);
+  assert.equal(maintenanceReason(), "local freeze");
+});
+
+test("Redis mode: an interactive freeze on one replica converges to another via shared state", async () => {
+  __setRedisKvForTest(new FakeRedis()); // shared state is now Redis-backed (fleet mode)
+
+  // Replica A engages + publishes.
+  engageMaintenance("incident-42");
+  await publishMaintenanceToShared();
+
+  // Replica B starts clean, then runs the fleet-sync converge tick → adopts the freeze.
+  __resetMaintenance();
+  assert.equal(maintenanceEngaged(), false); // B hasn't converged yet
+  await refreshMaintenanceFromShared();
+  assert.equal(maintenanceEngaged(), true, "B adopts the fleet freeze");
+  assert.equal(maintenanceReason(), "incident-42");
+});
+
+test("Redis mode: a release on one replica converges the fleet back to writable", async () => {
+  __setRedisKvForTest(new FakeRedis());
+
+  engageMaintenance("freeze");
+  await publishMaintenanceToShared();
+
+  // A releases + publishes; B (currently frozen) converges to released.
+  releaseMaintenance();
+  await publishMaintenanceToShared();
+  engageMaintenance("stale local freeze on B"); // simulate B still locally frozen
+  await refreshMaintenanceFromShared();
+  assert.equal(maintenanceEngaged(), false, "shared release wins fleet-wide");
 });

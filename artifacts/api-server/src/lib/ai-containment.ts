@@ -59,8 +59,20 @@ export function aiSourceLevel(surface?: string): AiContainment {
 // level is also a floor, so a remote/public AI stays maximally contained.
 let relaxFloor: AiContainment = "public";
 
-/** Relax the default-full containment toward `level` (admin). Source floor still applies. */
-export function setContainmentRelax(level: AiContainment): void { relaxFloor = level; }
+/** The valid containment levels — used to reject an out-of-range value on the way in. */
+const CONTAINMENT_LEVELS: readonly AiContainment[] = ["off", "local", "remote", "public"];
+/** True iff `v` is a valid AiContainment level. */
+export function isContainmentLevel(v: unknown): v is AiContainment {
+  return typeof v === "string" && (CONTAINMENT_LEVELS as readonly string[]).includes(v);
+}
+
+/** Relax the default-full containment toward `level` (admin config / restore / fleet converge). Source
+ *  floor still applies. Validated whenever it moves: an out-of-range value FAILS SAFE to "public" (full
+ *  containment) rather than being assigned blindly — an invalid level must never silently LOOSEN the
+ *  leash (an unrecognised relaxFloor would make the strictness lookup undefined and mis-compare). */
+export function setContainmentRelax(level: AiContainment): void {
+  relaxFloor = isContainmentLevel(level) ? level : "public";
+}
 /** The current admin relax floor (default "public" = full containment). */
 export function getContainmentRelax(): AiContainment { return relaxFloor; }
 /** Test-only: restore the default-full posture. */

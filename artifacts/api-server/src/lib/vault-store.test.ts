@@ -1,5 +1,10 @@
 import { test, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { __setEgressTransportForTest, __setEgressLookupForTest, type LookupFn } from "./egress";
+// The vault/KMS stores call safeFetch with no injectable lookup, so route them to a test transport +
+// a deterministic resolver: the egress guard still runs, but no real DNS/network is hit.
+const BENIGN_LOOKUP = (async () => [{ address: "93.184.216.34", family: 4 }]) as LookupFn;
+function mockEgress(fn: typeof fetch): void { __setEgressLookupForTest(BENIGN_LOOKUP); __setEgressTransportForTest(fn); }
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -11,11 +16,11 @@ import { activeVaultStore, vaultBackendId, VAULT_BACKENDS } from "./vault-store"
  * HCP and a generic HTTP store (which also fronts AWS/Azure) are external adapters. External
  * adapters are exercised against a mocked fetch — no real network.
  */
-const realFetch = globalThis.fetch;
 const ORIGINAL_BACKEND = process.env["VAULT_BACKEND"];
 
 afterEach(() => {
-  globalThis.fetch = realFetch;
+  __setEgressTransportForTest(null);
+  __setEgressLookupForTest(null);
   if (ORIGINAL_BACKEND === undefined) delete process.env["VAULT_BACKEND"];
   else process.env["VAULT_BACKEND"] = ORIGINAL_BACKEND;
   for (const k of [
@@ -114,13 +119,13 @@ test("hashicorp store reads the KV v2 map and writes via read-modify-write", asy
   process.env["VAULT_TOKEN"] = "t";
   const calls: Array<{ url: string; method: string }> = [];
   let stored: Record<string, string> = { "aiprovider:openai": "sk-existing" };
-  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+  mockEgress((async (url: string | URL | Request, init?: RequestInit) => {
     const method = (init?.method ?? "GET").toUpperCase();
     calls.push({ url: String(url), method });
     if (method === "GET") return new Response(JSON.stringify({ data: { data: stored } }), { status: 200 });
     stored = (JSON.parse(String(init?.body)) as { data: Record<string, string> }).data;
     return new Response("{}", { status: 200 });
-  }) as typeof fetch;
+  }) as typeof fetch);
 
   const store = activeVaultStore();
   assert.deepEqual(await store.load(), { "aiprovider:openai": "sk-existing" });
@@ -135,12 +140,12 @@ test("http store fronts a generic REST secrets API", async () => {
   process.env["VAULT_HTTP_URL"] = "https://secrets.example";
   process.env["VAULT_HTTP_TOKEN"] = "bearer-x";
   const calls: Array<{ url: string; method: string; auth?: string | undefined }> = [];
-  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+  mockEgress((async (url: string | URL | Request, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     calls.push({ url: String(url), method: (init?.method ?? "GET").toUpperCase(), auth: headers.get("Authorization") ?? undefined });
     if ((init?.method ?? "GET") === "GET") return new Response(JSON.stringify({ "aiprovider:openai": "sk" }), { status: 200 });
     return new Response("{}", { status: 200 });
-  }) as typeof fetch;
+  }) as typeof fetch);
 
   const store = activeVaultStore();
   assert.equal(store.id, "http");
@@ -160,7 +165,7 @@ test("aws store signs with SigV4 and read-modify-writes one Secrets Manager secr
   delete process.env["AWS_SESSION_TOKEN"];
   const calls: Array<{ target: string; auth: string; body: unknown }> = [];
   let stored: Record<string, string> = { "aiprovider:openai": "sk-existing" };
-  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+  mockEgress((async (url: string | URL | Request, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     const target = headers.get("X-Amz-Target") ?? "";
     const body = JSON.parse(String(init?.body));
@@ -168,7 +173,7 @@ test("aws store signs with SigV4 and read-modify-writes one Secrets Manager secr
     if (target.endsWith("GetSecretValue")) return new Response(JSON.stringify({ SecretString: JSON.stringify(stored) }), { status: 200 });
     if (target.endsWith("PutSecretValue")) { stored = JSON.parse(body.SecretString); return new Response("{}", { status: 200 }); }
     return new Response("{}", { status: 200 });
-  }) as typeof fetch;
+  }) as typeof fetch);
 
   const store = activeVaultStore();
   assert.equal(store.id, "aws");
@@ -186,13 +191,13 @@ test("aws store creates the secret on first write when it doesn't exist", async 
   process.env["AWS_ACCESS_KEY_ID"] = "AKIDEXAMPLE";
   process.env["AWS_SECRET_ACCESS_KEY"] = "secret";
   const targets: string[] = [];
-  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+  mockEgress((async (_url: string | URL | Request, init?: RequestInit) => {
     const target = new Headers(init?.headers).get("X-Amz-Target") ?? "";
     targets.push(target);
     if (target.endsWith("GetSecretValue")) return new Response(JSON.stringify({ __type: "ResourceNotFoundException" }), { status: 400 });
     if (target.endsWith("PutSecretValue")) return new Response(JSON.stringify({ __type: "ResourceNotFoundException" }), { status: 400 });
     return new Response("{}", { status: 200 }); // CreateSecret
-  }) as typeof fetch;
+  }) as typeof fetch);
 
   await activeVaultStore().put("aiprovider:openai", "sk");
   assert.ok(targets.some((t) => t.endsWith("CreateSecret")));
@@ -206,7 +211,7 @@ test("azure store gets an AAD token then read-modify-writes one Key Vault secret
   process.env["AZURE_CLIENT_SECRET"] = "secret";
   const seen: string[] = [];
   let stored: Record<string, string> = { "aiprovider:openai": "sk-existing" };
-  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+  mockEgress((async (url: string | URL | Request, init?: RequestInit) => {
     const u = String(url);
     const method = (init?.method ?? "GET").toUpperCase();
     seen.push(`${method} ${u.split("?")[0]}`);
@@ -214,7 +219,7 @@ test("azure store gets an AAD token then read-modify-writes one Key Vault secret
     if (u.includes("/secrets/omni-ai-vault") && method === "GET") return new Response(JSON.stringify({ value: JSON.stringify(stored) }), { status: 200 });
     if (u.includes("/secrets/omni-ai-vault") && method === "PUT") { stored = JSON.parse((JSON.parse(String(init?.body)) as { value: string }).value); return new Response("{}", { status: 200 }); }
     return new Response("{}", { status: 200 });
-  }) as typeof fetch;
+  }) as typeof fetch);
 
   const store = activeVaultStore();
   assert.equal(store.id, "azure");

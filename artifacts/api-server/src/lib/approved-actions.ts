@@ -123,22 +123,26 @@ export function listApprovedActionRules(): ActionApproval[] {
 /** The scope pinned to an approved action, or undefined if not approved. */
 export function actionScope(action: string): ActionScope | undefined { return actions.get(action); }
 
-/** Approve a vocabulary term. */
-export function approveTerm(term: string): void { if (term.trim()) vocab.add(term.trim()); }
+/** Approve a vocabulary term. Guards `typeof` so an untrusted non-string (from a restore / fleet
+ *  converge) can't reach `.trim()` and throw. */
+export function approveTerm(term: string): void { if (typeof term === "string" && term.trim()) vocab.add(term.trim()); }
 /** The approved vocabulary. */
 export function listApprovedVocab(): string[] { return [...vocab]; }
 
 /** Replace the whole allowlist (an admin applies the customer-wide file). Accepts either the
  *  scoped `rules` form or the plain `actions` id list (approved globally) for back-compat. */
 export function setApproved(input: { actions?: string[]; rules?: ActionApproval[]; vocab?: string[] }): void {
-  if (input.rules) {
+  // Every branch is defensive: this input arrives from the admin config route, the sealed-file
+  // restore, AND the cross-replica fleet converge, so each element's TYPE is checked (Array.isArray +
+  // typeof) rather than trusted — a hostile/corrupt entry is dropped, never applied to the AI ceiling.
+  if (Array.isArray(input.rules)) {
     actions.clear();
     for (const r of input.rules) if (r && typeof r.action === "string" && r.action.trim()) actions.set(r.action, cleanScope(r.scope));
-  } else if (input.actions) {
+  } else if (Array.isArray(input.actions)) {
     actions.clear();
-    for (const a of input.actions) if (a.trim()) actions.set(a, {});
+    for (const a of input.actions) if (typeof a === "string" && a.trim()) actions.set(a, {});
   }
-  if (input.vocab) { vocab.clear(); for (const v of input.vocab) approveTerm(v); }
+  if (Array.isArray(input.vocab)) { vocab.clear(); for (const v of input.vocab) approveTerm(v as string); }
 }
 
 /** Test-only: restore the default-safe allowlist (reads approved globally, no vocab). */

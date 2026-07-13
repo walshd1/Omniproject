@@ -1,13 +1,15 @@
 import { test, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { awsSecretsStore } from "./vault-aws";
+import { __setEgressTransportForTest, __setEgressLookupForTest, type LookupFn } from "./egress";
 
 /**
  * AWS Secrets Manager vault store — all keys in one secret as a JSON map. The single JSON
- * endpoint selects the operation via X-Amz-Target; exercised against a mocked fetch.
+ * endpoint selects the operation via X-Amz-Target. The store calls lib/egress safeFetch (undici),
+ * so intercept via the egress transport seam + a deterministic resolver (no real DNS/network).
  */
-const realFetch = globalThis.fetch;
 const ENV = ["AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "VAULT_AWS_SECRET_ID"];
+const BENIGN_LOOKUP = (async () => [{ address: "93.184.216.34", family: 4 }]) as LookupFn;
 
 beforeEach(() => {
   process.env["AWS_REGION"] = "eu-west-2";
@@ -15,7 +17,8 @@ beforeEach(() => {
   process.env["AWS_SECRET_ACCESS_KEY"] = "secret";
 });
 afterEach(() => {
-  globalThis.fetch = realFetch;
+  __setEgressTransportForTest(null);
+  __setEgressLookupForTest(null);
   for (const k of ENV) delete process.env[k];
 });
 
@@ -24,11 +27,12 @@ const notFound = () => new Response(JSON.stringify({ __type: "ResourceNotFoundEx
 /** Route each call by its X-Amz-Target operation. */
 function mock(handler: (target: string, body: unknown) => Response): { targets: string[] } {
   const targets: string[] = [];
-  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+  __setEgressLookupForTest(BENIGN_LOOKUP);
+  __setEgressTransportForTest((async (_url: string | URL | Request, init?: RequestInit) => {
     const target = new Headers(init?.headers).get("X-Amz-Target") ?? "";
     targets.push(target);
     return handler(target, JSON.parse(String(init?.body)));
-  }) as typeof fetch;
+  }) as typeof fetch);
   return { targets };
 }
 

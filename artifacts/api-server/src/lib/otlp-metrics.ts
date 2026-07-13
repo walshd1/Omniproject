@@ -3,7 +3,7 @@ import { readCacheStats } from "../broker/cache";
 import type { AnyMetric } from "./metrics";
 import { logger } from "./logger";
 import { envInt } from "./env-config";
-import { assertEgressAllowed } from "./egress";
+import { safeFetch } from "./egress";
 
 /**
  * OTLP/HTTP metrics export — the metrics counterpart to lib/tracing's span export. The same
@@ -107,9 +107,10 @@ export async function exportMetricsOnce(): Promise<void> {
   const serviceName = process.env["OTEL_SERVICE_NAME"]?.trim() || "omniproject-gateway";
   const body = toOtlpMetricsPayload(coreMetrics(), { serviceName });
   try {
-    // Same egress/residency guard as every other outbound hop (see docs/DATA-RESIDENCY.md).
-    await assertEgressAllowed(url);
-    await fetch(url, { method: "POST", headers: otlpHeaders(), body: JSON.stringify(body), signal: AbortSignal.timeout(5_000) });
+    // Same egress/residency guard as every other outbound hop, via safeFetch — which also pins the
+    // vetted IPs and re-validates each redirect Location, so a collector can't 302 the exporter into
+    // the cloud metadata endpoint (see docs/DATA-RESIDENCY.md and lib/egress.ts).
+    await safeFetch(url, { method: "POST", headers: otlpHeaders(), body: JSON.stringify(body), signal: AbortSignal.timeout(5_000) });
   } catch (err) {
     logger.debug({ err }, "otlp metrics export failed");
   }

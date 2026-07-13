@@ -1,5 +1,6 @@
 import { awsSignedHeaders, awsCredsFromEnv } from "./aws-sigv4";
-import type { VaultStore } from "./vault-store";
+import { safeFetch } from "./egress";
+import { coerceSecretMap, type VaultStore } from "./vault-store";
 
 /**
  * AWS Secrets Manager vault store (native). All AI keys are held in ONE Secrets Manager
@@ -22,7 +23,10 @@ export function awsSecretsStore(): VaultStore {
   const call = (target: string, payload: unknown): Promise<Response> => {
     const body = JSON.stringify(payload);
     const headers = awsSignedHeaders({ host, region, service: SERVICE, target, body, creds });
-    return fetch(endpoint, { method: "POST", headers, body, signal: AbortSignal.timeout(15_000) });
+    // safeFetch, not bare fetch: every outbound hop — including a secret-backend call — passes the
+    // SSRF/residency guard, pins the vetted IPs, and re-validates redirects (see lib/egress.ts). With
+    // EGRESS_ALLOWLIST set, the Secrets Manager host must be listed (correct egress-pinning hygiene).
+    return safeFetch(endpoint, { method: "POST", headers, body, signal: AbortSignal.timeout(15_000) });
   };
 
   const isNotFound = async (res: Response): Promise<boolean> => {
@@ -36,7 +40,7 @@ export function awsSecretsStore(): VaultStore {
     if (!res.ok) throw new Error(`AWS GetSecretValue ${res.status}`);
     const json = (await res.json()) as { SecretString?: string };
     if (!json.SecretString) return {};
-    try { return JSON.parse(json.SecretString) as Record<string, string>; } catch { return {}; }
+    try { return coerceSecretMap(JSON.parse(json.SecretString)); } catch { return {}; }
   };
 
   const write = async (map: Record<string, string>): Promise<void> => {

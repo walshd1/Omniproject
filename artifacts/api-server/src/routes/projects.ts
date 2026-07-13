@@ -237,11 +237,20 @@ router.post("/projects/:projectGuid/close", requireAnyRole("pmo", "admin"), (req
     // closure: never claim a project is archived when its data wasn't actually captured.
     if (disposition === "archive") {
       const project = (await getProjects(req)).find((p) => String((p as Row)["omniInstanceId"] ?? "") === guid);
+      // A project still present in the backend is snapshotted before the closure is recorded. If it's
+      // no longer in the backend there is nothing to capture, so the closure is recorded as a
+      // bookkeeping entry with no snapshot (unchanged behaviour) — that's distinct from a capture that
+      // FAILED, which must not be silently treated as "no data".
       if (project) {
         const projectId = String((project as Row)["id"]);
+        // NO `.catch(() => [])` here: a transient broker read error must ABORT the archive — the error
+        // propagates to withBrokerErrors → failure response, and the recordAudit/res.json below never
+        // run — instead of being swallowed into an EMPTY snapshot that we persist and then report as a
+        // success (the contract above: never claim a project is archived when its data wasn't actually
+        // captured). A genuinely empty project still archives fine: the reads succeed and return [].
         const [issues, tasks] = await Promise.all([
-          getIssues(req, projectId).catch(() => [] as Row[]),
-          getTasks(req, { projectId }).then((t) => t as unknown as Row[]).catch(() => [] as Row[]),
+          getIssues(req, projectId),
+          getTasks(req, { projectId }).then((t) => t as unknown as Row[]),
         ]);
         // Also archive OmniProject's own settings for the project (programme memberships, relinks, …),
         // so its configuration is preserved alongside its data.

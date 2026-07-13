@@ -5,6 +5,7 @@ import { requireTls } from "./deployment-profile";
 import { constantTimeEqual } from "./crypto-keys";
 import { configuredCorsOrigins } from "./origin-allowlist";
 import { firstForwardedValue } from "./trust-proxy";
+import { sessionCookieMaxAgeMs } from "./session-timeout";
 
 /**
  * CSRF hardening for cookie-authenticated mutations (security item B).
@@ -77,7 +78,7 @@ export function setCsrfCookie(res: Response, token: string): void {
     sameSite: "lax",
     secure: requireTls(), // mirror the session cookie's Secure decision (TLS-aware, not NODE_ENV)
     path: "/",
-    maxAge: 1000 * 60 * 60 * 8, // mirror the session lifetime
+    maxAge: sessionCookieMaxAgeMs(), // track the session's absolute cap (shared helper — no drift)
   });
 }
 
