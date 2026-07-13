@@ -47,3 +47,20 @@ export async function guardProjectScope(req: Request, res: Response, projectId: 
   res.status(403).json({ error: authz.error });
   return false;
 }
+
+/** The minimal task shape the scope check reads (structural, so this stays free of a broker-type import). */
+interface ScopableTask { projectId?: string | null; assignee?: string | null; collaborators?: string[] | null }
+
+/**
+ * Whether a caller may see/mutate a single task. A PROJECT-linked task follows {@link assertProjectScope}
+ * (a manager may act on tasks in projects they can see). A PERSONAL task (no projectId) is private to its
+ * owner — only the assignee or a collaborator, matched against the caller's identity tokens (`whoami` =
+ * sub/email/name). all-scope (PMO/admin) sees everything. Pass the identity in so this lib helper stays
+ * decoupled from the session/route layer.
+ */
+export async function assertTaskScope(req: Request, task: ScopableTask, whoami: readonly string[]): Promise<boolean> {
+  if (scopeForReq(req).level === "all") return true;
+  if (task.projectId) return (await assertProjectScope(req, task.projectId)).ok;
+  const owns = (v: string | null | undefined): boolean => !!v && whoami.includes(v);
+  return owns(task.assignee) || (task.collaborators ?? []).some(owns);
+}

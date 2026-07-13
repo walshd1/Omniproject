@@ -2,6 +2,8 @@ import { Router } from "express";
 import { getTasks, getTask } from "../lib/data";
 import { allIssues } from "../lib/portfolio-reads";
 import { getSession } from "./auth";
+import { scopeForReq } from "../lib/rbac";
+import { assertTaskScope } from "../lib/project-scope";
 import { withBrokerErrors } from "../broker";
 import { tasksToIcsEvents, issuesToIcsEvents } from "../lib/calendar-feed";
 import { buildIcs } from "../lib/ical";
@@ -29,21 +31,27 @@ router.get("/calendar.ics", (req, res) =>
     const session = getSession(req);
     const taskId = typeof req.query["taskId"] === "string" ? req.query["taskId"] : undefined;
     const issueId = typeof req.query["issueId"] === "string" ? req.query["issueId"] : undefined;
+    const whoami = [session?.email, session?.name, session?.sub].filter((x): x is string => typeof x === "string" && !!x);
 
     let events;
     let name = "OMNI";
     if (taskId) {
-      // Case-by-case: one task the user explicitly chose (no mine filter — they picked it).
+      // Case-by-case: one task the user explicitly chose — but still scope-checked (getTask is
+      // scope-blind), so it can't be used to pull an out-of-scope task's schedule. Out of scope ⇒ empty.
       const t = await getTask(req, taskId);
-      events = t ? tasksToIcsEvents([t]) : [];
-      name = t ? `OmniProject — ${t.title}` : "OmniProject";
+      const visible = !!t && await assertTaskScope(req, t, whoami);
+      events = visible ? tasksToIcsEvents([t]) : [];
+      name = visible ? `OmniProject — ${t.title}` : "OmniProject";
     } else if (issueId) {
       const one = (await allIssues(req)).find((r) => String(r["id"]) === issueId);
       events = one ? issuesToIcsEvents([one]) : [];
       name = one ? `OmniProject — ${String(one["title"] ?? "item")}` : "OmniProject";
     } else {
-      const scopeAll = req.query["scope"] === "all";
-      const whoami = [session?.email, session?.name, session?.sub].filter((x): x is string => typeof x === "string" && !!x);
+      // `scope=all` (the whole schedule) is only honoured for a portfolio-scoped principal; a scoped
+      // caller falls back to their own items (mineFor). Otherwise getTasks — which is scope-blind —
+      // would fold every tenant's tasks into the feed (the issue half already goes through allIssues,
+      // which IS scope-bounded).
+      const scopeAll = req.query["scope"] === "all" && scopeForReq(req).level === "all";
       const opts = scopeAll ? {} : { mineFor: whoami };
       const [tasks, issues] = await Promise.all([getTasks(req), allIssues(req)]);
       events = [...tasksToIcsEvents(tasks, opts), ...issuesToIcsEvents(issues, opts)];
