@@ -1,5 +1,5 @@
 import { randomToken, pkceChallenge, type SessionUser } from "./oidc";
-import { assertEgressAllowed } from "./egress";
+import { assertEgressAllowed, safeFetch } from "./egress";
 
 /**
  * Generic OAuth 2.0 Authorization-Code (+ PKCE) login for **non-OIDC** providers — e.g. GitHub,
@@ -93,7 +93,10 @@ export async function exchangeCodeOAuth2(params: {
   fetchImpl?: typeof fetch;
 }): Promise<OAuth2TokenResponse> {
   await assertEgressAllowed(params.config.tokenUrl); // literal + post-DNS recheck + allowlist/residency
-  const fetchImpl = params.fetchImpl ?? fetch;
+  // safeFetch (not plain fetch) so the token POST — which carries client_secret — pins the vetted IPs
+  // and re-validates every redirect hop; a token endpoint that 302s to an internal host can neither be
+  // reached nor be sent the secret.
+  const fetchImpl = params.fetchImpl ?? (safeFetch as unknown as typeof fetch);
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code: params.code,
@@ -125,7 +128,7 @@ export async function exchangeCodeOAuth2(params: {
 
 /** Fetch the provider's userinfo with the bearer token. SSRF-guarded; sends a `User-Agent`
  *  (required by some providers, e.g. GitHub) and `Accept: application/json`. */
-export async function fetchUserInfo(config: OAuth2Config, accessToken: string, fetchImpl: typeof fetch = fetch): Promise<Record<string, unknown>> {
+export async function fetchUserInfo(config: OAuth2Config, accessToken: string, fetchImpl: typeof fetch = safeFetch as unknown as typeof fetch): Promise<Record<string, unknown>> {
   await assertEgressAllowed(config.userInfoUrl); // literal + post-DNS recheck + allowlist/residency
   const res = await fetchImpl(config.userInfoUrl, {
     headers: {
