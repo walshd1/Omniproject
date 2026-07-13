@@ -10,6 +10,9 @@ import { usePortfolioItems } from "./use-portfolio-items";
 import { StrategyCascade } from "./StrategyCascade";
 import { Badge } from "../tiles/Badge";
 import type { CascadeItem } from "../../lib/strategy-cascade";
+import { ragBucket } from "../../lib/status-vocab";
+// Canonical RAG bucketing is shared across reports — see lib/status-vocab. Re-exported for existing importers/tests.
+export { ragBucket, type Rag } from "../../lib/status-vocab";
 
 /**
  * Strategy Alignment (Strategy-to-execution / OKR alignment) — groups every work item by its strategic
@@ -33,18 +36,6 @@ export interface StrategyItem {
   benefitStatus?: string | null;
   plannedBenefitValue?: number | null;
   actualBenefitValue?: number | null;
-}
-
-export type Rag = "green" | "amber" | "red" | "none";
-
-/** Normalise a free-form health / benefit status into a RAG bucket (backend vocabulary preserved). */
-export function ragBucket(status?: string | null): Rag {
-  const s = (status ?? "").toLowerCase().trim();
-  if (!s) return "none";
-  if (/green|on.?track|on.?plan|healthy|realis|realiz|complete|achiev|deliver|good/.test(s)) return "green";
-  if (/red|off.?track|miss|fail|lost|critical|blocked|cancel/.test(s)) return "red";
-  if (/amber|at.?risk|yellow|warn|delay|slip|risk/.test(s)) return "amber";
-  return "none";
 }
 
 export interface StrategyThemeRow {

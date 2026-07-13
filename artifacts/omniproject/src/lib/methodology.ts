@@ -9,8 +9,11 @@ import type { Issue } from "@workspace/api-client-react";
 
 const POINTS_BY_PRIORITY: Record<string, number> = { urgent: 8, high: 5, medium: 3, low: 2, none: 1 };
 
-export const isDone = (s: string) => s === "done";
-export const isTerminal = (s: string) => s === "done" || s === "cancelled";
+// "done"/"terminal" are shared with the reports via the canonical status vocabulary. On the
+// built-in broker's exact enum (todo/in_progress/in_review/done/cancelled) the loose matchers there
+// agree with the old `=== "done"` comparisons, so methodology behaviour is unchanged.
+export { isDone, isTerminal } from "./status-vocab";
+import { isDone, isTerminal } from "./status-vocab";
 
 export function isOverdue(issue: Issue): boolean {
   return !!issue.dueDate && new Date(issue.dueDate) < new Date() && !isTerminal(issue.status);

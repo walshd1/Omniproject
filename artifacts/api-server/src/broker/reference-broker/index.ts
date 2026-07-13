@@ -642,7 +642,10 @@ export class ReferenceBroker implements Broker {
       const value = (data && typeof data === "object" ? { ...CONSERVATIVE, ...data } : { ...CONSERVATIVE }) as CapabilityFlags;
       capCache.set(key, { value, at: Date.now() });
       return value;
-    } catch {
+    } catch (err) {
+      // Degrade to the conservative flag set, but leave a trail — a silently-degraded broker
+      // (features disabled fleet-wide) is otherwise invisible until someone notices the gap.
+      logger.warn({ err: err instanceof Error ? err.message : String(err) }, "capabilities probe failed; using conservative flags");
       return { ...CONSERVATIVE };
     }
   }
@@ -656,8 +659,10 @@ export class ReferenceBroker implements Broker {
       if (data && data.rates && typeof data.rates === "object") {
         return { base: data.base || "GBP", rates: data.rates, provenance: "sourced", asOf: data.asOf || opts?.asOf || new Date().toISOString() };
       }
-    } catch {
-      /* graceful degradation → indicative rates below */
+    } catch (err) {
+      // Graceful degradation → indicative rates below, but record why: an FX outage silently
+      // swaps sourced rates for indicative ones, which changes every converted money figure.
+      logger.warn({ err: err instanceof Error ? err.message : String(err) }, "fx rate fetch failed; using indicative rates");
     }
     return FALLBACK_FX;
   }

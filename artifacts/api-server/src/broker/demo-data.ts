@@ -2,7 +2,7 @@ import { DEV_PERSIST_FILE, saveState, loadState } from "../lib/dev-persist";
 import { INDICATIVE_FX_RATES } from "../lib/fx-fallback";
 import { configuredBrokerUrl } from "../lib/broker-url";
 import { CANONICAL_STATUS, CANONICAL_PRIORITY, isDone } from "./vocabulary";
-import type { Row, FxRates } from "./types";
+import type { Row, FxRates, Project, Issue, PortfolioRow } from "./types";
 
 /**
  * Demo dataset — the canned data the DemoBroker serves. Lives entirely under the
@@ -20,7 +20,7 @@ const BACKEND_CONFIGURED = !!configuredBrokerUrl();
 // the programme roll-up and per-project financials have something to surface. A
 // real finance-backed deployment denormalises these the same way as issueCount;
 // a backend with no finance source simply omits them and financials stay hidden.
-export const SAMPLE_PROJECTS: Row[] = [
+export const SAMPLE_PROJECTS: Project[] = [
   { id: "proj-001", name: "Platform Rewrite", identifier: "PLT", description: "Complete overhaul of the core platform infrastructure", source: "jira", programmeId: "prog-platform", programmeName: "Platform Modernization", omniInstanceId: "demo-guid-proj-001", issueCount: 24, completedCount: 9, memberCount: 5, currency: "GBP", budget: 480000, actualCost: 312000, earnedValue: 288000, committed: 52000, updatedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
   { id: "proj-002", name: "API Gateway v2", identifier: "AGW", description: "New unified API gateway", source: "openproject", programmeId: "prog-platform", programmeName: "Platform Modernization", omniInstanceId: "demo-guid-proj-002", issueCount: 18, completedCount: 14, memberCount: 3, currency: "GBP", budget: 220000, actualCost: 148000, updatedAt: new Date(Date.now() - 1000 * 60 * 90).toISOString() },
   { id: "proj-003", name: "Enterprise SSO", identifier: "SSO", description: "OIDC-based single sign-on across all services", source: "github", programmeId: "prog-security", programmeName: "Security & Identity", omniInstanceId: "demo-guid-proj-003", issueCount: 11, completedCount: 7, memberCount: 2, currency: "GBP", budget: 140000, actualCost: 96000, earnedValue: 88000, committed: 9000, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() },
@@ -39,7 +39,7 @@ export const SAMPLE_PROGRAMME_REGISTRY: Record<string, { name: string; instanceI
   "prog-security": { name: "Security & Identity", instanceIds: ["demo-guid-proj-003"] },
 };
 
-export const SAMPLE_ISSUES: Record<string, Row[]> = {
+export const SAMPLE_ISSUES: Record<string, Issue[]> = {
   "proj-001": [
     { id: "iss-001", projectId: "proj-001", requester: "alice", title: "Migrate auth service to OIDC", description: "Replace legacy JWT flow with OIDC + Authentik", status: "in_progress", priority: "urgent", assignee: "alice", labels: ["auth", "infra"], startDate: "2026-06-10", dueDate: "2026-06-28", currency: "GBP", budget: 45000, actualCost: 28000, billable: true, costCenter: "ENG-PLAT", estimateHours: 40, loggedHours: 26, remainingHours: 18, storyPoints: 8, healthStatus: "amber", riskLevel: "high", impact: "high", urgency: "high", blocked: true, blockedReason: "Awaiting realm export format from platform team", defectCount: 2, expenditureType: "capex", capexAmount: 30000, opexAmount: 15000, costCategory: "Software licences", depreciationMonths: 36, revenue: 90000, invoicedAmount: 50000, purchaseOrder: "PO-2026-001", benefitType: "cashable", benefitOwner: "alice", plannedBenefitValue: 120000, actualBenefitValue: 42000, benefitMeasure: "Auth incidents / yr", benefitBaseline: 24, benefitTarget: 4, benefitStartDate: "2026-07-01", benefitDueDate: "2027-06-30", benefitStatus: "on_track", benefitConfidence: 70, riceScore: 84, wsjf: 22.5, moscow: "must", strategicContribution: 80, strategicGoals: ["Digital Transformation", "Zero Trust Security"], strategicTheme: "Security & Trust", valueStream: "Identity & Access", objectives: ["Zero critical auth incidents by FY-end"], kpis: ["Auth incidents / yr", "MTTR (mins)"], customFields: { customerTier: "Enterprise", riskScore: 72 }, source: "jira", lastUpdatedBy: "alice", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(), updatedAt: new Date(Date.now() - 1000 * 60 * 20).toISOString() },
     { id: "iss-002", projectId: "proj-001", requester: "bob", title: "Set up bidirectional broker flow", description: "Configure the broker to handle inbound and outbound payloads", status: "todo", priority: "high", assignee: "bob", labels: ["integration"], startDate: "2026-06-20", dueDate: "2026-07-05", currency: "GBP", budget: 30000, actualCost: 6000, billable: true, costCenter: "ENG-PLAT", estimateHours: 24, loggedHours: 4, remainingHours: 20, storyPoints: 5, expenditureType: "opex", capexAmount: 0, opexAmount: 30000, costCategory: "Integration build", revenue: 55000, invoicedAmount: 20000, purchaseOrder: "PO-2026-002", benefitType: "non_cashable", benefitOwner: "bob", plannedBenefitValue: 60000, actualBenefitValue: 8000, benefitMeasure: "Manual sync hrs / wk", benefitBaseline: 12, benefitTarget: 1, benefitStartDate: "2026-08-01", benefitDueDate: "2027-03-31", benefitStatus: "at_risk", benefitConfidence: 45, riceScore: 36, wsjf: 9.5, moscow: "should", strategicContribution: 40, strategicGoals: ["Digital Transformation"], strategicTheme: "Platform Modernisation", valueStream: "Integration", objectives: ["Unified bidirectional integration layer"], kpis: ["Manual sync hrs / wk"], customFields: { customerTier: "Mid-market", riskScore: 31 }, source: "jira", lastUpdatedBy: "bob", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() },
@@ -89,9 +89,9 @@ for (const list of Object.values(SAMPLE_ISSUES)) {
       issueCount: perProject, completedCount: Math.round(perProject / 3), memberCount: 3 + (p % 7),
       updatedAt: new Date(now - (p % 30) * 86400000).toISOString(),
     });
-    const issues: Row[] = [];
+    const issues: Issue[] = [];
     for (let i = 0; i < perProject; i++) {
-      const status = STATUSES[(p + i) % STATUSES.length];
+      const status = STATUSES[(p + i) % STATUSES.length] ?? "todo";
       issues.push({
         id: `${pid}-iss-${i + 1}`, projectId: pid, title: `Work item ${i + 1} of ${pid}`, description: null, status,
         priority: PRIORITIES[(i * 3 + p) % PRIORITIES.length], assignee: `user-${(p * perProject + i) % 2000}`,
@@ -188,7 +188,7 @@ export const SAMPLE_FINANCIALS: Row = {
   cpi: 0.92, spi: 0.88, financialHealth: "AMBER", forecastCostAtCompletion: 521739, provenance: "sample",
 };
 
-export const SAMPLE_PORTFOLIO: Row[] = [
+export const SAMPLE_PORTFOLIO: PortfolioRow[] = [
   { projectId: "proj-001", projectName: "Platform Rewrite", ragStatus: "AMBER", scheduleVarianceDays: -6, budgetVariancePercentage: 8.4, activeBlockersCount: 3 },
   { projectId: "proj-002", projectName: "API Gateway v2", ragStatus: "GREEN", scheduleVarianceDays: 2, budgetVariancePercentage: -1.2, activeBlockersCount: 0 },
   { projectId: "proj-003", projectName: "Enterprise SSO", ragStatus: "RED", scheduleVarianceDays: -14, budgetVariancePercentage: 22.7, activeBlockersCount: 5 },
@@ -233,9 +233,11 @@ export function persistDemoState(): void {
  * arrays/maps in place so every holder of the references sees the new data.
  */
 export function loadDemoState(state: { projects: unknown[]; issues: Record<string, unknown[]>; raid: Record<string, unknown[]> }): void {
-  SAMPLE_PROJECTS.splice(0, SAMPLE_PROJECTS.length, ...(state.projects as Row[]));
+  // Parsed dev-state JSON is asserted to the domain types here — the single trust-boundary cast
+  // where persisted data re-enters (the arrays themselves are strongly typed, so no casts downstream).
+  SAMPLE_PROJECTS.splice(0, SAMPLE_PROJECTS.length, ...(state.projects as Project[]));
   for (const k of Object.keys(SAMPLE_ISSUES)) delete SAMPLE_ISSUES[k];
-  Object.assign(SAMPLE_ISSUES, state.issues as Record<string, Row[]>);
+  Object.assign(SAMPLE_ISSUES, state.issues as Record<string, Issue[]>);
   for (const k of Object.keys(SAMPLE_RAID)) delete SAMPLE_RAID[k];
   Object.assign(SAMPLE_RAID, state.raid as Record<string, Row[]>);
 }
