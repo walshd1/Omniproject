@@ -1601,6 +1601,9 @@ Key registry with admin-gated revocation.
 | `userSessionsRevokedAt` | The instant a user's sessions were revoked, or 0. |
 | `snapshotKeys` | Serialisable snapshot of all revocation state (for durable persistence). |
 | `restoreKeys` | Restore revocation state from a snapshot (boot-time durability). |
+| `refreshKeyRegistryFromShared` | Converge this replica's revocation state with shared state once (the fleet-sync tick, also directly testable). |
+| `startKeyRegistryFleetSync` | Start periodic fleet convergence so a credential revoked on ANY replica takes effect here. |
+| `stopKeyRegistryFleetSync` | — |
 | `__resetKeyRegistry` | Test-only: reset all key state. |
 
 ### `artifacts/api-server/src/lib/kms.ts`

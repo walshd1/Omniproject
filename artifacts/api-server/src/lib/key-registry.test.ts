@@ -1,6 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { currentVersion, isActive, derivedKey, revokeKey, listKeys, revokeUserSessions, userSessionsRevokedAt, snapshotKeys, restoreKeys, __resetKeyRegistry } from "./key-registry";
+import { currentVersion, isActive, derivedKey, revokeKey, listKeys, revokeUserSessions, userSessionsRevokedAt, snapshotKeys, restoreKeys, refreshKeyRegistryFromShared, KEY_REGISTRY_SHARED_KEY, __resetKeyRegistry } from "./key-registry";
+import { sharedKv, __resetSharedStateForTest } from "./shared-state";
 import { record, recentProvenance, verifyChain, __resetProvenance } from "./provenance";
 
 /**
@@ -8,8 +9,8 @@ import { record, recentProvenance, verifyChain, __resetProvenance } from "./prov
  * derived key; provenance entries under a revoked version still verify but are flagged.
  */
 const ENV = ["SESSION_SECRET", "PROVENANCE_KEY", "BROKER_PSK", "AUDIT_KEY"];
-beforeEach(() => { __resetKeyRegistry(); __resetProvenance(); });
-afterEach(() => { for (const k of ENV) delete process.env[k]; __resetKeyRegistry(); });
+beforeEach(() => { __resetKeyRegistry(); __resetProvenance(); __resetSharedStateForTest(); });
+afterEach(() => { for (const k of ENV) delete process.env[k]; __resetKeyRegistry(); __resetSharedStateForTest(); });
 
 test("keys start at version 1, active, and derive distinct material per version", () => {
   assert.equal(currentVersion("session"), 1);
@@ -77,6 +78,35 @@ test("snapshotKeys/restoreKeys round-trips revocation state", () => {
   assert.equal(currentVersion("session"), 2);
   assert.equal(isActive("session", 1), false);
   assert.ok(userSessionsRevokedAt("u1") > 0);
+});
+
+test("fleet propagation: a revocation on one replica is unioned into a sibling on refresh", async () => {
+  // Replica A revokes a key + a user's sessions — both write through to shared state.
+  revokeKey("session", { by: "admin", reason: "leak" });
+  revokeUserSessions("u1");
+  await refreshKeyRegistryFromShared(); // flush the best-effort write-through deterministically
+  const shared = JSON.parse((await sharedKv.get(KEY_REGISTRY_SHARED_KEY))!) as ReturnType<typeof snapshotKeys>;
+  assert.deepEqual(shared.keys["session"]!.revoked, [1]);
+  assert.ok(shared.userRevokedAt["u1"]! > 0);
+
+  // Replica B starts from a clean local view over the same shared state and converges.
+  __resetKeyRegistry();
+  assert.equal(isActive("session", 1), true); // B hasn't seen the revocation yet
+  await refreshKeyRegistryFromShared();
+  assert.equal(isActive("session", 1), false); // ...now it has
+  assert.equal(currentVersion("session"), 2);
+  assert.ok(userSessionsRevokedAt("u1") > 0);
+});
+
+test("fleet merge is monotonic union — a stale shared snapshot can never un-revoke a local key", async () => {
+  // Local holds a revocation that shared state is missing (e.g. restored from this replica's sealed
+  // file, or a racing sibling clobbered shared). A refresh must KEEP it and push it back, not drop it.
+  revokeKey("broker", {});
+  await sharedKv.set(KEY_REGISTRY_SHARED_KEY, JSON.stringify({ keys: {}, userRevokedAt: {} })); // stale/empty
+  await refreshKeyRegistryFromShared();
+  assert.equal(isActive("broker", 1), false); // still revoked locally
+  const shared = JSON.parse((await sharedKv.get(KEY_REGISTRY_SHARED_KEY))!) as ReturnType<typeof snapshotKeys>;
+  assert.deepEqual(shared.keys["broker"]!.revoked, [1]); // ...and anti-entropy pushed it back to shared
 });
 
 test("restoreKeys tolerates a snapshot with missing/partial fields", () => {
