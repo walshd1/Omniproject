@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireRole, getRoleMap, setRoleMap, rollbackRoleMap, canRollbackRoleMap, ROLES } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordRequestAudit } from "../lib/audit";
 
 /**
  * Role-mapping editor — ADMIN-only, audited. Lets an admin decide which IdP
@@ -22,11 +22,9 @@ router.get("/admin/role-map", requireRole("admin"), (_req, res) => {
 router.post("/admin/role-map/rollback", requireRole("admin"), requireStepUp, (req, res) => {
   const rolledBack = rollbackRoleMap();
   const mapping = getRoleMap();
-  recordAudit({
-    ts: new Date().toISOString(),
+  recordRequestAudit(req, {
     category: "admin",
     action: "role_map_rollback",
-    actor: actorForAudit(req),
     result: "success",
     status: 200,
     meta: { rolledBack },
@@ -36,11 +34,9 @@ router.post("/admin/role-map/rollback", requireRole("admin"), requireStepUp, (re
 
 router.put("/admin/role-map", requireRole("admin"), requireStepUp, (req, res) => {
   const mapping = setRoleMap(req.body);
-  recordAudit({
-    ts: new Date().toISOString(),
+  recordRequestAudit(req, {
     category: "admin",
     action: "role_map_update",
-    actor: actorForAudit(req),
     result: "success",
     status: 200,
     // Record the shape of the change (group counts per role), not necessarily the

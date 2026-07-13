@@ -15,7 +15,7 @@ import { answerCopilot } from "../lib/copilot";
 import { suggestBackendPrompt, parseSuggestedManifest, SuggestParseError } from "../lib/backend-suggest";
 import { getBroker, contextFromReq } from "../broker";
 import { hasRole, roleForReq, requireRole } from "../lib/rbac";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordRequestAudit } from "../lib/audit";
 import { aiGovernanceStatus, aiUsageReport, type AiGovContext } from "../lib/ai-governance";
 import { aiContainmentLevel, aiSourceLevel } from "../lib/ai-containment";
 import { transcribe, sttStatus, sttCapabilityId, SttError } from "../lib/stt";
@@ -234,11 +234,9 @@ router.post("/ai/suggest-backend", requireRole("admin"), async (req, res) => {
     const prompt = suggestBackendPrompt(parsed.vendorName, parsed.hint);
     const { content } = await aiChat([{ role: "user", content: prompt }], govCtx(req));
     const manifest = parseSuggestedManifest(content, parsed.vendorName);
-    recordAudit({
-      ts: new Date().toISOString(),
+    recordRequestAudit(req, {
       category: "admin",
       action: "ai.backend_draft_suggested",
-      actor: actorForAudit(req),
       write: false,
       meta: { vendorName: parsed.vendorName },
     });

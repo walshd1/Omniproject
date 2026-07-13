@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "../lib/rbac";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordRequestAudit, actorForAudit } from "../lib/audit";
 import { getIssues, getProjects } from "../lib/data";
 import { programmeIdOf } from "../lib/programmes";
 import { staffCost, valueColumns, hashIdentity, type RateCard, type Facing, type TimedItem, type Uplift, type ValueColumn } from "../lib/rate-card";
@@ -43,11 +43,9 @@ const isStr = (v: unknown): v is string => typeof v === "string";
 const isNum = (v: unknown): v is number => typeof v === "number" && isFinite(v);
 
 function audit(req: Parameters<typeof actorForAudit>[0], action: string, meta: Record<string, unknown>): void {
-  recordAudit({
-    ts: new Date().toISOString(),
+  recordRequestAudit(req, {
     category: "admin",
     action,
-    actor: actorForAudit(req),
     result: "success",
     status: 200,
     meta,

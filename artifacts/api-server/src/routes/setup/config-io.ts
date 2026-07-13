@@ -12,7 +12,7 @@ import { getSettings, updateSettings } from "../../lib/settings";
 import { requireRole } from "../../lib/rbac";
 import { requireStepUp } from "../../lib/step-up";
 import { buildConfigExport, type ExportFormat } from "../../lib/config-export";
-import { auditStatus, recordAudit, actorForAudit } from "../../lib/audit";
+import { auditStatus, recordRequestAudit } from "../../lib/audit";
 import { configDirSummary } from "../../lib/config-dir";
 import { refreshConfigDir, configBackupInfo, clearConfigBackup } from "../../lib/config-refresh";
 import { buildConfigBundle } from "../../lib/config-bundle";
@@ -57,9 +57,9 @@ router.get("/setup/config-dir", requireRole("admin"), (_req, res) => {
 // running on a half-applied broken config.
 router.post("/setup/config-dir/refresh", requireRole("admin"), requireStepUp, (req, res) => {
   const result = refreshConfigDir();
-  recordAudit({
-    ts: new Date().toISOString(), category: "admin", action: "config-dir.refresh",
-    actor: actorForAudit(req), write: true,
+  recordRequestAudit(req, {
+    category: "admin", action: "config-dir.refresh",
+    write: true,
     result: result.ok ? "success" : "error",
     meta: { errors: result.summary.errors.length, warnings: result.summary.warnings.length, reverted: result.reverted, backedUp: result.backedUp },
   });
@@ -76,9 +76,9 @@ router.post("/setup/config-dir/refresh", requireRole("admin"), requireStepUp, (r
 // to live behaviour.
 router.post("/setup/config-dir/clear-backup", requireRole("admin"), (req, res) => {
   const cleared = clearConfigBackup();
-  recordAudit({
-    ts: new Date().toISOString(), category: "admin", action: "config-dir.clear-backup",
-    actor: actorForAudit(req), write: true,
+  recordRequestAudit(req, {
+    category: "admin", action: "config-dir.clear-backup",
+    write: true,
     result: cleared ? "success" : "error",
   });
   res.json({ cleared });

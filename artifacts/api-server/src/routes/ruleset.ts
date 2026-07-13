@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireRole } from "../lib/rbac";
 import { rulesetCatalogue, setRuleModes, getFieldRules, setFieldRules, applyRuleset } from "../lib/ruleset";
 import { referenceRulesetCatalogue, getReferenceRuleset } from "@workspace/backend-catalogue";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordRequestAudit } from "../lib/audit";
 import { getSettings } from "../lib/settings";
 import { v, parseOr400 } from "../lib/validate";
 
@@ -35,11 +35,9 @@ router.get("/admin/ruleset", requireRole("pmo"), (_req, res) => {
 
 router.put("/admin/ruleset", requireRole("pmo"), (req, res) => {
   const modes = setRuleModes((req.body ?? {}) as Record<string, unknown>);
-  recordAudit({
-    ts: new Date().toISOString(),
+  recordRequestAudit(req, {
     category: "admin",
     action: "ruleset_update",
-    actor: actorForAudit(req),
     result: "success",
     status: 200,
     meta: { modes },
@@ -54,11 +52,9 @@ router.get("/admin/ruleset/fields", requireRole("pmo"), (_req, res) => {
 });
 router.put("/admin/ruleset/fields", requireRole("pmo"), (req, res) => {
   const rules = setFieldRules(req.body);
-  recordAudit({
-    ts: new Date().toISOString(),
+  recordRequestAudit(req, {
     category: "admin",
     action: "ruleset_fields_update",
-    actor: actorForAudit(req),
     result: "success",
     status: 200,
     meta: { count: rules.length },
@@ -90,11 +86,9 @@ router.post("/admin/ruleset/apply-reference", requireRole("pmo"), (req, res) => 
     return;
   }
   const applied = applyRuleset({ modes: bundle.modes, fieldRules: bundle.fieldRules });
-  recordAudit({
-    ts: new Date().toISOString(),
+  recordRequestAudit(req, {
     category: "admin",
     action: "ruleset_apply_reference",
-    actor: actorForAudit(req),
     result: "success",
     status: 200,
     meta: { methodology, modes: applied.modes, fieldRuleCount: applied.fieldRules.length },

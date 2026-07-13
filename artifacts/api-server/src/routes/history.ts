@@ -3,7 +3,7 @@ import { getBroker, contextFromReq, respondBrokerError } from "../broker";
 import { isTimeTravelEnabled, getSettings, updateSettings, SettingsValidationError } from "../lib/settings";
 import { requireRole, requireAnyRole, hasRole, scopeForReq } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordRequestAudit } from "../lib/audit";
 import { inScope } from "../lib/scope";
 import { isFeatureEnabled } from "../lib/feature-modules";
 import { getProjects } from "../lib/data";
@@ -229,8 +229,8 @@ router.post("/history/dispose", requireRole("admin"), requireStepUp, async (req,
   }
   try {
     const result = await disposeExpired(source, Date.now());
-    recordAudit({
-      ts: new Date().toISOString(), category: "admin", action: "history.dispose", actor: actorForAudit(req), write: true,
+    recordRequestAudit(req, {
+      category: "admin", action: "history.dispose", write: true,
       result: "success", meta: { disposed: result.disposed, cutoff: result.cutoff, snapshots: result.snapshots, journal: result.journal },
     });
     res.json(result);
@@ -260,15 +260,15 @@ router.post("/history/erase", requireRole("admin"), requireStepUp, async (req, r
   }
   try {
     const result = await eraseEntityHistory(source, entity, id);
-    recordAudit({
-      ts: new Date().toISOString(), category: "admin", action: "history.erase", actor: actorForAudit(req), write: true,
+    recordRequestAudit(req, {
+      category: "admin", action: "history.erase", write: true,
       result: "success", meta: { entity, id, snapshots: result.snapshots, journal: result.journal },
     });
     res.json({ entity, id, ...result });
   } catch (err) {
     if (err instanceof LegalHoldError) {
-      recordAudit({
-        ts: new Date().toISOString(), category: "admin", action: "history.erase", actor: actorForAudit(req), write: true,
+      recordRequestAudit(req, {
+        category: "admin", action: "history.erase", write: true,
         result: "error", meta: { entity, id, refused: "legal-hold" },
       });
       res.status(409).json({ error: err.message });
