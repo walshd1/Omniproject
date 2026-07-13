@@ -3,6 +3,7 @@ import { withBrokerErrors } from "../broker";
 import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComments, addTaskComment, getTaskAttachments, addTaskAttachment, brokerHasTaskAttachments } from "../lib/data";
 import { requireRole } from "../lib/rbac";
 import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
+import { auditScopeDenied } from "../lib/audit";
 import { getSession } from "./auth";
 import { parseOr400, v } from "../lib/validate";
 import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY, CANONICAL_ENERGY } from "../broker/vocabulary";
@@ -23,7 +24,11 @@ function whoami(req: Request): string[] {
 async function guardTaskAccess(req: Request, res: Response, taskId: string): Promise<Task | null> {
   const task = await getTask(req, taskId);
   if (!task) { res.status(404).json({ error: "No such task" }); return null; }
-  if (!(await assertTaskScope(req, task, whoami(req)))) { res.status(403).json({ error: "task not in your scope" }); return null; }
+  if (!(await assertTaskScope(req, task, whoami(req)))) {
+    auditScopeDenied(req, "task", taskId, "task not in your scope"); // lateral-movement attempt — audited
+    res.status(403).json({ error: "task not in your scope" });
+    return null;
+  }
   return task;
 }
 

@@ -5,6 +5,7 @@ import { getProjects } from "./data";
 import { getSettings } from "./settings";
 import { programmeIdsOf, programmeIdOf } from "./programmes";
 import { qualifiedId } from "../broker/identity";
+import { auditScopeDenied } from "./audit";
 
 /**
  * Gateway-side per-project authorization — the deployment-independent scope gate every
@@ -44,6 +45,9 @@ export async function assertProjectScope(req: Request, projectId: string): Promi
 export async function guardProjectScope(req: Request, res: Response, projectId: string): Promise<boolean> {
   const authz = await assertProjectScope(req, projectId);
   if (authz.ok) return true;
+  // A cross-scope access attempt — record it (category "security", always audited) so a burst from one
+  // actor surfaces as lateral-movement probing, not just a silent 403.
+  auditScopeDenied(req, "project", projectId, authz.error);
   res.status(403).json({ error: authz.error });
   return false;
 }
