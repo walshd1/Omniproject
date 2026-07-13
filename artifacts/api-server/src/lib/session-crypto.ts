@@ -19,6 +19,13 @@ import { deriveKey, deriveKeyCached } from "./crypto-keys";
  * by an earlier release carry "v1." (legacy SHA-256) and are still opened with the
  * legacy key, so an upgrade does not log everyone out — they migrate to v2 on their
  * next login/refresh.
+ *
+ * PROVENANCE NOTE: this uses AES-256-GCM directly from Node's OpenSSL-backed `crypto` (via the single
+ * shared `crypto-aes-gcm` helper), NOT an imported sealed-cookie library. That is a deliberate,
+ * documented choice — the importable alternatives (jose JWE / iron-session) are async while `open()`
+ * runs on the synchronous getSession path, and the result would be the same AES-256-GCM either way.
+ * See docs/AUTH-PROVENANCE.md. The auth PROTOCOLS (OIDC/OAuth2 via openid-client, SAML via node-saml,
+ * JWT via jose) are on peer-reviewed libraries.
  */
 
 const PREFIX = "v2."; // current version: HKDF-derived key
