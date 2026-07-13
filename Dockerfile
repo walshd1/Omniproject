@@ -74,7 +74,10 @@ RUN if [ -n "$WITH_REDIS" ]; then \
     fi
 
 EXPOSE 3000
-USER node
+# Numeric UID:GID, not the `node` NAME: Kubernetes `runAsNonRoot: true` cannot verify a non-numeric
+# image user and refuses to start the container ("image has non-numeric user (node), cannot verify user
+# is non-root"). 1000:1000 IS the node user/group in this base image — same identity, but now assertable.
+USER 1000:1000
 
 # Liveness/readiness probes target /api/healthz on this port. No --enable-source-maps: the
 # runtime image ships no .map files (see above), so it would be a no-op; keeping it off avoids
