@@ -4,7 +4,10 @@ import { isForbiddenKey, safeParseJson } from "./safe-json";
 import { recordAudit, createHttpSink, type HttpSink } from "./audit";
 import { sharedStateMode, sharedRingPush, sharedRingRead } from "./shared-state";
 import { logger } from "./logger";
-import { safeFetch, EgressError } from "./egress";
+import { validEndpoint } from "./endpoint-probe";
+// Endpoint validation + reachability probing live in endpoint-probe (network I/O, kept out of
+// capability resolution). Re-exported here so existing importers (routes/tools, tests) are unaffected.
+export { validEndpoint, checkEndpointReachable, type EndpointCheck } from "./endpoint-probe";
 
 /**
  * Capability governance — one model for every "thing that can move data or be turned
@@ -205,18 +208,6 @@ export function listSurfaces(): { id: string; label: string }[] {
   return SCREENS.map((s) => ({ id: s.id, label: s.label }));
 }
 
-/** Validate a user-defined endpoint: a well-formed http(s) URL, or null. */
-export function validEndpoint(raw: string): string | null {
-  const t = raw.trim();
-  if (!t) return null;
-  try {
-    const u = new URL(t);
-    return u.protocol === "http:" || u.protocol === "https:" ? t.slice(0, 2048) : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Normalise a client-supplied surface (which may be a route path like "/reports") to
  * a canonical screen id from the registry, so per-surface overrides always match. An
@@ -232,34 +223,6 @@ export function screenIdForRoute(input?: string): string | undefined {
   if (exact) return exact.id;
   const suffix = SCREENS.filter((s) => norm(s.route) !== "/").find((s) => path.endsWith(norm(s.route)));
   return suffix?.id;
-}
-
-export interface EndpointCheck {
-  reachable: boolean;
-  status?: number;
-  error?: string;
-}
-
-/** Probe a user-defined endpoint: any HTTP response = reachable; a network error or
- *  timeout = not. Admin-initiated (like the connection test), with a short timeout. */
-export async function checkEndpointReachable(url: string, timeoutMs = 3000): Promise<EndpointCheck> {
-  const valid = validEndpoint(url);
-  if (!valid) return { reachable: false, error: "not a valid http(s) URL" };
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    // safeFetch applies the FULL egress guard (literal block + post-DNS recheck + allowlist/residency)
-    // AND pins the connection to the validated IPs + re-validates every redirect hop — so the admin
-    // reachability-tester can't be turned into an SSRF/DNS-rebind/redirect probe of cloud metadata. A
-    // bare `fetch` after a one-shot check would re-resolve at connect time and follow redirects unchecked.
-    const res = await safeFetch(valid, { method: "GET", signal: controller.signal });
-    return { reachable: true, status: res.status };
-  } catch (err) {
-    if (err instanceof EgressError) return { reachable: false, error: "blocked: egress not allowed (link-local/metadata or policy)" };
-    return { reachable: false, error: err instanceof Error ? err.message : "unreachable" };
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 export interface Actor {
