@@ -176,10 +176,10 @@ spec:
   # ⚠️ SINGLE POINT OF FAILURE. This n8n runs on SQLite (DB_TYPE=sqlite) on a ReadWriteOnce
   # PVC, so it is inherently single-instance: a node/PVC failure takes the automation backend
   # down with no standby, and you CANNOT raise replicas here (a second pod can't attach the
-  # RWO volume and SQLite has no shared-write story). For an HA backend, switch n8n to
-  # PostgreSQL (DB_TYPE=postgresdb + DB_POSTGRESDB_* env pointing at a managed/replicated
-  # Postgres), drop this PVC, and then raise replicas + add a PodDisruptionBudget. See
-  # docs/ops/MULTI-REPLICA.md §6.
+  # RWO volume and SQLite has no shared-write story). For a fully-HA automation backend, apply the
+  # ready-made overlay `k8s-enterprise-manifest-ha.yaml` — it REPLACES this Deployment with n8n's
+  # queue-mode topology (webhook-facing main + N stateless workers over managed Postgres/Redis, no
+  # PVC), keeping the same security posture. See docs/ops/MULTI-REPLICA.md §6.
   replicas: 1
   # Recreate (not the default RollingUpdate): with a ReadWriteOnce PVC a rolling update would
   # try to start the new pod while the old one still holds the volume — the new pod stays

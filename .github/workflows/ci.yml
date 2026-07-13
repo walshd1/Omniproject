@@ -317,7 +317,9 @@ jobs:
         run: |
           curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
             | tar xz kubeconform
-          ./kubeconform -strict -ignore-missing-schemas -summary k8s-enterprise-manifest.yaml
+          ./kubeconform -strict -ignore-missing-schemas -summary \
+            k8s-enterprise-manifest.yaml \
+            k8s-enterprise-manifest-ha.yaml
 
   # Accessibility: axe-core (WCAG 2.1 A/AA) over the built SPA in a real browser.
   # Playwright + axe-core are installed into a throwaway dir (not the workspace
