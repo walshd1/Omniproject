@@ -21,11 +21,11 @@ and project management. Its architecture pre-answers the two objections that sin
 most PPM evaluations before a feature is ever discussed:
 
 **"We are not ripping out Jira."**
-You don't. OmniProject **stores nothing** — it has no project database. The DB
-package that ships is an empty scaffold (`lib/db/src/schema/index.ts` exports `{}`
-with only template comments), because there are no tables to fill: every read and
-write is brokered **live** to the system that already owns the data, through one
-swappable seam (`docs/BROKER.md`, `docs/CONTRACT.md`). Jira stays the single source
+You don't. OmniProject **stores nothing** — it has no project database. There is no
+first-party ORM/schema package at all (an earlier empty scaffold was removed
+outright), because there are no tables to fill: every read and write is brokered
+**live** to the system that already owns the data, through one swappable seam
+(`docs/BROKER.md`, `docs/CONTRACT.md`). Jira stays the single source
 of truth; OmniProject is a different **view** onto it. There is no migration, no
 copy to keep in sync, and no drift to fix. A backend catalogue
 (`lib/backend-catalogue/`) already models many vendors, so adding OpenProject, SAP,
@@ -35,11 +35,14 @@ or ServiceNow underneath is federation, not a re-platform.
 Because nothing is at rest, the blast radius is structurally smaller than any tool
 that copies your issues into its own store. There is no project-data database to
 encrypt, back up, reside, or subpoena. The only boundary data crosses is the
-outbound broker hop — and that hop is exactly where security and data-residency are
-enforced (`docs/DATA-RESIDENCY.md`, fail-closed with HTTP 451). The controls a CISO
-expects are already in the code: OIDC + PKCE, RBAC, CSRF double-submit, HMAC-signed
-webhooks, step-up re-auth, AES-256-GCM sealing, a tamper-evident audit hash-chain,
-and Ed25519-signed provably-immutable snapshots.
+outbound broker hop — and that hop is where security and data-residency **can be**
+enforced (`docs/DATA-RESIDENCY.md`, fail-closed with HTTP 451 when a residency policy
+is configured; opt-in, off by default). The controls a CISO expects are in the code:
+OIDC + PKCE, RBAC, CSRF double-submit, HMAC-signed webhooks, step-up re-auth, and
+AES-256-GCM sealing are on by default; the higher-assurance controls — data-residency
+enforcement, a persisted tamper-evident audit hash-chain, and Ed25519-signed
+provably-immutable snapshots — ship in the code but are **opt-in** (enable them via the
+enterprise/hardened profile; see the roadmap in §4 and `docs/ENTERPRISE-OPS.md`).
 
 **The headline cost/quality story.**
 - **Cost:** Apache-2.0 core, self-hostable, **no per-seat licence**, **no migration
@@ -140,15 +143,21 @@ evidence pack for auditors; data-residency; a defensible record of who changed w
   `HMAC(auditKey, seq | prevHash | canonical(event))`, so removing or reordering any
   event breaks every later link (WORM-style): `artifacts/api-server/src/lib/audit-chain.ts`;
   structured audit with redaction + external NDJSON sink in
-  `artifacts/api-server/src/lib/audit.ts`.
+  `artifacts/api-server/src/lib/audit.ts`. **Note:** external delivery is
+  best-effort/in-memory-buffered and the chain head persists across restarts only when
+  `AUDIT_CHAIN_FILE` (or shared KV) is set — configure a durable sink for an
+  auditor-grade trail (on the enterprise hardening checklist).
 - **Provably-immutable signed snapshots** — freeze a report/board pack, SHA-256 the
   canonicalised content, and sign the manifest with the deployment's Ed25519 key so
   anyone with the public key can verify it **offline**, no server round-trip:
   `artifacts/api-server/src/lib/snapshot.ts`, `artifacts/api-server/src/lib/signing.ts`,
-  `artifacts/api-server/src/lib/provenance.ts`.
-- **Data residency** — fail-closed region routing enforced at the single outbound
-  hop; undeclared-region or out-of-region endpoints refused with HTTP 451 and an
-  audit event: `docs/DATA-RESIDENCY.md`.
+  `artifacts/api-server/src/lib/provenance.ts`. Snapshot signing is **opt-in** (enable it
+  in the enterprise/hardened profile; unsigned snapshots are still content-hashed).
+- **Data residency** — fail-closed region routing at the single outbound hop:
+  undeclared-region or out-of-region endpoints refused with HTTP 451 and an audit event.
+  **Opt-in and off by default** — inert until a `DATA_RESIDENCY_*` policy is configured,
+  and enforces a single region today (per-country/multi-region is roadmap #2):
+  `docs/DATA-RESIDENCY.md`.
 - **Control mapping** — SOC 2 / ISO 27001:2022 / NIST CSF 2.0 self-assessment
   matrix: `docs/COMPLIANCE.md`. DSAR support: `artifacts/api-server/src/lib/dsar.ts`.
 
@@ -168,8 +177,8 @@ evidence pack for auditors; data-residency; a defensible record of who changed w
 supply-chain integrity; SSO/lifecycle integration; observability of security events.
 
 **Already delivered (verified):**
-- **Structurally small blast radius** — zero project data at rest (empty
-  `lib/db/src/schema/index.ts`); the overlay holds no copy to steal.
+- **Structurally small blast radius** — zero project data at rest (no first-party
+  datastore or ORM package at all); the overlay holds no copy to steal.
 - **OIDC + PKCE** with JWKS verification and SSRF guards on issuer-supplied
   `jwks_uri` (`artifacts/api-server/src/lib/oidc.ts`, `.../jwks.ts`).
 - **RBAC** — viewer/contributor/manager + orthogonal admin/pmo, mapped from IdP
@@ -283,7 +292,7 @@ visibility; cross-programme dependencies; a genuinely lighter PM experience.
 ### 3.1 "Keep Jira, sit on top"
 The single strongest positioning: OmniProject is **not a system to adopt**, it's a
 **layer over the system you already run**. No migration, no second store, no sync
-drift — because there is no store (`lib/db/src/schema/index.ts` is empty by design).
+drift — because there is no store (no first-party datastore or ORM package exists).
 Jira stays authoritative; OmniProject renders programme rollups, portfolio RAG, and
 the board pack as *views* of live Jira data through the broker seam. When the
 multinational later federates SAP or ServiceNow underneath, the UI never changes.

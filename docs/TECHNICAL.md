@@ -58,8 +58,9 @@ the reference pass, the live n8n run the real-world pass.
 
 - **Stateless shell.** The gateway keeps only a signed, httpOnly **session
   cookie** (wrapping the IdP-issued tokens). No database is required for the
-  shell. The `lib/db` package is an unused scaffold; horizontal scaling needs
-  only a shared session secret (`SESSION_SECRET`) across replicas.
+  shell — there is no first-party ORM/DB package (an earlier empty scaffold was
+  removed); horizontal scaling needs only a shared session secret
+  (`SESSION_SECRET`) across replicas.
 - **Single container.** In production the Express gateway serves both `/api/*`
   and the built SPA (`STATIC_DIR`) on port `3000` — one image (`omni-shell`).
   In development the SPA runs under Vite and proxies `/api` to the gateway.
