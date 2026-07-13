@@ -69,14 +69,24 @@ isn't installed, they log once and fall back to per-replica. Nothing crashes.
 # 1. Point every replica at the same Redis
 export REDIS_URL=redis://your-redis:6379
 
-# 2. Install the runtime-optional clients (kept out of the default image so a
-#    single-replica deploy carries zero extra deps)
-pnpm --filter @workspace/api-server add ioredis rate-limit-redis
+# 2. Use a Redis-enabled image. The clients are runtime-optional and kept OUT of the
+#    default image so a single-replica deploy carries zero extra deps; bake them in
+#    with a build arg — no source edit, no committing the deps, default build unchanged:
+docker build --build-arg WITH_REDIS=1 -t your-registry/omniproject-shell:TAG-redis .
+#    (For a local/dev process rather than the image, the equivalent is:
+#     pnpm --filter @workspace/api-server add ioredis rate-limit-redis)
 
 # 3. (optional) Give each replica a stable, human label for the broker log.
 #    Defaults to a random short id per process if unset.
 export REPLICA_ID=eu-west-1a-pod-7
 ```
+
+> **Why a build arg, not the default image?** The gateway loads `ioredis` /
+> `rate-limit-redis` via runtime-optional dynamic import, and the runtime image ships only
+> the esbuild bundle (no `node_modules`) — so a default image can't use `REDIS_URL` even
+> when set. `--build-arg WITH_REDIS=1` installs the clients into the image's `/app/node_modules`
+> (where the bundle resolves them) so scaling out needs **no bespoke rebuild** and the lean
+> default is preserved.
 
 Redis is the right tool here — ephemeral, fire-and-forget broadcast. If Kafka is
 your backbone, bridge it into `/api/notifications/ingest` *upstream* of the bus
@@ -110,3 +120,30 @@ place. Any still showing `"in-process"` means that concern is running per-replic
   see `EGRESS-INVENTORY.md`.
 - **Security self-check:** plain-`http://` broker and demo-auth warnings are
   unchanged under scale; the same `runSecuritySelfCheck` runs on every replica.
+
+## 6. The automation backend (n8n) is a separate scale story
+
+The gateway is stateless and scales as above, but the **n8n automation backend** shipped in
+`k8s-enterprise-manifest.yaml` / the compose files defaults to **SQLite on a ReadWriteOnce PVC**.
+That is deliberately simple for a starter deploy, but it is a **single point of failure**: it is
+single-instance (a second replica can't attach the RWO volume and SQLite has no shared-write
+story), and a node/PVC loss takes the automation backend down with no standby. The manifest pins
+`replicas: 1` and `strategy: Recreate` accordingly (a RollingUpdate would deadlock on the RWO
+volume).
+
+To make the automation backend highly available, move it off SQLite:
+
+```bash
+# On the n8n Deployment: swap the DB driver and point it at a managed/replicated Postgres,
+# then drop the PVC and raise replicas + add a PodDisruptionBudget.
+DB_TYPE=postgresdb
+DB_POSTGRESDB_HOST=your-postgres-host
+DB_POSTGRESDB_DATABASE=n8n
+DB_POSTGRESDB_USER=n8n
+DB_POSTGRESDB_PASSWORD=…            # from a Secret, not inline
+# (queue mode with EXECUTIONS_MODE=queue + a Redis broker is n8n's fully-HA topology;
+#  Postgres alone already removes the single-writer PVC SPOF.)
+```
+
+This is a **deployment choice**, not a gateway change — OmniProject holds no automation state
+itself, so the gateway replicas above are unaffected by which n8n topology you run.

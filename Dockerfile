@@ -57,6 +57,22 @@ COPY --from=builder /app/artifacts/api-server/dist/*.mjs ./dist/
 # Built static frontend.
 COPY --from=builder /app/artifacts/omniproject/dist/public ./public
 
+# ── Optional: bake the Redis clients in for horizontal scale ────────────────────
+# The gateway loads `ioredis` / `rate-limit-redis` via runtime-optional dynamic import, and this
+# runtime image ships ONLY the esbuild bundle (no node_modules) — so a default image can't use
+# REDIS_URL even when it's set, which is why scaling out used to need a bespoke image rebuild.
+# Build a scale-ready image WITHOUT editing source or committing the deps:
+#     docker build --build-arg WITH_REDIS=1 -t your-registry/omniproject-shell:0.2.0-redis .
+# The default build (WITH_REDIS unset) stays lean and dependency-free — the intentional posture in
+# lib/shared-state.ts / notify-bus.ts / rate-limit.ts. Caret ranges keep the opt-in build resolvable;
+# pin exact versions + a lockfile if you need byte-reproducible scale images. The clients land in
+# /app/node_modules, where the bundle's dynamic `import("ioredis")` resolves them at runtime.
+ARG WITH_REDIS=
+RUN if [ -n "$WITH_REDIS" ]; then \
+      npm install --no-save --omit=dev --no-audit --no-fund ioredis@^5 rate-limit-redis@^4 \
+      && npm cache clean --force; \
+    fi
+
 EXPOSE 3000
 USER node
 

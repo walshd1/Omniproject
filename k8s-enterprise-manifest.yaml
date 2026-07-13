@@ -71,11 +71,14 @@ metadata:
   labels:
     app: omni-shell
 spec:
-  # Stays at 1 by default ON PURPOSE: the SSE notification fan-out is in-process,
-  # so >1 replica drops ~half of real-time notifications unless a shared bus is
-  # wired. To scale out: deploy Redis, add REDIS_URL to the ConfigMap, rebuild the
-  # image with ioredis (pnpm --filter @workspace/api-server add ioredis), then add
-  # a PodDisruptionBudget + topologySpreadConstraints. See README "Real-time".
+  # Stays at 1 by default ON PURPOSE: without a shared bus the SSE notification
+  # fan-out, the global rate-limit ceiling, and the security-state converge loops
+  # (AI kill-switch, key/session revocation, SCIM deprovisioning) are per-replica,
+  # so >1 replica drops ~half of real-time notifications and lets each control lag
+  # across the fleet. To scale out: deploy Redis and add REDIS_URL to the ConfigMap,
+  # and use a Redis-enabled image built with `--build-arg WITH_REDIS=1` (no source
+  # edit / bespoke rebuild — see the root Dockerfile), then add a PodDisruptionBudget
+  # + topologySpreadConstraints. See docs/ops/MULTI-REPLICA.md.
   replicas: 1
   selector:
     matchLabels:
@@ -166,7 +169,20 @@ metadata:
   labels:
     app: n8n
 spec:
-  replicas: 1  # n8n with sqlite is single-instance; use PostgreSQL for multi-replica
+  # ⚠️ SINGLE POINT OF FAILURE. This n8n runs on SQLite (DB_TYPE=sqlite) on a ReadWriteOnce
+  # PVC, so it is inherently single-instance: a node/PVC failure takes the automation backend
+  # down with no standby, and you CANNOT raise replicas here (a second pod can't attach the
+  # RWO volume and SQLite has no shared-write story). For an HA backend, switch n8n to
+  # PostgreSQL (DB_TYPE=postgresdb + DB_POSTGRESDB_* env pointing at a managed/replicated
+  # Postgres), drop this PVC, and then raise replicas + add a PodDisruptionBudget. See
+  # docs/ops/MULTI-REPLICA.md §6.
+  replicas: 1
+  # Recreate (not the default RollingUpdate): with a ReadWriteOnce PVC a rolling update would
+  # try to start the new pod while the old one still holds the volume — the new pod stays
+  # Pending on "volume already attached" and the rollout deadlocks. Recreate tears the old pod
+  # down first. Brief downtime per deploy is the correct trade for a single-writer SQLite backend.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: n8n
