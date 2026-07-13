@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { currentVersion, isActive, derivedKey, revokeKey, listKeys, revokeUserSessions, userSessionsRevokedAt, snapshotKeys, restoreKeys, refreshKeyRegistryFromShared, KEY_REGISTRY_SHARED_KEY, __resetKeyRegistry } from "./key-registry";
+import { currentVersion, isActive, derivedKey, revokeKey, listKeys, revokeUserSessions, userSessionsRevokedAt, snapshotKeys, restoreKeys, refreshKeyRegistryFromShared, sanitizeSharedSnapshot, KEY_REGISTRY_SHARED_KEY, __resetKeyRegistry } from "./key-registry";
 import { sharedKv, __resetSharedStateForTest } from "./shared-state";
 import { record, recentProvenance, verifyChain, __resetProvenance } from "./provenance";
 
@@ -120,4 +120,26 @@ test("restoreKeys tolerates a snapshot with missing/partial fields", () => {
   // An entirely empty snapshot is a no-op, not a throw.
   restoreKeys({ keys: {}, userRevokedAt: {} } as never);
   restoreKeys({} as never);
+});
+
+test("sanitizeSharedSnapshot clamps a far-future lockout, drops proto keys, unknown key names + bad versions", () => {
+  const now = 1_700_000_000_000;
+  const hostile = JSON.stringify({
+    keys: {
+      session: { version: 3, revoked: [1, 2, "x"], rotatedAt: null, lastActor: null, lastReason: null },
+      bogus: { version: 5, revoked: [] },          // not a known key name → dropped
+      audit: { version: -1 },                         // invalid version → dropped
+    },
+    userRevokedAt: {
+      "u-real": now - 1000,                           // legit past instant → kept
+      "u-attack": now + 10 * 365 * 24 * 3600_000,     // 10y in the future → clamped (no permanent lockout)
+      "__proto__": now,                               // prototype-pollution sub → dropped
+    },
+  });
+  const clean = sanitizeSharedSnapshot(hostile, now);
+  assert.deepEqual(Object.keys(clean.keys).sort(), ["session"]); // bogus + invalid-version dropped
+  assert.deepEqual(clean.keys["session"]!.revoked, [1, 2]);      // non-number filtered out
+  assert.equal(clean.userRevokedAt["u-real"], now - 1000);
+  assert.ok(clean.userRevokedAt["u-attack"]! <= now + 5 * 60_000, "far-future revoke instant is clamped");
+  assert.equal("polluted" in ({} as Record<string, unknown>), false);
 });

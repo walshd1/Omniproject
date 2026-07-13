@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { sharedKv } from "./shared-state";
+import { isForbiddenKey, safeParseJson } from "./safe-json";
 
 /**
  * Key registry with admin-gated revocation.
@@ -172,10 +173,44 @@ function unionSnapshots(a: KeyRegistrySnapshot, b: KeyRegistrySnapshot): KeyRegi
  * racing writer clobbered shared) can't be lost to a freshly-booting sibling. On a shared-state
  * blip it keeps the last-known local state and fails toward "more revoked".
  */
+/** Tolerated clock skew when accepting a shared `userRevokedAt` — a revocation instant meaningfully in
+ *  the FUTURE makes no sense and, since the union takes the max, a far-future value would permanently
+ *  lock a user out fleet-wide. Clamp to now+skew so a hostile/buggy replica can't inject that DoS. */
+const MAX_REVOKE_SKEW_MS = 5 * 60_000;
+
+/** Validate an untrusted shared snapshot from the fleet KV before it can drive revocation/lockout.
+ *  Any replica can write `security:key-registry`, so parse prototype-safe, keep only the fixed key
+ *  names (no `keys[__proto__]`), coerce versions/revoked to sane integers, and clamp a far-future
+ *  `userRevokedAt` (permanent-lockout injection). Drops anything malformed. */
+export function sanitizeSharedSnapshot(raw: string, now: number): KeyRegistrySnapshot {
+  const parsed = safeParseJson<Partial<KeyRegistrySnapshot>>(raw) ?? {};
+  const out: KeyRegistrySnapshot = { keys: {}, userRevokedAt: {} };
+  for (const name of KEY_NAMES) { // fixed allowlist — a hostile key name is simply ignored
+    const k = parsed.keys?.[name] as Partial<KeyRegistrySnapshot["keys"][string]> | undefined;
+    if (!k || typeof k !== "object") continue;
+    const version = Number(k.version);
+    if (!Number.isInteger(version) || version < 1 || version > 1_000_000) continue;
+    const revoked = Array.isArray(k.revoked) ? k.revoked.filter((n): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0) : [];
+    out.keys[name] = {
+      version, revoked,
+      rotatedAt: typeof k.rotatedAt === "string" ? k.rotatedAt : null,
+      lastActor: typeof k.lastActor === "string" ? k.lastActor : null,
+      lastReason: typeof k.lastReason === "string" ? k.lastReason : null,
+    };
+  }
+  for (const [sub, ts] of Object.entries(parsed.userRevokedAt ?? {})) {
+    if (isForbiddenKey(sub) || typeof ts !== "number" || !Number.isFinite(ts) || ts < 0) continue;
+    out.userRevokedAt[sub] = Math.min(ts, now + MAX_REVOKE_SKEW_MS);
+  }
+  return out;
+}
+
 export async function refreshKeyRegistryFromShared(): Promise<void> {
   try {
     const raw = await sharedKv.get(KEY_REGISTRY_SHARED_KEY);
-    const shared: KeyRegistrySnapshot = raw ? (JSON.parse(raw) as KeyRegistrySnapshot) : { keys: {}, userRevokedAt: {} };
+    // Untrusted fleet input — validate/clamp before the union so a hostile snapshot can't pollute the
+    // prototype, inflate a version, or inject a permanent-lockout revocation instant.
+    const shared: KeyRegistrySnapshot = raw ? sanitizeSharedSnapshot(raw, Date.now()) : { keys: {}, userRevokedAt: {} };
     const merged = unionSnapshots(snapshotKeys(), shared);
     restoreKeys(merged); // merged ⊇ local, so this only ever ADDS revocations
     if (JSON.stringify(merged) !== raw) await sharedKv.set(KEY_REGISTRY_SHARED_KEY, JSON.stringify(merged));
