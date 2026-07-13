@@ -18,6 +18,8 @@ export interface ObjectStorePort {
   get(key: string): Promise<string | null>;
   /** List keys under a prefix (lexical order). Implementations page internally. */
   list(prefix: string): Promise<string[]>;
+  /** Delete a key. Needed for retention disposal + right-to-erasure. */
+  delete(key: string): Promise<void>;
 }
 
 const enc = encodeURIComponent;
@@ -54,6 +56,21 @@ function asOfFromKey(key: string): string {
 function inWindow(t: string, w: TimeWindow): boolean {
   const ms = Date.parse(t);
   return ms >= Date.parse(w.from) && ms < Date.parse(w.to);
+}
+/** Decode the entity/id from a "journal|snapshot/{enc(entity)}/{enc(id)}/…" key, or null if malformed. */
+function entityIdFromKey(key: string): { entity: string; id: string } | null {
+  const parts = key.split("/");
+  if (parts.length < 4 || (parts[0] !== "journal" && parts[0] !== "snapshot")) return null;
+  try {
+    return { entity: decodeURIComponent(parts[1]!), id: decodeURIComponent(parts[2]!) };
+  } catch {
+    return null;
+  }
+}
+/** The `changedAt` embedded in a journal key ("…/{changedAt}#{txnId}#{field}.json") — before the first `#`. */
+function changedAtFromJournalKey(key: string): string {
+  const leaf = key.slice(key.lastIndexOf("/") + 1);
+  return leaf.split("#")[0] ?? "";
 }
 
 /** Build a `RetentionSource` over an object store. `ids` reads fan out one prefix-list per id. */
@@ -100,6 +117,27 @@ export function objectStoreRetentionSource(port: ObjectStorePort): RetentionSour
         if (latest === null || asOf > latest) latest = asOf;
       }
       return latest;
+    },
+
+    async disposeOlderThan(cutoffIso, opts) {
+      // The timestamp is embedded in the key, so disposal is a prefix scan + age filter — no reads.
+      const held = new Set(opts?.heldKeys ?? []);
+      const cutoffMs = Date.parse(cutoffIso);
+      const heldKey = (k: string): boolean => {
+        const ei = entityIdFromKey(k);
+        return !!ei && held.has(`${ei.entity}#${ei.id}`);
+      };
+      const [jKeys, sKeys] = await Promise.all([port.list("journal/"), port.list("snapshot/")]);
+      const jDel = jKeys.filter((k) => Date.parse(changedAtFromJournalKey(k)) < cutoffMs && !heldKey(k));
+      const sDel = sKeys.filter((k) => Date.parse(asOfFromKey(k)) < cutoffMs && !heldKey(k));
+      await Promise.all([...jDel, ...sDel].map((k) => port.delete(k)));
+      return { snapshots: sDel.length, journal: jDel.length };
+    },
+
+    async eraseEntity(entity, id) {
+      const [jKeys, sKeys] = await Promise.all([port.list(journalPrefix(entity, id)), port.list(snapshotPrefix(entity, id))]);
+      await Promise.all([...jKeys, ...sKeys].map((k) => port.delete(k)));
+      return { snapshots: sKeys.length, journal: jKeys.length };
     },
   };
 }

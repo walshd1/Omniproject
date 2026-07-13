@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { foldRemoteEntry, registerBrokerLogPublisher, type BrokerLogEntry } from "./broker-log";
 import { RedisBus } from "./redis-bus";
 import { safeParseJson } from "./safe-json";
+import { lazySingleton } from "./lazy-singleton";
 
 /**
  * Broker-log fan-out bus — makes the admin live broker log **fleet-wide** under
@@ -65,13 +66,12 @@ class BrokerLogBus extends RedisBus {
   }
 }
 
-let bus: BrokerLogBus | null = null;
+const busSingleton = lazySingleton(() => new BrokerLogBus());
 
 /** Construct (idempotently) and return the broker-log bus. Calling this at boot
  *  is what makes a replica start RECEIVING the fleet's entries — do it early. */
 export function initBrokerLogBus(): BrokerLogBus {
-  if (!bus) bus = new BrokerLogBus();
-  return bus;
+  return busSingleton.get();
 }
 
 /** Which fan-out backend the broker-log stream uses: in-process or Redis. */

@@ -138,20 +138,20 @@ export class DemoBroker implements Broker {
     // Demo sessions are always scope "all" (no-op here); this demonstrates + tests the contract
     // an external backend (n8n) mirrors off the same forwarded userContext.scope.
     const scope = ctx?.scope ?? { level: "all" as const };
-    if (scope.level === "all") return SAMPLE_PROJECTS as unknown as Project[];
+    if (scope.level === "all") return SAMPLE_PROJECTS;
     const registry = getSettings().programmeRegistry;
-    return (SAMPLE_PROJECTS as Row[]).filter((p) =>
+    return SAMPLE_PROJECTS.filter((p) =>
       inScope(scope, { programmeId: (p["programmeId"] as string | null | undefined) ?? null, programmeIds: programmeIdsOf(p, registry) }),
-    ) as unknown as Project[];
+    );
   }
 
   async listIssues(_ctx: ActorContext, projectId: string): Promise<Issue[]> {
-    return (SAMPLE_ISSUES[projectId] ?? []) as unknown as Issue[];
+    return SAMPLE_ISSUES[projectId] ?? [];
   }
 
   async createProject(_ctx: ActorContext, input: ProjectWrite): Promise<Project> {
     const id = `proj-${++projectCounter}`;
-    const project: Row = {
+    const project: Project = {
       id,
       name: input.name ?? "Untitled project",
       identifier: input.identifier ?? id.toUpperCase(),
@@ -169,7 +169,7 @@ export class DemoBroker implements Broker {
     };
     SAMPLE_PROJECTS.push(project);
     persistDemoState();
-    return project as unknown as Project;
+    return project;
   }
 
   async updateProject(ctx: ActorContext, projectId: string, input: ProjectWrite): Promise<Project> {
@@ -177,7 +177,7 @@ export class DemoBroker implements Broker {
     if (!proj) throw new BrokerError("not_found", "Project not found");
     // Reference enforcement: a principal may only mutate a project inside their scope.
     const scope = ctx?.scope ?? { level: "all" as const };
-    if (!inScope(scope, { programmeId: (proj["programmeId"] as string | null | undefined) ?? null, programmeIds: programmeIdsOf(proj as Row, getSettings().programmeRegistry) })) {
+    if (!inScope(scope, { programmeId: (proj["programmeId"] as string | null | undefined) ?? null, programmeIds: programmeIdsOf(proj, getSettings().programmeRegistry) })) {
       throw new BrokerError("unauthorized", "out of scope for this principal");
     }
     if (input.name !== undefined) proj["name"] = input.name;
@@ -186,22 +186,21 @@ export class DemoBroker implements Broker {
     if (input.status !== undefined) proj["status"] = input.status;
     proj["updatedAt"] = new Date().toISOString();
     persistDemoState();
-    return proj as unknown as Project;
+    return proj;
   }
 
   async getIssue(_ctx: ActorContext, projectId: string, issueId: string): Promise<Issue | null> {
-    const found = (SAMPLE_ISSUES[projectId] ?? []).find((i) => (i as { id: string }).id === issueId);
-    return (found as unknown as Issue) ?? null;
+    return (SAMPLE_ISSUES[projectId] ?? []).find((i) => i.id === issueId) ?? null;
   }
 
   async writeIssue(_ctx: ActorContext, op: "create" | "update" | "delete", input: IssueWrite): Promise<Issue | null> {
     const { projectId, issueId } = input;
     if (op === "create") {
       const backend = getSettings().backendSource;
-      const issue: Row = {
+      const issue: Issue = {
         id: `iss-${++issueCounter}`,
         projectId,
-        title: input.title,
+        title: input.title ?? "Untitled",
         description: input.description ?? null,
         status: input.status ?? "backlog",
         priority: input.priority ?? "none",
@@ -238,14 +237,14 @@ export class DemoBroker implements Broker {
       SAMPLE_ISSUES[projectId].push(issue);
       recountProject(projectId);
       persistDemoState();
-      return issue as unknown as Issue;
+      return issue;
     }
 
     const issues = SAMPLE_ISSUES[projectId];
     if (!issues) throw new BrokerError("not_found", "Project not found");
 
     if (op === "delete") {
-      const idx = issues.findIndex((i) => (i as { id: string }).id === issueId);
+      const idx = issues.findIndex((i) => i.id === issueId);
       if (idx !== -1) issues.splice(idx, 1);
       recountProject(projectId);
       persistDemoState();
@@ -253,19 +252,29 @@ export class DemoBroker implements Broker {
     }
 
     // update
-    const idx = issues.findIndex((i) => (i as { id: string }).id === issueId);
+    const idx = issues.findIndex((i) => i.id === issueId);
     if (idx === -1) throw new BrokerError("not_found", "Issue not found");
-    const current = issues[idx] as Record<string, unknown>;
+    const current = issues[idx]!; // idx proven in-range by the -1 guard above
     const currentVersion = typeof current["version"] === "number" ? (current["version"] as number) : 1;
     if (versionConflict(input.expectedVersion, currentVersion)) {
       throw new BrokerError("conflict", "Issue was modified by someone else", current);
     }
     const { projectId: _p, issueId: _i, expectedVersion: _ev, ...patch } = input;
-    const updated = { ...current, ...patch, version: currentVersion + 1, updatedAt: new Date().toISOString() };
+    // Merge the patch over the current issue. The single `as Issue` is the one assertion the spread
+    // needs: IssueWrite's optionals are typed `T | undefined`, which TS won't spread into Issue's
+    // exact optionals — but every required field is preserved from `current`, so the result is a
+    // valid Issue at runtime (the re-assert of title/status keeps a field-omitting patch honest).
+    const updated = {
+      ...current, ...patch,
+      title: patch.title ?? current.title,
+      status: patch.status ?? current.status,
+      version: currentVersion + 1,
+      updatedAt: new Date().toISOString(),
+    } as Issue;
     issues[idx] = updated;
     recountProject(projectId); // a status change to/from "done" moves completedCount
     persistDemoState();
-    return updated as unknown as Issue;
+    return updated;
   }
 
   async projectMembers(_ctx: ActorContext, _projectId: string): Promise<ProjectMember[]> {
@@ -396,15 +405,18 @@ export class DemoBroker implements Broker {
   }
 
   async projectSummary(_ctx: ActorContext, projectId: string): Promise<Summary> {
-    const issues = (SAMPLE_ISSUES[projectId] ?? []) as Array<{ status: string; priority: string; dueDate: string | null }>;
+    const issues = SAMPLE_ISSUES[projectId] ?? [];
     const byStatus: Record<string, number> = {};
     const byPriority: Record<string, number> = {};
     let overdue = 0;
     const now = new Date();
     for (const issue of issues) {
+      // priority/dueDate live on the Row index signature (not the narrow Issue contract); read them as such.
+      const priority = String(issue["priority"] ?? "none");
+      const dueDate = issue["dueDate"] as string | null | undefined;
       byStatus[issue.status] = (byStatus[issue.status] ?? 0) + 1;
-      byPriority[issue.priority] = (byPriority[issue.priority] ?? 0) + 1;
-      if (issue.dueDate && new Date(issue.dueDate) < now && !isClosed(issue.status)) overdue++;
+      byPriority[priority] = (byPriority[priority] ?? 0) + 1;
+      if (dueDate && new Date(dueDate) < now && !isClosed(issue.status)) overdue++;
     }
     const total = issues.length;
     const doneCount = issues.filter((i) => isDone(i.status)).length;
@@ -413,7 +425,7 @@ export class DemoBroker implements Broker {
   }
 
   async projectHistory(_ctx: ActorContext, projectId: string): Promise<HistoryPoint[]> {
-    const issues = (SAMPLE_ISSUES[projectId] ?? []) as Array<{ status: string }>;
+    const issues = SAMPLE_ISSUES[projectId] ?? [];
     const total = issues.length;
     const done = issues.filter((i) => isDone(i.status)).length;
     const finalRate = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -433,10 +445,11 @@ export class DemoBroker implements Broker {
   }
 
   async baseline(_ctx: ActorContext, projectId: string): Promise<Baseline | null> {
-    const issues = (SAMPLE_ISSUES[projectId] ?? []) as Array<{ id: string; title: string; startDate: string | null; dueDate: string | null }>;
+    const issues = SAMPLE_ISSUES[projectId] ?? [];
+    // startDate/dueDate live on the Row index signature (not the narrow Issue contract); read them as such.
     const items = issues
-      .filter((i) => i.startDate || i.dueDate)
-      .map((i) => ({ issueId: i.id, title: i.title, plannedStart: i.startDate ?? null, plannedFinish: i.dueDate ?? null }));
+      .map((i) => ({ issueId: i.id, title: i.title, plannedStart: (i["startDate"] as string | null) ?? null, plannedFinish: (i["dueDate"] as string | null) ?? null }))
+      .filter((i) => i.plannedStart || i.plannedFinish);
     if (items.length === 0) return null;
     return {
       projectId, name: "Demo baseline (derived from planned dates)",
@@ -469,7 +482,7 @@ export class DemoBroker implements Broker {
   }
 
   async portfolioHealth(): Promise<PortfolioRow[]> {
-    return SAMPLE_PORTFOLIO as unknown as PortfolioRow[];
+    return SAMPLE_PORTFOLIO;
   }
 
   async resourceCapacity(): Promise<Row[]> {

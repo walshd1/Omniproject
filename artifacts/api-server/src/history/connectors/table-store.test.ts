@@ -17,6 +17,11 @@ function memoryTable(): TableStorePort {
       if (q.limit !== undefined) out = out.slice(0, q.limit);
       return out;
     },
+    deleteItem: async (pk, sk) => {
+      const i = items.findIndex((it) => it.pk === pk && it.sk === sk);
+      if (i >= 0) items.splice(i, 1);
+    },
+    scanAll: async () => [...items],
   };
 }
 
@@ -58,4 +63,35 @@ test("lastSnapshotAt uses a descending limit-1 query", async () => {
   await src.writeSnapshot(snap("2026-01-10T00:00:00Z", {}));
   await src.writeSnapshot(snap("2026-03-10T00:00:00Z", {}));
   assert.equal(await src.lastSnapshotAt("issue", "1"), "2026-03-10T00:00:00Z");
+});
+
+const jentry = (entity: string, id: string, changedAt: string): HistoryEntry => ({
+  entity, id, field: "status", oldValue: null, newValue: "x", changedAt, changedBy: "u", txnId: changedAt,
+});
+const jsnap = (entity: string, id: string, asOf: string): EntitySnapshot => ({
+  entity, id, asOf, values: {}, provenance: "replayed",
+});
+
+test("disposeOlderThan prunes stale items across entities but skips legal holds", async () => {
+  const t = memoryTable();
+  const src = tableStoreRetentionSource(t);
+  await src.appendJournal([jentry("issue", "1", "2025-01-01T00:00:00Z"), jentry("issue", "2", "2025-01-01T00:00:00Z"), jentry("issue", "1", "2026-06-01T00:00:00Z")]);
+  await src.writeSnapshot(jsnap("issue", "1", "2025-01-01T00:00:00Z"));
+  const r = await src.disposeOlderThan!("2026-01-01T00:00:00Z", { heldKeys: ["issue#2"] });
+  assert.deepEqual(r, { snapshots: 1, journal: 1 }); // issue#1 2025 snap + journal; issue#2 held
+  const remaining = await t.scanAll();
+  assert.ok(remaining.some((it) => it.pk === "issue#2"), "held entity kept");
+  assert.ok(remaining.some((it) => it.sk.includes("2026-06-01")), "recent kept");
+});
+
+test("eraseEntity removes every item for one pk and nothing else", async () => {
+  const t = memoryTable();
+  const src = tableStoreRetentionSource(t);
+  await src.appendJournal([jentry("issue", "1", "2026-01-01T00:00:00Z"), jentry("issue", "2", "2026-01-01T00:00:00Z")]);
+  await src.writeSnapshot(jsnap("issue", "1", "2026-01-01T00:00:00Z"));
+  const r = await src.eraseEntity!("issue", "1");
+  assert.deepEqual(r, { snapshots: 1, journal: 1 });
+  const remaining = await t.scanAll();
+  assert.ok(!remaining.some((it) => it.pk === "issue#1"), "erased pk gone");
+  assert.ok(remaining.some((it) => it.pk === "issue#2"), "other pk untouched");
 });

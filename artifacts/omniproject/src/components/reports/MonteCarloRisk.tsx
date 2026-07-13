@@ -5,6 +5,7 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Cell,
 } from "recharts";
 import { simulate, mulberry32, type RiskTask } from "../../lib/monte-carlo";
+import { isDone } from "../../lib/status-vocab";
 import { DataState } from "../DataState";
 
 /**
@@ -14,7 +15,6 @@ import { DataState } from "../DataState";
  * tornado of the tasks driving the variance. A fixed seed keeps a given view reproducible.
  */
 
-const DONE = new Set(["done", "closed", "complete", "completed", "resolved"]);
 const ITERATION_OPTIONS = [1000, 2000, 5000, 10000];
 
 function Pctl({ label, value, hint }: { label: string; value: number; hint?: string }) {
@@ -36,7 +36,7 @@ export function MonteCarloRisk({ projectId }: { projectId: string }) {
 
   const tasks: RiskTask[] = useMemo(
     () => (issues ?? [])
-      .filter((i: Issue) => (i.estimateHours ?? 0) > 0 && !DONE.has(String(i.status).toLowerCase()))
+      .filter((i: Issue) => (i.estimateHours ?? 0) > 0 && !isDone(i.status))
       .map((i: Issue) => ({ id: i.id, label: i.title, estimate: i.estimateHours as number })),
     [issues],
   );

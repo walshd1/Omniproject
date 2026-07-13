@@ -27,6 +27,15 @@ function fakeDoc(): DynamoDBDocumentClient {
         if (inp["Limit"] !== undefined) out = out.slice(0, Number(inp["Limit"]));
         return { Items: out };
       }
+      if (kind === "ScanCommand") {
+        return { Items: [...items] };
+      }
+      if (kind === "DeleteCommand") {
+        const key = inp["Key"] as { pk: string; sk: string };
+        const i = items.findIndex((it) => it.pk === key.pk && it.sk === key.sk);
+        if (i >= 0) items.splice(i, 1);
+        return {};
+      }
       throw new Error(`unexpected command ${kind}`);
     },
   } as unknown as DynamoDBDocumentClient;
@@ -50,4 +59,29 @@ test("journal append + read via the Dynamo port round-trips time-ordered", async
   ]);
   const j = await src.readJournal("issue", "1", { from: "2026-01-01T00:00:00Z", to: "2026-03-01T00:00:00Z" });
   assert.deepEqual(j.map((e) => e.newValue), ["todo", "doing"]);
+});
+
+test("the Dynamo port disposes stale items (scan+delete) but skips legal holds", async () => {
+  const src = tableStoreRetentionSource(dynamoTableStorePort({ doc: fakeDoc(), table: "t" }));
+  await src.appendJournal([
+    { entity: "issue", id: "1", field: "status", oldValue: null, newValue: "x", changedAt: "2025-01-01T00:00:00Z", changedBy: "u", txnId: "a" },
+    { entity: "issue", id: "2", field: "status", oldValue: null, newValue: "x", changedAt: "2025-01-01T00:00:00Z", changedBy: "u", txnId: "b" },
+    { entity: "issue", id: "1", field: "status", oldValue: null, newValue: "x", changedAt: "2026-06-01T00:00:00Z", changedBy: "u", txnId: "c" },
+  ]);
+  const r = await src.disposeOlderThan!("2026-01-01T00:00:00Z", { heldKeys: ["issue#2"] });
+  assert.deepEqual(r, { snapshots: 0, journal: 1 });
+  assert.equal((await src.readJournal("issue", "2", { from: "2020-01-01T00:00:00Z", to: "2030-01-01T00:00:00Z" })).length, 1, "held kept");
+});
+
+test("the Dynamo port erases every item for one entity id", async () => {
+  const src = tableStoreRetentionSource(dynamoTableStorePort({ doc: fakeDoc(), table: "t" }));
+  await src.appendJournal([
+    { entity: "issue", id: "1", field: "status", oldValue: null, newValue: "x", changedAt: "2026-01-01T00:00:00Z", changedBy: "u", txnId: "a" },
+    { entity: "issue", id: "2", field: "status", oldValue: null, newValue: "x", changedAt: "2026-01-01T00:00:00Z", changedBy: "u", txnId: "b" },
+  ]);
+  await src.writeSnapshot({ entity: "issue", id: "1", asOf: "2026-01-01T00:00:00Z", values: {}, provenance: "replayed" });
+  const r = await src.eraseEntity!("issue", "1");
+  assert.deepEqual(r, { snapshots: 1, journal: 1 });
+  assert.equal((await src.readJournal("issue", "1", { from: "2020-01-01T00:00:00Z", to: "2030-01-01T00:00:00Z" })).length, 0, "erased");
+  assert.equal((await src.readJournal("issue", "2", { from: "2020-01-01T00:00:00Z", to: "2030-01-01T00:00:00Z" })).length, 1, "other kept");
 });

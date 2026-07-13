@@ -523,6 +523,19 @@ The write half of retention: turn a write patch into append-only change-journal 
 | --- | --- |
 | `diffToJournal` | Diff `next` (the write patch) against `prev` (the entity's current stored values) into one journal entry per genuinely-changed field. |
 
+### `artifacts/api-server/src/history/lifecycle.ts`
+
+Retention LIFECYCLE governance — the data-disposal / legal-hold / right-to-erasure policy layer over the durable history store (closes the GDPR storage-limitation + erasure gap for the OPTIONAL retention store; the gateway stays zero-at-rest, the deletes execute below the seam via the RetentionSource).
+
+| Function | What it does |
+| --- | --- |
+| `holdKey` | The canonical legal-hold key for an entity id. |
+| `legalHoldSet` | The configured legal-hold key set (from settings.historyRetention.legalHolds). |
+| `isUnderLegalHold` | Whether an entity id is under legal hold (exempt from disposal AND erasure). |
+| `disposalCutoff` | The disposal cutoff (ISO) for a window in days, or null when retention is infinite (window unset). |
+| `disposeExpired` | Run disposal for a source per the configured retention window, skipping legal-held keys. |
+| `eraseEntityHistory` | Erase ALL history for one entity id (right-to-erasure / DSAR). |
+
 ### `artifacts/api-server/src/history/retention.ts`
 
 The retention SOURCE seam — the one abstraction the gateway drives for durable history.
@@ -706,6 +719,7 @@ Action audit logging.
 | `createHttpSink` | Build a batching HTTP sink (buffers records + flushes them as NDJSON to a SIEM URL). |
 | `recordAudit` | Record one audit event: stdout (pino) + the external sink, gated by level. |
 | `actorForAudit` | The audit `actor` field for a request — the session's sub + a display role, or `null` when unauthenticated. |
+| `recordRequestAudit` | Record an audit event for an HTTP request, filling the two fields every route otherwise repeated by hand: `ts` (now, ISO-8601) and `actor` (resolved from the session via {@link actorForAudit}). |
 | `auditScopeDenied` | Record a scope-boundary DENIAL — a principal (human or bot) tried to reach a resource outside its scope and the gateway guard refused it. |
 | `auditStatus` | Status for the setup/diagnostics view. |
 
@@ -907,7 +921,7 @@ Capability signal — which data domains the wired backend(s) can populate, so t
 
 ### `artifacts/api-server/src/lib/capability-governance.ts`
 
-Capability governance — one model for every "thing that can move data or be turned on/off": AI tools, the MCP, AI providers and vendors.
+Endpoint validation + reachability probing live in endpoint-probe (network I/O); the activity/audit ring + external sink live in capability-log (logging infrastructure).
 
 | Function | What it does |
 | --- | --- |
@@ -919,17 +933,23 @@ Capability governance — one model for every "thing that can move data or be tu
 | `listResolvedCapabilities` | Every capability resolved against the current settings. |
 | `effectiveState` | Resolve a single capability's effective state for a surface (the runtime check). |
 | `listSurfaces` | Governable surfaces (screens) from the registry — drives the admin override picker. |
-| `validEndpoint` | Validate a user-defined endpoint: a well-formed http(s) URL, or null. |
 | `screenIdForRoute` | Normalise a client-supplied surface (which may be a route path like "/reports") to a canonical screen id from the registry, so per-surface overrides always match. |
-| `checkEndpointReachable` | Probe a user-defined endpoint: any HTTP response = reachable; a network error or timeout = not. |
-| `recentCapabilityLog` | Recent capability activity (uses, blocks, config changes), newest first — the fast LOCAL (per-replica) RAM ring. |
-| `recentCapabilityLogShared` | Recent capability activity across the FLEET (newest first) when Redis-backed; otherwise the local ring. |
-| `__resetCapabilityLogSink` | Test-only: reset the external log sink (so an env change is re-read). |
 | `decideCapability` | Resolve a capability-use decision for a surface AND record it — to the audit log and the live activity ring — whether allowed or denied, so there's always a trail of which AI/vendor/broker ran where and for whom. |
 | `noteCapabilityConfigured` | Record an admin turning a capability on/off (audited + shown on the dashboard). |
 | `enforceCapability` | Strong call-time gate: decide + log, and THROW CapabilityBlockedError when the capability is off for this surface. |
 | `sanitizeCapabilitySetting` | Coerce an admin's input for one capability to a valid, supportable setting. |
 | `setCapabilityState` | Persist an admin's setting for one capability; returns the stored setting. |
+
+### `artifacts/api-server/src/lib/capability-log.ts`
+
+Capability governance's activity/audit LOG — the in-RAM decision ring, its optional external HTTP sink, and the fleet-shared (Redis) mirror.
+
+| Function | What it does |
+| --- | --- |
+| `recentCapabilityLog` | Recent capability activity (uses, blocks, config changes), newest first — the fast LOCAL (per-replica) RAM ring. |
+| `recentCapabilityLogShared` | Recent capability activity across the FLEET (newest first) when Redis-backed; otherwise the local ring. |
+| `__resetCapabilityLogSink` | Test-only: reset the external log sink (so an env change is re-read). |
+| `recordCapabilityEvent` | Record one capability event to BOTH the audit log and the live activity ring, sharing the timestamp between them — the pair every capability event (a use/block decision, an admin reconfiguring one) writes, differing only in the action name(s), the audit `result`, and the audit `meta` shape. |
 
 ### `artifacts/api-server/src/lib/charity-onboarding.ts`
 
@@ -1366,6 +1386,15 @@ Real SMTP email sending — off unless `SMTP_URL` is set (e.g. `smtps://user:pas
 | `isEmailConfigured` | Is real SMTP delivery available? True once `SMTP_URL` is set. |
 | `sendEmail` | Best-effort SMTP send: never throws. |
 
+### `artifacts/api-server/src/lib/endpoint-probe.ts`
+
+User-defined endpoint validation + reachability probing.
+
+| Function | What it does |
+| --- | --- |
+| `validEndpoint` | Validate a user-defined endpoint: a well-formed http(s) URL (capped at 2048 chars), or null. |
+| `checkEndpointReachable` | Probe a user-defined endpoint: any HTTP response = reachable; a network error or timeout = not. |
+
 ### `artifacts/api-server/src/lib/env-config.ts`
 
 Validated, typed environment access — the zero-trust stance applied to configuration: env vars are UNTRUSTED input too, so read them through typed accessors that enforce a rule (presence, type, range, format) instead of scattering `process.env[X]` casts.
@@ -1650,6 +1679,14 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 | `sanitizeLabels` | Validate + normalise an overrides map. |
 | `effectiveLabels` | The label overrides the UI should apply right now. |
 | `saveLabels` | Persist label overrides (callers enforce the PMO/admin role). |
+
+### `artifacts/api-server/src/lib/lazy-singleton.ts`
+
+A process-wide lazy singleton: build once on first access, memoize, and expose a test/hot-reload seam to drop or inject the instance.
+
+| Function | What it does |
+| --- | --- |
+| `lazySingleton` | Build a lazy singleton around `factory`, which is invoked at most once per live instance. |
 
 ### `artifacts/api-server/src/lib/license.ts`
 
@@ -2870,7 +2907,23 @@ Gateway-local settings (the broker URL, AI provider, …).
 
 ### `artifacts/api-server/src/routes/setup.ts`
 
-Setup-wizard + operations endpoints — backend/plane catalogues, workflow generation + verification, config export/snapshot/restore, the sandbox→promote→ rollback environment controls, and the debug bundle.
+Setup-wizard + operations plane.
+
+### `artifacts/api-server/src/routes/setup/catalogues.ts`
+
+Setup catalogue plane — the read-only "what CAN be wired" surface for the Configurator: the backend / broker / output / notification / methodology / view / report / screen / plane catalogues, plus the per-screen layout overrides and the entity-resolution preview.
+
+### `artifacts/api-server/src/routes/setup/config-io.ts`
+
+Setup config-I/O plane — moving durable gateway config in and out: env/compose/k8s export, the config-directory summary + hot-reload/backup controls, the config bundle ZIP, the portable snapshot/restore, and the dev-only debug bundle.
+
+### `artifacts/api-server/src/routes/setup/connections.ts`
+
+Setup connections plane — the broker-facing wiring surface: the non-destructive broker/webhook reachability + capability probes, the vendor-credential templates + delegated-vault relay, and the n8n workflow generation/verification.
+
+### `artifacts/api-server/src/routes/setup/environments.ts`
+
+Setup environments plane — the sandbox → promote → rollback lifecycle over versioned config: list/create/activate environments, promote one env's config onto another, pin a known-good version, and fast-rollback.
 
 ### `artifacts/api-server/src/routes/snapshots.ts`
 
@@ -3480,6 +3533,15 @@ Generic JSON-asset registry generator.
 | `loadGroup` | Read, validate (schema + filename===id + unique) and id-sort one group. |
 | `emitRegistry` | Emit a generated module: the header comment, the type imports, then one const per group. |
 | `runSingleAssetGenerator` | Run one single-group JSON-asset generator end-to-end: resolve the asset paths, read + validate the group, emit its `lib/backend-catalogue/src/<label>.generated.ts`, and log the summary. |
+
+### `scripts/src/lib/guard-harness.ts`
+
+Shared reporting tail for the read-only `guard-*.ts` drift/consistency checks.
+
+| Function | What it does |
+| --- | --- |
+| `formatGuard` | Pure formatter — turns a report into the exact lines to print, without touching the console or the process. |
+| `reportGuard` | Print a guard's outcome in the house style and `process.exit(1)` on any violation. |
 
 ### `scripts/src/lib/load-core.ts`
 

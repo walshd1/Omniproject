@@ -99,6 +99,38 @@ test("a non-ISO timestamp is rejected (key-injection guard)", async () => {
   });
 });
 
+test("POST /retention/dispose-older-than dispatches to the source", async () => {
+  const src: RetentionSource = { ...stubSource(), disposeOlderThan: async () => ({ snapshots: 2, journal: 5 }) };
+  const handler = createHandler(src, undefined);
+  const server = createServer((req, res) => void handler(req, res));
+  await new Promise<void>((r) => server.listen(0, r));
+  const addr = server.address();
+  const port = typeof addr === "object" && addr ? addr.port : 0;
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/retention/dispose-older-than`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cutoff: "2026-01-01T00:00:00Z", heldKeys: ["issue#2"] }),
+    });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { snapshots: 2, journal: 5 });
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});
+
+test("a disposal op on a source that can't delete is 501, not 500", async () => {
+  // stubSource has no disposeOlderThan → UnsupportedOpError → 501.
+  await withServer(undefined, async (base) => {
+    const r = await fetch(`${base}/retention/erase-entity`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ entity: "issue", id: "1" }),
+    });
+    assert.equal(r.status, 501);
+    const body = (await r.json()) as { error: string };
+    assert.match(body.error, /does not support/);
+  });
+});
+
 test("a backend failure is a generic 500, not a leaked message", async () => {
   const boom: RetentionSource = { ...stubSource(), lastSnapshotAt: async () => { throw new Error("s3 bucket acme-secrets denied req-abc123"); } };
   const handler = createHandler(boom, undefined);

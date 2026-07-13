@@ -10,6 +10,10 @@ import { usePortfolioItems } from "./use-portfolio-items";
 import { useTrend } from "../../lib/trends";
 import { TrendChart } from "./TrendChart";
 import { Badge } from "../tiles/Badge";
+import { isDone, isTerminal, ragBucket } from "../../lib/status-vocab";
+// RAG bucketing and done/terminal detection are shared across all reports — see lib/status-vocab.
+// Re-exported here so existing importers (and tests) of these names keep working.
+export { ragBucket, isDone, type Rag } from "../../lib/status-vocab";
 
 /**
  * Project Health (predictive project-health / risk scoring) — derives a composite 0–100 HEALTH SCORE and a
@@ -37,18 +41,6 @@ export interface HealthItem {
   benefitConfidence?: number | null;
 }
 
-export type Rag = "green" | "amber" | "red" | "none";
-
-/** Normalise a free-form health status into a RAG bucket (backend vocabulary preserved). */
-export function ragBucket(status?: string | null): Rag {
-  const s = (status ?? "").toLowerCase().trim();
-  if (!s) return "none";
-  if (/green|on.?track|on.?plan|healthy|complete|good|stable/.test(s)) return "green";
-  if (/red|off.?track|critical|blocked|fail|breach|slip/.test(s)) return "red";
-  if (/amber|at.?risk|yellow|warn|delay|concern|risk/.test(s)) return "amber";
-  return "none";
-}
-
 /** Severity (0..1) of a free-form risk level — high/critical dominate, medium is half-weight. */
 export function riskSeverity(level?: string | null): number | null {
   const s = (level ?? "").toLowerCase().trim();
@@ -57,15 +49,6 @@ export function riskSeverity(level?: string | null): number | null {
   if (/medium|moderate|mid/.test(s)) return 0.5;
   if (/low|minor|negligible|none/.test(s)) return 0;
   return null;
-}
-
-/** A work item is delivered when its status reads as done/closed. */
-export function isDone(status?: string | null): boolean {
-  return /done|closed|complete|resolved|shipped|deliver|accept/.test((status ?? "").toLowerCase());
-}
-/** Terminal (done OR cancelled) items are excluded from schedule-slip — a cancelled item can't be overdue. */
-function isTerminal(status?: string | null): boolean {
-  return isDone(status) || /cancel|won.?t|abandon|reject|dupl/.test((status ?? "").toLowerCase());
 }
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));

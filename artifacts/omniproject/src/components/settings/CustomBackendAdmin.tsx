@@ -129,6 +129,8 @@ export function CustomBackendAdmin() {
   const patch = (p: Partial<BackendDraft>) => setDraft({ ...draft, ...p });
   const patchAction = (action: string, next: ActionDraft) => setDraft({ ...draft, actions: { ...draft.actions, [action]: next } });
   const toggleCapability = (id: string) => setDraft({ ...draft, capabilities: { ...draft.capabilities, [id]: !draft.capabilities[id] } });
+  // Merge into the nested keyFormat sub-object — folds away the repeated `{ keyFormat: { ...draft.keyFormat, … } }`.
+  const patchKeyFormat = (p: Partial<BackendDraft["keyFormat"]>) => setDraft({ ...draft, keyFormat: { ...draft.keyFormat, ...p } });
 
   function startFromClone() {
     if (!cloneId) return;
@@ -270,7 +272,7 @@ export function CustomBackendAdmin() {
           <div className="border border-border p-2 space-y-2">
             <label className="text-xs flex items-center gap-2 font-bold uppercase tracking-widest">
               <input type="checkbox" aria-label="This backend needs a credential" checked={draft.keyFormat.enabled}
-                onChange={(e) => patch({ keyFormat: { ...draft.keyFormat, enabled: e.target.checked } })} />
+                onChange={(e) => patchKeyFormat({ enabled: e.target.checked })} />
               Key format
             </label>
             {draft.keyFormat.enabled && (
@@ -278,20 +280,20 @@ export function CustomBackendAdmin() {
                 <label className="text-xs flex items-center gap-1">
                   <span className="text-muted-foreground">Scheme</span>
                   <select aria-label="Key scheme" className="rounded-none border border-border bg-background px-2 py-1 text-xs"
-                    value={draft.keyFormat.scheme} onChange={(e) => patch({ keyFormat: { ...draft.keyFormat, scheme: e.target.value as BackendDraft["keyFormat"]["scheme"] } })}>
+                    value={draft.keyFormat.scheme} onChange={(e) => patchKeyFormat({ scheme: e.target.value as BackendDraft["keyFormat"]["scheme"] })}>
                     <option value="">(choose)</option>
                     {KEY_SCHEMES.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </label>
                 <Input aria-label="Key env vars (comma-separated)" placeholder="Env var(s) the key lives in, comma-separated"
                   className="w-full rounded-none border border-border font-mono text-xs"
-                  value={draft.keyFormat.env.join(", ")} onChange={(e) => patch({ keyFormat: { ...draft.keyFormat, env: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) } })} />
+                  value={draft.keyFormat.env.join(", ")} onChange={(e) => patchKeyFormat({ env: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} />
                 <Input aria-label="Key header" placeholder="HTTP header the key is presented in (optional)"
                   className="w-full rounded-none border border-border text-xs"
-                  value={draft.keyFormat.header} onChange={(e) => patch({ keyFormat: { ...draft.keyFormat, header: e.target.value } })} />
+                  value={draft.keyFormat.header} onChange={(e) => patchKeyFormat({ header: e.target.value })} />
                 <Input aria-label="Key pattern" placeholder="Regex the key value must match (optional)"
                   className="w-full rounded-none border border-border font-mono text-xs"
-                  value={draft.keyFormat.pattern} onChange={(e) => patch({ keyFormat: { ...draft.keyFormat, pattern: e.target.value } })} />
+                  value={draft.keyFormat.pattern} onChange={(e) => patchKeyFormat({ pattern: e.target.value })} />
               </div>
             )}
           </div>

@@ -7,6 +7,7 @@ import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { Badge } from "../tiles/Badge";
 import { usePortfolioItems } from "./use-portfolio-items";
+import { isDone, isCancelled } from "../../lib/status-vocab";
 
 /**
  * Demand Intake (demand / intake funnel with prioritisation) — treats every work item as a unit of
@@ -51,8 +52,10 @@ export const INTAKE_STAGES: readonly { key: IntakeStage; label: string }[] = [
 export function intakeStage(status?: string | null): IntakeStage | null {
   const s = (status ?? "").toLowerCase().trim();
   if (!s) return null;
-  if (/cancel|reject|declin|won.?t|will.?not|drop|dupli|abandon|obsolete/.test(s)) return null;
-  if (/done|closed|complete|resolved|released|shipped|deployed|live/.test(s)) return "done";
+  // Cancelled/done detection is shared (lib/status-vocab); the funnel stages below are intake-specific.
+  // NB isDone deliberately omits "deliver", so "delivering"/"in delivery" still falls to the delivery branch.
+  if (isCancelled(s)) return null;
+  if (isDone(s)) return "done";
   if (/progress|review|delivery|deliver|doing|active|develop|build|wip|testing|qa\b|verify|started/.test(s)) return "delivery";
   if (/approv|select|accept|committed|scheduled|planned|ready.?for.?dev|prioriti/.test(s)) return "approved";
   if (/triag|to.?do|todo|open|ready|refin|groom|assess|qualif|candidate|new\b/.test(s)) return "triaged";

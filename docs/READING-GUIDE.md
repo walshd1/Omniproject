@@ -16,7 +16,7 @@ All gateway paths are under `artifacts/api-server/src/`.
 | -------------- | ---------- |
 | **How the app boots + the middleware chain** | [`app.ts`](../artifacts/api-server/src/app.ts) → [`routes/index.ts`](../artifacts/api-server/src/routes/index.ts) |
 | **The broker seam** (the whole point) | [`broker/index.ts`](../artifacts/api-server/src/broker/index.ts) + [`broker/types.ts`](../artifacts/api-server/src/broker/types.ts) + [BROKER.md](BROKER.md) |
-| **What "no database" means in code** | there is no `lib/db` usage in the gateway; `broker/cache.ts` is the only RAM-hold and it is opt-in |
+| **What "no database" means in code** | there is no ORM/DB package or first-party datastore in the gateway; `broker/cache.ts` is the only RAM-hold and it is opt-in |
 | **The published contract a broker must meet** | [CONTRACT.md](CONTRACT.md) + [`broker/contract.ts`](../artifacts/api-server/src/broker/contract.ts) + `docs/contract/broker.v1.schema.json` |
 | **The domain data shapes** | [`broker/types.ts`](../artifacts/api-server/src/broker/types.ts) + `lib/api-spec/openapi.yaml` |
 

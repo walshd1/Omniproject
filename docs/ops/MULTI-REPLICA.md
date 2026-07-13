@@ -131,19 +131,32 @@ story), and a node/PVC loss takes the automation backend down with no standby. T
 `replicas: 1` and `strategy: Recreate` accordingly (a RollingUpdate would deadlock on the RWO
 volume).
 
-To make the automation backend highly available, move it off SQLite:
+To make the automation backend highly available, move it off SQLite. A **ready-made, opt-in overlay**
+ships for exactly this — `k8s-enterprise-manifest-ha.yaml`:
 
 ```bash
-# On the n8n Deployment: swap the DB driver and point it at a managed/replicated Postgres,
-# then drop the PVC and raise replicas + add a PodDisruptionBudget.
-DB_TYPE=postgresdb
-DB_POSTGRESDB_HOST=your-postgres-host
-DB_POSTGRESDB_DATABASE=n8n
-DB_POSTGRESDB_USER=n8n
-DB_POSTGRESDB_PASSWORD=…            # from a Secret, not inline
-# (queue mode with EXECUTIONS_MODE=queue + a Redis broker is n8n's fully-HA topology;
-#  Postgres alone already removes the single-writer PVC SPOF.)
+kubectl apply -f k8s-enterprise-manifest.yaml           # base (gateway, ingress, NetworkPolicies)
+kubectl -n omniproject create secret generic n8n-ha-secrets \
+  --from-literal=DB_POSTGRESDB_PASSWORD='…' \
+  --from-literal=QUEUE_BULL_REDIS_PASSWORD='…' \
+  --from-literal=N8N_ENCRYPTION_KEY="$(openssl rand -hex 32)"   # identical on main + workers
+kubectl apply -f k8s-enterprise-manifest-ha.yaml        # REPLACES the single-node n8n
+kubectl -n omniproject delete pvc n8n-pvc               # base PVC now unused
 ```
+
+The overlay runs n8n's fully-HA **queue-mode** topology: one webhook-facing **main** that enqueues,
+**N stateless workers** (the horizontal scale unit) pulling jobs off Redis, and a shared
+**managed/replicated Postgres** for state (`EXECUTIONS_MODE=queue`, `DB_TYPE=postgresdb`). No pod
+holds a ReadWriteOnce PVC, so every pod reschedules freely; PodDisruptionBudgets keep the main and
+workers available across drains. It preserves the base security posture verbatim (non-root, drop-ALL
+caps, seccomp, default-deny ingress, link-local egress block) and gives workers a distinct label so
+the webhook Service and the `shell → n8n` policy never route to them.
+
+> Point `DB_POSTGRESDB_HOST` / `QUEUE_BULL_REDIS_HOST` (in the overlay's ConfigMap) at your cloud's
+> **managed HA** Postgres/Redis — self-hosting a single-replica Postgres or Redis in-cluster would
+> just move the SPOF. Running **multiple active mains** (`N8N_MULTI_MAIN_SETUP_ENABLED`) is an n8n
+> Enterprise feature; the overlay's single main is the OSS-supported queue topology (stateless,
+> reschedules on node loss — seconds of webhook-ingest gap, no data loss).
 
 This is a **deployment choice**, not a gateway change — OmniProject holds no automation state
 itself, so the gateway replicas above are unaffected by which n8n topology you run.

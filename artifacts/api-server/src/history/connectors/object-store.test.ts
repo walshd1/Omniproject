@@ -11,6 +11,7 @@ function memoryStore(): ObjectStorePort & { keys: () => string[] } {
     put: async (k, b) => { m.set(k, b); },
     get: async (k) => (m.has(k) ? m.get(k)! : null),
     list: async (prefix) => [...m.keys()].filter((k) => k.startsWith(prefix)).sort(),
+    delete: async (k) => { m.delete(k); },
   };
 }
 
@@ -61,4 +62,37 @@ test("journal objects are immutable/append-only — one unique key per field cha
   const src = objectStoreRetentionSource(store);
   await src.appendJournal([entry("status", "a", "2026-01-01T00:00:00Z"), entry("budget", 5, "2026-01-01T00:00:00Z")]);
   assert.equal(store.keys().filter((k) => k.startsWith("journal/")).length, 2);
+});
+
+const entryFor = (entity: string, id: string, changedAt: string): HistoryEntry => ({
+  entity, id, field: "status", oldValue: null, newValue: "x", changedAt, changedBy: "u", txnId: changedAt,
+});
+const snapFor = (entity: string, id: string, asOf: string): EntitySnapshot => ({
+  entity, id, asOf, values: {}, provenance: "replayed",
+});
+
+test("disposeOlderThan prunes rows older than the cutoff, keeps newer, and skips legal holds", async () => {
+  const store = memoryStore();
+  const src = objectStoreRetentionSource(store);
+  await src.appendJournal([entryFor("issue", "1", "2025-01-01T00:00:00Z"), entryFor("issue", "2", "2025-01-01T00:00:00Z"), entryFor("issue", "1", "2026-06-01T00:00:00Z")]);
+  await src.writeSnapshot(snapFor("issue", "1", "2025-01-01T00:00:00Z"));
+  await src.writeSnapshot(snapFor("issue", "1", "2026-06-01T00:00:00Z"));
+  // Cutoff = 2026-01-01: old (2025) rows are stale; hold protects issue#2.
+  const r = await src.disposeOlderThan!("2026-01-01T00:00:00Z", { heldKeys: ["issue#2"] });
+  assert.deepEqual(r, { snapshots: 1, journal: 1 }); // issue#1's 2025 snapshot + journal; issue#2 held
+  const remaining = store.keys();
+  assert.ok(remaining.some((k) => k.includes("2026-06-01")), "recent rows kept");
+  assert.ok(remaining.some((k) => k.startsWith("journal/issue/2/")), "held entity kept");
+  assert.ok(!remaining.some((k) => k.startsWith("snapshot/issue/1/") && k.includes("2025")), "stale snapshot pruned");
+});
+
+test("eraseEntity deletes ALL history for one entity id and nothing else", async () => {
+  const store = memoryStore();
+  const src = objectStoreRetentionSource(store);
+  await src.appendJournal([entryFor("issue", "1", "2026-01-01T00:00:00Z"), entryFor("issue", "2", "2026-01-01T00:00:00Z")]);
+  await src.writeSnapshot(snapFor("issue", "1", "2026-01-01T00:00:00Z"));
+  const r = await src.eraseEntity!("issue", "1");
+  assert.deepEqual(r, { snapshots: 1, journal: 1 });
+  assert.ok(!store.keys().some((k) => k.includes("/issue/1/")), "erased entity gone");
+  assert.ok(store.keys().some((k) => k.startsWith("journal/issue/2/")), "other entity untouched");
 });

@@ -3,19 +3,15 @@ import { CommentsPanel } from "./issue-dialog/CommentsPanel";
 import { useFeatures, featureEnabled } from "../lib/features";
 import { canSurfaceEntity } from "../lib/capabilities-fields";
 import { useIssueForm } from "./issue-dialog/use-issue-form";
+import { useIssueMutations } from "./issue-dialog/use-issue-mutations";
 import { FinancialsPanel } from "./issue-dialog/FinancialsPanel";
 import { EffortPanel } from "./issue-dialog/EffortPanel";
 import { RiskQualityPanel } from "./issue-dialog/RiskQualityPanel";
-import { useInvalidateIssueQueries } from "../hooks/use-invalidate-issue-queries";
 import {
-  useCreateIssue,
-  useUpdateIssue,
-  useDeleteIssue,
   useGetCapabilities,
   type Capabilities,
   type Issue,
   type IssueInput,
-  type IssueUpdate,
 } from "@workspace/api-client-react";
 import {
   Dialog,
@@ -45,8 +41,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
 import { STATUS_ORDER, PRIORITY_ORDER, STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants";
 
 interface IssueDialogProps {
@@ -83,11 +77,6 @@ function BackendCustomFields({ issue, caps }: { issue: Issue; caps: Capabilities
 }
 
 export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatus }: IssueDialogProps) {
-  const { toast } = useToast();
-  const invalidateIssueQueries = useInvalidateIssueQueries();
-  const createIssue = useCreateIssue();
-  const updateIssue = useUpdateIssue();
-  const deleteIssue = useDeleteIssue();
   const isEdit = !!issue;
   const { data: caps } = useGetCapabilities();
   const { data: features } = useFeatures();
@@ -100,8 +89,12 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
     open,
     caps,
   );
-
-  const invalidate = () => invalidateIssueQueries(projectId);
+  // Create/update/duplicate/delete orchestration (toasts, invalidation, 409, undo) lives in the hook.
+  const { submit, duplicate, remove, pending, deleting, duplicating } = useIssueMutations({
+    projectId,
+    issue,
+    onClose: () => onOpenChange(false),
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,53 +103,10 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
       return;
     }
     setTitleError(null);
-
-    const payload = buildPayload();
-
-    if (isEdit && issue) {
-      // Optimistic concurrency: send the version we loaded so the gateway/backend
-      // rejects the write with 409 if someone else changed it meanwhile.
-      const update: IssueUpdate = { ...payload, ...(issue.version != null ? { expectedVersion: issue.version } : {}) };
-      updateIssue.mutate(
-        { projectId, issueId: issue.id, data: update },
-        {
-          onSuccess: () => {
-            invalidate();
-            toast({ title: "ISSUE UPDATED", description: issue.title });
-            onOpenChange(false);
-          },
-          onError: (err) => {
-            if ((err as { status?: number }).status === 409) {
-              invalidate();
-              toast({
-                title: "EDIT CONFLICT",
-                description: "This issue was changed by someone else. Your view has been refreshed — re-apply your change.",
-                variant: "destructive",
-              });
-              onOpenChange(false);
-              return;
-            }
-            toast({ title: "ERROR", description: "Failed to update issue.", variant: "destructive" });
-          },
-        },
-      );
-    } else {
-      createIssue.mutate(
-        { projectId, data: payload },
-        {
-          onSuccess: () => {
-            invalidate();
-            toast({ title: "ISSUE CREATED", description: payload.title });
-            onOpenChange(false);
-          },
-          onError: () => toast({ title: "ERROR", description: "Failed to create issue.", variant: "destructive" }),
-        },
-      );
-    }
+    submit(buildPayload());
   };
 
-  /** Copy/paste: re-send the current (possibly tweaked) fields as a NEW task —
-   *  another slightly-different write through the broker, leaving the original. */
+  /** Copy/paste: re-send the current (possibly tweaked) fields as a NEW task, leaving the original. */
   const handleDuplicate = () => {
     if (!form.title.trim()) {
       setTitleError("An issue needs a title.");
@@ -164,71 +114,10 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
     }
     setTitleError(null);
     const copy: IssueInput = { ...buildPayload(), title: `${form.title.trim()} (copy)` };
-    createIssue.mutate(
-      { projectId, data: copy },
-      {
-        onSuccess: () => {
-          invalidate();
-          toast({ title: "TASK DUPLICATED", description: copy.title });
-          onOpenChange(false);
-        },
-        onError: () => toast({ title: "ERROR", description: "Failed to duplicate task.", variant: "destructive" }),
-      },
-    );
+    duplicate(copy);
   };
 
-  const handleDelete = () => {
-    if (!issue) return;
-    // Snapshot the issue's fields so an "Undo" can re-create it best-effort. The
-    // new issue gets a fresh id (we can't resurrect the original), but the
-    // content is preserved.
-    const restore: IssueInput = {
-      title: issue.title,
-      ...(issue.description != null ? { description: issue.description } : {}),
-      status: issue.status as NonNullable<IssueInput["status"]>,
-      priority: issue.priority as NonNullable<IssueInput["priority"]>,
-      assignee: issue.assignee ?? null,
-      labels: [...issue.labels],
-      startDate: issue.startDate ?? null,
-      dueDate: issue.dueDate ?? null,
-    };
-    deleteIssue.mutate(
-      { projectId, issueId: issue.id },
-      {
-        onSuccess: () => {
-          invalidate();
-          toast({
-            title: "ISSUE DELETED",
-            description: issue.title,
-            action: (
-              <ToastAction
-                altText={`Undo delete of ${issue.title}`}
-                onClick={() =>
-                  createIssue.mutate(
-                    { projectId, data: restore },
-                    {
-                      onSuccess: () => {
-                        invalidate();
-                        toast({ title: "ISSUE RESTORED", description: restore.title });
-                      },
-                      onError: () =>
-                        toast({ title: "ERROR", description: "Failed to restore issue.", variant: "destructive" }),
-                    },
-                  )
-                }
-              >
-                Undo
-              </ToastAction>
-            ),
-          });
-          onOpenChange(false);
-        },
-        onError: () => toast({ title: "ERROR", description: "Failed to delete issue.", variant: "destructive" }),
-      },
-    );
-  };
-
-  const pending = createIssue.isPending || updateIssue.isPending;
+  const handleDelete = () => remove();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -398,10 +287,10 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={deleteIssue.isPending}
+                    disabled={deleting}
                     className="rounded-none border-red-500/50 text-red-500 hover:bg-red-500 hover:text-background uppercase font-bold tracking-wider"
                   >
-                    {deleteIssue.isPending ? "DELETING…" : "DELETE"}
+                    {deleting ? "DELETING…" : "DELETE"}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent className="rounded-none border-2 border-foreground bg-card">
@@ -428,10 +317,10 @@ export function IssueDialog({ projectId, open, onOpenChange, issue, defaultStatu
                 type="button"
                 variant="outline"
                 onClick={handleDuplicate}
-                disabled={createIssue.isPending}
+                disabled={duplicating}
                 className="rounded-none border-border uppercase font-bold tracking-wider"
               >
-                {createIssue.isPending ? "DUPLICATING…" : "Duplicate"}
+                {duplicating ? "DUPLICATING…" : "Duplicate"}
               </Button>
             )}
             <Button

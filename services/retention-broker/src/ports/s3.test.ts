@@ -26,6 +26,10 @@ function fakeS3(seed: Record<string, string> = {}): S3Client {
         const keys = [...store.keys()].filter((k) => k.startsWith(prefix)).sort();
         return { Contents: keys.map((Key) => ({ Key })), IsTruncated: false };
       }
+      if (kind === "DeleteObjectCommand") {
+        store.delete(String(inp["Key"]));
+        return {};
+      }
       throw new Error(`unexpected command ${kind}`);
     },
   } as unknown as S3Client;
@@ -50,4 +54,17 @@ test("the S3 port drives the shared connector end-to-end (snapshot round-trip)",
   assert.equal(snaps.length, 1);
   assert.equal(snaps[0]!.values["percentWorkComplete"], 30);
   assert.equal(await src.lastSnapshotAt("issue", "1"), "2026-01-10T00:00:00Z");
+});
+
+test("the S3 port deletes objects for disposal + erasure via DeleteObjectCommand", async () => {
+  const src = objectStoreRetentionSource(s3ObjectStorePort({ client: fakeS3(), bucket: "b" }));
+  await src.appendJournal([
+    { entity: "issue", id: "1", field: "status", oldValue: null, newValue: "x", changedAt: "2025-01-01T00:00:00Z", changedBy: "u", txnId: "a" },
+    { entity: "issue", id: "2", field: "status", oldValue: null, newValue: "x", changedAt: "2025-01-01T00:00:00Z", changedBy: "u", txnId: "b" },
+    { entity: "issue", id: "1", field: "status", oldValue: null, newValue: "x", changedAt: "2026-06-01T00:00:00Z", changedBy: "u", txnId: "c" },
+  ]);
+  const disposed = await src.disposeOlderThan!("2026-01-01T00:00:00Z", { heldKeys: ["issue#2"] });
+  assert.deepEqual(disposed, { snapshots: 0, journal: 1 }); // issue#1's 2025 journal; issue#2 held, 2026 kept
+  const erased = await src.eraseEntity!("issue", "1");
+  assert.deepEqual(erased, { snapshots: 0, journal: 1 }); // remaining 2026 journal for issue#1
 });

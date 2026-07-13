@@ -215,6 +215,18 @@ function setSession(res: Response, session: Session): void {
 }
 
 /**
+ * Complete a login: persist the freshly-authenticated session AND rotate the CSRF token. Every login
+ * path (OIDC, SAML, OAuth2, magic-link, demo) ends here, so the "seal session cookie + mint a fresh
+ * CSRF token" sequence lives in ONE place and can't drift between providers — the sequence is
+ * security-relevant (a missed rotation leaves a login fixation window), so five hand-copied tails
+ * were a bug surface.
+ */
+function establishSession(res: Response, session: Session): void {
+  setSession(res, session);
+  setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
+}
+
+/**
  * Slide the idle timeout forward on activity: re-stamp `seen` (throttled) so an active
  * user stays signed in, and tidy up an expired/garbage session cookie. Mounted early,
  * after the cookie parser, so it runs before any route reads the session.
@@ -307,8 +319,7 @@ router.get("/auth/login", async (req, res) => {
 
   // Demo mode: no IdP configured — establish a local demo session.
   if (!provider) {
-    setSession(res, { sub: "demo-user", name: "Demo User", email: "demo@omniproject.local", accessToken: "demo-token" });
-    setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
+    establishSession(res, { sub: "demo-user", name: "Demo User", email: "demo@omniproject.local", accessToken: "demo-token" });
     res.redirect(returnTo);
     return;
   }
@@ -404,7 +415,7 @@ router.get("/auth/callback", async (req, res) => {
 
     const travel = await travelCheck(claims.sub || "unknown", claims.email, req.ip);
 
-    setSession(res, {
+    establishSession(res, {
       sub: claims.sub || "unknown",
       name: claims.name,
       email: claims.email,
@@ -418,7 +429,6 @@ router.get("/auth/callback", async (req, res) => {
       ...(stepUpFreshGranted ? { stepUpAt: Date.now() } : {}),
       ...travel,
     });
-    setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
 
     res.redirect(safeLocalPath(returnTo));
   } catch (err) {
@@ -461,7 +471,7 @@ router.post("/auth/saml/callback", async (req, res) => {
     const grantStepUp = !!stepUp && stepUp.sub === claims.sub;
     if (stepUp) res.clearCookie(STEPUP_COOKIE, cookieBase());
     const travel = await travelCheck(claims.sub, claims.email, req.ip);
-    setSession(res, {
+    establishSession(res, {
       sub: claims.sub,
       ...(claims.name !== undefined ? { name: claims.name } : {}),
       ...(claims.email !== undefined ? { email: claims.email } : {}),
@@ -472,7 +482,6 @@ router.post("/auth/saml/callback", async (req, res) => {
       ...(grantStepUp ? { stepUpAt: Date.now() } : {}),
       ...travel,
     });
-    setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
     res.redirect(safeLocalPath(grantStepUp ? stepUp.returnTo : (typeof body.RelayState === "string" ? body.RelayState : "/")));
   } catch (err) {
     req.log.warn({ err }, "SAML assertion validation failed");
@@ -535,7 +544,7 @@ router.get("/auth/oauth2/callback", async (req, res) => {
     // the step-up flow (bound to `sub` inside the signed flow cookie).
     const grantStepUp = stepup === true && stepUpSub === user.sub;
     const travel = await travelCheck(user.sub, user.email, req.ip);
-    setSession(res, {
+    establishSession(res, {
       sub: user.sub,
       ...(user.name !== undefined ? { name: user.name } : {}),
       ...(user.email !== undefined ? { email: user.email } : {}),
@@ -545,7 +554,6 @@ router.get("/auth/oauth2/callback", async (req, res) => {
       ...(grantStepUp ? { stepUpAt: Date.now() } : {}),
       ...travel,
     });
-    setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
     res.redirect(safeLocalPath(returnTo));
   } catch (err) {
     req.log.error({ err }, "OAuth2 login failed");
@@ -579,8 +587,7 @@ router.get("/auth/magic/verify", async (req, res) => {
   // A step-up link (minted by POST /auth/step-up for the signed-in user's own email) proves current
   // mailbox control — a genuine re-authentication for a passwordless method — so it stamps freshness.
   const grantStepUp = verdict.purpose === "stepup";
-  setSession(res, { sub: verdict.email, name: verdict.email, email: verdict.email, accessToken: "magic", ...(grantStepUp ? { stepUpAt: Date.now() } : {}), ...travel });
-  setCsrfCookie(res, newCsrfToken());
+  establishSession(res, { sub: verdict.email, name: verdict.email, email: verdict.email, accessToken: "magic", ...(grantStepUp ? { stepUpAt: Date.now() } : {}), ...travel });
   res.redirect(safeLocalPath(req.query["returnTo"]));
 });
 

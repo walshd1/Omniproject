@@ -1,10 +1,13 @@
 import { BACKENDS, BROKERS, SCREENS } from "@workspace/backend-catalogue";
 import { getSettings, updateSettings, registerCapabilityStatesSanitizer, AI_PROVIDERS, type DeploymentState, type CapabilitySetting } from "./settings";
-import { isForbiddenKey, safeParseJson } from "./safe-json";
-import { recordAudit, createHttpSink, type HttpSink } from "./audit";
-import { sharedStateMode, sharedRingPush, sharedRingRead } from "./shared-state";
-import { logger } from "./logger";
-import { safeFetch, EgressError } from "./egress";
+import { isForbiddenKey } from "./safe-json";
+import { validEndpoint } from "./endpoint-probe";
+import { recordCapabilityEvent, STATES } from "./capability-log";
+// Endpoint validation + reachability probing live in endpoint-probe (network I/O); the activity/audit
+// ring + external sink live in capability-log (logging infrastructure). Both are kept out of capability
+// resolution and re-exported here so existing importers (routes/tools, tests) are unaffected.
+export { validEndpoint, checkEndpointReachable, type EndpointCheck } from "./endpoint-probe";
+export { recentCapabilityLog, recentCapabilityLogShared, __resetCapabilityLogSink, type CapabilityLogEntry } from "./capability-log";
 
 /**
  * Capability governance — one model for every "thing that can move data or be turned
@@ -205,18 +208,6 @@ export function listSurfaces(): { id: string; label: string }[] {
   return SCREENS.map((s) => ({ id: s.id, label: s.label }));
 }
 
-/** Validate a user-defined endpoint: a well-formed http(s) URL, or null. */
-export function validEndpoint(raw: string): string | null {
-  const t = raw.trim();
-  if (!t) return null;
-  try {
-    const u = new URL(t);
-    return u.protocol === "http:" || u.protocol === "https:" ? t.slice(0, 2048) : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Normalise a client-supplied surface (which may be a route path like "/reports") to
  * a canonical screen id from the registry, so per-surface overrides always match. An
@@ -232,34 +223,6 @@ export function screenIdForRoute(input?: string): string | undefined {
   if (exact) return exact.id;
   const suffix = SCREENS.filter((s) => norm(s.route) !== "/").find((s) => path.endsWith(norm(s.route)));
   return suffix?.id;
-}
-
-export interface EndpointCheck {
-  reachable: boolean;
-  status?: number;
-  error?: string;
-}
-
-/** Probe a user-defined endpoint: any HTTP response = reachable; a network error or
- *  timeout = not. Admin-initiated (like the connection test), with a short timeout. */
-export async function checkEndpointReachable(url: string, timeoutMs = 3000): Promise<EndpointCheck> {
-  const valid = validEndpoint(url);
-  if (!valid) return { reachable: false, error: "not a valid http(s) URL" };
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    // safeFetch applies the FULL egress guard (literal block + post-DNS recheck + allowlist/residency)
-    // AND pins the connection to the validated IPs + re-validates every redirect hop — so the admin
-    // reachability-tester can't be turned into an SSRF/DNS-rebind/redirect probe of cloud metadata. A
-    // bare `fetch` after a one-shot check would re-resolve at connect time and follow redirects unchecked.
-    const res = await safeFetch(valid, { method: "GET", signal: controller.signal });
-    return { reachable: true, status: res.status };
-  } catch (err) {
-    if (err instanceof EgressError) return { reachable: false, error: "blocked: egress not allowed (link-local/metadata or policy)" };
-    return { reachable: false, error: err instanceof Error ? err.message : "unreachable" };
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 export interface Actor {
@@ -289,136 +252,6 @@ export class CapabilityBlockedError extends Error {
     this.id = id;
     this.surface = surface;
   }
-}
-
-/** One entry in the live capability activity log (for the admin dashboard). */
-export interface CapabilityLogEntry {
-  ts: string;
-  action: "use" | "blocked" | "configured";
-  capability: string;
-  kind: CapabilityKind | null;
-  surface: string | null;
-  state: DeploymentState;
-  actor: string | null;
-}
-
-/**
- * The governance decision log — every capability use/block/config decision. It is a RAM-only
- * ~200-entry ring by default (fast, per-replica, gone on restart). Two OPT-IN layers extend it
- * without changing that default:
- *
- *  - DURABILITY: set CAPABILITY_LOG_HTTP_URL (+ optional CAPABILITY_LOG_HTTP_TOKEN) to POST each
- *    decision to an external append/SIEM sink (NDJSON, batched, best-effort) — mirrors audit.ts.
- *  - FLEET-SHARING: when REDIS_URL is set, each decision is also mirrored into a shared ring, so
- *    `recentCapabilityLogShared()` reflects the whole fleet's decisions, not just this replica's.
- *
- * The RAM ring stays as the fast local cache in every mode.
- */
-const LOG_MAX = 200;
-const SHARED_LOG_PREFIX = "cap:log:";
-const activityLog: CapabilityLogEntry[] = [];
-
-let logSink: HttpSink<CapabilityLogEntry> | null = null;
-function ensureLogSink(): HttpSink<CapabilityLogEntry> | null {
-  const url = process.env["CAPABILITY_LOG_HTTP_URL"]?.trim();
-  if (!url) return null;
-  if (!logSink) {
-    const token = process.env["CAPABILITY_LOG_HTTP_TOKEN"]?.trim();
-    logSink = createHttpSink<CapabilityLogEntry>({ url, ...(token !== undefined ? { token } : {}), batch: Number(process.env["CAPABILITY_LOG_BATCH"]) || 50 });
-  }
-  return logSink;
-}
-
-function pushLog(entry: CapabilityLogEntry): void {
-  activityLog.push(entry); // fast local cache (unchanged default behaviour)
-  if (activityLog.length > LOG_MAX) activityLog.shift();
-  // Opt-in durability: ship to the external append sink when configured.
-  ensureLogSink()?.enqueue(entry);
-  // Opt-in fleet-sharing: mirror into the shared ring (best-effort) when Redis-backed.
-  if (sharedStateMode() === "redis") {
-    void sharedRingPush(SHARED_LOG_PREFIX, JSON.stringify(entry), LOG_MAX).catch((err) =>
-      logger.warn({ err }, "capability log: shared mirror failed"));
-  }
-}
-
-/** Recent capability activity (uses, blocks, config changes), newest first — the fast LOCAL
- *  (per-replica) RAM ring. Unchanged; a sync fast path for callers that don't need the fleet view. */
-export function recentCapabilityLog(): CapabilityLogEntry[] {
-  return [...activityLog].reverse();
-}
-
-const LOG_ACTIONS = new Set<CapabilityLogEntry["action"]>(["use", "blocked", "configured"]);
-const CAP_KINDS = new Set<CapabilityKind>(["ai-tool", "mcp", "ai-provider", "vendor", "broker"]);
-
-/** Validate ONE fleet-shared capability-log entry before it's shown on the admin governance dashboard.
- *  A shared-ring entry is written by ANOTHER replica (Redis) ⇒ untrusted input: parse prototype-safe,
- *  bound every string, and coerce each field to its type/enum, dropping a malformed entry rather than
- *  failing the whole read. Mirrors broker-log's sanitizeRemoteEntry — it can't stop a plausible forgery
- *  (inherent to a shared bus) but it stops injection / type-confusion / prototype-pollution. */
-function sanitizeSharedLogEntry(rawJson: string): CapabilityLogEntry | null {
-  let o: unknown;
-  try { o = safeParseJson<unknown>(rawJson); } catch { return null; }
-  if (!o || typeof o !== "object") return null;
-  const r = o as Record<string, unknown>;
-  const str = (v: unknown, n: number): string | null => (typeof v === "string" ? v.slice(0, n) : null);
-  const ts = str(r["ts"], 40);
-  if (!ts) return null; // a well-formed entry must at least carry a timestamp
-  return {
-    ts,
-    action: LOG_ACTIONS.has(r["action"] as CapabilityLogEntry["action"]) ? (r["action"] as CapabilityLogEntry["action"]) : "use",
-    capability: str(r["capability"], 200) ?? "",
-    kind: CAP_KINDS.has(r["kind"] as CapabilityKind) ? (r["kind"] as CapabilityKind) : null,
-    surface: str(r["surface"], 200),
-    state: STATES.includes(r["state"] as DeploymentState) ? (r["state"] as DeploymentState) : "off",
-    actor: str(r["actor"], 200),
-  };
-}
-
-/** Recent capability activity across the FLEET (newest first) when Redis-backed; otherwise the
- *  local ring. Falls back to the local ring if the shared read fails, so it never throws. */
-export async function recentCapabilityLogShared(): Promise<CapabilityLogEntry[]> {
-  if (sharedStateMode() !== "redis") return recentCapabilityLog();
-  try {
-    const raw = await sharedRingRead(SHARED_LOG_PREFIX, LOG_MAX);
-    // Each entry is sibling-written untrusted input — validate + drop malformed rather than trust the cast.
-    return raw.map((v) => sanitizeSharedLogEntry(v)).filter((e): e is CapabilityLogEntry => e !== null).reverse();
-  } catch (err) {
-    logger.warn({ err }, "capability log: shared read failed — using local ring");
-    return recentCapabilityLog();
-  }
-}
-
-/** Test-only: reset the external log sink (so an env change is re-read). */
-export function __resetCapabilityLogSink(): void { logSink = null; }
-
-const actorLabel = (a?: Actor | null): string | null => a?.email ?? a?.sub ?? null;
-
-/** Record one capability event to BOTH the audit log and the live activity ring, sharing the
- *  timestamp between them — the pair every capability event (a use/block decision, an admin
- *  reconfiguring one) writes, differing only in the action name(s), the audit `result`, and
- *  the audit `meta` shape. */
-function recordCapabilityEvent(opts: {
-  auditAction: string;
-  logAction: CapabilityLogEntry["action"];
-  id: string;
-  kind: CapabilityKind | null;
-  surface: string | null;
-  state: DeploymentState;
-  actor?: Actor | null | undefined;
-  result?: "success" | "error";
-  meta: Record<string, unknown>;
-}): void {
-  const ts = new Date().toISOString();
-  recordAudit({
-    ts,
-    category: "admin",
-    action: opts.auditAction,
-    actor: opts.actor ?? null,
-    write: true,
-    ...(opts.result ? { result: opts.result } : {}),
-    meta: opts.meta,
-  });
-  pushLog({ ts, action: opts.logAction, capability: opts.id, kind: opts.kind, surface: opts.surface, state: opts.state, actor: actorLabel(opts.actor) });
 }
 
 /**
@@ -463,8 +296,6 @@ export function enforceCapability(id: string, opts: { surface?: string | undefin
   if (!decision.allowed) throw new CapabilityBlockedError(id, decision.surface);
   return decision;
 }
-
-const STATES: readonly DeploymentState[] = ["off", "user-defined", "public"];
 
 /** Coerce an admin's input for one capability to a valid, supportable setting. */
 export function sanitizeCapabilitySetting(cap: GovernedCapability, input: unknown): CapabilitySetting {

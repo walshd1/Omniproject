@@ -8,7 +8,7 @@ import { isDone, isTaskClosed } from "../vocabulary";
  * interface — it talks to ANY backing store through this small async CRUD contract. Swap the store,
  * keep the broker:
  *   - `MemoryStore` (here): zero-dependency, non-persistent — for tests and ephemeral use.
- *   - `PostgresStore` (follow-up): the same contract over `@workspace/db` — a real, durable,
+ *   - `PostgresStore` (follow-up): the same contract over a real SQL client — a durable,
  *     customer-owned system of record.
  *
  * Async throughout so a SQL store drops in unchanged. Optimistic concurrency on issue updates

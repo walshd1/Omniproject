@@ -8,6 +8,7 @@ import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { Badge } from "../tiles/Badge";
 import { usePortfolioItems } from "./use-portfolio-items";
+import { classifyStage } from "../../lib/status-vocab";
 
 /**
  * Value Stream Flow (value-stream / flow metrics) — groups every work item by its value stream (or, when a
@@ -39,14 +40,11 @@ export interface FlowItem {
 export type FlowState = "wip" | "done" | "other";
 
 /** Bucket a free-form backend status into a flow state (backend vocabulary preserved). Conventional buckets
- *  are backlog/todo/in_progress/in_review/done/cancelled, but any backend's own words are matched by shape. */
+ *  are backlog/todo/in_progress/in_review/done/cancelled, but any backend's own words are matched by shape.
+ *  Cancelled work has left the value stream, so it collapses into "other" alongside backlog/todo. */
 export function flowState(status?: string | null): FlowState {
-  const s = (status ?? "").toLowerCase().trim();
-  if (!s) return "other";
-  if (/cancel|abandon|reject|won.?t.?do/.test(s)) return "other";
-  if (/done|complete|closed|resolved|shipped|deployed|released|finish/.test(s)) return "done";
-  if (/progress|review|doing|active|develop|testing|qa|build|wip|started/.test(s)) return "wip";
-  return "other";
+  const stage = classifyStage(status);
+  return stage === "cancelled" ? "other" : stage;
 }
 
 /** Parse a backend date string to epoch ms, or null when it's absent / unparseable — the single guard that

@@ -3,7 +3,7 @@
  * INJECTED for testability; `dynamoDocFromEnv` builds the real one. Below-the-seam SDK code.
  */
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, QueryCommand, DeleteCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import type { SkQuery, TableItem, TableStorePort } from "../contract";
 
 export interface DynamoPortConfig {
@@ -48,6 +48,24 @@ export function dynamoTableStorePort(cfg: DynamoPortConfig): TableStorePort {
         if (q.limit !== undefined && out.length >= q.limit) break;
       } while (startKey);
       return q.limit !== undefined ? out.slice(0, q.limit) : out;
+    },
+    async deleteItem(pk: string, sk: string) {
+      await doc.send(new DeleteCommand({ TableName: table, Key: { pk, sk } }));
+    },
+    async scanAll(): Promise<TableItem[]> {
+      const out: TableItem[] = [];
+      let startKey: Record<string, unknown> | undefined;
+      do {
+        const res = await doc.send(
+          new ScanCommand({
+            TableName: table,
+            ...(startKey ? { ExclusiveStartKey: startKey } : {}),
+          }),
+        );
+        for (const it of res.Items ?? []) out.push({ pk: String(it["pk"]), sk: String(it["sk"]), data: it["data"] });
+        startKey = res.LastEvaluatedKey as Record<string, unknown> | undefined;
+      } while (startKey);
+      return out;
     },
   };
 }

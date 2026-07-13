@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { foldRemotePresence, localPresenceForHeartbeat, registerPresencePublisher, type PresenceEvent } from "./presence-hub";
 import { RedisBus } from "./redis-bus";
 import { safeParseJson } from "./safe-json";
+import { lazySingleton } from "./lazy-singleton";
 
 /**
  * Presence fan-out bus — makes live-collaboration presence (rosters + advisory editing indicators)
@@ -89,13 +90,12 @@ export class PresenceBus extends RedisBus {
   }
 }
 
-let bus: PresenceBus | null = null;
+const busSingleton = lazySingleton(() => new PresenceBus());
 
 /** Construct (idempotently) and return the presence bus. Calling this at boot is what makes a
  *  replica start RECEIVING the fleet's presence changes — do it early. */
 export function initPresenceBus(): PresenceBus {
-  if (!bus) bus = new PresenceBus();
-  return bus;
+  return busSingleton.get();
 }
 
 /** Which fan-out backend presence uses: in-process or Redis. */

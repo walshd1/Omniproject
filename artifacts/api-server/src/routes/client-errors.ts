@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getSettings } from "../lib/settings";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordRequestAudit } from "../lib/audit";
 
 /**
  * Client-error telemetry sink — an ADMIN-GATED, INTERNAL-only report channel.
@@ -39,11 +39,9 @@ router.post("/client-errors", (req, res) => {
   const page = clip(body["page"], 200);
   const componentStack = clip(body["componentStack"], 4000);
 
-  recordAudit({
-    ts: new Date().toISOString(),
+  recordRequestAudit(req, {
     category: "admin",
     action: "client.error",
-    actor: actorForAudit(req),
     ip: req.ip,
     result: "error",
     // write:true so the report is captured at the default AUDIT_LEVEL ("writes") — the record IS

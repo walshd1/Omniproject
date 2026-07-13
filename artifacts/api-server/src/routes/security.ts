@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireRole } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { getSession } from "./auth";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordRequestAudit } from "../lib/audit";
 import { internalKeyFingerprint } from "../lib/config-crypto";
 import { exportConfig } from "../lib/config-store";
 import { persistSecurityState } from "../lib/security-state";
@@ -42,7 +42,7 @@ function actorOf(req: Request): Actor { const s = getSession(req); return { sub:
 async function heldForDualControl(action: string, params: unknown, req: Request, res: Response): Promise<boolean> {
   if (!requiresDualControl(action)) return false;
   const p = await propose(action, params, actorOf(req), new Date().toISOString());
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action: `${action}.proposed`, actor: actorForAudit(req), write: true, result: "success", meta: { proposalId: p.id } });
+  recordRequestAudit(req, { category: "admin", action: `${action}.proposed`, write: true, result: "success", meta: { proposalId: p.id } });
   res.status(202).json({ pending: true, proposalId: p.id, message: "A second admin must approve this change before it takes effect." });
   return true;
 }
@@ -74,7 +74,7 @@ router.post("/security/keys/:name/revoke", requireRole("admin"), requireStepUp, 
   if (await heldForDualControl("key.revoke", { name, by: session?.sub ?? null, reason }, req, res)) return;
   const status = revokeKey(name, { by: session?.sub ?? null, reason });
   persistSecurityState(); // a revocation must survive a restart
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "key.revoke", actor: actorForAudit(req), write: true, meta: { key: name, newVersion: status.version, reason: reason ?? null } });
+  recordRequestAudit(req, { category: "admin", action: "key.revoke", write: true, meta: { key: name, newVersion: status.version, reason: reason ?? null } });
   res.json({ status });
 });
 
@@ -85,7 +85,7 @@ router.post("/security/sessions/revoke-user", requireRole("admin"), requireStepU
   revokeUserSessions(sub);
   persistSecurityState();
   const session = getSession(req);
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "sessions.revoke-user", actor: actorForAudit(req), write: true, meta: { sub } });
+  recordRequestAudit(req, { category: "admin", action: "sessions.revoke-user", write: true, meta: { sub } });
   res.json({ ok: true });
 });
 
@@ -101,7 +101,7 @@ router.get("/security/config-key", requireRole("admin"), (_req, res) => {
 router.post("/security/config/export", requireRole("admin"), requireStepUp, (req, res) => {
   const out = exportConfig();
   const session = getSession(req);
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "config.export", actor: actorForAudit(req), write: true, result: "success", meta: { fromVersion: out.fromVersion, toVersion: out.toVersion, fingerprint: internalKeyFingerprint() } });
+  recordRequestAudit(req, { category: "admin", action: "config.export", write: true, result: "success", meta: { fromVersion: out.fromVersion, toVersion: out.toVersion, fingerprint: internalKeyFingerprint() } });
   res.json({
     bundle: out.bundle,
     exportKey: out.exportKey,
@@ -128,7 +128,7 @@ router.put("/admin/maintenance", requireRole("admin"), requireStepUp, async (req
   if (engage) engageMaintenance(reason); else releaseMaintenance();
   persistSecurityState();
   const session = getSession(req);
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action: engage ? "maintenance.engage" : "maintenance.release", actor: actorForAudit(req), write: true, result: "success", meta: { reason } });
+  recordRequestAudit(req, { category: "admin", action: engage ? "maintenance.engage" : "maintenance.release", write: true, result: "success", meta: { reason } });
   res.json({ engaged: maintenanceEngaged(), reason: maintenanceReason() });
 });
 
@@ -149,7 +149,7 @@ router.get("/security/dsar", requireRole("admin"), (req, res) => {
   if (!sub && !email) { res.status(400).json({ error: "Provide ?sub= and/or ?email= for the data subject." }); return; }
   const report = buildDsarReport({ sub, email }, Date.now());
   const session = getSession(req);
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "dsar.report", actor: actorForAudit(req), write: false, result: "success", meta: { subjectSub: sub ?? null, subjectEmail: email ?? null } });
+  recordRequestAudit(req, { category: "admin", action: "dsar.report", write: false, result: "success", meta: { subjectSub: sub ?? null, subjectEmail: email ?? null } });
   res.json({ report, summary: dsarSummaryText(report) });
 });
 
@@ -168,11 +168,11 @@ router.post("/security/data-residency/validate", requireRole("admin"), requireSt
   const session = getSession(req);
   try {
     const policy = validateResidencyPolicy((req.body ?? {}) as unknown);
-    recordAudit({ ts: new Date().toISOString(), category: "admin", action: "data_residency.policy.validate", actor: actorForAudit(req), write: false, result: "success", meta: { regions: Object.keys(policy.regions), allowed: policy.allowed } });
+    recordRequestAudit(req, { category: "admin", action: "data_residency.policy.validate", write: false, result: "success", meta: { regions: Object.keys(policy.regions), allowed: policy.allowed } });
     res.json({ ok: true, regions: Object.keys(policy.regions), allowed: policy.allowed });
   } catch (e) {
     if (!(e instanceof ValidationError)) throw e;
-    recordAudit({ ts: new Date().toISOString(), category: "admin", action: "data_residency.policy.validate", actor: actorForAudit(req), write: false, result: "error", meta: { issues: e.issues } });
+    recordRequestAudit(req, { category: "admin", action: "data_residency.policy.validate", write: false, result: "error", meta: { issues: e.issues } });
     res.status(400).json({ ok: false, issues: e.issues });
   }
 });
@@ -209,7 +209,7 @@ router.post("/admin/approvals/:id/approve", requireRole("admin"), requireStepUp,
   const id = String(req.params["id"]);
   const result = await approve(id, actorOf(req), new Date().toISOString());
   if (!result.ok) { res.status(/different admin|executor/i.test(result.error ?? "") ? 409 : 404).json({ error: result.error }); return; }
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "approval.approve", actor: actorForAudit(req), write: true, result: "success", meta: { proposalId: id, approved: result.proposal?.action } });
+  recordRequestAudit(req, { category: "admin", action: "approval.approve", write: true, result: "success", meta: { proposalId: id, approved: result.proposal?.action } });
   res.json({ ok: true, proposal: result.proposal });
 });
 
@@ -218,7 +218,7 @@ router.post("/admin/approvals/:id/reject", requireRole("admin"), requireStepUp, 
   const id = String(req.params["id"]);
   const result = await reject(id, actorOf(req), new Date().toISOString());
   if (!result.ok) { res.status(404).json({ error: result.error }); return; }
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action: "approval.reject", actor: actorForAudit(req), write: true, result: "success", meta: { proposalId: id } });
+  recordRequestAudit(req, { category: "admin", action: "approval.reject", write: true, result: "success", meta: { proposalId: id } });
   res.json({ ok: true, proposal: result.proposal });
 });
 
