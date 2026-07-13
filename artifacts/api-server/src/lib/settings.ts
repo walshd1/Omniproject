@@ -806,131 +806,296 @@ function enabledFeaturesFromEnv(): string[] {
 }
 
 const initialProfile = coerceProfile(process.env["DEPLOYMENT_PROFILE"]);
-const store: SettingsState = {
-  brokerUrl: process.env["BROKER_URL"]?.trim() || null,
-  aiProvider: coerceAiProvider(process.env["AI_PROVIDER"]?.trim() || "none"),
-  sttProvider: coerceSttProvider(process.env["STT_PROVIDER"]?.trim() || "none"),
-  // Omit (rather than set undefined) when no profile is configured — exactOptionalPropertyTypes.
-  ...(initialProfile !== undefined ? { deploymentProfile: initialProfile } : {}),
-  aiModel: process.env["AI_MODEL"] ?? null,
-  backendSource: process.env["BACKEND_SOURCE"]?.trim() || "all",
-  reportingCurrency: process.env["REPORTING_CURRENCY"]?.trim().toUpperCase() || null,
-  fxRatePolicy: coerceFxRatePolicy(process.env["FX_RATE_POLICY"]?.trim()),
-  fxRateAsOfDate: process.env["FX_RATE_AS_OF_DATE"]?.trim() || null,
-  oidcIssuerUrl: process.env["OIDC_ISSUER_URL"] ?? null,
-  // Off unless an admin opts in (or the env seeds it for a fresh boot).
-  errorTelemetry: isTruthy(process.env["ERROR_TELEMETRY"]),
-  branding: brandingFromEnv(),
-  labelOverrides: labelsFromEnv(),
-  priorityLabels: {},
-  fieldRouting: [],
-  customFields: [],
-  fieldValidation: [],
-  programmeRegistry: {},
-  brokerKinds: brokerKindsFromEnv(), // env SEEDS the default; the setting owns it thereafter
-  closedProjects: {},
-  guidAliases: {},
-  retiredGuids: [],
-  webhooks: webhooksFromEnv(),
-  federatedPeers: peersFromEnv(),
-  loggingSync: loggingSyncFromEnv(),
-  selfHost: { ...DEFAULT_SELF_HOST },
-  historyRetention: { ...DEFAULT_HISTORY_RETENTION },
-  digestDelivery: digestDeliveryFromEnv(),
-  skillsPlanning: { matrix: [], demand: [] },
-  fieldOverrides: { fields: {}, entities: {} },
-  screenLayouts: {},
-  userPrefs: {},
-  calendarPush: {},
-  capabilityStates: {},
-  disabledFeatures: disabledFeaturesFromEnv(),
-  enabledFeatures: enabledFeaturesFromEnv(),
-  featureGovernance: { required: [], forbidden: [] },
-  programmeFeatures: {},
-  projectFeatures: {},
-  governanceRules: [],
-  hiddenFields: [],
-  savedViews: [],
-  customReports: [],
-  reportOverrides: [],
-  methodologyComposition: null,
-  dashboards: [],
-  contentPages: [],
-  priorityWeights: { ...DEFAULT_PRIORITY_WEIGHTS },
+
+// ── Field registry ──────────────────────────────────────────────────────────────
+// ONE descriptor per persisted setting drives the three things that used to be maintained
+// separately — and drifted, which is why a bespoke compile-time guard had to exist: the env-seeded
+// store default, the writable-key allow-list, and the bulk-PATCH validator. Adding a field now means
+// adding ONE entry here; the `{ [K in keyof SettingsState]: … }` type makes a missing field a compile
+// error, so the store, ALLOWED_KEYS and validatePatch can never again disagree about which fields
+// exist (the old `_MissingSettingsKeys` guard is gone — the mapped type IS the guard).
+
+/** How one setting is seeded, allow-listed, and validated. `validate` runs on the bulk-PATCH /
+ *  config-restore path: it returns the value to persist (possibly normalised) or throws
+ *  SettingsValidationError. CROSS-field rules (customFields↔routing, closedProjects↔retiredGuids)
+ *  are separate explicit post-validators in validatePatch — a per-field descriptor can't see its
+ *  siblings. */
+interface FieldDescriptor<K extends keyof SettingsState> {
+  seed: () => SettingsState[K];
+  validate: (value: unknown) => SettingsState[K];
+}
+
+/** Validator for a value confined to a fixed set of strings. `nullable` also accepts null/undefined
+ *  (the field left unset), matching the old `!= null && !valid → throw` deployment-profile check. */
+function enumField<T extends string>(field: string, values: readonly T[], opts: { nullable?: boolean } = {}) {
+  return (value: unknown): T => {
+    if (opts.nullable && value == null) return value as unknown as T;
+    if (!(values as readonly unknown[]).includes(value)) {
+      throw new SettingsValidationError(`${field} must be one of: ${values.join(", ")}`);
+    }
+    return value as T;
+  };
+}
+
+/** Validator for an outbound URL string (or null): must be a string and pass the SSRF/egress guard. */
+function urlField(field: string) {
+  return (value: unknown): string | null => {
+    if (value == null) return null;
+    if (typeof value !== "string") throw new SettingsValidationError(`${field} must be a string or null`);
+    try {
+      assertSafeOutboundUrl(value, field);
+    } catch (err) {
+      throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : `${field} is invalid`);
+    }
+    return value;
+  };
+}
+
+/** Validator for a `string[]` field (rejects non-arrays / non-string members). */
+function stringArrayField(field: string) {
+  return (value: unknown): string[] => {
+    if (!Array.isArray(value) || value.some((x) => typeof x !== "string")) {
+      throw new SettingsValidationError(`${field} must be an array of strings`);
+    }
+    return value as string[];
+  };
+}
+
+/** Adapt a validator that only THROWS on bad input (no normalisation) into a descriptor validator —
+ *  persists the dangerous-key-stripped value verbatim, exactly as the old `if (k in patch) checkX(...)`. */
+function shapeChecked<T>(assert: (value: unknown) => void) {
+  return (value: unknown): T => {
+    assert(value);
+    return value as T;
+  };
+}
+
+/** Adapt a validator that RETURNS a normalised value and throws a typed error, mapping that error to
+ *  the standard settings 400 (SettingsValidationError) while letting anything else propagate. */
+function normalisedBy<T>(run: (value: unknown) => T, ErrorClass: new (...args: never[]) => Error) {
+  return (value: unknown): T => {
+    try {
+      return run(value);
+    } catch (e) {
+      if (e instanceof ErrorClass) throw new SettingsValidationError((e as Error).message);
+      throw e;
+    }
+  };
+}
+
+const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
+  brokerUrl: { seed: () => process.env["BROKER_URL"]?.trim() || null, validate: urlField("brokerUrl") },
+  aiProvider: { seed: () => coerceAiProvider(process.env["AI_PROVIDER"]?.trim() || "none"), validate: enumField("aiProvider", AI_PROVIDERS) },
+  sttProvider: { seed: () => coerceSttProvider(process.env["STT_PROVIDER"]?.trim() || "none"), validate: enumField("sttProvider", STT_PROVIDERS) },
+  deploymentProfile: { seed: () => initialProfile, validate: enumField("deploymentProfile", DEPLOYMENT_PROFILES, { nullable: true }) },
+  aiModel: {
+    seed: () => process.env["AI_MODEL"] ?? null,
+    validate: (value) => {
+      if (value != null && typeof value !== "string") throw new SettingsValidationError("aiModel must be a string or null");
+      return (value ?? null) as string | null;
+    },
+  },
+  backendSource: {
+    seed: () => process.env["BACKEND_SOURCE"]?.trim() || "all",
+    validate: (value) => {
+      if (typeof value !== "string") throw new SettingsValidationError("backendSource must be a string");
+      return value;
+    },
+  },
+  reportingCurrency: {
+    seed: () => process.env["REPORTING_CURRENCY"]?.trim().toUpperCase() || null,
+    validate: (value) => {
+      if (value == null) return null;
+      if (typeof value !== "string" || (value !== "" && !/^[A-Za-z]{3}$/.test(value))) {
+        throw new SettingsValidationError("reportingCurrency must be a 3-letter ISO 4217 code (or null to clear)");
+      }
+      return value.toUpperCase() || null;
+    },
+  },
+  fxRatePolicy: { seed: () => coerceFxRatePolicy(process.env["FX_RATE_POLICY"]?.trim()), validate: enumField("fxRatePolicy", FX_RATE_POLICIES) },
+  fxRateAsOfDate: {
+    seed: () => process.env["FX_RATE_AS_OF_DATE"]?.trim() || null,
+    validate: (value) => {
+      if (value == null) return null;
+      if (typeof value !== "string" || (value !== "" && Number.isNaN(Date.parse(value)))) {
+        throw new SettingsValidationError("fxRateAsOfDate must be an ISO 8601 date string (or null to clear)");
+      }
+      return value || null;
+    },
+  },
+  oidcIssuerUrl: { seed: () => process.env["OIDC_ISSUER_URL"] ?? null, validate: urlField("oidcIssuerUrl") },
+  errorTelemetry: {
+    // Off unless an admin opts in (or the env seeds it for a fresh boot).
+    seed: () => isTruthy(process.env["ERROR_TELEMETRY"]),
+    validate: (value) => {
+      if (typeof value !== "boolean") throw new SettingsValidationError("errorTelemetry must be a boolean");
+      return value;
+    },
+  },
+  branding: {
+    // Branding's fontFamily is injected into an inline style, so the bulk PATCH / config restore must run
+    // it through the SAME sanitizer as saveBranding (http(s) URLs, hex colour, safe font stack, length caps).
+    seed: () => brandingFromEnv(),
+    validate: (value) => {
+      if (value == null) return null;
+      try {
+        return sanitizeBranding(value);
+      } catch (e) {
+        throw new SettingsValidationError(e instanceof Error ? e.message : "invalid branding");
+      }
+    },
+  },
+  labelOverrides: {
+    seed: () => labelsFromEnv(),
+    validate: (value) => {
+      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("labelOverrides must be an object");
+      // Same sanitizer saveLabels uses (catalogue allow-list + length cap), so a bulk PATCH can't persist
+      // non-catalogue keys or unbounded copy.
+      try {
+        return sanitizeLabels(value);
+      } catch (e) {
+        throw new SettingsValidationError(e instanceof Error ? e.message : "invalid labelOverrides");
+      }
+    },
+  },
+  priorityLabels: {
+    seed: () => ({}),
+    validate: (value) => {
+      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("priorityLabels must be an object");
+      const clean: Record<string, string> = {};
+      for (const [k, val] of Object.entries(value as Record<string, unknown>)) {
+        if (!(CANONICAL_PRIORITY as readonly string[]).includes(k)) throw new SettingsValidationError(`priorityLabels key "${k}" is not a canonical priority`);
+        if (val === undefined || val === null || val === "") continue; // empty ⇒ use the canonical name
+        if (typeof val !== "string") throw new SettingsValidationError(`priorityLabels["${k}"] must be a string`);
+        const t = val.trim();
+        if (t.length > 40) throw new SettingsValidationError(`priorityLabels["${k}"] is too long (max 40)`);
+        if (t) clean[k] = t;
+      }
+      return clean;
+    },
+  },
+  fieldRouting: {
+    // Anti-collision (one source → one UI element, both ways) lives in field-routing; surface its error
+    // as the standard settings 400, and persist the normalised (trimmed) map.
+    seed: () => [],
+    validate: normalisedBy((v) => validateFieldRouting(v), FieldRoutingError),
+  },
+  customFields: { seed: () => [], validate: normalisedBy((v) => validateCustomFields(v), CustomFieldError) },
+  fieldValidation: {
+    // Validate the rule DEFINITIONS (shape + patterns compile); values are enforced on the write path.
+    seed: () => [],
+    validate: normalisedBy((v) => validateFieldValidation(v), FieldValidationError),
+  },
+  programmeRegistry: { seed: () => ({}), validate: normalisedBy((v) => validateProgrammeRegistry(v), ProgrammeRegistryError) },
+  brokerKinds: {
+    seed: () => brokerKindsFromEnv(), // env SEEDS the default; the setting owns it thereafter
+    validate: normalisedBy((v) => validateBrokerKinds(v), BrokerKindsError),
+  },
+  closedProjects: { seed: () => ({}), validate: normalisedBy((v) => validateClosedProjects(v), ClosedProjectError) },
+  guidAliases: { seed: () => ({}), validate: normalisedBy((v) => validateGuidAliases(v), GuidAliasError) },
+  retiredGuids: {
+    seed: () => [],
+    validate: (value) => {
+      if (!isStringArray(value)) throw new SettingsValidationError("retiredGuids must be an array of strings");
+      return [...new Set((value as string[]).map((g) => g.trim()).filter(Boolean))];
+    },
+  },
+  webhooks: { seed: () => webhooksFromEnv(), validate: shapeChecked(validateWebhooks) },
+  federatedPeers: { seed: () => peersFromEnv(), validate: shapeChecked(validateFederatedPeers) },
+  loggingSync: { seed: () => loggingSyncFromEnv(), validate: shapeChecked(validateLoggingSync) },
+  selfHost: { seed: () => ({ ...DEFAULT_SELF_HOST }), validate: shapeChecked(validateSelfHost) },
+  historyRetention: { seed: () => ({ ...DEFAULT_HISTORY_RETENTION }), validate: shapeChecked(validateHistoryRetention) },
+  digestDelivery: { seed: () => digestDeliveryFromEnv(), validate: shapeChecked(validateDigestDelivery) },
+  skillsPlanning: { seed: () => ({ matrix: [], demand: [] }), validate: shapeChecked(validateSkillsPlanning) },
+  fieldOverrides: { seed: () => ({ fields: {}, entities: {} }), validate: shapeChecked(validateFieldOverrides) },
+  screenLayouts: {
+    seed: () => ({}),
+    validate: (value) => {
+      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("screenLayouts must be an object");
+      return validateScreenLayouts(value as Record<string, unknown>);
+    },
+  },
+  userPrefs: {
+    // Per-user accessibility prefs are written verbatim + read back raw, so sanitize every entry through
+    // the same clamps its dedicated route uses; drop forbidden keys.
+    seed: () => ({}),
+    validate: (value) => {
+      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("userPrefs must be an object");
+      const clean: Record<string, UserPrefs> = {};
+      for (const [sub, p] of Object.entries(value as Record<string, unknown>)) if (!isForbiddenKey(sub)) clean[sub] = sanitizeUserPrefs(p);
+      return clean;
+    },
+  },
+  calendarPush: {
+    // Per-user calendar consent: sanitize every entry (the consent invariant + server-stamped grantedAt)
+    // so a bulk PATCH can't forge a "granted" consent for another user's sub.
+    seed: () => ({}),
+    validate: (value) => {
+      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("calendarPush must be an object");
+      const nowIso = new Date().toISOString();
+      const clean: Record<string, CalendarPushGrant> = {};
+      for (const [sub, g] of Object.entries(value as Record<string, unknown>)) if (!isForbiddenKey(sub)) clean[sub] = sanitizeGrant(g, nowIso);
+      return clean;
+    },
+  },
+  capabilityStates: {
+    // capabilityStates has a dedicated, step-up'd admin route running each entry through
+    // sanitizeCapabilitySetting. A bulk PATCH / config restore reaches the SAME stored map, so it must
+    // apply the SAME per-entry guards (via the injected sanitizer); the shape-check stays the floor for
+    // the test-only case where governance hasn't registered it yet.
+    seed: () => ({}),
+    validate: (value) => {
+      if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("capabilityStates must be an object");
+      return (capabilityStatesSanitizer ? capabilityStatesSanitizer(value as Record<string, unknown>) : (value as Record<string, unknown>)) as Record<string, CapabilitySetting>;
+    },
+  },
+  disabledFeatures: { seed: () => disabledFeaturesFromEnv(), validate: stringArrayField("disabledFeatures") },
+  enabledFeatures: { seed: () => enabledFeaturesFromEnv(), validate: stringArrayField("enabledFeatures") },
+  featureGovernance: { seed: () => ({ required: [], forbidden: [] }), validate: shapeChecked((v) => validateGovernance(v, "featureGovernance")) },
+  programmeFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "programmeFeatures")) },
+  projectFeatures: { seed: () => ({}), validate: shapeChecked((v) => validateScopeFeatureMap(v, "projectFeatures")) },
+  governanceRules: { seed: () => [], validate: shapeChecked((v) => validateGovernanceRules(v, "governanceRules")) },
+  hiddenFields: { seed: () => [], validate: stringArrayField("hiddenFields") },
+  savedViews: { seed: () => [], validate: shapeChecked(validateSavedViews) },
+  customReports: { seed: () => [], validate: shapeChecked(validateCustomReports) },
+  reportOverrides: { seed: () => [], validate: shapeChecked(validateReportOverrides) },
+  methodologyComposition: {
+    seed: () => null,
+    validate: (value) => {
+      if (value !== null && (!Array.isArray(value) || value.some((x) => typeof x !== "string"))) {
+        throw new SettingsValidationError("methodologyComposition must be null or an array of strings");
+      }
+      return value as string[] | null;
+    },
+  },
+  dashboards: { seed: () => [], validate: shapeChecked(validateDashboards) },
+  contentPages: { seed: () => [], validate: shapeChecked(validateContentPages) },
+  priorityWeights: { seed: () => ({ ...DEFAULT_PRIORITY_WEIGHTS }), validate: shapeChecked(validatePriorityWeights) },
 };
+
+// The mutable in-memory store, seeded once from the descriptors. An undefined seed (deploymentProfile
+// when no profile is configured) is OMITTED rather than stored as `undefined` — exactOptionalPropertyTypes.
+const store: SettingsState = (() => {
+  const seeded: Record<string, unknown> = {};
+  for (const [key, descriptor] of Object.entries(FIELD_DESCRIPTORS)) {
+    const value = descriptor.seed();
+    if (value !== undefined) seeded[key] = value;
+  }
+  return seeded as unknown as SettingsState;
+})();
 
 /** True when historical time-travel is available (operator opted into egress). */
 export function isTimeTravelEnabled(): boolean {
   return store.loggingSync.enabled;
 }
 
+// The writable-key allow-list, DERIVED from the field registry so it can never drift from the store
+// seed or the validators (which is what retired the bespoke `_MissingSettingsKeys` compile-time guard
+// this used to need: with one source of truth there are no longer three lists to keep in sync).
 // Exported so the settings-sanitizer coverage ratchet (settings-sanitizer-coverage.test.ts) can iterate
 // EVERY persisted field and prove none is a prototype-pollution / dangerous-key sink on the bulk-PATCH
 // path — a new field is automatically probed, no per-field test to remember.
-export const ALLOWED_KEYS: (keyof SettingsState)[] = [
-  "brokerUrl",
-  "aiProvider",
-  "sttProvider",
-  "deploymentProfile",
-  "aiModel",
-  "backendSource",
-  "reportingCurrency",
-  "fxRatePolicy",
-  "fxRateAsOfDate",
-  "oidcIssuerUrl",
-  "errorTelemetry",
-  "branding",
-  "labelOverrides",
-  "priorityLabels",
-  "fieldRouting",
-  "customFields",
-  "fieldValidation",
-  "programmeRegistry",
-  "brokerKinds",
-  "closedProjects",
-  "guidAliases",
-  "retiredGuids",
-  "webhooks",
-  "federatedPeers",
-  "loggingSync",
-  "selfHost",
-  "historyRetention",
-  "digestDelivery",
-  "skillsPlanning",
-  "fieldOverrides",
-  "screenLayouts",
-  "userPrefs",
-  "calendarPush",
-  "capabilityStates",
-  "disabledFeatures",
-  "enabledFeatures",
-  "featureGovernance",
-  "programmeFeatures",
-  "projectFeatures",
-  "governanceRules",
-  "hiddenFields",
-  "savedViews",
-  "customReports",
-  "reportOverrides",
-  "methodologyComposition",
-  "dashboards",
-  "contentPages",
-  "priorityWeights",
-];
-
-// ── Compile-time drift guard ────────────────────────────────────────────────────
-// `updateSettings` only persists keys present in ALLOWED_KEYS, so a field added to SettingsState
-// (and the store) but FORGOTTEN here would be accepted by PATCH /settings, echoed back in the
-// response, and silently never written — the exact silent-persist-failure class documented at
-// `validatePatch`. ALLOWED_KEYS is already typed `(keyof SettingsState)[]`, which stops a stray key
-// that isn't a real field; this asserts the OTHER direction — that every field is covered. If a new
-// SettingsState field is not added above, `_MissingSettingsKeys` becomes that key (not `never`) and
-// the assignment below fails to type-check with the offending key named in the error.
-type _MissingSettingsKeys = Exclude<keyof SettingsState, (typeof ALLOWED_KEYS)[number]>;
-const _allSettingsKeysAreWritable: _MissingSettingsKeys extends never
-  ? true
-  : ["ALLOWED_KEYS is missing settings field(s):", _MissingSettingsKeys] = true;
-void _allSettingsKeysAreWritable;
+export const ALLOWED_KEYS = Object.keys(FIELD_DESCRIPTORS) as (keyof SettingsState)[];
 
 /** A snapshot copy of the current in-memory settings (never the live reference). */
 export function getSettings(): SettingsState {
@@ -1382,148 +1547,17 @@ function validatePatch(rawPatch: Record<string, unknown>): Record<string, unknow
   // at the single write gate. Pure — the caller's object is never mutated.
   const patch = stripDangerousKeysDeep(rawPatch);
   const normalized: Record<string, unknown> = { ...patch };
-  if ("aiProvider" in patch && !(AI_PROVIDERS as readonly string[]).includes(patch["aiProvider"] as string)) {
-    throw new SettingsValidationError(`aiProvider must be one of: ${AI_PROVIDERS.join(", ")}`);
+  // Per-field validation is dispatched from FIELD_DESCRIPTORS — one validator per field that throws
+  // SettingsValidationError on bad input and returns the value to persist (possibly normalised). Iterated
+  // in ALLOWED_KEYS (registry) order so the outcome is deterministic; keys not in the registry (unknown
+  // fields) are left untouched in `normalized` — updateSettings only ever writes ALLOWED_KEYS.
+  for (const [key, descriptor] of Object.entries(FIELD_DESCRIPTORS)) {
+    if (key in patch) normalized[key] = descriptor.validate(patch[key]);
   }
-  if ("sttProvider" in patch && !(STT_PROVIDERS as readonly string[]).includes(patch["sttProvider"] as string)) {
-    throw new SettingsValidationError(`sttProvider must be one of: ${STT_PROVIDERS.join(", ")}`);
-  }
-  if ("deploymentProfile" in patch && patch["deploymentProfile"] != null && !(DEPLOYMENT_PROFILES as readonly string[]).includes(patch["deploymentProfile"] as string)) {
-    throw new SettingsValidationError(`deploymentProfile must be one of: ${DEPLOYMENT_PROFILES.join(", ")}`);
-  }
-  if ("reportingCurrency" in patch && patch["reportingCurrency"] != null) {
-    const v = patch["reportingCurrency"];
-    if (typeof v !== "string" || (v !== "" && !/^[A-Za-z]{3}$/.test(v))) {
-      throw new SettingsValidationError("reportingCurrency must be a 3-letter ISO 4217 code (or null to clear)");
-    }
-    normalized["reportingCurrency"] = v.toUpperCase() || null;
-  }
-  if ("fxRatePolicy" in patch && !(FX_RATE_POLICIES as readonly string[]).includes(patch["fxRatePolicy"] as string)) {
-    throw new SettingsValidationError(`fxRatePolicy must be one of: ${FX_RATE_POLICIES.join(", ")}`);
-  }
-  if ("fxRateAsOfDate" in patch && patch["fxRateAsOfDate"] != null) {
-    const v = patch["fxRateAsOfDate"];
-    if (typeof v !== "string" || (v !== "" && Number.isNaN(Date.parse(v)))) {
-      throw new SettingsValidationError("fxRateAsOfDate must be an ISO 8601 date string (or null to clear)");
-    }
-    normalized["fxRateAsOfDate"] = v || null;
-  }
-  for (const key of ["brokerUrl", "oidcIssuerUrl"] as const) {
-    if (key in patch && patch[key] != null) {
-      if (typeof patch[key] !== "string") throw new SettingsValidationError(`${key} must be a string or null`);
-      try {
-        assertSafeOutboundUrl(patch[key] as string, key);
-      } catch (err) {
-        throw new SettingsValidationError(err instanceof UnsafeUrlError ? err.message : `${key} is invalid`);
-      }
-    }
-  }
-  if ("webhooks" in patch) validateWebhooks(patch["webhooks"]);
-  if ("federatedPeers" in patch) validateFederatedPeers(patch["federatedPeers"]);
-  // Branding is served to the SPA and its fontFamily is injected into an inline style, so the bulk PATCH
-  // (and config-snapshot restore) must run it through the SAME sanitizer as saveBranding — else the
-  // per-field checks (http(s) URLs, hex colour, safe font stack, length caps) are bypassed. Sanitize,
-  // don't just shape-check.
-  if ("branding" in patch) {
-    if (patch["branding"] == null) normalized["branding"] = null;
-    else {
-      try { normalized["branding"] = sanitizeBranding(patch["branding"]); }
-      catch (e) { throw new SettingsValidationError(e instanceof Error ? e.message : "invalid branding"); }
-    }
-  }
-  if ("labelOverrides" in patch) {
-    if (typeof patch["labelOverrides"] !== "object" || patch["labelOverrides"] == null || Array.isArray(patch["labelOverrides"])) {
-      throw new SettingsValidationError("labelOverrides must be an object");
-    }
-    // Run the SAME sanitizer saveLabels uses (catalogue allow-list + length cap), not just a string
-    // filter — so the bulk PATCH / config restore can't persist non-catalogue keys or unbounded copy.
-    try { normalized["labelOverrides"] = sanitizeLabels(patch["labelOverrides"]); }
-    catch (e) { throw new SettingsValidationError(e instanceof Error ? e.message : "invalid labelOverrides"); }
-  }
-  if ("priorityLabels" in patch) {
-    const v = patch["priorityLabels"];
-    if (typeof v !== "object" || v == null || Array.isArray(v)) throw new SettingsValidationError("priorityLabels must be an object");
-    const clean: Record<string, string> = {};
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-      if (!(CANONICAL_PRIORITY as readonly string[]).includes(k)) throw new SettingsValidationError(`priorityLabels key "${k}" is not a canonical priority`);
-      if (val === undefined || val === null || val === "") continue; // empty ⇒ use the canonical name
-      if (typeof val !== "string") throw new SettingsValidationError(`priorityLabels["${k}"] must be a string`);
-      const t = val.trim();
-      if (t.length > 40) throw new SettingsValidationError(`priorityLabels["${k}"] is too long (max 40)`);
-      if (t) clean[k] = t;
-    }
-    normalized["priorityLabels"] = clean;
-  }
-  if ("disabledFeatures" in patch) {
-    const v = patch["disabledFeatures"];
-    if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
-      throw new SettingsValidationError("disabledFeatures must be an array of strings");
-    }
-  }
-  if ("methodologyComposition" in patch) {
-    const v = patch["methodologyComposition"];
-    if (v !== null && (!Array.isArray(v) || v.some((x) => typeof x !== "string"))) {
-      throw new SettingsValidationError("methodologyComposition must be null or an array of strings");
-    }
-  }
-  if ("enabledFeatures" in patch) {
-    const v = patch["enabledFeatures"];
-    if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
-      throw new SettingsValidationError("enabledFeatures must be an array of strings");
-    }
-  }
-  if ("featureGovernance" in patch) validateGovernance(patch["featureGovernance"], "featureGovernance");
-  if ("programmeFeatures" in patch) validateScopeFeatureMap(patch["programmeFeatures"], "programmeFeatures");
-  if ("projectFeatures" in patch) validateScopeFeatureMap(patch["projectFeatures"], "projectFeatures");
-  if ("governanceRules" in patch) validateGovernanceRules(patch["governanceRules"], "governanceRules");
-  if ("hiddenFields" in patch) {
-    const v = patch["hiddenFields"];
-    if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
-      throw new SettingsValidationError("hiddenFields must be an array of strings");
-    }
-  }
-  if ("savedViews" in patch) validateSavedViews(patch["savedViews"]);
-  if ("customReports" in patch) validateCustomReports(patch["customReports"]);
-  if ("reportOverrides" in patch) validateReportOverrides(patch["reportOverrides"]);
-  if ("contentPages" in patch) validateContentPages(patch["contentPages"]);
-  if ("priorityWeights" in patch) validatePriorityWeights(patch["priorityWeights"]);
-  if ("dashboards" in patch) validateDashboards(patch["dashboards"]);
-  if ("fieldOverrides" in patch) validateFieldOverrides(patch["fieldOverrides"]);
-  if ("loggingSync" in patch) validateLoggingSync(patch["loggingSync"]);
-  if ("selfHost" in patch) validateSelfHost(patch["selfHost"]);
-  if ("historyRetention" in patch) validateHistoryRetention(patch["historyRetention"]);
-  if ("digestDelivery" in patch) validateDigestDelivery(patch["digestDelivery"]);
-  if ("skillsPlanning" in patch) validateSkillsPlanning(patch["skillsPlanning"]);
-  // Remaining writable keys that previously had no validator: a wrong-typed value was persisted and
-  // then crashed a downstream sink (e.g. backendSource:{} → broker-command TypeError, 500 for all).
-  if ("aiModel" in patch && patch["aiModel"] != null && typeof patch["aiModel"] !== "string") {
-    throw new SettingsValidationError("aiModel must be a string or null");
-  }
-  if ("backendSource" in patch && typeof patch["backendSource"] !== "string") {
-    throw new SettingsValidationError("backendSource must be a string");
-  }
-  if ("fieldRouting" in patch) {
-    // Anti-collision (one source → one UI element, both ways) lives in field-routing; surface its
-    // error as the standard settings 400, and persist the normalised (trimmed) map.
-    try {
-      normalized["fieldRouting"] = validateFieldRouting(patch["fieldRouting"]);
-    } catch (e) {
-      if (e instanceof FieldRoutingError) throw new SettingsValidationError(e.message);
-      throw e;
-    }
-  }
-  if ("customFields" in patch) {
-    try {
-      normalized["customFields"] = validateCustomFields(patch["customFields"]);
-    } catch (e) {
-      if (e instanceof CustomFieldError) throw new SettingsValidationError(e.message);
-      throw e;
-    }
-  }
-  // Cross-rule: whenever custom fields OR the routing map changes, every custom field must still be
-  // mapped to a source in the matrix (route it to the Postgres backend if there's no external one).
-  // Checked over the EFFECTIVE (patch-merged) values so you can't drop a route out from under a field
-  // that depended on it.
+  // ── Cross-field rules — a per-field descriptor can't see its siblings, so these run after the loop ──
+  // Whenever custom fields OR the routing map changes, every custom field must still be mapped to a source
+  // in the matrix (route it to the Postgres backend if there's no external one). Checked over the EFFECTIVE
+  // (patch-merged) values so you can't drop a route out from under a field that depended on it.
   if ("customFields" in patch || "fieldRouting" in patch) {
     const effCustom = ("customFields" in normalized ? normalized["customFields"] : store.customFields) as CustomField[];
     const effRouting = ("fieldRouting" in normalized ? normalized["fieldRouting"] : store.fieldRouting) as FieldRoute[];
@@ -1534,51 +1568,6 @@ function validatePatch(rawPatch: Record<string, unknown>): Record<string, unknow
       throw e;
     }
   }
-  if ("fieldValidation" in patch) {
-    // Validate the rule DEFINITIONS (shape + patterns compile); values are enforced on the write path.
-    try {
-      normalized["fieldValidation"] = validateFieldValidation(patch["fieldValidation"]);
-    } catch (e) {
-      if (e instanceof FieldValidationError) throw new SettingsValidationError(e.message);
-      throw e;
-    }
-  }
-  if ("programmeRegistry" in patch) {
-    try {
-      normalized["programmeRegistry"] = validateProgrammeRegistry(patch["programmeRegistry"]);
-    } catch (e) {
-      if (e instanceof ProgrammeRegistryError) throw new SettingsValidationError(e.message);
-      throw e;
-    }
-  }
-  if ("brokerKinds" in patch) {
-    try {
-      normalized["brokerKinds"] = validateBrokerKinds(patch["brokerKinds"]);
-    } catch (e) {
-      if (e instanceof BrokerKindsError) throw new SettingsValidationError(e.message);
-      throw e;
-    }
-  }
-  if ("closedProjects" in patch) {
-    try {
-      normalized["closedProjects"] = validateClosedProjects(patch["closedProjects"]);
-    } catch (e) {
-      if (e instanceof ClosedProjectError) throw new SettingsValidationError(e.message);
-      throw e;
-    }
-  }
-  if ("guidAliases" in patch) {
-    try {
-      normalized["guidAliases"] = validateGuidAliases(patch["guidAliases"]);
-    } catch (e) {
-      if (e instanceof GuidAliasError) throw new SettingsValidationError(e.message);
-      throw e;
-    }
-  }
-  if ("retiredGuids" in patch) {
-    if (!isStringArray(patch["retiredGuids"])) throw new SettingsValidationError("retiredGuids must be an array of strings");
-    normalized["retiredGuids"] = [...new Set((patch["retiredGuids"] as string[]).map((g) => g.trim()).filter(Boolean))];
-  }
   // Retirement is STICKY: CLOSING a project (a closedProjects entry) retires its GUID, exactly like
   // deleting it — so moving it back live requires a re-link to a NEW GUID, never a silent reactivation.
   // Union the effective closed GUIDs into retiredGuids on any write that touches either.
@@ -1586,49 +1575,6 @@ function validatePatch(rawPatch: Record<string, unknown>): Record<string, unknow
     const effClosed = ("closedProjects" in normalized ? normalized["closedProjects"] : store.closedProjects) as ClosedProjectRegistry;
     const effRetired = ("retiredGuids" in normalized ? normalized["retiredGuids"] : store.retiredGuids) as string[];
     normalized["retiredGuids"] = [...new Set([...effRetired, ...Object.keys(effClosed)])];
-  }
-  if ("errorTelemetry" in patch && typeof patch["errorTelemetry"] !== "boolean") {
-    throw new SettingsValidationError("errorTelemetry must be a boolean");
-  }
-  // capabilityStates has a dedicated, step-up'd admin route that runs each entry through
-  // sanitizeCapabilitySetting (unknown-id drop, state clamped to the capability's supportedStates,
-  // endpoint URL-validated). A bulk PATCH / config-snapshot restore reaches the SAME stored map, so it
-  // must apply the SAME per-entry guards — otherwise it's a bypass that could persist an unknown
-  // capability id, an unsupported state, or an unvalidated endpoint (the exact sibling of the
-  // userPrefs/calendarPush handling just below). Run the injected sanitizer when present; the top-level
-  // shape-check stays the floor for the (test-only) case where governance hasn't registered it yet.
-  if ("capabilityStates" in patch) {
-    const v = patch["capabilityStates"];
-    if (typeof v !== "object" || v == null || Array.isArray(v)) {
-      throw new SettingsValidationError("capabilityStates must be an object");
-    }
-    normalized["capabilityStates"] = capabilityStatesSanitizer
-      ? capabilityStatesSanitizer(v as Record<string, unknown>)
-      : (v as Record<string, unknown>);
-  }
-  // Per-user maps: each entry is written verbatim + read back raw, so sanitize every entry through the
-  // SAME clamps its dedicated route uses (fontScale/scanRate ranges, hex colour, enum members; the
-  // calendar consent invariant + server-stamped grantedAt). Otherwise the bulk PATCH / config restore
-  // could persist an out-of-range pref or a forged "granted" consent for another user's sub.
-  if ("userPrefs" in patch) {
-    const v = patch["userPrefs"];
-    if (typeof v !== "object" || v == null || Array.isArray(v)) throw new SettingsValidationError("userPrefs must be an object");
-    const clean: Record<string, unknown> = {};
-    for (const [sub, p] of Object.entries(v as Record<string, unknown>)) if (!isForbiddenKey(sub)) clean[sub] = sanitizeUserPrefs(p);
-    normalized["userPrefs"] = clean;
-  }
-  if ("calendarPush" in patch) {
-    const v = patch["calendarPush"];
-    if (typeof v !== "object" || v == null || Array.isArray(v)) throw new SettingsValidationError("calendarPush must be an object");
-    const nowIso = new Date().toISOString();
-    const clean: Record<string, unknown> = {};
-    for (const [sub, g] of Object.entries(v as Record<string, unknown>)) if (!isForbiddenKey(sub)) clean[sub] = sanitizeGrant(g, nowIso);
-    normalized["calendarPush"] = clean;
-  }
-  if ("screenLayouts" in patch) {
-    const v = patch["screenLayouts"];
-    if (typeof v !== "object" || v == null || Array.isArray(v)) throw new SettingsValidationError("screenLayouts must be an object");
-    normalized["screenLayouts"] = validateScreenLayouts(v as Record<string, unknown>);
   }
   return normalized;
 }
