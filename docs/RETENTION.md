@@ -36,6 +36,13 @@ write ─▶ diffToJournal ─▶ issue_history        (append-only: one row per
         computeSeries(metric, window, grain) ─▶ TrendSeries ─▶ trend reports
 ```
 
+> **Capture is not yet auto-wired.** The `write ─▶ diffToJournal` arrow above is the *designed* flow, but
+> the gateway does not yet call the write-path glue (`recordWrite`) from its write routes — see
+> **"What ships vs. what follows"** below. So today, even with a `RetentionSource` configured, nothing
+> populates the journal from app writes and the trends API answers the honest `available: false`
+> ("history not yet retained"). The read/compute half (snapshot → `computeSeries` → trend) and the
+> Project Health chart are shipped and correct; they light up once capture is wired (the self-host DB work).
+
 - **Change journal** (`issue_history`) — the raw truth. `diffToJournal` emits one row per genuinely
   changed field on each write (0/false/"" are real values; structural values diff by deep equality),
   sharing a `txnId` so a snapshot boundary is a whole transaction. Nothing is ever overwritten.
