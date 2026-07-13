@@ -1,12 +1,16 @@
 import { test, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { __setEgressTransportForTest, __setEgressLookupForTest, type LookupFn } from "./egress";
+// The vault/KMS stores call safeFetch with no injectable lookup, so route them to a test transport +
+// a deterministic resolver: the egress guard still runs, but no real DNS/network is hit.
+const BENIGN_LOOKUP = (async () => [{ address: "93.184.216.34", family: 4 }]) as LookupFn;
+function mockEgress(fn: typeof fetch): void { __setEgressLookupForTest(BENIGN_LOOKUP); __setEgressTransportForTest(fn); }
 import { azureKeyVaultStore } from "./vault-azure";
 
 /**
  * Azure Key Vault vault store — all keys held in one Key Vault secret as a JSON map.
  * Exercised against a mocked fetch (AAD token, then the secret GET/PUT).
  */
-const realFetch = globalThis.fetch;
 const ENV = ["VAULT_AZURE_VAULT_URL", "AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "VAULT_AZURE_SECRET_NAME"];
 
 beforeEach(() => {
@@ -16,21 +20,22 @@ beforeEach(() => {
   process.env["AZURE_CLIENT_SECRET"] = "secret";
 });
 afterEach(() => {
-  globalThis.fetch = realFetch;
+  __setEgressTransportForTest(null);
+  __setEgressLookupForTest(null);
   for (const k of ENV) delete process.env[k];
 });
 
 /** Install a fetch that returns an AAD token, then defers the secret GET/PUT to `handler`. */
 function mockVault(handler: (url: string, init?: RequestInit) => Response): { calls: string[] } {
   const calls: string[] = [];
-  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+  mockEgress((async (url: string | URL | Request, init?: RequestInit) => {
     const u = String(url);
     calls.push(u.split("?")[0]!);
     if (u.includes("login.microsoftonline.com")) {
       return new Response(JSON.stringify({ access_token: "aad-token" }), { status: 200 });
     }
     return handler(u, init);
-  }) as typeof fetch;
+  }) as typeof fetch);
   return { calls };
 }
 
@@ -62,10 +67,10 @@ test("load: a non-ok read (not 404) throws", async () => {
 });
 
 test("token acquisition failure surfaces as an error", async () => {
-  globalThis.fetch = (async (url: string | URL | Request) => {
+  mockEgress((async (url: string | URL | Request) => {
     if (String(url).includes("login.microsoftonline.com")) return new Response("nope", { status: 401 });
     return new Response("{}", { status: 200 });
-  }) as typeof fetch;
+  }) as typeof fetch);
   await assert.rejects(() => azureKeyVaultStore().load(), /Azure AAD token 401/);
 });
 

@@ -4,6 +4,7 @@ import { azureKeyVaultStore } from "./vault-azure";
 import { kmsVaultKey } from "./kms";
 import { aesGcmSeal, aesGcmOpen } from "./crypto-aes-gcm";
 import { decodeKey32, deriveKey, masterSecret } from "./crypto-keys";
+import { safeFetch } from "./egress";
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 
@@ -137,14 +138,14 @@ function hashicorpStore(): VaultStore {
   const headers = { "X-Vault-Token": token, "Content-Type": "application/json" };
 
   const read = async (): Promise<Record<string, string>> => {
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+    const res = await safeFetch(url, { headers, signal: AbortSignal.timeout(15_000) });
     if (res.status === 404) return {};
     if (!res.ok) throw new Error(`Vault read ${res.status}`);
     const json = (await res.json()) as { data?: { data?: Record<string, string> } };
     return json.data?.data ?? {};
   };
   const write = async (map: Record<string, string>): Promise<void> => {
-    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ data: map }), signal: AbortSignal.timeout(15_000) });
+    const res = await safeFetch(url, { method: "POST", headers, body: JSON.stringify({ data: map }), signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw new Error(`Vault write ${res.status}`);
   };
   return {
@@ -165,17 +166,17 @@ function httpStore(): VaultStore {
   return {
     id: "http",
     async load() {
-      const res = await fetch(`${base}/secrets`, { headers, signal: AbortSignal.timeout(15_000) });
+      const res = await safeFetch(`${base}/secrets`, { headers, signal: AbortSignal.timeout(15_000) });
       if (res.status === 404) return {};
       if (!res.ok) throw new Error(`Secrets store read ${res.status}`);
       return (await res.json()) as Record<string, string>;
     },
     async put(ref, value) {
-      const res = await fetch(refUrl(ref), { method: "PUT", headers, body: JSON.stringify({ value }), signal: AbortSignal.timeout(15_000) });
+      const res = await safeFetch(refUrl(ref), { method: "PUT", headers, body: JSON.stringify({ value }), signal: AbortSignal.timeout(15_000) });
       if (!res.ok) throw new Error(`Secrets store write ${res.status}`);
     },
     async del(ref) {
-      const res = await fetch(refUrl(ref), { method: "DELETE", headers, signal: AbortSignal.timeout(15_000) });
+      const res = await safeFetch(refUrl(ref), { method: "DELETE", headers, signal: AbortSignal.timeout(15_000) });
       if (!res.ok && res.status !== 404) throw new Error(`Secrets store delete ${res.status}`);
     },
   };

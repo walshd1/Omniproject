@@ -1,4 +1,5 @@
 import { awsSignedHeaders, awsCredsFromEnv } from "./aws-sigv4";
+import { safeFetch } from "./egress";
 import type { VaultStore } from "./vault-store";
 
 /**
@@ -22,7 +23,10 @@ export function awsSecretsStore(): VaultStore {
   const call = (target: string, payload: unknown): Promise<Response> => {
     const body = JSON.stringify(payload);
     const headers = awsSignedHeaders({ host, region, service: SERVICE, target, body, creds });
-    return fetch(endpoint, { method: "POST", headers, body, signal: AbortSignal.timeout(15_000) });
+    // safeFetch, not bare fetch: every outbound hop — including a secret-backend call — passes the
+    // SSRF/residency guard, pins the vetted IPs, and re-validates redirects (see lib/egress.ts). With
+    // EGRESS_ALLOWLIST set, the Secrets Manager host must be listed (correct egress-pinning hygiene).
+    return safeFetch(endpoint, { method: "POST", headers, body, signal: AbortSignal.timeout(15_000) });
   };
 
   const isNotFound = async (res: Response): Promise<boolean> => {

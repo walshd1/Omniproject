@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { Request, Response, NextFunction } from "express";
 import { logger } from "./logger";
-import { assertEgressAllowed } from "./egress";
+import { safeFetch } from "./egress";
 
 /**
  * Distributed tracing via W3C Trace Context — no OTel SDK, just the wire format + a minimal
@@ -81,14 +81,15 @@ async function exportSpan(span: { ctx: TraceContext; name: string; startNs: numb
     }],
   };
   try {
-    // Telemetry egress must pass the same SSRF/residency guard as every other outbound hop
-    // (docs/DATA-RESIDENCY.md sells this as covering "every outbound request"). Fails closed under
-    // an active residency policy / EGRESS_ALLOWLIST; the catch below turns that into a dropped export.
-    await assertEgressAllowed(url);
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     const hdr = process.env["OTEL_EXPORTER_OTLP_HEADERS"]?.trim();
     if (hdr) for (const pair of hdr.split(",")) { const i = pair.indexOf("="); if (i > 0) headers[pair.slice(0, i).trim()] = pair.slice(i + 1).trim(); }
-    await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(5_000) });
+    // Telemetry egress goes through safeFetch, not a bare fetch after a one-shot check: it applies the
+    // SAME SSRF/residency guard AND pins the vetted IPs + re-validates every redirect Location — so a
+    // collector can't 302 the exporter to http://169.254.169.254/… and exfiltrate IAM creds with the
+    // OTLP auth headers attached (docs/DATA-RESIDENCY.md sells this as covering "every outbound request").
+    // Fails closed under an active residency policy / EGRESS_ALLOWLIST; the catch turns that into a drop.
+    await safeFetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(5_000) });
   } catch (err) {
     logger.debug({ err }, "otlp span export failed");
   }

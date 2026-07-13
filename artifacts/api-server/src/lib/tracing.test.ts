@@ -2,13 +2,15 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import type { Request, Response, NextFunction } from "express";
 import { parseTraceparent, formatTraceparent, currentTraceparent, tracingMiddleware } from "./tracing";
+import { __setEgressTransportForTest } from "./egress";
 
-const realFetch = globalThis.fetch;
+// The exporter now uses lib/egress safeFetch (undici, not global fetch), so intercept via the egress
+// transport seam. The OTLP endpoint below is a loopback IP literal, so no DNS/lookup seam is needed.
 const ENV_KEYS = ["OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_HEADERS"] as const;
 const saved: Record<string, string | undefined> = {};
 for (const k of ENV_KEYS) saved[k] = process.env[k];
 afterEach(() => {
-  globalThis.fetch = realFetch;
+  __setEgressTransportForTest(null);
   for (const k of ENV_KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]!; }
 });
 
@@ -61,7 +63,7 @@ test("currentTraceparent is null outside a request context", () => {
 test("tracingMiddleware does not export a span when no OTLP endpoint is configured", async () => {
   delete process.env["OTEL_EXPORTER_OTLP_ENDPOINT"];
   let called = false;
-  globalThis.fetch = (async () => { called = true; return new Response(null, { status: 200 }); }) as unknown as typeof fetch;
+  __setEgressTransportForTest((async () => { called = true; return new Response(null, { status: 200 }); }) as unknown as typeof fetch);
 
   const { req, res, finish } = fakeReqRes();
   tracingMiddleware(req, res, (() => {}) as NextFunction);
@@ -73,10 +75,10 @@ test("tracingMiddleware does not export a span when no OTLP endpoint is configur
 test("tracingMiddleware exports a span to the OTLP endpoint on response finish", async () => {
   process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://127.0.0.1:4318";
   const calls: Array<{ url: string; body: any }> = [];
-  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+  __setEgressTransportForTest((async (url: string | URL | Request, init?: RequestInit) => {
     calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
     return new Response(null, { status: 200 });
-  }) as unknown as typeof fetch;
+  }) as unknown as typeof fetch);
 
   const { req, res, finish } = fakeReqRes();
   tracingMiddleware(req, res, (() => {}) as NextFunction);
@@ -93,7 +95,7 @@ test("tracingMiddleware exports a span to the OTLP endpoint on response finish",
 
 test("tracingMiddleware's export is best-effort — a fetch rejection never throws", async () => {
   process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://127.0.0.1:4318";
-  globalThis.fetch = (async () => { throw new Error("connection refused"); }) as unknown as typeof fetch;
+  __setEgressTransportForTest((async () => { throw new Error("connection refused"); }) as unknown as typeof fetch);
 
   const { req, res, finish } = fakeReqRes();
   assert.doesNotThrow(() => {

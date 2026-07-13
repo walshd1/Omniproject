@@ -109,8 +109,8 @@ async function resolveAndValidate(rawUrl: string, lookup: LookupFn): Promise<{ u
 }
 
 /** Validate a URL is allowed for server-side egress; throws EgressError if not. */
-export async function assertEgressAllowed(rawUrl: string, lookup: LookupFn = dns.lookup): Promise<URL> {
-  return (await resolveAndValidate(rawUrl, lookup)).url;
+export async function assertEgressAllowed(rawUrl: string, lookup?: LookupFn): Promise<URL> {
+  return (await resolveAndValidate(rawUrl, effectiveLookup(lookup))).url;
 }
 
 /** A dns.lookup-shaped function that ALWAYS returns the pre-validated addresses, ignoring the real
@@ -132,6 +132,19 @@ function pinnedLookup(addresses: ResolvedAddr[]) {
 let egressTransportForTest: typeof fetch | null = null;
 /** Install (or clear, with null) the TEST-ONLY transport seam used by safeFetch. */
 export function __setEgressTransportForTest(fn: typeof fetch | null): void { egressTransportForTest = fn; }
+
+/** TEST-ONLY seam: a deterministic resolver so a unit test can exercise safeFetch/assertEgressAllowed
+ *  without real DNS (the guard still runs against these addresses). Pair it with the transport seam
+ *  above when the code under test calls safeFetch/assertEgressAllowed with no injectable lookup of its
+ *  own (e.g. the vault/KMS stores). Null = use the real dns.lookup. */
+let egressLookupForTest: LookupFn | null = null;
+/** Install (or clear, with null) the TEST-ONLY resolver seam used by safeFetch/assertEgressAllowed. */
+export function __setEgressLookupForTest(fn: LookupFn | null): void { egressLookupForTest = fn; }
+
+/** Resolve the effective lookup: an explicit per-call arg wins, else the test seam, else real DNS. */
+function effectiveLookup(explicit: LookupFn | undefined): LookupFn {
+  return explicit ?? egressLookupForTest ?? dns.lookup;
+}
 
 /** Max redirects safeFetch will follow before refusing — matches the WHATWG fetch limit of 20. */
 const MAX_EGRESS_REDIRECTS = 20;
@@ -177,11 +190,12 @@ function initForRedirect(init: UndiciRequestInit | undefined, status: number): U
  * each hop closes that SSRF-redirect bypass. `lookup` is injectable purely for tests. Uses undici's own
  * fetch (a custom Agent isn't accepted by global fetch).
  */
-export async function safeFetch(url: string, init?: RequestInit, lookup: LookupFn = dns.lookup): Promise<Response> {
+export async function safeFetch(url: string, init?: RequestInit, lookup?: LookupFn): Promise<Response> {
+  const lk = effectiveLookup(lookup);
   let currentUrl = url;
   let currentInit = init as UndiciRequestInit | undefined;
   for (let hop = 0; ; hop++) {
-    const { addresses } = await resolveAndValidate(currentUrl, lookup);
+    const { addresses } = await resolveAndValidate(currentUrl, lk);
     const resp = await dispatchOne(currentUrl, currentInit, addresses);
     const location = resp.headers.get("location");
     if (!REDIRECT_STATUSES.has(resp.status) || !location) return resp;

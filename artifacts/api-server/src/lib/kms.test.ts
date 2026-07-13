@@ -1,5 +1,10 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { __setEgressTransportForTest, __setEgressLookupForTest, type LookupFn } from "./egress";
+// The vault/KMS stores call safeFetch with no injectable lookup, so route them to a test transport +
+// a deterministic resolver: the egress guard still runs, but no real DNS/network is hit.
+const BENIGN_LOOKUP = (async () => [{ address: "93.184.216.34", family: 4 }]) as LookupFn;
+function mockEgress(fn: typeof fetch): void { __setEgressLookupForTest(BENIGN_LOOKUP); __setEgressTransportForTest(fn); }
 import { unwrapDataKey, initKms, kmsVaultKey, kmsConfigKey, kmsEnabled, kmsProvider, __resetKms } from "./kms";
 import { sealConfig, openConfig, __resetConfigCrypto } from "./config-crypto";
 
@@ -7,10 +12,10 @@ import { sealConfig, openConfig, __resetConfigCrypto } from "./config-crypto";
  * KMS / BYOK unwrap for the vault root key. External providers are exercised against a mocked
  * fetch; "local" is a dev passthrough.
  */
-const realFetch = globalThis.fetch;
 const KEYS = ["KMS_PROVIDER", "VAULT_KEY_ENC", "CONFIG_KEY_ENC", "AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "VAULT_KMS_KEY_URL", "AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"];
 afterEach(() => {
-  globalThis.fetch = realFetch;
+  __setEgressTransportForTest(null);
+  __setEgressLookupForTest(null);
   for (const k of KEYS) delete process.env[k];
   __resetKms();
   __resetConfigCrypto();
@@ -64,11 +69,11 @@ test("aws provider calls KMS Decrypt with a SigV4 Authorization", async () => {
   process.env["AWS_ACCESS_KEY_ID"] = "AKIDEXAMPLE";
   process.env["AWS_SECRET_ACCESS_KEY"] = "secret";
   let captured: { url: string; target?: string | undefined; auth?: string | undefined; body?: string | undefined } = { url: "" };
-  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+  mockEgress((async (url: string | URL | Request, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     captured = { url: String(url), target: headers.get("X-Amz-Target") ?? undefined, auth: headers.get("Authorization") ?? undefined, body: String(init?.body) };
     return new Response(JSON.stringify({ Plaintext: KEY32.toString("base64") }), { status: 200 });
-  }) as typeof fetch;
+  }) as typeof fetch);
 
   const key = await unwrapDataKey("Q2lwaGVydGV4dA==");
   assert.deepEqual(key, KEY32);
@@ -99,7 +104,7 @@ test("aws: a non-ok KMS response throws", async () => {
   process.env["AWS_REGION"] = "eu-west-1";
   process.env["AWS_ACCESS_KEY_ID"] = "AKID";
   process.env["AWS_SECRET_ACCESS_KEY"] = "s";
-  globalThis.fetch = (async () => new Response("denied", { status: 400 })) as typeof fetch;
+  mockEgress((async () => new Response("denied", { status: 400 })) as typeof fetch);
   await assert.rejects(() => unwrapDataKey("Q2lwaGVy"), /AWS KMS Decrypt 400/);
 });
 
@@ -108,7 +113,7 @@ test("aws: a response with no Plaintext throws", async () => {
   process.env["AWS_REGION"] = "eu-west-1";
   process.env["AWS_ACCESS_KEY_ID"] = "AKID";
   process.env["AWS_SECRET_ACCESS_KEY"] = "s";
-  globalThis.fetch = (async () => new Response(JSON.stringify({}), { status: 200 })) as typeof fetch;
+  mockEgress((async () => new Response(JSON.stringify({}), { status: 200 })) as typeof fetch);
   await assert.rejects(() => unwrapDataKey("Q2lwaGVy"), /returned no plaintext/);
 });
 
@@ -116,7 +121,7 @@ test("azure: an AAD token failure throws", async () => {
   process.env["KMS_PROVIDER"] = "azure";
   process.env["VAULT_KMS_KEY_URL"] = "https://kv.vault.azure.net/keys/k/abc";
   process.env["AZURE_TENANT_ID"] = "t";
-  globalThis.fetch = (async () => new Response("no", { status: 401 })) as typeof fetch;
+  mockEgress((async () => new Response("no", { status: 401 })) as typeof fetch);
   await assert.rejects(() => unwrapDataKey(Buffer.from("c").toString("base64")), /Azure AAD token 401/);
 });
 
@@ -126,12 +131,12 @@ test("azure: a non-ok decrypt throws; a decrypt with no value throws", async () 
   process.env["AZURE_TENANT_ID"] = "t";
   const token = () => new Response(JSON.stringify({ access_token: "tok" }), { status: 200 });
 
-  globalThis.fetch = (async (url: string | URL | Request) =>
-    String(url).includes("login.microsoftonline.com") ? token() : new Response("err", { status: 500 })) as typeof fetch;
+  mockEgress((async (url: string | URL | Request) =>
+    String(url).includes("login.microsoftonline.com") ? token() : new Response("err", { status: 500 })) as typeof fetch);
   await assert.rejects(() => unwrapDataKey(Buffer.from("c").toString("base64")), /Azure Key Vault decrypt 500/);
 
-  globalThis.fetch = (async (url: string | URL | Request) =>
-    String(url).includes("login.microsoftonline.com") ? token() : new Response(JSON.stringify({}), { status: 200 })) as typeof fetch;
+  mockEgress((async (url: string | URL | Request) =>
+    String(url).includes("login.microsoftonline.com") ? token() : new Response(JSON.stringify({}), { status: 200 })) as typeof fetch);
   await assert.rejects(() => unwrapDataKey(Buffer.from("c").toString("base64")), /returned no value/);
 });
 
@@ -142,12 +147,12 @@ test("azure provider gets an AAD token then calls key decrypt", async () => {
   process.env["AZURE_CLIENT_ID"] = "c";
   process.env["AZURE_CLIENT_SECRET"] = "s";
   const seen: string[] = [];
-  globalThis.fetch = (async (url: string | URL | Request) => {
+  mockEgress((async (url: string | URL | Request) => {
     const u = String(url);
     seen.push(u.split("?")[0]!);
     if (u.includes("login.microsoftonline.com")) return new Response(JSON.stringify({ access_token: "tok" }), { status: 200 });
     return new Response(JSON.stringify({ value: KEY32.toString("base64url") }), { status: 200 });
-  }) as typeof fetch;
+  }) as typeof fetch);
 
   const key = await unwrapDataKey(Buffer.from("ciphertext").toString("base64"));
   assert.deepEqual(key, KEY32);

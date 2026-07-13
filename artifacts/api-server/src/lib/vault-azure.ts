@@ -1,3 +1,4 @@
+import { safeFetch } from "./egress";
 import type { VaultStore } from "./vault-store";
 
 /**
@@ -21,7 +22,7 @@ export function azureKeyVaultStore(): VaultStore {
 
   // AAD OAuth2 client-credentials token scoped to the Key Vault data plane.
   const token = async (): Promise<string> => {
-    const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+    const res = await safeFetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -39,7 +40,7 @@ export function azureKeyVaultStore(): VaultStore {
   const secretUrl = () => `${vaultUrl}/secrets/${secretName}?api-version=${API_VERSION}`;
 
   const read = async (): Promise<Record<string, string>> => {
-    const res = await fetch(secretUrl(), { headers: { Authorization: `Bearer ${await token()}` }, signal: AbortSignal.timeout(15_000) });
+    const res = await safeFetch(secretUrl(), { headers: { Authorization: `Bearer ${await token()}` }, signal: AbortSignal.timeout(15_000) });
     if (res.status === 404) return {};
     if (!res.ok) throw new Error(`Azure Key Vault read ${res.status}`);
     const json = (await res.json()) as { value?: string };
@@ -48,7 +49,7 @@ export function azureKeyVaultStore(): VaultStore {
   };
 
   const write = async (map: Record<string, string>): Promise<void> => {
-    const res = await fetch(secretUrl(), {
+    const res = await safeFetch(secretUrl(), {
       method: "PUT",
       headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "application/json" },
       body: JSON.stringify({ value: JSON.stringify(map) }),
