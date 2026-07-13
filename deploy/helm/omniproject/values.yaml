@@ -138,7 +138,8 @@ networkPolicy:
     # e.g. [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ingress-nginx } } }]
     from: []
   egress:
-    # false ⇒ all egress allowed (plus DNS). true ⇒ ONLY DNS + the destinations in `to` are allowed.
+    # false ⇒ all egress allowed EXCEPT the cloud-metadata / link-local ranges (169.254/fe80), plus DNS.
+    # true ⇒ ONLY DNS + the destinations in `to` are allowed.
     restrict: false
     # A list of NetworkPolicyEgressRule (to + ports), used only when restrict=true.
     # e.g. [{ to: [{ ipBlock: { cidr: 10.0.0.0/16 } }], ports: [{ port: 5678, protocol: TCP }] }]
