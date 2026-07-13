@@ -21,6 +21,11 @@ const { engageAiKill, releaseAiKill, aiKillEngaged, __resetAiKill } = await impo
 const { isActionApproved, approveAction, __resetApproved } = await import("./approved-actions");
 const { __setRedisKvForTest, __resetSharedStateForTest, sharedKv } = await import("./shared-state");
 const { FakeRedis } = await import("../__tests__/fake-redis");
+const { setRoleMap, getRoleMap, resetRoleMap } = await import("./rbac");
+
+/** The admin override groups for a role (from getRoleMap), or [] — used to assert role-map converge. */
+const overrideGroups = (role: string): string[] =>
+  getRoleMap().find((m) => m.role === role && m.source === "override")?.claims ?? [];
 
 /** The AI-authz fleet-sync wire key (lib/security-state AI_AUTHZ_KEY) — hardcoded here to plant a
  *  hostile shared blob the converge path must reject. */
@@ -28,7 +33,7 @@ const AI_AUTHZ_KEY = "security:fleet:ai-authz";
 
 afterEach(() => {
   __resetKeyRegistry(); __resetAutonomousGrants(); __resetContainmentRelax(); __resetAiKill(); __resetApproved();
-  releaseMaintenance();
+  releaseMaintenance(); resetRoleMap();
   __resetSharedStateForTest();
   if (fs.existsSync(FILE)) fs.rmSync(FILE);
 });
@@ -124,6 +129,31 @@ test("Redis mode: an AI-authz change on one replica converges to another (revoca
   assert.equal(isActionApproved("update_issue"), false, "un-approved action propagates");
 });
 
+test("the RBAC role-map override survives a restart (durable, was RAM-only before)", () => {
+  setRoleMap({ admin: ["compromised-admins"] });
+  persistSecurityState();
+  resetRoleMap(); // simulate a restart wiping the RAM override
+  assert.deepEqual(overrideGroups("admin"), []);
+  loadSecurityState();
+  assert.deepEqual(overrideGroups("admin"), ["compromised-admins"], "override is restored across the restart");
+});
+
+test("Redis mode: a role-map REVOCATION propagates fleet-wide", async () => {
+  __setRedisKvForTest(new FakeRedis());
+  // Replica A maps a group to admin, publishes.
+  setRoleMap({ admin: ["ops-team"] });
+  await publishAiAuthzToShared();
+  // Replica B converges → adopts it.
+  resetRoleMap();
+  await refreshAiAuthzFromShared();
+  assert.deepEqual(overrideGroups("admin"), ["ops-team"], "B adopts the mapping");
+  // A REVOKES the group's admin authority (clears the override), publishes.
+  resetRoleMap();
+  await publishAiAuthzToShared();
+  await refreshAiAuthzFromShared();
+  assert.deepEqual(overrideGroups("admin"), [], "the revocation propagates to B");
+});
+
 test("in-process mode: AI-authz converge is a no-op (durable local file stays authoritative)", async () => {
   setContainmentRelax("off"); // most relaxed
   approveAction("update_issue");
@@ -141,6 +171,8 @@ test("a HOSTILE shared AI-authz blob can never widen authorization (validated on
     grants: [{ actions: ["update_issue"] }, "not-an-object", { actorId: "", actions: ["x"] }],
     containment: "totally-off",
     approved: { actions: [123, "delete_project"], vocab: [true, "ok"] },
+    // A hostile role-map: an INVENTED role (not one of the five) and a non-string group under a real role.
+    roleMap: { superadmin: ["attacker"], admin: [42, "ops"], __proto__: ["x"] },
   }));
 
   await refreshAiAuthzFromShared();
@@ -152,4 +184,7 @@ test("a HOSTILE shared AI-authz blob can never widen authorization (validated on
   // Only the well-formed string action is approved; the numeric entry is dropped.
   assert.equal(isActionApproved("delete_project"), true);
   assert.equal(isActionApproved("123"), false);
+  // Role-map: the invented "superadmin" role can't exist; only the real role's STRING group survives.
+  assert.equal(getRoleMap().find((m) => (m.role as string) === "superadmin"), undefined);
+  assert.deepEqual(overrideGroups("admin"), ["ops"]); // 42 dropped, "ops" kept (lower-cased)
 });

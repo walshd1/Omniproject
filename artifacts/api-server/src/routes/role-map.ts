@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireRole, getRoleMap, setRoleMap, rollbackRoleMap, canRollbackRoleMap, ROLES } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { recordAudit, actorForAudit } from "../lib/audit";
+import { persistSecurityState } from "../lib/security-state";
 
 /**
  * Role-mapping editor — ADMIN-only, audited. Lets an admin decide which IdP
@@ -22,6 +23,7 @@ router.get("/admin/role-map", requireRole("admin"), (_req, res) => {
 router.post("/admin/role-map/rollback", requireRole("admin"), requireStepUp, (req, res) => {
   const rolledBack = rollbackRoleMap();
   const mapping = getRoleMap();
+  persistSecurityState(); // durable + fleet-published: the reverted mapping propagates like the edit did
   recordAudit({
     ts: new Date().toISOString(),
     category: "admin",
@@ -36,6 +38,7 @@ router.post("/admin/role-map/rollback", requireRole("admin"), requireStepUp, (re
 
 router.put("/admin/role-map", requireRole("admin"), requireStepUp, (req, res) => {
   const mapping = setRoleMap(req.body);
+  persistSecurityState(); // durable across restart + fanned out to the fleet (revocation propagates)
   recordAudit({
     ts: new Date().toISOString(),
     category: "admin",

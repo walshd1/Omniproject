@@ -5,6 +5,7 @@ import { getContainmentRelax, setContainmentRelax, isContainmentLevel, type AiCo
 import { listApprovedActions, listApprovedActionRules, listApprovedVocab, setApproved, type ActionApproval } from "./approved-actions";
 import { aiKillEngaged, engageAiKill, releaseAiKill } from "./ai-kill";
 import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "./maintenance";
+import { snapshotRoleMap, applyRoleMapSnapshot } from "./rbac";
 import { sharedKv, sharedStateMode } from "./shared-state";
 import { safeParseJson } from "./safe-json";
 import { logger } from "./logger";
@@ -33,6 +34,9 @@ interface SecuritySnapshot {
   approved: { actions: string[]; vocab: string[]; rules?: ActionApproval[] };
   aiKill: boolean;
   maintenance?: { engaged: boolean; reason: string };
+  /** Admin override of the IdP claim→role mapping (only overridden roles). Durable so a REVOCATION of
+   *  a compromised group's admin/pmo authority survives a restart instead of reverting to the env. */
+  roleMap?: Record<string, string[]>;
 }
 
 /** Gather the current security state into one serialisable object. */
@@ -44,6 +48,7 @@ export function collectSecurityState(): SecuritySnapshot {
     approved: { actions: listApprovedActions(), vocab: listApprovedVocab(), rules: listApprovedActionRules() },
     aiKill: aiKillEngaged(),
     maintenance: { engaged: maintenanceEngaged(), reason: maintenanceReason() },
+    roleMap: snapshotRoleMap(),
   };
 }
 
@@ -55,6 +60,7 @@ export function applySecurityState(s: SecuritySnapshot): void {
   if (s.approved) setApproved(s.approved); // rules wins when present, else falls back to actions ids
   if (s.aiKill) engageAiKill(); else releaseAiKill();
   if (s.maintenance?.engaged) engageMaintenance(s.maintenance.reason); else releaseMaintenance();
+  if (s.roleMap !== undefined) applyRoleMapSnapshot(s.roleMap); // validated; replaces the override set
 }
 
 /** Persist the current security state (sealed) — no-op unless SECURITY_STATE_FILE is set — AND fan the
@@ -79,6 +85,9 @@ interface AiAuthzSnapshot {
   grants: AutonomousWriteGrant[];
   containment: AiContainment;
   approved: { actions: string[]; vocab: string[]; rules?: ActionApproval[] };
+  /** The RBAC role-map override travels on the SAME fleet channel — it is an elevation control too, so
+   *  a compromised-group revocation must propagate fleet-wide, not just persist locally. */
+  roleMap: Record<string, string[]>;
 }
 
 function collectAiAuthz(): AiAuthzSnapshot {
@@ -86,6 +95,7 @@ function collectAiAuthz(): AiAuthzSnapshot {
     grants: listAutonomousGrants(),
     containment: getContainmentRelax(),
     approved: { actions: listApprovedActions(), vocab: listApprovedVocab(), rules: listApprovedActionRules() },
+    roleMap: snapshotRoleMap(),
   };
 }
 
@@ -118,6 +128,10 @@ export async function refreshAiAuthzFromShared(): Promise<void> {
   if (approved && typeof approved === "object") {
     setApproved(approved as { actions?: string[]; rules?: ActionApproval[]; vocab?: string[] });
   }
+  // Role-map override: applyRoleMapSnapshot re-validates (only the five fixed roles, string groups),
+  // so a hostile blob can't invent a role or inject a non-string group. Only when present, so an older
+  // publisher that omits it doesn't wipe the local override.
+  if (obj["roleMap"] !== undefined) applyRoleMapSnapshot(obj["roleMap"]);
 }
 
 let aiAuthzTimer: ReturnType<typeof setInterval> | null = null;
