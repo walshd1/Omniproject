@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { backendCatalogue } from "@workspace/backend-catalogue";
 import { devModeStatus, isDevMode } from "../lib/dev-mode";
-import { requireRole, roleFromClaims, hasRole } from "../lib/rbac";
+import { requireRole, roleFromClaims, hasRole, hasStrongAuth } from "../lib/rbac";
 import { isDemoAuth } from "../lib/auth-config";
 import { requireStepUp } from "../lib/step-up";
 import { getDevBrokerConfig, setDevBrokerConfig, DEV_DATA_SOURCES, type DevDataSource } from "../broker/dev-broker";
@@ -146,7 +146,10 @@ router.post("/dev-mode/messy", requireDevMode, requireRole("admin"), (req, res) 
 /** Is the REAL caller (ignoring impersonation) an admin? */
 function isRealAdmin(req: import("express").Request): boolean {
   const real = getRealSession(req);
-  return roleFromClaims(real?.roles ?? [], { isDemo: isDemoAuth() }) === "admin";
+  // Honour the same strong-auth gate as grantsForReq: the admin authority is withheld without
+  // hardware-bound MFA, so a merely-claimed admin can't override dev entitlements. (Without passing
+  // strongAuth, grantsFromClaims defaults it to true and skips the check.)
+  return roleFromClaims(real?.roles ?? [], { isDemo: isDemoAuth(), strongAuth: hasStrongAuth(real) }) === "admin";
 }
 
 /** Middleware: only the REAL admin may mutate entitlement overrides (403 otherwise). */
