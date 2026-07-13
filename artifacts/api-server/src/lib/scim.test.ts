@@ -4,6 +4,7 @@ import {
   createUser, getUser, patchUser, replaceUser, deleteUser, listUsers,
   createGroup, patchGroup, directoryDecision, scimTokenValid,
   refreshScimFromShared, SCIM_SHARED_KEY, __resetScim,
+  sanitizeSharedDirectory,
 } from "./scim";
 import { sharedKv, __resetSharedStateForTest } from "./shared-state";
 
@@ -136,4 +137,23 @@ test("a forbidden prototype key as the SCIM id is never treated as a resource (n
   // A normal user still works after the attempted attack.
   const u = createUser({ userName: "real@corp.com" });
   assert.equal(getUser(u.id)?.userName, "real@corp.com");
+});
+
+test("sanitizeSharedDirectory drops prototype-pollution ids + malformed records from untrusted fleet input", () => {
+  const now = new Date().toISOString();
+  const hostile = JSON.stringify({
+    users: {
+      "__proto__": { meta: { lastModified: now } },        // prototype-pollution id → dropped
+      "u-good": { userName: "ada", active: true, meta: { resourceType: "User", created: now, lastModified: now } },
+      "u-bad": { userName: "no-meta" },                       // no valid meta → dropped
+    },
+    groups: { "g-good": { displayName: "eng", meta: { resourceType: "Group", created: now, lastModified: now } } },
+    tombstones: { "t1": 123, "t-bad": "not-a-number", "__proto__": 999 },
+  });
+  const clean = sanitizeSharedDirectory(hostile);
+  assert.deepEqual(Object.keys(clean.users), ["u-good"]);
+  assert.deepEqual(Object.keys(clean.groups), ["g-good"]);
+  assert.deepEqual(clean.tombstones, { t1: 123 });
+  // The prototype was not polluted by the "__proto__" key.
+  assert.equal(({} as Record<string, unknown>)["polluted"], undefined);
 });

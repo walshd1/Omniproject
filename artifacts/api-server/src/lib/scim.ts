@@ -3,7 +3,7 @@ import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { constantTimeEqual } from "./crypto-keys";
 import { sharedKv } from "./shared-state";
-import { isForbiddenKey } from "./safe-json";
+import { isForbiddenKey, safeParseJson } from "./safe-json";
 
 /**
  * SECURITY: the directory maps are plain objects indexed by the SCIM resource `id`, which arrives
@@ -91,6 +91,27 @@ function mergeDirectories(a: ScimShared, b: ScimShared): ScimShared {
   return { users, groups, tombstones: tomb };
 }
 
+/** Validate an untrusted shared-directory blob from the fleet KV BEFORE it can influence authorization.
+ *  Any replica (or anyone able to write `security:scim-directory`) can put this value, so a hostile or
+ *  buggy one must not be able to grant roles, reactivate a deprovisioned user, or pollute the prototype.
+ *  Parse prototype-safe, then keep only well-formed records under safe ids; drop everything else. */
+export function sanitizeSharedDirectory(raw: string): ScimShared {
+  const parsed = safeParseJson<Partial<ScimShared>>(raw) ?? {};
+  const out: ScimShared = { users: {}, groups: {}, tombstones: {} };
+  const validMeta = (m: unknown): boolean =>
+    !!m && typeof m === "object" && typeof (m as { lastModified?: unknown }).lastModified === "string";
+  for (const [id, rec] of Object.entries(parsed.users ?? {})) {
+    if (safeId(id) && rec && typeof rec === "object" && validMeta((rec as ScimUser).meta)) out.users[id] = rec as ScimUser;
+  }
+  for (const [id, rec] of Object.entries(parsed.groups ?? {})) {
+    if (safeId(id) && rec && typeof rec === "object" && validMeta((rec as ScimGroup).meta)) out.groups[id] = rec as ScimGroup;
+  }
+  for (const [id, ts] of Object.entries(parsed.tombstones ?? {})) {
+    if (safeId(id) && typeof ts === "number" && Number.isFinite(ts)) out.tombstones[id] = ts;
+  }
+  return out;
+}
+
 /**
  * Converge this replica's directory with shared state once (the fleet-sync tick, also directly
  * testable). LWW-merges the shared snapshot into local, recomputes group-derived roles, and — anti
@@ -100,7 +121,8 @@ function mergeDirectories(a: ScimShared, b: ScimShared): ScimShared {
 export async function refreshScimFromShared(): Promise<void> {
   try {
     const raw = await sharedKv.get(SCIM_SHARED_KEY);
-    const shared: ScimShared = raw ? (JSON.parse(raw) as ScimShared) : { users: {}, groups: {}, tombstones: {} };
+    // Untrusted fleet input — validate before it can grant/reactivate anything (see sanitizeSharedDirectory).
+    const shared: ScimShared = raw ? sanitizeSharedDirectory(raw) : { users: {}, groups: {}, tombstones: {} };
     const merged = mergeDirectories({ users: dir.users, groups: dir.groups, tombstones }, shared);
     dir.users = merged.users;
     dir.groups = merged.groups;
