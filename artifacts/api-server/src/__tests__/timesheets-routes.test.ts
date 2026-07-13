@@ -34,6 +34,22 @@ test("every route is 409 when no timesheet store is configured", async () => {
   assert.equal(r.status, 409);
 });
 
+test("POST caps the entries array (write-amplification guard) → 413", async () => {
+  const store = memoryStore(); registerTimesheetStore(() => store);
+  const entries = Array.from({ length: 1_001 }, (_, i) => ({ id: `e${i}`, projectId: "p1", date: "2026-01-05", hours: 1 }));
+  const r = await h.req("/timesheets", { method: "POST", cookie: ADMIN, body: { id: "ts-big", weekStart: "2026-01-05", entries } });
+  assert.equal(r.status, 413);
+  assert.match(((await r.json()) as { error: string }).error, /Too many entries/);
+});
+
+test("POST rejects a malformed entry (non-finite hours) → 400, nothing stored", async () => {
+  const store = memoryStore(); registerTimesheetStore(() => store);
+  const r = await h.req("/timesheets", { method: "POST", cookie: ADMIN, body: { id: "ts-bad", weekStart: "2026-01-05", entries: [{ id: "e1", projectId: "p1", date: "2026-01-05", hours: "lots" }] } });
+  assert.equal(r.status, 400);
+  assert.match(((await r.json()) as { error: string }).error, /hours/);
+  assert.equal(await store.get("ts-bad"), null);
+});
+
 test("sources reports availability", async () => {
   const store = memoryStore(); registerTimesheetStore(() => store);
   const r = await h.req("/timesheets/sources", { cookie: ADMIN });

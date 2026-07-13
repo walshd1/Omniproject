@@ -34,6 +34,18 @@ router.get("/history/replay", async (req, res) => {
   }
   const from = typeof req.query["from"] === "string" ? (req.query["from"] as string) : undefined;
   const to = typeof req.query["to"] === "string" ? (req.query["to"] as string) : undefined;
+  // Validate the window before it reaches the retention query (same discipline as /history/trends):
+  // reject a non-ISO timestamp or an inverted range rather than forward garbage to the log store.
+  const fromMs = from !== undefined ? Date.parse(from) : undefined;
+  const toMs = to !== undefined ? Date.parse(to) : undefined;
+  if ((fromMs !== undefined && Number.isNaN(fromMs)) || (toMs !== undefined && Number.isNaN(toMs))) {
+    res.status(400).json({ error: "from/to must be ISO-8601 timestamps" });
+    return;
+  }
+  if (fromMs !== undefined && toMs !== undefined && fromMs >= toMs) {
+    res.status(400).json({ error: "from must be before to" });
+    return;
+  }
   try {
     res.json(await getBroker().replay(contextFromReq(req), { ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }));
   } catch (err) {

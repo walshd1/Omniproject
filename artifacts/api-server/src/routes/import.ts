@@ -49,6 +49,12 @@ function isMapping(v: unknown): v is MappingEntry[] {
 router.post("/import/preview", requireRole("contributor"), (req, res) => {
   const body = (req.body ?? {}) as { headers?: unknown; rows?: unknown };
   const rows = isRows(body.rows) ? body.rows : [];
+  // Same cap as /commit: headersOf unions keys across EVERY row (O(rows × cols)), so an unbounded
+  // preview array is a CPU-amplification vector even though it writes nothing.
+  if (rows.length > MAX_IMPORT_ROWS) {
+    res.status(413).json({ error: `Too many rows: ${rows.length} exceeds the ${MAX_IMPORT_ROWS}-row import cap. Split the import.` });
+    return;
+  }
   const headers = headersOf({ headers: body.headers, rows });
   if (headers.length === 0) {
     res.status(400).json({ error: "Provide { headers: string[] } or { rows: object[] }" });

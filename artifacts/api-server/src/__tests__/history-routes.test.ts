@@ -48,6 +48,20 @@ test("GET /history/replay honours the from/to window query params", async () => 
   assert.ok(Array.isArray(states));
 });
 
+test("GET /history/replay rejects a non-ISO from/to (400) before hitting the log store", async () => {
+  await setTimeTravel(true);
+  const bad = await req("/history/replay?from=not-a-date");
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /ISO-8601/);
+});
+
+test("GET /history/replay rejects an inverted window (from >= to) → 400", async () => {
+  await setTimeTravel(true);
+  const r = await req("/history/replay?from=2025-06-01T00:00:00Z&to=2025-01-01T00:00:00Z");
+  assert.equal(r.status, 400);
+  assert.match(((await r.json()) as { error: string }).error, /before/);
+});
+
 // Note: the harness runs in demo mode, where every session holds all RBAC grants, so the
 // admin-only / pmo-scope negative paths (403s) can't be exercised here — they're enforced by
 // requireAnyRole + the in-handler isAdmin check, covered by rbac's own tests. We exercise the

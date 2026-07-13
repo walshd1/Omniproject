@@ -8,10 +8,25 @@ import { Router, type Request, type Response } from "express";
 import { getSession } from "./auth";
 import { hasRole, requireRole } from "../lib/rbac";
 import { timesheetStoreFor, describeTimesheetSources, type TimesheetStore } from "../timesheets/store";
-import { applyTimesheetAction, TimesheetError, type Timesheet, type TimesheetAction, type TimesheetStatus } from "../timesheets/state-machine";
+import { applyTimesheetAction, TimesheetError, type Timesheet, type TimeEntry, type TimesheetAction, type TimesheetStatus } from "../timesheets/state-machine";
 
 const TIMESHEET_STATUSES: readonly TimesheetStatus[] = ["draft", "submitted", "approved", "rejected"];
 const isTimesheetStatus = (v: string): v is TimesheetStatus => (TIMESHEET_STATUSES as readonly string[]).includes(v);
+
+/** Cap entries per sheet — the array is caller-supplied and persisted verbatim, so an unbounded or
+ *  malformed one is a write-amplification / bad-data vector. A week of entries is well under this. */
+const MAX_TIMESHEET_ENTRIES = 1_000;
+
+/** A structurally-valid time entry: the fields the store + state-machine rely on. Rejects a hostile
+ *  or malformed entry (non-finite/negative hours, non-string id/projectId/date) before it is stored. */
+function isValidEntry(v: unknown): v is TimeEntry {
+  if (!v || typeof v !== "object") return false;
+  const e = v as Record<string, unknown>;
+  return typeof e["id"] === "string"
+    && typeof e["projectId"] === "string"
+    && typeof e["date"] === "string"
+    && typeof e["hours"] === "number" && Number.isFinite(e["hours"]) && (e["hours"] as number) >= 0;
+}
 
 const router = Router();
 
@@ -63,6 +78,14 @@ router.post("/timesheets", requireRole("contributor"), async (req, res) => {
   const body = (req.body ?? {}) as Partial<Timesheet>;
   if (!body.id || !body.weekStart || !Array.isArray(body.entries)) {
     res.status(400).json({ error: "id, weekStart and entries are required" });
+    return;
+  }
+  if (body.entries.length > MAX_TIMESHEET_ENTRIES) {
+    res.status(413).json({ error: `Too many entries: ${body.entries.length} exceeds the ${MAX_TIMESHEET_ENTRIES}-entry cap per sheet.` });
+    return;
+  }
+  if (!body.entries.every(isValidEntry)) {
+    res.status(400).json({ error: "each entry needs a string id, projectId and date, and finite non-negative hours" });
     return;
   }
   const existing = await s.get(body.id);
