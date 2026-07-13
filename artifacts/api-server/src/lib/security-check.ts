@@ -16,6 +16,7 @@ import { demoAuthSeverity } from "./deployment-profile";
 import { configuredBrokerUrls } from "./broker-url";
 import { checkRequiredEnv, detectEnvVarTypos, isTruthy } from "./env-config";
 import { isProductionLike } from "./dev-mode-guard";
+import { isDemoAuthFrom } from "./auth-config";
 
 export type Severity = "critical" | "warn" | "info";
 
@@ -63,19 +64,21 @@ export function securityFindings(env: Env): SecurityFinding[] {
   const prod = isProductionLike(env);
   if (!prod) return out; // dev/test deployments (no production signals either) are expected to be relaxed
 
-  // The big one: production with no OIDC means demo auth — every session is admin. Its
-  // severity follows the DEPLOYMENT_PROFILE: a blocker for enterprise/business, an accepted
-  // choice (warn/info) for a self-hoster/charity, or info once explicitly acknowledged
-  // (ACCEPT_DEMO_AUTH=1) — so a deliberate small-org choice isn't treated as a critical fault.
-  if (!set(env["OIDC_ISSUER_URL"])) {
+  // The big one: production with NO real auth method means demo auth — every session is admin. This
+  // uses the SAME detector as the runtime gate (lib/auth-config `isDemoAuthFrom`), so a correctly-
+  // configured SAML / OAuth2 / named-OIDC / magic-link deployment (which legitimately leaves the
+  // legacy OIDC_ISSUER_URL unset) is NOT falsely flagged and refused boot. Its severity follows the
+  // DEPLOYMENT_PROFILE: a blocker for enterprise/business, an accepted choice (warn/info) for a
+  // self-hoster/charity, or info once explicitly acknowledged (ACCEPT_DEMO_AUTH=1).
+  if (isDemoAuthFrom(env)) {
     const severity = demoAuthSeverity(env);
     out.push({
       id: "demo-auth-in-prod",
       severity,
       message:
-        "OIDC_ISSUER_URL is not set: authentication is in DEMO mode, where every session is " +
-        "treated as admin. " + (severity === "critical"
-          ? "Configure OIDC SSO (or set DEPLOYMENT_PROFILE / ACCEPT_DEMO_AUTH=1 to accept this for a small/LAN deployment)."
+        "No real authentication method is configured (OIDC / SAML / OAuth2 / magic-link): authentication " +
+        "is in DEMO mode, where every session is treated as admin. " + (severity === "critical"
+          ? "Configure an SSO method (or set DEPLOYMENT_PROFILE / ACCEPT_DEMO_AUTH=1 to accept this for a small/LAN deployment)."
           : "Accepted for this deployment profile — use the bundled IdP if you need real per-user accounts."),
     });
   }

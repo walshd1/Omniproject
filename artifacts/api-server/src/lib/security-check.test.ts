@@ -49,6 +49,41 @@ test("production with OIDC + rate limiting clears the criticals", () => {
   assert.equal(f.filter((x) => x.severity === "critical").length, 0);
 });
 
+test("a SAML-only / OAuth2-only / named-OIDC production deploy is NOT falsely flagged as demo auth", () => {
+  // The demo-auth blocker must use the same detector as the runtime gate, so a real auth method that
+  // legitimately leaves the legacy OIDC_ISSUER_URL unset does not refuse boot on an enterprise profile.
+  const saml = securityFindings({
+    NODE_ENV: "production", DEPLOYMENT_PROFILE: "enterprise",
+    SAML_IDP_ENTRY_POINT: "https://idp/sso", SAML_IDP_CERT: "-----BEGIN CERTIFICATE-----x-----END CERTIFICATE-----",
+    SAML_CALLBACK_URL: "https://omni.example.com/api/auth/saml/callback",
+  });
+  assert.equal(saml.some((x) => x.id === "demo-auth-in-prod"), false);
+
+  const oauth2 = securityFindings({
+    NODE_ENV: "production", DEPLOYMENT_PROFILE: "enterprise",
+    OAUTH2_AUTH_URL: "https://gh/login", OAUTH2_TOKEN_URL: "https://gh/token", OAUTH2_USERINFO_URL: "https://gh/user",
+    OAUTH2_CLIENT_ID: "id", OAUTH2_CLIENT_SECRET: "secret",
+  });
+  assert.equal(oauth2.some((x) => x.id === "demo-auth-in-prod"), false);
+
+  const namedOidc = securityFindings({
+    NODE_ENV: "production", DEPLOYMENT_PROFILE: "enterprise",
+    OIDC_PROVIDERS: "microsoft", OIDC_MICROSOFT_ISSUER_URL: "https://login.microsoftonline.com/t/v2.0",
+    OIDC_MICROSOFT_CLIENT_ID: "id", OIDC_MICROSOFT_CLIENT_SECRET: "secret",
+  });
+  assert.equal(namedOidc.some((x) => x.id === "demo-auth-in-prod"), false);
+});
+
+test("a SAML-only production deploy BOOTS (does not trip the default critical boot refusal)", () => {
+  const log = fakeLogger();
+  const findings = runSecuritySelfCheck({
+    NODE_ENV: "production", DEPLOYMENT_PROFILE: "enterprise", EGRESS_ALLOWLIST: "idp",
+    SAML_IDP_ENTRY_POINT: "https://idp/sso", SAML_IDP_CERT: "-----BEGIN CERTIFICATE-----x-----END CERTIFICATE-----",
+    SAML_CALLBACK_URL: "https://omni.example.com/api/auth/saml/callback",
+  }, log);
+  assert.equal(findings.filter((x) => x.severity === "critical").length, 0);
+});
+
 test("flags a plain-http broker URL to a remote host (encrypt the broker hop)", () => {
   const remote = securityFindings({ NODE_ENV: "production", OIDC_ISSUER_URL: "https://idp/realm", BROKER_URL: "http://n8n.internal:5678/webhook" });
   assert.ok(remote.some((x) => x.id === "broker-plaintext" && x.severity === "warn"));
