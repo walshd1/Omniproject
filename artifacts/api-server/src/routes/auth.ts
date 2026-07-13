@@ -34,7 +34,7 @@ import { isDemoAuth } from "../lib/auth-config";
 import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
 import { isSessionExpired, timeoutPolicy, sessionCookieMaxAgeMs } from "../lib/session-timeout";
-import { currentVersion, isActive, userSessionsRevokedAt } from "../lib/key-registry";
+import { currentVersion, isActive, userSessionsRevokedAt, revokeUserSessions } from "../lib/key-registry";
 import { registerSession, issueSequence, checkSequence } from "../lib/session-registry";
 import { requireTls } from "../lib/deployment-profile";
 import { productionSignals } from "../lib/dev-mode-guard";
@@ -191,7 +191,13 @@ function readSession(req: Request): Session | null {
     // Rotating-token replay/reuse detection: a cookie presented well behind this session's sequence
     // high-water mark is a superseded copy ⇒ the session forked ⇒ it's killed for every holder (both
     // must re-auth). Grace absorbs normal concurrency; a session predating sequencing is grandfathered.
-    if (session.salt && checkSequence(session.salt, session.seq ?? 0, Date.now()) === "fork") return null;
+    if (session.salt && checkSequence(session.salt, session.seq ?? 0, Date.now()) === "fork") {
+      // Escalate the local detection to a FLEET-WIDE ejection: revoke this principal's sessions so the
+      // kill propagates to every replica via the key-registry sync (monotonic userRevokedAt), not just
+      // the replica that caught the replay. Assume-breach: a detected fork burns the whole family.
+      if (session.sub) revokeUserSessions(session.sub);
+      return null;
+    }
     return session;
   } catch {
     return null;

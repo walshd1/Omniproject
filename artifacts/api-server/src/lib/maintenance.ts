@@ -90,6 +90,7 @@ const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const EXEMPT = [
   "/auth/login", "/auth/logout", "/auth/callback", "/auth/step-up",
   "/admin/maintenance", // the toggle itself
+  "/break-glass/lockdown", "/break-glass/release", // the IdP-independent panic button + its way out
   "/healthz", "/readyz",
 ];
 
