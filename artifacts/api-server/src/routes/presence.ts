@@ -3,6 +3,7 @@ import { getSession } from "./auth";
 import { isDeprovisioned } from "../lib/rbac";
 import { joinRoom, setEditing, roomSnapshot, presenceConnectionCount, MAX_PRESENCE_STREAMS_PER_SUB, type PresencePeer } from "../lib/presence-hub";
 import { openSse, keepAlive } from "../lib/sse";
+import { guardProjectScope } from "../lib/project-scope";
 
 /**
  * Live-collaboration presence routes (the "presence" feature module).
@@ -25,11 +26,29 @@ function clean(v: unknown, max: number): string | null {
   return s;
 }
 
+/** The projectId a room belongs to, from the shared surface-id format (`issue:<projectId>:<issueId>` /
+ *  `project:<projectId>`), or null when the room isn't project-scoped. Same format comments.ts uses. */
+function projectIdOfRoom(roomId: string): string | null {
+  const parts = roomId.split(":");
+  return (parts[0] === "issue" || parts[0] === "project") && parts[1] ? parts[1] : null;
+}
+
+/** Enforce the caller's project scope on a room whose id encodes a projectId (IDOR guard — the presence
+ *  hub is keyed only by roomId, so without this any authenticated principal could join another tenant's
+ *  room by naming it: reading the peer roster (sub/label + field being edited) and injecting presence).
+ *  Mirrors comments.ts guardRoomScope over the identical shared-surface id. A non-project room has no
+ *  boundary to enforce. */
+async function guardRoomScope(req: Request, res: Response, roomId: string): Promise<boolean> {
+  const projectId = projectIdOfRoom(roomId);
+  return projectId ? guardProjectScope(req, res, projectId) : true;
+}
+
 // GET /api/presence/rooms/:roomId/stream — live peer presence for a shared surface.
-router.get("/presence/rooms/:roomId/stream", (req: Request, res: Response) => {
+router.get("/presence/rooms/:roomId/stream", async (req: Request, res: Response) => {
   const roomId = clean(req.params["roomId"], 200);
   const cid = clean(req.query["cid"], 80);
   if (!roomId || !cid) { res.status(400).json({ error: "roomId and cid are required" }); return; }
+  if (!(await guardRoomScope(req, res, roomId))) return;
 
   const session = getSession(req);
   const sub = session?.sub ?? "anonymous";
@@ -56,11 +75,12 @@ router.get("/presence/rooms/:roomId/stream", (req: Request, res: Response) => {
 // POST /api/presence/rooms/:roomId — set/refresh the field this tab is editing (advisory lock).
 // Body: { cid: string, editing: string | null }. Heartbeating with the same field refreshes the
 // soft TTL; sending null releases it. Always advisory — the hard guarantee stays Issue.version.
-router.post("/presence/rooms/:roomId", (req: Request, res: Response) => {
+router.post("/presence/rooms/:roomId", async (req: Request, res: Response) => {
   const roomId = clean(req.params["roomId"], 200);
   const body = (req.body ?? {}) as { cid?: unknown; editing?: unknown };
   const cid = clean(body.cid, 80);
   if (!roomId || !cid) { res.status(400).json({ error: "roomId and cid are required" }); return; }
+  if (!(await guardRoomScope(req, res, roomId))) return;
   const editing = body.editing === null ? null : clean(body.editing, 80);
   const ok = setEditing(roomId, cid, editing, Date.now());
   if (!ok) { res.status(409).json({ error: "Unknown connection — (re)open the presence stream first" }); return; }

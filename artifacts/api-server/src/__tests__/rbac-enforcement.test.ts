@@ -93,6 +93,24 @@ test("history trends: a portfolio-scoped principal (PMO) is not blocked by the s
   });
 });
 
+// ── IDOR fix: GET /history/replay is scope-checked (portfolio-wide retained history) ──
+// Replay returns recorded portfolio-wide states; like the portfolio-wide branch of the trends guard it
+// requires portfolio (PMO/admin) scope, else any scoped principal could read the whole portfolio's log.
+test("history replay: a scoped principal can't read portfolio-wide retained history (403); PMO can", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  await withRealRbac(async () => {
+    updateSettings({ loggingSync: { enabled: true, url: "https://logs.example.com", acknowledgedWarranty: true } });
+    try {
+      // A user-level principal has no portfolio scope → the portfolio-wide replay is refused.
+      assert.equal((await h.req("/history/replay", { cookie: memberCookie() })).status, 403);
+      // A portfolio-scoped principal (PMO) passes the guard (never a 403).
+      assert.notEqual((await h.req("/history/replay", { cookie: pmoCookie() })).status, 403);
+    } finally {
+      updateSettings({ loggingSync: { enabled: false } });
+    }
+  });
+});
+
 // ── IDOR fix: every per-:projectId route is scope-checked (guardProjectScope) ──
 // The broker enforces scope only on listProjects/updateProject; before this fix every other
 // per-project read/write served a caller-supplied :projectId straight to a scope-blind broker method.

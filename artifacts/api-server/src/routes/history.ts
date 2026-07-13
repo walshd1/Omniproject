@@ -24,6 +24,14 @@ router.get("/history/replay", async (req, res) => {
     res.status(409).json({ error: "Time-travel is not enabled. Enable the logging server in settings to retain and replay history." });
     return;
   }
+  // Replay returns recorded PORTFOLIO-WIDE states (the retention read isn't per-tenant), so — exactly
+  // like the portfolio-wide branch of trendScopeAllowed — it requires portfolio (PMO/admin) scope.
+  // Without this, any scoped principal (manager/user) could read the whole portfolio's retained
+  // history: the same IDOR class already closed on /history/trends. Fail-closed.
+  if (scopeForReq(req).level !== "all") {
+    res.status(403).json({ error: "time-travel replay returns portfolio-wide history and requires portfolio (PMO/admin) scope" });
+    return;
+  }
   const from = typeof req.query["from"] === "string" ? (req.query["from"] as string) : undefined;
   const to = typeof req.query["to"] === "string" ? (req.query["to"] as string) : undefined;
   try {
