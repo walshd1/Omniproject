@@ -62,6 +62,8 @@ describe("ProgrammeDetail", () => {
     // Seed a resolved-but-empty result so the query is not loading and !prog holds.
     qc.setQueryData(getGetProgrammeQueryKey("missing"), null as unknown as ProgrammeDetailType);
     renderWithProviders(<ProgrammeDetail programmeId="missing" />, { client: qc });
-    expect(screen.getByText(/programme not found/i)).toBeInTheDocument();
+    // The not-found state still paints an <h1> (every page owns a heading — the route smoke relies
+    // on it), rather than rendering a headingless blank that reads as a broken page.
+    expect(screen.getByRole("heading", { level: 1, name: /programme not found/i })).toBeInTheDocument();
   });
 });

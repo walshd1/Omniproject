@@ -66,7 +66,8 @@ export function ProgrammeDetail({ programmeId }: { programmeId: string }) {
     return (
       <div className="p-8 max-w-4xl mx-auto">
         <Link href="/programmes" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"><ArrowLeft className="w-4 h-4" /> Programmes</Link>
-        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Programme not found.</div>
+        <h1 className="text-3xl font-black uppercase tracking-tighter mb-4">Programme not found</h1>
+        <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground">This programme no longer exists or has no member projects.</div>
       </div>
     );
   }

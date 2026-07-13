@@ -36,6 +36,9 @@ import { stripDangerousKeys } from "./lib/safe-json";
 import { resolveTrustProxy } from "./lib/trust-proxy";
 import { configuredCorsOrigins } from "./lib/origin-allowlist";
 import { registerBrokerRetentionFromEnv } from "./history/broker-source";
+import { brokerKind } from "./broker";
+import { getSettings, updateSettings } from "./lib/settings";
+import { SAMPLE_PROGRAMME_REGISTRY } from "./broker/demo-data";
 
 const app: Express = express();
 
@@ -92,6 +95,19 @@ export async function bootstrap(): Promise<void> {
   // Point durable history at the retention-broker when RETENTION_BROKER_URL is set (no-op otherwise);
   // the gateway stays SDK-free — the broker process holds the cloud SDK. See history/broker-source.
   registerBrokerRetentionFromEnv();
+  seedDemoProgrammeRegistry();
+}
+
+/**
+ * Make demo mode internally consistent: programme membership is registry-driven (by project
+ * correlation GUID), so the sample projects only roll up into programmes once the registry names
+ * them. Seed it when the demo broker is active AND the operator hasn't configured a registry of
+ * their own — never clobber real settings. No-op for any real backend.
+ */
+export function seedDemoProgrammeRegistry(): void {
+  if (brokerKind() !== "demo") return;
+  if (Object.keys(getSettings().programmeRegistry).length > 0) return;
+  updateSettings({ programmeRegistry: SAMPLE_PROGRAMME_REGISTRY });
 }
 
 app.use(

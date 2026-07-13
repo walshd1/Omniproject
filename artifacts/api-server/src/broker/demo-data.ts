@@ -21,11 +21,23 @@ const BACKEND_CONFIGURED = !!configuredBrokerUrl();
 // real finance-backed deployment denormalises these the same way as issueCount;
 // a backend with no finance source simply omits them and financials stay hidden.
 export const SAMPLE_PROJECTS: Row[] = [
-  { id: "proj-001", name: "Platform Rewrite", identifier: "PLT", description: "Complete overhaul of the core platform infrastructure", source: "jira", programmeId: "prog-platform", programmeName: "Platform Modernization", issueCount: 24, completedCount: 9, memberCount: 5, currency: "GBP", budget: 480000, actualCost: 312000, earnedValue: 288000, committed: 52000, updatedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
-  { id: "proj-002", name: "API Gateway v2", identifier: "AGW", description: "New unified API gateway", source: "openproject", programmeId: "prog-platform", programmeName: "Platform Modernization", issueCount: 18, completedCount: 14, memberCount: 3, currency: "GBP", budget: 220000, actualCost: 148000, updatedAt: new Date(Date.now() - 1000 * 60 * 90).toISOString() },
-  { id: "proj-003", name: "Enterprise SSO", identifier: "SSO", description: "OIDC-based single sign-on across all services", source: "github", programmeId: "prog-security", programmeName: "Security & Identity", issueCount: 11, completedCount: 7, memberCount: 2, currency: "GBP", budget: 140000, actualCost: 96000, earnedValue: 88000, committed: 9000, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() },
-  { id: "proj-004", name: "Monitoring Stack", identifier: "MON", description: "Observability infrastructure: metrics, traces, logs", source: "azure-devops", programmeId: null, programmeName: null, issueCount: 8, completedCount: 2, memberCount: 4, currency: "GBP", budget: 90000, actualCost: 61000, earnedValue: 52000, committed: 7000, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
+  { id: "proj-001", name: "Platform Rewrite", identifier: "PLT", description: "Complete overhaul of the core platform infrastructure", source: "jira", programmeId: "prog-platform", programmeName: "Platform Modernization", omniInstanceId: "demo-guid-proj-001", issueCount: 24, completedCount: 9, memberCount: 5, currency: "GBP", budget: 480000, actualCost: 312000, earnedValue: 288000, committed: 52000, updatedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
+  { id: "proj-002", name: "API Gateway v2", identifier: "AGW", description: "New unified API gateway", source: "openproject", programmeId: "prog-platform", programmeName: "Platform Modernization", omniInstanceId: "demo-guid-proj-002", issueCount: 18, completedCount: 14, memberCount: 3, currency: "GBP", budget: 220000, actualCost: 148000, updatedAt: new Date(Date.now() - 1000 * 60 * 90).toISOString() },
+  { id: "proj-003", name: "Enterprise SSO", identifier: "SSO", description: "OIDC-based single sign-on across all services", source: "github", programmeId: "prog-security", programmeName: "Security & Identity", omniInstanceId: "demo-guid-proj-003", issueCount: 11, completedCount: 7, memberCount: 2, currency: "GBP", budget: 140000, actualCost: 96000, earnedValue: 88000, committed: 9000, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() },
+  { id: "proj-004", name: "Monitoring Stack", identifier: "MON", description: "Observability infrastructure: metrics, traces, logs", source: "azure-devops", programmeId: null, programmeName: null, omniInstanceId: "demo-guid-proj-004", issueCount: 8, completedCount: 2, memberCount: 4, currency: "GBP", budget: 90000, actualCost: 61000, earnedValue: 52000, committed: 7000, updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
 ];
+
+/**
+ * Demo programme registry — the admin-managed grouping the sample projects roll up into. Programme
+ * MEMBERSHIP is defined by correlation GUID (`omniInstanceId`) against a registry, NOT by the
+ * backend-owned `programmeId` field (see lib/programmes). Demo mode ships no operator settings, so
+ * without this seed `/api/programmes` would be empty and every programme page would 404. Keyed to
+ * the sample projects' GUIDs above; proj-004 is deliberately standalone (in no programme).
+ */
+export const SAMPLE_PROGRAMME_REGISTRY: Record<string, { name: string; instanceIds: string[] }> = {
+  "prog-platform": { name: "Platform Modernization", instanceIds: ["demo-guid-proj-001", "demo-guid-proj-002"] },
+  "prog-security": { name: "Security & Identity", instanceIds: ["demo-guid-proj-003"] },
+};
 
 export const SAMPLE_ISSUES: Record<string, Row[]> = {
   "proj-001": [

@@ -19,7 +19,7 @@ test("a visited project appears under Recent and is reachable by keyboard", asyn
   await page.keyboard.press("/");
   await expect(page.getByTestId("global-search-recent-heading")).toBeVisible();
   const results = page.getByTestId("global-search-results");
-  await expect(results.getByRole("button").first()).toBeVisible();
+  await expect(results.getByRole("option").first()).toBeVisible();
 
   // Jump back to it with the keyboard.
   await page.keyboard.press("ArrowDown");
@@ -35,6 +35,6 @@ test("a recent item is reachable by mouse click", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: /^search$/i }).click();
   await expect(page.getByTestId("global-search-recent-heading")).toBeVisible();
-  await page.getByTestId("global-search-results").getByRole("button").first().click();
+  await page.getByTestId("global-search-results").getByRole("option").first().click();
   await expect(page).toHaveURL(/\/projects\//);
 });
