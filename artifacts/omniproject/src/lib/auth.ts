@@ -128,7 +128,7 @@ export async function requestMagicLink(email: string, returnTo = "/"): Promise<{
  * wiping them only degrades the next sign-in's UX. Keep this list in step with any new data-bearing
  * localStorage writer.
  */
-const SESSION_DATA_LOCAL_KEYS = ["omni:recents"];
+const SESSION_DATA_LOCAL_KEYS = ["omni:recents", "omniproject-active-project"];
 
 /**
  * Wipe client-side remnants of the session so nothing sensitive survives logout on a shared browser.
