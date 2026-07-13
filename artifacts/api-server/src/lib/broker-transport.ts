@@ -92,7 +92,16 @@ export async function closeBrokerDispatcher(): Promise<void> {
 }
 
 /** `fetch()` to the broker: undici's own implementation, wired to the shared dispatcher above.
- *  See the module comment for why this — not the global `fetch` — is required. */
+ *  See the module comment for why this — not the global `fetch` — is required.
+ *
+ *  SSRF: redirects are NOT followed (`redirect: "manual"`, forced — a caller can't re-enable it). The
+ *  callers pre-validate the target with `assertEgressAllowed`, but that only checks the FIRST URL; undici's
+ *  default `redirect: "follow"` would then chase a broker/probe `302 Location: http://169.254.169.254/…`
+ *  to the cloud-metadata endpoint unchecked (the same class `safeFetch` closes for the global-fetch paths).
+ *  A broker RPC/webhook endpoint never legitimately redirects — point config at the final URL — so surfacing
+ *  a 3xx as a non-ok response (the caller then treats it as an error/failover) is the safe behaviour. This
+ *  closes the redirect vector with zero added latency; the DNS-rebind TOCTOU residual on the initial hop is
+ *  covered by mTLS/private-CA when configured. */
 export function brokerFetch(url: string, init: UndiciRequestInit): ReturnType<typeof undiciFetch> {
-  return undiciFetch(url, { ...init, dispatcher: brokerDispatcher() });
+  return undiciFetch(url, { ...init, redirect: "manual", dispatcher: brokerDispatcher() });
 }
