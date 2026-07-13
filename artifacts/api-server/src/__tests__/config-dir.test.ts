@@ -130,3 +130,21 @@ test("the config bundle is a non-empty zip carrying config.json + rulesets (read
   assert.match(text, /rulesets\/field-rules\.json/);
   assert.match(text, /rulesets\/rule-modes\.json/);
 });
+
+test("autonomous-actors.json registers custom actors (capped at the autonomous tiers)", async () => {
+  const { authorizedRole } = await import("../lib/autonomous");
+  const dir = makeConfigDir({
+    "autonomous-actors.json": [
+      { id: "custom-agent", maxRole: "contributor" },
+      { id: "readonly-bot", maxRole: "viewer" },
+      { id: "escalated", maxRole: "admin" },     // rejected — above the autonomous tiers
+      { id: "", maxRole: "viewer" },              // rejected — missing id
+    ],
+  });
+  const summary = loadConfigDir(dir);
+  assert.equal(authorizedRole("custom-agent"), "contributor");
+  assert.equal(authorizedRole("readonly-bot"), "viewer");
+  assert.equal(authorizedRole("escalated"), undefined, "a pmo/admin autonomous actor from config is refused");
+  assert.equal(summary.autonomousActors, 2);
+  assert.ok(summary.errors.some((e) => e.includes("escalated")));
+});
