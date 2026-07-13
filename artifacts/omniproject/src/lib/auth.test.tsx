@@ -139,6 +139,21 @@ describe("login / logout (window.location)", () => {
     expect(hrefValue).toBe("/login");
   });
 
+  it("logout wipes session-derived client data (no remanence for the next user) but keeps device prefs", async () => {
+    // Session-derived data that must NOT survive logout on a shared machine.
+    window.localStorage.setItem("omni:recents", JSON.stringify([{ id: "proj-secret", label: "Acme M&A" }]));
+    window.sessionStorage.setItem("omniproject-portfolio-snapshots", JSON.stringify([{ scenario: "layoffs" }]));
+    // A device preference that SHOULD survive (no session data; clearing it only hurts UX).
+    window.localStorage.setItem("omni.locale", "fr");
+
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true }) as unknown as typeof fetch;
+    await logout();
+
+    expect(window.localStorage.getItem("omni:recents")).toBeNull();
+    expect(window.sessionStorage.getItem("omniproject-portfolio-snapshots")).toBeNull();
+    expect(window.localStorage.getItem("omni.locale")).toBe("fr"); // preference preserved
+  });
+
   it("samlLogin redirects to the SAML SP-initiated flow with an encoded returnTo", () => {
     samlLogin("/projects/42?x=1");
     expect(hrefValue).toBe("/api/auth/saml/login?returnTo=" + encodeURIComponent("/projects/42?x=1"));
