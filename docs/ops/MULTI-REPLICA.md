@@ -46,12 +46,15 @@ isn't installed, they log once and fall back to per-replica. Nothing crashes.
 >   is monotonic (a version, once revoked, stays revoked; a user's cut-off only moves forward), so a
 >   shared-state blip or a racing writer can only ever add revocations, never un-revoke. In-process mode
 >   it is per-replica.
+> - **SCIM deprovisioning** (`active=false`) — the SCIM directory (`lib/scim.ts`) write-throughs every
+>   mutation to shared state, and each replica pulls it in on its fleet-sync tick (a few seconds), so with
+>   `REDIS_URL` set an IdP deactivation landing on ANY replica denies the user at the gate **fleet-wide**.
+>   A directory is not monotonic (a later reactivation must win), so the merge is per-record
+>   last-writer-wins keyed on `meta.lastModified`, with tombstones for hard deletes. In-process mode it is
+>   per-replica.
 > - **Maintenance lockdown** (`lib/maintenance.ts`) and the durable security-state file
 >   (`lib/security-state.ts`) — still per-replica: engaging maintenance on one replica leaves the others
 >   serving until they reload.
-> - **SCIM deprovisioning** (`active=false`) — the SCIM directory (`lib/scim.ts`) is loaded once per
->   replica; an IdP deactivation lands on one replica, so the user can still pass the gate on the others
->   until each reloads its directory.
 >
 > For the controls not yet routed through shared state (maintenance lockdown, SCIM), enforce them
 > fleet-wide with a **rolling restart** after the change (or run a single admin replica for these

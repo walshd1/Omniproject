@@ -13,6 +13,7 @@ import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
 import { initPresenceBus, presenceBusMode } from "./lib/presence-bus";
 import { startAiKillFleetSync } from "./lib/ai-kill";
 import { startKeyRegistryFleetSync, refreshKeyRegistryFromShared } from "./lib/key-registry";
+import { startScimFleetSync, refreshScimFromShared } from "./lib/scim";
 import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
 import { startProactiveDigestScheduler, runProactiveDigest } from "./lib/proactive-digest";
 import { startScheduledExportScheduler, runScheduledExport } from "./lib/scheduled-export";
@@ -72,6 +73,12 @@ async function start(): Promise<void> {
   // replica takes effect fleet-wide (Redis) rather than lingering until each replica reloads.
   void refreshKeyRegistryFromShared();
   startKeyRegistryFleetSync();
+
+  // Same for the SCIM directory: push the sealed-file-restored directory up to shared now, then
+  // converge on an interval — so an IdP deprovision (active=false) landing on ANY replica denies the
+  // user at the gate fleet-wide (Redis) rather than lingering until each replica reloads its directory.
+  void refreshScimFromShared();
+  startScimFleetSync();
 
   // Optional single-instance scheduled executive digest (off unless EXEC_DIGEST_INTERVAL_HOURS>0;
   // for a fleet, use the trigger endpoint + an external scheduler so it fires once).
