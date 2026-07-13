@@ -10,14 +10,10 @@ import {
   isOidcConfigured,
   getOidcProvider,
   oidcProviderList,
-  discover,
+  discoverConfig,
   randomToken,
-  authorizeUrl,
-  exchangeCode,
-  decodeIdTokenClaims,
-  idTokenNonce,
-  idTokenAuthTime,
-  verifyIdToken,
+  buildOidcAuthUrl,
+  completeOidcLogin,
   type Session,
   type Impersonation,
 } from "../lib/oidc";
@@ -318,7 +314,7 @@ router.get("/auth/login", async (req, res) => {
   }
 
   try {
-    const discovery = await discover(provider);
+    const config = await discoverConfig(provider);
     const state = randomToken();
     const verifier = randomToken(48);
     // OIDC nonce: bound into the auth request and echoed back in the ID token, so a
@@ -332,7 +328,7 @@ router.get("/auth/login", async (req, res) => {
       maxAge: FLOW_COOKIE_TTL_MS,
     });
 
-    res.redirect(authorizeUrl({ provider, discovery, redirectUri, state, nonce, verifier }));
+    res.redirect(await buildOidcAuthUrl({ config, provider, redirectUri, state, nonce, verifier }));
   } catch (err) {
     req.log.error({ err }, "OIDC login initiation failed");
     res.status(502).send("SSO is temporarily unavailable. Check OIDC configuration.");
@@ -380,36 +376,19 @@ router.get("/auth/callback", async (req, res) => {
     res.status(400).send("Invalid SSO callback (state mismatch).");
     return;
   }
+  // An OIDC flow always mints a nonce; its absence means the flow cookie isn't ours — fail closed.
+  if (!nonce) {
+    res.status(401).send("Invalid SSO callback (nonce missing).");
+    return;
+  }
 
   try {
-    const discovery = await discover(provider);
-    const tokens = await exchangeCode({
-      config: provider,
-      discovery,
-      code: req.query["code"],
-      redirectUri: `${baseUrl(req)}/api/auth/callback`,
-      codeVerifier: verifier,
-    });
-
-    if (!tokens.id_token) {
-      res.status(502).send("SSO did not return an ID token.");
-      return;
-    }
-
-    // Cryptographically verify the ID token (signature + iss/aud/exp) before
-    // trusting any of its claims.
-    await verifyIdToken(tokens.id_token, provider, discovery);
-
-    // Nonce binding: the ID token MUST echo the nonce we minted for THIS login flow. Fail CLOSED —
-    // an OIDC flow always mints a nonce (see the authorize step), so a missing flow nonce or a
-    // missing/mismatched id_token nonce means the callback isn't bound to our flow: reject it
-    // (rather than skip the check when either side is absent).
-    if (!nonce || idTokenNonce(tokens.id_token) !== nonce) {
-      res.status(401).send("Invalid SSO callback (nonce mismatch).");
-      return;
-    }
-
-    const claims = decodeIdTokenClaims(tokens.id_token);
+    const config = await discoverConfig(provider);
+    // openid-client exchanges the code + validates the ID token end-to-end: signature (issuer JWKS),
+    // iss/aud/exp, and the state + nonce bindings. A mismatch throws (caught below → 401).
+    const currentUrl = new URL(`${baseUrl(req)}/api/auth/callback${req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : ""}`);
+    const result = await completeOidcLogin({ config, currentUrl, expectedState: state, expectedNonce: nonce, verifier });
+    const claims = result.user;
 
     // Step-up freshness: only grant it if the id_token proves a REAL re-authentication just happened.
     // The step-up authorize request sends prompt=login + max_age=0, so a compliant IdP returns an
@@ -417,10 +396,9 @@ router.get("/auth/callback", async (req, res) => {
     // session), do NOT stamp stepUpAt — otherwise "step-up" would be a re-auth in name only.
     let stepUpFreshGranted = false;
     if (stepup) {
-      const authTime = idTokenAuthTime(tokens.id_token);
-      stepUpFreshGranted = authTime != null && Date.now() - authTime * 1000 < stepUpWindowMs();
+      stepUpFreshGranted = result.authTime != null && Date.now() - result.authTime * 1000 < stepUpWindowMs();
       if (!stepUpFreshGranted) {
-        req.log.warn({ sub: claims.sub, authTime }, "step-up completed without a fresh auth_time — not granting step-up freshness (IdP may have reused an existing session)");
+        req.log.warn({ sub: claims.sub, authTime: result.authTime }, "step-up completed without a fresh auth_time — not granting step-up freshness (IdP may have reused an existing session)");
       }
     }
 
@@ -433,8 +411,8 @@ router.get("/auth/callback", async (req, res) => {
       roles: claims.roles,
       amr: claims.amr,
       acr: claims.acr,
-      accessToken: tokens.access_token,
-      idToken: tokens.id_token,
+      accessToken: result.accessToken,
+      ...(result.idToken ? { idToken: result.idToken } : {}),
       // A step-up re-auth (prompt=login) stamps freshness so a sensitive action proceeds — but only
       // when auth_time confirmed a genuine re-authentication (see above).
       ...(stepUpFreshGranted ? { stepUpAt: Date.now() } : {}),
@@ -734,13 +712,13 @@ router.get("/auth/step-up", async (req, res) => {
     return;
   }
   try {
-    const discovery = await discover(provider);
+    const config = await discoverConfig(provider);
     const state = randomToken();
     const verifier = randomToken(48);
     const nonce = randomToken();
     const redirectUri = `${baseUrl(req)}/api/auth/callback`;
     res.cookie(FLOW_COOKIE, JSON.stringify({ state, verifier, nonce, returnTo, stepup: true, provider: provider.id }), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
-    res.redirect(authorizeUrl({ provider, discovery, redirectUri, state, nonce, verifier, prompt: "login" }));
+    res.redirect(await buildOidcAuthUrl({ config, provider, redirectUri, state, nonce, verifier, prompt: "login" }));
   } catch (err) {
     req.log.error({ err }, "step-up initiation failed");
     res.status(502).send("Re-authentication is temporarily unavailable.");

@@ -4,7 +4,7 @@ import { check, gen, type Rng } from "../lib/proptest";
 import { applyODataQuery, buildEdmx, entitySetEnvelope, type Row, type ODataQuery, type EntityModel } from "../lib/odata";
 import { listUsers, listGroups, patchUser, patchGroup, createUser, createGroup, replaceGroup, directoryDecision, __resetScim } from "../lib/scim";
 import { ipInCidr, ipAllowed } from "../lib/ip-allow";
-import { decodeIdTokenClaims, idTokenNonce, InvalidIdTokenClaimsError, type SessionUser } from "../lib/oidc";
+import { claimsToSessionUser, type SessionUser } from "../lib/oidc";
 import type { Session } from "../lib/oidc";
 import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
 import { evaluateSessionSecret, resolveSessionSecret } from "../lib/session-secret-guard";
@@ -329,42 +329,37 @@ function evilToken(r: Rng): string {
   return jwtFrom(gen.oneOf<unknown>(r, (x) => evil(x), () => [1, 2, 3], () => 42, () => null)); // non-object payload
 }
 
-test("fuzz: decodeIdTokenClaims never throws anything but the typed InvalidIdTokenClaimsError, and returns only inert claim data", () => {
+// Signature/nonce/iss/aud/exp and the JWT decode are now openid-client's job (fuzzed upstream). What
+// remains ours is claimsToSessionUser: it maps ALREADY-VALIDATED claim objects onto the session user.
+// Property: for ANY claim object (incl. hostile shapes + a __proto__ payload) it never throws, returns
+// only inert primitives / string arrays, and never pollutes the prototype (it reads fixed keys and
+// builds a fresh object — never `out[userKey] = …`).
+function evilClaims(r: () => number): Record<string, unknown> {
+  const roll = Math.floor(r() * 5);
+  if (roll === 0) return JSON.parse('{"__proto__":{"polluted":true},"sub":"x","roles":["admin"]}') as Record<string, unknown>;
+  if (roll === 1) return { sub: evil(r), name: evil(r), email: evil(r), roles: evil(r), groups: [evil(r), 42, null], amr: gen.bool(r) ? [evil(r)] : evil(r), acr: evil(r), realm_access: { roles: [evil(r)] }, nonce: evil(r) };
+  if (roll === 2) return { sub: gen.oneOf<unknown>(r, () => 42, () => null, () => ({}), (x) => evil(x)) };
+  if (roll === 3) return {};
+  return { sub: "u", groups: gen.string(r, "a,b c;d", 12), realm_access: { roles: gen.oneOf<unknown>(r, () => ["r"], (x) => evil(x)) } };
+}
+
+test("fuzz: claimsToSessionUser never throws, returns only inert claim data, and never pollutes the prototype", () => {
   check(
-    (r) => evilToken(r),
-    (token) => {
-      let claims: SessionUser | undefined;
-      try {
-        claims = decodeIdTokenClaims(token);
-      } catch (e) {
-        assert.ok(e instanceof InvalidIdTokenClaimsError, `unexpected error type from decode: ${e instanceof Error ? e.name : typeof e}`);
-        assertNoPollution();
-        return;
-      }
-      // Decoded claims are always inert primitives / string arrays — never a live object or function
-      // an attacker could smuggle structured trust through. `sub` is coerced to a string unconditionally.
-      assert.equal(typeof claims!.sub, "string");
-      assert.ok(claims!.name === undefined || typeof claims!.name === "string");
-      assert.ok(claims!.email === undefined || typeof claims!.email === "string");
-      assert.ok(claims!.acr === undefined || typeof claims!.acr === "string");
-      assert.ok(Array.isArray(claims!.roles) && claims!.roles.every((x) => typeof x === "string"));
-      assert.ok(claims!.amr === undefined || (Array.isArray(claims!.amr) && claims!.amr.every((x) => typeof x === "string")));
+    (r) => evilClaims(r),
+    (claims) => {
+      let user: SessionUser | undefined;
+      assert.doesNotThrow(() => { user = claimsToSessionUser(claims); });
+      // Always inert primitives / string arrays — never a live object or function that could smuggle
+      // structured trust through. `sub` is coerced to a string unconditionally.
+      assert.equal(typeof user!.sub, "string");
+      assert.ok(user!.name === undefined || typeof user!.name === "string");
+      assert.ok(user!.email === undefined || typeof user!.email === "string");
+      assert.ok(user!.acr === undefined || typeof user!.acr === "string");
+      assert.ok(Array.isArray(user!.roles) && user!.roles.every((x) => typeof x === "string"));
+      assert.ok(user!.amr === undefined || (Array.isArray(user!.amr) && user!.amr.every((x) => typeof x === "string")));
       assertNoPollution();
     },
     { runs: 500 },
-  );
-});
-
-test("fuzz: idTokenNonce returns a string or null for any token, never throws", () => {
-  check(
-    (r) => evilToken(r),
-    (token) => {
-      let nonce: unknown = "sentinel";
-      assert.doesNotThrow(() => { nonce = idTokenNonce(token); });
-      assert.ok(nonce === null || typeof nonce === "string");
-      assertNoPollution();
-    },
-    { runs: 400 },
   );
 });
 

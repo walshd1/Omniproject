@@ -18,7 +18,7 @@ process.env["OIDC_MICROSOFT_CLIENT_ID"] = "m-client";
 process.env["OIDC_MICROSOFT_CLIENT_SECRET"] = "m-secret";
 process.env["OIDC_MICROSOFT_LABEL"] = "Microsoft 365";
 
-const { oidcProviders, oidcConfig, isOidcConfigured, getOidcProvider, oidcProviderList, authorizeUrl } =
+const { oidcProviders, oidcConfig, isOidcConfigured, getOidcProvider, oidcProviderList } =
   await import("../lib/oidc");
 
 test("legacy single config becomes the 'default' provider, listed first", () => {
@@ -58,39 +58,5 @@ test("oidcProviderList is secret-free (id + label + kind only)", () => {
   }
 });
 
-test("authorizeUrl builds the per-provider authorize request (S256 PKCE + nonce)", () => {
-  const provider = getOidcProvider("google")!;
-  const url = new URL(
-    authorizeUrl({
-      provider,
-      discovery: { authorization_endpoint: "https://accounts.google.com/o/oauth2/v2/auth", token_endpoint: "x" },
-      redirectUri: "https://app.test/api/auth/callback",
-      state: "st",
-      nonce: "no",
-      verifier: "ver",
-    }),
-  );
-  assert.equal(url.searchParams.get("client_id"), "g-client");
-  assert.equal(url.searchParams.get("response_type"), "code");
-  assert.equal(url.searchParams.get("nonce"), "no");
-  assert.equal(url.searchParams.get("code_challenge_method"), "S256");
-  assert.ok((url.searchParams.get("code_challenge") || "").length > 0);
-  assert.equal(url.searchParams.get("prompt"), null); // no step-up prompt unless requested
-});
-
-test("authorizeUrl with prompt:login forces a fresh credential prompt (step-up)", () => {
-  const provider = getOidcProvider("default")!;
-  const url = new URL(
-    authorizeUrl({
-      provider,
-      discovery: { authorization_endpoint: "https://legacy.test/auth", token_endpoint: "x" },
-      redirectUri: "https://app.test/api/auth/callback",
-      state: "st",
-      nonce: "no",
-      verifier: "ver",
-      prompt: "login",
-    }),
-  );
-  assert.equal(url.searchParams.get("prompt"), "login");
-  assert.equal(url.searchParams.get("max_age"), "0");
-});
+// The authorize-URL construction (S256 PKCE + nonce + prompt=login/max_age step-up) now runs through
+// openid-client and is covered end-to-end in __tests__/oidc-helpers.test.ts against a mocked IdP.
