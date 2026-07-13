@@ -234,14 +234,27 @@ scale headroom; operational runbooks; low run cost.
   cache, list virtualisation, abortable fan-outs, tunable rate limiting
   (`docs/SCALING.md`), plus a load-test rig (`docker-compose.loadtest.yml`).
 - **Tracing hooks** already present (§2.4).
+- **Helm chart + enterprise profile** — a first-class chart
+  (`deploy/helm/omniproject/`) with templates for HPA, PDB, NetworkPolicy,
+  persistence and OTLP, plus an opinionated `values-enterprise.yaml` that turns on
+  HA (replicas 3 / HPA / PDB / anti-affinity), default-deny network policy, OTLP
+  export, Redis-shared fleet state, data-residency and snapshot signing — while
+  keeping the gateway zero-at-rest (external vault/KMS + Redis, no config PVC).
+- **Observability baseline** — Prometheus alert + SLO recording rules
+  (`deploy/monitoring/prometheus-rules.yaml`), a RED Grafana dashboard
+  (`deploy/monitoring/grafana-dashboard.json`), and reference SLOs with an
+  error-budget (`docs/ops/SLO.md`); OTLP span+metric export via the enterprise
+  profile.
 
 **Gaps to add:**
-- **Helm chart** — a first-class chart (values for replicas, Redis, IdP, residency,
-  ingress) rather than a raw manifest.
 - **Scale validation at target size** — a published result for **~60 programmes /
   200 projects** (latency, throughput, resource envelope), not just the harness.
-- **OpenTelemetry observability + HA/DR runbook** — metrics/dashboards and a tested
-  multi-region DR playbook.
+- **Broker HA in the sample manifest** — `k8s-enterprise-manifest.yaml` still ships
+  the n8n broker on single-replica SQLite (with an in-file warning + the Postgres
+  queue-mode migration path); move it to n8n queue-mode on managed Postgres + Redis
+  for a true-HA reference.
+- **Tested multi-region DR runbook** — a rehearsed multi-region DR playbook beyond
+  "container start + config mount."
 
 ### 2.6 Head of Projects — "Will overworked PMs actually use it, and does it fit our methods?"
 
@@ -343,7 +356,7 @@ whether the item already appears in the code, `[Unreleased]` CHANGELOG, or
 | 8 | Segregation-of-duties / approvals coverage widened to more sensitive actions | Compliance | S | Partial — maker-checker engine (`dual-control.ts`) shipped |
 | 9 | Phase-3 RACI + programme risk register at the governance layer | Compliance / Projects | M | Partial — per-project RAID exists |
 | 10 | ERP/finance backend adapter for actuals (book of record) | Finance | L | No |
-| 11 | OpenTelemetry metrics/logs + K8s Helm chart + HA/DR runbook | IT | M–L | Partial — trace-context + OTLP export + raw K8s manifest exist |
+| 11 | Multi-region HA/DR runbook + true-HA broker in the sample manifest | IT | M | Partial — Helm chart + `values-enterprise.yaml`, OTLP export, and a Prometheus/Grafana/SLO baseline now ship; the broker in `k8s-enterprise-manifest.yaml` is still single-replica SQLite, and the DR playbook is single-region |
 | 12 | ROI/TCO model artefact + strategy→delivery (OKR) traceability | CEO / Finance | M | No |
 | 13 | Cross-programme resource levelling (resolve, not just see, over-allocation) | Projects | M | Partial — capacity roll-up + over-allocation flags exist |
 | 14 | Persona dashboards + progressive disclosure | Projects | M | Partial — widgets + MyWork exist; persona scoping does not |
