@@ -1,6 +1,7 @@
 import { deliverLocal, clientCount, type NotifyTarget } from "./notify-hub";
 import { RedisBus } from "./redis-bus";
 import { safeParseJson } from "./safe-json";
+import { lazySingleton } from "./lazy-singleton";
 
 /**
  * Notification bus — decouples "an event arrived" from "fan it out to the SSE
@@ -69,12 +70,11 @@ class NotifyBus extends RedisBus {
   }
 }
 
-let bus: NotifyBus | null = null;
+const busSingleton = lazySingleton(() => new NotifyBus());
 
 /** The process-wide notification fan-out bus (lazily created singleton). */
 export function getNotifyBus(): NotifyBus {
-  if (!bus) bus = new NotifyBus();
-  return bus;
+  return busSingleton.get();
 }
 
 /** Which fan-out backend the bus uses: in-process or Redis. */

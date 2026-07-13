@@ -7,6 +7,8 @@
  * Ephemeral, in-process, same trust class as the other read-through paths — it
  * never persists and holds nothing across a restart. Deliberately tiny.
  */
+import { lazySingleton } from "./lazy-singleton";
+
 interface Entry {
   value: unknown;
   exp: number;
@@ -53,14 +55,10 @@ export class ReadCache {
   }
 }
 
-let singleton: ReadCache | null = null;
+const cacheSingleton = lazySingleton(() => new ReadCache(Number(process.env["READ_CACHE_TTL_MS"]) || 0));
 
 /** The process-wide read cache, configured from `READ_CACHE_TTL_MS` (default 0 =
  *  disabled). Selected once. */
 export function getReadCache(): ReadCache {
-  if (!singleton) {
-    const ttl = Number(process.env["READ_CACHE_TTL_MS"]) || 0;
-    singleton = new ReadCache(ttl);
-  }
-  return singleton;
+  return cacheSingleton.get();
 }
