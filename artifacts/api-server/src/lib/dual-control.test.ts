@@ -50,3 +50,27 @@ test("reject removes a proposal from the queue without executing", async () => {
   // A second decision on the same proposal is a no-op.
   assert.equal((await approve(p.id, { sub: "carol" }, NOW)).ok, false);
 });
+
+test("a poisoned proposal in shared KV is dropped — four-eyes + executor can't be driven by fleet injection", async () => {
+  const { sharedKv } = await import("./shared-state");
+  const { safeParseJson } = await import("./safe-json");
+  void safeParseJson; // (kept for parity with the sanitizer under test)
+  process.env["DUAL_CONTROL_ACTIONS"] = "danger.action";
+  let ran = 0;
+  registerExecutor("danger.action", () => { ran++; });
+
+  // A hostile replica forges an approved-looking proposal with a non-string proposedBy (would defeat
+  // `proposedBy === actor.sub`) and a bogus status. It must be dropped, not loaded.
+  await sharedKv.set("dc:prop:evil", JSON.stringify({ id: "evil", action: "danger.action", params: { pwn: true }, proposedBy: { not: "a string" }, proposedAt: "now", status: "pending" }));
+  const r = await approve("evil", { sub: "bob" }, NOW);
+  assert.equal(r.ok, false);
+  assert.equal(ran, 0, "the executor must not run for an injected proposal");
+
+  // A garbage (non-JSON) value is also dropped, not thrown.
+  await sharedKv.set("dc:prop:junk", "not json");
+  assert.equal((await approve("junk", { sub: "bob" }, NOW)).ok, false);
+
+  // listProposals skips both poisoned entries.
+  const pending = await listProposals();
+  assert.equal(pending.some((p) => p.id === "evil" || p.id === "junk"), false);
+});
