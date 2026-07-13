@@ -1,16 +1,29 @@
 import crypto from "node:crypto";
-import { verifyIdToken as jwksVerify } from "./jwks";
+import * as client from "openid-client";
 import { assertSafeOutboundUrl } from "./url-safety";
 import { safeFetch } from "./egress";
 
 /**
- * Minimal, dependency-free OpenID Connect (Authorization Code + PKCE) helper.
+ * OpenID Connect (Authorization Code + PKCE) relying-party.
  *
- * The gateway acts as the OIDC relying party. When OIDC_ISSUER_URL /
- * OIDC_CLIENT_ID / OIDC_CLIENT_SECRET are configured, real SSO is enforced.
- * When they are not, the server runs in "demo" mode so the app remains usable
- * locally and in preview environments without an identity provider.
+ * The protocol state machine — discovery, PKCE, state/nonce, token exchange and ID-token
+ * validation (iss/aud/exp/nonce/signature via the issuer JWKS) — is delegated to `openid-client`
+ * (the maintained OIDC RP library, same author as `jose`), rather than hand-rolled. Every IdP HTTP
+ * hop (discovery, JWKS, token, userinfo) is routed through `safeFetch` (see `oidcFetch`), so the
+ * SSRF / DNS-rebind / residency guards on the IdP hops are preserved exactly as before. What stays
+ * here is app-specific: the multi-provider env config, the claim→SessionUser mapping, and exposing
+ * `auth_time` so the caller can enforce step-up freshness.
+ *
+ * When OIDC_ISSUER_URL / OIDC_CLIENT_ID / OIDC_CLIENT_SECRET are configured, real SSO is enforced;
+ * when they are not, the server runs in "demo" mode so the app stays usable without an IdP.
  */
+
+/** Route EVERY openid-client HTTP request through safeFetch so the IdP hops keep the SSRF/residency
+ *  guards. openid-client assigns this to the resolved Configuration, so token/JWKS/userinfo use it too.
+ *  Signature matches openid-client's CustomFetch (url + fetch-like options). */
+function oidcFetch(url: string, options: unknown): Promise<Response> {
+  return safeFetch(url, options as RequestInit);
+}
 
 export interface OidcConfig {
   issuerUrl: string;
@@ -166,40 +179,37 @@ export function oidcProviderList(): { id: string; label: string; kind: "oidc" }[
   return oidcProviders.map((p) => ({ id: p.id, label: p.label, kind: "oidc" }));
 }
 
-// ── Discovery (cached) ────────────────────────────────────────────────────────
+// ── Configuration discovery (cached, via openid-client) ────────────────────────
 
-// Cached per issuer, so multiple providers don't clobber one another's discovery docs.
-const discoveryCache = new Map<string, { doc: OidcDiscovery; at: number }>();
+// Cached per issuer, so multiple providers don't re-run discovery on every request.
+const configCache = new Map<string, { cfg: client.Configuration; at: number }>();
 const DISCOVERY_TTL_MS = 10 * 60 * 1000;
 
-/** Fetch (and cache, per issuer) the issuer's OIDC discovery document. */
-export async function discover(config: OidcConfig): Promise<OidcDiscovery> {
-  const cached = discoveryCache.get(config.issuerUrl);
-  if (cached && Date.now() - cached.at < DISCOVERY_TTL_MS) return cached.doc;
-  const url = `${config.issuerUrl}/.well-known/openid-configuration`;
-  assertSafeOutboundUrl(url, "OIDC issuer");
-  // safeFetch re-checks after DNS resolution (blocks an issuer host that resolves to a metadata/
-  // link-local/private IP) and enforces the residency egress gate on the IdP hop.
-  const res = await safeFetch(url, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) {
-    throw new Error(`OIDC discovery failed (${res.status}) at ${url}`);
-  }
-  const doc = (await res.json()) as OidcDiscovery;
-  if (!doc.authorization_endpoint || !doc.token_endpoint) {
-    throw new Error("OIDC discovery document missing required endpoints");
-  }
-  // Per the OIDC Discovery spec the document's `issuer` MUST match the configured issuer; otherwise a
-  // rogue/misconfigured metadata doc silently shifts the `iss` value id_tokens are validated against
-  // (verifyIdToken uses discovery.issuer). Compare trailing-slash-insensitively for real-IdP variance.
-  const normIssuer = (s: string): string => s.replace(/\/+$/, "");
-  if (doc.issuer && normIssuer(doc.issuer) !== normIssuer(config.issuerUrl)) {
-    throw new Error(`OIDC discovery issuer mismatch: document advertises "${doc.issuer}", configured issuer is "${config.issuerUrl}"`);
-  }
-  discoveryCache.set(config.issuerUrl, { doc, at: Date.now() });
-  return doc;
+/** Discover (and cache, per issuer) the openid-client Configuration. openid-client fetches the
+ *  issuer's `.well-known/openid-configuration`, validates the advertised `issuer` matches, and wires
+ *  ClientSecretPost auth — all over `oidcFetch` (safeFetch), so the discovery hop stays SSRF-guarded. */
+export async function discoverConfig(provider: OidcConfig): Promise<client.Configuration> {
+  const cached = configCache.get(provider.issuerUrl);
+  if (cached && Date.now() - cached.at < DISCOVERY_TTL_MS) return cached.cfg;
+  // Literal pre-check before any DNS (defence-in-depth; safeFetch re-checks after resolution).
+  assertSafeOutboundUrl(`${provider.issuerUrl}/.well-known/openid-configuration`, "OIDC issuer");
+  const cfg = await client.discovery(
+    new URL(provider.issuerUrl),
+    provider.clientId,
+    provider.clientSecret,
+    undefined,
+    { [client.customFetch]: oidcFetch },
+  );
+  configCache.set(provider.issuerUrl, { cfg, at: Date.now() });
+  return cfg;
 }
 
-// ── PKCE / state helpers ──────────────────────────────────────────────────────
+/** Drop a cached Configuration (test seam / config change). */
+export function __clearOidcConfigCache(): void {
+  configCache.clear();
+}
+
+// ── PKCE / state helpers (kept for the generic OAuth2 flow; OIDC PKCE runs through openid-client) ──
 
 function base64url(buf: Buffer): string {
   return buf.toString("base64url");
@@ -215,134 +225,79 @@ export function pkceChallenge(verifier: string): string {
   return base64url(crypto.createHash("sha256").update(verifier).digest());
 }
 
-/** Build a provider's authorization-endpoint URL (Authorization Code + S256 PKCE + nonce).
- *  Shared by the login and step-up flows so the query is constructed in exactly one place. */
-export function authorizeUrl(params: {
+/**
+ * Build a provider's authorization-endpoint URL (Authorization Code + S256 PKCE + nonce) via
+ * openid-client. Shared by the login and step-up flows. `prompt: "login"` forces a fresh credential
+ * prompt (`prompt=login` + `max_age=0`) for step-up.
+ */
+export async function buildOidcAuthUrl(params: {
+  config: client.Configuration;
   provider: OidcConfig;
-  discovery: OidcDiscovery;
   redirectUri: string;
   state: string;
   nonce: string;
   verifier: string;
   prompt?: "login";
-}): string {
-  const url = new URL(params.discovery.authorization_endpoint);
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("client_id", params.provider.clientId);
-  url.searchParams.set("redirect_uri", params.redirectUri);
-  url.searchParams.set("scope", params.provider.scope);
-  url.searchParams.set("state", params.state);
-  url.searchParams.set("nonce", params.nonce);
-  url.searchParams.set("code_challenge", pkceChallenge(params.verifier));
-  url.searchParams.set("code_challenge_method", "S256");
-  if (params.prompt === "login") {
-    url.searchParams.set("prompt", "login"); // force a fresh credential prompt (step-up)
-    url.searchParams.set("max_age", "0");
-  }
-  if (params.provider.acrValues) url.searchParams.set("acr_values", params.provider.acrValues);
-  return url.toString();
-}
-
-// ── Token exchange ────────────────────────────────────────────────────────────
-
-interface TokenResponse {
-  access_token: string;
-  id_token?: string;
-  token_type?: string;
-  expires_in?: number;
-}
-
-/** Exchange an authorization code (with the PKCE verifier) for the token set at
- *  the IdP's token endpoint. */
-export async function exchangeCode(params: {
-  config: OidcConfig;
-  discovery: OidcDiscovery;
-  code: string;
-  redirectUri: string;
-  codeVerifier: string;
-}): Promise<TokenResponse> {
-  const body = new URLSearchParams({
-    grant_type: "authorization_code",
-    code: params.code,
+}): Promise<string> {
+  const p: Record<string, string> = {
     redirect_uri: params.redirectUri,
-    client_id: params.config.clientId,
-    client_secret: params.config.clientSecret,
-    code_verifier: params.codeVerifier,
-  });
-
-  // token_endpoint comes from the issuer's discovery doc (IdP-controlled) — guard it too, and
-  // resolve-then-check + residency-gate via safeFetch so the client_secret can't be POSTed to a
-  // host that resolves to cloud metadata.
-  assertSafeOutboundUrl(params.discovery.token_endpoint, "token_endpoint");
-  const res = await safeFetch(params.discovery.token_endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-    signal: AbortSignal.timeout(10_000),
-  });
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Token exchange failed (${res.status}): ${detail.slice(0, 200)}`);
+    scope: params.provider.scope,
+    state: params.state,
+    nonce: params.nonce,
+    code_challenge: await client.calculatePKCECodeChallenge(params.verifier),
+    code_challenge_method: "S256",
+  };
+  if (params.prompt === "login") {
+    p["prompt"] = "login";
+    p["max_age"] = "0";
   }
+  if (params.provider.acrValues) p["acr_values"] = params.provider.acrValues;
+  return client.buildAuthorizationUrl(params.config, p).href;
+}
 
-  return (await res.json()) as TokenResponse;
+/** The validated result of an OIDC callback: the mapped session user plus the tokens the caller
+ *  persists and the `auth_time` it needs for step-up freshness. */
+export interface OidcLoginResult {
+  user: SessionUser;
+  accessToken: string;
+  idToken: string | undefined;
+  /** `auth_time` claim (seconds) — when the user actually authenticated at the IdP, for step-up. */
+  authTime: number | null;
 }
 
 /**
- * Cryptographically verify the ID token against the issuer's JWKS and validate
- * iss/aud/exp/nbf. Throws on any failure. Skipped only when verifyToken is off
- * or the discovery document exposes no jwks_uri (logged by the caller).
+ * Complete the Authorization-Code callback: openid-client exchanges the code (with the PKCE
+ * verifier) at the token endpoint and validates the ID token end-to-end — signature against the
+ * issuer JWKS, plus `iss`/`aud`/`exp` and the `state`/`nonce` bindings. Throws on any mismatch. All
+ * HTTP (token + JWKS) runs through `oidcFetch` (safeFetch), so those hops stay SSRF-guarded.
  */
-export async function verifyIdToken(
-  idToken: string,
-  config: OidcConfig,
-  discovery: OidcDiscovery,
-): Promise<void> {
-  if (!config.verifyToken) return;
-  if (!discovery.jwks_uri) {
-    throw new Error("OIDC discovery exposes no jwks_uri — cannot verify ID token (set OIDC_SKIP_TOKEN_VERIFY=true to override)");
-  }
-  await jwksVerify(idToken, {
-    jwksUri: discovery.jwks_uri,
-    issuer: discovery.issuer || config.issuerUrl,
-    audience: config.audience,
+export async function completeOidcLogin(params: {
+  config: client.Configuration;
+  currentUrl: URL;
+  expectedState: string;
+  expectedNonce: string;
+  verifier: string;
+}): Promise<OidcLoginResult> {
+  const tokens = await client.authorizationCodeGrant(params.config, params.currentUrl, {
+    expectedState: params.expectedState,
+    expectedNonce: params.expectedNonce,
+    pkceCodeVerifier: params.verifier,
   });
+  const claims = tokens.claims();
+  if (!claims) throw new Error("OIDC token response contained no ID token");
+  const authTime = typeof claims["auth_time"] === "number" && Number.isFinite(claims["auth_time"])
+    ? (claims["auth_time"] as number)
+    : null;
+  return {
+    user: claimsToSessionUser(claims as unknown as Record<string, unknown>),
+    accessToken: tokens.access_token,
+    idToken: tokens.id_token,
+    authTime,
+  };
 }
 
-/** Decode a JWT's payload segment (base64url JSON) without checking its signature — the
- *  signature MUST already have been verified by the caller (see verifyIdToken); this only
- *  reads bytes already proven authentic. Malformed structure (wrong segment count, bad
- *  base64/JSON) ⇒ null. */
-function decodeJwtPayload(idToken: string): Record<string, unknown> | null {
-  const parts = idToken.split(".");
-  if (parts.length !== 3) return null;
-  try {
-    return JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8")) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-/** Thrown by decodeIdTokenClaims when the (already signature-verified) ID token's payload
- *  can't be decoded — this only runs AFTER verification has succeeded, so a decode failure
- *  here means the "verified" bytes aren't well-formed JWT claims: a real bug or tampering,
- *  not a normal "claims absent" case. */
-export class InvalidIdTokenClaimsError extends Error {
-  constructor() {
-    super("ID token claims could not be decoded after signature verification succeeded — this indicates tampering or a non-compliant IdP");
-    this.name = "InvalidIdTokenClaimsError";
-  }
-}
-
-/**
- * Decode the JWT id_token to extract user claims. The signature MUST have been
- * verified first (see verifyIdToken); this only reads the payload. Throws
- * InvalidIdTokenClaimsError if the (already-verified) token can't be decoded.
- */
-export function decodeIdTokenClaims(idToken: string): SessionUser {
-  const payload = decodeJwtPayload(idToken);
-  if (!payload) throw new InvalidIdTokenClaimsError();
+/** Map validated ID-token claims onto the app's SessionUser (app-specific claim shapes). */
+export function claimsToSessionUser(payload: Record<string, unknown>): SessionUser {
   return {
     sub: String(payload["sub"] ?? ""),
     name: (payload["name"] as string | undefined) ?? (payload["preferred_username"] as string | undefined) ?? undefined,
@@ -351,27 +306,6 @@ export function decodeIdTokenClaims(idToken: string): SessionUser {
     amr: extractAmr(payload),
     acr: typeof payload["acr"] === "string" ? (payload["acr"] as string) : undefined,
   };
-}
-
-/**
- * Read the `nonce` claim from an ID token's payload (or null if absent/malformed).
- * Used to assert the token was minted for THIS login flow. The signature MUST have
- * been verified first (see verifyIdToken); this only reads the payload.
- */
-export function idTokenNonce(idToken: string): string | null {
-  const payload = decodeJwtPayload(idToken);
-  if (!payload) return null;
-  return typeof payload["nonce"] === "string" ? (payload["nonce"] as string) : null;
-}
-
-/** The `auth_time` claim (seconds since epoch — when the END USER actually authenticated at the IdP),
- *  or null if absent/malformed. Used to confirm a step-up flow triggered a REAL re-authentication
- *  rather than the IdP silently reusing an existing SSO session. Present whenever `max_age` is sent. */
-export function idTokenAuthTime(idToken: string): number | null {
-  const payload = decodeJwtPayload(idToken);
-  if (!payload) return null;
-  const at = payload["auth_time"];
-  return typeof at === "number" && Number.isFinite(at) ? at : null;
 }
 
 /**

@@ -26,6 +26,7 @@
     "express-rate-limit": "^8.5.2",
     "jose": "^6.1.0",
     "nodemailer": "^9.0.3",
+    "openid-client": "^6.8.4",
     "pino": "^9.14.0",
     "pino-http": "^11.0.0",
     "re2js": "^2.8.6",
