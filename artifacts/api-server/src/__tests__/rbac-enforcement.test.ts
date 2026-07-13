@@ -92,3 +92,38 @@ test("history trends: a portfolio-scoped principal (PMO) is not blocked by the s
     assert.notEqual(r.status, 403);
   });
 });
+
+// ── IDOR fix: every per-:projectId route is scope-checked (guardProjectScope) ──
+// The broker enforces scope only on listProjects/updateProject; before this fix every other
+// per-project read/write served a caller-supplied :projectId straight to a scope-blind broker method.
+// A scoped principal must not read or mutate a project outside its scope by naming the id.
+test("per-project routes: a scoped principal is refused an out-of-scope project (403), reads AND writes", async () => {
+  await withRealRbac(async () => {
+    const other = "some-other-teams-project";
+    // Reads
+    for (const path of [
+      `/projects/${other}/summary`,
+      `/projects/${other}/financials`,
+      `/projects/${other}/issues`,
+      `/projects/${other}/history`,
+      `/projects/${other}/raid`,
+      `/projects/${other}/baseline`,
+      `/projects/${other}/members`,
+      `/projects/${other}/capacity`,
+    ]) {
+      assert.equal((await h.req(path, { cookie: memberCookie() })).status, 403, `GET ${path}`);
+    }
+    // Writes (member holds contributor tier under demo-authorities, so a 403 here is the SCOPE gate,
+    // not the role gate — proving the write path is scope-checked, not just tier-checked).
+    const create = await h.req(`/projects/${other}/issues`, { cookie: memberCookie(), method: "POST", body: { title: "x" } });
+    assert.equal(create.status, 403, "POST issues out-of-scope");
+  });
+});
+
+test("per-project routes: a portfolio-scoped principal (PMO) is not blocked by the scope guard", async () => {
+  await withRealRbac(async () => {
+    // all-scope ⇒ guardProjectScope passes for any id; the response is the broker's (404/200/…), never 403.
+    const r = await h.req("/projects/any-project/summary", { cookie: pmoCookie() });
+    assert.notEqual(r.status, 403);
+  });
+});
