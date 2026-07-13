@@ -314,9 +314,19 @@ jobs:
           docker compose -f docker-compose.standalone.yml -f docker-compose.dev.yml config -q
 
       - name: Lint k8s manifest (kubeconform)
+        env:
+          # Pin the immutable SHA-256 for full supply-chain protection (from the release's CHECKSUMS).
+          # Empty ⇒ fetch-verified falls back to the release-published checksums file (corruption guard)
+          # and warns. Fill this to upgrade to a hard pin — see scripts/ci/fetch-verified.sh.
+          KUBECONFORM_SHA256: ""
         run: |
-          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
-            | tar xz kubeconform
+          bash scripts/ci/fetch-verified.sh \
+            --url https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            --out kubeconform.tar.gz \
+            --sha256 "$KUBECONFORM_SHA256" \
+            --checksums-url https://github.com/yannh/kubeconform/releases/download/v0.6.7/CHECKSUMS \
+            --checksums-name kubeconform-linux-amd64.tar.gz
+          tar -xzf kubeconform.tar.gz kubeconform
           ./kubeconform -strict -ignore-missing-schemas -summary \
             k8s-enterprise-manifest.yaml \
             k8s-enterprise-manifest-ha.yaml
@@ -455,9 +465,19 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install gitleaks
+        env:
+          # Pin the immutable SHA-256 for full supply-chain protection (from the release checksums).
+          # Empty ⇒ fetch-verified falls back to the release-published checksums file (corruption guard)
+          # and warns. Fill this to upgrade to a hard pin — see scripts/ci/fetch-verified.sh.
+          GITLEAKS_SHA256: ""
         run: |
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
-            | tar xz gitleaks
+          bash scripts/ci/fetch-verified.sh \
+            --url https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
+            --out gitleaks.tar.gz \
+            --sha256 "$GITLEAKS_SHA256" \
+            --checksums-url https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_checksums.txt \
+            --checksums-name gitleaks_8.21.2_linux_x64.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
       - name: Scan for secrets (gitleaks)
         run: ./gitleaks detect --source . --no-git --config .gitleaks.toml -v
 
