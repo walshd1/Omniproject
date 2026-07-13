@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { sharedKv } from "./shared-state";
 import { parseCsvEnv } from "./env";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Maker-checker (four-eyes) dual control for sensitive admin actions.
@@ -38,9 +39,32 @@ const executors = new Map<string, Executor>();
 
 const keyOf = (id: string): string => `${PROP_PREFIX}${id}`;
 const saveProposal = (p: Proposal): Promise<void> => sharedKv.set(keyOf(p.id), JSON.stringify(p), { ttlMs: PROP_TTL_MS });
+
+/** Validate a proposal read from shared KV before it can drive the four-eyes check + executor. The
+ *  queue lives in fleet-shared state (Redis), so a poisoned entry is untrusted input: a non-string
+ *  `proposedBy` (or a resurrected `status`) could defeat the `proposedBy === actor.sub` gate or replay
+ *  a decided proposal. Parse prototype-safe + require the security-load-bearing fields to be well-typed;
+ *  drop anything malformed. (A validated-but-forged entry still needs a legit proposer's sub — that
+ *  residual trust in the shared queue is inherent; this stops injection/type-confusion/replay.) */
+function sanitizeProposal(raw: string): Proposal | undefined {
+  let p: Record<string, unknown>;
+  try { p = safeParseJson<Record<string, unknown>>(raw); } catch { return undefined; }
+  if (!p || typeof p !== "object") return undefined;
+  const str = (v: unknown): v is string => typeof v === "string";
+  if (!str(p["id"]) || !str(p["action"]) || !str(p["proposedBy"]) || !str(p["proposedAt"])) return undefined;
+  if (p["status"] !== "pending" && p["status"] !== "approved" && p["status"] !== "rejected") return undefined;
+  return {
+    id: p["id"], action: p["action"], params: p["params"], proposedBy: p["proposedBy"], proposedAt: p["proposedAt"],
+    status: p["status"],
+    ...(str(p["proposedByEmail"]) ? { proposedByEmail: p["proposedByEmail"] } : {}),
+    ...(str(p["decidedBy"]) ? { decidedBy: p["decidedBy"] } : {}),
+    ...(str(p["decidedAt"]) ? { decidedAt: p["decidedAt"] } : {}),
+  };
+}
+
 async function loadProposal(id: string): Promise<Proposal | undefined> {
   const raw = await sharedKv.get(keyOf(id));
-  return raw ? (JSON.parse(raw) as Proposal) : undefined;
+  return raw ? sanitizeProposal(raw) : undefined;
 }
 
 /** Register how an action is applied once approved (one per action id). */
@@ -74,7 +98,7 @@ export async function propose(action: string, params: unknown, actor: Actor, now
 /** Pending proposals (for the admin queue). */
 export async function listProposals(): Promise<Proposal[]> {
   const entries = await sharedKv.list(PROP_PREFIX);
-  return entries.map((e) => JSON.parse(e.value) as Proposal).filter((p) => p.status === "pending");
+  return entries.map((e) => sanitizeProposal(e.value)).filter((p): p is Proposal => !!p && p.status === "pending");
 }
 
 export interface DecisionResult { ok: boolean; error?: string; proposal?: Proposal }

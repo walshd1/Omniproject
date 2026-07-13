@@ -91,7 +91,14 @@ const MAX_CAS_ATTEMPTS = 64;
 async function readSharedHead(): Promise<{ seq: number; lastHash: string; raw: string | null }> {
   const raw = await sharedKv.get(SHARED_HEAD_KEY);
   if (raw === null) return { seq: 0, lastHash: GENESIS, raw: null };
+  // The head is fleet-shared (Redis, written by another replica) — validate its TYPES before it drives
+  // linkHash/CAS, mirroring the disk path's guard (ensureLoaded). A wrong-typed head would corrupt the
+  // chain link or the compare-and-set. Fail CLOSED (throw) rather than reset to genesis, which would
+  // fork the chain: the caller's CAS loop surfaces the error and an operator investigates.
   const p = JSON.parse(raw) as Head;
+  if (typeof p?.seq !== "number" || !Number.isFinite(p.seq) || typeof p?.lastHash !== "string") {
+    throw new Error("audit chain: shared head is malformed");
+  }
   return { seq: p.seq, lastHash: p.lastHash, raw };
 }
 

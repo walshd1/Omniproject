@@ -154,3 +154,29 @@ test("GET/PUT /api/federated-peers: admin-gated CRUD, tokens redacted on read an
   assert.equal(getSettings().federatedPeers[0]!.token, "real-secret");
   assert.equal(getSettings().federatedPeers[0]!.label, "EU (renamed)");
 });
+
+test("a hostile peer body is sanitised — no prototype pollution, no raw injection; non-JSON peer → error", async () => {
+  const hostile = await startPeer((_req, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end('{"__proto__":{"polluted":true},"projects":"not-a-number","health":"garbage","sources":{"live":["p1",42],"sor":"x"}}');
+  });
+  const broken = await startPeer((_req, res) => { res.writeHead(200); res.end("this is not json"); });
+  updateSettings({ federatedPeers: [
+    { id: "evil", label: "Evil", baseUrl: hostile.base, token: "t", region: "x", active: true },
+    { id: "broke", label: "Broken", baseUrl: broken.base, token: "t", region: "y", active: true },
+  ] });
+  try {
+    const json = await readJson(await get("/api/federated-portfolio"));
+    const byId = Object.fromEntries(json.peers.map((p: { id: string }) => [p.id, p]));
+    // Hostile body accepted only after sanitising: projects→0, non-object health→null, sources filtered.
+    assert.equal(byId["evil"].status, "ok");
+    assert.equal(byId["evil"].summary.projects, 0);
+    assert.equal(byId["evil"].summary.health, null);
+    assert.deepEqual(byId["evil"].summary.sources.live, ["p1"]); // 42 filtered out
+    assert.equal(byId["evil"].summary.sources.sor.length, 0);   // non-array → []
+    // Unparseable body → error, never accepted as a summary.
+    assert.equal(byId["broke"].status, "error");
+    // The "__proto__" key never polluted this process's Object.prototype.
+    assert.equal(({} as Record<string, unknown>)["polluted"], undefined);
+  } finally { hostile.server.close(); broken.server.close(); }
+});

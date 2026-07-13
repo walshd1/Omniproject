@@ -2,6 +2,7 @@ import type { Request } from "express";
 import { getSettings, type PeerInstance } from "./settings";
 import { allowedRegions } from "./data-residency";
 import { computeLocalPortfolioSummary, type PortfolioSummary } from "./portfolio-summary";
+import { safeParseJson } from "./safe-json";
 import { logger } from "./logger";
 import { isTimeoutError } from "./timeout-error";
 import { safeFetch } from "./egress";
@@ -22,6 +23,30 @@ import { poolMap } from "./concurrency-pool";
  */
 
 const PEER_TIMEOUT_MS = 8_000;
+/** Cap a peer's response body — a portfolio summary is small; anything larger is hostile/broken. */
+const MAX_PEER_BODY_BYTES = 512 * 1024;
+
+/** Validate a peer's portfolio-summary body before it's shown as a labeled region. Parse
+ *  prototype-safe, bound the size, and shape-check the top level: `projects` is a finite number, the
+ *  capability roll-ups are object-or-null, sources is a well-formed plan. Deep per-metric figures stay
+ *  passthrough (they're only displayed, never blended), but a hostile top-level shape is rejected. */
+function sanitizePeerSummary(raw: string): PortfolioSummary | null {
+  if (raw.length > MAX_PEER_BODY_BYTES) return null;
+  let o: Record<string, unknown>;
+  try { o = safeParseJson<Record<string, unknown>>(raw); } catch { return null; }
+  if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+  const objOrNull = <T,>(v: unknown): T | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as T) : null);
+  const arr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  const src = objOrNull<Record<string, unknown>>(o["sources"]);
+  return {
+    projects: typeof o["projects"] === "number" && Number.isFinite(o["projects"]) ? (o["projects"] as number) : 0,
+    health: objOrNull(o["health"]),
+    finance: objOrNull(o["finance"]),
+    capacity: objOrNull(o["capacity"]),
+    tasks: objOrNull(o["tasks"]),
+    sources: { live: arr(src?.["live"]), sor: arr(src?.["sor"]), archive: arr(src?.["archive"]) },
+  };
+}
 
 export type PeerFetchStatus = "ok" | "unreachable" | "unauthorized" | "error";
 
@@ -65,7 +90,12 @@ export async function fetchPeerSummary(peer: PeerInstance): Promise<PeerPortfoli
     if (!res.ok) {
       return { ...base, status: "error", summary: null, error: `HTTP ${res.status}`, ms };
     }
-    const summary = (await res.json()) as PortfolioSummary;
+    // A peer's response body is cross-instance untrusted input (a compromised/misconfigured/MITM'd
+    // peer, or an attacker who controls a configured peer baseUrl). Bound the body + validate the
+    // shape before it's shown as a labeled region — else a giant/deeply-nested or prototype-polluting
+    // body would be deserialized + re-serialized into our own response.
+    const summary = sanitizePeerSummary(await res.text());
+    if (!summary) return { ...base, status: "error", summary: null, error: "invalid summary", ms };
     return { ...base, status: "ok", summary, ms };
   } catch (err) {
     const ms = Date.now() - started;

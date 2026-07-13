@@ -1,5 +1,6 @@
 import { deliverLocal, clientCount, type NotifyTarget } from "./notify-hub";
 import { RedisBus } from "./redis-bus";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Notification bus — decouples "an event arrived" from "fan it out to the SSE
@@ -25,6 +26,15 @@ export interface NotifyEnvelope {
 
 const CHANNEL = "omniproject:notifications";
 
+/** Coerce an untrusted target's addressing fields to strings (or drop them). A non-string sub/email/
+ *  role can't type-confuse clientMatches; an arbitrary role string simply matches no client. */
+function sanitizeTarget(t: unknown): NotifyTarget | undefined {
+  if (!t || typeof t !== "object") return undefined;
+  const o = t as Record<string, unknown>;
+  const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  return { sub: str(o["sub"]), email: str(o["email"]), role: str(o["role"]) as NotifyTarget["role"] };
+}
+
 class NotifyBus extends RedisBus {
   constructor() {
     super(CHANNEL, {
@@ -36,8 +46,12 @@ class NotifyBus extends RedisBus {
 
   protected handleMessage(message: string): void {
     try {
-      const env = JSON.parse(message) as NotifyEnvelope;
-      deliverLocal(env.notification, env.target);
+      // Untrusted cross-replica message — parse prototype-safe and coerce the target's addressing
+      // fields to strings so a poisoned envelope can't type-confuse the delivery match (or ride a
+      // prototype-pollution key through to SSE clients). notification body stays opaque passthrough.
+      const env = safeParseJson<{ notification?: unknown; target?: unknown }>(message);
+      if (!env || typeof env !== "object") return;
+      deliverLocal(env.notification, sanitizeTarget(env.target));
     } catch {
       /* ignore malformed bus message */
     }
