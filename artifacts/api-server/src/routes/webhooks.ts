@@ -6,6 +6,7 @@
 import { Router } from "express";
 import { listWebhooks, createWebhook, deleteWebhook, testWebhook, WebhookNotFoundError, WEBHOOK_EVENTS } from "../lib/webhooks";
 import { requireRole } from "../lib/rbac";
+import { requireStepUp } from "../lib/step-up";
 import { requireEntitlement, isEntitled } from "../lib/license";
 
 /**
@@ -22,7 +23,7 @@ router.get("/webhooks", requireRole("admin"), (_req, res) => {
   res.json({ entitled: isEntitled("webhooks"), events: WEBHOOK_EVENTS, webhooks: listWebhooks() });
 });
 
-router.post("/webhooks", requireRole("admin"), requireEntitlement("webhooks"), (req, res) => {
+router.post("/webhooks", requireRole("admin"), requireStepUp, requireEntitlement("webhooks"), (req, res) => {
   try {
     const created = createWebhook(req.body);
     // The plaintext secret is returned ONCE so the operator can configure the
@@ -33,7 +34,7 @@ router.post("/webhooks", requireRole("admin"), requireEntitlement("webhooks"), (
   }
 });
 
-router.delete("/webhooks/:id", requireRole("admin"), (req, res) => {
+router.delete("/webhooks/:id", requireRole("admin"), requireStepUp, (req, res) => {
   try {
     deleteWebhook(String(req.params["id"]));
     res.json({ deleted: true });

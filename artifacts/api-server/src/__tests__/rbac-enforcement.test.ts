@@ -192,3 +192,19 @@ test("PATCH /settings refuses capabilityStates (step-up + validation bypass) but
   const ok = await h.req("/settings", { cookie: adminCookie(), method: "PATCH", body: { errorTelemetry: true } });
   assert.equal(ok.status, 200);
 });
+
+// ── Step-up parity: secret-bearing settings keys can't be written through the un-stepped bulk PATCH ──
+test("PATCH /settings refuses webhooks + federatedPeers (secret writes have step-up'd dedicated routes)", async () => {
+  for (const key of ["webhooks", "federatedPeers"]) {
+    const r = await h.req("/settings", { cookie: adminCookie(), method: "PATCH", body: { [key]: [] } });
+    assert.equal(r.status, 400, `PATCH ${key}`);
+    assert.match(((await r.json()) as { error: string }).error, /step-up required/i);
+  }
+});
+
+test("POST /webhooks (mints a signing secret) requires a fresh step-up — 403 without one", async () => {
+  // step-up runs before the entitlement gate, so this is 403 (step_up_required) regardless of licence.
+  const r = await h.req("/webhooks", { cookie: adminCookie(), method: "POST", body: { url: "https://hook.example/x", events: ["issue.updated"] } });
+  assert.equal(r.status, 403);
+  assert.equal(((await r.json()) as { code: string }).code, "step_up_required");
+});

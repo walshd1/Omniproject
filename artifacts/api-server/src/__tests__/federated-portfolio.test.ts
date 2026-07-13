@@ -27,7 +27,9 @@ function signedSessionCookie(session: object): string {
   const mac = crypto.createHmac("sha256", SECRET).update(value).digest("base64").replace(/=+$/, "");
   return `omni_session=${encodeURIComponent("s:" + value + "." + mac)}`;
 }
-const SESSION = signedSessionCookie({ sub: "user-1", email: "u@test", roles: [] });
+// stepUpAt is stamped so the step-up-gated PUT /api/federated-peers (peer bearer-token write) passes;
+// demo auth grants admin, and the fresh step-up clears requireStepUp. Reads ignore the extra field.
+const SESSION = signedSessionCookie({ sub: "user-1", email: "u@test", roles: [], stepUpAt: Date.now() });
 
 let server: Server;
 let base: string;

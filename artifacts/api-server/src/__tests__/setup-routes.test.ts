@@ -159,8 +159,11 @@ test("connections/test + connections/vault validate their bodies", async () => {
   assert.equal((await h.req("/setup/connections/test", { method: "POST", cookie: admin(), body: {} })).status, 400);
   const test = await h.req("/setup/connections/test", { method: "POST", cookie: admin(), body: { backend: "jira" } });
   assert.equal(test.status, 200); // demo broker: returns an ok:false result, not an error status
-  assert.equal((await h.req("/setup/connections/vault", { method: "POST", cookie: admin(), body: { backend: "jira" } })).status, 400);
-  const vault = await h.req("/setup/connections/vault", { method: "POST", cookie: admin(), body: { backend: "jira", name: "API_TOKEN", value: "secret" } });
+  // Storing a vendor credential in the broker vault is a secret write → step-up required (parity with
+  // PUT /ai/providers/:id/key). Without a fresh step-up it's 403 before the body is even inspected.
+  assert.equal((await h.req("/setup/connections/vault", { method: "POST", cookie: admin(), body: { backend: "jira", name: "API_TOKEN", value: "secret" } })).status, 403);
+  assert.equal((await h.req("/setup/connections/vault", { method: "POST", cookie: stepUpAdminCookie(), body: { backend: "jira" } })).status, 400);
+  const vault = await h.req("/setup/connections/vault", { method: "POST", cookie: stepUpAdminCookie(), body: { backend: "jira", name: "API_TOKEN", value: "secret" } });
   assert.equal(vault.status, 200);
   assert.ok("stored" in (await vault.json() as object)); // the vault relay result (stored + ref)
 });

@@ -476,7 +476,7 @@ router.post("/setup/connections/test", requireRole("admin"), async (req, res) =>
 // POST /api/setup/connections/vault — DELEGATE a vendor credential to the broker's
 // own encrypted credential store. The secret is relayed ONCE and never persisted by
 // OmniProject (not stored, not logged). 501 when the broker has no vault. Admin-only.
-router.post("/setup/connections/vault", requireRole("admin"), async (req, res) => {
+router.post("/setup/connections/vault", requireRole("admin"), requireStepUp, async (req, res) => {
   const parsed = parseOr400(req, res, CONNECTION_VAULT_BODY);
   if (!parsed) return;
   const result = await callBrokerCapability(
