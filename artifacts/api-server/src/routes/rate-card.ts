@@ -132,6 +132,15 @@ router.get("/rate-card", requireRole("pmo"), (_req, res) => {
 });
 
 router.put("/rate-card", requireRole("pmo"), (req, res) => {
+  // readRateCard hashes (keyed HMAC) per role/type/assignment — cap the arrays so a huge body can't
+  // burn CPU (matches the explicit-floor pattern used by import/trends).
+  const rc = (req.body ?? {}) as Record<string, unknown>;
+  for (const k of ["roles", "projectTypes", "assignments", "costRules"] as const) {
+    if (Array.isArray(rc[k]) && (rc[k] as unknown[]).length > 5_000) {
+      res.status(413).json({ error: `Too many ${k}: exceeds the 5000 cap. Split the update.` });
+      return;
+    }
+  }
   const { card, projectTypes } = readRateCard(req.body);
   setRateCard(card);
   setProjectTypes(projectTypes);

@@ -28,3 +28,8 @@ test("resolveGuid terminates even on a cyclic table (defensive)", () => {
   const out = resolveGuid("a", cyclic);
   assert.ok(out === "a" || out === "b"); // terminates with SOME value, no hang
 });
+
+test("resolveGuid treats a prototype key as having no alias (no type confusion)", () => {
+  assert.equal(resolveGuid("__proto__", {} as never), "__proto__");
+  assert.equal(resolveGuid("constructor", {} as never), "constructor");
+});

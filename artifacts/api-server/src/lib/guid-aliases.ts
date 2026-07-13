@@ -1,3 +1,4 @@
+import { isForbiddenKey } from "./safe-json";
 /**
  * GUID TRANSLATION — the alias table that lets an admin RELINK a project to a new correlation GUID
  * without losing the history that referenced the old one.
@@ -53,13 +54,17 @@ export function validateGuidAliases(value: unknown): GuidAliases {
  * somehow contains a cycle (validation rejects cycles, but resolution must never loop).
  */
 export function resolveGuid(guid: string, aliases: GuidAliases): string {
+  // `aliases` is a plain object and `guid` arrives as an untrusted route param — `aliases["__proto__"]`
+  // would return Object.prototype (a truthy non-string), making resolveGuid return the prototype (type
+  // confusion). Treat a prototype-pollution key as "no alias" at every hop.
+  const lookup = (k: string): string | undefined => (isForbiddenKey(k) ? undefined : aliases[k]);
   let current = guid;
   const seen = new Set<string>();
-  let next = aliases[current];
+  let next = lookup(current);
   while (next && !seen.has(current)) {
     seen.add(current);
     current = next;
-    next = aliases[current];
+    next = lookup(current);
   }
   return current;
 }
