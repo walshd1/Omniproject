@@ -40,15 +40,18 @@ function ttlMs(): number {
   return (Number.isFinite(m) && m > 0 ? m : 15) * 60 * 1000;
 }
 
-interface MagicPayload { email: string; exp: number; jti: string }
+export type MagicPurpose = "login" | "stepup";
+interface MagicPayload { email: string; exp: number; jti: string; purpose?: MagicPurpose }
 
-/** Mint a sealed, single-use, time-boxed magic token for an email. */
-export function mintMagicToken(email: string, now: number): string {
-  const payload: MagicPayload = { email: email.trim().toLowerCase(), exp: now + ttlMs(), jti: randomBytes(16).toString("hex") };
+/** Mint a sealed, single-use, time-boxed magic token for an email. `purpose` distinguishes a normal
+ *  sign-in from a step-up re-challenge (the latter stamps step-up freshness on verify, proving the
+ *  holder still controls the mailbox — a genuine re-authentication for a passwordless method). */
+export function mintMagicToken(email: string, now: number, purpose: MagicPurpose = "login"): string {
+  const payload: MagicPayload = { email: email.trim().toLowerCase(), exp: now + ttlMs(), jti: randomBytes(16).toString("hex"), ...(purpose === "stepup" ? { purpose } : {}) };
   return seal(JSON.stringify(payload));
 }
 
-export interface MagicVerdict { email: string; jti: string }
+export interface MagicVerdict { email: string; jti: string; purpose: MagicPurpose }
 
 /** Open + validate a magic token (tamper + expiry). Returns the email + jti, or null. Does NOT
  *  consume single-use — call consumeMagicToken after, so verification stays pure/testable. */
@@ -63,7 +66,7 @@ export function verifyMagicToken(token: string, now: number): MagicVerdict | nul
   }
   if (typeof payload.email !== "string" || typeof payload.exp !== "number" || typeof payload.jti !== "string") return null;
   if (payload.exp <= now) return null;
-  return { email: payload.email, jti: payload.jti };
+  return { email: payload.email, jti: payload.jti, purpose: payload.purpose === "stepup" ? "stepup" : "login" };
 }
 
 /** Enforce single-use: returns true the FIRST time a jti is seen, false on replay. Marks it

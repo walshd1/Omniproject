@@ -193,6 +193,21 @@ test("PATCH /settings refuses capabilityStates (step-up + validation bypass) but
   assert.equal(ok.status, 200);
 });
 
+// ── Step-up minter: a real-auth session can't self-grant step-up (must complete a provider re-auth) ──
+test("POST /auth/step-up self-stamps ONLY in demo; a real-auth session gets a re-auth directive, not a stamp", async () => {
+  // Demo has no real identity to phish → confirming in place is legitimate.
+  const demo = await h.req("/auth/step-up", { cookie: adminCookie(), method: "POST", body: {} });
+  assert.equal(demo.status, 200);
+  assert.equal(((await demo.json()) as { ok: boolean }).ok, true);
+  // Under real auth the same call must NOT stamp — it directs the SPA through a genuine provider re-auth.
+  // This is the bypass being closed: a stolen/idle session can no longer self-grant step-up.
+  await withRealRbac(async () => {
+    const r = await h.req("/auth/step-up", { cookie: adminCookie(), method: "POST", body: {} });
+    assert.equal(r.status, 409);
+    assert.equal(((await r.json()) as { code: string }).code, "step_up_redirect");
+  });
+});
+
 // ── Step-up parity: secret-bearing settings keys can't be written through the un-stepped bulk PATCH ──
 test("PATCH /settings refuses webhooks + federatedPeers (secret writes have step-up'd dedicated routes)", async () => {
   for (const key of ["webhooks", "federatedPeers"]) {
