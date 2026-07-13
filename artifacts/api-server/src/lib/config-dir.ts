@@ -6,8 +6,14 @@ import { applySnapshot } from "./config-snapshot";
 import { updateSettings } from "./settings";
 import { setFieldRules, setRuleModes } from "./ruleset";
 import { setHealthThresholds } from "./health-watch";
+import { registerAutonomousActor } from "./autonomous";
+import type { Role } from "./rbac";
 import { logger } from "./logger";
 import { safeParseJson } from "./safe-json";
+
+/** Roles a config-declared autonomous actor may be capped at — the autonomous tiers only. An operator
+ *  must NOT be able to mint a pmo/admin (authority) autonomous principal from a JSON file. */
+const AUTONOMOUS_ACTOR_ROLES = new Set<Role>(["viewer", "contributor"]);
 
 /**
  * Deployment config directory loader (OMNI_CONFIG_DIR).
@@ -42,6 +48,7 @@ export interface ConfigDirSummary {
   vendors: Record<string, number>;
   configApplied: boolean;
   rulesetsApplied: boolean;
+  autonomousActors: number;
   artifacts: number;
   warnings: string[];
   errors: string[];
@@ -53,7 +60,7 @@ function errMsg(err: unknown): string {
 }
 
 function emptySummary(dir: string | null): ConfigDirSummary {
-  return { dir, present: false, vendors: {}, configApplied: false, rulesetsApplied: false, artifacts: 0, warnings: [], errors: [] };
+  return { dir, present: false, vendors: {}, configApplied: false, rulesetsApplied: false, autonomousActors: 0, artifacts: 0, warnings: [], errors: [] };
 }
 
 let lastSummary: ConfigDirSummary = emptySummary(null);
@@ -166,6 +173,32 @@ function loadRulesets(dir: string, summary: ConfigDirSummary): void {
   apply("health-thresholds.json", (d) => setHealthThresholds(d));
 }
 
+/** autonomous-actors.json — the config extension point for the autonomous-actor allowlist
+ *  (`[{ id, maxRole }]`). Each entry raises/lowers the max role an actor id may run as, capped at the
+ *  autonomous tiers (viewer/contributor) — never a pmo/admin authority. This is the documented
+ *  "operator extends this via config (registerAutonomousActor)" seam, which previously had no loader. */
+function loadAutonomousActors(dir: string, summary: ConfigDirSummary): void {
+  const file = path.join(dir, "autonomous-actors.json");
+  if (!fs.existsSync(file)) return;
+  try {
+    const data = readConfigJson(file);
+    if (!Array.isArray(data)) throw new Error("expected an array of { id, maxRole }");
+    for (const entry of data as Array<{ id?: unknown; maxRole?: unknown }>) {
+      const id = typeof entry.id === "string" ? entry.id.trim() : "";
+      const maxRole = entry.maxRole;
+      if (!id) { summary.errors.push("autonomous-actors.json: an entry is missing a string id"); continue; }
+      if (typeof maxRole !== "string" || !AUTONOMOUS_ACTOR_ROLES.has(maxRole as Role)) {
+        summary.errors.push(`autonomous-actors.json: actor "${id}" — maxRole must be one of viewer|contributor (got "${String(maxRole)}")`);
+        continue;
+      }
+      registerAutonomousActor(id, maxRole as Role);
+      summary.autonomousActors++;
+    }
+  } catch (err) {
+    summary.errors.push(`autonomous-actors.json: ${errMsg(err)}`);
+  }
+}
+
 /** artifacts/ — things generated against our reference; kept with the config, just inventoried. */
 function loadArtifacts(dir: string, summary: ConfigDirSummary): void {
   const artifactsDir = path.join(dir, "artifacts");
@@ -176,6 +209,7 @@ const LOADERS: ConfigLoader[] = [
   { name: "vendors", load: loadVendors },
   { name: "config", load: loadConfigJson },
   { name: "rulesets", load: loadRulesets },
+  { name: "autonomous-actors", load: loadAutonomousActors },
   { name: "artifacts", load: loadArtifacts },
 ];
 

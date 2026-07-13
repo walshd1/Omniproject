@@ -19,7 +19,10 @@ const router = Router();
 function store(req: Request, res: Response): TimesheetStore | null {
   const s = timesheetStoreFor();
   if (!s) {
-    res.status(409).json({ error: "Timesheets are not enabled. Adopt the self-host DB or enable a backend timesheet source." });
+    // Honest: enabling timesheets needs a registered store PROVIDER at boot — a connected backend that
+    // supports timesheets, or a self-host timesheet store. No provider ships wired by default, so this
+    // stays a 409 until one is registered (registerTimesheetStore). See docs/PPM-DEPTH.md.
+    res.status(409).json({ error: "Timesheets are not enabled: no timesheet store is configured. Connect a backend that supports timesheets, or register a self-host timesheet store (registerTimesheetStore)." });
     return null;
   }
   return s;
