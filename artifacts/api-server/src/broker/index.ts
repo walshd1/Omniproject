@@ -14,6 +14,7 @@ import { DataResidencyError } from "../lib/data-residency";
 import { devBrokerFromEnv } from "./dev-broker";
 import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
 import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
+import { wrapWithAutonomousGuard } from "./autonomous-guard";
 import { wrapWithSingleFlight } from "./single-flight";
 import { messyDataArmed, wrapWithMessy } from "./messy-broker";
 import { getSettings } from "../lib/settings";
@@ -44,6 +45,10 @@ export function getBroker(): Broker {
     // on, it replaces the sample-data demo with a real (empty) store.
     const builtinActive = !dev && !BROKER_ENV_CONFIGURED && builtinBrokerEnabled();
     let base: Broker = dev ?? (BROKER_ENV_CONFIGURED ? new ReferenceBroker() : builtinActive ? makeBuiltinBroker() : new DemoBroker());
+    // ALWAYS ON, innermost: bound every autonomous-actor write to its admin-declared grant (the
+    // fail-closed authorizeAutonomousWrite gate). A no-op for human contexts, so normal writes are
+    // unaffected; placed closest to the real broker so no outer wrapper can route a write around it.
+    base = wrapWithAutonomousGuard(base);
     // Keyed-access posture: a LIVE broker is hard-gated behind a configured key
     // (BROKER_PSK) outside dev mode — no keyless request reaches a real vendor/broker.
     // Innermost so a cache hit (which reaches no broker) isn't blocked. Demo/dev brokers
