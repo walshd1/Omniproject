@@ -9,7 +9,7 @@ import { loginWithMouse } from "./helpers";
 test("opens global search with the keyboard ('/'), finds a project and jumps to it", async ({ page }) => {
   await loginWithMouse(page);
   await page.keyboard.press("/");
-  const input = page.getByRole("textbox", { name: /search projects/i });
+  const input = page.getByRole("combobox", { name: /search projects/i });
   await expect(input).toBeVisible();
   await input.fill("a");
   // Results render; pick the first with the keyboard.
@@ -22,7 +22,7 @@ test("opens global search with the keyboard ('/'), finds a project and jumps to 
 test("opens global search with the mouse (header button) and shows results", async ({ page }) => {
   await loginWithMouse(page);
   await page.getByRole("button", { name: /^search$/i }).click();
-  const input = page.getByRole("textbox", { name: /search projects/i });
+  const input = page.getByRole("combobox", { name: /search projects/i });
   await expect(input).toBeVisible();
   await input.fill("a");
   await expect(page.getByTestId("global-search-results")).toBeVisible();

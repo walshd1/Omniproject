@@ -33,10 +33,13 @@ test("opens a cell editor with the keyboard (focus + Enter)", async ({ page }) =
 
 test("toggles a sortable column header (mouse + keyboard)", async ({ page }) => {
   await openGrid(page);
-  const header = page.getByRole("button", { name: /^Title/ }).first();
-  await header.click();
-  await expect(header).toHaveAttribute("aria-sort", /ascending|descending/);
-  await header.focus();
+  // The sort control is a <button> inside the columnheader; per ARIA, aria-sort lives on the
+  // columnheader cell (the <th>), not the button. Drive the button, assert on the header.
+  const sortButton = page.getByRole("button", { name: /^Title/ }).first();
+  const columnHeader = page.getByRole("columnheader", { name: /Title/ }).first();
+  await sortButton.click();
+  await expect(columnHeader).toHaveAttribute("aria-sort", /ascending|descending/);
+  await sortButton.focus();
   await page.keyboard.press("Enter");
-  await expect(header).toHaveAttribute("aria-sort", /ascending|descending/);
+  await expect(columnHeader).toHaveAttribute("aria-sort", /ascending|descending/);
 });
