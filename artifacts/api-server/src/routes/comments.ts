@@ -4,6 +4,7 @@ import { requireRole, hasRole } from "../lib/rbac";
 import { addComment, listComments, getComment, deleteComment, type Comment } from "../lib/comments";
 import { getNotifyBus } from "../lib/notify-bus";
 import { getBroker, contextFromReq } from "../broker";
+import { guardProjectScope } from "../lib/project-scope";
 import { recordAudit, actorForAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 
@@ -36,10 +37,26 @@ function clean(v: unknown, max: number): string | null {
   return s;
 }
 
+/** The projectId a room belongs to, from the shared surface-id format (`issue:<projectId>:<issueId>` /
+ *  `project:<projectId>`), or null when the room isn't project-scoped. */
+function projectIdOfRoom(roomId: string): string | null {
+  const parts = roomId.split(":");
+  return (parts[0] === "issue" || parts[0] === "project") && parts[1] ? parts[1] : null;
+}
+
+/** Enforce the caller's project scope on a room whose id encodes a projectId (IDOR guard — the comment
+ *  store is keyed only by roomId, so without this any authenticated user could read/post/delete another
+ *  tenant's thread by naming its room). A non-project room has no boundary to enforce. */
+async function guardRoomScope(req: Request, res: Response, roomId: string): Promise<boolean> {
+  const projectId = projectIdOfRoom(roomId);
+  return projectId ? guardProjectScope(req, res, projectId) : true;
+}
+
 // GET /api/comments/:roomId — read the thread. Any authenticated user may read.
 router.get("/comments/:roomId", async (req: Request, res: Response) => {
   const roomId = clean(req.params["roomId"], 200);
   if (!roomId) { res.status(400).json({ error: "roomId is required" }); return; }
+  if (!(await guardRoomScope(req, res, roomId))) return;
   res.json({ comments: await listComments(roomId) });
 });
 
@@ -48,6 +65,7 @@ router.post("/comments/:roomId", requireRole("contributor"), async (req: Request
   const roomId = clean(req.params["roomId"], 200);
   const body = clean((req.body as { body?: unknown } | undefined)?.body, 5000);
   if (!roomId || !body) { res.status(400).json({ error: "roomId and a non-empty body (≤ 5000 chars) are required" }); return; }
+  if (!(await guardRoomScope(req, res, roomId))) return;
 
   const session = getSession(req);
   const author = { sub: session?.sub ?? "unknown", label: session?.name || session?.email || session?.sub || "unknown" };
@@ -69,6 +87,7 @@ router.delete("/comments/:roomId/:commentId", async (req: Request, res: Response
   const roomId = clean(req.params["roomId"], 200);
   const commentId = clean(req.params["commentId"], 80);
   if (!roomId || !commentId) { res.status(400).json({ error: "roomId and commentId are required" }); return; }
+  if (!(await guardRoomScope(req, res, roomId))) return;
 
   const existing = await getComment(roomId, commentId);
   if (!existing) { res.status(404).json({ error: "Unknown comment" }); return; }

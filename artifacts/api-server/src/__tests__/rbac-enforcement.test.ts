@@ -127,3 +127,32 @@ test("per-project routes: a portfolio-scoped principal (PMO) is not blocked by t
     assert.notEqual(r.status, 403);
   });
 });
+
+// ── IDOR follow-up: tasks / comments / export / calendar are scope-checked too ─
+test("tasks: a scoped principal can't read a task outside its scope (project-linked OR personal)", async () => {
+  await withRealRbac(async () => {
+    // task-3 is a PERSONAL task (projectId null) owned by sam@demo — a scoped member is neither its owner
+    // nor a collaborator, so the personal-owner branch of assertTaskScope refuses it.
+    assert.equal((await h.req("/tasks/task-3", { cookie: memberCookie() })).status, 403);
+    // Its comments/attachments sub-resources are gated the same way (the task is fetched + scoped first).
+    assert.equal((await h.req("/tasks/task-3/comments", { cookie: memberCookie() })).status, 403);
+  });
+});
+
+test("tasks: a portfolio-scoped principal (PMO) is not blocked by the task scope guard", async () => {
+  await withRealRbac(async () => {
+    const r = await h.req("/tasks/task-1", { cookie: pmoCookie() }); // project-linked sample task
+    assert.notEqual(r.status, 403);
+  });
+});
+
+test("export: the ?projectId=<other> issues branch is scope-checked (no cross-tenant issue export)", async () => {
+  await withRealRbac(async () => {
+    const r = await h.req("/export.json?dataset=issues&projectId=some-other-teams-project", { cookie: memberCookie() });
+    assert.equal(r.status, 403);
+  });
+});
+
+// (The comments room scope-guard — projectIdOfRoom → guardProjectScope — uses the same shared guard
+//  exercised by the export/projects tests above. It can't be driven end-to-end here because the
+//  comments feature module is lazy-mounted and off at boot in this harness, so the route isn't mounted.)

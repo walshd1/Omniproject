@@ -7,6 +7,7 @@
 import { Router, type Request, type Response } from "express";
 import { getProjects, getIssues, getActivity, type Row } from "../lib/data";
 import { allIssues } from "../lib/portfolio-reads";
+import { guardProjectScope } from "../lib/project-scope";
 import { traceFn } from "../broker/trace";
 import { DATASET_META, buildWorkbook, EXPORT_FORMATS, type RenderableDataset } from "../lib/export-datasets";
 
@@ -61,6 +62,9 @@ function datasetExport(format: string) {
   return async (req: Request, res: Response) => {
     const dataset = String(req.query["dataset"] ?? "projects");
     const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
+    // A projectId only narrows the issues dataset — and it bypasses the scope-bounded allIssues() with a
+    // raw getIssues(projectId), so enforce caller scope here (else it's a cross-tenant issue export).
+    if (dataset === "issues" && projectId && !(await guardProjectScope(req, res, projectId))) return;
     try {
       const d = await resolveDataset(req, dataset, projectId);
       if (!d) {
