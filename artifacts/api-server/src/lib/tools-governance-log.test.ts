@@ -8,6 +8,7 @@ import {
   __resetCapabilityLogSink,
 } from "./capability-governance";
 import { sharedKv, __resetSharedStateForTest, __setRedisKvForTest } from "./shared-state";
+import { __setEgressTransportForTest } from "./egress";
 import { FakeRedis } from "../__tests__/fake-redis";
 
 /**
@@ -16,9 +17,8 @@ import { FakeRedis } from "../__tests__/fake-redis";
  *  - fleet-sharing via the shared-state ring (active only under Redis).
  * The default (no env) behaviour is exercised by tools.test.ts and stays a plain RAM ring.
  */
-const realFetch = globalThis.fetch;
 afterEach(async () => {
-  globalThis.fetch = realFetch;
+  __setEgressTransportForTest(null);
   delete process.env["CAPABILITY_LOG_HTTP_URL"];
   delete process.env["CAPABILITY_LOG_HTTP_TOKEN"];
   delete process.env["CAPABILITY_LOG_BATCH"];
@@ -29,11 +29,13 @@ afterEach(async () => {
 
 test("durability: each decision is POSTed to the external append sink as NDJSON with the bearer", async () => {
   const posts: { url: string; body: string; auth: string | null }[] = [];
-  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+  // The sink POSTs via safeFetch (SSRF-guarded), so stub the egress TRANSPORT seam — overriding
+  // globalThis.fetch wouldn't be seen by safeFetch. The egress guard still validates the URL.
+  __setEgressTransportForTest((async (url: string | URL | Request, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     posts.push({ url: String(url), body: String(init?.body ?? ""), auth: headers.get("authorization") });
     return new Response("", { status: 200 });
-  }) as typeof fetch;
+  }) as typeof fetch);
 
   process.env["CAPABILITY_LOG_HTTP_URL"] = "https://127.0.0.1/ingest";
   process.env["CAPABILITY_LOG_HTTP_TOKEN"] = "s3cret";
@@ -53,7 +55,7 @@ test("durability: each decision is POSTed to the external append sink as NDJSON 
 
 test("no sink env: nothing is POSTed (default RAM-only behaviour preserved)", async () => {
   let called = false;
-  globalThis.fetch = (async () => { called = true; return new Response("", { status: 200 }); }) as typeof fetch;
+  __setEgressTransportForTest((async () => { called = true; return new Response("", { status: 200 }); }) as typeof fetch);
   decideCapability("provider:anthropic"); // off ⇒ a "blocked" decision, still RAM-only
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(called, false);

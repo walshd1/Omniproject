@@ -10,6 +10,7 @@ import { BrokerCommandBody } from "@workspace/api-zod";
 import { contextFromReq, respondBrokerError, BrokerError, brokerCommand, brokerConfigured } from "../broker";
 import { getSettings } from "../lib/settings";
 import { requireRole } from "../lib/rbac";
+import { guardProjectScope } from "../lib/project-scope";
 import { getSession } from "./auth";
 import { enforceCapability, CapabilityBlockedError, getCapability } from "../lib/capability-governance";
 
@@ -62,6 +63,16 @@ async function handle(req: Request, res: Response): Promise<void> {
   // raw body; the server injects identity from the validated OIDC session.
   const rawPayload = (parse.data.payload ?? {}) as Record<string, unknown>;
   const { userContext: _ignoredUserContext, origin: _ignoredOrigin, ...payload } = rawPayload;
+
+  // IDOR guard: this edge forwards a caller-supplied `projectId` straight to the scope-blind broker
+  // (which only enforces scope on listProjects/updateProject). Without a gateway check a programme/
+  // user-scoped manager could read or mutate ANY project by naming its id here — the same hole the
+  // typed per-project routes and the MCP channel already close (mcp.ts:141-144). Re-derive scope at
+  // the gateway; out-of-scope ⇒ 403, not served.
+  const projectId = payload["projectId"];
+  if (typeof projectId === "string" && projectId) {
+    if (!(await guardProjectScope(req, res, projectId))) return;
+  }
 
   try {
     const result = await brokerCommand(contextFromReq(req), action, payload, source ?? "unknown");

@@ -1,4 +1,5 @@
 import { MCP_TOOLS, type McpTool } from "./mcp";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Natural-language → canonical action planner.
@@ -61,7 +62,8 @@ export function extractJson(raw: string): Record<string, unknown> | null {
   const end = body.lastIndexOf("}");
   if (start === -1 || end <= start) return null;
   try {
-    const v = JSON.parse(body.slice(start, end + 1));
+    // An LLM reply is untrusted output — strip dangerous keys before the parsed plan is used.
+    const v = safeParseJson<unknown>(body.slice(start, end + 1));
     return v && typeof v === "object" ? (v as Record<string, unknown>) : null;
   } catch { return null; }
 }

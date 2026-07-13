@@ -148,6 +148,7 @@ export function startScimFleetSync(intervalMs = 3000): () => void {
   }
   return stopScimFleetSync;
 }
+/** Stop the periodic SCIM directory fleet-sync poll (idempotent) — used on shutdown / in tests. */
 export function stopScimFleetSync(): void {
   if (fleetTimer) { clearInterval(fleetTimer); fleetTimer = null; }
 }

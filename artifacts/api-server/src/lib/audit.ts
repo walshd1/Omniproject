@@ -31,7 +31,7 @@ import { assertEgressAllowed, safeFetch } from "./egress";
  */
 
 export type AuditLevel = "off" | "writes" | "all";
-export type AuditCategory = "request" | "broker" | "auth" | "admin" | "autonomous";
+export type AuditCategory = "request" | "broker" | "auth" | "admin" | "autonomous" | "security";
 
 export interface AuditEvent {
   ts: string;
@@ -66,8 +66,8 @@ export function shouldAudit(
   if (level === "off") return false;
   if (level === "all") return true;
   // level === "writes"
-  // auth, admin and autonomous decisions are security-relevant — always recorded.
-  if (ev.category === "auth" || ev.category === "admin" || ev.category === "autonomous") return true;
+  // auth, admin, autonomous and security decisions are security-relevant — always recorded.
+  if (ev.category === "auth" || ev.category === "admin" || ev.category === "autonomous" || ev.category === "security") return true;
   if (ev.write) return true;
   if (ev.method && WRITE_METHODS.has(ev.method.toUpperCase())) return true;
   return false;
@@ -191,6 +191,27 @@ export function recordAudit(ev: AuditEvent): void {
 export function actorForAudit(req: Request): { sub: string; role: string } | null {
   const session = getSession(req);
   return session ? { sub: session.sub, role: roleForReq(req) } : null;
+}
+
+/**
+ * Record a scope-boundary DENIAL — a principal (human or bot) tried to reach a resource outside its
+ * scope and the gateway guard refused it. Category "security" is always recorded (even at AUDIT_LEVEL
+ * "writes") and rides the tamper-evident chain + external sink like every other event, so an operator
+ * can ALERT on lateral-movement attempts: a burst of `scope.denied:*` from one actor is someone probing
+ * ids they can't see. Emitted at the single-resource guard boundary only (never inside a list filter,
+ * which would be noise). The refused id is recorded so the alert names what was reached for.
+ */
+export function auditScopeDenied(req: Request, kind: "project" | "task" | "room", id: string, reason: string): void {
+  recordAudit({
+    ts: new Date().toISOString(),
+    category: "security",
+    action: `scope.denied:${kind}`,
+    actor: actorForAudit(req),
+    projectId: kind === "project" ? id : null,
+    status: 403,
+    write: WRITE_METHODS.has(req.method.toUpperCase()),
+    meta: { kind, id, reason, method: req.method, path: req.originalUrl },
+  });
 }
 
 /** Status for the setup/diagnostics view. */

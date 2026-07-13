@@ -4,6 +4,7 @@ import { buildSnapshot, applySnapshot, type ConfigSnapshot } from "./config-snap
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { sharedStateMode, sharedRingPush, sharedRingRead } from "./shared-state";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Configuration environments + versioned rollback.
@@ -110,13 +111,36 @@ function record(env: string, snapshot: ConfigSnapshot, label?: string): ConfigVe
   return version;
 }
 
+/** Validate ONE fleet-shared version-history entry before it enters the store view. A shared-ring
+ *  entry is written by ANOTHER replica (Redis) ⇒ untrusted input: parse prototype-safe, require the
+ *  string id/env/at metadata, coerce the optional label + knownGood flag, and keep the snapshot only
+ *  when it's an object (safeParseJson has already stripped dangerous keys throughout the tree). A
+ *  malformed entry is dropped rather than failing the whole read. */
+function sanitizeSharedVersion(rawJson: string): ConfigVersion | null {
+  let o: unknown;
+  try { o = safeParseJson<unknown>(rawJson); } catch { return null; }
+  if (!o || typeof o !== "object") return null;
+  const r = o as Record<string, unknown>;
+  const str = (v: unknown, n: number): string | null => (typeof v === "string" ? v.slice(0, n) : null);
+  const id = str(r["id"], 200);
+  const env = str(r["env"], 200);
+  const at = str(r["at"], 40);
+  if (!id || !env || !at) return null; // a well-formed version must carry its id/env/timestamp
+  const snapshot = (r["snapshot"] && typeof r["snapshot"] === "object" && !Array.isArray(r["snapshot"])
+    ? (r["snapshot"] as ConfigSnapshot)
+    : ({} as ConfigSnapshot));
+  const label = str(r["label"], 200);
+  return { id, env, at, snapshot, knownGood: r["knownGood"] === true, ...(label ? { label } : {}) };
+}
+
 /** The fleet-wide version history (newest first) when Redis-backed, else the local history.
  *  Never throws — falls back to the local versions if the shared read fails. */
 export async function sharedVersionHistory(): Promise<ConfigVersion[]> {
   if (sharedStateMode() !== "redis") return [...ensure().versions].reverse();
   try {
     const raw = await sharedRingRead(SHARED_VERSIONS_PREFIX, MAX_VERSIONS);
-    return raw.map((v) => JSON.parse(v) as ConfigVersion).reverse();
+    // Each entry is sibling-written untrusted input — validate + drop malformed rather than trust the cast.
+    return raw.map((v) => sanitizeSharedVersion(v)).filter((e): e is ConfigVersion => e !== null).reverse();
   } catch (err) {
     logger.warn({ err }, "config store: shared version read failed — using local history");
     return [...ensure().versions].reverse();

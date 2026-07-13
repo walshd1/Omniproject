@@ -1,6 +1,6 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { startHarness, adminCookie, type Harness } from "./_harness";
+import { startHarness, adminCookie, cookie, type Harness } from "./_harness";
 
 /**
  * HTTP coverage for the generic broker command passthrough (routes/broker-command.ts).
@@ -60,4 +60,30 @@ test("with a broker wired: a well-formed command dispatches and surfaces the bro
   // The command dispatches then fails against the unreachable/invalid broker → broker error surfaced.
   assert.ok(r.status >= 400, `expected a broker error status, got ${r.status}`);
   assert.ok((await json(r)).error);
+});
+
+// ── IDOR: a payload.projectId is scope-checked before the scope-blind broker sees it ──
+// This edge forwards an arbitrary action — including per-project writes — straight to the broker,
+// which only enforces scope on listProjects/updateProject. A scoped manager must not read or mutate
+// an out-of-scope project by naming its id in the command payload (mirrors the typed routes + MCP).
+test("with a broker wired: a scoped manager naming an out-of-scope projectId is refused (403) before dispatch", async () => {
+  const prev = { i: process.env["OIDC_ISSUER_URL"], m: process.env["OIDC_MANAGER_ROLES"] };
+  process.env["OIDC_ISSUER_URL"] = "https://idp.example"; // leave demo mode so RBAC scope is real
+  process.env["OIDC_MANAGER_ROLES"] = "lead";             // a plain manager: base "manager", NO all-scope
+  try {
+    const { updateSettings } = await import("../lib/settings");
+    updateSettings({ brokerUrl: BROKER_URL }); // backendSource stays "all" so the vendor gate is skipped
+    // Strong-auth so the session is well-formed; roles=["lead"] ⇒ manager base, programme/user scope.
+    const managerCookie = cookie({ sub: "u-mgr", name: "Mel Manager", email: "mel@x.io", roles: ["lead"], amr: ["hwk"] });
+    const r = await h.req("/broker/command", {
+      method: "POST",
+      cookie: managerCookie,
+      body: { action: "update_project", payload: { projectId: "some-other-teams-project", status: "closed" } },
+    });
+    assert.equal(r.status, 403, "out-of-scope projectId must be refused before the broker is called");
+    assert.match((await json(r)).error, /scope/i);
+  } finally {
+    if (prev.i === undefined) delete process.env["OIDC_ISSUER_URL"]; else process.env["OIDC_ISSUER_URL"] = prev.i;
+    if (prev.m === undefined) delete process.env["OIDC_MANAGER_ROLES"]; else process.env["OIDC_MANAGER_ROLES"] = prev.m;
+  }
 });

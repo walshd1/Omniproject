@@ -213,11 +213,32 @@ test("branding is sanitised through the bulk PATCH — a font-family injection i
 });
 
 test("labelOverrides keeps only string values (the i18n layer assumes strings)", () => {
-  const s = updateSettings({ labelOverrides: JSON.parse('{"greeting":"Hi","bad":123,"__proto__":"x"}') });
-  assert.equal(s.labelOverrides["greeting"], "Hi");
-  assert.equal(Object.prototype.hasOwnProperty.call(s.labelOverrides, "bad"), false);        // non-string dropped
-  assert.equal(Object.prototype.hasOwnProperty.call(s.labelOverrides, "__proto__"), false);  // forbidden key dropped (own-prop check)
+  // labelOverrides is the label catalogue — the bulk PATCH runs the SAME sanitizer as saveLabels:
+  // catalogue allow-list + length cap + string-only. A real catalogue key is kept; everything else drops.
+  const s = updateSettings({ labelOverrides: JSON.parse('{"nav.dashboard":"Home","not.a.catalogue.key":"x","__proto__":"y"}') });
+  assert.equal(s.labelOverrides["nav.dashboard"], "Home");                                             // catalogue key kept
+  assert.equal(Object.prototype.hasOwnProperty.call(s.labelOverrides, "not.a.catalogue.key"), false);  // non-catalogue dropped
+  assert.equal(Object.prototype.hasOwnProperty.call(s.labelOverrides, "__proto__"), false);            // forbidden (non-catalogue) key dropped
+  assert.throws(() => updateSettings({ labelOverrides: JSON.parse('{"nav.projects":123}') }), SettingsValidationError);     // non-string at a catalogue key rejected
+  assert.throws(() => updateSettings({ labelOverrides: { "nav.dashboard": "x".repeat(200) } }), SettingsValidationError); // over the length cap
   updateSettings({ labelOverrides: {} });
+});
+
+test("scope feature maps reject a feature that is both required and forbidden in a scope", () => {
+  // programmeFeatures / projectFeatures are per-scope require/forbid maps. Mirror validateGovernance's
+  // contradiction guard so the per-scope maps aren't a bypass on the bulk PATCH / config-restore path.
+  assert.throws(
+    () => updateSettings({ programmeFeatures: { "prog-1": { required: ["gantt"], forbidden: ["gantt"] } } }),
+    SettingsValidationError,
+  );
+  assert.throws(
+    () => updateSettings({ projectFeatures: { "proj-1": { required: ["risks"], forbidden: ["risks"] } } }),
+    SettingsValidationError,
+  );
+  // A non-contradictory per-scope map still persists.
+  const s = updateSettings({ programmeFeatures: { "prog-1": { required: ["gantt"], forbidden: ["kanban"] } } });
+  assert.deepEqual((s.programmeFeatures["prog-1"] as { required: string[] }).required, ["gantt"]);
+  updateSettings({ programmeFeatures: {}, projectFeatures: {} });
 });
 
 test("userPrefs entries are clamped to valid ranges/enums through the bulk PATCH", () => {

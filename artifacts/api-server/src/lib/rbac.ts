@@ -4,6 +4,7 @@ import { directoryDecision } from "./scim";
 import { parseCommaSet } from "./env";
 import { isDemoAuth } from "./auth-config";
 import { resolveScope, type Scope } from "./scope";
+import { matchApiToken } from "./api-token";
 
 /**
  * Role-based access control.
@@ -276,7 +277,14 @@ export function grantsForReq(req: Request): Grants {
  */
 export function scopeForReq(req: Request): Scope {
   const sd = sessionDecision(req);
-  if (!sd) return { level: "user" };
+  if (!sd) {
+    // No session ⇒ an API-token principal (or unauthenticated). A token bound to programme(s) reads only
+    // that slice — every per-resource guard then enforces it — so a leaked/over-broad token (or one handed
+    // to a federation peer) can't pivot across the whole portfolio. An unscoped token stays user-level.
+    const apiScope = matchApiToken(req);
+    if (apiScope?.programmes?.length) return { level: "programme", programmes: apiScope.programmes };
+    return { level: "user" };
+  }
   const { session, decision } = sd;
   const claims = decision.known ? [...(session.roles ?? []), ...decision.roleClaims] : (session.roles ?? []);
   const grants = grantsFromClaims(claims, { isDemo: isDemoAuth(), strongAuth: hasStrongAuth(session) });

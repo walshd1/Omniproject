@@ -205,6 +205,8 @@ export function sanitizeSharedSnapshot(raw: string, now: number): KeyRegistrySna
   return out;
 }
 
+/** Pull the fleet-shared key snapshot and union it into local state — so a key/version rotated or
+ *  revoked on one replica takes effect here too. Fleet input is sanitised before the merge. */
 export async function refreshKeyRegistryFromShared(): Promise<void> {
   try {
     const raw = await sharedKv.get(KEY_REGISTRY_SHARED_KEY);
@@ -229,6 +231,7 @@ export function startKeyRegistryFleetSync(intervalMs = 3000): () => void {
   }
   return stopKeyRegistryFleetSync;
 }
+/** Stop the periodic key-registry fleet-sync poll (idempotent) — used on shutdown / in tests. */
 export function stopKeyRegistryFleetSync(): void {
   if (timer) { clearInterval(timer); timer = null; }
 }

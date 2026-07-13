@@ -459,6 +459,23 @@ jobs:
       - name: Scan for secrets (gitleaks)
         run: ./gitleaks detect --source . --no-git --config .gitleaks.toml -v
 
+  # Static taint / anti-pattern scan (Semgrep) — an ADVISORY second opinion on the two
+  # security invariants the node:test ratchets already enforce (untrusted JSON.parse and
+  # per-project routes missing a scope guard). It runs the repo-local rules in .semgrep/ and
+  # is non-blocking (continue-on-error) so a rule misfire never breaks the merge lane — the
+  # authoritative gates are route-scope-coverage.test.ts + no-unsafe-json-parse.test.ts in the
+  # `verify` job. Findings still surface in the job log for review.
+  taint-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    container:
+      image: semgrep/semgrep:1.90.0
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Semgrep (repo-local rules)
+        continue-on-error: true
+        run: semgrep --config .semgrep/omniproject.yml --error --metrics off .
+
   # Acceptance (end-to-end) — drives the real built SPA in Chromium against the gateway in demo
   # mode. Separate from `verify` so its browser download + build never slows the fast lane.
   e2e:

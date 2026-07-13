@@ -21,7 +21,8 @@ import { validateCustomFields, validateCustomFieldSources, CustomFieldError, typ
 import { sanitizeBranding } from "./branding";
 import { sanitizeUserPrefs } from "./user-prefs";
 import { sanitizeGrant } from "./calendar-push";
-import { isForbiddenKey } from "./safe-json";
+import { sanitizeLabels } from "./labels";
+import { isForbiddenKey, stripDangerousKeysDeep } from "./safe-json";
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
 import { validateBrokerKinds, brokerKindsFromEnv, BrokerKindsError } from "./broker-kinds";
@@ -803,7 +804,10 @@ export function isTimeTravelEnabled(): boolean {
   return store.loggingSync.enabled;
 }
 
-const ALLOWED_KEYS: (keyof SettingsState)[] = [
+// Exported so the settings-sanitizer coverage ratchet (settings-sanitizer-coverage.test.ts) can iterate
+// EVERY persisted field and prove none is a prototype-pollution / dangerous-key sink on the bulk-PATCH
+// path — a new field is automatically probed, no per-field test to remember.
+export const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "brokerUrl",
   "aiProvider",
   "sttProvider",
@@ -944,6 +948,13 @@ function validateScopeFeatureMap(value: unknown, label: string): void {
         throw new SettingsValidationError(`${label}["${scopeId}"].${k} must be an array of strings`);
       }
     }
+    // A feature can't be both required and forbidden in the same scope — the same contradictory-config
+    // guard validateGovernance enforces at the org level (forbid silently wins, dropping the mandate).
+    // Mirror it here so the per-scope maps aren't a bypass on the bulk PATCH / config-restore path.
+    const c = cfg as Record<string, unknown>;
+    const forb = new Set(isStringArray(c["forbidden"]) ? (c["forbidden"] as string[]) : []);
+    const clash = (isStringArray(c["required"]) ? (c["required"] as string[]) : []).find((id) => forb.has(id));
+    if (clash) throw new SettingsValidationError(`${label}["${scopeId}"]: feature "${clash}" can't be both required and forbidden`);
   }
 }
 
@@ -1288,10 +1299,28 @@ function validateSkillsPlanning(value: unknown): void {
   }
 }
 
+/** Per-capability sanitizer for the `capabilityStates` map, INJECTED by lib/capability-governance at
+ *  its module init. It lives there (not here) because that module owns the capability catalogue and
+ *  the clamps — and importing it eagerly from settings.ts would form an init-time cycle (it reads
+ *  AI_PROVIDERS from here at load). Until it registers, the bulk-PATCH path keeps only the top-level
+ *  shape-check as its floor; the running app always registers it before serving a request. */
+type CapabilityStatesSanitizer = (states: Record<string, unknown>) => Record<string, unknown>;
+let capabilityStatesSanitizer: CapabilityStatesSanitizer | null = null;
+export function registerCapabilityStatesSanitizer(fn: CapabilityStatesSanitizer): void {
+  capabilityStatesSanitizer = fn;
+}
+
 /** Validate a settings patch and return a NORMALIZED copy (reportingCurrency upper-cased,
  *  fxRateAsOfDate/reportingCurrency empty-string coerced to null, …) — pure, never mutates the
  *  caller's `patch` object. Throws SettingsValidationError on bad input. */
-function validatePatch(patch: Record<string, unknown>): Record<string, unknown> {
+function validatePatch(rawPatch: Record<string, unknown>): Record<string, unknown> {
+  // Strip prototype-pollution-dangerous OWN keys (__proto__/constructor/prototype) at every depth BEFORE
+  // any field is read or persisted. Over HTTP the express.json reviver already does this, but a config-
+  // snapshot restore / internal updateSettings() call parses with bare JSON.parse — so a field whose
+  // validator only shape-checks and passes the object through verbatim (loggingSync, selfHost, …) would
+  // otherwise persist a dangerous key. Doing it here closes the class for EVERY field, present and future,
+  // at the single write gate. Pure — the caller's object is never mutated.
+  const patch = stripDangerousKeysDeep(rawPatch);
   const normalized: Record<string, unknown> = { ...patch };
   if ("aiProvider" in patch && !(AI_PROVIDERS as readonly string[]).includes(patch["aiProvider"] as string)) {
     throw new SettingsValidationError(`aiProvider must be one of: ${AI_PROVIDERS.join(", ")}`);
@@ -1343,14 +1372,13 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
     }
   }
   if ("labelOverrides" in patch) {
-    const v = patch["labelOverrides"];
-    if (typeof v !== "object" || v == null || Array.isArray(v)) throw new SettingsValidationError("labelOverrides must be an object");
-    // Values must be strings (the i18n layer assumes it) — mirror labelsFromEnv, drop non-strings.
-    const clean: Record<string, string> = {};
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-      if (!isForbiddenKey(k) && typeof val === "string") clean[k] = val;
+    if (typeof patch["labelOverrides"] !== "object" || patch["labelOverrides"] == null || Array.isArray(patch["labelOverrides"])) {
+      throw new SettingsValidationError("labelOverrides must be an object");
     }
-    normalized["labelOverrides"] = clean;
+    // Run the SAME sanitizer saveLabels uses (catalogue allow-list + length cap), not just a string
+    // filter — so the bulk PATCH / config restore can't persist non-catalogue keys or unbounded copy.
+    try { normalized["labelOverrides"] = sanitizeLabels(patch["labelOverrides"]); }
+    catch (e) { throw new SettingsValidationError(e instanceof Error ? e.message : "invalid labelOverrides"); }
   }
   if ("priorityLabels" in patch) {
     const v = patch["priorityLabels"];
@@ -1502,10 +1530,21 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   if ("errorTelemetry" in patch && typeof patch["errorTelemetry"] !== "boolean") {
     throw new SettingsValidationError("errorTelemetry must be a boolean");
   }
-  // capabilityStates is validated + step-up'd via its own route (and rejected on the PATCH path); here
-  // it's only shape-checked so a config-snapshot restore doesn't persist a non-object.
-  if ("capabilityStates" in patch && (typeof patch["capabilityStates"] !== "object" || patch["capabilityStates"] == null || Array.isArray(patch["capabilityStates"]))) {
-    throw new SettingsValidationError("capabilityStates must be an object");
+  // capabilityStates has a dedicated, step-up'd admin route that runs each entry through
+  // sanitizeCapabilitySetting (unknown-id drop, state clamped to the capability's supportedStates,
+  // endpoint URL-validated). A bulk PATCH / config-snapshot restore reaches the SAME stored map, so it
+  // must apply the SAME per-entry guards — otherwise it's a bypass that could persist an unknown
+  // capability id, an unsupported state, or an unvalidated endpoint (the exact sibling of the
+  // userPrefs/calendarPush handling just below). Run the injected sanitizer when present; the top-level
+  // shape-check stays the floor for the (test-only) case where governance hasn't registered it yet.
+  if ("capabilityStates" in patch) {
+    const v = patch["capabilityStates"];
+    if (typeof v !== "object" || v == null || Array.isArray(v)) {
+      throw new SettingsValidationError("capabilityStates must be an object");
+    }
+    normalized["capabilityStates"] = capabilityStatesSanitizer
+      ? capabilityStatesSanitizer(v as Record<string, unknown>)
+      : (v as Record<string, unknown>);
   }
   // Per-user maps: each entry is written verbatim + read back raw, so sanitize every entry through the
   // SAME clamps its dedicated route uses (fontScale/scanRate ranges, hex colour, enum members; the

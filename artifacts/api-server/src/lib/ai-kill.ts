@@ -51,6 +51,7 @@ export function startAiKillFleetSync(intervalMs = 3000): () => void {
   }
   return stopAiKillFleetSync;
 }
+/** Stop the periodic fleet-sync poll (idempotent) — used on shutdown / in tests. */
 export function stopAiKillFleetSync(): void {
   if (timer) { clearInterval(timer); timer = null; }
 }

@@ -86,6 +86,21 @@ export function inScope(scope: Scope, r: ScopedResource): boolean {
   return (r.memberSubs ?? []).includes(scope.sub);
 }
 
+/**
+ * The gateway's per-project authorization decision, factored out so the DATA-SEAM guard
+ * (broker/scope-guard.ts) applies the IDENTICAL rule with no drift. Precondition: the project is
+ * already known to be broker-VISIBLE to the caller (the caller found it in listProjects). Given that:
+ *  - all-scope: allowed.
+ *  - user-scope: allowed — a user principal's boundary IS visibility (the built-in/demo list is the
+ *    scope-filtered set), matching assertProjectScope, which does NOT apply the owner/member test here.
+ *  - programme-scope: additionally requires programme membership (inScope).
+ * Keeping this shared means a read the gateway allowed can never be wrongly denied at the seam.
+ */
+export function scopeAllowsVisibleProject(scope: Scope, r: ScopedResource): boolean {
+  if (scope.level === "programme") return inScope(scope, r);
+  return true;
+}
+
 /** Filter a row set to those in scope (`all` ⇒ unchanged). */
 export function filterInScope<T extends ScopedResource>(scope: Scope, rows: readonly T[]): T[] {
   return scope.level === "all" ? [...rows] : rows.filter((r) => inScope(scope, r));

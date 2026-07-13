@@ -2,7 +2,8 @@ import { Router, type Request, type Response } from "express";
 import { withBrokerErrors } from "../broker";
 import { getTasks, getTask, createTask, updateTask, brokerHasTasks, getTaskComments, addTaskComment, getTaskAttachments, addTaskAttachment, brokerHasTaskAttachments } from "../lib/data";
 import { requireRole } from "../lib/rbac";
-import { assertTaskScope } from "../lib/project-scope";
+import { assertTaskScope, filterTasksInScope } from "../lib/project-scope";
+import { auditScopeDenied } from "../lib/audit";
 import { getSession } from "./auth";
 import { parseOr400, v } from "../lib/validate";
 import { CANONICAL_TASK_STATUS, CANONICAL_PRIORITY, CANONICAL_ENERGY } from "../broker/vocabulary";
@@ -23,7 +24,11 @@ function whoami(req: Request): string[] {
 async function guardTaskAccess(req: Request, res: Response, taskId: string): Promise<Task | null> {
   const task = await getTask(req, taskId);
   if (!task) { res.status(404).json({ error: "No such task" }); return null; }
-  if (!(await assertTaskScope(req, task, whoami(req)))) { res.status(403).json({ error: "task not in your scope" }); return null; }
+  if (!(await assertTaskScope(req, task, whoami(req)))) {
+    auditScopeDenied(req, "task", taskId, "task not in your scope"); // lateral-movement attempt — audited
+    res.status(403).json({ error: "task not in your scope" });
+    return null;
+  }
   return task;
 }
 
@@ -62,7 +67,11 @@ const TaskBody = v.object({
 router.get("/tasks", (req, res) =>
   withBrokerErrors(req, res, "list_tasks failed", async () => {
     const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
-    res.json(await getTasks(req, projectId ? { projectId } : {}));
+    // IDOR guard: broker listTasks is scope-blind (it just filters by projectId), so a scoped caller
+    // could otherwise read out-of-scope project tasks — or, with no projectId, the whole task list plus
+    // other users' personal tasks. Re-derive scope at the gateway and drop anything the caller can't see.
+    const tasks = await filterTasksInScope(req, await getTasks(req, projectId ? { projectId } : {}), whoami(req));
+    res.json(tasks);
   }),
 );
 
@@ -71,7 +80,9 @@ router.get("/tasks", (req, res) =>
 router.get("/tasks/summary", (req, res) =>
   withBrokerErrors(req, res, "task_summary failed", async () => {
     const projectId = typeof req.query["projectId"] === "string" ? req.query["projectId"] : undefined;
-    res.json(summariseTasks(await getTasks(req, projectId ? { projectId } : {})));
+    // Same IDOR guard as GET /tasks: summarise only the tasks in the caller's scope, never the raw list.
+    const tasks = await filterTasksInScope(req, await getTasks(req, projectId ? { projectId } : {}), whoami(req));
+    res.json(summariseTasks(tasks));
   }),
 );
 

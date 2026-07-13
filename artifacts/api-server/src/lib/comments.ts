@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { sharedKv } from "./shared-state";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Comment threads — lightweight collaboration on a work item, stored in the EPHEMERAL shared-state
@@ -46,13 +47,27 @@ export function parseMentions(body: string): string[] {
   return [...out].slice(0, 50);
 }
 
+/** Parse ONE stored comment back from the shared seam. When Redis-backed the value was written by
+ *  another replica ⇒ untrusted input: parse prototype-safe and validate the WHOLE shape — including
+ *  `author.sub`, which the route reads for the delete-authorization check — so a poisoned/partial row
+ *  can't type-confuse that check or ride a prototype key through. A malformed row is dropped (null). */
 function safeParse(raw: string): Comment | null {
-  try {
-    const c = JSON.parse(raw) as Comment;
-    return c && typeof c.id === "string" && typeof c.roomId === "string" ? c : null;
-  } catch {
-    return null;
-  }
+  let o: unknown;
+  try { o = safeParseJson<unknown>(raw); } catch { return null; }
+  if (!o || typeof o !== "object") return null;
+  const c = o as Record<string, unknown>;
+  const author = c["author"];
+  if (typeof c["id"] !== "string" || typeof c["roomId"] !== "string" || typeof c["body"] !== "string") return null;
+  if (!author || typeof author !== "object" || typeof (author as Record<string, unknown>)["sub"] !== "string") return null;
+  const a = author as Record<string, unknown>;
+  return {
+    id: c["id"] as string,
+    roomId: c["roomId"] as string,
+    author: { sub: a["sub"] as string, label: typeof a["label"] === "string" ? (a["label"] as string) : "" },
+    body: c["body"] as string,
+    mentions: Array.isArray(c["mentions"]) ? (c["mentions"] as unknown[]).filter((m): m is string => typeof m === "string") : [],
+    createdAt: typeof c["createdAt"] === "string" ? (c["createdAt"] as string) : "",
+  };
 }
 
 /** Add a comment to a room's thread. Parses @mentions, stamps id + createdAt, stores it in the

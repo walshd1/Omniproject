@@ -25,3 +25,21 @@ export function stripDangerousKeys(key: string, value: unknown): unknown {
 export function safeParseJson<T = unknown>(text: string): T {
   return JSON.parse(text, stripDangerousKeys) as T;
 }
+
+/**
+ * Return a deep copy of `value` with every prototype-pollution-dangerous OWN key removed at every depth.
+ * Use for an ALREADY-PARSED value that did NOT come through {@link safeParseJson} — e.g. an object handed
+ * to a settings write from a config-snapshot restore or an internal call, where the express.json reviver
+ * never ran. Non-plain values (primitives, arrays' elements) pass through untouched; arrays are mapped.
+ * Pure — never mutates the input.
+ */
+export function stripDangerousKeysDeep<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((v) => stripDangerousKeysDeep(v)) as unknown as T;
+  if (!value || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (FORBIDDEN_KEYS.has(k)) continue; // drop __proto__/constructor/prototype own keys at every depth
+    out[k] = stripDangerousKeysDeep(v);
+  }
+  return out as unknown as T;
+}

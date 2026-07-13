@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { foldRemotePresence, localPresenceForHeartbeat, registerPresencePublisher, type PresenceEvent } from "./presence-hub";
 import { RedisBus } from "./redis-bus";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Presence fan-out bus — makes live-collaboration presence (rosters + advisory editing indicators)
@@ -72,7 +73,7 @@ export class PresenceBus extends RedisBus {
 
   protected handleMessage(message: string): void {
     try {
-      const wire = JSON.parse(message) as Wire;
+      const wire = safeParseJson<Wire>(message); // cross-replica input — strip dangerous keys before use
       if (wire.from === this.instanceId) return; // our own echo; already applied locally
       foldRemotePresence(wire.ev, Date.now());
     } catch {

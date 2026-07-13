@@ -497,9 +497,11 @@ test("logging sync: enabling with url + acknowledgement unlocks the timeTravel c
   });
 });
 
-test("time-travel replay is gated 409 until the logging sync is enabled, then 200", async () => {
-  const locked = await req("/api/history/replay", { headers: { cookie: VIEWER } });
-  assert.equal(locked.status, 409);
+test("time-travel replay is gated 409 until the logging sync is enabled, then 200 for a portfolio-scoped caller", async () => {
+  // Replay returns portfolio-wide retained history, so it needs BOTH: the logging sync enabled (409
+  // otherwise) AND portfolio (PMO/admin) scope (403 otherwise — the replay IDOR gate). Check both walls.
+  const locked = await req("/api/history/replay", { headers: { cookie: PMO_ADMIN } });
+  assert.equal(locked.status, 409); // enabled-wall first (scope is fine for PMO_ADMIN)
 
   await req("/api/settings", {
     method: "PATCH",
@@ -507,9 +509,13 @@ test("time-travel replay is gated 409 until the logging sync is enabled, then 20
     body: JSON.stringify({ loggingSync: { enabled: true, url: "https://logs.internal:9200/ingest", acknowledgedWarranty: true } }),
   });
 
-  const open = await req("/api/history/replay", { headers: { cookie: VIEWER } });
+  // With the sync on, a portfolio-scoped principal replays; a user-scoped VIEWER is still refused (403)
+  // — the scope gate is independent of the enabled gate, so enabling the sync doesn't widen who can read.
+  const open = await req("/api/history/replay", { headers: { cookie: PMO_ADMIN } });
   assert.equal(open.status, 200);
   assert.ok(Array.isArray(await open.json()), "replay returns an array of states");
+  const scoped = await req("/api/history/replay", { headers: { cookie: VIEWER } });
+  assert.equal(scoped.status, 403, "a user-scoped viewer can't read portfolio-wide history even once enabled");
 
   // Restore (off).
   await req("/api/settings", {

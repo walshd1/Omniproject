@@ -259,6 +259,8 @@ function validPresenceEvent(ev: unknown): ev is PresenceEvent {
   return true;
 }
 
+/** Merge a presence event from ANOTHER replica into this replica's remote-room view (validated first),
+ *  so a join/leave on one node is reflected in every node's presence counts. */
 export function foldRemotePresence(ev: PresenceEvent, now: number): void {
   if (!validPresenceEvent(ev)) return; // drop a malformed / hostile cross-replica event
   if (ev.kind === "leave") {

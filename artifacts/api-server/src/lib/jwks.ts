@@ -1,5 +1,6 @@
 import { jwtVerify, createLocalJWKSet, type JSONWebKeySet } from "jose";
 import { assertEgressAllowed, safeFetch } from "./egress";
+import { safeParseJson } from "./safe-json";
 
 /**
  * JWKS / ID-token verification.
@@ -53,8 +54,10 @@ export function parseJwt(token: string): { header: { alg: string; kid?: string; 
   const parts = token.split(".");
   if (parts.length !== 3) throw new Error("Malformed JWT (expected 3 segments)");
   const [seg0, seg1] = parts as [string, string, string];
-  const header = JSON.parse(Buffer.from(seg0, "base64url").toString("utf8"));
-  const claims = JSON.parse(Buffer.from(seg1, "base64url").toString("utf8"));
+  // A JWT is attacker-supplied until verified — strip prototype-pollution keys from the decoded
+  // header/claims so a hostile `__proto__`/`constructor` can't ride through the pre-verify routing use.
+  const header = safeParseJson<{ alg: string; kid?: string; typ?: string }>(Buffer.from(seg0, "base64url").toString("utf8"));
+  const claims = safeParseJson<JwtClaims>(Buffer.from(seg1, "base64url").toString("utf8"));
   if (!header.alg || typeof header.alg !== "string") throw new Error("JWT header missing alg");
   return { header, claims };
 }

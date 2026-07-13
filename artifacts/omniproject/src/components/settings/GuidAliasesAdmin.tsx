@@ -73,7 +73,7 @@ export function GuidAliasesAdmin() {
     const g = forgetGuid.trim();
     if (!g) return;
     forget.mutate(g, {
-      onSuccess: (r) => { setForgetGuid(""); toast({ title: "PROJECT FORGOTTEN", description: `Unlinked from ${r.removedFromProgrammes.length} programme(s)${r.removedFromClosed ? ", closed index" : ""}; GUID retired.` }); },
+      onSuccess: (r) => { setForgetGuid(""); toast({ title: "PROJECT FORGOTTEN", description: `Unlinked from ${r?.removedFromProgrammes?.length ?? 0} programme(s)${r?.removedFromClosed ? ", closed index" : ""}; GUID retired.` }); },
       onError: (e) => toast({ title: "COULD NOT FORGET", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" }),
     });
   };

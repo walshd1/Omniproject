@@ -1,10 +1,11 @@
 import type { Request, Response } from "express";
 import { scopeForReq } from "./rbac";
-import { inScope } from "./scope";
+import { inScope, scopeAllowsVisibleProject } from "./scope";
 import { getProjects } from "./data";
 import { getSettings } from "./settings";
 import { programmeIdsOf, programmeIdOf } from "./programmes";
 import { qualifiedId } from "../broker/identity";
+import { auditScopeDenied } from "./audit";
 
 /**
  * Gateway-side per-project authorization — the deployment-independent scope gate every
@@ -30,8 +31,8 @@ export async function assertProjectScope(req: Request, projectId: string): Promi
   if (!project) return { ok: false, error: "project not in your scope" };
   // Defence-in-depth for a programme-scoped principal: re-check the project's programme membership at the
   // gateway (the built-in broker doesn't scope-filter its list, so presence in it alone isn't enough).
-  if (scope.level === "programme"
-    && !inScope(scope, { programmeId: programmeIdOf(project), programmeIds: programmeIdsOf(project, registry) })) {
+  // scopeAllowsVisibleProject is the SAME decision the data-seam guard (broker/scope-guard.ts) applies.
+  if (!scopeAllowsVisibleProject(scope, { programmeId: programmeIdOf(project), programmeIds: programmeIdsOf(project, registry) })) {
     return { ok: false, error: "project not in your scope" };
   }
   return { ok: true };
@@ -44,12 +45,42 @@ export async function assertProjectScope(req: Request, projectId: string): Promi
 export async function guardProjectScope(req: Request, res: Response, projectId: string): Promise<boolean> {
   const authz = await assertProjectScope(req, projectId);
   if (authz.ok) return true;
+  // A cross-scope access attempt — record it (category "security", always audited) so a burst from one
+  // actor surfaces as lateral-movement probing, not just a silent 403.
+  auditScopeDenied(req, "project", projectId, authz.error);
   res.status(403).json({ error: authz.error });
   return false;
 }
 
 /** The minimal task shape the scope check reads (structural, so this stays free of a broker-type import). */
 interface ScopableTask { projectId?: string | null; assignee?: string | null; collaborators?: string[] | null }
+
+/**
+ * Filter a task LIST to only those the caller may see — the batched form of {@link assertTaskScope} for a
+ * list endpoint, resolving the caller's in-scope project set ONCE (not per task). A project-linked task is
+ * kept iff its project is in the caller's scope (same visible-set + programme-membership rule as
+ * assertProjectScope); a PERSONAL task (no projectId) iff the caller is its assignee/collaborator. all-scope
+ * (PMO/admin) sees everything. Without this, `GET /tasks` handed a scope-blind broker `listTasks` back
+ * verbatim — leaking out-of-scope project tasks (and other users' personal tasks) by list or by ?projectId.
+ */
+export async function filterTasksInScope<T extends ScopableTask>(req: Request, tasks: T[], whoami: readonly string[]): Promise<T[]> {
+  const scope = scopeForReq(req);
+  if (scope.level === "all") return tasks;
+  const registry = getSettings().programmeRegistry;
+  const visible = await getProjects(req, { includeClosed: true });
+  // The caller's in-scope project ids, in BOTH the raw-id and qualified-id forms a task's projectId may take.
+  const inScopeIds = new Set<string>();
+  for (const p of visible) {
+    if (scope.level === "programme"
+      && !inScope(scope, { programmeId: programmeIdOf(p), programmeIds: programmeIdsOf(p, registry) })) continue;
+    inScopeIds.add(String(p["id"]));
+    inScopeIds.add(qualifiedId(p));
+  }
+  const owns = (v: string | null | undefined): boolean => !!v && whoami.includes(v);
+  return tasks.filter((t) => (t.projectId
+    ? inScopeIds.has(t.projectId)
+    : owns(t.assignee) || (t.collaborators ?? []).some(owns)));
+}
 
 /**
  * Whether a caller may see/mutate a single task. A PROJECT-linked task follows {@link assertProjectScope}
