@@ -164,3 +164,13 @@ test("export: the ?projectId=<other> issues branch is scope-checked (no cross-te
 // (The comments room scope-guard — projectIdOfRoom → guardProjectScope — uses the same shared guard
 //  exercised by the export/projects tests above. It can't be driven end-to-end here because the
 //  comments feature module is lazy-mounted and off at boot in this harness, so the route isn't mounted.)
+
+test("PATCH /settings refuses capabilityStates (step-up + validation bypass) but allows normal keys", async () => {
+  // The bulk settings patch must not be a backdoor around PUT /governance/:id (step-up + sanitize).
+  const bad = await h.req("/settings", { cookie: adminCookie(), method: "PATCH", body: { capabilityStates: { "provider:ollama": { state: "public", endpoint: "http://169.254.169.254/" } } } });
+  assert.equal(bad.status, 400);
+  assert.match(((await bad.json()) as { error: string }).error, /governance/i);
+  // A normal settings key still applies through the same route.
+  const ok = await h.req("/settings", { cookie: adminCookie(), method: "PATCH", body: { errorTelemetry: true } });
+  assert.equal(ok.status, 200);
+});

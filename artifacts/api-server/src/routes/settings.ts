@@ -19,9 +19,20 @@ router.get("/settings", (_req, res) => {
 // Changing settings re-wires the gateway (broker URL, AI provider) — admin only.
 // Each change is versioned so it can be rolled back (see config-store).
 router.patch("/settings", requireRole("admin"), (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  // capabilityStates is a STEP-UP-gated control (widening a capability to "public" / setting an AI/MCP
+  // endpoint). Its dedicated route — PUT /api/governance/:id — requires a fresh step-up AND runs
+  // sanitizeCapabilitySetting (clamps state to the capability's supported set, validates the endpoint,
+  // rejects unknown ids). Letting the bulk PATCH /settings write it here would bypass BOTH the step-up
+  // and that validation (and clobber the whole map). Refuse it on this path — config-dir/snapshot
+  // restore still applies it below the seam. See routes/tools.ts PUT /governance/:id.
+  if ("capabilityStates" in body) {
+    res.status(400).json({ error: "capabilityStates is managed via PUT /api/governance/:id (step-up required), not PATCH /settings" });
+    return;
+  }
   try {
     const before = getSettings().backendSource;
-    const settings = updateSettings(req.body ?? {});
+    const settings = updateSettings(body);
     captureVersion("settings updated");
     // The demo broker's vendor flavour is derived from backendSource at build time,
     // so rebuild it when that changes — the demo re-presents as the new vendor.
