@@ -3,6 +3,17 @@ import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { constantTimeEqual } from "./crypto-keys";
 import { sharedKv } from "./shared-state";
+import { isForbiddenKey } from "./safe-json";
+
+/**
+ * SECURITY: the directory maps are plain objects indexed by the SCIM resource `id`, which arrives
+ * as a raw URL path segment (`/scim/v2/Users/:id`). The global body reviver strips `__proto__` /
+ * `constructor` / `prototype` from request BODIES but not from route PARAMS — so an id of `__proto__`
+ * would otherwise read `Object.prototype` (a truthy phantom resource) and, on PUT, `dir.users["__proto__"] = …`
+ * would invoke the prototype setter and pollute/corrupt the map (then get persisted). Every by-id entry
+ * point rejects a forbidden key up front, so those names resolve to "not found" instead of the prototype.
+ */
+const safeId = (id: string): boolean => !isForbiddenKey(id);
 
 /**
  * SCIM 2.0 directory (RFC 7643/7644). OmniProject is stateless — identity is authenticated by
@@ -169,10 +180,11 @@ export function createUser(input: Partial<ScimUser> & { userName: string }): Sci
 }
 
 /** The user with this id, or null. */
-export function getUser(id: string): ScimUser | null { ensureLoaded(); return dir.users[id] ?? null; }
+export function getUser(id: string): ScimUser | null { if (!safeId(id)) return null; ensureLoaded(); return dir.users[id] ?? null; }
 
 /** Replace a user (PUT). */
 export function replaceUser(id: string, input: Partial<ScimUser>): ScimUser | null {
+  if (!safeId(id)) return null;
   ensureLoaded();
   const existing = dir.users[id];
   if (!existing) return null;
@@ -204,6 +216,7 @@ function* normalizedOps(operations: Array<{ op: string; path?: string; value?: u
 
 /** Apply a SCIM PATCH (the subset IdPs use — most importantly toggling `active`). */
 export function patchUser(id: string, operations: Array<{ op: string; path?: string; value?: unknown }>): ScimUser | null {
+  if (!safeId(id)) return null;
   ensureLoaded();
   const user = dir.users[id];
   if (!user) return null;
@@ -226,6 +239,7 @@ export function patchUser(id: string, operations: Array<{ op: string; path?: str
 
 /** Delete (hard) a user. */
 export function deleteUser(id: string): boolean {
+  if (!safeId(id)) return false;
   ensureLoaded();
   if (!(id in dir.users)) return false;
   delete dir.users[id];
@@ -268,10 +282,11 @@ export function createGroup(input: Partial<ScimGroup> & { displayName: string })
 }
 
 /** The group with this id, or null. */
-export function getGroup(id: string): ScimGroup | null { ensureLoaded(); return dir.groups[id] ?? null; }
+export function getGroup(id: string): ScimGroup | null { if (!safeId(id)) return null; ensureLoaded(); return dir.groups[id] ?? null; }
 
 /** Replace/patch a group's membership + name, then re-sync each user's group display names. */
 export function replaceGroup(id: string, input: Partial<ScimGroup>): ScimGroup | null {
+  if (!safeId(id)) return null;
   ensureLoaded();
   const existing = dir.groups[id];
   if (!existing) return null;
@@ -285,6 +300,7 @@ export function replaceGroup(id: string, input: Partial<ScimGroup>): ScimGroup |
 
 /** Apply a group PATCH (add/remove members — what IdPs send for group assignment). */
 export function patchGroup(id: string, operations: Array<{ op: string; path?: string; value?: unknown }>): ScimGroup | null {
+  if (!safeId(id)) return null;
   ensureLoaded();
   const group = dir.groups[id];
   if (!group) return null;
@@ -315,6 +331,7 @@ export function patchGroup(id: string, operations: Array<{ op: string; path?: st
 
 /** Delete a group. */
 export function deleteGroup(id: string): boolean {
+  if (!safeId(id)) return false;
   ensureLoaded();
   if (!(id in dir.groups)) return false;
   delete dir.groups[id];

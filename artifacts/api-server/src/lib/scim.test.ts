@@ -120,3 +120,20 @@ test("fleet merge: a tombstoned delete is not resurrected by a sibling's stale c
   await refreshScimFromShared();
   assert.equal(getUser(u.id), null); // the tombstone out-dates the stale record ⇒ stays deleted
 });
+
+test("a forbidden prototype key as the SCIM id is never treated as a resource (no pollution)", () => {
+  for (const bad of ["__proto__", "constructor", "prototype"]) {
+    // Reads resolve to "not found", not the phantom Object.prototype / Object constructor.
+    assert.equal(getUser(bad), null, `getUser(${bad})`);
+    assert.equal(patchUser(bad, [{ op: "replace", path: "active", value: false }]), null, `patchUser(${bad})`);
+    assert.equal(replaceUser(bad, { active: false }), null, `replaceUser(${bad})`);
+    assert.equal(deleteUser(bad), false, `deleteUser(${bad})`);
+  }
+  // The PUT-that-would-pollute is refused, so the directory map's prototype is intact.
+  replaceUser("__proto__", { userName: "polluted", active: true });
+  const victim: Record<string, unknown> = {};
+  assert.equal(victim["userName"], undefined, "Object.prototype was not polluted");
+  // A normal user still works after the attempted attack.
+  const u = createUser({ userName: "real@corp.com" });
+  assert.equal(getUser(u.id)?.userName, "real@corp.com");
+});
