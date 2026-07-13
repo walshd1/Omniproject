@@ -43,13 +43,29 @@ export function openSse(res: Response, ready: unknown = {}): SseStream {
  *  the request ends. Returns the interval handle so a caller can clear it earlier.
  *
  *  `onTick` is an optional per-tick guard: when it returns true (e.g. the streaming principal was
- *  just deprovisioned), the stream is closed mid-flight — the `req.on("close")` handler then runs
- *  `onClose` once, so a long-lived SSE can't outlive a SCIM `active=false` until the client reconnects. */
+ *  just deprovisioned), the stream is closed mid-flight.
+ *
+ *  Cleanup (`clearInterval` + `onClose`) runs EXACTLY ONCE, whichever path fires first — the client
+ *  disconnecting (`req`/`res` "close") OR the server self-closing on an `onTick`. The self-close path
+ *  used to rely solely on `req.on("close")` to run `onClose`, but ending an SSE response over a
+ *  keep-alive socket does not reliably emit that event — so the unsubscribe leaked and the ping timer
+ *  hung. Calling the guarded cleanup directly from the `onTick` branch fixes that leak; the once-guard
+ *  keeps the client-disconnect path from double-running it. */
 export function keepAlive(stream: SseStream, req: Request, onClose: () => void, ms = 25_000, onTick?: () => boolean): ReturnType<typeof setInterval> {
+  let cleaned = false;
+  const cleanup = (): void => {
+    if (cleaned) return;
+    cleaned = true;
+    clearInterval(ping);
+    onClose();
+  };
   const ping = setInterval(() => {
-    if (onTick && onTick()) { clearInterval(ping); stream.close(); return; }
+    if (onTick && onTick()) { stream.close(); cleanup(); return; }
     stream.comment("ping");
   }, ms);
-  req.on("close", () => { clearInterval(ping); onClose(); });
+  // Both events can fire for one disconnect; the once-guard makes that harmless. Listening to both
+  // (not just req) also catches the case where only the response side observes the socket close.
+  req.on("close", cleanup);
+  req.res?.on("close", cleanup);
   return ping;
 }
