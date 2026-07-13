@@ -55,7 +55,7 @@ const POSTURE: Record<DeploymentProfile, ProfilePosture> = {
       { key: "SCIM_TOKEN", why: "user provisioning/deprovisioning" },
       { key: "KMS_PROVIDER", value: "aws|azure", why: "BYOK envelope for keys" },
       { key: "IP_ALLOWLIST", why: "restrict to your networks" },
-      { key: "DUAL_CONTROL_ACTIONS", value: "key.revoke,maintenance.engage", why: "four-eyes on sensitive ops" },
+      { key: "DUAL_CONTROL_ACTIONS", value: "key.revoke,maintenance.engage,role_map.update", why: "four-eyes on sensitive ops (incl. admin-authority mapping)" },
       { key: "AUDIT_HTTP_URL", why: "ship the tamper-evident audit to your SIEM" },
     ],
     recommend: ["OIDC SSO + SCIM", "KMS/BYOK", "IP allowlist", "Maker-checker", "Ship audit to a SIEM", "Serve over HTTPS"],

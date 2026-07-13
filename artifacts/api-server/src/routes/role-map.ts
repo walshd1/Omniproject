@@ -3,6 +3,7 @@ import { requireRole, getRoleMap, setRoleMap, rollbackRoleMap, canRollbackRoleMa
 import { requireStepUp } from "../lib/step-up";
 import { recordAudit, actorForAudit } from "../lib/audit";
 import { persistSecurityState } from "../lib/security-state";
+import { heldForDualControl } from "./security";
 
 /**
  * Role-mapping editor — ADMIN-only, audited. Lets an admin decide which IdP
@@ -36,7 +37,11 @@ router.post("/admin/role-map/rollback", requireRole("admin"), requireStepUp, (re
   res.json({ roles: ROLES, mapping, rolledBack });
 });
 
-router.put("/admin/role-map", requireRole("admin"), requireStepUp, (req, res) => {
+router.put("/admin/role-map", requireRole("admin"), requireStepUp, async (req, res) => {
+  // Four-eyes: mapping an IdP group to admin/pmo authority is an elevation, so when configured it
+  // requires a SECOND admin's approval (held as a proposal) before it takes effect. No-op when
+  // role_map.update isn't in DUAL_CONTROL_ACTIONS (single-admin deployments unaffected).
+  if (await heldForDualControl("role_map.update", req.body, req, res)) return;
   const mapping = setRoleMap(req.body);
   persistSecurityState(); // durable across restart + fanned out to the fleet (revocation propagates)
   recordAudit({

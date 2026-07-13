@@ -13,6 +13,9 @@ after(() => h.close());
 afterEach(async () => {
   const { resetRoleMap } = await import("../lib/rbac");
   resetRoleMap();
+  delete process.env["DUAL_CONTROL_ACTIONS"];
+  const { __resetDualControl } = await import("../lib/dual-control");
+  await __resetDualControl();
 });
 
 test("GET /admin/role-map without a cookie is 401", async () => {
@@ -61,4 +64,17 @@ test("POST /admin/role-map/rollback with nothing to undo reports rolledBack:fals
   const r = await h.req("/admin/role-map/rollback", { method: "POST", cookie: stepUpAdminCookie() });
   assert.equal(r.status, 200);
   assert.equal((await r.json() as { rolledBack: boolean }).rolledBack, false);
+});
+
+test("four-eyes: mapping admin authority is HELD for a second approver when dual control is on", async () => {
+  process.env["DUAL_CONTROL_ACTIONS"] = "role_map.update";
+  const r = await h.req("/admin/role-map", { method: "PUT", cookie: stepUpAdminCookie(), body: { admin: ["attacker-group"] } });
+  assert.equal(r.status, 202); // held as a proposal, not applied
+  const body = await r.json() as { pending: boolean; proposalId: string };
+  assert.equal(body.pending, true);
+  assert.ok(body.proposalId);
+  // The mapping did NOT take effect — the elevation is pending a second admin.
+  const get = await h.req("/admin/role-map", { cookie: adminCookie() });
+  const mapping = (await get.json() as { mapping: { role: string; source: string }[] }).mapping;
+  assert.notEqual(mapping.find((m) => m.role === "admin")?.source, "override");
 });

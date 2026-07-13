@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireRole } from "../lib/rbac";
+import { requireRole, setRoleMap } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { getSession } from "./auth";
 import { recordAudit, actorForAudit } from "../lib/audit";
@@ -39,7 +39,7 @@ function actorOf(req: Request): Actor { const s = getSession(req); return { sub:
  * return true so the caller stops. The registered executor applies it once a second admin
  * approves. Returns false (proceed normally) when dual control is off for this action.
  */
-async function heldForDualControl(action: string, params: unknown, req: Request, res: Response): Promise<boolean> {
+export async function heldForDualControl(action: string, params: unknown, req: Request, res: Response): Promise<boolean> {
   if (!requiresDualControl(action)) return false;
   const p = await propose(action, params, actorOf(req), new Date().toISOString());
   recordAudit({ ts: new Date().toISOString(), category: "admin", action: `${action}.proposed`, actor: actorForAudit(req), write: true, result: "success", meta: { proposalId: p.id } });
@@ -53,6 +53,12 @@ registerExecutor("maintenance.engage", (params) => {
   engageMaintenance((params as { reason?: string })?.reason ?? "");
   persistSecurityState();
   void publishMaintenanceToShared(); // fan the freeze out to the fleet (approved via four-eyes)
+});
+registerExecutor("role_map.update", (params) => {
+  // Applied on second-admin approval. setRoleMap re-validates (only the five fixed roles, string
+  // groups), so the queued params can't invent a role. persist ⇒ durable + fanned out to the fleet.
+  setRoleMap(params);
+  persistSecurityState();
 });
 registerExecutor("key.revoke", (params) => {
   const { name, by, reason } = params as { name: KeyName; by: string | null; reason?: string };

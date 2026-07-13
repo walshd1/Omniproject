@@ -99,11 +99,20 @@ function budgetKey(scope: string, now: number): string {
 
 export interface BudgetVerdict { ok: boolean; used: number; limit: number }
 
+/** Coerce a cross-replica counter (any replica — or anyone who reaches the shared KV — can write it) to
+ *  a finite, NON-NEGATIVE integer, else 0. Zero-trust: an unvalidated `Number()` here would let a
+ *  negative value silently defeat the budget cap fleet-wide, or a non-numeric value poison it to NaN and
+ *  DoS all AI for the window. Mirrors the shared-integer clamping in lib/key-registry. */
+function sharedCounter(raw: string | null): number {
+  const n = Number(raw ?? 0);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
 /** Check (without reserving) whether `estTokens` more would exceed the scope's budget. */
 export async function checkBudget(scope: string, estTokens: number, now: number = Date.now()): Promise<BudgetVerdict> {
   const limit = tokenBudget();
   if (limit <= 0) return { ok: true, used: 0, limit: 0 };
-  const used = Number((await sharedKv.get(budgetKey(scope, now))) ?? 0);
+  const used = sharedCounter(await sharedKv.get(budgetKey(scope, now)));
   return { ok: used + estTokens <= limit, used, limit };
 }
 
@@ -111,7 +120,7 @@ export async function checkBudget(scope: string, estTokens: number, now: number 
 export async function recordUsage(scope: string, tokens: number, now: number = Date.now()): Promise<void> {
   if (tokenBudget() <= 0 || tokens <= 0) return;
   const key = budgetKey(scope, now);
-  const used = Number((await sharedKv.get(key)) ?? 0);
+  const used = sharedCounter(await sharedKv.get(key));
   await sharedKv.set(key, String(used + tokens), { ttlMs: windowMs() * 2 });
 }
 
@@ -140,6 +149,6 @@ export async function aiUsageReport(now: number = Date.now()): Promise<{ scope: 
   const suffix = `:${bucket}`;
   return entries
     .filter((e) => e.key.endsWith(suffix))
-    .map((e) => ({ scope: e.key.slice("ai:bud:".length, -suffix.length), tokens: Number(e.value) }))
+    .map((e) => ({ scope: e.key.slice("ai:bud:".length, -suffix.length), tokens: sharedCounter(e.value) }))
     .sort((a, b) => b.tokens - a.tokens);
 }

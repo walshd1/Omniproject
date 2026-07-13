@@ -183,6 +183,32 @@ const now = (): string => new Date().toISOString();
 const newId = (): string => crypto.randomUUID();
 
 // ── Users ────────────────────────────────────────────────────────────────────────
+
+/** Coerce an untrusted SCIM `active` value to a STRICT boolean (matching patchUser). IdPs sometimes
+ *  send the string "true"/"false"; `undefined` falls back. Zero-trust: without this, a non-boolean
+ *  `active` (e.g. "false") is stored verbatim and the deprovisioning gate (`!active`) reads a disabled
+ *  leaver as still-active — a silent deprovisioning bypass. */
+function coerceActive(value: unknown, fallback: boolean): boolean {
+  if (value === undefined || value === null) return fallback;
+  return value === true || value === "true";
+}
+
+/** Keep only well-formed `{ value: string }` email entries — an IdP-supplied `emails:[{value:123}]`
+ *  would otherwise be stored and later throw at `e.value.toLowerCase()` in the lookup/decision path. */
+function cleanEmails(input: unknown): ScimEmail[] | undefined {
+  if (!Array.isArray(input)) return undefined;
+  const out = input
+    .filter((e): e is ScimEmail => !!e && typeof e === "object" && typeof (e as { value?: unknown }).value === "string")
+    .map((e) => ({ value: e.value, ...(typeof e.primary === "boolean" ? { primary: e.primary } : {}), ...(typeof e.type === "string" ? { type: e.type } : {}) }));
+  return out.length ? out : undefined;
+}
+
+/** Keep only string group display-names (they flow into the role-claim merge, so a non-string is
+ *  dropped rather than trusted). */
+function cleanGroups(input: unknown): string[] {
+  return Array.isArray(input) ? input.filter((g): g is string => typeof g === "string" && g.trim() !== "") : [];
+}
+
 /** Create a user resource. */
 export function createUser(input: Partial<ScimUser> & { userName: string }): ScimUser {
   ensureLoaded();
@@ -191,10 +217,10 @@ export function createUser(input: Partial<ScimUser> & { userName: string }): Sci
     id,
     userName: input.userName,
     externalId: input.externalId,
-    active: input.active ?? true,
+    active: coerceActive(input.active, true),
     displayName: input.displayName,
-    emails: input.emails,
-    groups: input.groups ?? [],
+    emails: cleanEmails(input.emails),
+    groups: cleanGroups(input.groups),
     meta: { resourceType: "User", created: now(), lastModified: now() },
   };
   dir.users[id] = user;
@@ -215,10 +241,10 @@ export function replaceUser(id: string, input: Partial<ScimUser>): ScimUser | nu
     ...existing,
     userName: input.userName ?? existing.userName,
     externalId: input.externalId ?? existing.externalId,
-    active: input.active ?? existing.active,
+    active: coerceActive(input.active, existing.active),
     displayName: input.displayName ?? existing.displayName,
-    emails: input.emails ?? existing.emails,
-    groups: input.groups ?? existing.groups,
+    emails: input.emails !== undefined ? cleanEmails(input.emails) : existing.emails,
+    groups: input.groups !== undefined ? cleanGroups(input.groups) : existing.groups,
     meta: { ...existing.meta, lastModified: now() },
   };
   dir.users[id] = updated;

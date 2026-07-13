@@ -1,6 +1,6 @@
 import { awsSignedHeaders, awsCredsFromEnv } from "./aws-sigv4";
 import { safeFetch } from "./egress";
-import type { VaultStore } from "./vault-store";
+import { coerceSecretMap, type VaultStore } from "./vault-store";
 
 /**
  * AWS Secrets Manager vault store (native). All AI keys are held in ONE Secrets Manager
@@ -40,7 +40,7 @@ export function awsSecretsStore(): VaultStore {
     if (!res.ok) throw new Error(`AWS GetSecretValue ${res.status}`);
     const json = (await res.json()) as { SecretString?: string };
     if (!json.SecretString) return {};
-    try { return JSON.parse(json.SecretString) as Record<string, string>; } catch { return {}; }
+    try { return coerceSecretMap(JSON.parse(json.SecretString)); } catch { return {}; }
   };
 
   const write = async (map: Record<string, string>): Promise<void> => {

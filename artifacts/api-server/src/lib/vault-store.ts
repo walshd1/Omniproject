@@ -28,6 +28,18 @@ import { SealedFile, resolveConfigFile } from "./sealed-file";
  * Contract: a store loads all secrets it holds (ref → plaintext) and persists/removes one at
  * a time. Reads in lib/vault are served from an in-memory cache hydrated from load().
  */
+/** Coerce an external secrets-backend response into a clean `ref → value` string map, dropping any
+ *  non-string entry. Zero-trust defence-in-depth: even the operator's own (TLS, authenticated) backend
+ *  response is shape-validated before its values become live AI keys, rather than cast-and-trusted. */
+export function coerceSecretMap(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof k === "string" && k !== "__proto__" && typeof v === "string") out[k] = v;
+  }
+  return out;
+}
+
 export interface VaultStore {
   id: string;
   /** Optional synchronous load (local file only) — lets non-booted contexts read at once. */
@@ -141,8 +153,8 @@ function hashicorpStore(): VaultStore {
     const res = await safeFetch(url, { headers, signal: AbortSignal.timeout(15_000) });
     if (res.status === 404) return {};
     if (!res.ok) throw new Error(`Vault read ${res.status}`);
-    const json = (await res.json()) as { data?: { data?: Record<string, string> } };
-    return json.data?.data ?? {};
+    const json = (await res.json()) as { data?: { data?: unknown } };
+    return coerceSecretMap(json.data?.data);
   };
   const write = async (map: Record<string, string>): Promise<void> => {
     const res = await safeFetch(url, { method: "POST", headers, body: JSON.stringify({ data: map }), signal: AbortSignal.timeout(15_000) });
@@ -169,7 +181,7 @@ function httpStore(): VaultStore {
       const res = await safeFetch(`${base}/secrets`, { headers, signal: AbortSignal.timeout(15_000) });
       if (res.status === 404) return {};
       if (!res.ok) throw new Error(`Secrets store read ${res.status}`);
-      return (await res.json()) as Record<string, string>;
+      return coerceSecretMap(await res.json());
     },
     async put(ref, value) {
       const res = await safeFetch(refUrl(ref), { method: "PUT", headers, body: JSON.stringify({ value }), signal: AbortSignal.timeout(15_000) });

@@ -13,6 +13,8 @@
  * Redis round-trip inline in auth. That async refactor of the auth path is higher-risk and out
  * of scope here, so the per-replica cap is a knowingly-accepted limit rather than an oversight.
  */
+import { sharedKv, sharedStateMode } from "./shared-state";
+
 interface Entry { first: number; last: number }
 const users = new Map<string, Map<string, Entry>>();
 
@@ -103,14 +105,45 @@ function pruneSeqs(now: number): void {
   for (const [id, e] of seqs) if (e.last < cutoff) seqs.delete(id);
 }
 
+// ── Cross-replica mark (best-effort fleet detection of a replay that lands on a fresh replica) ──────
+// The high-water mark is per-replica for the SYNC read, but we also publish it to shared state so a
+// replay of a superseded cookie that lands FIRST on a replica which never served the session can still
+// be caught. Redis-mode only: in single-replica the issuing replica already has the mark locally, so
+// there is no cross-replica "first sight" to reconcile.
+const SEQ_MARK_PREFIX = "seq:mark:";
+
+function publishSeqMark(salt: string, high: number, now: number): void {
+  if (!sequenceEnforced() || sharedStateMode() !== "redis") return;
+  void sharedKv.set(SEQ_MARK_PREFIX + salt, String(high), { ttlMs: absoluteWindowMs() }).catch(() => { /* best-effort */ });
+}
+
+/** Fire-and-forget on FIRST sight of a salt on this replica: if the fleet's known mark is well ahead of
+ *  the presented seq, this is a replay of a superseded copy that landed here first ⇒ mark the session
+ *  killed so its NEXT request forks (and readSession revokes it fleet-wide). Never blocks the read. */
+function reconcileFirstSight(salt: string, seq: number): void {
+  if (sharedStateMode() !== "redis") return;
+  void (async () => {
+    try {
+      const raw = await sharedKv.get(SEQ_MARK_PREFIX + salt);
+      const remote = raw === null ? NaN : Number(raw);
+      if (Number.isFinite(remote) && remote > seq + seqGrace()) {
+        const e = seqs.get(salt);
+        if (e) e.killed = true; // next request → fork → fleet-wide revoke (assume-breach)
+      }
+    } catch { /* best-effort */ }
+  })();
+}
+
 /** Issue the next sequence number for a session (called when its cookie is (re)sealed). Advancing the
  *  high-water mark is what makes an older, captured copy of the cookie detectably out-of-sequence. */
 export function issueSequence(salt: string, now: number): number {
   pruneSeqs(now);
   const e = seqs.get(salt);
-  if (!e || e.killed) { const seq = (e?.high ?? 0) + 1; seqs.set(salt, { high: seq, last: now, killed: false }); return seq; }
-  e.high += 1; e.last = now;
-  return e.high;
+  const high = !e || e.killed ? (e?.high ?? 0) + 1 : (e.high += 1);
+  if (!e || e.killed) seqs.set(salt, { high, last: now, killed: false });
+  else e.last = now;
+  publishSeqMark(salt, high, now); // fan the mark out so other replicas can detect a stale replay
+  return high;
 }
 
 export type SeqVerdict = "ok" | "fork";
@@ -124,7 +157,13 @@ export type SeqVerdict = "ok" | "fork";
 export function checkSequence(salt: string, seq: number, now: number): SeqVerdict {
   if (!sequenceEnforced()) return "ok";
   const e = seqs.get(salt);
-  if (!e) { seqs.set(salt, { high: seq, last: now, killed: false }); return "ok"; }
+  if (!e) {
+    // First sight on THIS replica: seed the mark, accept — but reconcile against the fleet's known mark
+    // (best-effort, async) so a replay that landed here first is caught on its next request.
+    seqs.set(salt, { high: seq, last: now, killed: false });
+    reconcileFirstSight(salt, seq);
+    return "ok";
+  }
   if (e.killed) return "fork"; // family already burned by a detected reuse
   e.last = now;
   if (seq >= e.high) { e.high = seq; return "ok"; }

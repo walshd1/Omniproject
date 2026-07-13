@@ -56,7 +56,10 @@ export async function transcribe(audio: Buffer, mime: string): Promise<{ text: s
   const res = await safeFetch(url, { method: "POST", headers: key ? { Authorization: `Bearer ${key}` } : {}, body: form });
   if (!res.ok) throw new SttError(`Transcription provider returned ${res.status}`, 502);
   const data = (await res.json().catch(() => ({}))) as { text?: unknown };
-  return { text: typeof data.text === "string" ? data.text : "" };
+  // Type-check AND length-bound the provider's transcript: the endpoint is operator-configured, but a
+  // multi-megabyte reply shouldn't flow through unbounded (zero-trust: bound external data on ingest).
+  const MAX_TRANSCRIPT = 100_000;
+  return { text: typeof data.text === "string" ? data.text.slice(0, MAX_TRANSCRIPT) : "" };
 }
 
 /** The governance capability id for the active STT provider (for the enforce gate). */

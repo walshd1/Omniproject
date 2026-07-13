@@ -38,6 +38,29 @@ test("PATCH active=false deprovisions; the directory decision denies", () => {
   assert.equal(d.active, false);
 });
 
+test("zero-trust: a non-boolean `active` on POST/PUT is coerced (no deprovisioning bypass)", () => {
+  // An IdP sending the STRING "false" must actually deprovision — not be stored verbatim (where
+  // `!"false"` is falsy and the leaver reads as still-active). Matches PATCH's coercion.
+  const u = createUser({ userName: "carol@corp.com", active: "false" as unknown as boolean });
+  assert.equal(u.active, false);
+  assert.equal(directoryDecision({ email: "carol@corp.com" }).active, false);
+  // PUT with active:"true" (string) re-activates via strict coercion.
+  const r = replaceUser(u.id, { userName: "carol@corp.com", active: "true" as unknown as boolean });
+  assert.equal(r?.active, true);
+});
+
+test("zero-trust: malformed email/group entries are dropped rather than stored", () => {
+  // A hostile/broken `emails:[{value:123}]` would later throw at `.value.toLowerCase()`; it's dropped.
+  const u = createUser({
+    userName: "dave@corp.com",
+    emails: [{ value: 123 as unknown as string }, { value: "dave@corp.com" }],
+    groups: ["admins", 42 as unknown as string],
+  });
+  assert.deepEqual(u.emails, [{ value: "dave@corp.com" }]);
+  assert.deepEqual(u.groups, ["admins"]);
+  assert.equal(listUsers('emails eq "dave@corp.com"').length, 1); // no throw
+});
+
 test("group membership becomes role claims in the directory decision", () => {
   const u = createUser({ userName: "carol@corp.com", externalId: "oidc-sub-carol" });
   createGroup({ displayName: "omni-admins", members: [{ value: u.id }] });

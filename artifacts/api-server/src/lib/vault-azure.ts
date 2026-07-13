@@ -1,5 +1,5 @@
 import { safeFetch } from "./egress";
-import type { VaultStore } from "./vault-store";
+import { coerceSecretMap, type VaultStore } from "./vault-store";
 
 /**
  * Azure Key Vault vault store (native). All AI keys are held in ONE Key Vault secret as a
@@ -45,7 +45,7 @@ export function azureKeyVaultStore(): VaultStore {
     if (!res.ok) throw new Error(`Azure Key Vault read ${res.status}`);
     const json = (await res.json()) as { value?: string };
     if (!json.value) return {};
-    try { return JSON.parse(json.value) as Record<string, string>; } catch { return {}; }
+    try { return coerceSecretMap(JSON.parse(json.value)); } catch { return {}; }
   };
 
   const write = async (map: Record<string, string>): Promise<void> => {
