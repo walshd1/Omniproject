@@ -190,6 +190,9 @@ router.get("/security/audit/anchor", requireRole("admin"), (_req, res) => {
 router.post("/security/audit/verify", requireRole("admin"), (req, res) => {
   const body = (req.body ?? {}) as { events?: unknown; expectedFirstPrev?: unknown };
   if (!Array.isArray(body.events)) { res.status(400).json({ error: "Body must be { events: SealedAuditEvent[], expectedFirstPrev? }." }); return; }
+  // verifyAuditChain recomputes a keyed hash PER event — cap the slice so a huge array can't burn CPU
+  // (the explicit floor the codebase uses elsewhere: import 5000, trend ids 200). Verify in batches.
+  if (body.events.length > 50_000) { res.status(413).json({ error: "Too many events: verify in slices of ≤ 50000." }); return; }
   const expectedFirstPrev = typeof body.expectedFirstPrev === "string" ? body.expectedFirstPrev : undefined;
   res.json(verifyAuditChain(body.events as SealedAuditEvent[], expectedFirstPrev));
 });

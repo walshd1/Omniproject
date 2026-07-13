@@ -12,6 +12,7 @@
  * operator confirms/edits the mapping before any import (reference mapping, not law).
  */
 import { FIELD_REGISTRY, type FieldDescriptor, type FieldType } from "./field-registry";
+import { isForbiddenKey } from "./safe-json";
 
 /** Common spreadsheet header aliases → canonical field key. Lower-cased, normalised. */
 const SYNONYMS: Record<string, string> = {
@@ -206,7 +207,9 @@ export function applyColumnMapping(rows: Record<string, unknown>[], mapping: Map
     for (const m of mapping) {
       if (!(m.column in row)) continue;
       const v = coerceValue(row[m.column], m.type);
-      if (v !== null) out[m.field] = v;
+      // m.field is a caller-supplied string inside the import `mapping[]` (a body VALUE, so the global
+      // body reviver doesn't clean it). Skip a prototype-pollution key rather than assign `out["__proto__"]`.
+      if (v !== null && !isForbiddenKey(m.field)) out[m.field] = v;
     }
     return out;
   });

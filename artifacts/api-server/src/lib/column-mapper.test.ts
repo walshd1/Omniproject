@@ -81,3 +81,10 @@ test("applyColumnMapping builds canonical payloads, dropping unmapped columns", 
   assert.equal("Mystery" in out[1]!, false);
   assert.equal(out[1]!["storyPoints"], 3);
 });
+
+test("applyColumnMapping skips a prototype-pollution field name", () => {
+  const out = applyColumnMapping([{ A: "x", B: "y" }], [{ column: "A", field: "__proto__", type: "text" }, { column: "B", field: "title", type: "text" }] as never);
+  assert.equal(out[0]!["title"], "y");
+  assert.ok(!Object.prototype.hasOwnProperty.call(out[0], "__proto__"), "no own __proto__ key assigned");
+  assert.equal(({} as Record<string, unknown>)["polluted"], undefined); // prototype intact
+});
