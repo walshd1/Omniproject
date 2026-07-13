@@ -59,3 +59,10 @@ test("commit where every row is skipped by a hard rule → error (nothing import
   assert.equal(r.status, 502);
   assert.match(((await r.json()) as { error: string }).error, /unreachable|imported/i);
 });
+
+test("commit above the row cap → 413 (write-amplification guard)", async () => {
+  const rows = Array.from({ length: 5_001 }, (_, i) => ({ Summary: `row ${i}` }));
+  const r = await commit({ projectId: "proj-1", rows });
+  assert.equal(r.status, 413);
+  assert.match(((await r.json()) as { error: string }).error, /import cap/i);
+});

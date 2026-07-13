@@ -2,7 +2,12 @@ import { Router } from "express";
 import { requireRole, roleForReq } from "../lib/rbac";
 import { getBroker, contextFromReq, respondBrokerError } from "../broker";
 import { commitImport } from "../lib/import";
+import { guardProjectScope } from "../lib/project-scope";
 import { recordAudit } from "../lib/audit";
+
+/** Hard cap on rows per commit — each row is a broker write, so an unbounded array is a
+ *  write-amplification DoS. The 256kb body limit bounds it in practice; this is the explicit floor. */
+const MAX_IMPORT_ROWS = 5_000;
 import {
   suggestColumnMapping,
   applyColumnMapping,
@@ -75,7 +80,14 @@ router.post("/import/commit", requireRole("contributor"), async (req, res) => {
     res.status(400).json({ error: "Body must include a non-empty { rows: object[] }" });
     return;
   }
+  if (body.rows.length > MAX_IMPORT_ROWS) {
+    res.status(413).json({ error: `Too many rows: ${body.rows.length} exceeds the ${MAX_IMPORT_ROWS}-row import cap. Split the import.` });
+    return;
+  }
   const projectId = body.projectId;
+  // Import writes an issue per row into `projectId` via the broker (scope-blind) — so enforce the
+  // caller's project scope here too, else a contributor could bulk-write issues into any tenant's project.
+  if (!(await guardProjectScope(req, res, projectId))) return;
   const rows = body.rows;
   const mapping: MappingEntry[] = isMapping(body.mapping)
     ? body.mapping
