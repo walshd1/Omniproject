@@ -18,6 +18,10 @@ import { logger } from "./logger";
 import { isTruthy } from "./env-config";
 import { validateFieldRouting, FieldRoutingError, type FieldRoute } from "./field-routing";
 import { validateCustomFields, validateCustomFieldSources, CustomFieldError, type CustomField } from "./custom-fields";
+import { sanitizeBranding } from "./branding";
+import { sanitizeUserPrefs } from "./user-prefs";
+import { sanitizeGrant } from "./calendar-push";
+import { isForbiddenKey } from "./safe-json";
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
 import { validateBrokerKinds, brokerKindsFromEnv, BrokerKindsError } from "./broker-kinds";
@@ -919,6 +923,12 @@ function validateGovernance(value: unknown, label: string): void {
   for (const k of ["required", "forbidden"]) {
     if (k in o && !isStringArray(o[k])) throw new SettingsValidationError(`${label}.${k} must be an array of strings`);
   }
+  // A feature can't be simultaneously mandated and banned — a contradictory config where forbid silently
+  // wins and the "must use" mandate is dropped. Reject it at the write boundary.
+  const required = (o["required"] as string[] | undefined) ?? [];
+  const forbidden = new Set((o["forbidden"] as string[] | undefined) ?? []);
+  const clash = required.find((id) => forbidden.has(id));
+  if (clash) throw new SettingsValidationError(`${label}: feature "${clash}" can't be both required and forbidden`);
 }
 
 /** Validate a per-scope feature map: Record<id, { disabled?, required?, forbidden? }> (each string[]). */
@@ -1321,11 +1331,26 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   }
   if ("webhooks" in patch) validateWebhooks(patch["webhooks"]);
   if ("federatedPeers" in patch) validateFederatedPeers(patch["federatedPeers"]);
-  if ("branding" in patch && patch["branding"] != null && typeof patch["branding"] !== "object") {
-    throw new SettingsValidationError("branding must be an object or null");
+  // Branding is served to the SPA and its fontFamily is injected into an inline style, so the bulk PATCH
+  // (and config-snapshot restore) must run it through the SAME sanitizer as saveBranding — else the
+  // per-field checks (http(s) URLs, hex colour, safe font stack, length caps) are bypassed. Sanitize,
+  // don't just shape-check.
+  if ("branding" in patch) {
+    if (patch["branding"] == null) normalized["branding"] = null;
+    else {
+      try { normalized["branding"] = sanitizeBranding(patch["branding"]); }
+      catch (e) { throw new SettingsValidationError(e instanceof Error ? e.message : "invalid branding"); }
+    }
   }
-  if ("labelOverrides" in patch && (typeof patch["labelOverrides"] !== "object" || patch["labelOverrides"] == null)) {
-    throw new SettingsValidationError("labelOverrides must be an object");
+  if ("labelOverrides" in patch) {
+    const v = patch["labelOverrides"];
+    if (typeof v !== "object" || v == null || Array.isArray(v)) throw new SettingsValidationError("labelOverrides must be an object");
+    // Values must be strings (the i18n layer assumes it) — mirror labelsFromEnv, drop non-strings.
+    const clean: Record<string, string> = {};
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (!isForbiddenKey(k) && typeof val === "string") clean[k] = val;
+    }
+    normalized["labelOverrides"] = clean;
   }
   if ("priorityLabels" in patch) {
     const v = patch["priorityLabels"];
@@ -1477,12 +1502,58 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   if ("errorTelemetry" in patch && typeof patch["errorTelemetry"] !== "boolean") {
     throw new SettingsValidationError("errorTelemetry must be a boolean");
   }
-  for (const key of ["capabilityStates", "screenLayouts", "userPrefs", "calendarPush"] as const) {
-    if (key in patch && (typeof patch[key] !== "object" || patch[key] == null || Array.isArray(patch[key]))) {
-      throw new SettingsValidationError(`${key} must be an object`);
-    }
+  // capabilityStates is validated + step-up'd via its own route (and rejected on the PATCH path); here
+  // it's only shape-checked so a config-snapshot restore doesn't persist a non-object.
+  if ("capabilityStates" in patch && (typeof patch["capabilityStates"] !== "object" || patch["capabilityStates"] == null || Array.isArray(patch["capabilityStates"]))) {
+    throw new SettingsValidationError("capabilityStates must be an object");
+  }
+  // Per-user maps: each entry is written verbatim + read back raw, so sanitize every entry through the
+  // SAME clamps its dedicated route uses (fontScale/scanRate ranges, hex colour, enum members; the
+  // calendar consent invariant + server-stamped grantedAt). Otherwise the bulk PATCH / config restore
+  // could persist an out-of-range pref or a forged "granted" consent for another user's sub.
+  if ("userPrefs" in patch) {
+    const v = patch["userPrefs"];
+    if (typeof v !== "object" || v == null || Array.isArray(v)) throw new SettingsValidationError("userPrefs must be an object");
+    const clean: Record<string, unknown> = {};
+    for (const [sub, p] of Object.entries(v as Record<string, unknown>)) if (!isForbiddenKey(sub)) clean[sub] = sanitizeUserPrefs(p);
+    normalized["userPrefs"] = clean;
+  }
+  if ("calendarPush" in patch) {
+    const v = patch["calendarPush"];
+    if (typeof v !== "object" || v == null || Array.isArray(v)) throw new SettingsValidationError("calendarPush must be an object");
+    const nowIso = new Date().toISOString();
+    const clean: Record<string, unknown> = {};
+    for (const [sub, g] of Object.entries(v as Record<string, unknown>)) if (!isForbiddenKey(sub)) clean[sub] = sanitizeGrant(g, nowIso);
+    normalized["calendarPush"] = clean;
+  }
+  if ("screenLayouts" in patch) {
+    const v = patch["screenLayouts"];
+    if (typeof v !== "object" || v == null || Array.isArray(v)) throw new SettingsValidationError("screenLayouts must be an object");
+    normalized["screenLayouts"] = validateScreenLayouts(v as Record<string, unknown>);
   }
   return normalized;
+}
+
+/** Validate a screen-layout map: order/hidden = string[], spans = integer 1–12 per panel. Drops any
+ *  malformed layout / span so a bulk PATCH or config restore can't persist a structurally-invalid one. */
+function validateScreenLayouts(value: Record<string, unknown>): Record<string, ScreenLayout> {
+  const out: Record<string, ScreenLayout> = {};
+  for (const [id, layout] of Object.entries(value)) {
+    if (isForbiddenKey(id) || !layout || typeof layout !== "object" || Array.isArray(layout)) continue;
+    const l = layout as Record<string, unknown>;
+    const spans: Record<string, number> = {};
+    if (l["spans"] && typeof l["spans"] === "object" && !Array.isArray(l["spans"])) {
+      for (const [k, n] of Object.entries(l["spans"] as Record<string, unknown>)) {
+        if (!isForbiddenKey(k) && typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 12) spans[k] = n;
+      }
+    }
+    out[id] = {
+      order: isStringArray(l["order"]) ? (l["order"] as string[]) : [],
+      hidden: isStringArray(l["hidden"]) ? (l["hidden"] as string[]) : [],
+      spans,
+    };
+  }
+  return out;
 }
 
 /** Validate + apply a partial settings patch, returning the new settings. Throws
