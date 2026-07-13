@@ -6,6 +6,7 @@ import {
   listSurfaces, decideCapability, enforceCapability, CapabilityBlockedError, recentCapabilityLog, noteCapabilityConfigured,
   validEndpoint, screenIdForRoute, checkEndpointReachable,
 } from "./capability-governance";
+import { __setEgressTransportForTest } from "./egress";
 import { SCREENS } from "@workspace/backend-catalogue";
 import { updateSettings } from "./settings";
 import type { CapabilitySetting } from "./settings";
@@ -161,14 +162,15 @@ test("screenIdForRoute normalises a route path to a registry screen id", () => {
 
 test("checkEndpointReachable: HTTP response ⇒ reachable, network error ⇒ not", async () => {
   assert.deepEqual(await checkEndpointReachable("nonsense"), { reachable: false, error: "not a valid http(s) URL" });
-  const original = globalThis.fetch;
-  globalThis.fetch = (async () => ({ status: 200 })) as unknown as typeof fetch;
-  // IP literal ⇒ the egress guard does no DNS lookup, so the mocked fetch decides the outcome.
+  // checkEndpointReachable now goes through safeFetch (undici, not global fetch) so it gets IP-pinning
+  // + redirect re-validation; intercept it via the egress transport seam, which runs AFTER the guard.
+  __setEgressTransportForTest(async () => new Response(null, { status: 200 }));
+  // IP literal ⇒ the egress guard does no DNS lookup, so the mocked transport decides the outcome.
   assert.deepEqual(await checkEndpointReachable("http://127.0.0.1/"), { reachable: true, status: 200 });
-  globalThis.fetch = (async () => { throw new Error("ECONNREFUSED"); }) as unknown as typeof fetch;
+  __setEgressTransportForTest(async () => { throw new Error("ECONNREFUSED"); });
   const down = await checkEndpointReachable("http://127.0.0.1/");
   assert.equal(down.reachable, false);
-  globalThis.fetch = original;
+  __setEgressTransportForTest(null);
 });
 
 test("resolveCapability exposes options + current state for the admin UI", () => {
