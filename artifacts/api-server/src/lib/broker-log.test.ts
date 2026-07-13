@@ -78,3 +78,20 @@ test("publishers get LOCAL entries but NOT folded remote ones (no echo storm)", 
   pushBrokerEvent(ev({ action: "after-unregister" }));        // publisher gone
   assert.deepEqual(published.map((e) => e.action), ["local-one"]);
 });
+
+test("foldRemoteEntry sanitises a hostile remote entry (clamps note, normalises fields; drops one with no ts)", () => {
+  clearBrokerLog();
+  // No ts → the entry is malformed and dropped entirely.
+  foldRemoteEntry({ action: "x" } as unknown as BrokerLogEntry);
+  assert.equal(brokerLogSize(), 0);
+  // Oversized / wrong-typed fields → clamped + normalised, never injected raw into the admin log.
+  foldRemoteEntry({ ts: "2026-01-01T00:00:00Z", action: "a".repeat(1000), result: "nope", status: "500", ms: NaN, projectId: 123, actor: "b".repeat(1000), note: "n".repeat(5000), replica: "r" } as unknown as BrokerLogEntry);
+  const log = getBrokerLog();
+  const e = log[log.length - 1]!;
+  assert.equal(e.note!.length, 200);   // clamped like the local project() path
+  assert.equal(e.result, "success");    // unknown result normalised
+  assert.equal(e.status, 0);            // non-number status → 0
+  assert.equal(e.ms, 0);                // NaN → 0
+  assert.equal(e.projectId, null);      // non-string → null
+  assert.ok(e.action.length <= 400);    // bounded
+});

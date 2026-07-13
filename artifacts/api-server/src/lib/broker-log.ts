@@ -100,10 +100,36 @@ export function pushBrokerEvent(ev: AuditEvent): void {
   ingest(project(ev), true);
 }
 
+/** Validate + clamp an entry received from ANOTHER replica before it lands in the admin log/SSE. The
+ *  local path goes through project() (which clamps note to 200 chars and normalises every field); the
+ *  remote fold must apply the same discipline, else a hostile/buggy replica could inject a fully-forged
+ *  row with oversized or wrong-typed fields. (It can't stop a plausible-looking forgery — that trust is
+ *  inherent to a shared bus — but it stops injection/type-confusion and bounds every string.) */
+function sanitizeRemoteEntry(e: unknown): BrokerLogEntry | null {
+  if (!e || typeof e !== "object") return null;
+  const r = e as Record<string, unknown>;
+  const str = (v: unknown, n: number): string | null => (typeof v === "string" ? v.slice(0, n) : null);
+  const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  const ts = str(r["ts"], 40);
+  if (!ts) return null; // a well-formed entry must at least carry a timestamp
+  return {
+    ts,
+    action: str(r["action"], 400) ?? "",
+    result: r["result"] === "error" ? "error" : "success",
+    status: num(r["status"]),
+    ms: num(r["ms"]),
+    projectId: str(r["projectId"], 400),
+    actor: str(r["actor"], 400),
+    note: str(r["note"], 200),
+    replica: str(r["replica"], 64) ?? "remote",
+  };
+}
+
 /** Fold an entry that originated on ANOTHER replica into this replica's ring +
  *  live subscribers. Does NOT re-publish — avoids echo storms across the fleet. */
 export function foldRemoteEntry(entry: BrokerLogEntry): void {
-  ingest(entry, false);
+  const clean = sanitizeRemoteEntry(entry);
+  if (clean) ingest(clean, false);
 }
 
 /** Register a cross-replica publisher (the broker-log bus). Returns an
