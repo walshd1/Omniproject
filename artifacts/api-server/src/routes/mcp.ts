@@ -4,6 +4,7 @@ import { hasValidApiToken } from "../lib/api-token";
 import { hasRole, isDeprovisioned, roleForReq } from "../lib/rbac";
 import { envFlag } from "../lib/env";
 import { getBroker, contextFromReq, type Broker, type ActorContext } from "../broker";
+import { assertProjectScope } from "../lib/project-scope";
 import { handleMcp, type McpExecutor, type McpPolicy } from "../lib/mcp";
 import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../lib/approved-actions";
 import { answerCopilot } from "../lib/copilot";
@@ -134,7 +135,14 @@ router.post("/mcp", async (req, res) => {
         throw new Error(`action "${tool.action}" is not on the approved allowlist for this caller/backend`);
       const handler = MCP_HANDLERS[tool.action];
       if (!handler) throw new Error(`unsupported tool action: ${tool.action}`);
-      const result = await handler({ broker, ctx, req, pid: String(args["projectId"] ?? ""), args });
+      const pid = String(args["projectId"] ?? "");
+      // IDOR guard: a tool that names a projectId hits the scope-blind broker directly, so enforce the
+      // caller's data scope here (mirrors the HTTP per-project routes). Out-of-scope ⇒ refused, not served.
+      if (pid) {
+        const authz = await assertProjectScope(req, pid);
+        if (!authz.ok) throw new Error(`project "${pid}" is not in your scope`);
+      }
+      const result = await handler({ broker, ctx, req, pid, args });
       // Audit the REAL outcome: record success only after the handler resolves (was logged as
       // success before the approval check + broker call ran, so blocked/failed writes read as OK).
       if (audit) recordAudit({ ...auditBase, result: "success", status: 200 });

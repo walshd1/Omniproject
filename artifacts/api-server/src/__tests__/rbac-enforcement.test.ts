@@ -146,6 +146,14 @@ test("tasks: a portfolio-scoped principal (PMO) is not blocked by the task scope
   });
 });
 
+test("rate-card: project-type read/write is scope-checked (a manager can't touch another tenant's config)", async () => {
+  await withRealRbac(async () => {
+    assert.equal((await h.req("/projects/some-other-teams-project/type", { cookie: memberCookie() })).status, 403);
+    const put = await h.req("/projects/some-other-teams-project/type", { cookie: memberCookie(), method: "PUT", body: { projectType: "internal" } });
+    assert.equal(put.status, 403);
+  });
+});
+
 test("export: the ?projectId=<other> issues branch is scope-checked (no cross-tenant issue export)", async () => {
   await withRealRbac(async () => {
     const r = await h.req("/export.json?dataset=issues&projectId=some-other-teams-project", { cookie: memberCookie() });

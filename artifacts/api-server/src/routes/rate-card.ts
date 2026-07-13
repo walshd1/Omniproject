@@ -6,6 +6,7 @@ import { programmeIdOf } from "../lib/programmes";
 import { staffCost, valueColumns, hashIdentity, type RateCard, type Facing, type TimedItem, type Uplift, type ValueColumn } from "../lib/rate-card";
 import { applyCostRules, firedCostRuleIds, type CostRule } from "../lib/cost-rules";
 import { validatePredicate, type ConditionSet } from "../lib/predicate";
+import { guardProjectScope } from "../lib/project-scope";
 import { timesheetStoreFor } from "../timesheets/store";
 import { approvedHoursByResource, approvedItemsFrom } from "../timesheets/actuals";
 import {
@@ -232,12 +233,15 @@ router.put("/rate-card/identities", requireRole("pmo"), (req, res) => {
 });
 
 /** A project's chosen type (any authed session can read; a manager sets it at setup). */
-router.get("/projects/:projectId/type", (req, res) => {
-  res.json({ projectId: req.params["projectId"], projectType: projectTypeFor(String(req.params["projectId"] ?? "")) });
+router.get("/projects/:projectId/type", async (req, res) => {
+  const projectId = String(req.params["projectId"] ?? "");
+  if (!(await guardProjectScope(req, res, projectId))) return;
+  res.json({ projectId, projectType: projectTypeFor(projectId) });
 });
 
-router.put("/projects/:projectId/type", requireRole("manager"), (req, res) => {
+router.put("/projects/:projectId/type", requireRole("manager"), async (req, res) => {
   const projectId = String(req.params["projectId"] ?? "");
+  if (!(await guardProjectScope(req, res, projectId))) return; // scope: a manager can't set another tenant's project type
   const typeId = isStr((req.body as Record<string, unknown>)?.["projectType"]) ? ((req.body as Record<string, unknown>)["projectType"] as string) : "";
   const known = new Set(getProjectTypes().map((t) => t.id));
   if (typeId && !known.has(typeId)) { res.status(400).json({ error: `"${typeId}" is not a PMO-defined project type` }); return; }
