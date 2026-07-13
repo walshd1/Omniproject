@@ -121,8 +121,33 @@ export async function requestMagicLink(email: string, returnTo = "/"): Promise<{
   return (await res.json().catch(() => ({ ok: false }))) as { ok: boolean; devLink?: string };
 }
 
-/** Clear the session and return to the login screen. */
+/**
+ * localStorage keys that hold DATA derived from the signed-in session (recently-viewed project /
+ * entity names, etc.) and must not linger for the next user on a shared machine. Device PREFERENCES
+ * (locale, a11y, theme, UI toggles) are deliberately NOT here — they carry no session data and
+ * wiping them only degrades the next sign-in's UX. Keep this list in step with any new data-bearing
+ * localStorage writer.
+ */
+const SESSION_DATA_LOCAL_KEYS = ["omni:recents"];
+
+/**
+ * Wipe client-side remnants of the session so nothing sensitive survives logout on a shared browser.
+ * sessionStorage is entirely session-scoped (scenario snapshots, report sandboxes, portfolio caches
+ * live there) so it is cleared wholesale; localStorage keeps device prefs but loses the data-bearing
+ * keys above. Best-effort — storage may be blocked/absent (private mode, SSR). The app shell service
+ * worker never caches `/api/*` (see lib/pwa.ts), so there is no auth-data Cache Storage to purge.
+ */
+export function clearClientSessionData(): void {
+  try { window.sessionStorage.clear(); } catch { /* storage blocked */ }
+  for (const key of SESSION_DATA_LOCAL_KEYS) {
+    try { window.localStorage.removeItem(key); } catch { /* storage blocked */ }
+  }
+}
+
+/** Clear the session and return to the login screen. Wipes client-side session data first, then the
+ *  server cookie; the full-page redirect drops the in-memory React Query cache. */
 export async function logout(): Promise<void> {
+  clearClientSessionData();
   await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
   window.location.href = "/login";
 }
