@@ -244,38 +244,23 @@ export interface ScopeFeatureConfig {
   forbidden: string[];
 }
 
-export interface SettingsState {
+/**
+ * `SettingsState` is composed FLAT from the cohesive sub-configs below (`interface … extends …`).
+ * The runtime shape is a single flat object — identical to before — so `getSettings().backendSource`
+ * still works and nothing downstream changes; the split only gives each concern a named home so a
+ * change to one area (say dashboards) no longer means scrolling past unrelated fields (say FX policy).
+ */
+
+/** Broker / backend data plane: which backend, the field-routing matrix, admin custom fields +
+ *  validation, capability-map overrides, and the project-identity registries (programmes, closed-
+ *  project locations, GUID aliases, retirement tombstones). */
+export interface BrokerConfig {
   /** The active broker's webhook/endpoint URL (n8n by default). */
   brokerUrl: string | null;
-  aiProvider: AiProvider;
-  sttProvider: SttProvider;
-  /** Deployment context chosen in the setup wizard (relaxes enterprise couplings by choice). */
-  deploymentProfile?: DeploymentProfile;
-  aiModel: string | null;
   backendSource: BackendSource;
-  /** Default ISO 4217 reporting currency for consolidated financial reports (null ⇒ use the FX base). */
-  reportingCurrency: string | null;
-  /** Which FX rate a consolidated report converts at: today's spot rate, or a rate "as of"
-   *  `fxRateAsOfDate` (period-close or the rate the budget was set at). See `FxRatePolicy`. */
-  fxRatePolicy: FxRatePolicy;
-  /** ISO 8601 date the "as of" rate is read for when `fxRatePolicy` isn't "spot". Ignored (falls
-   *  back to spot) when null or when `fxRatePolicy` is "spot". */
-  fxRateAsOfDate: string | null;
-  oidcIssuerUrl: string | null;
-  /**
-   * Admin opt-in: when true, the SPA reports uncaught render errors (message + component
-   * stack + page, never user/project data) to `POST /api/client-errors`, which records them
-   * to the INTERNAL audit log. OFF by default — the same deliberate no-external-telemetry
-   * posture as the rest of the app; nothing is auto-reported until an admin turns this on.
-   */
-  errorTelemetry: boolean;
-  /** White-label branding overrides (null/empty → product defaults). */
-  branding: BrandingConfig | null;
-  /** Company-nomenclature label overrides, keyed by i18n key. */
-  labelOverrides: Record<string, string>;
-  /** Admin/PMO custom display names for the canonical priority levels (canonical → label). Empty
-   *  ⇒ the canonical names. Distinct from labelOverrides (which is premium company-nomenclature). */
-  priorityLabels: Record<string, string>;
+  /** Admin-managed extra connected broker kinds (beyond the active data hop), unioned with the
+   *  BROKER_KINDS env in the registry. See lib/broker-kinds + broker/registry. */
+  brokerKinds: string[];
   /** The field-routing matrix: which source (vendor·broker·sourceField) feeds which UI element.
    *  One-to-one at both ends (anti-collision) — see lib/field-routing. */
   fieldRouting: FieldRoute[];
@@ -285,12 +270,16 @@ export interface SettingsState {
   /** Per-field data validation rules (min/max, pattern, allowed set, required) — see
    *  lib/field-validation. Definitions here; enforced against values on the write path. */
   fieldValidation: FieldValidationRule[];
+  /**
+   * Admin translation-layer overrides: per-field / per-entity surface+store that
+   * REPLACE the broker-derived/declared capability map. Lets an admin correct a
+   * mis-mapped field (e.g. force a field the auto-derivation hid back on, or hide
+   * one the backend exposes but shouldn't). Config, never project data.
+   */
+  fieldOverrides: BackendFieldMap;
   /** Admin/PMO-managed programme registry: programmeId → { name, instanceIds } — the source of truth
    *  for programme membership (a project belongs by its `omniInstanceId`). See lib/programmes. */
   programmeRegistry: ProgrammeRegistry;
-  /** Admin-managed extra connected broker kinds (beyond the active data hop), unioned with the
-   *  BROKER_KINDS env in the registry. See lib/broker-kinds + broker/registry. */
-  brokerKinds: string[];
   /** Closed-project LOCATION index: projectGuid → where its data now lives (sor | archive). Lets closed
    *  projects be retained + retrieved without re-pulling them through the live broker. See
    *  lib/closed-projects. */
@@ -302,6 +291,46 @@ export interface SettingsState {
    *  reactivate (suppressed from live reads). Reactivation requires an explicit re-link to a NEW GUID.
    *  See lib/project-forget. */
   retiredGuids: string[];
+}
+
+/** AI / STT providers + the governed-capability states (AI tools, MCP, providers and vendors). */
+export interface AiConfig {
+  aiProvider: AiProvider;
+  sttProvider: SttProvider;
+  aiModel: string | null;
+  /**
+   * Admin data-governance for the governed capabilities (AI tools, the MCP, AI
+   * providers and vendors), keyed by capability id. Off by default; the admin sets
+   * each to off / user-defined / public (and, for AI tools, per-surface). Customer-
+   * level config — rides the snapshot/export — never project data.
+   */
+  capabilityStates: Record<string, CapabilitySetting>;
+}
+
+/** Multi-currency consolidation policy + the portfolio-prioritisation scoring weights. */
+export interface FinancialConfig {
+  /** Default ISO 4217 reporting currency for consolidated financial reports (null ⇒ use the FX base). */
+  reportingCurrency: string | null;
+  /** Which FX rate a consolidated report converts at: today's spot rate, or a rate "as of"
+   *  `fxRateAsOfDate` (period-close or the rate the budget was set at). See `FxRatePolicy`. */
+  fxRatePolicy: FxRatePolicy;
+  /** ISO 8601 date the "as of" rate is read for when `fxRatePolicy` isn't "spot". Ignored (falls
+   *  back to spot) when null or when `fxRatePolicy` is "spot". */
+  fxRateAsOfDate: string | null;
+  /**
+   * Portfolio prioritisation scoring weights (backlog #98): how much RICE / WSJF / MoSCoW /
+   * strategic-goal contribution / benefits realisation each count toward a project's rank score.
+   * ONLY the formula weights are config — the score itself is computed live over the read model on
+   * every request, never persisted. Customer-level config; rides the snapshot/export. See
+   * routes/portfolio-priority-weights + the SPA PortfolioPrioritisation report.
+   */
+  priorityWeights: PriorityWeights;
+}
+
+/** Outbound integrations: OIDC issuer, webhooks, federated peers, digest email, calendar push,
+ *  and self-host DB adoption. Config only (URLs + credentials), never project data. */
+export interface IntegrationConfig {
+  oidcIssuerUrl: string | null;
   /** Outbound webhook subscriptions. */
   webhooks: WebhookSubscription[];
   /**
@@ -310,47 +339,26 @@ export interface SettingsState {
    * routes/federated-peers + lib/federation.
    */
   federatedPeers: PeerInstance[];
-  /** Opt-in state-history egress to an operator-owned logging server (off by default). */
-  loggingSync: LoggingSyncConfig;
-  /** Opt-in self-host DB adoption (off by default; needs a data-responsibility ack to enable). */
-  selfHost: SelfHostConfig;
-  /** Snapshot cadence for durable history retention (admin org default + PMO scope overrides). */
-  historyRetention: HistoryRetentionSettings;
   /** Optional above-the-seam email delivery of the scheduled digests (proactive + exec), to a fixed
    *  operator-configured recipient list, IN ADDITION to the notify-bus dispatch. Off unless SMTP is
    *  configured AND at least one recipient is set. Config only — addresses, never project data. */
   digestDelivery: DigestDeliveryConfig;
-  /** Skills matrix + demand for the skills-capacity report (planning config, admin/PMO edited). */
-  skillsPlanning: SkillsPlanningSettings;
-  /**
-   * Admin translation-layer overrides: per-field / per-entity surface+store that
-   * REPLACE the broker-derived/declared capability map. Lets an admin correct a
-   * mis-mapped field (e.g. force a field the auto-derivation hid back on, or hide
-   * one the backend exposes but shouldn't). Config, never project data.
-   */
-  fieldOverrides: BackendFieldMap;
-  /**
-   * Per-screen layout overrides (drag-arranged panel order / spans / hidden), keyed
-   * by screen id. Presentation config — part of the snapshot/export so it travels in
-   * the customer's config JSON. Never project data.
-   */
-  screenLayouts: Record<string, ScreenLayout>;
-  /**
-   * Per-user UI preferences (accessibility: text size, background colour, contrast,
-   * motion), keyed by the user's `sub`. Stored as JSON with code defaults so a
-   * person's setup PERSISTS ACROSS SESSIONS and devices — important for users with
-   * dyslexia / visual impairment. Personal config, never project data.
-   */
-  userPrefs: Record<string, UserPrefs>;
   /** Per-user calendar-push consent (keyed by `sub`); default not-granted. */
   calendarPush: Record<string, CalendarPushGrant>;
-  /**
-   * Admin data-governance for the governed capabilities (AI tools, the MCP, AI
-   * providers and vendors), keyed by capability id. Off by default; the admin sets
-   * each to off / user-defined / public (and, for AI tools, per-surface). Customer-
-   * level config — rides the snapshot/export — never project data.
-   */
-  capabilityStates: Record<string, CapabilitySetting>;
+  /** Opt-in self-host DB adoption (off by default; needs a data-responsibility ack to enable). */
+  selfHost: SelfHostConfig;
+}
+
+/** State-history egress + durable snapshot retention. */
+export interface HistoryConfig {
+  /** Opt-in state-history egress to an operator-owned logging server (off by default). */
+  loggingSync: LoggingSyncConfig;
+  /** Snapshot cadence for durable history retention (admin org default + PMO scope overrides). */
+  historyRetention: HistoryRetentionSettings;
+}
+
+/** Feature governance: the opt-out/opt-in feature sets and the PMO org/programme/project mandates. */
+export interface GovernanceConfig {
   /**
    * Opt-OUT list of feature-module ids the operator has switched off (everything is on by
    * default). A module disabled at startup is never loaded (its route chunk is skipped); a
@@ -380,6 +388,24 @@ export interface SettingsState {
    * can only restrict (require/forbid/disable) for the contexts they match — never grant beyond org.
    */
   governanceRules: GovernanceRule[];
+}
+
+/** Presentation / curation config: branding, labels, screen layouts, saved views, dashboards,
+ *  custom + built-in reports, content pages, hidden fields and the methodology composition. */
+export interface PresentationConfig {
+  /** White-label branding overrides (null/empty → product defaults). */
+  branding: BrandingConfig | null;
+  /** Company-nomenclature label overrides, keyed by i18n key. */
+  labelOverrides: Record<string, string>;
+  /** Admin/PMO custom display names for the canonical priority levels (canonical → label). Empty
+   *  ⇒ the canonical names. Distinct from labelOverrides (which is premium company-nomenclature). */
+  priorityLabels: Record<string, string>;
+  /**
+   * Per-screen layout overrides (drag-arranged panel order / spans / hidden), keyed
+   * by screen id. Presentation config — part of the snapshot/export so it travels in
+   * the customer's config JSON. Never project data.
+   */
+  screenLayouts: Record<string, ScreenLayout>;
   /**
    * Admin/PMO view-curation: canonical field keys HIDDEN from view on top of what the backend makes
    * available. The availability resolver subtracts these from the surfaced set, so a deployment can
@@ -428,15 +454,49 @@ export interface SettingsState {
    * data. See routes/content-pages + the SPA contentPages feature module.
    */
   contentPages: ContentPageDef[];
-  /**
-   * Portfolio prioritisation scoring weights (backlog #98): how much RICE / WSJF / MoSCoW /
-   * strategic-goal contribution / benefits realisation each count toward a project's rank score.
-   * ONLY the formula weights are config — the score itself is computed live over the read model on
-   * every request, never persisted. Customer-level config; rides the snapshot/export. See
-   * routes/portfolio-priority-weights + the SPA PortfolioPrioritisation report.
-   */
-  priorityWeights: PriorityWeights;
 }
+
+/** Per-user personal config (keyed by the user's `sub`): accessibility UI preferences. */
+export interface UserConfig {
+  /**
+   * Per-user UI preferences (accessibility: text size, background colour, contrast,
+   * motion), keyed by the user's `sub`. Stored as JSON with code defaults so a
+   * person's setup PERSISTS ACROSS SESSIONS and devices — important for users with
+   * dyslexia / visual impairment. Personal config, never project data.
+   */
+  userPrefs: Record<string, UserPrefs>;
+}
+
+/** Platform-level odds and ends: deployment profile, error telemetry opt-in, skills planning. */
+export interface PlatformConfig {
+  /** Deployment context chosen in the setup wizard (relaxes enterprise couplings by choice). */
+  deploymentProfile?: DeploymentProfile;
+  /**
+   * Admin opt-in: when true, the SPA reports uncaught render errors (message + component
+   * stack + page, never user/project data) to `POST /api/client-errors`, which records them
+   * to the INTERNAL audit log. OFF by default — the same deliberate no-external-telemetry
+   * posture as the rest of the app; nothing is auto-reported until an admin turns this on.
+   */
+  errorTelemetry: boolean;
+  /** Skills matrix + demand for the skills-capacity report (planning config, admin/PMO edited). */
+  skillsPlanning: SkillsPlanningSettings;
+}
+
+/**
+ * Gateway-local settings — the flat composition of every sub-config above. Adding a field means
+ * adding it to the relevant sub-config here AND to FIELD_DESCRIPTORS (which drives the store seed,
+ * the writable-key allow-list, and validation from one place).
+ */
+export interface SettingsState
+  extends BrokerConfig,
+    AiConfig,
+    FinancialConfig,
+    IntegrationConfig,
+    HistoryConfig,
+    GovernanceConfig,
+    PresentationConfig,
+    UserConfig,
+    PlatformConfig {}
 
 /** Relative weights for the five prioritisation dimensions — not required to sum to 100 (the scorer
  *  renormalises over whichever dimensions a project actually reports). Mirrored in the SPA's
