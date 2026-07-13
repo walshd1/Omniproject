@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getSettings, updateSettings, SettingsValidationError, type PeerInstance } from "../lib/settings";
 import { captureVersion } from "../lib/config-store";
 import { requireRole } from "../lib/rbac";
+import { requireStepUp } from "../lib/step-up";
 
 /**
  * Federated-peer registry (backlog #135) — the other OmniProject instances (typically one per
@@ -25,7 +26,7 @@ router.get("/federated-peers", requireRole("admin"), (_req, res) => {
   res.json({ peers: (getSettings().federatedPeers ?? []).map(redact) });
 });
 
-router.put("/federated-peers", requireRole("admin"), (req, res) => {
+router.put("/federated-peers", requireRole("admin"), requireStepUp, (req, res) => {
   const raw = (req.body as { peers?: unknown })?.peers;
   if (!Array.isArray(raw)) {
     res.status(400).json({ error: "peers must be an array" });

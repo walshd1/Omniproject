@@ -20,15 +20,23 @@ router.get("/settings", (_req, res) => {
 // Each change is versioned so it can be rolled back (see config-store).
 router.patch("/settings", requireRole("admin"), (req, res) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
-  // capabilityStates is a STEP-UP-gated control (widening a capability to "public" / setting an AI/MCP
-  // endpoint). Its dedicated route — PUT /api/governance/:id — requires a fresh step-up AND runs
-  // sanitizeCapabilitySetting (clamps state to the capability's supported set, validates the endpoint,
-  // rejects unknown ids). Letting the bulk PATCH /settings write it here would bypass BOTH the step-up
-  // and that validation (and clobber the whole map). Refuse it on this path — config-dir/snapshot
-  // restore still applies it below the seam. See routes/tools.ts PUT /governance/:id.
-  if ("capabilityStates" in body) {
-    res.status(400).json({ error: "capabilityStates is managed via PUT /api/governance/:id (step-up required), not PATCH /settings" });
-    return;
+  // Some settings keys carry SECRETS or capability elevations and have dedicated STEP-UP-gated routes
+  // that also sanitize the value. Letting the bulk PATCH /settings write them here would bypass BOTH the
+  // step-up and that validation (and clobber the whole map):
+  //   - capabilityStates → PUT /api/governance/:id (sanitizeCapabilitySetting)
+  //   - webhooks         → POST/DELETE /api/webhooks (signing secret; step-up)
+  //   - federatedPeers   → PUT /api/federated-peers (peer bearer token; step-up)
+  // Refuse them on this path — config-dir/snapshot restore still applies them below the seam.
+  const STEP_UP_ONLY_KEYS: Record<string, string> = {
+    capabilityStates: "PUT /api/governance/:id",
+    webhooks: "POST/DELETE /api/webhooks",
+    federatedPeers: "PUT /api/federated-peers",
+  };
+  for (const key of Object.keys(STEP_UP_ONLY_KEYS)) {
+    if (key in body) {
+      res.status(400).json({ error: `${key} is managed via ${STEP_UP_ONLY_KEYS[key]} (step-up required), not PATCH /settings` });
+      return;
+    }
   }
   try {
     const before = getSettings().backendSource;

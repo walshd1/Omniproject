@@ -1,6 +1,6 @@
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { startHarness, adminCookie, type Harness } from "./_harness";
+import { startHarness, adminCookie, stepUpAdminCookie, type Harness } from "./_harness";
 
 /**
  * HTTP coverage for the federated-peer registry error branches (routes/federated-peers.ts) that
@@ -25,8 +25,14 @@ test("GET /federated-peers: no cookie → 401", async () => {
   assert.equal(r.status, 401);
 });
 
+test("PUT /federated-peers writes peer bearer tokens → step-up required (403 without a fresh step-up)", async () => {
+  const r = await h.req("/federated-peers", { method: "PUT", cookie: adminCookie(), body: { peers: [] } });
+  assert.equal(r.status, 403);
+  assert.equal((await json(r)).code, "step_up_required");
+});
+
 test("PUT /federated-peers: a non-array `peers` → 400 (route-level guard)", async () => {
-  const r = await h.req("/federated-peers", { method: "PUT", cookie: adminCookie(), body: { peers: "nope" } });
+  const r = await h.req("/federated-peers", { method: "PUT", cookie: stepUpAdminCookie(), body: { peers: "nope" } });
   assert.equal(r.status, 400);
   assert.match((await json(r)).error, /peers must be an array/i);
 });
@@ -35,7 +41,7 @@ test("PUT /federated-peers: a peer that fails settings validation → 400 (Setti
   // Well-formed enough to pass the route's Array.isArray gate, but missing baseUrl so
   // updateSettings throws SettingsValidationError.
   const r = await h.req("/federated-peers", {
-    method: "PUT", cookie: adminCookie(),
+    method: "PUT", cookie: stepUpAdminCookie(),
     body: { peers: [{ id: "eu", label: "EU", token: "t" }] },
   });
   assert.equal(r.status, 400);
