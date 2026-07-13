@@ -163,10 +163,15 @@ router.use(requireAuth, priorityLabelsRouter);
 router.use(requireAuth, calendarRouter);
 router.use(requireAuth, featuresRouter);
 router.use(requireAuth, rateCardRouter);
-router.use(requireAuth, viewsRouter);
-router.use(requireAuth, dashboardsRouter);
+// These three carry a toggleable feature module (savedViews / dashboards / contentPages) whose
+// UI the SPA hides via useFeatures. Their persistence endpoints must honour the SAME toggle —
+// otherwise disabling the feature is decorative (the UI vanishes but /api/views, /api/dashboards
+// and /api/content-pages keep accepting reads/writes). requireFeature 404s them once disabled,
+// exactly like the lazily-mounted modules (odata / presence / comments).
+router.use(requireAuth, requireFeature("savedViews"), viewsRouter);
+router.use(requireAuth, requireFeature("dashboards"), dashboardsRouter);
 router.use(requireAuth, customReportsRouter);
-router.use(requireAuth, contentPagesRouter);
+router.use(requireAuth, requireFeature("contentPages"), contentPagesRouter);
 router.use(requireAuth, reportOverridesRouter);
 router.use(requireAuth, routingRouter);
 router.use(requireAuth, customFieldsRouter);
