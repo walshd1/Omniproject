@@ -52,6 +52,33 @@ export async function guardProjectScope(req: Request, res: Response, projectId: 
 interface ScopableTask { projectId?: string | null; assignee?: string | null; collaborators?: string[] | null }
 
 /**
+ * Filter a task LIST to only those the caller may see — the batched form of {@link assertTaskScope} for a
+ * list endpoint, resolving the caller's in-scope project set ONCE (not per task). A project-linked task is
+ * kept iff its project is in the caller's scope (same visible-set + programme-membership rule as
+ * assertProjectScope); a PERSONAL task (no projectId) iff the caller is its assignee/collaborator. all-scope
+ * (PMO/admin) sees everything. Without this, `GET /tasks` handed a scope-blind broker `listTasks` back
+ * verbatim — leaking out-of-scope project tasks (and other users' personal tasks) by list or by ?projectId.
+ */
+export async function filterTasksInScope<T extends ScopableTask>(req: Request, tasks: T[], whoami: readonly string[]): Promise<T[]> {
+  const scope = scopeForReq(req);
+  if (scope.level === "all") return tasks;
+  const registry = getSettings().programmeRegistry;
+  const visible = await getProjects(req, { includeClosed: true });
+  // The caller's in-scope project ids, in BOTH the raw-id and qualified-id forms a task's projectId may take.
+  const inScopeIds = new Set<string>();
+  for (const p of visible) {
+    if (scope.level === "programme"
+      && !inScope(scope, { programmeId: programmeIdOf(p), programmeIds: programmeIdsOf(p, registry) })) continue;
+    inScopeIds.add(String(p["id"]));
+    inScopeIds.add(qualifiedId(p));
+  }
+  const owns = (v: string | null | undefined): boolean => !!v && whoami.includes(v);
+  return tasks.filter((t) => (t.projectId
+    ? inScopeIds.has(t.projectId)
+    : owns(t.assignee) || (t.collaborators ?? []).some(owns)));
+}
+
+/**
  * Whether a caller may see/mutate a single task. A PROJECT-linked task follows {@link assertProjectScope}
  * (a manager may act on tasks in projects they can see). A PERSONAL task (no projectId) is private to its
  * owner — only the assignee or a collaborator, matched against the caller's identity tokens (`whoami` =

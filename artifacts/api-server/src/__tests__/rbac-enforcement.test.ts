@@ -164,6 +164,29 @@ test("tasks: a portfolio-scoped principal (PMO) is not blocked by the task scope
   });
 });
 
+test("tasks list: a scoped principal's GET /tasks is filtered — other users' personal tasks don't leak", async () => {
+  await withRealRbac(async () => {
+    // Sample data: task-3 (personal, sam@demo) and task-4 (personal, unassigned) belong to no one the
+    // harness member (grace@x.io) is the owner/collaborator of. Before the fix, listTasks handed the raw
+    // list back scope-blind; now filterTasksInScope drops out-of-scope personal tasks.
+    const r = await h.req("/tasks", { cookie: memberCookie() });
+    assert.equal(r.status, 200);
+    const ids = new Set((await r.json() as Array<{ id: string }>).map((t) => t.id));
+    assert.equal(ids.has("task-3"), false, "another user's personal task must not leak in the list");
+    assert.equal(ids.has("task-4"), false, "an unowned personal task must not leak in the list");
+  });
+});
+
+test("tasks list: a portfolio-scoped principal (PMO) still sees every task including personal ones", async () => {
+  await withRealRbac(async () => {
+    const r = await h.req("/tasks", { cookie: pmoCookie() });
+    assert.equal(r.status, 200);
+    const ids = new Set((await r.json() as Array<{ id: string }>).map((t) => t.id));
+    assert.equal(ids.has("task-3"), true); // all-scope is unfiltered
+    assert.equal(ids.has("task-4"), true);
+  });
+});
+
 test("rate-card: project-type read/write is scope-checked (a manager can't touch another tenant's config)", async () => {
   await withRealRbac(async () => {
     assert.equal((await h.req("/projects/some-other-teams-project/type", { cookie: memberCookie() })).status, 403);
