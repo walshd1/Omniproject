@@ -36,6 +36,14 @@ function writeRequestFor(method: string, args: unknown[], now: number): WriteReq
     case "updateTask": return { action: "update_task", projectId: str(rec(args[2])["projectId"]), now };
     case "addTaskComment": return { action: "add_task_comment", now };
     case "addTaskAttachment": return { action: "add_task_attachment", now };
+    // storeCredential(ctx, {backend,name,value}) delegates a vendor secret into the broker vault — a
+    // genuine mutation. The secret VALUE is never put in the request (grants scope by action/project,
+    // not by content); an autonomous actor with no store_credential grant is denied, fail-closed.
+    case "storeCredential": return { action: "store_credential", projectId: null, now };
+    // commandWithSource(ctx, action, payload, source) is the generic n8n command edge — it can forward
+    // ANY mutating action (create/update/delete_project, RAID, …). Guard it under its own action name
+    // so a grant must name that action; an ungranted autonomous command is denied by construction.
+    case "commandWithSource": return { action: str(args[1]) ?? "command", projectId: str(rec(args[2])["projectId"]), now };
     default: return null;
   }
 }
@@ -43,10 +51,13 @@ function writeRequestFor(method: string, args: unknown[], now: number): WriteReq
 const GUARDED_WRITES = new Set([
   "writeIssue", "createProject", "updateProject", "createTaskItem", "addRaid",
   "createTask", "updateTask", "addTaskComment", "addTaskAttachment",
+  "storeCredential", "commandWithSource",
 ]);
 
-/** Wrap a broker so every write is first passed through the autonomous-write gate. */
-export function wrapWithAutonomousGuard(base: Broker, opts: { now?: () => number } = {}): Broker {
+/** Wrap a broker so every write is first passed through the autonomous-write gate. Generic in the
+ *  broker type so it can wrap a CONCRETE adapter (e.g. ReferenceBroker) without losing its extra,
+ *  non-neutral methods (`commandWithSource`) — the Proxy is transparent, so returning `T` is sound. */
+export function wrapWithAutonomousGuard<T extends Broker>(base: T, opts: { now?: () => number } = {}): T {
   const now = opts.now ?? (() => Date.now());
   return new Proxy(base, {
     get(target, prop, receiver) {
@@ -65,5 +76,5 @@ export function wrapWithAutonomousGuard(base: Broker, opts: { now?: () => number
         return (orig as (...a: unknown[]) => unknown).apply(target, args);
       };
     },
-  }) as Broker;
+  }) as T;
 }

@@ -134,7 +134,11 @@ export function brokerConfigured(): boolean {
  * The generic command is an n8n-adapter concern (not on the neutral Broker
  * interface), so it always uses a ReferenceBroker bound to the configured webhook.
  */
-const commandBroker = new ReferenceBroker();
+// Wrapped with the SAME always-on autonomous-write guard as getBroker()'s base — the generic command
+// edge forwards arbitrary mutating actions, so leaving it unwrapped would let an autonomous actor route
+// a write around the guard (defeating "innermost, so no wrapper routes a write around it"). No-op for
+// human contexts, so route traffic (all human) is unaffected.
+const commandBroker = wrapWithAutonomousGuard(new ReferenceBroker());
 /** Forward an arbitrary action + payload through the adapter's command edge. */
 export function brokerCommand(ctx: ActorContext, action: string, payload: Record<string, unknown>, source: string): Promise<unknown> {
   // Arbitrary commands may mutate the backend, and they bypass the cached broker —
