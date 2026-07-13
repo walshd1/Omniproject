@@ -65,5 +65,73 @@ export function activeSessionCount(sub: string): number {
   return users.get(sub)?.size ?? 0;
 }
 
+// ── Per-session SEQUENCE (rotating-token replay / reuse detection) ────────────────────────────────
+//
+// The session cookie carries a monotonic `seq` (inside the AES-GCM-authenticated payload, so it can't
+// be forged or reordered without SESSION_SECRET). Each re-seal ISSUES the next seq; every read checks
+// the presented seq against the high-water mark for that session id (`salt`). A cookie presented
+// CLEARLY behind the high-water mark is a replay of a superseded copy — i.e. the session forked (two
+// holders). Reuse-detection best practice (as with OAuth refresh-token rotation): kill the whole
+// session so BOTH holders must re-authenticate; the attacker, lacking credentials, can't — while the
+// legitimate user simply signs in again. A small GRACE window absorbs normal browser request
+// concurrency (many in-flight requests share the pre-re-seal cookie) so it never false-kills.
+//
+// HONEST SCOPE: like the concurrent-session cap above, this high-water mark is per-replica RAM (the
+// read is a SYNC auth hot-path). With sticky sessions it is exact; without them, a replay could land
+// on a replica that hasn't yet seen the newer seq (a missed detection, never a false lockout of a real
+// user). A shared store would make it fleet-global; that async refactor is out of scope here.
+interface SeqEntry { high: number; last: number; killed: boolean }
+const seqs = new Map<string, SeqEntry>();
+
+/** Grace: accept a presented seq within this many steps of the high-water mark without treating it as
+ *  a fork — covers the in-flight window where just-superseded cookies are still arriving under browser
+ *  request concurrency. Beyond it, a lower seq is a genuine replay. Tunable for very high concurrency. */
+function seqGrace(): number {
+  const n = Number(process.env["SESSION_SEQUENCE_GRACE"]);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 5;
+}
+
+/** Whether rotating-token sequence enforcement is on (default ON; set SESSION_SEQUENCE_ENFORCE=0 to
+ *  disable, e.g. for a non-sticky fleet that would rather not risk per-replica missed detections). */
+export function sequenceEnforced(): boolean {
+  const v = process.env["SESSION_SEQUENCE_ENFORCE"]?.trim().toLowerCase();
+  return v !== "0" && v !== "false" && v !== "off" && v !== "no";
+}
+
+function pruneSeqs(now: number): void {
+  const cutoff = now - absoluteWindowMs();
+  for (const [id, e] of seqs) if (e.last < cutoff) seqs.delete(id);
+}
+
+/** Issue the next sequence number for a session (called when its cookie is (re)sealed). Advancing the
+ *  high-water mark is what makes an older, captured copy of the cookie detectably out-of-sequence. */
+export function issueSequence(salt: string, now: number): number {
+  pruneSeqs(now);
+  const e = seqs.get(salt);
+  if (!e || e.killed) { const seq = (e?.high ?? 0) + 1; seqs.set(salt, { high: seq, last: now, killed: false }); return seq; }
+  e.high += 1; e.last = now;
+  return e.high;
+}
+
+export type SeqVerdict = "ok" | "fork";
+
+/**
+ * Check a presented sequence against the session's high-water mark. `ok` = in order (accept; advances
+ * the mark). `fork` = a replay of a superseded cookie was seen → the session is KILLED (this and every
+ * future request for this salt is rejected until re-auth). First sight of a salt is always `ok`
+ * (grandfathers cookies minted before sequencing, and seeds the mark). No-op `ok` when disabled.
+ */
+export function checkSequence(salt: string, seq: number, now: number): SeqVerdict {
+  if (!sequenceEnforced()) return "ok";
+  const e = seqs.get(salt);
+  if (!e) { seqs.set(salt, { high: seq, last: now, killed: false }); return "ok"; }
+  if (e.killed) return "fork"; // family already burned by a detected reuse
+  e.last = now;
+  if (seq >= e.high) { e.high = seq; return "ok"; }
+  if (seq >= e.high - seqGrace()) return "ok"; // within the concurrency grace window
+  e.killed = true; // a cookie well behind the mark ⇒ fork/replay ⇒ burn the session for everyone
+  return "fork";
+}
+
 /** Test-only: clear the registry. */
-export function __resetSessionRegistry(): void { users.clear(); }
+export function __resetSessionRegistry(): void { users.clear(); seqs.clear(); }

@@ -35,7 +35,7 @@ import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
 import { isSessionExpired, timeoutPolicy, sessionCookieMaxAgeMs } from "../lib/session-timeout";
 import { currentVersion, isActive, userSessionsRevokedAt } from "../lib/key-registry";
-import { registerSession } from "../lib/session-registry";
+import { registerSession, issueSequence, checkSequence } from "../lib/session-registry";
 import { requireTls } from "../lib/deployment-profile";
 import { productionSignals } from "../lib/dev-mode-guard";
 import { ensureCsrfCookie, setCsrfCookie, newCsrfToken } from "../lib/csrf";
@@ -188,6 +188,10 @@ function readSession(req: Request): Session | null {
     // once the user signs in beyond the limit) reads as signed-out. No-op when the cap is unset
     // or the session predates salting. Keyed by the stable per-session salt.
     if (session.sub && session.salt && !registerSession(session.sub, session.salt, Date.now())) return null;
+    // Rotating-token replay/reuse detection: a cookie presented well behind this session's sequence
+    // high-water mark is a superseded copy ⇒ the session forked ⇒ it's killed for every holder (both
+    // must re-auth). Grace absorbs normal concurrency; a session predating sequencing is grandfathered.
+    if (session.salt && checkSequence(session.salt, session.seq ?? 0, Date.now()) === "fork") return null;
     return session;
   } catch {
     return null;
@@ -202,13 +206,17 @@ function setSession(res: Response, session: Session): void {
   // so the per-session broker key (lib/session-key) is fresh on each login but stable
   // for the life of the session: the monotonic reading is the non-rewindable session
   // start time; the salt is CSPRNG entropy that survives a process-clock reset.
+  const salt = session.salt ?? randomBytes(16).toString("hex");
   const stamped: Session = {
     ...session,
     iat: session.iat ?? now,
     seen: now,
     kver: session.kver ?? currentVersion("session"),
     smono: session.smono ?? process.hrtime.bigint().toString(),
-    salt: session.salt ?? randomBytes(16).toString("hex"),
+    salt,
+    // Rotating-token sequence: advance the high-water mark on every (re)seal so a superseded copy of
+    // this cookie becomes detectably out-of-sequence (lib/session-registry).
+    seq: issueSequence(salt, now),
   };
   res.cookie(SESSION_COOKIE, seal(JSON.stringify(stamped)), {
     ...cookieBase(), // secure is evaluated here, so a wizard profile change applies to new sessions

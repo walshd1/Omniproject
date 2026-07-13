@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { sharedKv, sharedStateMode } from "./shared-state";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Maintenance lockdown (break-glass read-only mode).
@@ -63,7 +64,9 @@ export async function refreshMaintenanceFromShared(): Promise<void> {
     const raw = await sharedKv.get(MAINTENANCE_KEY);
     if (raw === null) { engaged = false; reason = ""; return; }
     engaged = true;
-    try { reason = (JSON.parse(raw) as { reason?: string })?.reason ?? ""; } catch { reason = ""; }
+    // Cross-replica value ⇒ untrusted: prototype-safe parse, and coerce reason to a string.
+    try { const r = (safeParseJson(raw) as { reason?: unknown })?.reason; reason = typeof r === "string" ? r : ""; }
+    catch { reason = ""; }
   } catch { /* keep the last known state on a shared-state blip — fail toward the current posture */ }
 }
 

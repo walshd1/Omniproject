@@ -1,8 +1,13 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { registerSession, activeSessionCount, maxSessionsPerUser, __resetSessionRegistry } from "./session-registry";
+import { registerSession, activeSessionCount, maxSessionsPerUser, issueSequence, checkSequence, sequenceEnforced, __resetSessionRegistry } from "./session-registry";
 
-afterEach(() => { delete process.env["MAX_SESSIONS_PER_USER"]; __resetSessionRegistry(); });
+afterEach(() => {
+  delete process.env["MAX_SESSIONS_PER_USER"];
+  delete process.env["SESSION_SEQUENCE_ENFORCE"];
+  delete process.env["SESSION_SEQUENCE_GRACE"];
+  __resetSessionRegistry();
+});
 
 test("unset cap is a no-op (every session allowed)", () => {
   assert.equal(maxSessionsPerUser(), 0);
@@ -44,4 +49,56 @@ test("sessions past the absolute window are pruned", () => {
   assert.equal(registerSession("u1", "new2", later), true);
   assert.equal(activeSessionCount("u1"), 2); // "old" pruned
   delete process.env["SESSION_ABSOLUTE_HOURS"];
+});
+
+// ── Rotating-token sequence (replay / reuse detection) ───────────────────────────────────────────
+
+test("sequence enforcement is ON by default; disable-able", () => {
+  assert.equal(sequenceEnforced(), true);
+  process.env["SESSION_SEQUENCE_ENFORCE"] = "0";
+  assert.equal(sequenceEnforced(), false);
+});
+
+test("in-order use is fine; each re-seal advances the mark", () => {
+  const s = "salt-a";
+  assert.equal(issueSequence(s, 1000), 1); // login
+  assert.equal(checkSequence(s, 1, 1001), "ok");
+  assert.equal(issueSequence(s, 2000), 2); // re-seal
+  assert.equal(checkSequence(s, 2, 2001), "ok");
+  assert.equal(checkSequence(s, 2, 2002), "ok"); // parallel requests share the same seq
+});
+
+test("a cookie one step behind the mark is tolerated (concurrency grace)", () => {
+  const s = "salt-b";
+  issueSequence(s, 1000); // seq 1
+  issueSequence(s, 2000); // seq 2 (mark is now 2)
+  // A still-in-flight request carrying the just-superseded seq 1 is within grace → accepted.
+  assert.equal(checkSequence(s, 1, 2001), "ok");
+});
+
+test("a cookie WELL behind the mark is a fork → the session is killed for everyone", () => {
+  process.env["SESSION_SEQUENCE_GRACE"] = "1";
+  const s = "salt-c";
+  for (let i = 1; i <= 6; i++) issueSequence(s, 1000 + i); // mark advances to 6
+  // A replay of an old captured cookie (seq 2, well behind 6, grace 1) → fork.
+  assert.equal(checkSequence(s, 2, 3000), "fork");
+  // Reuse burns the family: even the CURRENT holder (seq 6) is now rejected → both must re-auth.
+  assert.equal(checkSequence(s, 6, 3001), "fork");
+});
+
+test("first sight grandfathers a pre-sequencing cookie (seq 0) without killing it", () => {
+  const s = "salt-d";
+  // A session minted before sequencing has no seq (treated as 0) — first sight must be accepted.
+  assert.equal(checkSequence(s, 0, 1000), "ok");
+  assert.equal(checkSequence(s, 0, 1001), "ok");
+  // It then migrates: the next re-seal issues seq 1.
+  assert.equal(issueSequence(s, 2000), 1);
+  assert.equal(checkSequence(s, 1, 2001), "ok");
+});
+
+test("disabled ⇒ every sequence check is a no-op ok (never kills)", () => {
+  process.env["SESSION_SEQUENCE_ENFORCE"] = "0";
+  const s = "salt-e";
+  for (let i = 1; i <= 10; i++) issueSequence(s, 1000 + i);
+  assert.equal(checkSequence(s, 1, 3000), "ok"); // would be a fork if enforced
 });

@@ -100,6 +100,10 @@ export interface Session extends SessionUser {
   /** CSPRNG entropy minted once per session, so the per-session broker key is fresh
    *  on every login (and unique even across a process restart that resets `smono`). */
   salt?: string;
+  /** Monotonic rotating-token sequence, advanced on every (re)seal and bound into the sealed
+   *  (authenticated) payload. A request presenting a seq well behind the session's high-water mark is a
+   *  replay of a superseded cookie ⇒ the session forked ⇒ it's killed (see lib/session-registry). */
+  seq?: number;
 }
 
 /** A configured OIDC provider: a relying-party config plus an id + display label so the
