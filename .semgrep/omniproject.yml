@@ -1,0 +1,59 @@
+rules:
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. Untrusted deserialization must go through safeParseJson (prototype-pollution).
+  #    High confidence — this mirrors the node:test ratchet in
+  #    artifacts/api-server/src/__tests__/no-unsafe-json-parse.test.ts, giving an
+  #    independent, tool-based check of the same invariant.
+  # ────────────────────────────────────────────────────────────────────────────
+  - id: bare-json-parse-use-safeparsejson
+    languages: [typescript]
+    severity: WARNING
+    message: >
+      Bare JSON.parse on this path. If the input is UNTRUSTED (HTTP body, cross-replica
+      bus/shared-KV message, external-peer response, a JWT before verification, an LLM
+      reply) use safeParseJson (lib/safe-json.ts), which strips __proto__/constructor/
+      prototype at every depth. If it is TRUSTED (sealed/decrypted config, a signature-
+      verified blob, a secret-manager response, own at-rest store data, a CLI arg) add it
+      to the ALLOWLIST in no-unsafe-json-parse.test.ts with a reason.
+    patterns:
+      - pattern: JSON.parse(...)
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "artifacts/api-server/src/lib/safe-json.ts"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. A route that reads a caller-supplied projectId should enforce data scope.
+  #    Heuristic (advisory): flags a handler that pulls projectId off the request but
+  #    whose enclosing function never calls a scope guard. Complements the enumerated
+  #    route-scope-coverage.test.ts ratchet with a source-pattern second opinion.
+  # ────────────────────────────────────────────────────────────────────────────
+  - id: projectid-from-request-without-scope-guard
+    languages: [typescript]
+    severity: WARNING
+    message: >
+      A caller-supplied projectId is read here but the enclosing handler does not call
+      guardProjectScope / assertProjectScope. The broker enforces scope only on
+      listProjects/updateProject; every other per-project method is scope-blind, so a
+      handler that forwards this id without a gateway scope check is an IDOR. Add
+      guardProjectScope(req, res, projectId) (or classify the route in
+      route-scope-coverage.test.ts if the id is not tenant data).
+    patterns:
+      - pattern-either:
+          - pattern: $REQ.params.projectId
+          - pattern: $REQ.query.projectId
+          - pattern: $REQ.params["projectId"]
+          - pattern: $REQ.query["projectId"]
+      - pattern-not-inside: |
+          function $F(...) { ... guardProjectScope(...) ... }
+      - pattern-not-inside: |
+          function $F(...) { ... assertProjectScope(...) ... }
+      - pattern-not-inside: |
+          ($ARGS) => { ... guardProjectScope(...) ... }
+      - pattern-not-inside: |
+          ($ARGS) => { ... assertProjectScope(...) ... }
+    paths:
+      include:
+        - "artifacts/api-server/src/routes/**/*.ts"
+      exclude:
+        - "**/*.test.ts"
