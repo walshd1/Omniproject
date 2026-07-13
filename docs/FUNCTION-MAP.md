@@ -2218,6 +2218,9 @@ SCIM 2.0 directory (RFC 7643/7644).
 
 | Function | What it does |
 | --- | --- |
+| `refreshScimFromShared` | Converge this replica's directory with shared state once (the fleet-sync tick, also directly testable). |
+| `startScimFleetSync` | Start periodic fleet convergence so a deprovision on ANY replica takes effect here. |
+| `stopScimFleetSync` | — |
 | `scimEnabled` | Is SCIM provisioning enabled? (Only when a bearer token is configured.) |
 | `scimTokenValid` | Constant-time check of a presented SCIM bearer token. |
 | `createUser` | ── Users ──────────────────────────────────────────────────────────────────────── Create a user resource. |

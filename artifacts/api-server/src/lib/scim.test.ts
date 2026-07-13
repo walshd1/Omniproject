@@ -2,15 +2,17 @@ import { test, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   createUser, getUser, patchUser, replaceUser, deleteUser, listUsers,
-  createGroup, patchGroup, directoryDecision, scimTokenValid, __resetScim,
+  createGroup, patchGroup, directoryDecision, scimTokenValid,
+  refreshScimFromShared, SCIM_SHARED_KEY, __resetScim,
 } from "./scim";
+import { sharedKv, __resetSharedStateForTest } from "./shared-state";
 
 /**
  * SCIM directory: lifecycle overlay over OIDC. Deprovision (active=false) denies; group
  * membership becomes role claims.
  */
-beforeEach(() => { process.env["SCIM_TOKEN"] = "scim-secret"; __resetScim(); });
-afterEach(() => { delete process.env["SCIM_TOKEN"]; __resetScim(); });
+beforeEach(() => { process.env["SCIM_TOKEN"] = "scim-secret"; __resetScim(); __resetSharedStateForTest(); });
+afterEach(() => { delete process.env["SCIM_TOKEN"]; __resetScim(); __resetSharedStateForTest(); });
 
 test("scimTokenValid is a constant-time exact match", () => {
   assert.equal(scimTokenValid("scim-secret"), true);
@@ -70,4 +72,51 @@ test("SCIM is disabled (no opinion) when SCIM_TOKEN is unset", () => {
   createUser({ userName: "frank@corp.com", active: false });
   // With SCIM off, the directory expresses no opinion even for a stored inactive user.
   assert.deepEqual(directoryDecision({ email: "frank@corp.com" }), { known: false, active: true, roleClaims: [] });
+});
+
+test("fleet propagation: a deprovision on one replica denies the user on a sibling after refresh", async () => {
+  // Replica A provisions then deprovisions bob — both write through to shared state.
+  const u = createUser({ userName: "bob@corp.com", active: true });
+  patchUser(u.id, [{ op: "replace", path: "active", value: false }]);
+  await refreshScimFromShared(); // flush the best-effort write-through deterministically
+  assert.equal(directoryDecision({ email: "bob@corp.com" }).active, false);
+
+  // Replica B starts from a clean local directory over the same shared state.
+  __resetScim();
+  assert.equal(directoryDecision({ email: "bob@corp.com" }).known, false); // B hasn't seen bob yet
+  await refreshScimFromShared();
+  const d = directoryDecision({ email: "bob@corp.com" });
+  assert.equal(d.known, true);
+  assert.equal(d.active, false); // ...now B denies the deprovisioned user too
+});
+
+test("fleet merge is last-writer-wins — a later reactivation beats an older deprovision", async () => {
+  const u = createUser({ userName: "carol@corp.com", active: true });
+  await refreshScimFromShared();
+
+  // A stale sibling snapshot in shared state still marks carol INACTIVE with an OLDER lastModified.
+  const shared = JSON.parse((await sharedKv.get(SCIM_SHARED_KEY))!);
+  shared.users[u.id] = { ...shared.users[u.id], active: false, meta: { ...shared.users[u.id].meta, lastModified: "2000-01-01T00:00:00.000Z" } };
+  await sharedKv.set(SCIM_SHARED_KEY, JSON.stringify(shared));
+
+  // Merge must keep the NEWER local record (active=true) — LWW, not "most restrictive".
+  await refreshScimFromShared();
+  assert.equal(directoryDecision({ email: "carol@corp.com" }).active, true);
+});
+
+test("fleet merge: a tombstoned delete is not resurrected by a sibling's stale copy", async () => {
+  const u = createUser({ userName: "dave@corp.com" });
+  await refreshScimFromShared();
+  const withDave = await sharedKv.get(SCIM_SHARED_KEY); // shared copy that still HAS dave
+
+  deleteUser(u.id); // tombstones dave locally + in shared
+  await refreshScimFromShared();
+  assert.equal(getUser(u.id), null);
+
+  // A lagging sibling re-publishes its stale snapshot (dave present, no tombstone).
+  const stale = JSON.parse(withDave!);
+  const cur = JSON.parse((await sharedKv.get(SCIM_SHARED_KEY))!);
+  await sharedKv.set(SCIM_SHARED_KEY, JSON.stringify({ ...stale, tombstones: cur.tombstones }));
+  await refreshScimFromShared();
+  assert.equal(getUser(u.id), null); // the tombstone out-dates the stale record ⇒ stays deleted
 });

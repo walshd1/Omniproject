@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { constantTimeEqual } from "./crypto-keys";
+import { sharedKv } from "./shared-state";
 
 /**
  * SCIM 2.0 directory (RFC 7643/7644). OmniProject is stateless — identity is authenticated by
@@ -36,7 +37,87 @@ export interface ScimGroup {
 
 interface Directory { users: Record<string, ScimUser>; groups: Record<string, ScimGroup> }
 let dir: Directory = { users: {}, groups: {} };
+// Tombstones: id → deletedAt (epoch ms). A hard-deleted user/group leaves no record, so LWW alone
+// would let a sibling's stale copy resurrect it; a tombstone that out-dates the record suppresses it.
+let tombstones: Record<string, number> = {};
 const store = new SealedFile(() => resolveConfigFile("SCIM_STATE_FILE", "scim.json"), "scim");
+
+/**
+ * FLEET BEHAVIOUR. The directory is loaded once per replica and mutated in place, so behind
+ * horizontal scale an IdP deactivation (`active=false`) landing on replica A would leave B…N letting
+ * the user pass the gate until each reloaded. This routes the directory through the shared-state seam:
+ * every mutation write-throughs the directory, and each replica pulls it in on a fleet-sync tick, so a
+ * deprovision on ANY replica takes effect fleet-wide within the interval when shared state is
+ * Redis-backed (per-replica otherwise). A directory is NOT monotonic — a later reactivation must win —
+ * so the merge is **per-record last-writer-wins keyed on `meta.lastModified`**, with tombstones for
+ * hard deletes. The gate read (`directoryDecision`) stays synchronous against the converged local copy.
+ */
+export const SCIM_SHARED_KEY = "security:scim-directory";
+interface ScimShared { users: Record<string, ScimUser>; groups: Record<string, ScimGroup>; tombstones: Record<string, number> }
+const epoch = (iso: string | undefined): number => (iso ? Date.parse(iso) || 0 : 0);
+
+/** Per-record LWW merge of two directory snapshots: newer `meta.lastModified` wins; a tombstone that
+ *  out-dates a record drops it. Deterministic (ids sorted) so the caller can skip an unchanged re-write. */
+function mergeDirectories(a: ScimShared, b: ScimShared): ScimShared {
+  const tomb: Record<string, number> = {};
+  for (const id of new Set([...Object.keys(a.tombstones ?? {}), ...Object.keys(b.tombstones ?? {})])) {
+    tomb[id] = Math.max(a.tombstones?.[id] ?? 0, b.tombstones?.[id] ?? 0);
+  }
+  const pick = <T extends { meta: { lastModified: string } }>(x: T | undefined, y: T | undefined): T =>
+    (epoch(y?.meta.lastModified) > epoch(x?.meta.lastModified) ? y! : (x ?? y!));
+  const users: Record<string, ScimUser> = {};
+  for (const id of [...new Set([...Object.keys(a.users ?? {}), ...Object.keys(b.users ?? {})])].sort()) {
+    const rec = pick(a.users?.[id], b.users?.[id]);
+    if ((tomb[id] ?? 0) >= epoch(rec.meta.lastModified)) continue; // deleted after its last update
+    users[id] = rec;
+  }
+  const groups: Record<string, ScimGroup> = {};
+  for (const id of [...new Set([...Object.keys(a.groups ?? {}), ...Object.keys(b.groups ?? {})])].sort()) {
+    const rec = pick(a.groups?.[id], b.groups?.[id]);
+    if ((tomb[id] ?? 0) >= epoch(rec.meta.lastModified)) continue;
+    groups[id] = rec;
+  }
+  return { users, groups, tombstones: tomb };
+}
+
+/**
+ * Converge this replica's directory with shared state once (the fleet-sync tick, also directly
+ * testable). LWW-merges the shared snapshot into local, recomputes group-derived roles, and — anti
+ * entropy — writes the union back when it differs, so a change held only here (e.g. restored from this
+ * replica's sealed file at boot) can't be lost to a sibling. Keeps local on a shared-state blip.
+ */
+export async function refreshScimFromShared(): Promise<void> {
+  try {
+    const raw = await sharedKv.get(SCIM_SHARED_KEY);
+    const shared: ScimShared = raw ? (JSON.parse(raw) as ScimShared) : { users: {}, groups: {}, tombstones: {} };
+    const merged = mergeDirectories({ users: dir.users, groups: dir.groups, tombstones }, shared);
+    dir.users = merged.users;
+    dir.groups = merged.groups;
+    tombstones = merged.tombstones;
+    syncGroupMembership(); // user.groups follows the merged group membership, not whichever side's stale copy won
+    const out = JSON.stringify(merged);
+    if (out !== raw) await sharedKv.set(SCIM_SHARED_KEY, out);
+  } catch {
+    /* keep last-known local directory on a shared-state blip */
+  }
+}
+
+/** Fan the current directory out to the fleet after a local mutation (best-effort; local already set). */
+function publishScim(): void { void refreshScimFromShared(); }
+
+let fleetTimer: ReturnType<typeof setInterval> | null = null;
+/** Start periodic fleet convergence so a deprovision on ANY replica takes effect here. Idempotent;
+ *  unref'd so it never keeps the process alive. Returns a stop handle. */
+export function startScimFleetSync(intervalMs = 3000): () => void {
+  if (!fleetTimer) {
+    fleetTimer = setInterval(() => { void refreshScimFromShared(); }, intervalMs);
+    fleetTimer.unref?.();
+  }
+  return stopScimFleetSync;
+}
+export function stopScimFleetSync(): void {
+  if (fleetTimer) { clearInterval(fleetTimer); fleetTimer = null; }
+}
 
 /** Is SCIM provisioning enabled? (Only when a bearer token is configured.) */
 export function scimEnabled(): boolean {
@@ -61,6 +142,7 @@ function ensureLoaded(): void {
 
 function persist(): void {
   store.write(JSON.stringify(dir));
+  publishScim(); // fan the change out to the fleet (best-effort; local + sealed file already written)
 }
 
 const now = (): string => new Date().toISOString();
@@ -147,6 +229,7 @@ export function deleteUser(id: string): boolean {
   ensureLoaded();
   if (!(id in dir.users)) return false;
   delete dir.users[id];
+  tombstones[id] = Date.now(); // tombstone so the delete propagates and a sibling can't resurrect it
   persist();
   return true;
 }
@@ -235,6 +318,7 @@ export function deleteGroup(id: string): boolean {
   ensureLoaded();
   if (!(id in dir.groups)) return false;
   delete dir.groups[id];
+  tombstones[id] = Date.now(); // tombstone so the delete propagates and a sibling can't resurrect it
   syncGroupMembership();
   persist();
   return true;
@@ -298,4 +382,4 @@ export function scimStats(): { enabled: boolean; users: number; groups: number }
 }
 
 /** Test-only: wipe the directory. */
-export function __resetScim(): void { dir = { users: {}, groups: {} }; store.reset(); }
+export function __resetScim(): void { dir = { users: {}, groups: {} }; tombstones = {}; store.reset(); }
