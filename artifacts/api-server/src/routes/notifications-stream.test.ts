@@ -1,13 +1,15 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import type { Request, Response } from "express";
-import { sseKeepaliveTick } from "./notifications-stream";
+import type { Request } from "express";
+import { revokedIfDeprovisioned } from "./notifications-stream";
+import type { SseStream } from "../lib/sse";
 import { createUser, __resetScim } from "../lib/scim";
 
 /**
- * The SSE keepalive tick doubles as a live-revocation check: a stream whose principal
- * is deprovisioned mid-connection (SCIM active=false) is torn down at once rather than
- * outliving the revocation until the client happens to reconnect.
+ * The keepAlive onTick doubles as a live-revocation check: a stream whose principal is
+ * deprovisioned mid-connection (SCIM active=false) is torn down at once rather than outliving the
+ * revocation until the client reconnects. (The ping + the once-guarded unsubscribe-on-close are the
+ * shared keepAlive helper's job — covered in lib/sse.test.ts; here we test only the predicate.)
  */
 afterEach(() => {
   delete process.env["SCIM_TOKEN"];
@@ -19,47 +21,39 @@ function reqWithSession(session: object): Request {
   return { signedCookies: { omni_session: JSON.stringify(session) }, headers: {} } as unknown as Request;
 }
 
-interface Captured { res: Response; writes: string[]; ended: () => boolean }
-function capturingRes(): Captured {
-  const writes: string[] = [];
-  let ended = false;
-  const res = {
-    write(chunk: string) { writes.push(chunk); return true; },
-    end() { ended = true; return this; },
-  } as unknown as Response;
-  return { res, writes, ended: () => ended };
+/** A fake SseStream that records the events the predicate emits. */
+function fakeStream(): { stream: SseStream; sent: { event: string; data: unknown }[] } {
+  const sent: { event: string; data: unknown }[] = [];
+  const stream = { send: (event: string, data: unknown) => sent.push({ event, data }), comment: () => {}, close: () => {} };
+  return { stream, sent };
 }
 
-test("a still-active stream gets a keepalive ping and stays open", () => {
-  const cap = capturingRes();
-  const closed = sseKeepaliveTick(reqWithSession({ sub: "u1", email: "live@x.io", accessToken: "t" }), cap.res);
-  assert.equal(closed, false);
-  assert.equal(cap.ended(), false);
-  assert.ok(cap.writes.some((w) => w.includes(": ping")));
+test("a still-active principal is not revoked and emits nothing (keepAlive writes the ping)", () => {
+  const { stream, sent } = fakeStream();
+  const revoked = revokedIfDeprovisioned(reqWithSession({ sub: "u1", email: "live@x.io", accessToken: "t" }), stream);
+  assert.equal(revoked, false);
+  assert.equal(sent.length, 0);
 });
 
-test("a deprovisioned principal's stream is closed with a revoked event", () => {
+test("a deprovisioned principal is revoked with a `revoked` event", () => {
   process.env["SCIM_TOKEN"] = "scim-secret";
   createUser({ userName: "gone@x.io", active: false });
-  const cap = capturingRes();
-  const closed = sseKeepaliveTick(reqWithSession({ sub: "u9", email: "gone@x.io", accessToken: "t" }), cap.res);
-  assert.equal(closed, true);
-  assert.equal(cap.ended(), true);
-  assert.ok(cap.writes.some((w) => w.includes("event: revoked") && w.includes("deprovisioned")));
+  const { stream, sent } = fakeStream();
+  const revoked = revokedIfDeprovisioned(reqWithSession({ sub: "u9", email: "gone@x.io", accessToken: "t" }), stream);
+  assert.equal(revoked, true);
+  assert.deepEqual(sent, [{ event: "revoked", data: { reason: "deprovisioned" } }]);
 });
 
-test("a SCIM-known but still-active principal is not closed", () => {
+test("a SCIM-known but still-active principal is not revoked", () => {
   process.env["SCIM_TOKEN"] = "scim-secret";
   createUser({ userName: "ok@x.io", active: true });
-  const cap = capturingRes();
-  const closed = sseKeepaliveTick(reqWithSession({ sub: "u2", email: "ok@x.io", accessToken: "t" }), cap.res);
-  assert.equal(closed, false);
-  assert.equal(cap.ended(), false);
+  const { stream, sent } = fakeStream();
+  assert.equal(revokedIfDeprovisioned(reqWithSession({ sub: "u2", email: "ok@x.io", accessToken: "t" }), stream), false);
+  assert.equal(sent.length, 0);
 });
 
 test("an unauthenticated stream (no session) is never treated as deprovisioned", () => {
   process.env["SCIM_TOKEN"] = "scim-secret";
-  const cap = capturingRes();
-  const closed = sseKeepaliveTick({ signedCookies: {}, headers: {} } as unknown as Request, cap.res);
-  assert.equal(closed, false);
+  const { stream } = fakeStream();
+  assert.equal(revokedIfDeprovisioned({ signedCookies: {}, headers: {} } as unknown as Request, stream), false);
 });
