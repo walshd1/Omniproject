@@ -277,12 +277,20 @@ export function presenceStats(): { rooms: number; connections: number } {
   return { rooms: rooms.size, connections };
 }
 
-/** Close every live presence stream and forget them — used on graceful shutdown. */
+/**
+ * Close every live presence stream and forget them — used on graceful shutdown. ANNOUNCES a fleet-wide
+ * `leave` for each local peer FIRST, so during a rolling deploy the other replicas drop this node's
+ * peers at once instead of holding them as ghosts until PEER_TTL_MS. Without this, a graceful shutdown
+ * looked identical to a crash: the heartbeat simply stopped and every one of this replica's peers
+ * ghosted together ~30s later — a correlated mass de-registration on every deploy. A clean leave makes
+ * departure prompt and per-peer instead.
+ */
 export function closeAllPresence(): number {
   let n = 0;
-  for (const room of rooms.values()) {
+  for (const [roomId, room] of rooms) {
     for (const c of room.values()) {
       n++;
+      publishPresence({ kind: "leave", roomId, cid: c.cid }); // tell the fleet before we vanish
       try { c.close?.(); } catch { /* already gone */ }
     }
   }

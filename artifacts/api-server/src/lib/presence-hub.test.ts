@@ -74,6 +74,20 @@ test("presenceStats counts rooms and connections; closeAllPresence drains them",
   assert.deepEqual(presenceStats(), { rooms: 0, connections: 0 });
 });
 
+test("closeAllPresence announces a fleet-wide leave per peer (no correlated TTL ghosting on deploy)", () => {
+  const published: PresenceEvent[] = [];
+  registerPresencePublisher((ev) => published.push(ev));
+  joinRoom({ roomId: "r1", cid: "a", sub: "u1", label: "Ada", send: sink().send }, 0);
+  joinRoom({ roomId: "r1", cid: "b", sub: "u2", label: "Bo", send: sink().send }, 0);
+  published.length = 0; // ignore the join upserts; we only care about the shutdown leaves
+
+  closeAllPresence();
+
+  const leaves = published.filter((e) => e.kind === "leave");
+  assert.equal(leaves.length, 2, "one leave announced per local peer on graceful shutdown");
+  assert.deepEqual(new Set(leaves.map((l) => l.cid)), new Set(["a", "b"]));
+});
+
 test("roomSnapshot of an unknown room is empty (idle rooms cost nothing)", () => {
   assert.deepEqual(roomSnapshot("nobody-here", Date.now()), []);
 });
