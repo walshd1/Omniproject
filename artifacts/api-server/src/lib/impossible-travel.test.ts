@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateTravel, checkLogin, __resetImpossibleTravelState } from "./impossible-travel";
+import { evaluateTravel, checkLogin, __resetImpossibleTravelState, __rememberLocationForTest, __trackedCountForTest } from "./impossible-travel";
 
 /**
  * Impossible-travel detection. `evaluateTravel` is pure (no IO, no optional
@@ -12,7 +12,24 @@ import { evaluateTravel, checkLogin, __resetImpossibleTravelState } from "./impo
 afterEach(() => {
   delete process.env["IMPOSSIBLE_TRAVEL_MAX_KMH"];
   delete process.env["IMPOSSIBLE_TRAVEL_MIN_KM"];
+  delete process.env["IMPOSSIBLE_TRAVEL_MAX_TRACKED"];
   __resetImpossibleTravelState();
+});
+
+test("the last-location map is bounded: it never exceeds the cap and evicts oldest-first", () => {
+  process.env["IMPOSSIBLE_TRAVEL_MAX_TRACKED"] = "100";
+  for (let i = 0; i < 250; i++) __rememberLocationForTest(`user-${i}`);
+  assert.equal(__trackedCountForTest(), 100, "size is capped, not unbounded");
+});
+
+test("re-seeing a principal refreshes recency so it isn't evicted by newer arrivals", () => {
+  process.env["IMPOSSIBLE_TRAVEL_MAX_TRACKED"] = "3";
+  __rememberLocationForTest("a");
+  __rememberLocationForTest("b");
+  __rememberLocationForTest("c");
+  __rememberLocationForTest("a"); // touch a → now most-recent; b is the oldest
+  __rememberLocationForTest("d"); // pushes the map over 3 → evicts b (the oldest), not a
+  assert.equal(__trackedCountForTest(), 3);
 });
 
 // London ~ (51.5, -0.12); Tokyo ~ (35.7, 139.7); Cambridge, UK ~ (52.2, 0.12) — roughly 9560km
