@@ -1,6 +1,6 @@
 import { BACKENDS, BROKERS, SCREENS } from "@workspace/backend-catalogue";
 import { getSettings, updateSettings, registerCapabilityStatesSanitizer, AI_PROVIDERS, type DeploymentState, type CapabilitySetting } from "./settings";
-import { isForbiddenKey } from "./safe-json";
+import { isForbiddenKey, safeParseJson } from "./safe-json";
 import { recordAudit, createHttpSink, type HttpSink } from "./audit";
 import { sharedStateMode, sharedRingPush, sharedRingRead } from "./shared-state";
 import { logger } from "./logger";
@@ -347,13 +347,41 @@ export function recentCapabilityLog(): CapabilityLogEntry[] {
   return [...activityLog].reverse();
 }
 
+const LOG_ACTIONS = new Set<CapabilityLogEntry["action"]>(["use", "blocked", "configured"]);
+const CAP_KINDS = new Set<CapabilityKind>(["ai-tool", "mcp", "ai-provider", "vendor", "broker"]);
+
+/** Validate ONE fleet-shared capability-log entry before it's shown on the admin governance dashboard.
+ *  A shared-ring entry is written by ANOTHER replica (Redis) ⇒ untrusted input: parse prototype-safe,
+ *  bound every string, and coerce each field to its type/enum, dropping a malformed entry rather than
+ *  failing the whole read. Mirrors broker-log's sanitizeRemoteEntry — it can't stop a plausible forgery
+ *  (inherent to a shared bus) but it stops injection / type-confusion / prototype-pollution. */
+function sanitizeSharedLogEntry(rawJson: string): CapabilityLogEntry | null {
+  let o: unknown;
+  try { o = safeParseJson<unknown>(rawJson); } catch { return null; }
+  if (!o || typeof o !== "object") return null;
+  const r = o as Record<string, unknown>;
+  const str = (v: unknown, n: number): string | null => (typeof v === "string" ? v.slice(0, n) : null);
+  const ts = str(r["ts"], 40);
+  if (!ts) return null; // a well-formed entry must at least carry a timestamp
+  return {
+    ts,
+    action: LOG_ACTIONS.has(r["action"] as CapabilityLogEntry["action"]) ? (r["action"] as CapabilityLogEntry["action"]) : "use",
+    capability: str(r["capability"], 200) ?? "",
+    kind: CAP_KINDS.has(r["kind"] as CapabilityKind) ? (r["kind"] as CapabilityKind) : null,
+    surface: str(r["surface"], 200),
+    state: STATES.includes(r["state"] as DeploymentState) ? (r["state"] as DeploymentState) : "off",
+    actor: str(r["actor"], 200),
+  };
+}
+
 /** Recent capability activity across the FLEET (newest first) when Redis-backed; otherwise the
  *  local ring. Falls back to the local ring if the shared read fails, so it never throws. */
 export async function recentCapabilityLogShared(): Promise<CapabilityLogEntry[]> {
   if (sharedStateMode() !== "redis") return recentCapabilityLog();
   try {
     const raw = await sharedRingRead(SHARED_LOG_PREFIX, LOG_MAX);
-    return raw.map((v) => JSON.parse(v) as CapabilityLogEntry).reverse();
+    // Each entry is sibling-written untrusted input — validate + drop malformed rather than trust the cast.
+    return raw.map((v) => sanitizeSharedLogEntry(v)).filter((e): e is CapabilityLogEntry => e !== null).reverse();
   } catch (err) {
     logger.warn({ err }, "capability log: shared read failed — using local ring");
     return recentCapabilityLog();
