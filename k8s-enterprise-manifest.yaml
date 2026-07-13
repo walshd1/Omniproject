@@ -384,3 +384,34 @@ spec:
       ports:
         - protocol: TCP
           port: 5678
+
+---
+# ── NetworkPolicy: deny egress to cloud-metadata / link-local (ALL pods) ──────
+# Ingress was default-deny above, but egress was previously unrestricted — so any pod
+# (the gateway OR n8n) could reach 169.254.169.254 and lift IAM credentials (the
+# Capital-One SSRF). NetworkPolicy is allow-list only, so this expresses "block only
+# link-local" as: allow 0.0.0.0/0 (and ::/0) on all ports EXCEPT the link-local ranges.
+# Net effect — every real destination (DNS, in-cluster n8n, external IdP/AI/FX/SMTP)
+# still works; only the metadata/link-local ranges are cut off, at L3, for every pod.
+# This is defence-in-depth beneath the app-layer egress guard (lib/egress.ts safeFetch),
+# and it also covers n8n, which does NOT go through that guard.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-metadata-egress
+  namespace: omniproject
+spec:
+  podSelector: {}          # every pod in the namespace
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.0.0/16     # IPv4 link-local: AWS/GCP/Azure metadata (…169.254 / ECS …170.2)
+        - ipBlock:
+            cidr: "::/0"
+            except:
+              - fe80::/10          # IPv6 link-local
+              - fd00:ec2::/32      # AWS IPv6 metadata prefix

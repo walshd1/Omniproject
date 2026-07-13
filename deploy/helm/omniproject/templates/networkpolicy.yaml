@@ -38,8 +38,20 @@ spec:
     {{- toYaml . | nindent 4 }}
     {{- end }}
     {{- else }}
-    # Egress not restricted (default): the pod may reach its backends. Set networkPolicy.egress.restrict=true
-    # and enumerate networkPolicy.egress.to for true egress segmentation.
-    - {}
+    # Egress not restricted (default): the pod may reach its backends — but NOT the cloud-metadata /
+    # link-local ranges. NetworkPolicy is allow-list only, so "block only link-local" is expressed as
+    # allow 0.0.0.0/0 (and ::/0) EXCEPT those ranges. Every real destination still works; only the
+    # 169.254/fe80 SSRF targets are cut off at L3 (defence-in-depth beneath lib/egress.ts). Set
+    # networkPolicy.egress.restrict=true and enumerate networkPolicy.egress.to for full segmentation.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.0.0/16
+        - ipBlock:
+            cidr: "::/0"
+            except:
+              - fe80::/10
+              - fd00:ec2::/32
     {{- end }}
 {{- end -}}
