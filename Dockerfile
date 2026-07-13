@@ -67,6 +67,12 @@ COPY --from=builder /app/artifacts/omniproject/dist/public ./public
 # lib/shared-state.ts / notify-bus.ts / rate-limit.ts. Caret ranges keep the opt-in build resolvable;
 # pin exact versions + a lockfile if you need byte-reproducible scale images. The clients land in
 # /app/node_modules, where the bundle's dynamic `import("ioredis")` resolves them at runtime.
+#
+# FAIL-CLOSED AT SCALE: if you set REDIS_URL (declaring a fleet) but build WITHOUT this arg — or Redis
+# is unreachable — the gateway's /readyz probe reports NOT ready (503), so the load balancer refuses
+# traffic to that replica instead of silently serving degraded, per-replica security controls (rate
+# limits, single-use tokens, revocation propagation). Build enterprise/multi-replica images with
+# --build-arg WITH_REDIS=1. See lib/fleet-readiness.ts.
 ARG WITH_REDIS=
 RUN if [ -n "$WITH_REDIS" ]; then \
       npm install --no-save --omit=dev --no-audit --no-fund ioredis@^5 rate-limit-redis@^4 \
