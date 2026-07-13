@@ -33,7 +33,7 @@ import { isDevMode } from "../lib/dev-mode";
 import { isDemoAuth } from "../lib/auth-config";
 import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
-import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
+import { isSessionExpired, timeoutPolicy, sessionCookieMaxAgeMs } from "../lib/session-timeout";
 import { currentVersion, isActive, userSessionsRevokedAt } from "../lib/key-registry";
 import { registerSession } from "../lib/session-registry";
 import { requireTls } from "../lib/deployment-profile";
@@ -81,8 +81,10 @@ const OAUTH2_FLOW_COOKIE = "omni_oauth2_flow";
 const STEPUP_COOKIE = "omni_stepup_flow";
 // Re-seal an active session at most this often (don't re-sign on every request).
 const SLIDE_THROTTLE_MS = 60_000;
-/** Session cookie lifetime (8h). NOTE: the CSRF cookie in lib/csrf.ts hand-mirrors this value. */
-const SESSION_TTL_MS = 1000 * 60 * 60 * 8;
+// Session cookie lifetime tracks the ABSOLUTE session cap (lib/session-timeout.sessionCookieMaxAgeMs),
+// so shortening SESSION_ABSOLUTE_HOURS also shortens the browser cookie — the server-side idle/absolute
+// enforcement is authoritative regardless, but keeping them in lock-step means the cookie disappears
+// when the session dies. lib/csrf.ts uses the SAME helper.
 /** OAuth/magic-link flow-cookie lifetime (10 min) — the in-flight auth handshake window. */
 const FLOW_COOKIE_TTL_MS = 1000 * 60 * 10;
 
@@ -210,7 +212,7 @@ function setSession(res: Response, session: Session): void {
   };
   res.cookie(SESSION_COOKIE, seal(JSON.stringify(stamped)), {
     ...cookieBase(), // secure is evaluated here, so a wizard profile change applies to new sessions
-    maxAge: SESSION_TTL_MS,
+    maxAge: sessionCookieMaxAgeMs(),
   });
 }
 

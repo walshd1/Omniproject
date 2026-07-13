@@ -23,8 +23,11 @@ export function maxSessionsPerUser(): number {
 }
 
 function absoluteWindowMs(): number {
+  // Registry pruning window — tracks the session absolute cap (default kept in sync with
+  // lib/session-timeout DEFAULT_ABSOLUTE_HOURS). A finite window regardless, so the registry can't
+  // grow unbounded even if the absolute cap is env-disabled.
   const h = Number(process.env["SESSION_ABSOLUTE_HOURS"]);
-  return (Number.isFinite(h) && h > 0 ? h : 8) * 3_600_000;
+  return (Number.isFinite(h) && h > 0 ? h : 4) * 3_600_000;
 }
 
 /**
