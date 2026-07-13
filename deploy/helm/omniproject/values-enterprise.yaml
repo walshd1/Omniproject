@@ -1,0 +1,133 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Enterprise-hardened values profile.
+#
+#   helm upgrade --install omniproject ./deploy/helm/omniproject \
+#     -f deploy/helm/omniproject/values.yaml \
+#     -f deploy/helm/omniproject/values-enterprise.yaml \
+#     -f my-secrets.yaml     # your real IdP / SESSION_SECRET / signing key / vault creds
+#
+# What this profile does: turns ON the availability and higher-assurance controls that ship OFF by
+# default. Every control below already EXISTS in the code — this file just wires it for a regulated,
+# multi-replica deployment.
+#
+# STATELESSNESS IS PRESERVED. There is deliberately NO per-pod PersistentVolume here:
+#   - a ReadWriteOnce config PVC cannot be shared by >1 replica AND would re-introduce at-rest state;
+#   - instead, durable/fleet-consistent state lives in EXTERNAL stores you already run —
+#     Redis (shared runtime state + audit-chain head) and a KMS-backed vault (AI keys).
+# The gateway itself stays zero-at-rest: no project data is stored by any setting in this file.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Availability: HA floor + autoscaling ──────────────────────────────────────
+# Safe at >1 replica because config.REDIS_URL (below) provides the shared SSE / rate-limit bus.
+replicaCount: 3
+
+# Right-sized up from the 512Mi default for SSE fan-out under load. Tune against a real scale test.
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 12
+  targetCPUUtilizationPercentage: 65
+  targetMemoryUtilizationPercentage: 75
+
+# Never let a node drain / rolling upgrade take the Service below two live pods.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Anti-affinity: prefer spreading replicas across distinct nodes so a single node loss can't take out
+# the fleet. Kept as `preferred` (soft) so it never wedges pods into Pending on a small cluster; the
+# chart's default zone/host topology spread still applies. For a HARD guarantee on a cluster with
+# >= replicaCount nodes, change `preferredDuringScheduling...` to `requiredDuringScheduling...`.
+# NB: the label value assumes the default release name "omniproject"; if you set nameOverride /
+# fullnameOverride, update matchLabels to match your pods.
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: omniproject
+
+# ── Network segmentation ──────────────────────────────────────────────────────
+# Default-deny ingress (only declared peers reach the http port) + block cloud-metadata / link-local
+# egress. Left at restrict:false so turning it on can't sever legitimate egress; to fully segment,
+# set egress.restrict:true and enumerate egress.to with YOUR broker / Redis / IdP / OTLP / SMTP CIDRs.
+networkPolicy:
+  enabled: true
+  ingress:
+    # Restrict WHO may reach the gateway to your ingress-controller namespace (edit the label to match).
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    restrict: false
+    # Example (enable with restrict:true): allow only DNS + these destinations.
+    # to:
+    #   - to: [{ ipBlock: { cidr: 10.0.0.0/8 } }]          # broker / Redis / IdP inside the VPC
+    #     ports: [{ port: 5678, protocol: TCP }, { port: 6379, protocol: TCP }]
+    to: []
+
+# ── Observability: export traces + real metrics to your collector ─────────────
+otel:
+  enabled: true
+  endpoint: "http://otel-collector.observability:4318"   # REPLACE with your OTLP collector
+  serviceName: "omniproject-gateway"
+  metricExportIntervalMs: "30000"
+
+# ── Non-sensitive enterprise configuration ────────────────────────────────────
+config:
+  NODE_ENV: "production"
+  # REQUIRED for multi-replica. One knob that makes SSE fan-out, the rate limiter, SCIM/session/key/
+  # AI-kill revocation, AND the audit-chain head all fleet-consistent + restart-durable.
+  REDIS_URL: "redis://redis-master.data:6379"
+
+  # ── Data residency (opt-in enforcement, fail-closed HTTP 451) ───────────────
+  # Point the broker hop at region-scoped destinations. Set a policy map OR an allow-list. See
+  # docs/DATA-RESIDENCY.md. Example — only EU-region broker/egress permitted:
+  # DATA_RESIDENCY_ALLOWED: "eu"
+  # DATA_RESIDENCY_MAP: '{"n8n.eu.svc:5678":"eu"}'
+  # DATA_RESIDENCY_POLICY: '{"eu":{"backends":["n8n.eu.svc"],"egress":["*.eu.example.com"]}}'
+
+  # ── KMS-backed vault (AI provider keys live in your KMS, not the pod) ────────
+  # Durable + shared across replicas without any at-rest state in the gateway. See .env.example §vault.
+  # VAULT_BACKEND: "aws"          # local | hashicorp | hcp | http | aws | azure
+  # VAULT_AWS_SECRET_ID: "omni-ai-vault"
+  # VAULT_KV_MOUNT: "secret"
+  # VAULT_KV_PATH: "omni-ai-vault"
+
+# ── Sensitive configuration — supply via an external secret manager ───────────
+# STRONGLY prefer External Secrets Operator / Sealed Secrets over inlining. Set secret.existingSecret
+# to a Secret that carries these keys. Enabling SIGNING_PRIVATE_KEY turns ON Ed25519 snapshot signing;
+# without it, snapshots are still content-hashed but not signed.
+secret:
+  create: true
+  existingSecret: ""       # <-- recommended: reference your ESO/Sealed Secret here
+  data:
+    OIDC_ISSUER_URL: ""
+    OIDC_CLIENT_ID: ""
+    OIDC_CLIENT_SECRET: ""
+    SESSION_SECRET: ""       # REQUIRED — the gateway refuses to boot without it
+    API_TOKENS: ""
+    VAULT_KEY: ""            # or use VAULT_BACKEND above (KMS) instead of a local key
+    # SIGNING_PRIVATE_KEY: "" # base64 Ed25519 seed — enables provably-immutable signed snapshots
+
+# Durable audit trail: the chain HEAD is fleet-shared + restart-durable via REDIS_URL (above); ship the
+# audit EVENTS to your SIEM by setting the audit HTTP sink env (see .env.example) so the trail survives
+# an OOM/restart rather than living only in the per-replica RAM buffer.
+extraEnv: []
+
+# No per-pod PVC: multi-replica + ReadWriteOnce is incompatible, and a config PVC re-introduces at-rest
+# state. Use the KMS vault backend + Redis above instead. (Left explicit so it isn't re-enabled by habit.)
+persistence:
+  enabled: false

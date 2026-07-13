@@ -3,7 +3,7 @@ import { screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { renderWithProviders } from "../../test/utils";
-import { visibleGridColumns, coerceCellValue, buildIssueUpdate, GRID_COLUMNS, IssueGrid } from "./IssueGrid";
+import { visibleGridColumns, coerceCellValue, GRID_COLUMNS, IssueGrid } from "./IssueGrid";
 import { availabilityQueryKey, type Availability } from "../../lib/availability";
 import { featuresQueryKey, type FeatureStatus } from "../../lib/features";
 import { savedViewsQueryKey } from "../../lib/saved-views";
@@ -32,12 +32,8 @@ describe("IssueGrid helpers", () => {
     expect(coerceCellValue("date", "2026-01-02")).toBe("2026-01-02");
     expect(coerceCellValue("text", "  hi  ")).toBe("hi");
   });
-
-  it("buildIssueUpdate binds expectedVersion only when a version is present", () => {
-    expect(buildIssueUpdate("status", "done", 3)).toEqual({ status: "done", expectedVersion: 3 });
-    expect(buildIssueUpdate("status", "done", null)).toEqual({ status: "done" });
-    expect(buildIssueUpdate("storyPoints", 8, undefined)).toEqual({ storyPoints: 8 });
-  });
+  // The field-update payload builder is exercised via buildFieldUpdate in
+  // use-issue-field-write.test.tsx — IssueGrid writes through that shared writer.
 });
 
 function issue(over: Partial<Issue> = {}): Issue {

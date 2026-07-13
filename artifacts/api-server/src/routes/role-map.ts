@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireRole, getRoleMap, setRoleMap, rollbackRoleMap, canRollbackRoleMap, ROLES } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordRequestAudit } from "../lib/audit";
 import { persistSecurityState } from "../lib/security-state";
 import { heldForDualControl } from "./security";
 
@@ -25,11 +25,9 @@ router.post("/admin/role-map/rollback", requireRole("admin"), requireStepUp, (re
   const rolledBack = rollbackRoleMap();
   const mapping = getRoleMap();
   persistSecurityState(); // durable + fleet-published: the reverted mapping propagates like the edit did
-  recordAudit({
-    ts: new Date().toISOString(),
+  recordRequestAudit(req, {
     category: "admin",
     action: "role_map_rollback",
-    actor: actorForAudit(req),
     result: "success",
     status: 200,
     meta: { rolledBack },
@@ -44,11 +42,9 @@ router.put("/admin/role-map", requireRole("admin"), requireStepUp, async (req, r
   if (await heldForDualControl("role_map.update", req.body, req, res)) return;
   const mapping = setRoleMap(req.body);
   persistSecurityState(); // durable across restart + fanned out to the fleet (revocation propagates)
-  recordAudit({
-    ts: new Date().toISOString(),
+  recordRequestAudit(req, {
     category: "admin",
     action: "role_map_update",
-    actor: actorForAudit(req),
     result: "success",
     status: 200,
     // Record the shape of the change (group counts per role), not necessarily the

@@ -1,5 +1,6 @@
 import { safeFetch } from "../egress";
 import { logger } from "../logger";
+import { lazySingleton } from "../lazy-singleton";
 import type { Row } from "../../broker/types";
 import type { ProjectReferences } from "../project-forget";
 
@@ -100,8 +101,8 @@ export function selectArchiveStore(): ArchiveStore {
   return new MemoryArchiveStore();
 }
 
-let cached: ArchiveStore | null = null;
+const storeSingleton = lazySingleton(selectArchiveStore);
 /** The process archive store (singleton). */
-export function getArchiveStore(): ArchiveStore { return (cached ??= selectArchiveStore()); }
+export function getArchiveStore(): ArchiveStore { return storeSingleton.get(); }
 /** Test seam: reset the singleton (and optionally inject a store). */
-export function __setArchiveStoreForTest(store: ArchiveStore | null): void { cached = store; }
+export function __setArchiveStoreForTest(store: ArchiveStore | null): void { storeSingleton.reset(store); }

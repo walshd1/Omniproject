@@ -64,11 +64,6 @@ export function coerceCellValue(type: ColType, raw: string): string | number | n
   return v;
 }
 
-/** Build the issue-update payload for a single field, binding the optimistic-concurrency token. */
-export function buildIssueUpdate(field: string, value: unknown, version: number | null | undefined): IssueUpdate {
-  return { [field]: value, ...(version != null ? { expectedVersion: version } : {}) } as IssueUpdate;
-}
-
 function cellText(issue: Issue, col: GridColumn): string {
   const v = (issue as unknown as Record<string, unknown>)[col.field];
   if (v == null) return "";

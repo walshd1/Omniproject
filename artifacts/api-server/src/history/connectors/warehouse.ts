@@ -26,6 +26,9 @@ export interface WarehousePort {
   insertRows(table: "journal" | "snapshot", rows: Record<string, unknown>[]): Promise<void>;
   /** Run a parameterised read query and return the rows. */
   query(q: WarehouseQuery): Promise<Record<string, unknown>[]>;
+  /** Run a parameterised write/DELETE statement; returns the affected row count. Needed for retention
+   *  disposal + right-to-erasure. Never interpolate values — same bound-param discipline as `query`. */
+  execute(q: WarehouseQuery): Promise<{ rowsAffected: number }>;
 }
 
 function snapshotRow(s: EntitySnapshot): Record<string, unknown> {
@@ -86,6 +89,26 @@ export function warehouseRetentionSource(port: WarehousePort): RetentionSource {
         params: { entity, id },
       });
       return rows.length ? String(rows[0]!["as_of"]) : null;
+    },
+
+    async disposeOlderThan(cutoffIso, opts) {
+      // Bound-param DELETE by age. Legal-held "entity#id" pairs are excluded via NOT IN UNNEST over
+      // CONCAT(entity,'#',id) (never string-interpolated). `@held` is [] when nothing is held.
+      const held = [...(opts?.heldKeys ?? [])];
+      const holdClause = " AND CONCAT(entity, '#', id) NOT IN UNNEST(@held)";
+      const [j, s] = await Promise.all([
+        port.execute({ sql: `DELETE FROM journal WHERE changed_at < @cutoff${holdClause}`, params: { cutoff: cutoffIso, held } }),
+        port.execute({ sql: `DELETE FROM snapshot WHERE as_of < @cutoff${holdClause}`, params: { cutoff: cutoffIso, held } }),
+      ]);
+      return { snapshots: s.rowsAffected, journal: j.rowsAffected };
+    },
+
+    async eraseEntity(entity, id) {
+      const [j, s] = await Promise.all([
+        port.execute({ sql: "DELETE FROM journal WHERE entity = @entity AND id = @id", params: { entity, id } }),
+        port.execute({ sql: "DELETE FROM snapshot WHERE entity = @entity AND id = @id", params: { entity, id } }),
+      ]);
+      return { snapshots: s.rowsAffected, journal: j.rowsAffected };
     },
   };
 }

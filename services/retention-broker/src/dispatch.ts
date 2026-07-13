@@ -4,14 +4,37 @@
  * ops (`/retention/<op>`), so the names here are the wire contract — keep them in lock-step.
  */
 import type { RetentionSource } from "./contract";
-import { parseWindow, parseEntries, parseSnapshot, requireString, requireStringArray } from "./validate";
+import { parseWindow, parseEntries, parseSnapshot, requireString, requireStringArray, requireTimestamp } from "./validate";
 
-export type Op = "read-snapshots" | "read-journal" | "append-journal" | "write-snapshot" | "last-snapshot-at";
+export type Op =
+  | "read-snapshots"
+  | "read-journal"
+  | "append-journal"
+  | "write-snapshot"
+  | "last-snapshot-at"
+  | "dispose-older-than"
+  | "erase-entity";
 
-export const OPS: readonly Op[] = ["read-snapshots", "read-journal", "append-journal", "write-snapshot", "last-snapshot-at"];
+export const OPS: readonly Op[] = [
+  "read-snapshots",
+  "read-journal",
+  "append-journal",
+  "write-snapshot",
+  "last-snapshot-at",
+  "dispose-older-than",
+  "erase-entity",
+];
 
 export function isOp(x: string): x is Op {
   return (OPS as readonly string[]).includes(x);
+}
+
+/** Raised when a disposal/erasure op reaches a source whose backend can't delete. Maps to HTTP 501. */
+export class UnsupportedOpError extends Error {
+  constructor(op: string) {
+    super(`retention source does not support "${op}"`);
+    this.name = "UnsupportedOpError";
+  }
 }
 
 export async function dispatch(source: RetentionSource, op: Op, body: Record<string, unknown>): Promise<unknown> {
@@ -28,5 +51,16 @@ export async function dispatch(source: RetentionSource, op: Op, body: Record<str
       return { ok: true };
     case "last-snapshot-at":
       return { asOf: await source.lastSnapshotAt(requireString(body["entity"], "entity"), requireString(body["id"], "id")) };
+    case "dispose-older-than": {
+      if (!source.disposeOlderThan) throw new UnsupportedOpError(op);
+      const cutoff = requireTimestamp(body["cutoff"], "cutoff");
+      // heldKeys is optional; an absent value means "nothing held" (empty array).
+      const heldKeys = body["heldKeys"] === undefined ? [] : requireStringArray(body["heldKeys"], "heldKeys");
+      return source.disposeOlderThan(cutoff, { heldKeys });
+    }
+    case "erase-entity": {
+      if (!source.eraseEntity) throw new UnsupportedOpError(op);
+      return source.eraseEntity(requireString(body["entity"], "entity"), requireString(body["id"], "id"));
+    }
   }
 }

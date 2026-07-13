@@ -38,6 +38,18 @@ export interface SkQuery {
 export interface TableStorePort {
   putItem(item: TableItem): Promise<void>;
   query(q: SkQuery): Promise<TableItem[]>;
+  /** Delete one item by primary key. Needed for retention disposal + right-to-erasure. */
+  deleteItem(pk: string, sk: string): Promise<void>;
+  /** Full-table scan of all items — used only by age-based disposal. Expensive on a large single table
+   *  (add a timestamp GSI for scale); acceptable for a periodic disposal job. */
+  scanAll(): Promise<TableItem[]>;
+}
+
+/** The timestamp embedded in a sort key: `SNAP#{asOf}` → asOf; `JRNL#{changedAt}#…` → changedAt. */
+function timestampFromSk(sk: string): string | null {
+  if (sk.startsWith("SNAP#")) return sk.slice("SNAP#".length);
+  if (sk.startsWith("JRNL#")) return sk.slice("JRNL#".length).split("#")[0] ?? null;
+  return null;
 }
 
 const pkOf = (entity: string, id: string): string => `${entity}#${id}`;
@@ -92,6 +104,31 @@ export function tableStoreRetentionSource(port: TableStorePort): RetentionSource
       const items = await port.query({ pk: pkOf(entity, id), skPrefix: "SNAP#", descending: true, limit: 1 });
       if (items.length === 0) return null;
       return (items[0]!.data as EntitySnapshot).asOf;
+    },
+
+    async eraseEntity(entity, id) {
+      const pk = pkOf(entity, id);
+      const [snaps, jrnls] = await Promise.all([
+        port.query({ pk, skPrefix: "SNAP#" }),
+        port.query({ pk, skPrefix: "JRNL#" }),
+      ]);
+      await Promise.all([...snaps, ...jrnls].map((it) => port.deleteItem(it.pk, it.sk)));
+      return { snapshots: snaps.length, journal: jrnls.length };
+    },
+
+    async disposeOlderThan(cutoffIso, opts) {
+      // The PK ("entity#id") is exactly the legal-hold key format, so held rows are skipped by pk.
+      const held = new Set(opts?.heldKeys ?? []);
+      const cutoffMs = Date.parse(cutoffIso);
+      const items = await port.scanAll();
+      const stale = items.filter((it) => {
+        if (held.has(it.pk)) return false;
+        const ts = timestampFromSk(it.sk);
+        return ts !== null && Date.parse(ts) < cutoffMs;
+      });
+      await Promise.all(stale.map((it) => port.deleteItem(it.pk, it.sk)));
+      const snapshots = stale.filter((it) => it.sk.startsWith("SNAP#")).length;
+      return { snapshots, journal: stale.length - snapshots };
     },
   };
 }

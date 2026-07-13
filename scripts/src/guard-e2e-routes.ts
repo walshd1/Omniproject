@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { reportGuard } from "./lib/guard-harness";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -40,12 +41,13 @@ const manifestRoutes = routesFrom(MANIFEST, "pattern");
 const missing = [...appRoutes].filter((r) => !manifestRoutes.has(r)); // in App.tsx, not covered
 const stale = [...manifestRoutes].filter((r) => !appRoutes.has(r)); // in manifest, not a real route
 
-if (missing.length || stale.length) {
-  console.error("route-coverage guard: the e2e route manifest is out of sync with App.tsx.");
-  if (missing.length) console.error(`  Missing an e2e/routes.ts entry for: ${missing.join(", ")}`);
-  if (stale.length) console.error(`  Stale manifest entries (no such route): ${stale.join(", ")}`);
-  console.error("  Update artifacts/omniproject/e2e/routes.ts so every App.tsx route is covered.");
-  process.exit(1);
-}
-
-console.log(`route-coverage guard: OK — all ${appRoutes.size} App.tsx routes are covered by the e2e manifest.`);
+const routeViolations = [
+  ...missing.map((r) => `missing an e2e/routes.ts entry for: ${r}`),
+  ...stale.map((r) => `stale manifest entry (no such route): ${r}`),
+];
+reportGuard("route-coverage", {
+  violations: routeViolations,
+  failHeadline: "route-coverage guard: the e2e route manifest is out of sync with App.tsx.",
+  help: "  Update artifacts/omniproject/e2e/routes.ts so every App.tsx route is covered.",
+  okSummary: `all ${appRoutes.size} App.tsx routes are covered by the e2e manifest.`,
+});

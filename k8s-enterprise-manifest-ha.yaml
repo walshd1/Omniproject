@@ -1,0 +1,256 @@
+---
+# OmniProject — Automation-backend HA overlay (n8n queue mode)
+#
+# OPTIONAL, OPT-IN. This file does NOTHING to the gateway — the gateway is stateless and already
+# scales as N replicas (see docs/ops/MULTI-REPLICA.md §1-5). What it replaces is ONLY the automation
+# backend: the base `k8s-enterprise-manifest.yaml` ships n8n on SQLite + a ReadWriteOnce PVC, which is
+# a deliberate, documented single point of failure (single writer, single node, no standby). This
+# overlay swaps that for n8n's fully-HA topology — **queue mode**: one webhook-facing main process,
+# N stateless worker replicas that pull jobs off a Redis queue, and a shared (managed/replicated)
+# Postgres for state. No pod holds a RWO volume, so every pod is reschedulable and horizontally
+# scalable.
+#
+# WHY THIS IS SAFE / IN-SCOPE:
+#   • Deployment-layer only. The OmniProject gateway holds no automation state, so which n8n topology
+#     you run is invisible to it — statelessness and the broker seam are unchanged.
+#   • Security posture preserved verbatim: non-root (UID/GID 1000), drop ALL caps,
+#     allowPrivilegeEscalation=false, seccomp RuntimeDefault, no serviceaccount token. The base
+#     manifest's default-deny ingress + link-local egress-block NetworkPolicies still apply (they
+#     select every pod in the namespace), and the base "allow only omni-shell → n8n:5678" policy still
+#     gates the main (it keeps label app=n8n). Workers take a DISTINCT label so the `n8n` Service and
+#     the shell→n8n policy do NOT select them (workers never serve webhooks — they only pull the queue).
+#   • No new at-rest state on OmniProject's side. n8n's own state moves to YOUR managed Postgres/Redis.
+#
+# APPLY ORDER (apply the base first, then this):
+#   kubectl apply -f k8s-enterprise-manifest.yaml
+#   # 1) Provide the managed-backend credentials (do NOT inline real values):
+#   kubectl -n omniproject create secret generic n8n-ha-secrets \
+#     --from-literal=DB_POSTGRESDB_PASSWORD='…' \
+#     --from-literal=QUEUE_BULL_REDIS_PASSWORD='…' \
+#     --from-literal=N8N_ENCRYPTION_KEY="$(openssl rand -hex 32)"   # MUST be identical on main+workers
+#   kubectl apply -f k8s-enterprise-manifest-ha.yaml
+#   # 2) The base single-node PVC is now unused — remove it so it can't strand a node:
+#   kubectl -n omniproject delete pvc n8n-pvc
+#
+# REQUIRES: a reachable managed/replicated PostgreSQL and Redis (self-hosting a single-replica
+# Postgres/Redis here would just move the SPOF — use your cloud's managed HA offering, or an
+# operator-managed replicated cluster). Fill in the ConfigMap hosts below.
+#
+# NOTE on multiple mains: this overlay runs ONE main (n8n OSS-supported queue topology: 1 main +
+# N workers). The main is stateless and reschedules on node loss (seconds of webhook-ingest gap, no
+# data loss — state is in Postgres); a PodDisruptionBudget keeps it available across voluntary
+# disruptions. Running MULTIPLE active mains (N8N_MULTI_MAIN_SETUP_ENABLED) is an n8n Enterprise
+# feature — enable it (and raise the main replicas + set the flag) only if you hold that licence.
+
+# ── ConfigMap: non-sensitive n8n queue-mode wiring ────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: n8n-ha-config
+  namespace: omniproject
+  labels:
+    app.kubernetes.io/part-of: omniproject
+data:
+  EXECUTIONS_MODE: "queue"
+  DB_TYPE: "postgresdb"
+  DB_POSTGRESDB_HOST: "your-managed-postgres-host"   # REPLACE (managed/replicated Postgres)
+  DB_POSTGRESDB_PORT: "5432"
+  DB_POSTGRESDB_DATABASE: "n8n"
+  DB_POSTGRESDB_USER: "n8n"
+  QUEUE_BULL_REDIS_HOST: "your-managed-redis-host"   # REPLACE (managed/replicated Redis)
+  QUEUE_BULL_REDIS_PORT: "6379"
+  # Workers expose a health endpoint on 5678 only when this is on — used by the worker probes below.
+  QUEUE_HEALTH_CHECK_ACTIVE: "true"
+  N8N_PORT: "5678"
+  GENERIC_TIMEZONE: "UTC"
+
+---
+# ── n8n MAIN — Deployment (webhook-facing; enqueues, does not execute) ────────
+# Same name + app label as the base `n8n` Deployment, so `kubectl apply` REPLACES it in place and the
+# base Service + "allow omni-shell → n8n" NetworkPolicy keep working unchanged.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: omniproject
+  labels:
+    app: n8n
+    role: main
+spec:
+  # One main (OSS queue topology). Stateless — no PVC — so it reschedules freely on node loss.
+  replicas: 1
+  # RollingUpdate is safe now (no RWO volume to deadlock on), but surge would briefly run two mains;
+  # keep it a clean single-main handover.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: n8n
+      role: main
+  template:
+    metadata:
+      labels:
+        app: n8n
+        role: main
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000          # the "node" user in the n8n image
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: n8n
+          image: n8nio/n8n:1.123.61   # pinned to the blueprint-verified version, matching base + compose
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            # n8n writes runtime files under /home/node/.n8n (emptyDir below) and /tmp.
+            readOnlyRootFilesystem: false
+          ports:
+            - containerPort: 5678
+          envFrom:
+            - configMapRef:
+                name: n8n-ha-config
+            - secretRef:
+                name: n8n-ha-secrets
+          env:
+            - name: WEBHOOK_URL
+              value: "https://n8n.your-domain.com/"  # REPLACE
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: n8n-home
+              mountPath: /home/node/.n8n
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+      volumes:
+        # Ephemeral: with N8N_ENCRYPTION_KEY supplied via Secret, .n8n needs no durable storage — the
+        # authoritative state lives in Postgres, so the pod is disposable/reschedulable.
+        - name: n8n-home
+          emptyDir: {}
+
+---
+# ── n8n WORKER — Deployment (the horizontal scale unit; executes queued jobs) ─
+# DISTINCT label (app=n8n-worker) on purpose: the base `n8n` Service and the shell→n8n NetworkPolicy
+# select app=n8n, so workers are deliberately NOT part of the webhook-serving Service. Workers take no
+# ingress — they pull jobs from Redis — so the namespace default-deny-ingress is exactly right for them.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n-worker
+  namespace: omniproject
+  labels:
+    app: n8n-worker
+    role: worker
+spec:
+  # Scale this for automation throughput + HA of execution. 2 is the minimum that survives one pod loss.
+  replicas: 2
+  selector:
+    matchLabels:
+      app: n8n-worker
+      role: worker
+  template:
+    metadata:
+      labels:
+        app: n8n-worker
+        role: worker
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: n8n-worker
+          image: n8nio/n8n:1.123.61
+          # The worker entrypoint — pulls from the Bull/Redis queue and runs executions.
+          args: ["worker"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: false
+          ports:
+            - containerPort: 5678   # health only (QUEUE_HEALTH_CHECK_ACTIVE)
+          envFrom:
+            - configMapRef:
+                name: n8n-ha-config
+            - secretRef:
+                name: n8n-ha-secrets
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+
+---
+# ── PodDisruptionBudget: keep the single main available across voluntary disruptions ──
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: n8n-main-pdb
+  namespace: omniproject
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: n8n
+      role: main
+
+---
+# ── PodDisruptionBudget: never drain all workers at once ──────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: n8n-worker-pdb
+  namespace: omniproject
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: n8n-worker
+      role: worker

@@ -1,0 +1,116 @@
+# OmniProject gateway — reference Prometheus alerting + SLO recording rules.
+#
+# Apply to a kube-prometheus-stack / Prometheus Operator cluster (the label `release: kube-prometheus-stack`
+# is the usual ruleSelector — adjust to yours). The PromQL below references the metric names the gateway
+# actually exposes at /api/metrics (see artifacts/api-server/src/lib/runtime-metrics.ts): a wrong metric
+# name yields a silently-never-firing alert, so these are pinned to the real series.
+#
+# Metrics used:
+#   omniproject_http_requests_total{status="2xx|3xx|4xx|5xx"}   counter
+#   omniproject_http_errors_total                              counter (5xx)
+#   omniproject_unhandled_errors_total                         counter
+#   omniproject_http_in_flight                                 gauge
+#   omniproject_http_request_duration_ms_bucket               histogram
+#   omniproject_broker_requests_total{result}                 counter
+#   omniproject_broker_request_duration_ms_bucket             histogram
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: omniproject-gateway
+  labels:
+    app.kubernetes.io/name: omniproject
+    role: alert-rules
+    # release: kube-prometheus-stack   # uncomment/adjust to match your Prometheus ruleSelector
+spec:
+  groups:
+    # ── SLO recording rules — request success ratio over 5m/30m/1h windows ────────────────────────
+    - name: omniproject.slo.recording
+      interval: 30s
+      rules:
+        - record: omniproject:http_requests:rate5m
+          expr: sum(rate(omniproject_http_requests_total[5m]))
+        - record: omniproject:http_errors:rate5m
+          expr: sum(rate(omniproject_http_errors_total[5m]))
+        # Availability SLI = 1 - (5xx / total). Renders 1 (100%) when there is no traffic.
+        - record: omniproject:availability:ratio5m
+          expr: >-
+            1 - (
+              sum(rate(omniproject_http_errors_total[5m]))
+              /
+              clamp_min(sum(rate(omniproject_http_requests_total[5m])), 1)
+            )
+        - record: omniproject:availability:ratio30m
+          expr: >-
+            1 - (
+              sum(rate(omniproject_http_errors_total[30m]))
+              /
+              clamp_min(sum(rate(omniproject_http_requests_total[30m])), 1)
+            )
+        # p99 request latency (ms) from the duration histogram.
+        - record: omniproject:http_latency_p99_ms:5m
+          expr: histogram_quantile(0.99, sum(rate(omniproject_http_request_duration_ms_bucket[5m])) by (le))
+
+    # ── Availability / error-rate alerts ─────────────────────────────────────────────────────────
+    - name: omniproject.availability
+      rules:
+        - alert: OmniProjectGatewayDown
+          # No target scraping OK for 2m. `up` is emitted by Prometheus per scrape target.
+          expr: max(up{job=~".*omniproject.*"}) == 0
+          for: 2m
+          labels: { severity: critical }
+          annotations:
+            summary: "OmniProject gateway is down (no healthy scrape target)"
+            description: "No OmniProject gateway target has been scrapeable for 2m — the Service is likely serving errors or has zero ready pods."
+
+        - alert: OmniProjectHighErrorRate
+          # >5% of requests are 5xx over 5m, with enough traffic to be meaningful.
+          expr: >-
+            (sum(rate(omniproject_http_errors_total[5m])) / clamp_min(sum(rate(omniproject_http_requests_total[5m])), 1)) > 0.05
+            and sum(rate(omniproject_http_requests_total[5m])) > 0.2
+          for: 10m
+          labels: { severity: critical }
+          annotations:
+            summary: "OmniProject 5xx error ratio above 5% (SLO burn)"
+            description: "The gateway is returning >5% 5xx over 5m. Availability SLI (omniproject:availability:ratio5m) is below 0.95."
+
+        - alert: OmniProjectUnhandledErrors
+          expr: rate(omniproject_unhandled_errors_total[5m]) > 0
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "Unhandled errors reaching the gateway error seam"
+            description: "omniproject_unhandled_errors_total is increasing — investigate the error handler / recent deploy."
+
+    # ── Latency / saturation alerts ──────────────────────────────────────────────────────────────
+    - name: omniproject.latency
+      rules:
+        - alert: OmniProjectHighLatencyP99
+          expr: omniproject:http_latency_p99_ms:5m > 2000
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "OmniProject p99 request latency above 2s"
+            description: "p99 HTTP latency has exceeded 2000ms for 10m — check broker latency and replica saturation."
+
+        - alert: OmniProjectSaturation
+          # Sustained in-flight requests near/over the per-replica concurrency expectation.
+          expr: max(omniproject_http_in_flight) > 100
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "OmniProject in-flight requests sustained high"
+            description: "omniproject_http_in_flight has been >100 for 10m — consider raising replicas/HPA ceiling or investigating slow upstreams."
+
+    # ── Broker (system-of-record) health ─────────────────────────────────────────────────────────
+    - name: omniproject.broker
+      rules:
+        - alert: OmniProjectBrokerFailures
+          # >10% of brokered calls returning a non-success result over 5m.
+          expr: >-
+            (sum(rate(omniproject_broker_requests_total{result!="success"}[5m])) / clamp_min(sum(rate(omniproject_broker_requests_total[5m])), 1)) > 0.1
+            and sum(rate(omniproject_broker_requests_total[5m])) > 0.1
+          for: 10m
+          labels: { severity: critical }
+          annotations:
+            summary: "OmniProject broker failure ratio above 10%"
+            description: "More than 10% of brokered calls are failing over 5m — the backend of record or broker hop is degraded (reads are live-brokered, so this is user-facing)."

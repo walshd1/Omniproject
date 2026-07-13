@@ -1,7 +1,7 @@
 import { Router, type Request } from "express";
 import { requireRole } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordRequestAudit } from "../lib/audit";
 import { getSession } from "./auth";
 import { assertSafeIdentifier } from "../lib/payload-guard";
 import { assertSafeOutboundUrl } from "../lib/url-safety";
@@ -35,7 +35,7 @@ const CAP_BODY = v.object({ providers: v.array(v.string({ trim: true, min: 1, ma
 const router = Router();
 
 function audit(req: Request, action: string, meta?: Record<string, unknown>): void {
-  recordAudit({ ts: new Date().toISOString(), category: "admin", action, actor: actorForAudit(req), write: true, result: "success", meta });
+  recordRequestAudit(req, { category: "admin", action, write: true, result: "success", meta });
 }
 
 // ── GET /api/ai/providers — the registry + capability map (no secrets) ──────────

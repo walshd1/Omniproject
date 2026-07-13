@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { idsFromAssets } from "./lib/coverage";
+import { reportGuard } from "./lib/guard-harness";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -33,10 +34,9 @@ for (const file of presetFiles) {
   }
 }
 
-if (errors.length) {
-  console.error("dashboard-preset-coverage guard: a preset references a widget that isn't built.\n");
-  for (const e of errors) console.error(`  - ${e}`);
-  console.error("\n  Every preset widget `type` must be a real widget under assets/widgets/<type>.json.");
-  process.exit(1);
-}
-console.log(`dashboard-preset-coverage guard: OK — ${presetFiles.length} presets place ${placed} widgets, all real.`);
+reportGuard("dashboard-preset-coverage", {
+  violations: errors,
+  failHeadline: "dashboard-preset-coverage guard: a preset references a widget that isn't built.",
+  help: "  Every preset widget `type` must be a real widget under assets/widgets/<type>.json.",
+  okSummary: `${presetFiles.length} presets place ${placed} widgets, all real.`,
+});

@@ -9,7 +9,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment, type ComponentType, type ReactNode } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { fetchBackendIds } from "../lib/setup";
@@ -70,6 +70,83 @@ const AI_MODEL_HINT: Record<string, string> = {
   openai: "e.g. gpt-4o-mini",
   anthropic: "e.g. claude-3-5-haiku-latest",
 };
+
+/**
+ * The admin sub-panels, in display order. Previously ~45 hand-written <LazyMount><X/></LazyMount>
+ * blocks — a wall that every new panel had to be threaded into by hand (and a merge-conflict magnet).
+ * Now data-driven: add a panel by adding one row here. Most default to lazy-mount; `bare` renders the
+ * component directly (it manages its own layout), `section` wraps it in the standard `mt-8` spacer, and
+ * `render` handles the one composite (feature governance) that isn't a single component.
+ */
+type AdminPanel =
+  | { key: string; Component: ComponentType; wrap?: "lazy" | "bare" | "section" }
+  | { key: string; render: () => ReactNode };
+
+const ADMIN_PANELS: AdminPanel[] = [
+  { key: "loggingSync", Component: LoggingSyncSettings },
+  { key: "errorTelemetry", Component: ErrorTelemetrySettings },
+  { key: "customFields", Component: CustomFieldsAdmin },
+  { key: "routingMatrix", Component: RoutingMatrix },
+  { key: "fieldValidation", Component: FieldValidationAdmin },
+  { key: "programmeRegistry", Component: ProgrammeRegistryAdmin },
+  { key: "brokerKinds", Component: BrokerKindsAdmin },
+  { key: "closedProjects", Component: ClosedProjectsAdmin },
+  { key: "guidAliases", Component: GuidAliasesAdmin },
+  { key: "selfHostCapabilities", Component: SelfHostCapabilitiesAdmin },
+  { key: "translationLayer", Component: TranslationLayer },
+  { key: "brokerLog", Component: BrokerLog },
+  { key: "premium", Component: PremiumAdmin, wrap: "bare" },
+  { key: "securityKeys", Component: SecurityKeys },
+  { key: "nlCommand", Component: NlCommand },
+  { key: "healthWatch", Component: HealthWatch },
+  { key: "copilot", Component: Copilot },
+  { key: "provenanceDashboard", Component: ProvenanceDashboard },
+  { key: "deploymentProfile", Component: DeploymentProfile },
+  { key: "featureModules", Component: FeatureModulesAdmin },
+  {
+    key: "featureGovernance",
+    render: () => (
+      <div className="mt-10">
+        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Feature governance (org · programme · project)</h2>
+        <FeatureGovernance />
+        <div className="mt-4">
+          <FeatureGatingBulkAdmin />
+        </div>
+      </div>
+    ),
+  },
+  { key: "rateCard", Component: RateCardAdmin },
+  { key: "scopeUplift", Component: ScopeUpliftAdmin },
+  { key: "rateGrid", Component: RateGridAdmin },
+  { key: "identityMap", Component: IdentityMapAdmin },
+  { key: "costRules", Component: CostRulesAdmin },
+  { key: "customReports", Component: CustomReportsAdmin },
+  { key: "customBackend", Component: CustomBackendAdmin },
+  { key: "contentPages", Component: ContentPagesAdmin },
+  { key: "priorityWeights", Component: PriorityWeightsAdmin },
+  { key: "federatedPeers", Component: FederatedPeersAdmin },
+  { key: "governanceRules", Component: GovernanceRulesAdmin },
+  { key: "fieldVisibility", Component: FieldVisibilityAdmin },
+  { key: "governanceDashboard", Component: GovernanceDashboard },
+  { key: "governance", Component: GovernanceAdmin },
+  { key: "aiProviders", Component: AiProvidersAdmin },
+  { key: "actionCatalogue", Component: ActionCatalogue },
+  { key: "a11y", Component: A11yControls, wrap: "bare" },
+  { key: "calendarPush", Component: CalendarPushConsent, wrap: "bare" },
+  { key: "labels", Component: LabelsAdmin, wrap: "section" },
+  { key: "priorityLabels", Component: PriorityLabelsAdmin, wrap: "bare" },
+  { key: "viewBuilder", Component: ViewBuilder, wrap: "section" },
+  { key: "methodologyComposer", Component: MethodologyComposer, wrap: "section" },
+  { key: "performance", Component: PerformanceSettings },
+];
+
+function renderAdminPanel(panel: AdminPanel): ReactNode {
+  if ("render" in panel) return <Fragment key={panel.key}>{panel.render()}</Fragment>;
+  const { Component, wrap = "lazy", key } = panel;
+  if (wrap === "bare") return <Component key={key} />;
+  if (wrap === "section") return <div key={key} className="mt-8"><Component /></div>;
+  return <LazyMount key={key}><Component /></LazyMount>;
+}
 
 export function Settings() {
   const { data: settings, isLoading, isError, error, refetch } = useGetSettings();
@@ -367,177 +444,7 @@ export function Settings() {
         </Button>
       </form>
 
-      <LazyMount>
-        <LoggingSyncSettings />
-      </LazyMount>
-
-      <LazyMount>
-        <ErrorTelemetrySettings />
-      </LazyMount>
-
-      <LazyMount>
-        <CustomFieldsAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <RoutingMatrix />
-      </LazyMount>
-
-      <LazyMount>
-        <FieldValidationAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <ProgrammeRegistryAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <BrokerKindsAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <ClosedProjectsAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <GuidAliasesAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <SelfHostCapabilitiesAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <TranslationLayer />
-      </LazyMount>
-
-      <LazyMount>
-        <BrokerLog />
-      </LazyMount>
-
-      <PremiumAdmin />
-
-      <LazyMount>
-        <SecurityKeys />
-      </LazyMount>
-
-      <LazyMount>
-        <NlCommand />
-      </LazyMount>
-
-      <LazyMount>
-        <HealthWatch />
-      </LazyMount>
-
-      <LazyMount>
-        <Copilot />
-      </LazyMount>
-
-      <LazyMount>
-        <ProvenanceDashboard />
-      </LazyMount>
-
-      <LazyMount>
-        <DeploymentProfile />
-      </LazyMount>
-
-      <LazyMount>
-        <FeatureModulesAdmin />
-      </LazyMount>
-
-      <div className="mt-10">
-        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">Feature governance (org · programme · project)</h2>
-        <FeatureGovernance />
-        <div className="mt-4">
-          <FeatureGatingBulkAdmin />
-        </div>
-      </div>
-
-      <LazyMount>
-        <RateCardAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <ScopeUpliftAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <RateGridAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <IdentityMapAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <CostRulesAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <CustomReportsAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <CustomBackendAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <ContentPagesAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <PriorityWeightsAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <FederatedPeersAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <GovernanceRulesAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <FieldVisibilityAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <GovernanceDashboard />
-      </LazyMount>
-
-      <LazyMount>
-        <GovernanceAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <AiProvidersAdmin />
-      </LazyMount>
-
-      <LazyMount>
-        <ActionCatalogue />
-      </LazyMount>
-
-      <A11yControls />
-
-      <CalendarPushConsent />
-
-      <div className="mt-8">
-        <LabelsAdmin />
-      </div>
-
-      <PriorityLabelsAdmin />
-
-      <div className="mt-8">
-        <ViewBuilder />
-      </div>
-
-      <div className="mt-8">
-        <MethodologyComposer />
-      </div>
-
-      <LazyMount>
-        <PerformanceSettings />
-      </LazyMount>
+      {ADMIN_PANELS.map(renderAdminPanel)}
     </div>
   );
 }

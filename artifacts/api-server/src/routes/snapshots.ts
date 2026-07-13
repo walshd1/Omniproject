@@ -2,7 +2,7 @@ import { Router } from "express";
 import crypto from "node:crypto";
 import { buildSnapshot, verifySnapshot, type SnapshotBundle } from "../lib/snapshot";
 import { publicKeyPem, publicKeyId, signingEnabled } from "../lib/signing";
-import { recordAudit, actorForAudit } from "../lib/audit";
+import { recordRequestAudit } from "../lib/audit";
 import { requireRole } from "../lib/rbac";
 
 /**
@@ -29,9 +29,8 @@ router.post("/snapshots/capture", requireRole("contributor"), (req, res) => {
     createdAt: new Date().toISOString(),
     data: body["data"],
   });
-  recordAudit({
-    ts: new Date().toISOString(), category: "request", action: "snapshot.capture",
-    actor: actorForAudit(req),
+  recordRequestAudit(req, {
+    category: "request", action: "snapshot.capture",
     result: "success", status: 200,
     // Only the manifest (hashes/scope/counts) is audited — never the snapshotted content.
     meta: { id: bundle.manifest.id, scope: bundle.manifest.scope, contentHash: bundle.manifest.contentHash, signed: !!bundle.manifest.signature },

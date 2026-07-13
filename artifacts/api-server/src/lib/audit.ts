@@ -194,6 +194,16 @@ export function actorForAudit(req: Request): { sub: string; role: string } | nul
 }
 
 /**
+ * Record an audit event for an HTTP request, filling the two fields every route otherwise repeated by
+ * hand: `ts` (now, ISO-8601) and `actor` (resolved from the session via {@link actorForAudit}). Pass
+ * the rest of the event. Equivalent to `recordAudit({ ...ev, ts, actor })` — one obvious way to audit
+ * a request, so the timestamp/actor pair can't drift or be forgotten across ~30 call sites.
+ */
+export function recordRequestAudit(req: Request, ev: Omit<AuditEvent, "ts" | "actor">): void {
+  recordAudit({ ...ev, ts: new Date().toISOString(), actor: actorForAudit(req) });
+}
+
+/**
  * Record a scope-boundary DENIAL — a principal (human or bot) tried to reach a resource outside its
  * scope and the gateway guard refused it. Category "security" is always recorded (even at AUDIT_LEVEL
  * "writes") and rides the tamper-evident chain + external sink like every other event, so an operator
