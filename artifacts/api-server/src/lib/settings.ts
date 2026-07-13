@@ -21,6 +21,7 @@ import { validateCustomFields, validateCustomFieldSources, CustomFieldError, typ
 import { sanitizeBranding } from "./branding";
 import { sanitizeUserPrefs } from "./user-prefs";
 import { sanitizeGrant } from "./calendar-push";
+import { sanitizeLabels } from "./labels";
 import { isForbiddenKey } from "./safe-json";
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
@@ -944,6 +945,13 @@ function validateScopeFeatureMap(value: unknown, label: string): void {
         throw new SettingsValidationError(`${label}["${scopeId}"].${k} must be an array of strings`);
       }
     }
+    // A feature can't be both required and forbidden in the same scope — the same contradictory-config
+    // guard validateGovernance enforces at the org level (forbid silently wins, dropping the mandate).
+    // Mirror it here so the per-scope maps aren't a bypass on the bulk PATCH / config-restore path.
+    const c = cfg as Record<string, unknown>;
+    const forb = new Set(isStringArray(c["forbidden"]) ? (c["forbidden"] as string[]) : []);
+    const clash = (isStringArray(c["required"]) ? (c["required"] as string[]) : []).find((id) => forb.has(id));
+    if (clash) throw new SettingsValidationError(`${label}["${scopeId}"]: feature "${clash}" can't be both required and forbidden`);
   }
 }
 
@@ -1343,14 +1351,13 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
     }
   }
   if ("labelOverrides" in patch) {
-    const v = patch["labelOverrides"];
-    if (typeof v !== "object" || v == null || Array.isArray(v)) throw new SettingsValidationError("labelOverrides must be an object");
-    // Values must be strings (the i18n layer assumes it) — mirror labelsFromEnv, drop non-strings.
-    const clean: Record<string, string> = {};
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-      if (!isForbiddenKey(k) && typeof val === "string") clean[k] = val;
+    if (typeof patch["labelOverrides"] !== "object" || patch["labelOverrides"] == null || Array.isArray(patch["labelOverrides"])) {
+      throw new SettingsValidationError("labelOverrides must be an object");
     }
-    normalized["labelOverrides"] = clean;
+    // Run the SAME sanitizer saveLabels uses (catalogue allow-list + length cap), not just a string
+    // filter — so the bulk PATCH / config restore can't persist non-catalogue keys or unbounded copy.
+    try { normalized["labelOverrides"] = sanitizeLabels(patch["labelOverrides"]); }
+    catch (e) { throw new SettingsValidationError(e instanceof Error ? e.message : "invalid labelOverrides"); }
   }
   if ("priorityLabels" in patch) {
     const v = patch["priorityLabels"];
