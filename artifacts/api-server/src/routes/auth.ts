@@ -34,6 +34,7 @@ import {
 } from "../lib/oauth2";
 import { magicLinkEnabled, isValidEmail, mintMagicToken, verifyMagicToken, consumeMagicToken, sendMagicLink } from "../lib/magic-link";
 import { isDevMode } from "../lib/dev-mode";
+import { isDemoAuth } from "../lib/auth-config";
 import { effectiveSession } from "../lib/impersonation";
 import { seal, open } from "../lib/session-crypto";
 import { isSessionExpired, timeoutPolicy } from "../lib/session-timeout";
@@ -78,6 +79,10 @@ async function travelCheck(sub: string, email: string | undefined, ip: string | 
 const SESSION_COOKIE = "omni_session";
 const FLOW_COOKIE = "omni_oidc_flow";
 const OAUTH2_FLOW_COOKIE = "omni_oauth2_flow";
+// Binds a SAML step-up round-trip to the initiating principal: the SAML ACS only stamps step-up
+// freshness when the re-authenticated `sub` matches the one that began the flow (OAuth2 carries the
+// same binding inside its own flow cookie; OIDC uses its flow cookie's `stepup` + auth_time).
+const STEPUP_COOKIE = "omni_stepup_flow";
 // Re-seal an active session at most this often (don't re-sign on every request).
 const SLIDE_THROTTLE_MS = 60_000;
 /** Session cookie lifetime (8h). NOTE: the CSRF cookie in lib/csrf.ts hand-mirrors this value. */
@@ -472,6 +477,11 @@ router.post("/auth/saml/callback", async (req, res) => {
   try {
     const claims = await validateSamlResponse(body.SAMLResponse);
     if (!claims) { res.status(503).send("SAML SSO is unavailable (provider library not installed)."); return; }
+    // Step-up: grant freshness ONLY when this ForceAuthn re-auth is the same principal that began the
+    // step-up flow (bound via the signed step-up cookie). A login for a different sub never stamps it.
+    const stepUp = readStepUpFlow(req);
+    const grantStepUp = !!stepUp && stepUp.sub === claims.sub;
+    if (stepUp) res.clearCookie(STEPUP_COOKIE, cookieBase());
     const travel = await travelCheck(claims.sub, claims.email, req.ip);
     setSession(res, {
       sub: claims.sub,
@@ -481,10 +491,11 @@ router.post("/auth/saml/callback", async (req, res) => {
       ...(claims.acr !== undefined ? { acr: claims.acr } : {}),
       // SAML asserts identity, not a backend bearer (see lib/saml HONEST SCOPE).
       accessToken: "saml",
+      ...(grantStepUp ? { stepUpAt: Date.now() } : {}),
       ...travel,
     });
     setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
-    res.redirect(safeLocalPath(typeof body.RelayState === "string" ? body.RelayState : "/"));
+    res.redirect(safeLocalPath(grantStepUp ? stepUp.returnTo : (typeof body.RelayState === "string" ? body.RelayState : "/")));
   } catch (err) {
     req.log.warn({ err }, "SAML assertion validation failed");
     res.status(401).send("SAML authentication failed (invalid assertion).");
@@ -524,7 +535,7 @@ router.get("/auth/oauth2/callback", async (req, res) => {
   res.clearCookie(OAUTH2_FLOW_COOKIE, cookieBase());
   if (!flowRaw) { res.status(400).send("Login session expired. Please try again."); return; }
 
-  const { state, verifier, returnTo } = JSON.parse(flowRaw) as { state: string; verifier: string; returnTo: string };
+  const { state, verifier, returnTo, stepup, sub: stepUpSub } = JSON.parse(flowRaw) as { state: string; verifier: string; returnTo: string; stepup?: boolean; sub?: string };
 
   if (req.query["error"]) {
     req.log.warn({ error: req.query["error"] }, "OAuth2 provider returned an error");
@@ -545,6 +556,9 @@ router.get("/auth/oauth2/callback", async (req, res) => {
     });
     const info = await fetchUserInfo(oauth2Config, tokens.access_token);
     const user = mapUserInfo(oauth2Config, info);
+    // Step-up: grant freshness only when this prompt=login re-auth is the same principal that began
+    // the step-up flow (bound to `sub` inside the signed flow cookie).
+    const grantStepUp = stepup === true && stepUpSub === user.sub;
     const travel = await travelCheck(user.sub, user.email, req.ip);
     setSession(res, {
       sub: user.sub,
@@ -553,6 +567,7 @@ router.get("/auth/oauth2/callback", async (req, res) => {
       ...(user.roles && user.roles.length ? { roles: user.roles } : {}),
       // The provider's access token is opaque (not a backend bearer); identity only.
       accessToken: "oauth2",
+      ...(grantStepUp ? { stepUpAt: Date.now() } : {}),
       ...travel,
     });
     setCsrfCookie(res, newCsrfToken()); // fresh CSRF token per login (rotation)
@@ -586,7 +601,10 @@ router.get("/auth/magic/verify", async (req, res) => {
   if (!verdict) { res.status(400).send("This sign-in link is invalid or has expired."); return; }
   if (!(await consumeMagicToken(verdict.jti))) { res.status(400).send("This sign-in link has already been used."); return; }
   const travel = await travelCheck(verdict.email, verdict.email, req.ip);
-  setSession(res, { sub: verdict.email, name: verdict.email, email: verdict.email, accessToken: "magic", ...travel });
+  // A step-up link (minted by POST /auth/step-up for the signed-in user's own email) proves current
+  // mailbox control — a genuine re-authentication for a passwordless method — so it stamps freshness.
+  const grantStepUp = verdict.purpose === "stepup";
+  setSession(res, { sub: verdict.email, name: verdict.email, email: verdict.email, accessToken: "magic", ...(grantStepUp ? { stepUpAt: Date.now() } : {}), ...travel });
   setCsrfCookie(res, newCsrfToken());
   res.redirect(safeLocalPath(req.query["returnTo"]));
 });
@@ -599,21 +617,61 @@ router.post("/auth/logout", (req, res) => {
 });
 
 // ── Step-up re-authentication ───────────────────────────────────────────────────
-// Stamp a fresh `stepUpAt` on the session so the highest-risk actions (key
-// revocation, egress/governance changes, the raw escape hatch) can demand a recent
-// re-auth (see lib/step-up). Demo mode confirms in place; OIDC re-authenticates at the
-// IdP with prompt=login (the SPA should navigate to GET /api/auth/step-up).
+// Stamp a fresh `stepUpAt` on the session so the highest-risk actions (key revocation,
+// egress/governance changes, the raw escape hatch, secret writes) can demand a recent re-auth
+// (see lib/step-up). CRITICAL: only DEMO mode (no real identity to phish) may confirm in place.
+// Every REAL auth method must complete a genuine re-authentication ROUND-TRIP — otherwise a mere
+// session holder could self-grant step-up by calling this endpoint, and the control would add no
+// assurance beyond holding the cookie. Method is inferred from how the session was established.
+
+type StepUpMethod = "oidc" | "saml" | "oauth2" | "magic";
+/** Which auth method re-authenticates this session (from the identity marker set at login). */
+function stepUpMethodFor(session: Session): StepUpMethod {
+  switch (session.accessToken) {
+    case "saml": return "saml";
+    case "oauth2": return "oauth2";
+    case "magic": return "magic";
+    default: return "oidc";
+  }
+}
+
+interface StepUpFlow { sub: string; returnTo: string }
+function setStepUpFlow(res: Response, flow: StepUpFlow): void {
+  res.cookie(STEPUP_COOKIE, JSON.stringify(flow), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
+}
+/** The step-up flow binding, when present + well-formed. */
+function readStepUpFlow(req: Request): StepUpFlow | null {
+  const raw = req.signedCookies?.[STEPUP_COOKIE];
+  if (typeof raw !== "string") return null;
+  try {
+    const d = JSON.parse(raw) as StepUpFlow;
+    return typeof d?.sub === "string" && typeof d?.returnTo === "string" ? d : null;
+  } catch { return null; }
+}
+
 router.post("/auth/step-up", (req, res) => {
   const session = readSession(req);
   if (!session) { res.status(401).json({ error: "authentication required" }); return; }
-  if (isOidcConfigured) {
-    // A real re-auth must go through the IdP — tell the SPA where to send the user.
-    const returnTo = safeLocalPath((req.body as { returnTo?: unknown })?.returnTo);
-    res.status(409).json({ error: "re-authentication required", code: "step_up_redirect", url: `/api/auth/step-up?returnTo=${encodeURIComponent(returnTo)}` });
+  const returnTo = safeLocalPath((req.body as { returnTo?: unknown })?.returnTo);
+  // Demo has no real identity — confirming in place is the only option and leaks nothing.
+  if (isDemoAuth()) {
+    setSession(res, { ...session, stepUpAt: Date.now() });
+    res.json({ ok: true, stepUpAt: Date.now() });
     return;
   }
-  setSession(res, { ...session, stepUpAt: Date.now() });
-  res.json({ ok: true, stepUpAt: Date.now() });
+  // Magic-link can't be driven by a browser redirect, so re-challenge the session's own email with a
+  // fresh single-use step-up link; verifying it (proving current mailbox control) stamps freshness.
+  if (stepUpMethodFor(session) === "magic") {
+    const email = session.email;
+    if (!email) { res.status(409).json({ error: "no email on file for magic-link step-up" }); return; }
+    const token = mintMagicToken(email, Date.now(), "stepup");
+    const link = `${baseUrl(req)}/api/auth/magic/verify?token=${encodeURIComponent(token)}&returnTo=${encodeURIComponent(returnTo)}`;
+    void sendMagicLink(email, link).catch((err) => req.log.warn({ err }, "magic step-up send failed"));
+    res.status(202).json({ ok: false, code: "step_up_magic_sent", ...(isDevMode() ? { devLink: link } : {}) });
+    return;
+  }
+  // OIDC / SAML / OAuth2: a real re-auth goes through the provider — tell the SPA where to send the user.
+  res.status(409).json({ error: "re-authentication required", code: "step_up_redirect", url: `/api/auth/step-up?returnTo=${encodeURIComponent(returnTo)}` });
 });
 
 // Public, secret-free list of configured OIDC providers so the login screen can render a
@@ -622,17 +680,57 @@ router.get("/auth/providers", (_req, res) => {
   res.json({ providers: oidcProviderList() });
 });
 
-// GET initiator: demo stamps + returns; OIDC bounces through the IdP (prompt=login),
-// and the callback stamps stepUpAt when it sees the `stepup` flow.
+// GET initiator: demo stamps + returns; every real method bounces through its provider for a genuine
+// re-auth, and that method's callback stamps stepUpAt (OIDC prompt=login + auth_time; SAML ForceAuthn
+// bound to the same sub via the step-up cookie; OAuth2 prompt=login bound to the same sub in its flow
+// cookie). It NEVER self-stamps for a real method — that was the bypass this closes.
 router.get("/auth/step-up", async (req, res) => {
   const returnTo = safeLocalPath(req.query["returnTo"]);
   const session = readSession(req);
   if (!session) { res.redirect(`/api/auth/login?returnTo=${encodeURIComponent(returnTo)}`); return; }
 
-  const provider = getOidcProvider(typeof req.query["provider"] === "string" ? req.query["provider"] : null);
-  if (!provider) {
+  // Demo: no real identity — stamp in place (the only option; leaks nothing).
+  if (isDemoAuth()) {
     setSession(res, { ...session, stepUpAt: Date.now() });
     res.redirect(returnTo);
+    return;
+  }
+
+  const method = stepUpMethodFor(session);
+
+  // SAML: ForceAuthn re-challenge; the ACS stamps step-up only when the SAME sub re-authenticates.
+  if (method === "saml" && isSamlConfigured()) {
+    setStepUpFlow(res, { sub: session.sub, returnTo });
+    try {
+      const url = await samlLoginUrl(returnTo, { forceAuthn: true });
+      if (!url) { res.status(503).send("SAML step-up is unavailable (provider library not installed)."); return; }
+      res.redirect(url);
+    } catch (err) {
+      req.log.error({ err }, "SAML step-up initiation failed");
+      res.status(502).send("Re-authentication is temporarily unavailable.");
+    }
+    return;
+  }
+
+  // OAuth2: prompt=login re-challenge; the callback stamps step-up only when the SAME sub returns.
+  if (method === "oauth2" && oauth2Config) {
+    const { state, verifier } = newOAuth2Flow();
+    res.cookie(OAUTH2_FLOW_COOKIE, JSON.stringify({ state, verifier, returnTo, stepup: true, sub: session.sub }), { ...cookieBase(), maxAge: FLOW_COOKIE_TTL_MS });
+    const redirectUri = `${baseUrl(req)}/api/auth/oauth2/callback`;
+    res.redirect(buildAuthUrl({ config: oauth2Config, redirectUri, state, codeVerifier: verifier, reauth: true }));
+    return;
+  }
+
+  // Magic-link is initiated from POST /api/auth/step-up (needs the email round-trip, not a redirect).
+  if (method === "magic") {
+    res.status(409).send("Re-authentication for magic-link sign-in is initiated from the app (POST /api/auth/step-up).");
+    return;
+  }
+
+  const provider = getOidcProvider(typeof req.query["provider"] === "string" ? req.query["provider"] : null);
+  if (!provider) {
+    // Real auth is configured but no provider resolved — fail closed rather than self-stamp.
+    res.status(409).send("Re-authentication is required but no provider is available for this session.");
     return;
   }
   try {

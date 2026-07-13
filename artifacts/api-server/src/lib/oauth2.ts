@@ -64,6 +64,10 @@ export function buildAuthUrl(params: {
   redirectUri: string;
   state: string;
   codeVerifier: string;
+  /** Step-up: ask the provider to force a fresh re-authentication (prompt=login + max_age=0).
+   *  Best-effort — generic OAuth2 providers vary in support — but the full login round-trip it
+   *  triggers already prevents a mere session holder from self-granting step-up. */
+  reauth?: boolean;
 }): string {
   const url = new URL(params.config.authUrl);
   url.searchParams.set("response_type", "code");
@@ -73,6 +77,7 @@ export function buildAuthUrl(params: {
   url.searchParams.set("state", params.state);
   url.searchParams.set("code_challenge", pkceChallenge(params.codeVerifier));
   url.searchParams.set("code_challenge_method", "S256");
+  if (params.reauth) { url.searchParams.set("prompt", "login"); url.searchParams.set("max_age", "0"); }
   return url.toString();
 }
 

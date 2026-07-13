@@ -40,6 +40,15 @@ test("buildAuthUrl includes code, state, scope and S256 PKCE challenge", () => {
   assert.equal(url.searchParams.get("state"), "st-1");
   assert.equal(url.searchParams.get("code_challenge_method"), "S256");
   assert.ok((url.searchParams.get("code_challenge") || "").length > 0);
+  // No re-auth by default — a normal login must not force a re-prompt.
+  assert.equal(url.searchParams.get("prompt"), null);
+  assert.equal(url.searchParams.get("max_age"), null);
+});
+
+test("buildAuthUrl with reauth forces a fresh re-authentication (prompt=login + max_age=0)", () => {
+  const url = new URL(buildAuthUrl({ config: CONFIG, redirectUri: "https://app.test/api/auth/oauth2/callback", state: "st-2", codeVerifier: "v", reauth: true }));
+  assert.equal(url.searchParams.get("prompt"), "login");
+  assert.equal(url.searchParams.get("max_age"), "0");
 });
 
 test("newOAuth2Flow mints a distinct state and verifier", () => {

@@ -47,3 +47,10 @@ test("single-use: the first consume of a jti succeeds, a replay fails", async ()
   assert.equal(await consumeMagicToken(v.jti), true);  // first use
   assert.equal(await consumeMagicToken(v.jti), false); // replay rejected
 });
+
+test("a step-up token round-trips its purpose; a default token is a login token", () => {
+  const stepUp = verifyMagicToken(mintMagicToken("a@b.co", NOW, "stepup"), NOW + 1000);
+  assert.equal(stepUp?.purpose, "stepup");
+  const login = verifyMagicToken(mintMagicToken("a@b.co", NOW), NOW + 1000);
+  assert.equal(login?.purpose, "login"); // absent purpose defaults to a normal sign-in
+});

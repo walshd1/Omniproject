@@ -307,10 +307,12 @@ async function getProvider(): Promise<SamlProvider | null> {
 
 /** The IdP redirect URL to begin SP-initiated login; `relayState` round-trips the returnTo.
  *  Null when SAML is unconfigured or the optional library isn't installed. */
-export async function samlLoginUrl(relayState: string): Promise<string | null> {
+export async function samlLoginUrl(relayState: string, opts: { forceAuthn?: boolean } = {}): Promise<string | null> {
   const provider = await getProvider();
   if (!provider) return null;
-  return provider.getAuthorizeUrlAsync(relayState, undefined, {});
+  // forceAuthn drives a step-up re-authentication: the IdP must re-challenge the user rather than
+  // silently reuse its existing SSO session, so "step-up" is a genuine fresh auth, not one in name only.
+  return provider.getAuthorizeUrlAsync(relayState, undefined, opts.forceAuthn ? { forceAuthn: true } : {});
 }
 
 /** Validate a base64 SAMLResponse from the ACS POST and return canonical claims, or null
