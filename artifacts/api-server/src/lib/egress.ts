@@ -133,24 +133,71 @@ let egressTransportForTest: typeof fetch | null = null;
 /** Install (or clear, with null) the TEST-ONLY transport seam used by safeFetch. */
 export function __setEgressTransportForTest(fn: typeof fetch | null): void { egressTransportForTest = fn; }
 
-/**
- * fetch() with the egress guard applied first — throws EgressError before any network call when the
- * target is disallowed. For a hostname target it also PINS the connection to the exact addresses it
- * validated (via a dedicated undici dispatcher), so the hostname cannot be re-resolved to a
- * link-local/metadata IP between the check and the connect (DNS-rebinding TOCTOU). `lookup` is
- * injectable purely for tests. Uses undici's own fetch (a custom Agent isn't accepted by global fetch).
- */
-export async function safeFetch(url: string, init?: RequestInit, lookup: LookupFn = dns.lookup): Promise<Response> {
-  const { addresses } = await resolveAndValidate(url, lookup);
-  // Test seam: validation has run; hand off to the injected mock instead of the real network.
-  if (egressTransportForTest) return egressTransportForTest(url, init);
-  // IP-literal target: already validated, no hostname to re-resolve → no rebinding window.
+/** Max redirects safeFetch will follow before refusing — matches the WHATWG fetch limit of 20. */
+const MAX_EGRESS_REDIRECTS = 20;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/** Issue ONE validated hop (no automatic redirect following). `addresses` pins the connection to the
+ *  vetted IPs for a hostname target; an IP-literal target needs no dispatcher. Redirects are forced to
+ *  "manual" so safeFetch itself decides whether to follow — re-validating each Location first. */
+function dispatchOne(url: string, init: UndiciRequestInit | undefined, addresses: ResolvedAddr[] | null): Promise<Response> {
+  const withManual = { ...(init ?? {}), redirect: "manual" as const };
+  if (egressTransportForTest) return egressTransportForTest(url, withManual as unknown as RequestInit);
   if (!addresses || addresses.length === 0) {
-    return undiciFetch(url, init as unknown as UndiciRequestInit) as unknown as Promise<Response>;
+    return undiciFetch(url, withManual) as unknown as Promise<Response>;
   }
   // Pin the vetted IPs into a per-call dispatcher. Not explicitly closed: its idle sockets close on
   // the keep-alive timeout and it is then GC'd (the response body stream keeps the socket alive until
   // the caller consumes it, so closing here would abort the body).
   const dispatcher = new Agent({ connect: { lookup: pinnedLookup(addresses) }, keepAliveTimeout: 1_000, keepAliveMaxTimeout: 1_000 });
-  return undiciFetch(url, { ...(init as unknown as UndiciRequestInit), dispatcher }) as unknown as Promise<Response>;
+  return undiciFetch(url, { ...withManual, dispatcher }) as unknown as Promise<Response>;
+}
+
+/** Adjust method/body when following a redirect, per the fetch spec: 303 (and 301/302 from POST)
+ *  become a bodyless GET; 307/308 preserve method + body. */
+function initForRedirect(init: UndiciRequestInit | undefined, status: number): UndiciRequestInit | undefined {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const toGet = status === 303 || ((status === 301 || status === 302) && method !== "GET" && method !== "HEAD");
+  if (!toGet) return init;
+  const next = { ...(init ?? {}), method: "GET" };
+  delete (next as { body?: unknown }).body;
+  return next;
+}
+
+/**
+ * fetch() with the egress guard applied first — throws EgressError before any network call when the
+ * target is disallowed. For a hostname target it also PINS the connection to the exact addresses it
+ * validated (via a dedicated undici dispatcher), so the hostname cannot be re-resolved to a
+ * link-local/metadata IP between the check and the connect (DNS-rebinding TOCTOU).
+ *
+ * REDIRECTS ARE FOLLOWED MANUALLY, re-running the FULL egress guard on every hop. undici's built-in
+ * redirect following would connect to the `Location` target WITHOUT re-validation — so a benign
+ * allowed host could 302 the gateway straight to `http://169.254.169.254/…` (an IP literal, which the
+ * original host's pinned dispatcher does not constrain) and reach the metadata endpoint. Re-validating
+ * each hop closes that SSRF-redirect bypass. `lookup` is injectable purely for tests. Uses undici's own
+ * fetch (a custom Agent isn't accepted by global fetch).
+ */
+export async function safeFetch(url: string, init?: RequestInit, lookup: LookupFn = dns.lookup): Promise<Response> {
+  let currentUrl = url;
+  let currentInit = init as UndiciRequestInit | undefined;
+  for (let hop = 0; ; hop++) {
+    const { addresses } = await resolveAndValidate(currentUrl, lookup);
+    const resp = await dispatchOne(currentUrl, currentInit, addresses);
+    const location = resp.headers.get("location");
+    if (!REDIRECT_STATUSES.has(resp.status) || !location) return resp;
+    if (hop >= MAX_EGRESS_REDIRECTS) {
+      throw new EgressError(`egress exceeded ${MAX_EGRESS_REDIRECTS} redirects (possible redirect loop)`);
+    }
+    // Resolve the Location relative to the current URL, then loop — the next iteration re-validates it
+    // through the same guard (scheme, link-local/metadata literal AND resolved IPs, allowlist, residency).
+    let nextUrl: string;
+    try {
+      nextUrl = new URL(location, currentUrl).toString();
+    } catch {
+      throw new EgressError(`egress redirect Location is not a valid URL: ${location}`);
+    }
+    void resp.body?.cancel?.().catch(() => {}); // free the socket; we won't read this hop's body
+    currentInit = initForRedirect(currentInit, resp.status);
+    currentUrl = nextUrl;
+  }
 }

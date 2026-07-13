@@ -1,9 +1,9 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { assertEgressAllowed, EgressError, type LookupFn } from "./egress";
+import { assertEgressAllowed, safeFetch, __setEgressTransportForTest, EgressError, type LookupFn } from "./egress";
 import { DataResidencyError } from "./data-residency";
 
-afterEach(() => { delete process.env["EGRESS_ALLOWLIST"]; delete process.env["DATA_RESIDENCY_POLICY"]; });
+afterEach(() => { delete process.env["EGRESS_ALLOWLIST"]; delete process.env["DATA_RESIDENCY_POLICY"]; __setEgressTransportForTest(null); });
 
 /** A deterministic fake `dns.lookup` — every test that touches a plain (non-IP-literal)
  *  hostname must supply one, so nothing here depends on real network/DNS availability. */
@@ -131,4 +131,31 @@ test("safeFetch pins the connection to the VALIDATED address (reaches the vetted
   } finally {
     await new Promise<void>((r) => server.close(() => r()));
   }
+});
+
+test("safeFetch follows redirects but RE-VALIDATES each hop — a 302 to the metadata IP is blocked (SSRF-redirect bypass)", async () => {
+  // A benign, allowed first host 302s the gateway straight at the cloud-metadata endpoint. undici's
+  // built-in redirect following would connect there unchecked; safeFetch must re-run the guard.
+  __setEgressTransportForTest(async () =>
+    new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest/meta-data/iam/" } }));
+  await assert.rejects(safeFetch("http://api.example.com/go", undefined, SAFE), EgressError);
+});
+
+test("safeFetch follows a redirect chain to an ALLOWED host through to the final response", async () => {
+  let calls = 0;
+  __setEgressTransportForTest(async () => {
+    calls += 1;
+    if (calls === 1) return new Response(null, { status: 302, headers: { location: "http://api.eu.example.com/final" } });
+    return new Response("ok", { status: 200 });
+  });
+  const r = await safeFetch("http://api.example.com/start", undefined, SAFE);
+  assert.equal(r.status, 200);
+  assert.equal(await r.text(), "ok");
+  assert.equal(calls, 2); // followed exactly one hop
+});
+
+test("safeFetch refuses a redirect loop rather than following forever", async () => {
+  __setEgressTransportForTest(async () =>
+    new Response(null, { status: 302, headers: { location: "http://api.example.com/loop" } }));
+  await assert.rejects(safeFetch("http://api.example.com/loop", undefined, SAFE), EgressError);
 });
