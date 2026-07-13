@@ -238,7 +238,29 @@ export function setEditing(roomId: string, cid: string, field: string | null, no
  * prevents an echo loop across the fleet (the bus also suppresses a replica's own echo upstream).
  * `now` is this replica's clock; the remote peer's `lastSeen` is stamped with it for TTL reaping.
  */
+/** A presence event arrives from ANOTHER replica over the bus — untrusted input to this module. Bound
+ *  memory (roomId/cid length, remote-room count) and validate shape so a malformed or hostile message
+ *  can't grow the roster without limit or fold a type-confused peer into a room shown to local users. */
+const MAX_PRESENCE_ID_LEN = 200;
+const MAX_REMOTE_ROOMS = 5_000;
+function validPresenceEvent(ev: unknown): ev is PresenceEvent {
+  if (!ev || typeof ev !== "object") return false;
+  const e = ev as Record<string, unknown>;
+  if (e["kind"] !== "upsert" && e["kind"] !== "leave") return false;
+  if (typeof e["roomId"] !== "string" || !e["roomId"] || (e["roomId"] as string).length > MAX_PRESENCE_ID_LEN) return false;
+  if (typeof e["cid"] !== "string" || !e["cid"] || (e["cid"] as string).length > MAX_PRESENCE_ID_LEN) return false;
+  if (e["kind"] === "upsert") {
+    const p = e["peer"] as Record<string, unknown> | undefined;
+    if (!p || typeof p !== "object") return false;
+    if (typeof p["sub"] !== "string" || typeof p["label"] !== "string" || typeof p["color"] !== "string") return false;
+    if (!(p["editing"] === null || typeof p["editing"] === "string")) return false;
+    if (typeof p["editingAt"] !== "number" || !Number.isFinite(p["editingAt"])) return false;
+  }
+  return true;
+}
+
 export function foldRemotePresence(ev: PresenceEvent, now: number): void {
+  if (!validPresenceEvent(ev)) return; // drop a malformed / hostile cross-replica event
   if (ev.kind === "leave") {
     const r = remoteRooms.get(ev.roomId);
     if (r) {
@@ -247,8 +269,18 @@ export function foldRemotePresence(ev: PresenceEvent, now: number): void {
     }
   } else if (ev.peer) {
     let r = remoteRooms.get(ev.roomId);
-    if (!r) { r = new Map(); remoteRooms.set(ev.roomId, r); }
-    r.set(ev.cid, { ...ev.peer, lastSeen: now });
+    if (!r) {
+      if (remoteRooms.size >= MAX_REMOTE_ROOMS) return; // cap distinct rooms — an unbounded roomId stream can't exhaust memory
+      r = new Map();
+      remoteRooms.set(ev.roomId, r);
+    }
+    const clip = (s: string, n = MAX_PRESENCE_ID_LEN): string => (s.length > n ? s.slice(0, n) : s);
+    r.set(ev.cid, {
+      ...ev.peer,
+      sub: clip(ev.peer.sub), label: clip(ev.peer.label), color: clip(ev.peer.color, 64),
+      editing: ev.peer.editing == null ? null : clip(ev.peer.editing),
+      lastSeen: now,
+    });
   }
   // Re-broadcast to LOCAL sockets only (broadcastRoom is a no-op when no local client is in the
   // room). Crucially this does not call publishPresence, so the event never bounces back onto the bus.

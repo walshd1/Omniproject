@@ -180,3 +180,24 @@ test("localPresenceForHeartbeat lists every live local peer as an upsert (fleet 
   assert.ok(beats.every((e) => e.kind === "upsert" && e.peer));
   assert.equal(beats.map((e) => e.cid).sort().join(","), "a,b");
 });
+
+test("foldRemotePresence drops malformed/hostile cross-replica events; a valid upsert folds in", () => {
+  _resetPresenceForTest();
+  const now = 1_700_000_000_000;
+  // Bad kind, missing peer, non-string roomId → all dropped (no throw, nothing added to the roster).
+  foldRemotePresence({ kind: "nope", roomId: "issue:p1:i1", cid: "c1" } as unknown as PresenceEvent, now);
+  foldRemotePresence({ kind: "upsert", roomId: "issue:p1:i1", cid: "c1" } as unknown as PresenceEvent, now); // no peer
+  foldRemotePresence({ kind: "upsert", roomId: 123, cid: "c1", peer: { sub: "u", label: "l", color: "#000", editing: null, editingAt: now } } as unknown as PresenceEvent, now);
+  assert.equal(roomSnapshot("issue:p1:i1", now).length, 0);
+  // A valid upsert folds a remote peer into the room snapshot.
+  foldRemotePresence({ kind: "upsert", roomId: "issue:p1:i1", cid: "c-remote", peer: { cid: "c-remote", sub: "u2", label: "Bob", color: "#abc", editing: "status", editingAt: now } } as PresenceEvent, now);
+  assert.equal(roomSnapshot("issue:p1:i1", now).some((p) => p.cid === "c-remote"), true);
+});
+
+test("foldRemotePresence clamps oversized peer strings (memory bound against a hostile replica)", () => {
+  _resetPresenceForTest();
+  const now = 1_700_000_000_000;
+  foldRemotePresence({ kind: "upsert", roomId: "project:p2", cid: "c-big", peer: { cid: "c-big", sub: "s".repeat(9999), label: "l".repeat(9999), color: "#fff", editing: "e".repeat(9999), editingAt: now } } as PresenceEvent, now);
+  const peer = roomSnapshot("project:p2", now).find((p) => p.cid === "c-big")!;
+  assert.ok(peer.sub.length <= 200 && peer.label.length <= 200 && (peer.editing ?? "").length <= 200);
+});
