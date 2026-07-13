@@ -24,6 +24,23 @@ export interface RetentionSource {
   writeSnapshot(snapshot: EntitySnapshot): Promise<void>;
   /** The most recent snapshot time for an entity, or null if none — drives the cadence check. */
   lastSnapshotAt(entity: string, id: string): Promise<string | null>;
+  /**
+   * DISPOSAL (storage-limitation): delete snapshots + journal rows OLDER than `cutoffIso`, EXCEPT any
+   * `entity#id` present in `heldKeys` (legal hold). Optional — a source that can't dispose omits it and
+   * the gateway reports disposal as unsupported. Returns the row counts deleted.
+   */
+  disposeOlderThan?(cutoffIso: string, opts?: { heldKeys?: readonly string[] }): Promise<DisposalResult>;
+  /**
+   * ERASURE (right-to-erasure / DSAR): delete ALL history (snapshots + journal) for one entity id.
+   * Optional. The gateway refuses to call this when the key is under legal hold (checked before dispatch).
+   */
+  eraseEntity?(entity: string, id: string): Promise<DisposalResult>;
+}
+
+/** Rows deleted by a disposal / erasure operation. */
+export interface DisposalResult {
+  snapshots: number;
+  journal: number;
 }
 
 export interface RetentionScope {

@@ -194,6 +194,17 @@ export interface HistoryRetentionSettings {
   programme: Record<string, SnapshotCadence>;
   /** PMO/PM: per-project cadence overrides, keyed by projectId. */
   project: Record<string, SnapshotCadence>;
+  /**
+   * DISPOSAL window in days: snapshots/journal older than this become prunable by the disposal job
+   * (`POST /history/dispose`). Absent/null ⇒ INFINITE retention — the historical default, so an
+   * existing config is unchanged. Set a positive integer to satisfy a storage-limitation policy.
+   */
+  retentionDays?: number | null;
+  /**
+   * LEGAL-HOLD keys (`"entity#id"`) that are exempt from BOTH disposal and erasure until explicitly
+   * released — a litigation/investigation hold that overrides the retention window and any DSAR delete.
+   */
+  legalHolds?: string[];
 }
 
 const DEFAULT_HISTORY_RETENTION: HistoryRetentionSettings = {
@@ -1491,6 +1502,17 @@ function validateHistoryRetention(value: unknown): void {
     if (!map || typeof map !== "object") throw new SettingsValidationError(`historyRetention.${name} must be an object`);
     for (const [key, cadence] of Object.entries(map as Record<string, unknown>)) {
       if (!isValidCadence(cadence)) throw new SettingsValidationError(`historyRetention.${name}.${key} must be a valid cadence`);
+    }
+  }
+  const { retentionDays, legalHolds } = value as Record<string, unknown>;
+  if (retentionDays !== undefined && retentionDays !== null) {
+    if (typeof retentionDays !== "number" || !Number.isInteger(retentionDays) || retentionDays < 1) {
+      throw new SettingsValidationError("historyRetention.retentionDays must be a positive integer (or null for infinite retention)");
+    }
+  }
+  if (legalHolds !== undefined) {
+    if (!Array.isArray(legalHolds) || legalHolds.some((k) => typeof k !== "string")) {
+      throw new SettingsValidationError("historyRetention.legalHolds must be an array of \"entity#id\" strings");
     }
   }
 }

@@ -1,14 +1,17 @@
 import { Router, type Request } from "express";
 import { getBroker, contextFromReq, respondBrokerError } from "../broker";
 import { isTimeTravelEnabled, getSettings, updateSettings, SettingsValidationError } from "../lib/settings";
-import { requireAnyRole, hasRole, scopeForReq } from "../lib/rbac";
+import { requireRole, requireAnyRole, hasRole, scopeForReq } from "../lib/rbac";
+import { requireStepUp } from "../lib/step-up";
+import { recordAudit, actorForAudit } from "../lib/audit";
 import { inScope } from "../lib/scope";
 import { isFeatureEnabled } from "../lib/feature-modules";
 import { getProjects } from "../lib/data";
 import { programmeIdsOf, programmeIdOf } from "../lib/programmes";
 import { qualifiedId } from "../broker/identity";
 import { selfHostGovernanceId } from "../selfhost";
-import { buildTrend, resolveCadence, TREND_METRICS, type TrendGrain, type TrendMetric } from "../history";
+import { buildTrend, resolveCadence, retentionSourceFor, TREND_METRICS, type TrendGrain, type TrendMetric } from "../history";
+import { disposeExpired, eraseEntityHistory, LegalHoldError, RetentionUnsupportedError } from "../history/lifecycle";
 
 /**
  * Time-travel replay — read recorded portfolio states back from the operator's
@@ -163,12 +166,19 @@ router.get("/history/trends/:metric", async (req, res) => {
     });
 });
 
-/** GET /history/retention — the cadence config + the cadence resolved for an (optional) scope. */
+/** GET /history/retention — the cadence config, the resolved cadence for an (optional) scope, and the
+ *  DISPOSAL window + legal holds (governance state). `retention` reflects the real window now. */
 router.get("/history/retention", requireAnyRole("admin", "pmo"), (req, res) => {
   const config = getSettings().historyRetention;
   const programmeId = (req.query["programmeId"] as string | undefined)?.trim() || null;
   const projectId = (req.query["projectId"] as string | undefined)?.trim() || null;
-  res.json({ config, resolved: resolveCadence(config, { programmeId, projectId }), retention: "infinite" });
+  res.json({
+    config,
+    resolved: resolveCadence(config, { programmeId, projectId }),
+    retention: config.retentionDays == null ? "infinite" : `${config.retentionDays}d`,
+    retentionDays: config.retentionDays ?? null,
+    legalHolds: config.legalHolds ?? [],
+  });
 });
 
 /**
@@ -184,10 +194,17 @@ router.put("/history/retention", requireAnyRole("admin", "pmo"), (req, res) => {
     res.status(403).json({ error: "Only an admin can set the org-default cadence." });
     return;
   }
-  const next = {
+  // The disposal window and legal holds are org-wide governance controls — admin only, like orgDefault.
+  if (("retentionDays" in body || "legalHolds" in body) && !isAdmin) {
+    res.status(403).json({ error: "Only an admin can set the retention window or legal holds." });
+    return;
+  }
+  const next: Record<string, unknown> = {
     orgDefault: "orgDefault" in body ? body["orgDefault"] : current.orgDefault,
     programme: "programme" in body ? body["programme"] : current.programme,
     project: "project" in body ? body["project"] : current.project,
+    ...(("retentionDays" in body ? { retentionDays: body["retentionDays"] } : current.retentionDays != null ? { retentionDays: current.retentionDays } : {})),
+    ...(("legalHolds" in body ? { legalHolds: body["legalHolds"] } : current.legalHolds ? { legalHolds: current.legalHolds } : {})),
   };
   try {
     updateSettings({ historyRetention: next });
@@ -196,6 +213,71 @@ router.put("/history/retention", requireAnyRole("admin", "pmo"), (req, res) => {
     return;
   }
   res.json({ config: getSettings().historyRetention });
+});
+
+/**
+ * POST /history/dispose — run disposal: prune retained history older than the configured window
+ * (`retentionDays`), skipping legal-held keys. Admin + step-up (it deletes durable data). A no-op when
+ * retention is infinite. The delete executes BELOW the seam (via the retention source); the gateway only
+ * issues the policy command.
+ */
+router.post("/history/dispose", requireRole("admin"), requireStepUp, async (req, res) => {
+  const source = retentionSourceFor({});
+  if (!source) {
+    res.status(409).json({ error: "no retention source configured — nothing to dispose" });
+    return;
+  }
+  try {
+    const result = await disposeExpired(source, Date.now());
+    recordAudit({
+      ts: new Date().toISOString(), category: "admin", action: "history.dispose", actor: actorForAudit(req), write: true,
+      result: "success", meta: { disposed: result.disposed, cutoff: result.cutoff, snapshots: result.snapshots, journal: result.journal },
+    });
+    res.json(result);
+  } catch (err) {
+    if (err instanceof RetentionUnsupportedError) { res.status(501).json({ error: err.message }); return; }
+    req.log.error({ err }, "history disposal failed");
+    res.status(502).json({ error: "disposal failed at the retention source" });
+  }
+});
+
+/**
+ * POST /history/erase — right-to-erasure / DSAR delete of ALL retained history for one entity id.
+ * Admin + step-up. Refused (409) when the entity is under legal hold. The delete executes below the seam.
+ */
+router.post("/history/erase", requireRole("admin"), requireStepUp, async (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const entity = typeof body["entity"] === "string" ? body["entity"].trim() : "";
+  const id = typeof body["id"] === "string" ? body["id"].trim() : "";
+  if (!entity || !id) {
+    res.status(400).json({ error: "erase requires a non-empty { entity, id }" });
+    return;
+  }
+  const source = retentionSourceFor({});
+  if (!source) {
+    res.status(409).json({ error: "no retention source configured — nothing to erase" });
+    return;
+  }
+  try {
+    const result = await eraseEntityHistory(source, entity, id);
+    recordAudit({
+      ts: new Date().toISOString(), category: "admin", action: "history.erase", actor: actorForAudit(req), write: true,
+      result: "success", meta: { entity, id, snapshots: result.snapshots, journal: result.journal },
+    });
+    res.json({ entity, id, ...result });
+  } catch (err) {
+    if (err instanceof LegalHoldError) {
+      recordAudit({
+        ts: new Date().toISOString(), category: "admin", action: "history.erase", actor: actorForAudit(req), write: true,
+        result: "error", meta: { entity, id, refused: "legal-hold" },
+      });
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    if (err instanceof RetentionUnsupportedError) { res.status(501).json({ error: err.message }); return; }
+    req.log.error({ err }, "history erasure failed");
+    res.status(502).json({ error: "erasure failed at the retention source" });
+  }
 });
 
 export default router;

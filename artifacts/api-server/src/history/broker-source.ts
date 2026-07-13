@@ -7,7 +7,7 @@
  * seam. See docs/RETENTION-CONNECTORS.md.
  */
 import type { EntitySnapshot, HistoryEntry, TimeWindow } from "./types";
-import type { RetentionSource, RetentionScope, RetentionProvider } from "./retention";
+import type { RetentionSource, RetentionScope, RetentionProvider, DisposalResult } from "./retention";
 import { registerRetentionProvider } from "./retention";
 import { safeFetch } from "../lib/egress";
 
@@ -58,6 +58,10 @@ export function brokerRetentionSource(opts: BrokerRetentionOptions): RetentionSo
     writeSnapshot: (snapshot) => call<void>(opts, "write-snapshot", { snapshot }),
     lastSnapshotAt: (entity, id) =>
       call<{ asOf: string | null }>(opts, "last-snapshot-at", { entity, id }).then((r) => r.asOf),
+    disposeOlderThan: (cutoffIso, disposeOpts) =>
+      call<DisposalResult>(opts, "dispose-older-than", { cutoff: cutoffIso, heldKeys: disposeOpts?.heldKeys ?? [] }),
+    eraseEntity: (entity, id) =>
+      call<DisposalResult>(opts, "erase-entity", { entity, id }),
   };
 }
 
