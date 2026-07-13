@@ -1,5 +1,5 @@
 import { jwtVerify, createLocalJWKSet, type JSONWebKeySet } from "jose";
-import { assertEgressAllowed } from "./egress";
+import { assertEgressAllowed, safeFetch } from "./egress";
 
 /**
  * JWKS / ID-token verification.
@@ -88,7 +88,7 @@ const JWKS_TTL_MS = 10 * 60 * 1000;
 /** Fetch the issuer's JWKS signing keys, cached for 10 minutes. The `jwks_uri`
  *  comes from the issuer's discovery doc (IdP-controlled), so it is guarded
  *  against a metadata/link-local SSRF pivot before every fetch. */
-export async function fetchJwks(jwksUri: string, fetchImpl: typeof fetch = fetch): Promise<Jwk[]> {
+export async function fetchJwks(jwksUri: string, fetchImpl: typeof fetch = safeFetch as unknown as typeof fetch): Promise<Jwk[]> {
   const cached = jwksCache.get(jwksUri);
   if (cached && Date.now() - cached.at < JWKS_TTL_MS) return cached.keys;
   // Full egress guard (literal block + post-DNS-resolution recheck + allowlist/residency): the

@@ -6,7 +6,7 @@ import { sealAuditEvent, sealAuditEventShared } from "./audit-chain";
 import { sharedStateMode } from "./shared-state";
 import { getSession } from "../routes/auth";
 import { roleForReq } from "./rbac";
-import { assertEgressAllowed } from "./egress";
+import { assertEgressAllowed, safeFetch } from "./egress";
 
 /**
  * Action audit logging.
@@ -94,7 +94,9 @@ export function createHttpSink<T = AuditEvent>(opts: {
 }): HttpSink<T> {
   const buffer: T[] = [];
   let dropped = 0;
-  const doFetch = opts.fetchImpl ?? fetch;
+  // safeFetch (not plain fetch) so the NDJSON sink POST — which carries actor email + IP — pins the
+  // vetted IPs and re-validates redirects; the sink can't be 302'd/rebound to an internal collector.
+  const doFetch = opts.fetchImpl ?? (safeFetch as unknown as typeof fetch);
   const batchSize = opts.batch ?? 50;
 
   async function flush(): Promise<number> {
