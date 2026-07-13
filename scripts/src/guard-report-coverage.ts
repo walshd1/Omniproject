@@ -14,6 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkCoverage, fsProbes, idsFromAssets, type Impl } from "./lib/coverage";
+import { reportGuard } from "./lib/guard-harness";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -51,10 +52,9 @@ const probes = fsProbes(
 
 const result = checkCoverage("reports", reportIds, REPORT_IMPL, probes);
 
-if (!result.ok) {
-  console.error("report-coverage guard: a declared report is not built/wired/tested.\n");
-  for (const e of result.errors) console.error(`  - ${e}`);
-  console.error("\n  Implement the report on the report primitives, wire it into Reports.tsx, add a test, and set its `renderer` in the report JSON.");
-  process.exit(1);
-}
-console.log(`report-coverage guard: OK — all ${reportIds.length} declared reports are built, wired and tested (bindings from each report's JSON renderer).`);
+reportGuard("report-coverage", {
+  violations: result.errors,
+  failHeadline: "report-coverage guard: a declared report is not built/wired/tested.",
+  help: "  Implement the report on the report primitives, wire it into Reports.tsx, add a test, and set its `renderer` in the report JSON.",
+  okSummary: `all ${reportIds.length} declared reports are built, wired and tested (bindings from each report's JSON renderer).`,
+});

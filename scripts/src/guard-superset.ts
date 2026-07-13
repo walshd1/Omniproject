@@ -10,6 +10,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadSuperset, backendFieldRefs } from "./lib/superset";
+import { reportGuard } from "./lib/guard-harness";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -26,14 +27,11 @@ for (const { file, keys: fieldKeys } of refs) {
   }
 }
 
-if (violations.length) {
-  console.error(
-    `superset guard: FAIL — ${violations.length} backend field reference(s) are NOT in the superset:\n` +
-      violations.join("\n") +
-      `\n\nEvery backend's fieldKeys[] must be a subset of the superset. Add the field to ` +
-      `assets/fields.json (or contribute it via the backend's fields[]), or fix the reference.`,
-  );
-  process.exit(1);
-}
-
-console.log(`superset guard: OK — ${refs.length} backends, ${refCount} field refs, all ⊆ superset (${keys.size} fields).`);
+reportGuard("superset", {
+  violations,
+  failHeadline: `superset guard: FAIL — ${violations.length} backend field reference(s) are NOT in the superset`,
+  help:
+    "Every backend's fieldKeys[] must be a subset of the superset. Add the field to " +
+    "assets/fields.json (or contribute it via the backend's fields[]), or fix the reference.",
+  okSummary: `${refs.length} backends, ${refCount} field refs, all ⊆ superset (${keys.size} fields).`,
+});

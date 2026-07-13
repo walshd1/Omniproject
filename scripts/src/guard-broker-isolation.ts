@@ -36,6 +36,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { walkFiles } from "./lib/walk-files";
 import { importSpecifier, codeLines } from "./lib/ts-source";
+import { reportGuard } from "./lib/guard-harness";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const GATEWAY_SRC = "artifacts/api-server/src";
@@ -198,19 +199,15 @@ if (DEPLOY_VENDOR_TOKEN) {
   }
 }
 
-if (violations.length) {
-  console.error("::error::Broker-isolation guard failed — a concrete broker leaks outside its home:");
-  for (const v of violations) console.error("  " + v);
-  console.error(
-    "\nA concrete broker may be named only in the reference adapter folder + per-vendor template home " +
-      "(code), the seam factory that constructs the reference broker, the neutral broker-url resolver, " +
-      "and vendors/brokers/<vendor>.json (data). Deploy manifests may name ONLY the bundled reference " +
-      "broker. Everywhere else use the generic Broker interface and broker-neutral wording. Comments are exempt.",
-  );
-  process.exit(1);
-}
-
-console.log(
-  `broker-isolation guard: OK — no adapter import or vendor naming outside the sanctioned homes ` +
+reportGuard("broker-isolation", {
+  violations,
+  failHeadline: "Broker-isolation guard failed — a concrete broker leaks outside its home:",
+  help:
+    "A concrete broker may be named only in the reference adapter folder + per-vendor template home " +
+    "(code), the seam factory that constructs the reference broker, the neutral broker-url resolver, " +
+    "and vendors/brokers/<vendor>.json (data). Deploy manifests may name ONLY the bundled reference " +
+    "broker. Everywhere else use the generic Broker interface and broker-neutral wording. Comments are exempt.",
+  okSummary:
+    `no adapter import or vendor naming outside the sanctioned homes ` +
     `(scanned ${VENDOR_FRAGMENTS.length} derived vendor tokens; deploy trees allow only the reference broker).`,
-);
+});

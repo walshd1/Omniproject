@@ -26,6 +26,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { walkFiles } from "./lib/walk-files";
 import { importSpecifier } from "./lib/ts-source";
+import { reportGuard } from "./lib/guard-harness";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -114,17 +115,12 @@ for (const dir of ABOVE_SEAM_DIRS) {
   }
 }
 
-if (violations.length) {
-  console.error("::error::Zero-at-rest guard failed — persistence leaked above the south seam:");
-  for (const v of violations) console.error("  " + v);
-  console.error(
-    "\nThe gateway and the composition tier hold nothing: all data-at-rest lives BELOW the seam, in a " +
-      "backend or behind the injected SelfHostDbPort (the broker's parameterised-SQL workflow). Above the " +
-      "seam, drive stores only through the abstract StoreAdapter — never import a database driver/ORM/KV store.",
-  );
-  process.exit(1);
-}
-
-console.log(
-  `zero-at-rest guard: OK — no persistence-layer import above the seam (scanned ${ABOVE_SEAM_DIRS.join(", ")}).`,
-);
+reportGuard("zero-at-rest", {
+  violations,
+  failHeadline: "Zero-at-rest guard failed — persistence leaked above the south seam:",
+  help:
+    "The gateway and the composition tier hold nothing: all data-at-rest lives BELOW the seam, in a " +
+    "backend or behind the injected SelfHostDbPort (the broker's parameterised-SQL workflow). Above the " +
+    "seam, drive stores only through the abstract StoreAdapter — never import a database driver/ORM/KV store.",
+  okSummary: `no persistence-layer import above the seam (scanned ${ABOVE_SEAM_DIRS.join(", ")}).`,
+});

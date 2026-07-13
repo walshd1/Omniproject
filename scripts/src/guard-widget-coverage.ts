@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { idsFromAssets } from "./lib/coverage";
+import { reportGuard } from "./lib/guard-harness";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -32,10 +33,9 @@ for (const type of registered) {
   if (!widgetTypes.includes(type)) errors.push(`renderer "${type}" is registered but no widget declares it (add assets/widgets/${type}.json or remove the renderer)`);
 }
 
-if (errors.length) {
-  console.error("widget-coverage guard: a declared widget is not built, or a renderer is orphaned.\n");
-  for (const e of errors) console.error(`  - ${e}`);
-  console.error("\n  Author the widget JSON under assets/widgets/<type>.json AND register its renderer in WIDGET_COMPONENTS.");
-  process.exit(1);
-}
-console.log(`widget-coverage guard: OK — all ${widgetTypes.length} declared widgets are registered (and no orphan renderers).`);
+reportGuard("widget-coverage", {
+  violations: errors,
+  failHeadline: "widget-coverage guard: a declared widget is not built, or a renderer is orphaned.",
+  help: "  Author the widget JSON under assets/widgets/<type>.json AND register its renderer in WIDGET_COMPONENTS.",
+  okSummary: `all ${widgetTypes.length} declared widgets are registered (and no orphan renderers).`,
+});
