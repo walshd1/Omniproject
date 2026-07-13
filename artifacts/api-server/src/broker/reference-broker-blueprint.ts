@@ -22,6 +22,7 @@
 import http from "node:http";
 import crypto from "node:crypto";
 import { openPayload } from "../lib/broker-psk";
+import { safeParseJson } from "../lib/safe-json";
 import { verifyBrokerRequest, signBrokerResponse, type CanonicalRequest } from "../lib/broker-hmac";
 import type { SessionBind } from "../lib/session-key";
 
@@ -231,11 +232,14 @@ export async function processBrokerCall(input: BrokerCoreInput, be: BrokerBacken
   // and the caller was session-bound; used to re-key the signature check below.
   let sealedBind: SessionBind | undefined;
   try {
-    let json: Row = input.rawBody ? (JSON.parse(input.rawBody) as Row) : {};
+    // safeParseJson (prototype-safe reviver) — this standalone server does NOT go through express's
+    // stripping reviver, and the parsed body flows into Object.assign(row, input) below the seam, so a
+    // `__proto__`/`constructor` key would otherwise pollute the stored row's prototype.
+    let json: Row = input.rawBody ? safeParseJson<Row>(input.rawBody) : {};
     if (typeof json["enc"] === "string") {
       const opened = openPsk(json["enc"] as string);
       if (opened === null) return { status: 400, body: { success: false, message: "bad PSK envelope" }, encrypted: false };
-      json = JSON.parse(opened) as Row;
+      json = safeParseJson<Row>(opened);
       encrypted = true;
       if (json["__bind"] && typeof json["__bind"] === "object") sealedBind = json["__bind"] as SessionBind;
       delete json["__bind"]; // internal transport field — never surface it to the backend

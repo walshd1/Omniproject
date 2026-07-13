@@ -59,3 +59,18 @@ test("blueprint: outbound event signing matches the contract scheme", () => {
   const sig = signEvent('{"event":"notification"}', "shh");
   assert.match(sig, /^sha256=[0-9a-f]{64}$/);
 });
+
+test("blueprint: a __proto__ key in the request body never pollutes Object.prototype (safeParseJson)", async () => {
+  const server = createReferenceBrokerBlueprint();
+  await new Promise<void>((r) => server.listen(0, () => r()));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    // A literal "__proto__" key (only reachable via raw JSON text, not an object literal) must be
+    // stripped by the prototype-safe parse before it can reach the below-seam Object.assign.
+    const raw = '{"action":"update_project","payload":{"projectId":"p1"},"__proto__":{"polluted":true}}';
+    await fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: raw });
+    assert.equal(({} as Record<string, unknown>)["polluted"], undefined, "Object.prototype was not polluted");
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});

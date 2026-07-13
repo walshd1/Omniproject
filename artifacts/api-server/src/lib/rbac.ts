@@ -239,7 +239,7 @@ function displayRole(g: Grants): Role {
  * Back-compat single-role view of a user's claims (the representative label).
  * Prefer `grantsFromClaims` when you need the full, orthogonal picture.
  */
-export function roleFromClaims(claimRoles: string[], opts: { isDemo: boolean }): Role {
+export function roleFromClaims(claimRoles: string[], opts: { isDemo: boolean; strongAuth?: boolean }): Role {
   return displayRole(grantsFromClaims(claimRoles, opts));
 }
 
