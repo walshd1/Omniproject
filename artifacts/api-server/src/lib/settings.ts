@@ -1296,6 +1296,17 @@ function validateSkillsPlanning(value: unknown): void {
   }
 }
 
+/** Per-capability sanitizer for the `capabilityStates` map, INJECTED by lib/capability-governance at
+ *  its module init. It lives there (not here) because that module owns the capability catalogue and
+ *  the clamps — and importing it eagerly from settings.ts would form an init-time cycle (it reads
+ *  AI_PROVIDERS from here at load). Until it registers, the bulk-PATCH path keeps only the top-level
+ *  shape-check as its floor; the running app always registers it before serving a request. */
+type CapabilityStatesSanitizer = (states: Record<string, unknown>) => Record<string, unknown>;
+let capabilityStatesSanitizer: CapabilityStatesSanitizer | null = null;
+export function registerCapabilityStatesSanitizer(fn: CapabilityStatesSanitizer): void {
+  capabilityStatesSanitizer = fn;
+}
+
 /** Validate a settings patch and return a NORMALIZED copy (reportingCurrency upper-cased,
  *  fxRateAsOfDate/reportingCurrency empty-string coerced to null, …) — pure, never mutates the
  *  caller's `patch` object. Throws SettingsValidationError on bad input. */
@@ -1509,10 +1520,21 @@ function validatePatch(patch: Record<string, unknown>): Record<string, unknown> 
   if ("errorTelemetry" in patch && typeof patch["errorTelemetry"] !== "boolean") {
     throw new SettingsValidationError("errorTelemetry must be a boolean");
   }
-  // capabilityStates is validated + step-up'd via its own route (and rejected on the PATCH path); here
-  // it's only shape-checked so a config-snapshot restore doesn't persist a non-object.
-  if ("capabilityStates" in patch && (typeof patch["capabilityStates"] !== "object" || patch["capabilityStates"] == null || Array.isArray(patch["capabilityStates"]))) {
-    throw new SettingsValidationError("capabilityStates must be an object");
+  // capabilityStates has a dedicated, step-up'd admin route that runs each entry through
+  // sanitizeCapabilitySetting (unknown-id drop, state clamped to the capability's supportedStates,
+  // endpoint URL-validated). A bulk PATCH / config-snapshot restore reaches the SAME stored map, so it
+  // must apply the SAME per-entry guards — otherwise it's a bypass that could persist an unknown
+  // capability id, an unsupported state, or an unvalidated endpoint (the exact sibling of the
+  // userPrefs/calendarPush handling just below). Run the injected sanitizer when present; the top-level
+  // shape-check stays the floor for the (test-only) case where governance hasn't registered it yet.
+  if ("capabilityStates" in patch) {
+    const v = patch["capabilityStates"];
+    if (typeof v !== "object" || v == null || Array.isArray(v)) {
+      throw new SettingsValidationError("capabilityStates must be an object");
+    }
+    normalized["capabilityStates"] = capabilityStatesSanitizer
+      ? capabilityStatesSanitizer(v as Record<string, unknown>)
+      : (v as Record<string, unknown>);
   }
   // Per-user maps: each entry is written verbatim + read back raw, so sanitize every entry through the
   // SAME clamps its dedicated route uses (fontScale/scanRate ranges, hex colour, enum members; the

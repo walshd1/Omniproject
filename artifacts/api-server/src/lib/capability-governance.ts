@@ -1,5 +1,6 @@
 import { BACKENDS, BROKERS, SCREENS } from "@workspace/backend-catalogue";
-import { getSettings, updateSettings, AI_PROVIDERS, type DeploymentState, type CapabilitySetting } from "./settings";
+import { getSettings, updateSettings, registerCapabilityStatesSanitizer, AI_PROVIDERS, type DeploymentState, type CapabilitySetting } from "./settings";
+import { isForbiddenKey } from "./safe-json";
 import { recordAudit, createHttpSink, type HttpSink } from "./audit";
 import { sharedStateMode, sharedRingPush, sharedRingRead } from "./shared-state";
 import { logger } from "./logger";
@@ -127,6 +128,21 @@ const byId = new Map(listCapabilities().map((c) => [c.id, c]));
 export function getCapability(id: string): GovernedCapability | undefined {
   return byId.get(id);
 }
+
+// Teach lib/settings how to sanitize the whole capabilityStates map on the bulk-PATCH / config-restore
+// path, using THIS module's catalogue + per-entry sanitizer (settings can't import them eagerly without
+// an init-time cycle). Every entry gets the same guards the dedicated setCapabilityState route applies:
+// forbidden/unknown keys dropped, state clamped to the capability's supportedStates, endpoint URL-checked.
+registerCapabilityStatesSanitizer((states) => {
+  const clean: Record<string, CapabilitySetting> = {};
+  for (const [id, setting] of Object.entries(states)) {
+    if (isForbiddenKey(id)) continue;      // no __proto__/constructor keys into the stored map
+    const cap = getCapability(id);
+    if (!cap) continue;                    // drop states addressed to an unknown capability id
+    clean[id] = sanitizeCapabilitySetting(cap, setting);
+  }
+  return clean;
+});
 
 /** The states the UI should offer for a capability: "off" plus whatever it supports. */
 export function offeredStates(cap: GovernedCapability): DeploymentState[] {

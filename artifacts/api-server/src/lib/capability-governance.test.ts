@@ -75,6 +75,27 @@ test("sanitize keeps only supportable states + surface overrides", () => {
   assert.equal("bad" in (clean.surfaces ?? {}), false); // invalid value dropped
 });
 
+test("the bulk PATCH / config-restore path runs capabilityStates through the same per-capability sanitizer", () => {
+  // The dedicated setCapabilityState route sanitizes each entry; the bulk PATCH reaches the SAME stored
+  // map, so it must apply the same guards (else it's a bypass). Importing this module registers the
+  // sanitizer with lib/settings, so a bulk updateSettings({capabilityStates}) is now sanitized too.
+  const patched = updateSettings({
+    capabilityStates: JSON.parse(JSON.stringify({
+      "provider:openai": { state: "user-defined", endpoint: "not-a-url" }, // unsupported state + bad endpoint
+      "provider:anthropic": { state: "public" },                            // valid, kept
+      "totally-unknown-cap": { state: "public" },                           // unknown id → dropped
+      "__proto__": { state: "public" },                                     // forbidden key → dropped
+    })),
+  });
+  const cs = patched.capabilityStates;
+  assert.equal(cs["provider:openai"]!.state, "off");        // clamped: openai can't be user-defined
+  assert.equal(cs["provider:openai"]!.endpoint, null);      // "not-a-url" rejected by validEndpoint
+  assert.equal(cs["provider:anthropic"]!.state, "public");  // valid state preserved
+  assert.equal("totally-unknown-cap" in cs, false);         // unknown capability id dropped
+  assert.equal(Object.prototype.hasOwnProperty.call(cs, "__proto__"), false); // forbidden key dropped
+  updateSettings({ capabilityStates: {} });
+});
+
 test("setCapabilityState persists and effectiveState reads it back per surface", () => {
   setCapabilityState("tts", { state: "public", surfaces: { finance: "off" } });
   assert.equal(effectiveState("tts"), "public");
