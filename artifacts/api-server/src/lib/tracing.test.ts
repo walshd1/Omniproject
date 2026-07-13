@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import type { Request, Response, NextFunction } from "express";
 import { parseTraceparent, formatTraceparent, currentTraceparent, tracingMiddleware } from "./tracing";
 import { __setEgressTransportForTest } from "./egress";
+// Pre-warm the residency module so egress's first-call lazy import of it (added to break a module-init
+// cycle) resolves from cache — otherwise this fire-and-forget export can outrun the flush window.
+import "./data-residency";
 
 // The exporter now uses lib/egress safeFetch (undici, not global fetch), so intercept via the egress
 // transport seam. The OTLP endpoint below is a loopback IP literal, so no DNS/lookup seam is needed.
@@ -28,8 +31,10 @@ function fakeReqRes(): { req: Request; res: Response; finish: () => void } {
 }
 
 /** Let a fire-and-forget async export (kicked off inside a "finish" handler, never awaited by the
- *  caller) settle before the test asserts on its side effects (same pattern as audit-sink.test.ts). */
-async function flush(): Promise<void> { await new Promise((r) => setImmediate(r)); }
+ *  caller) settle before the test asserts on its side effects (same pattern as audit-sink.test.ts).
+ *  Drains several macrotasks so the export's async chain — which includes egress's first-call lazy
+ *  import of the residency module — has fully completed. */
+async function flush(): Promise<void> { for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); }
 
 /**
  * W3C trace context parsing/formatting + AsyncLocalStorage propagation.

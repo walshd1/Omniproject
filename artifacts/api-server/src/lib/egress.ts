@@ -33,9 +33,21 @@
 import dns from "node:dns/promises";
 import net from "node:net";
 import { Agent, fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
-import { assertEgressResidency } from "./data-residency";
 import { isBlockedHostLiteral, isBlockedIp } from "./ip-ranges";
 import { parseCsvEnv } from "./env";
+
+// `data-residency` is loaded LAZILY (dynamic import in resolveAndValidate) rather than statically.
+// egress is a very low-level guard that secret-at-rest modules (kms, vault-*) now route through, and
+// data-residency transitively pulls in the audit chain / sealed-file — a static edge here closes a
+// module-INIT cycle (sealed-file → config-crypto → kms → egress → data-residency → … → sealed-file)
+// that throws a temporal-dead-zone error when the graph is entered via sealed-file. The residency
+// check is per-request (already async) so a cached dynamic import costs nothing measurable.
+type AssertEgressResidency = (rawUrl: string) => void;
+let residencyFn: AssertEgressResidency | null = null;
+async function assertEgressResidencyLazy(rawUrl: string): Promise<void> {
+  residencyFn ??= (await import("./data-residency")).assertEgressResidency;
+  residencyFn(rawUrl);
+}
 
 export class EgressError extends Error {
   constructor(message: string) {
@@ -104,7 +116,7 @@ async function resolveAndValidate(rawUrl: string, lookup: LookupFn): Promise<{ u
   }
   // Per-country residency: when a JSON policy is active, the host must sit in an allowed region's
   // egress allowlist. Throws a fail-closed DataResidencyError (451); a no-op when no policy is set.
-  assertEgressResidency(rawUrl);
+  await assertEgressResidencyLazy(rawUrl);
   return { url: u, addresses };
 }
 

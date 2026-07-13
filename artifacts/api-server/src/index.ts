@@ -13,6 +13,7 @@ import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
 import { initPresenceBus, presenceBusMode } from "./lib/presence-bus";
 import { startAiKillFleetSync } from "./lib/ai-kill";
 import { refreshMaintenanceFromShared, startMaintenanceFleetSync } from "./lib/maintenance";
+import { refreshAiAuthzFromShared, startAiAuthzFleetSync } from "./lib/security-state";
 import { startKeyRegistryFleetSync, refreshKeyRegistryFromShared } from "./lib/key-registry";
 import { startScimFleetSync, refreshScimFromShared } from "./lib/scim";
 import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
@@ -75,6 +76,14 @@ async function start(): Promise<void> {
   // when REDIS_URL is set; a no-op single-replica convergence otherwise (the durable local file stands).
   void refreshMaintenanceFromShared();
   startMaintenanceFleetSync();
+
+  // Same for the AI-authorization controls (autonomous write-grants, containment relax-floor,
+  // approved-actions allowlist): converge once now, then poll — so a grant revoked / containment
+  // tightened / action un-approved on ANY replica takes effect here too, not just where it was
+  // served. Redis-backed when REDIS_URL is set; a no-op single-replica converge otherwise (the
+  // durable local security-state file stands). The shared blob is validated on the way in.
+  void refreshAiAuthzFromShared();
+  startAiAuthzFleetSync();
 
   // Same for key/session revocation: push any revocations restored from the sealed state file (loaded in
   // bootstrap) up to shared state now, then converge on an interval — so a credential revoked on ANY

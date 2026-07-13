@@ -62,10 +62,35 @@ export function listAutonomousGrants(): AutonomousWriteGrant[] {
   return [...GRANTS.values()];
 }
 
-/** Replace the whole grant set (admin applies the config JSON). */
-export function setAutonomousGrants(grants: AutonomousWriteGrant[]): void {
+/**
+ * Validate + normalise an untrusted grant to a clean AutonomousWriteGrant, or null if unusable.
+ * Applied on EVERY bulk load (admin config JSON, sealed-file restore, cross-replica fleet converge) so
+ * a malformed or hostile grant can never widen autonomous write authorization — a grant is an
+ * elevation, so its shape is checked whenever it moves, not trusted for having come from "our" store.
+ */
+export function cleanGrant(raw: unknown): AutonomousWriteGrant | null {
+  if (!raw || typeof raw !== "object") return null;
+  const g = raw as Record<string, unknown>;
+  const actorId = typeof g["actorId"] === "string" ? g["actorId"].trim() : "";
+  if (!actorId) return null; // no actor ⇒ the grant can never match a principal; drop it
+  const strArr = (v: unknown): string[] | undefined =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : undefined;
+  const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+  const out: AutonomousWriteGrant = { actorId, actions: strArr(g["actions"]) ?? [] };
+  const projects = strArr(g["projects"]); if (projects) out.projects = projects;
+  const surfaces = strArr(g["surfaces"]); if (surfaces) out.surfaces = surfaces;
+  const fields = strArr(g["fields"]); if (fields) out.fields = fields;
+  const notAfter = num(g["notAfter"]); if (notAfter !== undefined) out.notAfter = notAfter;
+  const maxWrites = num(g["maxWrites"]); if (maxWrites !== undefined) out.maxWrites = maxWrites;
+  if (g["allowBroad"] === true) out.allowBroad = true; // only the literal true opts into broad scope
+  return out;
+}
+
+/** Replace the whole grant set (admin config JSON / restore / fleet converge). Every grant is
+ *  validated (see cleanGrant); malformed entries are dropped rather than trusted. */
+export function setAutonomousGrants(grants: readonly unknown[]): void {
   GRANTS.clear();
-  for (const g of grants) GRANTS.set(g.actorId, g);
+  for (const g of grants) { const clean = cleanGrant(g); if (clean) GRANTS.set(clean.actorId, clean); }
 }
 
 /** Test-only: clear grants + counters. */
