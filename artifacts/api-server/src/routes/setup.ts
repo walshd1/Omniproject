@@ -10,7 +10,7 @@ import { resolveCapabilities, resolveSupport } from "../lib/capabilities";
 import { connectedBrokerKinds } from "../broker/registry";
 import { contextFromReq, brokerVerifyConnection, brokerStoreCredential, callBrokerCapability, probeVerifiableActions } from "../broker";
 import { v, parseOr400 } from "../lib/validate";
-import { assertEgressAllowed, EgressError } from "../lib/egress";
+import { assertEgressAllowed, safeFetch, EgressError } from "../lib/egress";
 import { isTruthy } from "../lib/env-config";
 
 // Typed + bounded bodies for the broker-credential routes (untrusted admin input).
@@ -217,8 +217,9 @@ router.post("/setup/test-broker", requireRole("admin"), async (req, res) => {
   }
 
   try {
-    await assertEgressAllowed(url); // SSRF guard: never let an admin-pasted URL reach metadata/link-local
-    const r = await fetch(url, {
+    // safeFetch (not a bare fetch after a one-shot check): it pins the validated IPs and re-validates
+    // every redirect hop, so an admin-pasted probe URL can't be rebound or 302-redirected to metadata.
+    const r = await safeFetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

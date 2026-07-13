@@ -3,7 +3,7 @@ import { getSettings, updateSettings, AI_PROVIDERS, type DeploymentState, type C
 import { recordAudit, createHttpSink, type HttpSink } from "./audit";
 import { sharedStateMode, sharedRingPush, sharedRingRead } from "./shared-state";
 import { logger } from "./logger";
-import { assertEgressAllowed } from "./egress";
+import { safeFetch, EgressError } from "./egress";
 
 /**
  * Capability governance — one model for every "thing that can move data or be turned
@@ -229,19 +229,17 @@ export interface EndpointCheck {
 export async function checkEndpointReachable(url: string, timeoutMs = 3000): Promise<EndpointCheck> {
   const valid = validEndpoint(url);
   if (!valid) return { reachable: false, error: "not a valid http(s) URL" };
-  // Full egress guard (literal block + post-DNS-resolution recheck + allowlist/residency) so the
-  // admin reachability-tester can't be turned into an SSRF/DNS-rebind probe of cloud metadata.
-  try {
-    await assertEgressAllowed(valid);
-  } catch {
-    return { reachable: false, error: "blocked: egress not allowed (link-local/metadata or policy)" };
-  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(valid, { method: "GET", signal: controller.signal });
+    // safeFetch applies the FULL egress guard (literal block + post-DNS recheck + allowlist/residency)
+    // AND pins the connection to the validated IPs + re-validates every redirect hop — so the admin
+    // reachability-tester can't be turned into an SSRF/DNS-rebind/redirect probe of cloud metadata. A
+    // bare `fetch` after a one-shot check would re-resolve at connect time and follow redirects unchecked.
+    const res = await safeFetch(valid, { method: "GET", signal: controller.signal });
     return { reachable: true, status: res.status };
   } catch (err) {
+    if (err instanceof EgressError) return { reachable: false, error: "blocked: egress not allowed (link-local/metadata or policy)" };
     return { reachable: false, error: err instanceof Error ? err.message : "unreachable" };
   } finally {
     clearTimeout(timer);
