@@ -12,6 +12,7 @@ import { installShutdownHandlers } from "./lib/shutdown";
 import { initBrokerLogBus, brokerLogBusMode } from "./lib/broker-log-bus";
 import { initPresenceBus, presenceBusMode } from "./lib/presence-bus";
 import { startAiKillFleetSync } from "./lib/ai-kill";
+import { refreshMaintenanceFromShared, startMaintenanceFleetSync } from "./lib/maintenance";
 import { startKeyRegistryFleetSync, refreshKeyRegistryFromShared } from "./lib/key-registry";
 import { startScimFleetSync, refreshScimFromShared } from "./lib/scim";
 import { startExecDigestScheduler, runExecDigest } from "./lib/exec-digest";
@@ -67,6 +68,13 @@ async function start(): Promise<void> {
   // Converge the AI kill-switch with shared state on an interval, so engaging the break-glass control on
   // ANY replica takes effect here — fleet-wide when REDIS_URL is set, per-replica otherwise (unref'd).
   startAiKillFleetSync();
+
+  // Same for the maintenance/break-glass read-only lockdown: converge once now (so a freeze already
+  // active on the fleet is adopted before this replica serves), then poll — so a lockdown engaged on
+  // ANY replica freezes writes here too, not just on the replica that served the toggle. Redis-backed
+  // when REDIS_URL is set; a no-op single-replica convergence otherwise (the durable local file stands).
+  void refreshMaintenanceFromShared();
+  startMaintenanceFleetSync();
 
   // Same for key/session revocation: push any revocations restored from the sealed state file (loaded in
   // bootstrap) up to shared state now, then converge on an interval — so a credential revoked on ANY

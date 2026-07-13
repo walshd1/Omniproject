@@ -13,7 +13,7 @@ import { residencyStatus } from "../lib/data-residency";
 import { validateResidencyPolicy } from "../lib/residency-policy";
 import { ValidationError } from "../lib/validate";
 import { buildDsarReport, dsarSummaryText } from "../lib/dsar";
-import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance } from "../lib/maintenance";
+import { maintenanceEngaged, maintenanceReason, engageMaintenance, releaseMaintenance, publishMaintenanceToShared } from "../lib/maintenance";
 import { requiresDualControl, propose, approve, reject, listProposals, registerExecutor, type Actor } from "../lib/dual-control";
 import type { Request, Response } from "express";
 import { v, parseOr400 } from "../lib/validate";
@@ -52,6 +52,7 @@ async function heldForDualControl(action: string, params: unknown, req: Request,
 registerExecutor("maintenance.engage", (params) => {
   engageMaintenance((params as { reason?: string })?.reason ?? "");
   persistSecurityState();
+  void publishMaintenanceToShared(); // fan the freeze out to the fleet (approved via four-eyes)
 });
 registerExecutor("key.revoke", (params) => {
   const { name, by, reason } = params as { name: KeyName; by: string | null; reason?: string };
@@ -127,6 +128,7 @@ router.put("/admin/maintenance", requireRole("admin"), requireStepUp, async (req
   if (engage && await heldForDualControl("maintenance.engage", { reason }, req, res)) return;
   if (engage) engageMaintenance(reason); else releaseMaintenance();
   persistSecurityState();
+  await publishMaintenanceToShared(); // fan the freeze/release out to the fleet (not just this replica)
   const session = getSession(req);
   recordAudit({ ts: new Date().toISOString(), category: "admin", action: engage ? "maintenance.engage" : "maintenance.release", actor: actorForAudit(req), write: true, result: "success", meta: { reason } });
   res.json({ engaged: maintenanceEngaged(), reason: maintenanceReason() });
