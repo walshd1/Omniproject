@@ -197,3 +197,19 @@ test("an org `forbid report:x` actually withholds the report from /setup/reports
   updateSettings({ featureGovernance: { required: [], forbidden: ["report:evm"] } });
   assert.ok(!(await reportsOf()).includes("evm")); // forbidden → gone from what's served
 });
+
+test("disabling a UI feature also 404s its persistence endpoint (the gate is not decorative)", async () => {
+  const { updateSettings } = await import("../lib/settings");
+  const hit = (path: string) => fetch(`${base}/api${path}`, { headers: { cookie: ADMIN } }).then((r) => r.status);
+
+  // Enabled by default (no defaultOff): the endpoints answer.
+  assert.notEqual(await hit("/views"), 404, "views reachable when savedViews on");
+  assert.notEqual(await hit("/dashboards"), 404, "dashboards reachable when on");
+  assert.notEqual(await hit("/content-pages"), 404, "content-pages reachable when on");
+
+  // Disable the features org-wide — the persistence endpoints must 404, not just the SPA UI.
+  updateSettings({ disabledFeatures: ["savedViews", "dashboards", "contentPages"] });
+  assert.equal(await hit("/views"), 404, "views 404s once savedViews disabled");
+  assert.equal(await hit("/dashboards"), 404, "dashboards 404s once disabled");
+  assert.equal(await hit("/content-pages"), 404, "content-pages 404s once disabled");
+});
