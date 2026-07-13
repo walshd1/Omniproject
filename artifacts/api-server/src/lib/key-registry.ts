@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { sharedKv } from "./shared-state";
 
 /**
  * Key registry with admin-gated revocation.
@@ -14,8 +15,19 @@ import { createHmac } from "node:crypto";
  * checked, but a leaked key could have forged it, so the guarantee is void).
  *
  * Per-user session revocation is separate: a `sub → revokedAt` mark; a user's sessions
- * issued before that instant are rejected (uses the session `iat`). All RAM-only.
+ * issued before that instant are rejected (uses the session `iat`). RAM-first for the
+ * synchronous hot-path reads.
+ *
+ * FLEET BEHAVIOUR: revocation is MONOTONIC — a version, once revoked, stays revoked; a user's
+ * `revokedAt` only moves forward — so the fleet-correct merge is a UNION (`refreshKeyRegistryFromShared`
+ * write-through + periodic pull, `startKeyRegistryFleetSync`). Every revoke writes the union of the
+ * local + shared state back to shared, and every replica pulls it in, so a credential revoked on ANY
+ * replica takes effect fleet-wide within the sync interval when shared state is Redis-backed. The
+ * merge can only ADD revocations, never drop one, so a shared-state blip or a racing writer can never
+ * un-revoke — it fails toward "more revoked". Without shared state (in-process mode) it is per-replica.
+ * The hot-path reads (`isActive`, `currentVersion`, `userSessionsRevokedAt`) stay synchronous.
  */
+export const KEY_REGISTRY_SHARED_KEY = "security:key-registry";
 export const KEY_NAMES = ["session", "provenance", "broker", "audit"] as const;
 export type KeyName = (typeof KEY_NAMES)[number];
 
@@ -92,12 +104,14 @@ export function revokeKey(name: KeyName, opts: { by?: string | null; reason?: st
   s.rotatedAt = new Date().toISOString();
   s.lastActor = opts.by ?? null;
   s.lastReason = opts.reason ?? null;
+  void refreshKeyRegistryFromShared(); // fan the revocation out to the fleet (best-effort; local already set)
   return statusOf(name);
 }
 
 /** Revoke all of one user's sessions (issued before now). */
 export function revokeUserSessions(sub: string): void {
   userRevokedAt[sub] = Date.now();
+  void refreshKeyRegistryFromShared(); // fan out fleet-wide (best-effort; local already set)
 }
 
 /** The instant a user's sessions were revoked, or 0. */
@@ -125,6 +139,63 @@ export function restoreKeys(snap: KeyRegistrySnapshot): void {
     keys[name] = { version: s.version, revoked: new Set(s.revoked ?? []), rotatedAt: s.rotatedAt ?? null, lastActor: s.lastActor ?? null, lastReason: s.lastReason ?? null };
   }
   for (const [sub, ts] of Object.entries(snap.userRevokedAt ?? {})) userRevokedAt[sub] = ts;
+}
+
+/**
+ * Union two snapshots — the deterministic, monotonic merge behind fleet convergence. A version
+ * takes the MAX; a revoked set the UNION; a user's `revokedAt` the LATER instant. Metadata
+ * (rotatedAt/actor/reason) follows the side with the higher version — the more recent action —
+ * ties keeping `a`. Keys and subs are sorted so the output is byte-stable, which lets the caller
+ * detect "shared already equals us" with a string compare and skip a redundant write.
+ */
+function unionSnapshots(a: KeyRegistrySnapshot, b: KeyRegistrySnapshot): KeyRegistrySnapshot {
+  const out: KeyRegistrySnapshot = { keys: {}, userRevokedAt: {} };
+  const names = [...new Set([...Object.keys(a.keys ?? {}), ...Object.keys(b.keys ?? {})])].sort();
+  for (const name of names) {
+    const ka = a.keys?.[name];
+    const kb = b.keys?.[name];
+    const revoked = [...new Set<number>([...(ka?.revoked ?? []), ...(kb?.revoked ?? [])])].sort((x, y) => x - y);
+    const version = Math.max(ka?.version ?? 1, kb?.version ?? 1);
+    const meta = kb && kb.version > (ka?.version ?? 0) ? kb : (ka ?? kb!);
+    out.keys[name] = { version, revoked, rotatedAt: meta.rotatedAt ?? null, lastActor: meta.lastActor ?? null, lastReason: meta.lastReason ?? null };
+  }
+  const subs = [...new Set([...Object.keys(a.userRevokedAt ?? {}), ...Object.keys(b.userRevokedAt ?? {})])].sort();
+  for (const sub of subs) out.userRevokedAt[sub] = Math.max(a.userRevokedAt?.[sub] ?? 0, b.userRevokedAt?.[sub] ?? 0);
+  return out;
+}
+
+/**
+ * Converge this replica's revocation state with shared state once (the fleet-sync tick, also
+ * directly testable). Reads the shared snapshot, unions it into local (never dropping a local
+ * revocation), and — anti-entropy — writes the union back when it carries more than shared, so a
+ * revocation held only on this replica (e.g. restored from its sealed state file at boot, or a
+ * racing writer clobbered shared) can't be lost to a freshly-booting sibling. On a shared-state
+ * blip it keeps the last-known local state and fails toward "more revoked".
+ */
+export async function refreshKeyRegistryFromShared(): Promise<void> {
+  try {
+    const raw = await sharedKv.get(KEY_REGISTRY_SHARED_KEY);
+    const shared: KeyRegistrySnapshot = raw ? (JSON.parse(raw) as KeyRegistrySnapshot) : { keys: {}, userRevokedAt: {} };
+    const merged = unionSnapshots(snapshotKeys(), shared);
+    restoreKeys(merged); // merged ⊇ local, so this only ever ADDS revocations
+    if (JSON.stringify(merged) !== raw) await sharedKv.set(KEY_REGISTRY_SHARED_KEY, JSON.stringify(merged));
+  } catch {
+    /* keep last-known local state on a shared-state blip — revocations already applied stay applied */
+  }
+}
+
+let timer: ReturnType<typeof setInterval> | null = null;
+/** Start periodic fleet convergence so a credential revoked on ANY replica takes effect here.
+ *  Idempotent; the interval is unref'd so it never keeps the process alive. Returns a stop handle. */
+export function startKeyRegistryFleetSync(intervalMs = 3000): () => void {
+  if (!timer) {
+    timer = setInterval(() => { void refreshKeyRegistryFromShared(); }, intervalMs);
+    timer.unref?.();
+  }
+  return stopKeyRegistryFleetSync;
+}
+export function stopKeyRegistryFleetSync(): void {
+  if (timer) { clearInterval(timer); timer = null; }
 }
 
 /** Test-only: reset all key state. */
