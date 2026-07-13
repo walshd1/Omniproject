@@ -202,3 +202,52 @@ test("redactSettingsForRead: masks federated-peer tokens (never leaked over GET)
   assert.equal(redacted.federatedPeers[0]!.token, "********");
   assert.equal(redacted.federatedPeers[0]!.baseUrl, "https://eu.omni.example"); // non-secret fields preserved
 });
+
+test("branding is sanitised through the bulk PATCH — a font-family injection is rejected, a good value kept", () => {
+  // fontFamily is injected into an inline style, so the bulk PATCH must apply saveBranding's font-stack guard.
+  assert.throws(() => updateSettings({ branding: { fontFamily: "x; } body { background: url(javascript:alert(1)) }" } }), SettingsValidationError);
+  assert.throws(() => updateSettings({ branding: { logoUrl: "javascript:alert(1)" } }), SettingsValidationError); // non-http URL
+  const ok = updateSettings({ branding: { appName: "Acme", fontFamily: "Inter, sans-serif", primaryColor: "#2563eb" } });
+  assert.equal(ok.branding?.fontFamily, "Inter, sans-serif");
+  updateSettings({ branding: null });
+});
+
+test("labelOverrides keeps only string values (the i18n layer assumes strings)", () => {
+  const s = updateSettings({ labelOverrides: JSON.parse('{"greeting":"Hi","bad":123,"__proto__":"x"}') });
+  assert.equal(s.labelOverrides["greeting"], "Hi");
+  assert.equal(Object.prototype.hasOwnProperty.call(s.labelOverrides, "bad"), false);        // non-string dropped
+  assert.equal(Object.prototype.hasOwnProperty.call(s.labelOverrides, "__proto__"), false);  // forbidden key dropped (own-prop check)
+  updateSettings({ labelOverrides: {} });
+});
+
+test("userPrefs entries are clamped to valid ranges/enums through the bulk PATCH", () => {
+  const s = updateSettings({ userPrefs: { "u1": { fontScale: 99, backgroundColor: "not-a-hex", switchScan: "bogus", density: "compact" } } });
+  const p = s.userPrefs["u1"] as { fontScale: number; backgroundColor: string | null; switchScan: string; density: string };
+  assert.ok(p.fontScale <= 1.5 && p.fontScale >= 0.85, "fontScale clamped");
+  assert.equal(p.backgroundColor, null); // invalid hex dropped
+  assert.equal(p.switchScan, "off");     // unknown enum → default
+  assert.equal(p.density, "compact");    // valid enum kept
+  updateSettings({ userPrefs: {} });
+});
+
+test("calendarPush can't persist a forged 'granted' consent with an uncatalogued target", () => {
+  const s = updateSettings({ calendarPush: { "victim": { granted: true, target: "http://attacker", scope: "all", grantedAt: "2000-01-01T00:00:00Z" } } });
+  const g = s.calendarPush["victim"] as { granted: boolean; target: string | null };
+  assert.equal(g.granted, false);  // consent to an uncatalogued target is void
+  assert.equal(g.target, null);
+  updateSettings({ calendarPush: {} });
+});
+
+test("screenLayouts drops an out-of-range span (structurally-invalid layout can't persist)", () => {
+  const s = updateSettings({ screenLayouts: { home: { order: ["a", "b"], spans: { a: 6, b: 99, c: "x" as unknown as number }, hidden: [] } } });
+  const l = s.screenLayouts["home"] as { spans: Record<string, number> };
+  assert.deepEqual(l.spans, { a: 6 }); // b (>12) + c (non-number) dropped
+  updateSettings({ screenLayouts: {} });
+});
+
+test("featureGovernance rejects a feature that is both required and forbidden", () => {
+  assert.throws(() => updateSettings({ featureGovernance: { required: ["globalSearch"], forbidden: ["globalSearch"] } }), SettingsValidationError);
+  const ok = updateSettings({ featureGovernance: { required: ["globalSearch"], forbidden: ["comments"] } });
+  assert.deepEqual(ok.featureGovernance, { required: ["globalSearch"], forbidden: ["comments"] });
+  updateSettings({ featureGovernance: { required: [], forbidden: [] } });
+});
