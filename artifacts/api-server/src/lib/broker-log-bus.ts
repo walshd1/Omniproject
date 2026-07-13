@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { foldRemoteEntry, registerBrokerLogPublisher, type BrokerLogEntry } from "./broker-log";
 import { RedisBus } from "./redis-bus";
+import { safeParseJson } from "./safe-json";
 
 /**
  * Broker-log fan-out bus — makes the admin live broker log **fleet-wide** under
@@ -48,7 +49,7 @@ class BrokerLogBus extends RedisBus {
 
   protected handleMessage(message: string): void {
     try {
-      const wire = JSON.parse(message) as Wire;
+      const wire = safeParseJson<Wire>(message); // cross-replica input — strip dangerous keys before use
       if (wire.from === this.instanceId) return; // our own echo; already recorded locally
       foldRemoteEntry(wire.entry);
     } catch {

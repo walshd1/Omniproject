@@ -5,6 +5,7 @@ import { signMessage, publicKeyId, verifySignature } from "./signing";
 import { logger } from "./logger";
 import { SealedFile, resolveConfigFile } from "./sealed-file";
 import { sharedKv, sharedStateMode } from "./shared-state";
+import { safeParseJson } from "./safe-json";
 import type { AuditEvent } from "./audit";
 
 /**
@@ -95,7 +96,7 @@ async function readSharedHead(): Promise<{ seq: number; lastHash: string; raw: s
   // linkHash/CAS, mirroring the disk path's guard (ensureLoaded). A wrong-typed head would corrupt the
   // chain link or the compare-and-set. Fail CLOSED (throw) rather than reset to genesis, which would
   // fork the chain: the caller's CAS loop surfaces the error and an operator investigates.
-  const p = JSON.parse(raw) as Head;
+  const p = safeParseJson<Head>(raw); // cross-replica shared head — strip dangerous keys before validating
   if (typeof p?.seq !== "number" || !Number.isFinite(p.seq) || typeof p?.lastHash !== "string") {
     throw new Error("audit chain: shared head is malformed");
   }
