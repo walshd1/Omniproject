@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { scopeForReq } from "./rbac";
-import { inScope } from "./scope";
+import { inScope, scopeAllowsVisibleProject } from "./scope";
 import { getProjects } from "./data";
 import { getSettings } from "./settings";
 import { programmeIdsOf, programmeIdOf } from "./programmes";
@@ -31,8 +31,8 @@ export async function assertProjectScope(req: Request, projectId: string): Promi
   if (!project) return { ok: false, error: "project not in your scope" };
   // Defence-in-depth for a programme-scoped principal: re-check the project's programme membership at the
   // gateway (the built-in broker doesn't scope-filter its list, so presence in it alone isn't enough).
-  if (scope.level === "programme"
-    && !inScope(scope, { programmeId: programmeIdOf(project), programmeIds: programmeIdsOf(project, registry) })) {
+  // scopeAllowsVisibleProject is the SAME decision the data-seam guard (broker/scope-guard.ts) applies.
+  if (!scopeAllowsVisibleProject(scope, { programmeId: programmeIdOf(project), programmeIds: programmeIdsOf(project, registry) })) {
     return { ok: false, error: "project not in your scope" };
   }
   return { ok: true };

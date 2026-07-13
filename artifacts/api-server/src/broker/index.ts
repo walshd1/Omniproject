@@ -15,6 +15,7 @@ import { devBrokerFromEnv } from "./dev-broker";
 import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
 import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
 import { wrapWithAutonomousGuard } from "./autonomous-guard";
+import { wrapWithScopeGuard } from "./scope-guard";
 import { wrapWithSingleFlight } from "./single-flight";
 import { messyDataArmed, wrapWithMessy } from "./messy-broker";
 import { getSettings } from "../lib/settings";
@@ -80,6 +81,12 @@ export function getBroker(): Broker {
     // (sees the final rows), but inside the trace so a trace shows the messified payload.
     // `messyDataArmed()` is false in production, so this wrap is never applied there.
     if (messyDataArmed()) base = wrapWithMessy(base);
+    // Defense in depth: for the FIRST-PARTY brokers OmniProject scopes for itself (demo + built-in
+    // store), re-enforce the caller's data scope at the seam so a MISSING gateway guard can't leak
+    // cross-scope project data. Outermost functional wrapper so it also covers a read-cache hit (the
+    // cache is keyed by method+args, not by scope). A real external broker enforces the forwarded scope
+    // itself (PSK envelope) and is not wrapped. No-op for all-scope / system callers.
+    if (!BROKER_ENV_CONFIGURED && !dev) base = wrapWithScopeGuard(base);
     singleton = instrumented() ? wrapWithTrace(base) : base;
   }
   return singleton;
