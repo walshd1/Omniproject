@@ -30,6 +30,7 @@ import { getArchiveStore } from "../lib/archive/archive-store";
 import { checkFieldValues, resolveFieldType } from "../lib/field-validation";
 import { randomUUID } from "node:crypto";
 import { aggregateResourcePool } from "../lib/resource-pool";
+import { guardProjectScope } from "../lib/project-scope";
 import { poolMap } from "../lib/concurrency-pool";
 import {
   type Row,
@@ -121,6 +122,7 @@ router.get("/projects/:projectId/issues", (req, res) => {
   const params = parseRouteParams(GetProjectIssuesParams, req, res, "Invalid project id");
   if (!params) return;
   return withBrokerErrors(req, res, "list_issues failed", async () => {
+    if (!(await guardProjectScope(req, res, params.projectId))) return;
     await conditionalJson(req, res, {
       token: await brokerChangeToken(req, `issues:${params.projectId}`),
       read: () => getIssues(req, params.projectId),
@@ -132,6 +134,7 @@ router.get("/projects/:projectId/summary", (req, res) => {
   const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
   if (!params) return;
   return withBrokerErrors(req, res, "project_summary failed", async () => {
+    if (!(await guardProjectScope(req, res, params.projectId))) return;
     res.json(await getSummary(req, params.projectId));
   });
 });
@@ -278,6 +281,7 @@ router.patch("/projects/:projectId", requireRole("manager"), async (req, res) =>
     return;
   }
   await withBrokerErrors(req, res, "update_project failed", async () => {
+    if (!(await guardProjectScope(req, res, paramsParse.data.projectId))) return;
     const updated = await getBroker().updateProject(contextFromReq(req), paramsParse.data.projectId, data);
     res.json(updated);
   });
@@ -312,6 +316,7 @@ router.get("/projects/:projectId/members", async (req, res) => {
     return;
   }
   await withBrokerErrors(req, res, "list_project_members failed", async () => {
+    if (!(await guardProjectScope(req, res, params.projectId))) return;
     res.json(await getBroker().projectMembers(contextFromReq(req), params.projectId));
   });
 });
@@ -322,6 +327,7 @@ router.get("/projects/:projectId/issues/:issueId/items", async (req, res) => {
   const params = parseRouteParams(ListTaskItemsParams, req, res, "Invalid request");
   if (!params) return;
   await withBrokerErrors(req, res, "list_task_items failed", async () => {
+    if (!(await guardProjectScope(req, res, params.projectId))) return;
     res.json(await getBroker().listTaskItems(contextFromReq(req), params.projectId, params.issueId));
   });
 });
@@ -340,6 +346,7 @@ router.post("/projects/:projectId/issues/:issueId/items", requireRole("contribut
     return;
   }
   await withBrokerErrors(req, res, "create_task_item failed", async () => {
+    if (!(await guardProjectScope(req, res, paramsParse.data.projectId))) return;
     const item = await getBroker().createTaskItem(
       contextFromReq(req),
       paramsParse.data.projectId,
@@ -362,6 +369,7 @@ router.post("/projects/:projectId/issues", requireRole("contributor"), async (re
   if (!passesBusinessRules(req, res, "create_issue", projectId, body)) return;
 
   await withBrokerErrors(req, res, "create_issue failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
     const issue = await getBroker().writeIssue(contextFromReq(req), "create", { projectId, ...body });
     res.status(201).json(issue);
   }, { projectId });
@@ -381,6 +389,7 @@ router.patch("/projects/:projectId/issues/:issueId", requireRole("contributor"),
   // edit as a `conflict` (409) — the demo adapter checks locally, a live
   // adapter forwards it so the backend (e.g. OpenProject lockVersion) enforces it.
   await withBrokerErrors(req, res, "update_issue failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
     const updated = await getBroker().writeIssue(contextFromReq(req), "update", { projectId, issueId, ...bodyParse.data });
     // A null result means the backend had no such issue to update. Emitting
     // `200 null` would violate the Issue response schema the client expects, so
@@ -400,6 +409,7 @@ router.delete("/projects/:projectId/issues/:issueId", requireRole("contributor")
   if (!passesBusinessRules(req, res, "delete_issue", projectId)) return;
 
   await withBrokerErrors(req, res, "delete_issue failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
     await getBroker().writeIssue(contextFromReq(req), "delete", { projectId, issueId });
     res.status(204).send();
   }, { projectId, issueId });
@@ -412,6 +422,7 @@ router.get("/projects/:projectId/capacity", analyticsLimiter, async (req, res) =
   if (!params) return;
   const { projectId } = params;
   await withBrokerErrors(req, res, "get_resource_capacity failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
     res.json(await getBroker().resourceCapacity(contextFromReq(req), projectId));
   }, { projectId });
 });
@@ -421,6 +432,7 @@ router.get("/projects/:projectId/financials", analyticsLimiter, async (req, res)
   if (!params) return;
   const { projectId } = params;
   await withBrokerErrors(req, res, "get_project_financials failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
     res.json(await getBroker().projectFinancials(contextFromReq(req), projectId));
   }, { projectId });
 });
@@ -431,6 +443,7 @@ router.get("/projects/:projectId/history", analyticsLimiter, async (req, res) =>
   const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
   if (!params) return;
   await withBrokerErrors(req, res, "get_project_history failed", async () => {
+    if (!(await guardProjectScope(req, res, params.projectId))) return;
     res.json(await getHistory(req, params.projectId));
   }, { projectId: params.projectId });
 });
@@ -439,6 +452,7 @@ router.get("/projects/:projectId/baseline", analyticsLimiter, async (req, res) =
   const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
   if (!params) return;
   await withBrokerErrors(req, res, "get_baseline failed", async () => {
+    if (!(await guardProjectScope(req, res, params.projectId))) return;
     res.json(await getBaseline(req, params.projectId));
   }, { projectId: params.projectId });
 });
@@ -449,6 +463,7 @@ router.get("/projects/:projectId/raid", async (req, res) => {
   const params = parseRouteParams(GetProjectSummaryParams, req, res, "Invalid project id");
   if (!params) return;
   await withBrokerErrors(req, res, "get_raid failed", async () => {
+    if (!(await guardProjectScope(req, res, params.projectId))) return;
     res.json(await getRaid(req, params.projectId));
   }, { projectId: params.projectId });
 });
@@ -465,6 +480,7 @@ router.post("/projects/:projectId/raid", requireRole("manager"), async (req, res
   const { projectId } = paramsParse.data;
 
   await withBrokerErrors(req, res, "create_raid_entry failed", async () => {
+    if (!(await guardProjectScope(req, res, projectId))) return;
     const entry = await getBroker().addRaid(contextFromReq(req), projectId, bodyParse.data as Record<string, unknown>);
     res.status(201).json(entry);
   }, { projectId });
