@@ -4,7 +4,7 @@
  * builds the real client. This is one of the two files in the whole project allowed to import a cloud
  * SDK — it lives below the seam, in the standalone broker service.
  */
-import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import type { ObjectStorePort } from "../contract";
 
 export interface S3PortConfig {
@@ -39,6 +39,9 @@ export function s3ObjectStorePort(cfg: S3PortConfig): ObjectStorePort {
         token = res.IsTruncated ? res.NextContinuationToken : undefined;
       } while (token);
       return keys.sort();
+    },
+    async delete(key) {
+      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     },
   };
 }

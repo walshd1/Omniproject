@@ -7,7 +7,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { retentionSourceFromEnv } from "./retention-source";
-import { dispatch, isOp } from "./dispatch";
+import { dispatch, isOp, UnsupportedOpError } from "./dispatch";
 import { ValidationError } from "./validate";
 import type { RetentionSource } from "./contract";
 
@@ -76,6 +76,8 @@ export function createHandler(source: RetentionSource, token?: string) {
       // Client input errors are safe to echo; backend/SDK failures are not (they leak bucket/table
       // names and request ids), so those get a generic 500 with details kept server-side.
       if (err instanceof ValidationError) return send(res, 400, { error: err.message });
+      // A backend that can't delete (disposal/erasure unsupported) is a safe, non-sensitive signal.
+      if (err instanceof UnsupportedOpError) return send(res, 501, { error: err.message });
       // eslint-disable-next-line no-console
       console.error("retention-broker: op failed", { op: m[1], err });
       send(res, 500, { error: "internal error" });

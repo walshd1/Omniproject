@@ -31,6 +31,28 @@ function fakeBigQuery(): BigQueryLike & { qualified: string[] } {
       if (opts.query.includes("LIMIT 1")) out = out.slice(0, 1);
       return [out];
     },
+    createQueryJob: async (opts) => {
+      qualified.push(opts.query);
+      const p = opts.params ?? {};
+      const table = opts.query.includes(".snapshot`") ? "snapshot" : "journal";
+      const col = table === "snapshot" ? "as_of" : "changed_at";
+      const before = rows[table]!.length;
+      const held = new Set(((p["held"] as string[] | undefined) ?? []).map(String));
+      rows[table] = rows[table]!.filter((r) => {
+        if ("cutoff" in p) {
+          const stale = String(r[col]) < String(p["cutoff"]);
+          const isHeld = held.has(`${String(r["entity"])}#${String(r["id"])}`);
+          return !(stale && !isHeld); // keep unless stale-and-not-held
+        }
+        return !(r["entity"] === p["entity"] && r["id"] === p["id"]); // erase: drop entity+id matches
+      });
+      const affected = before - rows[table]!.length;
+      const job = {
+        getQueryResults: async () => [[]] as [Record<string, unknown>[]],
+        getMetadata: async () => [{ statistics: { query: { numDmlAffectedRows: affected } } }] as [{ statistics: { query: { numDmlAffectedRows: number } } }],
+      };
+      return [job];
+    },
   };
 }
 
@@ -49,4 +71,30 @@ test("lastSnapshotAt via the BigQuery port returns the newest as_of", async () =
   await src.writeSnapshot({ entity: "issue", id: "1", asOf: "2026-01-10T00:00:00Z", values: {}, provenance: "replayed" });
   await src.writeSnapshot({ entity: "issue", id: "1", asOf: "2026-03-10T00:00:00Z", values: {}, provenance: "replayed" });
   assert.equal(await src.lastSnapshotAt("issue", "1"), "2026-03-10T00:00:00Z");
+});
+
+test("disposeOlderThan via the BigQuery port runs qualified DML and reports affected rows", async () => {
+  const bq = fakeBigQuery();
+  const src = warehouseRetentionSource(bigQueryWarehousePort({ bq, dataset: "omni" }));
+  await src.appendJournal([
+    { entity: "issue", id: "1", field: "status", oldValue: null, newValue: "x", changedAt: "2025-01-01T00:00:00Z", changedBy: "u", txnId: "a" },
+    { entity: "issue", id: "2", field: "status", oldValue: null, newValue: "x", changedAt: "2025-01-01T00:00:00Z", changedBy: "u", txnId: "b" },
+    { entity: "issue", id: "1", field: "status", oldValue: null, newValue: "x", changedAt: "2026-06-01T00:00:00Z", changedBy: "u", txnId: "c" },
+  ]);
+  await src.writeSnapshot({ entity: "issue", id: "1", asOf: "2025-01-01T00:00:00Z", values: {}, provenance: "replayed" });
+  const r = await src.disposeOlderThan!("2026-01-01T00:00:00Z", { heldKeys: ["issue#2"] });
+  assert.deepEqual(r, { snapshots: 1, journal: 1 });
+  assert.ok(bq.qualified.some((q) => q.includes("DELETE") && q.includes("`omni.journal`")), "DELETE dataset-qualified");
+});
+
+test("eraseEntity via the BigQuery port deletes one entity id across both tables", async () => {
+  const bq = fakeBigQuery();
+  const src = warehouseRetentionSource(bigQueryWarehousePort({ bq, dataset: "omni" }));
+  await src.appendJournal([
+    { entity: "issue", id: "1", field: "status", oldValue: null, newValue: "x", changedAt: "2026-01-01T00:00:00Z", changedBy: "u", txnId: "a" },
+    { entity: "issue", id: "2", field: "status", oldValue: null, newValue: "x", changedAt: "2026-01-01T00:00:00Z", changedBy: "u", txnId: "b" },
+  ]);
+  await src.writeSnapshot({ entity: "issue", id: "1", asOf: "2026-01-01T00:00:00Z", values: {}, provenance: "replayed" });
+  const r = await src.eraseEntity!("issue", "1");
+  assert.deepEqual(r, { snapshots: 1, journal: 1 });
 });
