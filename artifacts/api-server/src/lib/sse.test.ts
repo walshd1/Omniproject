@@ -62,3 +62,39 @@ test("keepAlive pings on the interval and clears + runs onClose when the request
     clearInterval(ping);
   }
 });
+
+test("keepAlive cleanup runs EXACTLY once even when req and res both emit close", () => {
+  const f = fakeRes();
+  const s = openSse(f.res);
+  let closes = 0;
+  const reqHandlers: Record<string, () => void> = {};
+  const resHandlers: Record<string, () => void> = {};
+  const req = {
+    on: (ev: string, fn: () => void) => { reqHandlers[ev] = fn; },
+    res: { on: (ev: string, fn: () => void) => { resHandlers[ev] = fn; } },
+  } as unknown as Request;
+  const ping = keepAlive(s, req, () => { closes += 1; }, 10);
+  try {
+    reqHandlers["close"]!(); // client disconnect
+    resHandlers["close"]!(); // response side also observes it
+    reqHandlers["close"]!(); // and a duplicate
+    assert.equal(closes, 1, "onClose ran once despite three close signals");
+  } finally {
+    clearInterval(ping);
+  }
+});
+
+test("keepAlive: an onTick self-close runs onClose (no leaked subscription) and stops pinging", async () => {
+  const f = fakeRes();
+  const s = openSse(f.res);
+  let closed = false;
+  // req never emits close (the bug scenario: server self-closes over a keep-alive socket).
+  const req = { on: () => {} } as unknown as Request;
+  keepAlive(s, req, () => { closed = true; }, 5, () => true /* deprovisioned ⇒ close now */);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(f.ended, true, "stream was closed");
+  assert.equal(closed, true, "onClose ran from the self-close path, not just req.on(close)");
+  const writesAfter = f.writes.length;
+  await new Promise((r) => setTimeout(r, 15));
+  assert.equal(f.writes.length, writesAfter, "no further pings after cleanup (interval cleared)");
+});
