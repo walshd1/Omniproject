@@ -22,7 +22,7 @@ import { sanitizeBranding } from "./branding";
 import { sanitizeUserPrefs } from "./user-prefs";
 import { sanitizeGrant } from "./calendar-push";
 import { sanitizeLabels } from "./labels";
-import { isForbiddenKey } from "./safe-json";
+import { isForbiddenKey, stripDangerousKeysDeep } from "./safe-json";
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
 import { validateBrokerKinds, brokerKindsFromEnv, BrokerKindsError } from "./broker-kinds";
@@ -804,7 +804,10 @@ export function isTimeTravelEnabled(): boolean {
   return store.loggingSync.enabled;
 }
 
-const ALLOWED_KEYS: (keyof SettingsState)[] = [
+// Exported so the settings-sanitizer coverage ratchet (settings-sanitizer-coverage.test.ts) can iterate
+// EVERY persisted field and prove none is a prototype-pollution / dangerous-key sink on the bulk-PATCH
+// path — a new field is automatically probed, no per-field test to remember.
+export const ALLOWED_KEYS: (keyof SettingsState)[] = [
   "brokerUrl",
   "aiProvider",
   "sttProvider",
@@ -1310,7 +1313,14 @@ export function registerCapabilityStatesSanitizer(fn: CapabilityStatesSanitizer)
 /** Validate a settings patch and return a NORMALIZED copy (reportingCurrency upper-cased,
  *  fxRateAsOfDate/reportingCurrency empty-string coerced to null, …) — pure, never mutates the
  *  caller's `patch` object. Throws SettingsValidationError on bad input. */
-function validatePatch(patch: Record<string, unknown>): Record<string, unknown> {
+function validatePatch(rawPatch: Record<string, unknown>): Record<string, unknown> {
+  // Strip prototype-pollution-dangerous OWN keys (__proto__/constructor/prototype) at every depth BEFORE
+  // any field is read or persisted. Over HTTP the express.json reviver already does this, but a config-
+  // snapshot restore / internal updateSettings() call parses with bare JSON.parse — so a field whose
+  // validator only shape-checks and passes the object through verbatim (loggingSync, selfHost, …) would
+  // otherwise persist a dangerous key. Doing it here closes the class for EVERY field, present and future,
+  // at the single write gate. Pure — the caller's object is never mutated.
+  const patch = stripDangerousKeysDeep(rawPatch);
   const normalized: Record<string, unknown> = { ...patch };
   if ("aiProvider" in patch && !(AI_PROVIDERS as readonly string[]).includes(patch["aiProvider"] as string)) {
     throw new SettingsValidationError(`aiProvider must be one of: ${AI_PROVIDERS.join(", ")}`);
