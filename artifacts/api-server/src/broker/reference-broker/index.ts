@@ -363,6 +363,27 @@ async function unwrapResponse<T>(
  * steps above in sequence: build the envelope, sign/encrypt it, send it with
  * pool failover, then unwrap the response — auditing every outcome along the way.
  */
+/** How many times a 429 (backend rate-limit) is retried in-request before the error surfaces. Small,
+ *  so a sustained overload fails fast (as 429) rather than holding the request open. */
+const MAX_RATE_LIMIT_RETRIES = 2;
+/** Upper bound on a single honoured Retry-After wait — we absorb short bursts, not long stalls. */
+const MAX_RETRY_WAIT_MS = 3_000;
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** Delay before a 429 retry: honour the backend's `Retry-After` (delta-seconds or HTTP-date), bounded;
+ *  fall back to a capped exponential backoff when it's absent/unparseable. */
+export function retryAfterMs(res: { headers: { get(name: string): string | null } }, attempt: number, now: number): number {
+  const raw = res.headers.get("retry-after");
+  if (raw) {
+    const secs = Number(raw);
+    if (Number.isFinite(secs)) return Math.min(Math.max(secs * 1000, 0), MAX_RETRY_WAIT_MS);
+    const when = Date.parse(raw);
+    if (!Number.isNaN(when)) return Math.min(Math.max(when - now, 0), MAX_RETRY_WAIT_MS);
+  }
+  return Math.min(250 * 2 ** attempt, MAX_RETRY_WAIT_MS); // 250ms, 500ms, …
+}
+
 async function callBroker<T = unknown>(
   action: string,
   payload: Record<string, unknown>,
@@ -392,7 +413,18 @@ async function callBroker<T = unknown>(
 
   const psk = pskEnabled();
   const init = signAndEncrypt(envelope, opts.ctx, psk);
-  const { res, targets, lastErr } = await sendWithFailover(init);
+  // Backpressure-aware send: when the backend/sidecar replies 429 (rate-limited), honour its
+  // Retry-After and re-send a BOUNDED number of times before surfacing the 429. Safe to retry — a
+  // 429 means the request was REJECTED, not applied, and the idempotency key dedupes it regardless.
+  let res: BrokerResponse | undefined;
+  let targets: string[] = [];
+  let lastErr: unknown;
+  for (let attempt = 0; ; attempt++) {
+    ({ res, targets, lastErr } = await sendWithFailover(init));
+    if (!res || res.status !== 429 || attempt >= MAX_RATE_LIMIT_RETRIES) break;
+    await res.text().catch(() => ""); // drain the rejected response body before retrying
+    await sleep(retryAfterMs(res, attempt, Date.now()));
+  }
 
   if (!res) {
     const isTimeout = isTimeoutError(lastErr);
