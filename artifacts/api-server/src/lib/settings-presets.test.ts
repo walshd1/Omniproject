@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { listSettingsPresets, settingsPreset } from "./settings-presets";
 import { evaluateConstraints } from "./settings-constraints";
 import {
-  getSettings, AI_PROVIDERS, STT_PROVIDERS, FX_RATE_POLICIES, type SettingsState,
+  getSettings, updateSettings, applyBootSettingsPreset, AI_PROVIDERS, STT_PROVIDERS, FX_RATE_POLICIES, type SettingsState,
 } from "./settings";
 import { DEPLOYMENT_PROFILES } from "./deployment-profile";
 
@@ -34,6 +34,24 @@ test("every preset uses only in-range enum values + valid priority weights", () 
         assert.ok(typeof v === "number" && Number.isFinite(v) && v >= 0, `${p.id}: priorityWeights.${k} must be a non-negative number`);
       }
     }
+  }
+});
+
+test("applyBootSettingsPreset seeds a named blueprint at boot (SETTINGS_PRESET / compose glue)", () => {
+  const before = getSettings();
+  try {
+    applyBootSettingsPreset("nonprofit");
+    assert.equal(getSettings().deploymentProfile, "nonprofit");
+    assert.deepEqual(getSettings().disabledFeatures, ["odata", "integrations"]);
+    assert.doesNotThrow(() => applyBootSettingsPreset("does-not-exist")); // unknown id ⇒ best-effort no-op
+    assert.doesNotThrow(() => applyBootSettingsPreset(undefined)); // unset ⇒ no-op
+    assert.equal(getSettings().deploymentProfile, "nonprofit"); // unchanged by the no-ops
+  } finally {
+    updateSettings({
+      deploymentProfile: before.deploymentProfile, disabledFeatures: before.disabledFeatures,
+      reportingCurrency: before.reportingCurrency, fxRatePolicy: before.fxRatePolicy,
+      aiProvider: before.aiProvider, sttProvider: before.sttProvider, priorityWeights: before.priorityWeights,
+    });
   }
 });
 

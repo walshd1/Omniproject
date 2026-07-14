@@ -10,6 +10,7 @@
 import { assertSafeOutboundUrl, isSafeOutboundUrl, UnsafeUrlError } from "./url-safety";
 import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "./deployment-profile";
 import { evaluateConstraints } from "./settings-constraints";
+import { settingsPreset } from "./settings-presets";
 import type { BackendFieldMap } from "../broker/types";
 import { CANONICAL_PRIORITY } from "../broker/vocabulary";
 import type { GovernanceRule } from "./governance-rules";
@@ -1678,3 +1679,27 @@ export function updateSettings(patch: Record<string, unknown>): SettingsState {
 
 // Apply the initial (env-seeded) profile to the runtime accessor at module load.
 setRuntimeProfile(store.deploymentProfile ?? null);
+
+/**
+ * Boot-time archetype seeding: if `SETTINGS_PRESET` names a known-good blueprint (lib/settings-presets),
+ * apply it over the env-seeded defaults at startup, so a docker-compose can DECLARE its customer
+ * archetype (`SETTINGS_PRESET=regulated-selfhost`) and the app self-configures to match — the compose
+ * and the wizard preset stay in lock-step. Applied once; the operator can still tweak everything after.
+ * Idempotent + best-effort (an unknown/invalid id is logged, never fatal). Exported for the boot test.
+ */
+export function applyBootSettingsPreset(id: string | undefined = process.env["SETTINGS_PRESET"]?.trim()): void {
+  if (!id) return;
+  const preset = settingsPreset(id);
+  if (!preset) {
+    logger.warn({ preset: id }, "SETTINGS_PRESET names no known blueprint — ignoring");
+    return;
+  }
+  try {
+    updateSettings(preset.settings);
+    logger.info({ preset: id }, "applied settings blueprint from SETTINGS_PRESET");
+  } catch (err) {
+    logger.warn({ err, preset: id }, "SETTINGS_PRESET blueprint failed to apply — keeping defaults");
+  }
+}
+
+applyBootSettingsPreset();
