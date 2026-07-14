@@ -7,6 +7,7 @@ import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
 import { useGuidAliases, useSaveGuidAliases, useForgetProject, exportProjectReferences, type GuidAliases } from "../../lib/guid-aliases";
 import { AdminSection } from "./AdminSection";
+import { EditableRowTable } from "./EditableRowTable";
 
 interface Row { oldGuid: string; newGuid: string }
 const empty = (): Row => ({ oldGuid: "", newGuid: "" });
@@ -86,29 +87,19 @@ export function GuidAliasesAdmin() {
             <strong>Relink</strong> — map an old project GUID to a new one so historical references
             (programmes, closed index, reports) resolve after a project is re-created.
           </p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="text-left text-muted-foreground uppercase tracking-wider">
-                  <th className="p-1 font-bold">Old GUID</th>
-                  <th className="p-1 font-bold">→ New GUID</th>
-                  <th className="p-1" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i} className={badRows.has(i) ? "bg-red-500/10" : undefined} data-testid={`guid-alias-row-${i}`}>
-                    <td className="p-1"><Input aria-label={`Alias ${i + 1} old`} value={r.oldGuid} onChange={(e) => set(i, { oldGuid: e.target.value })} className="h-8 font-mono" /></td>
-                    <td className="p-1"><Input aria-label={`Alias ${i + 1} new`} value={r.newGuid} onChange={(e) => set(i, { newGuid: e.target.value })} className="h-8 font-mono" /></td>
-                    <td className="p-1">
-                      <button type="button" aria-label={`Remove alias ${i + 1}`} onClick={() => setDraft(rows.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-red-500 px-2">×</button>
-                    </td>
-                  </tr>
-                ))}
-                {rows.length === 0 && <tr><td colSpan={3} className="p-3 text-center text-muted-foreground">No relinks.</td></tr>}
-              </tbody>
-            </table>
-          </div>
+          <EditableRowTable
+            rows={rows}
+            rowKey={(_, i) => i}
+            rowTestId={(_, i) => `guid-alias-row-${i}`}
+            rowClassName={(_, i) => (badRows.has(i) ? "bg-red-500/10" : undefined)}
+            onRemove={(i) => setDraft(rows.filter((_, j) => j !== i))}
+            removeLabel={(i) => `Remove alias ${i + 1}`}
+            emptyText="No relinks."
+            columns={[
+              { header: "Old GUID", cell: (r, i) => <Input aria-label={`Alias ${i + 1} old`} value={r.oldGuid} onChange={(e) => set(i, { oldGuid: e.target.value })} className="h-8 font-mono" /> },
+              { header: "→ New GUID", cell: (r, i) => <Input aria-label={`Alias ${i + 1} new`} value={r.newGuid} onChange={(e) => set(i, { newGuid: e.target.value })} className="h-8 font-mono" /> },
+            ]}
+          />
           <div className="flex items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => setDraft([...rows, empty()])} data-testid="guid-alias-add">Add relink</Button>
             {dirty && <Button type="button" variant="ghost" size="sm" onClick={reset}>Reset</Button>}
