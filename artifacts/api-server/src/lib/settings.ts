@@ -9,6 +9,7 @@
 
 import { assertSafeOutboundUrl, isSafeOutboundUrl, UnsafeUrlError } from "./url-safety";
 import { DEPLOYMENT_PROFILES, setRuntimeProfile, type DeploymentProfile } from "./deployment-profile";
+import { evaluateConstraints } from "./settings-constraints";
 import type { BackendFieldMap } from "../broker/types";
 import { CANONICAL_PRIORITY } from "../broker/vocabulary";
 import type { GovernanceRule } from "./governance-rules";
@@ -1616,6 +1617,12 @@ function validatePatch(rawPatch: Record<string, unknown>): Record<string, unknow
     const effRetired = ("retiredGuids" in normalized ? normalized["retiredGuids"] : store.retiredGuids) as string[];
     normalized["retiredGuids"] = [...new Set([...effRetired, ...Object.keys(effClosed)])];
   }
+  // ── Cross-field INCOMPATIBILITY registry (lib/settings-constraints) — reject illegal COMBINATIONS a
+  // single-field validator can't see (e.g. a feature both org-enabled AND org-disabled). Evaluated over
+  // the effective (patch-merged) settings, same basis as the rules above. The registry's `locks` (inert
+  // fields the admin UI greys out) are advisory and surfaced via the settings read, not enforced here.
+  const { violations } = evaluateConstraints({ ...store, ...normalized } as unknown as SettingsState);
+  if (violations.length > 0) throw new SettingsValidationError(violations[0]!.message);
   return normalized;
 }
 
