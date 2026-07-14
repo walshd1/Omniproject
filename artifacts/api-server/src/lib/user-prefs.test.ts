@@ -19,6 +19,16 @@ test("sanitize clamps font scale and validates the colour", () => {
   assert.equal(sanitizeUserPrefs({ highContrast: 1, reduceMotion: "yes" }).highContrast, true);
 });
 
+test("sanitize validates the per-user font family + accent colour (null when absent/invalid)", () => {
+  assert.equal(sanitizeUserPrefs({ fontFamily: "serif" }).fontFamily, "serif");
+  assert.equal(sanitizeUserPrefs({ fontFamily: "mono" }).fontFamily, "mono");
+  assert.equal(sanitizeUserPrefs({ fontFamily: "comic-sans" }).fontFamily, null);
+  assert.equal(sanitizeUserPrefs({}).fontFamily, null);
+  assert.equal(sanitizeUserPrefs({ accentColor: "#2563eb" }).accentColor, "#2563eb");
+  assert.equal(sanitizeUserPrefs({ accentColor: "rebeccapurple" }).accentColor, null);
+  assert.equal(sanitizeUserPrefs({}).accentColor, null);
+});
+
 test("sanitize validates switch-scan mode, clamps the scan rate, coerces a11y toggles", () => {
   assert.equal(sanitizeUserPrefs({ switchScan: "single" }).switchScan, "single");
   assert.equal(sanitizeUserPrefs({ switchScan: "two" }).switchScan, "two");

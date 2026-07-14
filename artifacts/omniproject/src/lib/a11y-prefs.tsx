@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { setAnnounceVerbose } from "./announce";
+import { brandTokensFromHex } from "./color";
+import { FONT_CHOICES, FONT_STACKS, type FontChoice } from "./artifact-style";
 
 /**
  * Per-user accessibility preferences — a CLIENT-SIDE layer that an individual user
@@ -20,6 +22,10 @@ export type Density = "comfortable" | "compact";
 export interface A11yPrefs {
   /** UI text scale, 0.85–1.5 (1 = company default). Per-user font SIZE. */
   fontScale: number;
+  /** Personal font FAMILY, or null to inherit the company brand font. Overrides the org font. */
+  fontFamily: FontChoice | null;
+  /** Personal accent COLOUR (hex), or null to inherit the company brand accent. Overrides the org accent. */
+  accentColor: string | null;
   /** Personal page background colour (hex), or null for the company default. */
   backgroundColor: string | null;
   /** Stronger borders, underlined links, thick focus outlines. */
@@ -41,7 +47,7 @@ export interface A11yPrefs {
 }
 
 export const DEFAULT_A11Y: A11yPrefs = {
-  fontScale: 1, backgroundColor: null, highContrast: false, reduceMotion: false,
+  fontScale: 1, fontFamily: null, accentColor: null, backgroundColor: null, highContrast: false, reduceMotion: false,
   switchScan: "off", scanRateMs: 1500, screenReader: false, speechInput: false, mobileMode: "auto",
   density: "comfortable",
 };
@@ -59,6 +65,7 @@ const DENSITIES: Density[] = ["comfortable", "compact"];
 const clampScale = (n: number): number => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(n * 100) / 100));
 const clampScan = (n: number): number => Math.min(MAX_SCAN, Math.max(MIN_SCAN, Math.round(n)));
 const cleanColor = (v: unknown): string | null => (typeof v === "string" && HEX.test(v) ? v : null);
+const cleanFontFamily = (v: unknown): FontChoice | null => (FONT_CHOICES.includes(v as FontChoice) ? (v as FontChoice) : null);
 const cleanScanMode = (v: unknown): SwitchScanMode => (SCAN_MODES.includes(v as SwitchScanMode) ? (v as SwitchScanMode) : "off");
 const cleanMobileMode = (v: unknown): MobileMode => (MOBILE_MODES.includes(v as MobileMode) ? (v as MobileMode) : "auto");
 const cleanDensity = (v: unknown): Density => (DENSITIES.includes(v as Density) ? (v as Density) : "comfortable");
@@ -72,6 +79,8 @@ export function loadA11yPrefs(): A11yPrefs {
     const p = JSON.parse(raw) as Partial<A11yPrefs>;
     return {
       fontScale: typeof p.fontScale === "number" ? clampScale(p.fontScale) : DEFAULT_A11Y.fontScale,
+      fontFamily: cleanFontFamily(p.fontFamily),
+      accentColor: cleanColor(p.accentColor),
       backgroundColor: cleanColor(p.backgroundColor),
       highContrast: !!p.highContrast,
       reduceMotion: !!p.reduceMotion,
@@ -97,6 +106,19 @@ export function applyA11yPrefs(p: A11yPrefs): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   root.style.setProperty("--user-font-scale", String(clampScale(p.fontScale)));
+  // Per-user font FAMILY + accent COLOUR override the org brand layer via the CSS
+  // cascade (--user-* wins over --brand-* in index.css). Cleared ⇒ the brand shows through.
+  const family = cleanFontFamily(p.fontFamily);
+  if (family) root.style.setProperty("--user-font-family", FONT_STACKS[family]);
+  else root.style.removeProperty("--user-font-family");
+  const accent = p.accentColor ? brandTokensFromHex(p.accentColor) : null;
+  if (accent) {
+    root.style.setProperty("--user-accent", accent.channels);
+    root.style.setProperty("--user-accent-fg", accent.fg);
+  } else {
+    root.style.removeProperty("--user-accent");
+    root.style.removeProperty("--user-accent-fg");
+  }
   if (p.backgroundColor) root.style.setProperty("--user-bg", p.backgroundColor);
   else root.style.removeProperty("--user-bg");
   root.setAttribute("data-contrast", p.highContrast ? "high" : "normal");
@@ -108,6 +130,8 @@ export function applyA11yPrefs(p: A11yPrefs): void {
 interface A11yContextValue {
   prefs: A11yPrefs;
   setFontScale: (n: number) => void;
+  setFontFamily: (family: FontChoice | null) => void;
+  setAccentColor: (hex: string | null) => void;
   setBackgroundColor: (hex: string | null) => void;
   toggleHighContrast: () => void;
   toggleReduceMotion: () => void;
@@ -167,6 +191,8 @@ export function A11yProvider({ children }: { children: ReactNode }) {
   const value: A11yContextValue = {
     prefs,
     setFontScale: (n) => change({ ...prefs, fontScale: clampScale(n) }),
+    setFontFamily: (family) => change({ ...prefs, fontFamily: cleanFontFamily(family) }),
+    setAccentColor: (hex) => change({ ...prefs, accentColor: cleanColor(hex) }),
     setBackgroundColor: (hex) => change({ ...prefs, backgroundColor: cleanColor(hex) }),
     toggleHighContrast: () => change({ ...prefs, highContrast: !prefs.highContrast }),
     toggleReduceMotion: () => change({ ...prefs, reduceMotion: !prefs.reduceMotion }),

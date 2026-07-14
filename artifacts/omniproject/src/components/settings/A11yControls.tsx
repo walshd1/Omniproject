@@ -3,8 +3,17 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useA11yPrefs, A11Y_SCALE_BOUNDS, type SwitchScanMode, type MobileMode, type Density } from "../../lib/a11y-prefs";
+import { type FontChoice } from "../../lib/artifact-style";
 import { isSpeechSupported } from "../../lib/speech";
 import { usePlatform } from "../../lib/platform-context";
+
+// "" = inherit the company brand font; the named choices override it for this user.
+const FONT_OPTIONS: { value: FontChoice | ""; label: string }[] = [
+  { value: "", label: "Company default" },
+  { value: "sans", label: "Sans-serif" },
+  { value: "serif", label: "Serif" },
+  { value: "mono", label: "Monospace" },
+];
 
 const SCAN_OPTIONS: { value: SwitchScanMode; label: string }[] = [
   { value: "off", label: "Off" },
@@ -31,7 +40,7 @@ const DENSITY_OPTIONS: { value: Density; label: string }[] = [
  */
 export function A11yControls() {
   const {
-    prefs, setFontScale, setBackgroundColor, toggleHighContrast, toggleReduceMotion,
+    prefs, setFontScale, setFontFamily, setAccentColor, setBackgroundColor, toggleHighContrast, toggleReduceMotion,
     setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput, setMobileMode, setDensity, reset,
   } = useA11yPrefs();
   const pct = Math.round(prefs.fontScale * 100);
@@ -49,6 +58,33 @@ export function A11yControls() {
             <Button variant="outline" size="sm" aria-label="Decrease text size" disabled={prefs.fontScale <= A11Y_SCALE_BOUNDS.min} onClick={() => setFontScale(prefs.fontScale - 0.1)}>A−</Button>
             <span className="w-12 text-center text-sm tabular-nums" role="status" aria-live="polite">{pct}%</span>
             <Button variant="outline" size="sm" aria-label="Increase text size" disabled={prefs.fontScale >= A11Y_SCALE_BOUNDS.max} onClick={() => setFontScale(prefs.fontScale + 0.1)}>A+</Button>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="a11y-font">Font</Label>
+          <select
+            id="a11y-font"
+            value={prefs.fontFamily ?? ""}
+            onChange={(e) => setFontFamily(e.target.value === "" ? null : (e.target.value as FontChoice))}
+            className="h-9 rounded-md border border-border bg-transparent px-2 text-sm"
+          >
+            {FONT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="a11y-accent">Accent colour</Label>
+          <div className="flex items-center gap-2">
+            <input
+              id="a11y-accent"
+              type="color"
+              aria-label="Accent colour"
+              value={prefs.accentColor ?? "#2563eb"}
+              onChange={(e) => setAccentColor(e.target.value)}
+              className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+            />
+            {prefs.accentColor && (
+              <Button variant="ghost" size="sm" onClick={() => setAccentColor(null)} aria-label="Clear accent colour">Clear</Button>
+            )}
           </div>
         </div>
         <div className="flex items-center justify-between gap-4">

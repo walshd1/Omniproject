@@ -11,6 +11,8 @@ import { getSettings, updateSettings, type UserPrefs } from "./settings";
 
 export const DEFAULT_USER_PREFS: UserPrefs = {
   fontScale: 1,
+  fontFamily: null,
+  accentColor: null,
   backgroundColor: null,
   highContrast: false,
   reduceMotion: false,
@@ -23,6 +25,7 @@ export const DEFAULT_USER_PREFS: UserPrefs = {
 };
 
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const FONT_FAMILIES = ["sans", "serif", "mono"] as const;
 const SCAN_MODES = ["off", "single", "two"] as const;
 const MOBILE_MODES = ["auto", "on", "off"] as const;
 const DENSITIES = ["comfortable", "compact"] as const;
@@ -34,6 +37,8 @@ export function sanitizeUserPrefs(input: unknown): UserPrefs {
   const o = (input ?? {}) as Record<string, unknown>;
   return {
     fontScale: typeof o["fontScale"] === "number" ? clampScale(o["fontScale"] as number) : DEFAULT_USER_PREFS.fontScale,
+    fontFamily: (FONT_FAMILIES as readonly string[]).includes(o["fontFamily"] as string) ? (o["fontFamily"] as UserPrefs["fontFamily"]) : null,
+    accentColor: typeof o["accentColor"] === "string" && HEX.test(o["accentColor"] as string) ? (o["accentColor"] as string) : null,
     backgroundColor: typeof o["backgroundColor"] === "string" && HEX.test(o["backgroundColor"] as string) ? (o["backgroundColor"] as string) : null,
     highContrast: !!o["highContrast"],
     reduceMotion: !!o["reduceMotion"],

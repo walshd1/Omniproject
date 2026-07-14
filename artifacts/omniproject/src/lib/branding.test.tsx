@@ -47,14 +47,14 @@ describe("useBranding", () => {
     await waitFor(() => expect(document.title).toBe("Acme PM"));
     const root = document.documentElement.style;
     expect(root.getPropertyValue("--brand-primary")).toBe("#ff0000");
-    // The brand colour drives the LIVE accent token as HSL channels (#ff0000 = red).
-    expect(root.getPropertyValue("--primary")).toBe("0 100% 50%");
-    expect(root.getPropertyValue("--ring")).toBe("0 100% 50%");
-    expect(root.getPropertyValue("--sidebar-primary")).toBe("0 100% 50%");
+    // The brand colour feeds the ORG layer of the accent cascade as HSL channels (#ff0000 = red).
+    // index.css resolves --primary = var(--user-accent, var(--brand-accent, <default>)).
+    expect(root.getPropertyValue("--brand-accent")).toBe("0 100% 50%");
+    expect(root.getPropertyValue("--brand-accent-fg")).toBe("220 10% 7%");
   });
 
-  it("removes the derived accent tokens when primaryColor is cleared", async () => {
-    document.documentElement.style.setProperty("--primary", "0 100% 50%");
+  it("removes the org accent var when primaryColor is cleared", async () => {
+    document.documentElement.style.setProperty("--brand-accent", "0 100% 50%");
     const qc = freshClient();
     qc.setQueryData(["branding"], {
       appName: "Plain2", shortName: "P2", logoUrl: "", primaryColor: "",
@@ -63,7 +63,7 @@ describe("useBranding", () => {
     renderHook(() => useBranding(), { wrapper: makeWrapper(qc) });
     await waitFor(() => expect(document.title).toBe("Plain2"));
     // Cleared brand ⇒ the override is removed so the stylesheet default accent applies.
-    expect(document.documentElement.style.getPropertyValue("--primary")).toBe("");
+    expect(document.documentElement.style.getPropertyValue("--brand-accent")).toBe("");
   });
 
   it("removes the brand colour property when primaryColor is empty", async () => {

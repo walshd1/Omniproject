@@ -72,8 +72,11 @@
   --popover: 0 0% 100%;
   --popover-foreground: 220 10% 7%;
   --popover-border: 220 8% 80%;
-  --primary: 217 91% 60%;
-  --primary-foreground: 0 0% 100%;
+  /* Accent cascade — per-USER accent (lib/a11y-prefs) overrides the ORG brand accent
+     (lib/branding) overrides this app default. Same layered value in light + dark (the
+     accent is mode-independent), so it is defined once here and NOT re-set under .dark. */
+  --primary: var(--user-accent, var(--brand-accent, 217 91% 60%));
+  --primary-foreground: var(--user-accent-fg, var(--brand-accent-fg, 0 0% 100%));
   --secondary: 220 10% 90%;
   --secondary-foreground: 220 10% 7%;
   --muted: 220 10% 90%;
@@ -83,16 +86,16 @@
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
   --input: 220 8% 80%;
-  --ring: 217 91% 60%;
+  --ring: var(--user-accent, var(--brand-accent, 217 91% 60%));
 
   --sidebar: 0 0% 95%;
   --sidebar-foreground: 220 10% 7%;
   --sidebar-border: 220 8% 80%;
-  --sidebar-primary: 217 91% 60%;
-  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary: var(--user-accent, var(--brand-accent, 217 91% 60%));
+  --sidebar-primary-foreground: var(--user-accent-fg, var(--brand-accent-fg, 0 0% 100%));
   --sidebar-accent: 220 10% 90%;
   --sidebar-accent-foreground: 220 10% 7%;
-  --sidebar-ring: 217 91% 60%;
+  --sidebar-ring: var(--user-accent, var(--brand-accent, 217 91% 60%));
 
   --app-font-sans: 'JetBrains Mono', monospace;
   --app-font-serif: 'JetBrains Mono', monospace;
@@ -110,8 +113,8 @@
   --popover: 220 9% 11%;
   --popover-foreground: 0 0% 95%;
   --popover-border: 220 8% 20%;
-  --primary: 217 91% 60%;
-  --primary-foreground: 0 0% 100%;
+  /* --primary / --primary-foreground are mode-independent and inherit the accent cascade
+     defined on :root (per-user → brand → default); not re-set here. */
   --secondary: 220 8% 20%;
   --secondary-foreground: 0 0% 95%;
   --muted: 220 8% 20%;
@@ -121,16 +124,13 @@
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
   --input: 220 8% 20%;
-  --ring: 217 91% 60%;
+  /* --ring / --sidebar-primary / --sidebar-ring follow the accent cascade from :root. */
 
   --sidebar: 220 10% 7%;
   --sidebar-foreground: 0 0% 95%;
   --sidebar-border: 220 8% 20%;
-  --sidebar-primary: 217 91% 60%;
-  --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 220 8% 20%;
   --sidebar-accent-foreground: 0 0% 95%;
-  --sidebar-ring: 217 91% 60%;
 }
 
 @layer base {
@@ -140,9 +140,10 @@
 
   body {
     @apply font-mono antialiased bg-background text-foreground;
-    /* Font family = customer brand (lib/branding); background colour = PER-USER
-       (lib/a11y-prefs), each falling back to the default when unset. */
-    font-family: var(--brand-font-family, ui-monospace, SFMono-Regular, monospace);
+    /* Font family cascade: PER-USER font (lib/a11y-prefs) overrides the company BRAND
+       font (lib/branding) overrides the default. Background colour = per-user, over the
+       app default. Each falls back to the layer below when unset. */
+    font-family: var(--user-font-family, var(--brand-font-family, ui-monospace, SFMono-Regular, monospace));
     background-color: var(--user-bg, hsl(var(--background)));
   }
 }

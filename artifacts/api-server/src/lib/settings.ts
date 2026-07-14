@@ -646,6 +646,10 @@ export interface ContentPageDef {
 /** One user's persisted UI/accessibility preferences. */
 export interface UserPrefs {
   fontScale: number;
+  /** Per-user font family override, or null to inherit the company brand font. */
+  fontFamily: "sans" | "serif" | "mono" | null;
+  /** Per-user accent colour (hex), or null to inherit the company brand accent. */
+  accentColor: string | null;
   backgroundColor: string | null;
   highContrast: boolean;
   reduceMotion: boolean;

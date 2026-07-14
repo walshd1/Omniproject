@@ -82,11 +82,11 @@ export function BrandingAdmin({ entitled }: { entitled: boolean }) {
         <Field label="App name" value={form.appName} onChange={set("appName")} placeholder="OmniProject" hint="Shown in the sidebar, login screen and browser tab." />
         <Field label="Short badge" value={form.shortName} onChange={set("shortName")} placeholder="OP" maxLength={6} hint="1–6 characters used in the square logo badge when no logo URL is set." />
         <Field label="Logo URL" value={form.logoUrl} onChange={set("logoUrl")} placeholder="https://cdn.acme.com/logo.svg" hint="Optional. An absolute https URL; replaces the badge." />
-        <Field label="Primary colour" value={form.primaryColor} onChange={set("primaryColor")} placeholder="#2563eb" hint="Hex accent colour, e.g. #2563eb." />
+        <Field label="Primary colour" value={form.primaryColor} onChange={set("primaryColor")} placeholder="#2563eb" hint="Hex accent colour, e.g. #2563eb. The company default — a user may override it for themselves in Settings → Accessibility." />
         <Field label="Login heading" value={form.loginHeading} onChange={set("loginHeading")} placeholder="Orchestration Shell" />
         <Field label="Footer text" value={form.footerText} onChange={set("footerText")} placeholder="© Acme Corp" />
         <Field label="Support URL" value={form.supportUrl} onChange={set("supportUrl")} placeholder="https://support.acme.com" />
-        <Field label="Font family" value={form.fontFamily} onChange={set("fontFamily")} placeholder="Inter, system-ui, sans-serif" hint="Brand font applied on all screens. (Text size + background colour are per-user, in Settings → Accessibility.)" />
+        <Field label="Font family" value={form.fontFamily} onChange={set("fontFamily")} placeholder="Inter, system-ui, sans-serif" hint="Brand font — the company default on all screens. Users may override the font, accent colour, text size and background per-person in Settings → Accessibility." />
         <div className="flex gap-3">
           <Button type="button" onClick={save} disabled={saving} className="rounded-none uppercase font-bold tracking-wider">{saving ? "Saving…" : "Save branding"}</Button>
           <AlertDialog>

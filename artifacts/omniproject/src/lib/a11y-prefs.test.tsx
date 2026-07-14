@@ -20,6 +20,10 @@ beforeEach(() => {
   document.documentElement.removeAttribute("data-reduce-motion");
   document.documentElement.removeAttribute("data-density");
   document.documentElement.style.removeProperty("--user-font-scale");
+  document.documentElement.style.removeProperty("--user-font-family");
+  document.documentElement.style.removeProperty("--user-accent");
+  document.documentElement.style.removeProperty("--user-accent-fg");
+  document.documentElement.style.removeProperty("--user-bg");
 });
 
 describe("a11y-prefs store", () => {
@@ -46,6 +50,30 @@ describe("a11y-prefs store", () => {
     expect(root.style.getPropertyValue("--user-bg")).toBe("#101418");
     expect(root.getAttribute("data-contrast")).toBe("high");
     expect(root.getAttribute("data-reduce-motion")).toBe("true");
+  });
+
+  it("applies the per-user font family + accent colour over the org brand layer", () => {
+    applyA11yPrefs({ ...DEFAULT_A11Y, fontFamily: "serif", accentColor: "#ff0000" });
+    const root = document.documentElement;
+    // Named font resolves to its stack (index.css: --user-font-family wins over --brand-font-family).
+    expect(root.style.getPropertyValue("--user-font-family")).toContain("serif");
+    // Hex accent → HSL channels + legible foreground (index.css: --user-accent wins over --brand-accent).
+    expect(root.style.getPropertyValue("--user-accent")).toBe("0 100% 50%");
+    expect(root.style.getPropertyValue("--user-accent-fg")).toBe("220 10% 7%");
+  });
+
+  it("clears the per-user font/accent vars so the company brand shows through", () => {
+    applyA11yPrefs({ ...DEFAULT_A11Y, fontFamily: "mono", accentColor: "#123456" });
+    applyA11yPrefs(DEFAULT_A11Y); // null family + null accent
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue("--user-font-family")).toBe("");
+    expect(root.style.getPropertyValue("--user-accent")).toBe("");
+    expect(root.style.getPropertyValue("--user-accent-fg")).toBe("");
+  });
+
+  it("ignores an unknown font family (falls back to the brand font)", () => {
+    localStorage.setItem("omni:a11y", JSON.stringify({ fontFamily: "comic-sans" }));
+    expect(loadA11yPrefs().fontFamily).toBeNull();
   });
 
   it("defaults density to comfortable and round-trips a stored compact value", () => {
@@ -118,6 +146,30 @@ describe("A11yControls", () => {
     expect(JSON.parse(localStorage.getItem("omni:a11y")!).backgroundColor).toBeNull();
     expect((screen.getByLabelText("Background colour") as HTMLInputElement).value).toBe("#f2f3f5");
     expect(screen.queryByRole("button", { name: "Clear background colour" })).not.toBeInTheDocument();
+  });
+
+  it("overrides the font family for the user and reflects it on the document", () => {
+    render(<Providers><A11yControls /></Providers>);
+    fireEvent.change(screen.getByLabelText("Font"), { target: { value: "serif" } });
+    expect(JSON.parse(localStorage.getItem("omni:a11y")!).fontFamily).toBe("serif");
+    expect(document.documentElement.style.getPropertyValue("--user-font-family")).toContain("serif");
+    // Back to company default clears the per-user override.
+    fireEvent.change(screen.getByLabelText("Font"), { target: { value: "" } });
+    expect(JSON.parse(localStorage.getItem("omni:a11y")!).fontFamily).toBeNull();
+    expect(document.documentElement.style.getPropertyValue("--user-font-family")).toBe("");
+  });
+
+  it("sets a custom accent colour and clears it back to the company default", () => {
+    render(<Providers><A11yControls /></Providers>);
+    expect(screen.queryByRole("button", { name: "Clear accent colour" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Accent colour"), { target: { value: "#ff0000" } });
+    expect(JSON.parse(localStorage.getItem("omni:a11y")!).accentColor).toBe("#ff0000");
+    expect(document.documentElement.style.getPropertyValue("--user-accent")).toBe("0 100% 50%");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear accent colour" }));
+    expect(JSON.parse(localStorage.getItem("omni:a11y")!).accentColor).toBeNull();
+    expect(document.documentElement.style.getPropertyValue("--user-accent")).toBe("");
   });
 
   it("switching to single-switch scanning reveals the scan-rate slider, which adjusts the dwell time", () => {
