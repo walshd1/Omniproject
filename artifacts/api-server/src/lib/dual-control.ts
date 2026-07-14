@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { sharedKv } from "./shared-state";
 import { parseCsvEnv } from "./env";
 import { safeParseJson } from "./safe-json";
+import { isStr } from "./coerce";
 
 /**
  * Maker-checker (four-eyes) dual control for sensitive admin actions.
@@ -50,15 +51,14 @@ function sanitizeProposal(raw: string): Proposal | undefined {
   let p: Record<string, unknown>;
   try { p = safeParseJson<Record<string, unknown>>(raw); } catch { return undefined; }
   if (!p || typeof p !== "object") return undefined;
-  const str = (v: unknown): v is string => typeof v === "string";
-  if (!str(p["id"]) || !str(p["action"]) || !str(p["proposedBy"]) || !str(p["proposedAt"])) return undefined;
+  if (!isStr(p["id"]) || !isStr(p["action"]) || !isStr(p["proposedBy"]) || !isStr(p["proposedAt"])) return undefined;
   if (p["status"] !== "pending" && p["status"] !== "approved" && p["status"] !== "rejected") return undefined;
   return {
     id: p["id"], action: p["action"], params: p["params"], proposedBy: p["proposedBy"], proposedAt: p["proposedAt"],
     status: p["status"],
-    ...(str(p["proposedByEmail"]) ? { proposedByEmail: p["proposedByEmail"] } : {}),
-    ...(str(p["decidedBy"]) ? { decidedBy: p["decidedBy"] } : {}),
-    ...(str(p["decidedAt"]) ? { decidedAt: p["decidedAt"] } : {}),
+    ...(isStr(p["proposedByEmail"]) ? { proposedByEmail: p["proposedByEmail"] } : {}),
+    ...(isStr(p["decidedBy"]) ? { decidedBy: p["decidedBy"] } : {}),
+    ...(isStr(p["decidedAt"]) ? { decidedAt: p["decidedAt"] } : {}),
   };
 }
 

@@ -3,6 +3,7 @@ import { getSettings, type PeerInstance } from "./settings";
 import { allowedRegions } from "./data-residency";
 import { computeLocalPortfolioSummary, type PortfolioSummary } from "./portfolio-summary";
 import { safeParseJson } from "./safe-json";
+import { isNum, stringArray } from "./coerce";
 import { logger } from "./logger";
 import { isTimeoutError } from "./timeout-error";
 import { safeFetch } from "./egress";
@@ -36,15 +37,14 @@ function sanitizePeerSummary(raw: string): PortfolioSummary | null {
   try { o = safeParseJson<Record<string, unknown>>(raw); } catch { return null; }
   if (!o || typeof o !== "object" || Array.isArray(o)) return null;
   const objOrNull = <T,>(v: unknown): T | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as T) : null);
-  const arr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
   const src = objOrNull<Record<string, unknown>>(o["sources"]);
   return {
-    projects: typeof o["projects"] === "number" && Number.isFinite(o["projects"]) ? (o["projects"] as number) : 0,
+    projects: isNum(o["projects"]) ? o["projects"] : 0,
     health: objOrNull(o["health"]),
     finance: objOrNull(o["finance"]),
     capacity: objOrNull(o["capacity"]),
     tasks: objOrNull(o["tasks"]),
-    sources: { live: arr(src?.["live"]), sor: arr(src?.["sor"]), archive: arr(src?.["archive"]) },
+    sources: { live: stringArray(src?.["live"]), sor: stringArray(src?.["sor"]), archive: stringArray(src?.["archive"]) },
   };
 }
 
