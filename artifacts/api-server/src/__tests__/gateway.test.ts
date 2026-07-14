@@ -474,6 +474,30 @@ test("aggregateFinancials: over-budget burn is RED", () => {
   assert.equal(fin.variance, -30000);
 });
 
+test("aggregateFinancials: EXCLUDES a foreign-currency project from the native total (never raw-mixed)", () => {
+  const fin = aggregateFinancials([
+    { id: "a", currency: "GBP", budget: 100000, actualCost: 80000 },
+    { id: "b", currency: "GBP", budget: 50000, actualCost: 40000 },
+    { id: "c", currency: "JPY", budget: 900000000, actualCost: 900000000 }, // different currency — must NOT be summed raw
+  ])!;
+  assert.equal(fin.currency, "GBP"); // dominant native currency
+  assert.equal(fin.budget, 150000); // JPY 900,000,000 excluded, not added raw into a GBP total
+  assert.equal(fin.actualCost, 120000);
+  assert.equal(fin.projectsCounted, 2); // only the 2 GBP projects fold into the native total
+  assert.deepEqual(fin.reporting, { total: 3, costed: 2, earnedValue: 0, committed: 0 }); // badge shows 2 of 3
+});
+
+test("aggregateFinancials: the DOMINANT currency wins, minority currencies are dropped", () => {
+  const fin = aggregateFinancials([
+    { id: "a", currency: "USD", budget: 10, actualCost: 5 },
+    { id: "b", currency: "USD", budget: 20, actualCost: 10 },
+    { id: "c", currency: "GBP", budget: 999, actualCost: 999 }, // minority currency — dropped
+  ])!;
+  assert.equal(fin.currency, "USD");
+  assert.equal(fin.budget, 30); // GBP 999 dropped
+  assert.equal(fin.projectsCounted, 2);
+});
+
 // ── OData service (SAP / Dynamics / Power BI feed) ─────────────────────────────
 const ODATA_ROWS = [
   { id: "1", name: "Alpha", source: "plane", issueCount: 10 },

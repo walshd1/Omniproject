@@ -92,6 +92,30 @@ function optNum(v: unknown): number | null {
  * `committed` roll up only when EVERY contributing project reports them, so a
  * partial figure is never presented as complete.
  */
+/** The non-empty currency shared by the MOST cost-bearing projects (tie → first seen), or "" when
+ *  none declare one. This is the programme's native currency; summing a project in a DIFFERENT
+ *  currency into the same total would add a raw foreign amount and mislabel it (and the SPA converts
+ *  FROM this single native currency, so it must be single-currency) — such projects are excluded. */
+function dominantCurrency(projects: Row[]): string {
+  const count = new Map<string, number>();
+  const order: string[] = [];
+  for (const p of projects) {
+    if (optNum(p["budget"]) === null && optNum(p["actualCost"]) === null) continue;
+    const c = p["currency"];
+    if (typeof c === "string" && c) {
+      if (!count.has(c)) order.push(c);
+      count.set(c, (count.get(c) ?? 0) + 1);
+    }
+  }
+  let native = "";
+  let best = 0;
+  for (const c of order) {
+    const n = count.get(c)!;
+    if (n > best) { best = n; native = c; }
+  }
+  return native;
+}
+
 export function aggregateFinancials(projects: Row[]): ProgrammeFinancials | null {
   let budget = 0;
   let actualCost = 0;
@@ -102,11 +126,17 @@ export function aggregateFinancials(projects: Row[]): ProgrammeFinancials | null
   let counted = 0;
   let evCount = 0;
   let committedCount = 0;
-  let currency = "";
+  // Pick ONE native currency and sum only projects that match it (an empty/absent currency is assumed
+  // to already be native). A project in another currency is excluded from this native total — never
+  // raw-summed — and so isn't counted as `costed` (the reporting badge then shows partial coverage).
+  const currency = dominantCurrency(projects);
   for (const p of projects) {
     const b = optNum(p["budget"]);
     const a = optNum(p["actualCost"]);
     if (b === null && a === null) continue; // no financials on this project
+    const c = p["currency"];
+    const cur = typeof c === "string" && c ? c : "";
+    if (currency && cur && cur !== currency) continue; // different currency — can't fold into the native total
     counted++;
     budget += b ?? 0;
     actualCost += a ?? 0;
@@ -114,8 +144,6 @@ export function aggregateFinancials(projects: Row[]): ProgrammeFinancials | null
     if (ev === null) evAll = false; else { evSum += ev; evCount++; }
     const committed = optNum(p["committed"]);
     if (committed === null) committedAll = false; else { committedSum += committed; committedCount++; }
-    const c = p["currency"];
-    if (!currency && typeof c === "string" && c) currency = c;
   }
   if (counted === 0) return null;
   const earnedValue = evAll ? evSum : null;
