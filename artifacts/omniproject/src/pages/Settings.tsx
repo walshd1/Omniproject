@@ -9,7 +9,9 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useEffect, useState, Fragment, type ComponentType, type ReactNode } from "react";
+import { useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { useStore } from "../store/useStore";
+import { settingsAnchorId } from "../lib/settings-panels";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { useSettingLocks } from "../lib/setting-locks";
@@ -148,17 +150,39 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "performance", Component: PerformanceSettings },
 ];
 
-function renderAdminPanel(panel: AdminPanel): ReactNode {
-  if ("render" in panel) return <Fragment key={panel.key}>{panel.render()}</Fragment>;
-  const { Component, wrap = "lazy", key } = panel;
-  if (wrap === "bare") return <Component key={key} />;
-  if (wrap === "section") return <div key={key} className="mt-8"><Component /></div>;
-  return <LazyMount key={key}><Component /></LazyMount>;
+/** Every panel is wrapped in an anchor whose id lets the command palette jump straight to it
+ *  (⌘K → "Settings · <panel>"). `scroll-mt` offsets the sticky topbar so the panel isn't hidden. */
+function panelBody(panel: AdminPanel): ReactNode {
+  if ("render" in panel) return panel.render();
+  const { Component, wrap = "lazy" } = panel;
+  if (wrap === "bare") return <Component />;
+  if (wrap === "section") return <div className="mt-8"><Component /></div>;
+  return <LazyMount><Component /></LazyMount>;
 }
+
+function renderAdminPanel(panel: AdminPanel): ReactNode {
+  return <div key={panel.key} id={settingsAnchorId(panel.key)} className="scroll-mt-20">{panelBody(panel)}</div>;
+}
+
+/** The panel keys, in render order — exported so the palette's SETTINGS_PANEL_KEYS is drift-guarded. */
+export const ADMIN_PANEL_KEYS: string[] = ADMIN_PANELS.map((p) => p.key);
 
 export function Settings() {
   const { data: settings, isLoading, isError, error, refetch } = useGetSettings();
   const updateSettings = useUpdateSettings();
+  // Command-palette jump: when the palette routed here targeting a panel, scroll it into view (once),
+  // then clear the one-shot signal. A tick lets the (lazy) panels mount before we measure.
+  const settingsJump = useStore((s) => s.settingsJump);
+  const setSettingsJump = useStore((s) => s.setSettingsJump);
+  useEffect(() => {
+    if (!settingsJump) return;
+    const id = settingsAnchorId(settingsJump);
+    const t = setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setSettingsJump(null);
+    }, 60);
+    return () => clearTimeout(t);
+  }, [settingsJump, setSettingsJump]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   // Backend-source suggestions come from the catalogue (admin-filtered server-side), so no

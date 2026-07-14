@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { CommandPalette } from "../CommandPalette";
 import { NewTaskDialog } from "../NewTaskDialog";
+import { NewProjectDialog } from "../NewProjectDialog";
 import { ShortcutsDialog } from "../ShortcutsDialog";
 import { IssueSidePanel } from "../sidepanel/IssueSidePanel";
 import { GlobalSearch } from "../search/GlobalSearch";
@@ -39,7 +40,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const screenScopeId = `screen:${screenSeg}`;
   const pageName = `${screenSeg.charAt(0).toUpperCase()}${screenSeg.slice(1)}`;
   const screenLabel = `${pageName} screen`;
-  const { activeProjectId, isNewIssueOpen, setNewIssueOpen, isShortcutsOpen, setShortcutsOpen } = useStore();
+  const { activeProjectId, isNewIssueOpen, setNewIssueOpen, isNewProjectOpen, setNewProjectOpen, isShortcutsOpen, setShortcutsOpen } = useStore();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { t } = useT();
   const brand = useBranding();
@@ -333,6 +334,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {/* Global "new task" — requires an explicit project (a task always belongs
           to one); the board's in-context IssueDialog stays project-fixed. */}
       <NewTaskDialog open={isNewIssueOpen} onOpenChange={setNewIssueOpen} />
+      <NewProjectDialog open={isNewProjectOpen} onOpenChange={setNewProjectOpen} />
       {/* Slide-over work-item detail (the optional "sidePanel" module; self-gates via useFeatures). */}
       <IssueSidePanel />
       {/* Cross-entity quick-find (the optional "globalSearch" module; self-gates via useFeatures). */}

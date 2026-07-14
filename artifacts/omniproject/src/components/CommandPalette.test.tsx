@@ -56,6 +56,33 @@ describe("CommandPalette", () => {
     expect(screen.getByText(/Kanban Board/)).toBeInTheDocument();
   });
 
+  it("indexes every settings panel + New Project (the ≤2-actions rule)", () => {
+    useStore.setState({ isCommandOpen: true });
+    renderWithProviders(<CommandPalette />, { client: seeded([]) });
+    expect(screen.getByText("Settings", { selector: "*" })).toBeInTheDocument();
+    // A direct jump to a specific panel — otherwise a 3rd scroll action.
+    expect(screen.getByText("Settings · AI Providers")).toBeInTheDocument();
+    expect(screen.getByText("Settings · Rate Card")).toBeInTheDocument();
+    expect(screen.getByText("New Project")).toBeInTheDocument();
+  });
+
+  it("selecting a settings panel arms the one-shot jump signal and closes the palette", async () => {
+    const user = userEvent.setup();
+    useStore.setState({ isCommandOpen: true, settingsJump: null });
+    renderWithProviders(<CommandPalette />, { client: seeded([]) });
+    await user.click(screen.getByText("Settings · AI Providers"));
+    expect(useStore.getState().settingsJump).toBe("aiProviders");
+    expect(useStore.getState().isCommandOpen).toBe(false);
+  });
+
+  it("New Project opens the dialog flag (≤2 actions from anywhere)", async () => {
+    const user = userEvent.setup();
+    useStore.setState({ isCommandOpen: true, isNewProjectOpen: false });
+    renderWithProviders(<CommandPalette />, { client: seeded([]) });
+    await user.click(screen.getByText("New Project"));
+    expect(useStore.getState().isNewProjectOpen).toBe(true);
+  });
+
   it("opens on Cmd/Ctrl+K", async () => {
     const user = userEvent.setup();
     renderWithProviders(<CommandPalette />, { client: seeded([]) });
