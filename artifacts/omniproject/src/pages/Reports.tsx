@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useListProjects, useGetCapabilities, type Capabilities } from "@workspace/api-client-react";
 import { useActiveProjectSelector } from "../hooks/use-active-project-selector";
 import { ExecBoardPack } from "../components/reports/ExecBoardPack";
@@ -42,6 +42,7 @@ import { isItemVisible } from "../lib/methodology-composition";
 import { ProvenanceBadge } from "../components/ProvenanceBadge";
 import { DataProvenance } from "../components/DataProvenance";
 import { useT } from "../lib/i18n";
+import { useStore } from "../store/useStore";
 
 const REPORT_PROJECT_FIELDS = [
   { key: "programmeName", label: "Programme" },
@@ -81,26 +82,40 @@ function Gated({
   // A curated composition that excludes every listed report hides the section (uncurated ⇒ always shown).
   const ids = reportId === undefined ? [] : Array.isArray(reportId) ? reportId : [reportId];
   if (ids.length > 0 && !ids.some((id) => isItemVisible(composition ?? null, "report", id))) return null;
+  // Every catalogue report id gets a scroll-anchor so the command palette can jump straight to it
+  // (⌘K → "Report · <name>" = 2 actions). A section bundling two reports gets an anchor per id, both
+  // landing on the same section. scroll-mt offsets the sticky topbar.
+  const wrap = (node: ReactNode): ReactNode =>
+    ids.length === 0 ? (
+      <>{node}</>
+    ) : (
+      <div id={`report-${ids[0]}`} className="scroll-mt-20">
+        {ids.slice(1).map((id) => (
+          <span key={id} id={`report-${id}`} className="block scroll-mt-20" aria-hidden="true" />
+        ))}
+        {node}
+      </div>
+    );
   // Render until capabilities load; only block when explicitly unavailable.
   if (caps && caps[domain] === false) {
-    return (
+    return wrap(
       <section>
         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">{title}</h2>
         <div className="bg-card border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           Not available for this backend — requires {requires} wired through the broker.
         </div>
-      </section>
+      </section>,
     );
   }
   if (section) {
-    return (
+    return wrap(
       <section>
         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-4">{heading ?? title}</h2>
         {children}
-      </section>
+      </section>,
     );
   }
-  return <>{children}</>;
+  return wrap(<>{children}</>);
 }
 
 /** Show a single report only when the methodology composition includes it (uncurated ⇒ always shown).
@@ -116,6 +131,19 @@ export function Reports() {
   const { data: caps } = useGetCapabilities();
   const { data: auth } = useAuth();
   const { projectId, onSelect } = useActiveProjectSelector(projects);
+
+  // One-shot jump from the command palette: scroll the requested report's anchor into view, then
+  // clear the signal. The small delay lets a capability-gated section mount before we measure it.
+  const reportsJump = useStore((s) => s.reportsJump);
+  const setReportsJump = useStore((s) => s.setReportsJump);
+  useEffect(() => {
+    if (!reportsJump) return;
+    const t = setTimeout(() => {
+      document.getElementById(`report-${reportsJump}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setReportsJump(null);
+    }, 60);
+    return () => clearTimeout(t);
+  }, [reportsJump, setReportsJump]);
 
   return (
     <div className="h-full overflow-y-auto p-8">
