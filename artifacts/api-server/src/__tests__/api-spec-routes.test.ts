@@ -27,6 +27,29 @@ test("GET /openapi.yaml serves the OpenAPI document as YAML", async () => {
   assert.match(text, /openapi:/);
 });
 
+test("GET /docs: the API portal is OFF by default → 404", async () => {
+  delete process.env["API_PORTAL_ENABLED"];
+  const r = await h.req("/docs");
+  assert.equal(r.status, 404);
+});
+
+test("GET /docs: with API_PORTAL_ENABLED set, serves the self-contained HTML portal", async () => {
+  process.env["API_PORTAL_ENABLED"] = "1";
+  try {
+    const r = await h.req("/docs");
+    assert.equal(r.status, 200);
+    assert.match(r.headers.get("content-type") ?? "", /html/);
+    const html = await r.text();
+    assert.match(html, /<!doctype html>/i);
+    assert.match(html, /OmniProject API/);
+    assert.match(html, /\/api\/openapi\.yaml|\/api\/projects/); // a real route from the surface is listed
+    // Self-contained: no external resource references (CSP-safe).
+    assert.equal(/src="https?:|href="https?:/.test(html), false);
+  } finally {
+    delete process.env["API_PORTAL_ENABLED"];
+  }
+});
+
 test("GET /discovery returns absolute self-URLs built from PUBLIC_URL", async () => {
   const r = await h.req("/discovery");
   assert.equal(r.status, 200);

@@ -207,9 +207,9 @@ jobs:
       - name: Verify the API reference is in sync with the routes
         run: |
           pnpm --filter @workspace/scripts run gen-api-reference
-          if ! git diff --quiet -- docs/API-REFERENCE.md; then
-            echo "::error::API reference is out of date. Run 'pnpm --filter @workspace/scripts run gen-api-reference' and commit the result."
-            git --no-pager diff --stat -- docs/API-REFERENCE.md
+          if ! git diff --quiet -- docs/API-REFERENCE.md artifacts/api-server/src/lib/api-portal.generated.ts; then
+            echo "::error::API reference/portal is out of date. Run 'pnpm --filter @workspace/scripts run gen-api-reference' and commit the result."
+            git --no-pager diff --stat -- docs/API-REFERENCE.md artifacts/api-server/src/lib/api-portal.generated.ts
             exit 1
           fi
 

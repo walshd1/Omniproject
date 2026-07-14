@@ -5,6 +5,8 @@ The complete northbound HTTP surface of the gateway — every registered route g
 
 > This complements — it does not duplicate — the OpenAPI spec (`lib/api-spec/openapi.yaml`), which is the **codegen contract** deliberately scoped to the core CRUD the SPA client consumes. This page is the full surface (admin, security, setup, AI, SCIM, auth, costing, feature-config).
 
+> **Optional browser portal.** The same surface renders as a self-contained, searchable HTML page at `GET /api/docs` — **off by default**, exposed only when `API_PORTAL_ENABLED` is set (it 404s otherwise, so a deployment that doesn't want its route map browsable never exposes it). It is a documentation page: it makes no calls and holds no data.
+
 ## Authentication & roles
 
 - **Session cookie** — OIDC (also SAML, OAuth2, magic-link, demo); signed httpOnly; full read + write. Cookie-authed mutations pass a CSRF guard.
@@ -58,6 +60,7 @@ The consumer (northbound) API spec — exposed at runtime, broker-agnostic.
 | Method | Path | Gate | Description |
 | --- | --- | --- | --- |
 | GET | `/api/openapi.yaml` | — | openapi-generator, Postman) consumes YAML directly. |
+| GET | `/api/docs` | — | calls and holds no data — so, like /openapi.yaml, it needs no auth when an operator opts in. |
 | GET | `/api/discovery` | — | broker contract, and the other outward interfaces. |
 
 ### `artifacts/api-server/src/routes/archive.ts`

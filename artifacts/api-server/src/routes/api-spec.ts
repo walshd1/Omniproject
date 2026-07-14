@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { OPENAPI_YAML, OPENAPI_INFO, OPENAPI_PATHS } from "../lib/openapi.generated";
+import { API_PORTAL_HTML } from "../lib/api-portal.generated";
+import { envFlag } from "../lib/env";
 import { baseUrl, InsecureBaseUrlError } from "./auth";
 
 /**
@@ -20,6 +22,18 @@ const router = Router();
 // openapi-generator, Postman) consumes YAML directly.
 router.get("/openapi.yaml", (_req, res) => {
   res.type("application/yaml").send(OPENAPI_YAML);
+});
+
+// GET /api/docs — an OPTIONAL, self-contained browser portal listing the whole HTTP surface.
+// OFF BY DEFAULT: it 404s unless API_PORTAL_ENABLED is explicitly set, so a deployment that doesn't
+// want its route map browsable simply never exposes it. It is a documentation page — it makes no
+// calls and holds no data — so, like /openapi.yaml, it needs no auth when an operator opts in.
+router.get("/docs", (_req, res) => {
+  if (!envFlag("API_PORTAL_ENABLED")) {
+    res.status(404).json({ error: "The API portal is off. Set API_PORTAL_ENABLED to enable GET /api/docs." });
+    return;
+  }
+  res.type("html").send(API_PORTAL_HTML);
 });
 
 // A small JSON discovery document — the machine-readable entry point that says

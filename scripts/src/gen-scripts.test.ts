@@ -67,7 +67,7 @@ const CASES: GenCase[] = [
   },
   { name: "gen-openapi", script: "src/gen-openapi-bundle.ts", outputs: ["artifacts/api-server/src/lib/openapi.generated.ts"] },
   { name: "gen-function-map", script: "src/gen-function-map.ts", outputs: ["docs/FUNCTION-MAP.md"] },
-  { name: "gen-api-reference", script: "src/gen-api-reference.ts", outputs: ["docs/API-REFERENCE.md"] },
+  { name: "gen-api-reference", script: "src/gen-api-reference.ts", outputs: ["docs/API-REFERENCE.md", "artifacts/api-server/src/lib/api-portal.generated.ts"] },
   {
     name: "gen-vendors",
     script: "src/gen-vendors.ts",
