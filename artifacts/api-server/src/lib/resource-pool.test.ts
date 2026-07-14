@@ -24,6 +24,17 @@ test("aggregateResourcePool dedupes people, unions skills, sums capacity, collec
   assert.equal(grace.allocatedHours, null);
 });
 
+test("aggregateResourcePool ignores a NaN/Infinity capacity instead of poisoning the pool total", () => {
+  const pool = aggregateResourcePool([
+    { projectId: "p1", members: [m({ id: "ada", availableHours: 40, allocatedHours: 20 })] },
+    { projectId: "p2", members: [m({ id: "ada", availableHours: NaN, allocatedHours: Infinity })] }, // dirty adapter row
+    { projectId: "p3", members: [m({ id: "ada", availableHours: 10, allocatedHours: 5 })] },
+  ]);
+  const ada = pool.find((r) => r.id === "ada")!;
+  assert.equal(ada.availableHours, 50); // 40 + 10, the NaN row skipped (not 40 + NaN + 10 = NaN)
+  assert.equal(ada.allocatedHours, 25);
+});
+
 test("aggregateResourcePool sorts by display name and is empty for no rosters", () => {
   assert.deepEqual(aggregateResourcePool([]), []);
   const pool = aggregateResourcePool([
