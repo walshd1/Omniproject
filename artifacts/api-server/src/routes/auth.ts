@@ -608,7 +608,7 @@ router.get("/auth/magic/verify", async (req, res) => {
 });
 
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────
-router.post("/auth/logout", (req, res) => {
+router.post("/auth/logout", (_req, res) => {
   res.clearCookie(SESSION_COOKIE, cookieBase());
   res.clearCookie("omni_csrf", { ...cookieBase(), httpOnly: false, signed: false });
   res.json({ ok: true });

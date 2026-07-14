@@ -150,7 +150,7 @@ app.use(
 // Baseline security headers on every response (API + SPA). Deliberately
 // conservative — no CSP here (it would need per-deployment tuning for the SPA's
 // font/asset origins); these are the safe, universally-applicable ones.
-app.use((req, res, next) => {
+app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -204,7 +204,7 @@ if (isDevMode()) {
 // Per-request timing: run the request inside a timing context the broker adds
 // upstream wait to, and emit X-Omni-Upstream-Ms / X-Omni-Total-Ms so the gateway
 // overhead can be separated from the broker → backend round-trip (load harness).
-app.use((req, res, next) => {
+app.use((_req, res, next) => {
   runWithTiming(() => {
     const start = Date.now();
     const origEnd = res.end.bind(res);
@@ -232,7 +232,7 @@ app.use((req, res, next) => {
 // in-flight depth. Pure in-process counters → always available at /api/metrics
 // even when the backend is down (exactly when you need them). Exposed via
 // lib/runtime-metrics.ts.
-app.use((req, res, next) => {
+app.use((_req, res, next) => {
   const start = Date.now();
   httpRequestStarted();
   let recorded = false;

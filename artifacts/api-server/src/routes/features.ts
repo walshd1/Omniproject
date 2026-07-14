@@ -6,14 +6,14 @@ import {
 } from "../lib/feature-modules";
 import { manageableAtProgramme, manageableAtProject } from "../lib/feature-resolution";
 import { getSettings, updateSettings, SettingsValidationError, type ScopeFeatureConfig } from "../lib/settings";
-import { requireRole, roleForReq } from "../lib/rbac";
+import { requireRole } from "../lib/rbac";
 import { getSession } from "./auth";
 import { recordRequestAudit } from "../lib/audit";
 import { getProjects } from "../lib/data";
 import { programmeIdOf } from "../lib/programmes";
 import { validatePredicate, type ConditionSet } from "../lib/predicate";
 import type { GovernanceRule } from "../lib/governance-rules";
-import type { Request, Response } from "express";
+import type { Request } from "express";
 
 /** The only context fields a governance rule may reference — the facts evaluable synchronously at BOTH
  *  read and enforce time, so a rule can never be shown-but-not-enforced (or vice-versa). */

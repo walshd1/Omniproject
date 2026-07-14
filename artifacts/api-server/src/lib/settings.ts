@@ -143,7 +143,6 @@ export interface LoggingSyncConfig {
   acknowledgedWarranty: boolean;
 }
 
-const DEFAULT_LOGGING_SYNC: LoggingSyncConfig = { enabled: false, url: null, acknowledgedWarranty: false };
 
 /**
  * Self-host DB adoption — the operator's choice to let OmniProject's OWN database become a
@@ -238,7 +237,6 @@ export interface SkillsPlanningSettings {
   matrix: SkillResource[];
   demand: SkillDemandItem[];
 }
-const DEFAULT_SKILLS: SkillsPlanningSettings = { matrix: [], demand: [] };
 
 /**
  * A programme's or project's feature policy in the org→programme→project gating model. Disable-only

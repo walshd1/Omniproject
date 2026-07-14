@@ -253,7 +253,7 @@ router.delete("/dev-mode/impersonate", requireDevMode, (req, res) => {
 /** GET — the catalogue, current overrides, and the effective entitlements. Admin
  *  only: unlike the impersonation banner, no other role has a legitimate reason to
  *  read this, so a plain authenticated session gets no implicit access here. */
-router.get("/dev-mode/entitlements", requireDevMode, requireRole("admin"), (req, res) => {
+router.get("/dev-mode/entitlements", requireDevMode, requireRole("admin"), (_req, res) => {
   res.json({ catalog: LICENSE_FEATURES, overrides: getDevEntitlementOverrides(), effective: licenseSummary().features });
 });
 

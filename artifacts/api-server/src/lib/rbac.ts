@@ -52,7 +52,6 @@ export type Role = (typeof ROLES)[number];
 /** The linear base ladder (everyday hierarchy). */
 const BASE_RANK = { viewer: 0, contributor: 1, manager: 2 } as const;
 type BaseRole = keyof typeof BASE_RANK;
-const isBaseRole = (r: Role): r is BaseRole => r in BASE_RANK;
 
 /** The orthogonal authorities that sit above `manager` (each implies manager base). */
 export const AUTHORITIES = ["pmo", "admin"] as const;

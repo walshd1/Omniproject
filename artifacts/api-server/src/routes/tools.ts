@@ -4,7 +4,7 @@ import { requireStepUp } from "../lib/step-up";
 import { aiContainmentLevel, aiSourceLevel, getContainmentRelax, setContainmentRelax, type AiContainment } from "../lib/ai-containment";
 import { listAutonomousGrants } from "../lib/autonomous-grant";
 import { aiKillEngaged, engageAiKill, releaseAiKill } from "../lib/ai-kill";
-import { listApprovedActions, listApprovedVocab, setApproved, approveAction, revokeApprovedAction, approveTerm, isActionApproved, actionScope, type ActionScope } from "../lib/approved-actions";
+import { listApprovedActions, listApprovedVocab, setApproved, approveAction, revokeApprovedAction, approveTerm, actionScope, type ActionScope } from "../lib/approved-actions";
 import { MCP_TOOLS } from "../lib/mcp";
 import { persistSecurityState } from "../lib/security-state";
 import { recordRequestAudit } from "../lib/audit";
@@ -89,7 +89,6 @@ router.put("/governance/approved", requireRole("admin"), requireStepUp, (req, re
     for (const a of remove ?? []) revokeApprovedAction(a);
     for (const v of terms ?? []) approveTerm(v);
   }
-  const session = getSession(req);
   persistSecurityState();
   recordRequestAudit(req, { category: "admin", action: "approved.update", write: true, result: "success", meta: { actions: listApprovedActions().length, vocab: listApprovedVocab().length } });
   res.json({ actions: listApprovedActions(), vocab: listApprovedVocab() });
@@ -101,7 +100,6 @@ router.put("/governance/ai-kill", requireRole("admin"), requireStepUp, (req, res
   const engage = (req.body as { engage?: unknown }).engage === true;
   if (engage) engageAiKill(); else releaseAiKill();
   persistSecurityState();
-  const session = getSession(req);
   recordRequestAudit(req, { category: "admin", action: engage ? "ai-kill.engage" : "ai-kill.release", write: true, result: "success" });
   res.json({ aiKill: aiKillEngaged() });
 });

@@ -96,7 +96,7 @@ export function FeatureGovernance() {
       if (level === "org") {
         await setOrg.mutateAsync(buildOrgPayload(merged));
       } else {
-        const cfg = buildScopePayload(merged, level);
+        const cfg = buildScopePayload(merged);
         if (level === "programme") await setProg.mutateAsync({ programmeId: target, config: cfg });
         else await setProj.mutateAsync({ projectId: target, programmeId, config: cfg });
       }
@@ -219,7 +219,7 @@ function buildOrgPayload(merged: Record<string, Choice>) {
   return { enabledFeatures: enabled, disabledFeatures: disabled, featureGovernance: { required, forbidden } };
 }
 
-function buildScopePayload(merged: Record<string, Choice>, level: GateLevel): ScopeCfg {
+function buildScopePayload(merged: Record<string, Choice>): ScopeCfg {
   const cfg: ScopeCfg = { disabled: [], required: [], forbidden: [] };
   for (const [id, c] of Object.entries(merged)) {
     if (c === "require") cfg.required.push(id);

@@ -20,12 +20,21 @@ export function DictateButton({ onText, lang = "en-GB" }: { onText: (text: strin
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef<Dictation | null>(null);
   const recorderRef = useRef<Recorder | null>(null);
+  const mountedRef = useRef(true);
 
   // Latest onText without re-creating the session each render.
   const onTextRef = useRef(onText);
   useEffect(() => { onTextRef.current = onText; }, [onText]);
 
-  useEffect(() => () => { sessionRef.current?.stop(); }, []);
+  // On unmount: stop the browser dictation AND release the mic if a Whisper recording is
+  // still live (its tracks are only freed inside stop()), so the microphone can't stay open
+  // after the component is gone. Also flag unmounted so post-await callbacks below no-op.
+  useEffect(() => () => {
+    mountedRef.current = false;
+    sessionRef.current?.stop();
+    void recorderRef.current?.stop();
+    recorderRef.current = null;
+  }, []);
 
   // Whisper (off-device): record locally, then upload the clip for transcription.
   const whisper = provider === "whisper";
@@ -55,16 +64,18 @@ export function DictateButton({ onText, lang = "en-GB" }: { onText: (text: strin
       try {
         const clip = await rec.stop();
         const text = await transcribeClip(clip);
-        if (text.trim()) onTextRef.current(text.trim());
+        if (mountedRef.current && text.trim()) onTextRef.current(text.trim());
       } catch {
         // Surface nothing intrusive; the field simply stays as-is on failure.
       } finally {
-        setBusy(false);
+        if (mountedRef.current) setBusy(false);
       }
       return;
     }
     try {
-      recorderRef.current = await startRecording();
+      const rec = await startRecording();
+      if (!mountedRef.current) { void rec.stop(); return; } // unmounted during the mic prompt — release it now
+      recorderRef.current = rec;
       setListening(true);
     } catch {
       recorderRef.current = null; // mic denied / unsupported — stay idle

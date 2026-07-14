@@ -31,7 +31,7 @@ function isValidEntry(v: unknown): v is TimeEntry {
 const router = Router();
 
 /** Resolve the store or answer 409; returns null when unavailable (caller returns). */
-function store(req: Request, res: Response): TimesheetStore | null {
+function store(_req: Request, res: Response): TimesheetStore | null {
   const s = timesheetStoreFor();
   if (!s) {
     // Honest: enabling timesheets needs a registered store PROVIDER at boot — a connected backend that

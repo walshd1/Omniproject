@@ -1,13 +1,12 @@
 import { ReportEmpty } from "./ReportEmpty";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
-import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
+import { type Issue } from "@workspace/api-client-react";
 import { summariseCapex } from "../../lib/capex";
 import { useProjectIssuesMoney } from "../../lib/currency";
 import { truncateLabel } from "../../lib/utils";
-import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { chartTooltipStyle } from "./chart-theme";
@@ -20,7 +19,7 @@ import { chartTooltipStyle } from "./chart-theme";
  */
 
 export function CapexOpex({ projectId }: { projectId: string }) {
-  const { issues, ccy, money, isLoading, isError, error, refetch } = useProjectIssuesMoney(projectId);
+  const { issues, money, isLoading, isError, error, refetch } = useProjectIssuesMoney(projectId);
 
   const summary = useMemo(() => summariseCapex((issues ?? []) as Issue[]), [issues]);
 

@@ -7,7 +7,7 @@
  * closed on a microtask, which always runs before the next request's handler, so separate
  * requests still get separate undo points with no explicit "begin transaction" call anywhere.
  */
-export interface UndoBuffer<T> {
+export interface UndoBuffer {
   /** Call at the START of every mutating setter, before mutating. Snapshots once per
    *  synchronous batch (a no-op for the 2nd+ call within the same tick). */
   beginMutation(): void;
@@ -24,7 +24,7 @@ export interface UndoBuffer<T> {
  *  mutation) — return a copy if the caller mutates in place, or just the current reference if
  *  the caller only ever replaces it wholesale. @param restore re-applies a captured snapshot
  *  (including any persistence the caller needs). */
-export function createUndoBuffer<T>(snapshot: () => T, restore: (previous: T) => void): UndoBuffer<T> {
+export function createUndoBuffer<T>(snapshot: () => T, restore: (previous: T) => void): UndoBuffer {
   let previous: T | null = null;
   let batchOpen = false;
 

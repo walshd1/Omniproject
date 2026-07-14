@@ -112,7 +112,7 @@ function pruneSeqs(now: number): void {
 // there is no cross-replica "first sight" to reconcile.
 const SEQ_MARK_PREFIX = "seq:mark:";
 
-function publishSeqMark(salt: string, high: number, now: number): void {
+function publishSeqMark(salt: string, high: number): void {
   if (!sequenceEnforced() || sharedStateMode() !== "redis") return;
   void sharedKv.set(SEQ_MARK_PREFIX + salt, String(high), { ttlMs: absoluteWindowMs() }).catch(() => { /* best-effort */ });
 }
@@ -142,7 +142,7 @@ export function issueSequence(salt: string, now: number): number {
   const high = !e || e.killed ? (e?.high ?? 0) + 1 : (e.high += 1);
   if (!e || e.killed) seqs.set(salt, { high, last: now, killed: false });
   else e.last = now;
-  publishSeqMark(salt, high, now); // fan the mark out so other replicas can detect a stale replay
+  publishSeqMark(salt, high); // fan the mark out so other replicas can detect a stale replay
   return high;
 }
 

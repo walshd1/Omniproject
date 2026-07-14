@@ -1,6 +1,5 @@
 import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
-import { num } from "../../lib/num";
 import { moscowWeight } from "../../lib/portfolio-priority";
 import type { ProjectItems } from "../../lib/portfolio-value";
 import { DataState } from "../DataState";

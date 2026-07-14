@@ -682,7 +682,7 @@ export class ReferenceBroker implements Broker {
     return callBroker(name, payload, { ctx, source, withActor: true });
   }
 
-  async verify(ctx: ActorContext, opts: { projectId?: string } = {}): Promise<VerifyReport> {
+  async verify(_ctx: ActorContext, opts: { projectId?: string } = {}): Promise<VerifyReport> {
     const projectId = opts.projectId ?? "sample";
     const url = webhookUrl();
     const probes = await probeVerifiableActions(url, projectId);

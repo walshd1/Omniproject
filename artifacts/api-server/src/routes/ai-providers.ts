@@ -2,7 +2,6 @@ import { Router, type Request } from "express";
 import { requireRole } from "../lib/rbac";
 import { requireStepUp } from "../lib/step-up";
 import { recordRequestAudit } from "../lib/audit";
-import { getSession } from "./auth";
 import { assertSafeIdentifier } from "../lib/payload-guard";
 import { assertSafeOutboundUrl } from "../lib/url-safety";
 import {

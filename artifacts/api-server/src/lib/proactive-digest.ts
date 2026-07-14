@@ -1,5 +1,5 @@
 import type { Broker, PortfolioRow } from "../broker/types";
-import { ROLES, type Role } from "./rbac";
+import { type Role } from "./rbac";
 import { runScheduledAutonomousJob, createIntervalScheduler } from "./scheduled-job";
 import { deliverDigestEmail } from "./digest-delivery";
 import type { Mailer } from "./email";

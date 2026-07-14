@@ -124,6 +124,7 @@ export function createReferenceSidecar(): http.Server {
         { rawBody: raw, actionHeader: req.headers["x-omniproject-action"] as string | undefined, authHeader: req.headers["authorization"] as string | undefined, headers: req.headers },
         backend,
       ).then((r) => {
+        if (res.writableEnded) return; // client disconnected mid-processing — nothing to write
         const text = JSON.stringify(r.body);
         // Reply encrypted when the request was (so the wire stays opaque both ways).
         const wire = r.encrypted ? JSON.stringify({ v: 2, enc: sealPayload(text) }) : text;
@@ -132,7 +133,7 @@ export function createReferenceSidecar(): http.Server {
         const rs = signBrokerResponse(wire, r.bind);
         res.writeHead(r.status, { "Content-Type": "application/json", "X-OmniProject-Origin": "omniproject", "X-Omni-Resp-Sig": rs.sig, "X-Omni-Resp-Ts": String(rs.ts) });
         res.end(wire);
-      });
+      }).catch(() => { if (!res.writableEnded) res.writeHead(500).end(); }); // never leave a floating rejection
     });
   });
 }

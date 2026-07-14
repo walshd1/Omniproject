@@ -1,10 +1,9 @@
 import { ReportEmpty } from "./ReportEmpty";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { ChartView } from "../charts/ChartView";
-import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
+import { type Issue } from "@workspace/api-client-react";
 import { summariseFinancials } from "../../lib/financial-summary";
 import { useProjectIssuesMoney } from "../../lib/currency";
-import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 
@@ -13,7 +12,7 @@ import { StatCard } from "./StatCard";
  * (the `financial` field group). Derive-only; OmniProject stores nothing.
  */
 export function FinancialSummary({ projectId }: { projectId: string }) {
-  const { issues, ccy, money, isLoading, isError, error, refetch } = useProjectIssuesMoney(projectId);
+  const { issues, money, isLoading, isError, error, refetch } = useProjectIssuesMoney(projectId);
 
   const summary = useMemo(() => summariseFinancials((issues ?? []) as Issue[]), [issues]);
   const chart = useMemo(

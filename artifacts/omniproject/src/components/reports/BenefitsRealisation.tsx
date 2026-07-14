@@ -1,13 +1,12 @@
 import { ReportEmpty } from "./ReportEmpty";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
-import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
+import { type Issue } from "@workspace/api-client-react";
 import { summariseBenefits, type BenefitBucket } from "../../lib/benefits";
 import { useProjectIssuesMoney } from "../../lib/currency";
 import { truncateLabel } from "../../lib/utils";
-import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 import { chartTooltipStyle } from "./chart-theme";
@@ -28,7 +27,7 @@ const BUCKET_META: Record<BenefitBucket, { label: string; colour: string }> = {
 const BUCKET_ORDER: BenefitBucket[] = ["realised", "on_track", "at_risk", "missed", "not_started"];
 
 export function BenefitsRealisation({ projectId }: { projectId: string }) {
-  const { issues, ccy, money, isLoading, isError, error, refetch } = useProjectIssuesMoney(projectId);
+  const { issues, money, isLoading, isError, error, refetch } = useProjectIssuesMoney(projectId);
 
   const summary = useMemo(() => summariseBenefits((issues ?? []) as Issue[]), [issues]);
 

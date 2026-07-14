@@ -73,10 +73,10 @@ router.get("/security/keys", requireRole("admin"), (_req, res) => {
 router.post("/security/keys/:name/revoke", requireRole("admin"), requireStepUp, async (req, res) => {
   const name = String(req.params["name"]);
   if (!isKeyName(name)) { res.status(404).json({ error: "unknown key" }); return; }
-  const session = getSession(req);
   const body = parseOr400(req, res, REVOKE_KEY_BODY);
   if (!body) return;
   const reason = body.reason;
+  const session = getSession(req);
   // Four-eyes: when key.revoke is dual-controlled, queue it for a second admin instead.
   if (await heldForDualControl("key.revoke", { name, by: session?.sub ?? null, reason }, req, res)) return;
   const status = revokeKey(name, { by: session?.sub ?? null, reason });
@@ -91,7 +91,6 @@ router.post("/security/sessions/revoke-user", requireRole("admin"), requireStepU
   const sub = parsed.sub;
   revokeUserSessions(sub);
   persistSecurityState();
-  const session = getSession(req);
   recordRequestAudit(req, { category: "admin", action: "sessions.revoke-user", write: true, meta: { sub } });
   res.json({ ok: true });
 });
@@ -107,7 +106,6 @@ router.get("/security/config-key", requireRole("admin"), (_req, res) => {
 // + the ephemeral key (the only secret that leaves, decrypting just this bundle). Audited.
 router.post("/security/config/export", requireRole("admin"), requireStepUp, (req, res) => {
   const out = exportConfig();
-  const session = getSession(req);
   recordRequestAudit(req, { category: "admin", action: "config.export", write: true, result: "success", meta: { fromVersion: out.fromVersion, toVersion: out.toVersion, fingerprint: internalKeyFingerprint() } });
   res.json({
     bundle: out.bundle,
@@ -135,7 +133,6 @@ router.put("/admin/maintenance", requireRole("admin"), requireStepUp, async (req
   if (engage) engageMaintenance(reason); else releaseMaintenance();
   persistSecurityState();
   await publishMaintenanceToShared(); // fan the freeze/release out to the fleet (not just this replica)
-  const session = getSession(req);
   recordRequestAudit(req, { category: "admin", action: engage ? "maintenance.engage" : "maintenance.release", write: true, result: "success", meta: { reason } });
   res.json({ engaged: maintenanceEngaged(), reason: maintenanceReason() });
 });
@@ -156,7 +153,6 @@ router.get("/security/dsar", requireRole("admin"), (req, res) => {
   const email = typeof req.query["email"] === "string" ? req.query["email"].trim() : undefined;
   if (!sub && !email) { res.status(400).json({ error: "Provide ?sub= and/or ?email= for the data subject." }); return; }
   const report = buildDsarReport({ sub, email }, Date.now());
-  const session = getSession(req);
   recordRequestAudit(req, { category: "admin", action: "dsar.report", write: false, result: "success", meta: { subjectSub: sub ?? null, subjectEmail: email ?? null } });
   res.json({ report, summary: dsarSummaryText(report) });
 });
@@ -173,7 +169,6 @@ router.get("/security/data-residency", requireRole("admin"), (_req, res) => {
 // here — same validator the seam uses — before deploying it, so a fail-closed typo is caught early.
 // Admin + step-up; audited. Returns { ok, regions?, allowed? } or 400 { ok:false, issues }.
 router.post("/security/data-residency/validate", requireRole("admin"), requireStepUp, (req, res) => {
-  const session = getSession(req);
   try {
     const policy = validateResidencyPolicy((req.body ?? {}) as unknown);
     recordRequestAudit(req, { category: "admin", action: "data_residency.policy.validate", write: false, result: "success", meta: { regions: Object.keys(policy.regions), allowed: policy.allowed } });

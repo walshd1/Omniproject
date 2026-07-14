@@ -30,7 +30,7 @@ function RoleTable({ idp }: { idp: IdpStatus }) {
 }
 
 /** Guided "Sign in with Google / Microsoft / …" presets over the existing OIDC flow. */
-function PresetCards({ presets, callbackUrl }: { presets: IdpPreset[]; callbackUrl: string }) {
+function PresetCards({ presets }: { presets: IdpPreset[] }) {
   if (!presets?.length) return null;
   return (
     <div className="mt-4 space-y-2" data-testid="idp-presets">
@@ -83,7 +83,7 @@ export function IdpStep() {
             <li>They sign in at this app — their role follows from their group, nothing more to set up here.</li>
           </ol>
           <div className="rounded border border-border p-3" data-testid="idp-rolemap"><RoleTable idp={idp} /></div>
-          <PresetCards presets={idp.presets} callbackUrl={idp.callbackUrl} />
+          <PresetCards presets={idp.presets} />
         </div>
       ) : (
         <div className="mt-2 space-y-3 text-sm">
@@ -113,7 +113,7 @@ export function IdpStep() {
             to the group for their role:
           </p>
           <div className="rounded border border-border p-3" data-testid="idp-rolemap"><RoleTable idp={idp} /></div>
-          <PresetCards presets={idp.presets} callbackUrl={idp.callbackUrl} />
+          <PresetCards presets={idp.presets} />
         </div>
       )}
     </section>

@@ -1,11 +1,10 @@
 import { ReportEmpty } from "./ReportEmpty";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { ChartView } from "../charts/ChartView";
-import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
+import { type Issue } from "@workspace/api-client-react";
 import { summariseIncome } from "../../lib/income";
 import { useProjectIssuesMoney } from "../../lib/currency";
 import { truncateLabel } from "../../lib/utils";
-import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 
@@ -14,7 +13,7 @@ import { StatCard } from "./StatCard";
  * (`invoicedAmount`) per work item, with the unbilled gap and purchase-order references. Nothing stored.
  */
 export function IncomeInvoicing({ projectId }: { projectId: string }) {
-  const { issues, ccy, money, isLoading, isError, error, refetch } = useProjectIssuesMoney(projectId);
+  const { issues, money, isLoading, isError, error, refetch } = useProjectIssuesMoney(projectId);
 
   const summary = useMemo(() => summariseIncome((issues ?? []) as Issue[]), [issues]);
 

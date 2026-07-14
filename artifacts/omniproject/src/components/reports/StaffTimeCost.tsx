@@ -1,11 +1,9 @@
 import { ReportEmpty } from "./ReportEmpty";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { ChartView } from "../charts/ChartView";
-import { useGetProjectIssues, getGetProjectIssuesQueryKey } from "@workspace/api-client-react";
 import { useStaffCost } from "../../lib/rate-card";
 import { useProjectIssuesMoney } from "../../lib/currency";
 import { truncateLabel } from "../../lib/utils";
-import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
 
@@ -19,7 +17,7 @@ import { StatCard } from "./StatCard";
 export function StaffTimeCost({ projectId }: { projectId: string }) {
   const { data, isLoading, isError, error, refetch } = useStaffCost(projectId);
   // Currency comes from the work items (the roll-up is currency-agnostic); falls back to the locale default.
-  const { issues, ccy, money } = useProjectIssuesMoney(projectId);
+  const { money } = useProjectIssuesMoney(projectId);
 
   const chart = useMemo(
     () => (data?.byTitle ?? []).slice(0, 8).map((r) => ({ name: truncateLabel(r.titleLabel), cost: r.cost, charge: r.charge })),

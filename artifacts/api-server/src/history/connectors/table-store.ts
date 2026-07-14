@@ -11,7 +11,7 @@
  * A range query on the SK prefix + between bounds is the window scan; a descending limit-1 query on
  * "SNAP#" is `lastSnapshotAt`.
  */
-import type { EntitySnapshot, HistoryEntry, TimeWindow } from "../types";
+import type { EntitySnapshot, HistoryEntry } from "../types";
 import type { RetentionSource } from "../retention";
 
 /** One stored item. `data` carries the snapshot/journal payload; keys drive the queries. */
