@@ -132,4 +132,72 @@ describe("PortfolioPrioritisation", () => {
     // The optimiser reports what it did (exact method + the value it bought).
     expect(screen.getByTestId("priority-optimise-note")).toHaveTextContent(/Optimised \(exact\)/);
   });
+
+  it("tones the composite score by band and dashes an unscored project", () => {
+    renderWithProviders(<PortfolioPrioritisation />, {
+      client: seed({
+        projects: [project({ id: "g", name: "G" }), project({ id: "m", name: "M" }), project({ id: "r", name: "R" }), project({ id: "n", name: "N" })],
+        issues: {
+          g: [issue({ id: "1", projectId: "g", riceScore: 100 })], // normalises to 100 → green
+          m: [issue({ id: "2", projectId: "m", riceScore: 50 })], // mid → amber
+          r: [issue({ id: "3", projectId: "r", riceScore: 1 })], // lowest → red
+          n: [issue({ id: "4", projectId: "n" })], // no scoring field → compositeScore null
+        },
+      }),
+    });
+    const scoreCell = (id: string) => screen.getByTestId(`priority-row-${id}`).querySelector("td:nth-child(4)")!;
+    expect(scoreCell("g").className).toContain("text-green-600");
+    expect(scoreCell("m").className).toContain("text-amber-500");
+    expect(scoreCell("r").className).toContain("text-red-500");
+    const nCell = scoreCell("n");
+    expect(nCell).toHaveTextContent("—"); // cell(null) dashes
+    expect(nCell.className).toContain("text-muted-foreground");
+  });
+
+  it("accepts a capacity cap, shows an over-budget hint, drives a negative benefit delta, and resets decisions", () => {
+    const benefitIssue = (o: Partial<Issue> & { plannedBenefitValue: number }): Issue =>
+      ({ ...issue(o), plannedBenefitValue: o.plannedBenefitValue } as unknown as Issue);
+    renderWithProviders(<PortfolioPrioritisation />, {
+      client: seed({
+        projects: [project({ id: "a", name: "A" }), project({ id: "b", name: "B" })],
+        issues: {
+          a: [benefitIssue({ id: "1", projectId: "a", riceScore: 90, plannedBenefitValue: 500 })],
+          b: [benefitIssue({ id: "2", projectId: "b", riceScore: 40, plannedBenefitValue: 300 })],
+        },
+        financials: { a: fin({ budgetAllocated: 1000 }), b: fin({ budgetAllocated: 1000 }) },
+      }),
+    });
+    // Capacity cap onChange + numeric parse.
+    fireEvent.change(screen.getByLabelText("Capacity cap"), { target: { value: "40" } });
+    expect(screen.getByLabelText("Capacity cap")).toHaveValue(40);
+    // Budget cap (500) below the funded cost (2000) → "over cap by" hint.
+    fireEvent.change(screen.getByLabelText("Budget cap (GBP)"), { target: { value: "500" } });
+    expect(screen.getByText(/over cap by/i)).toBeInTheDocument();
+    // Cutting A drops funded benefit below funding-everything → the delta hint goes negative (no leading +).
+    fireEvent.change(screen.getByLabelText("Funding decision for A"), { target: { value: "cut" } });
+    const benefitCard = screen.getByText("Funded benefit").parentElement!;
+    expect(benefitCard.textContent).toMatch(/-.*vs funding everything/);
+    // A decision was made → Reset appears; clicking it clears decisions and hides itself.
+    fireEvent.click(screen.getByTestId("priority-reset-decisions"));
+    expect(screen.queryByTestId("priority-reset-decisions")).toBeNull();
+    expect(screen.getByLabelText("Funding decision for A")).toHaveValue("fund");
+  });
+
+  it("optimise honours an existing cut as a forbid", () => {
+    renderWithProviders(<PortfolioPrioritisation />, {
+      client: seed({
+        projects: [project({ id: "a", name: "A" }), project({ id: "b", name: "B" })],
+        issues: {
+          a: [issue({ id: "1", projectId: "a", riceScore: 90 })],
+          b: [issue({ id: "2", projectId: "b", riceScore: 40 })],
+        },
+        financials: { a: fin({ budgetAllocated: 1000 }), b: fin({ budgetAllocated: 1000 }) },
+      }),
+    });
+    fireEvent.change(screen.getByLabelText("Funding decision for A"), { target: { value: "cut" } });
+    fireEvent.click(screen.getByTestId("priority-optimise"));
+    // The cut project is forbidden and skipped by the optimiser's fund/defer sweep.
+    expect(screen.getByLabelText("Funding decision for A")).toHaveValue("cut");
+    expect(screen.getByTestId("priority-optimise-note")).toBeInTheDocument();
+  });
 });

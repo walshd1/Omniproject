@@ -87,6 +87,28 @@ describe("rollupDemandIntake", () => {
     expect(row.strategicContribution).toBe(100); // clamped into 0–100
     expect(roll.totals.meanRice).toBeNull(); // nothing scored
   });
+
+  it("breaks ties by WSJF, then MoSCoW weight, then id when RICE is absent (byPriority null handling)", () => {
+    const roll = rollupDemandIntake([
+      items([
+        // No RICE on any row → cmp falls through to WSJF, then MoSCoW weight, then id.
+        { id: "a", status: "todo", wsjf: 5, moscow: "should" }, // wsjf 5, moscow 66
+        { id: "b", status: "todo", wsjf: 5, moscow: "must" }, // same wsjf, higher moscow (100) → before a
+        { id: "d", status: "todo" }, // no signals at all → after c by id tiebreak
+        { id: "c", status: "todo" }, // no signals at all → before d by id tiebreak
+      ]),
+    ]);
+    expect(roll.queue.map((r) => r.id)).toEqual(["b", "a", "c", "d"]);
+    expect(roll.totals.meanRice).toBeNull();
+  });
+
+  it("synthesises a queue id from project + index when the item carries none", () => {
+    const roll = rollupDemandIntake([
+      { projectId: "proj9", projectName: "P9", programmeId: null, programmeName: null, currency: "GBP", items: [{ status: "todo" }] as unknown as ProjectItems["items"] },
+    ]);
+    expect(roll.queue[0]!.id).toBe("proj9-0");
+    expect(roll.queue[0]!.title).toBe("Untitled demand"); // blank title fallback
+  });
 });
 
 describe("DemandIntake", () => {
@@ -127,6 +149,23 @@ describe("DemandIntake", () => {
     expect(getAllByText("—").length).toBeGreaterThanOrEqual(4);
     // No MoSCoW chip is rendered for an item without one.
     expect(within(row).queryByText(/must|should|could/i)).toBeNull();
+  });
+
+  it("renders MoSCoW chips across the weight bands and shows WSJF values", () => {
+    renderWithProviders(<DemandIntake />, {
+      client: seed([project({ id: "a" })], {
+        a: [
+          issue({ id: "1", status: "approved", riceScore: 50, wsjf: 7, moscow: "should" }), // 66 → warn
+          issue({ id: "2", status: "approved", riceScore: 40, moscow: "could" }), // 33 → info
+          issue({ id: "3", status: "approved", riceScore: 30, moscow: "won't have" }), // 0 → neutral tone, label preserved
+        ],
+      }),
+    });
+    const row1 = screen.getByTestId("demand-intake-row-1");
+    expect(row1).toHaveTextContent("should");
+    expect(row1).toHaveTextContent("7"); // WSJF value rendered (not dashed)
+    expect(screen.getByTestId("demand-intake-row-2")).toHaveTextContent("could");
+    expect(screen.getByTestId("demand-intake-row-3")).toHaveTextContent("won't have");
   });
 
   it("surfaces an error with a retry control when the portfolio query fails", async () => {

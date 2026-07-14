@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { getListProjectsQueryKey, getGetProjectIssuesQueryKey, getGetFxRatesQueryKey, type Project, type Issue, type FxRates } from "@workspace/api-client-react";
 import { renderWithProviders } from "../../test/utils";
@@ -76,6 +76,21 @@ describe("rollupStrategyThemes", () => {
     expect(roll.themes.map((t) => t.key).sort()).toEqual(["unaligned", "zero-trust-security"]);
   });
 
+  it("slugs an all-symbol theme to 'theme' and breaks planned ties by item count", () => {
+    const roll = rollupStrategyThemes(
+      [items([
+        { id: "1", strategicTheme: "###", plannedBenefitValue: 100 }, // slug collapses to "theme"
+        { id: "2", strategicTheme: "Growth", plannedBenefitValue: 60 },
+        { id: "3", strategicTheme: "Growth", plannedBenefitValue: 40 }, // Growth planned == 100, 2 items
+      ])],
+      "GBP",
+    );
+    const keys = roll.themes.map((t) => t.key);
+    expect(keys).toContain("theme");
+    // Equal planned (100 each) → the theme with more items (Growth, 2) leads.
+    expect(keys[0]).toBe("growth");
+  });
+
   it("converts benefit values into the reporting currency", () => {
     const roll = rollupStrategyThemes(
       [{ projectId: "e", projectName: "E", programmeId: null, programmeName: null, currency: "EUR", items: [{ id: "1", strategicTheme: "Growth", plannedBenefitValue: 110 }] as unknown as ProjectItems["items"] }],
@@ -107,5 +122,28 @@ describe("StrategyAlignment", () => {
   it("shows the empty state when no work item carries strategic data", () => {
     renderWithProviders(<StrategyAlignment />, { client: seed([project({ id: "a" })], { a: [issue({ id: "1" })] }) });
     expect(screen.getByTestId("strategy-alignment-empty")).toBeInTheDocument();
+  });
+
+  it("colours realisation by dominant RAG, dashes empty RAG + contribution, flags target met, and renders the OKR cascade", () => {
+    renderWithProviders(<StrategyAlignment />, {
+      client: seed([project({ id: "a" })], {
+        a: [
+          // Realised (120) >= planned (100); red health dominates the theme tone; has objectives → cascade + OKR line.
+          issue({ id: "1", strategicTheme: "Alpha", plannedBenefitValue: 100, actualBenefitValue: 120, healthStatus: "red", strategicContribution: 50, objectives: ["Grow"], percentWorkComplete: 40 }),
+          // No health/benefit status and no contribution, but a benefit value keeps it in scope → RAG "—" + contribution "—".
+          issue({ id: "2", strategicTheme: "Beta", plannedBenefitValue: 10 }),
+        ],
+      }),
+    });
+    const alpha = screen.getByTestId("strategy-alignment-row-alpha");
+    // themeTone red → the realisation cell carries the red tone.
+    expect(alpha.querySelector(".text-red-500")).toBeTruthy();
+    // Overall realisation 120/110 ≈ 109% ≥ 100 → "target met" hint on the Realisation StatCard.
+    expect(screen.getByText(/target met/i)).toBeInTheDocument();
+    // Beta reports neither RAG nor contribution → both cells dash.
+    const beta = screen.getByTestId("strategy-alignment-row-beta");
+    expect(within(beta).getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    // The OKR cascade renders for the strategic project.
+    expect(screen.getByTestId("strategy-alignment-row-alpha-okr")).toHaveTextContent("Grow");
   });
 });
