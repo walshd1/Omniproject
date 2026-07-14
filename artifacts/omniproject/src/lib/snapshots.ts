@@ -2,6 +2,7 @@ import type { Project, PortfolioHealthSummary } from "@workspace/api-client-reac
 import { triggerBlobDownload } from "./setup";
 import { markExplorationDirty, markExplorationClean } from "./exploration";
 import { safeParseJson } from "./safe-json";
+import { numLoose } from "./num";
 
 /**
  * Portfolio snapshots — point-in-time captures of the live read-model, taken in
@@ -70,15 +71,15 @@ export function createSnapshot(
     projects: (input.projects ?? []).map((p) => ({
       id: p.id,
       name: p.name,
-      issueCount: p.issueCount ?? 0,
-      completedCount: p.completedCount ?? 0,
+      issueCount: numLoose(p.issueCount),
+      completedCount: numLoose(p.completedCount),
     })),
     portfolio: (input.portfolio ?? []).map((r) => ({
       projectId: r.projectId,
       ragStatus: r.ragStatus,
-      scheduleVarianceDays: r.scheduleVarianceDays ?? 0,
-      budgetVariancePercentage: r.budgetVariancePercentage ?? 0,
-      activeBlockersCount: r.activeBlockersCount ?? 0,
+      scheduleVarianceDays: numLoose(r.scheduleVarianceDays),
+      budgetVariancePercentage: numLoose(r.budgetVariancePercentage),
+      activeBlockersCount: numLoose(r.activeBlockersCount),
     })),
   };
 }
@@ -114,8 +115,8 @@ export function validateSnapshot(obj: unknown): PortfolioSnapshot | null {
       .map((p) => ({
         id: String((p as SnapshotProject).id ?? ""),
         name: String((p as SnapshotProject).name ?? ""),
-        issueCount: Number((p as SnapshotProject).issueCount ?? 0),
-        completedCount: Number((p as SnapshotProject).completedCount ?? 0),
+        issueCount: numLoose((p as SnapshotProject).issueCount),
+        completedCount: numLoose((p as SnapshotProject).completedCount),
       })),
     portfolio: snap.portfolio
       .slice(0, MAX_ROWS_PER_SNAPSHOT)
@@ -123,9 +124,9 @@ export function validateSnapshot(obj: unknown): PortfolioSnapshot | null {
       .map((r) => ({
         projectId: String((r as SnapshotPortfolioRow).projectId ?? ""),
         ragStatus: String((r as SnapshotPortfolioRow).ragStatus ?? ""),
-        scheduleVarianceDays: Number((r as SnapshotPortfolioRow).scheduleVarianceDays ?? 0),
-        budgetVariancePercentage: Number((r as SnapshotPortfolioRow).budgetVariancePercentage ?? 0),
-        activeBlockersCount: Number((r as SnapshotPortfolioRow).activeBlockersCount ?? 0),
+        scheduleVarianceDays: numLoose((r as SnapshotPortfolioRow).scheduleVarianceDays),
+        budgetVariancePercentage: numLoose((r as SnapshotPortfolioRow).budgetVariancePercentage),
+        activeBlockersCount: numLoose((r as SnapshotPortfolioRow).activeBlockersCount),
       })),
   };
 }

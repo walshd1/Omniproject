@@ -77,6 +77,26 @@ describe("summarize", () => {
     expect(summarize(projects, portfolio).ragCounts).toEqual({ RED: 1, AMBER: 0, GREEN: 1 });
   });
 
+  it("EXCLUDES a dirty read-model row (NaN/undefined/string) instead of poisoning the KPI to NaN", () => {
+    // The read model genuinely delivers non-numeric figures (see api-server copilot.test) — one dirty
+    // row must not knock the whole aggregate to NaN, and averages must exclude (not zero-in) bad rows.
+    const dirtyPortfolio = [
+      { projectId: "a", ragStatus: "GREEN", scheduleVarianceDays: 4, budgetVariancePercentage: 10, activeBlockersCount: 2 },
+      { projectId: "b", ragStatus: "RED", scheduleVarianceDays: NaN, budgetVariancePercentage: undefined, activeBlockersCount: "x" },
+      { projectId: "c", ragStatus: "GREEN", scheduleVarianceDays: "abc", budgetVariancePercentage: 6, activeBlockersCount: 3 },
+    ] as unknown as PortfolioHealthSummary[];
+    const dirtyProjects = [
+      { id: "a", issueCount: 10, completedCount: 5 },
+      { id: "b", issueCount: NaN, completedCount: undefined },
+    ] as unknown as Project[];
+    const s = summarize(dirtyProjects, dirtyPortfolio);
+    expect(s.avgScheduleVarianceDays).toBe(4); // avg of finite [4] only, not (4+NaN+"abc")/3
+    expect(s.avgBudgetVariancePct).toBe(8); // avg of finite [10, 6]
+    expect(s.totalBlockers).toBe(5); // 2 + ("x"→0) + 3
+    expect(s.completionPct).toBe(50); // completed 5 / issues 10 (NaN issueCount → 0)
+    expect(Number.isNaN(s.avgScheduleVarianceDays)).toBe(false);
+  });
+
   it("returns zeroed averages for empty portfolio", () => {
     const s = summarize(projects, []);
     expect(s.avgScheduleVarianceDays).toBe(0);

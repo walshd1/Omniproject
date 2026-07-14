@@ -1,4 +1,5 @@
 import type { Project, PortfolioHealthSummary } from "@workspace/api-client-react";
+import { num } from "./num";
 
 /**
  * What-If scenario engine — a STATELESS, in-browser overlay on the LIVE
@@ -84,13 +85,21 @@ export function applyScenario(
   return { projects: adjustedProjects, portfolio: adjustedPortfolio };
 }
 
-const avg = (ns: number[]): number => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0);
 const round1 = (n: number): number => Math.round(n * 10) / 10;
+/** Mean over ONLY the finite values (a non-finite read-model figure is excluded from BOTH the sum and
+ *  the count, not averaged in as 0), matching the server twin summarizeHealth. 0 when none are finite. */
+const finiteAvg = (ns: readonly (number | null | undefined)[]): number => {
+  const finite = ns.filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+  return finite.length ? finite.reduce((a, b) => a + b, 0) / finite.length : 0;
+};
 
-/** Aggregate KPIs across the given read-model copy. Division-by-zero guarded. */
+/** Aggregate KPIs across the given read-model copy. Division-by-zero guarded, and every figure is
+ *  finite-coerced (num) / finite-filtered (finiteAvg) so one dirty read-model row — a NaN/undefined/
+ *  string count or variance, which the read model genuinely delivers — can't poison the whole KPI to
+ *  NaN (and the averages agree with the server's summarizeHealth). */
 export function summarize(projects: Project[], portfolio: PortfolioHealthSummary[]): ScenarioSummary {
-  const totalIssues = projects.reduce((s, p) => s + (p.issueCount ?? 0), 0);
-  const totalCompleted = projects.reduce((s, p) => s + (p.completedCount ?? 0), 0);
+  const totalIssues = projects.reduce((s, p) => s + num(p.issueCount), 0);
+  const totalCompleted = projects.reduce((s, p) => s + num(p.completedCount), 0);
 
   const ragCounts = { RED: 0, AMBER: 0, GREEN: 0 };
   for (const r of portfolio) {
@@ -100,9 +109,9 @@ export function summarize(projects: Project[], portfolio: PortfolioHealthSummary
 
   return {
     completionPct: totalIssues > 0 ? round1((totalCompleted / totalIssues) * 100) : 0,
-    avgScheduleVarianceDays: round1(avg(portfolio.map((r) => r.scheduleVarianceDays))),
-    avgBudgetVariancePct: round1(avg(portfolio.map((r) => r.budgetVariancePercentage))),
-    totalBlockers: portfolio.reduce((s, r) => s + r.activeBlockersCount, 0),
+    avgScheduleVarianceDays: round1(finiteAvg(portfolio.map((r) => r.scheduleVarianceDays))),
+    avgBudgetVariancePct: round1(finiteAvg(portfolio.map((r) => r.budgetVariancePercentage))),
+    totalBlockers: portfolio.reduce((s, r) => s + num(r.activeBlockersCount), 0),
     ragCounts,
   };
 }

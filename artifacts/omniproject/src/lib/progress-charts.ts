@@ -6,6 +6,8 @@
  * backend that can answer history, not just ones that emit per-status time series.
  */
 
+import { numLoose } from "./num";
+
 /** One history sample as returned by the broker (only the fields these charts need). The generated
  *  client types `date` as `Date`, but the wire value is an ISO string — accept both and coerce. */
 export interface HistoryPoint {
@@ -21,7 +23,7 @@ export interface BurnupPoint { date: string; completed: number; scope: number }
 export interface FlowPoint { date: string; completed: number; remaining: number }
 export interface VelocityPoint { period: string; completed: number }
 
-const remainingOf = (p: HistoryPoint): number => Math.max(0, (p.totalIssues ?? 0) - (p.completedIssues ?? 0));
+const remainingOf = (p: HistoryPoint): number => Math.max(0, numLoose(p.totalIssues) - numLoose(p.completedIssues));
 
 /**
  * Burndown: remaining work per sample against the ideal straight line from the starting remaining
@@ -40,13 +42,13 @@ export function burndownSeries(history: readonly HistoryPoint[]): BurndownPoint[
 
 /** Burnup: completed work rising toward the (possibly moving) total scope line. */
 export function burnupSeries(history: readonly HistoryPoint[]): BurnupPoint[] {
-  return history.map((p) => ({ date: dateOf(p), completed: p.completedIssues ?? 0, scope: p.totalIssues ?? 0 }));
+  return history.map((p) => ({ date: dateOf(p), completed: numLoose(p.completedIssues), scope: numLoose(p.totalIssues) }));
 }
 
 /** Cumulative flow: the completed vs still-remaining bands stacked over time (the two-band CFD a
  *  total/completed history supports; a per-status history would add more bands the same way). */
 export function cumulativeFlowSeries(history: readonly HistoryPoint[]): FlowPoint[] {
-  return history.map((p) => ({ date: dateOf(p), completed: p.completedIssues ?? 0, remaining: remainingOf(p) }));
+  return history.map((p) => ({ date: dateOf(p), completed: numLoose(p.completedIssues), remaining: remainingOf(p) }));
 }
 
 /** Velocity / throughput: work completed in each period (the positive delta of completed count
@@ -55,7 +57,7 @@ export function cumulativeFlowSeries(history: readonly HistoryPoint[]): FlowPoin
 export function velocitySeries(history: readonly HistoryPoint[]): VelocityPoint[] {
   const out: VelocityPoint[] = [];
   for (let i = 1; i < history.length; i++) {
-    const delta = (history[i]!.completedIssues ?? 0) - (history[i - 1]!.completedIssues ?? 0);
+    const delta = numLoose(history[i]!.completedIssues) - numLoose(history[i - 1]!.completedIssues);
     out.push({ period: dateOf(history[i]!), completed: Math.max(0, delta) });
   }
   return out;
