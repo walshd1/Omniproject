@@ -64,8 +64,19 @@ export interface Grants {
   authorities: Set<Authority>;
 }
 
+// Memoize each role's parsed env group set, keyed on the RAW env value so a change (tests mutate
+// process.env; hot-reload) rebuilds it, but the common steady-state case doesn't re-split per auth
+// check (grantsFromClaims calls this up to 5×). The returned set is read-only to callers (getRoleMap
+// copies it; the claim check only `.has()`es it), so sharing the instance is safe. Same shape as
+// router.ts's endpoint memo.
+const envRoleCache = new Map<string, { raw: string | undefined; set: Set<string> }>();
 function envRoles(key: string): Set<string> {
-  return parseCommaSet(process.env[key]);
+  const raw = process.env[key];
+  const cached = envRoleCache.get(key);
+  if (cached && cached.raw === raw) return cached.set;
+  const set = parseCommaSet(raw);
+  envRoleCache.set(key, { raw, set });
+  return set;
 }
 
 /** The env var carrying each role's IdP group list. */
@@ -367,12 +378,15 @@ export function hasRole(req: Request, need: Role): boolean {
 /** Express middleware: require the `need` grant, else 403. */
 export function requireRole(need: Role) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    if (hasRole(req, need)) {
+    // Resolve the caller's grants ONCE — the allow check and the 403's "you are …" label both need
+    // them (previously grantsForReq ran twice on the deny path).
+    const grants = grantsForReq(req);
+    if (grantsSatisfy(grants, need)) {
       next();
       return;
     }
     const what = isAuthority(need) ? `the ${need} authority` : `at least the ${need} role`;
-    res.status(403).json({ error: `Requires ${what} (you are ${roleForReq(req)})` });
+    res.status(403).json({ error: `Requires ${what} (you are ${displayRole(grants)})` });
   };
 }
 
@@ -381,11 +395,13 @@ export function requireRole(need: Role) {
  *  the two authorities are orthogonal and neither alone implies the other. Else 403. */
 export function requireAnyRole(...need: Role[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    if (need.some((r) => hasRole(req, r))) {
+    // Resolve grants ONCE and test each option against them (was grantsForReq per role in the OR list).
+    const grants = grantsForReq(req);
+    if (need.some((r) => grantsSatisfy(grants, r))) {
       next();
       return;
     }
     const what = need.map((r) => (isAuthority(r) ? `the ${r} authority` : `at least the ${r} role`)).join(" or ");
-    res.status(403).json({ error: `Requires ${what} (you are ${roleForReq(req)})` });
+    res.status(403).json({ error: `Requires ${what} (you are ${displayRole(grants)})` });
   };
 }

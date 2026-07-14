@@ -63,38 +63,69 @@ function parseIp(ip: string): { v: 4 | 6; n: bigint } | null {
   return n === null ? null : { v: 6, n };
 }
 
-/** Does `ip` fall within `cidr` (or equal a bare IP)? */
-export function ipInCidr(ip: string, cidr: string): boolean {
+/** A pre-parsed allowlist entry: the network base masked to its prefix, ready to match a client IP
+ *  without re-parsing the CIDR each request. `prefix === 0` means "match every address of this
+ *  version". Invalid entries parse to null (they never match), exactly as ipInCidr returned false. */
+interface ParsedCidr { v: 4 | 6; prefix: number; mask: bigint; maskedBase: bigint }
+
+/** Parse one CIDR/bare-IP entry to its matcher, or null if malformed (mirrors ipInCidr exactly). */
+function parseCidrEntry(cidr: string): ParsedCidr | null {
   const slash = cidr.indexOf("/");
   const net = slash >= 0 ? cidr.slice(0, slash) : cidr;
-  const target = parseIp(ip);
   const base = parseIp(net);
-  if (!target || !base || target.v !== base.v) return false;
-  const bits = target.v === 4 ? 32 : 128;
+  if (!base) return null;
+  const bits = base.v === 4 ? 32 : 128;
   let prefix = bits;
   if (slash >= 0) {
     // Require an explicit numeric prefix. `Number("")` is 0, so a trailing-slash typo like
     // "10.0.0.0/" would otherwise parse as /0 and fail OPEN (match every address) — reject it.
     const raw = cidr.slice(slash + 1);
-    if (!/^\d+$/.test(raw)) return false;
+    if (!/^\d+$/.test(raw)) return null;
     prefix = Number(raw);
   }
-  if (!Number.isInteger(prefix) || prefix < 0 || prefix > bits) return false;
-  if (prefix === 0) return true;
-  const mask = ((1n << BigInt(prefix)) - 1n) << BigInt(bits - prefix);
-  return (target.n & mask) === (base.n & mask);
+  if (!Number.isInteger(prefix) || prefix < 0 || prefix > bits) return null;
+  const mask = prefix === 0 ? 0n : ((1n << BigInt(prefix)) - 1n) << BigInt(bits - prefix);
+  return { v: base.v, prefix, mask, maskedBase: base.n & mask };
+}
+
+/** Does a parsed client IP fall within a pre-parsed entry? */
+function matchParsed(target: { v: 4 | 6; n: bigint }, p: ParsedCidr): boolean {
+  if (target.v !== p.v) return false;
+  if (p.prefix === 0) return true;
+  return (target.n & p.mask) === p.maskedBase;
+}
+
+/** Does `ip` fall within `cidr` (or equal a bare IP)? */
+export function ipInCidr(ip: string, cidr: string): boolean {
+  const p = parseCidrEntry(cidr);
+  const target = parseIp(ip);
+  return !!p && !!target && matchParsed(target, p);
+}
+
+// Memoize the parsed allowlist keyed on the RAW env value: the entries + their pre-parsed matchers
+// are rebuilt only when IP_ALLOWLIST actually changes, not split-and-CIDR-parsed on every request
+// (ipAllowGuard + ipAllowed previously each re-read + re-parsed the whole list per request).
+let allowlistCache: { raw: string | undefined; entries: string[]; parsed: ParsedCidr[] } | null = null;
+function parsedAllowlist(): { entries: string[]; parsed: ParsedCidr[] } {
+  const raw = process.env["IP_ALLOWLIST"];
+  if (allowlistCache && allowlistCache.raw === raw) return allowlistCache;
+  const entries = parseCsvEnv("IP_ALLOWLIST");
+  const parsed = entries.map(parseCidrEntry).filter((p): p is ParsedCidr => p !== null);
+  allowlistCache = { raw, entries, parsed };
+  return allowlistCache;
 }
 
 /** The configured allowlist entries (empty ⇒ allowlisting off). */
 export function ipAllowlist(): string[] {
-  return parseCsvEnv("IP_ALLOWLIST");
+  return parsedAllowlist().entries;
 }
 
 /** Is this client IP allowed? True when the allowlist is empty (feature off). */
 export function ipAllowed(ip: string): boolean {
-  const list = ipAllowlist();
-  if (list.length === 0) return true;
-  return list.some((cidr) => ipInCidr(ip, cidr));
+  const { entries, parsed } = parsedAllowlist();
+  if (entries.length === 0) return true;
+  const target = parseIp(ip);
+  return target !== null && parsed.some((p) => matchParsed(target, p));
 }
 
 /** Resolve the client IP — socket peer, or the first X-Forwarded-For hop when TRUST_PROXY. */
@@ -109,7 +140,7 @@ export function clientIp(req: Request): string {
 
 /** Middleware: refuse a client whose IP isn't allowlisted (no-op when the list is empty). */
 export function ipAllowGuard(req: Request, res: Response, next: NextFunction): void {
-  if (ipAllowlist().length === 0) { next(); return; }
+  if (parsedAllowlist().entries.length === 0) { next(); return; }
   const ip = clientIp(req);
   if (ipAllowed(ip)) { next(); return; }
   logger.warn({ ip, path: req.path }, "ip-allowlist: blocked client");
