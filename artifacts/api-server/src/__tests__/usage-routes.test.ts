@@ -62,6 +62,20 @@ test("PUT /usage/policies rejects a malformed policy with 400", async () => {
   assert.equal(r.status, 400);
 });
 
+test("POST /usage/notify summarises limit breaches (and reports all-clear otherwise)", async () => {
+  const clear = await req("/usage/notify", { method: "POST" });
+  assert.equal(clear.status, 200);
+  assert.equal(((await clear.json()) as { worst: string }).worst, "ok");
+
+  await recordUsage("openai", { calls: 100 });
+  await req("/usage/policies", { method: "PUT", body: { usagePolicies: { openai: { limit: { period: "day", metric: "calls", max: 100 } } } } });
+  const r = await req("/usage/notify", { method: "POST" });
+  const json = (await r.json()) as { worst: string; flagged: { vendor: string; level: string }[]; notified: boolean };
+  assert.equal(json.worst, "over"); // 100/100 = 100%
+  assert.equal(json.flagged[0]?.vendor, "openai");
+  assert.equal(json.flagged[0]?.level, "over");
+});
+
 test("GET /usage/policies reads back what was written", async () => {
   await req("/usage/policies", { method: "PUT", body: { usagePolicies: { jira: { cost: { per: "call", amount: 0.01, currency: "GBP" } } } } });
   const r = await req("/usage/policies");

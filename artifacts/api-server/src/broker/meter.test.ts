@@ -31,9 +31,9 @@ test("a real read call is metered as one call to the vendor, result unchanged", 
 test("writes are metered too, and the vendor resolver is read per call", async () => {
   let vendor = "jira";
   const b = wrapWithMeter(fakeBroker(), () => vendor);
-  await b.updateProject(ctx, "p1");
+  await b.updateProject(ctx, "p1", {});
   vendor = "openproject";
-  await b.updateProject(ctx, "p2");
+  await b.updateProject(ctx, "p2", {});
   assert.equal(await currentTotal("jira", "calls", "hour"), 1);
   assert.equal(await currentTotal("openproject", "calls", "hour"), 1);
 });
