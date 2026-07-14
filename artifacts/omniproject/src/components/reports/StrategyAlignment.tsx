@@ -9,6 +9,7 @@ import { StatCard } from "./StatCard";
 import { usePortfolioItems } from "./use-portfolio-items";
 import { StrategyCascade } from "./StrategyCascade";
 import { Badge } from "../tiles/Badge";
+import { ReportTable } from "./ReportTable";
 import type { CascadeItem } from "../../lib/strategy-cascade";
 import { ragBucket } from "../../lib/status-vocab";
 // Canonical RAG bucketing is shared across reports — see lib/status-vocab. Re-exported for existing importers/tests.
@@ -208,43 +209,36 @@ export function StrategyAlignment() {
             <StatCard label="Realised" value={money(totals.actual)} hint={`${totals.realisation}% realised`} />
             <StatCard label="Realisation" value={`${totals.realisation}%`} hint={totals.realisation >= 100 ? "target met" : "value outstanding"} />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3 font-bold">Strategic theme</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Items</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Contribution</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Planned</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Realised</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Realisation</th>
-                  <th className="py-1.5 px-2 font-bold">Health (RAG)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {themes.map((t) => (
-                  <tr key={t.key} className="border-b border-border/50 align-top" data-testid={`strategy-alignment-row-${t.key}`}>
-                    <td className="py-2 pr-3 font-bold">
-                      {t.label}
-                      {(t.objectives.length > 0 || t.kpis.length > 0) && (
-                        <div className="text-[10px] font-normal text-muted-foreground" data-testid={`strategy-alignment-row-${t.key}-okr`}>
-                          {t.objectives.length > 0 && <span>OKRs: {t.objectives.join(", ")}</span>}
-                          {t.objectives.length > 0 && t.kpis.length > 0 && <span> · </span>}
-                          {t.kpis.length > 0 && <span>KPIs: {t.kpis.join(", ")}</span>}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{t.items}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{t.contribution == null ? "—" : `${t.contribution}%`}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{money(t.planned)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{money(t.actual)}</td>
-                    <td className={`py-2 px-2 text-right tabular-nums font-black ${themeTone(t.rag)}`}>{t.realisation}%</td>
-                    <td className="py-2 px-2"><RagChips rag={t.rag} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReportTable
+            rows={themes}
+            rowKey={(t) => t.key}
+            rowTestId={(t) => `strategy-alignment-row-${t.key}`}
+            size="comfortable"
+            columns={[
+              {
+                header: "Strategic theme",
+                cellClassName: "font-bold",
+                cell: (t) => (
+                  <>
+                    {t.label}
+                    {(t.objectives.length > 0 || t.kpis.length > 0) && (
+                      <div className="text-[10px] font-normal text-muted-foreground" data-testid={`strategy-alignment-row-${t.key}-okr`}>
+                        {t.objectives.length > 0 && <span>OKRs: {t.objectives.join(", ")}</span>}
+                        {t.objectives.length > 0 && t.kpis.length > 0 && <span> · </span>}
+                        {t.kpis.length > 0 && <span>KPIs: {t.kpis.join(", ")}</span>}
+                      </div>
+                    )}
+                  </>
+                ),
+              },
+              { header: "Items", align: "right", cellClassName: "text-muted-foreground", cell: (t) => t.items },
+              { header: "Contribution", align: "right", cell: (t) => (t.contribution == null ? "—" : `${t.contribution}%`) },
+              { header: "Planned", align: "right", cell: (t) => money(t.planned) },
+              { header: "Realised", align: "right", cell: (t) => money(t.actual) },
+              { header: "Realisation", align: "right", cellClassName: (t) => `font-black ${themeTone(t.rag)}`, cell: (t) => `${t.realisation}%` },
+              { header: "Health (RAG)", cell: (t) => <RagChips rag={t.rag} /> },
+            ]}
+          />
           <p className="text-[11px] text-muted-foreground">
             Work items grouped by strategic theme (or their first strategic goal), consolidated into {target} and ordered by planned
             benefit (biggest strategic investment first). Contribution is the mean strategic contribution of the items that report it;

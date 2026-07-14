@@ -9,6 +9,7 @@ import { StatCard } from "./StatCard";
 import { Badge } from "../tiles/Badge";
 import { usePortfolioItems } from "./use-portfolio-items";
 import { classifyStage } from "../../lib/status-vocab";
+import { ReportTable } from "./ReportTable";
 
 /**
  * Value Stream Flow (value-stream / flow metrics) — groups every work item by its value stream (or, when a
@@ -255,40 +256,28 @@ export function ValueStreamFlow() {
             <StatCard label="Throughput" value={formatNumber(totals.throughput)} hint={`done in last ${config.throughputWindowDays}d`} />
             <StatCard label="Aging WIP" value={formatNumber(totals.agingOver)} hint={`in flight > ${config.agingThresholdDays}d`} />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3 font-bold">Value stream</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Items</th>
-                  <th className="py-1.5 px-2 font-bold text-right">WIP</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Load (pts)</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Mean age</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Oldest</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Aging</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Throughput</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Cycle time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {streams.map((s) => (
-                  <tr key={s.key} className="border-b border-border/50 align-top" data-testid={`value-stream-flow-row-${s.key}`}>
-                    <td className="py-2 pr-3 font-bold">{s.label}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{s.items}</td>
-                    <td className="py-2 px-2 text-right tabular-nums font-black">{s.wip}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{s.flowLoad}</td>
-                    <td className={`py-2 px-2 text-right tabular-nums ${ageTone(s.meanAge, config.agingThresholdDays)}`}>{days(s.meanAge)}</td>
-                    <td className={`py-2 px-2 text-right tabular-nums ${ageTone(s.maxAge, config.agingThresholdDays)}`}>{days(s.maxAge)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums" data-testid={`value-stream-flow-row-${s.key}-aging`}>
-                      {s.agingOver > 0 ? <Badge tone="bad" className="tabular-nums">{s.agingOver}</Badge> : <span className="text-[11px] text-muted-foreground">—</span>}
-                    </td>
-                    <td className="py-2 px-2 text-right tabular-nums">{s.throughput}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{days(s.meanCycle)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReportTable
+            rows={streams}
+            rowKey={(s) => s.key}
+            rowTestId={(s) => `value-stream-flow-row-${s.key}`}
+            size="comfortable"
+            columns={[
+              { header: "Value stream", cellClassName: "font-bold", cell: (s) => s.label },
+              { header: "Items", align: "right", cellClassName: "text-muted-foreground", cell: (s) => s.items },
+              { header: "WIP", align: "right", cellClassName: "font-black", cell: (s) => s.wip },
+              { header: "Load (pts)", align: "right", cell: (s) => s.flowLoad },
+              { header: "Mean age", align: "right", cellClassName: (s) => ageTone(s.meanAge, config.agingThresholdDays), cell: (s) => days(s.meanAge) },
+              { header: "Oldest", align: "right", cellClassName: (s) => ageTone(s.maxAge, config.agingThresholdDays), cell: (s) => days(s.maxAge) },
+              {
+                header: "Aging",
+                align: "right",
+                testId: (s) => `value-stream-flow-row-${s.key}-aging`,
+                cell: (s) => (s.agingOver > 0 ? <Badge tone="bad" className="tabular-nums">{s.agingOver}</Badge> : <span className="text-[11px] text-muted-foreground">—</span>),
+              },
+              { header: "Throughput", align: "right", cell: (s) => s.throughput },
+              { header: "Cycle time", align: "right", cell: (s) => days(s.meanCycle) },
+            ]}
+          />
           <p className="text-[11px] text-muted-foreground">
             Work items grouped by value stream (or their first label), ordered by WIP (heaviest load first). Age counts whole days
             from an in-progress item&apos;s start (or creation) to today; throughput is items finished in the last {config.throughputWindowDays} days;

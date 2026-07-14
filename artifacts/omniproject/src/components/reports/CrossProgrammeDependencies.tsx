@@ -11,6 +11,7 @@ import { DataState } from "../DataState";
 import { PathChain } from "../charts/PathChain";
 import { NetworkGraph } from "../charts/NetworkGraph";
 import { usePortfolioItems } from "./use-portfolio-items";
+import { ReportTable } from "./ReportTable";
 
 /**
  * Cross-programme Dependency & Critical-Path Map. STATELESS: from the live read model (work items across
@@ -140,28 +141,19 @@ export function CrossProgrammeDependencies() {
           </div>
 
           {map.crossProgrammeEdges.length > 0 && (
-            <div className="overflow-x-auto">
+            <div>
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Cross-programme dependencies</div>
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                    <th className="py-1.5 pr-3 font-bold">Predecessor</th>
-                    <th className="py-1.5 px-2 font-bold">Programme</th>
-                    <th className="py-1.5 px-2 font-bold">Dependent</th>
-                    <th className="py-1.5 px-2 font-bold">Programme</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {map.crossProgrammeEdges.map((e, i) => (
-                    <tr key={i} className="border-b border-border/50" data-testid={`cross-programme-edge-${e.from}-${e.to}`}>
-                      <td className="py-1.5 pr-3 font-mono truncate max-w-[12rem]">{titleOf[e.from] ?? e.from}</td>
-                      <td className="py-1.5 px-2 text-muted-foreground">{e.fromProgramme ? programmeLabelOf[e.fromProgramme] ?? e.fromProgramme : "Standalone"}</td>
-                      <td className="py-1.5 px-2 font-mono truncate max-w-[12rem]">{titleOf[e.to] ?? e.to}</td>
-                      <td className="py-1.5 px-2 text-muted-foreground">{e.toProgramme ? programmeLabelOf[e.toProgramme] ?? e.toProgramme : "Standalone"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <ReportTable
+                rows={map.crossProgrammeEdges}
+                rowKey={(e) => `${e.from}-${e.to}`}
+                rowTestId={(e) => `cross-programme-edge-${e.from}-${e.to}`}
+                columns={[
+                  { header: "Predecessor", cellClassName: "font-mono truncate max-w-[12rem]", cell: (e) => titleOf[e.from] ?? e.from },
+                  { header: "Programme", cellClassName: "text-muted-foreground", cell: (e) => (e.fromProgramme ? programmeLabelOf[e.fromProgramme] ?? e.fromProgramme : "Standalone") },
+                  { header: "Dependent", cellClassName: "font-mono truncate max-w-[12rem]", cell: (e) => titleOf[e.to] ?? e.to },
+                  { header: "Programme", cellClassName: "text-muted-foreground", cell: (e) => (e.toProgramme ? programmeLabelOf[e.toProgramme] ?? e.toProgramme : "Standalone") },
+                ]}
+              />
             </div>
           )}
 

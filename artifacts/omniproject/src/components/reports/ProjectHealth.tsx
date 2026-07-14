@@ -5,6 +5,7 @@ import { num } from "../../lib/num";
 import type { ProjectItems } from "../../lib/portfolio-value";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { ReportTable } from "./ReportTable";
 import { ProportionBar } from "../charts/bars";
 import { usePortfolioItems } from "./use-portfolio-items";
 import { useTrend } from "../../lib/trends";
@@ -264,43 +265,31 @@ export function ProjectHealth() {
             <StatCard label="Mean health" value={String(totals.meanHealth)} hint={`${totals.items} item(s) assessed`} />
           </div>
           <DistributionBar red={totals.red} amber={totals.amber} green={totals.green} />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3 font-bold">Project</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Progress</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Overdue</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Blocked</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Burn</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Confidence</th>
-                  <th className="py-1.5 px-2 font-bold">Item RAG</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Health</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.key} className="border-b border-border/50 align-top" data-testid={`project-health-row-${r.key}`}>
-                    <td className="py-2 pr-3 font-bold">
-                      {r.label}
-                      {r.factors.length > 0 && (
-                        <div className="text-[10px] font-normal text-muted-foreground" data-testid={`project-health-row-${r.key}-drivers`}>
-                          Drivers: {r.factors.map((f) => `${f.label} (−${f.penalty})`).join(", ")}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{r.done}/{r.items}</td>
-                    <td className={`py-2 px-2 text-right tabular-nums ${r.overdue > 0 ? "text-red-500 font-bold" : "text-muted-foreground"}`}>{r.overdue}</td>
-                    <td className={`py-2 px-2 text-right tabular-nums ${r.blockedCount > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}`}>{r.blockedCount}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{r.burn == null ? "—" : `${r.burn}%`}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{r.confidence == null ? "—" : `${r.confidence}%`}</td>
-                    <td className="py-2 px-2"><RagChips rag={r.rag} /></td>
-                    <td className="py-2 px-2 text-right"><ScoreBadge score={r.score} band={r.band} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReportTable
+            size="comfortable"
+            rows={rows}
+            rowKey={(r) => r.key}
+            rowTestId={(r) => `project-health-row-${r.key}`}
+            columns={[
+              { header: "Project", cellClassName: "font-bold", cell: (r) => (
+                <>
+                  {r.label}
+                  {r.factors.length > 0 && (
+                    <div className="text-[10px] font-normal text-muted-foreground" data-testid={`project-health-row-${r.key}-drivers`}>
+                      Drivers: {r.factors.map((f) => `${f.label} (−${f.penalty})`).join(", ")}
+                    </div>
+                  )}
+                </>
+              ) },
+              { header: "Progress", align: "right", cellClassName: "text-muted-foreground", cell: (r) => `${r.done}/${r.items}` },
+              { header: "Overdue", align: "right", cellClassName: (r) => (r.overdue > 0 ? "text-red-500 font-bold" : "text-muted-foreground"), cell: (r) => r.overdue },
+              { header: "Blocked", align: "right", cellClassName: (r) => (r.blockedCount > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"), cell: (r) => r.blockedCount },
+              { header: "Burn", align: "right", cell: (r) => (r.burn == null ? "—" : `${r.burn}%`) },
+              { header: "Confidence", align: "right", cell: (r) => (r.confidence == null ? "—" : `${r.confidence}%`) },
+              { header: "Item RAG", cell: (r) => <RagChips rag={r.rag} /> },
+              { header: "Health", align: "right", cell: (r) => <ScoreBadge score={r.score} band={r.band} /> },
+            ]}
+          />
           <HealthTrajectory />
           <p className="text-[11px] text-muted-foreground">
             Each project scores 0–100 from the delivery-risk signals its work items carry — RAG health, risk level, blocked

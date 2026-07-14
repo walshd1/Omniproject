@@ -1,4 +1,5 @@
 import { ReportEmpty } from "./ReportEmpty";
+import { ReportTable } from "./ReportTable";
 import { useMemo } from "react";
 import { num } from "../../lib/num";
 import { useT } from "../../lib/i18n";
@@ -206,36 +207,22 @@ export function Utilisation() {
             <StatCard label="Overloaded" value={String(totals.overloaded)} hint={totals.under > 0 ? `${totals.under} under-utilised` : "at/over capacity"} />
             <StatCard label="Mean utilisation" value={`${totals.meanUtilisation}%`} hint={`vs ${PERIOD_CAPACITY_HOURS}h capacity`} />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3 font-bold">Assignee</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Items</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Logged</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Estimate</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Remaining</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Billable</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Utilisation</th>
-                  <th className="py-1.5 px-2 font-bold">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.key} className="border-b border-border/50 align-top" data-testid={`utilisation-row-${r.key}`}>
-                    <td className="py-2 pr-3 font-bold">{r.label}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{r.items}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{h(r.logged)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{h(r.estimate)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{h(r.remaining)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums" data-testid={`utilisation-row-${r.key}-billable`}>{r.billablePct}%</td>
-                    <td className={`py-2 px-2 text-right tabular-nums font-black ${flagTone(r.flag)}`}>{r.utilisation}%</td>
-                    <td className="py-2 px-2"><FlagChip flag={r.flag} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReportTable
+            size="comfortable"
+            rows={rows}
+            rowKey={(r) => r.key}
+            rowTestId={(r) => `utilisation-row-${r.key}`}
+            columns={[
+              { header: "Assignee", cellClassName: "font-bold", cell: (r) => r.label },
+              { header: "Items", align: "right", cellClassName: "text-muted-foreground", cell: (r) => r.items },
+              { header: "Logged", align: "right", cell: (r) => h(r.logged) },
+              { header: "Estimate", align: "right", cell: (r) => h(r.estimate) },
+              { header: "Remaining", align: "right", cell: (r) => h(r.remaining) },
+              { header: "Billable", align: "right", testId: (r) => `utilisation-row-${r.key}-billable`, cell: (r) => `${r.billablePct}%` },
+              { header: "Utilisation", align: "right", cellClassName: (r) => `font-black ${flagTone(r.flag)}`, cell: (r) => `${r.utilisation}%` },
+              { header: "Status", cell: (r) => <FlagChip flag={r.flag} /> },
+            ]}
+          />
           <p className="text-[11px] text-muted-foreground">
             Work items grouped by assignee and ordered by logged effort (busiest first). Utilisation is logged hours ÷ a nominal
             reporting-period capacity of {PERIOD_CAPACITY_HOURS}h per person; a person is flagged Overloaded at/above {OVERLOAD_PCT}%
