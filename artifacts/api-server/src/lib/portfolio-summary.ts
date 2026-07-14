@@ -267,6 +267,9 @@ async function summaryTasks(broker: Broker, ctx: Ctx): Promise<TaskSummary | nul
   return rows ? summariseTasks(rows) : null;
 }
 
+/** Build the portfolio rollup for this request by fanning the four sections (health, finance,
+ *  capacity, tasks) out in parallel over the broker, then folding them into one summary. Byte-for-byte
+ *  the same output as the sequential form — only faster (see the per-section helpers above). */
 export async function computeLocalPortfolioSummary(req: Request): Promise<PortfolioSummary> {
   const broker = getBroker();
   const ctx = contextFromReq(req);
