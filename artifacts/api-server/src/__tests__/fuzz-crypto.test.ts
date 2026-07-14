@@ -94,7 +94,6 @@ function evil(r: Rng): string {
 }
 
 const B64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-const HEX = "0123456789abcdef";
 
 /** Flip ONE character of `s` at a random index in [lo, hi] to a DIFFERENT char of `alphabet`. */
 function flipChar(r: Rng, s: string, lo: number, hi: number, alphabet: string): string {

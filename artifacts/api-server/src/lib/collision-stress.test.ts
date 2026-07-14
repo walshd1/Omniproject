@@ -51,9 +51,6 @@ function project(over: Partial<Row> = {}): Row {
   };
 }
 
-function issue(over: Partial<Row> = {}): Row {
-  return { id: "i1", source: "jira", title: "Do a thing", status: "done", assignee: "Alice", ...over };
-}
 
 /** D_empty */
 const D_empty: Row[] = [];

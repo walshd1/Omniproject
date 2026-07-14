@@ -5,7 +5,7 @@ import { addClient, closeAllClients, clientCount } from "./notify-hub";
 
 function fakeLogger() {
   const calls: string[] = [];
-  const rec = () => (obj: unknown, msg?: string) => calls.push(String(msg ?? ""));
+  const rec = () => (_obj: unknown, msg?: string) => calls.push(String(msg ?? ""));
   return { calls, info: rec(), warn: rec(), error: rec() };
 }
 

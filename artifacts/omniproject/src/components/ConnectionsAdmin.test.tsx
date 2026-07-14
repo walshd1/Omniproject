@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../test/utils";
 import { ConnectionsAdmin } from "./ConnectionsAdmin";
 

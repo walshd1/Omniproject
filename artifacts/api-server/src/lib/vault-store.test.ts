@@ -1,4 +1,4 @@
-import { test, afterEach, beforeEach } from "node:test";
+import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { __setEgressTransportForTest, __setEgressLookupForTest, type LookupFn } from "./egress";
 // The vault/KMS stores call safeFetch with no injectable lookup, so route them to a test transport +
@@ -165,7 +165,7 @@ test("aws store signs with SigV4 and read-modify-writes one Secrets Manager secr
   delete process.env["AWS_SESSION_TOKEN"];
   const calls: Array<{ target: string; auth: string; body: unknown }> = [];
   let stored: Record<string, string> = { "aiprovider:openai": "sk-existing" };
-  mockEgress((async (url: string | URL | Request, init?: RequestInit) => {
+  mockEgress((async (_url: string | URL | Request, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     const target = headers.get("X-Amz-Target") ?? "";
     const body = JSON.parse(String(init?.body));

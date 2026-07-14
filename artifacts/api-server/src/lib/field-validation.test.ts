@@ -6,7 +6,6 @@ import {
   checkFieldValues,
   resolveFieldType,
   fieldKind,
-  FieldValidationError,
   type FieldValidationRule,
 } from "./field-validation";
 

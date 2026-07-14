@@ -87,4 +87,30 @@ describe("DictateButton (whisper engine)", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/ai/transcribe", expect.objectContaining({ method: "POST" }));
     expect(stop).toHaveBeenCalled(); // mic released
   });
+
+  it("releases the microphone if it unmounts while still recording (no use-after-unmount leak)", async () => {
+    // Regression: the unmount cleanup used to stop only the browser dictation, leaving a live
+    // Whisper MediaRecorder — the mic stayed open after the component was gone.
+    const stop = vi.fn();
+    class FakeMediaRecorder {
+      mimeType = "audio/webm";
+      ondataavailable: ((e: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      start() {}
+      stop() { this.ondataavailable?.({ data: new Blob(["x"], { type: "audio/webm" }) }); this.onstop?.(); }
+    }
+    win["MediaRecorder"] = FakeMediaRecorder;
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [{ stop }] }) },
+    });
+
+    const { unmount } = renderWithProviders(<DictateButton onText={() => {}} />, { client: seeded({ provider: "whisper", local: false }) });
+    const btn = screen.getByTestId("dictate-button");
+    fireEvent.click(btn); // start recording — mic is now live
+    await waitFor(() => expect(btn).toHaveAttribute("aria-pressed", "true"));
+
+    unmount(); // leave WITHOUT tapping stop
+    expect(stop).toHaveBeenCalled(); // the mic track was released on unmount
+  });
 });

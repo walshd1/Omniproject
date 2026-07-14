@@ -313,22 +313,8 @@ test("fail-safe: an allowlist of only garbage entries denies an arbitrary client
 
 /** Assemble a 3-segment JWT-shaped string from a payload object (unsigned — the decoders
  *  under test read the payload only; signature verification is a separate, verified step). */
-function jwtFrom(payload: unknown): string {
-  const seg = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
-  return `${seg({ alg: "none", typ: "JWT" })}.${seg(payload)}.sig`;
-}
-
 /** A hostile id_token: raw junk, a wrong segment count, or a well-formed-envelope carrying a
  *  payload with injection strings and prototype-pollution keys. */
-function evilToken(r: Rng): string {
-  const roll = gen.int(r, 0, 4);
-  if (roll === 0) return evil(r); // arbitrary junk (usually not 3 segments)
-  if (roll === 1) return `${gen.string(r, "ABCabc._-", 20)}.${gen.string(r, "!@#$%^", 10)}.${gen.string(r, "ABC", 5)}`; // bad base64 payload
-  if (roll === 2) return jwtFrom(JSON.parse('{"__proto__":{"polluted":true},"sub":"x","roles":["' + "admin" + '"]}'));
-  if (roll === 3) return jwtFrom({ sub: evil(r), name: evil(r), email: evil(r), roles: evil(r), groups: [evil(r), 42, null], amr: gen.bool(r) ? [evil(r)] : evil(r), acr: evil(r), realm_access: { roles: [evil(r)] }, nonce: evil(r) });
-  return jwtFrom(gen.oneOf<unknown>(r, (x) => evil(x), () => [1, 2, 3], () => 42, () => null)); // non-object payload
-}
-
 // Signature/nonce/iss/aud/exp and the JWT decode are now openid-client's job (fuzzed upstream). What
 // remains ours is claimsToSessionUser: it maps ALREADY-VALIDATED claim objects onto the session user.
 // Property: for ANY claim object (incl. hostile shapes + a __proto__ payload) it never throws, returns

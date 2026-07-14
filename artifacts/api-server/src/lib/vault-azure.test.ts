@@ -76,7 +76,7 @@ test("token acquisition failure surfaces as an error", async () => {
 
 test("put: reads the current map then writes it back with the new ref", async () => {
   let written: unknown = null;
-  const { calls } = mockVault((u, init) => {
+  const { calls } = mockVault((_u, init) => {
     if (init?.method === "PUT") {
       written = JSON.parse(String(init.body));
       return new Response("", { status: 200 });
@@ -89,7 +89,7 @@ test("put: reads the current map then writes it back with the new ref", async ()
 });
 
 test("put: a non-ok write throws", async () => {
-  mockVault((u, init) =>
+  mockVault((_u, init) =>
     init?.method === "PUT"
       ? new Response("err", { status: 403 })
       : new Response(JSON.stringify({ value: JSON.stringify({}) }), { status: 200 }),
@@ -99,7 +99,7 @@ test("put: a non-ok write throws", async () => {
 
 test("del: removes an existing ref and writes back; absent ref is a no-op (no write)", async () => {
   let writes = 0;
-  mockVault((u, init) => {
+  mockVault((_u, init) => {
     if (init?.method === "PUT") {
       writes += 1;
       return new Response("", { status: 200 });
