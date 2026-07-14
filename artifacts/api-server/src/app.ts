@@ -29,6 +29,7 @@ import { hydrateVault } from "./lib/vault";
 import { initKms } from "./lib/kms";
 import { contentSecurityPolicy, cspHeaderName, cspNonce } from "./lib/csp";
 import { tracingMiddleware } from "./lib/tracing";
+import { dataQualityMiddleware } from "./lib/data-quality";
 import { ipAllowGuard } from "./lib/ip-allow";
 import { maintenanceGuard } from "./lib/maintenance";
 import { requireTls } from "./lib/deployment-profile";
@@ -227,6 +228,11 @@ app.use((_req, res, next) => {
     next();
   });
 });
+
+// Data-quality signal: run the request inside a sanitizer tally scope and, when the read seam had to
+// repair malformed backend data to serve this response, emit the count as X-OmniProject-Data-Repaired
+// (same self-exposing Server-Timing-free approach as the timing headers — same-origin SPA reads it).
+app.use(dataQualityMiddleware);
 
 // RED metrics: count every request, its status class and latency, and track
 // in-flight depth. Pure in-process counters → always available at /api/metrics

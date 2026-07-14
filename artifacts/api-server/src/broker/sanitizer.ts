@@ -29,6 +29,12 @@ export async function runWithDataQuality<T>(fn: () => Promise<T>): Promise<{ res
   const result = await scope.run(tally, fn);
   return { result, quality: tally };
 }
+/** Establish a fresh data-quality tally for the (possibly async) work `fn` starts — the request-
+ *  middleware entry point. `fn` runs synchronously; the tally stays in scope for every async broker
+ *  read it spawns, so the sanitizer counts repairs for the whole request. */
+export function withDataQualityScope(fn: () => void): void {
+  scope.run({ repaired: 0, dropped: 0 }, fn);
+}
 /** The active tally, or undefined outside a data-quality scope (the sanitizer still repairs; it just
  *  doesn't count). */
 export function currentDataQuality(): Readonly<Tally> | undefined {
