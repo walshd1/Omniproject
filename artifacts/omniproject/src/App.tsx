@@ -7,6 +7,7 @@ import { useEffect, lazy, Suspense } from "react";
 import { useStore } from "./store/useStore";
 import { BrandingProvider } from "./lib/branding";
 import { A11yProvider } from "./lib/a11y-prefs";
+import { ThemeScopeProvider } from "./lib/theme-scope";
 import { PlatformProvider } from "./lib/platform-context";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ErrorTelemetrySync } from "./components/ErrorTelemetrySync";
@@ -129,6 +130,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrandingProvider>
         <A11yProvider>
+        <ThemeScopeProvider>
         <PlatformProvider>
         <TooltipProvider>
           <ThemeInitializer />
@@ -159,6 +161,7 @@ function App() {
           <MessyDataControl />
         </TooltipProvider>
         </PlatformProvider>
+        </ThemeScopeProvider>
         </A11yProvider>
       </BrandingProvider>
     </QueryClientProvider>

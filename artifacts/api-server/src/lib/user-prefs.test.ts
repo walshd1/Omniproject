@@ -29,6 +29,26 @@ test("sanitize validates the per-user font family + accent colour (null when abs
   assert.equal(sanitizeUserPrefs({}).accentColor, null);
 });
 
+test("sanitize coerces saved scoped overrides: validates fields, drops empties + forbidden/oversized keys, caps total", () => {
+  // Valid scope with a mix of fields; invalid field values fall to null and, if all null, drop the scope.
+  const clean = sanitizeUserPrefs({
+    scopedOverrides: {
+      "screen:reports": { accentColor: "#2563eb", fontFamily: "serif", backgroundColor: "nope" },
+      "artifact:report:x": { fontFamily: "comic-sans", accentColor: "bad" }, // all invalid → dropped
+      "__proto__": { accentColor: "#ffffff" }, // prototype-pollution key → dropped
+    },
+  }).scopedOverrides;
+  assert.deepEqual(clean["screen:reports"], { accentColor: "#2563eb", fontFamily: "serif", backgroundColor: null });
+  assert.equal("artifact:report:x" in clean, false); // no surviving field ⇒ not stored
+  assert.equal(Object.prototype.hasOwnProperty.call(clean, "__proto__"), false);
+  assert.deepEqual(sanitizeUserPrefs({}).scopedOverrides, {});
+
+  // Cap: more than the max are truncated (never unbounded growth in a user's prefs).
+  const many: Record<string, unknown> = {};
+  for (let i = 0; i < 250; i++) many[`screen:s${i}`] = { accentColor: "#000000" };
+  assert.ok(Object.keys(sanitizeUserPrefs({ scopedOverrides: many }).scopedOverrides).length <= 200);
+});
+
 test("sanitize validates switch-scan mode, clamps the scan rate, coerces a11y toggles", () => {
   assert.equal(sanitizeUserPrefs({ switchScan: "single" }).switchScan, "single");
   assert.equal(sanitizeUserPrefs({ switchScan: "two" }).switchScan, "two");

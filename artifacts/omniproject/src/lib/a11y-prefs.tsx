@@ -44,13 +44,51 @@ export interface A11yPrefs {
   mobileMode: MobileMode;
   /** UI spacing density (comfortable = company default, compact = tighter). */
   density: Density;
+  /**
+   * SAVED per-screen / per-artifact theme overrides, keyed by scope id (e.g. "screen:reports").
+   * Each overrides the user's GLOBAL settings for that one surface. Session-only scoped tweaks are
+   * held in memory by lib/theme-scope and never persisted here.
+   */
+  scopedOverrides: Record<string, ScopedOverride>;
+}
+
+/** A per-screen / per-artifact theme override. All fields optional; absent = inherit the global layer. */
+export interface ScopedOverride {
+  fontFamily?: FontChoice | null;
+  accentColor?: string | null;
+  backgroundColor?: string | null;
 }
 
 export const DEFAULT_A11Y: A11yPrefs = {
   fontScale: 1, fontFamily: null, accentColor: null, backgroundColor: null, highContrast: false, reduceMotion: false,
   switchScan: "off", scanRateMs: 1500, screenReader: false, speechInput: false, mobileMode: "auto",
-  density: "comfortable",
+  density: "comfortable", scopedOverrides: {},
 };
+
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const MAX_SCOPES = 200;
+
+/** Coerce the saved scoped-override map from untrusted storage: valid fields only, drop empties +
+ *  forbidden keys, cap the total. Mirrors the server-side sanitiser (lib/user-prefs). */
+export function cleanScopedOverrides(input: unknown): Record<string, ScopedOverride> {
+  if (typeof input !== "object" || input == null || Array.isArray(input)) return {};
+  const out: Record<string, ScopedOverride> = {};
+  let n = 0;
+  for (const [key, val] of Object.entries(input as Record<string, unknown>)) {
+    if (n >= MAX_SCOPES) break;
+    if (FORBIDDEN_KEYS.has(key) || !key || key.length > 200 || typeof val !== "object" || val == null) continue;
+    const v = val as Record<string, unknown>;
+    const o: ScopedOverride = {
+      fontFamily: cleanFontFamily(v["fontFamily"]),
+      accentColor: cleanColor(v["accentColor"]),
+      backgroundColor: cleanColor(v["backgroundColor"]),
+    };
+    if (o.fontFamily == null && o.accentColor == null && o.backgroundColor == null) continue;
+    out[key] = o;
+    n++;
+  }
+  return out;
+}
 
 const KEY = "omni:a11y";
 const MIN_SCALE = 0.85;
@@ -90,6 +128,7 @@ export function loadA11yPrefs(): A11yPrefs {
       speechInput: !!p.speechInput,
       mobileMode: cleanMobileMode(p.mobileMode),
       density: cleanDensity(p.density),
+      scopedOverrides: cleanScopedOverrides(p.scopedOverrides),
     };
   } catch {
     return DEFAULT_A11Y; // corrupt value ⇒ company defaults, no impact
@@ -141,6 +180,8 @@ interface A11yContextValue {
   toggleSpeechInput: () => void;
   setMobileMode: (mode: MobileMode) => void;
   setDensity: (d: Density) => void;
+  /** Persist (or clear, with null) a SAVED per-scope theme override to the user's profile. */
+  setSavedScope: (scopeId: string, override: ScopedOverride | null) => void;
   reset: () => void;
 }
 
@@ -202,6 +243,17 @@ export function A11yProvider({ children }: { children: ReactNode }) {
     toggleSpeechInput: () => change({ ...prefs, speechInput: !prefs.speechInput }),
     setMobileMode: (mode) => change({ ...prefs, mobileMode: cleanMobileMode(mode) }),
     setDensity: (d) => change({ ...prefs, density: cleanDensity(d) }),
+    setSavedScope: (scopeId, override) => {
+      if (FORBIDDEN_KEYS.has(scopeId) || !scopeId) return;
+      const next = { ...prefs.scopedOverrides };
+      const clean = override
+        ? { fontFamily: cleanFontFamily(override.fontFamily), accentColor: cleanColor(override.accentColor), backgroundColor: cleanColor(override.backgroundColor) }
+        : null;
+      // A null override, or one with no surviving field, clears the saved scope.
+      if (!clean || (clean.fontFamily == null && clean.accentColor == null && clean.backgroundColor == null)) delete next[scopeId];
+      else next[scopeId] = clean;
+      change({ ...prefs, scopedOverrides: next });
+    },
     reset: () => change(DEFAULT_A11Y),
   };
   return <A11yContext.Provider value={value}>{children}</A11yContext.Provider>;
@@ -211,6 +263,13 @@ export function useA11yPrefs(): A11yContextValue {
   const ctx = useContext(A11yContext);
   if (!ctx) throw new Error("useA11yPrefs must be used within an A11yProvider");
   return ctx;
+}
+
+/** Non-throwing read of the a11y context — null when no A11yProvider is mounted. Used by the
+ *  scoped-theme layer so an artifact/frame rendered in isolation (e.g. a unit test) degrades to
+ *  "no per-user override" instead of throwing. The full app always mounts the provider. */
+export function useA11yPrefsOptional(): A11yContextValue | null {
+  return useContext(A11yContext);
 }
 
 export const A11Y_SCALE_BOUNDS = { min: MIN_SCALE, max: MAX_SCALE };

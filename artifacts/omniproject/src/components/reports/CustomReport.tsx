@@ -87,7 +87,9 @@ export function CustomReport({ def, rows }: { def: CustomReportDef; rows: readon
       {inner}
     </div>
   );
-  return def.style ? <ArtifactFrame style={def.style}>{body}</ArtifactFrame> : body;
+  // Always framed with a per-user theme scope (keyed by the report id) so a user can re-theme this
+  // specific report for themselves — over the author's StyleSpec, session-only or saved to profile.
+  return <ArtifactFrame style={def.style} scopeId={`artifact:report:${def.id}`} scopeLabel={def.label}>{body}</ArtifactFrame>;
 }
 
 /** The `viz: "table" | "bar" | "pie"` path: single-level grouping (optionally a second level for a pivot). */

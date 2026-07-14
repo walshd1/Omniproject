@@ -18,6 +18,8 @@ import { usePublicSetupStatus } from "../../lib/setup";
 import { useT } from "../../lib/i18n";
 import { useBranding } from "../../lib/branding";
 import { LanguageSwitcher } from "../LanguageSwitcher";
+import { ThemeScope } from "../../lib/theme-scope";
+import { ScopedThemeControl } from "../settings/ScopedThemeControl";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
@@ -29,6 +31,11 @@ function isTypingInField(): boolean {
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
+  // Per-screen theme scope: keyed by the top-level section so a user can re-theme "the Reports
+  // screen" (etc.) for themselves — session-only by default, saveable to their profile.
+  const screenSeg = location.split("/")[1] || "home";
+  const screenScopeId = `screen:${screenSeg}`;
+  const screenLabel = `${screenSeg.charAt(0).toUpperCase()}${screenSeg.slice(1)} screen`;
   const { activeProjectId, isNewIssueOpen, setNewIssueOpen, isShortcutsOpen, setShortcutsOpen } = useStore();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { t } = useT();
@@ -271,6 +278,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               ?
             </button>
             <LanguageSwitcher />
+            <ScopedThemeControl scopeId={screenScopeId} label={screenLabel} />
             <NotificationsBell />
             {auth?.role && (
               <span
@@ -308,7 +316,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         )}
         <div id="main-content" ref={mainRef} tabIndex={-1} className="flex-1 overflow-auto bg-muted/20 relative outline-none">
-          <ErrorBoundary key={location}>{children}</ErrorBoundary>
+          <ThemeScope scopeId={screenScopeId} className="min-h-full">
+            <ErrorBoundary key={location}>{children}</ErrorBoundary>
+          </ThemeScope>
         </div>
       </main>
 

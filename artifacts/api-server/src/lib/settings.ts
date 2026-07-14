@@ -663,6 +663,19 @@ export interface UserPrefs {
   mobileMode: "auto" | "on" | "off";
   /** UI spacing density: comfortable (default) or compact. */
   density: "comfortable" | "compact";
+  /**
+   * SAVED per-screen / per-artifact theme overrides, keyed by scope id (e.g. "screen:reports"
+   * or "artifact:report:<id>"). Each is a partial theme that overrides the user's GLOBAL override
+   * for that one surface. Session-only scoped tweaks live in the browser and are never sent here.
+   */
+  scopedOverrides: Record<string, ScopedThemeOverride>;
+}
+
+/** A saved theme override for one screen/artifact. All fields optional; absent = inherit the layer below. */
+export interface ScopedThemeOverride {
+  fontFamily?: "sans" | "serif" | "mono" | null;
+  accentColor?: string | null;
+  backgroundColor?: string | null;
 }
 
 /**
