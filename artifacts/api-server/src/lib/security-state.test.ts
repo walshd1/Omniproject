@@ -188,3 +188,17 @@ test("a HOSTILE shared AI-authz blob can never widen authorization (validated on
   assert.equal(getRoleMap().find((m) => (m.role as string) === "superadmin"), undefined);
   assert.deepEqual(overrideGroups("admin"), ["ops"]); // 42 dropped, "ops" kept (lower-cased)
 });
+
+test("fan-out publishes EXACTLY the fleet-synced field set (drift guard for AI_AUTHZ_FIELDS)", async () => {
+  // The fanned-out snapshot and the converge path both iterate the AI_AUTHZ_FIELDS registry, so a new
+  // elevation control can't reach one path without the other. This pins the published shape: if a field
+  // is added to (or dropped from) the registry, this fails until the change is deliberate — the runtime
+  // twin of the compile-time `satisfies Record<keyof AiAuthzSnapshot, …>` lock.
+  __setRedisKvForTest(new FakeRedis());
+  await publishAiAuthzToShared();
+  const raw = await sharedKv.get(AI_AUTHZ_KEY);
+  assert.ok(raw, "publish must write the fleet key");
+  const keys = Object.keys(JSON.parse(raw)).sort();
+  assert.deepEqual(keys, ["approved", "containment", "grants", "roleMap"],
+    "a new fleet-synced elevation control must be added to AI_AUTHZ_FIELDS (collect + applyFromShared), not just the local persist snapshot");
+});

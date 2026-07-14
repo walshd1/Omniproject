@@ -90,13 +90,45 @@ interface AiAuthzSnapshot {
   roleMap: Record<string, string[]>;
 }
 
+/**
+ * The ONE registry of fleet-synced AI-authorization elevation controls. `collect` gathers a field's
+ * current value for fan-out; `applyFromShared` validates an UNTRUSTED shared value and applies it (or
+ * ignores it, failing toward the current/strict posture). Both the publish path (collectAiAuthz) and
+ * the converge path (refreshAiAuthzFromShared) iterate THIS registry, so a new elevation control can't
+ * be added to one path without the other — closing the drift gap where a control would persist locally
+ * yet silently fail to propagate a revocation fleet-wide. `satisfies Record<keyof AiAuthzSnapshot, …>`
+ * additionally makes the registry keys and the published snapshot type check each other at compile time.
+ */
+interface AuthzField {
+  collect: () => unknown;
+  applyFromShared: (value: unknown) => void;
+}
+const AI_AUTHZ_FIELDS = {
+  grants: {
+    collect: listAutonomousGrants,
+    applyFromShared: (v) => { if (Array.isArray(v)) setAutonomousGrants(v); },
+  },
+  containment: {
+    collect: getContainmentRelax,
+    applyFromShared: (v) => { if (isContainmentLevel(v)) setContainmentRelax(v); },
+  },
+  approved: {
+    collect: () => ({ actions: listApprovedActions(), vocab: listApprovedVocab(), rules: listApprovedActionRules() }),
+    applyFromShared: (v) => { if (v && typeof v === "object") setApproved(v as { actions?: string[]; rules?: ActionApproval[]; vocab?: string[] }); },
+  },
+  roleMap: {
+    // applyRoleMapSnapshot re-validates (only the five fixed roles, string groups), so a hostile blob
+    // can't invent a role or inject a non-string group. Only when present, so an older publisher that
+    // omits it doesn't wipe the local override.
+    collect: snapshotRoleMap,
+    applyFromShared: (v) => { if (v !== undefined) applyRoleMapSnapshot(v); },
+  },
+} satisfies Record<keyof AiAuthzSnapshot, AuthzField>;
+
 function collectAiAuthz(): AiAuthzSnapshot {
-  return {
-    grants: listAutonomousGrants(),
-    containment: getContainmentRelax(),
-    approved: { actions: listApprovedActions(), vocab: listApprovedVocab(), rules: listApprovedActionRules() },
-    roleMap: snapshotRoleMap(),
-  };
+  return Object.fromEntries(
+    Object.entries(AI_AUTHZ_FIELDS).map(([k, f]) => [k, f.collect()]),
+  ) as unknown as AiAuthzSnapshot;
 }
 
 /** Fan this replica's AI-authz controls out to shared state. Best-effort — the local state is already
@@ -122,16 +154,10 @@ export async function refreshAiAuthzFromShared(): Promise<void> {
   try { parsed = safeParseJson(raw); } catch { return; } // malformed → keep current posture (fail safe)
   if (!parsed || typeof parsed !== "object") return;
   const obj = parsed as Record<string, unknown>;
-  if (Array.isArray(obj["grants"])) setAutonomousGrants(obj["grants"]);
-  if (isContainmentLevel(obj["containment"])) setContainmentRelax(obj["containment"]);
-  const approved = obj["approved"];
-  if (approved && typeof approved === "object") {
-    setApproved(approved as { actions?: string[]; rules?: ActionApproval[]; vocab?: string[] });
-  }
-  // Role-map override: applyRoleMapSnapshot re-validates (only the five fixed roles, string groups),
-  // so a hostile blob can't invent a role or inject a non-string group. Only when present, so an older
-  // publisher that omits it doesn't wipe the local override.
-  if (obj["roleMap"] !== undefined) applyRoleMapSnapshot(obj["roleMap"]);
+  // Apply through the SAME registry the fan-out publishes from — each field's applyFromShared validates
+  // its own shape and fails toward the current/strict posture, so a corrupt or hostile blob can never
+  // WIDEN authorization here.
+  for (const [key, field] of Object.entries(AI_AUTHZ_FIELDS)) field.applyFromShared(obj[key]);
 }
 
 let aiAuthzTimer: ReturnType<typeof setInterval> | null = null;
