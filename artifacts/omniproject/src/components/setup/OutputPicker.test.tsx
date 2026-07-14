@@ -50,4 +50,28 @@ describe("OutputPicker", () => {
     expect(tile).toHaveAttribute("aria-selected", "false");
     expect(queryByText("Export note.")).not.toBeInTheDocument();
   });
+
+  it("lists known + unknown transports and falls back for an unknown kind, with no notes", async () => {
+    const feed: OutputInfo = {
+      id: "agent-api",
+      label: "Agent surface",
+      route: "/api/mcp",
+      kind: "custom-kind", // not in OUTPUT_LABELS → falls back to the raw kind
+      capabilities: { readOnly: false, streaming: true, auth: "token" },
+      transports: ["mcp", "carrier-pigeon"], // one known, one unknown → falls back to the raw id
+      // no notes → the notes paragraph is not rendered
+    };
+    mockOutputs([feed]);
+    const user = userEvent.setup();
+    const { findByRole, getByText, queryByText } = renderWithProviders(<OutputPicker />);
+    const tile = await findByRole("option", { name: /agent surface/i });
+    // Unknown kind renders verbatim.
+    expect(getByText("custom-kind")).toBeInTheDocument();
+    await user.click(tile);
+    // Known transport label + unknown transport id, joined.
+    expect(getByText(/MCP server · carrier-pigeon/)).toBeInTheDocument();
+    expect(getByText("/api/mcp")).toBeInTheDocument();
+    // No notes were supplied, so no notes paragraph.
+    expect(queryByText(/note/i)).not.toBeInTheDocument();
+  });
 });

@@ -70,6 +70,67 @@ describe("runCustomReport", () => {
     expect(metricLabel({ id: "m", field: "x", agg: "sum", label: "Spend" })).toBe("Spend");
   });
 
+  describe("evalPredicate op coverage (via matchRow)", () => {
+    const m = (op: string, value: unknown, row: Record<string, unknown>) =>
+      matchRow({ all: [{ field: "f", op: op as never, value: value as never }] }, row);
+
+    it("handles the truthy/falsy/negative/nonNegative unary-ish ops", () => {
+      expect(matchRow({ all: [{ field: "f", op: "truthy" }] }, { f: 1 })).toBe(true);
+      expect(matchRow({ all: [{ field: "f", op: "falsy" }] }, { f: 0 })).toBe(true);
+      expect(m("negative", undefined, { f: -3 })).toBe(true);
+      expect(m("negative", undefined, { f: 2 })).toBe(false);
+      expect(m("negative", undefined, { f: "nope" })).toBe(false); // non-numeric ⇒ null ⇒ false
+      expect(m("nonNegative", undefined, { f: 0 })).toBe(true);
+      expect(m("nonNegative", undefined, { f: -1 })).toBe(false);
+    });
+
+    it("handles eq/ne/in/nin", () => {
+      expect(m("eq", "x", { f: "x" })).toBe(true);
+      expect(m("eq", "x", { f: "y" })).toBe(false);
+      expect(m("ne", "x", { f: "y" })).toBe(true);
+      expect(m("ne", "x", { f: "x" })).toBe(false);
+      expect(m("in", ["a", "b"], { f: "b" })).toBe(true);
+      expect(m("in", ["a", "b"], { f: "c" })).toBe(false);
+      expect(m("in", "not-array", { f: "c" })).toBe(false); // non-array value ⇒ false
+      expect(m("nin", ["a"], { f: "b" })).toBe(true);
+      expect(m("nin", ["a"], { f: "a" })).toBe(false);
+    });
+
+    it("handles gte/lte and an unknown op (default false)", () => {
+      expect(m("gte", 5, { f: 5 })).toBe(true);
+      expect(m("gte", 5, { f: 4 })).toBe(false);
+      expect(m("lte", 5, { f: 5 })).toBe(true);
+      expect(m("lte", 5, { f: 6 })).toBe(false);
+      expect(m("wat", 1, { f: 1 })).toBe(false);
+    });
+
+    it("matchRow's any-group requires at least one match; empty filter passes everything", () => {
+      expect(matchRow(undefined, { f: 1 })).toBe(true);
+      expect(matchRow({ any: [{ field: "f", op: "eq", value: 1 }, { field: "f", op: "eq", value: 2 }] }, { f: 2 })).toBe(true);
+      expect(matchRow({ any: [{ field: "f", op: "eq", value: 1 }] }, { f: 3 })).toBe(false);
+      // all passes but any fails ⇒ overall false
+      expect(matchRow({ all: [{ field: "g", op: "truthy" }], any: [{ field: "f", op: "eq", value: 9 }] }, { g: true, f: 1 })).toBe(false);
+    });
+  });
+
+  describe("aggregate + labels", () => {
+    it("computes min across a group", () => {
+      const res = runCustomReport(def({ groupBy: "", metrics: [{ id: "mn", field: "budget", agg: "min" }] }), rows);
+      expect(res.groups[0]!.cells["mn"]).toBe(50);
+    });
+
+    it("returns 0 for an aggregate over an empty value set (non-count)", () => {
+      const res = runCustomReport(def({ groupBy: "", metrics: [{ id: "s", field: "missing", agg: "sum" }] }), rows);
+      expect(res.groups[0]!.cells["s"]).toBe(0);
+    });
+
+    it("metricLabel renders avg/min/max verbs", () => {
+      expect(metricLabel({ id: "m", field: "budget", agg: "avg" })).toBe("Avg of budget");
+      expect(metricLabel({ id: "m", field: "budget", agg: "min" })).toBe("Min of budget");
+      expect(metricLabel({ id: "m", field: "budget", agg: "max" })).toBe("Max of budget");
+    });
+  });
+
   describe("groupBy2 (pivot)", () => {
     it("produces a cross-tab: rows for groupBy, columns for groupBy2, both levels visible", () => {
       const res = runCustomReport(def({ groupBy2: "region" }), rows);
@@ -134,6 +195,18 @@ describe("runCustomReport", () => {
       const res = runCustomReportTrend(trendDef({ dateField: undefined }), dated);
       expect(res.points).toEqual([]);
       expect(res.matched).toBe(0);
+    });
+
+    it("buckets Date-object and numeric-epoch date values (not just ISO strings)", () => {
+      const mixed = [
+        { budget: 10, closedAt: new Date(Date.UTC(2026, 2, 15)) }, // March
+        { budget: 20, closedAt: Date.UTC(2026, 2, 20) },           // March (epoch ms)
+        { budget: 30, closedAt: "" },                              // empty ⇒ skipped
+      ];
+      const res = runCustomReportTrend(trendDef(), mixed);
+      expect(res.points.map((p) => p.period)).toEqual(["2026-03"]);
+      expect(res.points[0]!.cells["m"]).toBe(30);
+      expect(res.matched).toBe(2);
     });
   });
 });

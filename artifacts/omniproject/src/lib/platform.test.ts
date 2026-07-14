@@ -1,5 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { detectFormFactor, detectOS, detectEngine, resolveMobile, detectPlatform } from "./platform";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 /**
  * Platform detection is FEATURE-first; the coarse OS/engine hints are best-effort and
@@ -26,6 +31,32 @@ describe("detectOS", () => {
     expect(detectOS("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")).toBe("windows");
     expect(detectOS("Mozilla/5.0 (X11; Linux x86_64)")).toBe("linux");
     expect(detectOS("totally unknown agent")).toBe("unknown");
+    expect(detectOS("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)")).toBe("ios");
+    expect(detectOS("Mozilla/5.0 (iPod touch)")).toBe("ios");
+  });
+
+  it("uses the navigator.platform hint too, not just the UA", () => {
+    expect(detectOS("", "iPhone")).toBe("ios"); // platform arg is concatenated into the match text
+  });
+
+  it("treats a plain Mac (no touch) as macos", () => {
+    const desc = Object.getOwnPropertyDescriptor(navigator, "maxTouchPoints");
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 0, configurable: true });
+    try {
+      expect(detectOS("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")).toBe("macos");
+    } finally {
+      if (desc) Object.defineProperty(navigator, "maxTouchPoints", desc);
+      else Object.defineProperty(navigator, "maxTouchPoints", { value: 0, configurable: true });
+    }
+  });
+
+  it("treats a touch-capable Mac (modern iPad) as ios", () => {
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5, configurable: true });
+    try {
+      expect(detectOS("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")).toBe("ios");
+    } finally {
+      Object.defineProperty(navigator, "maxTouchPoints", { value: 0, configurable: true });
+    }
   });
 });
 
@@ -34,6 +65,16 @@ describe("detectEngine", () => {
     expect(detectEngine("Mozilla/5.0 (Windows NT 10.0) Gecko/20100101 Firefox/123.0")).toBe("gecko");
     expect(detectEngine("Mozilla/5.0 (X11; Linux) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")).toBe("chromium");
     expect(detectEngine("Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17 Safari/605.1.15")).toBe("webkit");
+  });
+
+  it("classifies Edge, Chrome-on-iOS, and unknown agents", () => {
+    expect(detectEngine("Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36 Edg/120")).toBe("chromium");
+    expect(detectEngine("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) CriOS/120")).toBe("chromium");
+    expect(detectEngine("some random string")).toBe("unknown");
+  });
+
+  it("does not mistake WebKit's 'like Gecko' for Gecko", () => {
+    expect(detectEngine("Mozilla/5.0 (Macintosh) AppleWebKit/605 (KHTML, like Gecko) Safari/605")).toBe("webkit");
   });
 });
 
@@ -59,5 +100,45 @@ describe("detectPlatform", () => {
     // jsdom has no SpeechRecognition and no native bridge by default.
     expect(p.speechRecognition).toBe(false);
     expect(p.nativeBridge).toBe(false);
+  });
+
+  it("reports the rich-capability branches when the environment exposes them", () => {
+    const savedMTP = Object.getOwnPropertyDescriptor(navigator, "maxTouchPoints");
+    const savedMM = Object.getOwnPropertyDescriptor(window, "matchMedia");
+    window.matchMedia = ((q: string) => ({ matches: /coarse|standalone/.test(q) })) as unknown as typeof window.matchMedia;
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 4, configurable: true });
+    Object.defineProperty(navigator, "share", { value: () => {}, configurable: true });
+    Object.defineProperty(navigator, "serviceWorker", { value: {}, configurable: true });
+    (window as unknown as Record<string, unknown>).SpeechRecognition = function () {};
+    (window as unknown as Record<string, unknown>).OmniNative = {};
+    try {
+      const p = detectPlatform();
+      expect(p.touch).toBe(true);
+      expect(p.speechRecognition).toBe(true);
+      expect(p.webShare).toBe(true);
+      expect(p.serviceWorker).toBe(true);
+      expect(p.standalone).toBe(true);
+      expect(p.nativeBridge).toBe(true);
+    } finally {
+      delete (window as unknown as Record<string, unknown>).SpeechRecognition;
+      delete (window as unknown as Record<string, unknown>).OmniNative;
+      delete (navigator as unknown as Record<string, unknown>).share;
+      delete (navigator as unknown as Record<string, unknown>).serviceWorker;
+      if (savedMTP) Object.defineProperty(navigator, "maxTouchPoints", savedMTP);
+      if (savedMM) Object.defineProperty(window, "matchMedia", savedMM);
+      else delete (window as unknown as Record<string, unknown>).matchMedia;
+    }
+  });
+
+  it("covers the iOS-standalone path (navigator.standalone) with matchMedia absent", () => {
+    const savedMM = Object.getOwnPropertyDescriptor(window, "matchMedia");
+    delete (window as unknown as Record<string, unknown>).matchMedia; // media() returns false
+    Object.defineProperty(navigator, "standalone", { value: true, configurable: true });
+    try {
+      expect(detectPlatform().standalone).toBe(true);
+    } finally {
+      delete (navigator as unknown as Record<string, unknown>).standalone;
+      if (savedMM) Object.defineProperty(window, "matchMedia", savedMM);
+    }
   });
 });

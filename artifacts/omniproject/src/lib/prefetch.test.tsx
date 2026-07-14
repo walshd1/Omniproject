@@ -25,6 +25,7 @@ function Harness() {
       <button onClick={() => onIntentFocus("p1")}>focus</button>
       <button onMouseEnter={() => onIntentEnter("p2")} onMouseLeave={onIntentLeave}>hover</button>
       <button onClick={() => runPredictive(["p3", "p4"])}>predict</button>
+      <button onClick={() => onIntentFocus("")}>focus-empty</button>
     </div>
   );
 }
@@ -44,6 +45,13 @@ describe("deterministic prefetch (always on)", () => {
     renderWithProviders(<Harness />, { client: seed(false) }); // predictive off — deterministic still on
     fireEvent.click(screen.getByText("focus"));
     await waitFor(() => expect(calls("p1").length).toBeGreaterThan(0));
+  });
+
+  it("does nothing for an empty project id (no bogus /api/projects//issues call)", async () => {
+    renderWithProviders(<Harness />, { client: seed(false) });
+    fireEvent.click(screen.getByText("focus-empty"));
+    await Promise.resolve();
+    expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some(([u]) => String(u).includes("/api/projects//issues"))).toBe(false);
   });
 
   it("fires on hover only after the dwell, and a quick leave cancels it", async () => {
@@ -84,9 +92,19 @@ describe("predictive prefetch (opt-in + module-gated)", () => {
     expect(calls("p4").length).toBeGreaterThan(0);
   });
 
-  it("defaults off and persists a toggle", () => {
+  it("defaults off and persists a toggle both ways", () => {
     expect(usePredictivePrefetchSetting.getState().enabled).toBe(false);
     act(() => usePredictivePrefetchSetting.getState().setEnabled(true));
     expect(localStorage.getItem("omni:predictive-prefetch")).toBe("1");
+    act(() => usePredictivePrefetchSetting.getState().setEnabled(false));
+    expect(localStorage.getItem("omni:predictive-prefetch")).toBe("0");
+    expect(usePredictivePrefetchSetting.getState().enabled).toBe(false);
+  });
+
+  it("still flips state when storage is blocked", () => {
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    act(() => usePredictivePrefetchSetting.getState().setEnabled(true));
+    expect(usePredictivePrefetchSetting.getState().enabled).toBe(true); // set despite the storage throw
+    spy.mockRestore();
   });
 });

@@ -45,4 +45,37 @@ describe("savedViewToDefinition", () => {
   it("defaults an omitted viewKind to list", () => {
     expect(savedViewToDefinition({ id: "s2", name: "L", entity: "task" }).kind).toBe("list");
   });
+
+  it("defaults a missing entity to the empty string", () => {
+    expect(savedViewToDefinition({ id: "s3", name: "E" } as SavedView).entity).toBe("");
+  });
+
+  it("carries through every optional field that is present", () => {
+    const sv: SavedView = {
+      id: "s4",
+      name: "Full",
+      entity: "issue",
+      viewKind: "chart",
+      columns: ["status", "owner"],
+      dateField: "due",
+      chart: { type: "bar", groupField: "status" },
+      filters: [{ field: "status", value: "open" }],
+      sort: { field: "due", dir: "desc" },
+      groupBy: "owner",
+      style: { title: "My chart" } as SavedView["style"],
+    };
+    const def = savedViewToDefinition(sv);
+    expect(def).toMatchObject({
+      id: "s4",
+      kind: "chart",
+      builtin: false,
+      columns: ["status", "owner"],
+      dateField: "due",
+      chart: { type: "bar", groupField: "status" },
+      filters: [{ field: "status", value: "open" }],
+      sort: { field: "due", dir: "desc" },
+      groupBy: "owner",
+      style: { title: "My chart" },
+    });
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchAiStatus, aiChat, type AiStatus, type ChatMessage } from "./ai";
+import { fetchAiStatus, aiChat, suggestBackend, type AiStatus, type ChatMessage } from "./ai";
 
 let originalFetch: typeof globalThis.fetch;
 
@@ -77,5 +77,44 @@ describe("aiChat", () => {
       },
     }) as unknown as typeof fetch;
     await expect(aiChat(messages)).rejects.toThrow("ai chat failed: 500");
+  });
+});
+
+describe("suggestBackend", () => {
+  it("POSTs the vendor + hint and returns the drafted manifest", async () => {
+    const manifest = { vendor: "Acme", entities: [] };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ manifest }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(suggestBackend("Acme", "REST + OAuth")).resolves.toEqual(manifest);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/ai/suggest-backend");
+    expect(init.method).toBe("POST");
+    const body = JSON.parse(init.body);
+    expect(body.vendorName).toBe("Acme");
+    expect(body.hint).toBe("REST + OAuth");
+  });
+
+  it("works without a hint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ manifest: { vendor: "X" } }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    await expect(suggestBackend("X")).resolves.toEqual({ vendor: "X" });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).hint).toBeUndefined();
+  });
+
+  it("throws the server error message on failure", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ error: "capability off" }, { ok: false, status: 403 })) as unknown as typeof fetch;
+    await expect(suggestBackend("X")).rejects.toThrow("capability off");
+  });
+
+  it("falls back to a status message when the error body is unparseable", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => { throw new Error("bad json"); },
+    }) as unknown as typeof fetch;
+    await expect(suggestBackend("X")).rejects.toThrow("suggestion failed: 500");
   });
 });

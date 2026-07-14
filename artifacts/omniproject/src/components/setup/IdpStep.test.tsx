@@ -49,5 +49,37 @@ describe("IdpStep", () => {
     });
     expect(screen.getByText(/Company login is already switched on/i)).toBeInTheDocument();
     expect(screen.getByTestId("idp-rolemap")).toHaveTextContent("omni-admins");
+    // Bundled ⇒ the built-in-login-system note is shown.
+    expect(screen.getByText(/using the built-in login system/i)).toBeInTheDocument();
+  });
+
+  it("renders nothing until the idp status has loaded", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    const { container } = renderWithProviders(<IdpStep />, { client: qc });
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("oidc mode, external (non-bundled) IdP: omits the built-in note and links the admin screen", () => {
+    renderWithProviders(<IdpStep />, {
+      client: seed({
+        ...base, mode: "oidc", issuer: "https://sso.example.com/", issuerOrigin: "https://sso.example.com",
+        bundled: false, presets: [], roleGroups: [{ role: "admin", groups: ["okta-admins"] }],
+      }),
+    });
+    expect(screen.getByText(/Company login is already switched on/i)).toBeInTheDocument();
+    expect(screen.queryByText(/using the built-in login system/i)).not.toBeInTheDocument();
+    // issuerOrigin present ⇒ the admin-console deep link is rendered.
+    expect(screen.getByRole("link", { name: /if\/admin/ })).toBeInTheDocument();
+    // Empty presets list ⇒ the preset cards section is not rendered.
+    expect(screen.queryByTestId("idp-presets")).not.toBeInTheDocument();
+  });
+
+  it("falls back to an em-dash when a role has neither configured nor suggested groups", () => {
+    renderWithProviders(<IdpStep />, {
+      client: seed({ ...base, suggestedGroups: {}, roleGroups: [{ role: "custodian", groups: [] }] }),
+    });
+    const map = screen.getByTestId("idp-rolemap");
+    expect(map).toHaveTextContent("custodian");
+    expect(map).toHaveTextContent("—");
   });
 });

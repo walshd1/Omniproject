@@ -86,6 +86,46 @@ describe("resolveDrillTo", () => {
     const resolved = resolveDrillTo(drill, {});
     expect(resolved!.href.startsWith("/projects?")).toBe(true);
   });
+
+  it("summarises every predicate op in the auto label", () => {
+    const drill: DrillTo = {
+      target: "grid",
+      predicate: {
+        all: [
+          { field: "blocked", op: "truthy" },
+          { field: "archived", op: "falsy" },
+          { field: "status", op: "eq", value: "done" },
+          { field: "owner", op: "ne", value: "ada" },
+          { field: "region", op: "in", value: ["EU", "US"] },
+          { field: "tier", op: "nin", value: ["free"] },
+          { field: "budget", op: "gt", value: 100 },
+        ],
+        any: [{ field: "flag", op: "truthy" }],
+      },
+    };
+    const resolved = resolveDrillTo(drill, {})!;
+    expect(resolved.label).toBe(
+      "blocked and not archived and status = done and owner ≠ ada and region in EU,US and tier not in free and budget gt 100 and (flag)",
+    );
+  });
+
+  it("summarises a default op with no value (no trailing space)", () => {
+    const drill: DrillTo = { target: "grid", predicate: { all: [{ field: "budget", op: "gt" } as unknown as never] } };
+    const resolved = resolveDrillTo(drill, {})!;
+    expect(resolved.label).toBe("budget gt");
+  });
+
+  it("carries a row-derived condition with no value through as a valueless predicate", () => {
+    const drill: DrillTo = { target: "grid", predicateFrom: [{ field: "blocked", op: "truthy" }] };
+    const resolved = resolveDrillTo(drill, {})!;
+    expect(resolved.predicate).toEqual({ all: [{ field: "blocked", op: "truthy" }] });
+  });
+
+  it("supports an any-only descriptor (OR group)", () => {
+    const drill: DrillTo = { target: "grid", predicate: { any: [{ field: "blocked", op: "truthy" }, { field: "atRisk", op: "truthy" }] } };
+    const resolved = resolveDrillTo(drill, {})!;
+    expect(resolved.predicate).toEqual({ any: [{ field: "blocked", op: "truthy" }, { field: "atRisk", op: "truthy" }] });
+  });
 });
 
 describe("readDrillFilter / resolveDrillTo round trip", () => {
@@ -103,6 +143,18 @@ describe("readDrillFilter / resolveDrillTo round trip", () => {
   it("degrades to null on an unparsable filter param instead of throwing", () => {
     const params = new URLSearchParams({ filter: "{not-json" });
     expect(readDrillFilter(params)).toBeNull();
+  });
+
+  it("rejects a filter param that parses to a non-object (array/primitive)", () => {
+    expect(readDrillFilter(new URLSearchParams({ filter: "[1,2]" }))).toBeNull();
+    expect(readDrillFilter(new URLSearchParams({ filter: "42" }))).toBeNull();
+    expect(readDrillFilter(new URLSearchParams({ filter: "null" }))).toBeNull();
+  });
+
+  it("auto-summarises the label when the URL carries a filter but no filterLabel", () => {
+    const predicate = { all: [{ field: "status", op: "eq", value: "done" }] };
+    const read = readDrillFilter(new URLSearchParams({ filter: JSON.stringify(predicate) }));
+    expect(read).toEqual({ predicate, label: "status = done" });
   });
 
   it("DRILL_FILTER_PARAMS names both params resolveDrillTo writes, for a caller to clear", () => {

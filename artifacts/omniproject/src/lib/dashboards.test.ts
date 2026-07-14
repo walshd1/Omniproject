@@ -1,4 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { createElement, type ReactNode } from "react";
+import { renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   WIDGET_CATALOGUE,
   widgetDef,
@@ -7,7 +10,18 @@ import {
   availablePresets,
   presetForRole,
   dashboardFromPreset,
+  useDashboards,
+  useSaveDashboards,
+  dashboardsQueryKey,
+  type Dashboard,
+  type DashboardPreset,
 } from "./dashboards";
+
+function wrapper(client: QueryClient) {
+  return ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
+}
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("WIDGET_CATALOGUE", () => {
   it("has unique widget types and non-empty metadata", () => {
@@ -76,5 +90,61 @@ describe("dashboard presets", () => {
     const ids = dash.widgets.map((w) => w.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const w of dash.widgets) expect([1, 2, 3]).toContain(w.span);
+  });
+
+  it("resolves each widget's span and title across the fallback chain", () => {
+    const known = WIDGET_CATALOGUE[0]!;
+    const preset = {
+      role: "custom",
+      name: "Synthetic",
+      widgets: [
+        { type: "unknownWidgetType" },                 // span → widgetDef undefined → 1; no title
+        { type: known.type, title: "Renamed" },        // span → known.defaultSpan; title kept
+        { type: known.type, span: 2 as const },         // explicit span wins
+      ],
+    } as unknown as DashboardPreset;
+
+    const dash = dashboardFromPreset(preset);
+    expect(dash.name).toBe("Synthetic");
+    expect(dash.widgets[0]!.span).toBe(1);
+    expect(dash.widgets[0]!.title).toBeUndefined();
+    expect(dash.widgets[1]!.span).toBe(known.defaultSpan);
+    expect(dash.widgets[1]!.title).toBe("Renamed");
+    expect(dash.widgets[2]!.span).toBe(2);
+  });
+});
+
+describe("useDashboards", () => {
+  it("unwraps the dashboards array from the envelope", async () => {
+    const dashboards: Dashboard[] = [{ id: "d1", name: "Ops", widgets: [] }];
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ dashboards }), { status: 200, headers: { "Content-Type": "application/json" } })));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useDashboards(), { wrapper: wrapper(client) });
+    await waitFor(() => expect(result.current.data).toBeTruthy());
+    expect(result.current.data).toEqual(dashboards);
+  });
+});
+
+describe("useSaveDashboards", () => {
+  it("PUTs the full list and invalidates the dashboards query on success", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } })));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useSaveDashboards(), { wrapper: wrapper(client) });
+    result.current.mutate([{ id: "d1", name: "Ops", widgets: [] }]);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const [url, opts] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)!;
+    expect(url).toBe("/api/dashboards");
+    expect((opts as RequestInit).method).toBe("PUT");
+    expect(String((opts as RequestInit).body)).toContain("dashboards");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: dashboardsQueryKey });
+  });
+
+  it("surfaces the server error when the save fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "nope" }), { status: 403, headers: { "Content-Type": "application/json" } })));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const { result } = renderHook(() => useSaveDashboards(), { wrapper: wrapper(client) });
+    result.current.mutate([]);
+    await waitFor(() => expect(result.current.isError).toBe(true));
   });
 });

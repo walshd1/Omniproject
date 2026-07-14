@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within, act } from "@testing-library/react";
 import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
+import { installFakeSpeechRecognition } from "../../test/fake-speech-recognition";
 import { NlCommand } from "./NlCommand";
 
 /**
@@ -117,5 +118,20 @@ describe("NlCommand", () => {
     expect(screen.getByTestId("nl-plan")).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Natural-language instruction"), { target: { value: "x" } });
     expect(screen.getByTestId("nl-plan")).not.toBeDisabled();
+  });
+
+  it("dictated speech appends into the instruction field", () => {
+    fetchMock.mockResolvedValue(jsonRes({ provider: "browser" }));
+    const instances = installFakeSpeechRecognition();
+    renderWithProviders(<NlCommand />, { client: client() });
+    fireEvent.click(screen.getByTestId("dictate-button"));
+    const rec = instances[0]!;
+    // First utterance seeds the empty field (the `t` branch of the append ternary)…
+    act(() => rec.onresult?.({ results: [[{ transcript: "list projects" }]] }));
+    const input = screen.getByLabelText("Natural-language instruction") as HTMLInputElement;
+    expect(input.value).toBe("list projects");
+    // …a second utterance appends with a space (the `${prev} ${t}` branch).
+    act(() => rec.onresult?.({ results: [[{ transcript: "in Apollo" }]] }));
+    expect(input.value).toBe("list projects in Apollo");
   });
 });

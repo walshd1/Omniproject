@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { I18nProvider, useT, translate, LOCALES, LOCALE_NAMES } from "./i18n";
@@ -75,5 +75,42 @@ describe("useT hook", () => {
     expect(bad).toMatch(/1,000|1000/);
     const d = result.current.formatDate("2020-01-15T00:00:00Z", { timeZone: "UTC", year: "numeric" });
     expect(d).toContain("2020");
+  });
+
+  it("formatDate accepts a Date object as well as a string", () => {
+    const { result } = renderHook(() => useT(), { wrapper: wrapper() });
+    const d = result.current.formatDate(new Date("2021-06-01T00:00:00Z"), { timeZone: "UTC", year: "numeric" });
+    expect(d).toContain("2021");
+  });
+});
+
+describe("locale detection at provider mount", () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  function setNavLang(lang: string) {
+    Object.defineProperty(window.navigator, "language", { value: lang, configurable: true });
+  }
+
+  it("prefers a valid persisted locale from localStorage", () => {
+    window.localStorage.setItem("omni.locale", "de");
+    const { result } = renderHook(() => useT(), { wrapper: wrapper() });
+    expect(result.current.locale).toBe("de");
+  });
+
+  it("falls back to the browser language when nothing is stored", () => {
+    window.localStorage.clear();
+    setNavLang("es-ES");
+    const { result } = renderHook(() => useT(), { wrapper: wrapper() });
+    expect(result.current.locale).toBe("es");
+  });
+
+  it("defaults to English when neither storage nor navigator match a known locale", () => {
+    window.localStorage.clear();
+    setNavLang("zz-ZZ");
+    const { result } = renderHook(() => useT(), { wrapper: wrapper() });
+    expect(result.current.locale).toBe("en");
   });
 });

@@ -1,8 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import type { ReactNode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrandingProvider, useBranding, brandTokensFromHex } from "./branding";
+import { BrandingProvider, useBranding, useLicense, brandTokensFromHex, type LicenseStatus } from "./branding";
 
 function makeWrapper(qc: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
@@ -103,5 +103,82 @@ describe("brandTokensFromHex", () => {
     expect(brandTokensFromHex("rebeccapurple")).toBeNull();
     expect(brandTokensFromHex("hsl(1 2% 3%)")).toBeNull();
     expect(brandTokensFromHex("#12")).toBeNull();
+  });
+});
+
+describe("BrandingProvider token validation", () => {
+  function makeWrapper(qc: QueryClient) {
+    return ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>
+        <BrandingProvider>{children}</BrandingProvider>
+      </QueryClientProvider>
+    );
+  }
+  function freshClient() {
+    return new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity } } });
+  }
+
+  it("sets a valid named colour + font family but clears the accent when the colour isn't hex", async () => {
+    const root = document.documentElement.style;
+    root.setProperty("--brand-accent", "0 100% 50%");
+    const qc = freshClient();
+    qc.setQueryData(["branding"], {
+      appName: "Named", shortName: "N", logoUrl: "", primaryColor: "rebeccapurple",
+      loginHeading: "", footerText: "", supportUrl: "", fontFamily: "Georgia, serif", entitled: true, locked: false,
+    });
+    renderHook(() => useBranding(), { wrapper: makeWrapper(qc) });
+    await waitFor(() => expect(document.title).toBe("Named"));
+    // A named colour passes the CSS-colour guard so --brand-primary is set…
+    expect(root.getPropertyValue("--brand-primary")).toBe("rebeccapurple");
+    // …but it isn't hex, so brandTokensFromHex returns null and the accent override is cleared.
+    expect(root.getPropertyValue("--brand-accent")).toBe("");
+    // A plain font-family token list is accepted and injected.
+    expect(root.getPropertyValue("--brand-font-family")).toBe("Georgia, serif");
+  });
+
+  it("rejects a malicious colour/font value (no CSS injection via the branding feed)", async () => {
+    const root = document.documentElement.style;
+    root.setProperty("--brand-primary", "#123456");
+    root.setProperty("--brand-font-family", "OldFont");
+    const qc = freshClient();
+    qc.setQueryData(["branding"], {
+      appName: "Evil", shortName: "E", logoUrl: "", primaryColor: "url(https://x/y.png)",
+      loginHeading: "", footerText: "", supportUrl: "", fontFamily: "a; } body{}", entitled: false, locked: false,
+    });
+    renderHook(() => useBranding(), { wrapper: makeWrapper(qc) });
+    await waitFor(() => expect(document.title).toBe("Evil"));
+    expect(root.getPropertyValue("--brand-primary")).toBe("");
+    expect(root.getPropertyValue("--brand-font-family")).toBe("");
+  });
+});
+
+describe("useLicense", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function makeWrapper(qc: QueryClient) {
+    return ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+  }
+  function freshClient() {
+    return new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity } } });
+  }
+
+  const LICENSE: LicenseStatus = {
+    valid: true, source: "license", tier: "enterprise", customer: "Acme",
+    features: ["branding"], expiresAt: null, expiresInDays: null, reason: null, catalog: ["branding"],
+  };
+
+  it("fetches and returns the license status", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve(LICENSE) }) as unknown as typeof fetch;
+    const { result } = renderHook(() => useLicense(), { wrapper: makeWrapper(freshClient()) });
+    await waitFor(() => expect(result.current.data).toEqual(LICENSE));
+  });
+
+  it("surfaces an error when the license endpoint fails", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({}) }) as unknown as typeof fetch;
+    const { result } = renderHook(() => useLicense(), { wrapper: makeWrapper(freshClient()) });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toBeInstanceOf(Error);
   });
 });

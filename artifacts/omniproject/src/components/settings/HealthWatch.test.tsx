@@ -49,4 +49,11 @@ describe("HealthWatch", () => {
     renderWithProviders(<HealthWatch />, { client: seed("manager", []) });
     expect(screen.getByTestId("health-clear")).toBeInTheDocument();
   });
+
+  it("surfaces an error when the scan request fails", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({ message: "Scan blew up" }) });
+    renderWithProviders(<HealthWatch />, { client: seed("admin", FINDINGS) });
+    fireEvent.click(screen.getByTestId("health-run"));
+    await waitFor(() => expect(screen.getByTestId("health-error")).toBeInTheDocument());
+  });
 });

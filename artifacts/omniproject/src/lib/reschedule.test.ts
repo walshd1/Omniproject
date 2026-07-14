@@ -23,4 +23,13 @@ describe("rescheduledDates", () => {
       dueDate: "2026-06-22",
     });
   });
+  it("shifts a start-only issue and leaves a missing due date null", () => {
+    expect(rescheduledDates({ startDate: "2026-06-10", dueDate: null }, 3)).toEqual({
+      startDate: "2026-06-13",
+      dueDate: null,
+    });
+  });
+  it("returns both null when the issue has no dates at all", () => {
+    expect(rescheduledDates({}, 5)).toEqual({ startDate: null, dueDate: null });
+  });
 });

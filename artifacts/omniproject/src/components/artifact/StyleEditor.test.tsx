@@ -37,4 +37,40 @@ describe("StyleEditor", () => {
     render(<StyleEditor value={undefined} onChange={vi.fn()} idPrefix="report-3-style" />);
     expect(screen.getByTestId("report-3-style-editor")).toBeInTheDocument();
   });
+
+  it("edits the subtitle", () => {
+    const onChange = vi.fn();
+    render(<StyleEditor value={{ title: "T" }} onChange={onChange} />);
+    fireEvent.change(screen.getByTestId("style-subtitle"), { target: { value: "Q3 rollup" } });
+    expect(onChange).toHaveBeenLastCalledWith({ title: "T", subtitle: "Q3 rollup" });
+  });
+
+  it("sets centre alignment and clears it back to the default", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<StyleEditor value={{ title: "T" }} onChange={onChange} />);
+    fireEvent.change(screen.getByTestId("style-align"), { target: { value: "center" } });
+    expect(onChange).toHaveBeenLastCalledWith({ title: "T", align: "center" });
+    // Selecting the (default) left option removes the align field again.
+    rerender(<StyleEditor value={{ title: "T", align: "center" }} onChange={onChange} />);
+    fireEvent.change(screen.getByTestId("style-align"), { target: { value: "left" } });
+    expect(onChange).toHaveBeenLastCalledWith({ title: "T" });
+  });
+
+  it("edits the text colour and clears it via its clear button", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<StyleEditor value={undefined} onChange={onChange} />);
+    fireEvent.change(screen.getByTestId("style-text-color"), { target: { value: "#112233" } });
+    expect(onChange).toHaveBeenLastCalledWith({ textColor: "#112233" });
+    // The clear button appears once a colour is set; clicking it drops the field.
+    rerender(<StyleEditor value={{ textColor: "#112233" }} onChange={onChange} />);
+    fireEvent.click(screen.getByTestId("style-text-color-clear"));
+    expect(onChange).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it("edits the background colour", () => {
+    const onChange = vi.fn();
+    render(<StyleEditor value={undefined} onChange={onChange} />);
+    fireEvent.change(screen.getByTestId("style-bg-color"), { target: { value: "#fafafa" } });
+    expect(onChange).toHaveBeenLastCalledWith({ background: "#fafafa" });
+  });
 });

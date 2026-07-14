@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within, act } from "@testing-library/react";
 import { renderWithProviders } from "../../test/utils";
+import { installFakeSpeechRecognition } from "../../test/fake-speech-recognition";
 import { Copilot } from "./Copilot";
 
 /**
@@ -81,6 +82,33 @@ describe("Copilot — Q&A (fallback when the planner finds no action)", () => {
     fireEvent.click(screen.getByTestId("copilot-ask"));
     await waitFor(() => expect(screen.getByTestId("copilot-error")).toHaveTextContent(/unavailable/));
   });
+
+  it("pressing Enter with a typed question asks; Enter on an empty field does nothing", async () => {
+    mockPlannerNoneThenAnswer(() => ({ body: { answer: "Answered via Enter." } }));
+    renderWithProviders(<Copilot />, { client: client() });
+    const input = screen.getByLabelText("Portfolio question");
+    // Empty field: Enter is a no-op (guard is `question.trim()`), so the planner isn't hit.
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(fetchMock.mock.calls.some((c) => c[0] === "/api/ai/nl-action")).toBe(false);
+    // With text, Enter triggers the ask.
+    fireEvent.change(input, { target: { value: "status?" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(screen.getByTestId("copilot-answer")).toHaveTextContent("Answered via Enter."));
+  });
+
+  it("dictated speech appends into the question field", () => {
+    const c = client();
+    c.setQueryData(["ai-stt"], { provider: "browser" });
+    const instances = installFakeSpeechRecognition();
+    renderWithProviders(<Copilot />, { client: c });
+    fireEvent.click(screen.getByTestId("dictate-button"));
+    const rec = instances[0]!;
+    act(() => rec.onresult?.({ results: [[{ transcript: "which projects" }]] }));
+    const input = screen.getByLabelText("Portfolio question") as HTMLInputElement;
+    expect(input.value).toBe("which projects");
+    act(() => rec.onresult?.({ results: [[{ transcript: "are at risk" }]] }));
+    expect(input.value).toBe("which projects are at risk");
+  });
 });
 
 describe("Copilot — action invocation (same planner + confirm gate as the command palette)", () => {
@@ -127,6 +155,22 @@ describe("Copilot — action invocation (same planner + confirm gate as the comm
     expect(fetchMock.mock.calls.some((c) => c[0] === "/api/mcp")).toBe(false); // not yet
     fireEvent.click(within(dialog).getByRole("button", { name: /confirm & run/i }));
     await waitFor(() => expect(screen.getByTestId("copilot-result")).toBeInTheDocument());
+  });
+
+  it("surfaces an error when the confirmed action fails to execute", async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url === "/api/ai/nl-action") {
+        return Promise.resolve(jsonRes({ plan: { kind: "action", tool: "omniproject_list_projects", action: "list_projects", args: {}, write: false } }));
+      }
+      if (url === "/api/mcp") return Promise.resolve(jsonRes({ error: { message: "MCP tool crashed" } }));
+      throw new Error("unexpected call to " + url);
+    });
+    renderWithProviders(<Copilot />, { client: client() });
+    fireEvent.change(screen.getByLabelText("Portfolio question"), { target: { value: "list projects" } });
+    fireEvent.click(screen.getByTestId("copilot-ask"));
+    await waitFor(() => expect(screen.getByTestId("copilot-plan-action")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("copilot-run")); // read action → runs immediately, no dialog
+    await waitFor(() => expect(screen.getByTestId("copilot-error")).toHaveTextContent(/mcp tool crashed/i));
   });
 
   it("declining the write confirm dialog never calls the execute endpoint", async () => {

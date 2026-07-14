@@ -112,4 +112,62 @@ describe("GlobalSearch", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(useGlobalSearch.getState().open).toBe(false));
   });
+
+  it('opens the overlay when "/" is pressed outside a text field', async () => {
+    renderWithProviders(<GlobalSearch />, { client: seed() });
+    expect(useGlobalSearch.getState().open).toBe(false);
+    fireEvent.keyDown(document, { key: "/" });
+    await waitFor(() => expect(useGlobalSearch.getState().open).toBe(true));
+  });
+
+  it('ignores "/" while the user is typing in an input', () => {
+    renderWithProviders(<GlobalSearch />, { client: seed() });
+    const extra = document.createElement("input");
+    document.body.appendChild(extra);
+    extra.focus();
+    fireEvent.keyDown(extra, { key: "/" });
+    expect(useGlobalSearch.getState().open).toBe(false);
+    extra.remove();
+  });
+
+  it("arrow keys move the active option up and down", async () => {
+    useRecentItems.setState({
+      items: [
+        { type: "project", id: "p1", label: "Apollo" },
+        { type: "programme", id: "pr1", label: "Gemini Programme" },
+      ],
+    });
+    renderWithProviders(<GlobalSearch />, { client: seed() });
+    act(() => useGlobalSearch.getState().setOpen(true));
+    const input = await screen.findByLabelText(/search projects/i);
+    const options = await screen.findAllByRole("option");
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await waitFor(() => expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true"));
+    expect(input).toHaveAttribute("aria-activedescendant", "search-opt-1");
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    await waitFor(() => expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true"));
+  });
+
+  it("clicking a programme hit routes and closes the overlay", async () => {
+    renderWithProviders(<GlobalSearch />, { client: seed() });
+    act(() => useGlobalSearch.getState().setOpen(true));
+    const input = await screen.findByLabelText(/search projects/i);
+    fireEvent.change(input, { target: { value: "gemini" } });
+    const option = await screen.findByRole("option", { name: /Gemini Programme/ });
+    fireEvent.click(option);
+    await waitFor(() => expect(useGlobalSearch.getState().open).toBe(false));
+  });
+
+  it("selecting an issue routes to its project and opens the side-panel when enabled", async () => {
+    useRecentItems.setState({ items: [{ type: "issue", id: "i1", label: "Fix login", projectId: "p1" }] });
+    renderWithProviders(<GlobalSearch />, { client: seed({ sidePanel: true }) });
+    act(() => useGlobalSearch.getState().setOpen(true));
+    const option = await screen.findByRole("option", { name: /Fix login/ });
+    fireEvent.click(option);
+    await waitFor(() => expect(useSidePanel.getState().open).toBe(true));
+    expect(useSidePanel.getState().projectId).toBe("p1");
+    expect(useSidePanel.getState().issueId).toBe("i1");
+    expect(useGlobalSearch.getState().open).toBe(false);
+  });
 });
