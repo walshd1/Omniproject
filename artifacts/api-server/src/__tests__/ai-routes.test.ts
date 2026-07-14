@@ -94,6 +94,17 @@ test("POST /ai/copilot: a valid question is stopped at the provider gate → 403
 });
 
 // ── POST /ai/transcribe ──────────────────────────────────────────────────────────
+// ── POST /ai/insights ──────────────────────────────────────────────────────────
+test("POST /ai/insights: an invalid kind → 400", async () => {
+  const r = await h.req("/ai/insights", { method: "POST", cookie: adminCookie(), body: { kind: "not-a-kind" } });
+  assert.equal(r.status, 400);
+});
+
+test("POST /ai/insights: a valid kind is stopped at the provider gate → 403 (off by default)", async () => {
+  const r = await h.req("/ai/insights", { method: "POST", cookie: adminCookie(), body: { kind: "status-narrative" } });
+  assert.equal(r.status, 403);
+});
+
 test("POST /ai/transcribe: a missing audio payload → 400", async () => {
   const r = await h.req("/ai/transcribe", { method: "POST", cookie: adminCookie(), body: {} });
   assert.equal(r.status, 400);

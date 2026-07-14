@@ -12,6 +12,7 @@ import { planAction } from "../lib/nl-action";
 import { MCP_TOOLS } from "../lib/mcp";
 import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../lib/approved-actions";
 import { answerCopilot } from "../lib/copilot";
+import { generatePortfolioInsight, INSIGHT_KINDS } from "../lib/insights";
 import { suggestBackendPrompt, parseSuggestedManifest, SuggestParseError } from "../lib/backend-suggest";
 import { getBroker, contextFromReq } from "../broker";
 import { hasRole, roleForReq, requireRole } from "../lib/rbac";
@@ -37,6 +38,12 @@ const COPILOT_BODY = v.object({
   question: v.string({ trim: true, min: 1, max: 8_000 }),
   mode: v.optional(v.enum(["rag", "freeform"] as const)),
   methodology: v.optional(v.string({ trim: true, max: 120 })),
+});
+// Insights take no free-text prompt — only a fixed KIND — so there is no user prose to smuggle
+// an injection through; the snapshot the model sees is the copilot's minimal aggregated projection.
+const INSIGHTS_BODY = v.object({
+  kind: v.enum(INSIGHT_KINDS),
+  surface: v.optional(v.string({ max: 200 })),
 });
 const TRANSCRIBE_BODY = v.object({
   audio: v.string({ min: 1, max: 20_000_000 }), // base64 audio; express json limit is the hard ceiling
@@ -187,6 +194,35 @@ router.post("/ai/copilot", async (req, res) => {
     res.json(result);
   } catch (err) {
     respondAiError(req, res, err, "copilot failed", "copilot failed");
+  }
+});
+
+// ── POST /api/ai/insights — read-only AI narrative (status / risk) over the portfolio ──
+// The "AI depth" read layer: an AI-written status narrative or risk outlook that sits ON TOP of
+// the deterministic derivations (it explains the real numbers, never computes or writes them).
+// Same safety contract as the copilot — no action surface, minimal egress-scoped snapshot,
+// injection-hardened (lib/insights) — and separately governance-gated behind its own
+// `portfolio-insights` capability (off by default). The SPA badges the result AI·GENERATED.
+router.post("/ai/insights", async (req, res) => {
+  const parsed = parseOr400(req, res, INSIGHTS_BODY);
+  if (!parsed) return;
+
+  const provider = getSettings().aiProvider;
+  const surface = surfaceFromBody(req);
+  if (!enforceOr403(req, res, `provider:${provider}`, { surface, label: "AI is unavailable here" })) return;
+  if (!enforceOr403(req, res, "portfolio-insights", { surface, label: "AI portfolio insights are unavailable here" })) return;
+
+  try {
+    const result = await generatePortfolioInsight({
+      kind: parsed.kind,
+      broker: getBroker(),
+      ctx: contextFromReq(req),
+      vocab: listApprovedVocab(),
+      complete: async (messages) => (await aiChat(messages, govCtx(req))).content,
+    });
+    res.json(result);
+  } catch (err) {
+    respondAiError(req, res, err, "insight failed", "insight failed");
   }
 });
 

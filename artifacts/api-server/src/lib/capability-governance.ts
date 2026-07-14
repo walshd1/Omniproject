@@ -50,6 +50,7 @@ const AI_TOOLS: GovernedCapability[] = [
   { id: "nl-action", kind: "ai-tool", label: "Natural-language actions", description: "Turn an instruction into a canonical action via an LLM.", supportedStates: ANY, surfaceAware: true },
   { id: "health-watch", kind: "ai-tool", label: "Health & anomaly watch", description: "Flags slipping projects / budget / SLA breaches. Rules locally, or AI-assisted.", supportedStates: ANY, surfaceAware: true },
   { id: "portfolio-copilot", kind: "ai-tool", label: "Portfolio copilot", description: "Natural-language questions + summaries over the portfolio, via an LLM.", supportedStates: ANY, surfaceAware: true },
+  { id: "portfolio-insights", kind: "ai-tool", label: "Portfolio AI insights", description: "AI-written status narrative and risk outlook over the portfolio read model. Read-only — describes the numbers, exposes no actions, never writes. Output is labelled AI-generated. Off by default.", supportedStates: ANY, surfaceAware: true },
   { id: "backend-draft", kind: "ai-tool", label: "AI backend-draft suggestions", description: "Draft a starting-point backend definition (name, docs link, auth style, capabilities) from an LLM for an unlisted vendor. Training-knowledge only — no live verification; an admin still reviews and maps real actions.", supportedStates: ANY, surfaceAware: true },
 ];
 

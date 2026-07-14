@@ -61,6 +61,7 @@ import { ProvenanceDashboard } from "../components/settings/ProvenanceDashboard"
 import { NlCommand } from "../components/settings/NlCommand";
 import { HealthWatch } from "../components/settings/HealthWatch";
 import { Copilot } from "../components/settings/Copilot";
+import { InsightsPanel } from "../components/settings/InsightsPanel";
 import { DataState } from "../components/DataState";
 import { LoadingState } from "../components/LoadingState";
 import { urlFormatError } from "../lib/validation";
@@ -102,6 +103,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "nlCommand", Component: NlCommand },
   { key: "healthWatch", Component: HealthWatch },
   { key: "copilot", Component: Copilot },
+  { key: "portfolioInsights", Component: InsightsPanel },
   { key: "provenanceDashboard", Component: ProvenanceDashboard },
   { key: "deploymentProfile", Component: DeploymentProfile },
   { key: "featureModules", Component: FeatureModulesAdmin },
