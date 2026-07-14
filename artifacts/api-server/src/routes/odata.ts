@@ -1,6 +1,7 @@
 import { Router, type Request } from "express";
-import { getProjects } from "../lib/data";
+import { getProjects, getIssues } from "../lib/data";
 import { allIssues } from "../lib/portfolio-reads";
+import { assertProjectScope } from "../lib/project-scope";
 import { groupProgrammes } from "../lib/programmes";
 import { baseUrl as resolveRequestBaseUrl } from "./auth";
 import {
@@ -68,13 +69,21 @@ router.get("/odata/$metadata", (_req, res) => {
   res.type("application/xml").send(buildEdmx(ENTITIES));
 });
 
-function entitySet(set: string, load: (req: Request) => Promise<Row[]>) {
+/** Extract a top-level `projectId eq '<id>'` predicate from a $filter (the minimal grammar has no
+ *  AND/OR), so a single-project feed query can be pushed down to a single-project read. */
+function projectIdEq(q: ODataQuery): string | null {
+  const m = q.$filter?.match(/^\s*projectId\s+eq\s+'?([^']+)'?\s*$/i);
+  return m ? m[1]! : null;
+}
+
+function entitySet(set: string, load: (req: Request, q: ODataQuery) => Promise<Row[]>) {
   // The declared property allowlist for this set — rows are projected to exactly these before
   // serialising, so a backend's internal fields never ride out through the feed.
   const allowed = Object.keys(ENTITIES.find((e) => e.set === set)?.props ?? {});
   router.get(`/odata/${set}`, async (req, res) => {
     try {
-      const { rows, count } = applyODataQuery(await load(req), req.query as ODataQuery, allowed);
+      const q = req.query as ODataQuery;
+      const { rows, count } = applyODataQuery(await load(req, q), q, allowed);
       res.json(entitySetEnvelope(baseUrl(req), set, rows, count));
     } catch (err) {
       req.log.error({ err, set }, "odata query failed");
@@ -84,7 +93,16 @@ function entitySet(set: string, load: (req: Request) => Promise<Row[]>) {
 }
 
 entitySet("Projects", (req) => getProjects(req) as Promise<Row[]>);
-entitySet("Issues", allIssues);
+entitySet("Issues", async (req, q) => {
+  const pid = projectIdEq(q);
+  // Push a single-project `$filter=projectId eq 'X'` down to a scoped single-project read instead of
+  // fanning `allIssues` out over the WHOLE portfolio (a `$top=50` otherwise still materialises every
+  // issue across every project). getIssues(pid) is scope-blind — mirror the export route's guard: an
+  // out-of-scope project yields nothing (never leaks), exactly as allIssues+$filter would. The full
+  // $filter still runs in applyODataQuery, so the result is identical, just without the fan-out.
+  if (pid) return (await assertProjectScope(req, pid)).ok ? ((await getIssues(req, pid)) as Row[]) : [];
+  return allIssues(req);
+});
 entitySet("Programmes", async (req) => groupProgrammes(await getProjects(req)) as unknown as Row[]);
 
 export default router;
