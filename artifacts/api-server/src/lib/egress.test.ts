@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { assertEgressAllowed, safeFetch, __setEgressTransportForTest, EgressError, type LookupFn } from "./egress";
+import { assertEgressAllowed, safeFetch, guardedLookup, __setEgressTransportForTest, EgressError, type LookupFn } from "./egress";
 import { DataResidencyError } from "./data-residency";
 
 afterEach(() => { delete process.env["EGRESS_ALLOWLIST"]; delete process.env["DATA_RESIDENCY_POLICY"]; __setEgressTransportForTest(null); });
@@ -158,4 +158,40 @@ test("safeFetch refuses a redirect loop rather than following forever", async ()
   __setEgressTransportForTest(async () =>
     new Response(null, { status: 302, headers: { location: "http://api.example.com/loop" } }));
   await assert.rejects(safeFetch("http://api.example.com/loop", undefined, SAFE), EgressError);
+});
+
+// ── guardedLookup: the connect-time validator that pins a persistent dispatcher (broker Agent) ──
+/** Drive guardedLookup and resolve with its callback args. */
+function callGuarded(host: string, all: boolean): Promise<{ err: Error | null; address: unknown; family: number | undefined }> {
+  return new Promise((resolve) => {
+    guardedLookup(host, { all }, (err, address, family) => resolve({ err, address, family }));
+  });
+}
+
+test("guardedLookup passes a safe IP literal through (single + all forms)", async () => {
+  const single = await callGuarded("127.0.0.1", false);
+  assert.equal(single.err, null);
+  assert.equal(single.address, "127.0.0.1");
+  assert.equal(single.family, 4);
+  const all = await callGuarded("127.0.0.1", true);
+  assert.equal(all.err, null);
+  assert.deepEqual(all.address, [{ address: "127.0.0.1", family: 4 }]);
+});
+
+test("guardedLookup REFUSES a link-local/metadata IP literal (the SSRF target)", async () => {
+  const r = await callGuarded("169.254.169.254", false);
+  assert.ok(r.err instanceof EgressError, "expected an EgressError for the metadata IP");
+  assert.match(r.err.message, /blocked/i);
+});
+
+test("guardedLookup REFUSES a metadata hostname without needing DNS", async () => {
+  const r = await callGuarded("metadata.google.internal", false);
+  assert.ok(r.err instanceof EgressError);
+  assert.match(r.err.message, /blocked/i);
+});
+
+test("guardedLookup resolves a normal name and returns validated addresses (localhost path)", async () => {
+  const r = await callGuarded("localhost", true);
+  assert.equal(r.err, null);
+  assert.ok(Array.isArray(r.address) && (r.address as unknown[]).length > 0, "localhost should resolve to ≥1 vetted address");
 });

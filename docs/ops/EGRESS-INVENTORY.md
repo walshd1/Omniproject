@@ -196,14 +196,18 @@ turns it on and owns the resulting data flow.
   to classify and get DPA coverage for, since they can carry portfolio data.
 - The RFC security checklists (RFC-004 §15 / RFC-005 §17) are pre-written control
   statements for the delegation feature *if/when* it's built.
-- **Known residual (low, operator-config-scoped):** all HTTP egress with an operator- or
+- **Uniform IP-pinning across every HTTP hop.** All HTTP egress with an operator- or
   request-influenceable URL routes through `safeFetch` (SSRF literal + **post-DNS IP pinning** +
-  per-hop redirect re-validation + allowlist + residency), **except** the first broker hop
-  (`lib/broker-transport.ts`), which does a one-shot `assertEgressAllowed` pre-check but does **not**
-  pin the resolved IP — leaving a narrow DNS-rebinding TOCTOU on that hop. Mitigated in code:
-  redirects are force-blocked (`redirect: "manual"`, not caller-overridable), the URL is the
-  operator's own `BROKER_URL(S)` (not request input), and mTLS/private-CA (§3b) closes it entirely.
-  SMTP (`SMTP_URL`) and Redis (`REDIS_URL`) are raw non-HTTP egress to fixed operator hosts, outside
-  the HTTP guard by nature; neither host is request-influenced and both are off unless the env var is set.
+  per-hop redirect re-validation + allowlist + residency). The first broker hop
+  (`lib/broker-transport.ts`) keeps its own pooled keep-alive + mTLS dispatcher but now **pins the
+  connection to a validated IP at connect time** via `guardedLookup` (refuses a host that resolves to
+  the link-local/metadata range), closing the earlier first-hop DNS-rebinding TOCTOU; redirects are
+  still force-blocked (`redirect: "manual"`, not caller-overridable) and the caller's
+  `assertEgressAllowed` still applies the allowlist/residency against the fixed `BROKER_URL`.
+- **Non-HTTP egress (SMTP, Redis).** `SMTP_URL` / `REDIS_URL` reach a fixed operator host outside the
+  HTTP guard by nature (nodemailer / ioredis, not `fetch`); neither is request-influenced and both are
+  off unless the env var is set. The startup self-check (`lib/security-check.ts`) additionally
+  **refuses to boot** (critical finding) if either is pointed at a link-local/metadata literal — never
+  a legitimate mail/cache host.
 
 *Keep this current: a new egress or durable store is a change to this file.*

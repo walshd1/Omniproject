@@ -138,6 +138,33 @@ function pinnedLookup(addresses: ResolvedAddr[]) {
   };
 }
 
+/**
+ * A `dns.lookup`-shaped resolver that VALIDATES every address before returning it, refusing (via an
+ * error callback) any link-local/metadata target so the socket never connects to one. Unlike
+ * `pinnedLookup` (which replays already-validated addresses for a single safeFetch call), this
+ * resolves and checks AT CONNECT TIME — so it can guard a PERSISTENT dispatcher (e.g. the broker
+ * keep-alive Agent) without a per-call dispatcher, closing the DNS-rebinding TOCTOU while keeping the
+ * pooled connection + mTLS. It enforces only the link-local/metadata floor (not the host allowlist /
+ * residency, which the caller's `assertEgressAllowed` still applies against the fixed URL host).
+ */
+export function guardedLookup(hostname: string, options: unknown, callback?: LookupCallback): void {
+  const cb = (typeof options === "function" ? options : callback) as LookupCallback;
+  const all = typeof options === "object" && options !== null && (options as { all?: boolean }).all === true;
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  const deliver = (addrs: ResolvedAddr[]): void => {
+    const blocked = addrs.find((a) => isBlockedIp(a.address, a.family));
+    if (blocked) { cb(new EgressError(`egress to ${host} resolves to ${blocked.address}, which is blocked (link-local/metadata range)`), []); return; }
+    if (all) cb(null, addrs.map((a) => ({ address: a.address, family: a.family })));
+    else cb(null, addrs[0]!.address, addrs[0]!.family);
+  };
+  const lit = net.isIP(host);
+  if (lit !== 0) { deliver([{ address: host, family: lit }]); return; }
+  if (isBlockedHostLiteral(host)) { cb(new EgressError(`egress to ${host} is blocked (link-local/metadata host)`), []); return; }
+  dns.lookup(host, { all: true, verbatim: true })
+    .then((addrs) => deliver(addrs as ResolvedAddr[]))
+    .catch((err) => cb(new EgressError(`egress to ${host} could not be resolved: ${err instanceof Error ? err.message : String(err)}`), []));
+}
+
 /** TEST-ONLY seam: safeFetch uses undici's own fetch (a custom Agent isn't accepted by global fetch),
  *  so a test that stubs `globalThis.fetch` wouldn't intercept it. Tests set this to their mock instead
  *  (it still runs AFTER the egress validation, so the guard is exercised). Null = real transport. */
