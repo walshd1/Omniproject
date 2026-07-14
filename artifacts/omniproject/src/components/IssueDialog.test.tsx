@@ -281,6 +281,44 @@ describe("IssueDialog accessible names", () => {
     expect(screen.getByTestId("effort-progress")).toHaveTextContent("50%");
   });
 
+  it("edits the description, assignee, labels and date fields (exercises their handlers)", () => {
+    // No caps seeded → every canonical field is surfaced and editable.
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={null} defaultStatus="backlog" />,
+    );
+    const desc = screen.getByLabelText("Description") as HTMLTextAreaElement;
+    fireEvent.change(desc, { target: { value: "some detail" } });
+    expect(desc.value).toBe("some detail");
+
+    const assignee = screen.getByLabelText("Assignee") as HTMLInputElement;
+    fireEvent.change(assignee, { target: { value: "ada" } });
+    expect(assignee.value).toBe("ada");
+
+    const labels = screen.getByLabelText("Labels") as HTMLInputElement;
+    fireEvent.change(labels, { target: { value: "infra, auth" } });
+    expect(labels.value).toBe("infra, auth");
+
+    const start = screen.getByLabelText("Start Date") as HTMLInputElement;
+    fireEvent.change(start, { target: { value: "2026-01-02" } });
+    expect(start.value).toBe("2026-01-02");
+
+    const due = screen.getByLabelText("Due Date") as HTMLInputElement;
+    fireEvent.change(due, { target: { value: "2026-02-03" } });
+    expect(due.value).toBe("2026-02-03");
+  });
+
+  it("clears the title error as soon as the user types a valid title", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <IssueDialog projectId="proj-1" open onOpenChange={() => {}} issue={null} defaultStatus="backlog" />,
+    );
+    // Force the error by submitting the empty form, then type to clear it.
+    fireEvent.submit(document.querySelector("form")!);
+    expect(await screen.findByRole("alert")).toHaveTextContent("An issue needs a title.");
+    await user.type(screen.getByLabelText("Title", { exact: false }), "Now valid");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("offers Duplicate only when editing an existing task", () => {
     const issue = { id: "i1", projectId: "proj-1", title: "Original", status: "todo", priority: "none", labels: [], version: 1 } as never;
     const { rerender } = renderWithProviders(
