@@ -91,4 +91,57 @@ describe("SavedViewsBar", () => {
       confirmSpy.mockRestore();
     }
   });
+
+  it("does not apply when the placeholder (empty) option is chosen", () => {
+    const onApply = vi.fn();
+    renderWithProviders(<SavedViewsBar scope="grid" current={{ columns: ["title"], sort: null }} onApply={onApply} />, { client: seed(VIEWS) });
+    // Selecting the "— choose —" option (value "") short-circuits the `e.target.value && apply` guard.
+    fireEvent.change(screen.getByLabelText("Saved view"), { target: { value: "" } });
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("does not delete when the placeholder (empty) delete option is chosen", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    renderWithProviders(<SavedViewsBar scope="grid" current={{ columns: ["title"], sort: null }} onApply={() => {}} />, { client: seed(VIEWS) });
+    fireEvent.change(screen.getByLabelText("Delete saved view"), { target: { value: "" } });
+    // The `if (!id) return` guard means confirm is never reached and nothing is written.
+    expect(confirmSpy).not.toHaveBeenCalled();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(viewPuts().length).toBe(0);
+    confirmSpy.mockRestore();
+  });
+
+  it("hides the delete picker when the scope has no views", () => {
+    // Only an out-of-scope view exists → the in-scope list is empty → no delete <select>.
+    renderWithProviders(
+      <SavedViewsBar scope="grid" current={{ columns: ["title"], sort: null }} onApply={() => {}} />,
+      { client: seed([{ id: "v2", name: "Other scope", scope: "reports" }]) },
+    );
+    expect(screen.queryByLabelText("Delete saved view")).not.toBeInTheDocument();
+  });
+
+  it("saves without a sort key when the current view is unsorted", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("Unsorted view");
+    renderWithProviders(
+      <SavedViewsBar scope="grid" current={{ columns: ["title"], sort: null }} onApply={() => {}} />,
+      { client: seed(VIEWS) },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /save view/i }));
+    await waitFor(() => expect(viewPuts().length).toBeGreaterThan(0));
+    const body = String(viewPuts().at(-1)![1].body);
+    expect(body).toContain("Unsorted view");
+    expect(body).not.toContain("\"sort\"");
+  });
+
+  it("surfaces a role=alert message when the save mutation fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: "boom" }), { status: 500, headers: { "Content-Type": "application/json" } })),
+    );
+    vi.spyOn(window, "prompt").mockReturnValue("Doomed view");
+    renderWithProviders(<SavedViewsBar scope="grid" current={{ columns: ["title"], sort: null }} onApply={() => {}} />, { client: seed(VIEWS) });
+    fireEvent.click(screen.getByRole("button", { name: /save view/i }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("boom");
+  });
 });
