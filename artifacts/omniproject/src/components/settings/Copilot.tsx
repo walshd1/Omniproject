@@ -6,6 +6,7 @@ import { planNlAction, executePlannedAction, type ActionPlan } from "../../lib/n
 import { ActionPlanCard } from "../ActionPlanCard";
 import { ContainmentBadge } from "../ContainmentBadge";
 import { DictateButton } from "../DictateButton";
+import { ProvenanceBadge } from "../ProvenanceBadge";
 
 /**
  * Portfolio copilot — ask questions about the portfolio in plain language, or tell it to DO
@@ -96,7 +97,10 @@ export function Copilot() {
         {plan && <ActionPlanCard plan={plan} busy={busy} onRun={(p) => void onRun(p)} testIdPrefix="copilot" />}
         {answer && (
           <div className="space-y-1">
-            {persona && <p className="text-xs text-muted-foreground" data-testid="copilot-persona">Answered as a <span className="font-medium">{persona}</span></p>}
+            <div className="flex items-center gap-2">
+              <ProvenanceBadge provenance="generated" />
+              {persona && <span className="text-xs text-muted-foreground" data-testid="copilot-persona">answered as a <span className="font-medium">{persona}</span></span>}
+            </div>
             <div className="whitespace-pre-wrap rounded border border-border p-2 text-sm" data-testid="copilot-answer">{answer}</div>
           </div>
         )}

@@ -1,6 +1,6 @@
 import { StatusBadge, type StatusMeta } from "./StatusBadge";
 
-export type Provenance = "sourced" | "derived" | "sample" | "captured";
+export type Provenance = "sourced" | "derived" | "sample" | "captured" | "generated";
 
 const META: Record<Provenance, StatusMeta> = {
   sourced: {
@@ -22,6 +22,14 @@ const META: Record<Provenance, StatusMeta> = {
     label: "CAPTURED · SNAPSHOTS",
     cls: "border-blue-500/40 text-blue-600 dark:text-blue-400 bg-blue-500/10",
     title: "Trend built from point-in-time snapshots you captured in the browser — not backend-recorded history.",
+  },
+  // AI-authored narrative / estimate. A DISTINCT lane (violet) so a generated line is never
+  // read as a backend fact or even an OmniProject-computed figure — it is a model's prose over
+  // the real numbers, and must be verified before it is relied on. (AA-contrast shade: 700/400.)
+  generated: {
+    label: "AI · GENERATED",
+    cls: "border-violet-500/40 text-violet-700 dark:text-violet-400 bg-violet-500/10",
+    title: "Written by an AI model from real figures — a narrative or estimate, not a backend-recorded fact. Verify before relying on it.",
   },
 };
 

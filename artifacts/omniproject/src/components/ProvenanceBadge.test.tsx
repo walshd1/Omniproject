@@ -21,6 +21,16 @@ describe("ProvenanceBadge", () => {
     expect(screen.getByText("SAMPLE DATA")).toBeInTheDocument();
   });
 
+  it("renders the explicit 'generated' (AI) provenance with its distinct label + honesty title", () => {
+    renderWithProviders(<ProvenanceBadge provenance="generated" />);
+    const badge = screen.getByText("AI · GENERATED");
+    expect(badge).toBeInTheDocument();
+    expect(badge.getAttribute("title")).toContain("Verify before relying on it");
+    // Distinct violet lane at the AA-contrast shade, not reused from sourced/derived/captured.
+    expect(badge.className).toContain("text-violet-700");
+    expect(badge.className).toContain("dark:text-violet-400");
+  });
+
   it("falls back to 'sample' when mode is demo", () => {
     renderWithProviders(<ProvenanceBadge mode="demo" />);
     expect(screen.getByText("SAMPLE DATA")).toBeInTheDocument();
