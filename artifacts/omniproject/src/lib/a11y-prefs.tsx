@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { safeParseJson } from "./safe-json";
 import { setAnnounceVerbose } from "./announce";
 import { brandTokensFromHex } from "./color";
@@ -252,38 +252,53 @@ export function A11yProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // A user-initiated change: update state, cache, AND persist to the server.
-  const change = (next: A11yPrefs): void => { setPrefs(next); syncToServer(next); };
+  // setPrefs is stable and syncToServer is module-level, so this closure never needs
+  // to change identity — the setters below can stay stable across renders.
+  const change = useCallback((next: A11yPrefs): void => { setPrefs(next); syncToServer(next); }, []);
 
-  const value: A11yContextValue = {
+  // Each setter closes over the current `prefs` (it merges onto them), so its identity
+  // updates only when `prefs` changes — exactly when consumers should re-render.
+  const setFontScale = useCallback((n: number) => change({ ...prefs, fontScale: clampScale(n) }), [change, prefs]);
+  const setFontFamily = useCallback((family: FontChoice | null) => change({ ...prefs, fontFamily: cleanFontFamily(family) }), [change, prefs]);
+  const setAccentColor = useCallback((hex: string | null) => change({ ...prefs, accentColor: cleanColor(hex) }), [change, prefs]);
+  const setBackgroundColor = useCallback((hex: string | null) => change({ ...prefs, backgroundColor: cleanColor(hex) }), [change, prefs]);
+  const toggleHighContrast = useCallback(() => change({ ...prefs, highContrast: !prefs.highContrast }), [change, prefs]);
+  const toggleTint = useCallback(() => change({ ...prefs, tint: !prefs.tint }), [change, prefs]);
+  const setTintColor = useCallback((hex: string) => change({ ...prefs, tintColor: cleanTintColor(hex) }), [change, prefs]);
+  const toggleReduceMotion = useCallback(() => change({ ...prefs, reduceMotion: !prefs.reduceMotion }), [change, prefs]);
+  const setSwitchScan = useCallback((mode: SwitchScanMode) => change({ ...prefs, switchScan: cleanScanMode(mode) }), [change, prefs]);
+  const setScanRate = useCallback((ms: number) => change({ ...prefs, scanRateMs: clampScan(ms) }), [change, prefs]);
+  const toggleScreenReader = useCallback(() => change({ ...prefs, screenReader: !prefs.screenReader }), [change, prefs]);
+  const toggleSpeechInput = useCallback(() => change({ ...prefs, speechInput: !prefs.speechInput }), [change, prefs]);
+  const setMobileMode = useCallback((mode: MobileMode) => change({ ...prefs, mobileMode: cleanMobileMode(mode) }), [change, prefs]);
+  const setDensity = useCallback((d: Density) => change({ ...prefs, density: cleanDensity(d) }), [change, prefs]);
+  const setSavedScope = useCallback((scopeId: string, override: ScopedOverride | null) => {
+    if (FORBIDDEN_KEYS.has(scopeId) || !scopeId) return;
+    const next = { ...prefs.scopedOverrides };
+    const clean = override
+      ? { fontFamily: cleanFontFamily(override.fontFamily), accentColor: cleanColor(override.accentColor), backgroundColor: cleanColor(override.backgroundColor) }
+      : null;
+    // A null override, or one with no surviving field, clears the saved scope.
+    if (!clean || (clean.fontFamily == null && clean.accentColor == null && clean.backgroundColor == null)) delete next[scopeId];
+    else next[scopeId] = clean;
+    change({ ...prefs, scopedOverrides: next });
+  }, [change, prefs]);
+  const importProfile = useCallback((raw: unknown) => change(coerceA11yPrefs(raw)), [change]);
+  const reset = useCallback(() => change(DEFAULT_A11Y), [change]);
+
+  const value: A11yContextValue = useMemo(() => ({
     prefs,
-    setFontScale: (n) => change({ ...prefs, fontScale: clampScale(n) }),
-    setFontFamily: (family) => change({ ...prefs, fontFamily: cleanFontFamily(family) }),
-    setAccentColor: (hex) => change({ ...prefs, accentColor: cleanColor(hex) }),
-    setBackgroundColor: (hex) => change({ ...prefs, backgroundColor: cleanColor(hex) }),
-    toggleHighContrast: () => change({ ...prefs, highContrast: !prefs.highContrast }),
-    toggleTint: () => change({ ...prefs, tint: !prefs.tint }),
-    setTintColor: (hex) => change({ ...prefs, tintColor: cleanTintColor(hex) }),
-    toggleReduceMotion: () => change({ ...prefs, reduceMotion: !prefs.reduceMotion }),
-    setSwitchScan: (mode) => change({ ...prefs, switchScan: cleanScanMode(mode) }),
-    setScanRate: (ms) => change({ ...prefs, scanRateMs: clampScan(ms) }),
-    toggleScreenReader: () => change({ ...prefs, screenReader: !prefs.screenReader }),
-    toggleSpeechInput: () => change({ ...prefs, speechInput: !prefs.speechInput }),
-    setMobileMode: (mode) => change({ ...prefs, mobileMode: cleanMobileMode(mode) }),
-    setDensity: (d) => change({ ...prefs, density: cleanDensity(d) }),
-    setSavedScope: (scopeId, override) => {
-      if (FORBIDDEN_KEYS.has(scopeId) || !scopeId) return;
-      const next = { ...prefs.scopedOverrides };
-      const clean = override
-        ? { fontFamily: cleanFontFamily(override.fontFamily), accentColor: cleanColor(override.accentColor), backgroundColor: cleanColor(override.backgroundColor) }
-        : null;
-      // A null override, or one with no surviving field, clears the saved scope.
-      if (!clean || (clean.fontFamily == null && clean.accentColor == null && clean.backgroundColor == null)) delete next[scopeId];
-      else next[scopeId] = clean;
-      change({ ...prefs, scopedOverrides: next });
-    },
-    importProfile: (raw) => change(coerceA11yPrefs(raw)),
-    reset: () => change(DEFAULT_A11Y),
-  };
+    setFontScale, setFontFamily, setAccentColor, setBackgroundColor,
+    toggleHighContrast, toggleTint, setTintColor, toggleReduceMotion,
+    setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput,
+    setMobileMode, setDensity, setSavedScope, importProfile, reset,
+  }), [
+    prefs,
+    setFontScale, setFontFamily, setAccentColor, setBackgroundColor,
+    toggleHighContrast, toggleTint, setTintColor, toggleReduceMotion,
+    setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput,
+    setMobileMode, setDensity, setSavedScope, importProfile, reset,
+  ]);
   return <A11yContext.Provider value={value}>{children}</A11yContext.Provider>;
 }
 

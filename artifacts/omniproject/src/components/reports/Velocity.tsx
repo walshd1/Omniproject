@@ -13,7 +13,7 @@ export function Velocity({ projectId }: { projectId: string }) {
       title="Velocity / Throughput"
       emptyMessage="Not enough history to chart throughput."
       testId="velocity-chart"
-      select={(points) => velocitySeries(points)}
+      select={velocitySeries}
       footer={(series) => (
         <div className="mt-3 text-[11px] font-mono text-muted-foreground">
           Mean {meanVelocity(series)} completed / period over {series.length} periods.

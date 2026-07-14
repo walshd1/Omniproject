@@ -14,7 +14,7 @@ export function CumulativeFlow({ projectId }: { projectId: string }) {
       title="Cumulative Flow"
       emptyMessage="No history available from the backend."
       testId="cumulative-flow-chart"
-      select={(points) => cumulativeFlowSeries(points)}
+      select={cumulativeFlowSeries}
     >
       {(series) => (
         <ChartView
