@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePickableFields } from "../../lib/pickable-fields";
 import { useFieldValidation, useSaveFieldValidation, type FieldValidationRule } from "../../lib/field-validation";
 import { isSafePattern } from "../../lib/safe-regex";
+import { EditableRowTable } from "./EditableRowTable";
 
 const empty = (): FieldValidationRule => ({ field: "" });
 
@@ -98,43 +99,25 @@ export function FieldValidationAdmin() {
           {fields.map((k) => <option key={k} value={k} />)}
         </datalist>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="text-left text-muted-foreground uppercase tracking-wider">
-                <th className="p-1 font-bold">Field</th>
-                <th className="p-1 font-bold">Req</th>
-                <th className="p-1 font-bold">Min</th>
-                <th className="p-1 font-bold">Max</th>
-                <th className="p-1 font-bold">After</th>
-                <th className="p-1 font-bold">Before</th>
-                <th className="p-1 font-bold">Pattern</th>
-                <th className="p-1 font-bold">Options (comma)</th>
-                <th className="p-1" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className={badRows.has(i) ? "bg-red-500/10" : undefined} data-testid={`validation-row-${i}`}>
-                  <td className="p-1"><Input list="validation-fields" aria-label={`Rule ${i + 1} field`} value={r.field} onChange={(e) => set(i, { field: e.target.value })} className="h-8 font-mono" /></td>
-                  <td className="p-1 text-center">
-                    <input type="checkbox" aria-label={`Rule ${i + 1} required`} checked={!!r.required} onChange={(e) => set(i, { required: e.target.checked })} />
-                  </td>
-                  <td className="p-1"><Input aria-label={`Rule ${i + 1} min`} value={r.min ?? ""} onChange={(e) => setNum(i, "min", e.target.value)} className="h-8 w-16" inputMode="numeric" /></td>
-                  <td className="p-1"><Input aria-label={`Rule ${i + 1} max`} value={r.max ?? ""} onChange={(e) => setNum(i, "max", e.target.value)} className="h-8 w-16" inputMode="numeric" /></td>
-                  <td className="p-1"><Input type="date" aria-label={`Rule ${i + 1} after`} value={r.after ?? ""} onChange={(e) => set(i, { after: e.target.value })} className="h-8" /></td>
-                  <td className="p-1"><Input type="date" aria-label={`Rule ${i + 1} before`} value={r.before ?? ""} onChange={(e) => set(i, { before: e.target.value })} className="h-8" /></td>
-                  <td className="p-1"><Input aria-label={`Rule ${i + 1} pattern`} value={r.pattern ?? ""} onChange={(e) => set(i, { pattern: e.target.value })} className="h-8 font-mono" /></td>
-                  <td className="p-1"><Input aria-label={`Rule ${i + 1} options`} value={(r.options ?? []).join(", ")} onChange={(e) => set(i, { options: opts(e.target.value) })} className="h-8" /></td>
-                  <td className="p-1">
-                    <button type="button" aria-label={`Remove rule ${i + 1}`} onClick={() => setDraft(rows.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-red-500 px-2">×</button>
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && <tr><td colSpan={9} className="p-3 text-center text-muted-foreground">No rules — every value is accepted for its type.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+        <EditableRowTable
+          rows={rows}
+          rowKey={(_, i) => i}
+          rowTestId={(_, i) => `validation-row-${i}`}
+          rowClassName={(_, i) => (badRows.has(i) ? "bg-red-500/10" : undefined)}
+          onRemove={(i) => setDraft(rows.filter((_, j) => j !== i))}
+          removeLabel={(i) => `Remove rule ${i + 1}`}
+          emptyText="No rules — every value is accepted for its type."
+          columns={[
+            { header: "Field", cell: (r, i) => <Input list="validation-fields" aria-label={`Rule ${i + 1} field`} value={r.field} onChange={(e) => set(i, { field: e.target.value })} className="h-8 font-mono" /> },
+            { header: "Req", cell: (r, i) => <input type="checkbox" aria-label={`Rule ${i + 1} required`} checked={!!r.required} onChange={(e) => set(i, { required: e.target.checked })} /> },
+            { header: "Min", cell: (r, i) => <Input aria-label={`Rule ${i + 1} min`} value={r.min ?? ""} onChange={(e) => setNum(i, "min", e.target.value)} className="h-8 w-16" inputMode="numeric" /> },
+            { header: "Max", cell: (r, i) => <Input aria-label={`Rule ${i + 1} max`} value={r.max ?? ""} onChange={(e) => setNum(i, "max", e.target.value)} className="h-8 w-16" inputMode="numeric" /> },
+            { header: "After", cell: (r, i) => <Input type="date" aria-label={`Rule ${i + 1} after`} value={r.after ?? ""} onChange={(e) => set(i, { after: e.target.value })} className="h-8" /> },
+            { header: "Before", cell: (r, i) => <Input type="date" aria-label={`Rule ${i + 1} before`} value={r.before ?? ""} onChange={(e) => set(i, { before: e.target.value })} className="h-8" /> },
+            { header: "Pattern", cell: (r, i) => <Input aria-label={`Rule ${i + 1} pattern`} value={r.pattern ?? ""} onChange={(e) => set(i, { pattern: e.target.value })} className="h-8 font-mono" /> },
+            { header: "Options (comma)", cell: (r, i) => <Input aria-label={`Rule ${i + 1} options`} value={(r.options ?? []).join(", ")} onChange={(e) => set(i, { options: opts(e.target.value) })} className="h-8" /> },
+          ]}
+        />
 
         <div className="flex items-center gap-2 pt-1">
           <Button type="button" variant="outline" size="sm" onClick={() => setDraft([...rows, empty()])} data-testid="validation-add">Add rule</Button>

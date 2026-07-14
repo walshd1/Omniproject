@@ -6,6 +6,7 @@ import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
 import { useProgrammeRegistry, useSaveProgrammeRegistry, type ProgrammeRegistry } from "../../lib/programme-registry";
+import { EditableRowTable } from "./EditableRowTable";
 
 interface Row { id: string; name: string; guids: string }
 const empty = (): Row => ({ id: "", name: "", guids: "" });
@@ -60,31 +61,20 @@ export function ProgrammeRegistryAdmin() {
           backends. Add a project's <code>omniInstanceId</code> to include it.
         </p>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="text-left text-muted-foreground uppercase tracking-wider">
-                <th className="p-1 font-bold">Programme id</th>
-                <th className="p-1 font-bold">Name</th>
-                <th className="p-1 font-bold">Project instance IDs (comma)</th>
-                <th className="p-1" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className={badRows.has(i) ? "bg-red-500/10" : undefined} data-testid={`programme-row-${i}`}>
-                  <td className="p-1"><Input aria-label={`Programme ${i + 1} id`} value={r.id} onChange={(e) => set(i, { id: e.target.value })} className="h-8 font-mono" /></td>
-                  <td className="p-1"><Input aria-label={`Programme ${i + 1} name`} value={r.name} onChange={(e) => set(i, { name: e.target.value })} className="h-8" /></td>
-                  <td className="p-1"><Input aria-label={`Programme ${i + 1} instance ids`} value={r.guids} onChange={(e) => set(i, { guids: e.target.value })} className="h-8 font-mono" /></td>
-                  <td className="p-1">
-                    <button type="button" aria-label={`Remove programme ${i + 1}`} onClick={() => setDraft(rows.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-red-500 px-2">×</button>
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && <tr><td colSpan={4} className="p-3 text-center text-muted-foreground">No programmes — projects show standalone until you group them.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+        <EditableRowTable
+          rows={rows}
+          rowKey={(_, i) => i}
+          rowTestId={(_, i) => `programme-row-${i}`}
+          rowClassName={(_, i) => (badRows.has(i) ? "bg-red-500/10" : undefined)}
+          onRemove={(i) => setDraft(rows.filter((_, j) => j !== i))}
+          removeLabel={(i) => `Remove programme ${i + 1}`}
+          emptyText="No programmes — projects show standalone until you group them."
+          columns={[
+            { header: "Programme id", cell: (r, i) => <Input aria-label={`Programme ${i + 1} id`} value={r.id} onChange={(e) => set(i, { id: e.target.value })} className="h-8 font-mono" /> },
+            { header: "Name", cell: (r, i) => <Input aria-label={`Programme ${i + 1} name`} value={r.name} onChange={(e) => set(i, { name: e.target.value })} className="h-8" /> },
+            { header: "Project instance IDs (comma)", cell: (r, i) => <Input aria-label={`Programme ${i + 1} instance ids`} value={r.guids} onChange={(e) => set(i, { guids: e.target.value })} className="h-8 font-mono" /> },
+          ]}
+        />
 
         <div className="flex items-center gap-2 pt-1">
           <Button type="button" variant="outline" size="sm" onClick={() => setDraft([...rows, empty()])} data-testid="programme-add">Add programme</Button>

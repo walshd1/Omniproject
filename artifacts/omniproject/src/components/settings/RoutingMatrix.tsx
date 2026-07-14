@@ -6,6 +6,7 @@ import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
 import { useFieldRouting, useSaveFieldRouting, routingCollisions, type FieldRoute } from "../../lib/routing";
 import { usePickableFields } from "../../lib/pickable-fields";
+import { EditableRowTable } from "./EditableRowTable";
 
 const empty = (): FieldRoute => ({ uiElement: "", vendor: "", broker: "", sourceField: "" });
 
@@ -69,37 +70,21 @@ export function RoutingMatrix() {
           {uiElements.map((k) => <option key={k} value={k} />)}
         </datalist>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="text-left text-muted-foreground uppercase tracking-wider">
-                <th className="p-1 font-bold">UI element</th>
-                <th className="p-1 font-bold">Vendor</th>
-                <th className="p-1 font-bold">Broker</th>
-                <th className="p-1 font-bold">Source field</th>
-                <th className="p-1" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className={collisions.has(i) ? "bg-red-500/10" : undefined} data-testid={`routing-row-${i}`}>
-                  <td className="p-1">
-                    <Input list="routing-ui-elements" aria-label={`Row ${i + 1} UI element`} value={r.uiElement} onChange={(e) => setRow(i, { uiElement: e.target.value })} className="h-8" />
-                  </td>
-                  <td className="p-1"><Input aria-label={`Row ${i + 1} vendor`} value={r.vendor} onChange={(e) => setRow(i, { vendor: e.target.value })} className="h-8" /></td>
-                  <td className="p-1"><Input aria-label={`Row ${i + 1} broker`} value={r.broker} onChange={(e) => setRow(i, { broker: e.target.value })} className="h-8" /></td>
-                  <td className="p-1"><Input aria-label={`Row ${i + 1} source field`} value={r.sourceField} onChange={(e) => setRow(i, { sourceField: e.target.value })} className="h-8 font-mono" /></td>
-                  <td className="p-1">
-                    <button type="button" aria-label={`Remove row ${i + 1}`} onClick={() => setDraft(rows.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-red-500 px-2">×</button>
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr><td colSpan={5} className="p-3 text-center text-muted-foreground">No routes yet — add one to source a UI element from a specific vendor + broker.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <EditableRowTable
+          rows={rows}
+          rowKey={(_, i) => i}
+          rowTestId={(_, i) => `routing-row-${i}`}
+          rowClassName={(_, i) => (collisions.has(i) ? "bg-red-500/10" : undefined)}
+          onRemove={(i) => setDraft(rows.filter((_, j) => j !== i))}
+          removeLabel={(i) => `Remove row ${i + 1}`}
+          emptyText="No routes yet — add one to source a UI element from a specific vendor + broker."
+          columns={[
+            { header: "UI element", cell: (r, i) => <Input list="routing-ui-elements" aria-label={`Row ${i + 1} UI element`} value={r.uiElement} onChange={(e) => setRow(i, { uiElement: e.target.value })} className="h-8" /> },
+            { header: "Vendor", cell: (r, i) => <Input aria-label={`Row ${i + 1} vendor`} value={r.vendor} onChange={(e) => setRow(i, { vendor: e.target.value })} className="h-8" /> },
+            { header: "Broker", cell: (r, i) => <Input aria-label={`Row ${i + 1} broker`} value={r.broker} onChange={(e) => setRow(i, { broker: e.target.value })} className="h-8" /> },
+            { header: "Source field", cell: (r, i) => <Input aria-label={`Row ${i + 1} source field`} value={r.sourceField} onChange={(e) => setRow(i, { sourceField: e.target.value })} className="h-8 font-mono" /> },
+          ]}
+        />
 
         {collisions.size > 0 && (
           <p role="alert" className="text-xs font-bold text-red-500" data-testid="routing-collision">
