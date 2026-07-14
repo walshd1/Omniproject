@@ -105,6 +105,22 @@ test("POST /ai/insights: a valid kind is stopped at the provider gate → 403 (o
   assert.equal(r.status, 403);
 });
 
+// ── POST /ai/estimate ──────────────────────────────────────────────────────────
+test("POST /ai/estimate: a missing subject → 400", async () => {
+  const r = await h.req("/ai/estimate", { method: "POST", cookie: adminCookie(), body: { unit: "points" } });
+  assert.equal(r.status, 400);
+});
+
+test("POST /ai/estimate: an invalid unit → 400", async () => {
+  const r = await h.req("/ai/estimate", { method: "POST", cookie: adminCookie(), body: { subject: "build login", unit: "weeks" } });
+  assert.equal(r.status, 400);
+});
+
+test("POST /ai/estimate: a valid body is stopped at the provider gate → 403 (off by default)", async () => {
+  const r = await h.req("/ai/estimate", { method: "POST", cookie: adminCookie(), body: { subject: "build login", unit: "points" } });
+  assert.equal(r.status, 403);
+});
+
 test("POST /ai/transcribe: a missing audio payload → 400", async () => {
   const r = await h.req("/ai/transcribe", { method: "POST", cookie: adminCookie(), body: {} });
   assert.equal(r.status, 400);

@@ -13,6 +13,7 @@ import { MCP_TOOLS } from "../lib/mcp";
 import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../lib/approved-actions";
 import { answerCopilot } from "../lib/copilot";
 import { generatePortfolioInsight, INSIGHT_KINDS } from "../lib/insights";
+import { suggestEstimate, ESTIMATE_UNITS } from "../lib/estimate";
 import { suggestBackendPrompt, parseSuggestedManifest, SuggestParseError } from "../lib/backend-suggest";
 import { getBroker, contextFromReq } from "../broker";
 import { hasRole, roleForReq, requireRole } from "../lib/rbac";
@@ -43,6 +44,14 @@ const COPILOT_BODY = v.object({
 // an injection through; the snapshot the model sees is the copilot's minimal aggregated projection.
 const INSIGHTS_BODY = v.object({
   kind: v.enum(INSIGHT_KINDS),
+  surface: v.optional(v.string({ max: 200 })),
+});
+// Estimation: a bounded subject + a fixed unit (+ optional comparables for calibration). No write
+// path — the model only returns a SUGGESTED value the human commits through the normal edit flow.
+const ESTIMATE_BODY = v.object({
+  subject: v.string({ trim: true, min: 1, max: 2_000 }),
+  unit: v.enum(ESTIMATE_UNITS),
+  comparables: v.optional(v.array(v.object({ label: v.string({ max: 200 }), estimate: v.number({ min: 0, max: 100_000 }) }), { max: 50 })),
   surface: v.optional(v.string({ max: 200 })),
 });
 const TRANSCRIBE_BODY = v.object({
@@ -223,6 +232,34 @@ router.post("/ai/insights", async (req, res) => {
     res.json(result);
   } catch (err) {
     respondAiError(req, res, err, "insight failed", "insight failed");
+  }
+});
+
+// ── POST /api/ai/estimate — AI-assisted effort estimate (advisory; human commits) ──
+// Returns a SUGGESTED estimate + rationale for described work. The model never writes and has no
+// action surface; the value only reaches a record via the normal human edit path. Both boundaries
+// are defended: the input is delimited/sanitised DATA, and the model's JSON reply is defensively
+// coerced (out-of-range → null) in lib/estimate. Gated by its own `ai-estimate` capability (off by
+// default). The SPA badges the suggestion AI·GENERATED and requires an explicit "use" to commit.
+router.post("/ai/estimate", async (req, res) => {
+  const parsed = parseOr400(req, res, ESTIMATE_BODY);
+  if (!parsed) return;
+
+  const provider = getSettings().aiProvider;
+  const surface = surfaceFromBody(req);
+  if (!enforceOr403(req, res, `provider:${provider}`, { surface, label: "AI is unavailable here" })) return;
+  if (!enforceOr403(req, res, "ai-estimate", { surface, label: "AI estimation is unavailable here" })) return;
+
+  try {
+    const suggestion = await suggestEstimate({
+      subject: parsed.subject,
+      unit: parsed.unit,
+      ...(parsed.comparables ? { comparables: parsed.comparables } : {}),
+      complete: async (messages) => (await aiChat(messages, govCtx(req))).content,
+    });
+    res.json(suggestion);
+  } catch (err) {
+    respondAiError(req, res, err, "estimate failed", "estimate failed");
   }
 });
 
