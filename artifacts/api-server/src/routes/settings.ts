@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getSettings, updateSettings, redactSettingsForRead, SettingsValidationError } from "../lib/settings";
 import { evaluateConstraints } from "../lib/settings-constraints";
+import { listSettingsPresets } from "../lib/settings-presets";
 import { requireRole } from "../lib/rbac";
 import { captureVersion } from "../lib/config-store";
 import { resetBroker } from "../broker";
@@ -22,6 +23,12 @@ router.get("/settings", (_req, res) => {
 // grey out illegal choices proactively — same non-secret, read-safe audience as GET /settings.
 router.get("/settings/constraints", (_req, res) => {
   res.json({ locks: evaluateConstraints(getSettings()).locks });
+});
+
+// Known-good settings blueprints for common customer archetypes — the setup wizard / configurator
+// loads one as a starting point, then the operator tweaks + saves. Read-only, no secrets.
+router.get("/settings/presets", (_req, res) => {
+  res.json({ presets: listSettingsPresets() });
 });
 
 // Changing settings re-wires the gateway (broker URL, AI provider) — admin only.
