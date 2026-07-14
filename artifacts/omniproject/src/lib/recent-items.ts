@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { safeParseJson } from "./safe-json";
 import type { SearchHit } from "./global-search";
 
 /**
@@ -35,7 +36,7 @@ export function loadRecents(): RecentItem[] {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed = safeParseJson(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (i): i is RecentItem =>

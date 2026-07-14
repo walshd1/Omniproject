@@ -219,7 +219,7 @@ export function loadSchedule(): AutoSchedule | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.sessionStorage.getItem(SCHEDULE_KEY);
-    const s = raw ? (JSON.parse(raw) as AutoSchedule) : null;
+    const s = raw ? (safeParseJson(raw) as AutoSchedule) : null;
     return s && typeof s.intervalMinutes === "number" && typeof s.endsAt === "string" ? s : null;
   } catch {
     return null;

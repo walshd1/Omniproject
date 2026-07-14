@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { safeParseJson } from "./safe-json";
 import { setAnnounceVerbose } from "./announce";
 import { brandTokensFromHex } from "./color";
 import { FONT_CHOICES, FONT_STACKS, type FontChoice } from "./artifact-style";
@@ -146,7 +147,7 @@ export function loadA11yPrefs(): A11yPrefs {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULT_A11Y;
-    return coerceA11yPrefs(JSON.parse(raw));
+    return coerceA11yPrefs(safeParseJson(raw));
   } catch {
     return DEFAULT_A11Y; // corrupt value ⇒ company defaults, no impact
   }

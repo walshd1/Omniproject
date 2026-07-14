@@ -1,4 +1,5 @@
 import type { DrillTo, DrillToCondition, DrillToFieldCondition } from "@workspace/backend-catalogue";
+import { safeParseJson } from "./safe-json";
 import type { ConditionSet, Predicate, Op } from "./rate-card";
 
 /**
@@ -150,7 +151,7 @@ export function readDrillFilter(params: URLSearchParams): ActiveDrillFilter | nu
   const raw = params.get(QUERY_FILTER);
   if (!raw) return null;
   try {
-    const predicate = JSON.parse(raw) as unknown;
+    const predicate = safeParseJson(raw);
     if (typeof predicate !== "object" || predicate === null || Array.isArray(predicate)) return null;
     const label = params.get(QUERY_LABEL) ?? summarise(predicate as ConditionSet);
     return { predicate: predicate as ConditionSet, label };

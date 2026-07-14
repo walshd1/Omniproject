@@ -23,6 +23,7 @@ import {
 } from "@workspace/api-client-react";
 import { triggerBlobDownload } from "./setup";
 import { poolMap } from "./concurrency-pool";
+import { safeParseJson } from "./safe-json";
 import { markExplorationClean } from "./exploration";
 
 /**
@@ -74,7 +75,7 @@ export function applyIssueOverlay(base: Issue[], overlay: ReplicaOverlay, projec
 function parseBody(body: string | null): Record<string, unknown> {
   if (!body) return {};
   try {
-    const v = JSON.parse(body);
+    const v = safeParseJson(body);
     return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
   } catch {
     return {};

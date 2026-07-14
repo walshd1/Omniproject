@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { safeParseJson } from "../../lib/safe-json";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -64,7 +65,7 @@ export function A11yControls() {
     e.target.value = ""; // let the same file be re-selected later
     if (!file) return;
     try {
-      importProfile(JSON.parse(await file.text())); // validated field-by-field in coerceA11yPrefs
+      importProfile(safeParseJson(await file.text())); // prototype-safe parse, then validated field-by-field in coerceA11yPrefs
     } catch {
       /* not valid JSON — keep the current profile, no partial apply */
     }
