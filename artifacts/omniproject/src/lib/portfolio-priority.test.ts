@@ -89,6 +89,24 @@ describe("scorePortfolio", () => {
     expect(scored[0]!.benefitValue).toBe(50000);
   });
 
+  it("converts benefit value into the reporting currency when FX context is supplied", () => {
+    const scored = scorePortfolio(
+      [proj({ projectId: "a", projectName: "A", currency: "USD", items: [item({ plannedBenefitValue: 100000, benefitConfidence: 100 })] })],
+      DEFAULT_PRIORITY_WEIGHTS,
+      { rates: { GBP: 1, USD: 2 }, target: "GBP" }, // USD→GBP = amount × rUSD ÷ rGBP = ×2
+    );
+    expect(scored[0]!.benefitValue).toBe(200000);
+  });
+
+  it("EXCLUDES an FX-unconvertible project's benefit (0, not the raw foreign amount)", () => {
+    const scored = scorePortfolio(
+      [proj({ projectId: "a", projectName: "A", currency: "JPY", items: [item({ plannedBenefitValue: 900000, benefitConfidence: 100 })] })],
+      DEFAULT_PRIORITY_WEIGHTS,
+      { rates: { GBP: 1, USD: 2 }, target: "GBP" }, // no JPY rate
+    );
+    expect(scored[0]!.benefitValue).toBe(0); // JPY 900000 not summed raw as GBP
+  });
+
   it("computes valueDensity (composite per £1k cost) only when cost > 0 and a score exists", () => {
     const scored = scorePortfolio([
       proj({ projectId: "a", projectName: "A", items: [item({ riceScore: 50 })], cost: 1000 }),

@@ -72,10 +72,14 @@ export function usePortfolioPriority(): {
         programmeName: p.programmeName,
         items: p.items,
         cost,
+        currency: p.currency,
         capacityHours,
       };
     });
-    return scorePortfolio(inputs, weights ?? DEFAULT_PRIORITY_WEIGHTS);
+    // Pass FX context so each project's benefit value (derived from its native-currency items) is
+    // converted into `target` before it's summed/normalised — otherwise a raw foreign benefit corrupts
+    // the funded-benefit total and skews the benefit-weighted rank (the twin of the cost guard above).
+    return scorePortfolio(inputs, weights ?? DEFAULT_PRIORITY_WEIGHTS, { rates, target });
   }, [projects, finByProject, capByProject, target, rates, weights]);
 
   return { scored, weights: weights ?? DEFAULT_PRIORITY_WEIGHTS, loading, isError, error, refetch, target };

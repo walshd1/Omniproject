@@ -1,4 +1,5 @@
 import { num } from "./num";
+import { convertAmount, isConvertible } from "./currency";
 import { summariseBenefits, type BenefitInput } from "./benefits";
 
 /**
@@ -49,6 +50,10 @@ export interface ProjectPriorityInput {
   items: readonly PriorityInput[];
   /** Budget ask for this project, already converted to the reporting currency. */
   cost: number;
+  /** The project's native currency, used to convert its benefit value (derived from `items`) into the
+   *  reporting currency when FX context is supplied to `scorePortfolio`. Omit if items are already in
+   *  the reporting currency. */
+  currency?: string;
   /** Resourcing footprint (assigned hours) if this project proceeds. */
   capacityHours: number;
 }
@@ -139,11 +144,33 @@ function minMaxNormalise(values: readonly (number | null)[]): (number | null)[] 
  * sort last (name order among themselves) rather than being silently dropped, so the head of projects
  * still sees every project in the portfolio.
  */
+/** Optional FX context for scoring: convert each project's derived benefit value from its native
+ *  `currency` into `target`, so cross-currency benefit totals (and the benefit-normalised rank) aren't
+ *  corrupted by raw foreign amounts. Omitted by FX-agnostic callers (unit tests, single-currency). */
+export interface ScoreFx {
+  rates?: Record<string, number> | undefined;
+  target?: string | undefined;
+}
+
+/** Convert a project's native benefit value into the reporting currency, dropping it to 0 when the
+ *  currency can't be converted (convertAmount would otherwise pass the raw foreign amount through). An
+ *  absent FX target (FX-agnostic caller) or an absent/same currency leaves the value unchanged. */
+function convertBenefit(native: number, currency: string | undefined, fx?: ScoreFx): number {
+  if (!fx?.target) return native;
+  const from = currency ?? fx.target;
+  if (from === fx.target) return native;
+  return isConvertible(from, fx.target, fx.rates) ? convertAmount(native, from, fx.target, fx.rates) : 0;
+}
+
 export function scorePortfolio(
   inputs: readonly ProjectPriorityInput[],
   weights: PriorityWeights = DEFAULT_PRIORITY_WEIGHTS,
+  fx?: ScoreFx,
 ): ProjectPriorityScore[] {
-  const rows = inputs.map((p) => ({ p, agg: aggregateProject(p.items) }));
+  const rows = inputs.map((p) => {
+    const agg = aggregateProject(p.items);
+    return { p, agg: { ...agg, benefitValue: convertBenefit(agg.benefitValue, p.currency, fx) } };
+  });
   const riceNorm = minMaxNormalise(rows.map((r) => r.agg.rice));
   const wsjfNorm = minMaxNormalise(rows.map((r) => r.agg.wsjf));
   // Benefit value of exactly 0 means "nothing planned" (isBenefit() already excludes non-benefit
