@@ -23,6 +23,7 @@ How the system is put together, the broker seam, and the extensibility model.
 - **[BROKER.md](BROKER.md)** — the `Broker` interface seam and its invariants (why the codebase can't know the broker is n8n).
 - **[BROKER-HTTP-BINDING.md](BROKER-HTTP-BINDING.md)** — the reference HTTP wire protocol a contract-speaking broker implements.
 - **[CONTRACT.md](CONTRACT.md)** — the published, versioned `Broker` contract (request/response shapes, control semantics), generated from source.
+- **[API-REFERENCE.md](API-REFERENCE.md)** — the complete northbound HTTP API surface (every route, method, `/api` path, auth/RBAC gate), generated from the route source and CI-drift-guarded.
 - **[INTEGRATION-PLANES.md](INTEGRATION-PLANES.md)** — the seven integration planes (backends, brokers, outputs, notifications, methodologies, reports, screens) and the shared catalogue.
 - **[COMPOSITION-TIER.md](COMPOSITION-TIER.md)** — the composition seam and store-adapter roles (authoritative ▸ augmenting ▸ cache) that let a self-host DB and backends coexist.
 - **[METHODOLOGIES.md](METHODOLOGIES.md)** — the methodology views (Kanban, Scrum, Gantt, PRINCE2, RAID, list) and how to add your own.

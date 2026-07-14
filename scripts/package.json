@@ -12,6 +12,7 @@
     "gen-contract": "tsx ./src/gen-contract.ts",
     "gen-openapi": "tsx ./src/gen-openapi-bundle.ts",
     "gen-function-map": "tsx ./src/gen-function-map.ts",
+    "gen-api-reference": "tsx ./src/gen-api-reference.ts",
     "gen-vendors": "tsx ./src/gen-vendors.ts",
     "gen-workflow-blueprints": "tsx ./src/gen-workflow-blueprints.ts",
     "gen-views": "tsx ./src/gen-views.ts",

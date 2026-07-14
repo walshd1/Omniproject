@@ -336,6 +336,32 @@ Broker router — turn the per-kind routing DECISION (`brokerForCommand`) into a
 | `endpointsForKind` | The endpoint URL(s) declared for a broker kind, or undefined if none. |
 | `routeBrokerCall` | Route a broker call to the kind that should serve it. |
 
+### `artifacts/api-server/src/broker/sanitizer.ts`
+
+Broker READ sanitizer — the production seam that keeps malformed backend data out of the gateway's derivations and off the frontend.
+
+| Function | What it does |
+| --- | --- |
+| `runWithDataQuality` | Run `fn` with a fresh data-quality tally in scope; returns the fn result AND the accumulated tally, so a request handler can surface "N fields repaired / M rows dropped" for this response. |
+| `withDataQualityScope` | Establish a fresh data-quality tally for the (possibly async) work `fn` starts — the request- middleware entry point. |
+| `currentDataQuality` | The active tally, or undefined outside a data-quality scope (the sanitizer still repairs; it just doesn't count). |
+| `sanitizePortfolioRow` | ── Per-type sanitizers — repair the KNOWN contract fields, pass the rest of the Row through ───────── PortfolioRow: all three variance/blocker figures are required numbers (the ones that poisoned the KPI roll-ups to NaN when a backend fed junk). |
+| `sanitizeHistoryPoint` | HistoryPoint: numeric counts + a fixed provenance enum (unknown vocab → "sourced", the neutral default). |
+| `sanitizeFinancials` | — |
+| `sanitizeCapacityRow` | — |
+| `sanitizeProject` | Project: required id/name strings; optional status/omniInstanceId. |
+| `sanitizeIssue` | — |
+| `sanitizeMember` | ProjectMember: id required; the capacity hours are the numeric fields the resource roll-ups read. |
+| `sanitizeTask` | Task: identity/title/status required strings; estimateHours/sortOrder coerced. |
+| `sanitizeTaskItem` | TaskItem / TaskComment / TaskAttachment: string-identity records; attachment size is numeric. |
+| `sanitizeTaskComment` | — |
+| `sanitizeTaskAttachment` | — |
+| `sanitizeSummary` | — |
+| `sanitizeBaseline` | Baseline: identity strings; the item list passes through (dates are validated where they're used). |
+| `sanitizeFxRates` | FX rates — MONEY-CRITICAL: a junk/non-positive rate would corrupt every currency conversion. |
+| `sanitizeGenericRow` | — |
+| `wrapWithSanitizer` | Wrap a broker so its entity READS are repaired to contract shape before anything above the seam sees them. |
+
 ### `artifacts/api-server/src/broker/scope-guard.ts`
 
 Data-seam scope guard (defense in depth).
@@ -586,7 +612,8 @@ AI exposure → containment level.
 | `isLocalHost` | Is a host on the local machine or a private network (RFC1918 / loopback / .local)? |
 | `classifyEndpointLocality` | Classify a user-defined endpoint as local or remote (no endpoint ⇒ remote, i.e. stricter). |
 | `aiSourceLevel` | The EXPOSURE level implied by the configured AI provider + its governance state — i.e. WHERE the AI runs, the hard floor below which containment can never be relaxed. |
-| `setContainmentRelax` | Relax the default-full containment toward `level` (admin). |
+| `isContainmentLevel` | True iff `v` is a valid AiContainment level. |
+| `setContainmentRelax` | Relax the default-full containment toward `level` (admin config / restore / fleet converge). |
 | `getContainmentRelax` | The current admin relax floor (default "public" = full containment). |
 | `__resetContainmentRelax` | Test-only: restore the default-full posture. |
 | `aiContainmentLevel` | The ENFORCED containment level: the strictest of the admin relax floor (default full) and the AI source level. |
@@ -729,7 +756,8 @@ Is the gateway running in DEMO auth mode — i.e. NO real authentication method 
 
 | Function | What it does |
 | --- | --- |
-| `isDemoAuth` | Is the gateway running in DEMO auth mode — i.e. NO real authentication method is configured at all? |
+| `isDemoAuthFrom` | Pure decision: is this env a DEMO (no-real-auth, every-session-admin) deployment? Returns false as soon as ANY real method is configured — legacy OIDC, named OIDC, OAuth2, SAML, or magic-link. |
+| `isDemoAuth` | Runtime gate: is the live process in demo auth mode? Delegates to the pure `isDemoAuthFrom` so the gate and the boot-time blocker share one definition and can never drift. |
 
 ### `artifacts/api-server/src/lib/autonomous-grant.ts`
 
@@ -740,7 +768,8 @@ Autonomous WRITE authorisation — the hard limit that stops an autonomous sessi
 | `registerAutonomousGrant` | Seed/replace an autonomous write grant (admin/config). |
 | `getAutonomousGrant` | The grant for an actor id, or undefined (⇒ default deny). |
 | `listAutonomousGrants` | Every active write grant (for the admin dashboard). |
-| `setAutonomousGrants` | Replace the whole grant set (admin applies the config JSON). |
+| `cleanGrant` | Validate + normalise an untrusted grant to a clean AutonomousWriteGrant, or null if unusable. |
+| `setAutonomousGrants` | Replace the whole grant set (admin config JSON / restore / fleet converge). |
 | `__resetAutonomousGrants` | Test-only: clear grants + counters. |
 | `actorIdOf` | The registry id behind an autonomous principal's sub (automation:<id> / agent:<id>:<who>). |
 | `assertGrantContainment` | Containment check, scaled to AI exposure. |
@@ -802,6 +831,15 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 | `effectiveBranding` | The branding the UI should render right now (defaults unless entitled). |
 | `saveBranding` | Persist branding overrides (callers must enforce the entitlement). |
 | `clearBranding` | Reset white-label branding back to the product defaults. |
+
+### `artifacts/api-server/src/lib/break-glass.ts`
+
+Break-glass containment — an IdP-INDEPENDENT panic button for "a bad actor is impersonating an admin (a stolen/forged admin session, a phished admin login), lock it down NOW".
+
+| Function | What it does |
+| --- | --- |
+| `breakGlassEnabled` | Is break-glass containment enabled (a strong BREAK_GLASS_TOKEN is set)? |
+| `hasValidBreakGlassToken` | Does the request carry the valid break-glass token? Constant-time compare; false when break-glass is disabled or the token is absent/wrong. |
 
 ### `artifacts/api-server/src/lib/broker-hmac.ts`
 
@@ -967,6 +1005,16 @@ CLOSED-PROJECT LOCATION REGISTRY — the small, durable index that lets OmniProj
 | --- | --- |
 | `validateClosedProjects` | Validate + normalise the closed-project registry (trims, defaults, checks disposition). |
 | `planProjectSources` | — |
+
+### `artifacts/api-server/src/lib/coerce.ts`
+
+Shared input-coercion guards for untrusted values (request bodies, external JSON, config maps).
+
+| Function | What it does |
+| --- | --- |
+| `isStr` | Narrow to a string. |
+| `isNum` | Narrow to a finite number (rejects NaN/Infinity). |
+| `stringArray` | Keep only the string members of an array (empty array for a non-array). |
 
 ### `artifacts/api-server/src/lib/column-mapper.ts`
 
@@ -1159,6 +1207,7 @@ Small shared key/hash primitives, so the same derivations aren't hand-rolled in 
 | Function | What it does |
 | --- | --- |
 | `deriveKey` | Derive a 32-byte AES key from a high-entropy secret via HKDF-SHA256, with a domain-separation `info` label so the same secret yields independent keys per use. |
+| `zeroizeKeyCaches` | ACTIVE zeroisation of every derived AES key held in memory — overwrites each key Buffer's bytes with zeros, then drops the references. |
 | `deriveKeyCached` | LEGACY derivation: sha256(secret) → 32-byte key, cached by secret. |
 | `deriveKeyFromBytes` | Like `deriveKey` but over raw key BYTES (e.g. a KMS-unwrapped / CONFIG_KEY_RAW key) rather than a string secret — same HKDF-SHA256 + fixed salt + domain-separating `info`. |
 | `masterSecret` | The env master-secret fallback ladder shared by the at-rest crypto modules (config, vault, rate-card): an optional leading env var, then `SESSION_SECRET`, then `BROKER_PSK`, then the caller's own dev default. |
@@ -1213,6 +1262,14 @@ Admin-defined CUSTOM FIELDS — extend the reference superset when a field an or
 | --- | --- |
 | `validateCustomFields` | Validate + normalise the custom-field definitions (shape only; the source rule is separate so it can be re-checked whenever EITHER customFields or the routing map changes). |
 | `validateCustomFieldSources` | The SOURCE RULE: every custom field must be reachable — its key must be mapped to a real source in the routing matrix (a fully-populated vendor·broker·sourceField route). |
+
+### `artifacts/api-server/src/lib/data-quality.ts`
+
+Data-quality surfacing middleware.
+
+| Function | What it does |
+| --- | --- |
+| `dataQualityMiddleware` | — |
 
 ### `artifacts/api-server/src/lib/data-residency.ts`
 
@@ -1375,6 +1432,7 @@ Egress / SSRF guard for the gateway's outbound HTTP.
 | --- | --- |
 | `assertEgressAllowed` | Validate a URL is allowed for server-side egress; throws EgressError if not. |
 | `__setEgressTransportForTest` | Install (or clear, with null) the TEST-ONLY transport seam used by safeFetch. |
+| `__setEgressLookupForTest` | Install (or clear, with null) the TEST-ONLY resolver seam used by safeFetch/assertEgressAllowed. |
 | `safeFetch` | fetch() with the egress guard applied first — throws EgressError before any network call when the target is disallowed. |
 
 ### `artifacts/api-server/src/lib/email.ts`
@@ -1428,6 +1486,16 @@ Central error-capture seam — the one place an unhandled route error lands.
 | --- | --- |
 | `fingerprint` | A short, stable id for an error so repeats group together. |
 | `errorHandler` | eslint-disable-next-line @typescript-eslint/no-unused-vars -- Express needs the 4-arg arity to treat this as an error handler. |
+
+### `artifacts/api-server/src/lib/estimate.ts`
+
+AI-assisted ESTIMATION — a read-only advisory that SUGGESTS an effort estimate for a described piece of work, which a human then explicitly commits (or discards).
+
+| Function | What it does |
+| --- | --- |
+| `estimateMessages` | Build the estimation messages: a hardening system frame that demands STRICT JSON out and the delimited, sanitised DATA in. |
+| `parseEstimate` | Defensively parse the model's reply into a safe suggestion. |
+| `suggestEstimate` | Ask the model for an estimate and return the coerced, human-reviewable suggestion. |
 
 ### `artifacts/api-server/src/lib/exec-digest.ts`
 
@@ -1519,6 +1587,15 @@ Per-field DATA VALIDATION RULES — the admin-declared constraints a field's val
 | `checkFieldValue` | Enforce ONE rule against a value, given the field's type. |
 | `checkFieldValues` | Enforce a set of rules over a record, returning every violation message. |
 
+### `artifacts/api-server/src/lib/fleet-readiness.ts`
+
+Fleet-safety readiness (fail-closed at scale).
+
+| Function | What it does |
+| --- | --- |
+| `evaluateFleetReadiness` | Pure verdict from already-resolved inputs — unit-testable without live Redis/modules. |
+| `fleetReadiness` | Live verdict for THIS replica, reading the current shared-state + rate-limit backends. |
+
 ### `artifacts/api-server/src/lib/fx-fallback.ts`
 
 Indicative, GBP-based FX table used as a sample/fallback only — NOT live market data (note the epoch `asOf` and `provenance: "sample"`).
@@ -1600,6 +1677,17 @@ Impossible-travel detection — flags a login when the implied travel speed from
 | `evaluateTravel` | Pure comparison of two login locations for one principal — no IO, fully unit-testable without the optional geoip-lite dependency installed. |
 | `checkLogin` | Record a login for `sub` from `ip` and check it against their last known location in this process. |
 | `__resetImpossibleTravelState` | Test-only: clear all remembered per-principal locations. |
+| `__rememberLocationForTest` | Test-only: drive the bounded location map directly (geoip-lite isn't installed in unit tests, so checkLogin can't populate it) and read its size, to exercise the LRU eviction. |
+| `__trackedCountForTest` | — |
+
+### `artifacts/api-server/src/lib/insights.ts`
+
+Portfolio AI INSIGHTS — read-only, model-written narrative over the portfolio read model.
+
+| Function | What it does |
+| --- | --- |
+| `insightMessages` | Build the insight messages: a hardening system frame + the fixed brief + the delimited DATA. |
+| `generatePortfolioInsight` | Produce a portfolio insight. |
 
 ### `artifacts/api-server/src/lib/ip-allow.ts`
 
@@ -1669,6 +1757,7 @@ KMS / BYOK envelope unwrap for the gateway's ROOT keys.
 | `kmsVaultKey` | The KMS-unwrapped vault root key, or null when KMS isn't used / hasn't resolved yet. |
 | `kmsConfigKey` | The KMS-unwrapped config-at-rest key, or null. |
 | `__resetKms` | Test-only: reset the caches + init flag. |
+| `zeroizeKmsKeys` | ACTIVE zeroisation of the KMS-unwrapped ROOT keys — the most sensitive bytes in the process. |
 
 ### `artifacts/api-server/src/lib/labels.ts`
 
@@ -1729,9 +1818,13 @@ Maintenance lockdown (break-glass read-only mode).
 | `releaseMaintenance` | Release lockdown — normal read/write resumes. |
 | `maintenanceEngaged` | Is the gateway in read-only lockdown? |
 | `maintenanceReason` | The reason shown with a blocked write (empty when not set). |
+| `publishMaintenanceToShared` | Fan THIS replica's current lockdown state out to shared state so the fleet converges. |
+| `refreshMaintenanceFromShared` | Converge this replica with the fleet's shared lockdown state (the fleet-sync tick; also directly testable). |
+| `startMaintenanceFleetSync` | Start periodic fleet convergence so a lockdown flipped on ANY replica takes effect here. |
+| `stopMaintenanceFleetSync` | Stop the periodic fleet-sync poll (idempotent) — used on shutdown / in tests. |
 | `isMaintenanceExempt` | Should this request be allowed through despite a write + lockdown? |
 | `maintenanceGuard` | Middleware: under lockdown, refuse mutating requests (except exempt paths) with 503. |
-| `__resetMaintenance` | Test-only: reset to the default (released). |
+| `__resetMaintenance` | Test-only: reset to the default (released) and stop any fleet-sync timer. |
 
 ### `artifacts/api-server/src/lib/mcp.ts`
 
@@ -2001,7 +2094,7 @@ Programmes are a grouping of related projects, **derived** from each project's o
 
 | Function | What it does |
 | --- | --- |
-| `aggregateFinancials` | Sum member projects' denormalised financial fields. |
+| `aggregateFinancials` | — |
 | `programmeIdOf` | A project's backend-owned `programmeId`, if any. |
 | `validateProgrammeRegistry` | Validate + normalise the programme registry (trims, defaults name to the id, dedupes GUIDs). |
 | `programmeIdsOf` | Every programme id a project belongs to — determined SOLELY by its correlation GUID against the registry's lists. |
@@ -2132,6 +2225,8 @@ Role-based access control.
 | `rollbackRoleMap` | Undo the most recent setRoleMap() call, restoring the override exactly as it was before. |
 | `canRollbackRoleMap` | Whether a rollback is currently available (for the admin UI to show/hide the control). |
 | `resetRoleMap` | Test-only: drop all overrides (back to pure env mapping) and clear the undo buffer. |
+| `snapshotRoleMap` | Serialise the current admin override as `{ role: [groups] }` (only overridden roles) — for durable persistence in the security-state file AND cross-replica fleet-sync, so a role-map edit (crucially REVOKING a compromised IdP group's admin/pmo authority) survives a restart and propagates fleet-wide instead of living only in the RAM of the replica that served the edit. |
+| `applyRoleMapSnapshot` | Apply a role-map override snapshot from a restore / fleet converge — the ZERO-TRUST twin of `setRoleMap`: it runs the SAME validation (only the five fixed roles, values must be string arrays, normalised lower-case; unknown keys / wrong types dropped) so a corrupt or hostile blob can never invent a role or inject a non-string group. |
 | `hasStrongAuth` | Does this session's auth-method assertion prove tamper-resistant (hardware-bound) MFA? |
 | `grantsFromClaims` | Pure mapping from a user's raw claim groups to their GRANTS (base rung + the set of authorities), using the configured role lists. |
 | `roleFromClaims` | Back-compat single-role view of a user's claims (the representative label). |
@@ -2152,6 +2247,16 @@ Short-TTL read cache — scaffolding for the optional scale relaxation (RFC-002 
 | Function | What it does |
 | --- | --- |
 | `getReadCache` | The process-wide read cache, configured from `READ_CACHE_TTL_MS` (default 0 = disabled). |
+
+### `artifacts/api-server/src/lib/rebalance.ts`
+
+Agentic REBALANCING — the AI proposes a short, ordered list of corrective actions over the portfolio (reprioritise, flag, reassign …).
+
+| Function | What it does |
+| --- | --- |
+| `rebalanceMessages` | Build the rebalance messages: a hardening frame + the ALLOWED tool catalogue + the delimited untrusted snapshot. |
+| `parseSteps` | Defensively parse the model's reply into raw steps (before catalogue validation). |
+| `proposeRebalance` | Ask the model for a rebalancing plan and return only the steps that VALIDATE against the approved tool catalogue. |
 
 ### `artifacts/api-server/src/lib/redis-bus.ts`
 
@@ -2293,7 +2398,7 @@ SECURITY: the directory maps are plain objects indexed by the SCIM resource `id`
 | `stopScimFleetSync` | Stop the periodic SCIM directory fleet-sync poll (idempotent) — used on shutdown / in tests. |
 | `scimEnabled` | Is SCIM provisioning enabled? (Only when a bearer token is configured.) |
 | `scimTokenValid` | Constant-time check of a presented SCIM bearer token. |
-| `createUser` | ── Users ──────────────────────────────────────────────────────────────────────── Create a user resource. |
+| `createUser` | Create a user resource. |
 | `getUser` | The user with this id, or null. |
 | `replaceUser` | Replace a user (PUT). |
 | `patchUser` | Apply a SCIM PATCH (the subset IdPs use — most importantly toggling `active`). |
@@ -2347,7 +2452,11 @@ Durable security state.
 | --- | --- |
 | `collectSecurityState` | Gather the current security state into one serialisable object. |
 | `applySecurityState` | Apply a security snapshot to the live registries. |
-| `persistSecurityState` | Persist the current security state (sealed) — no-op unless SECURITY_STATE_FILE is set. |
+| `persistSecurityState` | Persist the current security state (sealed) — no-op unless SECURITY_STATE_FILE is set — AND fan the AI-authorization controls out to the fleet so a change (crucially a REVOCATION) propagates to every replica, not just the one that served it. |
+| `publishAiAuthzToShared` | Fan this replica's AI-authz controls out to shared state. |
+| `refreshAiAuthzFromShared` | Converge this replica's AI-authz controls with the fleet's shared value. |
+| `startAiAuthzFleetSync` | Start periodic AI-authz fleet convergence (idempotent, unref'd). |
+| `stopAiAuthzFleetSync` | Stop the AI-authz fleet-sync poll (idempotent) — shutdown / tests. |
 | `loadSecurityState` | Restore the security state at boot (sealed file; plaintext tolerated for migration). |
 
 ### `artifacts/api-server/src/lib/session-crypto.ts`
@@ -2377,6 +2486,9 @@ Concurrent-session cap.
 | `maxSessionsPerUser` | The configured per-user concurrent-session cap (0 / unset ⇒ unlimited). |
 | `registerSession` | Record activity for (sub, sid) and report whether this session is within the cap. |
 | `activeSessionCount` | How many sessions the registry currently tracks for a user (diagnostics). |
+| `sequenceEnforced` | Whether rotating-token sequence enforcement is on (default ON; set SESSION_SEQUENCE_ENFORCE=0 to disable, e.g. for a non-sticky fleet that would rather not risk per-replica missed detections). |
+| `issueSequence` | Issue the next sequence number for a session (called when its cookie is (re)sealed). |
+| `checkSequence` | Check a presented sequence against the session's high-water mark. |
 | `__resetSessionRegistry` | Test-only: clear the registry. |
 
 ### `artifacts/api-server/src/lib/session-secret-guard.ts`
@@ -2396,6 +2508,7 @@ Session timeout policy — a sliding IDLE timeout plus an ABSOLUTE lifetime cap.
 | --- | --- |
 | `idleMs` | Idle timeout in ms (0 = disabled). |
 | `absoluteMs` | Absolute session lifetime in ms (0 = disabled). |
+| `sessionCookieMaxAgeMs` | The session-cookie max-age the browser should use: the absolute cap when set, else a bounded fallback (the absolute cap can be env-disabled, but the cookie must still not live forever). |
 | `isSessionExpired` | Has this session expired by idle or absolute age at `now`? Missing timestamps are treated as NOT expired so pre-upgrade cookies survive — they get stamped on the next request and are enforced from then on (see auth.ts slideSession). |
 | `timeoutPolicy` | Public view of the policy, for the frontend idle warning / countdown. |
 
@@ -2407,6 +2520,23 @@ Factory for the recurring "settings collection" route shape: a GET that reads on
 | --- | --- |
 | `settingsCollectionRouter` | Build a `Router` exposing the GET + write pair for one settings-collection field. |
 
+### `artifacts/api-server/src/lib/settings-constraints.ts`
+
+Settings incompatibility registry — the ONE place cross-field settings constraints are declared, so illegal COMBINATIONS are prevented rather than merely caught late.
+
+| Function | What it does |
+| --- | --- |
+| `evaluateConstraints` | Evaluate every incompatibility rule against the effective settings, aggregating the locks + any violations. |
+
+### `artifacts/api-server/src/lib/settings-presets.ts`
+
+Known-good settings blueprints for common customer archetypes — a starting point an operator LOADS in the setup wizard / configurator and then tweaks, instead of configuring a bare deployment field by field.
+
+| Function | What it does |
+| --- | --- |
+| `listSettingsPresets` | The known-good settings blueprints, newest posture first (stable order). |
+| `settingsPreset` | One blueprint by id, or null. |
+
 ### `artifacts/api-server/src/lib/settings.ts`
 
 Gateway-local settings store.
@@ -2414,10 +2544,11 @@ Gateway-local settings store.
 | Function | What it does |
 | --- | --- |
 | `isTimeTravelEnabled` | True when historical time-travel is available (operator opted into egress). |
-| `getSettings` | A snapshot copy of the current in-memory settings (never the live reference). |
+| `getSettings` | The current in-memory settings — a shared FROZEN snapshot, rebuilt only when settings change. |
 | `redactSettingsForRead` | A read-safe view of settings for the GET endpoint. |
 | `registerCapabilityStatesSanitizer` | — |
 | `updateSettings` | Validate + apply a partial settings patch, returning the new settings. |
+| `applyBootSettingsPreset` | Boot-time archetype seeding: if `SETTINGS_PRESET` names a known-good blueprint (lib/settings-presets), apply it over the env-seeded defaults at startup, so a docker-compose can DECLARE its customer archetype (`SETTINGS_PRESET=regulated-selfhost`) and the app self-configures to match — the compose and the wizard preset stay in lock-step. |
 
 ### `artifacts/api-server/src/lib/setup-status.ts`
 
@@ -2599,6 +2730,7 @@ Vault STORAGE seam.
 
 | Function | What it does |
 | --- | --- |
+| `coerceSecretMap` | Vault STORAGE seam. |
 | `vaultBackendId` | The configured backend id (VAULT_BACKEND), defaulting to the local encrypted file. |
 | `activeVaultStore` | Resolve the active storage backend from the registry. |
 
@@ -2635,11 +2767,11 @@ SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — gove
 
 ### `artifacts/api-server/src/lib/wipe.ts`
 
-Drop the gateway's bounded in-memory working sets on shutdown.
+Full active memory cleanse on shutdown.
 
 | Function | What it does |
 | --- | --- |
-| `wipeInMemoryState` | Drop the gateway's bounded in-memory working sets on shutdown. |
+| `wipeInMemoryState` | Full active memory cleanse on shutdown. |
 
 ### `artifacts/api-server/src/lib/xlsx.ts`
 
@@ -2700,6 +2832,10 @@ Authentication routes + the session helpers the rest of the gateway reads from.
 ### `artifacts/api-server/src/routes/branding.ts`
 
 SPDX-License-Identifier: LicenseRef-OmniProject-Premium Premium feature — governed by licenses/PREMIUM.txt, NOT Apache-2.0.
+
+### `artifacts/api-server/src/routes/break-glass.ts`
+
+Break-glass containment endpoints — the IdP-INDEPENDENT panic button for admin impersonation.
 
 ### `artifacts/api-server/src/routes/broker-command.ts`
 
@@ -2900,6 +3036,10 @@ SCIM 2.0 provisioning endpoints (RFC 7644).
 ### `artifacts/api-server/src/routes/security.ts`
 
 Typed + bounded bodies for the admin write endpoints (untrusted input).
+
+| Function | What it does |
+| --- | --- |
+| `heldForDualControl` | If an action requires dual control, hold it as a proposal (202) instead of executing, and return true so the caller stops. |
 
 ### `artifacts/api-server/src/routes/settings.ts`
 
@@ -3371,6 +3511,10 @@ Developer + operator tooling: generators, the setup wizard, verifiers, and load/
 ### `scripts/src/e2e-smoke.ts`
 
 End-to-end smoke test for the single-container "omni-shell".
+
+### `scripts/src/gen-api-reference.ts`
+
+API-reference generator.
 
 ### `scripts/src/gen-contract.ts`
 

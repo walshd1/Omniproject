@@ -204,6 +204,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the API reference is in sync with the routes
+        run: |
+          pnpm --filter @workspace/scripts run gen-api-reference
+          if ! git diff --quiet -- docs/API-REFERENCE.md; then
+            echo "::error::API reference is out of date. Run 'pnpm --filter @workspace/scripts run gen-api-reference' and commit the result."
+            git --no-pager diff --stat -- docs/API-REFERENCE.md
+            exit 1
+          fi
+
       - name: Verify a concrete broker adapter is imported only via the seam
         run: pnpm --filter @workspace/scripts run guard-broker-isolation
 
