@@ -1,15 +1,12 @@
 import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from "recharts";
 import { type Issue } from "@workspace/api-client-react";
 import { summariseCapex } from "../../lib/capex";
 import { useProjectIssuesMoney } from "../../lib/currency";
 import { truncateLabel } from "../../lib/utils";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
-import { chartTooltipStyle } from "./chart-theme";
+import { ChartView } from "../charts/ChartView";
 
 /**
  * CapEx / OpEx report. STATELESS: it splits the project's spend into capital vs operating from the
@@ -45,17 +42,15 @@ export function CapexOpex({ projectId }: { projectId: string }) {
 
           <div>
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">CapEx / OpEx by cost category</div>
-            <ResponsiveContainer width="100%" height={Math.max(160, catData.length * 38)}>
-              <BarChart data={catData} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => money(v as number)} />
-                <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="capex" name="CapEx" stackId="s" fill="#2563eb" />
-                <Bar dataKey="opex" name="OpEx" stackId="s" fill="#d97706" />
-              </BarChart>
-            </ResponsiveContainer>
+            <ChartView
+              type="bar"
+              stacked
+              height={Math.max(160, catData.length * 38)}
+              data={catData}
+              valueFormatter={money}
+              palette={["#2563eb", "#d97706"]}
+              series={[{ key: "capex", label: "CapEx" }, { key: "opex", label: "OpEx" }]}
+            />
           </div>
 
           <div className="overflow-x-auto">

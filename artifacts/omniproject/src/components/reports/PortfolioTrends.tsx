@@ -4,7 +4,7 @@ import {
   useGetPortfolioHealth,
   useGetCapabilities,
 } from "@workspace/api-client-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { ChartView } from "../charts/ChartView";
 import { Camera, Download, Upload, Trash2 } from "lucide-react";
 import { ProvenanceBadge } from "../ProvenanceBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,7 +26,6 @@ import {
   type PortfolioSnapshot,
 } from "../../lib/snapshots";
 import { useToast } from "@/hooks/use-toast";
-import { chartTooltipStyle, gridTheme, axisTheme } from "./chart-theme";
 
 /**
  * Portfolio trends from point-in-time snapshots — captured in the browser
@@ -250,15 +249,16 @@ export function PortfolioTrends() {
         {/* Trend chart */}
         {trend.length >= 2 ? (
           <div className="h-56" data-testid="trend-chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trend} margin={{ top: 8, right: 16, bottom: 4, left: -8 }}>
-                <CartesianGrid {...gridTheme} />
-                <XAxis dataKey="date" {...axisTheme} fontSize={10} />
-                <YAxis {...axisTheme} fontSize={11} unit={metricMeta.unit} />
-                <Tooltip contentStyle={chartTooltipStyle} />
-                <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} name={metricMeta.label} dot />
-              </LineChart>
-            </ResponsiveContainer>
+            <ChartView
+              type="line"
+              height="100%"
+              legend={false}
+              xKey="date"
+              data={trend.map((t) => ({ date: t.date, value: t.value }))}
+              palette={["#3b82f6"]}
+              valueFormatter={(v) => `${v}${metricMeta.unit}`}
+              series={[{ key: "value", label: metricMeta.label }]}
+            />
           </div>
         ) : (
           <div className="h-56 flex items-center justify-center text-center text-sm text-muted-foreground" data-testid="trend-empty">

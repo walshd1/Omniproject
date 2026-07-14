@@ -1,15 +1,12 @@
 import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from "recharts";
 import { type Issue } from "@workspace/api-client-react";
 import { summariseBenefits, type BenefitBucket } from "../../lib/benefits";
 import { useProjectIssuesMoney } from "../../lib/currency";
 import { truncateLabel } from "../../lib/utils";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
-import { chartTooltipStyle } from "./chart-theme";
+import { ChartView } from "../charts/ChartView";
 
 /**
  * Benefits Realisation report. STATELESS: it rolls up the canonical `benefit*` fields already on
@@ -64,17 +61,14 @@ export function BenefitsRealisation({ projectId }: { projectId: string }) {
 
           <div>
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Planned vs realised (top benefits)</div>
-            <ResponsiveContainer width="100%" height={Math.max(160, chartData.length * 34)}>
-              <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => money(v as number)} />
-                <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v) => money(v as number)} contentStyle={chartTooltipStyle} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="planned" name="Planned" fill="#94a3b8" />
-                <Bar dataKey="actual" name="Realised" fill="#2563eb" />
-              </BarChart>
-            </ResponsiveContainer>
+            <ChartView
+              type="bar"
+              height={Math.max(160, chartData.length * 34)}
+              data={chartData}
+              valueFormatter={money}
+              palette={["#94a3b8", "#2563eb"]}
+              series={[{ key: "planned", label: "Planned" }, { key: "actual", label: "Realised" }]}
+            />
           </div>
 
           <div className="overflow-x-auto">
