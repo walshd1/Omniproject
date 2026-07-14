@@ -64,6 +64,10 @@ services:
       # providers and held in the encrypted vault. Only the vault root secret is set here
       # (falls back to a SESSION_SECRET-derived key if VAULT_KEY is unset).
       VAULT_KEY: ${VAULT_KEY:-}
+      # Boot to a known-good customer-archetype blueprint (see deploy/presets/). This profile defaults
+      # to the Enterprise PMO posture; override to switch archetype:
+      #   enterprise-pmo | growth-business | nonprofit | agency-services | regulated-selfhost | demo-trial
+      SETTINGS_PRESET: ${SETTINGS_PRESET:-enterprise-pmo}
     depends_on:
       n8n:
         condition: service_healthy

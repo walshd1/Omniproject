@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { listSettingsPresets, settingsPreset } from "./settings-presets";
 import { evaluateConstraints } from "./settings-constraints";
 import {
@@ -35,6 +37,31 @@ test("every preset uses only in-range enum values + valid priority weights", () 
       }
     }
   }
+});
+
+test("gate: every SETTINGS_PRESET referenced in the deploy composes + env recipes is a real blueprint", () => {
+  // Repo root, from artifacts/api-server/src/lib.
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "..", "..", "..");
+  const ids = new Set(listSettingsPresets().map((p) => p.id));
+  const referenced: { where: string; id: string }[] = [];
+
+  // Compose defaults: ${SETTINGS_PRESET:-<id>}
+  for (const f of ["docker-compose.enterprise.yml", "docker-compose.slim.yml", "docker-compose.standalone.yml"]) {
+    const full = path.join(root, f);
+    if (!fs.existsSync(full)) continue;
+    for (const m of fs.readFileSync(full, "utf8").matchAll(/SETTINGS_PRESET:-([a-z0-9-]+)\}/g)) referenced.push({ where: f, id: m[1]! });
+  }
+  // Env recipes: SETTINGS_PRESET=<id>
+  const presetsDir = path.join(root, "deploy", "presets");
+  if (fs.existsSync(presetsDir)) {
+    for (const f of fs.readdirSync(presetsDir).filter((n) => n.endsWith(".env"))) {
+      for (const m of fs.readFileSync(path.join(presetsDir, f), "utf8").matchAll(/^SETTINGS_PRESET=([a-z0-9-]+)/gm)) referenced.push({ where: `deploy/presets/${f}`, id: m[1]! });
+    }
+  }
+
+  assert.ok(referenced.length >= 6, `expected to find SETTINGS_PRESET references in the composes/recipes, found ${referenced.length}`);
+  const bad = referenced.filter((r) => !ids.has(r.id));
+  assert.deepEqual(bad, [], `deploy recipe(s) reference an unknown blueprint id: ${bad.map((b) => `${b.where}→${b.id}`).join(", ")}`);
 });
 
 test("applyBootSettingsPreset seeds a named blueprint at boot (SETTINGS_PRESET / compose glue)", () => {

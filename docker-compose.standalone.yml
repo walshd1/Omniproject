@@ -165,6 +165,10 @@ services:
       # entered via Settings → AI providers. Only the vault root secret is set (defaults
       # to SESSION_SECRET-derived if VAULT_KEY is unset).
       VAULT_KEY: ${VAULT_KEY:-}
+      # Boot to a known-good customer-archetype blueprint (see deploy/presets/). This full-local stack
+      # defaults to the Demo/Trial posture; override to switch archetype:
+      #   demo-trial | growth-business | nonprofit | agency-services | enterprise-pmo | regulated-selfhost
+      SETTINGS_PRESET: ${SETTINGS_PRESET:-demo-trial}
     volumes:
       - "./certs:/certs:ro"
     labels:

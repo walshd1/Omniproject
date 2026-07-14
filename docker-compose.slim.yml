@@ -65,6 +65,10 @@ services:
       AI_PROVIDER: ${AI_PROVIDER:-none}
       AI_MODEL: ${AI_MODEL:-}
       VAULT_KEY: ${VAULT_KEY:-}
+      # Boot to a known-good customer-archetype blueprint (see deploy/presets/). This lean self-hosted
+      # LAN stack defaults to the Regulated/Self-hosted posture (matches DEPLOYMENT_PROFILE above);
+      # override to switch archetype: regulated-selfhost | nonprofit | growth-business | agency-services.
+      SETTINGS_PRESET: ${SETTINGS_PRESET:-regulated-selfhost}
     depends_on:
       n8n:
         condition: service_healthy
