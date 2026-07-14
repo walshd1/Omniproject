@@ -124,15 +124,24 @@ function webhookUrl(): string {
 
 /**
  * Deterministic idempotency key:
- *   sha256(action + projectId + issueId + timestamp_rounded_to_nearest_minute)
+ *   sha256(action + projectId + issueId + omniInstanceId + timestamp_rounded_to_nearest_minute)
  * Identical actions on the same entity within the same minute collapse to the
  * same key, letting n8n drop duplicate triggers / webhook storms.
+ *
+ * A CREATE carries neither projectId nor issueId (the entity doesn't exist yet), so without a
+ * third dimension every create in a given minute — a single UI double-submit OR a legitimate batch
+ * of N distinct new projects — collapses to ONE key, and n8n drops all but the first. The
+ * gateway-minted per-create correlation GUID (`omniInstanceId`, server-minted once per create,
+ * unique per project) distinguishes them: distinct creates get distinct keys, while a transport
+ * redelivery of the SAME create still carries the same GUID and is still deduped. For updates it's
+ * absent, so their key is unchanged.
  */
 export function idempotencyKey(action: string, payload: Record<string, unknown>): string {
   const projectId = String(payload["projectId"] ?? "");
   const issueId = String(payload["issueId"] ?? "");
+  const instance = String(payload["omniInstanceId"] ?? "");
   const minute = Math.round(Date.now() / 60_000);
-  return crypto.createHash("sha256").update(`${action}:${projectId}:${issueId}:${minute}`).digest("hex");
+  return crypto.createHash("sha256").update(`${action}:${projectId}:${issueId}:${instance}:${minute}`).digest("hex");
 }
 
 /** The backend routing hint sent as the "source" for CRUD/list actions. */

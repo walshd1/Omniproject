@@ -147,6 +147,18 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     reason: "storage", // holds comment state in the shared-state seam (soft, opt-in write-through)
   },
   {
+    // Admin bulk-action runner: apply one canonical broker write (create/update project) to many
+    // projects at once, declaratively. Has a backend route (POST /api/admin/bulk), so it loads
+    // lazily; OFF until an admin opts in — it fans out project-level writes (high blast radius), so
+    // it stays gated behind the feature toggle + requireRole("manager") + step-up on the route.
+    id: "bulkActions",
+    label: "Bulk actions",
+    description: "Apply a canonical write (create/update project) to many projects at once, with a dry-run preview.",
+    load: () => import("../routes/bulk"),
+    defaultOff: true,
+    reason: "safety", // fans out project-level writes — high blast radius, opt-in only
+  },
+  {
     // UI-only: makes the per-user PREDICTIVE (speculative) prefetch toggle AVAILABLE (off by default
     // per user). Deterministic prefetch-on-intent (hover/focus) is always on and ungated; this only
     // governs the heavier "warm data you haven't asked for" tier, which multiplies broker calls — so
