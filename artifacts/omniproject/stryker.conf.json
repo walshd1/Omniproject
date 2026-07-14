@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the MONEY/FX CORRECTNESS core — the derivations where a silent wrong answer matters most, and where a real bug class was found and fixed. Mutation testing runs the covering tests once per injected fault, so it is deliberately scoped to these pure libs (not the whole SPA); the vitest config is scoped to match. Run: `pnpm run mutation`. Heavy — a scheduled/opt-in CI job, not the fast lane.",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": { "configFile": "vitest.mutation.config.ts" },
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/lib/currency.ts",
+    "src/lib/portfolio-value.ts",
+    "src/lib/benefits-realisation.ts",
+    "src/lib/portfolio-priority.ts",
+    "src/lib/funding-scenario.ts",
+    "src/lib/scenario.ts"
+  ],
+  "reporters": ["progress", "clear-text"],
+  "thresholds": { "high": 85, "low": 70, "break": 60 },
+  "concurrency": 2,
+  "timeoutMS": 20000
+}

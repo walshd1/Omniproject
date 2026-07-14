@@ -1,0 +1,45 @@
+# Mutation testing (StrykerJS) for the money/FX correctness core.
+#
+# Mutation testing injects a fault per code location and checks the tests CATCH it — it measures test
+# QUALITY, not just line coverage. It runs the covering tests once per mutant, so it is far too slow for
+# the fast PR lane; this is a SCHEDULED (weekly) + on-demand job, scoped to the pure financial
+# derivations where a silent wrong answer matters most (see artifacts/omniproject/stryker.conf.json).
+name: mutation
+
+on:
+  schedule:
+    - cron: "0 5 * * 1" # Mondays 05:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 11.8.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 26
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Mutation test the money/FX correctness core (break threshold enforced in stryker.conf.json)
+        run: pnpm --filter @workspace/omniproject run mutation
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: artifacts/omniproject/reports/mutation/
+          if-no-files-found: ignore
