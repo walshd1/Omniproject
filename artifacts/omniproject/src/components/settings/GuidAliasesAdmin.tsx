@@ -6,6 +6,7 @@ import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
 import { useGuidAliases, useSaveGuidAliases, useForgetProject, exportProjectReferences, type GuidAliases } from "../../lib/guid-aliases";
+import { AdminSection } from "./AdminSection";
 
 interface Row { oldGuid: string; newGuid: string }
 const empty = (): Row => ({ oldGuid: "", newGuid: "" });
@@ -79,12 +80,7 @@ export function GuidAliasesAdmin() {
   };
 
   return (
-    <section data-testid="guid-aliases-admin">
-      <div className="flex items-center gap-3 mb-4">
-        <Shuffle className="w-4 h-4 text-muted-foreground" />
-        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Project GUIDs</h2>
-      </div>
-      <div className="bg-card border border-border p-4 space-y-4">
+    <AdminSection icon={Shuffle} title="Project GUIDs" testId="guid-aliases-admin" bodyClassName="space-y-4">
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
             <strong>Relink</strong> — map an old project GUID to a new one so historical references
@@ -139,7 +135,6 @@ export function GuidAliasesAdmin() {
             </Button>
           </div>
         </div>
-      </div>
-    </section>
+    </AdminSection>
   );
 }
