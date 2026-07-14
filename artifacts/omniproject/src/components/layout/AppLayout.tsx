@@ -35,7 +35,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // screen" (etc.) for themselves — session-only by default, saveable to their profile.
   const screenSeg = location.split("/")[1] || "home";
   const screenScopeId = `screen:${screenSeg}`;
-  const screenLabel = `${screenSeg.charAt(0).toUpperCase()}${screenSeg.slice(1)} screen`;
+  const pageName = `${screenSeg.charAt(0).toUpperCase()}${screenSeg.slice(1)}`;
+  const screenLabel = `${pageName} screen`;
   const { activeProjectId, isNewIssueOpen, setNewIssueOpen, isShortcutsOpen, setShortcutsOpen } = useStore();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { t } = useT();
@@ -315,7 +316,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </Link>
           </div>
         )}
-        <div id="main-content" ref={mainRef} tabIndex={-1} className="flex-1 overflow-auto bg-muted/20 relative outline-none">
+        <div id="main-content" ref={mainRef} tabIndex={-1} role="region" aria-label={`${pageName}, main content`} className="flex-1 overflow-auto bg-muted/20 relative outline-none">
           <ThemeScope scopeId={screenScopeId} className="min-h-full">
             <ErrorBoundary key={location}>{children}</ErrorBoundary>
           </ThemeScope>

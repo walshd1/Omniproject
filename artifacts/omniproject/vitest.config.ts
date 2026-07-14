@@ -45,17 +45,14 @@ export default defineConfig({
         "src/.generated/**",
       ],
       // Ratchet: floors set just below measured coverage to prevent regressions.
-      // Recalibrated for the vitest/@vitest/coverage-v8 3.2.6 -> 4.1.9 major bump: v8's
-      // new instrumentation counts statements/branches differently (measured
-      // statements/branches/lines all dropped a few points with NO source or test changes,
-      // while functions coverage rose — the signature of a counting-method shift, not a real
-      // regression). Current measured: ~81% statements, ~75% branches, ~74% functions, ~84% lines.
-      // Raise these as coverage grows.
+      // Measured (vitest/@vitest/coverage-v8 4.1.x): ~91% statements, ~83% branches,
+      // ~88% functions, ~93% lines. Floors sit a couple points under each to absorb
+      // run-to-run variance while still catching a real regression. Raise as coverage grows.
       thresholds: {
-        statements: 80,
-        branches: 74,
-        functions: 70,
-        lines: 83,
+        statements: 88,
+        branches: 80,
+        functions: 85,
+        lines: 91,
       },
     },
   },

@@ -71,6 +71,15 @@ describe("AppLayout", () => {
     expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument();
   });
 
+  it("labels the main content region for screen readers (route focus target announces the page)", () => {
+    renderWithProviders(<AppLayout><div>PAGE BODY</div></AppLayout>, { client: seed() });
+    // The focus target the router moves to on navigation carries the page name as its
+    // accessible name, so a screen reader announces the new view instead of silence.
+    const region = screen.getByRole("region", { name: /main content/i });
+    expect(region).toHaveAttribute("id", "main-content");
+    expect(region).toHaveAttribute("tabindex", "-1");
+  });
+
   it("shows the connected gateway-health indicator when health is ok", () => {
     renderWithProviders(
       <AppLayout>
