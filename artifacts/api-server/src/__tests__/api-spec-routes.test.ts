@@ -9,13 +9,13 @@ import assert from "node:assert/strict";
  * PUBLIC_URL is set).
  */
 process.env["PUBLIC_URL"] = "https://omni.example.com";
-let h: { close: () => void; req: (p: string) => Promise<Response> };
+let h: { close: () => void; req: (p: string, opts?: Record<string, unknown>) => Promise<Response> };
 
 before(async () => {
   const { startHarness, adminCookie } = await import("./_harness");
   const base = await startHarness();
   const ADMIN = adminCookie();
-  h = { close: base.close, req: (p: string) => base.req(p, { cookie: ADMIN }) };
+  h = { close: base.close, req: (p: string, opts?: Record<string, unknown>) => base.req(p, { cookie: ADMIN, ...(opts ?? {}) }) };
 });
 after(() => h?.close());
 
@@ -27,9 +27,20 @@ test("GET /openapi.yaml serves the OpenAPI document as YAML", async () => {
   assert.match(text, /openapi:/);
 });
 
-test("GET /docs: the API portal is OFF by default → 404", async () => {
+test("GET /docs: the API portal is OFF by default → 404, and the body leaks NO portal content", async () => {
   delete process.env["API_PORTAL_ENABLED"];
   const r = await h.req("/docs");
+  assert.equal(r.status, 404);
+  const body = await r.text();
+  // The disabled response must not carry the portal HTML or any route listing.
+  assert.equal(/<!doctype html>/i.test(body), false);
+  assert.equal(body.includes("OmniProject API"), false);
+  assert.equal(/\/api\/security\/keys|\/api\/broker\/command/.test(body), false);
+});
+
+test("HEAD /docs is likewise 404 when the portal is off", async () => {
+  delete process.env["API_PORTAL_ENABLED"];
+  const r = await h.req("/docs", { method: "HEAD" });
   assert.equal(r.status, 404);
 });
 
