@@ -16,6 +16,7 @@ import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
 import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
 import { wrapWithAutonomousGuard } from "./autonomous-guard";
 import { wrapWithScopeGuard } from "./scope-guard";
+import { wrapWithSanitizer } from "./sanitizer";
 import { wrapWithSingleFlight } from "./single-flight";
 import { messyDataArmed, wrapWithMessy } from "./messy-broker";
 import { getSettings } from "../lib/settings";
@@ -64,6 +65,12 @@ export function getBroker(): Broker {
     // vendor spoof must never wrap it either.
     const demoVendor = builtinActive ? null : demoVendorFor({ devActive: !!dev, realBackend: BROKER_ENV_CONFIGURED, source: getSettings().backendSource });
     if (demoVendor) base = applyVendorProfile(base, demoVendor);
+    // ALWAYS ON: repair malformed backend data to contract shape at the seam — junk numbers → safe
+    // defaults, missing required strings → "", canonical enums — so no derivation or screen above here
+    // ever sees a NaN/undefined/mis-typed field (fail-soft; repairs are tallied for a data-quality
+    // signal). Inner to the cache so the repair happens ONCE and clean data is what gets cached. The
+    // dev-only messy wrapper sits OUTSIDE this deliberately, to re-dirty the payload for resilience tests.
+    base = wrapWithSanitizer(base);
     // ALWAYS ON: coalesce concurrent identical reads into one upstream call (single-flight).
     // Introduces no staleness — coalesced callers all get the one live result — so it's safe to
     // keep on unconditionally, and it shields the backend's rate limits from a thundering herd.
