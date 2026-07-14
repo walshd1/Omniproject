@@ -166,4 +166,82 @@ describe("CustomBackendAdmin", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/turned off/);
   });
+
+  it("edits the key format sub-form and reflects the scheme + env in the preview", () => {
+    renderWithProviders(<CustomBackendAdmin />, { client: seed("admin") });
+    // Key-format fields are collapsed until the credential checkbox is ticked.
+    expect(screen.queryByLabelText("Key scheme")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("This backend needs a credential"));
+    fireEvent.change(screen.getByLabelText("Key scheme"), { target: { value: "bearer" } });
+    fireEvent.change(screen.getByLabelText("Key env vars (comma-separated)"), { target: { value: "MY_TOKEN, ALT_TOKEN" } });
+    fireEvent.change(screen.getByLabelText("Key header"), { target: { value: "Authorization" } });
+    fireEvent.change(screen.getByLabelText("Key pattern"), { target: { value: "^sk-" } });
+
+    const preview = screen.getByTestId("backend-json-preview");
+    expect(preview).toHaveTextContent('"scheme": "bearer"');
+    expect(preview).toHaveTextContent('"MY_TOKEN"');
+    expect(preview).toHaveTextContent('"ALT_TOKEN"');
+    expect(preview).toHaveTextContent('"header": "Authorization"');
+  });
+
+  it("edits the credential type, notes and required env, reflecting them in the preview", () => {
+    renderWithProviders(<CustomBackendAdmin />, { client: seed("admin") });
+    fireEvent.change(screen.getByLabelText("Credential type"), { target: { value: "httpHeaderAuth" } });
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "internal only" } });
+    fireEvent.change(screen.getByLabelText("Required env vars (comma-separated)"), { target: { value: "A_URL, A_TOKEN" } });
+
+    const preview = screen.getByTestId("backend-json-preview");
+    expect(preview).toHaveTextContent('"httpHeaderAuth"');
+    expect(preview).toHaveTextContent("internal only");
+    expect(preview).toHaveTextContent('"A_URL"');
+  });
+
+  it("edits an n8n node action's node type, version, parameters and per-action note", () => {
+    renderWithProviders(<CustomBackendAdmin />, { client: seed("admin") });
+    fireEvent.click(screen.getByLabelText("Map List issues"));
+    fireEvent.change(screen.getByLabelText("List issues transport"), { target: { value: "n8nNode" } });
+    fireEvent.change(screen.getByLabelText("List issues node type"), { target: { value: "n8n-nodes-base.asana" } });
+    fireEvent.change(screen.getByLabelText("List issues type version"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("List issues parameters"), { target: { value: '{"resource":"task"}' } });
+    fireEvent.change(screen.getByLabelText("List issues note"), { target: { value: "asana task list" } });
+    // http-only fields (URL/body/method) are hidden for the node transport.
+    expect(screen.queryByLabelText("List issues URL")).not.toBeInTheDocument();
+
+    const preview = screen.getByTestId("backend-json-preview");
+    expect(preview).toHaveTextContent('"n8n-nodes-base.asana"');
+    expect(preview).toHaveTextContent('"resource": "task"');
+  });
+
+  it("copies the JSON preview to the clipboard and flips the button label", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    renderWithProviders(<CustomBackendAdmin />, { client: seed("admin") });
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"actions"'));
+    expect(await screen.findByRole("button", { name: "Copied!" })).toBeInTheDocument();
+  });
+
+  it("edits the source kind, admin-only flag and a per-action credential type", () => {
+    renderWithProviders(<CustomBackendAdmin />, { client: seed("admin") });
+    fireEvent.change(screen.getByLabelText("Backend kind"), { target: { value: "database" } });
+    fireEvent.click(screen.getByLabelText("Admin only"));
+    fireEvent.click(screen.getByLabelText("Map List issues"));
+    fireEvent.change(screen.getByLabelText("List issues credential type"), { target: { value: "httpBearerAuth" } });
+
+    const preview = screen.getByTestId("backend-json-preview");
+    expect(preview).toHaveTextContent('"kind": "database"');
+    expect(preview).toHaveTextContent('"adminOnly": true');
+    expect(preview).toHaveTextContent('"httpBearerAuth"');
+  });
+
+  it("resets to a blank draft with 'Start blank' after cloning", () => {
+    renderWithProviders(<CustomBackendAdmin />, { client: seed("admin") });
+    fireEvent.change(screen.getByLabelText("Clone an existing backend"), { target: { value: "todoist" } });
+    fireEvent.click(screen.getByText("Clone"));
+    expect(screen.getByLabelText("Backend id")).toHaveValue("todoist");
+    fireEvent.click(screen.getByText("Start blank"));
+    expect(screen.getByLabelText("Backend id")).toHaveValue("");
+    // A blank draft is invalid again, so export is blocked.
+    expect(screen.getByTestId("backend-errors")).toBeInTheDocument();
+  });
 });

@@ -211,4 +211,40 @@ describe("ViewBuilder — existing custom views", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(mutate).not.toHaveBeenCalled();
   });
+
+  it("surfaces a destructive toast when a delete fails", async () => {
+    savedViewsData = [{ id: "cv1", name: "Doomed view", entity: "task", viewKind: "list", scope: "engine:task" }];
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    mutate.mockImplementation((_views: unknown, opts?: { onError?: (e: Error) => void }) => opts?.onError?.(new Error("server error")));
+    renderWithProviders(<><ViewBuilder /><Toaster /></>);
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByText("COULDN'T DELETE")).toBeInTheDocument();
+    expect(screen.getByText("server error")).toBeInTheDocument();
+  });
+});
+
+describe("ViewBuilder — chart variants and entity switching", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("saves a pie chart view over the issue entity", () => {
+    renderWithProviders(<ViewBuilder />);
+    fireEvent.change(screen.getByLabelText("Entity"), { target: { value: "issue" } });
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Issue share" } });
+    fireEvent.change(screen.getByLabelText("View kind"), { target: { value: "chart" } });
+    fireEvent.change(screen.getByLabelText("Chart type"), { target: { value: "pie" } });
+    fireEvent.change(screen.getByLabelText("Group by field"), { target: { value: "status" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save view" }));
+    const saved = (mutate.mock.calls[0]![0] as unknown[]).at(-1);
+    expect(saved).toMatchObject({ entity: "issue", viewKind: "chart", chart: { type: "pie", groupField: "status" } });
+  });
+
+  it("resets slicing fields when the entity is switched", () => {
+    renderWithProviders(<ViewBuilder />);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Switcher" } });
+    fireEvent.change(screen.getByLabelText("Sort by"), { target: { value: "priority" } });
+    expect(screen.getByLabelText("Sort by")).toHaveValue("priority");
+    // Switching entity clears the sort selection.
+    fireEvent.change(screen.getByLabelText("Entity"), { target: { value: "issue" } });
+    expect(screen.getByLabelText("Sort by")).toHaveValue("");
+  });
 });

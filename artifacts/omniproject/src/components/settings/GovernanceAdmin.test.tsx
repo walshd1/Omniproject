@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor, renderHook } from "@testing-library/react";
+import { useToast } from "@/hooks/use-toast";
 import { renderWithProviders } from "../../test/utils";
 import { GovernanceAdmin } from "./GovernanceAdmin";
 import type { ResolvedCapability } from "../../lib/tools";
@@ -73,5 +74,101 @@ describe("GovernanceAdmin", () => {
     expect(screen.getByText("finance")).toBeInTheDocument();
     // ...and new overrides are PICKED from the screen registry, not typed.
     expect(screen.getAllByLabelText("Add a screen override").length).toBeGreaterThan(0);
+  });
+
+  it("renders nothing when the governance data has no capabilities yet", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(["auth", "me"], { sub: "u1", role: "admin" });
+    qc.setQueryData(["governance"], {}); // resolved but empty
+    renderWithProviders(<GovernanceAdmin />, { client: qc });
+    expect(screen.queryByTestId("governance-admin")).not.toBeInTheDocument();
+  });
+
+  it("aborts the save (no PUT) when the step-up re-auth is declined", async () => {
+    // Deny the step-up: its POST comes back non-ok, so save() returns before any PUT.
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: !String(url).includes("/auth/step-up"),
+        status: String(url).includes("/auth/step-up") ? 401 : 200,
+        json: () => Promise.resolve({ capabilities: CAPS }),
+      }),
+    );
+    renderWithProviders(<GovernanceAdmin />, { client: seed("admin") });
+    fireEvent.change(screen.getByLabelText("AI provider — openai"), { target: { value: "public" } });
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/auth/step-up"))).toBe(true));
+    // The gated PUT never fires.
+    expect(fetchMock.mock.calls.some((c) => (c[1] as { method?: string })?.method === "PUT")).toBe(false);
+  });
+
+  it("surfaces a destructive toast when saving a capability fails", async () => {
+    fetchMock.mockImplementation((url: string) => {
+      const u = String(url);
+      const isPut = u.includes("/api/governance/") && !u.includes("/test");
+      return Promise.resolve({
+        ok: u.includes("/auth/step-up") ? true : !isPut,
+        status: isPut ? 500 : 200,
+        json: () => Promise.resolve({ capabilities: CAPS }),
+      });
+    });
+    const { result } = renderHook(() => useToast());
+    renderWithProviders(<GovernanceAdmin />, { client: seed("admin") });
+    fireEvent.change(screen.getByLabelText("AI provider — openai"), { target: { value: "public" } });
+    await waitFor(() => expect(result.current.toasts.some((t) => t.title === "Couldn't save that" && t.variant === "destructive")).toBe(true));
+  });
+
+  it("reports an unreachable user-defined endpoint in red", async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(String(url).includes("/test") ? { reachable: false, error: "ECONNREFUSED" } : { capabilities: CAPS, surfaces: [] }),
+      }),
+    );
+    renderWithProviders(<GovernanceAdmin />, { client: seed("admin") });
+    fireEvent.click(screen.getByRole("button", { name: "Test" }));
+    const result = await screen.findByTestId("endpoint-result-provider:ollama");
+    expect(result).toHaveTextContent(/Unreachable: ECONNREFUSED/);
+  });
+
+  it("saves a changed endpoint on blur", async () => {
+    renderWithProviders(<GovernanceAdmin />, { client: seed("admin") });
+    const input = screen.getByLabelText("Your endpoint") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "http://localhost:9999" } });
+    fireEvent.blur(input);
+    const put = () => fetchMock.mock.calls.find((c) => (c[1] as { method?: string })?.method === "PUT" && decodeURIComponent(String(c[0])).includes("provider:ollama"));
+    await waitFor(() => expect(put()).toBeTruthy());
+    expect(JSON.parse((put()![1] as { body: string }).body).endpoint).toBe("http://localhost:9999");
+  });
+
+  it("does not save the endpoint on blur when it is unchanged", async () => {
+    renderWithProviders(<GovernanceAdmin />, { client: seed("admin") });
+    const input = screen.getByLabelText("Your endpoint") as HTMLInputElement;
+    fireEvent.blur(input); // value still equals cap.endpoint
+    // Give any (unwanted) async save a tick to fire.
+    await Promise.resolve();
+    expect(fetchMock.mock.calls.some((c) => (c[1] as { method?: string })?.method === "PUT")).toBe(false);
+  });
+
+  it("removes a per-surface override, PUTing the surface map without it", async () => {
+    renderWithProviders(<GovernanceAdmin />, { client: seed("admin") });
+    // The tts capability has a 'finance' override; remove it.
+    fireEvent.click(screen.getByRole("button", { name: "remove" }));
+    const put = () => fetchMock.mock.calls.find((c) => (c[1] as { method?: string })?.method === "PUT" && String(c[0]).includes("tts"));
+    await waitFor(() => expect(put()).toBeTruthy());
+    expect(JSON.parse((put()![1] as { body: string }).body).surfaces).toEqual({});
+  });
+
+  it("adds a per-surface override from the screen picker via the form", async () => {
+    renderWithProviders(<GovernanceAdmin />, { client: seed("admin") });
+    // tts is the first surface-aware capability (openai isn't; ollama also is, hence scope to the first).
+    const picker = screen.getAllByLabelText("Add a screen override")[0]!;
+    fireEvent.change(picker, { target: { value: "projects" } });
+    // Submit the add form the picker belongs to.
+    const form = picker.closest("form")!;
+    fireEvent.submit(form);
+    const put = () => fetchMock.mock.calls.find((c) => (c[1] as { method?: string })?.method === "PUT" && String(c[0]).includes("tts"));
+    await waitFor(() => expect(put()).toBeTruthy());
+    const body = JSON.parse((put()![1] as { body: string }).body);
+    expect(body.surfaces).toHaveProperty("projects");
+    expect(body.surfaces.finance).toBe("off"); // existing override preserved
   });
 });

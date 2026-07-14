@@ -77,6 +77,17 @@ describe("GuidAliasesAdmin", () => {
     expect(screen.getByLabelText("Alias 1 old")).toHaveValue("a");
   });
 
+  it("toasts success after saving relinks", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+    const { result } = renderHook(() => useToast());
+    renderWithProviders(<GuidAliasesAdmin />, { client: seed("admin", {}) });
+    fireEvent.click(screen.getByTestId("guid-alias-add"));
+    fireEvent.change(screen.getByLabelText("Alias 1 old"), { target: { value: "old" } });
+    fireEvent.change(screen.getByLabelText("Alias 1 new"), { target: { value: "new" } });
+    fireEvent.click(screen.getByTestId("guid-alias-save"));
+    await waitFor(() => expect(result.current.toasts.some((t) => t.title === "RELINKS SAVED")).toBe(true));
+  });
+
   it("shows a destructive toast when saving relinks fails", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("bad", { status: 500 }));
     const { result } = renderHook(() => useToast());

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
+import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { getListNotificationsQueryKey, type Notification } from "@workspace/api-client-react";
 import { renderWithProviders } from "../test/utils";
@@ -21,6 +22,13 @@ class EventSourceStub {
   }
   close() {
     this.closed = true;
+  }
+  // Test helpers: synchronously drive the events the component subscribes to.
+  emit(type: string, data?: unknown) {
+    act(() => { for (const cb of this.listeners[type] ?? []) cb({ data: typeof data === "string" ? data : JSON.stringify(data) }); });
+  }
+  fail() {
+    act(() => { this.onerror?.(new Event("error")); });
   }
 }
 
@@ -88,5 +96,76 @@ describe("NotificationsBell", () => {
     renderWithProviders(<NotificationsBell />, { client: seed(items) });
     expect(EventSourceStub.instances.length).toBeGreaterThan(0);
     expect(EventSourceStub.instances[0]!.url).toContain("/api/notifications/stream"); // length asserted > 0 above
+  });
+
+  it("marks the channel LIVE once the stream signals ready", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NotificationsBell />, { client: seed([]) });
+    EventSourceStub.instances[0]!.emit("ready");
+    // The bell title advertises the live channel.
+    expect(screen.getByRole("button", { name: /Notifications/ })).toHaveAttribute("title", "Notifications — live");
+    await user.click(screen.getByRole("button", { name: /Notifications/ }));
+    expect(screen.getByText("LIVE")).toBeInTheDocument();
+  });
+
+  it("appends a pushed SSE notification and announces it to assistive tech", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<NotificationsBell />, { client: seed([]) });
+    const es = EventSourceStub.instances[0]!;
+    es.emit("ready");
+    es.emit("notification", { id: "live-1", kind: "mention", title: "Live ping", read: false, timestamp: new Date().toISOString() });
+
+    // Announced in the aria-live region...
+    expect(container.querySelector('[aria-live="polite"]')).toHaveTextContent("New notification: Live ping");
+    // ...and unread count reflects it.
+    expect(screen.getByRole("button", { name: /1 unread/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /1 unread/ }));
+    expect(screen.getByText("Live ping")).toBeInTheDocument();
+  });
+
+  it("de-dupes a pushed notification that repeats the same id", () => {
+    renderWithProviders(<NotificationsBell />, { client: seed([]) });
+    const es = EventSourceStub.instances[0]!;
+    const n = { id: "dup", kind: "mention", title: "Once", read: false, timestamp: new Date().toISOString() };
+    es.emit("notification", n);
+    es.emit("notification", n); // same id — ignored
+    expect(screen.getByRole("button", { name: /1 unread/ })).toBeInTheDocument();
+  });
+
+  it("ignores a malformed SSE payload without crashing", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NotificationsBell />, { client: seed([]) });
+    EventSourceStub.instances[0]!.emit("notification", "{ not json");
+    await user.click(screen.getByRole("button", { name: /Notifications/ }));
+    expect(screen.getByText("Nothing new.")).toBeInTheDocument();
+  });
+
+  it("stops reconnecting after five consecutive stream errors", () => {
+    renderWithProviders(<NotificationsBell />, { client: seed([]) });
+    const es = EventSourceStub.instances[0]!;
+    for (let i = 0; i < 4; i++) es.fail();
+    expect(es.closed).toBe(false); // still retrying
+    es.fail(); // fifth failure trips the breaker
+    expect(es.closed).toBe(true);
+  });
+
+  it("renders an hours-ago timestamp for a notification a few hours old", async () => {
+    const user = userEvent.setup();
+    const hoursAgo: Notification = { id: "h", kind: "due_soon", title: "Due soon", read: false, timestamp: new Date(Date.now() - 3 * 3600_000).toISOString() };
+    renderWithProviders(<NotificationsBell />, { client: seed([hoursAgo]) });
+    await user.click(screen.getByRole("button", { name: /Notifications/ }));
+    expect(screen.getByText("3h")).toBeInTheDocument();
+  });
+
+  it("re-opens a fresh EventSource when the live channel is toggled off then back on", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NotificationsBell />, { client: seed(items) });
+    const opened = EventSourceStub.instances.length;
+    await user.click(screen.getByRole("button", { name: /Notifications/ }));
+    await user.click(screen.getByText(/CONNECTING|LIVE/)); // off
+    expect(screen.getByText("LIVE OFF")).toBeInTheDocument();
+    await user.click(screen.getByText("LIVE OFF")); // back on
+    expect(window.localStorage.getItem("omni.notify.live")).toBe("on");
+    expect(EventSourceStub.instances.length).toBeGreaterThan(opened);
   });
 });

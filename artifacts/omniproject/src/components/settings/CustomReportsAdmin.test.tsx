@@ -190,4 +190,117 @@ describe("CustomReportsAdmin", () => {
     fireEvent.change(screen.getByLabelText("Import report definition"), { target: { files: [file] } });
     expect(await screen.findByRole("alert")).toHaveTextContent(/label/);
   });
+
+  it("shows the empty-state prompt when there are no bespoke reports", () => {
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+    expect(screen.getByTestId("custom-reports-empty")).toBeInTheDocument();
+  });
+
+  it("edits a metric's aggregate and field, and enables the field only for non-count aggs", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ customReports: [] }) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+    fireEvent.click(screen.getByText("+ report"));
+
+    // A fresh report's single metric defaults to count → its field picker is disabled.
+    expect(screen.getByLabelText("Report 1 metric 1 field")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Report 1 metric 1 agg"), { target: { value: "sum" } });
+    expect(screen.getByLabelText("Report 1 metric 1 field")).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("Report 1 metric 1 field"), { target: { value: "budget" } });
+    fireEvent.change(screen.getByLabelText("Report 1 metric 1 label"), { target: { value: "Total spend" } });
+    fireEvent.click(screen.getByText("Save reports"));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.customReports[0].metrics[0]).toMatchObject({ agg: "sum", field: "budget", label: "Total spend" });
+  });
+
+  it("adds and removes metrics, keeping at least one", () => {
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+    fireEvent.click(screen.getByText("+ report"));
+    fireEvent.click(screen.getByText("+ metric"));
+    expect(screen.getByTestId("custom-report-0-metric-1")).toBeInTheDocument();
+    // Remove the second one — back to a single metric.
+    fireEvent.click(screen.getByLabelText("Remove metric 2 from report 1"));
+    expect(screen.queryByTestId("custom-report-0-metric-1")).not.toBeInTheDocument();
+    // Removing the last remaining metric is a no-op (a report needs one).
+    fireEvent.click(screen.getByLabelText("Remove metric 1 from report 1"));
+    expect(screen.getByTestId("custom-report-0-metric-0")).toBeInTheDocument();
+  });
+
+  it("removes a report, returning to the empty state", () => {
+    renderWithProviders(<CustomReportsAdmin />, {
+      client: seed("pmo", [{ id: "r1", label: "One", scope: "project", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "table" }]),
+    });
+    expect(screen.getByTestId("custom-report-edit-0")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Remove"));
+    expect(screen.queryByTestId("custom-report-edit-0")).not.toBeInTheDocument();
+    expect(screen.getByTestId("custom-reports-empty")).toBeInTheDocument();
+  });
+
+  it("resets unsaved edits back to the server definition", () => {
+    renderWithProviders(<CustomReportsAdmin />, {
+      client: seed("pmo", [{ id: "r1", label: "Original", scope: "project", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "table" }]),
+    });
+    fireEvent.change(screen.getByLabelText("Report 1 label"), { target: { value: "Edited" } });
+    expect(screen.getByLabelText("Report 1 label")).toHaveValue("Edited");
+    fireEvent.click(screen.getByText("Reset"));
+    expect(screen.getByLabelText("Report 1 label")).toHaveValue("Original");
+  });
+
+  it("exports every bespoke report at once", () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:x", revokeObjectURL: () => {} });
+    renderWithProviders(<CustomReportsAdmin />, {
+      client: seed("pmo", [{ id: "r1", label: "One", scope: "project", metrics: [{ id: "m1", field: "budget", agg: "sum" }], viz: "table" }]),
+    });
+    fireEvent.click(screen.getByText("Export all"));
+    expect(click).toHaveBeenCalled();
+  });
+
+  it("surfaces the save error message when saving reports fails", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: "boom" }), text: async () => "boom" } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+    fireEvent.click(screen.getByText("+ report"));
+    fireEvent.click(screen.getByText("Save reports"));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+
+  it("adds a filter predicate to a report and saves it under the filter.all set", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ customReports: [] }) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+    fireEvent.click(screen.getByText("+ report"));
+    // The report's PredicateEditor exposes a "+ condition" control; adding one fires its onChange.
+    fireEvent.click(screen.getByRole("button", { name: /\+ condition/i }));
+    fireEvent.click(screen.getByText("Save reports"));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/custom")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/custom")!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.customReports[0].filter.all.length).toBeGreaterThan(0);
+  });
+
+  it("hides and reorders a built-in report, saving both as overrides", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ reportOverrides: [] }) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+
+    const row = screen.getByTestId("builtin-report-evm");
+    fireEvent.click(within(row).getByLabelText("Hide evm"));
+    fireEvent.change(within(row).getByLabelText("evm order"), { target: { value: "42" } });
+    fireEvent.click(screen.getByText("Save overrides"));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/reports/overrides")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/reports/overrides")!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.reportOverrides).toContainEqual(expect.objectContaining({ id: "evm", hidden: true, order: 42 }));
+  });
+
+  it("keeps the Save overrides button disabled until a built-in is edited", () => {
+    renderWithProviders(<CustomReportsAdmin />, { client: seed("pmo", []) });
+    expect(screen.getByText("Save overrides")).toBeDisabled();
+  });
 });
