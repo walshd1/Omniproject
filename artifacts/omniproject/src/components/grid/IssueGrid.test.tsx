@@ -160,6 +160,21 @@ describe("IssueGrid component", () => {
     expect(screen.getByTestId("saved-views-bar")).toBeInTheDocument();
   });
 
+  it("applies a saved view's columns (narrow + reorder) and sort", () => {
+    const client = seed([issue()], { savedViews: true });
+    client.setQueryData(savedViewsQueryKey, [
+      { id: "v1", name: "Status first", scope: "grid", columns: ["status", "title"], sort: { field: "title", dir: "desc" } },
+    ]);
+    renderWithProviders(<IssueGrid projectId="p1" />, { client });
+    fireEvent.change(screen.getByLabelText("Saved view"), { target: { value: "v1" } });
+    // Columns narrowed to [status, title]; Priority/Assignee headers are gone.
+    expect(screen.queryByRole("button", { name: /^Priority/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Assignee/ })).toBeNull();
+    // The view's sort is applied to the Title column header.
+    const titleHeader = screen.getByRole("button", { name: /^Title/ }).closest("th")!;
+    expect(titleHeader).toHaveAttribute("aria-sort", "descending");
+  });
+
   it("shows a per-row 'open details' button when the sidePanel module is on", () => {
     renderWithProviders(<IssueGrid projectId="p1" />, { client: seed([issue()], { sidePanel: true }) });
     const open = screen.getByRole("button", { name: "Open details for Alpha task" });

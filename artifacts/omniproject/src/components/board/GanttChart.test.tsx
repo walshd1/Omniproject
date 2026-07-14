@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
@@ -140,6 +140,17 @@ describe("GanttChart", () => {
     expect(bar.className).not.toMatch(/cursor-grab/);
   });
 
+  it("opens the issue dialog when a read-only bar is clicked (no reschedule capability)", async () => {
+    const qc = seeded([issue({ id: "a", title: "Design API", startDate: isoDaysFromNow(1), dueDate: isoDaysFromNow(5) })]);
+    qc.setQueryData(getGetCapabilitiesQueryKey(), {
+      mode: "n8n",
+      fields: { startDate: { surface: true, store: false }, dueDate: { surface: true, store: false } },
+    } as unknown as Capabilities);
+    renderWithProviders(<GanttChart projectId={PROJECT_ID} />, { client: qc });
+    fireEvent.click(screen.getByTestId("gantt-bar-a"));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
   it("opens the issue dialog when a lane label is clicked", async () => {
     const user = userEvent.setup();
     renderWithProviders(<GanttChart projectId={PROJECT_ID} />, {
@@ -215,6 +226,25 @@ describe("GanttChart", () => {
       client: seeded([issue({ id: "a", title: "Future work", startDate: isoDaysFromNow(5), dueDate: isoDaysFromNow(9) })]),
     });
     expect(screen.queryByTitle("Today")).toBeNull();
+  });
+
+  describe("query states", () => {
+    afterEach(() => resetFetchMock());
+
+    it("shows the error state with a Retry when the issues query fails", async () => {
+      mockFetchRouter({ [`/api/projects/${PROJECT_ID}/issues`]: { ok: false, status: 500, body: { error: "boom" } } });
+      // No seeded cache → the query runs and fails (retry disabled by the default test client).
+      renderWithProviders(<GanttChart projectId={PROJECT_ID} />);
+      expect(await screen.findByRole("alert")).toHaveTextContent("Could not load");
+      expect(screen.getByRole("button", { name: /Retry/i })).toBeInTheDocument();
+    });
+
+    it("shows the loading placeholder while the issues query is pending", () => {
+      // A never-resolving fetch keeps the query in its loading state.
+      globalThis.fetch = vi.fn(() => new Promise(() => {})) as unknown as typeof fetch;
+      renderWithProviders(<GanttChart projectId={PROJECT_ID} />);
+      expect(screen.getByText("LOADING…")).toBeInTheDocument();
+    });
   });
 
   describe("reschedule commit", () => {
