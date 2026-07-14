@@ -65,6 +65,11 @@ export const actorKey = (a: unknown): string => {
   return ctx?.sub ?? ctx?.email ?? "anon";
 };
 
+/** The per-actor read key BOTH the cache and single-flight coalesce on: identity + method + args.
+ *  Extracted so a cache miss doesn't JSON.stringify the same args twice (once per stacked layer). */
+export const readKey = (method: string, args: unknown[]): string =>
+  `${actorKey(args[0])}:${method}:${JSON.stringify(args.slice(1))}`;
+
 /** Wrap a broker so its reads are cached for the configured TTL (writes clear it). The TTL is fixed
  *  (`READ_CACHE_TTL_MS`) unless adaptive mode is on, in which case it's tuned per method from measured
  *  latency (lib/broker/adaptive-ttl) and stamped on each entry at fetch time. */
@@ -74,23 +79,30 @@ export function wrapWithCache(base: Broker, opts: { now?: () => number } = {}): 
   const store = new Map<string, Entry>();
   const clear = () => store.clear();
   activeClear = clear;
+  // Memoize the per-method wrapper so a fresh closure isn't allocated on EVERY property access (this
+  // is an always-in-the-stack broker layer). The guard logic still runs per CALL, inside the wrapper —
+  // caching the accessor changes nothing a caller observes, it just stops the churn.
+  const wrappers = new Map<PropertyKey, unknown>();
 
   return new Proxy(base, {
     get(target, prop, receiver) {
+      const memo = wrappers.get(prop);
+      if (memo !== undefined) return memo;
       const orig = Reflect.get(target, prop, receiver);
-      if (typeof orig !== "function") return orig;
+      if (typeof orig !== "function") return orig; // non-function props pass through, never memoized
       const method = String(prop);
 
+      let wrapper: unknown;
       if (WRITE_METHODS.has(method)) {
-        return function (this: unknown, ...args: unknown[]) {
+        wrapper = function (this: unknown, ...args: unknown[]) {
           clear(); // write-through: drop stale reads immediately
           return (orig as (...a: unknown[]) => unknown).apply(target, args);
         };
-      }
-      if (!READ_METHODS.has(method)) return (orig as (...a: unknown[]) => unknown).bind(target);
-
-      return function (this: unknown, ...args: unknown[]) {
-        const key = `${actorKey(args[0])}:${method}:${JSON.stringify(args.slice(1))}`;
+      } else if (!READ_METHODS.has(method)) {
+        wrapper = (orig as (...a: unknown[]) => unknown).bind(target);
+      } else {
+        wrapper = function (this: unknown, ...args: unknown[]) {
+        const key = readKey(method, args);
         const hit = store.get(key);
         // Each entry carries the TTL chosen when it was fetched, so an adaptive TTL change later
         // doesn't retroactively extend an old entry's freshness window.
@@ -112,7 +124,10 @@ export function wrapWithCache(base: Broker, opts: { now?: () => number } = {}): 
           })
           .catch(() => { /* don't cache failures */ });
         return result;
-      };
+        };
+      }
+      wrappers.set(prop, wrapper);
+      return wrapper;
     },
   }) as Broker;
 }

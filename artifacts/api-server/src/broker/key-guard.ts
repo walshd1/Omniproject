@@ -21,14 +21,21 @@ export function assertKeyedAccess(): void {
 
 /** Wrap a (live) broker so every call is hard-rejected unless a valid key is present. */
 export function wrapWithKeyGuard<T extends Broker>(broker: T): T {
+  // Memoize the per-method wrapper (this guard sits in front of every live broker call). The key
+  // check still runs per CALL, inside the wrapper — caching the accessor never skips a guard.
+  const wrappers = new Map<PropertyKey, unknown>();
   return new Proxy(broker, {
     get(target, prop, receiver) {
+      const memo = wrappers.get(prop);
+      if (memo !== undefined) return memo;
       const value = Reflect.get(target, prop, receiver);
-      if (typeof value !== "function") return value;
-      return (...args: unknown[]) => {
+      if (typeof value !== "function") return value; // non-function props pass through, never memoized
+      const wrapper = (...args: unknown[]) => {
         assertKeyedAccess();
         return (value as (...a: unknown[]) => unknown).apply(target, args);
       };
+      wrappers.set(prop, wrapper);
+      return wrapper;
     },
   });
 }

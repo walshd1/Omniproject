@@ -36,12 +36,18 @@ function sessionBindOf(args: unknown[]): SessionBind | null {
 
 /** Wrap a broker so every call records a chained invoke/result fingerprint (additive). */
 export function wrapWithProvenance<T extends Broker>(broker: T): T {
+  // Memoize the per-method wrapper so this always-on layer doesn't allocate a fresh closure on every
+  // property access. Fingerprinting still runs per CALL, inside the wrapper — the memo only caches the
+  // accessor, so every logical call is still recorded.
+  const wrappers = new Map<PropertyKey, unknown>();
   return new Proxy(broker, {
     get(target, prop, receiver) {
+      const memo = wrappers.get(prop);
+      if (memo !== undefined) return memo;
       const value = Reflect.get(target, prop, receiver);
-      if (typeof value !== "function") return value;
+      if (typeof value !== "function") return value; // non-function props pass through, never memoized
       const action = String(prop);
-      return (...args: unknown[]) => {
+      const wrapper = (...args: unknown[]) => {
         const callId = randomUUID();
         const actor = actorOf(args);
         const sessionBind = sessionBindOf(args);
@@ -62,6 +68,8 @@ export function wrapWithProvenance<T extends Broker>(broker: T): T {
           throw err;
         }
       };
+      wrappers.set(prop, wrapper);
+      return wrapper;
     },
   });
 }

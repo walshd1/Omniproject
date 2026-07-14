@@ -1,5 +1,5 @@
 import type { Broker } from "./types";
-import { READ_METHODS, actorKey } from "./cache";
+import { READ_METHODS, readKey } from "./cache";
 
 /**
  * Single-flight (request coalescing) for broker READS — ALWAYS ON.
@@ -35,25 +35,32 @@ export function resetSingleFlightStats(): void {
 /** Wrap a broker so concurrent identical reads share a single in-flight upstream call. */
 export function wrapWithSingleFlight(base: Broker): Broker {
   const inflight = new Map<string, Promise<unknown>>();
+  // Memoize the per-method wrapper — this layer is always in the broker stack, so a fresh closure per
+  // property access is pure churn. The coalescing decision still runs per CALL, inside the wrapper.
+  const wrappers = new Map<PropertyKey, unknown>();
 
   return new Proxy(base, {
     get(target, prop, receiver) {
+      const memo = wrappers.get(prop);
+      if (memo !== undefined) return memo;
       const orig = Reflect.get(target, prop, receiver);
-      if (typeof orig !== "function") return orig;
+      if (typeof orig !== "function") return orig; // non-function props pass through, never memoized
       const method = String(prop);
-      if (!READ_METHODS.has(method)) return (orig as (...a: unknown[]) => unknown).bind(target);
+      const wrapper = !READ_METHODS.has(method)
+        ? (orig as (...a: unknown[]) => unknown).bind(target)
+        : function (this: unknown, ...args: unknown[]) {
+            const key = readKey(method, args);
+            const existing = inflight.get(key);
+            if (existing) { stats.coalesced++; return existing; }
 
-      return function (this: unknown, ...args: unknown[]) {
-        const key = `${actorKey(args[0])}:${method}:${JSON.stringify(args.slice(1))}`;
-        const existing = inflight.get(key);
-        if (existing) { stats.coalesced++; return existing; }
-
-        stats.calls++;
-        const flight = Promise.resolve((orig as (...a: unknown[]) => Promise<unknown>).apply(target, args))
-          .finally(() => { inflight.delete(key); });
-        inflight.set(key, flight);
-        return flight;
-      };
+            stats.calls++;
+            const flight = Promise.resolve((orig as (...a: unknown[]) => Promise<unknown>).apply(target, args))
+              .finally(() => { inflight.delete(key); });
+            inflight.set(key, flight);
+            return flight;
+          };
+      wrappers.set(prop, wrapper);
+      return wrapper;
     },
   }) as Broker;
 }

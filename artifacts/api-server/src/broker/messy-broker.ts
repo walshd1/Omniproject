@@ -41,21 +41,28 @@ export function messyDataArmed(): boolean {
 
 /** Wrap a broker so its entity reads are messified (dev only). */
 export function wrapWithMessy(base: Broker): Broker {
+  // Memoize the per-method wrapper so this dev layer doesn't allocate a fresh closure per access. The
+  // messify decision + config read still happen per CALL, inside the wrapper.
+  const wrappers = new Map<PropertyKey, unknown>();
   return new Proxy(base, {
     get(target, prop, receiver) {
+      const memo = wrappers.get(prop);
+      if (memo !== undefined) return memo;
       const orig = Reflect.get(target, prop, receiver);
-      if (typeof orig !== "function") return orig;
+      if (typeof orig !== "function") return orig; // non-function props pass through, never memoized
       const method = String(prop);
       const mode = MESSY_METHODS.get(method);
-      if (!mode) return (orig as (...a: unknown[]) => unknown).bind(target);
-
-      return async function (this: unknown, ...args: unknown[]) {
-        const result = await (orig as (...a: unknown[]) => Promise<unknown>).apply(target, args);
-        const config = getMessyConfig();
-        if (mode === "rows" && Array.isArray(result)) return messifyRows(result as Row[], config, method);
-        if (mode === "row" && result && typeof result === "object") return messifyRow(result as Row, config, method);
-        return result;
-      };
+      const wrapper = !mode
+        ? (orig as (...a: unknown[]) => unknown).bind(target)
+        : async function (this: unknown, ...args: unknown[]) {
+            const result = await (orig as (...a: unknown[]) => Promise<unknown>).apply(target, args);
+            const config = getMessyConfig();
+            if (mode === "rows" && Array.isArray(result)) return messifyRows(result as Row[], config, method);
+            if (mode === "row" && result && typeof result === "object") return messifyRow(result as Row, config, method);
+            return result;
+          };
+      wrappers.set(prop, wrapper);
+      return wrapper;
     },
   }) as Broker;
 }
