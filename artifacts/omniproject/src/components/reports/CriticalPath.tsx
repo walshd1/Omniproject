@@ -1,4 +1,5 @@
 import { ReportEmpty } from "./ReportEmpty";
+import { ReportTable } from "./ReportTable";
 import { useMemo } from "react";
 import { useGetProjectIssues, getGetProjectIssuesQueryKey, type Issue } from "@workspace/api-client-react";
 import { criticalPath, type CpmEdge, type CpmNode } from "../../lib/critical-path";
@@ -104,33 +105,24 @@ export function CriticalPath({ projectId, edges }: { projectId: string; edges?: 
             <PathChain nodes={result.criticalPath.map((id) => titleOf[id] ?? id)} testId="cpm-chain" />
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3 font-bold">Activity</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Dur</th>
-                  <th className="py-1.5 px-2 font-bold text-right">ES</th>
-                  <th className="py-1.5 px-2 font-bold text-right">EF</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Float</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((n) => (
-                  <tr key={n.id} className={`border-b border-border/50 ${n.critical ? "bg-red-500/5" : ""}`} data-testid={`cpm-row-${n.id}`}>
-                    <td className="py-1.5 pr-3 font-mono truncate max-w-[16rem]">
-                      {n.critical && <span className="text-red-600 mr-1" title="On the critical path">●</span>}
-                      {titleOf[n.id] ?? n.id}
-                    </td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">{n.duration}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">{n.es}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">{n.ef}</td>
-                    <td className={`py-1.5 px-2 text-right tabular-nums ${n.critical ? "text-red-600 font-bold" : "text-muted-foreground"}`}>{n.float}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReportTable
+            rows={rows}
+            rowKey={(n) => n.id}
+            rowTestId={(n) => `cpm-row-${n.id}`}
+            rowClassName={(n) => (n.critical ? "bg-red-500/5" : "")}
+            columns={[
+              { header: "Activity", cellClassName: "font-mono truncate max-w-[16rem]", cell: (n) => (
+                <>
+                  {n.critical && <span className="text-red-600 mr-1" title="On the critical path">●</span>}
+                  {titleOf[n.id] ?? n.id}
+                </>
+              ) },
+              { header: "Dur", align: "right", cell: (n) => n.duration },
+              { header: "ES", align: "right", cell: (n) => n.es },
+              { header: "EF", align: "right", cell: (n) => n.ef },
+              { header: "Float", align: "right", cellClassName: (n) => (n.critical ? "text-red-600 font-bold" : "text-muted-foreground"), cell: (n) => n.float },
+            ]}
+          />
 
           <p className="text-[11px] text-muted-foreground">
             Durations are derived (start→due span, else estimate ÷ {HOURS_PER_DAY}h/day); precedence comes from your

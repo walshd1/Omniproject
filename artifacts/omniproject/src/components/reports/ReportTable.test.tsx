@@ -42,6 +42,26 @@ describe("ReportTable", () => {
     expect(screen.getByTestId("r-a").className).toContain("align-top");
   });
 
+  it("applies a per-row conditional rowClassName (function form)", () => {
+    render(
+      <ReportTable
+        columns={COLUMNS}
+        rows={ROWS}
+        rowKey={(r) => r.id}
+        rowTestId={(r) => `row-${r.id}`}
+        rowClassName={(r) => (r.over ? "opacity-50" : "")}
+      />,
+    );
+    expect(screen.getByTestId("row-b").className).toContain("opacity-50"); // over row dimmed
+    expect(screen.getByTestId("row-a").className).not.toContain("opacity-50");
+  });
+
+  it("applies a constant rowClassName string to every row", () => {
+    render(<ReportTable columns={COLUMNS} rows={ROWS} rowKey={(r) => r.id} rowTestId={(r) => `row-${r.id}`} rowClassName="bg-muted" />);
+    expect(screen.getByTestId("row-a").className).toContain("bg-muted");
+    expect(screen.getByTestId("row-b").className).toContain("bg-muted");
+  });
+
   it("renders an empty tbody (no rows) without throwing", () => {
     render(<ReportTable columns={COLUMNS} rows={[]} rowKey={(r) => r.id} />);
     expect(screen.getByText("Name")).toBeInTheDocument();

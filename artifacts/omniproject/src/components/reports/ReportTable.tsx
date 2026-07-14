@@ -42,8 +42,9 @@ export function ReportTable<T>({
   /** "compact" (text-xs, tight padding) — the money/detail tables; "comfortable" (text-sm, roomier,
    *  top-aligned) — the people/health tables with multi-line cells. */
   size?: "compact" | "comfortable";
-  /** Extra classes applied to every body `<tr>` (e.g. when a report needs a shared row modifier). */
-  rowClassName?: string;
+  /** Extra classes for every body `<tr>` — a string, or a function of the row for a per-row modifier
+   *  (e.g. dim cut rows `opacity-50`, tint critical rows `bg-red-500/5`). */
+  rowClassName?: string | ((row: T) => string);
 }) {
   const compact = size === "compact";
   const cellPad = compact ? "py-1.5" : "py-2";
@@ -63,7 +64,7 @@ export function ReportTable<T>({
           {rows.map((row) => (
             <tr
               key={rowKey(row)}
-              className={cn("border-b border-border/50", !compact && "align-top", rowClassName)}
+              className={cn("border-b border-border/50", !compact && "align-top", typeof rowClassName === "function" ? rowClassName(row) : rowClassName)}
               {...(rowTestId ? { "data-testid": rowTestId(row) } : {})}
             >
               {columns.map((c, i) => {
