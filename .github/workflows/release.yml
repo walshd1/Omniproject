@@ -1,0 +1,76 @@
+# Signed release with build provenance + SBOM.
+#
+# On a version tag (v*), build the omni-shell image, generate a CycloneDX SBOM, and produce a
+# cryptographically verifiable SLSA build-provenance attestation (keyless, via Sigstore/GitHub OIDC —
+# no long-lived signing key to manage) for BOTH the image digest and the SBOM. A consumer of a given
+# tag can then verify with `gh attestation verify` that the artifact was built from this repo at this
+# commit by this workflow — closing the "is this really the build for that tag?" supply-chain gap.
+#
+# The project is source-distributed (users build their own image), so this does not push to a registry
+# by default; it attaches the SBOM to the GitHub Release and records provenance. Uncomment the GHCR push
+# block to publish and attest a hosted image instead.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # create the GitHub Release
+  id-token: write # keyless Sigstore signing (OIDC)
+  attestations: write # record build-provenance attestations
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Build the omni-shell image
+        run: docker build -t omni-shell:${{ github.ref_name }} .
+
+      - name: Capture image digest
+        id: img
+        run: echo "digest=$(docker image inspect omni-shell:${{ github.ref_name }} --format '{{index .Id}}')" >> "$GITHUB_OUTPUT"
+
+      - name: Generate CycloneDX SBOM (Syft)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          image: omni-shell:${{ github.ref_name }}
+          format: cyclonedx-json
+          output-file: sbom.cyclonedx.json
+
+      - name: Attest build provenance for the image
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: omni-shell
+          subject-digest: ${{ steps.img.outputs.digest }}
+
+      - name: Attest the SBOM
+        uses: actions/attest-sbom@v1
+        with:
+          subject-name: omni-shell
+          subject-digest: ${{ steps.img.outputs.digest }}
+          sbom-path: sbom.cyclonedx.json
+
+      - name: Publish the GitHub Release with the signed SBOM
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sbom.cyclonedx.json
+          generate_release_notes: true
+
+      # --- Optional: publish + attest a hosted image on GHCR ------------------------------------------
+      # - name: Log in to GHCR
+      #   uses: docker/login-action@v3
+      #   with: { registry: ghcr.io, username: ${{ github.actor }}, password: ${{ secrets.GITHUB_TOKEN }} }
+      # - name: Tag & push
+      #   run: |
+      #     docker tag omni-shell:${{ github.ref_name }} ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+      #     docker push ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+      #   # then re-run attest-build-provenance with the pushed registry digest as subject.

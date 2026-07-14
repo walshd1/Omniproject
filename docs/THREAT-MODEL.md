@@ -38,10 +38,20 @@ network, and (per zero-trust) the broker plane and backends across boundary 3.
 
 ### Tampering
 - **Threats:** altering audit records; man-in-the-middle on the seam; modifying config at rest;
-  forging a broker request body.
+  forging a broker request body; a buggy or **compromised backend feeding malformed data** that
+  corrupts a financial roll-up (raw foreign amounts, NaN/`undefined`/mis-typed figures) or carries a
+  **prototype-pollution** payload (`__proto__`/`constructor`) into an object the app later merges.
 - **Defences:** **tamper-evident keyed hash-chain** audit (+ optional Ed25519 non-repudiation); TLS +
   broker **PSK seal**; **AES-256-GCM** sealed config with rekey-on-export; the broker **HMAC** covers
-  the request body.
+  the request body. **Read-seam data sanitizer** (below the broker, inner to the cache): every entity a
+  backend returns — reads *and* write-returns — is repaired to contract shape ONCE before any
+  derivation or the frontend sees it (junk number → safe default so it's dropped from a total, never
+  summed raw; unknown enum → canonical; untyped rows have `__proto__`/`constructor`/`prototype` keys
+  **stripped**). Fail-soft (nothing errors or is dropped), and every repair is **tallied and surfaced**
+  (`X-OmniProject-Data-Repaired` header → a UI badge) so a backend quietly emitting dirty data is
+  visible. Cross-currency roll-ups additionally **exclude FX-unconvertible rows** (guarded by
+  `isConvertible`, count exposed) so a missing rate can't silently corrupt a consolidated figure — a
+  property test enforces the invariant, and mutation testing over the money core guards its strength.
 
 ### Repudiation
 - **Threats:** an actor (human or autonomous AI) denies an action.

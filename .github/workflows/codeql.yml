@@ -1,0 +1,39 @@
+# CodeQL static analysis (SAST) — GitHub's first-party semantic code scanner, complementing the
+# repo-local semgrep rules (.semgrep/) that the CI `taint-scan` job runs. CodeQL's security-extended
+# query suite catches a broader class of taint/injection/auth issues across the TypeScript surface and
+# reports them into the repo's Security tab (SARIF). Interpreted languages need no build step.
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 2" # Tuesdays 06:00 UTC
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write # required to upload SARIF results
+
+jobs:
+  analyze:
+    name: analyze (javascript-typescript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          build-mode: none # TypeScript is analysed from source; no compile step needed
+          queries: security-extended
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
