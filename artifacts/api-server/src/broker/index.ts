@@ -14,6 +14,7 @@ import { DataResidencyError } from "../lib/data-residency";
 import { devBrokerFromEnv } from "./dev-broker";
 import { applyVendorProfile, demoVendorFor } from "./vendor-profile";
 import { readCacheEnabled, wrapWithCache, invalidateReadCache } from "./cache";
+import { sharedReadCacheEnabled, wrapWithSharedCache } from "./shared-cache";
 import { wrapWithAutonomousGuard } from "./autonomous-guard";
 import { wrapWithScopeGuard } from "./scope-guard";
 import { wrapWithSanitizer } from "./sanitizer";
@@ -76,9 +77,11 @@ export function getBroker(): Broker {
     // keep on unconditionally, and it shields the backend's rate limits from a thundering herd.
     // Inner to the cache so a cache hit never reaches it.
     base = wrapWithSingleFlight(base);
-    // OPT-IN performance mode: a short-TTL in-memory read cache (READ_CACHE_TTL_MS).
-    // Trades "never stale" for latency; off by default and announced loudly at boot.
-    if (readCacheEnabled()) base = wrapWithCache(base);
+    // OPT-IN performance mode: a short-TTL read cache (READ_CACHE_TTL_MS). Trades "never stale" for
+    // latency; off by default. When READ_CACHE_SHARED is also set, the cache is FLEET-WIDE (shared via
+    // Redis) so repeated reads coalesce across replicas — otherwise it's the per-replica in-memory cache.
+    if (sharedReadCacheEnabled()) base = wrapWithSharedCache(base);
+    else if (readCacheEnabled()) base = wrapWithCache(base);
     // Provenance: chained, keyed-MAC fingerprints of every broker call (content stays
     // in transit; only MACs persist). Outside the cache so logical calls are recorded
     // even on a cache hit. Additive — never alters results.

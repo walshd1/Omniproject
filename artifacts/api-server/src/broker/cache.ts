@@ -26,7 +26,7 @@ export const READ_METHODS = new Set([
   "notifications", "portfolioHealth", "resourceCapacity", "projectFinancials",
   "capabilities", "fxRates",
 ]);
-const WRITE_METHODS = new Set([
+export const WRITE_METHODS = new Set([
   "createProject", "updateProject", "writeIssue", "createTaskItem", "addRaid",
 ]);
 
