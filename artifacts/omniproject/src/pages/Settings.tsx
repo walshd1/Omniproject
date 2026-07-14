@@ -13,6 +13,7 @@ import { useEffect, useState, Fragment, type ComponentType, type ReactNode } fro
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
 import { useSettingLocks } from "../lib/setting-locks";
+import { SettingsPresetPicker } from "../components/settings/SettingsPresetPicker";
 import { fetchBackendIds } from "../lib/setup";
 import { PremiumAdmin } from "../components/PremiumAdmin";
 import { LazyMount } from "../components/LazyMount";
@@ -252,6 +253,10 @@ export function Settings() {
   return (
     <div className="max-w-2xl mx-auto p-8">
       <h1 className="text-3xl font-black uppercase tracking-tighter mb-8 pb-4 border-b border-border">SYSTEM CONFIGURATION</h1>
+
+      <div className="mb-8">
+        <SettingsPresetPicker />
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* ── Orchestration ── */}
