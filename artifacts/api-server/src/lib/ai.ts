@@ -35,6 +35,8 @@ const DEFAULT_MODEL: Record<AiProviderKind, string> = {
   openai: "gpt-4o-mini",
   anthropic: "claude-3-5-haiku-latest",
   whisper: "whisper-1",
+  // Self-hosted servers load their own model; the admin sets the model name on the provider entity.
+  "openai-compatible": "",
 };
 
 export interface AiStatus {
@@ -81,7 +83,7 @@ export interface ChatResult {
  * endpoint is the default base URL; a provider entity can override it. The key (when needed)
  * is resolved from the vault by the caller, never read from the environment.
  */
-type ChatKind = "openai" | "anthropic" | "ollama" | "openrouter";
+type ChatKind = "openai" | "anthropic" | "ollama" | "openrouter" | "openai-compatible";
 interface ChatKindDef {
   endpoint: string;
   chat(endpoint: string, key: string | undefined, model: string, messages: ChatMessage[]): Promise<string>;
@@ -120,6 +122,25 @@ const KINDS: Record<ChatKind, ChatKindDef> = {
       )) as { choices?: Array<{ message?: { content?: string } }> };
       const content = json.choices?.[0]?.message?.content;
       if (content === undefined) throw new AiError("OpenAI response has no message content");
+      return content;
+    },
+  },
+  // Bring-your-own self-hosted endpoint speaking the OpenAI chat-completions shape. NO default
+  // endpoint — the admin must set a URL on the provider entity, so this can never silently reach a
+  // public model. The API key is optional (self-hosted servers often need none); the Authorization
+  // header is sent only when a key is present. Egress still flows through safeFetch (SSRF-guarded).
+  "openai-compatible": {
+    endpoint: "",
+    chat: async (endpoint, key, model, messages) => {
+      if (!endpoint) throw new AiError("Set the endpoint URL for the self-hosted provider in AI Providers.", 400);
+      if (!model) throw new AiError("Set the model name for the self-hosted provider in AI Providers.", 400);
+      const json = (await postJson(
+        `${endpoint}/chat/completions`,
+        key ? { Authorization: `Bearer ${key}` } : {},
+        { model, messages },
+      )) as { choices?: Array<{ message?: { content?: string } }> };
+      const content = json.choices?.[0]?.message?.content;
+      if (content === undefined) throw new AiError("Self-hosted provider response has no message content");
       return content;
     },
   },
@@ -165,9 +186,13 @@ export function aiStatus(): AiStatus {
   const endpoint = provider.endpoint?.trim() || KINDS[provider.kind].endpoint;
   const detail = provider.kind === "ollama"
     ? `Local model via Ollama at ${endpoint}.`
-    : ready
-      ? `${provider.label} ready (key in vault).`
-      : `Add an API key for ${provider.label} in AI Providers.`;
+    : provider.kind === "openai-compatible"
+      ? ready
+        ? `Self-hosted model at ${endpoint}.`
+        : `Set the endpoint URL for ${provider.label} in AI Providers.`
+      : ready
+        ? `${provider.label} ready (key in vault).`
+        : `Add an API key for ${provider.label} in AI Providers.`;
   return { provider: provider.kind, model: resolvedModel(provider), configured: ready, detail };
 }
 
@@ -193,7 +218,8 @@ async function assertChatAllowed(ctx: AiGovContext | undefined, messages: ChatMe
   if (!provider) throw new AiError("No AI provider is configured.", 400);
   if (!isChatKind(provider.kind)) throw new AiError(`${provider.label} cannot serve chat.`, 400);
   if (!providerReady(provider.id)) {
-    throw new AiError(`No API key for ${provider.label}. Add one in AI Providers.`, 400);
+    const need = provider.kind === "openai-compatible" ? "an endpoint URL" : "an API key";
+    throw new AiError(`${provider.label} isn't ready — add ${need} in AI Providers.`, 400);
   }
 
   const def = KINDS[provider.kind];

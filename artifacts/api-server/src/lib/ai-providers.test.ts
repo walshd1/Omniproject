@@ -21,7 +21,7 @@ afterEach(() => {
 
 test("seeds one provider per kind", () => {
   const kinds = listProviders().map((p) => p.kind).sort();
-  assert.deepEqual(kinds, ["anthropic", "ollama", "openai", "openrouter", "whisper"]);
+  assert.deepEqual(kinds, ["anthropic", "ollama", "openai", "openai-compatible", "openrouter", "whisper"]);
 });
 
 test("keys live in the vault and are write-only (state exposes presence + fingerprint only)", async () => {

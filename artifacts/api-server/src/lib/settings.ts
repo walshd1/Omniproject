@@ -36,7 +36,7 @@ function coerceProfile(raw: unknown): DeploymentProfile | undefined {
   return (DEPLOYMENT_PROFILES as readonly string[]).includes(v) ? (v as DeploymentProfile) : undefined;
 }
 
-export const AI_PROVIDERS = ["none", "openai", "ollama", "anthropic", "openrouter"] as const;
+export const AI_PROVIDERS = ["none", "openai", "ollama", "anthropic", "openrouter", "openai-compatible"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
 
 /** Coerce an untrusted value (env or request) to a valid AiProvider, else "none". */

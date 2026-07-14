@@ -18,8 +18,8 @@ import { createUndoBuffer } from "./undo-buffer";
  * Provider configs + the mapping persist (sealed) to a company-wide file so they survive a
  * restart; the keys themselves persist separately in the vault.
  */
-export type AiProviderKind = "openai" | "anthropic" | "ollama" | "openrouter" | "whisper";
-export const AI_PROVIDER_KINDS: readonly AiProviderKind[] = ["openai", "anthropic", "ollama", "openrouter", "whisper"];
+export type AiProviderKind = "openai" | "anthropic" | "ollama" | "openrouter" | "whisper" | "openai-compatible";
+export const AI_PROVIDER_KINDS: readonly AiProviderKind[] = ["openai", "anthropic", "ollama", "openrouter", "whisper", "openai-compatible"];
 
 /** Kinds that need no API key to be usable (local / self-hosted). */
 const KEYLESS = new Set<AiProviderKind>(["ollama"]);
@@ -55,6 +55,11 @@ function seedProviders(): AiProviderConfig[] {
     { id: "ollama", kind: "ollama", label: "Ollama (local)" },
     { id: "openrouter", kind: "openrouter", label: "OpenRouter" },
     { id: "whisper", kind: "whisper", label: "Whisper" },
+    // Bring-your-own self-hosted / private inference server speaking the OpenAI chat-completions
+    // wire shape (vLLM, LM Studio, LiteLLM, LocalAI, Azure-via-proxy, on-prem gateways). No default
+    // endpoint — the admin MUST set a URL, so it can never silently egress to a public model. Key
+    // optional (many self-hosted servers need none). The enterprise "data never leaves our network" path.
+    { id: "openai-compatible", kind: "openai-compatible", label: "Self-hosted (OpenAI-compatible)" },
   ];
 }
 
@@ -188,6 +193,8 @@ export function providerReady(id: string): boolean {
   const p = getProvider(id);
   if (!p) return false;
   if (KEYLESS.has(p.kind)) return true;
+  // Self-hosted OpenAI-compatible: usable once an endpoint URL is set; the key is optional.
+  if (p.kind === "openai-compatible") return !!p.endpoint?.trim();
   if (p.kind === "whisper") return hasSecret(keyRef(id)) || !!p.endpoint?.trim();
   return hasSecret(keyRef(id));
 }

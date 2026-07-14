@@ -16,7 +16,7 @@ process.env["OLLAMA_URL"] = "http://127.0.0.1:11434";
 
 const { aiStatus, aiChat, AiError } = await import("../lib/ai");
 const { updateSettings, getSettings } = await import("../lib/settings");
-const { setProviderKey, clearProviderKey, __resetProviders } = await import("../lib/ai-providers");
+const { setProviderKey, clearProviderKey, upsertProvider, __resetProviders } = await import("../lib/ai-providers");
 const { __resetVault } = await import("../lib/vault");
 
 const ORIGINAL = getSettings();
@@ -79,6 +79,22 @@ test("aiStatus honours a custom aiModel override", () => {
   assert.equal(aiStatus().model, "custom-model");
 });
 
+test("aiStatus: self-hosted (openai-compatible) needs an endpoint URL, not a key", () => {
+  // Seeded entity has no endpoint → not ready, and the hint points at the endpoint, not a key.
+  updateSettings({ aiProvider: "openai-compatible", aiModel: null });
+  const bare = aiStatus();
+  assert.equal(bare.provider, "openai-compatible");
+  assert.equal(bare.configured, false);
+  assert.match(bare.detail, /endpoint URL/i);
+
+  // Set an endpoint (an IP literal so the guard needs no DNS) and it becomes ready with NO key.
+  upsertProvider({ id: "openai-compatible", kind: "openai-compatible", label: "Self-hosted (OpenAI-compatible)", endpoint: "http://127.0.0.1:8000/v1", model: "local-model" });
+  const ready = aiStatus();
+  assert.equal(ready.configured, true);
+  assert.equal(ready.model, "local-model");
+  assert.match(ready.detail, /127\.0\.0\.1:8000/);
+});
+
 test("aiChat throws AiError 400 when provider is 'none'", async () => {
   updateSettings({ aiProvider: "none" });
   await assert.rejects(
@@ -133,6 +149,51 @@ test("aiChat (ollama) shapes the request and returns content on success", async 
   assert.equal(body.stream, false);
   assert.equal(body.messages.length, 2);
 
+  globalThis.fetch = realFetch;
+});
+
+test("aiChat (openai-compatible) posts OpenAI-shape to the set endpoint with NO auth header when keyless", async () => {
+  updateSettings({ aiProvider: "openai-compatible", aiModel: null });
+  upsertProvider({ id: "openai-compatible", kind: "openai-compatible", label: "Self-hosted", endpoint: "http://127.0.0.1:8000/v1", model: "local-model" });
+  calls = [];
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "hi from the private model" } }] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  const result = await aiChat([{ role: "user", content: "ping" }]);
+  assert.equal(result.content, "hi from the private model");
+  assert.equal(result.provider, "openai-compatible");
+  assert.equal(result.model, "local-model");
+
+  assert.equal(calls.length, 1);
+  // Routed to the admin-set self-hosted endpoint (never a public default), OpenAI wire path.
+  assert.equal(calls[0]!.url, "http://127.0.0.1:8000/v1/chat/completions");
+  const headers = calls[0]!.init?.headers as Record<string, string> | undefined;
+  // Keyless self-hosted server → no Authorization header is sent.
+  assert.equal(headers?.["Authorization"], undefined);
+
+  globalThis.fetch = realFetch;
+});
+
+test("aiChat (openai-compatible) sends a Bearer header when an API key IS set", async () => {
+  updateSettings({ aiProvider: "openai-compatible", aiModel: null });
+  upsertProvider({ id: "openai-compatible", kind: "openai-compatible", label: "Self-hosted", endpoint: "http://127.0.0.1:8000/v1", model: "local-model" });
+  await setProviderKey("openai-compatible", "byo-secret");
+  calls = [];
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+
+  await aiChat([{ role: "user", content: "ping" }]);
+  const headers = calls[0]!.init?.headers as Record<string, string> | undefined;
+  assert.equal(headers?.["Authorization"], "Bearer byo-secret");
+
+  await clearProviderKey("openai-compatible");
   globalThis.fetch = realFetch;
 });
 

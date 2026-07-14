@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { AI_PROVIDER_IDS, aiStatus } from "./ai";
 
 test("the AI provider registry covers every real provider (no none)", () => {
-  assert.deepEqual([...AI_PROVIDER_IDS].sort(), ["anthropic", "ollama", "openai", "openrouter"]);
+  assert.deepEqual([...AI_PROVIDER_IDS].sort(), ["anthropic", "ollama", "openai", "openai-compatible", "openrouter"]);
 });
 
 test("aiStatus is total — defaults to not-configured when no provider is selected", () => {
