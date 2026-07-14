@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import {
@@ -10,7 +10,7 @@ import {
   type Settings,
   type FieldManifest,
 } from "@workspace/api-client-react";
-import { renderWithProviders } from "../../test/utils";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
 import { TranslationLayer } from "./TranslationLayer";
 
 const CAPS = {
@@ -67,5 +67,82 @@ describe("TranslationLayer", () => {
     expect(manifest).toHaveTextContent("2 mapped");
     expect(manifest).toHaveTextContent("1 custom");
     expect(manifest).toHaveTextContent("customerTier");
+  });
+
+  it("filters the field list by the search box", () => {
+    renderWithProviders(<TranslationLayer />, { client: client("admin") });
+    expect(screen.getByText("title")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Filter fields"), { target: { value: "story" } });
+    expect(screen.getByText("storyPoints")).toBeInTheDocument();
+    expect(screen.queryByText("title")).toBeNull();
+  });
+
+  it("overrides an entity, edits its toggles, and clears all overrides", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TranslationLayer />, { client: client("admin") });
+
+    await user.click(screen.getByRole("button", { name: "Override project" }));
+    const storeToggle = screen.getByLabelText("project store");
+    // project's effective store is false; flip it on via onSet.
+    expect(storeToggle).not.toBeChecked();
+    fireEvent.click(storeToggle);
+    expect(screen.getByLabelText("project store")).toBeChecked();
+    expect(screen.getByText(/1 override/)).toBeInTheDocument();
+
+    // Clear-all wipes both maps and disables itself again.
+    const clearAll = screen.getByRole("button", { name: "Clear all" });
+    fireEvent.click(clearAll);
+    expect(screen.getByText(/0 overrides/)).toBeInTheDocument();
+    expect(clearAll).toBeDisabled();
+    expect(screen.queryByLabelText("project store")).toBeNull();
+  });
+
+  it("clears a single override with its ✕ button", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TranslationLayer />, { client: client("admin") });
+    await user.click(screen.getByRole("button", { name: "Override storyPoints" }));
+    expect(screen.getByText(/1 override/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Clear override for storyPoints"));
+    expect(screen.getByText(/0 overrides/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Override storyPoints" })).toBeInTheDocument();
+  });
+
+  describe("save", () => {
+    afterEach(() => resetFetchMock());
+
+    it("PATCHes the overrides to /api/settings on Save", async () => {
+      const calls = mockFetchRouter({
+        "PATCH /api/settings": { ok: true, body: SETTINGS },
+        "/api/settings": { ok: true, body: SETTINGS },
+        "/api/capabilities": { ok: true, body: CAPS },
+        "/api/fields/manifest": { ok: false, status: 500 },
+      });
+      const user = userEvent.setup();
+      renderWithProviders(<TranslationLayer />, { client: client("admin") });
+      await user.click(screen.getByRole("button", { name: "Override project" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => {
+        const patch = calls.find((c) => c.url.includes("/api/settings") && (c.init?.method ?? "").toUpperCase() === "PATCH");
+        expect(patch).toBeTruthy();
+        expect(JSON.parse(String(patch!.init?.body)).fieldOverrides.entities.project).toBeTruthy();
+      });
+    });
+
+    it("handles a 403 save rejection without crashing (admin-only branch)", async () => {
+      mockFetchRouter({
+        "PATCH /api/settings": { ok: false, status: 403 },
+        "/api/settings": { ok: true, body: SETTINGS },
+        "/api/capabilities": { ok: true, body: CAPS },
+        "/api/fields/manifest": { ok: false, status: 500 },
+      });
+      const user = userEvent.setup();
+      renderWithProviders(<TranslationLayer />, { client: client("admin") });
+      await user.click(screen.getByRole("button", { name: "Override project" }));
+      const saveBtn = screen.getByRole("button", { name: "Save" });
+      fireEvent.click(saveBtn);
+      await waitFor(() => expect(saveBtn).toBeEnabled());
+      expect(saveBtn).toHaveTextContent("Save");
+    });
   });
 });

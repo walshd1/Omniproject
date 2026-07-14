@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   CONTRACT_ACTIONS,
   CAPABILITY_DOMAINS,
@@ -7,6 +7,7 @@ import {
   parseBackendFile,
   evaluateDraft,
   toDraft,
+  downloadBackendManifest,
   type BackendDraft,
 } from "./backend-authoring";
 
@@ -193,5 +194,191 @@ describe("parseBackendFile", () => {
 
   it("throws a friendly error on a non-object payload (e.g. an array)", () => {
     expect(() => parseBackendFile("[1,2,3]")).toThrow(/single backend definition/);
+  });
+
+  it("throws on a JSON null payload (parses fine but isn't an object)", () => {
+    expect(() => parseBackendFile("null")).toThrow(/single backend definition/);
+  });
+});
+
+describe("buildManifest branch coverage (via evaluateDraft)", () => {
+  it("carries every optional action field through to the built mapping", () => {
+    const draft = validDraft();
+    draft.actions.create_issue = {
+      enabled: true,
+      kind: "httpRequest",
+      method: "POST",
+      url: "  https://api.test/issues  ",
+      body: "  {\"x\":1}  ",
+      credentialType: "  myApi  ",
+      node: "  n8n-nodes-base.httpRequest  ",
+      typeVersion: "  2  ",
+      parameters: '  {"resource":"issue"}  ',
+      note: "  creates an issue  ",
+    };
+    const mapping = (evaluateDraft(draft).manifest["actions"] as Record<string, Record<string, unknown>>)["create_issue"]!;
+    expect(mapping).toEqual({
+      kind: "httpRequest",
+      method: "POST",
+      url: "https://api.test/issues",
+      body: '{"x":1}',
+      credentialType: "myApi",
+      node: "n8n-nodes-base.httpRequest",
+      typeVersion: 2,
+      parameters: { resource: "issue" },
+      note: "creates an issue",
+    });
+  });
+
+  it("drops blank/whitespace-only optional action fields rather than emitting empty strings", () => {
+    const draft = validDraft();
+    // list_issues is enabled with only method+url; every other field blank.
+    const mapping = (evaluateDraft(draft).manifest["actions"] as Record<string, Record<string, unknown>>)["list_issues"]!;
+    expect(mapping).toEqual({ method: "GET", url: "={{ $env.MY_TOOL_URL }}/issues" });
+    expect("body" in mapping).toBe(false);
+    expect("note" in mapping).toBe(false);
+    expect("kind" in mapping).toBe(false);
+  });
+
+  it("includes the manifest-level kind/adminOnly/notes/credentialType only when set", () => {
+    const bare = evaluateDraft(validDraft()).manifest;
+    expect("kind" in bare).toBe(false);
+    expect("adminOnly" in bare).toBe(false);
+    expect("notes" in bare).toBe(false);
+    expect("credentialType" in bare).toBe(false);
+
+    const draft = validDraft();
+    draft.kind = "import";
+    draft.adminOnly = true;
+    draft.notes = "  a note  ";
+    draft.credentialType = "  myApi  ";
+    const m = evaluateDraft(draft).manifest;
+    expect(m["kind"]).toBe("import");
+    expect(m["adminOnly"]).toBe(true);
+    expect(m["notes"]).toBe("a note");
+    expect(m["credentialType"]).toBe("myApi");
+  });
+
+  it("emits keyFormat header+pattern and trims/filters the env list; omits an all-blank env", () => {
+    const draft = validDraft();
+    draft.keyFormat = { enabled: true, scheme: "apiKey", env: ["  A  ", "", "  "], header: "  X-Key  ", pattern: "  ^k.*$  " };
+    const kf = evaluateDraft(draft).manifest["keyFormat"] as Record<string, unknown>;
+    expect(kf).toEqual({ scheme: "apiKey", env: ["A"], header: "X-Key", pattern: "^k.*$" });
+
+    // All-blank env → env key omitted entirely.
+    draft.keyFormat = { enabled: true, scheme: "none", env: ["", "  "], header: "", pattern: "" };
+    const kf2 = evaluateDraft(draft).manifest["keyFormat"] as Record<string, unknown>;
+    expect(kf2).toEqual({ scheme: "none" });
+  });
+
+  it("omits keyFormat when enabled but no scheme is chosen", () => {
+    const draft = validDraft();
+    draft.keyFormat = { enabled: true, scheme: "", env: ["A"], header: "H", pattern: "" };
+    expect(evaluateDraft(draft).manifest["keyFormat"]).toBeUndefined();
+  });
+
+  it("requires a non-blank authHeader (schema doesn't, but the wizard does)", () => {
+    const draft = validDraft();
+    draft.authHeader = "   ";
+    const { errors } = evaluateDraft(draft);
+    expect(errors.some((e) => /authHeader.*required/.test(e))).toBe(true);
+  });
+
+  it("trims and filters blank entries out of requiredEnv", () => {
+    const draft = validDraft();
+    draft.requiredEnv = ["  A  ", "", "  ", "B"];
+    expect(evaluateDraft(draft).manifest["requiredEnv"]).toEqual(["A", "B"]);
+  });
+});
+
+describe("toDraft field mapping", () => {
+  it("maps a keyFormat object into an enabled, fully-populated draft keyFormat", () => {
+    const d = toDraft({ keyFormat: { scheme: "bearer", env: ["T"], header: "Authorization", pattern: "^x$" } });
+    expect(d.keyFormat).toEqual({ enabled: true, scheme: "bearer", env: ["T"], header: "Authorization", pattern: "^x$" });
+  });
+
+  it("defaults a partial keyFormat's missing fields to blanks (still enabled)", () => {
+    const d = toDraft({ keyFormat: {} });
+    expect(d.keyFormat).toEqual({ enabled: true, scheme: "", env: [], header: "", pattern: "" });
+  });
+
+  it("keeps the blank-draft keyFormat (disabled) when the file has none", () => {
+    expect(toDraft({}).keyFormat).toEqual({ enabled: false, scheme: "", env: [], header: "", pattern: "" });
+  });
+
+  it("coerces capability values to booleans and preserves unknown keys", () => {
+    const d = toDraft({ capabilities: { issues: 1, scheduling: 0, custom: "yes" } });
+    expect(d.capabilities.issues).toBe(true);
+    expect(d.capabilities.scheduling).toBe(false);
+    expect(d.capabilities["custom"]).toBe(true);
+  });
+
+  it("ignores action keys that aren't contract actions and maps a full ActionMapping", () => {
+    const d = toDraft({
+      actions: {
+        not_a_contract_action: { method: "GET", url: "x" },
+        create_issue: { kind: "httpRequest", method: "POST", url: "u", body: "b", credentialType: "c", node: "n", typeVersion: 3, parameters: { a: 1 }, note: "hi" },
+      },
+    });
+    expect((d.actions as Record<string, unknown>)["not_a_contract_action"]).toBeUndefined();
+    expect(d.actions.create_issue).toEqual({
+      enabled: true, kind: "httpRequest", method: "POST", url: "u", body: "b", credentialType: "c", node: "n",
+      typeVersion: "3", parameters: '{\n  "a": 1\n}', note: "hi",
+    });
+  });
+
+  it("maps an ActionMapping with all fields absent to blank strings (empty parameters/typeVersion)", () => {
+    const d = toDraft({ actions: { list_projects: {} } });
+    expect(d.actions.list_projects).toEqual({
+      enabled: true, kind: "", method: "", url: "", body: "", credentialType: "", node: "", typeVersion: "", parameters: "", note: "",
+    });
+  });
+
+  it("filters non-string entries out of requiredEnv and defaults a non-array to empty", () => {
+    expect(toDraft({ requiredEnv: ["A", 3, null, "B"] }).requiredEnv).toEqual(["A", "B"]);
+    expect(toDraft({ requiredEnv: "not-an-array" }).requiredEnv).toEqual([]);
+  });
+
+  it("keeps a valid kind and drops an invalid one", () => {
+    expect(toDraft({ kind: "database" }).kind).toBe("database");
+    expect(toDraft({ kind: "nonsense" }).kind).toBe("");
+  });
+
+  it("ignores non-object capabilities/actions blobs", () => {
+    const d = toDraft({ capabilities: "nope", actions: 42 });
+    expect(Object.values(d.capabilities).every((v) => v === false)).toBe(true);
+    expect(Object.values(d.actions).every((a) => a.enabled === false)).toBe(true);
+  });
+});
+
+describe("downloadBackendManifest", () => {
+  function captureDownload() {
+    const downloads: string[] = [];
+    vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: vi.fn() });
+    const spy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      downloads.push(this.download);
+    });
+    return { downloads, restore: () => { spy.mockRestore(); vi.unstubAllGlobals(); } };
+  }
+
+  it("names the file <id>.json when the manifest has an id", () => {
+    const { downloads, restore } = captureDownload();
+    try {
+      downloadBackendManifest({ id: "my-tool" });
+      expect(downloads).toEqual(["my-tool.json"]);
+    } finally {
+      restore();
+    }
+  });
+
+  it("falls back to backend.json when the id is blank or missing", () => {
+    const { downloads, restore } = captureDownload();
+    try {
+      downloadBackendManifest({ id: "" });
+      downloadBackendManifest({});
+      expect(downloads).toEqual(["backend.json", "backend.json"]);
+    } finally {
+      restore();
+    }
   });
 });

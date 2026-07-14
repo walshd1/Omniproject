@@ -69,4 +69,63 @@ describe("ActionCatalogue", () => {
       });
     });
   });
+
+  it("shows a scope summary badge for an approved, already-scoped action (surfaces · role · backends)", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
+    qc.setQueryData(["auth", "me"], { sub: "u1", role: "admin" });
+    qc.setQueryData(["action-catalogue"], {
+      actions: [
+        { action: "list_projects", label: "l", description: "d", write: false, approved: true, scope: { surfaces: ["projects"], minRole: "manager", backends: ["jira"] } },
+      ],
+      surfaces: ["projects"],
+    });
+    renderWithProviders(<ActionCatalogue />, { client: qc });
+    expect(screen.getByTestId("scope-summary-list_projects")).toHaveTextContent("projects · ≥manager · jira");
+  });
+
+  it("revokes an approved read action via the switch (sends a remove payload)", async () => {
+    renderWithProviders(<ActionCatalogue />, { client: seed("admin") });
+    fireEvent.click(screen.getByTestId("approve-list_projects")); // approved → toggle off
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find((c) => String(c[0]).includes("/api/governance/approved"));
+      expect(call).toBeTruthy();
+      expect(JSON.parse((call![1] as { body: string }).body)).toEqual({ remove: ["list_projects"] });
+    });
+  });
+
+  it("scopes with backends and can toggle a surface back off before saving", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
+    qc.setQueryData(["auth", "me"], { sub: "u1", role: "admin" });
+    qc.setQueryData(["action-catalogue"], { actions: ACTIONS, surfaces: ["projects", "settings"] });
+    renderWithProviders(<ActionCatalogue />, { client: qc });
+
+    fireEvent.click(screen.getByTestId("scope-list_projects"));
+    // Pick then un-pick a surface (exercise both toggleSurface branches) → ends with no surface.
+    fireEvent.click(screen.getByTestId("scope-surface-list_projects-projects"));
+    fireEvent.click(screen.getByTestId("scope-surface-list_projects-projects"));
+    fireEvent.change(screen.getByTestId("scope-backends-list_projects"), { target: { value: "jira, , servicenow" } });
+    fireEvent.click(screen.getByTestId("scope-save-list_projects"));
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find((c) => String(c[0]).includes("/api/governance/approved"));
+      expect(call).toBeTruthy();
+      expect(JSON.parse((call![1] as { body: string }).body)).toEqual({
+        rules: [{ action: "list_projects", scope: { backends: ["jira", "servicenow"] } }],
+      });
+    });
+  });
+
+  it("closes the scope editor via Cancel without a save", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
+    qc.setQueryData(["auth", "me"], { sub: "u1", role: "admin" });
+    qc.setQueryData(["action-catalogue"], { actions: ACTIONS, surfaces: [] });
+    renderWithProviders(<ActionCatalogue />, { client: qc });
+
+    fireEvent.click(screen.getByTestId("scope-list_projects"));
+    expect(screen.getByTestId("scope-editor-list_projects")).toBeInTheDocument();
+    // No surfaces available → the empty-state hint renders.
+    expect(screen.getByText("No surfaces available.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByTestId("scope-editor-list_projects")).not.toBeInTheDocument();
+  });
 });

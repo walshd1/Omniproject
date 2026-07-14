@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { getListProjectsQueryKey, getGetProjectIssuesQueryKey, getGetFxRatesQueryKey, type Project, type Issue, type FxRates } from "@workspace/api-client-react";
 import { renderWithProviders } from "../../test/utils";
@@ -43,6 +43,35 @@ describe("CrossProgrammeDependencies", () => {
     // The critical chain spans both items.
     expect(screen.getByTestId("cross-programme-chain")).toHaveTextContent("Build API");
     expect(screen.getByTestId("cross-programme-chain")).toHaveTextContent("Integrate");
+  });
+
+  it("labels a standalone endpoint of a cross-programme dependency and lists it in the rows", () => {
+    renderWithProviders(<CrossProgrammeDependencies />, {
+      client: seed(
+        [
+          project({ id: "pa" }), // standalone (no programme)
+          project({ id: "pb", programmeId: "P2", programmeName: "Payments" }),
+        ],
+        {
+          pa: [issue({ id: "a", projectId: "pa", title: "Groundwork", startDate: "2026-01-01", dueDate: "2026-01-03" })],
+          pb: [issue({ id: "b", projectId: "pb", title: "Integrate", startDate: "2026-01-04", dueDate: "2026-01-06", customFields: { dependsOn: "a" } })],
+        },
+      ),
+    });
+    // A null → P2 edge still crosses a boundary; the null side reads "Standalone".
+    const edge = screen.getByTestId("cross-programme-edge-a-b");
+    expect(edge).toHaveTextContent("Standalone");
+    expect(edge).toHaveTextContent("Payments");
+    // Both endpoints appear in the per-item table; the standalone one shows "Standalone" as its programme.
+    expect(screen.getByTestId("cross-programme-row-a")).toHaveTextContent("Standalone");
+  });
+
+  it("surfaces an error with a retry control when the projects query fails", async () => {
+    renderWithProviders(<CrossProgrammeDependencies />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    const retry = screen.getByRole("button", { name: /retry/i });
+    fireEvent.click(retry); // exercises DataState onRetry → refetch()
+    expect(retry).toBeInTheDocument();
   });
 
   it("renders a cycle warning without hanging", () => {

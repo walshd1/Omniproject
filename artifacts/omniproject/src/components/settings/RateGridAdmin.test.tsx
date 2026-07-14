@@ -55,4 +55,66 @@ describe("RateGridAdmin", () => {
     expect(body.roles).toEqual([{ title: "Senior Engineer", rates: { delivery: { client: 120, internal: 95 } } }]);
     expect(body.projectTypes).toEqual(config().projectTypes); // round-tripped
   });
+
+  it("adds a role, edits its title, and drops emptied rate cells on save", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => config() } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<RateGridAdmin />, { client: seed("pmo", config()) });
+
+    fireEvent.click(screen.getByText("+ role"));
+    fireEvent.change(screen.getByLabelText("Role 2 title"), { target: { value: "Analyst" } });
+    // Set then clear the new role's rate — clearing the last cell drops the whole type key.
+    fireEvent.change(screen.getByLabelText("Analyst Delivery client rate"), { target: { value: "70" } });
+    fireEvent.change(screen.getByLabelText("Analyst Delivery client rate"), { target: { value: "" } });
+    fireEvent.click(screen.getByText("Save rates"));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/rate-card")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/rate-card")!;
+    const body = JSON.parse(init.body as string);
+    expect(body.roles).toEqual([
+      { title: "Senior Engineer", rates: { delivery: { client: 120, internal: 90 } } },
+      { title: "Analyst", rates: {} },
+    ]);
+  });
+
+  it("ignores a negative rate (cell is cleared, not stored)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => config() } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<RateGridAdmin />, { client: seed("pmo", config()) });
+
+    fireEvent.change(screen.getByLabelText("Senior Engineer Delivery client rate"), { target: { value: "-5" } });
+    fireEvent.click(screen.getByText("Save rates"));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/rate-card")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find((c) => c[0] === "/api/rate-card")!;
+    const body = JSON.parse(init.body as string);
+    expect(body.roles[0].rates.delivery).toEqual({ internal: 90 }); // client cleared by the negative
+  });
+
+  it("removes a role row and resets the draft back to the server copy", () => {
+    renderWithProviders(<RateGridAdmin />, { client: seed("pmo", config()) });
+    // Edit → the Reset control appears; Reset restores the seeded value.
+    const title = screen.getByLabelText("Role 1 title");
+    fireEvent.change(title, { target: { value: "Changed" } });
+    fireEvent.click(screen.getByText("Reset"));
+    expect(screen.getByLabelText("Role 1 title")).toHaveValue("Senior Engineer");
+
+    fireEvent.click(screen.getByLabelText("Remove role 1"));
+    expect(screen.getByTestId("rate-grid-empty")).toBeInTheDocument();
+  });
+
+  it("surfaces a save error inline", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false, status: 500, statusText: "Error",
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ error: "Server exploded" }),
+      text: async () => JSON.stringify({ error: "Server exploded" }),
+    } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithProviders(<RateGridAdmin />, { client: seed("pmo", config()) });
+
+    fireEvent.change(screen.getByLabelText("Senior Engineer Delivery internal rate"), { target: { value: "95" } });
+    fireEvent.click(screen.getByText("Save rates"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Server exploded");
+  });
 });

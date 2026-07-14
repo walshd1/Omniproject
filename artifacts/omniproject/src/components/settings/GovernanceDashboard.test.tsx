@@ -1,9 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { screen } from "@testing-library/react";
-import { renderWithProviders } from "../../test/utils";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
 import { GovernanceDashboard } from "./GovernanceDashboard";
 import type { ResolvedCapability, CapabilityLogEntry } from "../../lib/tools";
+
+afterEach(() => resetFetchMock());
 
 /**
  * The admin dashboard surfaces what's on and the live activity trail; hidden for
@@ -71,5 +73,96 @@ describe("GovernanceDashboard", () => {
     expect(screen.getByTestId("ai-kill-toggle")).toHaveTextContent("Kill AI");
     renderWithProviders(<GovernanceDashboard />, { client: seed("admin", [offCap("provider:openai", "ai-provider")], [], { level: "public", source: "off", relax: "public", grants: [], aiKill: true }) });
     expect(screen.getAllByTestId("ai-kill-toggle").some((b) => /AI KILLED/.test(b.textContent ?? ""))).toBe(true);
+  });
+
+  it("relaxing the containment floor steps up and PUTs the new level", async () => {
+    const autonomous = { level: "public", source: "off", relax: "public", grants: [], aiKill: false };
+    const calls = mockFetchRouter({
+      "POST /api/auth/step-up": { ok: true },
+      "PUT /api/governance/containment": { ok: true },
+      "/api/governance/autonomous": { ok: true, body: autonomous },
+    });
+    renderWithProviders(<GovernanceDashboard />, { client: seed("admin", [offCap("provider:openai", "ai-provider")], [], autonomous) });
+    fireEvent.change(screen.getByTestId("relax-select"), { target: { value: "remote" } });
+    await waitFor(() => {
+      const call = calls.find((c) => c.url.includes("/api/governance/containment"));
+      expect(call).toBeTruthy();
+      expect(call!.init?.method).toBe("PUT");
+      expect(JSON.parse(String(call!.init?.body)).level).toBe("remote");
+    });
+    // Step-up ran first.
+    expect(calls.some((c) => c.url.includes("/api/auth/step-up"))).toBe(true);
+  });
+
+  it("engaging the kill switch confirms, steps up, and PUTs the kill request", async () => {
+    const autonomous = { level: "public", source: "off", relax: "public", grants: [], aiKill: false };
+    const calls = mockFetchRouter({
+      "POST /api/auth/step-up": { ok: true },
+      "PUT /api/governance/ai-kill": { ok: true },
+      "/api/governance/autonomous": { ok: true, body: autonomous },
+    });
+    renderWithProviders(<GovernanceDashboard />, { client: seed("admin", [offCap("provider:openai", "ai-provider")], [], autonomous) });
+    fireEvent.click(screen.getByTestId("ai-kill-toggle")); // open the confirm dialog
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /kill ai/i }));
+    await waitFor(() => {
+      const call = calls.find((c) => c.url.includes("/api/governance/ai-kill"));
+      expect(call).toBeTruthy();
+      expect(call!.init?.method).toBe("PUT");
+      expect(JSON.parse(String(call!.init?.body)).engage).toBe(true);
+    });
+  });
+
+  it("releasing the kill switch (already engaged) PUTs engage:false", async () => {
+    const autonomous = { level: "public", source: "off", relax: "public", grants: [], aiKill: true };
+    const calls = mockFetchRouter({
+      "POST /api/auth/step-up": { ok: true },
+      "PUT /api/governance/ai-kill": { ok: true },
+      "/api/governance/autonomous": { ok: true, body: autonomous },
+    });
+    renderWithProviders(<GovernanceDashboard />, { client: seed("admin", [offCap("provider:openai", "ai-provider")], [], autonomous) });
+    fireEvent.click(screen.getByTestId("ai-kill-toggle"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /^release$/i }));
+    await waitFor(() => {
+      const call = calls.find((c) => c.url.includes("/api/governance/ai-kill"));
+      expect(call).toBeTruthy();
+      expect(JSON.parse(String(call!.init?.body)).engage).toBe(false);
+    });
+  });
+
+  it("renders the full grant scope (surfaces, projects, fields, expiry) and an empty-actions grant", () => {
+    const autonomous = {
+      level: "local", source: "local", relax: "off", aiKill: false,
+      grants: [{ actorId: "planner", actions: [], surfaces: ["board"], fields: ["dueDate"], notAfter: Date.parse("2027-01-01T00:00:00Z") }],
+    };
+    renderWithProviders(<GovernanceDashboard />, { client: seed("admin", [offCap("provider:openai", "ai-provider")], [], autonomous) });
+    const list = screen.getByTestId("grant-list");
+    expect(list).toHaveTextContent("planner");
+    expect(list).toHaveTextContent("surfaces: board");
+    expect(list).toHaveTextContent("fields: dueDate");
+    expect(list).toHaveTextContent(/until/);
+    // Empty action list renders the em-dash placeholder.
+    expect(list).toHaveTextContent("may —");
+  });
+
+  it("hides the autonomous-posture block entirely when there is no autonomous data", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
+    qc.setQueryData(["auth", "me"], { sub: "u1", role: "admin" });
+    qc.setQueryData(["governance"], { capabilities: [offCap("provider:openai", "ai-provider")], surfaces: [] });
+    qc.setQueryData(["governance-log"], { entries: [] });
+    // Deliberately leave ["autonomous-grants"] unset → undefined.
+    renderWithProviders(<GovernanceDashboard />, { client: qc });
+    expect(screen.getByTestId("governance-dashboard")).toBeInTheDocument();
+    expect(screen.queryByTestId("autonomous-posture")).not.toBeInTheDocument();
+  });
+
+  it("tags an enabled capability that carries screen overrides", () => {
+    const cap: ResolvedCapability = {
+      ...offCap("mcp:filesystem", "mcp"), state: "public",
+      surfaces: { finance: "off", board: "public" },
+    };
+    renderWithProviders(<GovernanceDashboard />, { client: seed("admin", [cap], []) });
+    expect(screen.getByText(/\+2 screen overrides/)).toBeInTheDocument();
   });
 });
