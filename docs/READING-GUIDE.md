@@ -6,7 +6,8 @@
 > For the system overview read [ARCHITECTURE.md](ARCHITECTURE.md); for traced request
 > paths read [SEQUENCES.md](SEQUENCES.md). Paths below are clickable.
 
-All gateway paths are under `artifacts/api-server/src/`.
+All gateway paths are under `artifacts/api-server/src/`, except a few shared-package
+references shown with their repo-root path (e.g. `lib/api-spec/`, `lib/backend-catalogue/`).
 
 ---
 
@@ -29,7 +30,7 @@ All gateway paths are under `artifacts/api-server/src/`.
 - **Interface + domain types:** [`broker/types.ts`](../artifacts/api-server/src/broker/types.ts) (`Broker`, `ActorContext`, `IssueWrite`, `CapabilityFlags`, `BrokerError`).
 - **Reference broker (only n8n-aware code):** [`broker/reference-broker/`](../artifacts/api-server/src/broker/reference-broker/) (`ReferenceBroker`, `writeIssue`, `idempotencyKey`).
 - **Demo broker (canned, no network):** [`broker/demo.ts`](../artifacts/api-server/src/broker/demo.ts) + [`broker/demo-data.ts`](../artifacts/api-server/src/broker/demo-data.ts).
-- **Decorators:** [`single-flight.ts`](../artifacts/api-server/src/broker/single-flight.ts) · [`cache.ts`](../artifacts/api-server/src/broker/cache.ts) + [`adaptive-ttl.ts`](../artifacts/api-server/src/broker/adaptive-ttl.ts) · [`provenance.ts`](../artifacts/api-server/src/broker/provenance.ts) · [`messy-broker.ts`](../artifacts/api-server/src/broker/messy-broker.ts) · [`trace.ts`](../artifacts/api-server/src/broker/trace.ts) · [`key-guard.ts`](../artifacts/api-server/src/broker/key-guard.ts).
+- **Decorators:** [`single-flight.ts`](../artifacts/api-server/src/broker/single-flight.ts) · [`cache.ts`](../artifacts/api-server/src/broker/cache.ts) + [`adaptive-ttl.ts`](../artifacts/api-server/src/broker/adaptive-ttl.ts) · [`provenance.ts`](../artifacts/api-server/src/broker/provenance.ts) · [`sanitizer.ts`](../artifacts/api-server/src/broker/sanitizer.ts) (always on) · [`messy-broker.ts`](../artifacts/api-server/src/broker/messy-broker.ts) · [`trace.ts`](../artifacts/api-server/src/broker/trace.ts) · [`key-guard.ts`](../artifacts/api-server/src/broker/key-guard.ts) · [`autonomous-guard.ts`](../artifacts/api-server/src/broker/autonomous-guard.ts) (always on) · [`scope-guard.ts`](../artifacts/api-server/src/broker/scope-guard.ts).
 - **The seam is enforced:** [`__tests__/broker-guard.test.ts`](../artifacts/api-server/src/__tests__/broker-guard.test.ts).
 - **Out-of-process brokers / HTTP binding:** [BROKER-HTTP-BINDING.md](BROKER-HTTP-BINDING.md) + [`broker/conformance.ts`](../artifacts/api-server/src/broker/conformance.ts) + [`broker/reference-sidecar.ts`](../artifacts/api-server/src/broker/reference-sidecar.ts).
 

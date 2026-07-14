@@ -25,6 +25,7 @@ stays stateless and the agent inherits capability-gating and the audit trail.
 | `omniproject_list_reports` | report types available for this backend (Gantt/burndown/EVM/…) | — |
 | `omniproject_list_screens` | SPA screens the caller can open (+ each route) | — |
 | `omniproject_list_notifications` | the user's recent notifications/alerts (the MCP notification channel) | — |
+| `omniproject_portfolio_copilot` | read-only natural-language portfolio Q&A over a minimal aggregated snapshot (RAG/freeform, injection-hardened) | `question` (opt. `mode`, `methodology`) |
 
 `list_reports` and `list_screens` tie MCP to the **reports** and **screens** planes,
 filtered to what's actually usable — a report only appears if the active backend

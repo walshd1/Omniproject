@@ -19,6 +19,7 @@ Switch views from the **dashboard header** (the view switcher), or via **`Cmd+K`
 | **PRINCE2 Stages** | PRINCE2 | Management stages, product status, highlight report (RAG, exceptions, tolerances) | management stage + completion |
 | **RAID Log** | Risk & governance | Risks, Assumptions, Issues, Dependencies register with severity/status | backend RAID register (`get_raid`) |
 | **List / Table** | neutral | Sortable table of all work items | all fields |
+| **Flow (unified)** | neutral | The generic issue-engine view (list/board from the shared view engine) | `status` / all fields |
 
 ## How concepts are derived
 
@@ -54,7 +55,7 @@ workflow populates the optional labels below.
 | **PRINCE2** | ✅ | Management stages + highlight report (RAG, exceptions, tolerance breach). |
 | **PMBOK / PMI** | ◐ | Process-group framing maps onto stages; the EVM **Reports** page already covers cost/schedule performance (CPI/SPI). |
 | **Six Sigma (DMAIC)** | ◐ | Reuses the stage view with `stage:Define|Measure|Analyze|Improve|Control` labels. |
-| **SAFe (scaled agile)** | ☐ | Program/PI board needs multi-team + epic data; roadmap (the portfolio Reports view is the current rollup). |
+| **SAFe (scaled agile)** | ◐ | A selectable SAFe methodology pack ships (`assets/methodologies/safe.json` — states + PI ceremonies); only the dedicated PI-board **view** (multi-team + epic data) remains roadmap (the portfolio Reports view is the current rollup). |
 | **Extreme Programming (XP)** | ◐ | Use the Scrum/Kanban views; XP practices are process, not a distinct board. |
 
 ✅ built-in · ◐ partial / via labels · ☐ roadmap
@@ -84,7 +85,7 @@ These are data-only packs (`lib/backend-catalogue/assets/methodologies/`) — no
 > *user-saved* layouts, see [Saved / user-authored views](#saved--user-authored-views).
 
 A view is just a React component that takes `{ projectId }` and renders the
-project's issues through a methodology lens. The same six built-ins above were
+project's issues through a methodology lens. The same seven built-ins above were
 each added this way; a new methodology is the same recipe.
 
 ### The 3 steps
@@ -94,12 +95,16 @@ each added this way; a new methodology is the same recipe.
    neutral fields (`status`, `priority`, `labels`, `startDate`/`dueDate`,
    `assignee`, `completionPct`) using the helpers in `src/lib/methodology.ts`
    (`storyPoints`, `explicitStage`, `ragFor`, `completion`, `isOverdue`, …).
-2. **Register metadata** — add a `ViewMeta` entry to `VIEWS` in `src/lib/views.ts`
-   and extend the `ViewId` union. Set `needs` to the [capability
-   domain](DATA-REQUIREMENTS.md) the view relies on (e.g. `scheduling`) so it gets
-   auto-labelled *"limited"* when the backend can't populate it.
-3. **Wire the component** — add `id → Component` to `VIEW_COMPONENTS` in
-   `src/components/views/registry.ts`.
+2. **Add the view definition (JSON)** — drop a view JSON under
+   `lib/backend-catalogue/assets/views/`. Views are **catalogue data**, not
+   hand-registered metadata: `src/lib/views.ts` builds `VIEWS` from
+   `CATALOGUE_VIEWS` (`@workspace/backend-catalogue/views`). Set `needs` to the
+   [capability domain](DATA-REQUIREMENTS.md) the view relies on (e.g.
+   `scheduling`) so it gets auto-labelled *"limited"* when the backend can't
+   populate it.
+3. **Bind the renderer** — add `id → Component` to `VIEW_RENDERERS` in
+   `src/components/views/view-renderers.ts` (`registry.ts` just re-exports it as
+   `VIEW_COMPONENTS`).
 
 That's it — the **view switcher**, the **`Cmd+K` palette**, **persistence** (the
 chosen view is remembered per browser), and the **dashboard picker** all discover
@@ -155,19 +160,17 @@ export function CadenceView({ projectId }: { projectId: string }) {
 }
 ```
 
-```ts
-// src/lib/views.ts — add to the ViewId union and the VIEWS array
-export type ViewId = "kanban" | "scrum" | "gantt" | "prince2" | "raid" | "list" | "cadence";
-
-// …inside VIEWS:
-{ id: "cadence", label: "Cadence Flow", short: "Cadence", group: "Agile",
-  methodology: "Flow / cadence-based", description: "Work grouped by delivery cadence with RAG." },
+```jsonc
+// lib/backend-catalogue/assets/views/cadence.json — the view is DATA
+{ "id": "cadence", "label": "Cadence Flow", "short": "Cadence", "group": "Agile",
+  "methodology": "Flow / cadence-based", "kind": "board", "methodologies": ["*"],
+  "description": "Work grouped by delivery cadence with RAG." }
 ```
 
 ```ts
-// src/components/views/registry.ts
+// src/components/views/view-renderers.ts — bind id → Component (matched by view id)
 import { CadenceView } from "./CadenceView";
-// …inside VIEW_COMPONENTS:
+// …inside VIEW_RENDERERS:
 cadence: CadenceView,
 ```
 

@@ -24,7 +24,7 @@ it is worth saying explicitly, in one place:
 - It passes every *structural* check the catalogue can run without a live
   account: schema validation, capability/transport consistency, demo-vendor
   spoof gating, the messy-data gauntlet, and generating a real, importable
-  15-node n8n workflow (`lib/backend-catalogue/src/n8n-generator.ts` →
+  15-node n8n workflow (`lib/backend-catalogue/src/workflow-generator.ts` →
   `artifacts/n8n-blueprints/generated/omniproject-netsuite.json`).
 - It has **not** been exercised against a real NetSuite account — record IDs,
   exact field names, SuiteQL grammar edge cases, and the account's SuiteTalk

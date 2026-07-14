@@ -7,7 +7,7 @@ platform-specific**:
 
 | Broker | `build` | Template | Reuses the Node core? |
 | --- | --- | --- | --- |
-| n8n | `workflow-generator` | `lib/n8n-generator.ts` | n/a runtime — but **same separation**: one shared scaffold (webhook → verify → route → respond) + per-backend mappings |
+| n8n | `workflow-generator` | `lib/workflow-generator.ts` | n/a runtime — but **same separation**: one shared scaffold (webhook → verify → route → respond) + per-backend mappings |
 | **reference-sidecar** | (CI fixture) | `../reference-sidecar.ts` | **Yes** — `processBrokerCall` core + an in-memory `BrokerBackend` |
 | **serverless** | `function-template` | `serverless-function.ts` | **Yes** — imports `processBrokerCall` |
 | **Pipedream** | `component-template` | `pipedream-component.ts` | **Yes** — imports `processBrokerCall` |

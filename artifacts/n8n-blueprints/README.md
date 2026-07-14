@@ -22,7 +22,7 @@ Verify** probes your live n8n per action and shows a green/red checklist.
   `pnpm --filter @workspace/scripts run gen-vendors`. Add your own by dropping
   in a JSON file.
 - The generator is the pure `generateWorkflow(manifest, opts)` function in
-  `lib/backend-catalogue/src/n8n-generator.ts` — it builds workflow JSON only,
+  `lib/backend-catalogue/src/workflow-generator.ts` — it builds workflow JSON only,
   touches no network, and is invoked live from
   `POST /api/setup/generate-workflow` (`artifacts/api-server/src/routes/setup.ts`).
 - Pre-generated examples are in [`generated/`](./generated/) — one per backend

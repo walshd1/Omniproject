@@ -7,8 +7,8 @@ if a step is N/A, say so in the release notes.
 - [ ] `pnpm test:regression` passes locally (typecheck → unit + guards → builds →
       contract verify → e2e smoke → accessibility).
 - [ ] CI is green on `main` (`verify` + `deploy-lint` jobs).
-- [ ] Accessibility: `a11y` reports **0 WCAG 2.1 A/AA violations** (run with the
-      browser tooling installed — see [TESTING.md](TESTING.md)).
+- [ ] Accessibility: `a11y` reports **0 WCAG 2.1 A/AA violations** (the browser axe
+      scan; the WCAG 2.2 AA gate is the jsdom axe suite — see [TESTING.md](TESTING.md)).
 - [ ] Load test sane: `pnpm --filter @workspace/scripts run stress` within thresholds.
 
 ## 2. Security gate (must hold — never weaken to pass)

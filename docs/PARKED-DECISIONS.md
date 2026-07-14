@@ -147,7 +147,11 @@ to confirm (and possibly absolute-path the healthchecks).
 real hardening once confirmed.
 
 ### B1. Container image signing + SLSA provenance (cosign)
-**Why parked:** requires deciding to **publish the image to a registry** (e.g. GHCR) and granting CI
+**SLSA build-provenance + SBOM attestation — shipped.** `.github/workflows/release.yml` uses
+`actions/attest-build-provenance@v1` and `actions/attest-sbom@v1`, attaching the CycloneDX SBOM
+attestation to the GitHub Release.
+**Still parked — cosign container-image signing pushed to a registry.** This requires deciding to
+**publish the image to a registry** (e.g. GHCR, the push is currently commented out) and granting CI
 `packages: write` + `id-token: write`. See [`SUPPLY-CHAIN.md`](./SUPPLY-CHAIN.md) §Parked.
 **Recommendation:** yes once you confirm the registry; it's a small CI addition after that.
 

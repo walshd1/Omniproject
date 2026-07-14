@@ -58,8 +58,10 @@ CI fails on codegen drift, so commit the regenerated output.
 1. Branch off `main` (e.g. `feature/…`, `fix/…`).
 2. Keep changes focused; match the surrounding code style (the codebase favours
    small, well-commented, dependency-light modules).
-3. Make sure **typecheck, unit tests, builds and `verify-broker` all pass** — that's
-   exactly what CI (`.github/workflows/ci.yml`) runs.
+3. Make sure **typecheck, unit tests, builds and `verify-broker` all pass** — these
+   are the core checks CI (`.github/workflows/ci.yml`) runs; CI additionally runs
+   coverage gates, drift-guards, security scans (secret-scan, taint-scan, CodeQL),
+   accessibility and e2e.
 4. Add tests for new logic and update docs (`docs/TECHNICAL.md`, READMEs) when
    behaviour changes.
 5. Open the PR against `main` and fill in the template.

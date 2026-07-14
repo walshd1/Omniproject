@@ -19,7 +19,7 @@ is provider-locked. This doc is the fast path per cloud on top of the existing H
 ```bash
 helm upgrade --install omniproject deploy/helm/omniproject \
   -f deploy/helm/omniproject/values-eks.yaml \
-  --set image.repository=YOUR_ECR/omniproject-shell --set image.tag=1.0.0 \
+  --set image.repository=YOUR_ECR/omniproject-shell --set image.tag=0.6.0 \
   --set config.PUBLIC_URL=https://app.example.com \
   --set-file secret.data.SESSION_SECRET=<(openssl rand -hex 32)
 ```
@@ -34,7 +34,7 @@ helm upgrade --install omniproject deploy/helm/omniproject \
 ```bash
 helm upgrade --install omniproject deploy/helm/omniproject \
   -f deploy/helm/omniproject/values-gke.yaml \
-  --set image.repository=YOUR_AR/omniproject-shell --set image.tag=1.0.0 \
+  --set image.repository=YOUR_AR/omniproject-shell --set image.tag=0.6.0 \
   --set config.PUBLIC_URL=https://app.example.com \
   --set-file secret.data.SESSION_SECRET=<(openssl rand -hex 32)
 ```
@@ -49,7 +49,7 @@ helm upgrade --install omniproject deploy/helm/omniproject \
 ```bash
 helm upgrade --install omniproject deploy/helm/omniproject \
   -f deploy/helm/omniproject/values-aks.yaml \
-  --set image.repository=YOUR_ACR/omniproject-shell --set image.tag=1.0.0 \
+  --set image.repository=YOUR_ACR/omniproject-shell --set image.tag=0.6.0 \
   --set config.PUBLIC_URL=https://app.example.com \
   --set-file secret.data.SESSION_SECRET=<(openssl rand -hex 32)
 ```

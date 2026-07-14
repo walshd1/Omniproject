@@ -126,7 +126,7 @@ especially criticism.
 > OpenProject, SAP, etc. The user's own OIDC token is forwarded so writes happen
 > *as the user* (real per-user audit, not a shared admin key).
 >
-> Ships with importable n8n workflow blueprints + a generator for ~15 backends, an
+> Ships with importable n8n workflow blueprints + a generator for 40+ backends, an
 > idempotency/loop-guard contract, and a verify mode that probes your broker
 > without touching the backend. Apache-2.0 core.
 >

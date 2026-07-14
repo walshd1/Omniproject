@@ -42,7 +42,8 @@ Browser ──TLS──> omni-shell gateway ──TLS──> n8n ──> backend
 | Audit | Configurable action audit (`AUDIT_LEVEL` off/writes/all): one structured, redacted line per action (actor, status, latency, write flag); optionally shipped as NDJSON to an external logging server (`AUDIT_HTTP_URL`). Stateless — no local retention. | `lib/audit.ts`, `routes/audit-middleware.ts` |
 | Secret hygiene | pino redaction of `authorization`, `cookie`, `set-cookie`, `*.token`, `userContext.token` | `lib/logger.ts` |
 | Provenance | Responses are labelled sourced / derived / sample so synthesised demo numbers are never shown as fact | `ProvenanceBadge`, gateway responses |
-| Supply chain | pnpm `minimumReleaseAge` (1 day); platform binaries pruned; dependency-free CSV/XLSX writer | `pnpm-workspace.yaml` |
+| Backend-data integrity | Always-on read-seam **sanitizer** repairs malformed backend rows to the contract shape (junk number → safe default, missing required string → `""`, canonical enums) and strips prototype-pollution keys (`__proto__`/`constructor`/`prototype`) from untyped rows — fail-soft, once, before caching/derivation; repairs are tallied and surfaced as `X-OmniProject-Data-Repaired` | `broker/sanitizer.ts`, `lib/data-quality.ts` |
+| Supply chain | pnpm `minimumReleaseAge` (1 day); platform binaries pruned; dependency-free CSV/XLSX writer; CI **CodeQL** SAST, **semgrep** taint-scan, **gitleaks** secret-scan, and `pnpm audit` (blocks high/critical); tagged releases carry **SLSA build-provenance + CycloneDX SBOM attestation** (keyless Sigstore) | `pnpm-workspace.yaml`, `.github/workflows/{ci,codeql,release}.yml` |
 
 ## Review notes (this change set)
 
@@ -59,6 +60,14 @@ Browser ──TLS──> omni-shell gateway ──TLS──> n8n ──> backend
   than fabricating a trend. Demo trends are explicitly badged `DERIVED`/`SAMPLE`.
 - **No new secrets are introduced.** New env (`OIDC_*_ROLES`, `CAPABILITIES`) is
   non-sensitive configuration.
+- **Backend data is treated as untrusted.** An always-on read-seam sanitizer repairs
+  malformed rows to the contract shape and strips prototype-pollution keys before any
+  derivation or screen sees them, fail-soft, with the repair count surfaced as a
+  data-quality signal (`X-OmniProject-Data-Repaired`).
+- **Supply-chain and SAST gates run in CI.** CodeQL (security-extended), a semgrep
+  taint-scan, a blocking gitleaks secret-scan, and `pnpm audit` (high/critical) gate
+  every change; tagged releases carry keyless SLSA build-provenance + a CycloneDX SBOM
+  attestation. See [`docs/SUPPLY-CHAIN.md`](docs/SUPPLY-CHAIN.md).
 
 ## Known limitations / hardening backlog
 

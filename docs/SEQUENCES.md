@@ -104,11 +104,12 @@ sequenceDiagram
   participant SF as single-flight
   participant C as cache (opt-in)
   participant P as provenance
+  participant SAN as sanitizer (always on)
   participant A as adapter (N8n/Demo)
   participant BE as backend (n8n → REST)
 
   R->>B: listProjects(ctx)
-  Note over B: chain runs outermost→inner: [trace(dev)]→[messy(dev)]→provenance→[cache]→single-flight→adapter
+  Note over B: chain runs outermost→inner: [trace(dev)]→[scope-guard]→[messy(dev)]→provenance→[cache]→single-flight→sanitizer→[vendor-profile]→[key-guard]→autonomous-guard→adapter
   B->>P: record(invoke) — keyed-MAC fingerprint (content-free)
   P->>C: (cache lookup, if READ_CACHE_TTL_MS>0)
   alt cache hit (per-actor key, within TTL)
@@ -118,10 +119,12 @@ sequenceDiagram
     alt read already in flight (same actor+method+args)
       SF-->>C: shares the one in-flight promise
     else
-      SF->>A: listProjects(ctx)
+      SF->>SAN: listProjects(ctx)
+      SAN->>A: listProjects(ctx)
       A->>BE: (ReferenceBroker) POST webhook / (DemoBroker) canned data
       BE-->>A: rows
-      A-->>SF: normalised Project[]
+      A-->>SAN: rows (possibly malformed)
+      SAN-->>SF: repaired Project[] (junk→safe default, count tallied)
     end
     C->>C: store {at, value, ttl} (adaptive TTL optional)
   end
@@ -151,11 +154,23 @@ The call passes through the `Proxy` chain composed once in `getBroker()`:
   always on. If an identical read (same `actorKey:method:args`) is already in
   flight, all callers share that one promise — introducing no staleness — which
   collapses "N users open the same dashboard ⇒ N backend calls" to one.
+- **sanitizer** ([`broker/sanitizer.ts`](../artifacts/api-server/src/broker/sanitizer.ts)),
+  always on and *inner to the cache*, so the repair happens once and clean data is
+  what gets cached. It coerces every backend row to the contract shape (junk number →
+  safe default, missing required string → `""`, canonical enums) and strips
+  prototype-pollution keys from untyped rows, tallying repairs for the data-quality
+  signal. This is why the dev-only **messy** wrap sits *outside* it — to re-dirty the
+  payload for resilience tests.
 - The **adapter** then serves it: `DemoBroker` from canned data,
   `ReferenceBroker` by POSTing the webhook envelope and normalising the response.
+  Below the adapter, two always-/first-party guards complete the chain but are inert
+  for an ordinary read: **key-guard** (blocks a keyless request to a live vendor) and
+  the innermost **autonomous-guard** (binds autonomous-actor *writes* to their grant).
 
 In dev builds the outermost wraps are **messy** (injects dirty data into reads, §7)
-and **trace** (logs `→`/`←` with timing); both are absent in production.
+and **trace** (logs `→`/`←` with timing); both are absent in production. For the
+first-party brokers, an outer **scope-guard** ([`broker/scope-guard.ts`](../artifacts/api-server/src/broker/scope-guard.ts))
+re-enforces the caller's data scope (covering even a cache hit).
 
 ---
 

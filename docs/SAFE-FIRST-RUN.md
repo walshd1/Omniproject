@@ -50,7 +50,7 @@ In the app: the **Configurator**.
    workflow, OmniProject *cannot* mutate your backend, full stop. (Attaching a
    backend credential with only read scope is a good belt-and-braces extra, but
    it isn't required to get this guarantee.)
-3. **Test reachability** (`POST /api/setup/test-n8n`) — a non-destructive probe
+3. **Test reachability** (`POST /api/setup/test-broker`) — a non-destructive probe
    that just checks the webhook answers and reports which capabilities it exposes.
 4. Point the gateway at it (`BROKER_URL`).
 

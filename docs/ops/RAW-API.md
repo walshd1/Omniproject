@@ -14,7 +14,7 @@ Use it only when the supported paths genuinely cannot express what you need agai
 a one-off / legacy backend. In order of preference, reach for these **first**:
 
 1. A **typed route** (`/api/projects/...`, `/api/...`) — validated, gated, audited.
-2. The **generic command edge** `/api/broker/command` (contributor-gated, still
+2. The **generic command edge** `/api/broker/command` (manager-gated, still
    goes through the broker but with the normal envelope).
 3. A proper **backend mapping** in your broker/workflow (the durable fix).
 

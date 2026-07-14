@@ -83,7 +83,7 @@ asks you to name the backend, then additionally writes:
   `CUSTOM_API_BASE`, **pull/inspect your API** and fill each node's URL/method,
   wire auth (forwarded user bearer by default, or an n8n credential), normalise
   responses to the contract shapes (`/api/contract`), **surface custom fields via
-  describe → reconcile**, then **verify** with `POST /api/setup/test-n8n` and the
+  describe → reconcile**, then **verify** with `POST /api/setup/test-broker` and the
   `pnpm --filter @workspace/api-server smoke` conformance run before relying on it.
 
 Optionally (the wizard asks), it also emits the files to make the backend

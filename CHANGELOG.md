@@ -98,6 +98,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Security
 
+- **Broker read-seam data sanitizer (always on).** A new sanitizer wraps every broker read/write at the
+  seam (`broker/sanitizer.ts`, wired in `broker/index.ts` inner to the cache) and repairs malformed
+  backend data to the contract shape — junk numbers → safe defaults, missing required strings → `""`,
+  canonical enums — and strips prototype-pollution keys (`__proto__`/`constructor`/`prototype`) from
+  untyped rows, so no derivation or screen above the seam ever sees a NaN/mis-typed/hostile field.
+  Fail-soft and repair-once (clean data is what gets cached); repairs are tallied per request and
+  surfaced as an `X-OmniProject-Data-Repaired` response header + a subtle SPA "data repaired" badge.
+- **CI SAST + secret-scan + supply-chain attestation.** Added a CodeQL workflow (`security-extended`),
+  a repo-local semgrep taint-scan, and a blocking gitleaks secret-scan job; `pnpm audit` blocks on
+  high/critical. Tagged releases now carry keyless **SLSA build-provenance + a CycloneDX SBOM
+  attestation** (`actions/attest-build-provenance` + `attest-sbom`, Sigstore/OIDC — no signing key).
+- **Mutation testing over the financial-derivation core.** Added a StrykerJS suite
+  (`artifacts/omniproject/stryker.conf.json`) run weekly in CI (`.github/workflows/mutation.yml`),
+  gating test *quality* (not just coverage) on the money/FX math with a property test that pins the
+  currency-fold invariant.
+- **WCAG 2.2 AA accessibility audit + axe regression gate.** A full WCAG 2.2 Level AA audit found and
+  fixed 14 defects (contrast tokens, focus rings, control labels, use-of-colour, status messages), and
+  an axe-core regression gate now runs in the Vitest suite (`docs/ACCESSIBILITY-AUDIT.md`).
 - **Config + vault at-rest keys now derive via HKDF (non-breaking).** `config-crypto` and `vault-store`
   previously derived their at-rest master key with a bare `SHA-256(secret)`; both now use the shared
   HKDF `deriveKey` (domain-separated, salted) like the rest of the codebase. The migration is

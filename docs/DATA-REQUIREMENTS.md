@@ -133,6 +133,12 @@ route to the right system.
 - **Financial EVM** with no budget → explicit "requires a cost/ERP source" message.
 - **Scrum / PRINCE2** always render via status fallbacks; attach `sprint:` /
   `stage:` / `sp:` labels (in n8n) to make them authoritative.
+- **Malformed vendor rows** are repaired **once** at the always-on broker
+  read-seam sanitizer (junk number → safe default, missing required string →
+  `""`, enums canonicalised), so dirty data never reaches the gateway's
+  derivations or the frontend — and the repair count is surfaced as a
+  data-quality signal (`X-OmniProject-Data-Repaired` header / badge) rather than
+  silently smoothed over.
 
 ## 6. Capabilities signal
 

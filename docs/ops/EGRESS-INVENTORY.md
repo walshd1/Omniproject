@@ -50,6 +50,8 @@ Backend system of record (Jira / OpenProject / SAP / …)  ── owns authorisa
 | E6 | **Notifications** | `routes/notifications-stream.ts`, `webhooks.ts` | Inbound ingest + outbound HMAC-signed events | Gated |
 | E7 | **Exports** | server `routes/export.ts`; client lineage CSV/JSON | Exactly what the user exports, user-initiated | On (user action) |
 | E8 | **IdP / OIDC** | `OIDC_ISSUER_*` | Authentication only; identity, not project data | On (auth) |
+| E9 | **Cross-instance federation** | `lib/federation.ts` (`routes/index.ts`), `safeFetch` → configured `PeerInstance` peers | Portfolio-summary aggregate sent across the instance boundary | **Off** (only when peers configured) |
+| E10 | **SMTP email** | `SMTP_URL`; `lib/email.ts`, `lib/digest-delivery.ts` | Magic-link auth mail + scheduled digest content (portfolio summaries) | **Off** unless `SMTP_URL` set |
 
 **Never egressed / never stored:** backend credentials, the delegator's token
 (delegation is design-only and explicitly refuses this — RFC-004/005), and raw
@@ -175,6 +177,10 @@ turns it on and owns the resulting data flow.
   suite any broker must pass; arch-guard + deploy-guard CI tests prevent drift.
 - **Dependency hygiene** — CI runs `pnpm audit` (blocks on critical) and emits a
   dependency/licence SBOM inventory artefact.
+- **Broker read-seam sanitizer + data-quality signal** (`broker/sanitizer.ts`) —
+  normalises every backend read to the contract shape and tallies repairs; `app.ts`
+  emits the count as `X-OmniProject-Data-Repaired`, so backend-shape drift is
+  observable per response.
 
 ---
 

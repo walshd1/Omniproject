@@ -301,9 +301,10 @@ missing (`entity: issue`, so both tasks and issues use it):
 
 ---
 
-## New capability domains implied
-Adding the groups above implies three new capability **domains** so they gate
-cleanly (each maps a field group → domain, the existing mechanism):
+## New capability domains
+The groups above ship with their own capability **domains** so they gate cleanly
+(each maps a field group → domain via `GROUP_DOMAIN`, the existing mechanism —
+declared in `lib/capabilities.ts`):
 
 - **`crm`** — CRM/sales fields + the `account`/`contact`/`deal` entities.
 - **`service`** — ITSM/service fields (SLA, CSAT, change).
@@ -322,14 +323,17 @@ fields, and a CRM backend lights up the sales group.
 
 ---
 
-## Next step
-`lib/field-registry.ts` is extended with these as gated `FieldDescriptor`s (new
-groups `crm`/`service`/`quality`, new types `currency`/`percent`/`boolean`/
-`duration`), and `lib/capabilities.ts` gains the `crm`/`service`/`quality`
-domains + `GROUP_DOMAIN` mappings. When a real backend is wired, `reconcileFields`
-diffs its enumerated API against this superset: matches wire up automatically,
-genuinely-new fields are reported for a deliberate registry edit, and anything
-still unknown rides the `customFields` passthrough.
+## Reconciliation against a live backend
+These are **already in the field registry** as gated `FieldDescriptor`s — the
+groups above (`benefits`/`crm`/`quality`/`raci`/`service`/`stakeholder`/
+`strategy`/`financial`/`agile`, …) live in
+`lib/backend-catalogue/assets/fields.json`, with the new types
+`currency`/`percent`/`boolean`/`duration`, and `lib/capabilities.ts` already
+declares the `crm`/`service`/`quality`/`benefits`/`stakeholders`/`raci` domains
+plus their `GROUP_DOMAIN` mappings. When a real backend is wired,
+`reconcileFields` diffs its enumerated API against this superset: matches wire up
+automatically, genuinely-new fields are reported for a deliberate registry edit,
+and anything still unknown rides the `customFields` passthrough.
 
 ## The superset is enforced and vendor-extensible
 

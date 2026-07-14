@@ -97,7 +97,7 @@ Workflow building draws the boundary in exactly the same place — and it's wort
 being precise, because workflows touch *all three* categories:
 
 - **The tools to build workflows are open** (Apache-2.0, ungated). The workflow
-  generator (`lib/backend-catalogue/src/n8n-generator.ts`), the per-backend
+  generator (`lib/backend-catalogue/src/workflow-generator.ts`), the per-backend
   manifest library (`lib/backend-catalogue/src/backend-catalogue.ts` + the
   vendor JSON), the n8n contract, the `verify-workflow` probe, and the
   ability to hand-write or generate a workflow for any **standard** backend

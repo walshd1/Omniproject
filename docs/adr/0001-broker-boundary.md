@@ -55,7 +55,7 @@ contract verification stay green).
 
 **Negative / trade-offs**
 - A small set of frozen public names (`/n8n-proxy`, `n8nWebhookUrl`,
-  `N8nActionInput`) still names n8n. Fully de-n8n-ing them is a breaking API/UI
+  `N8N_WEBHOOK_URL`) still names n8n. Fully de-n8n-ing them is a breaking API/UI
   change deferred to a later, aliased migration (Stage B).
 - The generic command escape hatch (`command()`) can still carry arbitrary action
   strings; that is deliberate (the command palette needs it) and stays inside the

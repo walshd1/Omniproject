@@ -96,6 +96,8 @@ Stateless ⇒ HA is "run more than one, spread them out, and let readiness route
    ```
 
    The PDB keeps a rolling node drain / cluster upgrade from taking all replicas at once.
+   The shipped `deploy/helm/omniproject/values-enterprise.yaml` turns these availability
+   controls on for you, so the YAML above is illustrative — prefer that values file.
 
 2. **Readiness gates traffic, liveness restarts the process — deliberately different probes.**
    - `GET /api/healthz` (**liveness**) is dependency-free: it answers 200 whenever the process is

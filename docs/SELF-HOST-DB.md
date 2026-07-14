@@ -6,7 +6,12 @@
 > complete, self-contained, self-hosted system. It is the **non-preferred** deployment; everything
 > below is opt-in and profile-gated.
 
-Status: **design (not yet implemented).** This doc is for sign-off before any implementation PRs.
+Status: **partially shipped.** The **gateway seam, capability-gating, the adoptable domains, and the
+settings + setup wizard are shipped and tested** (`lib/settings.ts` `selfHost` config + validator,
+`selfhost/setup-wizard.ts`, `selfhost/domains.ts` + `selfhost/capability-gating.ts`,
+`selfhost/runtime.ts`, and the composition-tier `SelfHostDbAdapter`/`SelfHostDbPort` in
+`selfhost/adapter.ts`). The **DDL generator, the SQL broker workflow, and `docker-compose.self-host-db.yml`
+are deferred** pending the §7 decisions — this doc is the sign-off record for those remaining pieces.
 
 ## 1. Principle — the database is a *backend below the broker seam*, not state in the gateway
 
@@ -96,7 +101,11 @@ the OpenProject web UI itself.
 > are **deferred until the §7 decisions are signed off** — provisioning a customer database is the
 > gated step. The pieces this design depends on already exist and are shipped: the **`entity`** tag on
 > fields, the CI-enforced **field superset**, and the broker **`describeSchema`** manifest +
-> availability resolver.
+> availability resolver — **plus the self-host seam itself**: the `settings.selfHost` config +
+> validator (`lib/settings.ts`), the setup-wizard state machine with its data-responsibility gate
+> (`selfhost/setup-wizard.ts`), capability-gating over the 9 adoptable domains (`selfhost/domains.ts`,
+> `selfhost/capability-gating.ts`), the runtime bridge (`selfhost/runtime.ts`), and the composition-tier
+> `SelfHostDbAdapter`/`SelfHostDbPort` (`selfhost/adapter.ts`) — all tested.
 
 ## 4. docker-compose shape (sketch)
 

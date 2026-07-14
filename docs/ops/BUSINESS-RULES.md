@@ -89,7 +89,7 @@ OmniProject ships a curated **reference ruleset** per methodology (Scrum, Kanban
 Scrumban, Waterfall, PRINCE2, SAFe). Each is a *named bundle* of built-in modes +
 field rules — e.g. Scrum warns on missing assignee/description and nudges a
 story-point estimate; Waterfall hard-requires start/finish dates so a task can be
-baselined. They live in the catalogue (`lib/backend-catalogue/methodology-rulesets.ts`)
+baselined. They live in the catalogue (`lib/backend-catalogue/src/methodology-rulesets.ts`)
 as data, so they carry **every safety guarantee of the engine** — applying one can
 only tighten, never grant.
 

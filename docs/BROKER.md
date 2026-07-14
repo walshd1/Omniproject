@@ -91,7 +91,7 @@ The only remaining *intentional* n8n names are under/at the seam:
   neutral `brokerCommand()` helper;
 - the **workflow generator**
   (`lib/backend-catalogue/src/backend-catalogue.ts`,
-  `lib/backend-catalogue/src/n8n-generator.ts`) — emits n8n workflow JSON,
+  `lib/backend-catalogue/src/workflow-generator.ts`) — emits n8n workflow JSON,
   n8n-specific by nature, alongside but logically under the seam;
 - the Setup wizard's *"generate an n8n workflow"* copy — it really is about n8n.
 
