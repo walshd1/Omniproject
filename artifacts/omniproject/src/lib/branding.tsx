@@ -55,6 +55,38 @@ async function fetchLabels(): Promise<Record<string, string>> {
   return json.overrides ?? {};
 }
 
+/**
+ * Convert a hex brand colour (#rgb / #rrggbb / #rrggbbaa) into the app's accent token
+ * form: `channels` is the "H S% L%" string consumed via `hsl(var(--primary))`, and `fg`
+ * is a legible on-accent text colour (near-black or white) chosen by WCAG relative
+ * luminance. Returns null for non-hex input, so the caller falls back to the default accent.
+ */
+export function brandTokensFromHex(colour: string): { channels: string; fg: string } | null {
+  let h = colour.trim().replace(/^#/, "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  if (h.length === 8) h = h.slice(0, 6); // drop alpha — the accent is opaque
+  if (h.length !== 6 || /[^0-9a-fA-F]/.test(h)) return null;
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const l = (max + min) / 2;
+  let s = 0, hue = 0;
+  if (d !== 0) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) hue = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) hue = (b - r) / d + 2;
+    else hue = (r - g) / d + 4;
+    hue *= 60;
+  }
+  const channels = `${Math.round(hue)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+  // WCAG relative luminance → pick a foreground that stays legible on the accent.
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  const fg = L > 0.179 ? "220 10% 7%" : "0 0% 100%";
+  return { channels, fg };
+}
+
 export function BrandingProvider({ children }: { children: ReactNode }) {
   const { data: branding } = useQuery({ queryKey: ["branding"], queryFn: fetchBranding, staleTime: 300_000, retry: false });
   const { data: labels } = useQuery({ queryKey: ["labels"], queryFn: fetchLabels, staleTime: 300_000, retry: false });
@@ -72,7 +104,18 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     // font-name tokens — so a value like `url(...)`/expression can't ride in via the branding feed.
     const COLOUR = /^(#[0-9a-fA-F]{3,8}|rgb\(|rgba\(|hsl\(|hsla\(|[a-zA-Z]+)$/;
     const FONT_FAMILY = /^[\w\s,'"-]+$/;
-    setOrClear("--brand-primary", COLOUR.test(value.primaryColor ?? "") ? value.primaryColor : undefined);
+    const rawColour = COLOUR.test(value.primaryColor ?? "") ? value.primaryColor : undefined;
+    setOrClear("--brand-primary", rawColour);
+    // Drive the LIVE accent token from the brand colour. `--primary` (and the sidebar/ring
+    // variants) are consumed as `hsl(var(--primary))` throughout the app + reports, so the
+    // picker value — a hex from BrandingAdmin — is converted to "H S% L%" channels here.
+    // Only hex is converted (the picker's format); any other accepted colour form clears the
+    // override and falls back to the default accent. `--*-foreground` is computed for legibility.
+    const brand = rawColour ? brandTokensFromHex(rawColour) : null;
+    const ACCENT = ["--primary", "--ring", "--sidebar-primary", "--sidebar-ring"];
+    const ACCENT_FG = ["--primary-foreground", "--sidebar-primary-foreground"];
+    for (const t of ACCENT) setOrClear(t, brand?.channels);
+    for (const t of ACCENT_FG) setOrClear(t, brand?.fg);
     // Customer brand FONT FAMILY (applied on all screens). Font SIZE + background
     // COLOUR are per-user (lib/a11y-prefs), not part of the company branding.
     setOrClear("--brand-font-family", FONT_FAMILY.test(value.fontFamily ?? "") ? value.fontFamily : undefined);

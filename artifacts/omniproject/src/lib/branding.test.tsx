@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { ReactNode } from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrandingProvider, useBranding } from "./branding";
+import { BrandingProvider, useBranding, brandTokensFromHex } from "./branding";
 
 function makeWrapper(qc: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
@@ -45,7 +45,25 @@ describe("useBranding", () => {
     expect(result.current.appName).toBe("Acme PM");
     expect(result.current.entitled).toBe(true);
     await waitFor(() => expect(document.title).toBe("Acme PM"));
-    expect(document.documentElement.style.getPropertyValue("--brand-primary")).toBe("#ff0000");
+    const root = document.documentElement.style;
+    expect(root.getPropertyValue("--brand-primary")).toBe("#ff0000");
+    // The brand colour drives the LIVE accent token as HSL channels (#ff0000 = red).
+    expect(root.getPropertyValue("--primary")).toBe("0 100% 50%");
+    expect(root.getPropertyValue("--ring")).toBe("0 100% 50%");
+    expect(root.getPropertyValue("--sidebar-primary")).toBe("0 100% 50%");
+  });
+
+  it("removes the derived accent tokens when primaryColor is cleared", async () => {
+    document.documentElement.style.setProperty("--primary", "0 100% 50%");
+    const qc = freshClient();
+    qc.setQueryData(["branding"], {
+      appName: "Plain2", shortName: "P2", logoUrl: "", primaryColor: "",
+      loginHeading: "", footerText: "", supportUrl: "", entitled: false, locked: false,
+    });
+    renderHook(() => useBranding(), { wrapper: makeWrapper(qc) });
+    await waitFor(() => expect(document.title).toBe("Plain2"));
+    // Cleared brand ⇒ the override is removed so the stylesheet default accent applies.
+    expect(document.documentElement.style.getPropertyValue("--primary")).toBe("");
   });
 
   it("removes the brand colour property when primaryColor is empty", async () => {
@@ -65,5 +83,25 @@ describe("useBranding", () => {
     renderHook(() => useBranding(), { wrapper: makeWrapper(qc) });
     await waitFor(() => expect(document.title).toBe("Plain"));
     expect(document.documentElement.style.getPropertyValue("--brand-primary")).toBe("");
+  });
+});
+
+describe("brandTokensFromHex", () => {
+  it("converts 6-digit hex to HSL channels", () => {
+    expect(brandTokensFromHex("#ff0000")).toEqual({ channels: "0 100% 50%", fg: "220 10% 7%" });
+    expect(brandTokensFromHex("#2563eb")?.channels).toBe("221 83% 53%");
+  });
+  it("expands 3-digit hex and drops the alpha byte", () => {
+    expect(brandTokensFromHex("#fff")?.channels).toBe("0 0% 100%");
+    expect(brandTokensFromHex("#00000080")?.channels).toBe("0 0% 0%");
+  });
+  it("picks a legible foreground by luminance (white on dark, near-black on light)", () => {
+    expect(brandTokensFromHex("#000000")?.fg).toBe("0 0% 100%"); // white on black
+    expect(brandTokensFromHex("#ffff00")?.fg).toBe("220 10% 7%"); // dark on yellow
+  });
+  it("returns null for non-hex input so the default accent stands", () => {
+    expect(brandTokensFromHex("rebeccapurple")).toBeNull();
+    expect(brandTokensFromHex("hsl(1 2% 3%)")).toBeNull();
+    expect(brandTokensFromHex("#12")).toBeNull();
   });
 });
