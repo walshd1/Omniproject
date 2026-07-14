@@ -3,7 +3,7 @@ import { getBroker, contextFromReq, type PortfolioRow, type Row, type Project } 
 import { getSettings } from "./settings";
 import { getFxRates } from "./currency";
 import { resolveCapabilities } from "./capabilities";
-import { poolMap } from "./concurrency-pool";
+import { createConcurrencyLimiter } from "./concurrency-pool";
 import { summariseTasks, type TaskSummary } from "./task-summary";
 import { planProjectSources, type SourcePlan } from "./closed-projects";
 
@@ -208,58 +208,83 @@ function resolveFxAsOf(settings: ReturnType<typeof getSettings>): string | undef
  * doesn't declare (or a call that fails) yields `null` for that section rather than failing the whole
  * summary — the same graceful-degradation stance as an FX-rate fallback or a broker health probe.
  */
+// The section-builder helpers below each do ONE job (build one section of the summary from the
+// already-fetched projects/caps). They are mutually independent, so the caller runs them
+// concurrently. `run` is a SHARED bounded limiter: passing the same limiter to the finance and
+// capacity fan-outs caps their COMBINED per-project broker concurrency at PORTFOLIO_FANOUT_LIMIT, so
+// overlapping the two sections doesn't double the herd on the backend — they interleave in one pool.
+type Broker = ReturnType<typeof getBroker>;
+type Ctx = ReturnType<typeof contextFromReq>;
+type Caps = Awaited<ReturnType<typeof resolveCapabilities>> | null;
+type Limiter = ReturnType<typeof createConcurrencyLimiter>;
+
+async function summaryHealth(broker: Broker, ctx: Ctx, caps: Caps): Promise<HealthTotals | null> {
+  if (caps && !caps.portfolio) return null;
+  const rows = await broker.portfolioHealth(ctx).catch(() => null);
+  return rows ? summarizeHealth(rows) : null;
+}
+
+async function summaryFinance(req: Request, broker: Broker, ctx: Ctx, caps: Caps, projects: Project[], run: Limiter): Promise<FinanceTotals | null> {
+  if ((caps && !caps.financials) || !projects.length) return null;
+  const settings = getSettings();
+  // FX is independent of the financials rows (needed only at fold time) — fetch it alongside the fan-out.
+  const [rows, fx] = await Promise.all([
+    Promise.all(projects.map((p) => run(() => broker.projectFinancials(ctx, p.id).catch(() => null)))),
+    getFxRates(req, resolveFxAsOf(settings)).catch(() => null),
+  ]);
+  const valid = rows.filter((r): r is Row => !!r);
+  const droppedCalls = projects.length - valid.length; // projects whose financials call failed/timed out
+  if (!valid.length) {
+    if (droppedCalls > 0) req.log.warn({ projects: projects.length, droppedCalls }, "portfolio finance rollup unavailable — every project's financials call failed");
+    return null;
+  }
+  const target = settings.reportingCurrency || fx?.base || "GBP";
+  const fold = foldFinance(valid, target, fx?.rates);
+  // Never silent: if the total covers fewer projects than exist (a failed call or an unconvertible
+  // currency), log it so an operator sees the rollup is partial, not a complete number.
+  if (droppedCalls > 0 || fold.droppedForFx > 0) {
+    req.log.warn(
+      { projects: projects.length, withFinancials: valid.length, folded: fold.includedRows, droppedForFx: fold.droppedForFx, droppedCalls, target },
+      "portfolio finance rollup is incomplete — total covers a subset of projects",
+    );
+  }
+  // Only surface a total when at least one project actually folded in — an all-dropped fold would
+  // otherwise report a misleading £0.
+  return fold.includedRows > 0 ? fold.totals : null;
+}
+
+async function summaryCapacity(broker: Broker, ctx: Ctx, caps: Caps, projects: Project[], run: Limiter): Promise<CapacityTotals | null> {
+  if ((caps && !caps.resources) || !projects.length) return null;
+  const lists = await Promise.all(projects.map((p) => run(() => broker.resourceCapacity(ctx, p.id).catch(() => [] as Row[]))));
+  const all = lists.flat();
+  return all.length ? foldCapacity(all) : null;
+}
+
+async function summaryTasks(broker: Broker, ctx: Ctx): Promise<TaskSummary | null> {
+  // Only when the active backend actually models tasks (an optional broker capability).
+  if (!broker.listTasks) return null;
+  const rows = await broker.listTasks(ctx, {}).catch(() => null);
+  return rows ? summariseTasks(rows) : null;
+}
+
 export async function computeLocalPortfolioSummary(req: Request): Promise<PortfolioSummary> {
   const broker = getBroker();
   const ctx = contextFromReq(req);
-  const caps = await resolveCapabilities(req).catch(() => null);
-  const projects = await broker.listProjects(ctx).catch(() => [] as Project[]);
+  // Capabilities and the project list are independent — fetch them concurrently.
+  const [caps, projects] = await Promise.all([
+    resolveCapabilities(req).catch(() => null),
+    broker.listProjects(ctx).catch(() => [] as Project[]),
+  ]);
 
-  let health: HealthTotals | null = null;
-  if (!caps || caps.portfolio) {
-    const rows = await broker.portfolioHealth(ctx).catch(() => null);
-    if (rows) health = summarizeHealth(rows);
-  }
-
-  let finance: FinanceTotals | null = null;
-  if ((!caps || caps.financials) && projects.length) {
-    const rows = await poolMap(projects, PORTFOLIO_FANOUT_LIMIT, (p) => broker.projectFinancials(ctx, p.id).catch(() => null));
-    const valid = rows.filter((r): r is Row => !!r);
-    const droppedCalls = projects.length - valid.length; // projects whose financials call failed/timed out
-    if (valid.length) {
-      const settings = getSettings();
-      const fx = await getFxRates(req, resolveFxAsOf(settings)).catch(() => null);
-      const target = settings.reportingCurrency || fx?.base || "GBP";
-      const fold = foldFinance(valid, target, fx?.rates);
-      // Only surface a total when at least one project actually folded in — an all-dropped fold
-      // (every project in a currency we can't convert) would otherwise report a misleading £0.
-      finance = fold.includedRows > 0 ? fold.totals : null;
-      // Never silent: if the total covers fewer projects than exist (a failed financials call or an
-      // unconvertible currency), log it so an operator can see the rollup is partial rather than
-      // trusting an understated number presented as complete.
-      if (droppedCalls > 0 || fold.droppedForFx > 0) {
-        req.log.warn(
-          { projects: projects.length, withFinancials: valid.length, folded: fold.includedRows, droppedForFx: fold.droppedForFx, droppedCalls, target },
-          "portfolio finance rollup is incomplete — total covers a subset of projects",
-        );
-      }
-    } else if (droppedCalls > 0) {
-      req.log.warn({ projects: projects.length, droppedCalls }, "portfolio finance rollup unavailable — every project's financials call failed");
-    }
-  }
-
-  let capacity: CapacityTotals | null = null;
-  if ((!caps || caps.resources) && projects.length) {
-    const lists = await poolMap(projects, PORTFOLIO_FANOUT_LIMIT, (p) => broker.resourceCapacity(ctx, p.id).catch(() => [] as Row[]));
-    const all = lists.flat();
-    if (all.length) capacity = foldCapacity(all);
-  }
-
-  // Task roll-up — only when the active backend actually models tasks (an optional broker capability).
-  let tasks: TaskSummary | null = null;
-  if (broker.listTasks) {
-    const rows = await broker.listTasks(ctx, {}).catch(() => null);
-    if (rows) tasks = summariseTasks(rows);
-  }
+  // The four sections share no data (all derive from projects/caps), so run them concurrently.
+  // One shared limiter holds the combined finance+capacity fan-out to PORTFOLIO_FANOUT_LIMIT.
+  const run = createConcurrencyLimiter(PORTFOLIO_FANOUT_LIMIT);
+  const [health, finance, capacity, tasks] = await Promise.all([
+    summaryHealth(broker, ctx, caps),
+    summaryFinance(req, broker, ctx, caps, projects, run),
+    summaryCapacity(broker, ctx, caps, projects, run),
+    summaryTasks(broker, ctx),
+  ]);
 
   // Source plan — the live projects' GUIDs ∪ every closed-project GUID, bucketed live/sor/archive
   // (relinks followed). Threads the closed-project registry through the roll-up so archived/closed
