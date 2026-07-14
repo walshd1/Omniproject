@@ -1,4 +1,5 @@
 import { ReportEmpty } from "./ReportEmpty";
+import { ReportTable } from "./ReportTable";
 import { useMemo } from "react";
 import { moscowWeight } from "../../lib/portfolio-priority";
 import type { ProjectItems } from "../../lib/portfolio-value";
@@ -182,6 +183,9 @@ export function DemandIntake() {
   const { projects, loading, isError, error, refetch } = usePortfolioItems();
   const { stages, queue, totals } = useMemo(() => rollupDemandIntake(projects), [projects]);
   const maxStage = Math.max(1, ...stages.map((s) => s.count));
+  // Rank = 1-based position in the prioritised queue. Keyed by row reference (not id) so it stays
+  // correct even if two demand rows share an id, matching the original positional `{i + 1}`.
+  const rankByRow = new Map(queue.map((r, i) => [r, i + 1]));
 
   return (
     <DataState isLoading={loading} isError={isError} error={error} onRetry={() => refetch()} className="min-h-40">
@@ -210,39 +214,31 @@ export function DemandIntake() {
             ))}
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3 font-bold">#</th>
-                  <th className="py-1.5 px-2 font-bold">Demand</th>
-                  <th className="py-1.5 px-2 font-bold">Stage</th>
-                  <th className="py-1.5 px-2 font-bold">Requester</th>
-                  <th className="py-1.5 px-2 font-bold">MoSCoW</th>
-                  <th className="py-1.5 px-2 font-bold text-right">RICE</th>
-                  <th className="py-1.5 px-2 font-bold text-right">WSJF</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Strat.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {queue.map((r, i) => (
-                  <tr key={r.id} className="border-b border-border/50 align-top" data-testid={`demand-intake-row-${r.id}`}>
-                    <td className="py-2 pr-3 tabular-nums text-muted-foreground">{i + 1}</td>
-                    <td className="py-2 px-2 font-bold">
-                      {r.title}
-                      <div className="text-[10px] font-normal text-muted-foreground">{r.project}</div>
-                    </td>
-                    <td className="py-2 px-2 text-[11px]">{r.stageLabel}</td>
-                    <td className="py-2 px-2 text-muted-foreground">{r.requester ?? "—"}</td>
-                    <td className="py-2 px-2">{r.moscow ? <MoscowChip label={r.moscow} /> : <span className="text-[11px] text-muted-foreground">—</span>}</td>
-                    <td className="py-2 px-2 text-right tabular-nums font-black">{r.riceScore == null ? "—" : r.riceScore}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{r.wsjf == null ? "—" : r.wsjf}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{r.strategicContribution == null ? "—" : `${r.strategicContribution}%`}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReportTable
+            rows={queue}
+            rowKey={(r) => r.id}
+            rowTestId={(r) => `demand-intake-row-${r.id}`}
+            size="comfortable"
+            columns={[
+              { header: "#", cell: (r) => rankByRow.get(r), cellClassName: "tabular-nums text-muted-foreground" },
+              {
+                header: "Demand",
+                cellClassName: "font-bold",
+                cell: (r) => (
+                  <>
+                    {r.title}
+                    <div className="text-[10px] font-normal text-muted-foreground">{r.project}</div>
+                  </>
+                ),
+              },
+              { header: "Stage", cell: (r) => r.stageLabel, cellClassName: "text-[11px]" },
+              { header: "Requester", cell: (r) => r.requester ?? "—", cellClassName: "text-muted-foreground" },
+              { header: "MoSCoW", cell: (r) => (r.moscow ? <MoscowChip label={r.moscow} /> : <span className="text-[11px] text-muted-foreground">—</span>) },
+              { header: "RICE", align: "right", cell: (r) => (r.riceScore == null ? "—" : r.riceScore), cellClassName: "font-black" },
+              { header: "WSJF", align: "right", cell: (r) => (r.wsjf == null ? "—" : r.wsjf) },
+              { header: "Strat.", align: "right", cell: (r) => (r.strategicContribution == null ? "—" : `${r.strategicContribution}%`) },
+            ]}
+          />
 
           <p className="text-[11px] text-muted-foreground">
             Every work item is treated as demand and placed in the intake funnel by its status (requests that were cancelled,

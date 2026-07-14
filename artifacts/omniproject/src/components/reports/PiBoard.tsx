@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { planPi, type Dependency, type Load, type PiObjective, type Team } from "../../lib/pi-planning";
+import { planPi, type Dependency, type Load, type PiObjective, type Team, type TeamPlan } from "../../lib/pi-planning";
+import { ReportTable, type ReportColumn } from "./ReportTable";
 
 /**
  * SAFe PI-planning board — per-team load vs capacity across the PI's iterations (over-commitment
@@ -42,35 +43,32 @@ export function PiBoard({
         </span>
       </div>
 
-      <div className="overflow-x-auto px-3">
-        <table className="w-full text-xs border-collapse">
-          <thead>
-            <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-              <th className="py-1.5 pr-3 font-bold">Team</th>
-              {Array.from({ length: iterations }, (_, i) => <th key={i} className="py-1.5 px-2 font-bold text-right">Iter {i + 1}</th>)}
-              <th className="py-1.5 px-2 font-bold text-right">Load</th>
-              <th className="py-1.5 px-2 font-bold text-right">Deps</th>
-            </tr>
-          </thead>
-          <tbody>
-            {plan.teams.map((t) => {
-              const dep = plan.dependencyLoad.find((d) => d.teamId === t.teamId)!;
-              return (
-                <tr key={t.teamId} className="border-b border-border/50" data-testid={`pi-team-${t.teamId}`}>
-                  <td className="py-1.5 pr-3 font-bold">{t.name}</td>
-                  {t.iterations.map((it) => (
-                    <td key={it.iteration} className={`py-1.5 px-2 text-right tabular-nums ${it.overloaded ? "text-red-500 font-black" : ""}`}
-                      data-testid={`pi-cell-${t.teamId}-${it.iteration}`}>
-                      {it.plannedPoints}/{it.capacityPoints}
-                    </td>
-                  ))}
-                  <td className={`py-1.5 px-2 text-right tabular-nums font-bold ${t.loadPct > 100 ? "text-red-500" : "text-muted-foreground"}`}>{t.loadPct}%</td>
-                  <td className="py-1.5 px-2 text-right tabular-nums text-muted-foreground">{dep.outgoing}→ {dep.incoming}←</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="px-3">
+        <ReportTable
+          rows={plan.teams}
+          rowKey={(t) => t.teamId}
+          rowTestId={(t) => `pi-team-${t.teamId}`}
+          columns={[
+            { header: "Team", cell: (t) => t.name, cellClassName: "font-bold" },
+            ...Array.from({ length: iterations }, (_, i): ReportColumn<TeamPlan> => ({
+              header: `Iter ${i + 1}`,
+              align: "right",
+              cell: (t) => `${t.iterations[i]!.plannedPoints}/${t.iterations[i]!.capacityPoints}`,
+              cellClassName: (t) => (t.iterations[i]!.overloaded ? "text-red-500 font-black" : ""),
+              testId: (t) => `pi-cell-${t.teamId}-${t.iterations[i]!.iteration}`,
+            })),
+            { header: "Load", align: "right", cell: (t) => `${t.loadPct}%`, cellClassName: (t) => `font-bold ${t.loadPct > 100 ? "text-red-500" : "text-muted-foreground"}` },
+            {
+              header: "Deps",
+              align: "right",
+              cellClassName: "text-muted-foreground",
+              cell: (t) => {
+                const dep = plan.dependencyLoad.find((d) => d.teamId === t.teamId)!;
+                return `${dep.outgoing}→ ${dep.incoming}←`;
+              },
+            },
+          ]}
+        />
       </div>
 
       {plan.overCommittedTeams.length > 0 && (
