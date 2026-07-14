@@ -111,8 +111,14 @@ describe("Settings", () => {
     expect(screen.queryByLabelText(/^$/i, { selector: "#fx-rate-as-of-date" })).not.toBeInTheDocument();
   });
 
+  it("locks the FX rate policy when no reporting currency is set (incompatible-settings lockout)", () => {
+    renderWithProviders(<A11yProvider><PlatformProvider><Settings /></PlatformProvider></A11yProvider>, { client: seed(settings({ reportingCurrency: "", fxRatePolicy: "spot" })) });
+    // FX conversion is off without a currency, so the policy control is greyed out with the reason.
+    expect(screen.getByText(/Set a reporting currency to enable FX conversion/i)).toBeInTheDocument();
+  });
+
   it("pre-fills the FX as-of-date once the policy is period-close", () => {
-    renderWithProviders(<A11yProvider><PlatformProvider><Settings /></PlatformProvider></A11yProvider>, { client: seed(settings({ fxRatePolicy: "periodClose", fxRateAsOfDate: "2026-06-30" })) });
+    renderWithProviders(<A11yProvider><PlatformProvider><Settings /></PlatformProvider></A11yProvider>, { client: seed(settings({ reportingCurrency: "GBP", fxRatePolicy: "periodClose", fxRateAsOfDate: "2026-06-30" })) });
     expect(screen.getByDisplayValue("2026-06-30")).toBeInTheDocument();
   });
 });
@@ -243,7 +249,7 @@ describe("Settings field edits", () => {
 
   it("reveals and edits the FX as-of-date input once the policy leaves 'spot'", async () => {
     const user = userEvent.setup();
-    const { container } = renderSettings(seed(settings({ fxRatePolicy: "spot" })));
+    const { container } = renderSettings(seed(settings({ reportingCurrency: "GBP", fxRatePolicy: "spot" })));
     expect(container.querySelector("#fx-rate-as-of-date")).toBeNull();
 
     // Open the FX policy select (first button trigger) and pick a non-spot policy.

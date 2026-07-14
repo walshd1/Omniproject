@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useEffect, useState, Fragment, type ComponentType, type ReactNode } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchAiStatus, type AiStatus } from "../lib/ai";
+import { useSettingLocks } from "../lib/setting-locks";
 import { fetchBackendIds } from "../lib/setup";
 import { PremiumAdmin } from "../components/PremiumAdmin";
 import { LazyMount } from "../components/LazyMount";
@@ -172,6 +173,11 @@ export function Settings() {
   });
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const [testing, setTesting] = useState(false);
+  // Cross-field settings lockout (server = single source; lib/settings-constraints). The FX rate
+  // policy is inert without a reporting currency, so it locks out reactively as the operator types.
+  const { lockFor } = useSettingLocks();
+  const fxInert = !formData.reportingCurrency.trim();
+  const fxLockReason = lockFor("fxRatePolicy")?.reason ?? "Set a reporting currency to enable FX conversion.";
 
   useEffect(() => {
     if (settings) {
@@ -309,8 +315,9 @@ export function Settings() {
             <Select
               value={formData.fxRatePolicy}
               onValueChange={(v) => setFormData((p) => ({ ...p, fxRatePolicy: v }))}
+              disabled={fxInert}
             >
-              <SelectTrigger className="rounded-none border-border h-12 font-mono uppercase w-64">
+              <SelectTrigger className="rounded-none border-border h-12 font-mono uppercase w-64 disabled:opacity-50" title={fxInert ? fxLockReason : undefined}>
                 <SelectValue placeholder="Select policy" />
               </SelectTrigger>
               <SelectContent>
@@ -319,7 +326,8 @@ export function Settings() {
                 <SelectItem value="budgetRate">Budget-set rate</SelectItem>
               </SelectContent>
             </Select>
-            {formData.fxRatePolicy !== "spot" && (
+            {fxInert && <p className="text-xs text-amber-600 dark:text-amber-500">{fxLockReason}</p>}
+            {!fxInert && formData.fxRatePolicy !== "spot" && (
               <Input
                 id="fx-rate-as-of-date"
                 type="date"

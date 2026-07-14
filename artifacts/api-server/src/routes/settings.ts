@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getSettings, updateSettings, redactSettingsForRead, SettingsValidationError } from "../lib/settings";
+import { evaluateConstraints } from "../lib/settings-constraints";
 import { requireRole } from "../lib/rbac";
 import { captureVersion } from "../lib/config-store";
 import { resetBroker } from "../broker";
@@ -14,6 +15,13 @@ router.get("/settings", (_req, res) => {
   // Read-safe: webhook signing secrets are masked (any authenticated session,
   // incl. read-only API tokens, can reach this).
   res.json(redactSettingsForRead(getSettings()));
+});
+
+// The current cross-field incompatibility LOCKS (which admin controls must be disabled or forced,
+// and why), derived from the live settings by lib/settings-constraints. The admin panels read this to
+// grey out illegal choices proactively — same non-secret, read-safe audience as GET /settings.
+router.get("/settings/constraints", (_req, res) => {
+  res.json({ locks: evaluateConstraints(getSettings()).locks });
 });
 
 // Changing settings re-wires the gateway (broker URL, AI provider) — admin only.
