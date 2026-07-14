@@ -24,9 +24,10 @@ interface State {
   issues: Map<string, Row[]>; // projectId → issues
   raid: Map<string, Row[]>;
   taskItems: Map<string, Row[]>; // taskId → items
-  seq: { project: number; issue: number; raid: number; item: number };
+  comments: Map<string, Row[]>; // issueId → comment thread (newest last)
+  seq: { project: number; issue: number; raid: number; item: number; comment: number };
 }
-const empty = (): State => ({ projects: new Map(), issues: new Map(), raid: new Map(), taskItems: new Map(), seq: { project: 0, issue: 0, raid: 0, item: 0 } });
+const empty = (): State => ({ projects: new Map(), issues: new Map(), raid: new Map(), taskItems: new Map(), comments: new Map(), seq: { project: 0, issue: 0, raid: 0, item: 0, comment: 0 } });
 
 const idNum = (id: unknown): number => { const m = /(\d+)$/.exec(String(id)); return m ? Number(m[1]) : 0; };
 
@@ -87,6 +88,12 @@ export function applyEvent(state: State, link: OmniLink): void {
       const r = { ...row("row") };
       (state.taskItems.get(String(r["taskId"])) ?? state.taskItems.set(String(r["taskId"]), []).get(String(r["taskId"]))!)!.push(r);
       state.seq.item = Math.max(state.seq.item, idNum(r["id"]));
+      return;
+    }
+    case "comment.add": {
+      const r = { ...row("row") };
+      (state.comments.get(String(r["issueId"])) ?? state.comments.set(String(r["issueId"]), []).get(String(r["issueId"]))!)!.push(r);
+      state.seq.comment = Math.max(state.seq.comment, idNum(r["id"]));
       return;
     }
   }
@@ -185,6 +192,19 @@ export function omniStoreBackend(log: OmniEventLog, onCommit?: (sealed: string) 
       const id = `ti-${state.seq.item + 1}`;
       const row: Row = { kind: "note", content: "", ...input, id, taskId, createdAt: now() };
       commit("taskItem.add", { row });
+      return { ...row };
+    },
+
+    // ── Comments (Jira-class first-class collaboration entity) ────────────────
+    // Kept as their OWN event-sourced thread keyed by issueId — not folded into an issue Row — so the
+    // thread is append-only, individually addressable, and survives replay like every other entity.
+    async listTaskComments(_ctx, issueId) { return (state.comments.get(issueId) ?? []).map((r) => ({ ...r })); },
+    async addTaskComment(ctx, issueId, input) {
+      const id = `cmt-${state.seq.comment + 1}`;
+      // Store the WHOLE input Row (superset), then stamp the fields the store owns. `author` defaults to
+      // the forwarded actor so a comment is attributable even when the caller doesn't supply one.
+      const row: Row = { ...input, id, issueId, author: input["author"] ?? ctx.sub ?? null, createdAt: now() };
+      commit("comment.add", { row });
       return { ...row };
     },
   };

@@ -19,6 +19,8 @@ import {
   type ProjectMember,
   type TaskItem,
   type TaskItemWrite,
+  type TaskComment,
+  type TaskCommentWrite,
   type Summary,
   type HistoryPoint,
   type HistoryState,
@@ -611,6 +613,21 @@ export class ReferenceBroker implements Broker {
   async createTaskItem(ctx: ActorContext, projectId: string, taskId: string, input: TaskItemWrite): Promise<TaskItem> {
     const r = await callBroker<TaskItem>("create_task_item", { projectId, taskId, ...input }, { ctx, source: backendSource(), withActor: true });
     if (!r.data) throw new BrokerError("bad_request", "create_task_item returned no item");
+    return r.data;
+  }
+
+  // Comments (Jira-class) — OPTIONAL: a backend that stores comments first-class (e.g. OmniStore) serves
+  // these; one that doesn't answers 501, which surfaces as a "not supported" backend error the caller
+  // handles (the gateway degrades the comment feature to its ephemeral thread store). issueId is the
+  // task/work-item id — the gateway's optional `Broker` signature carries it as `taskId`.
+  async listTaskComments(ctx: ActorContext, taskId: string): Promise<TaskComment[]> {
+    const r = await callBroker<TaskComment[]>("list_task_comments", { issueId: taskId }, { ctx, source: backendSource(), withActor: false });
+    return r.data ?? [];
+  }
+
+  async addTaskComment(ctx: ActorContext, taskId: string, input: TaskCommentWrite): Promise<TaskComment> {
+    const r = await callBroker<TaskComment>("add_task_comment", { issueId: taskId, ...input }, { ctx, source: backendSource(), withActor: true });
+    if (!r.data) throw new BrokerError("bad_request", "add_task_comment returned no comment");
     return r.data;
   }
 

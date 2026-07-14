@@ -45,6 +45,24 @@ test("a real broker drives OmniStore over the wire and passes conformance (drops
   });
 });
 
+test("Jira-class — comments are a first-class stored entity carried over the wire", async () => {
+  await withServer(undefined, async (broker) => {
+    const p = await broker.createProject(ctx, { name: "Collab" });
+    const issue = await broker.writeIssue(ctx, "create", { projectId: p.id, title: "Discuss me", status: "todo" });
+    // The optional Broker method the reference adapter only implements because the backend advertises it.
+    assert.equal(typeof broker.addTaskComment, "function");
+    const c1 = await broker.addTaskComment(ctx, issue.id, { body: "first" });
+    const c2 = await broker.addTaskComment(ctx, issue.id, { body: "second" });
+    assert.equal(c1.body, "first");
+    assert.equal(c1.author, ctx.sub); // attributed to the forwarded actor
+    const thread = await broker.listTaskComments(ctx, issue.id);
+    assert.deepEqual(thread.map((c: any) => c.body), ["first", "second"]); // append-only, newest last
+    assert.equal(thread[1].id, c2.id);
+    // A different work item has its own thread (keyed by issueId, not shared).
+    assert.deepEqual(await broker.listTaskComments(ctx, "iss-does-not-exist"), []);
+  });
+});
+
 test("stores the SUPERSET — extension fields no vendor API exposes round-trip", async () => {
   await withServer(undefined, async (broker) => {
     // Fields a third-party API wouldn't hold: OmniProject's correlation GUID + a custom field.

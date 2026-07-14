@@ -127,8 +127,22 @@ function bindFromHeaders(headers: Record<string, string | string[] | undefined> 
 }
 
 /** The backend interface a broker implements (the stub above is one). Templates
- *  type their real implementation against this. */
-export type BrokerBackend = typeof backend;
+ *  type their real implementation against this.
+ *
+ *  The core is the stub's shape PLUS an OPTIONAL Jira-class collaboration surface
+ *  (comments) a backend MAY implement. Optional — not on the stub — so no existing
+ *  implementer is forced to add it; a backend that stores comments first-class (e.g.
+ *  OmniStore) implements the methods and a backend that doesn't omits them, exactly
+ *  like the gateway `Broker`'s optional methods. The matching binding actions
+ *  presence-check and return 501 when absent (capability-gated). */
+export type BrokerBackend = typeof backend & {
+  /** OPTIONAL — a work item's comment thread, newest-last. Only a backend that stores comments
+   *  first-class implements it (else the `list_task_comments` action is 501). */
+  listTaskComments?(ctx: ActorCtx, issueId: string): Promise<Row[]>;
+  /** OPTIONAL — append a comment to a work item. `input.body` is the text; the backend stamps
+   *  id/author/createdAt. Only a comment-storing backend implements it (else `add_task_comment` is 501). */
+  addTaskComment?(ctx: ActorCtx, issueId: string, input: Row): Promise<Row>;
+};
 
 /** The pre-extracted call context handed to every binding action's handler. */
 interface BindingCtx {
@@ -173,6 +187,16 @@ const BINDING_ACTIONS: Record<string, (b: BindingCtx) => unknown> = {
   delete_issue: ({ be, ctx, pid, iid }) => be.deleteIssue(ctx, pid, iid),
   create_raid_entry: ({ be, ctx, pid, payload }) => be.createRaidEntry(ctx, pid, payload),
   create_task_item: ({ be, ctx, pid, payload }) => be.createTaskItem(ctx, pid, String(payload["taskId"] ?? ""), payload),
+  // OPTIONAL Jira-class comments — presence-gated: a backend that doesn't store comments has no
+  // handler method, so the action returns 501 (NotImplemented) rather than silently no-op'ing.
+  list_task_comments: ({ be, ctx, iid }) => {
+    if (!be.listTaskComments) throw new NotImplemented("listTaskComments");
+    return be.listTaskComments(ctx, iid);
+  },
+  add_task_comment: ({ be, ctx, iid, payload }) => {
+    if (!be.addTaskComment) throw new NotImplemented("addTaskComment");
+    return be.addTaskComment(ctx, iid, payload);
+  },
 };
 
 /** The canonical set of binding action names (the registry's keys). */
