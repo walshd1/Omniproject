@@ -130,6 +130,32 @@ describe("detectPlatform", () => {
     }
   });
 
+  it("treats a fullscreen display-mode as standalone", () => {
+    const savedMM = Object.getOwnPropertyDescriptor(window, "matchMedia");
+    // Only the fullscreen query matches (standalone does not) → exercises the second media() branch.
+    window.matchMedia = ((q: string) => ({ matches: /fullscreen/.test(q) })) as unknown as typeof window.matchMedia;
+    try {
+      expect(detectPlatform().standalone).toBe(true);
+    } finally {
+      if (savedMM) Object.defineProperty(window, "matchMedia", savedMM);
+      else delete (window as unknown as Record<string, unknown>).matchMedia;
+    }
+  });
+
+  it("treats an absent navigator.maxTouchPoints as zero (nullish fallback)", () => {
+    const savedMTP = Object.getOwnPropertyDescriptor(navigator, "maxTouchPoints");
+    const savedMM = Object.getOwnPropertyDescriptor(window, "matchMedia");
+    Object.defineProperty(navigator, "maxTouchPoints", { value: undefined, configurable: true });
+    delete (window as unknown as Record<string, unknown>).matchMedia; // media() false → coarse relies on maxTouchPoints
+    try {
+      expect(detectPlatform().touch).toBe(false);
+    } finally {
+      if (savedMTP) Object.defineProperty(navigator, "maxTouchPoints", savedMTP);
+      else Object.defineProperty(navigator, "maxTouchPoints", { value: 0, configurable: true });
+      if (savedMM) Object.defineProperty(window, "matchMedia", savedMM);
+    }
+  });
+
   it("covers the iOS-standalone path (navigator.standalone) with matchMedia absent", () => {
     const savedMM = Object.getOwnPropertyDescriptor(window, "matchMedia");
     delete (window as unknown as Record<string, unknown>).matchMedia; // media() returns false

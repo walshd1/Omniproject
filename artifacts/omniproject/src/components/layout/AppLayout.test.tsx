@@ -279,4 +279,93 @@ describe("AppLayout", () => {
     fireEvent.keyDown(document, { key: "p" });
     await waitFor(() => expect(window.location.pathname).toBe("/projects"));
   });
+
+  it.each([
+    ["r", "/reports"],
+    ["e", "/explore"],
+    ["s", "/settings"],
+    ["c", "/configurator"],
+  ])("the 'g %s' chord navigates to %s", async (key, path) => {
+    renderWithProviders(<AppLayout><div>BODY</div></AppLayout>, { client: seed() });
+    fireEvent.keyDown(document, { key: "g" });
+    fireEvent.keyDown(document, { key });
+    await waitFor(() => expect(window.location.pathname).toBe(path));
+  });
+
+  it("ignores the 'g' chord while the user is typing in a field", () => {
+    renderWithProviders(
+      <AppLayout>
+        <input aria-label="typebox" />
+      </AppLayout>,
+      { client: seed() },
+    );
+    const input = screen.getByLabelText("typebox");
+    input.focus();
+    expect(document.activeElement).toBe(input);
+    fireEvent.keyDown(document, { key: "g" });
+    fireEvent.keyDown(document, { key: "p" });
+    // The typing guard stands the chord down, so navigation never fires.
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("does not open the shortcuts help when '?' is pressed with a modifier held", () => {
+    renderWithProviders(<AppLayout><div>BODY</div></AppLayout>, { client: seed() });
+    fireEvent.keyDown(document, { key: "?", ctrlKey: true });
+    expect(screen.queryByRole("heading", { name: /keyboard shortcuts/i })).toBeNull();
+  });
+
+  it("does not open the shortcuts help via '?' while typing in a field", () => {
+    renderWithProviders(
+      <AppLayout>
+        <input aria-label="typebox" />
+      </AppLayout>,
+      { client: seed() },
+    );
+    screen.getByLabelText("typebox").focus();
+    fireEvent.keyDown(document, { key: "?" });
+    expect(screen.queryByRole("heading", { name: /keyboard shortcuts/i })).toBeNull();
+  });
+
+  it("falls back to the 'ME' placeholder and an 'Account' avatar tooltip when the user has no name or email", () => {
+    const qc = seed();
+    qc.setQueryData(["auth", "me"], { authenticated: true, mode: "demo", user: { sub: "u1" }, role: "admin" });
+    renderWithProviders(<AppLayout><div>BODY</div></AppLayout>, { client: qc });
+    // "ME" → single token → first initial "M"; the avatar tooltip has no email/name → "Account".
+    expect(screen.getByTitle("Account")).toHaveTextContent("M");
+  });
+
+  it("omits the role badge when the session carries no role", () => {
+    const qc = seed();
+    qc.setQueryData(["auth", "me"], { authenticated: true, mode: "demo", user: { name: "Ada", email: "ada@example.com", sub: "u1" }, role: "" });
+    renderWithProviders(<AppLayout><div>BODY</div></AppLayout>, { client: qc });
+    // The avatar tooltip still shows the email, but no uppercase role chip is rendered.
+    expect(screen.getByTitle("ada@example.com")).toBeInTheDocument();
+    expect(screen.queryByTitle(/access level/i)).toBeNull();
+  });
+
+  it("marks the Configurator nav row with a demo dot when the broker is unconfigured", () => {
+    // Admin sees the Advanced shelf open, so the Configurator row (with its demo dot) renders.
+    renderWithProviders(
+      <AppLayout><div>BODY</div></AppLayout>,
+      { client: seed({ role: "admin", brokerConfigured: false }) },
+    );
+    expect(screen.getAllByTitle("Running in demo mode").length).toBeGreaterThan(0);
+  });
+
+  it("suppresses the demo banner on the configurator route itself", () => {
+    window.history.pushState({}, "", "/configurator");
+    renderWithProviders(
+      <AppLayout><div>BODY</div></AppLayout>,
+      { client: seed({ brokerConfigured: false }) },
+    );
+    // No project-context header banner: the top-of-page demo banner is hidden on /configurator.
+    expect(screen.queryByText(/demo mode/i)).toBeNull();
+  });
+
+  it("renders no project-context crumb when there are no projects at all", () => {
+    const qc = seed();
+    qc.setQueryData(getListProjectsQueryKey(), []);
+    renderWithProviders(<AppLayout><div>BODY</div></AppLayout>, { client: qc });
+    expect(screen.queryByText("Platform Rewrite")).toBeNull();
+  });
 });
