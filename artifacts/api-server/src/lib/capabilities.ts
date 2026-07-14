@@ -285,15 +285,17 @@ export async function resolveCapabilities(req: Request): Promise<Capabilities> {
 
   const broker = getBroker();
   const ctx = contextFromReq(req);
-  const flags = await probe(broker.capabilities(ctx), null);
+  // The three probes are independent reads — issue them concurrently rather than in series (build
+  // needs flags+map, enrich needs enumerated, but none of the FETCHES depend on another's result).
+  const [flags, map, enumerated] = await Promise.all([
+    probe(broker.capabilities(ctx), null),
+    probe(broker.fieldMap?.(ctx), undefined), // prefer the broker's explicit field/entity map; else domain-derived
+    probe(broker.describeFields?.(ctx), null),
+  ]);
   const enabled = Object.fromEntries(
     CAPABILITY_DOMAINS.map((d) => [d, !!flags?.[d]]),
   ) as Record<CapabilityDomain, boolean>;
-  // Prefer the broker's explicit field/entity map; fall back to domain-derived.
-  const map = await probe(broker.fieldMap?.(ctx), undefined);
   const caps = build(broker.kind, enabled, map ?? undefined);
-
-  const enumerated = await probe(broker.describeFields?.(ctx), null);
   return enrichWithCustomFieldsAndLineage(caps, enumerated, broker.kind);
 }
 

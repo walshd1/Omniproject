@@ -32,13 +32,16 @@ const rag = (r: PortfolioRow): string => r.ragStatus.trim().toLowerCase();
 
 /** Build the digest from portfolio rows (pure). `at` is an ISO timestamp for the heading. */
 export function buildExecDigest(rows: PortfolioRow[], at: string): ExecDigest {
-  const red = rows.filter((r) => rag(r) === "red").length;
-  const amber = rows.filter((r) => rag(r) === "amber").length;
-  const green = rows.filter((r) => rag(r) === "green").length;
+  // One pass folds the rows into every counter/max (was six separate traversals). Same output.
+  let red = 0, amber = 0, green = 0, worstScheduleSlipDays = 0, worstBudgetOverrunPct = 0, totalBlockers = 0;
+  for (const r of rows) {
+    const g = rag(r);
+    if (g === "red") red++; else if (g === "amber") amber++; else if (g === "green") green++;
+    if (r.scheduleVarianceDays > worstScheduleSlipDays) worstScheduleSlipDays = r.scheduleVarianceDays;
+    if (r.budgetVariancePercentage > worstBudgetOverrunPct) worstBudgetOverrunPct = r.budgetVariancePercentage;
+    totalBlockers += r.activeBlockersCount;
+  }
   const atRisk = red + amber;
-  const worstScheduleSlipDays = rows.reduce((m, r) => Math.max(m, r.scheduleVarianceDays), 0);
-  const worstBudgetOverrunPct = rows.reduce((m, r) => Math.max(m, r.budgetVariancePercentage), 0);
-  const totalBlockers = rows.reduce((n, r) => n + r.activeBlockersCount, 0);
   const stats = { total: rows.length, red, amber, green, atRisk, worstScheduleSlipDays, worstBudgetOverrunPct, totalBlockers };
 
   const title = `Portfolio digest — ${atRisk}/${rows.length} project(s) at risk`;

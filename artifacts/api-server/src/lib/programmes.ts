@@ -252,12 +252,30 @@ export function programmeIdsOf(p: Row, registry: ProgrammeRegistry = {}): string
   return Object.entries(registry).filter(([, def]) => def.instanceIds.includes(guid)).map(([id]) => id);
 }
 
+/** Invert the registry into `guid → programme ids` ONCE, so a per-project lookup is O(1) instead of a
+ *  full registry scan. Ids are pushed in registry-iteration order, so a project's programme list is
+ *  byte-identical to the old per-project `Object.entries(registry).filter(...)`. */
+function membershipByGuid(registry: ProgrammeRegistry): Map<string, string[]> {
+  const byGuid = new Map<string, string[]>();
+  for (const [id, def] of Object.entries(registry)) {
+    for (const guid of def.instanceIds) {
+      const ids = byGuid.get(guid);
+      if (ids) ids.push(id); else byGuid.set(guid, [id]);
+    }
+  }
+  return byGuid;
+}
+
 /** Group projects into programmes by the registry (standalone projects are excluded). Programme names
  *  come from the registry (admin/PMO-chosen), not from any backend field. */
 export function groupProgrammes(projects: Row[], registry: ProgrammeRegistry = {}): ProgrammeRollup[] {
+  // Invert the registry once (O(memberships)) so grouping is O(projects), not O(projects × programmes).
+  const byGuid = membershipByGuid(registry);
   const groups = new Map<string, Row[]>();
   for (const p of projects) {
-    for (const id of programmeIdsOf(p, registry)) {
+    const guid = instanceIdOf(p);
+    if (!guid) continue;
+    for (const id of byGuid.get(guid) ?? []) {
       const list = groups.get(id) ?? [];
       list.push(p);
       groups.set(id, list);

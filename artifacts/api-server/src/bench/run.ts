@@ -29,7 +29,7 @@
 import { performance } from "node:perf_hooks";
 import { portfolioHealthRows, financeRows, capacityRows, projectRows } from "./fixtures";
 import { summarizeHealth, foldFinance, foldCapacity } from "../lib/portfolio-summary";
-import { aggregateFinancials, groupProgrammes } from "../lib/programmes";
+import { aggregateFinancials, groupProgrammes, type ProgrammeRegistry } from "../lib/programmes";
 import type { Row, PortfolioRow } from "../broker/types";
 
 /** Nearest-rank percentile over an ascending-sorted array (no rounding — keeps sub-microsecond
@@ -70,11 +70,20 @@ function buildCases(): BenchCase[] {
   const projects = projectRows(PROJECTS, SEED) as Row[];
   const fxRates = { GBP: 1, USD: 0.79, EUR: 0.85 };
 
+  // groupProgrammes maps a project's correlation GUID (omniInstanceId) against a registry; without
+  // both it early-returns and the real per-project→programme mapping is never exercised. Seed ~1
+  // programme per 10 projects so the benchmark measures (and guards) the actual grouping path.
+  const grouped = projects.map((p, i) => ({ ...p, omniInstanceId: `inst-${i}` }));
+  const programmeCount = Math.max(1, Math.floor(PROJECTS / 10));
+  const registry: ProgrammeRegistry = {};
+  for (let g = 0; g < programmeCount; g++) registry[`prog-${g}`] = { name: `Programme ${g}`, instanceIds: [] };
+  grouped.forEach((_, i) => registry[`prog-${i % programmeCount}`]!.instanceIds.push(`inst-${i}`));
+
   return [
     { name: "summarizeHealth", scale: `${PROJECTS} rows`, run: () => summarizeHealth(health).projects },
     { name: "foldFinance", scale: `${PROJECTS} rows`, run: () => foldFinance(finance, "GBP", fxRates).totals.budget },
     { name: "foldCapacity", scale: `${PROJECTS} rows`, run: () => foldCapacity(capacity).allocations },
-    { name: "groupProgrammes", scale: `${PROJECTS} projects`, run: () => groupProgrammes(projects).length },
+    { name: "groupProgrammes", scale: `${PROJECTS} projects / ${programmeCount} programmes`, run: () => groupProgrammes(grouped, registry).length },
     { name: "aggregateFinancials", scale: `${PROJECTS} projects`, run: () => aggregateFinancials(projects)?.budget ?? 0 },
   ];
 }
