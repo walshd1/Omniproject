@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import type { Broker, Row } from "./types";
 import {
   sanitizePortfolioRow, sanitizeHistoryPoint, sanitizeFinancials, sanitizeCapacityRow,
-  sanitizeProject, sanitizeIssue, wrapWithSanitizer, runWithDataQuality,
+  sanitizeProject, sanitizeIssue, sanitizeMember, sanitizeTask, sanitizeSummary, sanitizeFxRates,
+  sanitizeGenericRow, wrapWithSanitizer, runWithDataQuality,
 } from "./sanitizer";
 
 test("sanitizePortfolioRow: junk/missing numeric figures repair to 0, strings to \"\"", () => {
@@ -57,6 +58,40 @@ test("sanitizeProject / sanitizeIssue: required identity coerced; optional numbe
   assert.equal(i.loggedHours, 8);
   assert.equal(i.billable, true); // 1 → true
   assert.equal(i.blocked, false);
+});
+
+test("sanitizeMember: capacity hours coerced, unknown access → 'read'", () => {
+  const m = sanitizeMember({ id: 7, access: "admin", availableHours: "40", allocatedHours: 20 });
+  assert.equal(m["id"], "7");
+  assert.equal(m["access"], "read"); // unknown enum → default
+  assert.equal(m["availableHours"], null); // "40" is not a finite number
+  assert.equal(m["allocatedHours"], 20);
+});
+
+test("sanitizeTask: identity coerced, estimateHours normalised", () => {
+  const t = sanitizeTask({ id: "t1", title: "T", status: "open", estimateHours: NaN, assignee: "ada" });
+  assert.equal(t["estimateHours"], null);
+  assert.equal(t["assignee"], "ada"); // string field passes through
+});
+
+test("sanitizeSummary: total + count maps coerced to finite numbers", () => {
+  const s = sanitizeSummary({ projectId: "p", total: "12", byStatus: { open: 5, done: "x" }, byPriority: { high: NaN } });
+  assert.equal(s["total"], 0); // "12" string → 0 for a required number
+  assert.deepEqual(s["byStatus"], { open: 5, done: 0 });
+  assert.deepEqual(s["byPriority"], { high: 0 });
+});
+
+test("sanitizeFxRates: drops non-positive / non-finite rates (money-critical)", () => {
+  const fx = sanitizeFxRates({ base: "GBP", rates: { GBP: 1, USD: 1.25, JPY: "bad", EUR: -1, CHF: NaN }, provenance: "sourced" });
+  assert.deepEqual(fx["rates"], { GBP: 1, USD: 1.25 }); // JPY/EUR/CHF dropped → those become unconvertible, never garbage
+});
+
+test("sanitizeGenericRow: strips prototype-pollution keys, keeps the rest", () => {
+  const raw = JSON.parse('{"id":"a","type":"comment","__proto__":{"admin":true}}') as Record<string, unknown>;
+  const g = sanitizeGenericRow(raw);
+  assert.equal(g["id"], "a");
+  assert.equal(g["type"], "comment");
+  assert.ok(!Object.prototype.hasOwnProperty.call(g, "__proto__"));
 });
 
 test("runWithDataQuality tallies repairs of PRESENT-but-invalid values (not legitimate absences)", async () => {
