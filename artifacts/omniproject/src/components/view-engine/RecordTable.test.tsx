@@ -38,4 +38,23 @@ describe("RecordTable", () => {
     fireEvent.click(screen.getByText("B"));
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "b" }));
   });
+
+  it("falls back to all fields when an empty columns array is given", () => {
+    render(<RecordTable records={RECS} fields={F} columns={[]} noun="widget" onOpen={() => {}} />);
+    expect(screen.getByRole("columnheader", { name: /status/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /assignee/i })).toBeInTheDocument();
+  });
+
+  it("renders an em dash for a field whose value is null/undefined", () => {
+    const recs = [{ id: "n", title: "N", status: "todo", priority: null, chips: [], raw: { id: "n", status: "todo", assignee: "" } } as ViewRecord<W>];
+    // Assignee getter returns "" here; use a field whose getter yields undefined to hit the ?? "—".
+    const withNull: EntityField<W>[] = [{ key: "assignee", label: "Assignee", get: () => undefined as unknown as string }];
+    render(<RecordTable records={recs} fields={withNull} noun="widget" onOpen={() => {}} />);
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("shows the empty-state with a noun-scoped test id when there are no records", () => {
+    render(<RecordTable records={[]} fields={F} noun="widget" onOpen={() => {}} />);
+    expect(screen.getByTestId("widget-table-empty")).toHaveTextContent("No widgets.");
+  });
 });

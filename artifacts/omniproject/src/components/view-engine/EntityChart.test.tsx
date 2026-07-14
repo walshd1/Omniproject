@@ -30,4 +30,26 @@ describe("EntityChart", () => {
     expect(screen.getByTestId("gantt-chart")).toBeInTheDocument();
     expect(screen.getByText("Delivery")).toBeInTheDocument();
   });
+
+  it("defaults the group field to status when a count chart omits groupField", () => {
+    // No groupField ⇒ groups by "status": two "todo" + one "done" — must construct without error.
+    expect(() =>
+      render(<EntityChart records={records} fields={fields} spec={{ type: "bar" }} noun="widget" />),
+    ).not.toThrow();
+  });
+
+  it("buckets records with a missing/blank group value under the em-dash bucket", () => {
+    // A record whose status field resolves to "" lands in the "—" bucket rather than crashing.
+    const blank = [rec("z", ""), rec("y", "done")];
+    expect(() =>
+      render(<EntityChart records={blank} fields={fields} spec={{ type: "wbs", groupField: "status" }} noun="widget" />),
+    ).not.toThrow();
+  });
+
+  it("shows the gantt empty-state when the spec names no start/end fields", () => {
+    // startField/endField default to "" ⇒ no field found ⇒ every item has blank dates ⇒ nothing to place.
+    render(<EntityChart records={records} fields={fields} spec={{ type: "gantt" }} noun="widget" />);
+    expect(screen.getByTestId("gantt-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("gantt-chart")).not.toBeInTheDocument();
+  });
 });

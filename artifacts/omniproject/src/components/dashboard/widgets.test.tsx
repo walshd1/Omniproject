@@ -169,4 +169,65 @@ describe("CapacityActualsWidget", () => {
     expect(row).toHaveTextContent(`${logged}h/${planned}h`);
     expect(row).toHaveTextContent(`+${logged - planned}h`); // over-delivered
   });
+
+  it("colours an under-delivered resource amber and falls back to the id when the name is blank", () => {
+    const qc = makeQC();
+    seedCapacity(qc, ["p1"]);
+    qc.setQueryData(getGetProjectCapacityQueryKey("p1"), [
+      { resourceId: "alice", resourceName: "Alice", role: "Eng", allocationPercentage: 100, assignedHours: 100, availableHours: 100, utilizationState: "OPTIMAL" },
+      { resourceId: "bob", resourceName: "", role: "Eng", allocationPercentage: 100, assignedHours: 40, availableHours: 40, utilizationState: "OPTIMAL" },
+    ] as ResourceCapacity[]);
+    qc.setQueryData(getGetProjectIssuesQueryKey("p1"), [
+      { id: "i1", projectId: "p1", assignee: "alice", loggedHours: 50 }, // 50 of 100 ⇒ UNDER
+      { id: "i2", projectId: "p1", assignee: "bob", loggedHours: 40 }, // 40 of 40 ⇒ ON_TRACK
+    ] as unknown as Issue[]);
+    renderWithProviders(<WidgetView type="capacityActuals" />, { client: qc });
+
+    const alice = screen.getByTestId("capacity-actuals-row-alice");
+    expect(alice).toHaveTextContent("-50h"); // negative variance, no leading +
+    expect(alice.querySelector(".text-amber-500")).not.toBeNull(); // under-delivered band
+
+    const bob = screen.getByTestId("capacity-actuals-row-bob");
+    expect(bob).toHaveTextContent("bob"); // blank resourceName ⇒ id fallback
+    expect(bob).toHaveTextContent("0h"); // on-track variance
+    expect(bob.querySelector(".text-amber-500")).toBeNull();
+    expect(bob.querySelector(".text-red-500")).toBeNull();
+  });
+
+  it("ignores issues without positive logged hours or an assignee, and tolerates a project with no cached data", () => {
+    const qc = makeQC();
+    seedCapacity(qc, ["p1", "p2"]); // p2's capacity/issues queries are intentionally left unseeded
+    qc.setQueryData(getGetProjectCapacityQueryKey("p1"), [
+      { resourceId: "alice", resourceName: "Alice", role: "Eng", allocationPercentage: 100, assignedHours: 40, availableHours: 40, utilizationState: "OPTIMAL" },
+    ] as ResourceCapacity[]);
+    qc.setQueryData(getGetProjectIssuesQueryKey("p1"), [
+      { id: "i1", projectId: "p1", assignee: "alice", loggedHours: 44 }, // counted
+      { id: "i2", projectId: "p1", assignee: "alice" }, // no loggedHours ⇒ skipped
+      { id: "i3", projectId: "p1", assignee: "alice", loggedHours: 0 }, // zero ⇒ skipped
+      { id: "i4", projectId: "p1", assignee: "", loggedHours: 20 }, // no assignee ⇒ skipped
+    ] as unknown as Issue[]);
+    renderWithProviders(<WidgetView type="capacityActuals" />, { client: qc });
+
+    const alice = screen.getByTestId("capacity-actuals-row-alice");
+    expect(alice).toHaveTextContent("44h/40h"); // only the one valid logged-hours issue counted
+    // Only Alice has a row; the skipped issues didn't create spurious rows.
+    expect(screen.getAllByTestId(/^capacity-actuals-row-/)).toHaveLength(1);
+  });
+
+  it("shows an em-dash overall percentage when there is logged work but nothing planned", () => {
+    const qc = makeQC();
+    seedCapacity(qc, ["p1"]);
+    qc.setQueryData(getGetProjectCapacityQueryKey("p1"), [] as ResourceCapacity[]); // no plan
+    qc.setQueryData(getGetProjectIssuesQueryKey("p1"), [
+      { id: "i1", projectId: "p1", assignee: "carol", loggedHours: 30 },
+    ] as unknown as Issue[]);
+    renderWithProviders(<WidgetView type="capacityActuals" />, { client: qc });
+
+    // Rows exist (so not the empty state) but nothing is planned ⇒ overall delivery is "—".
+    expect(screen.getByText("—")).toBeInTheDocument();
+    const carol = screen.getByTestId("capacity-actuals-row-carol");
+    expect(carol).toHaveTextContent("carol");
+    expect(carol).toHaveTextContent("30h/0h");
+    expect(carol).toHaveTextContent("+30h");
+  });
 });

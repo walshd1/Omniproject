@@ -136,4 +136,49 @@ describe("EntityViews (generic engine)", () => {
       savedData = [];
     }
   });
+
+  it("shows a loading placeholder for the list view while records are loading", () => {
+    const d = makeDescriptor();
+    d.useRecords = () => ({ records: [], isLoading: true, error: null });
+    renderWithProviders(<EntityViews descriptor={d} onOpen={() => {}} />);
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+  });
+
+  it("shows an error placeholder for the list view when loading failed", () => {
+    const d = makeDescriptor();
+    d.useRecords = () => ({ records: [], isLoading: false, error: new Error("nope") });
+    renderWithProviders(<EntityViews descriptor={d} onOpen={() => {}} />);
+    expect(screen.getByText("Couldn't load widgets.")).toBeInTheDocument();
+  });
+
+  it("groups the list under headings when a saved view sets groupBy", () => {
+    savedData = [{ id: "svg", name: "By status", entity: "widget", viewKind: "list", groupBy: "status" }];
+    try {
+      renderWithProviders(<EntityViews descriptor={makeDescriptor()} onOpen={() => {}} />);
+      fireEvent.click(screen.getByRole("tab", { name: "By status" }));
+      // Group headings appear for each distinct status value; both records are still shown.
+      expect(screen.getByRole("heading", { name: "next" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "waiting" })).toBeInTheDocument();
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+      expect(screen.getByText("Bravo")).toBeInTheDocument();
+    } finally {
+      savedData = [];
+    }
+  });
+
+  it("renders the built-in Chart view without crashing when its tab is selected", () => {
+    renderWithProviders(<EntityViews descriptor={makeDescriptor()} onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Chart" }));
+    expect(screen.getByRole("tab", { name: "Chart" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("reopens a completed record from the list, moving it back to the reopen status", () => {
+    move.mockClear();
+    const d = makeDescriptor();
+    d.useRecords = () => ({ records: [{ id: "wd", title: "Done one", status: "done", priority: null, chips: [], raw: { id: "wd", title: "Done one", status: "done" } }], isLoading: false, error: null });
+    renderWithProviders(<EntityViews descriptor={d} onOpen={() => {}} />);
+    // The record is closed, so its checkbox offers "Reopen"; toggling it moves to reopenStatus ("next").
+    fireEvent.click(screen.getByLabelText("Reopen Done one"));
+    expect(move).toHaveBeenCalledWith(expect.objectContaining({ id: "wd" }), "next");
+  });
 });

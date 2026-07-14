@@ -32,4 +32,11 @@ describe("ViewPanel (via ScreenRenderer)", () => {
     renderWithProviders(<ScreenRenderer screen={s} />);
     expect(screen.getByTestId("unknown-view")).toBeInTheDocument();
   });
+
+  it("defaults view and projectId to empty when the panel has no config, showing the placeholder", () => {
+    const s: ScreenDef = { id: "x2", label: "X2", panels: [{ id: "v2", kind: "view" }] };
+    renderWithProviders(<ScreenRenderer screen={s} />);
+    // config.view defaults to "" ⇒ not a known view id ⇒ placeholder for the empty view name.
+    expect(screen.getByTestId("unknown-view")).toHaveTextContent("Unknown view");
+  });
 });
