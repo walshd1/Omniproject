@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Archive } from "lucide-react";
+import { AdminSection } from "./AdminSection";
 import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -52,12 +53,7 @@ export function ClosedProjectsAdmin() {
   };
 
   return (
-    <section data-testid="closed-projects-admin">
-      <div className="flex items-center gap-3 mb-4">
-        <Archive className="w-4 h-4 text-muted-foreground" />
-        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Closed projects</h2>
-      </div>
-      <div className="bg-card border border-border p-4 space-y-3">
+    <AdminSection icon={Archive} title="Closed projects" testId="closed-projects-admin">
         <p className="text-xs text-muted-foreground">
           Where a closed project's data lives, by GUID. <strong>SOR</strong> leaves it in the originating
           backend (pulled on demand); <strong>Archive</strong> marks it migrated to the self-managed
@@ -103,7 +99,6 @@ export function ClosedProjectsAdmin() {
             {save.isPending ? "SAVING…" : "Save closed projects"}
           </Button>
         </div>
-      </div>
-    </section>
+    </AdminSection>
   );
 }

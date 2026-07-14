@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ShieldCheck } from "lucide-react";
+import { AdminSection } from "./AdminSection";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -85,12 +86,7 @@ export function FieldValidationAdmin() {
   };
 
   return (
-    <section data-testid="field-validation-admin">
-      <div className="flex items-center gap-3 mb-4">
-        <ShieldCheck className="w-4 h-4 text-muted-foreground" />
-        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Field validation rules</h2>
-      </div>
-      <div className="bg-card border border-border p-4 space-y-3">
+    <AdminSection icon={ShieldCheck} title="Field validation rules" testId="field-validation-admin">
         <p className="text-xs text-muted-foreground">
           Constrain a field's <strong>value</strong>: mark it required, set min/max (value bounds for numbers,
           length for text), a date range with <strong>after/before</strong> (date fields — a real date
@@ -147,7 +143,6 @@ export function FieldValidationAdmin() {
             {save.isPending ? "SAVING…" : "Save rules"}
           </Button>
         </div>
-      </div>
-    </section>
+    </AdminSection>
   );
 }

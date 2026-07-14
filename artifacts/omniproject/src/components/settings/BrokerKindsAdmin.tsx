@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Waypoints } from "lucide-react";
+import { AdminSection } from "./AdminSection";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -43,12 +44,7 @@ export function BrokerKindsAdmin() {
   };
 
   return (
-    <section data-testid="broker-kinds-admin">
-      <div className="flex items-center gap-3 mb-4">
-        <Waypoints className="w-4 h-4 text-muted-foreground" />
-        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Connected brokers</h2>
-      </div>
-      <div className="bg-card border border-border p-4 space-y-3">
+    <AdminSection icon={Waypoints} title="Connected brokers" testId="broker-kinds-admin">
         <p className="text-xs text-muted-foreground">
           Extra broker platforms wired below the seam, beyond the active data hop. Add a catalogue broker
           id; the deployment's <code>BROKER_KINDS</code> env is included automatically.
@@ -81,7 +77,6 @@ export function BrokerKindsAdmin() {
             {save.isPending ? "SAVING…" : "Save brokers"}
           </Button>
         </div>
-      </div>
-    </section>
+    </AdminSection>
   );
 }

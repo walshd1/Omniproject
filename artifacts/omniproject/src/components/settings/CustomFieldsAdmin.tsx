@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SquarePlus } from "lucide-react";
+import { AdminSection } from "./AdminSection";
 import { CANONICAL_FIELD_KEYS } from "@workspace/backend-catalogue";
 import { useAuth, roleAtLeast } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
@@ -45,12 +46,7 @@ export function CustomFieldsAdmin() {
   };
 
   return (
-    <section data-testid="custom-fields-admin">
-      <div className="flex items-center gap-3 mb-4">
-        <SquarePlus className="w-4 h-4 text-muted-foreground" />
-        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Custom fields (extend the superset)</h2>
-      </div>
-      <div className="bg-card border border-border p-4 space-y-3">
+    <AdminSection icon={SquarePlus} title="Custom fields (extend the superset)" testId="custom-fields-admin">
         <p className="text-xs text-muted-foreground">
           Add a field the catalogue doesn't have. Each must have a source: <strong>map it in the Routing Matrix</strong>.
           If no external system carries it, route it to the <strong>Postgres backend</strong> (a backend like any other).
@@ -94,7 +90,6 @@ export function CustomFieldsAdmin() {
             {save.isPending ? "SAVING…" : "Save fields"}
           </Button>
         </div>
-      </div>
-    </section>
+    </AdminSection>
   );
 }

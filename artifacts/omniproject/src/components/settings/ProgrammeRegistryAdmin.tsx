@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Boxes } from "lucide-react";
+import { AdminSection } from "./AdminSection";
 import { useAuth, isPmoOrAdmin } from "../../lib/auth";
 import { useDraftAdmin } from "../../hooks/use-draft-admin";
 import { useToast } from "@/hooks/use-toast";
@@ -52,12 +53,7 @@ export function ProgrammeRegistryAdmin() {
   };
 
   return (
-    <section data-testid="programme-registry-admin">
-      <div className="flex items-center gap-3 mb-4">
-        <Boxes className="w-4 h-4 text-muted-foreground" />
-        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Programmes</h2>
-      </div>
-      <div className="bg-card border border-border p-4 space-y-3">
+    <AdminSection icon={Boxes} title="Programmes" testId="programme-registry-admin">
         <p className="text-xs text-muted-foreground">
           A programme is a <strong>name</strong> plus the <strong>project instance IDs</strong> that belong to it.
           Membership is by the project's correlation GUID, so a programme can span projects across different
@@ -97,7 +93,6 @@ export function ProgrammeRegistryAdmin() {
             {save.isPending ? "SAVING…" : "Save programmes"}
           </Button>
         </div>
-      </div>
-    </section>
+    </AdminSection>
   );
 }
