@@ -650,6 +650,9 @@ export interface UserPrefs {
   accentColor: string | null;
   backgroundColor: string | null;
   highContrast: boolean;
+  /** Colour-overlay tint (dyslexia / Irlen reading aid) + its colour. */
+  tint: boolean;
+  tintColor: string;
   reduceMotion: boolean;
   /** Switch-access scanning: off, single-switch (auto-scan) or two-switch (step). */
   switchScan: "off" | "single" | "two";

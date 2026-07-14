@@ -41,7 +41,7 @@ const DENSITY_OPTIONS: { value: Density; label: string }[] = [
  */
 export function A11yControls() {
   const {
-    prefs, setFontScale, setFontFamily, setAccentColor, setBackgroundColor, toggleHighContrast, toggleReduceMotion,
+    prefs, setFontScale, setFontFamily, setAccentColor, setBackgroundColor, toggleHighContrast, toggleTint, setTintColor, toggleReduceMotion,
     setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput, setMobileMode, setDensity, importProfile, reset,
   } = useA11yPrefs();
   const importRef = useRef<HTMLInputElement>(null);
@@ -132,6 +132,24 @@ export function A11yControls() {
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="a11y-contrast">High contrast</Label>
           <Switch id="a11y-contrast" checked={prefs.highContrast} onCheckedChange={toggleHighContrast} />
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label htmlFor="a11y-tint">Reading tint</Label>
+            <p className="text-xs text-muted-foreground">A soft colour overlay to ease reading (a dyslexia / visual-stress aid).</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="a11y-tint-color"
+              type="color"
+              aria-label="Tint colour"
+              value={prefs.tintColor}
+              onChange={(e) => setTintColor(e.target.value)}
+              disabled={!prefs.tint}
+              className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent disabled:opacity-40"
+            />
+            <Switch id="a11y-tint" checked={prefs.tint} onCheckedChange={toggleTint} />
+          </div>
         </div>
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="a11y-motion">Reduce motion</Label>

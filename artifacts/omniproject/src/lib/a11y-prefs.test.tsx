@@ -89,7 +89,7 @@ describe("a11y-prefs store", () => {
     expect(imported.density).toBe("compact");
     expect(imported.backgroundColor).toBeNull(); // invalid → null
     expect(imported.switchScan).toBe("off"); // invalid → default
-    expect(imported.scopedOverrides["screen:reports"].accentColor).toBe("#00ff00");
+    expect(imported.scopedOverrides["screen:reports"]!.accentColor).toBe("#00ff00");
     expect(Object.prototype.hasOwnProperty.call(imported.scopedOverrides, "__proto__")).toBe(false);
     expect("somethingUnknown" in imported).toBe(false); // unknown keys dropped
   });
@@ -110,6 +110,14 @@ describe("a11y-prefs store", () => {
   it("falls back to comfortable on an unknown density value", () => {
     localStorage.setItem("omni:a11y", JSON.stringify({ density: "nonsense" }));
     expect(loadA11yPrefs().density).toBe("comfortable");
+  });
+
+  it("applyA11yPrefs reflects the reading tint (dyslexia aid) on the root", () => {
+    applyA11yPrefs({ ...DEFAULT_A11Y, tint: true, tintColor: "#ffeeaa" });
+    expect(document.documentElement.getAttribute("data-tint")).toBe("on");
+    expect(document.documentElement.style.getPropertyValue("--user-tint")).toBe("#ffeeaa");
+    applyA11yPrefs({ ...DEFAULT_A11Y, tint: false });
+    expect(document.documentElement.getAttribute("data-tint")).toBe("off");
   });
 
   it("applyA11yPrefs reflects density on the data-density attribute the stylesheet keys off", () => {
@@ -140,6 +148,16 @@ describe("A11yControls", () => {
     fireEvent.click(screen.getByLabelText("Increase text size"));
     fireEvent.click(screen.getByText("Reset to company default"));
     expect(screen.getByText("100%")).toBeInTheDocument();
+  });
+
+  it("toggles the reading tint and picks a tint colour, persisting both", () => {
+    render(<Providers><A11yControls /></Providers>);
+    fireEvent.click(screen.getByLabelText("Reading tint"));
+    expect(document.documentElement.getAttribute("data-tint")).toBe("on");
+    expect(JSON.parse(localStorage.getItem("omni:a11y")!).tint).toBe(true);
+    fireEvent.change(screen.getByLabelText("Tint colour"), { target: { value: "#ccffee" } });
+    expect(JSON.parse(localStorage.getItem("omni:a11y")!).tintColor).toBe("#ccffee");
+    expect(document.documentElement.style.getPropertyValue("--user-tint")).toBe("#ccffee");
   });
 
   it("switches UI density to compact and persists it client-side", () => {

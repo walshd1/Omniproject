@@ -30,6 +30,10 @@ export interface A11yPrefs {
   backgroundColor: string | null;
   /** Stronger borders, underlined links, thick focus outlines. */
   highContrast: boolean;
+  /** Colour-overlay tint (a dyslexia / Irlen reading aid) over the whole screen. */
+  tint: boolean;
+  /** The tint overlay colour (hex). Applied at low opacity when `tint` is on. */
+  tintColor: string;
   /** Near-instant transitions/animations. */
   reduceMotion: boolean;
   /** Switch-access scanning: off, single-switch (auto-scan) or two-switch (step). */
@@ -59,8 +63,12 @@ export interface ScopedOverride {
   backgroundColor?: string | null;
 }
 
+/** Default tint colour: a soft cream — the most commonly-helpful reading-overlay tint. */
+const DEFAULT_TINT = "#f5e9c8";
+
 export const DEFAULT_A11Y: A11yPrefs = {
-  fontScale: 1, fontFamily: null, accentColor: null, backgroundColor: null, highContrast: false, reduceMotion: false,
+  fontScale: 1, fontFamily: null, accentColor: null, backgroundColor: null, highContrast: false,
+  tint: false, tintColor: DEFAULT_TINT, reduceMotion: false,
   switchScan: "off", scanRateMs: 1500, screenReader: false, speechInput: false, mobileMode: "auto",
   density: "comfortable", scopedOverrides: {},
 };
@@ -103,6 +111,7 @@ const DENSITIES: Density[] = ["comfortable", "compact"];
 const clampScale = (n: number): number => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(n * 100) / 100));
 const clampScan = (n: number): number => Math.min(MAX_SCAN, Math.max(MIN_SCAN, Math.round(n)));
 const cleanColor = (v: unknown): string | null => (typeof v === "string" && HEX.test(v) ? v : null);
+const cleanTintColor = (v: unknown): string => (typeof v === "string" && HEX.test(v) ? v : DEFAULT_TINT);
 const cleanFontFamily = (v: unknown): FontChoice | null => (FONT_CHOICES.includes(v as FontChoice) ? (v as FontChoice) : null);
 const cleanScanMode = (v: unknown): SwitchScanMode => (SCAN_MODES.includes(v as SwitchScanMode) ? (v as SwitchScanMode) : "off");
 const cleanMobileMode = (v: unknown): MobileMode => (MOBILE_MODES.includes(v as MobileMode) ? (v as MobileMode) : "auto");
@@ -118,6 +127,8 @@ export function coerceA11yPrefs(input: unknown): A11yPrefs {
     accentColor: cleanColor(p.accentColor),
     backgroundColor: cleanColor(p.backgroundColor),
     highContrast: !!p.highContrast,
+    tint: !!p.tint,
+    tintColor: cleanTintColor(p.tintColor),
     reduceMotion: !!p.reduceMotion,
     switchScan: cleanScanMode(p.switchScan),
     scanRateMs: typeof p.scanRateMs === "number" ? clampScan(p.scanRateMs) : DEFAULT_A11Y.scanRateMs,
@@ -167,6 +178,9 @@ export function applyA11yPrefs(p: A11yPrefs): void {
   if (p.backgroundColor) root.style.setProperty("--user-bg", p.backgroundColor);
   else root.style.removeProperty("--user-bg");
   root.setAttribute("data-contrast", p.highContrast ? "high" : "normal");
+  // Dyslexia / Irlen tint overlay (lib index.css paints it from these on the root).
+  root.setAttribute("data-tint", p.tint ? "on" : "off");
+  root.style.setProperty("--user-tint", cleanTintColor(p.tintColor));
   root.setAttribute("data-reduce-motion", p.reduceMotion ? "true" : "false");
   root.setAttribute("data-density", p.density);
   setAnnounceVerbose(p.screenReader);
@@ -179,6 +193,8 @@ interface A11yContextValue {
   setAccentColor: (hex: string | null) => void;
   setBackgroundColor: (hex: string | null) => void;
   toggleHighContrast: () => void;
+  toggleTint: () => void;
+  setTintColor: (hex: string) => void;
   toggleReduceMotion: () => void;
   setSwitchScan: (mode: SwitchScanMode) => void;
   setScanRate: (ms: number) => void;
@@ -244,6 +260,8 @@ export function A11yProvider({ children }: { children: ReactNode }) {
     setAccentColor: (hex) => change({ ...prefs, accentColor: cleanColor(hex) }),
     setBackgroundColor: (hex) => change({ ...prefs, backgroundColor: cleanColor(hex) }),
     toggleHighContrast: () => change({ ...prefs, highContrast: !prefs.highContrast }),
+    toggleTint: () => change({ ...prefs, tint: !prefs.tint }),
+    setTintColor: (hex) => change({ ...prefs, tintColor: cleanTintColor(hex) }),
     toggleReduceMotion: () => change({ ...prefs, reduceMotion: !prefs.reduceMotion }),
     setSwitchScan: (mode) => change({ ...prefs, switchScan: cleanScanMode(mode) }),
     setScanRate: (ms) => change({ ...prefs, scanRateMs: clampScan(ms) }),

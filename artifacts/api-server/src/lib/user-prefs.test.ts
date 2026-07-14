@@ -19,6 +19,14 @@ test("sanitize clamps font scale and validates the colour", () => {
   assert.equal(sanitizeUserPrefs({ highContrast: 1, reduceMotion: "yes" }).highContrast, true);
 });
 
+test("sanitize coerces the reading tint (dyslexia aid): boolean flag + validated hex colour", () => {
+  assert.equal(sanitizeUserPrefs({ tint: 1 }).tint, true);
+  assert.equal(sanitizeUserPrefs({}).tint, false);
+  assert.equal(sanitizeUserPrefs({ tintColor: "#abcdef" }).tintColor, "#abcdef");
+  assert.equal(sanitizeUserPrefs({ tintColor: "not-a-colour" }).tintColor, "#f5e9c8"); // invalid → default
+  assert.equal(sanitizeUserPrefs({}).tintColor, "#f5e9c8");
+});
+
 test("sanitize validates the per-user font family + accent colour (null when absent/invalid)", () => {
   assert.equal(sanitizeUserPrefs({ fontFamily: "serif" }).fontFamily, "serif");
   assert.equal(sanitizeUserPrefs({ fontFamily: "mono" }).fontFamily, "mono");
