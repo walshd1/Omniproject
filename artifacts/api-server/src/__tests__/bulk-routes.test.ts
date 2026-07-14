@@ -53,25 +53,41 @@ test("create_project over the item cap → 413", async () => {
   assert.match(((await r.json()) as { error: string }).error, /Too many items/);
 });
 
-test("dry-run create_project → 200, projects preview-apply per name, writes nothing", async () => {
+test("dry-run create_project → 200, preview-apply per name, writes nothing, returns a confirm token", async () => {
   const r = await bulk(
     { action: "create_project", dryRun: true, names: ["Preview A", "Preview B"], template: { status: "Active" } },
     stepUpAdminCookie(),
   );
   assert.equal(r.status, 200);
-  const out = (await r.json()) as { total: number; applied: number; results: { status: string }[] };
+  const out = (await r.json()) as { total: number; applied: number; confirmToken?: string; results: { status: string }[] };
   assert.equal(out.total, 2);
   assert.equal(out.applied, 2);
   assert.ok(out.results.every((x) => x.status === "preview-apply"));
+  assert.match(out.confirmToken ?? "", /^[0-9a-f]{64}$/); // the secondary-confirmation token
 });
 
-test("real create_project of distinct names → 200, all applied with distinct ids", async () => {
-  const r = await bulk(
-    { action: "create_project", names: ["Bulk Alpha", "Bulk Beta", "Bulk Gamma"] },
-    stepUpAdminCookie(),
-  );
+test("a real execute WITHOUT the confirm token → 428 confirmation_required (nothing written)", async () => {
+  const r = await bulk({ action: "create_project", names: ["NoConfirm A"] }, stepUpAdminCookie());
+  assert.equal(r.status, 428);
+  const body = (await r.json()) as { code?: string; confirmToken?: string };
+  assert.equal(body.code, "confirmation_required");
+  assert.match(body.confirmToken ?? "", /^[0-9a-f]{64}$/);
+});
+
+test("a real execute with a WRONG confirm token → 428 (order-independent fingerprint isn't guessable)", async () => {
+  const r = await bulk({ action: "create_project", names: ["WrongTok A"], confirm: "deadbeef" }, stepUpAdminCookie());
+  assert.equal(r.status, 428);
+});
+
+test("preview → confirm → execute: distinct projects created, all applied, distinct ids", async () => {
+  const names = ["Bulk Alpha", "Bulk Beta", "Bulk Gamma"];
+  // 1. Preview (dry-run) to obtain the confirm token for this exact batch.
+  const preview = await bulk({ action: "create_project", dryRun: true, names }, stepUpAdminCookie());
+  const { confirmToken } = (await preview.json()) as { confirmToken: string };
+  // 2. Execute with the token — the secondary confirmation the dialog would supply.
+  const r = await bulk({ action: "create_project", names, confirm: confirmToken }, stepUpAdminCookie());
   assert.equal(r.status, 200);
-  const out = (await r.json()) as { applied: number; total: number; results: { id?: string; status: string }[] };
+  const out = (await r.json()) as { applied: number; total: number; results: { id?: string }[] };
   assert.equal(out.total, 3);
   assert.equal(out.applied, 3);
   const ids = out.results.map((x) => x.id).filter(Boolean);

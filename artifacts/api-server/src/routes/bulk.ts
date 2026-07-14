@@ -5,7 +5,7 @@ import { getBroker, contextFromReq } from "../broker";
 import { assertProjectScope } from "../lib/project-scope";
 import { recordRequestAudit } from "../lib/audit";
 import { v, parseOr400 } from "../lib/validate";
-import { runBulk, MAX_BULK_ITEMS, type BulkSpec, type BulkActionKind } from "../lib/bulk-actions";
+import { runBulk, bulkFingerprint, MAX_BULK_ITEMS, type BulkSpec, type BulkActionKind } from "../lib/bulk-actions";
 
 /**
  * Declarative BULK-ACTION runner — the admin "apply one canonical write to many projects" endpoint.
@@ -39,6 +39,9 @@ const PATCH_SHAPE = v.object({
 const BULK_BODY = v.object({
   action: v.enum(["update_project", "create_project"] as const),
   dryRun: v.optional(v.boolean()),
+  // Secondary-confirmation token: a real execute must echo the fingerprint a dry-run returned for
+  // this EXACT batch. Absent/mismatched ⇒ 428, so a bulk write can't fire in one blind call.
+  confirm: v.optional(v.string({ max: 128 })),
   // No validator cap here — a manual length check gives a proper 413 (matching /import/commit); the
   // 256kb body limit is the backstop against an unbounded array.
   targets: v.optional(v.array(v.string({ trim: true, min: 1, max: 300 }))),
@@ -84,6 +87,21 @@ router.post("/admin/bulk", requireRole("manager"), requireStepUp, async (req, re
     ...(body.template ? { template: body.template } : {}),
     ...(body.names ? { names: body.names } : {}),
   };
+
+  // Secondary confirmation: a real (non-dry-run) execute must echo the confirm token for THIS exact
+  // batch — the token a dry-run preview returns. Missing/mismatched ⇒ 428 with the token, so the SPA
+  // (or an API caller) shows a "you're about to modify N projects — confirm?" step and retries with
+  // it. A dry-run itself needs no token; it writes nothing.
+  const confirmToken = bulkFingerprint(spec);
+  if (!dryRun && body.confirm !== confirmToken) {
+    res.status(428).json({
+      error: "This bulk action needs a secondary confirmation. Preview it, then resend with the confirm token.",
+      code: "confirmation_required",
+      confirmToken,
+    });
+    return;
+  }
+
   const outcome = await runBulk({
     broker: getBroker(),
     ctx: contextFromReq(req),
@@ -110,7 +128,8 @@ router.post("/admin/bulk", requireRole("manager"), requireStepUp, async (req, re
   // applied on a real run ⇒ 422 (so a caller can't mistake a fully-skipped batch for success). A
   // dry-run always 200s — it's a projection, not an outcome.
   const status = dryRun || outcome.applied === outcome.total ? 200 : outcome.applied === 0 ? 422 : 207;
-  res.status(status).json(outcome);
+  // Echo the confirm token on a dry-run so the SPA's confirmation dialog can resend it to execute.
+  res.status(status).json(dryRun ? { ...outcome, confirmToken } : outcome);
 });
 
 export default router;

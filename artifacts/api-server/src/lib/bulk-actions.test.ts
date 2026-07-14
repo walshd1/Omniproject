@@ -1,6 +1,6 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { runBulk, MAX_BULK_ITEMS, type RunBulkInput } from "./bulk-actions";
+import { runBulk, bulkFingerprint, MAX_BULK_ITEMS, type RunBulkInput } from "./bulk-actions";
 import { setRuleModes, resetRuleModes } from "./ruleset";
 import type { Broker, ActorContext, Project } from "../broker/types";
 import type { Role } from "./rbac";
@@ -171,4 +171,19 @@ test("a broker error on one item is captured as an error, the batch continues", 
 
 test("MAX_BULK_ITEMS is a sane, enforced-elsewhere cap (documented floor)", () => {
   assert.ok(MAX_BULK_ITEMS > 0 && MAX_BULK_ITEMS <= 5_000);
+});
+
+test("bulkFingerprint: stable, order-independent over the item SET, and content-sensitive", () => {
+  const a = bulkFingerprint({ action: "create_project", names: ["A", "B", "C"], template: { status: "Active" } });
+  const reordered = bulkFingerprint({ action: "create_project", names: ["C", "A", "B"], template: { status: "Active" } });
+  assert.equal(a, reordered); // same SET of items ⇒ same token
+  assert.match(a, /^[0-9a-f]{64}$/);
+  // A different patch/template ⇒ different token (you can't confirm a batch you didn't preview).
+  assert.notEqual(a, bulkFingerprint({ action: "create_project", names: ["A", "B", "C"], template: { status: "Closed" } }));
+  // A different action ⇒ different token.
+  assert.notEqual(a, bulkFingerprint({ action: "update_project", targets: ["A", "B", "C"], patch: { status: "Active" } }));
+  // A hostile/extra field is stripped before hashing (same token as without it).
+  const withExtra = bulkFingerprint({ action: "create_project", names: ["A"], template: { status: "Active", role: "admin" } as Record<string, unknown> });
+  const without = bulkFingerprint({ action: "create_project", names: ["A"], template: { status: "Active" } });
+  assert.equal(withExtra, without);
 });

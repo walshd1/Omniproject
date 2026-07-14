@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { evaluateRuleset } from "./ruleset";
 import { createConcurrencyLimiter } from "./concurrency-pool";
 import type { Broker, ActorContext, ProjectWrite } from "../broker/types";
@@ -72,6 +72,25 @@ export interface BulkOutcome {
   skipped: number;
   errored: number;
   results: BulkItemResult[];
+}
+
+/**
+ * A stateless CONFIRMATION fingerprint of a spec: a hash over the canonical (order-independent)
+ * spec content. It underpins the "secondary confirmation" gate — a real (non-dry-run) execute must
+ * echo the fingerprint of the EXACT batch a dry-run previewed, so a bulk write can never fire in one
+ * blind call. It's a deliberate-second-step control, not an auth secret (anyone with the spec can
+ * compute it); zero-at-rest, so nothing is stored to enforce it. Targets/names are sorted so the
+ * token depends on the SET of items, not their order.
+ */
+export function bulkFingerprint(spec: BulkSpec): string {
+  const canonical = {
+    action: spec.action,
+    targets: [...(spec.targets ?? [])].map((t) => String(t)).sort(),
+    names: [...(spec.names ?? [])].map((n) => String(n)).sort(),
+    patch: pickPatch(spec.patch),
+    template: pickPatch(spec.template),
+  };
+  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
 
 export interface RunBulkInput {
