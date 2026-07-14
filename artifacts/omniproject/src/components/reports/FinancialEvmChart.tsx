@@ -54,7 +54,7 @@ export function FinancialEvmChart({ projectId }: { projectId: string }) {
             <select
               value={displayCcy}
               onChange={(e) => setDisplay(e.target.value)}
-              className="bg-background border border-border px-2 py-1 text-xs font-mono uppercase outline-none"
+              className="bg-background border border-border px-2 py-1 text-xs font-mono uppercase outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               {currencyOptions.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>

@@ -211,6 +211,8 @@ function ScoreBadge({ score, band }: { score: number; band: "green" | "amber" | 
   );
 }
 
+const RAG_LABEL: Record<"green" | "amber" | "red", string> = { green: "OK", amber: "AT", red: "CR" };
+
 function RagChips({ rag }: { rag: { green: number; amber: number; red: number } }) {
   const parts: { k: "green" | "amber" | "red"; n: number }[] = [
     { k: "red", n: rag.red },
@@ -221,7 +223,7 @@ function RagChips({ rag }: { rag: { green: number; amber: number; red: number } 
   return (
     <span className="inline-flex gap-1">
       {parts.filter((p) => p.n > 0).map((p) => (
-        <Badge key={p.k} tone={p.k === "green" ? "good" : p.k === "amber" ? "warn" : "bad"} testId={`rag-${p.k}`} className="tabular-nums">{p.n}</Badge>
+        <Badge key={p.k} tone={p.k === "green" ? "good" : p.k === "amber" ? "warn" : "bad"} testId={`rag-${p.k}`} className="tabular-nums">{p.n} <span className="text-[9px] uppercase tracking-widest opacity-70">{RAG_LABEL[p.k]}</span></Badge>
       ))}
     </span>
   );

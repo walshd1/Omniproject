@@ -59,6 +59,7 @@
     "@vitest/coverage-v8": "^4.1.10",
     "@workspace/api-client-react": "workspace:*",
     "@workspace/backend-catalogue": "workspace:*",
+    "axe-core": "^4.12.1",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "^1.1.1",
@@ -83,6 +84,7 @@
     "vaul": "^1.1.2",
     "vite": "catalog:",
     "vitest": "^4.1.10",
+    "vitest-axe": "^0.1.0",
     "wouter": "^3.3.5",
     "zod": "catalog:",
     "zustand": "^5.0.14"

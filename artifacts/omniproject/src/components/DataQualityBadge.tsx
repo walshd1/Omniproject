@@ -12,8 +12,10 @@ export function DataQualityBadge() {
   return (
     <span
       data-testid="data-quality-badge"
+      role="status"
+      aria-live="polite"
       title={`The connected backend returned malformed field(s) that were auto-repaired (most recent response: ${lastRepaired}). Roll-up totals stay sound — but the source data has quality issues worth checking.`}
-      className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-600 border border-amber-500/40 px-1.5 py-0.5 rounded-none"
+      className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-500 border border-amber-500/40 px-1.5 py-0.5 rounded-none"
     >
       <span aria-hidden="true">⚠</span>
       <span className="hidden sm:inline">Data repaired</span>

@@ -184,7 +184,7 @@ function AddSurface({ options, available, onAdd }: { options: DeploymentState[];
       <select name="surface" aria-label="Add a screen override" className="h-8 flex-1 rounded border border-border bg-transparent px-1 text-xs">
         {available.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
       </select>
-      <select name="state" defaultValue={options[options.length - 1]} className="h-8 rounded border border-border bg-transparent px-1 text-xs">
+      <select name="state" aria-label="Override state" defaultValue={options[options.length - 1]} className="h-8 rounded border border-border bg-transparent px-1 text-xs">
         {options.map((s) => <option key={s} value={s}>{STATE_INFO[s].label}</option>)}
       </select>
       <Button type="submit" variant="outline" size="sm" className="h-8 px-2 text-xs">Add</Button>

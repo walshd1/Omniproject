@@ -83,6 +83,7 @@ export function GenerateStep({
         <select
           value={backendId}
           onChange={(e) => setBackendId(e.target.value)}
+          aria-label="Connector tool"
           className="bg-background border border-border px-3 py-2 text-sm font-mono uppercase"
         >
           {backends.map((b) => (

@@ -72,6 +72,7 @@ export function AiProvidersAdmin() {
       <div className="flex items-center gap-2">
         <input
           type="password"
+          aria-label={`API key for ${p.label ?? p.id}`}
           placeholder={p.hasKey ? `key set · ${p.fingerprint ?? ""}` : "paste API key"}
           value={keyDraft[p.id] ?? ""}
           onChange={(e) => setKeyDraft((d) => ({ ...d, [p.id]: e.target.value }))}
@@ -107,13 +108,13 @@ export function AiProvidersAdmin() {
         <div className="rounded border border-dashed border-border p-3 space-y-2">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Add a provider</h3>
           <div className="grid grid-cols-2 gap-2">
-            <input placeholder="id (e.g. openai-team)" value={add.id} onChange={(e) => setAdd((a) => ({ ...a, id: e.target.value }))} data-testid="add-id" className="h-8 rounded border border-border bg-background px-2 text-xs" />
-            <select value={add.kind} onChange={(e) => setAdd((a) => ({ ...a, kind: e.target.value as AiProviderKind }))} data-testid="add-kind" className="h-8 rounded border border-border bg-background px-2 text-xs">
+            <input aria-label="Provider id" placeholder="id (e.g. openai-team)" value={add.id} onChange={(e) => setAdd((a) => ({ ...a, id: e.target.value }))} data-testid="add-id" className="h-8 rounded border border-border bg-background px-2 text-xs" />
+            <select aria-label="Provider kind" value={add.kind} onChange={(e) => setAdd((a) => ({ ...a, kind: e.target.value as AiProviderKind }))} data-testid="add-kind" className="h-8 rounded border border-border bg-background px-2 text-xs">
               {data.kinds.map((k) => <option key={k} value={k}>{k}</option>)}
             </select>
-            <input placeholder="label" value={add.label} onChange={(e) => setAdd((a) => ({ ...a, label: e.target.value }))} data-testid="add-label" className="h-8 rounded border border-border bg-background px-2 text-xs" />
-            <input placeholder="endpoint (optional)" value={add.endpoint} onChange={(e) => setAdd((a) => ({ ...a, endpoint: e.target.value }))} className="h-8 rounded border border-border bg-background px-2 text-xs" />
-            <input placeholder="model (optional)" value={add.model} onChange={(e) => setAdd((a) => ({ ...a, model: e.target.value }))} className="h-8 rounded border border-border bg-background px-2 text-xs" />
+            <input aria-label="Provider label" placeholder="label" value={add.label} onChange={(e) => setAdd((a) => ({ ...a, label: e.target.value }))} data-testid="add-label" className="h-8 rounded border border-border bg-background px-2 text-xs" />
+            <input aria-label="Provider endpoint" placeholder="endpoint (optional)" value={add.endpoint} onChange={(e) => setAdd((a) => ({ ...a, endpoint: e.target.value }))} className="h-8 rounded border border-border bg-background px-2 text-xs" />
+            <input aria-label="Provider model" placeholder="model (optional)" value={add.model} onChange={(e) => setAdd((a) => ({ ...a, model: e.target.value }))} className="h-8 rounded border border-border bg-background px-2 text-xs" />
           </div>
           <button
             type="button"

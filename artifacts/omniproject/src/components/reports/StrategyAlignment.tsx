@@ -159,6 +159,8 @@ function themeTone(rag: { green: number; amber: number; red: number }): string {
   return "text-muted-foreground";
 }
 
+const RAG_LABEL: Record<"green" | "amber" | "red", string> = { green: "OK", amber: "AT", red: "CR" };
+
 function RagChips({ rag }: { rag: { green: number; amber: number; red: number } }) {
   const parts: { k: "green" | "amber" | "red"; n: number; tone: "good" | "warn" | "bad" }[] = [
     { k: "green", n: rag.green, tone: "good" },
@@ -170,7 +172,7 @@ function RagChips({ rag }: { rag: { green: number; amber: number; red: number } 
   return (
     <span className="inline-flex gap-1">
       {parts.filter((p) => p.n > 0).map((p) => (
-        <Badge key={p.k} tone={p.tone} testId={`rag-${p.k}`} className="tabular-nums">{p.n}</Badge>
+        <Badge key={p.k} tone={p.tone} testId={`rag-${p.k}`} className="tabular-nums">{p.n} <span className="text-[9px] uppercase tracking-widest opacity-70">{RAG_LABEL[p.k]}</span></Badge>
       ))}
     </span>
   );

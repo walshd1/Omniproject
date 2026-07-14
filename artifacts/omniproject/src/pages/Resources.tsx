@@ -81,7 +81,7 @@ export function Resources() {
                     type="number" min={50} max={150} step={5} value={threshold}
                     onChange={(e) => setThreshold(Math.min(150, Math.max(50, Number(e.target.value) || 0)))}
                     aria-label="Capacity level threshold"
-                    className="w-16 bg-background border border-border px-2 py-1 text-sm font-mono outline-none"
+                    className="w-16 bg-background border border-border px-2 py-1 text-sm font-mono outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
                   %
                 </label>

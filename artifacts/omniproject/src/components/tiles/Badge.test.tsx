@@ -12,9 +12,11 @@ describe("Badge", () => {
     expect(el.className).toContain("font-black");
   });
 
-  it("colours by tone — a critical badge carries the reserved red status class", () => {
+  it("colours by tone — a critical badge carries the reserved red status class (AA-contrast shade)", () => {
     render(<Badge tone="bad" testId="bad">3</Badge>);
-    expect(screen.getByTestId("bad").className).toContain("text-red-500");
+    // WCAG 1.4.3: red-700 on light (≥4.5:1 over the faint tint), red-400 on dark.
+    expect(screen.getByTestId("bad").className).toContain("text-red-700");
+    expect(screen.getByTestId("bad").className).toContain("dark:text-red-400");
   });
 
   it("defaults to the neutral tone and merges an extra className", () => {

@@ -75,7 +75,7 @@
   /* Accent cascade — per-USER accent (lib/a11y-prefs) overrides the ORG brand accent
      (lib/branding) overrides this app default. Same layered value in light + dark (the
      accent is mode-independent), so it is defined once here and NOT re-set under .dark. */
-  --primary: var(--user-accent, var(--brand-accent, 217 91% 60%));
+  --primary: var(--user-accent, var(--brand-accent, 217 91% 50%));
   --primary-foreground: var(--user-accent-fg, var(--brand-accent-fg, 0 0% 100%));
   --secondary: 220 10% 90%;
   --secondary-foreground: 220 10% 7%;
@@ -83,19 +83,19 @@
   --muted-foreground: 220 9% 32%;   /* WCAG AA: ≥4.5:1 on background and bg-muted */
   --accent: 220 10% 90%;
   --accent-foreground: 220 10% 7%;
-  --destructive: 0 84% 60%;
+  --destructive: 0 72% 45%; /* WCAG 1.4.3: darkened so text-destructive (5.2:1) AND the destructive button (white 5.8:1) meet AA on light */
   --destructive-foreground: 0 0% 100%;
-  --input: 220 8% 80%;
-  --ring: var(--user-accent, var(--brand-accent, 217 91% 60%));
+  --input: 220 8% 50%; /* WCAG 1.4.11: the form-field boundary needs ≥3:1 vs the page (was 1.45:1); now 3.75:1. Decorative --border is left lighter. */
+  --ring: var(--user-accent, var(--brand-accent, 217 91% 50%));
 
   --sidebar: 0 0% 95%;
   --sidebar-foreground: 220 10% 7%;
   --sidebar-border: 220 8% 80%;
-  --sidebar-primary: var(--user-accent, var(--brand-accent, 217 91% 60%));
+  --sidebar-primary: var(--user-accent, var(--brand-accent, 217 91% 50%));
   --sidebar-primary-foreground: var(--user-accent-fg, var(--brand-accent-fg, 0 0% 100%));
   --sidebar-accent: 220 10% 90%;
   --sidebar-accent-foreground: 220 10% 7%;
-  --sidebar-ring: var(--user-accent, var(--brand-accent, 217 91% 60%));
+  --sidebar-ring: var(--user-accent, var(--brand-accent, 217 91% 50%));
 
   --app-font-sans: 'JetBrains Mono', monospace;
   --app-font-serif: 'JetBrains Mono', monospace;
@@ -123,7 +123,7 @@
   --accent-foreground: 0 0% 95%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --input: 220 8% 20%;
+  --input: 220 8% 45%;
   /* --ring / --sidebar-primary / --sidebar-ring follow the accent cascade from :root. */
 
   --sidebar: 220 10% 7%;

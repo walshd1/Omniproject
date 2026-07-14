@@ -92,7 +92,7 @@ export function Copilot() {
             Freeform
           </label>
         </div>
-        {error && <p className="text-sm text-red-600" data-testid="copilot-error">{error}</p>}
+        {error && <p role="alert" className="text-sm text-red-600" data-testid="copilot-error">{error}</p>}
         {plan && <ActionPlanCard plan={plan} busy={busy} onRun={(p) => void onRun(p)} testIdPrefix="copilot" />}
         {answer && (
           <div className="space-y-1">

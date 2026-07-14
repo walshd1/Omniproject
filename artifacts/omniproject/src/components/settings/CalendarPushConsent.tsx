@@ -53,8 +53,9 @@ export function CalendarPushConsent() {
         {g.granted && (
           <div className="space-y-3 border-t border-border pt-3">
             <div className="space-y-1">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Destination</Label>
+              <Label htmlFor="cal-push-destination" className="text-xs uppercase tracking-wider text-muted-foreground">Destination</Label>
               <select
+                id="cal-push-destination"
                 className="w-full rounded-none border border-border bg-card px-2 py-2 text-sm font-mono"
                 value={g.target ?? "google-calendar"}
                 onChange={(e) => save.mutate({ target: e.target.value as CalendarPushGrant["target"] })}
@@ -63,8 +64,9 @@ export function CalendarPushConsent() {
               </select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Which items</Label>
+              <Label htmlFor="cal-push-items" className="text-xs uppercase tracking-wider text-muted-foreground">Which items</Label>
               <select
+                id="cal-push-items"
                 className="w-full rounded-none border border-border bg-card px-2 py-2 text-sm font-mono"
                 value={g.scope}
                 onChange={(e) => save.mutate({ scope: e.target.value as CalendarPushGrant["scope"] })}

@@ -41,7 +41,7 @@ export function ProjectFinancialsStrip({ projectId }: { projectId: string }) {
           value={displayCcy}
           onChange={(e) => setDisplay(e.target.value)}
           aria-label="Display currency"
-          className="bg-background border border-border px-1.5 py-0.5 text-[11px] font-mono uppercase outline-none"
+          className="bg-background border border-border px-1.5 py-0.5 text-[11px] font-mono uppercase outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           {currencyOptions.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>

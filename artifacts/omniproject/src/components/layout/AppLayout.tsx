@@ -256,7 +256,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 border border-border px-2 py-1 bg-card" title="Gateway health">
+            <div className="flex items-center gap-2 border border-border px-2 py-1 bg-card" title="Gateway health" role="status" aria-live="polite">
               <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500 animate-pulse"}`}></div>
               <span className="text-xs font-bold tracking-widest">{connected ? t("header.connected") : t("header.offline")}</span>
             </div>

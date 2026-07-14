@@ -10,7 +10,7 @@ export function LanguageSwitcher() {
         value={locale}
         onChange={(e) => setLocale(e.target.value as Locale)}
         aria-label={t("header.language")}
-        className="bg-transparent text-xs font-bold uppercase tracking-widest outline-none cursor-pointer"
+        className="bg-transparent text-xs font-bold uppercase tracking-widest outline-none cursor-pointer focus-visible:ring-1 focus-visible:ring-ring"
       >
         {LOCALES.map((l) => (
           <option key={l} value={l} className="bg-background text-foreground normal-case">{LOCALE_NAMES[l]}</option>
