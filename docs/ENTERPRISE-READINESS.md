@@ -360,6 +360,11 @@ by generated artefacts.
 
 ## 4. Enterprise-readiness roadmap
 
+> For the **go/no-go view** — the handful of *deciding artifacts* (a verified connector, a SOC 2
+> report, a published scale run, a lighthouse pilot) that flip a buyer from "impressive" to "yes",
+> distilled from this table and tracked with acceptance evidence — see
+> [`ENTERPRISE-GA-CHECKLIST.md`](ENTERPRISE-GA-CHECKLIST.md).
+
 Effort: **S** ≈ days, **M** ≈ 1–3 weeks, **L** ≈ 1–2 months. "In backlog?" reflects
 whether the item already appears in the code, `[Unreleased]` CHANGELOG, or
 `docs/SUPPLY-CHAIN.md` / `docs/PARKED-DECISIONS.md` as parked/planned.

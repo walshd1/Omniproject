@@ -103,6 +103,7 @@ Running it in production.
 Fit, maturity, and evaluation.
 
 - **[ENTERPRISE-READINESS.md](ENTERPRISE-READINESS.md)** — the buyer-panel gap analysis (CEO, Finance, Compliance, CISO, IT, Projects).
+- **[ENTERPRISE-GA-CHECKLIST.md](ENTERPRISE-GA-CHECKLIST.md)** — the enterprise go/no-go tracker: the deciding artifacts (verified connector, SOC 2, published scale run, lighthouse pilot) that flip "impressive" to "yes", with acceptance evidence.
 - **[POV-SUCCESS-CRITERIA.md](POV-SUCCESS-CRITERIA.md)** — the time-boxed Proof-of-Value plan: entry gates, measurable success criteria, and the five go/no-go gates.
 - **[SMALL-ORG-GUIDE.md](SMALL-ORG-GUIDE.md)** — the non-technical walkthrough for small teams, charities and self-hosters.
 - **[SAFE-FIRST-RUN.md](SAFE-FIRST-RUN.md)** — the step-by-step path to evaluating against real data safely (dry-run, read-only first).
