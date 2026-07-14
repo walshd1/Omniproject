@@ -21,6 +21,17 @@ Why this is competitive: self-hosted + **data-sovereign** (your Postgres, not a 
 MIT-licensed (vs. per-seat SaaS), and you get the **portfolio/PMO layer for free** on top of the
 execution tracker. Honest non-goals below (§13).
 
+### Optional — never required
+
+OmniStore is an **opt-in convenience, not a dependency**. OmniProject's whole reason for being is the
+stateless overlay: brokering over the system of record you *already* run (Jira, OpenProject, a custom
+SQL sidecar) with zero data at rest. That stays **first-class and the default**. OmniStore is simply
+the answer to "we don't have a backend / we want one from you" — a **one-stop-shop** option you can
+turn on, run yourself, and turn off (or migrate off) at will. It advertises capabilities through the
+same `get_capabilities` seam as any other backend, so choosing it is a config decision, not a lock-in.
+Crucially, an org can run **both at once** and cut over per project (§11) — so adopting OmniStore is
+never a one-way door.
+
 ## 2. How it wires in (the contract — unchanged)
 
 OmniStore is an HTTP service that speaks the broker sidecar protocol (see
@@ -214,13 +225,54 @@ exactly-once-ish (dedupe on `event_id`).
 - **Audit:** the `events` log is the tamper-evident record; optionally hash-chain it like the gateway
   audit chain.
 
-## 10. Scale (reuse the documented recipe)
+## 10. Built to scale OUT (horizontal, every tier)
 
-Everything in `DATABASE-BACKENDS.md` §"Scaling the sidecar" applies directly: **pgbouncer** pooling,
-the indexes above, **keyset pagination**, **range partitioning** of `issues`, **materialised rollups**
-for portfolio reads, and **429 + Retry-After backpressure** on pool saturation (the gateway backs off).
-Target 10k projects / 1000 users; prove it with the `docker-compose.loadtest.yml` profile + a seed
-generator, and publish the numbers.
+The whole stack is designed to **scale out, not just up** — add replicas, not just bigger boxes. This
+mirrors the gateway, which is already stateless and fleet-scaled (N replicas + Redis shared-state).
+
+**Tier 1 — the OmniStore app is stateless ⇒ N replicas behind a load balancer.**
+- No in-process session/state: every request is self-contained (auth rides the PSK/`userContext`
+  envelope; idempotency + optimistic `version` live in Postgres, not memory). So you run as many
+  OmniStore replicas as you need behind a plain L7 LB / Kubernetes `Deployment` + HPA, and any replica
+  can serve any request. Two replicas racing the same write are made safe by `expectedVersion` → `409`
+  and the `idempotency_keys` table (dedupe is in the DB, shared across replicas).
+- Backpressure is per-replica AND fleet-aware: each replica sheds with `429 + Retry-After` on its own
+  pool saturation; the LB spreads load; the gateway backs off. Autoscale on pool-utilisation / p99.
+
+**Tier 2 — the outbox/webhook workers scale as competing consumers.**
+- Delivery is a **leased-work queue** on the `outbox` table (`SELECT … FOR UPDATE SKIP LOCKED`), so K
+  worker replicas process disjoint batches with no coordination and no double-send (dedupe on
+  `event_id`). Add workers to raise delivery throughput linearly.
+
+**Tier 3 — Postgres scales out along a clear ladder (adopt only as far as you need):**
+1. **Read replicas** — route reads to replicas, writes to the primary; the gateway's read-through +
+   fleet cache already cut read volume. Covers most growth.
+2. **Connection scale-out** — **pgbouncer** (transaction mode) fronts the pool so hundreds of app
+   replicas multiplex onto a bounded backend connection count (the #1 lockout-avoider at 1000+ users).
+3. **Partitioning** — range-partition `issues`/`events` by `updated_at` (or by programme) so no single
+   table/index is the ceiling; old partitions detach cheaply.
+4. **Horizontal sharding** — when one primary isn't enough, shard by **tenant/programme** (the natural
+   boundary — cross-programme queries are already the rare case). Two clean options:
+   - **Citus** (distributed Postgres): distribute `issues`/`events` on `programme_id`, reference-table
+     the small config tables — same SQL, transparent scale-out.
+   - **App-level shard routing**: a shard map (`programme_id → dsn`) resolved from the `userContext`
+     scope; the store opens the right pool. Keeps vanilla Postgres.
+   Either way the wire contract is unchanged — the gateway never knows.
+5. **Aggregates don't fan out** — `get_portfolio_health`/`get_project_financials` read **materialised
+   rollups** refreshed incrementally (or per-shard rollups merged), so portfolio reads stay O(1) in
+   project count even across shards.
+
+**Design rules that keep scale-out honest** (enforce in the build):
+- No cross-shard transaction on the hot path; a write touches one programme's shard.
+- No unbounded read — every list is keyset-paged with a hard max page.
+- No sticky sessions / no in-memory caches that must be coherent across replicas (use Postgres or the
+  shared cache).
+- Everything idempotent + version-checked, so retries and concurrent replicas are always safe.
+
+**Prove it:** the `docker-compose.loadtest.yml` profile scaled to **multiple OmniStore replicas + a
+Postgres primary/replica (or a 2-node Citus)**, a seed generator at 10k projects / millions of issues /
+1000 concurrent users, and published p50/p95/p99 + throughput numbers — the load-proof that turns the
+scale-out claim from design into evidence.
 
 ## 11. Migration & interop (the on-ramp off Jira)
 
@@ -253,7 +305,9 @@ generator, and publish the numbers.
 2. **Agile** — boards, sprints, board_state; velocity/burndown feed the existing reports.
 3. **Fields & attachments** — custom fields (typed, via `describe_fields`) + attachments (object store).
 4. **Links & watchers & webhooks/outbox** — dependencies, subscriptions, realtime notifications.
-5. **Scale hardening** — partitioning, materialised rollups, pgbouncer, loadtest at 10k/1000 + published numbers.
+5. **Scale-out hardening** — multi-replica stateless app tier + HPA, competing-consumer outbox
+   workers, read replicas → pgbouncer → partitioning → (optional) programme-sharding/Citus, materialised
+   rollups, and a multi-replica loadtest at 10k/1000 with published p50/p95/p99 + throughput.
 6. **Migration tooling** — Jira/CSV importer + dual-run cutover guide.
 
 Each phase is independently shippable and leaves the gateway untouched (additive, capability-gated).
