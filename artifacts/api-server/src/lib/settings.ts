@@ -1127,9 +1127,21 @@ export function isTimeTravelEnabled(): boolean {
 // path — a new field is automatically probed, no per-field test to remember.
 export const ALLOWED_KEYS = Object.keys(FIELD_DESCRIPTORS) as (keyof SettingsState)[];
 
-/** A snapshot copy of the current in-memory settings (never the live reference). */
+// A FROZEN read snapshot of the store, rebuilt ONLY on write (updateSettings is the sole mutator).
+// getSettings() returns it directly: reads are hot (100+ call sites, several per request) while writes
+// are rare, so this removes a large per-call shallow-copy allocation. Frozen ⇒ a caller that tries to
+// mutate the result fails fast (a bonus mutation poka-yoke) instead of silently corrupting the store —
+// no read site mutates it. `store` stays the mutable source of truth for internal writes.
+let snapshot: SettingsState = Object.freeze({ ...store });
+
+/** The current in-memory settings — a shared FROZEN snapshot, rebuilt only when settings change. */
 export function getSettings(): SettingsState {
-  return { ...store };
+  return snapshot;
+}
+
+/** Rebuild the read snapshot after a store mutation (called by updateSettings, the only writer). */
+function refreshSettingsSnapshot(): void {
+  snapshot = Object.freeze({ ...store });
 }
 
 /**
@@ -1660,6 +1672,7 @@ export function updateSettings(patch: Record<string, unknown>): SettingsState {
   }
   // A profile change takes effect for the runtime accessors (TLS posture, reporting, …).
   if ("deploymentProfile" in normalized) setRuntimeProfile(store.deploymentProfile ?? null);
+  refreshSettingsSnapshot(); // the store changed — rebuild the frozen read snapshot getSettings() serves
   return { ...store };
 }
 
