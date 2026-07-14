@@ -155,7 +155,9 @@ only where a backend actually supplies it:
   RAG/health, then drill into a single project. Programmes are optional and
   derived, not a structure you have to maintain.
 - **Finance** — Earned Value (CPI/SPI), budget vs actuals, and **multi-currency**
-  (each backend reports its own currency; convert to one display currency).
+  (each backend reports its own currency; convert to one display currency —
+  cross-currency roll-ups *exclude and count* any row whose rate is missing rather
+  than folding a raw foreign amount into the total).
 - **Time & schedule** — time-phased Gantt, milestones, today/overdue markers.
 - **Resources** — capacity and allocation, assigned-vs-available hours, and
   over/under-allocation alerts.
@@ -374,6 +376,14 @@ badges** mark every figure as `sourced` / `derived` / `sample` (and `captured` /
 `replayed` / `projected` in exploration mode), so computed or demo numbers are
 never shown as backend fact.
 
+**Malformed backend data can't reach your screens:** an always-on **sanitizer** at
+the broker read seam repairs every incoming row to the contract shape — junk numbers
+become safe defaults, missing required strings become `""`, enums are canonicalised,
+and prototype-pollution keys (`__proto__`/`constructor`/`prototype`) are stripped from
+untyped rows — fail-soft, once, before anything is cached or derived. Repairs are
+tallied and surfaced (a `Data repaired` badge + `X-OmniProject-Data-Repaired` header),
+so a flaky backend degrades visibly instead of quietly corrupting a roll-up.
+
 **Hardened by default:** OIDC with full ID-token (JWKS) signature verification;
 signed httpOnly session cookies with a **production fail-fast** if the session
 secret is unset/default; **SSRF-guarded** admin-set outbound URLs; baseline
@@ -381,19 +391,23 @@ security headers; TLS gateway↔n8n in production; secret redaction in logs (and
 the settings read endpoint); rate limiting; and a supply chain with a dependency
 release-age delay.
 
-It's covered by **2,000+ automated tests** (~1,550 gateway + ~1,660 SPA — these
+It's covered by **5,000+ automated tests** (~2,600 gateway + ~2,860 SPA — these
 counts grow with nearly every merge; see [docs/TESTING.md](docs/TESTING.md) for
 how to get a current count rather than trusting a hardcoded one) behind
-**enforced CI coverage gates** (82% lines / 84% functions gateway; 83% lines /
-70% functions SPA), an **axe-core WCAG 2.1 AA accessibility** job, a live **n8n
-contract verification**, and a **load-test harness**
-(`pnpm --filter @workspace/scripts run load`) that can drive configurable
-concurrency against a real gateway → broker → backend path and fails above a 1%
-error rate — **it has not yet been run for real**: the harness ships and is
-unit-tested, but queue-mode n8n throughput numbers are still a placeholder (see
-[docs/ops/LOAD-HARNESS.md](docs/ops/LOAD-HARNESS.md)). (Honest caveat: SPA
-*function* coverage is ~64%, and some flows are render-tested rather than
-interaction-tested — see [docs/TESTING.md](docs/TESTING.md).)
+**enforced CI coverage gates** (82% lines / 84% functions gateway; 94% lines /
+89% functions SPA), plus **StrykerJS mutation testing** over the
+financial-derivation core (weekly CI — see
+[docs/MUTATION-TESTING.md](docs/MUTATION-TESTING.md)). Accessibility is held by an
+**axe-core regression gate** and a full **WCAG 2.2 AA audit**
+([docs/ACCESSIBILITY-AUDIT.md](docs/ACCESSIBILITY-AUDIT.md); the browser CI job runs
+axe at WCAG 2.1 A/AA). Rounding it out: a live **n8n contract verification** and a
+**load-test harness** (`pnpm --filter @workspace/scripts run load`) that can drive
+configurable concurrency against a real gateway → broker → backend path and fails
+above a 1% error rate — but the harness **has not yet been run for real**: it ships
+and is unit-tested, yet queue-mode n8n throughput numbers are still a placeholder
+(see [docs/ops/LOAD-HARNESS.md](docs/ops/LOAD-HARNESS.md)). (Honest caveat: some SPA
+flows are render-tested rather than interaction-tested — see
+[docs/TESTING.md](docs/TESTING.md).)
 
 > Full control inventory and the security review: **[SECURITY.md](SECURITY.md)**.
 > **We invite independent code audit and penetration testing** — scope, rules of
@@ -675,8 +689,8 @@ are tagged so a preview is never mistaken for a production guarantee:
 
 - **Stable** (tested, production-intended) — the overlay core (broker seam,
   OIDC/RBAC, methodology views, reporting/exports, demo mode); the automated test
-  suites and CI coverage gates; and the security hardening. *Caveat:* SPA function
-  coverage is ~64% and some flows are render-tested only — see
+  suites and CI coverage gates; and the security hardening. *Caveat:* some SPA
+  flows are render-tested rather than interaction-tested — see
   [docs/TESTING.md](docs/TESTING.md).
 - **Beta** (functional and tested, but new and not yet hardened by real use) —
   [Exploration mode](docs/EXPLORATION.md): snapshots → trends, auto-snapshot

@@ -24,12 +24,17 @@ Both unit suites enforce a **coverage gate** (a ratchet set just below current
 coverage so it can't regress, raised as tests are added): the **gateway** via
 `c8` (`.c8rc.json`) at **82% lines / 84% functions / 82% statements / 74%
 branches** (~1,550 tests as of this writing), the **SPA** via Vitest + React
-Testing Library + jsdom (`vitest.config.ts`) at **83% lines / 70% functions /
-80% statements / 74% branches** — currently measuring a few points above every
+Testing Library + jsdom (`vitest.config.ts`) at **94% lines / 89% functions /
+92% statements / 85% branches** — currently measuring a few points above every
 floor (see the comment above the thresholds in `vitest.config.ts`) — (~1,660
 tests as of this writing). Both gates run in the CI `verify` job. Test counts
 change with nearly every merge; run `pnpm test` locally or check a recent CI run
 for the current number rather than trusting either figure above for long.
+
+Beyond coverage, a **mutation-testing** suite (StrykerJS) checks that the tests
+*assert*, not just execute: it is scoped to the financial-derivation / money core
+and runs **weekly** (not per-PR blocking) via `.github/workflows/mutation.yml`.
+See [MUTATION-TESTING.md](MUTATION-TESTING.md).
 
 ## The five pillars
 

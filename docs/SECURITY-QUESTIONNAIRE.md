@@ -62,7 +62,7 @@ answers see [ENTERPRISE-OPS.md](ENTERPRISE-OPS.md).
 | E1 | Audit logging / tamper evidence? | Every audited event is sealed into a keyed **tamper-evident hash chain**; an optional Ed25519 anchor adds non-repudiation. | `lib/audit.ts`, `lib/audit-chain.ts`, `lib/signing.ts` |
 | E2 | SIEM integration? | Structured NDJSON audit stream to a customer SIEM endpoint (batched); Prometheus RED metrics + OTLP spans. | `lib/audit.ts` (`createHttpSink`); [ops/PILOT-READINESS.md](ops/PILOT-READINESS.md) §2 |
 | E3 | Vulnerability disclosure / pen-test invited? | Published policy with rules-of-engagement + safe-harbour; an in-repo zero-trust code audit and STRIDE threat model. | [SECURITY.md](../SECURITY.md); [ZERO-TRUST-AUDIT-2026-07.md](archive/reviews/ZERO-TRUST-AUDIT-2026-07.md); [THREAT-MODEL.md](THREAT-MODEL.md) |
-| E4 | Supply-chain security / SBOM? | CycloneDX SBOM + licence inventory, `pnpm audit` gate, gitleaks secret-scan, digest-pinned base, 1-day dependency quarantine in CI. | [SUPPLY-CHAIN.md](SUPPLY-CHAIN.md); `.github/workflows/ci.yml` (`dependency-scan`) |
+| E4 | Supply-chain security / SBOM? | CycloneDX SBOM + licence inventory, `pnpm audit` gate (blocks high/critical), CodeQL SAST + semgrep taint-scan, gitleaks secret-scan, digest-pinned base, 1-day dependency quarantine, and keyless SLSA build-provenance + SBOM attestation on release. | [SUPPLY-CHAIN.md](SUPPLY-CHAIN.md); `.github/workflows/ci.yml` (`dependency-scan`, `secret-scan`, `taint-scan` jobs); `codeql.yml`; `release.yml`; quarantine in `pnpm-workspace.yaml` (`minimumReleaseAge`) |
 
 ## F. Privacy, BC/DR & compliance
 

@@ -5,6 +5,10 @@ parts they don't use, so a deployment only loads — and only pays the resources
 This is the foundation of the modular UX: features you control are optional modules; an admin (or
 PMO) curates which are available.
 
+> **Where this sits now:** the flat opt-out described below is the **base layer**. It still exists and
+> works exactly as documented here, but it now sits **under** the scoped org→programme→project governance
+> model — see `docs/FEATURE-GOVERNANCE.md` for the layered resolution.
+
 ## The model
 
 - **Opt-out.** Every feature module is **on by default**. You disable modules by id.

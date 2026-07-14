@@ -42,7 +42,7 @@ So responsibility splits:
 | Boundary protection | Egress/SSRF guard (metadata/link-local blocked; optional allowlist); `IP_ALLOWLIST` | CC6.6 | A.8.20, A.8.22 | PR.IR-01 |
 | Web hardening | CSP+nonce, HSTS, COOP, `frame-ancestors`, nosniff, Referrer/Permissions-Policy; CSRF (Origin + double-submit) | CC6.6, CC6.7 | A.8.26 | PR.PS-05 |
 | Rate limiting / DoS | Per-user/IP limiter; Redis-shared under scale | A1.1 | A.8.6 | PR.IR-04 |
-| Vulnerability mgmt | Dependabot; CI `dependency-scan`; `SECURITY.md` disclosure policy | CC7.1 | A.8.8 | ID.RA-01, PR.PS-02 |
+| Vulnerability mgmt | Dependabot; CI `dependency-scan` (pnpm audit + CycloneDX SBOM); CodeQL SAST; semgrep taint-scan; gitleaks secret-scan; 1-day dependency quarantine (`minimumReleaseAge`); `SECURITY.md` disclosure policy | CC7.1 | A.8.8 | ID.RA-01, PR.PS-02 |
 | Change management | CI gates (typecheck, tests, drift guards, e2e) on every change; PR review | CC8.1 | A.8.32 | PR.PS-06 |
 | Config / secure baseline | Hardened container (read-only fs, cap-drop, no-new-privileges, non-root); compose guard | CC7.1 | A.8.9 | PR.PS-01 |
 | Data subject rights | DSAR evidence report; erasure guidance | P-series, C1.1 | A.5.34 | GV.OC |

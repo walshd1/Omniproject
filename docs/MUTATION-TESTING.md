@@ -42,7 +42,7 @@ drops below it, so the money core can't quietly lose test quality.
 ## CI
 
 `.github/workflows/mutation.yml` runs it **weekly** (Mondays) and on manual dispatch — off the fast PR
-lane because of its cost — and uploads the HTML report as an artifact.
+lane because of its cost — and uploads the mutation report when one is generated.
 
 ## Baseline
 

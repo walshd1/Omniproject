@@ -108,6 +108,11 @@ CapEx/OpEx split for accounting treatment; earned-value discipline; auditable fi
   into **one reporting currency** and rolled up; conversion is pure and unit-tested
   (`artifacts/api-server/src/lib/currency.ts`, `convertAmount`). Rates are read
   **through the broker** from the backend/ERP (`getFxRates`), so nothing is stored.
+  Cross-currency roll-ups **exclude** any FX-unconvertible row (no rate available) and
+  **count** it (`excludedForFx`) rather than silently corrupting the consolidated total
+  — `artifacts/omniproject/src/lib/portfolio-finance.ts`, with `isConvertible` in
+  `artifacts/omniproject/src/lib/currency.ts` (property test
+  `currency-fold-invariants.test.ts`).
 - **Benefits value** in money terms, consolidated by programme (as above).
 
 **Honesty note:** the shipped FX table (`artifacts/api-server/src/lib/fx-fallback.ts`)
@@ -198,6 +203,15 @@ supply-chain integrity; SSO/lifecycle integration; observability of security eve
 - **Distributed tracing** — W3C Trace Context + a minimal OTLP/HTTP exporter that
   ships spans to any OTLP collector (Datadog/Jaeger/Honeycomb/Tempo) when
   `OTEL_EXPORTER_OTLP_ENDPOINT` is set: `artifacts/api-server/src/lib/tracing.ts`.
+- **Broker read-seam sanitizer** — an always-on sanitizer at the single inbound hop
+  strips prototype-pollution keys (`__proto__`/`constructor`/`prototype`) from untyped
+  vendor rows before they're merged, and fail-soft-repairs malformed data to contract
+  shape, tallying repairs and surfacing an `X-OmniProject-Data-Repaired` signal:
+  `artifacts/api-server/src/broker/sanitizer.ts` (wired in `broker/index.ts`).
+- **Mutation-tested financial core** — StrykerJS runs weekly over the
+  financial-derivation code to gate test *quality*, not just coverage
+  (`.github/workflows/mutation.yml`, `artifacts/omniproject/stryker.conf.json`,
+  `docs/MUTATION-TESTING.md`).
 
 **Honesty notes:** SAML is a **runtime-optional** dependency (not installed by a
 default `pnpm install`; enabled by adding `@node-saml/node-saml` when `SAML_*` is
@@ -283,10 +297,12 @@ visibility; cross-programme dependencies; a genuinely lighter PM experience.
   provenance** badges so PMs trust what they see
   (`artifacts/omniproject/src/components/MessyDataControl.tsx`,
   `.../DataProvenance.tsx`).
-- **Accessibility** — WCAG 2.1 AA self-assessment with a CI axe-core gate and a
+- **Accessibility** — a **WCAG 2.2 AA audit** with an **axe-core regression gate**
+  (jsdom, `wcag22aa` rule tags — `artifacts/omniproject/src/test/a11y.ts`) and a
   per-user overlay (text size, contrast, reduced motion, switch access, dictation):
-  `docs/ACCESSIBILITY-CONFORMANCE.md`,
-  `artifacts/omniproject/src/components/settings/A11yControls.tsx`.
+  `docs/ACCESSIBILITY-AUDIT.md`, `docs/ACCESSIBILITY-CONFORMANCE.md`,
+  `artifacts/omniproject/src/components/settings/A11yControls.tsx`. (The separate
+  browser-driven CI scan remains WCAG 2.1-level.)
 - **SME/charity fit** — deployment profiles (nonprofit gets premium features free,
   enforcement off) and sector starter packs: `docs/SMALL-ORG-GUIDE.md`.
 
@@ -314,6 +330,10 @@ multinational later federates SAP or ServiceNow underneath, the UI never changes
 Bad PPM decisions come from numbers nobody trusts. OmniProject attacks that directly:
 - **Messy-data surfacing** flags the data-quality problems in the underlying tool
   (`MessyDataControl.tsx`) instead of silently averaging over them.
+- **Fail-soft repair at the seam** — the always-on broker sanitizer repairs malformed
+  vendor rows to contract shape rather than rendering broken cells, and keeps the
+  problem visible by counting repairs (`X-OmniProject-Data-Repaired`):
+  `artifacts/api-server/src/broker/sanitizer.ts`.
 - **Provenance** shows, per field, which backend a value came from
   (`DataProvenance.tsx`, `artifacts/api-server/src/lib/provenance.ts`).
 - **Collision / integrity audits** — the audit hash-chain and Ed25519-signed

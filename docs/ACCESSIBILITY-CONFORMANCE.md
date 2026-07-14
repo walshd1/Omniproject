@@ -22,6 +22,11 @@ describes are enforced in code and CI.
   UI density) persists across sessions/devices on top of company branding — `lib/a11y-prefs`.
 - **Assistive-tech modes:** switch-access scanning (single/two-switch), screen-reader narration
   (verbose live regions), and on-device voice dictation.
+- **Deeper audit (supporting evidence).** A newer full audit against the **WCAG 2.2 AA** tag set
+  (`wcag2a/2aa/21a/21aa/22aa`) — [`ACCESSIBILITY-AUDIT.md`](./ACCESSIBILITY-AUDIT.md) — found and
+  **fixed 14 real defects** and added a jsdom **axe-core regression gate** to the normal test suite on
+  top of the browser `accessibility` job. It exceeds this report's 2.1 AA baseline and stands as
+  stronger conformance evidence; the standing conformance scope below remains WCAG 2.1 AA.
 
 ## Conformance summary (WCAG 2.1 AA)
 

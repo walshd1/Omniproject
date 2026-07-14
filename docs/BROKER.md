@@ -103,6 +103,12 @@ backend is configured (`BROKER_URL` unset), `getBroker()` returns the
 both the offline/CI harness and the proof the seam is clean: the whole gateway
 runs against it (see the `DemoBroker` unit test and the guard).
 
+(DemoBroker is not the only non-n8n implementation: a first-party **built-in
+broker** — [`artifacts/api-server/src/broker/builtin/`](../artifacts/api-server/src/broker/builtin/),
+opt-in via `BUILTIN_BROKER`, over a pluggable memory/Postgres store — is a real
+alternative adapter, selected in `broker/index.ts` when no `BROKER_URL` and no
+dev broker are set.)
+
 ## Adding a new broker
 
 1. Create `src/broker/<name>.ts` exporting a class `implements Broker`. Put

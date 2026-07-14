@@ -73,7 +73,7 @@ flowchart TB
 | **Gateway middleware** | [`artifacts/api-server/src/app.ts`](../artifacts/api-server/src/app.ts) | Compression, IP allowlist, cookie-parser, sliding session timeout, CSRF guard, body limits, request logging/timing, then mounts the `/api` router. |
 | **Route handlers** | [`artifacts/api-server/src/routes/`](../artifacts/api-server/src/routes/) | Domain-facing. They only ever call `getBroker()` + the `Broker` interface — never a concrete adapter. |
 | **Broker seam** | [`artifacts/api-server/src/broker/index.ts`](../artifacts/api-server/src/broker/index.ts) | Picks the implementation once and wraps it in the decorator chain (§4). |
-| **Adapters** | [`broker/reference-broker/`](../artifacts/api-server/src/broker/reference-broker/) · [`demo.ts`](../artifacts/api-server/src/broker/demo.ts) · [`dev-broker.ts`](../artifacts/api-server/src/broker/dev-broker.ts) | The only code that knows a real backend/broker exists. All n8n specifics are confined here. |
+| **Adapters** | [`broker/reference-broker/`](../artifacts/api-server/src/broker/reference-broker/) · [`builtin/`](../artifacts/api-server/src/broker/builtin/) · [`demo.ts`](../artifacts/api-server/src/broker/demo.ts) · [`dev-broker.ts`](../artifacts/api-server/src/broker/dev-broker.ts) | The only code that knows a real backend/broker exists. All n8n specifics are confined here. |
 | **Broker + backends** | external | n8n (reference broker) runs one workflow per backend and forwards the user's own token. |
 
 ---
@@ -82,13 +82,18 @@ flowchart TB
 
 Everything above the seam calls `getBroker()` and speaks the `Broker` interface
 ([`broker/types.ts`](../artifacts/api-server/src/broker/types.ts)) in OmniProject's
-own domain vocabulary. Two implementations ship; a third is dev-only:
+own domain vocabulary. Three implementations ship; a fourth is dev-only:
 
 - **`ReferenceBroker`** — the reference broker; the **only** n8n-aware code. Maps
   domain methods (`listProjects`, `writeIssue`, …) to n8n actions
   (`list_projects`, `create_issue`, …), builds the webhook envelope, computes the
   idempotency key, stamps `origin` for the loop-guard, and normalises the
   response.
+- **built-in broker** ([`broker/builtin/`](../artifacts/api-server/src/broker/builtin/)) —
+  an opt-in (`BUILTIN_BROKER`) first-party broker over a pluggable memory/Postgres
+  store, for a greenfield org with no external system to connect. It holds **real**
+  data (so a vendor spoof never wraps it), and takes effect only when no real
+  `BROKER_URL` and no dev broker are configured.
 - **`DemoBroker`** — an in-process broker serving canned sample data with no
   network. It is both the offline/CI harness and the *proof the seam is clean*:
   the whole gateway runs against it.
@@ -138,34 +143,47 @@ flowchart TB
   CALL["route calls getBroker().listProjects(ctx)"] --> T
   subgraph chain["decorator chain (outermost runs first)"]
     T["trace (dev only)<br/>broker/trace.ts — wrapWithTrace<br/>gate: instrumented() && !prod"]
+    SG["scope-guard (first-party brokers)<br/>broker/scope-guard.ts — wrapWithScopeGuard<br/>gate: !BROKER_URL && !dev"]
     M["messy (dev only)<br/>broker/messy-broker.ts — wrapWithMessy<br/>gate: messyDataArmed() ⇒ isDevMode()"]
     P["provenance (on by default)<br/>broker/provenance.ts — wrapWithProvenance<br/>records keyed-MAC fingerprints"]
     C["read cache (opt-in)<br/>broker/cache.ts — wrapWithCache<br/>gate: READ_CACHE_TTL_MS > 0"]
     SF["single-flight (always on)<br/>broker/single-flight.ts — wrapWithSingleFlight<br/>coalesces concurrent identical reads"]
+    SAN["sanitizer (always on)<br/>broker/sanitizer.ts — wrapWithSanitizer<br/>repairs malformed backend data to contract shape"]
     VP["vendor-profile (demo preview only)"]
     KG["key-guard (live broker, prod)<br/>broker/key-guard.ts"]
-    BASE["adapter: ReferenceBroker / DemoBroker / DevBroker"]
+    AG["autonomous-guard (always on)<br/>broker/autonomous-guard.ts — wrapWithAutonomousGuard<br/>binds autonomous-actor writes to their grant"]
+    BASE["adapter: ReferenceBroker / built-in / DemoBroker / DevBroker"]
   end
-  T --> M --> P --> C --> SF --> VP --> KG --> BASE
+  T --> SG --> M --> P --> C --> SF --> SAN --> VP --> KG --> AG --> BASE
   BASE -->|"result flows back up"| T
 ```
 
 Why this order (all documented inline in `index.ts`):
 
-- **single-flight** is innermost of the caches so a cache hit never reaches it; it
-  introduces **no staleness** (coalesced callers share one live result), so it is
-  safe on unconditionally and shields the backend from a thundering herd.
+- **autonomous-guard** is **innermost** (always on) so no outer wrapper can route an
+  autonomous-actor write around the fail-closed grant check; it is a no-op for human
+  contexts, so ordinary writes are unaffected.
+- **key-guard** sits just outside it so a keyless request can never reach a *live*
+  vendor outside dev mode (`BROKER_PSK` required); it is inner to the cache so a
+  cache hit — which reaches no broker — is never blocked.
+- **sanitizer** (always on) repairs malformed backend data to contract shape at the
+  seam — junk numbers → safe defaults, missing required strings → `""`, canonical
+  enums, prototype-pollution keys stripped from untyped rows — so nothing above ever
+  sees a NaN/mis-typed field. It is *inner to the cache* so the repair happens once
+  and clean data is what gets cached (repairs are tallied for the data-quality signal).
+- **single-flight** introduces **no staleness** (coalesced callers share one live
+  result), so it is safe on unconditionally and shields the backend from a thundering herd.
 - **cache** sits above single-flight so a hit short-circuits both; it is the one
   feature that briefly puts data in RAM, so it is opt-in and write-through.
 - **provenance** sits *outside* the cache so every logical call is fingerprinted
   even on a cache hit.
-- **messy** (dev chaos) is the outermost *data* transform so it sees the final
-  rows, but *inside* trace so a trace shows the messified payload.
+- **messy** (dev chaos) is the outermost *data* transform so it sees the final rows,
+  but *inside* trace so a trace shows the messified payload. It deliberately sits
+  *outside* the sanitizer, to re-dirty the payload for resilience tests.
+- **scope-guard** re-enforces the caller's data scope for the first-party brokers
+  (demo + built-in store); it is outside the cache so it also covers a cache hit. A
+  real external broker enforces the forwarded scope itself and is not wrapped.
 - **trace** is outermost so it observes everything, and is inert in production.
-
-A key subtlety: the **key-guard** is innermost (`wrapWithKeyGuard`) so a cache hit —
-which reaches no broker — is never blocked; a keyless request can never reach a
-*live* vendor outside dev mode (`BROKER_PSK` required).
 
 ---
 

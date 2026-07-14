@@ -79,7 +79,12 @@ line numbers drift, so the named function/env is the durable anchor.
 |---|---|---|
 | Digest-pinned base + `--ignore-scripts` | `Dockerfile` | grep the `@sha256:` pin; CI `ci.yml` install steps |
 | Non-root / read-only / dropped-caps | `deploy/helm/omniproject/values.yaml`; `k8s-enterprise-manifest.yaml` | `__tests__/helm-guard.test.ts` (asserts the posture) |
-| SBOM + dependency + secret scan | `.github/workflows/ci.yml` (`dependency-scan`: pnpm audit, CycloneDX, gitleaks) | CI job logs; [SUPPLY-CHAIN.md](SUPPLY-CHAIN.md) |
+| SBOM + dependency scan | `.github/workflows/ci.yml` (`dependency-scan`: pnpm audit `--audit-level high`, CycloneDX) | CI job logs; [SUPPLY-CHAIN.md](SUPPLY-CHAIN.md) |
+| Secret scanning (gitleaks) | `.github/workflows/ci.yml` (`secret-scan` job), `.gitleaks.toml` | CI `secret-scan` job logs |
+| SAST (CodeQL) | `.github/workflows/codeql.yml` (`security-extended` pack) | CI `codeql` job logs / code-scanning alerts |
+| Static taint scan (semgrep) | `.github/workflows/ci.yml` (`taint-scan` job), `.semgrep/omniproject.yml` | CI `taint-scan` job logs |
+| Release build-provenance + SBOM attestation (SLSA, keyless) | `.github/workflows/release.yml` (`attest-build-provenance@v1`, `attest-sbom@v1`) | `gh attestation verify` against a release tag |
+| Mutation testing (money/FX core) | `.github/workflows/mutation.yml`, `artifacts/omniproject/stryker.conf.json` | CI `mutation` job logs (break threshold enforced) |
 
 ## 8. Data governance & seam integrity
 
@@ -88,6 +93,7 @@ line numbers drift, so the named function/env is the durable anchor.
 | Zero-persistence above the seam | (guard) `scripts/src/guard-zero-at-rest-above-seam.ts` | `pnpm --filter @workspace/scripts run guard-zero-at-rest-above-seam` |
 | Broker isolation (no vendor leakage) | (guard) `scripts/src/guard-broker-isolation.ts` | `pnpm --filter @workspace/scripts run guard-broker-isolation` |
 | Broker↔gateway signed envelope (HMAC+PSK) | `lib/broker-hmac.ts` (+ Redis-gated fleet replay) | `lib/broker-hmac.test.ts` |
+| Read-seam data sanitizer + data-quality signal | `broker/sanitizer.ts` (`wrapWithSanitizer`, wired `broker/index.ts`; strips `__proto__`/`constructor`/`prototype`), `lib/data-quality.ts` | `broker/sanitizer.test.ts`; runtime `X-OmniProject-Data-Repaired` response header |
 | DSAR report (content-free) | `lib/dsar.ts` (`buildDsarReport`) | `lib/dsar.test.ts`; runtime `GET /api/security/dsar` |
 | Retention / history | `history/retention.ts` (`recordWrite`, `buildTrend`) | `history/*.test.ts` |
 

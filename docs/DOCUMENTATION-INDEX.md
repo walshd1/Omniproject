@@ -64,11 +64,13 @@ Controls, audits, and the frameworks they map to.
 - **[COMPLIANCE.md](COMPLIANCE.md)** — control mapping to SOC 2, ISO/IEC 27001:2022 and NIST CSF 2.0.
 - **[CONTROL-EVIDENCE.md](CONTROL-EVIDENCE.md)** — the auditor evidence index: each control mapped to the exact code that implements it and the test/command that proves it.
 - **[SECURITY-QUESTIONNAIRE.md](SECURITY-QUESTIONNAIRE.md)** — a pre-filled vendor-security questionnaire (CAIQ / SIG Lite / VSA), each row question → answer → evidence pointer.
+- **[AUTH-PROVENANCE.md](AUTH-PROVENANCE.md)** — each auth crypto primitive mapped to its backing library (openid-client / jose / node-saml / Node crypto), with the one deliberate exception recorded.
 - **[PRIVACY.md](PRIVACY.md)** — controller/processor position, GDPR Article 30 records of processing, and the DPA position.
 - **[SUPPLY-CHAIN.md](SUPPLY-CHAIN.md)** — SBOM generation, dependency advisories, and open supply-chain items.
 - **[DATA-RESIDENCY.md](DATA-RESIDENCY.md)** — the fail-closed per-region routing control for the broker egress hop.
 - **[SSO-SCIM.md](SSO-SCIM.md)** — the SAML 2.0 SSO + SCIM 2.0 provisioning/deprovisioning runbook, with Okta/Entra/Google Workspace examples.
 - **[ACCESSIBILITY-CONFORMANCE.md](ACCESSIBILITY-CONFORMANCE.md)** — the WCAG 2.1 AA conformance report (VPAT-style), procurement-facing.
+- **[ACCESSIBILITY-AUDIT.md](ACCESSIBILITY-AUDIT.md)** — the active WCAG 2.2 AA audit: the 14 defects found and fixed, the axe-core regression gate, and the residual/manual items.
 - **[ops/EGRESS-INVENTORY.md](ops/EGRESS-INVENTORY.md)** — every outbound destination the gateway can reach.
 - **[ops/ROLES.md](ops/ROLES.md)** — the RBAC model (base ladder + PMO/admin authorities) in product terms.
 
@@ -93,6 +95,8 @@ Running it in production.
 - **[ops/LOAD-HARNESS.md](ops/LOAD-HARNESS.md)** — the load-test harness.
 - **[ops/BENCHMARKS.md](ops/BENCHMARKS.md)** — the compute benchmarks (per-function derivation cost, no network).
 - **[ops/PILOT-READINESS.md](ops/PILOT-READINESS.md)** — the pilot go-live readiness checklist.
+- **[ops/SLO.md](ops/SLO.md)** — the service-level objectives and alerting baseline.
+- **[ops/INCIDENT-RESPONSE.md](ops/INCIDENT-RESPONSE.md)** — the admin-impersonation / break-glass incident runbook.
 
 ## Product & buyer
 
@@ -104,6 +108,7 @@ Fit, maturity, and evaluation.
 - **[SAFE-FIRST-RUN.md](SAFE-FIRST-RUN.md)** — the step-by-step path to evaluating against real data safely (dry-run, read-only first).
 - **[FEATURE-MATURITY.md](FEATURE-MATURITY.md)** — a feature-by-feature maturity read: stable / beta / prototype / nominal, plus the buried debt.
 - **[TESTING.md](TESTING.md)** — the test pillars and the CI coverage gates.
+- **[MUTATION-TESTING.md](MUTATION-TESTING.md)** — StrykerJS mutation testing over the financial-derivation core: what's mutated, the score thresholds, and the weekly CI job.
 - **[TECH-DEBT-AND-ROADMAP.md](TECH-DEBT-AND-ROADMAP.md)** — a living, honest register of known limitations, deferred work and roadmap.
 - **[RELEASE.md](RELEASE.md)** — the repeatable release-cut checklist.
 - **[launch/LAUNCH.md](launch/LAUNCH.md)** — the launch plan and checklist.

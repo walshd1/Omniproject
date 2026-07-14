@@ -40,6 +40,7 @@ are therefore **defence-in-depth and UX**, layered on top of — not a replaceme
 | Egress / SSRF | Metadata/link-local always blocked; optional strict allowlist | `lib/egress` | metadata-blocked |
 | Rate limiting | Per-user/IP limiter; Redis-shared under scale | `lib/rate-limit` | 300 / 15m |
 | Injection | Validation, parameterisation, output encoding | (cross-cutting) | enforced |
+| Backend-data integrity (read seam) | Always-on data sanitizer: fail-soft repair of malformed backend data to contract shape, strips `__proto__`/`constructor`/`prototype` from untyped rows; per-request repair tally surfaced via `X-OmniProject-Data-Repaired` | `broker/sanitizer`, `lib/data-quality` | always-on |
 | AI safety | Governance tri-state, prompt DLP, kill-switch | see `AI-SECURITY.md` | no-AI-by-default |
 
 ## Findings by domain
@@ -151,8 +152,10 @@ principals, and an admin kill-switch — all of which feed the same audit chain.
 ## Verifying the controls
 
 Every control above ships with tests (`*.test.ts` next to each module) run in CI's `verify` job, plus
-the `dependency-scan` (advisories), `accessibility` (axe-core), and `deploy-lint` (compose + k8s)
-jobs. To exercise the security suite locally:
+the `dependency-scan` (advisories + CycloneDX SBOM), `secret-scan` (gitleaks), `taint-scan` (semgrep),
+`codeql` (SAST, `security-extended`), `mutation` (StrykerJS on the money/FX core), `accessibility`
+(axe-core), `e2e` (Playwright), `docker-image` (build + hardening) and `deploy-lint` (compose + k8s)
+jobs — see `.github/workflows/`. To exercise the security suite locally:
 
 ```sh
 pnpm --filter @workspace/api-server test     # includes csrf / step-up / egress / broker-hmac / signing / vault / audit-chain / scim

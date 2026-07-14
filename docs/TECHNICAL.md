@@ -22,8 +22,11 @@ source of truth and there is no cached state to fall out of sync — the UI is a
 
 Internally the gateway talks to a **`Broker` interface** in its own domain
 vocabulary, never to a backend directly. **n8n is the reference implementation**
-of that interface; `DemoBroker` is a second, in-process one that proves the seam
-is generic (it serves the whole app from sample data, no backend). All
+of that interface; a first-party **built-in broker** (opt-in via `BUILTIN_BROKER`,
+over a pluggable memory/Postgres store) is a real, non-dev adapter selected when
+no `BROKER_URL` and no dev broker are set; `DemoBroker` is a third, in-process one
+that proves the seam is generic (it serves the whole app from sample data, no
+backend). All
 n8n specifics are confined to one adapter module behind the seam, and an
 architecture-guard test fails CI if any n8n-ism leaks above it — so "swap the
 broker if n8n is superseded" is a property the build enforces, not just an
@@ -99,7 +102,6 @@ lib/
   api-spec/           # openapi.yaml (source of truth) + Orval config
   api-zod/            # generated Zod schemas        ← do not hand-edit
   api-client-react/   # generated React Query hooks  ← do not hand-edit
-  db/                 # Drizzle scaffold (unused)
 scripts/              # verify-broker-contract.ts (contract test harness)
 Dockerfile, docker-compose.*.yml, k8s-enterprise-manifest.yaml
 ```

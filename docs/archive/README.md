@@ -34,6 +34,8 @@ explicitly *not implemented* and parked. Kept for the reasoning, not as a descri
   `RFC-004-delegation.md`, `RFC-005-secure-delegation-design.md` — the original RFC series.
 - `MULTI-TENANCY-DESIGN.md` — pooled multi-tenancy (design only, not implemented).
 - `STAGE-GATES-DESIGN.md` — maker-checker governance gates (design only, not implemented).
+- `broker-protocol-v2.md` — the broker wire-protocol v2 rollout RFC (implemented; the maintained
+  reference is `docs/BROKER-HTTP-BINDING.md`).
 
 ## `releases/` — superseded release notes
 
