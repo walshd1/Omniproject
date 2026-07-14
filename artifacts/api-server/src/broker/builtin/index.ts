@@ -1,7 +1,10 @@
+import fs from "node:fs";
 import { logger } from "../../lib/logger";
 import { BuiltinBroker } from "./builtin-broker";
 import { MemoryStore, type BuiltinStore } from "./store";
 import { SidecarStore } from "./sidecar-store";
+import { OmniStore } from "./omnistore";
+import { resolveStoreKey } from "./omnistore-log";
 
 /**
  * The built-in broker — selection + store wiring. Opt-in via `BUILTIN_BROKER`; off by default so the
@@ -27,8 +30,29 @@ export function makeBuiltinBroker(): BuiltinBroker {
   return new BuiltinBroker(selectStore());
 }
 
+/**
+ * The first-party STATEFUL store: an encrypted, hash-chained, tamper-evident event log. Durable when
+ * `OMNISTORE_FILE` is set (write-through, decrypt+verify on boot); in-memory (with a loud warning)
+ * otherwise — never a silent "pretend to persist". Self-contained + portable (see OmniStore).
+ */
+function omniStore(): BuiltinStore {
+  const root = resolveStoreKey();
+  const file = process.env["OMNISTORE_FILE"]?.trim();
+  if (!file) {
+    logger.warn({}, 'BUILTIN_BROKER="omnistore" without OMNISTORE_FILE — running the encrypted store IN MEMORY. Data will NOT survive a restart.');
+    return new OmniStore(root);
+  }
+  const persist = (sealed: string): void => fs.writeFileSync(file, sealed, { mode: 0o600 });
+  if (fs.existsSync(file)) {
+    // Decrypt + VERIFY the chain on boot; a tampered file throws (fail-closed) rather than loading bad state.
+    return OmniStore.openSealed(fs.readFileSync(file, "utf8"), root, persist);
+  }
+  return new OmniStore(root, undefined, persist);
+}
+
 function selectStore(): BuiltinStore {
   const requested = process.env["BUILTIN_BROKER"]?.trim().toLowerCase() ?? "";
+  if (requested === "omnistore") return omniStore();
   if (SIDECAR_ALIASES.has(requested)) {
     const url = process.env["SQL_SIDECAR_URL"]?.trim();
     if (url) return new SidecarStore(url, process.env["SQL_SIDECAR_TOKEN"]?.trim() || undefined);
@@ -44,3 +68,4 @@ function selectStore(): BuiltinStore {
 export { BuiltinBroker } from "./builtin-broker";
 export { MemoryStore, type BuiltinStore } from "./store";
 export { SidecarStore } from "./sidecar-store";
+export { OmniStore } from "./omnistore";
