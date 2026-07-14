@@ -11,6 +11,7 @@ import { loadSnapshots, exportSnapshots } from "../lib/snapshots";
 import { loadEdges, exportEdges } from "../lib/dependencies";
 import { isExplorationDirty, subscribeExploration, markExplorationClean } from "../lib/exploration";
 import { useAuth } from "../lib/auth";
+import { CommandPalette } from "../components/CommandPalette";
 
 /**
  * Exploration mode — a deliberately, obviously-different surface for snapshots,
@@ -147,6 +148,11 @@ export function Explore() {
         <ScheduleSandbox />
         <DependencyLinks />
       </div>
+
+      {/* Keyboard parity: the sandbox is mounted OUTSIDE AppLayout, so ⌘K would otherwise be a
+          dead key here. Mounting the palette keeps "≤2 actions to get anywhere" true from the lab —
+          it's a transient on-demand overlay (navigation aid), not persistent live chrome. */}
+      <CommandPalette />
     </div>
   );
 }
