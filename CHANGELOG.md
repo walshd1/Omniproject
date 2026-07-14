@@ -98,6 +98,30 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from 1.0.0.
 
 ### Security
 
+- **AI-depth capabilities (off by default, single `aiChat` egress seam).** Five additive AI features,
+  all routing through the one governed chokepoint (kill switch → provider readiness → per-role model
+  allowlist → token budget → DLP redaction → SSRF-guarded `safeFetch`):
+  - **`generated` provenance lane.** `ProvenanceBadge` gained an "AI · GENERATED" value (distinct
+    violet lane); ALL AI output (copilot, insights, estimate, rebalance) carries it, so a model's
+    prose/number is never read as a backend fact.
+  - **Bring-your-own self-hosted provider (`openai-compatible`).** A new AI provider kind speaking the
+    OpenAI chat-completions shape with **no default endpoint** (an admin must set a URL, so it can
+    never silently egress to a public model) and an **optional** API key — for enterprises running
+    their own inference (vLLM/LM Studio/LiteLLM/on-prem) that won't send data to a public model.
+  - **Read-only portfolio insights** (`POST /api/ai/insights`, capability `portfolio-insights`). An
+    AI-written status narrative / risk outlook OVER the deterministic derivations — explains the real
+    numbers, never computes or writes them. Reuses the copilot's egress-scoped snapshot, no action
+    surface, injection-hardened.
+  - **AI-assisted estimation** (`POST /api/ai/estimate`, capability `ai-estimate`). Suggests an
+    effort estimate (points/days) + rationale; **advisory only** — the human commits the value, the
+    model never writes. Both boundaries defended: delimited/sanitised input, and the model's own JSON
+    reply defensively coerced (out-of-range/negative/non-numeric → null).
+  - **Agentic rebalancing** (`POST /api/ai/rebalance`, capability `ai-autonomous`; SEPARATE toggle,
+    off by default). **Propose-only** — the gateway never executes. Every step is validated by
+    `toPlan` against the caller's approved, write-capable tool catalogue (invented tool/args dropped;
+    hard cap 5 steps), requires the contributor role, and each proposal is confirmed INDIVIDUALLY by a
+    human via the shared `ActionPlanCard` before running through the existing MCP write path — re-gated
+    by role + write-grants + the fail-closed `authorizeAutonomousWrite` guard.
 - **Broker read-seam data sanitizer (always on).** A new sanitizer wraps every broker read/write at the
   seam (`broker/sanitizer.ts`, wired in `broker/index.ts` inner to the cache) and repairs malformed
   backend data to the contract shape — junk numbers → safe defaults, missing required strings → `""`,

@@ -102,6 +102,17 @@ planner has no accuracy benchmark, fallback, or rate-limit; (3) Whisper dictatio
 audio — document on-device mode for sensitive contexts; (4) switch-scan lacks screen-reader
 announcements; (5) personas remain prototype.
 
+**AI-depth tier (new, beta-grade, gated).** Three further AI capabilities now ship, all **OFF by
+default**, each behind its **own** capability in the org→programme→project model and all routing
+through the single `aiChat` egress seam: **read-only portfolio insights** (`portfolio-insights` —
+AI narrative over the derivations, no action surface, never writes), **AI-assisted estimation**
+(`ai-estimate` — advisory only, the human commits the value, the model's own output is coerced), and
+**propose-only agentic rebalancing** (`ai-autonomous` — a SEPARATE highest-risk toggle; the gateway
+never executes, every step is constrained to the approved-actions catalogue and human-confirmed per
+action). Also new: a **bring-your-own `openai-compatible` self-hosted provider** (no default
+endpoint, optional key) for keeping inference in-network. New/beta-grade — accuracy of the
+narratives/estimates is unbenchmarked, same caveat as the copilot.
+
 ---
 
 ## 4. Platform / infrastructure (mostly CORE — not gateable)

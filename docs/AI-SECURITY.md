@@ -97,6 +97,46 @@ Layered on the same `aiChat` chokepoint, all OFF by default (`lib/ai-governance`
   `GET /api/ai/governance` reports the active policy. Token counts are APPROXIMATE (chars/4) — a
   cost signal + chargeback aid, not a hard biller; use the provider's own quota for hard limits.
 
+## 3b. AI-depth capabilities (insights, estimation, rebalancing)
+
+Three higher-value AI capabilities layer on the SAME `aiChat` egress chokepoint as the copilot, so
+each inherits the full seam in order — kill switch → provider readiness → per-role model allowlist →
+per-scope token budget → DLP redaction → SSRF-guarded `safeFetch`. All are **OFF by default**, each
+behind its own capability in the org→programme→project governance model (`capability-governance.ts`
+`AI_TOOLS`), surface-aware. All AI output is badged **AI · GENERATED** (below), never presented as a
+backend fact.
+
+- **Read-only portfolio insights** (`POST /api/ai/insights`, capability `portfolio-insights`;
+  `lib/insights.ts`). An AI-written status narrative / risk outlook **over** the deterministic
+  derivations — it explains the real numbers, it never computes, replaces or writes them. It reuses
+  the copilot's egress projection (`scopeContext`): only the minimal aggregated snapshot (project
+  name, RAG, variances, blocker count) leaves; never notes, ids or tokens. **No action surface is
+  exposed to the model call** and it can never write — the same "read-only, no action surface"
+  property the copilot Q&A call has. Injection-hardened (data framed as untrusted content).
+- **AI-assisted estimation** (`POST /api/ai/estimate`, capability `ai-estimate`; `lib/estimate.ts`).
+  Suggests an effort estimate (points/days) + rationale — **advisory only**: the model never writes,
+  the value only ever lands on a record through the normal human edit path. **Both untrusted
+  boundaries are defended**: the input (subject + comparables) is delimited, sanitised DATA
+  (injection-hardened), and the model's OWN JSON reply is defensively coerced — a non-finite,
+  negative or out-of-range value becomes `null` (no estimate) rather than a wild number flowing on.
+- **Agentic rebalancing** (`POST /api/ai/rebalance`, capability `ai-autonomous`; `lib/rebalance.ts`)
+  — the highest tier, on a **SEPARATE toggle** (off by default; an admin can enable insights and
+  estimation WITHOUT enabling this). **PROPOSE-ONLY: the gateway never executes.** The model returns
+  a short ordered list of candidate steps (hard cap 5); every step is validated by `toPlan` against
+  the caller's **APPROVED, write-capable tool catalogue** — an invented tool is dropped, an
+  unapproved tool is not in the catalogue, invented args are stripped and a missing required arg
+  drops the step, so a hallucinated action never becomes a proposal. Requires the **contributor**
+  role. Each surviving proposal is confirmed **individually** by a human via the shared
+  confirm-before-execute `ActionPlanCard` and only then runs through the existing MCP write path —
+  **re-gated** by role + write-grants + the fail-closed `authorizeAutonomousWrite` guard (§2). Output
+  is badged AI · GENERATED. Nothing here is a new write path — it is another entry point into the one
+  the NL→action planner and MCP executor already enforce.
+
+The **`generated` provenance lane** (`ProvenanceBadge`, `components/ProvenanceBadge.tsx`) is a
+distinct violet "AI · GENERATED" badge carried by ALL AI output (copilot, insights, estimate,
+rebalance), so a model's prose or suggested number is never mistaken for a backend-recorded fact or
+even an OmniProject-computed figure — verify before relying on it.
+
 ## 4. Provenance & keys
 
 - Every broker call is fingerprinted into a keyed, hash-chained, content-free provenance
@@ -154,6 +194,14 @@ Layered on the same `aiChat` chokepoint, all OFF by default (`lib/ai-governance`
 
 - **Providers are first-class entities** (`id`, `kind`, `label`, `endpoint?`, `model?`) —
   `lib/ai-providers.ts`. You can have several of a kind (e.g. two OpenAI accounts).
+- **Bring-your-own self-hosted provider** (`openai-compatible` kind; `lib/ai.ts` `KINDS`,
+  `lib/ai-providers.ts`) — for an enterprise that runs its own inference server (vLLM / LM Studio /
+  LiteLLM / on-prem) and won't send portfolio data to a public model. It speaks the OpenAI
+  chat-completions wire shape but has **NO default endpoint** — an admin MUST set a URL, so it can
+  never silently egress to a public model — and the API key is **optional** (self-hosted servers
+  often need none; the `Authorization` header is sent only when a key is present). Egress still
+  flows through the same SSRF-guarded `safeFetch` as every other provider. This is the
+  "data-never-leaves-your-network" posture, subject to the admin pointing it at an in-network URL.
 - **Capabilities map to an ordered provider list** (chat, nl-action, copilot, health-watch,
   stt). The first **ready** provider wins (primary + fallbacks). An unmapped capability falls
   back to the Settings default. Set in **Settings → AI providers** (admin + step-up).
@@ -219,6 +267,11 @@ These are deliberate, documented limits — not defects:
 - **Prompt injection** is mitigated (closed vocabulary, schema-bound args, default-deny
   writes, human confirm, copilot hardening) but, as with any LLM, not eliminated — the
   containment ensures the worst case is a refused/clarifying response, not a silent action.
+  The read-only AI-depth tiers (insights, estimation) preserve the copilot's **"no action
+  surface"** property — there is nothing actionable for a smuggled instruction to reach; the
+  agentic rebalancer keeps the worst case a *proposal a human must still confirm*, never a silent
+  action, and its steps are constrained to the approved-actions catalogue regardless of what the
+  model emits.
 - **Config encryption protects data at rest**, not against an attacker holding the
   env master or the running process.
 
