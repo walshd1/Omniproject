@@ -65,12 +65,18 @@ export function DependencyLinks() {
   useEffect(() => {
     let alive = true;
     (async () => {
+      // Each edge's SHA-256 digest is independent, so compute them concurrently instead of
+      // awaiting one-at-a-time. Assemble `next` in edge order afterwards for identical contents.
+      const results = await Promise.all(
+        edges.map(async (e) => {
+          const f = liveItems[`${e.from.projectRef}:${e.from.itemRef}`];
+          const t = liveItems[`${e.to.projectRef}:${e.to.itemRef}`];
+          const value = f && t ? await checkDrift(e, f as unknown as Record<string, unknown>, t as unknown as Record<string, unknown>) : null;
+          return [e.edgeKey, value] as const;
+        }),
+      );
       const next: Record<string, DriftResult | null> = {};
-      for (const e of edges) {
-        const f = liveItems[`${e.from.projectRef}:${e.from.itemRef}`];
-        const t = liveItems[`${e.to.projectRef}:${e.to.itemRef}`];
-        next[e.edgeKey] = f && t ? await checkDrift(e, f as unknown as Record<string, unknown>, t as unknown as Record<string, unknown>) : null;
-      }
+      for (const [key, value] of results) next[key] = value;
       if (alive) setDrift(next);
     })();
     return () => {

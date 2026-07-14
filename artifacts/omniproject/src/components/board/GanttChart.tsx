@@ -94,8 +94,13 @@ export function GanttChart({ projectId }: { projectId: string }) {
 
     lanes.sort((a, b) => a.startDay - b.startDay);
 
-    const min = Math.min(...lanes.map((l) => l.startDay));
-    const max = Math.max(...lanes.map((l) => l.endDay));
+    // Single pass for the range (lanes is non-empty here) — avoids two spread allocations.
+    let min = Infinity;
+    let max = -Infinity;
+    for (const l of lanes) {
+      if (l.startDay < min) min = l.startDay;
+      if (l.endDay > max) max = l.endDay;
+    }
     const span = Math.max(max - min + 1, 1);
     const today = startOfDay(new Date());
 

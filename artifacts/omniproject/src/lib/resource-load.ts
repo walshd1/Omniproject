@@ -33,16 +33,43 @@ export interface PersonLoad {
 }
 
 function peakFor(items: LoadInput[]): { count: number; day: number; tasks: { id: string; title: string }[] } {
-  let best = { count: 0, day: 0, tasks: [] as { id: string; title: string }[] };
-  // The peak concurrency always occurs at some task's start day, so we only
-  // need to test those candidate days (O(n²), fine for a project's task list).
+  const best = { count: 0, day: 0, tasks: [] as { id: string; title: string }[] };
+  if (items.length === 0) return best;
+
+  // Sweep line: +1 at a task's start day, -1 the day AFTER its end (endpoints
+  // inclusive, matching the old `startDay <= day && endDay >= day`). Processing
+  // all deltas at a position together yields the concurrency for that day; peak
+  // concurrency only rises at a start, so the peak is always on some task's start
+  // day — the same candidate set the old O(n²) probe loop tested.
+  const delta = new Map<number, number>();
+  for (const x of items) {
+    delta.set(x.startDay, (delta.get(x.startDay) ?? 0) + 1);
+    delta.set(x.endDay + 1, (delta.get(x.endDay + 1) ?? 0) - 1);
+  }
+  const positions = [...delta.keys()].sort((a, b) => a - b);
+  const countAtDay = new Map<number, number>();
+  let running = 0;
+  for (const pos of positions) {
+    running += delta.get(pos)!;
+    countAtDay.set(pos, running);
+  }
+
+  // First start day (in items order) attaining the max concurrency — exactly
+  // matches the previous strict-'>' update over probes in the same order.
+  let bestCount = 0;
+  let bestDay = 0;
   for (const probe of items) {
-    const day = probe.startDay;
-    const active = items.filter((x) => x.startDay <= day && x.endDay >= day);
-    if (active.length > best.count) {
-      best = { count: active.length, day, tasks: active.map((x) => ({ id: x.id, title: x.title })) };
+    const c = countAtDay.get(probe.startDay) ?? 0;
+    if (c > bestCount) {
+      bestCount = c;
+      bestDay = probe.startDay;
     }
   }
+  best.count = bestCount;
+  best.day = bestDay;
+  best.tasks = items
+    .filter((x) => x.startDay <= bestDay && x.endDay >= bestDay)
+    .map((x) => ({ id: x.id, title: x.title }));
   return best;
 }
 

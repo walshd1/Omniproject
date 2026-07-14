@@ -45,12 +45,14 @@ function ProgrammeCountWidget() {
 
 function StatusBreakdownWidget() {
   const { data: projects } = useListProjects();
-  const counts = new Map<string, number>();
-  for (const p of projects ?? []) {
-    const s = (p as { status?: string }).status ?? "unknown";
-    counts.set(s, (counts.get(s) ?? 0) + 1);
-  }
-  const rows = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const rows = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of projects ?? []) {
+      const s = (p as { status?: string }).status ?? "unknown";
+      counts.set(s, (counts.get(s) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [projects]);
   return (
     <div className="bg-card border-2 border-foreground p-4 h-full">
       <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-3">Status breakdown</div>
