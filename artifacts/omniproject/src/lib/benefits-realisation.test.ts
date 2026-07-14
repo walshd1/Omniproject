@@ -48,6 +48,17 @@ describe("realisationPipeline", () => {
     const p = realisationPipeline([project([])], "GBP");
     expect(p.totalPlanned).toBe(0);
     expect(p.realisationPct).toBe(0);
+    expect(p.excludedForFx).toBe(0);
+  });
+
+  it("EXCLUDES an FX-unconvertible project from the pipeline (not add its raw foreign value)", () => {
+    const p = realisationPipeline([
+      project([{ plannedBenefitValue: 100, actualBenefitValue: 40, benefitStatus: "realised" }], { currency: "GBP" }),
+      project([{ plannedBenefitValue: 900000, actualBenefitValue: 900000, benefitStatus: "realised" }], { currency: "JPY" }),
+    ], "GBP", { GBP: 1, USD: 0.5 }); // no JPY rate
+    expect(p.totalPlanned).toBe(100); // JPY 900000 dropped, not added raw
+    expect(p.totalActual).toBe(40);
+    expect(p.excludedForFx).toBe(1);
   });
 });
 
@@ -89,5 +100,15 @@ describe("realisationSchedule", () => {
     expect(s.periods).toEqual([]);
     expect(s.undated).toBe(80);
     expect(s.totalPlanned).toBe(80);
+    expect(s.excludedForFx).toBe(0);
+  });
+
+  it("EXCLUDES an FX-unconvertible project from the trajectory", () => {
+    const s = realisationSchedule([
+      project([{ plannedBenefitValue: 100, actualBenefitValue: 90, benefitStatus: "realised", benefitDueDate: "2026-02-10" }], { currency: "GBP" }),
+      project([{ plannedBenefitValue: 500000, actualBenefitValue: 500000, benefitStatus: "realised", benefitDueDate: "2026-02-10" }], { currency: "JPY" }),
+    ], "GBP", { GBP: 1, USD: 0.5 }, now); // no JPY rate
+    expect(s.totalPlanned).toBe(100); // JPY 500000 dropped, not added raw
+    expect(s.excludedForFx).toBe(1);
   });
 });

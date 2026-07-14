@@ -109,6 +109,7 @@ export function BenefitsRealisationRollup({ now }: { now?: number }) {
             Planned benefit value bucketed by lifecycle status and by due quarter, consolidated into {target}; realised value shown to today.
             {schedule.overdueUnrealised > 0 ? ` ${money(schedule.overdueUnrealised)} of overdue benefit is not yet realised.` : ""}
             {schedule.undated > 0 ? ` ${money(schedule.undated)} of planned benefit carries no due date (excluded from the trajectory).` : ""}
+            {pipeline.excludedForFx > 0 ? ` ${pipeline.excludedForFx} project(s) with no FX rate to ${target} are excluded from the consolidated value.` : ""}
             {" "}Snapshot to freeze a signed board pack. Derived live; nothing is stored.
           </p>
         </div>

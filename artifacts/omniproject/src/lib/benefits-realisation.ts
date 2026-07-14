@@ -1,4 +1,4 @@
-import { convertAmount } from "./currency";
+import { convertAmount, isConvertible } from "./currency";
 import { round2 } from "./num";
 import { summariseBenefits, type BenefitBucket } from "./benefits";
 import type { ProjectItems } from "./portfolio-value";
@@ -31,6 +31,9 @@ export interface RealisationPipeline {
   atRiskValue: number;
   /** totalActual ÷ totalPlanned × 100 (0 when nothing planned). */
   realisationPct: number;
+  /** Projects excluded from the pipeline because their currency has no rate to the reporting
+   *  currency (summing the raw foreign amount would corrupt the consolidated value). */
+  excludedForFx: number;
 }
 
 const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);
@@ -42,8 +45,15 @@ export function realisationPipeline(projects: ProjectItems[], reportingCurrency:
   ) as Record<BenefitBucket, BucketValue>;
   let totalPlanned = 0;
   let totalActual = 0;
+  let excludedForFx = 0;
 
   for (const p of projects) {
+    // Skip FX-unconvertible projects — convertAmount would pass the raw foreign amount through
+    // unchanged, corrupting the consolidated value (see portfolio-value / portfolio-finance).
+    if (!isConvertible(p.currency, reportingCurrency, rates)) {
+      if (summariseBenefits(p.items).rows.length > 0) excludedForFx += 1;
+      continue;
+    }
     const conv = (n: number) => convertAmount(n, p.currency, reportingCurrency, rates);
     for (const r of summariseBenefits(p.items).rows) {
       const planned = conv(r.planned);
@@ -58,7 +68,7 @@ export function realisationPipeline(projects: ProjectItems[], reportingCurrency:
 
   const buckets = BUCKET_ORDER.map((b) => ({ ...acc[b], planned: round2(acc[b].planned), actual: round2(acc[b].actual) }));
   const atRiskValue = round2(acc.at_risk.planned + acc.missed.planned);
-  return { buckets, totalPlanned: round2(totalPlanned), totalActual: round2(totalActual), atRiskValue, realisationPct: pct(totalActual, totalPlanned) };
+  return { buckets, totalPlanned: round2(totalPlanned), totalActual: round2(totalActual), atRiskValue, realisationPct: pct(totalActual, totalPlanned), excludedForFx };
 }
 
 // ── Realisation schedule (by benefit due quarter) ─────────────────────────────
@@ -111,6 +121,9 @@ export interface RealisationSchedule {
   /** Planned value that carries no due date and so can't be scheduled. */
   undated: number;
   totalPlanned: number;
+  /** Projects excluded from the trajectory because their currency has no rate to the reporting
+   *  currency (summing the raw foreign amount would corrupt the consolidated value). */
+  excludedForFx: number;
 }
 
 /** Build the realisation trajectory: planned benefit value bucketed by due quarter vs realised to date. */
@@ -123,8 +136,14 @@ export function realisationSchedule(
   const dated: { due: number; planned: number; actual: number }[] = [];
   let undated = 0;
   let totalPlanned = 0;
+  let excludedForFx = 0;
 
   for (const p of projects) {
+    // Skip FX-unconvertible projects — their raw foreign amounts would corrupt the trajectory.
+    if (!isConvertible(p.currency, reportingCurrency, rates)) {
+      if (summariseBenefits(p.items).rows.length > 0) excludedForFx += 1;
+      continue;
+    }
     const conv = (n: number) => convertAmount(n, p.currency, reportingCurrency, rates);
     for (const r of summariseBenefits(p.items).rows) {
       const planned = conv(r.planned);
@@ -137,7 +156,7 @@ export function realisationSchedule(
   }
 
   if (!dated.length) {
-    return { periods: [], plannedToDate: 0, realisedToDate: 0, shortfallToDate: 0, overdueUnrealised: 0, undated: round2(undated), totalPlanned: round2(totalPlanned) };
+    return { periods: [], plannedToDate: 0, realisedToDate: 0, shortfallToDate: 0, overdueUnrealised: 0, undated: round2(undated), totalPlanned: round2(totalPlanned), excludedForFx };
   }
 
   const lo = Math.min(...dated.map((d) => d.due));
@@ -170,5 +189,6 @@ export function realisationSchedule(
     overdueUnrealised: round2(overdueUnrealised),
     undated: round2(undated),
     totalPlanned: round2(totalPlanned),
+    excludedForFx,
   };
 }
