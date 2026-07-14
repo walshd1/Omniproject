@@ -1,4 +1,5 @@
 import { ReportEmpty } from "./ReportEmpty";
+import { ReportTable } from "./ReportTable";
 import { useMemo } from "react";
 import { ChartView } from "../charts/ChartView";
 import { useStaffCost } from "../../lib/rate-card";
@@ -73,28 +74,17 @@ export function StaffTimeCost({ projectId }: { projectId: string }) {
             </div>
           )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3 font-bold">Role</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Hours</th>
-                  <th className="py-1.5 px-2 font-bold text-right">True cost</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Charge</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.byTitle.map((r) => (
-                  <tr key={r.titleHash} className="border-b border-border/50" data-testid={`staff-cost-row-${r.titleHash}`}>
-                    <td className="py-1.5 pr-3 truncate max-w-[16rem]">{r.titleLabel}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">{r.hours.toLocaleString()}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">{money(r.cost)}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums text-muted-foreground">{r.charge ? money(r.charge) : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReportTable
+            rows={data.byTitle}
+            rowKey={(r) => r.titleHash}
+            rowTestId={(r) => `staff-cost-row-${r.titleHash}`}
+            columns={[
+              { header: "Role", cell: (r) => r.titleLabel, cellClassName: "truncate max-w-[16rem]" },
+              { header: "Hours", align: "right", cell: (r) => r.hours.toLocaleString() },
+              { header: "True cost", align: "right", cell: (r) => money(r.cost) },
+              { header: "Charge", align: "right", cell: (r) => (r.charge ? money(r.charge) : "—"), cellClassName: "text-muted-foreground" },
+            ]}
+          />
 
           <p className="text-[11px] text-muted-foreground">
             Rolled up across {data.byTitle.length} role(s){data.projectType ? ` for project type "${data.projectType}"` : ""}. Rates resolve

@@ -6,6 +6,7 @@ import { useProjectIssuesMoney } from "../../lib/currency";
 import { truncateLabel } from "../../lib/utils";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { ReportTable } from "./ReportTable";
 import { ChartView } from "../charts/ChartView";
 
 /**
@@ -71,37 +72,24 @@ export function BenefitsRealisation({ projectId }: { projectId: string }) {
             />
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3 font-bold">Benefit</th>
-                  <th className="py-1.5 px-2 font-bold">Owner</th>
-                  <th className="py-1.5 px-2 font-bold">Status</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Planned</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Realised</th>
-                  <th className="py-1.5 px-2 font-bold text-right">%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.rows.map((r) => (
-                  <tr key={r.id} className="border-b border-border/50" data-testid={`benefit-row-${r.id}`}>
-                    <td className="py-1.5 pr-3 font-mono truncate max-w-[16rem]">{r.title}</td>
-                    <td className="py-1.5 px-2 text-muted-foreground">{r.benefitOwner || "—"}</td>
-                    <td className="py-1.5 px-2">
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="inline-block w-2 h-2" style={{ background: BUCKET_META[r.bucket].colour }} aria-hidden="true" />
-                        {BUCKET_META[r.bucket].label}
-                      </span>
-                    </td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">{money(r.planned)}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">{money(r.actual)}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">{Math.round(r.realisation * 100)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReportTable
+            rows={summary.rows}
+            rowKey={(r) => r.id}
+            rowTestId={(r) => `benefit-row-${r.id}`}
+            columns={[
+              { header: "Benefit", cell: (r) => r.title, cellClassName: "font-mono truncate max-w-[16rem]" },
+              { header: "Owner", cell: (r) => r.benefitOwner || "—", cellClassName: "text-muted-foreground" },
+              { header: "Status", cell: (r) => (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block w-2 h-2" style={{ background: BUCKET_META[r.bucket].colour }} aria-hidden="true" />
+                  {BUCKET_META[r.bucket].label}
+                </span>
+              ) },
+              { header: "Planned", align: "right", cell: (r) => money(r.planned) },
+              { header: "Realised", align: "right", cell: (r) => money(r.actual) },
+              { header: "%", align: "right", cell: (r) => `${Math.round(r.realisation * 100)}%` },
+            ]}
+          />
 
           <p className="text-[11px] text-muted-foreground">
             Planned vs realised benefit value across {summary.count} tracked benefit(s). The

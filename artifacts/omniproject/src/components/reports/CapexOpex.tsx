@@ -6,6 +6,7 @@ import { useProjectIssuesMoney } from "../../lib/currency";
 import { truncateLabel } from "../../lib/utils";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { ReportTable } from "./ReportTable";
 import { ChartView } from "../charts/ChartView";
 
 /**
@@ -53,30 +54,18 @@ export function CapexOpex({ projectId }: { projectId: string }) {
             />
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3 font-bold">Item</th>
-                  <th className="py-1.5 px-2 font-bold">Category</th>
-                  <th className="py-1.5 px-2 font-bold text-right">CapEx</th>
-                  <th className="py-1.5 px-2 font-bold text-right">OpEx</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Annual charge</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.rows.map((r) => (
-                  <tr key={r.id} className="border-b border-border/50" data-testid={`capex-row-${r.id}`}>
-                    <td className="py-1.5 pr-3 font-mono truncate max-w-[16rem]">{r.title}</td>
-                    <td className="py-1.5 px-2 text-muted-foreground">{r.category}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">{r.capex ? money(r.capex) : "—"}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">{r.opex ? money(r.opex) : "—"}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums text-muted-foreground">{r.annualCharge ? money(r.annualCharge) : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReportTable
+            rows={summary.rows}
+            rowKey={(r) => r.id}
+            rowTestId={(r) => `capex-row-${r.id}`}
+            columns={[
+              { header: "Item", cell: (r) => r.title, cellClassName: "font-mono truncate max-w-[16rem]" },
+              { header: "Category", cell: (r) => r.category, cellClassName: "text-muted-foreground" },
+              { header: "CapEx", align: "right", cell: (r) => (r.capex ? money(r.capex) : "—") },
+              { header: "OpEx", align: "right", cell: (r) => (r.opex ? money(r.opex) : "—") },
+              { header: "Annual charge", align: "right", cell: (r) => (r.annualCharge ? money(r.annualCharge) : "—"), cellClassName: "text-muted-foreground" },
+            ]}
+          />
 
           <p className="text-[11px] text-muted-foreground">
             Capital vs operating split across {summary.count} classified item(s), rolled up by cost category.

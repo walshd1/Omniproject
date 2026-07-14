@@ -1,6 +1,7 @@
 import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
 import { ChartView } from "../charts/ChartView";
+import { ReportTable } from "./ReportTable";
 import { type Issue } from "@workspace/api-client-react";
 import { summariseIncome } from "../../lib/income";
 import { useProjectIssuesMoney } from "../../lib/currency";
@@ -43,30 +44,18 @@ export function IncomeInvoicing({ projectId }: { projectId: string }) {
               series={[{ key: "invoiced", label: "Invoiced" }, { key: "unbilled", label: "Unbilled" }]} />
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3 font-bold">Item</th>
-                  <th className="py-1.5 px-2 font-bold">PO</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Projected</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Invoiced</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Unbilled</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.rows.map((r) => (
-                  <tr key={r.id} className="border-b border-border/50" data-testid={`income-row-${r.id}`}>
-                    <td className="py-1.5 pr-3 truncate max-w-[16rem]">{r.title}</td>
-                    <td className="py-1.5 px-2 font-mono text-muted-foreground">{r.purchaseOrder ?? "—"}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">{money(r.revenue)}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">{money(r.invoiced)}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums text-amber-600">{r.unbilled ? money(r.unbilled) : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReportTable
+            rows={summary.rows}
+            rowKey={(r) => r.id}
+            rowTestId={(r) => `income-row-${r.id}`}
+            columns={[
+              { header: "Item", cell: (r) => r.title, cellClassName: "truncate max-w-[16rem]" },
+              { header: "PO", cell: (r) => r.purchaseOrder ?? "—", cellClassName: "font-mono text-muted-foreground" },
+              { header: "Projected", align: "right", cell: (r) => money(r.revenue) },
+              { header: "Invoiced", align: "right", cell: (r) => money(r.invoiced) },
+              { header: "Unbilled", align: "right", cell: (r) => (r.unbilled ? money(r.unbilled) : "—"), cellClassName: "text-amber-600" },
+            ]}
+          />
 
           <p className="text-[11px] text-muted-foreground">
             Projected income vs invoiced across {summary.count} item(s); the unbilled gap is work to bill. PO
