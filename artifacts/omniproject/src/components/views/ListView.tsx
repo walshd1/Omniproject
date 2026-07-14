@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useGetProjectIssues, type Issue } from "@workspace/api-client-react";
 import { STATUS_LABELS, PRIORITY_LABELS, STATUS_ORDER, PRIORITY_ORDER } from "../../lib/constants";
 import { isOverdue } from "../../lib/methodology";
+import { useVirtualRows } from "../../lib/use-virtual-rows";
 import { IssueDialog } from "../IssueDialog";
 import { DataState } from "../DataState";
 import { StatusDot, PriorityDot } from "../StatusDot";
@@ -30,6 +31,12 @@ export function ListView({ projectId }: { projectId: string }) {
 
   const toggle = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: 1 }));
 
+  // Virtualize the row list so a project with thousands of issues renders only the visible slice.
+  // Falls back to all rows when unmeasured (tests) or short — see useVirtualRows.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const { start, end, padTop, padBottom } = useVirtualRows(scrollRef, rows.length, { estimate: 37, min: 80 });
+  const visibleRows = rows.slice(start, end);
+
   const Th = ({ k, children }: { k: SortKey; children: React.ReactNode }) => {
     const active = sort.key === k;
     return (
@@ -52,7 +59,7 @@ export function ListView({ projectId }: { projectId: string }) {
 
   return (
     <DataState isLoading={isLoading} isError={isError} error={error} onRetry={() => refetch()}>
-      <div className="h-full overflow-auto bg-card border border-border">
+      <div ref={scrollRef} className="h-full overflow-auto bg-card border border-border">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-background border-b border-border text-xs font-bold uppercase tracking-wider text-muted-foreground">
             <tr>
@@ -64,9 +71,11 @@ export function ListView({ projectId }: { projectId: string }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((issue) => (
+            {padTop > 0 && <tr aria-hidden="true" style={{ height: padTop }}><td colSpan={5} /></tr>}
+            {visibleRows.map((issue) => (
               <tr
                 key={issue.id}
+                data-vrow
                 onClick={() => setEditing(issue)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
@@ -86,6 +95,7 @@ export function ListView({ projectId }: { projectId: string }) {
                 <td className={`px-3 py-2 font-mono ${isOverdue(issue) ? "text-red-500 font-bold" : "text-muted-foreground"}`}>{issue.dueDate ?? "—"}</td>
               </tr>
             ))}
+            {padBottom > 0 && <tr aria-hidden="true" style={{ height: padBottom }}><td colSpan={5} /></tr>}
             {rows.length === 0 && (
               <tr><td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">No work items.</td></tr>
             )}
