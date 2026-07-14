@@ -1,8 +1,8 @@
 import { ReportEmpty } from "./ReportEmpty";
-import { type FinanceRollup } from "../../lib/portfolio-finance";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { ReportTable } from "./ReportTable";
 import { SnapshotButton } from "./SnapshotControls";
 import { usePortfolioFinancials } from "./use-portfolio-financials";
 
@@ -24,30 +24,6 @@ const FX_POLICY_LABEL: Record<string, string> = {
 function VarianceCell({ v, money }: { v: number; money: (n: number) => string }) {
   const over = v < 0;
   return <span className={`tabular-nums font-black ${over ? "text-red-500" : "text-green-600"}`}>{over ? "" : "+"}{money(v)}</span>;
-}
-
-function Row({ r, money, target, formatCurrency }: { r: FinanceRollup; money: (n: number) => string; target: string; formatCurrency: (n: number, currency: string) => string }) {
-  // A row still in its own single currency (most Standalone rows; a single-country programme) shows
-  // that local figure alongside the consolidated total — dropped once a row mixes ≥2 currencies.
-  const showLocal = !!r.localCurrency && r.localCurrency !== target && !!r.local;
-  return (
-    <tr className="border-b border-border/50" data-testid={`portfolio-fin-row-${r.key}`}>
-      <td className="py-2 pr-3 font-bold">
-        {r.label}
-        {showLocal && (
-          <div className="text-[10px] font-normal text-muted-foreground" data-testid={`portfolio-fin-row-${r.key}-local`}>
-            {formatCurrency(r.local!.budget, r.localCurrency!)} local budget
-          </div>
-        )}
-      </td>
-      <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{r.projects}</td>
-      <td className="py-2 px-2 text-right tabular-nums">{money(r.budget)}</td>
-      <td className="py-2 px-2 text-right tabular-nums">{money(r.actual)}</td>
-      <td className="py-2 px-2 text-right tabular-nums">{money(r.forecast)}</td>
-      <td className="py-2 px-2 text-right"><VarianceCell v={r.variance} money={money} /></td>
-      <td className="py-2 px-2 text-right tabular-nums">{r.cpi === null ? "—" : r.cpi.toFixed(2)}</td>
-    </tr>
-  );
 }
 
 export function PortfolioFinancials() {
@@ -99,24 +75,39 @@ export function PortfolioFinancials() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3 font-bold">Programme</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Projects</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Budget</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Actual</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Forecast</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Variance</th>
-                  <th className="py-1.5 px-2 font-bold text-right">CPI</th>
-                </tr>
-              </thead>
-              <tbody>
-                {consolidated.programmes.map((r) => <Row key={r.key} r={r} money={money} target={target} formatCurrency={formatCurrency} />)}
-              </tbody>
-            </table>
-          </div>
+          <ReportTable
+            rows={consolidated.programmes}
+            rowKey={(r) => r.key}
+            rowTestId={(r) => `portfolio-fin-row-${r.key}`}
+            size="comfortable"
+            columns={[
+              {
+                header: "Programme",
+                cellClassName: "font-bold",
+                // A row still in its own single currency (most Standalone rows; a single-country programme)
+                // shows that local figure alongside the consolidated total — dropped once a row mixes ≥2.
+                cell: (r) => {
+                  const showLocal = !!r.localCurrency && r.localCurrency !== target && !!r.local;
+                  return (
+                    <>
+                      {r.label}
+                      {showLocal && (
+                        <div className="text-[10px] font-normal text-muted-foreground" data-testid={`portfolio-fin-row-${r.key}-local`}>
+                          {formatCurrency(r.local!.budget, r.localCurrency!)} local budget
+                        </div>
+                      )}
+                    </>
+                  );
+                },
+              },
+              { header: "Projects", align: "right", cell: (r) => r.projects, cellClassName: "text-muted-foreground" },
+              { header: "Budget", align: "right", cell: (r) => money(r.budget) },
+              { header: "Actual", align: "right", cell: (r) => money(r.actual) },
+              { header: "Forecast", align: "right", cell: (r) => money(r.forecast) },
+              { header: "Variance", headerClassName: "text-right", cellClassName: "text-right", cell: (r) => <VarianceCell v={r.variance} money={money} /> },
+              { header: "CPI", align: "right", cell: (r) => (r.cpi === null ? "—" : r.cpi.toFixed(2)) },
+            ]}
+          />
 
           <p className="text-[11px] text-muted-foreground">
             Consolidated from {consolidated.currencyMix.length} currenc{consolidated.currencyMix.length === 1 ? "y" : "ies"}

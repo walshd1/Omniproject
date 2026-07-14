@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { matchDemandToCapacity, type DemandRequest, type ResourceSkills } from "../../lib/skills-capacity";
+import { ReportTable } from "./ReportTable";
 
 /**
  * Skills demand ↔ capacity — the skill-level gap view (unmet hours by skill, over-allocation by
@@ -36,28 +37,22 @@ export function SkillsCapacity({ resources, demand }: { resources: ResourceSkill
         </span>
       </div>
 
-      <table className="w-full text-xs border-collapse">
-        <thead>
-          <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-            <th className="py-1.5 pr-3 font-bold">Skill</th>
-            <th className="py-1.5 px-2 font-bold text-right">Demand</th>
-            <th className="py-1.5 px-2 font-bold text-right">Qualified cap.</th>
-            <th className="py-1.5 px-2 font-bold text-right">Unmet</th>
-            <th className="py-1.5 px-2 font-bold text-right">Coverage</th>
-          </tr>
-        </thead>
-        <tbody>
-          {result.skills.map((s) => (
-            <tr key={s.skill} className="border-b border-border/50" data-testid={`skill-row-${s.skill}`}>
-              <td className="py-1.5 pr-3 font-bold">{s.skill} <span className="text-[10px] font-normal text-muted-foreground">· {s.qualifiedResourceCount} qualified</span></td>
-              <td className="py-1.5 px-2 text-right tabular-nums">{s.demandHours}h</td>
-              <td className="py-1.5 px-2 text-right tabular-nums text-muted-foreground">{s.qualifiedCapacityHours}h</td>
-              <td className={`py-1.5 px-2 text-right tabular-nums font-bold ${s.unmetHours > 0 ? "text-red-500" : "text-muted-foreground"}`}>{s.unmetHours}h</td>
-              <td className={`py-1.5 px-2 text-right tabular-nums font-black ${tone(s.coveragePct)}`}>{s.coveragePct}%</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <ReportTable
+        rows={result.skills}
+        rowKey={(s) => s.skill}
+        rowTestId={(s) => `skill-row-${s.skill}`}
+        columns={[
+          {
+            header: "Skill",
+            cell: (s) => <>{s.skill} <span className="text-[10px] font-normal text-muted-foreground">· {s.qualifiedResourceCount} qualified</span></>,
+            cellClassName: "font-bold",
+          },
+          { header: "Demand", align: "right", cell: (s) => `${s.demandHours}h` },
+          { header: "Qualified cap.", align: "right", cell: (s) => `${s.qualifiedCapacityHours}h`, cellClassName: "text-muted-foreground" },
+          { header: "Unmet", align: "right", cell: (s) => `${s.unmetHours}h`, cellClassName: (s) => `font-bold ${s.unmetHours > 0 ? "text-red-500" : "text-muted-foreground"}` },
+          { header: "Coverage", align: "right", cell: (s) => `${s.coveragePct}%`, cellClassName: (s) => `font-black ${tone(s.coveragePct)}` },
+        ]}
+      />
 
       {result.resources.some((r) => r.overAllocatedHours > 0) && (
         <p className="text-[11px] text-amber-600" data-testid="skills-capacity-overallocated">

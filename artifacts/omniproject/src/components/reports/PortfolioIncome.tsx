@@ -4,6 +4,7 @@ import { rollupIncome } from "../../lib/portfolio-value";
 import { useT } from "../../lib/i18n";
 import { DataState } from "../DataState";
 import { StatCard } from "./StatCard";
+import { ReportTable } from "./ReportTable";
 import { usePortfolioItems } from "./use-portfolio-items";
 
 /**
@@ -31,42 +32,36 @@ export function PortfolioIncome() {
             <StatCard label="Unbilled" value={money(portfolio.unbilled)} hint="projected − invoiced" />
             <StatCard label="Billed" value={`${portfolio.billedPct}%`} hint={portfolio.billedPct >= 100 ? "fully invoiced" : "billing outstanding"} />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="text-left text-[10px] uppercase tracking-widest text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3 font-bold">Programme</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Projects</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Projected</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Invoiced</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Unbilled</th>
-                  <th className="py-1.5 px-2 font-bold text-right">Billed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {programmes.map((r) => {
+          <ReportTable
+            rows={programmes}
+            rowKey={(r) => r.key}
+            rowTestId={(r) => `portfolio-income-row-${r.key}`}
+            size="comfortable"
+            columns={[
+              {
+                header: "Programme",
+                cellClassName: "font-bold",
+                cell: (r) => {
                   const showLocal = !!r.localCurrency && r.localCurrency !== target && !!r.local;
                   return (
-                    <tr key={r.key} className="border-b border-border/50" data-testid={`portfolio-income-row-${r.key}`}>
-                      <td className="py-2 pr-3 font-bold">
-                        {r.label}
-                        {showLocal && (
-                          <div className="text-[10px] font-normal text-muted-foreground" data-testid={`portfolio-income-row-${r.key}-local`}>
-                            {formatCurrency(r.local!.projected, r.localCurrency!)} local projected
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{r.projects}</td>
-                      <td className="py-2 px-2 text-right tabular-nums">{money(r.projected)}</td>
-                      <td className="py-2 px-2 text-right tabular-nums">{money(r.invoiced)}</td>
-                      <td className="py-2 px-2 text-right tabular-nums text-amber-600">{r.unbilled ? money(r.unbilled) : "—"}</td>
-                      <td className="py-2 px-2 text-right tabular-nums">{r.billedPct}%</td>
-                    </tr>
+                    <>
+                      {r.label}
+                      {showLocal && (
+                        <div className="text-[10px] font-normal text-muted-foreground" data-testid={`portfolio-income-row-${r.key}-local`}>
+                          {formatCurrency(r.local!.projected, r.localCurrency!)} local projected
+                        </div>
+                      )}
+                    </>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                },
+              },
+              { header: "Projects", align: "right", cell: (r) => r.projects, cellClassName: "text-muted-foreground" },
+              { header: "Projected", align: "right", cell: (r) => money(r.projected) },
+              { header: "Invoiced", align: "right", cell: (r) => money(r.invoiced) },
+              { header: "Unbilled", align: "right", cell: (r) => (r.unbilled ? money(r.unbilled) : "—"), cellClassName: "text-amber-600" },
+              { header: "Billed", align: "right", cell: (r) => `${r.billedPct}%` },
+            ]}
+          />
           <p className="text-[11px] text-muted-foreground">
             Projected income vs invoiced, consolidated into {target} and grouped by programme.
             {fx?.provenance ? ` FX ${fx.provenance}${fx.asOf ? ` as of ${new Date(fx.asOf).toLocaleDateString("en-GB", { timeZone: "UTC" })}` : ""}.` : ""} The
