@@ -78,6 +78,34 @@ If `SQL_SIDECAR_URL` is unset it falls back to a **non-persistent** in-memory st
 warning (never a silent "persist into nowhere"). Live verification against a real PostgreSQL sidecar
 is still yours to do — the contract is exercised in CI against a mock sidecar.
 
+## One-stop shop? The first-party `omnistore` (optional, stateful)
+
+If you want a backend *from us* rather than wiring your own, turn on **OmniStore** — a first-party,
+stateful system-of-record that runs in-process below the seam and needs no external DB or sidecar:
+
+```
+BUILTIN_BROKER=omnistore
+OMNISTORE_FILE=/var/lib/omniproject/store.sealed   # durable write-through (omit ⇒ in-memory, warned)
+OMNISTORE_KEY=…                                    # optional base64-32 key; else derived from the master
+```
+
+It's **optional** — the stateless overlay over your existing backend stays the default. OmniStore is
+built to be trustworthy about the data it holds (see `docs/design/STATEFUL-SIDECAR.md`):
+
+- **Encrypted at rest** — the store is an AES-256-GCM-sealed blob; the bytes are opaque + tamper-evident.
+- **Provably immutable except via valid calls** — state is a deterministic fold of an **append-only,
+  hash-chained event log**; the only mutation path is a validated write, and a boot-time (and on-demand)
+  chain `verify()` pinpoints any tamper/reorder/truncation. A tampered file **fails closed** on load.
+- **Self-contained + portable** — the store owns its key (its identity). `exportBundle()` moves the
+  whole store (sealed log + the root key) to another OmniProject instance, re-verifying the chain on
+  arrival; if both instances share `OMNISTORE_KEY`, move just the file.
+
+Phase 1 covers projects, issues (optimistic concurrency + hierarchy-ready), GTD tasks and RAID — it
+passes the same broker conformance suite as every other backend. The Jira-class layer (comments, links,
+workflow, boards, search) is the additive, capability-gated roadmap in the design doc. For **massive
+scale**, use the DB sidecar path below (Postgres) — `omnistore` is the batteries-included small/mid
+option; the sidecar is the scale-out one.
+
 ## Scaling the sidecar at massive scale (10k projects / 1000 users)
 
 The gateway is a stateless overlay — it holds no DB and never over-fetches (portfolio reads are
