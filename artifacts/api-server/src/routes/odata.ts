@@ -83,8 +83,17 @@ function entitySet(set: string, load: (req: Request, q: ODataQuery) => Promise<R
   router.get(`/odata/${set}`, async (req, res) => {
     try {
       const q = req.query as ODataQuery;
-      const { rows, count } = applyODataQuery(await load(req, q), q, allowed);
-      res.json(entitySetEnvelope(baseUrl(req), set, rows, count));
+      const { rows, count, nextSkip } = applyODataQuery(await load(req, q), q, allowed);
+      // Server-driven paging: when the result was capped, hand back an absolute next-page link that
+      // preserves the caller's other options ($filter/$select/$orderby/$count) with an advanced $skip.
+      let nextLink: string | undefined;
+      if (nextSkip !== undefined) {
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(q)) if (k !== "$skip" && typeof v === "string") params.set(k, v);
+        params.set("$skip", String(nextSkip));
+        nextLink = `${baseUrl(req)}${set}?${params.toString()}`;
+      }
+      res.json(entitySetEnvelope(baseUrl(req), set, rows, count, nextLink));
     } catch (err) {
       req.log.error({ err, set }, "odata query failed");
       res.status(502).json({ error: { message: "Feed unavailable" } });

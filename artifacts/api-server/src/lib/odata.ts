@@ -129,6 +129,13 @@ export interface ODataQuery {
   $count?: string;
 }
 
+/** Server-driven maximum page size (ODATA_MAX_PAGE, default 1000). Every feed response is bounded to
+ *  this many rows so a client can't pull the whole corpus in one shot; more rows ⇒ an @odata.nextLink. */
+export const ODATA_MAX_PAGE = (() => {
+  const n = Number(process.env["ODATA_MAX_PAGE"]);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1000;
+})();
+
 /**
  * Apply $filter/$select/$top/$skip/$orderby/$count to a row set (in-memory OData query).
  *
@@ -136,8 +143,11 @@ export interface ODataQuery {
  * projected down to those props before serialising — so a backend that returns extra internal fields
  * can't leak them through the feed — and `$select` is intersected with the model (a caller can't
  * `$select` an un-modeled field to pull it back). Omit `allowed` only for un-modeled/raw callers.
+ *
+ * Bounds every page to {@link ODATA_MAX_PAGE}; when more rows remain it returns `nextSkip` so the
+ * route can emit an @odata.nextLink (server-driven paging, never a silent truncation).
  */
-export function applyODataQuery(rows: Row[], q: ODataQuery, allowed?: readonly string[]): { rows: Row[]; count?: number } {
+export function applyODataQuery(rows: Row[], q: ODataQuery, allowed?: readonly string[]): { rows: Row[]; count?: number; nextSkip?: number } {
   let out = rows;
 
   if (q.$filter) out = out.filter((r) => matchesFilter(r, q.$filter!));
@@ -160,10 +170,15 @@ export function applyODataQuery(rows: Row[], q: ODataQuery, allowed?: readonly s
     });
   }
 
-  const skip = Number(q.$skip);
-  if (Number.isFinite(skip) && skip > 0) out = out.slice(skip);
-  const top = Number(q.$top);
-  if (Number.isFinite(top) && top >= 0) out = out.slice(0, top);
+  // Server-driven paging: always bound the page to ODATA_MAX_PAGE, even when the caller sends no
+  // $top — otherwise a BI poll materialises + serialises the whole corpus (the 10k-project OOM risk).
+  // A truncated result carries an @odata.nextLink (built by the route) so nothing is silently dropped.
+  const skipRaw = Number(q.$skip);
+  const skip = Number.isFinite(skipRaw) && skipRaw > 0 ? Math.floor(skipRaw) : 0;
+  const topRaw = Number(q.$top);
+  const pageSize = Number.isFinite(topRaw) && topRaw >= 0 ? Math.min(Math.floor(topRaw), ODATA_MAX_PAGE) : ODATA_MAX_PAGE;
+  out = out.slice(skip, skip + pageSize);
+  const nextSkip = skip + out.length < total ? skip + out.length : undefined;
 
   // Projection: start from the declared model props (if given), then narrow to $select — both
   // restricted to the model so no un-modeled backend field is ever serialised into the feed.
@@ -178,14 +193,20 @@ export function applyODataQuery(rows: Row[], q: ODataQuery, allowed?: readonly s
   }
 
   const wantCount = String(q.$count).toLowerCase() === "true";
-  return wantCount ? { rows: out, count: total } : { rows: out };
+  return {
+    rows: out,
+    ...(wantCount ? { count: total } : {}),
+    ...(nextSkip !== undefined ? { nextSkip } : {}),
+  };
 }
 
-/** Wrap a row set in the OData v4 entity-set JSON envelope (@odata.context etc.). */
-export function entitySetEnvelope(baseUrl: string, set: string, rows: Row[], count?: number) {
+/** Wrap a row set in the OData v4 entity-set JSON envelope (@odata.context etc.). `nextLink` is set
+ *  when the result was capped by server-driven paging, so a client can fetch the next page. */
+export function entitySetEnvelope(baseUrl: string, set: string, rows: Row[], count?: number, nextLink?: string) {
   return {
     "@odata.context": `${baseUrl}$metadata#${set}`,
     ...(count !== undefined ? { "@odata.count": count } : {}),
+    ...(nextLink ? { "@odata.nextLink": nextLink } : {}),
     value: rows,
   };
 }
