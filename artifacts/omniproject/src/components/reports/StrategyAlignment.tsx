@@ -1,6 +1,6 @@
 import { ReportEmpty } from "./ReportEmpty";
 import { useMemo } from "react";
-import { convertAmount } from "../../lib/currency";
+import { convertAmount, isConvertible } from "../../lib/currency";
 import { num } from "../../lib/num";
 import { useT } from "../../lib/i18n";
 import type { ProjectItems } from "../../lib/portfolio-value";
@@ -57,6 +57,9 @@ export interface StrategyThemeRow {
 export interface StrategyRollup {
   themes: StrategyThemeRow[];
   totals: { themes: number; items: number; planned: number; actual: number; realisation: number };
+  /** Projects whose benefit value was excluded from the theme money totals because their currency has
+   *  no rate to the reporting currency (their items still count toward theme item/RAG/contribution). */
+  excludedForFx: number;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -95,15 +98,25 @@ function addLabels(into: string[], from: (string | null | undefined)[] | null | 
  *  `reportingCurrency`. Pure and derive-only: the same items always produce the same roll-up. */
 export function rollupStrategyThemes(projects: ProjectItems[], reportingCurrency: string, rates?: Record<string, number>): StrategyRollup {
   const map = new Map<string, Working>();
+  let excludedForFx = 0;
   for (const p of projects) {
+    // Only fold benefit VALUE into the theme money totals when the project's currency can be converted
+    // — convertAmount passes a raw foreign amount through when a rate is missing, which would corrupt
+    // the consolidated planned/actual (same guard as the portfolio roll-ups). Item count, RAG,
+    // contribution and objective/KPI tags are currency-independent, so they still count.
+    const convertible = isConvertible(p.currency, reportingCurrency, rates);
     const conv = (n: number) => convertAmount(n, p.currency, reportingCurrency, rates);
+    let contributedThemedItem = false;
     for (const it of p.items as unknown as StrategyItem[]) {
       const theme = themeOf(it);
       if (!theme) continue;
+      contributedThemedItem = true;
       const w = map.get(theme.key) ?? blank(theme);
       w.items += 1;
-      w.planned += conv(num(it.plannedBenefitValue));
-      w.actual += conv(num(it.actualBenefitValue));
+      if (convertible) {
+        w.planned += conv(num(it.plannedBenefitValue));
+        w.actual += conv(num(it.actualBenefitValue));
+      }
       if (it.strategicContribution != null && Number.isFinite(it.strategicContribution)) {
         w._contribSum += Math.min(100, Math.max(0, it.strategicContribution));
         w._contribN += 1;
@@ -114,6 +127,7 @@ export function rollupStrategyThemes(projects: ProjectItems[], reportingCurrency
       addLabels(w.kpis, it.kpis);
       map.set(theme.key, w);
     }
+    if (!convertible && contributedThemedItem) excludedForFx += 1;
   }
   const themes: StrategyThemeRow[] = [...map.values()]
     .map((w) => ({
@@ -134,7 +148,7 @@ export function rollupStrategyThemes(projects: ProjectItems[], reportingCurrency
   const planned = round2(themes.reduce((s, t) => s + t.planned, 0));
   const actual = round2(themes.reduce((s, t) => s + t.actual, 0));
   const items = themes.reduce((s, t) => s + t.items, 0);
-  return { themes, totals: { themes: themes.length, items, planned, actual, realisation: planned > 0 ? Math.round((actual / planned) * 1000) / 10 : 0 } };
+  return { themes, totals: { themes: themes.length, items, planned, actual, realisation: planned > 0 ? Math.round((actual / planned) * 1000) / 10 : 0 }, excludedForFx };
 }
 
 /** Dominant RAG for a theme (most-severe non-zero wins the tone), used to colour the realisation cell. */
@@ -165,7 +179,7 @@ function RagChips({ rag }: { rag: { green: number; amber: number; red: number } 
 export function StrategyAlignment() {
   const { formatCurrency } = useT();
   const { projects, loading, isError, error, refetch, target, rates } = usePortfolioItems();
-  const { themes, totals } = useMemo(() => rollupStrategyThemes(projects, target, rates), [projects, target, rates]);
+  const { themes, totals, excludedForFx } = useMemo(() => rollupStrategyThemes(projects, target, rates), [projects, target, rates]);
   const money = (n: number) => formatCurrency(n, target);
 
   // Each project is one strategic INITIATIVE: aggregate its items' theme/objectives/kpis/contribution
@@ -242,7 +256,9 @@ export function StrategyAlignment() {
           <p className="text-[11px] text-muted-foreground">
             Work items grouped by strategic theme (or their first strategic goal), consolidated into {target} and ordered by planned
             benefit (biggest strategic investment first). Contribution is the mean strategic contribution of the items that report it;
-            RAG rolls up each item&apos;s delivery health (falling back to benefit status). Derived live; nothing is stored.
+            RAG rolls up each item&apos;s delivery health (falling back to benefit status).
+            {excludedForFx > 0 ? ` ${excludedForFx} project(s) with no FX rate to ${target} are excluded from the benefit totals (their items still count toward theme alignment).` : ""}
+            {" "}Derived live; nothing is stored.
           </p>
           <StrategyCascade items={cascadeItems} />
         </div>

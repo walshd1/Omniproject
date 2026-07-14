@@ -62,6 +62,23 @@ describe("rollupStrategyThemes", () => {
     expect(sec.objectives).toEqual(["O1"]);
     expect(roll.totals.themes).toBe(2);
     expect(roll.totals.planned).toBe(250);
+    expect(roll.excludedForFx).toBe(0);
+  });
+
+  it("EXCLUDES an FX-unconvertible project's benefit value from theme totals but still counts its items", () => {
+    const gbp: ProjectItems = { projectId: "a", projectName: "A", programmeId: null, programmeName: null, currency: "GBP", items: [
+      { id: "1", strategicTheme: "Growth", plannedBenefitValue: 100, actualBenefitValue: 40, healthStatus: "green" },
+    ] as unknown as ProjectItems["items"] };
+    const jpy: ProjectItems = { projectId: "b", projectName: "B", programmeId: null, programmeName: null, currency: "JPY", items: [
+      { id: "2", strategicTheme: "Growth", plannedBenefitValue: 900000, actualBenefitValue: 900000, healthStatus: "red" },
+    ] as unknown as ProjectItems["items"] };
+    const roll = rollupStrategyThemes([gbp, jpy], "GBP", { GBP: 1, USD: 1.25 }); // no JPY rate
+    const growth = roll.themes.find((t) => t.key === "growth")!;
+    expect(growth.planned).toBe(100); // JPY 900000 dropped, not added raw
+    expect(growth.actual).toBe(40);
+    expect(growth.items).toBe(2); // both items still count toward alignment
+    expect(growth.rag).toEqual({ green: 1, amber: 0, red: 1 }); // RAG counts both
+    expect(roll.excludedForFx).toBe(1);
   });
 
   it("falls back to the first strategic goal, then Unaligned, and skips items with no strategic signal", () => {
