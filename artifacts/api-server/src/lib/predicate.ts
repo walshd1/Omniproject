@@ -62,7 +62,13 @@ export function evaluatePredicate(p: Predicate, ctx: Context): boolean {
       if (a === null || b === null) return false;
       return p.op === "gt" ? a > b : p.op === "gte" ? a >= b : p.op === "lt" ? a < b : a <= b;
     }
-    default: return false;
+    default:
+      // Exhaustiveness poka-yoke: every `Op` is handled above, so `p.op` is `never` here — adding a
+      // new operator to the union without a case fails to COMPILE at this line. At runtime `satisfies`
+      // is erased, so an unvalidated/unknown op still degrades to conservatively-false (a malformed
+      // stored rule must never throw and 500 a feature-gated read).
+      p.op satisfies never;
+      return false;
   }
 }
 
