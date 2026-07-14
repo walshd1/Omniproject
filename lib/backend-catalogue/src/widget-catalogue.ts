@@ -33,9 +33,11 @@ export interface WidgetDefinition {
  *  embedded by gen-widgets (drift-guarded in CI). */
 export const WIDGETS: WidgetDefinition[] = [...WIDGETS_DATA].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
+const byType = new Map(WIDGETS.map((w) => [w.type, w]));
+
 /** One widget definition by type, or undefined. */
 export function widgetDef(type: string): WidgetDefinition | undefined {
-  return WIDGETS.find((w) => w.type === type);
+  return byType.get(type);
 }
 
 /** All widget definitions (a defensive copy). */

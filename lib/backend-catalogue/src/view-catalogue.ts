@@ -36,9 +36,11 @@ export interface ViewDefinition {
 /** Every shipped view definition, in display order. */
 export const VIEWS: ViewDefinition[] = [...VIEWS_DATA].sort((a, b) => a.order - b.order);
 
+const byId = new Map(VIEWS.map((v) => [v.id, v]));
+
 /** One view by id, or undefined. */
 export function getView(id: string): ViewDefinition | undefined {
-  return VIEWS.find((v) => v.id === id);
+  return byId.get(id);
 }
 
 /** Views that apply to a methodology — those tagged with it, plus the neutral ("*") ones. */

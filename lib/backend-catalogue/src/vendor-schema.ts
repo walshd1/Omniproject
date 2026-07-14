@@ -10,6 +10,20 @@
 
 export type JsonSchema = Record<string, unknown>;
 
+/** Compiled-pattern cache, keyed on the pattern string, so a schema reused across
+ *  many values compiles its `pattern` RegExp once instead of on every `test`. The
+ *  RegExps carry no flags, so `.test` is stateless and safe to share. */
+const patternCache = new Map<string, RegExp>();
+
+function compiledPattern(pattern: string): RegExp {
+  let re = patternCache.get(pattern);
+  if (!re) {
+    re = new RegExp(pattern);
+    patternCache.set(pattern, re);
+  }
+  return re;
+}
+
 /** Validate a value against a schema; returns a list of human-readable error paths (empty = valid). */
 export function validate(schema: JsonSchema, value: unknown, at = "$"): string[] {
   const errs: string[] = [];
@@ -22,7 +36,7 @@ export function validate(schema: JsonSchema, value: unknown, at = "$"): string[]
   if (schema["enum"] && !(schema["enum"] as unknown[]).includes(value)) {
     errs.push(`${at}: ${JSON.stringify(value)} is not one of ${JSON.stringify(schema["enum"])}`);
   }
-  if (typeof value === "string" && schema["pattern"] && !new RegExp(schema["pattern"] as string).test(value)) {
+  if (typeof value === "string" && schema["pattern"] && !compiledPattern(schema["pattern"] as string).test(value)) {
     errs.push(`${at}: "${value}" does not match /${schema["pattern"]}/`);
   }
   // Numeric bounds (schemas declare e.g. refresh {minimum:1}; previously ignored, so refresh:0 passed).

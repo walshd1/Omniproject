@@ -29,9 +29,11 @@ export const NOTIFICATION_KINDS: NotificationKindDef[] = [
 /** The known kind ids — the set routing rules / the guard validate against. */
 export const KNOWN_NOTIFICATION_KINDS: ReadonlySet<string> = new Set(NOTIFICATION_KINDS.map((k) => k.id));
 
+const byId = new Map(NOTIFICATION_KINDS.map((k) => [k.id, k]));
+
 /** One kind definition by id, or undefined. */
 export function getNotificationKind(id: string): NotificationKindDef | undefined {
-  return NOTIFICATION_KINDS.find((k) => k.id === id);
+  return byId.get(id);
 }
 
 /** All kind definitions (a defensive copy). */

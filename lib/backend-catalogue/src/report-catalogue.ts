@@ -72,9 +72,11 @@ export interface ReportDefinition extends ReportManifest {
  *  assets/reports/<id>.json and embedded by gen-reports (drift-guarded in CI). */
 export const REPORTS: ReportDefinition[] = [...REPORTS_DATA].sort((a, b) => a.order - b.order);
 
+const byId = new Map(REPORTS.map((r) => [r.id, r]));
+
 /** One report definition by id, or undefined. */
 export function getReport(id: string): ReportDefinition | undefined {
-  return REPORTS.find((r) => r.id === id);
+  return byId.get(id);
 }
 
 /** All report definitions (a defensive copy). */
@@ -90,7 +92,7 @@ export function reportCatalogue(): ReportDefinition[] {
  * it." This is the single gate; surface only what it returns.
  */
 export function availableReports(caps: Record<string, boolean>): ReportDefinition[] {
-  return reportCatalogue().filter((r) => isCapabilityMet(r.capabilities.requiresCapability, caps));
+  return REPORTS.filter((r) => isCapabilityMet(r.capabilities.requiresCapability, caps)).map((r) => ({ ...r }));
 }
 
 /** Reports tagged with a methodology — those carrying its tag, plus the neutral

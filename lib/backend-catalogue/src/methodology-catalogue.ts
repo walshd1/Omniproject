@@ -51,9 +51,11 @@ export interface MethodologyDefinition extends MethodologyManifest {
  *  in CI). Being data is what lets a methodology PACK ship as an importable bundle. */
 export const METHODOLOGIES: MethodologyDefinition[] = [...METHODOLOGIES_DATA].sort((a, b) => a.order - b.order);
 
+const byId = new Map(METHODOLOGIES.map((m) => [m.id, m]));
+
 /** One methodology definition by id, or undefined. */
 export function getMethodology(id: string): MethodologyDefinition | undefined {
-  return METHODOLOGIES.find((m) => m.id === id);
+  return byId.get(id);
 }
 
 /** All methodology definitions (a defensive copy). */

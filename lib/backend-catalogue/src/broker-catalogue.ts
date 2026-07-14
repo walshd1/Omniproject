@@ -89,16 +89,46 @@ export interface BrokerDefinition extends BrokerManifest {
 
 export const BROKERS: BrokerDefinition[] = BROKERS_DATA;
 
+/** The effective brokers (defaults + overlay) indexed by id. Built from the resolved
+ *  overlay set on each call so it always reflects the current overlay; callers that
+ *  resolve several ids share ONE map instead of a linear `.find` per id. */
+function brokersById(): Map<string, BrokerDefinition> {
+  return new Map(withOverlay("brokers", BROKERS).map((b) => [b.id, b]));
+}
+
 /** One broker definition by id, or undefined. */
 export function getBrokerDef(id: string): BrokerDefinition | undefined {
-  return withOverlay("brokers", BROKERS).find((b) => b.id === id);
+  return brokersById().get(id);
 }
+
+/**
+ * Per-transport index of the brokers that can drive it, memoised on the IDENTITY of
+ * the resolved (overlaid) broker array. `withOverlay` returns a stable reference —
+ * the shipped `BROKERS` when no overlay is registered, or a fresh merged array that
+ * it replaces whenever the overlay changes — so keying a WeakMap on that array is a
+ * clean invalidation signal: a new array ⇒ a rebuilt index, never a stale one.
+ */
+const transportIndex = new WeakMap<readonly BrokerDefinition[], Map<TransportMethod, BrokerKind[]>>();
 
 /** Brokers that can act as the live DATA hop for a backend transport: synchronous
  *  AND able to drive that transport. Every broker is synchronous by invariant, so
  *  this is really "which brokers drive this transport" (native-node ⇒ n8n only). */
 export function brokersForTransport(t: TransportMethod): BrokerKind[] {
-  return withOverlay("brokers", BROKERS).filter((b) => b.capabilities.synchronous && b.transports.includes(t)).map((b) => b.id);
+  const brokers = withOverlay("brokers", BROKERS);
+  let index = transportIndex.get(brokers);
+  if (!index) {
+    index = new Map<TransportMethod, BrokerKind[]>();
+    for (const b of brokers) {
+      if (!b.capabilities.synchronous) continue;
+      for (const tr of b.transports) {
+        const list = index.get(tr);
+        if (list) list.push(b.id);
+        else index.set(tr, [b.id]);
+      }
+    }
+    transportIndex.set(brokers, index);
+  }
+  return (index.get(t) ?? []).slice();
 }
 
 /**
@@ -120,10 +150,12 @@ export function brokerSupport(id: string): Record<string, boolean> {
  * union the multi-broker router will feed the full connected set into.)
  */
 export function brokerSupportUnion(ids: string[]): Record<string, boolean> {
+  const byId = brokersById();
   const out: Record<string, boolean> = {};
   for (const id of ids) {
-    const caps = brokerSupport(id);
-    for (const k of BROKER_CAPABILITY_KEYS) if (caps[k]) out[k] = true;
+    const def = byId.get(id);
+    if (!def) continue;
+    for (const k of BROKER_CAPABILITY_KEYS) if (def.capabilities[k]) out[k] = true;
   }
   return out;
 }
