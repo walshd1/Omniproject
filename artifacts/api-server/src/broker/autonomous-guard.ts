@@ -16,43 +16,44 @@ import { authorizeAutonomousWrite, type WriteRequest } from "../lib/autonomous-g
  * Placed innermost (closest to the real broker) so no wrapper can route a write around it.
  */
 
-/** Build the write-authorization request from a broker write method + its args. Unknown/absent fields
- *  are simply omitted — the grant check treats an absent scope element as unconstrained-by-that-element. */
-function writeRequestFor(method: string, args: unknown[], now: number): WriteRequest | null {
-  const rec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
-  const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
-  switch (method) {
-    case "writeIssue": {
-      const op = str(args[1]) ?? "update";
-      const input = rec(args[2]);
-      const fields = Object.keys(input).filter((k) => k !== "projectId" && k !== "issueId");
-      return { action: `${op}_issue`, projectId: str(input["projectId"]), fields, now };
-    }
-    case "createProject": return { action: "create_project", projectId: str(rec(args[1])["id"]), fields: Object.keys(rec(args[1])), now };
-    case "updateProject": return { action: "update_project", projectId: str(args[1]), fields: Object.keys(rec(args[2])), now };
-    case "createTaskItem": return { action: "create_task_item", projectId: str(args[1]), now };
-    case "addRaid": return { action: "add_raid", projectId: str(args[1]), fields: Object.keys(rec(args[2])), now };
-    case "createTask": return { action: "create_task", projectId: str(rec(args[1])["projectId"]), now };
-    case "updateTask": return { action: "update_task", projectId: str(rec(args[2])["projectId"]), now };
-    case "addTaskComment": return { action: "add_task_comment", now };
-    case "addTaskAttachment": return { action: "add_task_attachment", now };
-    // storeCredential(ctx, {backend,name,value}) delegates a vendor secret into the broker vault — a
-    // genuine mutation. The secret VALUE is never put in the request (grants scope by action/project,
-    // not by content); an autonomous actor with no store_credential grant is denied, fail-closed.
-    case "storeCredential": return { action: "store_credential", projectId: null, now };
-    // commandWithSource(ctx, action, payload, source) is the generic n8n command edge — it can forward
-    // ANY mutating action (create/update/delete_project, RAID, …). Guard it under its own action name
-    // so a grant must name that action; an ungranted autonomous command is denied by construction.
-    case "commandWithSource": return { action: str(args[1]) ?? "command", projectId: str(rec(args[2])["projectId"]), now };
-    default: return null;
-  }
-}
+const rec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
+const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 
-const GUARDED_WRITES = new Set([
-  "writeIssue", "createProject", "updateProject", "createTaskItem", "addRaid",
-  "createTask", "updateTask", "addTaskComment", "addTaskAttachment",
-  "storeCredential", "commandWithSource",
-]);
+/** One classifier per guarded broker write method: maps its args → the WriteRequest the grant check
+ *  bounds. Each does ONE job (classify ONE method) and ALWAYS returns a request — a guarded method can
+ *  never yield "no request" and thereby skip the check. Unknown/absent scope fields are omitted; the
+ *  grant check treats an absent scope element as unconstrained-by-that-element. */
+const WRITE_CLASSIFIERS = {
+  writeIssue: (args, now): WriteRequest => {
+    const op = str(args[1]) ?? "update";
+    const input = rec(args[2]);
+    const fields = Object.keys(input).filter((k) => k !== "projectId" && k !== "issueId");
+    return { action: `${op}_issue`, projectId: str(input["projectId"]), fields, now };
+  },
+  createProject: (args, now): WriteRequest => ({ action: "create_project", projectId: str(rec(args[1])["id"]), fields: Object.keys(rec(args[1])), now }),
+  updateProject: (args, now): WriteRequest => ({ action: "update_project", projectId: str(args[1]), fields: Object.keys(rec(args[2])), now }),
+  createTaskItem: (args, now): WriteRequest => ({ action: "create_task_item", projectId: str(args[1]), now }),
+  addRaid: (args, now): WriteRequest => ({ action: "add_raid", projectId: str(args[1]), fields: Object.keys(rec(args[2])), now }),
+  createTask: (args, now): WriteRequest => ({ action: "create_task", projectId: str(rec(args[1])["projectId"]), now }),
+  updateTask: (args, now): WriteRequest => ({ action: "update_task", projectId: str(rec(args[2])["projectId"]), now }),
+  addTaskComment: (_args, now): WriteRequest => ({ action: "add_task_comment", now }),
+  addTaskAttachment: (_args, now): WriteRequest => ({ action: "add_task_attachment", now }),
+  // storeCredential(ctx, {backend,name,value}) delegates a vendor secret into the broker vault — a
+  // genuine mutation. The secret VALUE is never put in the request (grants scope by action/project,
+  // not by content); an autonomous actor with no store_credential grant is denied, fail-closed.
+  storeCredential: (_args, now): WriteRequest => ({ action: "store_credential", projectId: null, now }),
+  // commandWithSource(ctx, action, payload, source) is the generic n8n command edge — it can forward
+  // ANY mutating action (create/update/delete_project, RAID, …). Guard it under its own action name
+  // so a grant must name that action; an ungranted autonomous command is denied by construction.
+  commandWithSource: (args, now): WriteRequest => ({ action: str(args[1]) ?? "command", projectId: str(rec(args[2])["projectId"]), now }),
+} satisfies Record<string, (args: unknown[], now: number) => WriteRequest>;
+
+/** A broker method the autonomous gate must run authorization for. */
+export type GuardedWriteMethod = keyof typeof WRITE_CLASSIFIERS;
+
+/** The guarded set is DERIVED from the classifier registry, so the two can never drift: every guarded
+ *  method has a classifier, and every classifier is guarded. (Exported for the parity arch-test.) */
+export const GUARDED_WRITES: ReadonlySet<string> = new Set(Object.keys(WRITE_CLASSIFIERS));
 
 /** Wrap a broker so every write is first passed through the autonomous-write gate. Generic in the
  *  broker type so it can wrap a CONCRETE adapter (e.g. ReferenceBroker) without losing its extra,
@@ -68,11 +69,15 @@ export function wrapWithAutonomousGuard<T extends Broker>(base: T, opts: { now?:
       }
       // `async` so a denial surfaces as a REJECTED promise (the broker write methods are all async),
       // never a synchronous throw an `await` caller could mishandle.
+      const classify = WRITE_CLASSIFIERS[method as GuardedWriteMethod];
       return async function (this: unknown, ...args: unknown[]) {
-        const req = writeRequestFor(method, args, now());
+        // FAIL-CLOSED: a method in GUARDED_WRITES ALWAYS has a classifier (the set is derived from the
+        // registry), so this is unreachable by construction — but if that invariant were ever broken we
+        // throw rather than let the write proceed UNGATED (the old `if (req)` silently skipped it).
+        if (!classify) throw new Error(`autonomous-guard: guarded method "${method}" has no write classifier`);
         // Throws AutonomousWriteDenied (fail-closed) for an out-of-grant autonomous write; a no-op for
         // humans. Runs BEFORE the write reaches the broker, so a denied write never touches the backend.
-        if (req) authorizeAutonomousWrite(args[0] as ActorContext, req);
+        authorizeAutonomousWrite(args[0] as ActorContext, classify(args, now()));
         return (orig as (...a: unknown[]) => unknown).apply(target, args);
       };
     },
