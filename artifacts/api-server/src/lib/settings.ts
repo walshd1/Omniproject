@@ -27,6 +27,7 @@ import { sanitizeLabels } from "./labels";
 import { isForbiddenKey, stripDangerousKeysDeep } from "./safe-json";
 import { validateFieldValidation, FieldValidationError, type FieldValidationRule } from "./field-validation";
 import { validateProgrammeRegistry, ProgrammeRegistryError, type ProgrammeRegistry } from "./programmes";
+import type { UsagePolicy } from "./usage-metering";
 import { validateBrokerKinds, brokerKindsFromEnv, BrokerKindsError } from "./broker-kinds";
 import { validateClosedProjects, ClosedProjectError, type ClosedProjectRegistry } from "./closed-projects";
 import { validateGuidAliases, GuidAliasError, type GuidAliases } from "./guid-aliases";
@@ -336,6 +337,10 @@ export interface FinancialConfig {
    * routes/portfolio-priority-weights + the SPA PortfolioPrioritisation report.
    */
   priorityWeights: PriorityWeights;
+  /** Admin-entered per-vendor usage governance: an optional volume LIMIT + unit COST per external
+   *  vendor, so the usage screen can show cost totals and warn at 50/75/90/100% of a limit. Config
+   *  only — the counters themselves live in the shared-state seam (lib/usage-metering). */
+  usagePolicies?: Record<string, UsagePolicy>;
 }
 
 /** Outbound integrations: OIDC issuer, webhooks, federated peers, digest email, calendar push,
@@ -1102,6 +1107,7 @@ const FIELD_DESCRIPTORS: { [K in keyof SettingsState]: FieldDescriptor<K> } = {
   dashboards: { seed: () => [], validate: shapeChecked(validateDashboards) },
   contentPages: { seed: () => [], validate: shapeChecked(validateContentPages) },
   priorityWeights: { seed: () => ({ ...DEFAULT_PRIORITY_WEIGHTS }), validate: shapeChecked(validatePriorityWeights) },
+  usagePolicies: { seed: () => ({}), validate: shapeChecked(validateUsagePolicies) },
 };
 
 // The mutable in-memory store, seeded once from the descriptors. An undefined seed (deploymentProfile
@@ -1326,6 +1332,34 @@ function validatePriorityWeights(value: unknown): void {
     const v = o[k];
     if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
       throw new SettingsValidationError(`priorityWeights.${k} must be a non-negative number`);
+    }
+  }
+}
+
+const USAGE_PERIODS = ["hour", "day", "month"] as const;
+const USAGE_METRICS = ["calls", "tokens"] as const;
+const USAGE_COST_PER = ["call", "token", "ktoken"] as const;
+
+/** Shape-validate the per-vendor usage policies: `{ [vendor]: { limit?, cost? } }`. A limit needs a
+ *  known period+metric and a positive max; a cost needs a known unit, a non-negative amount and a
+ *  currency. Unknown keys are ignored so the shape can't be used to smuggle arbitrary config. */
+function validateUsagePolicies(value: unknown): void {
+  if (typeof value !== "object" || value == null || Array.isArray(value)) throw new SettingsValidationError("usagePolicies must be an object");
+  for (const [vendor, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (isForbiddenKey(vendor)) throw new SettingsValidationError("usagePolicies vendor key is not allowed");
+    if (typeof raw !== "object" || raw == null) throw new SettingsValidationError(`usagePolicies.${vendor} must be an object`);
+    const p = raw as Record<string, unknown>;
+    if (p["limit"] !== undefined && p["limit"] !== null) {
+      const l = p["limit"] as Record<string, unknown>;
+      if (!(USAGE_PERIODS as readonly unknown[]).includes(l["period"])) throw new SettingsValidationError(`usagePolicies.${vendor}.limit.period must be one of: ${USAGE_PERIODS.join(", ")}`);
+      if (!(USAGE_METRICS as readonly unknown[]).includes(l["metric"])) throw new SettingsValidationError(`usagePolicies.${vendor}.limit.metric must be one of: ${USAGE_METRICS.join(", ")}`);
+      if (typeof l["max"] !== "number" || !Number.isFinite(l["max"]) || (l["max"] as number) <= 0) throw new SettingsValidationError(`usagePolicies.${vendor}.limit.max must be a positive number`);
+    }
+    if (p["cost"] !== undefined && p["cost"] !== null) {
+      const c = p["cost"] as Record<string, unknown>;
+      if (!(USAGE_COST_PER as readonly unknown[]).includes(c["per"])) throw new SettingsValidationError(`usagePolicies.${vendor}.cost.per must be one of: ${USAGE_COST_PER.join(", ")}`);
+      if (typeof c["amount"] !== "number" || !Number.isFinite(c["amount"]) || (c["amount"] as number) < 0) throw new SettingsValidationError(`usagePolicies.${vendor}.cost.amount must be a non-negative number`);
+      if (typeof c["currency"] !== "string" || !c["currency"].trim()) throw new SettingsValidationError(`usagePolicies.${vendor}.cost.currency must be a non-empty string`);
     }
   }
 }
