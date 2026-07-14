@@ -7,6 +7,7 @@ import { staffCost, valueColumns, hashIdentity, type RateCard, type Facing, type
 import { applyCostRules, firedCostRuleIds, type CostRule } from "../lib/cost-rules";
 import { validatePredicate, type ConditionSet } from "../lib/predicate";
 import { guardProjectScope } from "../lib/project-scope";
+import { isStr, isNum } from "../lib/coerce";
 import { timesheetStoreFor } from "../timesheets/store";
 import { approvedHoursByResource, approvedItemsFrom } from "../timesheets/actuals";
 import {
@@ -38,9 +39,6 @@ import {
  */
 const router = Router();
 const FACINGS: Facing[] = ["client", "internal"];
-
-const isStr = (v: unknown): v is string => typeof v === "string";
-const isNum = (v: unknown): v is number => typeof v === "number" && isFinite(v);
 
 function audit(req: Parameters<typeof actorForAudit>[0], action: string, meta: Record<string, unknown>): void {
   recordRequestAudit(req, {
