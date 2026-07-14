@@ -14,6 +14,7 @@ import { isActionApproved, listApprovedVocab, approvalContextFromReq } from "../
 import { answerCopilot } from "../lib/copilot";
 import { generatePortfolioInsight, INSIGHT_KINDS } from "../lib/insights";
 import { suggestEstimate, ESTIMATE_UNITS } from "../lib/estimate";
+import { proposeRebalance } from "../lib/rebalance";
 import { suggestBackendPrompt, parseSuggestedManifest, SuggestParseError } from "../lib/backend-suggest";
 import { getBroker, contextFromReq } from "../broker";
 import { hasRole, roleForReq, requireRole } from "../lib/rbac";
@@ -54,6 +55,7 @@ const ESTIMATE_BODY = v.object({
   comparables: v.optional(v.array(v.object({ label: v.string({ max: 200 }), estimate: v.number({ min: 0, max: 100_000 }) }), { max: 50 })),
   surface: v.optional(v.string({ max: 200 })),
 });
+const REBALANCE_BODY = v.object({ surface: v.optional(v.string({ max: 200 })) });
 const TRANSCRIBE_BODY = v.object({
   audio: v.string({ min: 1, max: 20_000_000 }), // base64 audio; express json limit is the hard ceiling
   mime: v.optional(v.string({ max: 100 })),
@@ -260,6 +262,39 @@ router.post("/ai/estimate", async (req, res) => {
     res.json(suggestion);
   } catch (err) {
     respondAiError(req, res, err, "estimate failed", "estimate failed");
+  }
+});
+
+// ── POST /api/ai/rebalance — agentic: PROPOSE corrective actions (never executes) ──
+// The highest-risk AI surface, fenced hardest. It plans a short list of write actions over the
+// portfolio but NEVER runs them: the SPA renders each as the shared confirm-before-execute
+// ActionPlanCard, and execution goes through the existing MCP write path (role + write-grants +
+// authorizeAutonomousWrite re-enforced). Every proposal is constrained to the caller's APPROVED,
+// write-capable actions (toPlan drops anything invented). Gated by its OWN separate
+// `ai-autonomous` capability (off by default) AND requires the contributor role.
+router.post("/ai/rebalance", async (req, res) => {
+  const parsed = parseOr400(req, res, REBALANCE_BODY);
+  if (!parsed) return;
+
+  const provider = getSettings().aiProvider;
+  const surface = surfaceFromBody(req);
+  if (!enforceOr403(req, res, `provider:${provider}`, { surface, label: "AI is unavailable here" })) return;
+  if (!enforceOr403(req, res, "ai-autonomous", { surface, label: "AI rebalancing is unavailable here" })) return;
+  // Proposals are write actions — a viewer must never even be offered them.
+  if (!hasRole(req, "contributor")) { res.status(403).json({ error: "AI rebalancing requires the contributor role." }); return; }
+
+  try {
+    // ONLY approved, write-capable actions (for this surface/role/backend) may be proposed.
+    const tools = MCP_TOOLS.filter((t) => t.write && isActionApproved(t.action, approvalContextFromReq(req, surface)));
+    const plan = await proposeRebalance({
+      broker: getBroker(),
+      ctx: contextFromReq(req),
+      tools,
+      complete: async (messages) => (await aiChat(messages, govCtx(req))).content,
+    });
+    res.json(plan);
+  } catch (err) {
+    respondAiError(req, res, err, "rebalance failed", "rebalance failed");
   }
 });
 

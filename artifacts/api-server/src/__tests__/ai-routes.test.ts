@@ -121,6 +121,12 @@ test("POST /ai/estimate: a valid body is stopped at the provider gate → 403 (o
   assert.equal(r.status, 403);
 });
 
+// ── POST /ai/rebalance (agentic, propose-only) ──────────────────────────────────
+test("POST /ai/rebalance: a valid request is stopped at the provider gate → 403 (off by default)", async () => {
+  const r = await h.req("/ai/rebalance", { method: "POST", cookie: adminCookie(), body: {} });
+  assert.equal(r.status, 403);
+});
+
 test("POST /ai/transcribe: a missing audio payload → 400", async () => {
   const r = await h.req("/ai/transcribe", { method: "POST", cookie: adminCookie(), body: {} });
   assert.equal(r.status, 400);

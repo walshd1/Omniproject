@@ -63,6 +63,7 @@ import { HealthWatch } from "../components/settings/HealthWatch";
 import { Copilot } from "../components/settings/Copilot";
 import { InsightsPanel } from "../components/settings/InsightsPanel";
 import { EstimateAssistant } from "../components/settings/EstimateAssistant";
+import { RebalancePanel } from "../components/settings/RebalancePanel";
 import { DataState } from "../components/DataState";
 import { LoadingState } from "../components/LoadingState";
 import { urlFormatError } from "../lib/validation";
@@ -106,6 +107,7 @@ const ADMIN_PANELS: AdminPanel[] = [
   { key: "copilot", Component: Copilot },
   { key: "portfolioInsights", Component: InsightsPanel },
   { key: "estimateAssistant", Component: EstimateAssistant },
+  { key: "rebalancePanel", Component: RebalancePanel },
   { key: "provenanceDashboard", Component: ProvenanceDashboard },
   { key: "deploymentProfile", Component: DeploymentProfile },
   { key: "featureModules", Component: FeatureModulesAdmin },
