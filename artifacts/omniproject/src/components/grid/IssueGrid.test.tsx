@@ -55,13 +55,14 @@ const AVAIL: Availability = {
 
 let SEEDED: Issue[] = [];
 
-function seed(issues: Issue[], opts: { savedViews?: boolean } = {}): QueryClient {
+function seed(issues: Issue[], opts: { savedViews?: boolean; sidePanel?: boolean } = {}): QueryClient {
   SEEDED = issues;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
   qc.setQueryData(getGetProjectIssuesQueryKey("p1"), issues);
   qc.setQueryData(availabilityQueryKey, AVAIL);
   qc.setQueryData(featuresQueryKey(), [
     { id: "savedViews", kind: "module", label: "Saved views", description: "", enabled: opts.savedViews ?? false, loaded: true, needsRestart: false },
+    { id: "sidePanel", kind: "module", label: "Side panel", description: "", enabled: opts.sidePanel ?? false, loaded: true, needsRestart: false },
   ] satisfies FeatureStatus[]);
   qc.setQueryData(savedViewsQueryKey, []);
   return qc;
@@ -157,6 +158,60 @@ describe("IssueGrid component", () => {
   it("shows the saved-views bar when the savedViews module is enabled", () => {
     renderWithProviders(<IssueGrid projectId="p1" />, { client: seed([issue()], { savedViews: true }) });
     expect(screen.getByTestId("saved-views-bar")).toBeInTheDocument();
+  });
+
+  it("shows a per-row 'open details' button when the sidePanel module is on", () => {
+    renderWithProviders(<IssueGrid projectId="p1" />, { client: seed([issue()], { sidePanel: true }) });
+    const open = screen.getByRole("button", { name: "Open details for Alpha task" });
+    expect(open).toBeInTheDocument();
+    // Clicking routes into the side-panel store — it must not throw.
+    fireEvent.click(open);
+  });
+
+  it("edits a status cell via the select editor and writes the new status through", async () => {
+    const client = seed([issue({ status: "todo" })]);
+    renderWithProviders(<IssueGrid projectId="p1" />, { client });
+    fireEvent.click(screen.getByRole("button", { name: "Edit Status for Alpha task" }));
+    const select = screen.getByLabelText("Status for Alpha task");
+    fireEvent.change(select, { target: { value: "done" } });
+    fireEvent.blur(select); // commits on blur
+    await waitFor(() => expect(mutatingCalls().length).toBeGreaterThan(0));
+    expect(String((mutatingCalls().at(-1)![1] as RequestInit).body)).toContain("done");
+    await waitFor(() => expect(client.isMutating() + client.isFetching()).toBe(0));
+  });
+
+  it("does not write when a cell is committed with its value unchanged", () => {
+    renderWithProviders(<IssueGrid projectId="p1" />, { client: seed([issue({ title: "Alpha task" })]) });
+    fireEvent.click(screen.getByRole("button", { name: "Edit Title for Alpha task" }));
+    const input = screen.getByLabelText("Title for Alpha task");
+    fireEvent.keyDown(input, { key: "Enter" }); // Enter with the same value
+    expect(mutatingCalls().length).toBe(0);
+    // The editor closes even on a no-op commit.
+    expect(screen.queryByLabelText("Title for Alpha task")).toBeNull();
+  });
+
+  it("renders type-appropriate editors for date and number columns", () => {
+    const fullAvail: Availability = {
+      source: "capabilities",
+      fields: ["title", "startDate", "storyPoints"],
+      available: ["title", "startDate", "storyPoints"],
+      hidden: [],
+      tables: [],
+      relationships: [],
+    };
+    SEEDED = [issue({ startDate: "2026-01-01", storyPoints: 3 })];
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
+    qc.setQueryData(getGetProjectIssuesQueryKey("p1"), SEEDED);
+    qc.setQueryData(availabilityQueryKey, fullAvail);
+    qc.setQueryData(featuresQueryKey(), [] satisfies FeatureStatus[]);
+    qc.setQueryData(savedViewsQueryKey, []);
+    renderWithProviders(<IssueGrid projectId="p1" />, { client: qc });
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Start for Alpha task" }));
+    expect(screen.getByLabelText("Start for Alpha task")).toHaveAttribute("type", "date");
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Points for Alpha task" }));
+    expect(screen.getByLabelText("Points for Alpha task")).toHaveAttribute("type", "number");
   });
 });
 

@@ -150,4 +150,58 @@ describe("AgileBoard interactions", () => {
     expect(screen.getByTestId("column-in_progress")).toHaveTextContent("Build the thing");
     expect(screen.getByTestId("column-done")).not.toHaveTextContent("Build the thing");
   });
+
+  it("shows an EDIT CONFLICT toast (not a generic error) when the move comes back 409", async () => {
+    mockFetchRouter({
+      "/api/projects/proj-1/issues": { ok: true, body: [inProgressIssue] },
+      "/api/projects/proj-1/issues/iss-1": { ok: false, status: 409 },
+    });
+    renderWithProviders(<><AgileBoard projectId="proj-1" /><Toaster /></>, { client: seeded([inProgressIssue]) });
+    dragIssueToDone();
+
+    expect(await screen.findByText("EDIT CONFLICT")).toBeInTheDocument();
+    expect(screen.getByText(/refreshed instead of overwriting/i)).toBeInTheDocument();
+  });
+
+  it("opens the edit dialog when a card is focused and Enter is pressed (keyboard access)", async () => {
+    renderWithProviders(<AgileBoard projectId="proj-1" />, { client: seeded([inProgressIssue]) });
+    fireEvent.keyDown(screen.getByTestId("issue-card-iss-1"), { key: "Enter" });
+    expect(await screen.findByText("EDIT ISSUE")).toBeInTheDocument();
+  });
+
+  it("renders a card's labels and an assignee avatar initial", () => {
+    renderWithProviders(<AgileBoard projectId="proj-1" />, {
+      client: seeded([issue({ id: "iss-2", title: "Tagged", status: "todo", labels: ["bug", "ui"], assignee: "grace" })]),
+    });
+    expect(screen.getByText("bug")).toBeInTheDocument();
+    expect(screen.getByText("ui")).toBeInTheDocument();
+    // Assignee avatar shows the uppercased first initial.
+    expect(screen.getByTitle("grace")).toHaveTextContent("G");
+  });
+
+  it("dropping a card back onto its own column is a no-op (no move, no toast)", () => {
+    const calls = mockFetchRouter({ "/api/projects/proj-1/issues": { ok: true, body: [inProgressIssue] } });
+    renderWithProviders(<><AgileBoard projectId="proj-1" /><Toaster /></>, { client: seeded([inProgressIssue]) });
+    const dt = makeDataTransfer();
+    fireEvent.dragStart(screen.getByTestId("issue-card-iss-1"), { dataTransfer: dt });
+    fireEvent.drop(screen.getByTestId("column-in_progress"), { dataTransfer: dt });
+    // Same status → moveIssue returns early; nothing is PATCHed.
+    expect(calls.some((c) => c.init?.method === "PATCH")).toBe(false);
+  });
+
+  it("highlights a column while a card is dragged over it and clears on leave", () => {
+    renderWithProviders(<AgileBoard projectId="proj-1" />, { client: seeded([inProgressIssue]) });
+    const column = screen.getByTestId("column-done");
+    fireEvent.dragOver(column);
+    expect(column.className).toMatch(/border-primary/);
+    fireEvent.dragLeave(column);
+    expect(column.className).not.toMatch(/border-primary/);
+  });
+
+  it("opens the create dialog from the empty-column '+ Add' button", async () => {
+    renderWithProviders(<AgileBoard projectId="proj-1" />, { client: seeded([]) });
+    // With no issues every column is empty, so each renders the dashed "+ Add" affordance.
+    fireEvent.click(screen.getAllByRole("button", { name: "+ Add" })[0]!);
+    expect(await screen.findByText("NEW ISSUE")).toBeInTheDocument();
+  });
 });

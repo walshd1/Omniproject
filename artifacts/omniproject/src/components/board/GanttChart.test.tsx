@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
@@ -8,7 +8,8 @@ import {
   type Issue,
   type Capabilities,
 } from "@workspace/api-client-react";
-import { renderWithProviders } from "../../test/utils";
+import { renderWithProviders, mockFetchRouter, resetFetchMock } from "../../test/utils";
+import { Toaster } from "../ui/toaster";
 import { GanttChart } from "./GanttChart";
 
 const PROJECT_ID = "proj-1";
@@ -200,5 +201,52 @@ describe("GanttChart", () => {
     // No reschedule happened.
     const after = (qc.getQueryData<Issue[]>(getGetProjectIssuesQueryKey(PROJECT_ID)) ?? [])[0]!.startDate;
     expect(after).toEqual(before);
+  });
+
+  it("draws the 'today' marker when today falls inside the timeline span", () => {
+    renderWithProviders(<GanttChart projectId={PROJECT_ID} />, {
+      client: seeded([issue({ id: "a", title: "Spans today", startDate: isoDaysFromNow(-2), dueDate: isoDaysFromNow(3) })]),
+    });
+    expect(screen.getByTitle("Today")).toBeInTheDocument();
+  });
+
+  it("does not draw the 'today' marker when the whole timeline is in the future", () => {
+    renderWithProviders(<GanttChart projectId={PROJECT_ID} />, {
+      client: seeded([issue({ id: "a", title: "Future work", startDate: isoDaysFromNow(5), dueDate: isoDaysFromNow(9) })]),
+    });
+    expect(screen.queryByTitle("Today")).toBeNull();
+  });
+
+  describe("reschedule commit", () => {
+    afterEach(() => resetFetchMock());
+
+    it("shows a RESCHEDULED toast after a successful drag-commit", async () => {
+      const qc = draggableClient();
+      const moved = issue({ id: "a", title: "Design API", startDate: isoDaysFromNow(41), dueDate: isoDaysFromNow(45), version: 4 });
+      mockFetchRouter({
+        [`/api/projects/${PROJECT_ID}/issues`]: { ok: true, body: [moved] },
+        [`/api/projects/${PROJECT_ID}/issues/a`]: { ok: true, body: moved },
+      });
+      renderWithProviders(<><GanttChart projectId={PROJECT_ID} /><Toaster /></>, { client: qc });
+      const bar = screen.getByTestId("gantt-bar-a");
+      pointer(bar, "pointerdown", 100);
+      pointer(bar, "pointermove", 140); // > 3px slop → a real drag
+      pointer(bar, "pointerup", 140);
+      expect(await screen.findByText("RESCHEDULED")).toBeInTheDocument();
+    });
+
+    it("reverts and shows an ERROR toast when the reschedule write fails", async () => {
+      const qc = draggableClient();
+      mockFetchRouter({
+        [`/api/projects/${PROJECT_ID}/issues`]: { ok: true, body: [issue({ id: "a", title: "Design API", startDate: isoDaysFromNow(1), dueDate: isoDaysFromNow(5), version: 3 })] },
+        [`/api/projects/${PROJECT_ID}/issues/a`]: { ok: false, status: 500 },
+      });
+      renderWithProviders(<><GanttChart projectId={PROJECT_ID} /><Toaster /></>, { client: qc });
+      const bar = screen.getByTestId("gantt-bar-a");
+      pointer(bar, "pointerdown", 100);
+      pointer(bar, "pointermove", 140);
+      pointer(bar, "pointerup", 140);
+      expect(await screen.findByText("ERROR")).toBeInTheDocument();
+    });
   });
 });
