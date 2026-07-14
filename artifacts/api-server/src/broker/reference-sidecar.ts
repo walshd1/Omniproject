@@ -10,6 +10,11 @@
  *
  *   1. CI fixture — http-conformance.test.ts runs the conformance suite against it.
  *   2. Author template — `pnpm --filter @workspace/api-server run sidecar`.
+ *
+ * At massive scale a real (DB-backed) sidecar adds connection pooling, hot-key indexes, keyset
+ * pagination, partitioning, materialised rollups, and backpressure — see the "Scaling the sidecar"
+ * section of docs/ops/DATABASE-BACKENDS.md. This template models the backpressure half (429 +
+ * Retry-After) so the wire contract the gateway backs off on is exercised in CI.
  */
 import http from "node:http";
 import { sealPayload } from "../lib/broker-psk";

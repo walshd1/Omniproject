@@ -78,6 +78,40 @@ If `SQL_SIDECAR_URL` is unset it falls back to a **non-persistent** in-memory st
 warning (never a silent "persist into nowhere"). Live verification against a real PostgreSQL sidecar
 is still yours to do — the contract is exercised in CI against a mock sidecar.
 
+## Scaling the sidecar at massive scale (10k projects / 1000 users)
+
+The gateway is a stateless overlay — it holds no DB and never over-fetches (portfolio reads are
+bounded/paged, exports stream, and repeated reads coalesce fleet-wide via the optional shared cache).
+So the scale tuning lives in **your sidecar**, over the same wire contract. The recipe:
+
+- **Connection pooling.** Put **pgbouncer (transaction mode)** in front of Postgres and size the
+  sidecar's own pool to `max_connections / replicas`. This is the single biggest lockout-avoider under
+  1000 concurrent users.
+- **Backpressure — 429 + `Retry-After`.** When the pool/queue saturates, reply **429** with a
+  `Retry-After` header. The gateway honours it: `callBroker` backs off (bounded, capped at 3s) and
+  re-sends a small fixed number of times, then surfaces a clean `rate_limited` (HTTP 429) — it never
+  hammers a struggling sidecar. (The reference sidecar demonstrates this via `SIDECAR_MAX_INFLIGHT`.)
+- **Indexes on the hot keys** the gateway filters/sorts by: `project_id`, `programme_id`, `status`,
+  `updated_at`, `assignee` — plus composites for common pairs (`(project_id, status)`,
+  `(programme_id, updated_at)`). The `updated_at` index is what makes the change-token cursor cheap.
+- **Keyset (cursor) pagination**, not `OFFSET`:
+  `WHERE updated_at < $cursor ORDER BY updated_at DESC LIMIT $n`. Return the last row's `updated_at`
+  as the next cursor. (The neutral `list_issues` contract returns a full project's issues today;
+  bounding it with an optional `{ limit, after }` cursor is the one forward-compatible contract
+  addition on the roadmap — until then, page inside the sidecar and keep result sets sane.)
+- **Read replicas.** Route reads to replicas, writes to the primary; the gateway's read-through + the
+  optional shared cache already cut read load.
+- **Partitioning.** Range-partition the big table (`issues`) by `updated_at` (or hash by programme) so
+  queries and vacuum stay fast at tens of millions of rows.
+- **Materialised rollups.** Back `get_portfolio_health` / `project_financials` with incrementally
+  refreshed materialised views/summary tables, so the portfolio aggregates become one indexed query
+  instead of a per-project scan.
+- **Hygiene.** Prepared statements, autovacuum tuning for the high-write tables, and a
+  `statement_timeout` so a runaway query can't pin a connection.
+
+None of this changes the gateway or the wire contract — a scaled sidecar still "drops in" (point
+`BROKER_URL`/`SQL_SIDECAR_URL` at it) and passes the same conformance suite.
+
 ## Bulk loading from a sheet first?
 
 If the legacy system can export a spreadsheet, you can also use the Excel/CSV
