@@ -6,7 +6,7 @@ import {
   type ProjectFinancials,
   type ResourceCapacity,
 } from "@workspace/api-client-react";
-import { convertAmount } from "../../lib/currency";
+import { convertAmount, isConvertible } from "../../lib/currency";
 import { usePortfolioItems } from "./use-portfolio-items";
 import { usePriorityWeights, DEFAULT_PRIORITY_WEIGHTS } from "../../lib/priority-weights-api";
 import { scorePortfolio, type ProjectPriorityInput, type ProjectPriorityScore, type PriorityWeights } from "../../lib/portfolio-priority";
@@ -55,7 +55,15 @@ export function usePortfolioPriority(): {
   const scored = useMemo(() => {
     const inputs: ProjectPriorityInput[] = projects.map((p, i) => {
       const fin = finByProject.data[i];
-      const cost = fin ? convertAmount(num(fin.budgetAllocated), String(fin.currency ?? ""), target, rates) : 0;
+      const finCur = String(fin?.currency ?? "");
+      // A KNOWN foreign budget currency with no FX rate to the reporting currency would otherwise pass
+      // its RAW amount through unchanged (convertAmount's no-rate fallback), inflating this project's
+      // cost — which distorts value-density, the funded-cost scenario total and the greedy funding
+      // pick. Treat that as unknown cost (0), the same state a project with no financials already has.
+      // An empty currency is assumed to already be in the reporting currency (unchanged behaviour).
+      const cost = fin && (finCur === "" || isConvertible(finCur, target, rates))
+        ? convertAmount(num(fin.budgetAllocated), finCur, target, rates)
+        : 0;
       const capacityHours = (capByProject.data[i] ?? []).reduce((s, r) => s + num(r.assignedHours), 0);
       return {
         projectId: p.projectId,
