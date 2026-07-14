@@ -65,7 +65,9 @@ export function PortfolioBenefits() {
           <p className="text-[11px] text-muted-foreground">
             Planned vs realised benefit value, consolidated into {target} and grouped by programme (worst realisation first).
             {fx?.provenance ? ` FX ${fx.provenance}${fx.asOf ? ` as of ${new Date(fx.asOf).toLocaleDateString("en-GB", { timeZone: "UTC" })}` : ""}.` : ""} Expected
-            is the confidence-weighted forecast. Derived live; nothing is stored.
+            is the confidence-weighted forecast.
+            {portfolio.excludedForFx > 0 ? ` ${portfolio.excludedForFx} project(s) with no FX rate to ${target} are excluded from the consolidated totals.` : ""}
+            {" "}Derived live; nothing is stored.
           </p>
         </div>
       )}

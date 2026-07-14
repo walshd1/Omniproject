@@ -34,6 +34,19 @@ describe("rollupIncome", () => {
     expect(eu.local).toEqual({ projected: 800, invoiced: 300 });
     expect(portfolio.localCurrency).toBe("EUR"); // portfolio also single-currency here
   });
+
+  it("EXCLUDES an FX-unconvertible row from the consolidated total (not add its raw foreign amount)", () => {
+    // JPY has no rate to GBP → its raw amount must NOT be summed into the GBP total (that would
+    // overstate it by 500000). The convertible GBP row stands alone; the JPY row is counted excluded.
+    const { portfolio } = rollupIncome([
+      proj({ projectId: "a", currency: "GBP", items: [{ id: "1", title: "t", revenue: 1000, invoicedAmount: 400 }] }),
+      proj({ projectId: "b", currency: "JPY", items: [{ id: "2", title: "t", revenue: 500000, invoicedAmount: 250000 }] }),
+    ], "GBP", RATES);
+    expect(portfolio.projected).toBe(1000); // JPY 500000 dropped, not added raw
+    expect(portfolio.invoiced).toBe(400);
+    expect(portfolio.projects).toBe(2);
+    expect(portfolio.excludedForFx).toBe(1);
+  });
 });
 
 describe("rollupBenefits", () => {
@@ -59,5 +72,15 @@ describe("rollupBenefits", () => {
     const mixed = programmes.find((p) => p.key === "mixed")!;
     expect(mixed.localCurrency).toBeNull();
     expect(mixed.local).toBeNull();
+  });
+
+  it("EXCLUDES an FX-unconvertible benefit row from the consolidated total", () => {
+    const { portfolio } = rollupBenefits([
+      proj({ projectId: "a", currency: "GBP", items: [{ id: "1", title: "t", plannedBenefitValue: 100, actualBenefitValue: 40, benefitConfidence: 100 }] }),
+      proj({ projectId: "b", currency: "JPY", items: [{ id: "2", title: "t", plannedBenefitValue: 900000, actualBenefitValue: 900000, benefitConfidence: 100 }] }),
+    ], "GBP", RATES);
+    expect(portfolio.planned).toBe(100); // JPY 900000 dropped, not added raw
+    expect(portfolio.actual).toBe(40);
+    expect(portfolio.excludedForFx).toBe(1);
   });
 });

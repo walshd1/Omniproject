@@ -1,4 +1,4 @@
-import { convertAmount, LocalTracker } from "./currency";
+import { convertAmount, isConvertible, LocalTracker } from "./currency";
 import { round2 } from "./num";
 import { summariseIncome, type IncomeInput } from "./income";
 import { summariseBenefits, type BenefitInput } from "./benefits";
@@ -48,6 +48,9 @@ export interface IncomeRollup {
   localCurrency: string | null;
   /** Un-converted totals in `localCurrency` — present only while the row is single-currency. */
   local: LocalIncomeTotals | null;
+  /** Projects excluded from the consolidated total because their currency has no rate to the
+   *  reporting currency (summing the raw foreign amount would corrupt the total). */
+  excludedForFx: number;
 }
 
 interface WorkingIncomeRollup extends IncomeRollup {
@@ -55,7 +58,7 @@ interface WorkingIncomeRollup extends IncomeRollup {
 }
 
 function blankIncome(key: string, label: string): WorkingIncomeRollup {
-  return { key, label, projects: 0, projected: 0, invoiced: 0, unbilled: 0, billedPct: 0, localCurrency: null, local: null, _tracker: new LocalTracker() };
+  return { key, label, projects: 0, projected: 0, invoiced: 0, unbilled: 0, billedPct: 0, localCurrency: null, local: null, excludedForFx: 0, _tracker: new LocalTracker() };
 }
 
 function finaliseIncome(r: WorkingIncomeRollup): IncomeRollup {
@@ -69,6 +72,7 @@ function finaliseIncome(r: WorkingIncomeRollup): IncomeRollup {
     billedPct: r.projected > 0 ? Math.round((r.invoiced / r.projected) * 1000) / 10 : 0,
     localCurrency: r._tracker.currency,
     local: r.local ? { projected: round2(r.local.projected), invoiced: round2(r.local.invoiced) } : null,
+    excludedForFx: r.excludedForFx,
   };
 }
 
@@ -79,12 +83,20 @@ export function rollupIncome(projects: ProjectItems[], reportingCurrency: string
   for (const p of projects) {
     const s = summariseIncome(p.items);
     const conv = (n: number) => convertAmount(n, p.currency, reportingCurrency, rates);
+    // Only fold into the consolidated (reporting-currency) total when the row can actually be
+    // converted — convertAmount passes an amount through UNCHANGED when a rate is missing, so summing
+    // it would add a raw foreign amount to the total (matches fold in portfolio-finance / the backend).
+    const convertible = isConvertible(p.currency, reportingCurrency, rates);
     const { key, label } = groupKeyLabel(p);
     const row = groups.get(key) ?? blankIncome(key, label);
     for (const acc of [row, portfolio]) {
       acc.projects += 1;
-      acc.projected += conv(s.projected);
-      acc.invoiced += conv(s.invoiced);
+      if (convertible) {
+        acc.projected += conv(s.projected);
+        acc.invoiced += conv(s.invoiced);
+      } else {
+        acc.excludedForFx += 1;
+      }
       if (acc._tracker.add(p.currency)) {
         const local = acc.local ?? { projected: 0, invoiced: 0 };
         local.projected += s.projected;
@@ -125,6 +137,9 @@ export interface BenefitsRollup {
   localCurrency: string | null;
   /** Un-converted totals in `localCurrency` — present only while the row is single-currency. */
   local: LocalBenefitTotals | null;
+  /** Projects excluded from the consolidated total because their currency has no rate to the
+   *  reporting currency (summing the raw foreign amount would corrupt the total). */
+  excludedForFx: number;
 }
 
 interface WorkingBenefitsRollup extends BenefitsRollup {
@@ -132,7 +147,7 @@ interface WorkingBenefitsRollup extends BenefitsRollup {
 }
 
 function blankBenefits(key: string, label: string): WorkingBenefitsRollup {
-  return { key, label, projects: 0, planned: 0, actual: 0, expected: 0, realisation: 0, localCurrency: null, local: null, _tracker: new LocalTracker() };
+  return { key, label, projects: 0, planned: 0, actual: 0, expected: 0, realisation: 0, localCurrency: null, local: null, excludedForFx: 0, _tracker: new LocalTracker() };
 }
 
 function finaliseBenefits(r: WorkingBenefitsRollup): BenefitsRollup {
@@ -146,6 +161,7 @@ function finaliseBenefits(r: WorkingBenefitsRollup): BenefitsRollup {
     realisation: r.planned > 0 ? Math.round((r.actual / r.planned) * 1000) / 10 : 0,
     localCurrency: r._tracker.currency,
     local: r.local ? { planned: round2(r.local.planned), actual: round2(r.local.actual), expected: round2(r.local.expected) } : null,
+    excludedForFx: r.excludedForFx,
   };
 }
 
@@ -156,13 +172,19 @@ export function rollupBenefits(projects: ProjectItems[], reportingCurrency: stri
   for (const p of projects) {
     const s = summariseBenefits(p.items);
     const conv = (n: number) => convertAmount(n, p.currency, reportingCurrency, rates);
+    // Drop FX-unconvertible rows from the consolidated total (see the income roll-up above).
+    const convertible = isConvertible(p.currency, reportingCurrency, rates);
     const { key, label } = groupKeyLabel(p);
     const row = groups.get(key) ?? blankBenefits(key, label);
     for (const acc of [row, portfolio]) {
       acc.projects += 1;
-      acc.planned += conv(s.totalPlanned);
-      acc.actual += conv(s.totalActual);
-      acc.expected += conv(s.expectedValue);
+      if (convertible) {
+        acc.planned += conv(s.totalPlanned);
+        acc.actual += conv(s.totalActual);
+        acc.expected += conv(s.expectedValue);
+      } else {
+        acc.excludedForFx += 1;
+      }
       if (acc._tracker.add(p.currency)) {
         const local = acc.local ?? { planned: 0, actual: 0, expected: 0 };
         local.planned += s.totalPlanned;

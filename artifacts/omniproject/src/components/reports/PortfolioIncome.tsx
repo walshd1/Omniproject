@@ -65,7 +65,9 @@ export function PortfolioIncome() {
           <p className="text-[11px] text-muted-foreground">
             Projected income vs invoiced, consolidated into {target} and grouped by programme.
             {fx?.provenance ? ` FX ${fx.provenance}${fx.asOf ? ` as of ${new Date(fx.asOf).toLocaleDateString("en-GB", { timeZone: "UTC" })}` : ""}.` : ""} The
-            unbilled column is revenue still to bill. Derived live; nothing is stored.
+            unbilled column is revenue still to bill.
+            {portfolio.excludedForFx > 0 ? ` ${portfolio.excludedForFx} project(s) with no FX rate to ${target} are excluded from the consolidated totals.` : ""}
+            {" "}Derived live; nothing is stored.
           </p>
         </div>
       )}
