@@ -138,3 +138,16 @@ export function __resetKms(): void {
   configKeyCache = null;
   initialised = false;
 }
+
+/**
+ * ACTIVE zeroisation of the KMS-unwrapped ROOT keys — the most sensitive bytes in the process.
+ * Overwrites each key Buffer with zeros before dropping it, so the config-at-rest / vault root key
+ * can't be lifted from a memory image captured after a graceful shutdown. Called by the shutdown
+ * cleanse (lib/wipe). Leaves `initialised` set so a post-cleanse code path can't silently re-unwrap.
+ */
+export function zeroizeKmsKeys(): void {
+  vaultKeyCache?.fill(0);
+  configKeyCache?.fill(0);
+  vaultKeyCache = null;
+  configKeyCache = null;
+}

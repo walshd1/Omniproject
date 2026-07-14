@@ -40,6 +40,20 @@ export function deriveKey(secret: string, info: string): Buffer {
 const legacyCache = new Map<string, Buffer>();
 
 /**
+ * ACTIVE zeroisation of every derived AES key held in memory — overwrites each key Buffer's bytes
+ * with zeros, then drops the references. Unlike clearing a Map of strings (which only removes
+ * references and waits for GC), `Buffer.fill(0)` scrubs the actual bytes, so a core dump / memory
+ * capture taken AFTER a graceful shutdown can't recover the derived session/broker keys. Called by
+ * the shutdown cleanse (lib/wipe); safe to call more than once.
+ */
+export function zeroizeKeyCaches(): void {
+  for (const key of keyCache.values()) key.fill(0);
+  keyCache.clear();
+  for (const key of legacyCache.values()) key.fill(0);
+  legacyCache.clear();
+}
+
+/**
  * LEGACY derivation: sha256(secret) → 32-byte key, cached by secret. Retained ONLY so envelopes
  * sealed before the HKDF migration (session "v1.", broker "p1.") can still be opened. New code
  * should use `deriveKey(secret, info)`.

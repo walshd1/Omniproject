@@ -108,28 +108,34 @@ const cleanScanMode = (v: unknown): SwitchScanMode => (SCAN_MODES.includes(v as 
 const cleanMobileMode = (v: unknown): MobileMode => (MOBILE_MODES.includes(v as MobileMode) ? (v as MobileMode) : "auto");
 const cleanDensity = (v: unknown): Density => (DENSITIES.includes(v as Density) ? (v as Density) : "comfortable");
 
+/** Coerce an arbitrary object (localStorage value OR an imported profile file) into valid prefs,
+ *  filling every missing/invalid field from the defaults. Never trusts the input's shape. */
+export function coerceA11yPrefs(input: unknown): A11yPrefs {
+  const p = (input ?? {}) as Partial<A11yPrefs>;
+  return {
+    fontScale: typeof p.fontScale === "number" ? clampScale(p.fontScale) : DEFAULT_A11Y.fontScale,
+    fontFamily: cleanFontFamily(p.fontFamily),
+    accentColor: cleanColor(p.accentColor),
+    backgroundColor: cleanColor(p.backgroundColor),
+    highContrast: !!p.highContrast,
+    reduceMotion: !!p.reduceMotion,
+    switchScan: cleanScanMode(p.switchScan),
+    scanRateMs: typeof p.scanRateMs === "number" ? clampScan(p.scanRateMs) : DEFAULT_A11Y.scanRateMs,
+    screenReader: !!p.screenReader,
+    speechInput: !!p.speechInput,
+    mobileMode: cleanMobileMode(p.mobileMode),
+    density: cleanDensity(p.density),
+    scopedOverrides: cleanScopedOverrides(p.scopedOverrides),
+  };
+}
+
 /** Read prefs from localStorage, falling back to defaults on anything unexpected. */
 export function loadA11yPrefs(): A11yPrefs {
   if (typeof localStorage === "undefined") return DEFAULT_A11Y;
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULT_A11Y;
-    const p = JSON.parse(raw) as Partial<A11yPrefs>;
-    return {
-      fontScale: typeof p.fontScale === "number" ? clampScale(p.fontScale) : DEFAULT_A11Y.fontScale,
-      fontFamily: cleanFontFamily(p.fontFamily),
-      accentColor: cleanColor(p.accentColor),
-      backgroundColor: cleanColor(p.backgroundColor),
-      highContrast: !!p.highContrast,
-      reduceMotion: !!p.reduceMotion,
-      switchScan: cleanScanMode(p.switchScan),
-      scanRateMs: typeof p.scanRateMs === "number" ? clampScan(p.scanRateMs) : DEFAULT_A11Y.scanRateMs,
-      screenReader: !!p.screenReader,
-      speechInput: !!p.speechInput,
-      mobileMode: cleanMobileMode(p.mobileMode),
-      density: cleanDensity(p.density),
-      scopedOverrides: cleanScopedOverrides(p.scopedOverrides),
-    };
+    return coerceA11yPrefs(JSON.parse(raw));
   } catch {
     return DEFAULT_A11Y; // corrupt value ⇒ company defaults, no impact
   }
@@ -182,6 +188,8 @@ interface A11yContextValue {
   setDensity: (d: Density) => void;
   /** Persist (or clear, with null) a SAVED per-scope theme override to the user's profile. */
   setSavedScope: (scopeId: string, override: ScopedOverride | null) => void;
+  /** Replace ALL prefs from an imported profile object (validated), then persist + sync. */
+  importProfile: (raw: unknown) => void;
   reset: () => void;
 }
 
@@ -254,6 +262,7 @@ export function A11yProvider({ children }: { children: ReactNode }) {
       else next[scopeId] = clean;
       change({ ...prefs, scopedOverrides: next });
     },
+    importProfile: (raw) => change(coerceA11yPrefs(raw)),
     reset: () => change(DEFAULT_A11Y),
   };
   return <A11yContext.Provider value={value}>{children}</A11yContext.Provider>;

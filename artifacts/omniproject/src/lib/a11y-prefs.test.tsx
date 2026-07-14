@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { loadA11yPrefs, applyA11yPrefs, DEFAULT_A11Y, A11yProvider } from "./a11y-prefs";
+import { loadA11yPrefs, applyA11yPrefs, coerceA11yPrefs, DEFAULT_A11Y, A11yProvider } from "./a11y-prefs";
 import { PlatformProvider } from "./platform-context";
 import { A11yControls } from "../components/settings/A11yControls";
 
@@ -74,6 +74,31 @@ describe("a11y-prefs store", () => {
   it("ignores an unknown font family (falls back to the brand font)", () => {
     localStorage.setItem("omni:a11y", JSON.stringify({ fontFamily: "comic-sans" }));
     expect(loadA11yPrefs().fontFamily).toBeNull();
+  });
+
+  it("coerceA11yPrefs validates an imported profile field-by-field (portable .omniprofile)", () => {
+    // A hand-authored/imported profile with a mix of good + bad fields is cleaned, never trusted.
+    const imported = coerceA11yPrefs({
+      fontScale: 99, fontFamily: "serif", accentColor: "#123456", density: "compact",
+      backgroundColor: "not-a-colour", switchScan: "bogus", scopedOverrides: { "screen:reports": { accentColor: "#00ff00" }, "__proto__": { accentColor: "#fff" } },
+      somethingUnknown: true,
+    });
+    expect(imported.fontScale).toBe(1.5); // clamped
+    expect(imported.fontFamily).toBe("serif");
+    expect(imported.accentColor).toBe("#123456");
+    expect(imported.density).toBe("compact");
+    expect(imported.backgroundColor).toBeNull(); // invalid → null
+    expect(imported.switchScan).toBe("off"); // invalid → default
+    expect(imported.scopedOverrides["screen:reports"].accentColor).toBe("#00ff00");
+    expect(Object.prototype.hasOwnProperty.call(imported.scopedOverrides, "__proto__")).toBe(false);
+    expect("somethingUnknown" in imported).toBe(false); // unknown keys dropped
+  });
+
+  it("coerceA11yPrefs on empty/garbage input returns the defaults (export→import round-trips)", () => {
+    expect(coerceA11yPrefs(null)).toEqual(DEFAULT_A11Y);
+    expect(coerceA11yPrefs("garbage")).toEqual(DEFAULT_A11Y);
+    // A profile exported from defaults re-imports identically.
+    expect(coerceA11yPrefs(JSON.parse(JSON.stringify(DEFAULT_A11Y)))).toEqual(DEFAULT_A11Y);
   });
 
   it("defaults density to comfortable and round-trips a stored compact value", () => {
@@ -187,6 +212,17 @@ describe("A11yControls", () => {
 
     fireEvent.change(screen.getByLabelText("Switch-access scanning"), { target: { value: "off" } });
     expect(screen.queryByLabelText("Auto-scan dwell time")).not.toBeInTheDocument();
+  });
+
+  it("imports a portable profile file, applies it, and persists it", async () => {
+    render(<Providers><A11yControls /></Providers>);
+    const file = new File([JSON.stringify({ fontScale: 1.3, accentColor: "#0000ff", fontFamily: "serif" })], "p.omniprofile.json", { type: "application/json" });
+    fireEvent.change(screen.getByLabelText("Import profile file"), { target: { files: [file] } });
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue("--user-font-scale")).toBe("1.3"));
+    expect(document.documentElement.style.getPropertyValue("--user-accent")).toBe("240 100% 50%"); // #0000ff
+    const persisted = JSON.parse(localStorage.getItem("omni:a11y")!);
+    expect(persisted.accentColor).toBe("#0000ff");
+    expect(persisted.fontFamily).toBe("serif");
   });
 
   it("changes the mobile layout mode and reflects whether the layout is currently mobile", () => {

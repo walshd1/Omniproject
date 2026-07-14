@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -41,8 +42,33 @@ const DENSITY_OPTIONS: { value: Density; label: string }[] = [
 export function A11yControls() {
   const {
     prefs, setFontScale, setFontFamily, setAccentColor, setBackgroundColor, toggleHighContrast, toggleReduceMotion,
-    setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput, setMobileMode, setDensity, reset,
+    setSwitchScan, setScanRate, toggleScreenReader, toggleSpeechInput, setMobileMode, setDensity, importProfile, reset,
   } = useA11yPrefs();
+  const importRef = useRef<HTMLInputElement>(null);
+
+  // Portable profile — export the per-user settings JSON to a file (like a .vimrc/.bashrc) and
+  // import it on another instance. It carries only personal preferences, never credentials/access.
+  const exportProfile = (): void => {
+    const blob = new Blob([JSON.stringify(prefs, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "omniproject.omniprofile.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be re-selected later
+    if (!file) return;
+    try {
+      importProfile(JSON.parse(await file.text())); // validated field-by-field in coerceA11yPrefs
+    } catch {
+      /* not valid JSON — keep the current profile, no partial apply */
+    }
+  };
   const pct = Math.round(prefs.fontScale * 100);
   const speechSupported = isSpeechSupported();
   const { isMobile, platform } = usePlatform();
@@ -191,6 +217,27 @@ export function A11yControls() {
           >
             {MOBILE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+        </div>
+
+        <div className="space-y-2 border-t border-border pt-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <Label>Portable profile</Label>
+              <p className="text-xs text-muted-foreground">Export your settings to a file and import them on another instance (like a .vimrc). Personal preferences only — no credentials.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={exportProfile}>Export</Button>
+              <Button variant="outline" size="sm" onClick={() => importRef.current?.click()}>Import</Button>
+              <input
+                ref={importRef}
+                type="file"
+                accept="application/json,.json"
+                className="sr-only"
+                aria-label="Import profile file"
+                onChange={onImportFile}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="flex justify-end border-t border-border pt-4">
