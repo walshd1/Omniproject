@@ -45,14 +45,18 @@ export default defineConfig({
         "src/.generated/**",
       ],
       // Ratchet: floors set just below measured coverage to prevent regressions.
-      // Measured (vitest/@vitest/coverage-v8 4.1.x): ~91% statements, ~83% branches,
-      // ~88% functions, ~93% lines. Floors sit a couple points under each to absorb
-      // run-to-run variance while still catching a real regression. Raise as coverage grows.
+      // After a large test push (≈+700 tests across the lowest-covered files), a full
+      // instrumented run measured 93% statements / 86% branches / 90% functions / 95% lines,
+      // and coverage has only risen since. Floors sit ~1-2 points under those proven numbers
+      // to absorb run-to-run variance while still catching a real regression. NOTE: a literal
+      // 95% branch floor is not yet attainable — a real slice of the remaining uncovered
+      // branches are unreachable under jsdom (SSR `typeof window` guards, non-Error catch arms,
+      // recharts render-props); reaching 95 branches needs those guards pruned/ignored in source.
       thresholds: {
-        statements: 88,
-        branches: 80,
-        functions: 85,
-        lines: 91,
+        statements: 92,
+        branches: 85,
+        functions: 89,
+        lines: 94,
       },
     },
   },
