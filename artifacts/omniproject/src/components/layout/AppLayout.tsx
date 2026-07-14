@@ -7,6 +7,7 @@ import { IssueSidePanel } from "../sidepanel/IssueSidePanel";
 import { GlobalSearch } from "../search/GlobalSearch";
 import { GlobalSearchTrigger } from "../search/GlobalSearchTrigger";
 import { NotificationsBell } from "../NotificationsBell";
+import { DataQualityBadge } from "../DataQualityBadge";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
 import { LogOut, Menu, ChevronDown, ShieldCheck, Flag } from "lucide-react";
@@ -259,6 +260,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500 animate-pulse"}`}></div>
               <span className="text-xs font-bold tracking-widest">{connected ? t("header.connected") : t("header.offline")}</span>
             </div>
+            <DataQualityBadge />
             <GlobalSearchTrigger />
             <button
               type="button"

@@ -46,6 +46,16 @@ export function setFetchInterceptor(fn: FetchInterceptor | null): void {
   _interceptor = fn;
 }
 
+/** Notified after every SUCCESSFUL response with its metadata — a read-only seam for cross-cutting
+ *  signals (e.g. the data-quality repair count the gateway reports in a response header) without
+ *  touching any generated hook's return shape. Never affects the response itself. */
+export type ResponseObserver = (meta: { url: string; method: string; status: number; headers: Headers }) => void;
+let _responseObserver: ResponseObserver | null = null;
+/** Install (or clear, with `null`) the response observer. */
+export function setResponseObserver(fn: ResponseObserver | null): void {
+  _responseObserver = fn;
+}
+
 /**
  * Set a base URL that is prepended to every relative request URL
  * (i.e. paths that start with `/`).
@@ -420,6 +430,11 @@ export async function customFetch<T = unknown>(
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
     throw new ApiError(response, errorData, requestInfo);
+  }
+
+  if (_responseObserver) {
+    try { _responseObserver({ url: requestInfo.url, method, status: response.status, headers: response.headers }); }
+    catch { /* an observer must never break a request */ }
   }
 
   return (await parseSuccessBody(response, responseType, requestInfo)) as T;

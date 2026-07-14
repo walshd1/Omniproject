@@ -10,6 +10,7 @@ import { A11yProvider } from "./lib/a11y-prefs";
 import { ThemeScopeProvider } from "./lib/theme-scope";
 import { PlatformProvider } from "./lib/platform-context";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { installDataQualityObserver } from "./lib/data-quality";
 import { ErrorTelemetrySync } from "./components/ErrorTelemetrySync";
 import { DevModeWatermark } from "./components/DevModeWatermark";
 import { ImpossibleTravelBanner } from "./components/ImpossibleTravelBanner";
@@ -57,6 +58,11 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function DataQualityObserver() {
+  useEffect(() => { installDataQualityObserver(); }, []);
+  return null;
+}
 
 function ThemeInitializer() {
   const theme = useStore(s => s.theme);
@@ -134,6 +140,7 @@ function App() {
         <PlatformProvider>
         <TooltipProvider>
           <ThemeInitializer />
+          <DataQualityObserver />
           <ErrorTelemetrySync />
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <ErrorBoundary>
