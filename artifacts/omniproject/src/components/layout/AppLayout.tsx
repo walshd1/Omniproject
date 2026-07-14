@@ -8,6 +8,7 @@ import { GlobalSearch } from "../search/GlobalSearch";
 import { GlobalSearchTrigger } from "../search/GlobalSearchTrigger";
 import { NotificationsBell } from "../NotificationsBell";
 import { DataQualityBadge } from "../DataQualityBadge";
+import { ApiPortalLink } from "../ApiPortalLink";
 import { useStore } from "../../store/useStore";
 import { useListProjects, useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
 import { LogOut, Menu, ChevronDown, ShieldCheck, Flag } from "lucide-react";
@@ -215,6 +216,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
         <div className="p-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
           <span>CMD+K TO SEARCH</span>
+          <ApiPortalLink />
         </div>
       </aside>
 

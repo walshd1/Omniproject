@@ -63,6 +63,19 @@ test("GET /discovery returns absolute self-URLs built from PUBLIC_URL", async ()
   assert.equal(body.openapi.url, "https://omni.example.com/api/openapi.yaml");
   assert.equal(body.brokerContract, "https://omni.example.com/api/contract");
   assert.equal(body.outputs.metrics, "https://omni.example.com/api/metrics");
+  // The portal is off by default, so discovery must NOT advertise a docs URL.
+  assert.equal((body as { docs?: string }).docs, undefined);
+});
+
+test("GET /discovery advertises the portal URL only when API_PORTAL_ENABLED is set", async () => {
+  process.env["API_PORTAL_ENABLED"] = "1";
+  try {
+    const r = await h.req("/discovery");
+    const body = (await r.json()) as { docs?: string };
+    assert.equal(body.docs, "https://omni.example.com/api/docs");
+  } finally {
+    delete process.env["API_PORTAL_ENABLED"];
+  }
 });
 
 test("GET /discovery degrades to RELATIVE paths when PUBLIC_URL is unset (baseUrl guard)", async () => {

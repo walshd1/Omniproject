@@ -58,6 +58,9 @@ router.get("/discovery", (req, res) => {
     description:
       "The stable, broker-agnostic consumer API. It lives above the swappable broker seam, so it stays the same regardless of which broker reaches your backends.",
     openapi: { format: "yaml", url: abs("/api/openapi.yaml") },
+    // The browsable API portal — present ONLY when an operator has opted in (API_PORTAL_ENABLED);
+    // its absence is how a client knows the portal isn't exposed on this deployment.
+    ...(envFlag("API_PORTAL_ENABLED") ? { docs: abs("/api/docs") } : {}),
     // The southbound contract a broker implements (the other half of the seam).
     brokerContract: abs("/api/contract"),
     auth: {
